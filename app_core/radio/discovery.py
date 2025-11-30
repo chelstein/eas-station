@@ -40,31 +40,32 @@ NOAA_WEATHER_FREQUENCIES = {
 }
 
 
-# Common SDR presets
+# Common SDR presets - SDR++ Server is the default/recommended option
 SDR_PRESETS = {
+    "noaa_weather_sdrpp": {
+        "name": "NOAA Weather Radio (SDR++ Server) - Recommended",
+        "driver": "sdrpp",
+        "frequency_hz": 162_550_000,  # WX7 - adjust based on your area
+        "sample_rate": 2_500_000,
+        "gain": None,  # Gain controlled in SDR++ application
+        "notes": "Default: Connect to SDR++ Server for NOAA Weather Radio. Set serial to tcp://hostname:5259",
+        "default": True,
+    },
     "noaa_weather_rtlsdr": {
-        "name": "NOAA Weather Radio (RTL-SDR)",
+        "name": "NOAA Weather Radio (RTL-SDR Direct)",
         "driver": "rtlsdr",
         "frequency_hz": 162_550_000,  # WX7 - adjust based on your area
         "sample_rate": 2_400_000,
         "gain": 49.6,
-        "notes": "Common setup for NOAA Weather Radio monitoring with RTL-SDR dongles",
+        "notes": "Direct USB connection for RTL-SDR dongles (requires USB passthrough)",
     },
     "noaa_weather_airspy": {
-        "name": "NOAA Weather Radio (Airspy)",
+        "name": "NOAA Weather Radio (Airspy Direct)",
         "driver": "airspy",
         "frequency_hz": 162_550_000,
         "sample_rate": 2_500_000,
         "gain": 21,
-        "notes": "Common setup for NOAA Weather Radio monitoring with Airspy receivers",
-    },
-    "noaa_weather_sdrpp": {
-        "name": "NOAA Weather Radio (SDR++ Server)",
-        "driver": "remote",
-        "frequency_hz": 162_550_000,
-        "sample_rate": 2_500_000,
-        "gain": None,  # Use SDR++ gain settings
-        "notes": "Connect to SDR++ Server for NOAA Weather Radio. Set serial to tcp://hostname:5259",
+        "notes": "Direct USB connection for Airspy receivers (requires USB passthrough)",
     },
 }
 
