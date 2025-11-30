@@ -312,11 +312,16 @@ def register(app: Flask, logger) -> None:
                         monthly_data[int(month) - 1] = count
                 stats_data["alert_by_month"] = monthly_data
 
+                # Filter to only include years from the last 5 years to exclude
+                # potentially corrupted data (e.g., 1970 from Unix epoch defaults)
+                from datetime import datetime
+                min_year = datetime.now().year - 5
                 alert_by_year = (
                     db.session.query(
                         func.extract("year", CAPAlert.sent).label("year"),
                         func.count(CAPAlert.id).label("count"),
                     )
+                    .filter(func.extract("year", CAPAlert.sent) >= min_year)
                     .group_by(func.extract("year", CAPAlert.sent))
                     .order_by(func.extract("year", CAPAlert.sent))
                     .all()
@@ -546,6 +551,11 @@ def register(app: Flask, logger) -> None:
                         if last_error and last_error.timestamp
                         else None,
                         "recent_runs": recent_runs,
+                        # Additional keys expected by the template
+                        "total_polls": total_runs,
+                        "successful_polls": successes,
+                        "failed_polls": failures,
+                        "avg_time_ms": avg_execution,
                     }
                 else:
                     stats_data["polling"] = {
@@ -553,6 +563,10 @@ def register(app: Flask, logger) -> None:
                         "total_runs": 0,
                         "failed_runs": 0,
                         "recent_runs": [],
+                        "total_polls": 0,
+                        "successful_polls": 0,
+                        "failed_polls": 0,
+                        "avg_time_ms": 0,
                     }
             except Exception as exc:
                 db.session.rollback()
@@ -562,6 +576,10 @@ def register(app: Flask, logger) -> None:
                     "total_runs": 0,
                     "failed_runs": 0,
                     "recent_runs": [],
+                    "total_polls": 0,
+                    "successful_polls": 0,
+                    "failed_polls": 0,
+                    "avg_time_ms": 0,
                 }
 
             stats_data.setdefault("boundary_stats", [])
