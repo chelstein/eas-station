@@ -146,6 +146,40 @@
         padding: var(--spacing-sm) var(--spacing-md);
     }
 
+    /* Mobile-specific snow emergency grid - ensure cards are visible on small screens */
+    @media (max-width: 576px) {
+        .snow-emergency-grid {
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            gap: 0.5rem;
+            padding: 0.5rem;
+        }
+        
+        .snow-emergency-header {
+            padding: 0.5rem;
+        }
+        
+        .snow-level-legend {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 0.5rem;
+            padding: 0.5rem;
+        }
+        
+        .snow-county-card {
+            padding: 0.5rem;
+        }
+        
+        .snow-county-name {
+            font-size: 0.75rem;
+            text-align: center;
+        }
+        
+        .snow-level-badge {
+            font-size: 0.65rem;
+            padding: 0.1rem 0.4rem;
+        }
+    }
+
     .snow-county-card {
         display: flex;
         flex-direction: column;

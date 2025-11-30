@@ -651,6 +651,13 @@ def register(app: Flask, logger) -> None:
     @app.route("/alerts")
     def alerts():
         try:
+            # Rollback any failed transaction before starting new queries
+            # This prevents "current transaction is aborted" errors
+            try:
+                db.session.rollback()
+            except Exception:
+                pass
+
             # Validate pagination parameters
             page = request.args.get("page", 1, type=int)
             page = max(1, page)  # Ensure page is at least 1
@@ -670,6 +677,78 @@ def register(app: Flask, logger) -> None:
                 "yes",
                 "on",
             }
+
+            # Fetch filter options and counts for the template
+            try:
+                statuses = [
+                    row[0] for row in
+                    db.session.query(CAPAlert.status)
+                    .filter(CAPAlert.status.isnot(None))
+                    .distinct()
+                    .order_by(CAPAlert.status)
+                    .all()
+                ]
+            except Exception:
+                db.session.rollback()
+                statuses = []
+
+            try:
+                severities = [
+                    row[0] for row in
+                    db.session.query(CAPAlert.severity)
+                    .filter(CAPAlert.severity.isnot(None))
+                    .distinct()
+                    .order_by(CAPAlert.severity)
+                    .all()
+                ]
+            except Exception:
+                db.session.rollback()
+                severities = []
+
+            try:
+                events = [
+                    row[0] for row in
+                    db.session.query(CAPAlert.event)
+                    .filter(CAPAlert.event.isnot(None))
+                    .distinct()
+                    .order_by(CAPAlert.event)
+                    .all()
+                ]
+            except Exception:
+                db.session.rollback()
+                events = []
+
+            try:
+                sources = [
+                    row[0] for row in
+                    db.session.query(CAPAlert.source)
+                    .filter(CAPAlert.source.isnot(None))
+                    .distinct()
+                    .order_by(CAPAlert.source)
+                    .all()
+                ]
+            except Exception:
+                db.session.rollback()
+                sources = []
+
+            # Get alert counts
+            try:
+                active_alerts = get_active_alerts_query().count()
+            except Exception:
+                db.session.rollback()
+                active_alerts = 0
+
+            try:
+                expired_alerts = get_expired_alerts_query().count()
+            except Exception:
+                db.session.rollback()
+                expired_alerts = 0
+
+            try:
+                total_alerts = CAPAlert.query.count()
+            except Exception:
+                db.session.rollback()
+                total_alerts = 0
 
             query = CAPAlert.query
 
@@ -822,6 +901,13 @@ def register(app: Flask, logger) -> None:
                 audio_map=audio_map,
                 manual_messages=manual_messages,
                 current_filters=current_filters,
+                statuses=statuses,
+                severities=severities,
+                events=events,
+                sources=sources,
+                active_alerts=active_alerts,
+                expired_alerts=expired_alerts,
+                total_alerts=total_alerts,
             )
         except Exception as exc:  # pragma: no cover - fallback content
             db.session.rollback()
