@@ -353,15 +353,16 @@ Download SDR++ from: https://www.sdrpp.org/
 
 **Linux (Debian/Ubuntu)**:
 ```bash
-# Download the AppImage
-wget https://github.com/AlexandreRouworxx/SDRPlusPlus/releases/download/nightly/sdrpp_ubuntu_jammy_amd64.tar.gz
-tar xzf sdrpp_ubuntu_jammy_amd64.tar.gz
-chmod +x sdrpp
+# Visit https://github.com/AlexandreRouworxx/SDRPlusPlus/releases for the latest version
+# Download the appropriate package for your distribution (AppImage, .deb, or tar.gz)
+# Example for Ubuntu 22.04:
+wget https://github.com/AlexandreRouworxx/SDRPlusPlus/releases/latest/download/sdrpp_ubuntu_jammy_amd64.deb
+sudo dpkg -i sdrpp_ubuntu_jammy_amd64.deb
 ```
 
-**Windows**: Download the installer from the SDR++ website
+**Windows**: Download the installer from the [SDR++ releases page](https://github.com/AlexandreRouworxx/SDRPlusPlus/releases)
 
-**Raspberry Pi**: Use the ARM64 build or compile from source
+**Raspberry Pi**: Use the ARM64 build from the releases page or compile from source
 
 #### 2. Enable the SDR++ Server Module
 

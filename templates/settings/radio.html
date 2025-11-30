@@ -1418,28 +1418,34 @@
             // For SDR++ Server, set a default TCP address, otherwise use serial
             if (driver === 'sdrpp') {
                 const serialField = document.getElementById('receiverSerial');
-                if (!serialField.value || !serialField.value.startsWith('tcp://')) {
+                if (serialField && (!serialField.value || !serialField.value.startsWith('tcp://'))) {
                     serialField.value = 'tcp://localhost:5259';
                 }
                 // Pre-fill display name if empty
                 const displayNameField = document.getElementById('receiverDisplayName');
-                if (!displayNameField.value) {
+                if (displayNameField && !displayNameField.value) {
                     displayNameField.value = 'SDR++ Server';
                 }
                 // Show helpful note
-                document.getElementById('receiverNotes').value = 'Connect to SDR++ Server. Change tcp://localhost:5259 to your server address.';
-                document.getElementById('receiverGain').value = ''; // Gain controlled by SDR++
-                document.getElementById('frequencyHelp').textContent = 'SDR++ Server - gain controlled in SDR++ application';
+                const notesField = document.getElementById('receiverNotes');
+                const gainField = document.getElementById('receiverGain');
+                const freqHelp = document.getElementById('frequencyHelp');
+                if (notesField) notesField.value = 'Connect to SDR++ Server. Change tcp://localhost:5259 to your server address.';
+                if (gainField) gainField.value = ''; // Gain controlled by SDR++
+                if (freqHelp) freqHelp.textContent = 'SDR++ Server - gain controlled in SDR++ application';
             } else {
-                document.getElementById('receiverSerial').value = selectedOption.dataset.serial || '';
+                const serialField = document.getElementById('receiverSerial');
+                if (serialField) serialField.value = selectedOption.dataset.serial || '';
             }
 
             // Auto-generate identifier from display name if creating new
-            if (!document.getElementById('receiverId').value) {
-                const displayName = document.getElementById('receiverDisplayName').value;
-                if (displayName) {
-                    const identifier = displayName.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
-                    document.getElementById('receiverIdentifier').value = identifier;
+            const receiverIdField = document.getElementById('receiverId');
+            if (receiverIdField && !receiverIdField.value) {
+                const displayNameField = document.getElementById('receiverDisplayName');
+                const identifierField = document.getElementById('receiverIdentifier');
+                if (displayNameField && identifierField && displayNameField.value) {
+                    const identifier = displayNameField.value.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+                    identifierField.value = identifier;
                 }
             }
 
@@ -2419,46 +2425,65 @@
         // Open the modal with SDR++ Server preset pre-filled
         openModal();
         
-        // Pre-fill with SDR++ Server settings
+        // Pre-fill with SDR++ Server settings after modal is rendered
         setTimeout(() => {
-            document.getElementById('receiverDisplayName').value = 'SDR++ Server';
-            document.getElementById('receiverIdentifier').value = 'sdrpp_server';
-            document.getElementById('receiverDriver').value = 'sdrpp';
-            document.getElementById('receiverSerial').value = 'tcp://localhost:5259';
-            document.getElementById('receiverFrequency').value = '162550000';
-            document.getElementById('receiverFrequencyInput').value = '162.550';
+            // Get all elements with null checks
+            const displayNameEl = document.getElementById('receiverDisplayName');
+            const identifierEl = document.getElementById('receiverIdentifier');
+            const driverEl = document.getElementById('receiverDriver');
+            const serialEl = document.getElementById('receiverSerial');
+            const frequencyEl = document.getElementById('receiverFrequency');
+            const frequencyInputEl = document.getElementById('receiverFrequencyInput');
+            const sampleRateSelect = document.getElementById('receiverSampleRate');
+            const gainEl = document.getElementById('receiverGain');
+            const modulationEl = document.getElementById('receiverModulation');
+            const freqDisplay = document.getElementById('frequencyDisplay');
+            const freqHelp = document.getElementById('frequencyHelp');
+            const deviceSelect = document.getElementById('receiverDevice');
+            const notesEl = document.getElementById('receiverNotes');
+            
+            // Safely set values with null checks
+            if (displayNameEl) displayNameEl.value = 'SDR++ Server';
+            if (identifierEl) identifierEl.value = 'sdrpp_server';
+            if (driverEl) driverEl.value = 'sdrpp';
+            if (serialEl) serialEl.value = 'tcp://localhost:5259';
+            if (frequencyEl) frequencyEl.value = '162550000';
+            if (frequencyInputEl) frequencyInputEl.value = '162.550';
             
             // Set sample rate dropdown
-            const sampleRateSelect = document.getElementById('receiverSampleRate');
-            sampleRateSelect.disabled = false;
-            sampleRateSelect.innerHTML = `
-                <option value="2500000" selected>2.5 MHz (2,500,000 Hz) ⭐ Recommended</option>
-                <option value="1024000">1.0 MHz (1,024,000 Hz)</option>
-                <option value="2400000">2.4 MHz (2,400,000 Hz)</option>
-            `;
+            if (sampleRateSelect) {
+                sampleRateSelect.disabled = false;
+                sampleRateSelect.innerHTML = `
+                    <option value="2500000" selected>2.5 MHz (2,500,000 Hz) ⭐ Recommended</option>
+                    <option value="1024000">1.0 MHz (1,024,000 Hz)</option>
+                    <option value="2400000">2.4 MHz (2,400,000 Hz)</option>
+                `;
+            }
             
             // Leave gain empty (controlled by SDR++)
-            document.getElementById('receiverGain').value = '';
+            if (gainEl) gainEl.value = '';
             
             // Set modulation to NFM for NOAA
-            document.getElementById('receiverModulation').value = 'NFM';
+            if (modulationEl) modulationEl.value = 'NFM';
             
             // Update frequency display
-            const freqDisplay = document.getElementById('frequencyDisplay');
-            freqDisplay.innerHTML = '<i class="fas fa-info-circle"></i> <strong>162.550 MHz</strong> (NOAA WX7)';
-            freqDisplay.className = 'alert alert-info mb-0';
+            if (freqDisplay) {
+                freqDisplay.innerHTML = '<i class="fas fa-info-circle"></i> <strong>162.550 MHz</strong> (NOAA WX7)';
+                freqDisplay.className = 'alert alert-info mb-0';
+            }
             
-            document.getElementById('frequencyHelp').textContent = 'SDR++ Server - gain controlled in SDR++ application';
+            if (freqHelp) freqHelp.textContent = 'SDR++ Server - gain controlled in SDR++ application';
             
             // Show device dropdown with SDR++ Server selected
-            const deviceSelect = document.getElementById('receiverDevice');
-            deviceSelect.innerHTML = `
-                <option value="sdrpp:" selected>SDR++ Server (Network) ⭐ Recommended</option>
-                <option value="">-- Or select USB device --</option>
-            `;
+            if (deviceSelect) {
+                deviceSelect.innerHTML = `
+                    <option value="sdrpp:" selected>SDR++ Server (Network) ⭐ Recommended</option>
+                    <option value="">-- Or select USB device --</option>
+                `;
+            }
             
             // Show helpful note
-            document.getElementById('receiverNotes').value = 'Connect to SDR++ Server. Change tcp://localhost:5259 to your server address.';
+            if (notesEl) notesEl.value = 'Connect to SDR++ Server. Change tcp://localhost:5259 to your server address.';
         }, 100);
     };
     
