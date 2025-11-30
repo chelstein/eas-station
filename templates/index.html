@@ -289,30 +289,6 @@
         background: #dc3545;
     }
 
-    .snow-emergency-info {
-        border: 1px solid var(--border-color);
-        border-radius: var(--radius-md);
-        background: var(--bg-color);
-    }
-
-    .snow-level-description-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-        gap: 0.75rem;
-    }
-
-    .snow-level-description {
-        padding: 0.75rem;
-        border: 1px solid var(--border-color);
-        border-radius: var(--radius-sm);
-        background: var(--light-color);
-    }
-
-    .snow-level-description strong {
-        display: block;
-        margin-bottom: 0.25rem;
-    }
-
     /* Snow Emergency Edit Modal */
     .snow-edit-county {
         padding: var(--spacing-sm);
@@ -862,20 +838,6 @@
             <span class="snow-legend-item level-1" role="listitem" aria-label="Level 1: Caution - Yellow indicator"><span class="snow-legend-dot level-1" aria-hidden="true"></span> Level 1 - Caution</span>
             <span class="snow-legend-item level-2" role="listitem" aria-label="Level 2: Emergency - Orange indicator"><span class="snow-legend-dot level-2" aria-hidden="true"></span> Level 2 - Emergency</span>
             <span class="snow-legend-item level-3" role="listitem" aria-label="Level 3: Roads Closed - Red indicator"><span class="snow-legend-dot level-3" aria-hidden="true"></span> Level 3 - Roads Closed</span>
-        </div>
-    </div>
-
-    <div id="snow-emergency-info" class="snow-emergency-info card my-3" style="display: none;">
-        <div class="card-body">
-            <div class="d-flex justify-content-between align-items-start">
-                <div>
-                    <h6 class="mb-1"><i class="fas fa-info-circle text-primary me-2"></i>What is a snow emergency?</h6>
-                    <p class="text-muted small mb-2">Levels are set by county sheriffs and tracked here for visibility. History is retained in the admin console.</p>
-                </div>
-                <span class="badge bg-light text-muted" id="snow-emergency-history-note">Loading policy details...</span>
-            </div>
-            <div class="snow-level-description-grid mt-3" id="snow-emergency-levels-list"></div>
-            <div class="text-muted small mt-3" id="snow-emergency-policy-note"></div>
         </div>
     </div>
 
@@ -2268,7 +2230,6 @@ async function loadSnowEmergencies() {
         const data = await response.json();
         snowEmergencyData = data;
         renderSnowEmergencyBanner(data);
-        renderSnowEmergencyInfo(data);
     } catch (error) {
         console.warn('Failed to load snow emergencies:', error);
     }
@@ -2299,45 +2260,6 @@ function renderSnowEmergencyBanner(data) {
             <span class="snow-level-badge level-${e.level}">${escapeHtml(e.level_name)}</span>
         </div>
     `).join('');
-}
-
-function renderSnowEmergencyInfo(data) {
-    const infoCard = document.getElementById('snow-emergency-info');
-    const levelsList = document.getElementById('snow-emergency-levels-list');
-
-    if (!infoCard || !levelsList) return;
-
-    const levels = data.levels || {};
-    const levelOrder = [0, 1, 2, 3].filter(level => levels[level]);
-
-    levelsList.innerHTML = levelOrder
-        .map(level => {
-            const info = levels[level];
-            const badgeTextColor = level === 1 ? '#000' : '#fff';
-            return `
-                <div class="snow-level-description">
-                    <span class="badge me-2" style="background: ${info.color}; color: ${badgeTextColor};">${escapeHtml(info.name)}</span>
-                    <strong>${escapeHtml(info.name)}</strong>
-                    <span class="text-muted small d-block">${escapeHtml(info.description)}</span>
-                </div>
-            `;
-        })
-        .join('');
-
-    const policyNote = document.getElementById('snow-emergency-policy-note');
-    if (policyNote) {
-        const optOutCount = (data.emergencies || []).filter(e => e.issues_emergencies === false).length;
-        policyNote.textContent = optOutCount > 0
-            ? `${optOutCount} tracked counties report that they do not issue snow emergencies.`
-            : 'All tracked counties can issue snow emergencies when conditions warrant.';
-    }
-
-    const historyNote = document.getElementById('snow-emergency-history-note');
-    if (historyNote) {
-        historyNote.textContent = 'Change history is viewable from the admin console.';
-    }
-
-    infoCard.style.display = 'block';
 }
 
 function escapeHtml(text) {
