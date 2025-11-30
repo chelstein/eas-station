@@ -115,6 +115,16 @@ class _SoapySDRReceiver(ReceiverInterface):
     """Common functionality for receivers implemented via SoapySDR."""
 
     driver_hint: str = ""
+    
+    # Minimum dynamic range threshold for valid RF signal
+    # Real RF signals typically have dynamic range > 1.5 (peak vs mean magnitude)
+    # DC offset or constant signal has ratio very close to 1.0
+    # Values below this threshold indicate potential hardware/configuration issues
+    _MIN_DYNAMIC_RANGE = 1.1
+    
+    # Small value to avoid division by zero in magnitude calculations
+    _MIN_MAGNITUDE = 1e-10
+    
     _SOAPY_ERROR_DESCRIPTIONS = {
         -1: "Timeout waiting for samples (SOAPY_SDR_TIMEOUT)",
         -2: "Stream reported a driver error (SOAPY_SDR_STREAM_ERROR)",
@@ -901,10 +911,8 @@ class _SoapySDRReceiver(ReceiverInterface):
                     # Log diagnostic warning if signal looks like DC or constant value
                     # which indicates potential SDR configuration or hardware issue
                     if max_magnitude > 0:
-                        dynamic_range = max_magnitude / max(magnitude, 1e-10)
-                        # A real RF signal should have dynamic range > 1.5
-                        # DC or constant output has dynamic range very close to 1.0
-                        if dynamic_range < 1.1 and self._stream_errors_count == 0:
+                        dynamic_range = max_magnitude / max(magnitude, self._MIN_MAGNITUDE)
+                        if dynamic_range < self._MIN_DYNAMIC_RANGE and self._stream_errors_count == 0:
                             # Only log once to avoid spam
                             self._interface_logger.warning(
                                 "Low dynamic range detected for %s (%.2f). "
