@@ -60,12 +60,34 @@ class RBDSData:
 class FMDemodulator:
     """FM demodulator with stereo decoding and RBDS extraction."""
 
+    # FM deviation constants for different modulation types
+    # These determine the audio gain scaling factor
+    FM_DEVIATION_HZ = {
+        'WFM': 75000,   # Broadcast FM: ±75 kHz deviation
+        'FM': 75000,    # Same as WFM
+        'NFM': 5000,    # Narrowband FM: ±5 kHz deviation (NOAA, two-way radio)
+    }
+
     def __init__(self, config: DemodulatorConfig):
         self.config = config
 
         # Previous complex sample for phase continuity
         self._prev_sample: Optional[np.complex64] = None
         self._sample_index: int = 0
+
+        # Calculate FM audio gain based on modulation type and sample rate
+        # The discriminator output is: phase_diff / π, which gives values in [-1, 1]
+        # For FM, the actual audio values are much smaller because:
+        #   phase_diff_per_sample = 2π × deviation / sample_rate
+        # We need to scale up by: sample_rate / (2 × deviation) to get full-scale audio
+        deviation_hz = self.FM_DEVIATION_HZ.get(config.modulation_type, 75000)
+        # The discriminator already divides by π, so we scale by:
+        # sample_rate / (2 × deviation) = the factor to convert frequency deviation to amplitude
+        self._audio_gain = config.sample_rate / (2.0 * deviation_hz)
+        
+        # Clamp gain to reasonable range to prevent extreme amplification
+        # Min gain of 1.0 (no attenuation), max of 50.0 (for very high sample rates)
+        self._audio_gain = max(1.0, min(50.0, self._audio_gain))
 
         # De-emphasis filter state
         self._deemph_alpha = 0.0
@@ -143,6 +165,15 @@ class FMDemodulator:
 
         if self.config.deemphasis_us > 0:
             audio = self._apply_deemphasis(audio)
+
+        # Apply FM audio gain to scale discriminator output to usable audio levels
+        # The raw discriminator output is very quiet for broadcast FM because the
+        # phase change per sample is small relative to the sample rate
+        audio = audio * self._audio_gain
+        
+        # Soft-clip to prevent harsh distortion on overmodulated signals
+        # Uses tanh for smooth limiting while preserving signal dynamics
+        audio = np.tanh(audio)
 
         return audio.astype(np.float32), rbds_data
 
