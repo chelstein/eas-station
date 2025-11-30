@@ -739,7 +739,15 @@ class _SoapySDRReceiver(ReceiverInterface):
         # Apply Hann window for spectral leakage reduction
         # Take the center samples if we have more than needed
         start_idx = (len(samples) - self._fft_size) // 2
-        windowed = samples[start_idx:start_idx + self._fft_size] * self._window
+        samples_slice = samples[start_idx:start_idx + self._fft_size]
+        
+        # Remove DC offset before FFT computation
+        # This is critical for high-powered FM stations where the DC component
+        # from the tuner's local oscillator leakage can dominate the spectrum
+        # and make everything else look like "garbage" (horizontal lines)
+        dc_removed = samples_slice - numpy_module.mean(samples_slice)
+        
+        windowed = dc_removed * self._window
 
         # FFT with zero-padding for better resolution (implicit in numpy if n > len)
         # Use fftshift to center DC at 0

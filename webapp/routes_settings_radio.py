@@ -1368,8 +1368,16 @@ def register(app: Flask, logger) -> None:
 
                 # Compute FFT
                 fft_size = min(len(iq_samples), 2048)
+                
+                # Remove DC offset before FFT computation
+                # This is critical for high-powered FM stations where the DC component
+                # from the tuner's local oscillator leakage can dominate the spectrum
+                # and make everything else look like "garbage" (horizontal lines)
+                samples_slice = iq_samples[:fft_size]
+                samples_for_fft = samples_slice - np.mean(samples_slice)
+                
                 window = np.hanning(fft_size)
-                windowed = iq_samples[:fft_size] * window
+                windowed = samples_for_fft * window
                 fft_result = np.fft.fftshift(np.fft.fft(windowed))
 
                 # Convert to magnitude (dB)
