@@ -805,20 +805,6 @@
         <div id="snow-emergency-grid" class="snow-emergency-grid"></div>
     </div>
 
-    <div id="snow-emergency-info" class="snow-emergency-info card my-3" style="display: none;">
-        <div class="card-body">
-            <div class="d-flex justify-content-between align-items-start">
-                <div>
-                    <h6 class="mb-1"><i class="fas fa-info-circle text-primary me-2"></i>What is a snow emergency?</h6>
-                    <p class="text-muted small mb-2">Levels are set by county sheriffs and tracked here for visibility. History is retained in the admin console.</p>
-                </div>
-                <span class="badge bg-light text-muted" id="snow-emergency-history-note">Loading policy details...</span>
-            </div>
-            <div class="snow-level-description-grid mt-3" id="snow-emergency-levels-list"></div>
-            <div class="text-muted small mt-3" id="snow-emergency-policy-note"></div>
-        </div>
-    </div>
-
     <div class="row g-4 align-items-start">
         <div class="col-lg-4 col-xxl-3 order-2 order-lg-1 dashboard-sidebar">
             <div class="card control-card sticky-card">
@@ -2208,7 +2194,6 @@ async function loadSnowEmergencies() {
         const data = await response.json();
         snowEmergencyData = data;
         renderSnowEmergencyBanner(data);
-        renderSnowEmergencyInfo(data);
     } catch (error) {
         console.warn('Failed to load snow emergencies:', error);
     }
@@ -2239,45 +2224,6 @@ function renderSnowEmergencyBanner(data) {
             <span class="snow-level-badge level-${e.level}">${escapeHtml(e.level_name)}</span>
         </div>
     `).join('');
-}
-
-function renderSnowEmergencyInfo(data) {
-    const infoCard = document.getElementById('snow-emergency-info');
-    const levelsList = document.getElementById('snow-emergency-levels-list');
-
-    if (!infoCard || !levelsList) return;
-
-    const levels = data.levels || {};
-    const levelOrder = [0, 1, 2, 3].filter(level => levels[level]);
-
-    levelsList.innerHTML = levelOrder
-        .map(level => {
-            const info = levels[level];
-            const badgeTextColor = level === 1 ? '#000' : '#fff';
-            return `
-                <div class="snow-level-description">
-                    <span class="badge me-2" style="background: ${info.color}; color: ${badgeTextColor};">${escapeHtml(info.name)}</span>
-                    <strong>${escapeHtml(info.name)}</strong>
-                    <span class="text-muted small d-block">${escapeHtml(info.description)}</span>
-                </div>
-            `;
-        })
-        .join('');
-
-    const policyNote = document.getElementById('snow-emergency-policy-note');
-    if (policyNote) {
-        const optOutCount = (data.emergencies || []).filter(e => e.issues_emergencies === false).length;
-        policyNote.textContent = optOutCount > 0
-            ? `${optOutCount} tracked counties report that they do not issue snow emergencies.`
-            : 'All tracked counties can issue snow emergencies when conditions warrant.';
-    }
-
-    const historyNote = document.getElementById('snow-emergency-history-note');
-    if (historyNote) {
-        historyNote.textContent = 'Change history is viewable from the admin console.';
-    }
-
-    infoCard.style.display = 'block';
 }
 
 function escapeHtml(text) {
