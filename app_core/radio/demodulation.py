@@ -67,6 +67,9 @@ class FMDemodulator:
         'FM': 75000,    # Same as WFM
         'NFM': 5000,    # Narrowband FM: ±5 kHz deviation (NOAA, two-way radio)
     }
+    
+    # Default deviation for unknown modulation types (broadcast FM standard)
+    DEFAULT_DEVIATION_HZ = 75000
 
     def __init__(self, config: DemodulatorConfig):
         self.config = config
@@ -80,7 +83,7 @@ class FMDemodulator:
         # For FM, the actual audio values are much smaller because:
         #   phase_diff_per_sample = 2π × deviation / sample_rate
         # We need to scale up by: sample_rate / (2 × deviation) to get full-scale audio
-        deviation_hz = self.FM_DEVIATION_HZ.get(config.modulation_type, 75000)
+        deviation_hz = self.FM_DEVIATION_HZ.get(config.modulation_type, self.DEFAULT_DEVIATION_HZ)
         # The discriminator already divides by π, so we scale by:
         # sample_rate / (2 × deviation) = the factor to convert frequency deviation to amplitude
         self._audio_gain = config.sample_rate / (2.0 * deviation_hz)

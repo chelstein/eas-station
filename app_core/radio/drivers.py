@@ -30,6 +30,15 @@ from typing import Dict, List, Optional
 from .manager import ReceiverConfig, ReceiverInterface, ReceiverStatus, RadioManager
 
 
+# Default gain constants for different SDR drivers
+# These are used when no gain is specified (gain=None)
+AIRSPY_DEFAULT_GAIN = 21.0  # Overall gain for Airspy (distributes across LNA/MIX/VGA)
+AIRSPY_DEFAULT_LNA_GAIN = 10  # LNA stage gain (0-15)
+AIRSPY_DEFAULT_MIX_GAIN = 10  # Mixer stage gain (0-15)  
+AIRSPY_DEFAULT_VGA_GAIN = 10  # VGA stage gain (0-15)
+RTLSDR_DEFAULT_GAIN = 40.0  # TUNER gain for RTL-SDR (0-49.6)
+
+
 class _SoapySDRHandle:
     """Thin wrapper storing objects needed for a SoapySDR stream."""
 
@@ -751,27 +760,30 @@ class _SoapySDRReceiver(ReceiverInterface):
                 # For strong signals, use moderate gain to avoid ADC saturation
                 # LNA: 0-15, MIX: 0-15, VGA: 0-15 (or linearity/sensitivity modes)
                 if "LNA" in gain_names:
-                    device.setGain(SoapySDR.SOAPY_SDR_RX, channel, "LNA", 10)
+                    device.setGain(SoapySDR.SOAPY_SDR_RX, channel, "LNA", AIRSPY_DEFAULT_LNA_GAIN)
                 if "MIX" in gain_names:
-                    device.setGain(SoapySDR.SOAPY_SDR_RX, channel, "MIX", 10)
+                    device.setGain(SoapySDR.SOAPY_SDR_RX, channel, "MIX", AIRSPY_DEFAULT_MIX_GAIN)
                 if "VGA" in gain_names:
-                    device.setGain(SoapySDR.SOAPY_SDR_RX, channel, "VGA", 10)
+                    device.setGain(SoapySDR.SOAPY_SDR_RX, channel, "VGA", AIRSPY_DEFAULT_VGA_GAIN)
                 # Also try setting overall gain if individual stages fail
                 try:
-                    device.setGain(SoapySDR.SOAPY_SDR_RX, channel, 21.0)  # Default from presets
+                    device.setGain(SoapySDR.SOAPY_SDR_RX, channel, AIRSPY_DEFAULT_GAIN)
                 except Exception:
                     pass
-                self._logger.info("Set default Airspy gains (LNA=10, MIX=10, VGA=10)")
+                self._logger.info(
+                    f"Set default Airspy gains (LNA={AIRSPY_DEFAULT_LNA_GAIN}, "
+                    f"MIX={AIRSPY_DEFAULT_MIX_GAIN}, VGA={AIRSPY_DEFAULT_VGA_GAIN})"
+                )
                 
             elif self.driver_hint == "rtlsdr":
                 # RTL-SDR has single TUNER gain
                 # 49.6 is typically maximum, good for weak signals
                 # For very strong signals, lower may be needed
                 if "TUNER" in gain_names:
-                    device.setGain(SoapySDR.SOAPY_SDR_RX, channel, "TUNER", 40.0)
+                    device.setGain(SoapySDR.SOAPY_SDR_RX, channel, "TUNER", RTLSDR_DEFAULT_GAIN)
                 else:
-                    device.setGain(SoapySDR.SOAPY_SDR_RX, channel, 40.0)
-                self._logger.info("Set default RTL-SDR gain (TUNER=40.0)")
+                    device.setGain(SoapySDR.SOAPY_SDR_RX, channel, RTLSDR_DEFAULT_GAIN)
+                self._logger.info(f"Set default RTL-SDR gain (TUNER={RTLSDR_DEFAULT_GAIN})")
                 
             else:
                 # Unknown driver - try to set reasonable overall gain
@@ -1243,22 +1255,36 @@ class AirspyReceiver(_SoapySDRReceiver):
     # Airspy R2 ONLY supports these sample rates - others will fail!
     VALID_SAMPLE_RATES = {2500000, 10000000}  # 2.5 MHz and 10 MHz
 
+    def __init__(self, config: ReceiverConfig, *, event_logger=None) -> None:
+        # Store the effective sample rate (may differ from config if invalid)
+        self._effective_sample_rate: Optional[int] = None
+        super().__init__(config, event_logger=event_logger)
+
     def _open_device(self):
         """Open Airspy device with Airspy-specific configuration."""
-        # Validate sample rate before opening
-        if self.config.sample_rate not in self.VALID_SAMPLE_RATES:
-            closest = min(self.VALID_SAMPLE_RATES, key=lambda x: abs(x - self.config.sample_rate))
+        # Validate sample rate before opening - store effective rate without modifying config
+        effective_rate = self.config.sample_rate
+        if effective_rate not in self.VALID_SAMPLE_RATES:
+            closest = min(self.VALID_SAMPLE_RATES, key=lambda x: abs(x - effective_rate))
             self._logger.warning(
                 f"Airspy R2 only supports 2.5 MHz and 10 MHz sample rates. "
-                f"Configured rate {self.config.sample_rate/1e6:.3f} MHz is invalid. "
+                f"Configured rate {effective_rate/1e6:.3f} MHz is invalid. "
                 f"Using closest valid rate: {closest/1e6:.1f} MHz"
             )
-            # Override the config sample rate to a valid one
-            # This prevents SoapySDR errors
-            self.config.sample_rate = closest
+            effective_rate = closest
         
-        # Call parent implementation
-        handle = super()._open_device()
+        # Store effective rate for use in _open_device_impl
+        self._effective_sample_rate = effective_rate
+        
+        # Temporarily update config sample rate for parent implementation
+        # This is necessary because _SoapySDRReceiver._open_device reads from config
+        original_rate = self.config.sample_rate
+        try:
+            self.config.sample_rate = effective_rate
+            handle = super()._open_device()
+        finally:
+            # Restore original config to avoid side effects
+            self.config.sample_rate = original_rate
         
         # Airspy-specific post-configuration
         if handle and handle.device:
