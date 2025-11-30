@@ -29,6 +29,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from flask import Flask, render_template, request, url_for, Response
 from sqlalchemy import func, or_
+from sqlalchemy.exc import OperationalError
 
 from app_core.alerts import get_active_alerts_query, get_expired_alerts_query
 from app_core.eas_storage import get_eas_static_prefix, format_local_datetime
@@ -651,8 +652,11 @@ def register(app: Flask, logger) -> None:
     @app.route("/alerts")
     def alerts():
         try:
-            # Rollback any failed transaction before starting new queries
-            # This prevents "current transaction is aborted" errors
+            # Rollback any failed transaction before starting new queries.
+            # This prevents "current transaction is aborted" errors that occur when
+            # a previous request left the database connection in a bad state.
+            # PostgreSQL requires a rollback before new commands can be issued when
+            # a transaction has failed. This is a defensive measure for robustness.
             try:
                 db.session.rollback()
             except Exception:
@@ -679,7 +683,17 @@ def register(app: Flask, logger) -> None:
             }
 
             # Fetch filter options and counts for the template
+            # Default values in case of database errors
+            statuses: List[str] = []
+            severities: List[str] = []
+            events: List[str] = []
+            sources: List[str] = []
+            active_alerts: int = 0
+            expired_alerts: int = 0
+            total_alerts: int = 0
+
             try:
+                # Fetch all distinct filter options in a single database transaction
                 statuses = [
                     row[0] for row in
                     db.session.query(CAPAlert.status)
@@ -688,11 +702,6 @@ def register(app: Flask, logger) -> None:
                     .order_by(CAPAlert.status)
                     .all()
                 ]
-            except Exception:
-                db.session.rollback()
-                statuses = []
-
-            try:
                 severities = [
                     row[0] for row in
                     db.session.query(CAPAlert.severity)
@@ -701,11 +710,6 @@ def register(app: Flask, logger) -> None:
                     .order_by(CAPAlert.severity)
                     .all()
                 ]
-            except Exception:
-                db.session.rollback()
-                severities = []
-
-            try:
                 events = [
                     row[0] for row in
                     db.session.query(CAPAlert.event)
@@ -714,11 +718,6 @@ def register(app: Flask, logger) -> None:
                     .order_by(CAPAlert.event)
                     .all()
                 ]
-            except Exception:
-                db.session.rollback()
-                events = []
-
-            try:
                 sources = [
                     row[0] for row in
                     db.session.query(CAPAlert.source)
@@ -727,28 +726,18 @@ def register(app: Flask, logger) -> None:
                     .order_by(CAPAlert.source)
                     .all()
                 ]
-            except Exception:
-                db.session.rollback()
-                sources = []
-
-            # Get alert counts
-            try:
+                # Get alert counts
                 active_alerts = get_active_alerts_query().count()
-            except Exception:
-                db.session.rollback()
-                active_alerts = 0
-
-            try:
                 expired_alerts = get_expired_alerts_query().count()
-            except Exception:
-                db.session.rollback()
-                expired_alerts = 0
-
-            try:
                 total_alerts = CAPAlert.query.count()
-            except Exception:
+            except OperationalError as exc:
+                # Database connection or operational error - rollback and use defaults
                 db.session.rollback()
-                total_alerts = 0
+                route_logger.warning("Database operational error fetching filter options: %s", exc)
+            except Exception as exc:
+                # Unexpected error - rollback and log
+                db.session.rollback()
+                route_logger.warning("Error fetching filter options for alerts page: %s", exc)
 
             query = CAPAlert.query
 
