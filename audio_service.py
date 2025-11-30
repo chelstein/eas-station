@@ -796,7 +796,8 @@ def publish_metrics_to_redis(metrics):
                                     # This is critical for high-powered FM stations where the DC component
                                     # from the tuner's local oscillator leakage can dominate the spectrum
                                     # and make everything else look like "garbage" (horizontal lines)
-                                    samples_for_fft = iq_samples[:fft_size] - np.mean(iq_samples[:fft_size])
+                                    samples_slice = iq_samples[:fft_size]
+                                    samples_for_fft = samples_slice - np.mean(samples_slice)
                                     
                                     window = np.hanning(fft_size)
                                     windowed = samples_for_fft * window
