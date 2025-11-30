@@ -791,8 +791,15 @@ def publish_metrics_to_redis(metrics):
                                 if iq_samples is not None and len(iq_samples) > 0:
                                     # Compute FFT for spectrum display
                                     fft_size = min(len(iq_samples), 2048)
+                                    
+                                    # Remove DC offset before FFT computation
+                                    # This is critical for high-powered FM stations where the DC component
+                                    # from the tuner's local oscillator leakage can dominate the spectrum
+                                    # and make everything else look like "garbage" (horizontal lines)
+                                    samples_for_fft = iq_samples[:fft_size] - np.mean(iq_samples[:fft_size])
+                                    
                                     window = np.hanning(fft_size)
-                                    windowed = iq_samples[:fft_size] * window
+                                    windowed = samples_for_fft * window
                                     fft_result = np.fft.fftshift(np.fft.fft(windowed))
                                     
                                     # Convert to magnitude (dB)
