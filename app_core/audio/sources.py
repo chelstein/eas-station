@@ -199,7 +199,7 @@ class SDRSourceAdapter(AudioSourceAdapter):
             metadata.setdefault('squelch_state_since', self._squelch_last_change)
             metadata.setdefault('squelch_last_rms_db', None)
             metadata.setdefault('carrier_alarm', False)
-            self.metrics.metadata = metadata
+            # Note: metadata is updated at the end of demodulator setup below
             self._update_squelch_metadata(float('-inf'))
 
             # Create demodulator if audio output is enabled and modulation is not IQ
@@ -220,6 +220,7 @@ class SDRSourceAdapter(AudioSourceAdapter):
                 # Update metadata to reflect demodulation is enabled
                 metadata['demodulation_enabled'] = True
                 metadata['demodulation_type'] = self._receiver_config.modulation_type
+                metadata['demodulation_reason'] = None  # No issue - demodulation is working
             else:
                 # Update metadata to reflect demodulation is NOT enabled
                 metadata['demodulation_enabled'] = False
@@ -243,7 +244,7 @@ class SDRSourceAdapter(AudioSourceAdapter):
                         f"Raw IQ cannot be played as audio."
                     )
             
-            # Update metadata after demodulator setup
+            # Single metadata update after all demodulator setup is complete
             self.metrics.metadata = metadata
 
         # Start IQ capture from the specified receiver
