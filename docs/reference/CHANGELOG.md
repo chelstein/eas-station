@@ -4,6 +4,19 @@ All notable changes to this project are documented in this file. The format is b
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project currently
 tracks releases under the 2.x series.
 
+## [2.12.22] - 2025-11-30
+### Added
+- Made SDR++ Server the default and recommended SDR option in the Radio Receiver settings UI
+- Added prominent "SDR++ Server" quick-add button in the Quick Setup panel
+- SDR++ Server now appears as the first option in the device selection dropdown
+- Updated documentation (SDR Setup Guide) with comprehensive SDR++ Server setup instructions
+- Added SDR++ Server to the hardware comparison table and configuration examples
+
+### Changed
+- Reordered SDR presets to prioritize SDR++ Server (network SDR) over direct USB connections
+- Updated capture workflow description to mention SDR++ Server as the recommended approach
+- Renamed "Discover Devices" button to "Discover USB Devices" for clarity
+
 ## [2.12.21] - 2025-11-27
 ### Fixed
 - Let OLED alert scrolls run across the full padded buffer before wrapping so alert text cleanly exits and re-enters the screen instead of freezing or overlaying fragments.
