@@ -38,6 +38,10 @@ AIRSPY_DEFAULT_MIX_GAIN = 10  # Mixer stage gain (0-15)
 AIRSPY_DEFAULT_VGA_GAIN = 10  # VGA stage gain (0-15)
 RTLSDR_DEFAULT_GAIN = 40.0  # TUNER gain for RTL-SDR (0-49.6)
 
+# Network stabilization delay for remote SDR connections (seconds)
+# Allows time for network connection to stabilize after stream activation
+NETWORK_STABILIZATION_DELAY = 0.2
+
 
 class _SoapySDRHandle:
     """Thin wrapper storing objects needed for a SoapySDR stream."""
@@ -1363,8 +1367,21 @@ class SoapyRemoteReceiver(_SoapySDRReceiver):
         args: Dict[str, str] = {"driver": "remote"}
         
         if self.config.serial:
-            # Serial contains the remote address
-            args["remote"] = self.config.serial
+            # Validate remote address format
+            remote_addr = self.config.serial.strip()
+            if not remote_addr.startswith(("tcp://", "udp://")):
+                raise RuntimeError(
+                    f"Invalid remote address format: '{remote_addr}'. "
+                    f"Must start with 'tcp://' or 'udp://'. "
+                    f"Example: tcp://192.168.1.100:5259"
+                )
+            # Basic validation of address structure
+            if ":" not in remote_addr[6:]:  # Check for port after protocol
+                raise RuntimeError(
+                    f"Invalid remote address format: '{remote_addr}'. "
+                    f"Must include port number. Example: tcp://192.168.1.100:5259"
+                )
+            args["remote"] = remote_addr
         else:
             raise RuntimeError(
                 "Remote SDR requires a connection address in the 'serial' field. "
@@ -1415,7 +1432,7 @@ class SoapyRemoteReceiver(_SoapySDRReceiver):
             device.activateStream(stream)
             
             # Allow extra time for network connection to stabilize
-            time.sleep(0.2)
+            time.sleep(NETWORK_STABILIZATION_DELAY)
             
             self._interface_logger.info(
                 "Successfully connected to remote SDR at %s",
