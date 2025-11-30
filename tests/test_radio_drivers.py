@@ -93,7 +93,7 @@ class _WorkingDevice:
     def activateStream(self, *args, **kwargs):  # noqa: N802 - mimic Soapy API
         pass
 
-    def readStream(self, stream, buffers, length):  # noqa: N802 - mimic Soapy API
+    def readStream(self, stream, buffers, length, **kwargs):  # noqa: N802 - mimic Soapy API
         buffer = buffers[0]
         buffer[:length] = 0.25 + 0.25j
         return _Result(length)

@@ -61,6 +61,11 @@ logger = logging.getLogger(__name__)
 # Constants for spectrum computation
 FFT_MIN_MAGNITUDE = 1e-10  # Minimum magnitude to avoid log(0) in dB conversion
 
+# Spectrum normalization constants for waterfall display
+# Uses fixed dB scale for consistent display regardless of signal strength
+SPECTRUM_DB_MIN = -80.0  # Noise floor reference (80dB below full scale)
+SPECTRUM_DB_MAX = 0.0    # Maximum signal reference (full scale)
+
 # Load environment variables from persistent config volume
 # This must happen before initializing audio sources
 _config_path = os.environ.get('CONFIG_PATH')
@@ -795,13 +800,13 @@ def publish_metrics_to_redis(metrics):
                                     magnitude = np.where(magnitude > 0, magnitude, FFT_MIN_MAGNITUDE)
                                     magnitude_db = 20 * np.log10(magnitude)
                                     
-                                    # Normalize to 0-1 range for display
-                                    min_db = float(magnitude_db.min())
-                                    max_db = float(magnitude_db.max())
-                                    if max_db > min_db:
-                                        normalized = (magnitude_db - min_db) / (max_db - min_db)
-                                    else:
-                                        normalized = np.zeros_like(magnitude_db)
+                                    # Normalize to 0-1 range using FIXED dB scale for consistent display
+                                    # This approach shows actual signal levels rather than stretching
+                                    # noise to fill the display (which makes everything look like garbage)
+                                    normalized = np.clip(
+                                        (magnitude_db - SPECTRUM_DB_MIN) / (SPECTRUM_DB_MAX - SPECTRUM_DB_MIN),
+                                        0.0, 1.0
+                                    )
                                     
                                     # Get receiver config for frequency info
                                     config = receiver_instance.config if hasattr(receiver_instance, 'config') else None

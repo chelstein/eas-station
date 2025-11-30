@@ -31,6 +31,7 @@ Usage:
 
 import argparse
 import sys
+import time
 from pathlib import Path
 
 # Add the app root to the Python path
@@ -227,6 +228,9 @@ def test_capture(driver: str, frequency: float, duration: float = 1.0, sample_ra
         print("Setting up stream...")
         stream = device.setupStream(SoapySDR.SOAPY_SDR_RX, SoapySDR.SOAPY_SDR_CF32)
         device.activateStream(stream)
+        
+        # Allow SDR hardware time to stabilize after stream activation
+        time.sleep(0.1)
 
         # Capture samples
         print(f"Capturing samples for {duration} seconds...")
@@ -235,7 +239,8 @@ def test_capture(driver: str, frequency: float, duration: float = 1.0, sample_ra
         samples_captured = 0
 
         while samples_captured < total_samples:
-            result = device.readStream(stream, [buffer], len(buffer))
+            # Use explicit 500ms timeout for reliable reading
+            result = device.readStream(stream, [buffer], len(buffer), timeoutUs=500000)
 
             if result.ret < 0:
                 print(f"✗ Stream error: {result.ret}")

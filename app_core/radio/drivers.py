@@ -115,6 +115,16 @@ class _SoapySDRReceiver(ReceiverInterface):
     """Common functionality for receivers implemented via SoapySDR."""
 
     driver_hint: str = ""
+    
+    # Minimum dynamic range threshold for valid RF signal
+    # Real RF signals typically have dynamic range > 1.5 (peak vs mean magnitude)
+    # DC offset or constant signal has ratio very close to 1.0
+    # Values below this threshold indicate potential hardware/configuration issues
+    _MIN_DYNAMIC_RANGE = 1.1
+    
+    # Small value to avoid division by zero in magnitude calculations
+    _MIN_MAGNITUDE = 1e-10
+    
     _SOAPY_ERROR_DESCRIPTIONS = {
         -1: "Timeout waiting for samples (SOAPY_SDR_TIMEOUT)",
         -2: "Stream reported a driver error (SOAPY_SDR_STREAM_ERROR)",
@@ -564,6 +574,11 @@ class _SoapySDRReceiver(ReceiverInterface):
                 stream_args  # driver-specific stream args
             )
             device.activateStream(stream)
+            
+            # Allow SDR hardware time to stabilize after stream activation
+            # This is especially important for Airspy and some RTL-SDR devices
+            # that need time to start the data flow after activation
+            time.sleep(0.1)  # 100ms stabilization delay
         except Exception as exc:
             # Ensure hardware resources are released before bubbling the error up.
             try:
@@ -821,8 +836,16 @@ class _SoapySDRReceiver(ReceiverInterface):
                 continue
 
             try:
-                # Read with backpressure handling
-                result = handle.device.readStream(handle.stream, [buffer], len(buffer))
+                # Read samples from SDR with explicit timeout
+                # Use 500ms timeout (500000 microseconds) to allow adequate time
+                # for USB transfers and SDR hardware response, especially for
+                # Airspy and RTL-SDR devices that may have USB latency
+                result = handle.device.readStream(
+                    handle.stream, 
+                    [buffer], 
+                    len(buffer),
+                    timeoutUs=500000  # 500ms timeout for reliable reading
+                )
                 
                 if result.ret < 0:
                     # Handle different error types differently
@@ -881,8 +904,26 @@ class _SoapySDRReceiver(ReceiverInterface):
                         self._compute_spectrum(samples, handle.numpy)
                         last_spectrum_time = now
                     
-                    # 2. Update Signal Strength
+                    # 2. Update Signal Strength with diagnostic checks
                     magnitude = float(handle.numpy.mean(handle.numpy.abs(samples)))
+                    max_magnitude = float(handle.numpy.max(handle.numpy.abs(samples)))
+                    
+                    # Log diagnostic warning if signal looks like DC or constant value
+                    # which indicates potential SDR configuration or hardware issue
+                    if max_magnitude > 0:
+                        dynamic_range = max_magnitude / max(magnitude, self._MIN_MAGNITUDE)
+                        if dynamic_range < self._MIN_DYNAMIC_RANGE and self._stream_errors_count == 0:
+                            # Only log once to avoid spam
+                            self._interface_logger.warning(
+                                "Low dynamic range detected for %s (%.2f). "
+                                "This may indicate DC offset, no antenna, or SDR configuration issue. "
+                                "Mean=%.6f, Max=%.6f",
+                                self.config.identifier,
+                                dynamic_range,
+                                magnitude,
+                                max_magnitude
+                            )
+                    
                     self._update_status(locked=True, signal_strength=magnitude)
                     
                     # 3. Update Audio Sample Buffer (existing logic)
