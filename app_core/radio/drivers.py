@@ -1315,6 +1315,124 @@ class AirspyReceiver(_SoapySDRReceiver):
         return handle
 
 
+class SoapyRemoteReceiver(_SoapySDRReceiver):
+    """Driver for remote SDR devices via SoapyRemote protocol.
+    
+    This enables connection to:
+    - SDR++ Server (recommended for advanced visualization and demodulation)
+    - SoapyRemote servers
+    - Any SoapySDR-compatible network SDR source
+    
+    SDR++ Server Setup:
+    -------------------
+    1. Install SDR++ with server module
+    2. Start SDR++ and enable the server module (Module Manager → Add → sdrpp_server)
+    3. Configure server to listen on desired port (default: 5259)
+    4. In EAS Station, configure receiver with:
+       - Driver: "remote" or "soapyremote"
+       - Serial: "tcp://hostname:port" (e.g., "tcp://192.168.1.100:5259")
+    
+    Benefits of SDR++ Server:
+    - Professional spectrum analyzer GUI for monitoring
+    - Advanced demodulation options
+    - Multiple clients can share one SDR device
+    - Better signal visualization and tuning
+    - Can run on separate hardware from EAS Station
+    """
+
+    driver_hint = "remote"
+
+    def _open_handle(self) -> _SoapySDRHandle:
+        """Open remote SoapySDR device with network-specific configuration."""
+        try:
+            import SoapySDR
+        except ImportError as exc:
+            raise RuntimeError(
+                "SoapySDR Python bindings are required for remote SDR receivers."
+            ) from exc
+
+        try:
+            import numpy
+        except ImportError as exc:
+            raise RuntimeError("NumPy is required for SoapySDR based receivers.") from exc
+
+        channel = self.config.channel if self.config.channel is not None else 0
+
+        # Build connection arguments for SoapyRemote
+        # The serial field should contain the remote address (e.g., "tcp://host:port")
+        args: Dict[str, str] = {"driver": "remote"}
+        
+        if self.config.serial:
+            # Serial contains the remote address
+            args["remote"] = self.config.serial
+        else:
+            raise RuntimeError(
+                "Remote SDR requires a connection address in the 'serial' field. "
+                "Format: tcp://hostname:port (e.g., tcp://192.168.1.100:5259 for SDR++ Server)"
+            )
+
+        if self.config.identifier:
+            args.setdefault("label", self.config.identifier)
+
+        self._interface_logger.info(
+            "Connecting to remote SDR at %s for receiver %s",
+            self.config.serial,
+            self.config.identifier
+        )
+
+        try:
+            device = SoapySDR.Device(args)
+        except Exception as exc:
+            message = self._annotate_lock_hint(str(exc))
+            raise RuntimeError(
+                f"Unable to connect to remote SDR at '{self.config.serial}': {message}. "
+                f"Ensure SDR++ Server or SoapyRemote is running and accessible."
+            ) from exc
+
+        try:
+            device.setSampleRate(SoapySDR.SOAPY_SDR_RX, channel, self.config.sample_rate)
+            device.setFrequency(SoapySDR.SOAPY_SDR_RX, channel, self.config.frequency_hz)
+            
+            # Configure gain if specified
+            if self.config.gain is not None:
+                device.setGain(SoapySDR.SOAPY_SDR_RX, channel, float(self.config.gain))
+            else:
+                # Try AGC for remote devices
+                try:
+                    if device.hasGainMode(SoapySDR.SOAPY_SDR_RX, channel):
+                        device.setGainMode(SoapySDR.SOAPY_SDR_RX, channel, True)
+                        self._interface_logger.info("Enabled AGC for remote SDR")
+                except Exception:
+                    pass
+
+            # Setup stream - remote devices may have different buffer requirements
+            stream = device.setupStream(
+                SoapySDR.SOAPY_SDR_RX,
+                SoapySDR.SOAPY_SDR_CF32,
+                [channel],
+                {}  # Let the remote server handle buffering
+            )
+            device.activateStream(stream)
+            
+            # Allow extra time for network connection to stabilize
+            time.sleep(0.2)
+            
+            self._interface_logger.info(
+                "Successfully connected to remote SDR at %s",
+                self.config.serial
+            )
+            
+        except Exception as exc:
+            try:
+                device.close()
+            except Exception:
+                pass
+            message = self._annotate_lock_hint(str(exc))
+            raise RuntimeError(f"Failed to configure remote SDR device: {message}") from exc
+
+        return _SoapySDRHandle(device=device, stream=stream, sdr_module=SoapySDR, numpy_module=numpy)
+
+
 def register_builtin_drivers(manager: RadioManager) -> None:
     """Register the built-in SDR drivers against a radio manager instance."""
 
@@ -1324,9 +1442,15 @@ def register_builtin_drivers(manager: RadioManager) -> None:
 
     manager.register_driver("airspy", AirspyReceiver)
 
+    # Remote/Network SDR support (for SDR++ Server, SoapyRemote, etc.)
+    manager.register_driver("remote", SoapyRemoteReceiver)
+    manager.register_driver("soapyremote", SoapyRemoteReceiver)
+    manager.register_driver("sdrpp", SoapyRemoteReceiver)  # Alias for SDR++ Server
+
 
 __all__ = [
     "AirspyReceiver",
     "RTLSDRReceiver",
+    "SoapyRemoteReceiver",
     "register_builtin_drivers",
 ]
