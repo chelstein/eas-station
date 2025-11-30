@@ -38,6 +38,10 @@ AIRSPY_DEFAULT_MIX_GAIN = 10  # Mixer stage gain (0-15)
 AIRSPY_DEFAULT_VGA_GAIN = 10  # VGA stage gain (0-15)
 RTLSDR_DEFAULT_GAIN = 40.0  # TUNER gain for RTL-SDR (0-49.6)
 
+# Network stabilization delay for remote SDR connections (seconds)
+# Allows time for network connection to stabilize after stream activation
+NETWORK_STABILIZATION_DELAY = 0.2
+
 
 class _SoapySDRHandle:
     """Thin wrapper storing objects needed for a SoapySDR stream."""
@@ -573,14 +577,14 @@ class _SoapySDRReceiver(ReceiverInterface):
                     # This is the best option for hands-off operation
                     if device.hasGainMode(SoapySDR.SOAPY_SDR_RX, channel):
                         device.setGainMode(SoapySDR.SOAPY_SDR_RX, channel, True)
-                        self._logger.info(f"Enabled AGC for {self.driver_hint}")
+                        self._interface_logger.info(f"Enabled AGC for {self.driver_hint}")
                     else:
                         # AGC not supported - set driver-specific default gains
                         # These defaults are chosen for strong signal reception
                         self._set_default_gain(device, channel)
                 except Exception as agc_exc:
                     # AGC failed, try setting default gain
-                    self._logger.debug(f"AGC not available ({agc_exc}), using default gain")
+                    self._interface_logger.debug(f"AGC not available ({agc_exc}), using default gain")
                     self._set_default_gain(device, channel)
 
             # Configure stream with appropriate MTU for USB bandwidth
@@ -742,7 +746,7 @@ class _SoapySDRReceiver(ReceiverInterface):
             try:
                 import SoapySDR
             except ImportError:
-                self._logger.warning("SoapySDR not available for default gain setting")
+                self._interface_logger.warning("SoapySDR not available for default gain setting")
                 return
             
             # Get available gain elements
@@ -750,7 +754,7 @@ class _SoapySDRReceiver(ReceiverInterface):
             
             if not gain_names:
                 # No gain elements available - nothing to set
-                self._logger.debug("No gain elements available on device")
+                self._interface_logger.debug("No gain elements available on device")
                 return
             
             # Driver-specific default gains for optimal reception
@@ -770,7 +774,7 @@ class _SoapySDRReceiver(ReceiverInterface):
                     device.setGain(SoapySDR.SOAPY_SDR_RX, channel, AIRSPY_DEFAULT_GAIN)
                 except Exception:
                     pass
-                self._logger.info(
+                self._interface_logger.info(
                     f"Set default Airspy gains (LNA={AIRSPY_DEFAULT_LNA_GAIN}, "
                     f"MIX={AIRSPY_DEFAULT_MIX_GAIN}, VGA={AIRSPY_DEFAULT_VGA_GAIN})"
                 )
@@ -783,7 +787,7 @@ class _SoapySDRReceiver(ReceiverInterface):
                     device.setGain(SoapySDR.SOAPY_SDR_RX, channel, "TUNER", RTLSDR_DEFAULT_GAIN)
                 else:
                     device.setGain(SoapySDR.SOAPY_SDR_RX, channel, RTLSDR_DEFAULT_GAIN)
-                self._logger.info(f"Set default RTL-SDR gain (TUNER={RTLSDR_DEFAULT_GAIN})")
+                self._interface_logger.info(f"Set default RTL-SDR gain (TUNER={RTLSDR_DEFAULT_GAIN})")
                 
             else:
                 # Unknown driver - try to set reasonable overall gain
@@ -793,12 +797,12 @@ class _SoapySDRReceiver(ReceiverInterface):
                     gain_range = device.getGainRange(SoapySDR.SOAPY_SDR_RX, channel)
                     default_gain = gain_range.minimum() + 0.75 * (gain_range.maximum() - gain_range.minimum())
                     device.setGain(SoapySDR.SOAPY_SDR_RX, channel, default_gain)
-                    self._logger.info(f"Set default gain to {default_gain:.1f} dB for {self.driver_hint}")
+                    self._interface_logger.info(f"Set default gain to {default_gain:.1f} dB for {self.driver_hint}")
                 except Exception as e:
-                    self._logger.warning(f"Could not set default gain: {e}")
+                    self._interface_logger.warning(f"Could not set default gain: {e}")
                     
         except Exception as e:
-            self._logger.warning(f"Failed to set default gain: {e}")
+            self._interface_logger.warning(f"Failed to set default gain: {e}")
 
     def _teardown_handle(self, handle: Optional[_SoapySDRHandle] = None) -> None:
         if handle is None:
@@ -1266,7 +1270,7 @@ class AirspyReceiver(_SoapySDRReceiver):
         effective_rate = self.config.sample_rate
         if effective_rate not in self.VALID_SAMPLE_RATES:
             closest = min(self.VALID_SAMPLE_RATES, key=lambda x: abs(x - effective_rate))
-            self._logger.warning(
+            self._interface_logger.warning(
                 f"Airspy R2 only supports 2.5 MHz and 10 MHz sample rates. "
                 f"Configured rate {effective_rate/1e6:.3f} MHz is invalid. "
                 f"Using closest valid rate: {closest/1e6:.1f} MHz"
@@ -1297,7 +1301,7 @@ class AirspyReceiver(_SoapySDRReceiver):
                 # Only enable if user specifically needs it
                 try:
                     device.writeSetting("biastee", "false")
-                    self._logger.debug("Disabled Airspy Bias-T")
+                    self._interface_logger.debug("Disabled Airspy Bias-T")
                 except Exception:
                     pass  # Setting may not be available
                     
@@ -1305,14 +1309,145 @@ class AirspyReceiver(_SoapySDRReceiver):
                 # This is better for strong signals like local FM stations
                 try:
                     device.writeSetting("gainmode", "linearity")
-                    self._logger.debug("Set Airspy to linearity gain mode")
+                    self._interface_logger.debug("Set Airspy to linearity gain mode")
                 except Exception:
                     pass  # Setting may not be available
                     
             except Exception as e:
-                self._logger.debug(f"Airspy post-configuration skipped: {e}")
+                self._interface_logger.debug(f"Airspy post-configuration skipped: {e}")
         
         return handle
+
+
+class SoapyRemoteReceiver(_SoapySDRReceiver):
+    """Driver for remote SDR devices via SoapyRemote protocol.
+    
+    This enables connection to:
+    - SDR++ Server (recommended for advanced visualization and demodulation)
+    - SoapyRemote servers
+    - Any SoapySDR-compatible network SDR source
+    
+    SDR++ Server Setup:
+    -------------------
+    1. Install SDR++ with server module
+    2. Start SDR++ and enable the server module (Module Manager → Add → sdrpp_server)
+    3. Configure server to listen on desired port (default: 5259)
+    4. In EAS Station, configure receiver with:
+       - Driver: "remote" or "soapyremote"
+       - Serial: "tcp://hostname:port" (e.g., "tcp://192.168.1.100:5259")
+    
+    Benefits of SDR++ Server:
+    - Professional spectrum analyzer GUI for monitoring
+    - Advanced demodulation options
+    - Multiple clients can share one SDR device
+    - Better signal visualization and tuning
+    - Can run on separate hardware from EAS Station
+    """
+
+    driver_hint = "remote"
+
+    def _open_handle(self) -> _SoapySDRHandle:
+        """Open remote SoapySDR device with network-specific configuration."""
+        try:
+            import SoapySDR
+        except ImportError as exc:
+            raise RuntimeError(
+                "SoapySDR Python bindings are required for remote SDR receivers."
+            ) from exc
+
+        try:
+            import numpy
+        except ImportError as exc:
+            raise RuntimeError("NumPy is required for SoapySDR based receivers.") from exc
+
+        channel = self.config.channel if self.config.channel is not None else 0
+
+        # Build connection arguments for SoapyRemote
+        # The serial field should contain the remote address (e.g., "tcp://host:port")
+        args: Dict[str, str] = {"driver": "remote"}
+        
+        if self.config.serial:
+            # Validate remote address format
+            remote_addr = self.config.serial.strip()
+            if not remote_addr.startswith(("tcp://", "udp://")):
+                raise RuntimeError(
+                    f"Invalid remote address format: '{remote_addr}'. "
+                    f"Must start with 'tcp://' or 'udp://'. "
+                    f"Example: tcp://192.168.1.100:5259"
+                )
+            # Basic validation of address structure
+            if ":" not in remote_addr[6:]:  # Check for port after protocol
+                raise RuntimeError(
+                    f"Invalid remote address format: '{remote_addr}'. "
+                    f"Must include port number. Example: tcp://192.168.1.100:5259"
+                )
+            args["remote"] = remote_addr
+        else:
+            raise RuntimeError(
+                "Remote SDR requires a connection address in the 'serial' field. "
+                "Format: tcp://hostname:port (e.g., tcp://192.168.1.100:5259 for SDR++ Server)"
+            )
+
+        if self.config.identifier:
+            args.setdefault("label", self.config.identifier)
+
+        self._interface_logger.info(
+            "Connecting to remote SDR at %s for receiver %s",
+            self.config.serial,
+            self.config.identifier
+        )
+
+        try:
+            device = SoapySDR.Device(args)
+        except Exception as exc:
+            message = self._annotate_lock_hint(str(exc))
+            raise RuntimeError(
+                f"Unable to connect to remote SDR at '{self.config.serial}': {message}. "
+                f"Ensure SDR++ Server or SoapyRemote is running and accessible."
+            ) from exc
+
+        try:
+            device.setSampleRate(SoapySDR.SOAPY_SDR_RX, channel, self.config.sample_rate)
+            device.setFrequency(SoapySDR.SOAPY_SDR_RX, channel, self.config.frequency_hz)
+            
+            # Configure gain if specified
+            if self.config.gain is not None:
+                device.setGain(SoapySDR.SOAPY_SDR_RX, channel, float(self.config.gain))
+            else:
+                # Try AGC for remote devices
+                try:
+                    if device.hasGainMode(SoapySDR.SOAPY_SDR_RX, channel):
+                        device.setGainMode(SoapySDR.SOAPY_SDR_RX, channel, True)
+                        self._interface_logger.info("Enabled AGC for remote SDR")
+                except Exception:
+                    pass
+
+            # Setup stream - remote devices may have different buffer requirements
+            stream = device.setupStream(
+                SoapySDR.SOAPY_SDR_RX,
+                SoapySDR.SOAPY_SDR_CF32,
+                [channel],
+                {}  # Let the remote server handle buffering
+            )
+            device.activateStream(stream)
+            
+            # Allow extra time for network connection to stabilize
+            time.sleep(NETWORK_STABILIZATION_DELAY)
+            
+            self._interface_logger.info(
+                "Successfully connected to remote SDR at %s",
+                self.config.serial
+            )
+            
+        except Exception as exc:
+            try:
+                device.close()
+            except Exception:
+                pass
+            message = self._annotate_lock_hint(str(exc))
+            raise RuntimeError(f"Failed to configure remote SDR device: {message}") from exc
+
+        return _SoapySDRHandle(device=device, stream=stream, sdr_module=SoapySDR, numpy_module=numpy)
 
 
 def register_builtin_drivers(manager: RadioManager) -> None:
@@ -1324,9 +1459,15 @@ def register_builtin_drivers(manager: RadioManager) -> None:
 
     manager.register_driver("airspy", AirspyReceiver)
 
+    # Remote/Network SDR support (for SDR++ Server, SoapyRemote, etc.)
+    manager.register_driver("remote", SoapyRemoteReceiver)
+    manager.register_driver("soapyremote", SoapyRemoteReceiver)
+    manager.register_driver("sdrpp", SoapyRemoteReceiver)  # Alias for SDR++ Server
+
 
 __all__ = [
     "AirspyReceiver",
     "RTLSDRReceiver",
+    "SoapyRemoteReceiver",
     "register_builtin_drivers",
 ]

@@ -58,6 +58,14 @@ SDR_PRESETS = {
         "gain": 21,
         "notes": "Common setup for NOAA Weather Radio monitoring with Airspy receivers",
     },
+    "noaa_weather_sdrpp": {
+        "name": "NOAA Weather Radio (SDR++ Server)",
+        "driver": "remote",
+        "frequency_hz": 162_550_000,
+        "sample_rate": 2_500_000,
+        "gain": None,  # Use SDR++ gain settings
+        "notes": "Connect to SDR++ Server for NOAA Weather Radio. Set serial to tcp://hostname:5259",
+    },
 }
 
 

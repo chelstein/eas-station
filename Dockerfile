@@ -8,7 +8,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 # Allow callers to limit which SoapySDR hardware drivers are installed
 # (comma-separated list such as "rtlsdr" or "rtlsdr,airspy").
-ARG SOAPYSDR_DRIVERS="rtlsdr,airspy"
+# "remote" enables network SDR support (SDR++ Server, SoapyRemote)
+ARG SOAPYSDR_DRIVERS="rtlsdr,airspy,remote"
 
 # Install system dependencies required for psycopg2, GeoAlchemy, and SoapySDR
 RUN --mount=type=cache,target=/var/lib/apt \
