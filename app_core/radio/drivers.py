@@ -573,14 +573,14 @@ class _SoapySDRReceiver(ReceiverInterface):
                     # This is the best option for hands-off operation
                     if device.hasGainMode(SoapySDR.SOAPY_SDR_RX, channel):
                         device.setGainMode(SoapySDR.SOAPY_SDR_RX, channel, True)
-                        self._logger.info(f"Enabled AGC for {self.driver_hint}")
+                        self._interface_logger.info(f"Enabled AGC for {self.driver_hint}")
                     else:
                         # AGC not supported - set driver-specific default gains
                         # These defaults are chosen for strong signal reception
                         self._set_default_gain(device, channel)
                 except Exception as agc_exc:
                     # AGC failed, try setting default gain
-                    self._logger.debug(f"AGC not available ({agc_exc}), using default gain")
+                    self._interface_logger.debug(f"AGC not available ({agc_exc}), using default gain")
                     self._set_default_gain(device, channel)
 
             # Configure stream with appropriate MTU for USB bandwidth
@@ -742,7 +742,7 @@ class _SoapySDRReceiver(ReceiverInterface):
             try:
                 import SoapySDR
             except ImportError:
-                self._logger.warning("SoapySDR not available for default gain setting")
+                self._interface_logger.warning("SoapySDR not available for default gain setting")
                 return
             
             # Get available gain elements
@@ -750,7 +750,7 @@ class _SoapySDRReceiver(ReceiverInterface):
             
             if not gain_names:
                 # No gain elements available - nothing to set
-                self._logger.debug("No gain elements available on device")
+                self._interface_logger.debug("No gain elements available on device")
                 return
             
             # Driver-specific default gains for optimal reception
@@ -770,7 +770,7 @@ class _SoapySDRReceiver(ReceiverInterface):
                     device.setGain(SoapySDR.SOAPY_SDR_RX, channel, AIRSPY_DEFAULT_GAIN)
                 except Exception:
                     pass
-                self._logger.info(
+                self._interface_logger.info(
                     f"Set default Airspy gains (LNA={AIRSPY_DEFAULT_LNA_GAIN}, "
                     f"MIX={AIRSPY_DEFAULT_MIX_GAIN}, VGA={AIRSPY_DEFAULT_VGA_GAIN})"
                 )
@@ -783,7 +783,7 @@ class _SoapySDRReceiver(ReceiverInterface):
                     device.setGain(SoapySDR.SOAPY_SDR_RX, channel, "TUNER", RTLSDR_DEFAULT_GAIN)
                 else:
                     device.setGain(SoapySDR.SOAPY_SDR_RX, channel, RTLSDR_DEFAULT_GAIN)
-                self._logger.info(f"Set default RTL-SDR gain (TUNER={RTLSDR_DEFAULT_GAIN})")
+                self._interface_logger.info(f"Set default RTL-SDR gain (TUNER={RTLSDR_DEFAULT_GAIN})")
                 
             else:
                 # Unknown driver - try to set reasonable overall gain
@@ -793,12 +793,12 @@ class _SoapySDRReceiver(ReceiverInterface):
                     gain_range = device.getGainRange(SoapySDR.SOAPY_SDR_RX, channel)
                     default_gain = gain_range.minimum() + 0.75 * (gain_range.maximum() - gain_range.minimum())
                     device.setGain(SoapySDR.SOAPY_SDR_RX, channel, default_gain)
-                    self._logger.info(f"Set default gain to {default_gain:.1f} dB for {self.driver_hint}")
+                    self._interface_logger.info(f"Set default gain to {default_gain:.1f} dB for {self.driver_hint}")
                 except Exception as e:
-                    self._logger.warning(f"Could not set default gain: {e}")
+                    self._interface_logger.warning(f"Could not set default gain: {e}")
                     
         except Exception as e:
-            self._logger.warning(f"Failed to set default gain: {e}")
+            self._interface_logger.warning(f"Failed to set default gain: {e}")
 
     def _teardown_handle(self, handle: Optional[_SoapySDRHandle] = None) -> None:
         if handle is None:
@@ -1266,7 +1266,7 @@ class AirspyReceiver(_SoapySDRReceiver):
         effective_rate = self.config.sample_rate
         if effective_rate not in self.VALID_SAMPLE_RATES:
             closest = min(self.VALID_SAMPLE_RATES, key=lambda x: abs(x - effective_rate))
-            self._logger.warning(
+            self._interface_logger.warning(
                 f"Airspy R2 only supports 2.5 MHz and 10 MHz sample rates. "
                 f"Configured rate {effective_rate/1e6:.3f} MHz is invalid. "
                 f"Using closest valid rate: {closest/1e6:.1f} MHz"
@@ -1297,7 +1297,7 @@ class AirspyReceiver(_SoapySDRReceiver):
                 # Only enable if user specifically needs it
                 try:
                     device.writeSetting("biastee", "false")
-                    self._logger.debug("Disabled Airspy Bias-T")
+                    self._interface_logger.debug("Disabled Airspy Bias-T")
                 except Exception:
                     pass  # Setting may not be available
                     
@@ -1305,12 +1305,12 @@ class AirspyReceiver(_SoapySDRReceiver):
                 # This is better for strong signals like local FM stations
                 try:
                     device.writeSetting("gainmode", "linearity")
-                    self._logger.debug("Set Airspy to linearity gain mode")
+                    self._interface_logger.debug("Set Airspy to linearity gain mode")
                 except Exception:
                     pass  # Setting may not be available
                     
             except Exception as e:
-                self._logger.debug(f"Airspy post-configuration skipped: {e}")
+                self._interface_logger.debug(f"Airspy post-configuration skipped: {e}")
         
         return handle
 
