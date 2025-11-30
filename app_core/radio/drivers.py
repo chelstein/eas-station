@@ -894,8 +894,28 @@ class _SoapySDRReceiver(ReceiverInterface):
                         self._compute_spectrum(samples, handle.numpy)
                         last_spectrum_time = now
                     
-                    # 2. Update Signal Strength
+                    # 2. Update Signal Strength with diagnostic checks
                     magnitude = float(handle.numpy.mean(handle.numpy.abs(samples)))
+                    max_magnitude = float(handle.numpy.max(handle.numpy.abs(samples)))
+                    
+                    # Log diagnostic warning if signal looks like DC or constant value
+                    # which indicates potential SDR configuration or hardware issue
+                    if max_magnitude > 0:
+                        dynamic_range = max_magnitude / max(magnitude, 1e-10)
+                        # A real RF signal should have dynamic range > 1.5
+                        # DC or constant output has dynamic range very close to 1.0
+                        if dynamic_range < 1.1 and self._stream_errors_count == 0:
+                            # Only log once to avoid spam
+                            self._interface_logger.warning(
+                                "Low dynamic range detected for %s (%.2f). "
+                                "This may indicate DC offset, no antenna, or SDR configuration issue. "
+                                "Mean=%.6f, Max=%.6f",
+                                self.config.identifier,
+                                dynamic_range,
+                                magnitude,
+                                max_magnitude
+                            )
+                    
                     self._update_status(locked=True, signal_strength=magnitude)
                     
                     # 3. Update Audio Sample Buffer (existing logic)

@@ -795,13 +795,13 @@ def publish_metrics_to_redis(metrics):
                                     magnitude = np.where(magnitude > 0, magnitude, FFT_MIN_MAGNITUDE)
                                     magnitude_db = 20 * np.log10(magnitude)
                                     
-                                    # Normalize to 0-1 range for display
-                                    min_db = float(magnitude_db.min())
-                                    max_db = float(magnitude_db.max())
-                                    if max_db > min_db:
-                                        normalized = (magnitude_db - min_db) / (max_db - min_db)
-                                    else:
-                                        normalized = np.zeros_like(magnitude_db)
+                                    # Normalize to 0-1 range using FIXED dB scale for consistent display
+                                    # This uses -80 dB to 0 dB range (80 dB dynamic range)
+                                    # This approach shows actual signal levels rather than stretching
+                                    # noise to fill the display (which makes everything look like garbage)
+                                    DB_MIN = -80.0  # Noise floor reference
+                                    DB_MAX = 0.0    # Maximum signal reference
+                                    normalized = np.clip((magnitude_db - DB_MIN) / (DB_MAX - DB_MIN), 0.0, 1.0)
                                     
                                     # Get receiver config for frequency info
                                     config = receiver_instance.config if hasattr(receiver_instance, 'config') else None
