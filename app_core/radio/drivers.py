@@ -564,6 +564,11 @@ class _SoapySDRReceiver(ReceiverInterface):
                 stream_args  # driver-specific stream args
             )
             device.activateStream(stream)
+            
+            # Allow SDR hardware time to stabilize after stream activation
+            # This is especially important for Airspy and some RTL-SDR devices
+            # that need time to start the data flow after activation
+            time.sleep(0.1)  # 100ms stabilization delay
         except Exception as exc:
             # Ensure hardware resources are released before bubbling the error up.
             try:
@@ -821,8 +826,16 @@ class _SoapySDRReceiver(ReceiverInterface):
                 continue
 
             try:
-                # Read with backpressure handling
-                result = handle.device.readStream(handle.stream, [buffer], len(buffer))
+                # Read samples from SDR with explicit timeout
+                # Use 500ms timeout (500000 microseconds) to allow adequate time
+                # for USB transfers and SDR hardware response, especially for
+                # Airspy and RTL-SDR devices that may have USB latency
+                result = handle.device.readStream(
+                    handle.stream, 
+                    [buffer], 
+                    len(buffer),
+                    timeoutUs=500000  # 500ms timeout for reliable reading
+                )
                 
                 if result.ret < 0:
                     # Handle different error types differently
