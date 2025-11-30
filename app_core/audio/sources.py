@@ -217,6 +217,34 @@ class SDRSourceAdapter(AudioSourceAdapter):
                     self.config.channels = 2
                     self.metrics.channels = 2
                 logger.info(f"Created {self._receiver_config.modulation_type} demodulator for receiver: {receiver_id}")
+                # Update metadata to reflect demodulation is enabled
+                metadata['demodulation_enabled'] = True
+                metadata['demodulation_type'] = self._receiver_config.modulation_type
+            else:
+                # Update metadata to reflect demodulation is NOT enabled
+                metadata['demodulation_enabled'] = False
+                metadata['demodulation_type'] = None
+                
+                # Log a clear warning about why demodulation is not enabled
+                # This helps users understand why they're not getting audio
+                if not self._receiver_config.audio_output:
+                    metadata['demodulation_reason'] = 'audio_output disabled'
+                    logger.warning(
+                        f"No demodulator created for receiver '{receiver_id}': "
+                        f"audio_output is disabled. Enable 'Audio Output' in receiver settings "
+                        f"to hear demodulated audio on the Icecast stream."
+                    )
+                elif self._receiver_config.modulation_type == 'IQ':
+                    metadata['demodulation_reason'] = 'modulation_type is IQ'
+                    logger.warning(
+                        f"No demodulator created for receiver '{receiver_id}': "
+                        f"modulation_type is 'IQ'. Set modulation to 'FM', 'WFM', 'NFM', or 'AM' "
+                        f"in receiver settings to enable audio demodulation. "
+                        f"Raw IQ cannot be played as audio."
+                    )
+            
+            # Update metadata after demodulator setup
+            self.metrics.metadata = metadata
 
         # Start IQ capture from the specified receiver
         # Retry with backoff since the receiver may still be starting up
