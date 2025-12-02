@@ -306,6 +306,8 @@ PUBLIC_API_GET_PATHS = {
     '/api/eas-monitor/status',
     '/api/system_health',
     '/api/monitoring/radio',
+    # Snow emergency status (public safety information)
+    '/api/snow_emergencies',
 }
 CSRF_SESSION_KEY = '_csrf_token'
 CSRF_HEADER_NAME = 'X-CSRF-Token'
