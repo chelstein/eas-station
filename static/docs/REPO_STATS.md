@@ -1,6 +1,6 @@
 # 📊 EAS Station Repository Statistics
 
-> **Last Updated:** 2025-12-02 18:28:25 UTC
+> **Last Updated:** 2025-12-02 18:35:36 UTC
 
 ---
 
@@ -10,16 +10,36 @@
 |--------|-------|
 | 📁 Total Files | **639** |
 | 📂 Directories | **74** |
-| 📝 Total Lines | **219,085** |
-| 💻 Code Lines | **124,719** |
-| 💬 Comment Lines | **61,244** |
+| 📝 Total Lines | **219,119** |
+| 💻 Code Lines | **124,746** |
+| 💬 Comment Lines | **61,249** |
 | 🛤️ API Routes | **193** |
 
-**Code Composition:** 56.9% code · 28.0% comments · 15.1% whitespace
+```mermaid
+pie showData
+    title Code Composition
+    "Code (56.9%)" : 124746
+    "Comments (28.0%)" : 61249
+    "Whitespace (15.1%)" : 33124
+```
 
 ---
 
 ## 📁 Files by Type
+
+```mermaid
+pie showData
+    title Files by Type
+    "Python" : 329
+    "HTML" : 85
+    "Other" : 64
+    "Markdown" : 58
+    "Shell" : 31
+    "SVG" : 15
+    "JavaScript" : 14
+    "YAML" : 13
+    "Other Types" : 30
+```
 
 | Type | Count | |
 |------|------:|--|
@@ -42,8 +62,8 @@
 
 | Language | Total | Code | Comments | Code % |
 |----------|------:|-----:|---------:|-------:|
-| 🐍 Python | 116,205 | 42,193 | 53,947 | 36% |
-| 🌐 HTML | 54,097 | 49,015 | 503 | 91% |
+| 🐍 Python | 116,237 | 42,218 | 53,952 | 36% |
+| 🌐 HTML | 54,099 | 49,017 | 503 | 91% |
 | 📝 Markdown | 23,109 | 17,735 | 0 | 77% |
 | 🎨 CSS | 7,769 | 1,695 | 4,943 | 22% |
 | ⚡ JavaScript | 5,737 | 4,246 | 727 | 74% |
@@ -61,14 +81,22 @@
 
 ### Top Languages by Lines of Code
 
+```mermaid
+xychart-beta
+    title "Lines of Code by Language"
+    x-axis ["Python", "HTML", "Markdown", "CSS", "JavaScript", "Shell"]
+    y-axis "Lines of Code"
+    bar [42218, 49017, 17735, 1695, 4246, 2368]
+```
+
 **🐍 Python** (33.8%)
 ```
-█████████████████████████░░░░░ 42,193
+█████████████████████████░░░░░ 42,218
 ```
 
 **🌐 HTML** (39.3%)
 ```
-██████████████████████████████ 49,015
+██████████████████████████████ 49,017
 ```
 
 **📝 Markdown** (14.2%)
