@@ -1110,4 +1110,17 @@ docker-compose down
 
 **Document Version**: 1.0  
 **Last Updated**: 2025-12-02  
+**Original Author**: KR8MER  
 **Maintained By**: EAS Station Development Team
+
+---
+
+## Document History
+
+This guide was created to solve a real development workflow problem experienced by contributors to the EAS Station project. The content and structure reflect actual pain points from debugging on real Raspberry Pi hardware.
+
+**Contributions**:
+- Guide concept and requirements: KR8MER
+- Initial content and workflow: KR8MER
+- Technical implementation and organization: GitHub Copilot
+- Integration with existing documentation: GitHub Copilot
