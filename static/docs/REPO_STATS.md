@@ -1,98 +1,131 @@
-# Repository Statistics
+# 📊 EAS Station Repository Statistics
 
-**Generated:** 2025-12-02 18:02:47 UTC
+> **Last Updated:** 2025-12-02 18:15:34 UTC
 
-## Overview
+---
 
-- **Total Files:** 639
-- **Total Directories:** 74
-- **Total Lines:** 218,708
-- **Code Lines:** 124,412
-- **Comment Lines:** 61,218
-- **Total Routes:** 193
+## 🎯 Quick Stats
 
-## Files by Type
+| Metric | Value |
+|--------|-------|
+| 📁 Total Files | **640** |
+| 📂 Directories | **74** |
+| 📝 Total Lines | **219,240** |
+| 💻 Code Lines | **124,844** |
+| 💬 Comment Lines | **61,227** |
+| 🛤️ API Routes | **193** |
 
-| File Type | Count |
-|-----------|-------|
-| Python | 329 |
-| HTML | 85 |
-| Other | 64 |
-| Markdown | 58 |
-| Shell | 31 |
-| SVG | 15 |
-| JavaScript | 14 |
-| YAML | 13 |
-| CSS | 12 |
-| Text | 8 |
-| SQL | 7 |
-| XML | 3 |
+**Code Composition:** 56.9% code · 27.9% comments · 15.1% whitespace
 
-## Lines of Code by Type
+---
 
-| Language | Total Lines | Code Lines | Comment Lines |
-|----------|-------------|------------|---------------|
-| Python | 116,127 | 42,131 | 53,941 |
-| HTML | 54,022 | 48,944 | 502 |
-| Markdown | 23,071 | 17,712 | 0 |
-| CSS | 7,769 | 1,695 | 4,943 |
-| JavaScript | 5,737 | 4,246 | 727 |
-| Shell | 3,287 | 2,368 | 435 |
-| YAML | 2,356 | 1,673 | 469 |
-| Text | 2,212 | 2,068 | 0 |
-| SVG | 1,755 | 1,332 | 176 |
-| XML | 1,591 | 1,584 | 0 |
-| SQL | 655 | 582 | 0 |
-| Other | 126 | 77 | 25 |
+## 📁 Files by Type
 
-## Routes by File
+| Type | Count | |
+|------|------:|--|
+| 🐍 Python | 329 | `▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓` |
+| 🌐 HTML | 85 | `▓▓▓▓▓░░░░░░░░░░░░░░░` |
+| 📦 Other | 64 | `▓▓▓░░░░░░░░░░░░░░░░░` |
+| 📝 Markdown | 59 | `▓▓▓░░░░░░░░░░░░░░░░░` |
+| 🐚 Shell | 31 | `▓░░░░░░░░░░░░░░░░░░░` |
+| 🖼️ SVG | 15 | `░░░░░░░░░░░░░░░░░░░░` |
+| ⚡ JavaScript | 14 | `░░░░░░░░░░░░░░░░░░░░` |
+| ⚙️ YAML | 13 | `░░░░░░░░░░░░░░░░░░░░` |
+| 🎨 CSS | 12 | `░░░░░░░░░░░░░░░░░░░░` |
+| 📃 Text | 8 | `░░░░░░░░░░░░░░░░░░░░` |
+| 🗄️ SQL | 7 | `░░░░░░░░░░░░░░░░░░░░` |
+| 📄 XML | 3 | `░░░░░░░░░░░░░░░░░░░░` |
 
-| File | Route Count |
-|------|-------------|
-| webapp/routes_settings_radio.py | 21 |
-| webapp/routes_screens.py | 17 |
-| webapp/routes_public.py | 14 |
-| webapp/routes_led.py | 13 |
-| webapp/routes_vfd.py | 12 |
-| webapp/routes_analytics.py | 12 |
-| webapp/routes_monitoring.py | 10 |
-| webapp/routes_setup.py | 9 |
-| webapp/routes_stream_profiles.py | 9 |
-| webapp/routes_backups.py | 8 |
-| webapp/eas/workflow.py | 8 |
-| webapp/routes/system_controls.py | 7 |
-| webapp/routes/alert_verification.py | 6 |
-| webapp/documentation.py | 5 |
-| webapp/routes_debug.py | 5 |
-| webapp/routes_snow_emergencies.py | 4 |
-| webapp/routes_audio_tests.py | 4 |
-| webapp/routes_exports.py | 4 |
-| webapp/routes_rwt_schedule.py | 4 |
-| webapp/routes_eas_monitor_status.py | 3 |
-| webapp/admin/audio/files.py | 3 |
-| webapp/admin/audio/received.py | 3 |
-| webapp/routes/eas_compliance.py | 3 |
-| webapp/eas/messages.py | 3 |
-| webapp/routes_diagnostics.py | 2 |
-| webapp/admin/audio/detail.py | 2 |
-| webapp/routes_settings_audio.py | 1 |
-| webapp/admin/audio/history.py | 1 |
+---
 
-## Code Distribution
+## 📈 Lines of Code by Language
+
+| Language | Total | Code | Comments | Code % |
+|----------|------:|-----:|---------:|-------:|
+| 🐍 Python | 116,202 | 42,193 | 53,944 | 36% |
+| 🌐 HTML | 54,097 | 49,015 | 503 | 91% |
+| 📝 Markdown | 23,361 | 17,930 | 0 | 77% |
+| 🎨 CSS | 7,769 | 1,695 | 4,943 | 22% |
+| ⚡ JavaScript | 5,737 | 4,246 | 727 | 74% |
+| 🐚 Shell | 3,287 | 2,368 | 435 | 72% |
+| ⚙️ YAML | 2,356 | 1,673 | 469 | 71% |
+| 📃 Text | 2,212 | 2,068 | 0 | 93% |
+| 🖼️ SVG | 1,847 | 1,413 | 181 | 77% |
+| 📄 XML | 1,591 | 1,584 | 0 | 100% |
+| 🗄️ SQL | 655 | 582 | 0 | 89% |
+| 📦 Other | 126 | 77 | 25 | 61% |
+
+---
+
+## 📊 Code Distribution
 
 ### Top Languages by Lines of Code
 
-**Python:** 42,131 lines  
-`███████████████████████████████████████████`
+**🐍 Python** (33.8%)
+```
+█████████████████████████░░░░░ 42,193
+```
 
-**HTML:** 48,944 lines  
-`██████████████████████████████████████████████████`
+**🌐 HTML** (39.3%)
+```
+██████████████████████████████ 49,015
+```
 
-**Markdown:** 17,712 lines  
-`██████████████████`
+**📝 Markdown** (14.4%)
+```
+██████████░░░░░░░░░░░░░░░░░░░░ 17,930
+```
 
-**CSS:** 1,695 lines  
-`█`
+**🎨 CSS** (1.4%)
+```
+█░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ 1,695
+```
 
-**JavaScript:** 4,246 lines  
-`████`
+**⚡ JavaScript** (3.4%)
+```
+██░░░░░░░░░░░░░░░░░░░░░░░░░░░░ 4,246
+```
+
+**🐚 Shell** (1.9%)
+```
+█░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ 2,368
+```
+
+---
+
+## 🛤️ API Routes by Module
+
+| Module | Routes |
+|--------|-------:|
+| `routes_settings_radio` | 21 |
+| `routes_screens` | 17 |
+| `routes_public` | 14 |
+| `routes_led` | 13 |
+| `routes_vfd` | 12 |
+| `routes_analytics` | 12 |
+| `routes_monitoring` | 10 |
+| `routes_setup` | 9 |
+| `routes_stream_profiles` | 9 |
+| `routes_backups` | 8 |
+| `eas/workflow` | 8 |
+| `routes/system_controls` | 7 |
+| `routes/alert_verification` | 6 |
+| `documentation` | 5 |
+| `routes_debug` | 5 |
+| *...and 13 more modules* | 37 |
+
+---
+
+## 🏗️ Architecture Overview
+
+EAS Station uses a **separated service architecture**:
+
+- **app** - Flask web UI, REST API (no hardware access)
+- **sdr-service** - SDR capture, SAME decoding, Icecast streaming
+- **hardware-service** - GPIO control, OLED/VFD displays, LED signs
+- **Redis** - Real-time metrics and inter-service communication
+- **PostgreSQL + PostGIS** - Persistent storage and spatial queries
+
+---
+
+*Generated by `scripts/generate_repo_stats.py`*

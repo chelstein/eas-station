@@ -247,38 +247,78 @@ def generate_markdown(stats: Dict) -> str:
     """
     md = []
     
-    md.append('# Repository Statistics')
+    # Header with emoji and branding
+    md.append('# 📊 EAS Station Repository Statistics')
     md.append('')
-    md.append(f'**Generated:** {stats["timestamp"]}')
+    md.append(f'> **Last Updated:** {stats["timestamp"]}')
     md.append('')
-    
-    # Overview
-    md.append('## Overview')
-    md.append('')
-    md.append(f'- **Total Files:** {stats["total_files"]:,}')
-    md.append(f'- **Total Directories:** {len(stats["directories"]):,}')
-    md.append(f'- **Total Lines:** {stats["total_lines"]:,}')
-    md.append(f'- **Code Lines:** {stats["total_code_lines"]:,}')
-    md.append(f'- **Comment Lines:** {stats["total_comment_lines"]:,}')
-    md.append(f'- **Total Routes:** {sum(stats["routes"].values())}')
+    md.append('---')
     md.append('')
     
-    # Files by type
-    md.append('## Files by Type')
+    # Quick Stats Summary with emoji
+    md.append('## 🎯 Quick Stats')
     md.append('')
-    md.append('| File Type | Count |')
-    md.append('|-----------|-------|')
+    md.append('| Metric | Value |')
+    md.append('|--------|-------|')
+    md.append(f'| 📁 Total Files | **{stats["total_files"]:,}** |')
+    md.append(f'| 📂 Directories | **{len(stats["directories"]):,}** |')
+    md.append(f'| 📝 Total Lines | **{stats["total_lines"]:,}** |')
+    md.append(f'| 💻 Code Lines | **{stats["total_code_lines"]:,}** |')
+    md.append(f'| 💬 Comment Lines | **{stats["total_comment_lines"]:,}** |')
+    md.append(f'| 🛤️ API Routes | **{sum(stats["routes"].values())}** |')
+    md.append('')
+    
+    # Code composition pie (text representation)
+    if stats["total_lines"] > 0:
+        code_pct = (stats["total_code_lines"] / stats["total_lines"]) * 100
+        comment_pct = (stats["total_comment_lines"] / stats["total_lines"]) * 100
+        blank_pct = 100 - code_pct - comment_pct
+        md.append(f'**Code Composition:** {code_pct:.1f}% code · {comment_pct:.1f}% comments · {blank_pct:.1f}% whitespace')
+        md.append('')
+    
+    md.append('---')
+    md.append('')
+    
+    # Files by type with emoji
+    md.append('## 📁 Files by Type')
+    md.append('')
+    
+    type_emoji = {
+        'Python': '🐍',
+        'HTML': '🌐',
+        'JavaScript': '⚡',
+        'CSS': '🎨',
+        'Markdown': '📝',
+        'Shell': '🐚',
+        'YAML': '⚙️',
+        'SQL': '🗄️',
+        'SVG': '🖼️',
+        'JSON': '📋',
+        'XML': '📄',
+        'Text': '📃',
+        'Other': '📦',
+    }
+    
+    md.append('| Type | Count | |')
+    md.append('|------|------:|--|')
     
     sorted_types = sorted(stats['files_by_type'].items(), key=lambda x: x[1], reverse=True)
+    max_count = max(count for _, count in sorted_types) if sorted_types else 1
     for file_type, count in sorted_types:
-        md.append(f'| {file_type} | {count:,} |')
+        emoji = type_emoji.get(file_type, '📦')
+        bar_len = int((count / max_count) * 20)
+        bar = '▓' * bar_len + '░' * (20 - bar_len)
+        md.append(f'| {emoji} {file_type} | {count:,} | `{bar}` |')
+    md.append('')
+    
+    md.append('---')
     md.append('')
     
     # Lines of code by type
-    md.append('## Lines of Code by Type')
+    md.append('## 📈 Lines of Code by Language')
     md.append('')
-    md.append('| Language | Total Lines | Code Lines | Comment Lines |')
-    md.append('|----------|-------------|------------|---------------|')
+    md.append('| Language | Total | Code | Comments | Code % |')
+    md.append('|----------|------:|-----:|---------:|-------:|')
     
     sorted_lines = sorted(
         stats['lines_by_type'].items(),
@@ -287,40 +327,75 @@ def generate_markdown(stats: Dict) -> str:
     )
     for lang, counts in sorted_lines:
         if counts['total'] > 0:
+            emoji = type_emoji.get(lang, '📦')
+            code_pct = (counts["code"] / counts["total"] * 100) if counts["total"] > 0 else 0
             md.append(
-                f'| {lang} | {counts["total"]:,} | {counts["code"]:,} | {counts["comments"]:,} |'
+                f'| {emoji} {lang} | {counts["total"]:,} | {counts["code"]:,} | {counts["comments"]:,} | {code_pct:.0f}% |'
             )
     md.append('')
     
-    # Routes
-    if stats['routes']:
-        md.append('## Routes by File')
-        md.append('')
-        md.append('| File | Route Count |')
-        md.append('|------|-------------|')
-        
-        sorted_routes = sorted(stats['routes'].items(), key=lambda x: x[1], reverse=True)
-        for file, count in sorted_routes:
-            md.append(f'| {file} | {count} |')
-        md.append('')
+    md.append('---')
+    md.append('')
     
-    # Code distribution visualization
-    md.append('## Code Distribution')
+    # Visual code distribution
+    md.append('## 📊 Code Distribution')
     md.append('')
     md.append('### Top Languages by Lines of Code')
     md.append('')
     
-    # Create a simple bar chart using markdown
-    top_langs = sorted_lines[:5]  # Top 5 languages
+    top_langs = sorted_lines[:6]  # Top 6 languages
     if top_langs:
-        max_lines = max(counts['code'] for _, counts in top_langs)
+        max_lines = max(counts['code'] for _, counts in top_langs) if top_langs else 1
         for lang, counts in top_langs:
             if counts['code'] > 0:
-                bar_length = int((counts['code'] / max_lines) * 50)
-                bar = '█' * bar_length
-                md.append(f'**{lang}:** {counts["code"]:,} lines  ')
-                md.append(f'`{bar}`')
+                emoji = type_emoji.get(lang, '📦')
+                bar_length = int((counts['code'] / max_lines) * 30)
+                bar = '█' * bar_length + '░' * (30 - bar_length)
+                pct = (counts['code'] / stats["total_code_lines"] * 100) if stats["total_code_lines"] > 0 else 0
+                md.append(f'**{emoji} {lang}** ({pct:.1f}%)')
+                md.append(f'```')
+                md.append(f'{bar} {counts["code"]:,}')
+                md.append(f'```')
                 md.append('')
+    
+    md.append('---')
+    md.append('')
+    
+    # Routes
+    if stats['routes']:
+        md.append('## 🛤️ API Routes by Module')
+        md.append('')
+        md.append('| Module | Routes |')
+        md.append('|--------|-------:|')
+        
+        sorted_routes = sorted(stats['routes'].items(), key=lambda x: x[1], reverse=True)
+        for file, count in sorted_routes[:15]:  # Top 15 modules
+            # Shorten the file path for readability
+            short_file = file.replace('webapp/', '').replace('.py', '')
+            md.append(f'| `{short_file}` | {count} |')
+        
+        if len(sorted_routes) > 15:
+            remaining = sum(count for _, count in sorted_routes[15:])
+            md.append(f'| *...and {len(sorted_routes) - 15} more modules* | {remaining} |')
+        md.append('')
+    
+    md.append('---')
+    md.append('')
+    
+    # Architecture note
+    md.append('## 🏗️ Architecture Overview')
+    md.append('')
+    md.append('EAS Station uses a **separated service architecture**:')
+    md.append('')
+    md.append('- **app** - Flask web UI, REST API (no hardware access)')
+    md.append('- **sdr-service** - SDR capture, SAME decoding, Icecast streaming')
+    md.append('- **hardware-service** - GPIO control, OLED/VFD displays, LED signs')
+    md.append('- **Redis** - Real-time metrics and inter-service communication')
+    md.append('- **PostgreSQL + PostGIS** - Persistent storage and spatial queries')
+    md.append('')
+    md.append('---')
+    md.append('')
+    md.append('*Generated by `scripts/generate_repo_stats.py`*')
     
     return '\n'.join(md)
 

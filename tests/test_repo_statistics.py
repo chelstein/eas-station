@@ -43,19 +43,19 @@ def test_statistics_generation():
     with open(stats_file, 'r', encoding='utf-8') as f:
         content = f.read()
     
-    # Validate markdown structure
-    assert '# Repository Statistics' in content, "Should have main heading"
-    assert '## Overview' in content, "Should have Overview section"
-    assert '## Files by Type' in content, "Should have Files by Type section"
-    assert '## Lines of Code by Type' in content, "Should have LOC section"
-    assert '## Routes by File' in content, "Should have Routes section"
+    # Validate markdown structure (updated for new format with emojis)
+    assert 'Repository Statistics' in content, "Should have main heading"
+    assert '## 🎯 Quick Stats' in content or '## Overview' in content, "Should have stats section"
+    assert '## 📁 Files by Type' in content or '## Files by Type' in content, "Should have Files by Type section"
+    assert '## 📈 Lines of Code' in content or '## Lines of Code' in content, "Should have LOC section"
+    assert '## 🛤️ API Routes' in content or '## Routes by File' in content, "Should have Routes section"
     
-    # Validate that it has actual data
-    assert 'Total Files:' in content, "Should show total files"
-    assert 'Total Lines:' in content, "Should show total lines"
-    assert 'Total Routes:' in content, "Should show total routes"
-    assert 'Code Lines:' in content, "Should show code lines"
-    assert 'Comment Lines:' in content, "Should show comment lines"
+    # Validate that it has actual data (updated for table format)
+    assert 'Total Files' in content, "Should show total files"
+    assert 'Total Lines' in content, "Should show total lines"
+    assert 'API Routes' in content or 'Total Routes' in content, "Should show routes"
+    assert 'Code Lines' in content, "Should show code lines"
+    assert 'Comment Lines' in content, "Should show comment lines"
     
     # Check for tables
     assert '|' in content, "Should contain markdown tables"
@@ -103,10 +103,13 @@ def test_statistics_content_quality():
     with open(stats_file, 'r', encoding='utf-8') as f:
         content = f.read()
     
-    # Extract numeric values
-    total_files_match = re.search(r'Total Files.*?(\d{1,3}(?:,\d{3})*)', content)
-    total_lines_match = re.search(r'Total Lines.*?(\d{1,3}(?:,\d{3})*)', content)
-    total_routes_match = re.search(r'Total Routes.*?(\d+)', content)
+    # Extract numeric values (updated for new table format with ** bold markers)
+    total_files_match = re.search(r'Total Files.*?\*\*(\d{1,3}(?:,\d{3})*)\*\*', content) or \
+                        re.search(r'Total Files.*?(\d{1,3}(?:,\d{3})*)', content)
+    total_lines_match = re.search(r'Total Lines.*?\*\*(\d{1,3}(?:,\d{3})*)\*\*', content) or \
+                        re.search(r'Total Lines.*?(\d{1,3}(?:,\d{3})*)', content)
+    total_routes_match = re.search(r'API Routes.*?\*\*(\d+)\*\*', content) or \
+                         re.search(r'Total Routes.*?(\d+)', content)
     
     assert total_files_match, "Should find total files count"
     assert total_lines_match, "Should find total lines count"

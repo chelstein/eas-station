@@ -319,56 +319,53 @@ flowchart TD
 
 ### Audio Ingest Architecture
 
+> **Note:** Audio metrics are stored in **Redis** for real-time access, not PostgreSQL. The sdr-service publishes metrics to Redis keys (e.g., `eas:audio:metrics`), and the app container reads from Redis for UI display.
+
 ```mermaid
 graph TB
-    subgraph "Audio Sources"
-        SDR_SRC[SDR Receiver<br>RadioManager]
-        ALSA_SRC[ALSA Device<br>hw:X,Y]
-        PULSE_SRC[PulseAudio<br>Device Index]
-        FILE_SRC[Audio File<br>WAV/MP3]
+    subgraph "sdr-service Container"
+        subgraph "Audio Sources"
+            SDR_SRC[SDR Receiver<br>RadioManager]
+            ALSA_SRC[ALSA Device<br>hw:X,Y]
+            HTTP_SRC[HTTP Stream<br>Icecast/Shoutcast]
+            FILE_SRC[Audio File<br>WAV/MP3]
+        end
+
+        subgraph "Audio Controller"
+            CONTROLLER[AudioIngestController]
+            PRIORITY[Priority Selection]
+            BUFFER[Audio Buffer Queue]
+        end
+
+        subgraph "Monitoring"
+            METER[AudioMeter<br>Peak/RMS Levels]
+            SILENCE[SilenceDetector<br>Threshold Detection]
+            HEALTH[HealthMonitor<br>Health Score 0-100]
+        end
     end
 
-    subgraph "Source Adapters"
-        SDR_ADAPT[SDRSourceAdapter]
-        ALSA_ADAPT[ALSASourceAdapter]
-        PULSE_ADAPT[PulseSourceAdapter]
-        FILE_ADAPT[FileSourceAdapter]
+    subgraph "Redis Cache"
+        METRICS[(eas:audio:metrics<br>5s TTL)]
+        WAVEFORM[(eas:waveform:*<br>Real-time)]
+        COMMANDS[(eas:commands<br>Pub/Sub)]
     end
 
-    subgraph "Audio Controller"
-        CONTROLLER[AudioIngestController]
-        PRIORITY[Priority Selection]
-        BUFFER[Audio Buffer Queue]
-    end
-
-    subgraph "Monitoring"
-        METER[AudioMeter<br>Peak/RMS Levels]
-        SILENCE[SilenceDetector<br>Threshold Detection]
-        HEALTH[HealthMonitor<br>Health Score 0-100]
-    end
-
-    subgraph "Database"
-        METRICS[(AudioSourceMetrics)]
-        HEALTH_DB[(AudioHealthStatus)]
-        ALERTS_DB[(AudioAlert)]
-    end
-
-    subgraph "Web UI"
+    subgraph "app Container"
         UI[Audio Sources Page<br>/audio/sources]
         API[REST API<br>/api/audio/*]
         JS[JavaScript Monitor<br>Real-time Updates]
     end
 
-    %% Connections
-    SDR_SRC --> SDR_ADAPT
-    ALSA_SRC --> ALSA_ADAPT
-    PULSE_SRC --> PULSE_ADAPT
-    FILE_SRC --> FILE_ADAPT
+    subgraph "PostgreSQL"
+        ALERTS_DB[(AudioAlert<br>Persistent alerts only)]
+        CONFIG_DB[(AudioSourceConfigDB<br>Source settings)]
+    end
 
-    SDR_ADAPT --> CONTROLLER
-    ALSA_ADAPT --> CONTROLLER
-    PULSE_ADAPT --> CONTROLLER
-    FILE_ADAPT --> CONTROLLER
+    %% Connections
+    SDR_SRC --> CONTROLLER
+    ALSA_SRC --> CONTROLLER
+    HTTP_SRC --> CONTROLLER
+    FILE_SRC --> CONTROLLER
 
     CONTROLLER --> PRIORITY
     PRIORITY --> BUFFER
@@ -378,18 +375,19 @@ graph TB
     SILENCE --> HEALTH
 
     HEALTH --> METRICS
-    HEALTH --> HEALTH_DB
+    HEALTH --> WAVEFORM
     SILENCE --> ALERTS_DB
 
     METRICS --> API
-    HEALTH_DB --> API
-    ALERTS_DB --> API
+    WAVEFORM --> API
+    CONFIG_DB --> API
     API --> UI
     UI --> JS
     JS --> API
 
     style SDR_SRC fill:#e1f5ff
     style CONTROLLER fill:#fff3cd
+    style METRICS fill:#f8d7da
     style UI fill:#d4edda
 ```
 
@@ -426,21 +424,23 @@ stateDiagram-v2
 
 ### Audio Metrics Flow
 
+> **Updated:** Metrics flow through Redis for real-time access. Only persistent alerts go to PostgreSQL.
+
 ```mermaid
 sequenceDiagram
     participant Source as Audio Source
-    participant Adapter as Source Adapter
     participant Controller as Controller
     participant Meter as Audio Meter
     participant Silence as Silence Detector
     participant Health as Health Monitor
-    participant DB as Database
+    participant Redis as Redis Cache
+    participant DB as PostgreSQL
+    participant App as app Container
     participant UI as Web UI
 
-    loop Every Audio Chunk
-        Source->>Adapter: Audio Data
-        Adapter->>Adapter: Convert to PCM
-        Adapter->>Controller: Audio Chunk
+    loop Every Audio Chunk (in sdr-service)
+        Source->>Controller: Audio Data
+        Controller->>Controller: Convert to PCM
         Controller->>Meter: Process Chunk
         Meter->>Meter: Calculate Peak/RMS
         Meter->>Health: Level Data
@@ -449,13 +449,18 @@ sequenceDiagram
 
         alt Silence Detected
             Silence->>Health: Silence Event
-            Silence->>DB: Store Alert
+            Silence->>DB: Store Alert (persistent)
         end
 
         Health->>Health: Update Health Score
-        Health->>DB: Store Metrics
-        DB->>UI: New Data Available
-        UI->>UI: Update Display
+        Health->>Redis: Publish Metrics (5s TTL)
+    end
+
+    loop UI Refresh (in app)
+        App->>Redis: GET eas:audio:metrics
+        Redis-->>App: Metrics JSON
+        App->>UI: Update Display
+        UI->>UI: Render VU meters
     end
 ```
 
