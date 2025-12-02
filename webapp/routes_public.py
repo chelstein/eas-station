@@ -786,14 +786,27 @@ def register(app: Flask, logger) -> None:
 
             query = query.order_by(CAPAlert.sent.desc())
 
+            total_count = 0
             try:
                 pagination = query.paginate(page=page, per_page=per_page, error_out=False)
                 alerts_list = pagination.items
+                total_count = pagination.total
             except Exception as exc:
                 route_logger.warning("Pagination error: %s", exc)
-                total_count = query.count()
-                offset = (page - 1) * per_page
-                alerts_list = query.offset(offset).limit(per_page).all()
+                try:
+                    db.session.rollback()
+                except Exception:
+                    pass
+
+                try:
+                    total_count = query.count()
+                    offset = (page - 1) * per_page
+                    alerts_list = query.offset(offset).limit(per_page).all()
+                except Exception as fallback_exc:
+                    db.session.rollback()
+                    route_logger.error("Fallback pagination failed: %s", fallback_exc)
+                    alerts_list = []
+                    total_count = 0
 
                 class MockPagination:
                     def __init__(self, page_num: int, page_size: int, total: int, items):

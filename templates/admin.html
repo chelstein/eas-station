@@ -6552,23 +6552,44 @@
             return `flowchart TB
     classDef county fill:#e3f2fd,stroke:#0d6efd,color:#0d6efd,stroke-width:2px;
     classDef neighbor fill:#f8f9fa,stroke:#6c757d,color:#212529,stroke-width:1.5px;
+    classDef spacer fill:transparent,stroke:transparent,color:transparent;
 
-    PU([★ Putnam ★]):::county
-    DF([Defiance]):::neighbor
-    HE([Henry]):::neighbor
-    WO([Wood]):::neighbor
-    HA([Hancock]):::neighbor
-    PA([Paulding]):::neighbor
-    VW([Van Wert]):::neighbor
-    AL([Allen]):::neighbor
+    subgraph Row1[" "]
+        direction LR
+        SP1(( )):::spacer
+        DF([Defiance]):::neighbor
+        HE([Henry]):::neighbor
+        WO([Wood]):::neighbor
+    end
 
-    DF --- HE --- WO
-    PA --- PU --- HA
-    VW --- AL --- HA
-    PA --- DF
-    HE --- PU --- WO
+    subgraph Row2[" "]
+        direction LR
+        PA([Paulding]):::neighbor
+        PU([★ Putnam ★]):::county
+        HA([Hancock]):::neighbor
+    end
+
+    subgraph Row3[" "]
+        direction LR
+        VW([Van Wert]):::neighbor
+        AL([Allen]):::neighbor
+        SP2(( )):::spacer
+    end
+
+    DF --- HE
+    HE --- WO
+    DF --- PA
+    PA --- VW
+    VW --- AL
+    AL --- PU
+    PU --- HE
+    PU --- WO
+    PU --- HA
+    PU --- PA
+    PU --- VW
     PU --- AL
-    PU --- VW`;
+    HA --- WO
+    HA --- AL`;
         }
 
         function initializeSnowMermaid() {
