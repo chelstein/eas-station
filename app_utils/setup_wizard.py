@@ -31,6 +31,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Callable, Dict, Iterable, List, Optional, Tuple
+import ipaddress
 import os
 
 import secrets
@@ -308,12 +309,11 @@ def _validate_fips(value: str) -> str:
 
 def _validate_ipv4(value: str) -> str:
     """Validate IPv4 address format."""
-    import re
     if not value:
         return value
-    # IPv4 pattern
-    ipv4_pattern = r'^((25[0-5]|(2[0-4]|1\d|[1-9]|)\d)\.?\b){4}$'
-    if not re.match(ipv4_pattern, value):
+    try:
+        ipaddress.IPv4Address(value)
+    except ValueError:
         raise ValueError("Must be a valid IPv4 address (e.g., 192.168.1.100).")
     return value
 
