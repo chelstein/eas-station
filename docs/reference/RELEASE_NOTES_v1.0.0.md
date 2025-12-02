@@ -85,14 +85,14 @@
 ## 📚 Documentation Added
 
 ### SDR Architecture Refactoring Plan
-- **Location**: `docs/SDR_ARCHITECTURE_REFACTORING.md`
+- **Location**: `docs/architecture/SDR_ARCHITECTURE_REFACTORING.md`
 - Documents current monolithic architecture
 - Explains why sdr-service runs audio_service.py
 - Provides 4-phase migration plan for future improvements
 - Risk assessment and recommendations
 
 ### Container Permissions Documentation
-- **Location**: `docs/CONTAINER_PERMISSIONS.md`
+- **Location**: `docs/security/CONTAINER_PERMISSIONS.md`
 - Complete permissions audit for all containers
 - Security analysis for each container
 - Recommendations for improvements
@@ -126,8 +126,8 @@
 - `webapp/admin/zigbee.py` - Zigbee monitoring backend
 - `templates/settings/network.html` - WiFi UI
 - `templates/settings/zigbee.html` - Zigbee UI
-- `docs/SDR_ARCHITECTURE_REFACTORING.md` - Architecture docs
-- `docs/CONTAINER_PERMISSIONS.md` - Security audit
+- `docs/architecture/SDR_ARCHITECTURE_REFACTORING.md` - Architecture docs
+- `docs/security/CONTAINER_PERMISSIONS.md` - Security audit
 
 ### Modified Files
 - `docker-compose.pi.yml` - Device access fixes
@@ -147,7 +147,7 @@ docker-compose -f docker-compose.yml -f docker-compose.pi.yml up --build -d
 
 **For bare metal deployment:**
 - All features work the same
-- See `docs/SDR_ARCHITECTURE_REFACTORING.md` for migration guide
+- See `docs/architecture/SDR_ARCHITECTURE_REFACTORING.md` for migration guide
 
 ## ⚠️ Breaking Changes
 
@@ -156,7 +156,7 @@ docker-compose -f docker-compose.yml -f docker-compose.pi.yml up --build -d
 ## 📝 Known Issues
 
 - SDR service is still monolithic (runs audio_service.py instead of sdr_service.py)
-  - See `docs/SDR_ARCHITECTURE_REFACTORING.md` for future improvement plan
+  - See `docs/architecture/SDR_ARCHITECTURE_REFACTORING.md` for future improvement plan
 - Zigbee device pairing UI not yet implemented (monitoring only)
 - WiFi management requires NetworkManager on the host system
 
@@ -182,6 +182,6 @@ This release includes significant improvements to hardware integration, user exp
 ---
 
 For more information, see:
-- `docs/SDR_ARCHITECTURE_REFACTORING.md`
-- `docs/CONTAINER_PERMISSIONS.md`
+- `docs/architecture/SDR_ARCHITECTURE_REFACTORING.md`
+- `docs/security/CONTAINER_PERMISSIONS.md`
 - Commit history on branch `claude/add-network-config-ui-016mioaM7jN93aPA8BRh1vSy`

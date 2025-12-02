@@ -87,7 +87,7 @@ Welcome to the operator help guide for the NOAA CAP Emergency Alert System (EAS)
 | Manual CAP injection | `python manual_eas_event.py --help` |
 
 ## Related Documentation
-- **[Master Roadmap](../roadmap/master_todo)** - View completed features and upcoming priorities
+- **[Master Roadmap](../roadmap/dasdec3-feature-roadmap)** - View completed features and upcoming priorities
 - **[System Architecture](../architecture/SYSTEM_ARCHITECTURE)** - Understand the technical design
 - **[About EAS Station](../reference/ABOUT)** - Project mission and scope
 
