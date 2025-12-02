@@ -73,7 +73,7 @@ services:
   #   - USB Reader Thread: Reads samples from SDR, writes to ring buffer
   #   - Publisher Thread: Reads from ring buffer, publishes to Redis
   #
-  # For full architecture details, see: docs/SDR_SERVICE_ARCHITECTURE.md
+  # For full architecture details, see: docs/architecture/SDR_SERVICE_ARCHITECTURE.md
   # ==========================================================================
   sdr-service:
     image: eas-station:latest

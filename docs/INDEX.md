@@ -16,7 +16,7 @@ If you're new to EAS Station, start here:
 
 | Diagram | Description |
 |---------|-------------|
-| [All Diagrams Index](DIAGRAMS) | Complete visual documentation |
+| [All Diagrams Index](reference/DIAGRAMS) | Complete visual documentation |
 
 ## 👥 User Documentation
 
@@ -46,6 +46,10 @@ If you're new to EAS Station, start here:
 | [Data Flow Sequences](architecture/DATA_FLOW_SEQUENCES) | Detailed mermaid diagrams |
 | [Display System Architecture](architecture/DISPLAY_SYSTEM_ARCHITECTURE) | Display subsystem diagrams |
 | [EAS Decoding Summary](architecture/EAS_DECODING_SUMMARY) | Architecture analysis |
+| [Hardware Isolation](architecture/HARDWARE_ISOLATION) | Container hardware isolation |
+| [SDR Service Isolation](architecture/SDR_SERVICE_ISOLATION) | SDR service architecture |
+| [SDR Service Architecture](architecture/SDR_SERVICE_ARCHITECTURE) | SDR dual-service design |
+| [SDR Architecture Refactoring](architecture/SDR_ARCHITECTURE_REFACTORING) | Future refactoring plan |
 
 ## 🎨 Frontend Documentation
 
@@ -70,6 +74,7 @@ If you're new to EAS Station, start here:
 |----------|-------------|
 | [Security Guide](security/SECURITY) | Security best practices |
 | [Password Guide](security/SECURITY_PASSWORD_GUIDE) | Password management |
+| [Container Permissions](security/CONTAINER_PERMISSIONS) | Container security audit |
 | [Terms of Use](policies/TERMS_OF_USE) | Usage terms |
 | [Privacy Policy](policies/PRIVACY_POLICY) | Privacy information |
 
@@ -86,6 +91,7 @@ If you're new to EAS Station, start here:
 | [About EAS Station](reference/ABOUT) | Project background |
 | [Changelog](reference/CHANGELOG) | Version history |
 | [Ohio EAS Documentation](reference/OHIO_EAS_DOCUMENTATION) | Ohio EAS system reference |
+| [Diagrams Index](reference/DIAGRAMS) | Visual documentation index |
 | [Feature Roadmap](roadmap/dasdec3-feature-roadmap) | Planned features |
 
 ## 📁 File Organization
@@ -93,15 +99,15 @@ If you're new to EAS Station, start here:
 ```
 docs/
 ├── guides/          # 5 essential user guides
-├── architecture/    # 5 system architecture docs (with diagrams)
+├── architecture/    # 9 system architecture docs (with diagrams)
 ├── audio/           # 1 audio monitoring guide
 ├── deployment/      # 1 deployment guide
 ├── development/     # 1 developer guide
 ├── frontend/        # 3 UI documentation files
 ├── hardware/        # 1 SDR setup guide
 ├── troubleshooting/ # 4 problem-solving guides
-├── security/        # 2 security guides
-├── reference/       # 3 reference materials
+├── security/        # 3 security guides
+├── reference/       # 4 reference materials
 ├── roadmap/         # 1 roadmap document
 ├── policies/        # 2 legal documents
 └── process/         # 2 process and reliability guides
@@ -125,14 +131,15 @@ docs/
 
 | Metric | Value |
 |--------|-------|
-| Total Documentation Files | 34 |
+| Total Documentation Files | 37 |
 | Essential User Guides | 5 |
-| Technical Documents | 8 |
+| Architecture Documents | 9 |
+| Technical Documents | 12 |
 | Legal/Policy Documents | 4 |
 | Total Directories | 13 |
 
 ---
 
 **Last Updated**: 2025-12-02
-**Version**: 4.1 (Added Firewall Documentation)
+**Version**: 4.2 (Reorganized documentation structure)
 **For questions or contributions, see the [Contributing Guide](process/CONTRIBUTING)**
