@@ -293,3 +293,26 @@ def pytest_sessionfinish(session, exitstatus):
     """Called after test session finishes."""
     # Clean up any temporary test data if needed
     pass
+
+
+# ============================================================================
+# Flask application fixtures
+# ============================================================================
+
+@pytest.fixture
+def app(mock_env, monkeypatch):
+    """Create and configure a test Flask app instance."""
+    monkeypatch.setenv('SKIP_DB_INIT', '1')
+    monkeypatch.setenv('DATABASE_URL', 'sqlite:///:memory:')
+    
+    from app import app as flask_app
+    flask_app.config['TESTING'] = True
+    flask_app.config['SETUP_MODE'] = False
+    
+    return flask_app
+
+
+@pytest.fixture
+def app_client(app):
+    """Create a test client for the Flask app."""
+    return app.test_client()
