@@ -301,7 +301,15 @@ def pytest_sessionfinish(session, exitstatus):
 
 @pytest.fixture
 def app(mock_env, monkeypatch):
-    """Create and configure a test Flask app instance."""
+    """Create and configure a test Flask app instance.
+    
+    Args:
+        mock_env: Pre-configured environment variables from conftest
+        monkeypatch: Pytest fixture for modifying environment variables
+    
+    Returns:
+        Flask app instance configured for testing
+    """
     monkeypatch.setenv('SKIP_DB_INIT', '1')
     monkeypatch.setenv('DATABASE_URL', 'sqlite:///:memory:')
     
@@ -314,5 +322,12 @@ def app(mock_env, monkeypatch):
 
 @pytest.fixture
 def app_client(app):
-    """Create a test client for the Flask app."""
+    """Create a test client for the Flask app.
+    
+    Args:
+        app: Flask app instance from the app fixture
+    
+    Returns:
+        Flask test client for making HTTP requests
+    """
     return app.test_client()
