@@ -25,7 +25,7 @@ import logging
 from typing import Any, Dict, List
 
 from flask import Flask, jsonify, request, g
-from sqlalchemy import inspect
+from sqlalchemy import inspect, text
 
 from app_core.extensions import db
 from app_core.models import (
@@ -50,7 +50,6 @@ def _ensure_snow_emergencies_table() -> bool:
         columns = [col["name"] for col in inspector.get_columns("snow_emergencies")]
         if "issues_emergencies" not in columns:
             route_logger.info("Adding missing issues_emergencies column to snow_emergencies table")
-            from sqlalchemy import text
             with db.engine.begin() as conn:
                 conn.execute(text(
                     "ALTER TABLE snow_emergencies ADD COLUMN issues_emergencies BOOLEAN NOT NULL DEFAULT TRUE"
