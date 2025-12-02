@@ -28,7 +28,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from app_core.radio.drivers import RTLSDRReceiver, _SoapySDRReceiver
+from app_core.radio.drivers import RTLSDRReceiver, AirspyReceiver, _SoapySDRReceiver
 from app_core.radio.manager import ReceiverConfig
 
 
@@ -277,7 +277,7 @@ def test_dynamic_buffer_size_calculation():
         gain=10.0,
         auto_start=False,
     )
-    receiver_high = RTLSDRReceiver(config_high)
+    receiver_high = AirspyReceiver(config_high)
     buffer_size_high = receiver_high._calculate_buffer_size()
     # 10MHz * 50ms = 500000 samples, but max is 262144
     assert buffer_size_high == 262144, f"Expected maximum buffer 262144, got {buffer_size_high}"
@@ -291,7 +291,7 @@ def test_dynamic_buffer_size_calculation():
         gain=10.0,
         auto_start=False,
     )
-    receiver_airspy = RTLSDRReceiver(config_airspy)
+    receiver_airspy = AirspyReceiver(config_airspy)
     buffer_size_airspy = receiver_airspy._calculate_buffer_size()
     # 2.5MHz * 50ms = 125000 samples
     assert buffer_size_airspy == 125000, f"Expected 125000, got {buffer_size_airspy}"
