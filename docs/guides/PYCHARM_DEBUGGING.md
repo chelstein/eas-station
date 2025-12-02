@@ -1,8 +1,51 @@
 # PyCharm Remote Debugging Guide for Raspberry Pi
 
-**Stop pushing broken code to GitHub!** This guide shows you how to develop and debug the `eas-station` project directly on your Raspberry Pi using PyCharm Professional, eliminating the need for constant pull requests during development.
+**Stop pushing broken code to GitHub!** This guide shows you how to develop and debug the `eas-station` project directly on your Raspberry Pi using PyCharm Professional or VS Code, eliminating the need for constant pull requests during development.
 
-> **💡 Don't have PyCharm Professional?** See [Getting PyCharm Professional for Free](#getting-pycharm-professional-for-free) - the `eas-station` project qualifies for a **free open source license**! Or use the free [VS Code alternative](#option-4-use-vs-code-free-alternative) which works just as well.
+> **💡 Don't have PyCharm Professional?** See [Getting PyCharm Professional for Free](#getting-pycharm-professional-for-free) - the `eas-station` project qualifies for a **free open source license**! Or use the free [VS Code alternative](#ultra-simple-setup-copy--paste) which works just as well.
+
+---
+
+## 🎯 Three Ways to Use This Guide
+
+Choose your path:
+
+```mermaid
+flowchart TD
+    START[Start Here] --> SKILL{How much do you<br/>want to read?}
+    
+    SKILL -->|Just give me commands<br/>to copy/paste| SIMPLE[Ultra-Simple Setup<br/>⏱️ 15 minutes]
+    SKILL -->|I want to understand<br/>what I'm doing| DETAILED[Read Full Guide<br/>⏱️ 30 minutes]
+    SKILL -->|I know what I'm doing,<br/>just need details| JUMP[Jump to Section<br/>⏱️ 5 minutes]
+    
+    SIMPLE --> QUICK[Quick Start Section ↓]
+    DETAILED --> WHY[Why Use This Approach ↓]
+    JUMP --> TOC[Table of Contents ↓]
+    
+    style START fill:#3b82f6,color:#fff
+    style SIMPLE fill:#10b981,color:#fff
+    style DETAILED fill:#f59e0b,color:#000
+    style JUMP fill:#8b5cf6,color:#fff
+```
+
+**Pick your path:**
+1. **🚀 I want to start NOW** → Go to [Ultra-Simple Setup](#ultra-simple-setup-copy--paste) (copy/paste commands)
+2. **📚 I want to understand everything** → Read from top to bottom
+3. **🔧 I'm experienced, just need specifics** → Use the table of contents below
+
+---
+
+## 📑 Table of Contents
+
+- [Ultra-Simple Setup (Copy & Paste)](#ultra-simple-setup-copy--paste) - Start here if you just want it to work
+- [Why Use This Approach?](#why-use-this-approach) - Understand the benefits
+- [Which IDE Should You Use?](#which-ide-should-you-use) - PyCharm vs VS Code comparison
+- [Getting PyCharm Professional for Free](#getting-pycharm-professional-for-free) - Open source license info
+- [Prerequisites](#prerequisites) - What you need
+- [Quick Start (5 Steps)](#quick-start-5-steps) - Detailed setup instructions
+- [Development Workflow](#development-workflow) - Day-to-day usage
+- [Troubleshooting](#troubleshooting) - Fix common problems
+- [Best Practices](#best-practices) - Tips for success
 
 ---
 
@@ -140,6 +183,255 @@ If you can't get PyCharm Professional, **VS Code** is a free alternative that al
 ```
 
 **The rest of this guide works the same with VS Code!** The debugging concepts and Docker setup are identical.
+
+---
+
+## Ultra-Simple Setup (Copy & Paste)
+
+**Feeling overwhelmed?** Here's the absolute simplest path - just copy and paste these commands. No thinking required.
+
+### Part 1: On Your Raspberry Pi (5 minutes)
+
+Connect to your Pi with keyboard and monitor, or SSH if you already have it working.
+
+**Step 1**: Copy and paste this entire block:
+
+```bash
+# Enable SSH
+sudo systemctl enable ssh
+sudo systemctl start ssh
+
+# Show your IP address (write it down!)
+echo "======================================"
+echo "YOUR PI'S IP ADDRESS IS:"
+hostname -I
+echo "======================================"
+echo "Write down the first IP address!"
+```
+
+**Write down that IP address!** You'll need it in a minute.
+
+**Step 2**: Install Docker (copy and paste this whole thing):
+
+```bash
+# Install Docker
+curl -fsSL https://get.docker.com -o get-docker.sh
+sudo sh get-docker.sh
+
+# Let your user run Docker without sudo
+sudo usermod -aG docker $USER
+
+# Install Docker Compose
+sudo apt-get update
+sudo apt-get install -y libffi-dev libssl-dev python3-dev python3-pip
+sudo pip3 install docker-compose
+
+# Show versions (verify it worked)
+docker --version
+docker-compose --version
+
+echo "======================================"
+echo "SUCCESS! Docker is installed."
+echo "Now log out and log back in."
+echo "======================================"
+```
+
+**Step 3**: Log out and log back in:
+
+```bash
+exit
+```
+
+Then SSH back in or reconnect.
+
+**Step 4**: Set up the development environment (copy and paste):
+
+```bash
+# Go to your eas-station folder
+cd ~/eas-station
+
+# If you don't have it yet, clone it first:
+# git clone https://github.com/KR8MER/eas-station.git
+# cd eas-station
+
+# Copy the development Docker configuration
+cp examples/docker-compose/docker-compose.development.yml docker-compose.override.yml
+
+# Copy the example environment file if you don't have one
+if [ ! -f .env ]; then
+    cp .env.example .env
+fi
+
+# Start everything
+docker-compose up -d
+
+# Wait a few seconds for containers to start
+sleep 10
+
+# Check if it's running
+docker-compose ps
+
+echo "======================================"
+echo "If you see services running above, YOU'RE DONE with the Pi setup!"
+echo "======================================"
+```
+
+**That's it for the Pi!** Leave it running and move to your computer.
+
+---
+
+### Part 2: On Your Computer (10 minutes)
+
+#### Option A: VS Code (Recommended - Start Right Now)
+
+**Step 1**: Download and install VS Code:
+- Go to: [https://code.visualstudio.com/](https://code.visualstudio.com/)
+- Click the big download button
+- Install it (just click Next, Next, Next)
+
+**Step 2**: Install the Remote-SSH extension:
+
+1. Open VS Code
+2. Click the Extensions icon on the left (looks like blocks) or press `Ctrl+Shift+X`
+3. Search for: `Remote - SSH`
+4. Click **Install** on the one by Microsoft
+5. Also install: `Python` (by Microsoft)
+
+**Step 3**: Connect to your Raspberry Pi:
+
+1. Press `F1` (or `Ctrl+Shift+P` on Windows/Linux, `Cmd+Shift+P` on Mac)
+2. Type: `Remote-SSH: Connect to Host`
+3. Click it
+4. Type: `pi@YOUR.PI.IP.ADDRESS` (use the IP from Part 1)
+5. Press Enter
+6. Choose "Linux" if asked
+7. Enter your Pi password when prompted
+8. Wait for VS Code to install the server (happens once, takes ~1 minute)
+
+**Step 4**: Open the project:
+
+1. Click **File** → **Open Folder**
+2. Type: `/home/pi/eas-station`
+3. Click **OK**
+4. Enter password if asked
+5. Click **Yes, I trust the authors** if prompted
+
+**Step 5**: Set up debugging:
+
+1. Click the **Run and Debug** icon on the left (looks like a bug with a play button)
+2. Click **create a launch.json file**
+3. Choose **Python**
+4. **Replace everything** in the file with this:
+
+```json
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Attach to EAS Station",
+            "type": "python",
+            "request": "attach",
+            "connect": {
+                "host": "localhost",
+                "port": 5678
+            },
+            "pathMappings": [
+                {
+                    "localRoot": "${workspaceFolder}",
+                    "remoteRoot": "/app"
+                }
+            ]
+        }
+    ]
+}
+```
+
+5. Save the file (`Ctrl+S` or `Cmd+S`)
+
+**Step 6**: Test debugging:
+
+1. Open any Python file (like `app.py`)
+2. Click in the left margin next to a line number to set a breakpoint (red dot appears)
+3. Click the green **Run** button at the top (or press `F5`)
+4. If it connects, **YOU'RE DONE! 🎉**
+
+**You can now edit code and debug directly on your Pi!**
+
+---
+
+#### Option B: PyCharm Professional (If You Have the License)
+
+**Step 1**: Download PyCharm Professional:
+- Go to: [https://www.jetbrains.com/pycharm/download/](https://www.jetbrains.com/pycharm/download/)
+- Download **Professional** edition (not Community)
+- Install it
+
+**Step 2**: Open PyCharm and skip the project screen
+
+**Step 3**: Set up SSH Interpreter:
+
+1. Go to: **File** → **Settings** (Windows/Linux) or **PyCharm** → **Preferences** (Mac)
+2. Navigate to: **Project** → **Python Interpreter**
+3. Click the **gear icon** ⚙️ → **Add...**
+4. Choose **On SSH**
+5. Click **New server configuration**
+6. Fill in:
+   - **Host**: Your Pi's IP address (from Part 1)
+   - **Port**: `22`
+   - **Username**: `pi`
+7. Click **Next**
+8. Choose **Password** and enter your Pi password
+9. Click **Next**
+10. Set interpreter: `/usr/bin/python3`
+11. Set sync folders:
+    - Local: `<wherever you want to store files locally>`
+    - Remote: `/home/pi/eas-station`
+12. Click **Finish**
+13. Wait for sync (takes a minute)
+
+**Step 4**: Create Debug Configuration:
+
+1. Go to: **Run** → **Edit Configurations...**
+2. Click **+** → **Python Debug Server**
+3. Name it: `EAS Station Debug`
+4. Host: Your Pi's IP
+5. Port: `5678`
+6. Click **OK**
+
+**Step 5**: Start debugging:
+
+1. Set a breakpoint (click in left margin)
+2. Click the debug icon (green bug) or press `Shift+F9`
+3. **YOU'RE DONE! 🎉**
+
+---
+
+### Quick Troubleshooting
+
+**"Connection refused"**:
+```bash
+# On your Pi
+docker-compose restart app
+docker-compose logs app
+```
+
+**"Can't connect to Pi"**:
+```bash
+# On your Pi
+sudo systemctl status ssh
+# If not running:
+sudo systemctl start ssh
+```
+
+**"Permission denied"**:
+```bash
+# On your Pi
+sudo usermod -aG docker,audio,gpio $USER
+exit
+# Then log back in
+```
+
+**Still stuck?** Skip to the [Detailed Instructions](#which-ide-should-you-use) below or [ask for help](https://github.com/KR8MER/eas-station/issues).
 
 ---
 
