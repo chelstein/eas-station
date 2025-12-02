@@ -28,6 +28,8 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 from .manager import ReceiverConfig, ReceiverInterface, ReceiverStatus, RadioManager
+from .dual_thread import DualThreadSDRMixin
+from .ring_buffer import SDRRingBuffer, calculate_buffer_size
 
 
 # Default gain constants for different SDR drivers
@@ -124,8 +126,17 @@ class _CaptureTicket:
                 self._file = None
         self.event.set()
 
-class _SoapySDRReceiver(ReceiverInterface):
-    """Common functionality for receivers implemented via SoapySDR."""
+class _SoapySDRReceiver(DualThreadSDRMixin, ReceiverInterface):
+    """Common functionality for receivers implemented via SoapySDR.
+    
+    This class uses a dual-thread architecture for reliable SDR operation:
+    - USB Reader Thread: Reads samples from SDR hardware (time-critical)
+    - Processing Thread: Handles FFT, audio, captures (can block)
+    
+    The threads communicate via a lock-free ring buffer, ensuring USB reads
+    are never blocked by processing delays. This design is inspired by
+    dump1090 and other robust SDR applications.
+    """
 
     driver_hint: str = ""
     
@@ -147,6 +158,12 @@ class _SoapySDRReceiver(ReceiverInterface):
         -6: "Timing error in stream (SOAPY_SDR_TIME_ERROR)",
         -7: "PLL not locked - receiver tuner or reference clock issue (SOAPY_SDR_NOT_LOCKED)",
     }
+
+    # Buffer configuration for USB streaming
+    # Time-based buffer sizing provides consistent margin across all sample rates
+    _BUFFER_TIME_MS = 50  # 50ms of samples provides adequate USB jitter margin
+    _MIN_BUFFER_SIZE = 16384  # Minimum buffer for low sample rates
+    _MAX_BUFFER_SIZE = 262144  # Maximum buffer to prevent excessive memory usage
 
     def __init__(
         self,
@@ -485,6 +502,17 @@ class _SoapySDRReceiver(ReceiverInterface):
             self._sample_buffer = numpy_module.zeros(self._sample_buffer_size, dtype=numpy_module.complex64)
             self._sample_buffer_pos = 0
 
+    def _calculate_buffer_size(self) -> int:
+        """Calculate dynamic buffer size based on sample rate.
+        
+        Returns a buffer size that provides consistent time margin (~50ms) across
+        all sample rates, bounded by min/max limits to handle edge cases.
+        """
+        # Calculate samples needed for the target buffer time
+        samples_needed = int(self.config.sample_rate * self._BUFFER_TIME_MS / 1000)
+        # Clamp to min/max bounds
+        return max(self._MIN_BUFFER_SIZE, min(samples_needed, self._MAX_BUFFER_SIZE))
+
     def _open_handle(self) -> _SoapySDRHandle:
         try:
             import SoapySDR  # type: ignore
@@ -592,7 +620,7 @@ class _SoapySDRReceiver(ReceiverInterface):
             # USB transfer overhead and stream errors
             # SoapySDR setupStream signature: setupStream(direction, format, [channels], args={})
             # Note: Some drivers need bufflen as string, others as int - use string for compatibility
-            stream_mtu = 16384  # Samples per USB transfer (optimized for AirSpy)
+            stream_mtu = self._calculate_buffer_size()
             stream_args = {}
 
             # Try setting buffer length if supported by the driver
@@ -881,10 +909,11 @@ class _SoapySDRReceiver(ReceiverInterface):
     def _capture_loop(self) -> None:
         handle = self._handle
         buffer = None
+        capture_buffer_size = self._calculate_buffer_size()
         if handle is not None:
-            # Use larger buffer to reduce USB transfer overhead and prevent SOAPY_SDR_OVERFLOW (-4)
+            # Use dynamic buffer size based on sample rate to prevent SOAPY_SDR_OVERFLOW (-4)
             # High-speed SDRs like AirSpy generate data faster than smaller buffers can handle
-            buffer = handle.numpy.zeros(16384, dtype=handle.numpy.complex64)
+            buffer = handle.numpy.zeros(capture_buffer_size, dtype=handle.numpy.complex64)
 
         retry_delay = self._retry_backoff
         consecutive_failures = 0
@@ -938,8 +967,8 @@ class _SoapySDRReceiver(ReceiverInterface):
                 )
                 handle = self._handle = new_handle
                 self._initialize_sample_buffer(new_handle.numpy)
-                # Use larger buffer to reduce USB transfer overhead and prevent SOAPY_SDR_OVERFLOW (-4)
-                buffer = new_handle.numpy.zeros(16384, dtype=new_handle.numpy.complex64)
+                # Use dynamic buffer size based on sample rate to prevent SOAPY_SDR_OVERFLOW (-4)
+                buffer = new_handle.numpy.zeros(capture_buffer_size, dtype=new_handle.numpy.complex64)
                 
                 # Re-initialize ring buffer on new connection
                 ring_buffer_size = int(self.config.sample_rate * 0.5)
