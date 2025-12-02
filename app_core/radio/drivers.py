@@ -592,7 +592,7 @@ class _SoapySDRReceiver(ReceiverInterface):
             # USB transfer overhead and stream errors
             # SoapySDR setupStream signature: setupStream(direction, format, [channels], args={})
             # Note: Some drivers need bufflen as string, others as int - use string for compatibility
-            stream_mtu = 16384  # Samples per USB transfer (optimized for AirSpy)
+            stream_mtu = 131072  # Samples per USB transfer (optimized for AirSpy)
             stream_args = {}
 
             # Try setting buffer length if supported by the driver
@@ -884,7 +884,7 @@ class _SoapySDRReceiver(ReceiverInterface):
         if handle is not None:
             # Use larger buffer to reduce USB transfer overhead and prevent SOAPY_SDR_OVERFLOW (-4)
             # High-speed SDRs like AirSpy generate data faster than smaller buffers can handle
-            buffer = handle.numpy.zeros(16384, dtype=handle.numpy.complex64)
+            buffer = handle.numpy.zeros(131072, dtype=handle.numpy.complex64)
 
         retry_delay = self._retry_backoff
         consecutive_failures = 0
@@ -939,7 +939,7 @@ class _SoapySDRReceiver(ReceiverInterface):
                 handle = self._handle = new_handle
                 self._initialize_sample_buffer(new_handle.numpy)
                 # Use larger buffer to reduce USB transfer overhead and prevent SOAPY_SDR_OVERFLOW (-4)
-                buffer = new_handle.numpy.zeros(16384, dtype=new_handle.numpy.complex64)
+                buffer = new_handle.numpy.zeros(131072, dtype=new_handle.numpy.complex64)
                 
                 # Re-initialize ring buffer on new connection
                 ring_buffer_size = int(self.config.sample_rate * 0.5)
