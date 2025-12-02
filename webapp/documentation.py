@@ -484,7 +484,7 @@ def register_documentation_routes(app: Flask, logger_instance: Any) -> None:
         """Serve the repository statistics HTML page."""
         from flask import send_from_directory
         
-        static_dir = Path(app.root_path).parent / 'static'
+        static_dir = Path(app.root_path) / 'static'
         repo_stats_file = static_dir / 'repo_stats.html'
         
         if not repo_stats_file.exists():
