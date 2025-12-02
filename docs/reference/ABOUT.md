@@ -20,12 +20,12 @@ EAS Station’s reference build centers on a Raspberry Pi 5 (4 GB RAM baseli
 
 ## Mission and Scope
 - **Primary Goal:** Provide emergency communications teams with automated CAP-to-EAS workflow, from alert ingestion through broadcast verification, with complete compliance documentation.
-- **Drop-In Replacement Roadmap:** Implement the nine requirement areas in [`docs/roadmap/master_todo.md`](../roadmap/master_todo)—baseband capture, deterministic playout, hardware control, security, resilience, turnkey deployment, compliance analytics, unified documentation, and certification readiness—so the platform can mirror commercial decoder capabilities on commodity hardware.
+- **Drop-In Replacement Roadmap:** Implement the nine requirement areas in [`docs/roadmap/dasdec3-feature-roadmap.md`](../roadmap/dasdec3-feature-roadmap)—baseband capture, deterministic playout, hardware control, security, resilience, turnkey deployment, compliance analytics, unified documentation, and certification readiness—so the platform can mirror commercial decoder capabilities on commodity hardware.
 - **Deployment Model:** Container-first architecture designed for on-premise or field deployments with external PostgreSQL/PostGIS database service.
 - **Operational Focus:** Multi-source alert aggregation, automatic SAME broadcast generation, SDR-based verification, spatial boundary awareness, and audit trail management.
 
 ## Current Development Status
-See the **[Master Roadmap](../roadmap/master_todo)** for detailed progress on all nine requirement areas, including completed features like audio ingest, security controls, and analytics.
+See the **[Master Roadmap](../roadmap/dasdec3-feature-roadmap)** for detailed progress on all nine requirement areas, including completed features like audio ingest, security controls, and analytics.
 
 ## Core Services
 

@@ -28,6 +28,7 @@ If you're new to EAS Station, start here:
 | [HTTPS Setup](guides/HTTPS_SETUP) | SSL/TLS certificates |
 | [IPAWS Integration](guides/ipaws_feed_integration) | Federal alert source setup |
 | [One-Button Upgrade](guides/one_button_upgrade) | Automated updates |
+| [Poller Config Migration](guides/POLLER_CONFIG_MIGRATION) | Poller configuration migration |
 
 ### Hardware & Audio
 | Document | Description |
@@ -50,6 +51,7 @@ If you're new to EAS Station, start here:
 | [SDR Service Isolation](architecture/SDR_SERVICE_ISOLATION) | SDR service architecture |
 | [SDR Service Architecture](architecture/SDR_SERVICE_ARCHITECTURE) | SDR dual-service design |
 | [SDR Architecture Refactoring](architecture/SDR_ARCHITECTURE_REFACTORING) | Future refactoring plan |
+| [Architecture Issues](architecture/ARCHITECTURE_ISSUES) | Known architecture issues |
 
 ## 🎨 Frontend Documentation
 
@@ -67,6 +69,11 @@ If you're new to EAS Station, start here:
 | [SDR Waterfall Issues](troubleshooting/SDR_WATERFALL_TROUBLESHOOTING) | SDR troubleshooting |
 | [Firewall Requirements](troubleshooting/FIREWALL_REQUIREMENTS) | Network ports and firewall setup |
 | [IPv6 Connectivity](troubleshooting/FIX_IPV6_CONNECTIVITY) | IPv6 troubleshooting |
+| [Airspy Container Fix](troubleshooting/AIRSPY_CONTAINER_FIX) | Airspy SDR container issues |
+| [Audio Squeal Fix](troubleshooting/AUDIO_SQUEAL_FIX) | Audio feedback/squeal issues |
+| [Audio SDR Issues](troubleshooting/AUDIO_SDR_ISSUES_EXPLAINED) | SDR audio problems explained |
+| [Containerization Fixes](troubleshooting/CONTAINERIZATION_FIXES) | Docker container issues |
+| [SDR Streaming Issues](troubleshooting/SDR_STREAMING_ISSUES_ANALYSIS) | SDR streaming analysis |
 
 ## 🔐 Security & Legal
 
@@ -75,6 +82,7 @@ If you're new to EAS Station, start here:
 | [Security Guide](security/SECURITY) | Security best practices |
 | [Password Guide](security/SECURITY_PASSWORD_GUIDE) | Password management |
 | [Container Permissions](security/CONTAINER_PERMISSIONS) | Container security audit |
+| [Security & Bug Fixes](security/SECURITY_AND_BUG_FIXES) | Security fixes and patches |
 | [Terms of Use](policies/TERMS_OF_USE) | Usage terms |
 | [Privacy Policy](policies/PRIVACY_POLICY) | Privacy information |
 
@@ -92,22 +100,23 @@ If you're new to EAS Station, start here:
 | [Changelog](reference/CHANGELOG) | Version history |
 | [Ohio EAS Documentation](reference/OHIO_EAS_DOCUMENTATION) | Ohio EAS system reference |
 | [Diagrams Index](reference/DIAGRAMS) | Visual documentation index |
+| [Release Notes v1.0.0](reference/RELEASE_NOTES_v1.0.0) | Version 1.0.0 release notes |
 | [Feature Roadmap](roadmap/dasdec3-feature-roadmap) | Planned features |
 
 ## 📁 File Organization
 
 ```
 docs/
-├── guides/          # 5 essential user guides
-├── architecture/    # 9 system architecture docs (with diagrams)
+├── guides/          # 6 essential user guides
+├── architecture/    # 10 system architecture docs
 ├── audio/           # 1 audio monitoring guide
 ├── deployment/      # 1 deployment guide
 ├── development/     # 1 developer guide
 ├── frontend/        # 3 UI documentation files
 ├── hardware/        # 1 SDR setup guide
-├── troubleshooting/ # 4 problem-solving guides
-├── security/        # 3 security guides
-├── reference/       # 4 reference materials
+├── troubleshooting/ # 9 problem-solving guides
+├── security/        # 4 security guides
+├── reference/       # 5 reference materials
 ├── roadmap/         # 1 roadmap document
 ├── policies/        # 2 legal documents
 └── process/         # 2 process and reliability guides
@@ -131,15 +140,16 @@ docs/
 
 | Metric | Value |
 |--------|-------|
-| Total Documentation Files | 37 |
-| Essential User Guides | 5 |
-| Architecture Documents | 9 |
-| Technical Documents | 12 |
-| Legal/Policy Documents | 4 |
+| Total Documentation Files | 46 |
+| Essential User Guides | 6 |
+| Architecture Documents | 10 |
+| Troubleshooting Guides | 9 |
+| Security Documents | 4 |
+| Reference Materials | 5 |
 | Total Directories | 13 |
 
 ---
 
 **Last Updated**: 2025-12-02
-**Version**: 4.2 (Reorganized documentation structure)
+**Version**: 4.3 (Moved root-level docs, fixed broken links)
 **For questions or contributions, see the [Contributing Guide](process/CONTRIBUTING)**
