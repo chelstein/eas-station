@@ -310,11 +310,11 @@ def generate_html(stats: Dict) -> str:
         '#FF9F40', '#FF6384', '#C9CBCF', '#4BC0C0', '#FF6384'
     ]
     for i, (file_type, count) in enumerate(sorted_types[:8]):
-        files_labels.append(f"{type_emoji.get(file_type, '📦')} {file_type}")
+        files_labels.append(file_type)
         files_data.append(count)
     if len(sorted_types) > 8:
         other_count = sum(count for _, count in sorted_types[8:])
-        files_labels.append("📦 Other Types")
+        files_labels.append("Other Types")
         files_data.append(other_count)
     
     # Lines of code by language (top 8)
@@ -326,7 +326,7 @@ def generate_html(stats: Dict) -> str:
     ]
     for i, (lang, counts) in enumerate(sorted_lines[:8]):
         if counts['code'] > 0:
-            lines_labels.append(f"{type_emoji.get(lang, '📦')} {lang}")
+            lines_labels.append(lang)
             lines_data.append(counts['code'])
     
     # Routes data (top 15)
