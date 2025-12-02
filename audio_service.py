@@ -191,9 +191,17 @@ def initialize_database():
 
 
 def initialize_radio_receivers(app):
-    """Initialize and start radio receivers (low-level SoapySDR) from database configuration."""
+    """Initialize radio manager for metrics collection (does NOT start receivers).
+
+    In the separated architecture:
+    - sdr-service: Manages SDR hardware and publishes IQ samples to Redis
+    - audio-service: Reads IQ samples from Redis, processes audio, publishes metrics
+
+    This function only initializes the RadioManager reference for metrics collection.
+    The actual receiver startup is handled by sdr-service.
+    """
     global _radio_manager
-    
+
     try:
         with app.app_context():
             from app_core.models import RadioReceiver
@@ -205,21 +213,18 @@ def initialize_radio_receivers(app):
                 logger.info("No radio receivers configured in database")
                 return
 
-            # Get or create the radio manager
+            # Get or create the radio manager for metrics collection only
             radio_manager = get_radio_manager()
             _radio_manager = radio_manager  # Store reference for metrics collection
 
-            # Configure receivers from database records
+            # Configure receivers from database records (metadata only, no hardware access)
             radio_manager.configure_from_records(receivers)
-            logger.info(f"Configured {len(receivers)} radio receiver(s) from database")
+            logger.info(f"Configured {len(receivers)} radio receiver(s) from database (metadata only)")
 
-            # Start all receivers that have auto_start enabled
-            auto_start_receivers = [r for r in receivers if r.auto_start]
-            if auto_start_receivers:
-                radio_manager.start_all()
-                logger.info(f"✅ Started {len(auto_start_receivers)} radio receiver(s) with auto_start enabled")
-            else:
-                logger.info("No radio receivers have auto_start enabled")
+            # DO NOT start receivers here - that's sdr-service's responsibility!
+            # In separated architecture, audio-service reads from Redis, not from hardware
+            logger.info("⚠️  Audio service does NOT start receivers (sdr-service handles hardware)")
+            logger.info(f"   Found {len(receivers)} receiver(s) in database - sdr-service will manage them")
 
     except Exception as exc:
         logger.error(f"Failed to initialize radio receivers: {exc}", exc_info=True)
