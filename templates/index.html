@@ -805,6 +805,34 @@
         <div id="snow-emergency-grid" class="snow-emergency-grid"></div>
     </div>
 
+    <!-- Snow Emergency Level Definitions - Shows when there are active emergencies -->
+    <div id="snow-emergency-definitions" class="snow-emergency-info mt-3 p-3" style="display: none;">
+        <h6 class="mb-2"><i class="fas fa-info-circle text-info me-2"></i>Ohio Snow Emergency Levels Explained</h6>
+        <p class="text-muted small mb-3">Ohio sheriffs use a standardized three-level snow emergency system to communicate road conditions and travel advisories:</p>
+        <div class="snow-level-description-grid">
+            <div class="snow-level-description">
+                <strong><span class="badge bg-success me-1">No Emergency</span></strong>
+                <span class="small">Normal driving conditions. No restrictions on travel. Roads may still be slippery in winter weather.</span>
+            </div>
+            <div class="snow-level-description">
+                <strong><span class="badge bg-warning text-dark me-1">Level 1</span></strong>
+                <span class="small"><strong>Roadways are hazardous</strong> with blowing and drifting snow. Roads may also be icy. Motorists are urged to drive very cautiously.</span>
+            </div>
+            <div class="snow-level-description">
+                <strong><span class="badge me-1" style="background-color: #fd7e14; color: #fff;">Level 2</span></strong>
+                <span class="small"><strong>Roadways are hazardous.</strong> Only those who feel it is necessary to drive should be out. Contact your employer to see if you should report to work.</span>
+            </div>
+            <div class="snow-level-description">
+                <strong><span class="badge bg-danger me-1">Level 3</span></strong>
+                <span class="small"><strong>All roadways are closed</strong> to non-emergency personnel. Those traveling on the roadways may subject themselves to arrest.</span>
+            </div>
+        </div>
+        <div class="alert alert-secondary mt-3 mb-0 small">
+            <i class="fas fa-gavel me-1"></i>
+            <strong>Note:</strong> During a Level 3 emergency, only emergency personnel and essential workers should be on the roads. Violators may be ticketed or arrested, and tow trucks may not respond to non-emergency calls.
+        </div>
+    </div>
+
     <div class="row g-4 align-items-start">
         <div class="col-lg-4 col-xxl-3 order-2 order-lg-1 dashboard-sidebar">
             <div class="card control-card sticky-card">
@@ -2202,6 +2230,7 @@ async function loadSnowEmergencies() {
 function renderSnowEmergencyBanner(data) {
     const banner = document.getElementById('snow-emergency-banner');
     const grid = document.getElementById('snow-emergency-grid');
+    const definitions = document.getElementById('snow-emergency-definitions');
 
     if (!banner || !grid) return;
 
@@ -2212,11 +2241,13 @@ function renderSnowEmergencyBanner(data) {
     if (activeEmergencies.length === 0) {
         banner.style.display = 'none';
         banner.classList.remove('has-emergencies');
+        if (definitions) definitions.style.display = 'none';
         return;
     }
 
     banner.style.display = 'block';
     banner.classList.add('has-emergencies');
+    if (definitions) definitions.style.display = 'block';
 
     grid.innerHTML = activeEmergencies.map(e => `
         <div class="snow-county-card level-${e.level}">

@@ -498,7 +498,7 @@ def alert_detail_pdf(alert_id):
     except Exception as exc:
         api_bp.logger.error('Error generating alert PDF: %s', exc, exc_info=True)
         flash('Error generating PDF. Please try again.', 'error')
-        return redirect(url_for('alert_detail', alert_id=alert_id))
+        return redirect(url_for('api.alert_detail', alert_id=alert_id))
 
 @api_bp.route('/api/alerts')
 @cache.cached(timeout=30, query_string=True, key_prefix='alerts_list')
