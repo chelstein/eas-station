@@ -252,6 +252,7 @@ cd ~/eas-station
 
 # If you don't have it yet, clone it first:
 # git clone https://github.com/KR8MER/eas-station.git
+# (or your fork: git clone https://github.com/YOUR_USERNAME/eas-station.git)
 # cd eas-station
 
 # Copy the development Docker configuration
@@ -340,11 +341,14 @@ echo "======================================"
                     "localRoot": "${workspaceFolder}",
                     "remoteRoot": "/app"
                 }
-            ]
+            ],
+            "justMyCode": false
         }
     ]
 }
 ```
+
+Note: Since you're connected via Remote-SSH, "localhost" refers to the Pi itself, not your local machine.
 
 5. Save the file (`Ctrl+S` or `Cmd+S`)
 
@@ -499,7 +503,7 @@ These are the exact features you need for this workflow! Community Edition won't
 
 ## My Honest Recommendation for You
 
-Based on your situation ("I'm trying to get a pycharm open source free license..."):
+If you're waiting for a PyCharm license or unsure which to choose:
 
 1. **Start with VS Code RIGHT NOW** 
    - You can be debugging on your Pi in 30 minutes
@@ -1110,17 +1114,16 @@ docker-compose down
 
 **Document Version**: 1.0  
 **Last Updated**: 2025-12-02  
-**Original Author**: KR8MER  
 **Maintained By**: EAS Station Development Team
 
 ---
 
 ## Document History
 
-This guide was created to solve a real development workflow problem experienced by contributors to the EAS Station project. The content and structure reflect actual pain points from debugging on real Raspberry Pi hardware.
+This guide was created collaboratively to solve a real development workflow problem experienced by contributors to the EAS Station project. The content and structure reflect actual pain points from debugging on real Raspberry Pi hardware.
 
 **Contributions**:
-- Guide concept and requirements: KR8MER
-- Initial content and workflow: KR8MER
-- Technical implementation and organization: GitHub Copilot
+- Problem identification and requirements: KR8MER
+- Initial concept and workflow definition: KR8MER
+- Technical implementation and documentation: GitHub Copilot with KR8MER
 - Integration with existing documentation: GitHub Copilot
