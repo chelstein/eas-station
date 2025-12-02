@@ -232,7 +232,7 @@
         <div class="hero-section">
             <h1>📊 EAS Station Repository Statistics</h1>
             <p class="timestamp">
-                <i class="far fa-clock"></i> Last Updated: 2025-12-02 21:26:18 UTC
+                <i class="far fa-clock"></i> Last Updated: 2025-12-02 21:26:55 UTC
             </p>
         </div>
         
@@ -250,12 +250,12 @@
             </div>
             <div class="quick-stat-item">
                 <div class="icon">📝</div>
-                <div class="value">221,282</div>
+                <div class="value">221,263</div>
                 <div class="label">Total Lines</div>
             </div>
             <div class="quick-stat-item">
                 <div class="icon">💻</div>
-                <div class="value">125,955</div>
+                <div class="value">125,941</div>
                 <div class="label">Code Lines</div>
             </div>
             <div class="quick-stat-item">
@@ -344,8 +344,8 @@
                         </tr>
                         <tr>
                             <td><strong><svg viewBox="0 0 24 24" width="20" height="20" fill="#000000" style="vertical-align: middle; margin-right: 6px;"><path d="M22.27 19.385H1.73A1.73 1.73 0 010 17.655V6.345a1.73 1.73 0 011.73-1.73h20.54A1.73 1.73 0 0124 6.345v11.308a1.73 1.73 0 01-1.73 1.731zM5.769 15.923v-4.5l2.308 2.885 2.307-2.885v4.5h2.308V8.078h-2.308l-2.307 2.885-2.308-2.885H3.46v7.847zM21.232 12h-2.309V8.077h-2.307V12h-2.308l3.461 4.039z"/></svg>Markdown</strong></td>
-                            <td class="text-end">24,109</td>
-                            <td class="text-end">18,447</td>
+                            <td class="text-end">24,090</td>
+                            <td class="text-end">18,433</td>
                             <td class="text-end">0</td>
                             <td class="text-end">77%</td>
                             <td>
@@ -511,7 +511,7 @@
             data: {
                 labels: ['💻 Code', '💬 Comments', '⬜ Whitespace'],
                 datasets: [{
-                    data: [125955, 61835, 33492],
+                    data: [125941, 61835, 33487],
                     backgroundColor: [
                         'rgba(102, 126, 234, 0.8)',
                         'rgba(118, 75, 162, 0.8)',
@@ -544,7 +544,7 @@
                             label: function(context) {
                                 let label = context.label || '';
                                 let value = context.parsed || 0;
-                                let total = 221282;
+                                let total = 221263;
                                 let percentage = ((value / total) * 100).toFixed(1);
                                 return label + ': ' + value.toLocaleString() + ' lines (' + percentage + '%)';
                             }
@@ -621,7 +621,7 @@
                 labels: ["Python", "HTML", "Markdown", "CSS", "JavaScript", "Shell", "YAML", "Text"],
                 datasets: [{
                     label: 'Lines of Code',
-                    data: [42027, 49700, 18447, 1695, 4246, 2368, 1676, 2070],
+                    data: [42027, 49700, 18433, 1695, 4246, 2368, 1676, 2070],
                     backgroundColor: 'rgba(118, 75, 162, 0.8)',
                     borderColor: 'rgba(118, 75, 162, 1)',
                     borderWidth: 2,
