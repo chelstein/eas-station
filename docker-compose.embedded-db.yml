@@ -15,10 +15,13 @@ services:
       context: .
       dockerfile: Dockerfile.nginx
     image: eas-nginx:latest
+    init: true  # Properly handle process signals
     restart: unless-stopped
     ports:
       - "80:80"    # HTTP (redirects to HTTPS) - binds to both IPv4 and IPv6
       - "443:443"  # HTTPS - binds to both IPv4 and IPv6
+    networks:
+      - eas-network
     volumes:
       - certbot-conf:/etc/letsencrypt
       - certbot-www:/var/www/certbot
@@ -36,6 +39,8 @@ services:
   certbot:
     image: certbot/certbot:latest
     restart: unless-stopped
+    networks:
+      - eas-network
     volumes:
       - certbot-conf:/etc/letsencrypt
       - certbot-www:/var/www/certbot
@@ -52,6 +57,8 @@ services:
     image: redis:7-alpine
     container_name: eas-redis
     restart: unless-stopped
+    networks:
+      - eas-network
     volumes:
       - redis-data:/data
     command: >
@@ -72,7 +79,12 @@ services:
   sdr-service:
     image: eas-station:latest
     container_name: eas-sdr-service
+    init: true  # Properly handle process signals
     restart: unless-stopped
+    networks:
+      - eas-network
+    expose:
+      - "5002"  # HTTP streaming server for audio (internal only)
     command: ["python", "audio_service.py"]
     volumes:
       - app-config:/app-config
@@ -95,6 +107,9 @@ services:
       # SDR settings
       SDR_ARGS: ${SDR_ARGS:-driver=airspy}
 
+      # Audio streaming settings
+      AUDIO_STREAMING_PORT: ${AUDIO_STREAMING_PORT:-5002}
+
       # Icecast configuration
       ICECAST_SERVER: ${ICECAST_SERVER:-icecast}
       ICECAST_PORT: ${ICECAST_INTERNAL_PORT:-8000}
@@ -115,6 +130,14 @@ services:
     cap_add:
       - SYS_RAWIO    # Direct I/O access to hardware devices
       - SYS_ADMIN    # USB device operations
+    # USB device streaming requires locked memory for DMA buffers
+    # Without this, USB reads fail with SOAPY_SDR_STREAM_ERROR (-4)
+    ulimits:
+      memlock:
+        soft: -1  # Unlimited locked memory for USB DMA
+        hard: -1
+    # Shared memory for USB buffers and IPC
+    shm_size: '256mb'
     security_opt:
       - no-new-privileges:true
     depends_on:
@@ -132,10 +155,17 @@ services:
   hardware-service:
     image: eas-station:latest
     container_name: eas-hardware-service
+    init: true  # Properly handle process signals
     restart: unless-stopped
+    networks:
+      - eas-network
+    expose:
+      - "5001"  # Hardware proxy API (network/Zigbee management)
     command: ["python", "hardware_service.py"]
     volumes:
       - app-config:/app-config
+      - /run/dbus:/run/dbus:ro  # DBus for NetworkManager communication
+      - /var/run/dbus:/var/run/dbus:ro  # Alternative DBus location
     environment:
       # Database connection - embedded database
       POSTGRES_HOST: ${POSTGRES_HOST:-alerts-db}
@@ -157,17 +187,18 @@ services:
       SCREENS_AUTO_START: ${SCREENS_AUTO_START:-true}
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    # NetworkManager access requires NET_ADMIN capability and access to host DBus
+    cap_add:
+      - NET_ADMIN  # Network configuration via NetworkManager
     # NOTE: GPIO/display devices added via docker-compose.pi.yml override
     # This base configuration works on all platforms (GPIO features disabled)
-    security_opt:
-      - no-new-privileges:true
     depends_on:
       redis:
         condition: service_healthy
       alerts-db:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "python -c 'import redis; r=redis.Redis(host=\"redis\"); r.ping()' || exit 1"]
+      test: ["CMD-SHELL", "curl -f http://localhost:5001/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -177,25 +208,21 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-      args:
-        SOAPYSDR_DRIVERS: ${SOAPYSDR_DRIVERS:-rtlsdr,airspy}
+      # Note: SDR drivers not needed in web-only container
     image: eas-station:latest
-    depends_on:
-      redis:
-        condition: service_healthy
-      alerts-db:
-        condition: service_healthy
-      icecast:
-        condition: service_healthy
+    init: true  # Properly handle process signals and prevent zombie processes
     expose:
       - "5000"  # Internal only, accessed via nginx reverse proxy
+    networks:
+      - eas-network
     env_file:
       - stack.env  # For Portainer Git deployments - provides defaults
       # NOTE: .env removed - loads empty file from Git. App loads from CONFIG_PATH at runtime.
     volumes:
       - app-config:/app-config  # Persistent volume for .env file
       - certbot-conf:/etc/letsencrypt:ro  # Allow SSL export routes to read certificates
-      - /var/run/docker.sock:/var/run/docker.sock:ro  # Allow container engine health checks
+      # Docker socket removed to prevent /dev/pts permission errors
+      # Health checks can be done via HTTP endpoints instead
     environment:
       # Database connection - embedded database
       POSTGRES_HOST: ${POSTGRES_HOST:-alerts-db}
@@ -204,7 +231,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
 
-      # Redis connection for worker coordination
+      # Redis connection (REQUIRED for separated architecture)
       REDIS_HOST: ${REDIS_HOST:-redis}
       REDIS_PORT: ${REDIS_PORT:-6379}
       REDIS_DB: ${REDIS_DB:-0}
@@ -220,23 +247,34 @@ services:
       DEFAULT_COUNTY_NAME: ${DEFAULT_COUNTY_NAME:-}
       DEFAULT_STATE_CODE: ${DEFAULT_STATE_CODE:-}
 
+      # Audio service connection (for streaming proxy to sdr-service)
+      AUDIO_SERVICE_HOST: ${AUDIO_SERVICE_HOST:-sdr-service}
+      AUDIO_SERVICE_PORT: ${AUDIO_SERVICE_PORT:-5002}
+
       # Note: Audio-related settings (SDR, Icecast) removed from app container.
       # These are configured in the sdr-service container.
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    # Note: All hardware access removed - app container serves UI only.
-    # USB devices (sdr-service), GPIO (hardware-service) handled by dedicated containers.
-    # SMART monitoring can be added later with specific block device mounts if needed.
+    # Note: Device passthrough removed - app container serves UI only.
+    # USB devices, GPIO, and other hardware access moved to sdr-service container.
+    # For hardware access, see sdr-service configuration above.
     security_opt:
       - no-new-privileges:true
+    depends_on:
+      redis:
+        condition: service_healthy
+      alerts-db:
+        condition: service_healthy
+      icecast:
+        condition: service_healthy
 
   noaa-poller:
     image: eas-station:latest
+    init: true  # Properly handle process signals
     depends_on:
-      app:
-        condition: service_started
-      alerts-db:
-        condition: service_healthy
+      - app
+    networks:
+      - eas-network
     command: ["python", "poller/cap_poller.py", "--continuous", "--interval", "120"]
     restart: unless-stopped
     env_file:
@@ -265,11 +303,11 @@ services:
 
   ipaws-poller:
     image: eas-station:latest
+    init: true  # Properly handle process signals
     depends_on:
-      app:
-        condition: service_started
-      alerts-db:
-        condition: service_healthy
+      - app
+    networks:
+      - eas-network
     command:
       - python
       - poller/cap_poller.py
@@ -307,7 +345,7 @@ services:
     image: ${ALERTS_DB_IMAGE:-postgis/postgis:17-3.4}
     restart: unless-stopped
     networks:
-      default:
+      eas-network:
         aliases:
           - postgres
     environment:
@@ -321,6 +359,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    security_opt:
+      - no-new-privileges:true
 
   icecast:
     build:
@@ -328,7 +368,10 @@ services:
       dockerfile: Dockerfile.icecast
     image: eas-icecast:latest
     container_name: eas-icecast
+    init: true  # Properly handle process signals
     restart: unless-stopped
+    networks:
+      - eas-network
     ports:
       - "${ICECAST_PORT:-8001}:8000"  # Icecast web interface and streams (port 8001 to avoid Portainer conflict)
     environment:
@@ -353,6 +396,8 @@ services:
       timeout: 5s
       retries: 5
       start_period: 30s
+    security_opt:
+      - no-new-privileges:true
     # Note: Configure EAS Station to use Icecast:
     #   1. Go to /settings/audio in the web interface
     #   2. Scroll to "Icecast Streaming Output"
@@ -370,3 +415,15 @@ volumes:
   certbot-conf:  # Let's Encrypt SSL certificates
   certbot-www:  # Certbot ACME challenge files
   nginx-logs:  # nginx access and error logs
+
+networks:
+  eas-network:
+    enable_ipv6: true
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.20.0.0/16
+          gateway: 172.20.0.1
+        - subnet: fd00:ea:1::/64
+          gateway: fd00:ea:1::1

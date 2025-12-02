@@ -251,18 +251,7 @@ for attempt in range(max_retries):
 
         fixes_applied = []
 
-        # Fix 1: Drop problematic storage_zone_codes column
-        cur.execute("""
-            SELECT COUNT(*)
-            FROM information_schema.columns
-            WHERE table_name='location_settings'
-            AND column_name='storage_zone_codes'
-        """)
-        if cur.fetchone()[0] > 0:
-            cur.execute("ALTER TABLE location_settings DROP COLUMN storage_zone_codes")
-            fixes_applied.append("Dropped storage_zone_codes column")
-
-        # Fix 2: Clean up duplicate alembic_version entries (migration conflicts)
+        # Fix 1: Clean up duplicate alembic_version entries (migration conflicts)
         cur.execute(
             """
             SELECT COUNT(*)
