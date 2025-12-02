@@ -236,3 +236,62 @@ def test_unknown_error_code_still_formats_message():
 
     annotated = _SoapySDRReceiver._annotate_lock_hint("generic error")
     assert annotated == "generic error"
+
+
+def test_dynamic_buffer_size_calculation():
+    """Test that buffer size is calculated dynamically based on sample rate."""
+    # Test with low sample rate (48kHz) - should use minimum buffer
+    config_low = ReceiverConfig(
+        identifier="test-low",
+        driver="rtlsdr",
+        frequency_hz=162_550_000,
+        sample_rate=48_000,  # Low sample rate
+        gain=10.0,
+        auto_start=False,
+    )
+    receiver_low = RTLSDRReceiver(config_low)
+    buffer_size_low = receiver_low._calculate_buffer_size()
+    # 48kHz * 50ms = 2400 samples, but min is 16384
+    assert buffer_size_low == 16384, f"Expected minimum buffer 16384, got {buffer_size_low}"
+
+    # Test with medium sample rate (2.4MHz RTL-SDR) - should be proportional
+    config_med = ReceiverConfig(
+        identifier="test-med",
+        driver="rtlsdr",
+        frequency_hz=162_550_000,
+        sample_rate=2_400_000,  # 2.4 MHz
+        gain=10.0,
+        auto_start=False,
+    )
+    receiver_med = RTLSDRReceiver(config_med)
+    buffer_size_med = receiver_med._calculate_buffer_size()
+    # 2.4MHz * 50ms = 120000 samples
+    assert buffer_size_med == 120000, f"Expected 120000, got {buffer_size_med}"
+
+    # Test with high sample rate (10MHz Airspy) - should cap at maximum
+    config_high = ReceiverConfig(
+        identifier="test-high",
+        driver="airspy",
+        frequency_hz=162_550_000,
+        sample_rate=10_000_000,  # 10 MHz
+        gain=10.0,
+        auto_start=False,
+    )
+    receiver_high = RTLSDRReceiver(config_high)
+    buffer_size_high = receiver_high._calculate_buffer_size()
+    # 10MHz * 50ms = 500000 samples, but max is 262144
+    assert buffer_size_high == 262144, f"Expected maximum buffer 262144, got {buffer_size_high}"
+
+    # Test with typical Airspy R2 rate (2.5MHz)
+    config_airspy = ReceiverConfig(
+        identifier="test-airspy",
+        driver="airspy",
+        frequency_hz=162_550_000,
+        sample_rate=2_500_000,  # 2.5 MHz typical Airspy
+        gain=10.0,
+        auto_start=False,
+    )
+    receiver_airspy = RTLSDRReceiver(config_airspy)
+    buffer_size_airspy = receiver_airspy._calculate_buffer_size()
+    # 2.5MHz * 50ms = 125000 samples
+    assert buffer_size_airspy == 125000, f"Expected 125000, got {buffer_size_airspy}"
