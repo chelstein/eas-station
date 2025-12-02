@@ -104,6 +104,9 @@
                                     <strong>PostgreSQL + PostGIS:</strong> Spatial database for geographic filtering
                                 </li>
                                 <li class="mb-2">
+                                    <strong>Redis:</strong> Real-time metrics cache and inter-service communication
+                                </li>
+                                <li class="mb-2">
                                     <strong>Docker & Docker Compose:</strong> Container orchestration
                                 </li>
                             </ul>
@@ -132,13 +135,85 @@
                 </div>
             </div>
 
-            <!-- Core Services -->
+            <!-- Separated Service Architecture -->
             <div class="card shadow-sm mb-4 border-0">
                 <div class="card-body p-4">
                     <h2 class="h4 mb-3">
-                        <i class="fas fa-cogs me-2 text-info"></i>Core Services
+                        <i class="fas fa-cubes me-2 text-info"></i>Separated Service Architecture
                     </h2>
-                    <p>EAS Station provides four main service categories that work together to deliver complete emergency alert processing:</p>
+                    <p>EAS Station uses a <strong>separated service architecture</strong> with dedicated containers for reliability and fault isolation:</p>
+                    
+                    <div class="row g-3">
+                        <div class="col-md-6 col-lg-4">
+                            <div class="card h-100 border-0 shadow-sm bg-light">
+                                <div class="card-body text-center">
+                                    <i class="fas fa-globe fa-3x text-primary mb-3"></i>
+                                    <h5 class="h6">app</h5>
+                                    <p class="small text-muted mb-0">Flask web UI, REST API, dashboards. <em>No hardware access.</em> Reads metrics from Redis.</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6 col-lg-4">
+                            <div class="card h-100 border-0 shadow-sm bg-light">
+                                <div class="card-body text-center">
+                                    <i class="fas fa-microphone fa-3x text-success mb-3"></i>
+                                    <h5 class="h6">sdr-service</h5>
+                                    <p class="small text-muted mb-0">SDR capture, FM demodulation, SAME decoding, Icecast streaming. <em>USB access.</em></p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6 col-lg-4">
+                            <div class="card h-100 border-0 shadow-sm bg-light">
+                                <div class="card-body text-center">
+                                    <i class="fas fa-sliders-h fa-3x text-warning mb-3"></i>
+                                    <h5 class="h6">hardware-service</h5>
+                                    <p class="small text-muted mb-0">GPIO relay control, OLED/VFD displays, LED sign protocols. <em>I2C/GPIO access.</em></p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6 col-lg-4">
+                            <div class="card h-100 border-0 shadow-sm bg-light">
+                                <div class="card-body text-center">
+                                    <i class="fas fa-download fa-3x text-secondary mb-3"></i>
+                                    <h5 class="h6">noaa-poller / ipaws-poller</h5>
+                                    <p class="small text-muted mb-0">CAP feed polling, XML parsing, deduplication. Writes to PostgreSQL.</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6 col-lg-4">
+                            <div class="card h-100 border-0 shadow-sm bg-light">
+                                <div class="card-body text-center">
+                                    <i class="fas fa-bolt fa-3x text-danger mb-3"></i>
+                                    <h5 class="h6">Redis</h5>
+                                    <p class="small text-muted mb-0">Real-time metrics, waveforms, command pub/sub. 5s TTL for live data.</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6 col-lg-4">
+                            <div class="card h-100 border-0 shadow-sm bg-light">
+                                <div class="card-body text-center">
+                                    <i class="fas fa-database fa-3x text-purple mb-3"></i>
+                                    <h5 class="h6">PostgreSQL + PostGIS</h5>
+                                    <p class="small text-muted mb-0">Persistent storage: alerts, boundaries, configs, compliance logs.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="alert alert-info mt-4 mb-0" role="alert">
+                        <i class="fas fa-info-circle me-2"></i>
+                        <strong>Why separated?</strong> Service isolation means a web UI crash won't affect audio processing, and hardware failures won't bring down the dashboard. Each service can be restarted independently.
+                    </div>
+                </div>
+            </div>
+
+            <!-- Core Capabilities -->
+            <div class="card shadow-sm mb-4 border-0">
+                <div class="card-body p-4">
+                    <h2 class="h4 mb-3">
+                        <i class="fas fa-cogs me-2 text-info"></i>Core Capabilities
+                    </h2>
+                    <p>EAS Station provides four main capability areas that work together to deliver complete emergency alert processing:</p>
                     
                     <div class="row g-3">
                         <div class="col-md-6 col-lg-3">

@@ -1,6 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="960" height="560" viewBox="0 0 960 560" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="620" viewBox="0 0 1100 620" role="img" aria-labelledby="title desc">
   <title id="title">EAS Station Core Services</title>
-  <desc id="desc">Diagram illustrating the core services powering the EAS Station platform.</desc>
+  <desc id="desc">Diagram illustrating the separated service architecture powering EAS Station with Redis IPC.</desc>
   <defs>
     <linearGradient id="bg" x1="0" x2="0" y1="0" y2="1">
       <stop offset="0%" stop-color="#061826" />
@@ -10,69 +10,163 @@
       <stop offset="0%" stop-color="#1f4b70" />
       <stop offset="100%" stop-color="#15334e" />
     </linearGradient>
+    <linearGradient id="redis-panel" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#7f1d1d" />
+      <stop offset="100%" stop-color="#991b1b" />
+    </linearGradient>
     <marker id="arrow" markerWidth="12" markerHeight="12" refX="6" refY="6" orient="auto">
       <path d="M0,0 L12,6 L0,12 Z" fill="#8bd5ff" />
     </marker>
+    <marker id="red-arrow" markerWidth="12" markerHeight="12" refX="6" refY="6" orient="auto">
+      <path d="M0,0 L12,6 L0,12 Z" fill="#fca5a5" />
+    </marker>
     <style>
       text { font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; fill: #f4f7fb; }
-      .headline { font-size: 30px; font-weight: 600; }
-      .subtitle { font-size: 18px; fill: #b8d9f9; }
-      .panel-title { font-size: 18px; font-weight: 600; }
-      .pill text { font-size: 14px; font-weight: 600; }
+      .headline { font-size: 28px; font-weight: 600; }
+      .subtitle { font-size: 16px; fill: #b8d9f9; }
+      .panel-title { font-size: 16px; font-weight: 600; }
+      .pill text { font-size: 12px; font-weight: 600; }
+      .small-text { font-size: 13px; fill: #d4e7ff; }
     </style>
   </defs>
-  <rect width="960" height="560" rx="28" fill="url(#bg)" />
-  <text x="480" y="80" class="headline" text-anchor="middle">EAS Station Core Services</text>
-  <text x="480" y="115" class="subtitle" text-anchor="middle">CAP ingest → SAME broadcast → Verification &amp; compliance</text>
+  <rect width="1100" height="620" rx="28" fill="url(#bg)" />
+  <text x="550" y="45" class="headline" text-anchor="middle">EAS Station Separated Service Architecture</text>
+  <text x="550" y="75" class="subtitle" text-anchor="middle">app container (Web UI) ↔ Redis IPC ↔ sdr-service &amp; hardware-service containers</text>
 
-  <g transform="translate(80 150)">
-    <rect width="240" height="320" rx="18" fill="url(#panel)" stroke="#49b3ff" stroke-width="2" />
-    <text x="120" y="40" class="panel-title" text-anchor="middle">Ingestion &amp; Control</text>
-    <foreignObject x="20" y="70" width="200" height="230">
-      <div xmlns="http://www.w3.org/1999/xhtml" style="color:#d4e7ff;font-size:16px;line-height:1.5;font-family:'Segoe UI','Helvetica Neue',Arial,sans-serif;">
-        <p>Flask admin portal, REST API, and alert review workflows.</p>
-        <p>Pollers for NOAA Weather Service &amp; FEMA IPAWS CAP feeds.</p>
-        <p>Manual CAP injection tools for drills and lab testing.</p>
-      </div>
-    </foreignObject>
-    <g class="pill" transform="translate(30 280)">
-      <rect width="180" height="36" rx="18" fill="#256a9c" />
-      <text x="90" y="25" text-anchor="middle">Operational UI &amp; API</text>
+  <!-- App Container Panel -->
+  <g transform="translate(40 100)">
+    <rect width="200" height="280" rx="16" fill="url(#panel)" stroke="#49b3ff" stroke-width="2" />
+    <text x="100" y="30" class="panel-title" text-anchor="middle">app container</text>
+    <text x="100" y="55" class="small-text" text-anchor="middle">Flask Web UI &amp; API</text>
+    <text x="100" y="80" class="small-text" text-anchor="middle">No hardware access</text>
+    <text x="100" y="110" class="small-text" text-anchor="middle" style="fill:#a5b4fc">• Dashboards</text>
+    <text x="100" y="130" class="small-text" text-anchor="middle" style="fill:#a5b4fc">• REST API</text>
+    <text x="100" y="150" class="small-text" text-anchor="middle" style="fill:#a5b4fc">• Alert workflows</text>
+    <text x="100" y="170" class="small-text" text-anchor="middle" style="fill:#a5b4fc">• Audio sources UI</text>
+    <text x="100" y="195" class="small-text" text-anchor="middle" style="fill:#93c5fd">Reads metrics from Redis</text>
+    <g class="pill" transform="translate(15 230)">
+      <rect width="170" height="32" rx="16" fill="#256a9c" />
+      <text x="85" y="22" text-anchor="middle">Port 5000</text>
     </g>
   </g>
 
-  <g transform="translate(360 150)">
-    <rect width="240" height="320" rx="18" fill="url(#panel)" stroke="#8bd5ff" stroke-width="2" />
-    <text x="120" y="40" class="panel-title" text-anchor="middle">Processing Core</text>
-    <foreignObject x="20" y="70" width="200" height="230">
-      <div xmlns="http://www.w3.org/1999/xhtml" style="color:#d4e7ff;font-size:16px;line-height:1.5;font-family:'Segoe UI','Helvetica Neue',Arial,sans-serif;">
-        <p>PostgreSQL + PostGIS store alerts, boundaries, receivers.</p>
-        <p>EAS audio pipeline builds SAME bursts and narration WAVs.</p>
-        <p>Radio manager orchestrates SDR capture &amp; GPIO relays.</p>
-      </div>
-    </foreignObject>
-    <g class="pill" transform="translate(30 280)">
-      <rect width="180" height="36" rx="18" fill="#2f7fb8" />
-      <text x="90" y="25" text-anchor="middle">Data, Audio, Radio</text>
+  <!-- Pollers Panel -->
+  <g transform="translate(40 400)">
+    <rect width="200" height="180" rx="16" fill="url(#panel)" stroke="#49b3ff" stroke-width="2" />
+    <text x="100" y="30" class="panel-title" text-anchor="middle">Pollers</text>
+    <text x="100" y="60" class="small-text" text-anchor="middle">noaa-poller</text>
+    <text x="100" y="80" class="small-text" text-anchor="middle">ipaws-poller</text>
+    <text x="100" y="110" class="small-text" text-anchor="middle" style="fill:#a5b4fc">• CAP XML parsing</text>
+    <text x="100" y="130" class="small-text" text-anchor="middle" style="fill:#a5b4fc">• Deduplication</text>
+    <text x="100" y="150" class="small-text" text-anchor="middle" style="fill:#93c5fd">Writes to PostgreSQL</text>
+  </g>
+
+  <!-- Redis Panel (center) -->
+  <g transform="translate(280 100)">
+    <rect width="200" height="280" rx="16" fill="url(#redis-panel)" stroke="#fca5a5" stroke-width="2" />
+    <text x="100" y="30" class="panel-title" text-anchor="middle">Redis</text>
+    <text x="100" y="55" class="small-text" text-anchor="middle" style="fill:#fecaca">Inter-Service Cache</text>
+    <text x="100" y="85" class="small-text" text-anchor="middle" style="fill:#fef2f2">• eas:audio:metrics</text>
+    <text x="100" y="105" class="small-text" text-anchor="middle" style="fill:#fef2f2">• eas:waveform:*</text>
+    <text x="100" y="125" class="small-text" text-anchor="middle" style="fill:#fef2f2">• eas:spectrogram:*</text>
+    <text x="100" y="145" class="small-text" text-anchor="middle" style="fill:#fef2f2">• eas:commands</text>
+    <text x="100" y="175" class="small-text" text-anchor="middle" style="fill:#fecaca">Real-time metrics</text>
+    <text x="100" y="195" class="small-text" text-anchor="middle" style="fill:#fecaca">5 second TTL</text>
+    <text x="100" y="215" class="small-text" text-anchor="middle" style="fill:#fecaca">Pub/Sub commands</text>
+    <g class="pill" transform="translate(15 230)">
+      <rect width="170" height="32" rx="16" fill="#7f1d1d" />
+      <text x="85" y="22" text-anchor="middle">Port 6379</text>
     </g>
   </g>
 
-  <g transform="translate(640 150)">
-    <rect width="240" height="320" rx="18" fill="url(#panel)" stroke="#3bc9b0" stroke-width="2" />
-    <text x="120" y="40" class="panel-title" text-anchor="middle">Verification &amp; Output</text>
-    <foreignObject x="20" y="70" width="200" height="230">
-      <div xmlns="http://www.w3.org/1999/xhtml" style="color:#d4e7ff;font-size:16px;line-height:1.5;font-family:'Segoe UI','Helvetica Neue',Arial,sans-serif;">
-        <p>Compliance dashboards with CSV/PDF exports.</p>
-        <p>Alert verification lab with SDR capture analysis.</p>
-        <p>LED signage coordination for synchronized messaging.</p>
-      </div>
-    </foreignObject>
-    <g class="pill" transform="translate(30 280)">
-      <rect width="180" height="36" rx="18" fill="#34a896" />
-      <text x="90" y="25" text-anchor="middle">Analytics &amp; Displays</text>
+  <!-- sdr-service Panel -->
+  <g transform="translate(520 100)">
+    <rect width="220" height="280" rx="16" fill="url(#panel)" stroke="#3bc9b0" stroke-width="2" />
+    <text x="110" y="30" class="panel-title" text-anchor="middle">sdr-service</text>
+    <text x="110" y="55" class="small-text" text-anchor="middle">Audio + SDR Processing</text>
+    <text x="110" y="80" class="small-text" text-anchor="middle" style="fill:#a7f3d0">USB device access</text>
+    <text x="110" y="110" class="small-text" text-anchor="middle" style="fill:#a5b4fc">• SDR capture (RTL-SDR)</text>
+    <text x="110" y="130" class="small-text" text-anchor="middle" style="fill:#a5b4fc">• FM demodulation</text>
+    <text x="110" y="150" class="small-text" text-anchor="middle" style="fill:#a5b4fc">• SAME decoding</text>
+    <text x="110" y="170" class="small-text" text-anchor="middle" style="fill:#a5b4fc">• Audio metering</text>
+    <text x="110" y="190" class="small-text" text-anchor="middle" style="fill:#a5b4fc">• Icecast streaming</text>
+    <text x="110" y="215" class="small-text" text-anchor="middle" style="fill:#93c5fd">Publishes to Redis</text>
+    <g class="pill" transform="translate(25 230)">
+      <rect width="170" height="32" rx="16" fill="#34a896" />
+      <text x="85" y="22" text-anchor="middle">Port 5002</text>
     </g>
   </g>
 
-  <path d="M320 310 L360 310" stroke="#8bd5ff" stroke-width="3" marker-end="url(#arrow)" />
-  <path d="M600 310 L640 310" stroke="#8bd5ff" stroke-width="3" marker-end="url(#arrow)" />
+  <!-- hardware-service Panel -->
+  <g transform="translate(780 100)">
+    <rect width="220" height="280" rx="16" fill="url(#panel)" stroke="#f59e0b" stroke-width="2" />
+    <text x="110" y="30" class="panel-title" text-anchor="middle">hardware-service</text>
+    <text x="110" y="55" class="small-text" text-anchor="middle">GPIO &amp; Display Control</text>
+    <text x="110" y="80" class="small-text" text-anchor="middle" style="fill:#fef3c7">I2C/GPIO access</text>
+    <text x="110" y="110" class="small-text" text-anchor="middle" style="fill:#a5b4fc">• GPIO relay control</text>
+    <text x="110" y="130" class="small-text" text-anchor="middle" style="fill:#a5b4fc">• OLED displays (I2C)</text>
+    <text x="110" y="150" class="small-text" text-anchor="middle" style="fill:#a5b4fc">• VFD displays</text>
+    <text x="110" y="170" class="small-text" text-anchor="middle" style="fill:#a5b4fc">• LED signs (Alpha)</text>
+    <text x="110" y="190" class="small-text" text-anchor="middle" style="fill:#a5b4fc">• Transmitter keying</text>
+    <text x="110" y="215" class="small-text" text-anchor="middle" style="fill:#93c5fd">Publishes to Redis</text>
+    <g class="pill" transform="translate(25 230)">
+      <rect width="170" height="32" rx="16" fill="#b45309" />
+      <text x="85" y="22" text-anchor="middle">Port 5001</text>
+    </g>
+  </g>
+
+  <!-- PostgreSQL Panel -->
+  <g transform="translate(280 400)">
+    <rect width="200" height="180" rx="16" fill="url(#panel)" stroke="#a78bfa" stroke-width="2" />
+    <text x="100" y="30" class="panel-title" text-anchor="middle">PostgreSQL + PostGIS</text>
+    <text x="100" y="55" class="small-text" text-anchor="middle" style="fill:#e9d5ff">Persistent Storage</text>
+    <text x="100" y="85" class="small-text" text-anchor="middle" style="fill:#a5b4fc">• Alert storage</text>
+    <text x="100" y="105" class="small-text" text-anchor="middle" style="fill:#a5b4fc">• Boundary data</text>
+    <text x="100" y="125" class="small-text" text-anchor="middle" style="fill:#a5b4fc">• Configurations</text>
+    <text x="100" y="145" class="small-text" text-anchor="middle" style="fill:#a5b4fc">• Compliance logs</text>
+    <text x="100" y="165" class="small-text" text-anchor="middle" style="fill:#c4b5fd">Port 5432</text>
+  </g>
+
+  <!-- Outputs Panel -->
+  <g transform="translate(520 400)">
+    <rect width="480" height="180" rx="16" fill="url(#panel)" stroke="#8bd5ff" stroke-width="2" />
+    <text x="240" y="30" class="panel-title" text-anchor="middle">Physical Hardware Outputs</text>
+    <text x="120" y="65" class="small-text" text-anchor="middle" style="fill:#a5b4fc">SDR Receivers</text>
+    <text x="120" y="85" class="small-text" text-anchor="middle" style="fill:#93c5fd">(USB)</text>
+    <text x="240" y="65" class="small-text" text-anchor="middle" style="fill:#a5b4fc">FM Transmitter</text>
+    <text x="240" y="85" class="small-text" text-anchor="middle" style="fill:#93c5fd">(GPIO relay)</text>
+    <text x="360" y="65" class="small-text" text-anchor="middle" style="fill:#a5b4fc">LED Signs</text>
+    <text x="360" y="85" class="small-text" text-anchor="middle" style="fill:#93c5fd">(RS-232)</text>
+    <text x="120" y="120" class="small-text" text-anchor="middle" style="fill:#a5b4fc">OLED/VFD</text>
+    <text x="120" y="140" class="small-text" text-anchor="middle" style="fill:#93c5fd">(I2C)</text>
+    <text x="240" y="120" class="small-text" text-anchor="middle" style="fill:#a5b4fc">Audio DAC</text>
+    <text x="240" y="140" class="small-text" text-anchor="middle" style="fill:#93c5fd">(I2S/USB)</text>
+    <text x="360" y="120" class="small-text" text-anchor="middle" style="fill:#a5b4fc">Icecast</text>
+    <text x="360" y="140" class="small-text" text-anchor="middle" style="fill:#93c5fd">(network)</text>
+  </g>
+
+  <!-- Arrows: app <-> Redis -->
+  <path d="M240 240 L280 240" stroke="#fca5a5" stroke-width="3" marker-end="url(#red-arrow)" />
+  <path d="M280 260 L240 260" stroke="#fca5a5" stroke-width="3" marker-end="url(#red-arrow)" />
+  
+  <!-- Arrows: Redis <-> sdr-service -->
+  <path d="M480 240 L520 240" stroke="#fca5a5" stroke-width="3" marker-end="url(#red-arrow)" />
+  <path d="M520 260 L480 260" stroke="#fca5a5" stroke-width="3" marker-end="url(#red-arrow)" />
+  
+  <!-- Arrows: Redis <-> hardware-service -->
+  <path d="M480 220 L780 220" stroke="#fca5a5" stroke-width="3" marker-end="url(#red-arrow)" />
+  <path d="M780 240 L480 240" stroke="#fca5a5" stroke-width="3" marker-end="url(#red-arrow)" />
+  
+  <!-- Arrows: pollers -> PostgreSQL -->
+  <path d="M240 490 L280 490" stroke="#8bd5ff" stroke-width="3" marker-end="url(#arrow)" />
+  
+  <!-- Arrows: app -> PostgreSQL -->
+  <path d="M140 380 L140 400" stroke="#8bd5ff" stroke-width="3" />
+  <path d="M140 400 L280 490" stroke="#8bd5ff" stroke-width="3" marker-end="url(#arrow)" />
+  
+  <!-- Arrows: sdr-service -> outputs -->
+  <path d="M630 380 L630 400" stroke="#8bd5ff" stroke-width="3" marker-end="url(#arrow)" />
+  
+  <!-- Arrows: hardware-service -> outputs -->
+  <path d="M890 380 L890 400" stroke="#8bd5ff" stroke-width="3" marker-end="url(#arrow)" />
 </svg>
