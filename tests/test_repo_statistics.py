@@ -23,7 +23,7 @@ Test repository statistics generation and documentation integration.
 
 This test validates:
 1. The statistics generation script works correctly
-2. The generated markdown file is valid
+2. The generated HTML file with Chart.js is valid
 3. The documentation system properly includes the statistics
 """
 
@@ -34,31 +34,35 @@ from pathlib import Path
 def test_statistics_generation():
     """Test that statistics can be generated successfully."""
     repo_root = Path(__file__).parent.parent
-    stats_file = repo_root / 'static' / 'docs' / 'REPO_STATS.md'
+    stats_file = repo_root / 'static' / 'repo_stats.html'
     
     # Check that statistics file exists
-    assert stats_file.exists(), "REPO_STATS.md should exist in static/docs/"
+    assert stats_file.exists(), "repo_stats.html should exist in static/"
     
     # Read the content
     with open(stats_file, 'r', encoding='utf-8') as f:
         content = f.read()
     
-    # Validate markdown structure (updated for new format with emojis)
+    # Validate HTML structure
+    assert '<!DOCTYPE html>' in content, "Should be valid HTML"
     assert 'Repository Statistics' in content, "Should have main heading"
-    assert '## 🎯 Quick Stats' in content or '## Overview' in content, "Should have stats section"
-    assert '## 📁 Files by Type' in content or '## Files by Type' in content, "Should have Files by Type section"
-    assert '## 📈 Lines of Code' in content or '## Lines of Code' in content, "Should have LOC section"
-    assert '## 🛤️ API Routes' in content or '## Routes by File' in content, "Should have Routes section"
+    assert 'Chart.js' in content or 'chart.js' in content, "Should include Chart.js"
+    assert 'Quick Stats' in content or 'Total Files' in content, "Should have stats section"
+    assert 'Files by Type' in content, "Should have Files by Type section"
+    assert 'Lines of Code' in content, "Should have LOC section"
+    assert 'API Routes' in content or 'Routes by Module' in content, "Should have Routes section"
     
-    # Validate that it has actual data (updated for table format)
+    # Validate that it has actual data
     assert 'Total Files' in content, "Should show total files"
     assert 'Total Lines' in content, "Should show total lines"
-    assert 'API Routes' in content or 'Total Routes' in content, "Should show routes"
     assert 'Code Lines' in content, "Should show code lines"
-    assert 'Comment Lines' in content, "Should show comment lines"
+    assert 'Comments' in content, "Should show comment lines"
     
-    # Check for tables
-    assert '|' in content, "Should contain markdown tables"
+    # Check for Chart.js canvases
+    assert 'canvas' in content, "Should contain canvas elements for charts"
+    assert 'codeCompositionChart' in content, "Should have code composition chart"
+    assert 'filesByTypeChart' in content, "Should have files by type chart"
+    assert 'linesByLanguageChart' in content, "Should have lines by language chart"
     
     print("✓ Statistics file structure validated")
 
@@ -67,28 +71,20 @@ def test_documentation_integration():
     """Test that statistics are integrated into documentation system."""
     repo_root = Path(__file__).parent.parent
     
-    # Simulate the documentation structure function
-    static_docs_root = Path('static/docs')
-    repo_stats_file = static_docs_root / 'REPO_STATS.md'
+    # Test the new HTML file location
+    static_dir = Path('static')
+    repo_stats_file = static_dir / 'repo_stats.html'
     
-    assert repo_stats_file.exists(), "Statistics file should exist for documentation"
-    
-    # Test the route path logic
-    doc_path = 'static/REPO_STATS'
-    assert doc_path.startswith('static/'), "Route path should start with static/"
-    
-    # Test path extraction
-    relative_path = doc_path[7:]  # Remove 'static/'
-    assert relative_path == 'REPO_STATS', "Should extract correct relative path"
+    assert repo_stats_file.exists(), "Statistics HTML file should exist in static/"
     
     # Test file resolution
-    file_path = static_docs_root / f'{relative_path}.md'
-    assert file_path.exists(), "Should resolve to existing file"
+    file_path = static_dir / 'repo_stats.html'
+    assert file_path.exists(), "Should resolve to existing HTML file"
     
-    # Test security: file should be within static/docs
+    # Test security: file should be within static directory
     try:
-        file_path.resolve().relative_to(static_docs_root.resolve())
-        print("✓ Security check passed: file is within static/docs")
+        file_path.resolve().relative_to(static_dir.resolve())
+        print("✓ Security check passed: file is within static/")
     except ValueError:
         raise AssertionError("Security check failed: file not in allowed directory")
     
@@ -98,18 +94,15 @@ def test_documentation_integration():
 def test_statistics_content_quality():
     """Test that the statistics contain reasonable data."""
     repo_root = Path(__file__).parent.parent
-    stats_file = repo_root / 'static' / 'docs' / 'REPO_STATS.md'
+    stats_file = repo_root / 'static' / 'repo_stats.html'
     
     with open(stats_file, 'r', encoding='utf-8') as f:
         content = f.read()
     
-    # Extract numeric values (updated for new table format with ** bold markers)
-    total_files_match = re.search(r'Total Files.*?\*\*(\d{1,3}(?:,\d{3})*)\*\*', content) or \
-                        re.search(r'Total Files.*?(\d{1,3}(?:,\d{3})*)', content)
-    total_lines_match = re.search(r'Total Lines.*?\*\*(\d{1,3}(?:,\d{3})*)\*\*', content) or \
-                        re.search(r'Total Lines.*?(\d{1,3}(?:,\d{3})*)', content)
-    total_routes_match = re.search(r'API Routes.*?\*\*(\d+)\*\*', content) or \
-                         re.search(r'Total Routes.*?(\d+)', content)
+    # Extract numeric values from HTML content
+    total_files_match = re.search(r'<div class="value">(\d{1,3}(?:,\d{3})*)</div>\s*<div class="label">Total Files</div>', content, re.DOTALL)
+    total_lines_match = re.search(r'<div class="value">(\d{1,3}(?:,\d{3})*)</div>\s*<div class="label">Total Lines</div>', content, re.DOTALL)
+    total_routes_match = re.search(r'<div class="value">(\d+)</div>\s*<div class="label">API Routes</div>', content, re.DOTALL)
     
     assert total_files_match, "Should find total files count"
     assert total_lines_match, "Should find total lines count"
@@ -147,6 +140,7 @@ def test_workflow_file():
     assert 'branches:' in content, "Should specify branches"
     assert 'main' in content, "Should include main branch"
     assert 'python scripts/generate_repo_stats.py' in content, "Should run stats script"
+    assert 'static/repo_stats.html' in content, "Should track the HTML file"
     assert 'git commit' in content, "Should commit changes"
     assert '[skip ci]' in content, "Should skip CI to prevent loops"
     assert 'permissions:' in content, "Should have explicit permissions"

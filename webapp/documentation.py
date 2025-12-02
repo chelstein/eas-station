@@ -283,13 +283,13 @@ def _get_docs_structure() -> Dict[str, List[Dict[str, str]]]:
             'url': '/docs/README'
         })
 
-    # Add repository statistics from static/docs (if exists)
-    repo_stats_file = static_docs_root / 'REPO_STATS.md'
+    # Add repository statistics from static (if exists)
+    repo_stats_file = Path(__file__).parent.parent / 'static' / 'repo_stats.html'
     if repo_stats_file.exists():
         structure['Reference'].append({
             'title': 'Repository Statistics',
-            'path': 'static/REPO_STATS',
-            'url': '/docs/static/REPO_STATS'
+            'path': 'repo_stats',
+            'url': '/repo-stats'
         })
 
     # Scan all markdown files
@@ -478,6 +478,22 @@ def register_documentation_routes(app: Flask, logger_instance: Any) -> None:
             return _render_no_cache('error.html',
                                    error='Unable to load documentation',
                                    details=str(exc)), 500
+
+    @app.route('/repo-stats')
+    def repo_stats():
+        """Serve the repository statistics HTML page."""
+        from flask import send_from_directory
+        
+        static_dir = Path(app.root_path).parent / 'static'
+        repo_stats_file = static_dir / 'repo_stats.html'
+        
+        if not repo_stats_file.exists():
+            logger.warning('Repository statistics file not found: %s', repo_stats_file)
+            return _render_no_cache('error.html',
+                                   error='Repository statistics not available',
+                                   details='Please run scripts/generate_repo_stats.py to generate statistics'), 404
+        
+        return send_from_directory(static_dir, 'repo_stats.html')
 
 
 __all__ = ['register_documentation_routes']
