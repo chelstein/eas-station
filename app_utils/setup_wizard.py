@@ -31,6 +31,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Callable, Dict, Iterable, List, Optional, Tuple
+import ipaddress
 import os
 
 import secrets
@@ -308,7 +309,6 @@ def _validate_fips(value: str) -> str:
 
 def _validate_ipv4(value: str) -> str:
     """Validate IPv4 address format."""
-    import ipaddress
     if not value:
         return value
     try:

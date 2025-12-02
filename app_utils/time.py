@@ -27,7 +27,13 @@ from datetime import datetime
 from typing import Optional
 
 import pytz
-from dateutil import parser as dateutil_parser
+
+# Try to import python-dateutil for robust datetime parsing
+try:
+    from dateutil import parser as dateutil_parser
+    _HAS_DATEUTIL = True
+except ImportError:
+    _HAS_DATEUTIL = False
 
 logger = logging.getLogger(__name__)
 
@@ -81,47 +87,67 @@ def local_now() -> datetime:
     return utc_now().astimezone(get_location_timezone())
 
 
+def _parse_datetime_with_tz_abbreviation(dt_string: str, tz_abbrev: str, is_dst: bool) -> Optional[datetime]:
+    """Helper to parse datetime strings with timezone abbreviations like EDT/EST.
+    
+    Args:
+        dt_string: Datetime string with timezone abbreviation
+        tz_abbrev: Timezone abbreviation to remove (e.g., 'EDT', 'EST')
+        is_dst: Whether this is daylight saving time
+        
+    Returns:
+        Parsed datetime in UTC, or None if parsing fails
+    """
+    clean_string = dt_string.replace(f" {tz_abbrev}", "").replace(tz_abbrev, "")
+    try:
+        if _HAS_DATEUTIL:
+            dt = dateutil_parser.parse(clean_string)
+        else:
+            dt = datetime.fromisoformat(clean_string)
+        
+        if dt.tzinfo is None:
+            eastern_tz = pytz.timezone("US/Eastern")
+            dt = eastern_tz.localize(dt, is_dst=is_dst)
+        return dt.astimezone(UTC_TZ)
+    except (ValueError, TypeError):
+        return None
+
+
 def parse_nws_datetime(dt_string: Optional[str], logger=None) -> Optional[datetime]:
     """Parse the wide variety of datetime formats used by the NWS feeds.
     
-    Uses python-dateutil for robust parsing of various datetime formats.
+    Uses python-dateutil for robust parsing when available, with fallback to
+    standard library datetime parsing for compatibility.
     """
     if not dt_string:
         return None
 
     dt_string = str(dt_string).strip()
 
-    # Handle 'Z' suffix (UTC indicator) - convert to timezone for dateutil
+    # Handle 'Z' suffix (UTC indicator) - convert to timezone offset for better compatibility
     if dt_string.endswith("Z"):
         dt_string = dt_string[:-1] + "+00:00"
     
-    # Handle common timezone abbreviations that dateutil might not parse
-    # Replace EDT/EST with explicit timezone offset for better compatibility
+    # Handle common timezone abbreviations (EDT/EST)
+    # These are parsed specially because they're not standard ISO 8601
     if "EDT" in dt_string:
-        dt_string = dt_string.replace(" EDT", "").replace("EDT", "")
-        try:
-            dt = dateutil_parser.parse(dt_string)
-            if dt.tzinfo is None:
-                eastern_tz = pytz.timezone("US/Eastern")
-                dt = eastern_tz.localize(dt, is_dst=True)
-            return dt.astimezone(UTC_TZ)
-        except (ValueError, TypeError):
-            pass
+        result = _parse_datetime_with_tz_abbreviation(dt_string, "EDT", is_dst=True)
+        if result is not None:
+            return result
     
     if "EST" in dt_string:
-        dt_string = dt_string.replace(" EST", "").replace("EST", "")
-        try:
-            dt = dateutil_parser.parse(dt_string)
-            if dt.tzinfo is None:
-                eastern_tz = pytz.timezone("US/Eastern")
-                dt = eastern_tz.localize(dt, is_dst=False)
-            return dt.astimezone(UTC_TZ)
-        except (ValueError, TypeError):
-            pass
+        result = _parse_datetime_with_tz_abbreviation(dt_string, "EST", is_dst=False)
+        if result is not None:
+            return result
     
     # Try parsing with dateutil (handles most ISO 8601 and common formats)
+    # Or fall back to standard library parsing if dateutil is not available
     try:
-        dt = dateutil_parser.parse(dt_string)
+        if _HAS_DATEUTIL:
+            dt = dateutil_parser.parse(dt_string)
+        else:
+            dt = datetime.fromisoformat(dt_string)
+            
         if dt.tzinfo is None:
             # If no timezone, assume UTC for safety
             dt = dt.replace(tzinfo=UTC_TZ)
