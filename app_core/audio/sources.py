@@ -153,7 +153,16 @@ class SDRSourceAdapter(AudioSourceAdapter):
         from app_core.models import RadioReceiver
         from app_core.radio.demodulation import create_demodulator, DemodulatorConfig
 
-        db_receiver = RadioReceiver.query.filter_by(identifier=receiver_id).first()
+        # Access database within application context
+        # Audio sources run in separate threads, so we need to create our own context
+        # Get the Flask app from audio_service.py's global reference
+        import audio_service
+        app = audio_service._flask_app
+        if not app:
+            raise RuntimeError("Flask app not initialized - audio_service may not be running")
+
+        with app.app_context():
+            db_receiver = RadioReceiver.query.filter_by(identifier=receiver_id).first()
         if db_receiver:
             self._receiver_config = db_receiver.to_receiver_config()
 
