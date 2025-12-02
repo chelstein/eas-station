@@ -6554,42 +6554,42 @@
     classDef neighbor fill:#f8f9fa,stroke:#6c757d,color:#212529,stroke-width:1.5px;
     classDef spacer fill:transparent,stroke:transparent,color:transparent;
 
-    subgraph North[" "]
+    subgraph Row1[" "]
         direction LR
+        SP1(( )):::spacer
         DF([Defiance]):::neighbor
         HE([Henry]):::neighbor
         WO([Wood]):::neighbor
     end
 
-    subgraph Center[" "]
+    subgraph Row2[" "]
         direction LR
         PA([Paulding]):::neighbor
         PU([★ Putnam ★]):::county
         HA([Hancock]):::neighbor
     end
 
-    subgraph South[" "]
+    subgraph Row3[" "]
         direction LR
         VW([Van Wert]):::neighbor
         AL([Allen]):::neighbor
-        SP([ ]):::spacer
+        SP2(( )):::spacer
     end
 
     DF --- HE
     HE --- WO
-    DF --- PU
-    HE --- PU
-    WO --- PU
-    WO --- HA
-    PA --- PU
-    PU --- HA
     DF --- PA
     PA --- VW
     VW --- AL
     AL --- PU
-    VW --- PU
-    AL --- HA
-    SP --- HA`;
+    PU --- HE
+    PU --- WO
+    PU --- HA
+    PU --- PA
+    PU --- VW
+    PU --- AL
+    HA --- WO
+    HA --- AL`;
         }
 
         function initializeSnowMermaid() {
