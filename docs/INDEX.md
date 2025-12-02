@@ -61,6 +61,8 @@ If you're new to EAS Station, start here:
 |----------|-------------|
 | [Database Issues](troubleshooting/DATABASE_CONSISTENCY_FIXES) | PostgreSQL troubleshooting |
 | [SDR Waterfall Issues](troubleshooting/SDR_WATERFALL_TROUBLESHOOTING) | SDR troubleshooting |
+| [Firewall Requirements](troubleshooting/FIREWALL_REQUIREMENTS) | Network ports and firewall setup |
+| [IPv6 Connectivity](troubleshooting/FIX_IPV6_CONNECTIVITY) | IPv6 troubleshooting |
 
 ## 🔐 Security & Legal
 
@@ -97,7 +99,7 @@ docs/
 ├── development/     # 1 developer guide
 ├── frontend/        # 3 UI documentation files
 ├── hardware/        # 1 SDR setup guide
-├── troubleshooting/ # 2 problem-solving guides
+├── troubleshooting/ # 4 problem-solving guides
 ├── security/        # 2 security guides
 ├── reference/       # 3 reference materials
 ├── roadmap/         # 1 roadmap document
@@ -123,7 +125,7 @@ docs/
 
 | Metric | Value |
 |--------|-------|
-| Total Documentation Files | 32 |
+| Total Documentation Files | 34 |
 | Essential User Guides | 5 |
 | Technical Documents | 8 |
 | Legal/Policy Documents | 4 |
@@ -131,6 +133,6 @@ docs/
 
 ---
 
-**Last Updated**: 2025-11-25
-**Version**: 4.0 (Streamlined for Website)
+**Last Updated**: 2025-12-02
+**Version**: 4.1 (Added Firewall Documentation)
 **For questions or contributions, see the [Contributing Guide](process/CONTRIBUTING)**
