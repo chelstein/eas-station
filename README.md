@@ -156,6 +156,7 @@ graph TD
 | **Daily Operations** | [User Guide](docs/guides/HELP) |
 | **Deployment** | [Portainer Guide](docs/guides/PORTAINER_DEPLOYMENT) |
 | **Development** | [Developer Guide](docs/development/AGENTS) |
+| **Debugging on Pi** | [PyCharm Remote Debugging Guide](docs/guides/PYCHARM_DEBUGGING) |
 
 **📖 [Complete Documentation Index](docs/INDEX)** - Searchable topics and detailed guides
 
