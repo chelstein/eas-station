@@ -34,217 +34,75 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from flask import Flask, render_template, abort, make_response, redirect, url_for
 from markupsafe import escape, Markup
+import mistune
+from mistune.renderers.html import HTMLRenderer
 
 logger = logging.getLogger(__name__)
 
 
-def _markdown_to_html(content: str) -> str:
-    """Convert markdown to HTML with basic formatting.
-
-    This is a simple markdown converter. For production, consider using
-    markdown2 or mistune for more complete markdown support.
+class MermaidRenderer(HTMLRenderer):
+    """Custom HTML renderer that handles Mermaid diagrams.
+    
+    Extends the default HTMLRenderer to intercept mermaid code blocks
+    and render them as <div class="mermaid"> for client-side rendering.
+    All other markdown elements use the parent's escaping logic.
     """
-    # Extract HTML anchor tags before escaping to preserve them
-    anchor_tags = {}
-    anchor_pattern = r'<a\s+name=["\']([^"\']+)["\']\s*></a>'
-
-    def save_anchor(match):
-        placeholder = f'%%%ANCHORTAG{len(anchor_tags)}%%%'
-        anchor_tags[placeholder] = match.group(0)
-        return placeholder
-
-    content = re.sub(anchor_pattern, save_anchor, content)
-
-    # Extract mermaid blocks before escaping to preserve syntax
-    mermaid_blocks = {}
-    # Support both Unix (\n) and Windows (\r\n) line endings after ```mermaid
-    mermaid_pattern = r'```mermaid\r?\n(.*?)```'
-
-    def save_mermaid(match):
-        placeholder = f'%%%MERMAIDBLOCK{len(mermaid_blocks)}%%%'
-        mermaid_blocks[placeholder] = match.group(1)
-        return placeholder
-
-    content = re.sub(mermaid_pattern, save_mermaid, content, flags=re.DOTALL)
-
-    # Extract images and links before escaping to preserve them from emphasis parsing
-    images_and_links = {}
     
-    # Extract images first (they have ! before [)
-    def save_image(match):
-        placeholder = f'%%%IMAGE{len(images_and_links)}%%%'
-        images_and_links[placeholder] = f'![{match.group(1)}]({match.group(2)})'
-        return placeholder
+    def block_code(self, code, info=None):
+        """Override block_code to handle mermaid diagrams specially.
+        
+        Args:
+            code: The code block content
+            info: Language identifier (e.g., 'python', 'bash', 'mermaid')
+            
+        Returns:
+            HTML string with properly escaped content
+        """
+        if info and info.strip().lower() == 'mermaid':
+            # Render mermaid blocks as divs with the mermaid class
+            # Escape the code content so HTML entities are preserved for Mermaid.js
+            escaped_code = escape(code)
+            return f'<div class="mermaid">{escaped_code}</div>\n'
+        
+        # For all other code blocks, use parent's default rendering
+        # This ensures consistent escaping and formatting
+        return super().block_code(code, info)
+
+
+def _markdown_to_html(content: str) -> str:
+    """Convert markdown to HTML using mistune with support for Mermaid diagrams.
     
-    content = re.sub(r'!\[([^\]]+)\]\(([^)]+)\)', save_image, content)
+    Uses mistune v3 with a custom renderer to properly handle:
+    - GitHub Flavored Markdown (tables, strikethrough, task lists)
+    - Mermaid diagram blocks
+    - Code blocks with syntax highlighting
+    - All standard markdown features
     
-    # Extract links
-    def save_link(match):
-        placeholder = f'%%%LINK{len(images_and_links)}%%%'
-        images_and_links[placeholder] = f'[{match.group(1)}]({match.group(2)})'
-        return placeholder
+    Security: All user content is properly escaped by mistune's default renderer.
+    Only Mermaid diagram blocks receive special handling, with explicit escaping.
     
-    content = re.sub(r'\[([^\]]+)\]\(([^)]+)\)', save_link, content)
-
-    # Escape HTML first
-    html = escape(content)
-
-    # Convert headers
-    html = re.sub(r'^# (.+)$', r'<h1>\1</h1>', str(html), flags=re.MULTILINE)
-    html = re.sub(r'^## (.+)$', r'<h2>\1</h2>', str(html), flags=re.MULTILINE)
-    html = re.sub(r'^### (.+)$', r'<h3>\1</h3>', str(html), flags=re.MULTILINE)
-    html = re.sub(r'^#### (.+)$', r'<h4>\1</h4>', str(html), flags=re.MULTILINE)
-    html = re.sub(r'^##### (.+)$', r'<h5>\1</h5>', str(html), flags=re.MULTILINE)
-
-    # Convert bold and italic (now safe from link URLs)
-    html = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', str(html))
-    html = re.sub(r'\*(.+?)\*', r'<em>\1</em>', str(html))
-    html = re.sub(r'__(.+?)__', r'<strong>\1</strong>', str(html))
-    html = re.sub(r'_(.+?)_', r'<em>\1</em>', str(html))
-
-    # Convert code blocks (triple backticks)
-    html = re.sub(
-        r'```(\w+)?\n(.*?)```',
-        lambda m: f'<pre><code class="language-{m.group(1) or "text"}">{m.group(2)}</code></pre>',
-        str(html),
-        flags=re.DOTALL
+    Args:
+        content: Raw markdown content from documentation files
+        
+    Returns:
+        Safe HTML markup ready for rendering in templates
+    """
+    # Create markdown parser with custom renderer
+    # escape=True ensures all content is properly escaped by default
+    renderer = MermaidRenderer(escape=True)
+    markdown = mistune.create_markdown(
+        renderer=renderer,
+        plugins=[
+            'strikethrough',  # ~~text~~
+            'table',          # GitHub-style tables
+            'task_lists',     # - [ ] and - [x]
+            'url',            # Auto-link URLs
+        ]
     )
-
-    # Convert inline code
-    html = re.sub(r'`([^`]+)`', r'<code>\1</code>', str(html))
-
-    # Restore and convert images and links
-    for placeholder, markdown in images_and_links.items():
-        escaped_placeholder = escape(placeholder)
-        if markdown.startswith('!'):
-            # It's an image: ![alt](url)
-            match = re.match(r'!\[([^\]]+)\]\(([^)]+)\)', markdown)
-            if match:
-                alt_text = escape(match.group(1))
-                url = escape(match.group(2))
-                html = str(html).replace(str(escaped_placeholder), f'<img alt="{alt_text}" src="{url}" />')
-        else:
-            # It's a link: [text](url)
-            match = re.match(r'\[([^\]]+)\]\(([^)]+)\)', markdown)
-            if match:
-                link_text = match.group(1)  # Already escaped during escape(content)
-                url = escape(match.group(2))
-                html = str(html).replace(str(escaped_placeholder), f'<a href="{url}">{link_text}</a>')
-
-    # Convert unordered lists
-    lines = str(html).split('\n')
-    in_list = False
-    result = []
-    for line in lines:
-        if line.strip().startswith('- ') or line.strip().startswith('* '):
-            if not in_list:
-                result.append('<ul>')
-                in_list = True
-            item = line.strip()[2:]
-            result.append(f'<li>{item}</li>')
-        else:
-            if in_list:
-                result.append('</ul>')
-                in_list = False
-            result.append(line)
-    if in_list:
-        result.append('</ul>')
-    html = '\n'.join(result)
-
-    # Convert ordered lists
-    lines = str(html).split('\n')
-    in_list = False
-    result = []
-    for line in lines:
-        if re.match(r'^\d+\.\s+', line.strip()):
-            if not in_list:
-                result.append('<ol>')
-                in_list = True
-            item = re.sub(r'^\d+\.\s+', '', line.strip())
-            result.append(f'<li>{item}</li>')
-        else:
-            if in_list:
-                result.append('</ol>')
-                in_list = False
-            result.append(line)
-    if in_list:
-        result.append('</ol>')
-    html = '\n'.join(result)
-
-    # Convert blockquotes
-    html = re.sub(r'^> (.+)$', r'<blockquote>\1</blockquote>', str(html), flags=re.MULTILINE)
-
-    # Convert horizontal rules (but not table separators)
-    html = re.sub(r'^---$', r'<hr>', str(html), flags=re.MULTILINE)
-    html = re.sub(r'^\*\*\*$', r'<hr>', str(html), flags=re.MULTILINE)
-
-    # Convert tables
-    lines = str(html).split('\n')
-    result = []
-    in_table = False
-    for i, line in enumerate(lines):
-        # Check if this is a table row (has pipes)
-        if '|' in line and line.strip().startswith('|'):
-            # Check if next line is separator (---|---|)
-            is_header = False
-            if i + 1 < len(lines) and re.match(r'^\|[\s\-:|]+\|$', lines[i + 1]):
-                is_header = True
-                if not in_table:
-                    result.append('<table class="table table-striped table-bordered">')
-                    in_table = True
-                # Process header row
-                cells = [cell.strip() for cell in line.split('|')[1:-1]]
-                result.append('<thead><tr>')
-                for cell in cells:
-                    result.append(f'<th>{cell}</th>')
-                result.append('</tr></thead><tbody>')
-                continue
-            elif in_table and re.match(r'^\|[\s\-:|]+\|$', line):
-                # Skip separator row
-                continue
-            elif in_table:
-                # Process data row
-                cells = [cell.strip() for cell in line.split('|')[1:-1]]
-                result.append('<tr>')
-                for cell in cells:
-                    result.append(f'<td>{cell}</td>')
-                result.append('</tr>')
-                continue
-        else:
-            # Not a table line
-            if in_table:
-                result.append('</tbody></table>')
-                in_table = False
-            result.append(line)
-
-    if in_table:
-        result.append('</tbody></table>')
-
-    html = '\n'.join(result)
-
-    # Convert line breaks to paragraphs
-    paragraphs = html.split('\n\n')
-    html = ''.join(f'<p>{p}</p>' if not p.strip().startswith('<') else p for p in paragraphs)
-
-    # Restore mermaid blocks as div elements with proper escaping
-    for placeholder, mermaid_code in mermaid_blocks.items():
-        # The placeholder was already escaped during the escape(content) step
-        escaped_placeholder = escape(placeholder)
-        # Escape the mermaid code so HTML tags in diagrams (like <br/>) don't get parsed
-        # Mermaid.js will read the text content and parse it correctly
-        escaped_mermaid = escape(mermaid_code)
-        mermaid_div = f'<div class="mermaid">{escaped_mermaid}</div>'
-        # Replace both plain and paragraph-wrapped placeholders
-        html = str(html).replace(str(escaped_placeholder), mermaid_div)
-        html = str(html).replace(f'<p>{escaped_placeholder}</p>', mermaid_div)
-
-    # Restore HTML anchor tags
-    for placeholder, anchor_tag in anchor_tags.items():
-        # The placeholder was already escaped during the escape(content) step
-        escaped_placeholder = escape(placeholder)
-        # Replace the placeholder with the original anchor tag
-        html = str(html).replace(str(escaped_placeholder), anchor_tag)
-
+    
+    # Convert markdown to HTML (all escaping handled by renderer)
+    html = markdown(content)
+    
     return Markup(html)
 
 
