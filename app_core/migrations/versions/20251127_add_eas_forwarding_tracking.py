@@ -1,8 +1,12 @@
 """Add EAS forwarding tracking columns to cap_alerts table.
 
 Revision ID: 20251127_add_eas_forwarding_tracking
-Revises: 20251123_enable_audio_source_autostart
+Revises: 20251123_enable_audio_source_autostart, 20251121_add_storage_zone_codes_to_location_settings
 Create Date: 2025-11-27
+
+This migration also serves as a merge point for the two branches:
+- 20251123_enable_audio_source_autostart
+- 20251121_add_storage_zone_codes_to_location_settings
 """
 
 from __future__ import annotations
@@ -13,7 +17,7 @@ from sqlalchemy import inspect
 
 
 revision = "20251127_add_eas_forwarding_tracking"
-down_revision = "20251123_enable_audio_source_autostart"
+down_revision = ("20251123_enable_audio_source_autostart", "20251121_add_storage_zone_codes_to_location_settings")
 branch_labels = None
 depends_on = None
 
