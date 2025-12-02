@@ -272,23 +272,6 @@ def generate_html(stats: Dict) -> str:
         """Generate inline SVG HTML for language logo using module-level LANGUAGE_LOGOS constant."""
         return LANGUAGE_LOGOS.get(lang, LANGUAGE_LOGOS['Other'])
     
-    # For backward compatibility, keep emoji fallback for chart labels where HTML doesn't work
-    type_emoji = {
-        'Python': '🐍',
-        'HTML': '🌐',
-        'JavaScript': '⚡',
-        'CSS': '🎨',
-        'Markdown': '📝',
-        'Shell': '🐚',
-        'YAML': '⚙️',
-        'SQL': '🗄️',
-        'SVG': '🖼️',
-        'JSON': '📋',
-        'XML': '📄',
-        'Text': '📃',
-        'Other': '📦',
-    }
-    
     # Prepare data for charts
     sorted_types = sorted(stats['files_by_type'].items(), key=lambda x: x[1], reverse=True)
     sorted_lines = sorted(
