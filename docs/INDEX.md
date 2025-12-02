@@ -25,6 +25,7 @@ If you're new to EAS Station, start here:
 |----------|-------------|
 | [Help & Operations Guide](guides/HELP) | Complete operator manual |
 | [Setup Instructions](guides/SETUP_INSTRUCTIONS) | Initial configuration |
+| [PyCharm Remote Debugging](guides/PYCHARM_DEBUGGING) | Debug on Raspberry Pi with PyCharm/VS Code |
 | [HTTPS Setup](guides/HTTPS_SETUP) | SSL/TLS certificates |
 | [IPAWS Integration](guides/ipaws_feed_integration) | Federal alert source setup |
 | [One-Button Upgrade](guides/one_button_upgrade) | Automated updates |
