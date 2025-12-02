@@ -1093,25 +1093,6 @@ docker-compose down
 
 ---
 
-## Appendix: IDE Comparison
-
-| Feature | PyCharm Pro | VS Code (Free) | PyCharm Community |
-|---------|-------------|----------------|-------------------|
-| Remote SSH Development | ✅ Yes | ✅ Yes | ❌ No |
-| Remote Debugging | ✅ Yes | ✅ Yes | ❌ No |
-| Python Linting | ✅ Excellent | ✅ Good | ✅ Good |
-| Auto-completion | ✅ Excellent | ✅ Very Good | ✅ Very Good |
-| Code Refactoring | ✅ Excellent | ✅ Good | ✅ Good |
-| Docker Integration | ✅ Excellent | ✅ Good | ✅ Basic |
-| Cost | Free for OSS* | Free | Free |
-| Learning Curve | Medium | Low | Medium |
-
-*Requires approved open source license application
-
-**Bottom Line**: Both PyCharm Professional (with free OSS license) and VS Code (always free) work great for this workflow. Use whichever you prefer!
-
----
-
 **Document Version**: 1.0  
 **Last Updated**: 2025-12-02  
 **Maintained By**: EAS Station Development Team
