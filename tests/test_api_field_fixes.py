@@ -40,6 +40,9 @@ def test_api_system_status_has_db_error_handling():
     # Verify database error handling is present
     assert 'database_status' in content
     assert "db.session.rollback()" in content
+    # Verify we use specific SQLAlchemy exceptions instead of bare Exception
+    assert 'SQLAlchemyError' in content
+    assert 'from sqlalchemy.exc import SQLAlchemyError' in content
 
 
 def test_api_imports_syntax():

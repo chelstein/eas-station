@@ -29,6 +29,7 @@ from typing import Any, Dict, List, Optional
 import psutil
 from flask import Blueprint, flash, jsonify, redirect, render_template, request, url_for, Response
 from sqlalchemy import desc, func
+from sqlalchemy.exc import SQLAlchemyError
 
 from app_core.cache import cache
 from app_core.extensions import db
@@ -827,14 +828,14 @@ def api_system_status():
             # because the session may not have an active transaction, which is fine.
             try:
                 db.session.rollback()
-            except Exception:
+            except SQLAlchemyError:
                 pass  # No active transaction to rollback, which is expected
 
             total_boundaries = Boundary.query.count()
             active_alerts = get_active_alerts_query().count()
             last_poll = PollHistory.query.order_by(desc(PollHistory.timestamp)).first()
             database_status = 'connected'
-        except Exception as db_exc:
+        except SQLAlchemyError as db_exc:
             api_bp.logger.warning('Database error in system_status: %s', db_exc)
             database_status = 'error'
             _record_status(
@@ -846,7 +847,7 @@ def api_system_status():
             # may already be in an unusable state.
             try:
                 db.session.rollback()
-            except Exception as rollback_exc:
+            except SQLAlchemyError as rollback_exc:
                 api_bp.logger.debug('Rollback after DB error also failed: %s', rollback_exc)
 
         if cpu >= 90:
