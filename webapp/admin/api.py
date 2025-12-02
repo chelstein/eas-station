@@ -821,11 +821,14 @@ def api_system_status():
         database_status = 'unknown'
 
         try:
-            # Rollback any existing failed transaction before new queries
+            # Rollback any existing failed transaction before new queries.
+            # This is a defensive measure to recover from "current transaction is
+            # aborted" errors in PostgreSQL. We silently ignore rollback failures
+            # because the session may not have an active transaction, which is fine.
             try:
                 db.session.rollback()
             except Exception:
-                pass
+                pass  # No active transaction to rollback, which is expected
 
             total_boundaries = Boundary.query.count()
             active_alerts = get_active_alerts_query().count()
@@ -838,11 +841,13 @@ def api_system_status():
                 'critical',
                 f'Database connection error: {str(db_exc)[:100]}'
             )
-            # Try to rollback to recover the session
+            # Try to rollback to recover the session for subsequent requests.
+            # Rollback failure here is logged at debug level since the session
+            # may already be in an unusable state.
             try:
                 db.session.rollback()
-            except Exception:
-                pass
+            except Exception as rollback_exc:
+                api_bp.logger.debug('Rollback after DB error also failed: %s', rollback_exc)
 
         if cpu >= 90:
             _record_status(
@@ -941,7 +946,9 @@ def api_system_status():
                 'data_source': last_poll.data_source,
             }
         elif database_status == 'connected':
-            # Only record this warning if database is connected but no polls exist
+            # Only record this warning if database is connected but no polls exist.
+            # When database_status is 'error' or 'unknown', we already reported a
+            # critical database error above, so we skip this warning to avoid confusion.
             _record_status(
                 'warning',
                 'No poll activity has been recorded yet; verify the poller service is '
