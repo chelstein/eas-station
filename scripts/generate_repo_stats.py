@@ -268,12 +268,19 @@ def generate_markdown(stats: Dict) -> str:
     md.append(f'| 🛤️ API Routes | **{sum(stats["routes"].values())}** |')
     md.append('')
     
-    # Code composition pie (text representation)
+    # Code composition pie chart (Mermaid)
     if stats["total_lines"] > 0:
         code_pct = (stats["total_code_lines"] / stats["total_lines"]) * 100
         comment_pct = (stats["total_comment_lines"] / stats["total_lines"]) * 100
         blank_pct = 100 - code_pct - comment_pct
-        md.append(f'**Code Composition:** {code_pct:.1f}% code · {comment_pct:.1f}% comments · {blank_pct:.1f}% whitespace')
+        md.append('```mermaid')
+        md.append('pie showData')
+        md.append('    title Code Composition')
+        md.append(f'    "Code ({code_pct:.1f}%)" : {stats["total_code_lines"]}')
+        md.append(f'    "Comments ({comment_pct:.1f}%)" : {stats["total_comment_lines"]}')
+        blank_lines = stats["total_lines"] - stats["total_code_lines"] - stats["total_comment_lines"]
+        md.append(f'    "Whitespace ({blank_pct:.1f}%)" : {blank_lines}')
+        md.append('```')
         md.append('')
     
     md.append('---')
@@ -299,10 +306,24 @@ def generate_markdown(stats: Dict) -> str:
         'Other': '📦',
     }
     
+    # Mermaid pie chart for file types
+    sorted_types = sorted(stats['files_by_type'].items(), key=lambda x: x[1], reverse=True)
+    md.append('```mermaid')
+    md.append('pie showData')
+    md.append('    title Files by Type')
+    for file_type, count in sorted_types[:8]:  # Top 8 for readability
+        md.append(f'    "{file_type}" : {count}')
+    # Group remaining as "Other" if there are more than 8 types
+    if len(sorted_types) > 8:
+        other_count = sum(count for _, count in sorted_types[8:])
+        md.append(f'    "Other Types" : {other_count}')
+    md.append('```')
+    md.append('')
+    
+    # Also keep the table for details
     md.append('| Type | Count | |')
     md.append('|------|------:|--|')
     
-    sorted_types = sorted(stats['files_by_type'].items(), key=lambda x: x[1], reverse=True)
     max_count = max(count for _, count in sorted_types) if sorted_types else 1
     for file_type, count in sorted_types:
         emoji = type_emoji.get(file_type, '📦')
@@ -337,7 +358,7 @@ def generate_markdown(stats: Dict) -> str:
     md.append('---')
     md.append('')
     
-    # Visual code distribution
+    # Visual code distribution with Mermaid bar chart
     md.append('## 📊 Code Distribution')
     md.append('')
     md.append('### Top Languages by Lines of Code')
@@ -345,6 +366,17 @@ def generate_markdown(stats: Dict) -> str:
     
     top_langs = sorted_lines[:6]  # Top 6 languages
     if top_langs:
+        # Mermaid bar chart for code distribution
+        md.append('```mermaid')
+        md.append('xychart-beta')
+        md.append('    title "Lines of Code by Language"')
+        md.append('    x-axis [' + ', '.join(f'"{lang}"' for lang, _ in top_langs if _['code'] > 0) + ']')
+        md.append('    y-axis "Lines of Code"')
+        md.append('    bar [' + ', '.join(str(counts['code']) for _, counts in top_langs if counts['code'] > 0) + ']')
+        md.append('```')
+        md.append('')
+        
+        # Keep text bars as fallback/additional info
         max_lines = max(counts['code'] for _, counts in top_langs) if top_langs else 1
         for lang, counts in top_langs:
             if counts['code'] > 0:
