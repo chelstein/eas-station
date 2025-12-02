@@ -1,6 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 720" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 780" role="img" aria-labelledby="title desc">
   <title id="title">EAS Station Platform Architecture</title>
-  <desc id="desc">High-level architecture diagram illustrating NOAA and IPAWS CAP feeds flowing into poller services, the shared PostGIS database, the Flask web application, and downstream lab integrations such as SAME encoding, GPIO relay control, SDR capture, and LED signage.</desc>
+  <desc id="desc">High-level architecture diagram showing the separated service design with sdr-service, hardware-service, app container, Redis IPC, and PostgreSQL database.</desc>
   <defs>
     <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
       <stop offset="0%" stop-color="#f9fbff"/>
@@ -18,6 +18,14 @@
       <stop offset="0%" stop-color="#2f9074"/>
       <stop offset="100%" stop-color="#46c19b"/>
     </linearGradient>
+    <linearGradient id="redisGradient" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#dc2626"/>
+      <stop offset="100%" stop-color="#ef4444"/>
+    </linearGradient>
+    <linearGradient id="hwGradient" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#f59e0b"/>
+      <stop offset="100%" stop-color="#fbbf24"/>
+    </linearGradient>
     <linearGradient id="outputGradient" x1="0" x2="1" y1="0" y2="1">
       <stop offset="0%" stop-color="#7b5fe0"/>
       <stop offset="100%" stop-color="#a08cf1"/>
@@ -28,113 +36,194 @@
     <style>
       text { font-family: 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif; fill: #0f1c33; }
       .heading { font-size: 36px; font-weight: 700; letter-spacing: 0.4px; }
-      .subtitle { font-size: 20px; fill: #284d7c; }
-      .group-label { font-size: 18px; font-weight: 600; fill: #3a5685; }
-      .card-title { font-size: 22px; font-weight: 600; fill: #ffffff; }
-      .card-body { font-size: 18px; fill: #edf2ff; }
+      .subtitle { font-size: 18px; fill: #284d7c; }
+      .group-label { font-size: 16px; font-weight: 600; fill: #3a5685; }
+      .card-title { font-size: 20px; font-weight: 600; fill: #ffffff; }
+      .card-body { font-size: 16px; fill: #edf2ff; }
       .card-body.dark { fill: #e5fff4; }
       .card-outline { fill: url(#serviceGradient); rx: 18; filter: url(#shadow); }
       .feed-card { fill: url(#feedGradient); rx: 18; filter: url(#shadow); }
       .db-card { fill: url(#dbGradient); rx: 24; filter: url(#shadow); }
+      .redis-card { fill: url(#redisGradient); rx: 18; filter: url(#shadow); }
+      .hw-card { fill: url(#hwGradient); rx: 18; filter: url(#shadow); }
       .output-card { fill: url(#outputGradient); rx: 18; filter: url(#shadow); }
-      .output-title { font-size: 20px; font-weight: 600; fill: #f8f6ff; }
-      .output-body { font-size: 17px; fill: #f5f1ff; }
-      .arrow { fill: none; stroke: #325a9a; stroke-width: 6; marker-end: url(#arrowhead); }
-      .arrow-secondary { fill: none; stroke: #2f9074; stroke-width: 6; marker-end: url(#arrowhead); }
-      .arrow-output { fill: none; stroke: #7b5fe0; stroke-width: 6; marker-end: url(#arrowhead); }
+      .output-title { font-size: 18px; font-weight: 600; fill: #f8f6ff; }
+      .output-body { font-size: 15px; fill: #f5f1ff; }
+      .arrow { fill: none; stroke: #325a9a; stroke-width: 5; marker-end: url(#arrowhead); }
+      .arrow-redis { fill: none; stroke: #dc2626; stroke-width: 5; marker-end: url(#arrowhead); }
+      .arrow-secondary { fill: none; stroke: #2f9074; stroke-width: 5; marker-end: url(#arrowhead); }
+      .arrow-output { fill: none; stroke: #7b5fe0; stroke-width: 5; marker-end: url(#arrowhead); }
       .dashed { stroke-dasharray: 14 10; }
     </style>
     <marker id="arrowhead" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="10" markerHeight="10" orient="auto">
       <path d="M 0 0 L 12 6 L 0 12 z" fill="currentColor"/>
     </marker>
   </defs>
-  <rect width="1200" height="720" fill="url(#bg)" rx="30"/>
-  <text class="heading" x="600" y="90" text-anchor="middle">EAS Station Platform</text>
-  <text class="subtitle" x="600" y="125" text-anchor="middle">Lab-only architecture for NOAA &amp; IPAWS alert evaluation</text>
+  <rect width="1200" height="780" fill="url(#bg)" rx="30"/>
+  <text class="heading" x="600" y="50" text-anchor="middle">EAS Station Platform</text>
+  <text class="subtitle" x="600" y="80" text-anchor="middle">Separated service architecture with Redis IPC for real-time metrics</text>
 
-  <!-- Feeds Column -->
-  <g transform="translate(80,210)">
-    <rect class="feed-card" width="220" height="120"/>
-    <text class="card-title" x="110" y="46" text-anchor="middle">NOAA CAP Feeds</text>
-    <text class="card-body" x="110" y="78" text-anchor="middle">Weather Service zones</text>
-    <text class="card-body" x="110" y="104" text-anchor="middle">XML polygons &amp; circles</text>
+  <!-- External Sources -->
+  <text class="group-label" x="130" y="110" text-anchor="middle">Alert Sources</text>
+  <g transform="translate(40,120)">
+    <rect class="feed-card" width="180" height="100"/>
+    <text class="card-title" x="90" y="35" text-anchor="middle">NOAA CAP</text>
+    <text class="card-body" x="90" y="60" text-anchor="middle">Weather alerts</text>
+    <text class="card-body" x="90" y="82" text-anchor="middle">XML polygons</text>
   </g>
-  <g transform="translate(80,380)">
-    <rect class="feed-card" width="220" height="120"/>
-    <text class="card-title" x="110" y="46" text-anchor="middle">IPAWS CAP Feeds</text>
-    <text class="card-body" x="110" y="78" text-anchor="middle">FEMA public staging</text>
-    <text class="card-body" x="110" y="104" text-anchor="middle">120 second refresh</text>
+  <g transform="translate(40,235)">
+    <rect class="feed-card" width="180" height="100"/>
+    <text class="card-title" x="90" y="35" text-anchor="middle">IPAWS CAP</text>
+    <text class="card-body" x="90" y="60" text-anchor="middle">FEMA alerts</text>
+    <text class="card-body" x="90" y="82" text-anchor="middle">120s refresh</text>
   </g>
-  <text class="group-label" x="190" y="190" text-anchor="middle">Inbound CAP sources</text>
 
-  <!-- Poller Column -->
-  <g transform="translate(360,200)">
-    <rect class="card-outline" width="240" height="140"/>
-    <text class="card-title" x="120" y="50" text-anchor="middle">NOAA Poller</text>
-    <text class="card-body" x="120" y="82" text-anchor="middle">Continuous CAP ingestion</text>
-    <text class="card-body" x="120" y="110" text-anchor="middle">Deduplicates SAME IDs</text>
+  <!-- Pollers -->
+  <text class="group-label" x="350" y="110" text-anchor="middle">Pollers</text>
+  <g transform="translate(260,120)">
+    <rect class="card-outline" width="180" height="95"/>
+    <text class="card-title" x="90" y="35" text-anchor="middle">noaa-poller</text>
+    <text class="card-body" x="90" y="58" text-anchor="middle">CAP ingestion</text>
+    <text class="card-body" x="90" y="78" text-anchor="middle">Deduplication</text>
   </g>
-  <g transform="translate(360,380)">
-    <rect class="card-outline" width="240" height="140"/>
-    <text class="card-title" x="120" y="50" text-anchor="middle">IPAWS Poller</text>
-    <text class="card-body" x="120" y="82" text-anchor="middle">120s CAP sync</text>
-    <text class="card-body" x="120" y="110" text-anchor="middle">GeoJSON harmonisation</text>
+  <g transform="translate(260,235)">
+    <rect class="card-outline" width="180" height="95"/>
+    <text class="card-title" x="90" y="35" text-anchor="middle">ipaws-poller</text>
+    <text class="card-body" x="90" y="58" text-anchor="middle">FEMA sync</text>
+    <text class="card-body" x="90" y="78" text-anchor="middle">GeoJSON</text>
   </g>
-  <text class="group-label" x="480" y="190" text-anchor="middle">Background services</text>
+
+  <!-- Arrows: Sources to Pollers -->
+  <path class="arrow" d="M 220 170 H 260"/>
+  <path class="arrow" d="M 220 285 H 260"/>
 
   <!-- Database -->
-  <g transform="translate(360,60)">
-    <rect class="db-card" width="480" height="110"/>
-    <text class="card-title" x="240" y="48" text-anchor="middle">PostgreSQL + PostGIS</text>
-    <text class="card-body dark" x="240" y="82" text-anchor="middle">Alerts · Boundaries · Audio captures · Radio config</text>
-  </g>
-  <text class="group-label" x="600" y="50" text-anchor="middle">External managed database</text>
-
-  <!-- Application -->
-  <g transform="translate(680,240)">
-    <rect class="card-outline" width="240" height="160"/>
-    <text class="card-title" x="120" y="56" text-anchor="middle">Flask Web App</text>
-    <text class="card-body" x="120" y="90" text-anchor="middle">Operator dashboards &amp; API</text>
-    <text class="card-body" x="120" y="118" text-anchor="middle">Manual alert verification lab</text>
-  </g>
-  <text class="group-label" x="800" y="220" text-anchor="middle">Operator experience</text>
-  <g transform="translate(940,260)">
-    <rect class="feed-card" width="190" height="120"/>
-    <text class="card-title" x="95" y="46" text-anchor="middle">Web UI Clients</text>
-    <text class="card-body" x="95" y="80" text-anchor="middle">Browsers · Tablets</text>
-    <text class="card-body" x="95" y="106" text-anchor="middle">REST/CLI integrations</text>
+  <g transform="translate(480,120)">
+    <rect class="db-card" width="220" height="210"/>
+    <text class="card-title" x="110" y="35" text-anchor="middle">PostgreSQL</text>
+    <text class="card-title" x="110" y="58" text-anchor="middle">+ PostGIS</text>
+    <text class="card-body dark" x="110" y="90" text-anchor="middle">Alerts storage</text>
+    <text class="card-body dark" x="110" y="112" text-anchor="middle">Boundary data</text>
+    <text class="card-body dark" x="110" y="134" text-anchor="middle">Audio configs</text>
+    <text class="card-body dark" x="110" y="156" text-anchor="middle">Receiver settings</text>
+    <text class="card-body dark" x="110" y="178" text-anchor="middle">Compliance logs</text>
+    <text class="card-body dark" x="110" y="198" text-anchor="middle" style="font-size:12px;fill:#a7f3d0">Port 5432</text>
   </g>
 
-  <!-- Outputs -->
-  <g transform="translate(360,560)">
-    <rect class="output-card" width="720" height="110"/>
-    <text class="output-title" x="360" y="48" text-anchor="middle">Lab Integrations</text>
-    <text class="output-body" x="360" y="82" text-anchor="middle">SAME encoder · GPIO relay · SDR capture · LED signage · Compliance exports</text>
+  <!-- Arrows: Pollers to Database -->
+  <path class="arrow-secondary" d="M 440 167 H 480"/>
+  <path class="arrow-secondary" d="M 440 282 H 480"/>
+
+  <!-- Redis -->
+  <g transform="translate(480,360)">
+    <rect class="redis-card" width="220" height="130"/>
+    <text class="card-title" x="110" y="30" text-anchor="middle">Redis</text>
+    <text class="card-body" x="110" y="55" text-anchor="middle" style="fill:#fecaca">Real-time metrics</text>
+    <text class="card-body" x="110" y="75" text-anchor="middle" style="fill:#fecaca">Audio waveforms</text>
+    <text class="card-body" x="110" y="95" text-anchor="middle" style="fill:#fecaca">Command pub/sub</text>
+    <text class="card-body" x="110" y="115" text-anchor="middle" style="font-size:12px;fill:#fca5a5">5s TTL · Port 6379</text>
   </g>
-  <text class="group-label" x="720" y="550" text-anchor="middle">Downstream lab equipment</text>
 
-  <!-- Arrows connecting feeds to pollers -->
-  <path class="arrow" d="M 300 270 H 360"/>
-  <path class="arrow" d="M 300 430 H 360"/>
+  <!-- App Container -->
+  <text class="group-label" x="870" y="110" text-anchor="middle">app container</text>
+  <g transform="translate(740,120)">
+    <rect class="card-outline" width="260" height="190"/>
+    <text class="card-title" x="130" y="35" text-anchor="middle">Flask Web App</text>
+    <text class="card-body" x="130" y="65" text-anchor="middle">Web UI dashboards</text>
+    <text class="card-body" x="130" y="88" text-anchor="middle">REST API endpoints</text>
+    <text class="card-body" x="130" y="111" text-anchor="middle">Audio metrics (from Redis)</text>
+    <text class="card-body" x="130" y="134" text-anchor="middle">EAS workflow controls</text>
+    <text class="card-body" x="130" y="157" text-anchor="middle">No hardware access</text>
+    <text class="card-body" x="130" y="178" text-anchor="middle" style="font-size:12px;fill:#a5b4fc">Port 5000</text>
+  </g>
 
-  <!-- Pollers to database -->
-  <path class="arrow-secondary" d="M 480 200 V 170"/>
-  <path class="arrow-secondary" d="M 480 380 V 170"/>
+  <!-- Arrows: Database/Redis to App -->
+  <path class="arrow-secondary" d="M 700 225 H 740"/>
+  <path class="arrow-redis" d="M 700 425 L 740 280"/>
 
-  <!-- Database to application -->
-  <path class="arrow-secondary" d="M 600 170 V 240"/>
+  <!-- Web Clients -->
+  <g transform="translate(1020,150)">
+    <rect class="feed-card" width="150" height="130"/>
+    <text class="card-title" x="75" y="35" text-anchor="middle">Web Clients</text>
+    <text class="card-body" x="75" y="65" text-anchor="middle">Browsers</text>
+    <text class="card-body" x="75" y="88" text-anchor="middle">Mobile</text>
+    <text class="card-body" x="75" y="111" text-anchor="middle">API clients</text>
+  </g>
 
-  <!-- Pollers to application -->
-  <path class="arrow" d="M 600 300 H 680"/>
-  <path class="arrow" d="M 600 460 Q 660 440 680 360"/>
+  <!-- Arrow: App to Web Clients -->
+  <path class="arrow" d="M 1000 215 H 1020"/>
 
-  <!-- Application to outputs -->
-  <path class="arrow-output" d="M 800 400 V 560"/>
+  <!-- sdr-service -->
+  <text class="group-label" x="180" y="385" text-anchor="middle">sdr-service</text>
+  <g transform="translate(40,395)">
+    <rect class="card-outline" width="280" height="180"/>
+    <text class="card-title" x="140" y="30" text-anchor="middle">Audio Processing</text>
+    <text class="card-body" x="140" y="58" text-anchor="middle">SDR capture (RTL-SDR/Airspy)</text>
+    <text class="card-body" x="140" y="80" text-anchor="middle">SAME decoding</text>
+    <text class="card-body" x="140" y="102" text-anchor="middle">Icecast streaming</text>
+    <text class="card-body" x="140" y="124" text-anchor="middle">Audio metering</text>
+    <text class="card-body" x="140" y="146" text-anchor="middle">Publishes to Redis</text>
+    <text class="card-body" x="140" y="168" text-anchor="middle" style="font-size:12px;fill:#a5b4fc">USB access · Port 5002</text>
+  </g>
 
-  <!-- Outputs to operators (dashed, informational) -->
-  <path class="arrow-output dashed" d="M 900 615 H 1040"/>
-  <text class="group-label" x="1035" y="598" text-anchor="end">Operator review &amp; testing</text>
+  <!-- hardware-service -->
+  <text class="group-label" x="180" y="600" text-anchor="middle">hardware-service</text>
+  <g transform="translate(40,610)">
+    <rect class="hw-card" width="280" height="130"/>
+    <text class="card-title" x="140" y="30" text-anchor="middle" style="fill:#78350f">Hardware Control</text>
+    <text class="card-body" x="140" y="55" text-anchor="middle" style="fill:#fef3c7">GPIO relay control</text>
+    <text class="card-body" x="140" y="77" text-anchor="middle" style="fill:#fef3c7">OLED/VFD displays</text>
+    <text class="card-body" x="140" y="99" text-anchor="middle" style="fill:#fef3c7">LED sign protocols</text>
+    <text class="card-body" x="140" y="118" text-anchor="middle" style="font-size:12px;fill:#92400e">I2C/GPIO access · Port 5001</text>
+  </g>
 
-  <!-- CAP feeds to operators label -->
-  <text class="group-label" x="108" y="540" text-anchor="start">NOAA &amp; IPAWS staging only · Not for live alerts</text>
+  <!-- Arrows: sdr-service to Redis -->
+  <path class="arrow-redis" d="M 320 485 H 480"/>
+
+  <!-- Arrows: hardware-service to Redis -->
+  <path class="arrow-redis" d="M 320 675 L 480 475"/>
+
+  <!-- Physical Hardware -->
+  <text class="group-label" x="890" y="385" text-anchor="middle">Physical Hardware</text>
+  <g transform="translate(740,395)">
+    <rect class="output-card" width="260" height="180"/>
+    <text class="output-title" x="130" y="30" text-anchor="middle">Outputs</text>
+    <text class="output-body" x="130" y="58" text-anchor="middle">SDR Receivers (USB)</text>
+    <text class="output-body" x="130" y="80" text-anchor="middle">FM Transmitter (GPIO)</text>
+    <text class="output-body" x="130" y="102" text-anchor="middle">Audio DAC (I2S/USB)</text>
+    <text class="output-body" x="130" y="124" text-anchor="middle">LED Signs (RS-232)</text>
+    <text class="output-body" x="130" y="146" text-anchor="middle">OLED/VFD Displays (I2C)</text>
+    <text class="output-body" x="130" y="168" text-anchor="middle" style="font-size:12px">Icecast streams (network)</text>
+  </g>
+
+  <!-- Arrows: Services to Hardware -->
+  <path class="arrow-output" d="M 320 485 L 740 485"/>
+  <path class="arrow-output" d="M 320 675 L 740 555"/>
+
+  <!-- nginx -->
+  <g transform="translate(1020,320)">
+    <rect class="feed-card" width="150" height="100"/>
+    <text class="card-title" x="75" y="35" text-anchor="middle">nginx</text>
+    <text class="card-body" x="75" y="60" text-anchor="middle">HTTPS proxy</text>
+    <text class="card-body" x="75" y="82" text-anchor="middle">Let's Encrypt</text>
+  </g>
+
+  <!-- Icecast -->
+  <g transform="translate(1020,445)">
+    <rect class="feed-card" width="150" height="100"/>
+    <text class="card-title" x="75" y="35" text-anchor="middle">Icecast</text>
+    <text class="card-body" x="75" y="60" text-anchor="middle">Audio streams</text>
+    <text class="card-body" x="75" y="82" text-anchor="middle">MP3/OGG</text>
+  </g>
+
+  <!-- Data flow note -->
+  <g transform="translate(740,610)">
+    <rect width="430" height="130" rx="12" fill="#f0fdf4" stroke="#22c55e" stroke-width="2"/>
+    <text x="215" y="25" font-family="Arial" font-size="14" font-weight="bold" text-anchor="middle" fill="#166534">Key Architecture Points</text>
+    <text x="20" y="48" font-family="Arial" font-size="12" fill="#166534">• App container has NO hardware access (reads metrics from Redis)</text>
+    <text x="20" y="68" font-family="Arial" font-size="12" fill="#166534">• sdr-service handles all audio capture and SAME decoding</text>
+    <text x="20" y="88" font-family="Arial" font-size="12" fill="#166534">• hardware-service controls GPIO, displays, and LED signs</text>
+    <text x="20" y="108" font-family="Arial" font-size="12" fill="#166534">• Redis provides real-time IPC (5s TTL for live metrics)</text>
+    <text x="20" y="125" font-family="Arial" font-size="12" fill="#166534">• PostgreSQL stores configs and persistent data only</text>
+  </g>
 </svg>
