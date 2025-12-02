@@ -13,6 +13,12 @@ logs/
 static/eas_messages/
 *.sqlite3
 
+# Docker Compose override files (site-specific)
+docker-compose.override.yml
+
+# Development data
+dev_data/
+
 # MkDocs documentation build
 site/
 .cache/
