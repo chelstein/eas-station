@@ -414,7 +414,7 @@ def alert_detail_pdf(alert_id):
             f"Event: {alert.event or 'N/A'}",
             f"Severity: {alert.severity or 'N/A'}",
             f"Status: {alert.status or 'N/A'}",
-            f"Message Type: {alert.msg_type or 'N/A'}",
+            f"Message Type: {alert.message_type or 'N/A'}",
             f"Urgency: {alert.urgency or 'N/A'}",
             f"Certainty: {alert.certainty or 'N/A'}",
             f"Identifier: {alert.identifier or 'N/A'}",
@@ -793,15 +793,10 @@ def get_boundaries():
 def api_system_status():
     """Get system status information using new helper functions with timezone support"""
     try:
-        total_boundaries = Boundary.query.count()
-        active_alerts = get_active_alerts_query().count()
-
-        last_poll = PollHistory.query.order_by(desc(PollHistory.timestamp)).first()
-
+        # Collect system metrics first (these don't require database)
         cpu = _get_cpu_usage_percent()
         memory = psutil.virtual_memory()
         disk = psutil.disk_usage('/')
-
         current_utc = utc_now()
         current_local = local_now()
         hostname = socket.gethostname()
@@ -818,6 +813,36 @@ def api_system_status():
                 status = 'critical'
             elif level == 'warning' and status != 'critical':
                 status = 'warning'
+
+        # Database queries with proper error handling
+        total_boundaries = None
+        active_alerts = None
+        last_poll = None
+        database_status = 'unknown'
+
+        try:
+            # Rollback any existing failed transaction before new queries
+            try:
+                db.session.rollback()
+            except Exception:
+                pass
+
+            total_boundaries = Boundary.query.count()
+            active_alerts = get_active_alerts_query().count()
+            last_poll = PollHistory.query.order_by(desc(PollHistory.timestamp)).first()
+            database_status = 'connected'
+        except Exception as db_exc:
+            api_bp.logger.warning('Database error in system_status: %s', db_exc)
+            database_status = 'error'
+            _record_status(
+                'critical',
+                f'Database connection error: {str(db_exc)[:100]}'
+            )
+            # Try to rollback to recover the session
+            try:
+                db.session.rollback()
+            except Exception:
+                pass
 
         if cpu >= 90:
             _record_status(
@@ -915,7 +940,8 @@ def api_system_status():
                 'error_message': (last_poll.error_message or '').strip() or None,
                 'data_source': last_poll.data_source,
             }
-        else:
+        elif database_status == 'connected':
+            # Only record this warning if database is connected but no polls exist
             _record_status(
                 'warning',
                 'No poll activity has been recorded yet; verify the poller service is '
@@ -942,7 +968,7 @@ def api_system_status():
                 'ip_address': ip_address,
                 'boundaries_count': total_boundaries,
                 'active_alerts_count': active_alerts,
-                'database_status': 'connected',
+                'database_status': database_status,
                 'last_poll': poll_snapshot,
                 'system_resources': {
                     'cpu_usage_percent': cpu,
