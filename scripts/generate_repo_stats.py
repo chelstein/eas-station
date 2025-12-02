@@ -673,7 +673,7 @@ def generate_html(stats: Dict) -> str:
         </div>'''
     
     # Architecture Overview
-    html += '''
+    html += f'''
         
         <!-- Architecture Overview -->
         <div class="stat-card">

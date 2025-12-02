@@ -232,7 +232,7 @@
         <div class="hero-section">
             <h1>📊 EAS Station Repository Statistics</h1>
             <p class="timestamp">
-                <i class="far fa-clock"></i> Last Updated: 2025-12-02 19:26:07 UTC
+                <i class="far fa-clock"></i> Last Updated: 2025-12-02 19:31:14 UTC
             </p>
         </div>
         
@@ -506,12 +506,12 @@
         
         // Code Composition Pie Chart
         const codeCompositionCtx = document.getElementById('codeCompositionChart').getContext('2d');
-        new Chart(codeCompositionCtx, {{
+        new Chart(codeCompositionCtx, {
             type: 'doughnut',
-            data: {{
+            data: {
                 labels: ['💻 Code', '💬 Comments', '⬜ Whitespace'],
-                datasets: [{{
-                    data: [{code_lines}, {comment_lines}, {blank_lines}],
+                datasets: [{
+                    data: [125807, 61261, 33180],
                     backgroundColor: [
                         'rgba(102, 126, 234, 0.8)',
                         'rgba(118, 75, 162, 0.8)',
@@ -523,155 +523,155 @@
                         'rgba(200, 200, 200, 0.8)'
                     ],
                     borderWidth: 2
-                }}]
-            }},
-            options: {{
+                }]
+            },
+            options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: {{
-                    legend: {{
+                plugins: {
+                    legend: {
                         position: 'bottom',
-                        labels: {{
+                        labels: {
                             padding: 20,
-                            font: {{
+                            font: {
                                 size: 14,
                                 weight: 'bold'
-                            }}
-                        }}
-                    }},
-                    tooltip: {{
-                        callbacks: {{
-                            label: function(context) {{
+                            }
+                        }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
                                 let label = context.label || '';
                                 let value = context.parsed || 0;
-                                let total = {stats["total_lines"]};
+                                let total = 220248;
                                 let percentage = ((value / total) * 100).toFixed(1);
                                 return label + ': ' + value.toLocaleString() + ' lines (' + percentage + '%)';
-                            }}
-                        }}
-                    }}
-                }}
-            }}
-        }});
+                            }
+                        }
+                    }
+                }
+            }
+        });
         
         // Files by Type Bar Chart
         const filesByTypeCtx = document.getElementById('filesByTypeChart').getContext('2d');
-        new Chart(filesByTypeCtx, {{
+        new Chart(filesByTypeCtx, {
             type: 'bar',
-            data: {{
-                labels: {json.dumps(files_labels)},
-                datasets: [{{
+            data: {
+                labels: ["\ud83d\udc0d Python", "\ud83c\udf10 HTML", "\ud83d\udce6 Other", "\ud83d\udcdd Markdown", "\ud83d\udc1a Shell", "\ud83d\uddbc\ufe0f SVG", "\u26a1 JavaScript", "\u2699\ufe0f YAML", "\ud83d\udce6 Other Types"],
+                datasets: [{
                     label: 'Number of Files',
-                    data: {json.dumps(files_data)},
+                    data: [329, 86, 64, 57, 31, 15, 14, 13, 30],
                     backgroundColor: 'rgba(102, 126, 234, 0.8)',
                     borderColor: 'rgba(102, 126, 234, 1)',
                     borderWidth: 2,
                     borderRadius: 8,
                     borderSkipped: false
-                }}]
-            }},
-            options: {{
+                }]
+            },
+            options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: {{
-                    legend: {{
+                plugins: {
+                    legend: {
                         display: false
-                    }},
-                    tooltip: {{
-                        callbacks: {{
-                            label: function(context) {{
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
                                 return 'Files: ' + context.parsed.y.toLocaleString();
-                            }}
-                        }}
-                    }}
-                }},
-                scales: {{
-                    y: {{
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    y: {
                         beginAtZero: true,
-                        ticks: {{
-                            font: {{
+                        ticks: {
+                            font: {
                                 size: 12,
                                 weight: 'bold'
-                            }}
-                        }},
-                        grid: {{
+                            }
+                        },
+                        grid: {
                             color: 'rgba(0, 0, 0, 0.05)'
-                        }}
-                    }},
-                    x: {{
-                        ticks: {{
-                            font: {{
+                        }
+                    },
+                    x: {
+                        ticks: {
+                            font: {
                                 size: 12,
                                 weight: 'bold'
-                            }}
-                        }},
-                        grid: {{
+                            }
+                        },
+                        grid: {
                             display: false
-                        }}
-                    }}
-                }}
-            }}
-        }});
+                        }
+                    }
+                }
+            }
+        });
         
         // Lines of Code by Language Horizontal Bar Chart
         const linesByLanguageCtx = document.getElementById('linesByLanguageChart').getContext('2d');
-        new Chart(linesByLanguageCtx, {{
+        new Chart(linesByLanguageCtx, {
             type: 'bar',
-            data: {{
-                labels: {json.dumps(lines_labels)},
-                datasets: [{{
+            data: {
+                labels: ["\ud83d\udc0d Python", "\ud83c\udf10 HTML", "\ud83d\udcdd Markdown", "\ud83c\udfa8 CSS", "\u26a1 JavaScript", "\ud83d\udc1a Shell", "\u2699\ufe0f YAML", "\ud83d\udcc3 Text"],
+                datasets: [{
                     label: 'Lines of Code',
-                    data: {json.dumps(lines_data)},
+                    data: [42696, 49700, 17633, 1695, 4246, 2368, 1675, 2068],
                     backgroundColor: 'rgba(118, 75, 162, 0.8)',
                     borderColor: 'rgba(118, 75, 162, 1)',
                     borderWidth: 2,
                     borderRadius: 8,
                     borderSkipped: false
-                }}]
-            }},
-            options: {{
+                }]
+            },
+            options: {
                 indexAxis: 'y',
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: {{
-                    legend: {{
+                plugins: {
+                    legend: {
                         display: false
-                    }},
-                    tooltip: {{
-                        callbacks: {{
-                            label: function(context) {{
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
                                 return 'Lines: ' + context.parsed.x.toLocaleString();
-                            }}
-                        }}
-                    }}
-                }},
-                scales: {{
-                    x: {{
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
                         beginAtZero: true,
-                        ticks: {{
-                            font: {{
+                        ticks: {
+                            font: {
                                 size: 12,
                                 weight: 'bold'
-                            }}
-                        }},
-                        grid: {{
+                            }
+                        },
+                        grid: {
                             color: 'rgba(0, 0, 0, 0.05)'
-                        }}
-                    }},
-                    y: {{
-                        ticks: {{
-                            font: {{
+                        }
+                    },
+                    y: {
+                        ticks: {
+                            font: {
                                 size: 12,
                                 weight: 'bold'
-                            }}
-                        }},
-                        grid: {{
+                            }
+                        },
+                        grid: {
                             display: false
-                        }}
-                    }}
-                }}
-            }}
-        }});
+                        }
+                    }
+                }
+            }
+        });
         
         // API Routes Bar Chart
         const routesByModuleCtx = document.getElementById('routesByModuleChart').getContext('2d');
