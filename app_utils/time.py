@@ -27,6 +27,7 @@ from datetime import datetime
 from typing import Optional
 
 import pytz
+from dateutil import parser as dateutil_parser
 
 logger = logging.getLogger(__name__)
 
@@ -81,47 +82,52 @@ def local_now() -> datetime:
 
 
 def parse_nws_datetime(dt_string: Optional[str], logger=None) -> Optional[datetime]:
-    """Parse the wide variety of datetime formats used by the NWS feeds."""
-
+    """Parse the wide variety of datetime formats used by the NWS feeds.
+    
+    Uses python-dateutil for robust parsing of various datetime formats.
+    """
     if not dt_string:
         return None
 
     dt_string = str(dt_string).strip()
 
+    # Handle 'Z' suffix (UTC indicator) - convert to timezone for dateutil
     if dt_string.endswith("Z"):
+        dt_string = dt_string[:-1] + "+00:00"
+    
+    # Handle common timezone abbreviations that dateutil might not parse
+    # Replace EDT/EST with explicit timezone offset for better compatibility
+    if "EDT" in dt_string:
+        dt_string = dt_string.replace(" EDT", "").replace("EDT", "")
         try:
-            dt = datetime.fromisoformat(dt_string.replace("Z", "+00:00"))
+            dt = dateutil_parser.parse(dt_string)
+            if dt.tzinfo is None:
+                eastern_tz = pytz.timezone("US/Eastern")
+                dt = eastern_tz.localize(dt, is_dst=True)
             return dt.astimezone(UTC_TZ)
-        except ValueError:
+        except (ValueError, TypeError):
             pass
-
+    
+    if "EST" in dt_string:
+        dt_string = dt_string.replace(" EST", "").replace("EST", "")
+        try:
+            dt = dateutil_parser.parse(dt_string)
+            if dt.tzinfo is None:
+                eastern_tz = pytz.timezone("US/Eastern")
+                dt = eastern_tz.localize(dt, is_dst=False)
+            return dt.astimezone(UTC_TZ)
+        except (ValueError, TypeError):
+            pass
+    
+    # Try parsing with dateutil (handles most ISO 8601 and common formats)
     try:
-        dt = datetime.fromisoformat(dt_string)
+        dt = dateutil_parser.parse(dt_string)
         if dt.tzinfo is None:
+            # If no timezone, assume UTC for safety
             dt = dt.replace(tzinfo=UTC_TZ)
         return dt.astimezone(UTC_TZ)
-    except ValueError:
+    except (ValueError, TypeError):
         pass
-
-    if "EDT" in dt_string:
-        try:
-            dt_clean = dt_string.replace(" EDT", "").replace("EDT", "")
-            dt = datetime.fromisoformat(dt_clean)
-            eastern_tz = pytz.timezone("US/Eastern")
-            dt = eastern_tz.localize(dt, is_dst=True)
-            return dt.astimezone(UTC_TZ)
-        except ValueError:
-            pass
-
-    if "EST" in dt_string:
-        try:
-            dt_clean = dt_string.replace(" EST", "").replace("EST", "")
-            dt = datetime.fromisoformat(dt_clean)
-            est_tz = pytz.timezone("US/Eastern")
-            dt = est_tz.localize(dt)
-            return dt.astimezone(UTC_TZ)
-        except ValueError:
-            pass
 
     if logger is not None:
         logger.warning("Could not parse datetime: %s", dt_string)
