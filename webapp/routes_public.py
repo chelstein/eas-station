@@ -791,6 +791,7 @@ def register(app: Flask, logger) -> None:
                 alerts_list = pagination.items
             except Exception as exc:
                 route_logger.warning("Pagination error: %s", exc)
+                db.session.rollback()
                 total_count = query.count()
                 offset = (page - 1) * per_page
                 alerts_list = query.offset(offset).limit(per_page).all()
