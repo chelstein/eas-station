@@ -25,7 +25,7 @@ import logging
 from typing import Any, Dict, List
 
 from flask import Flask, jsonify, request, g
-from sqlalchemy import inspect
+from sqlalchemy import inspect, text
 
 from app_core.extensions import db
 from app_core.models import (
@@ -40,12 +40,25 @@ route_logger = logging.getLogger(__name__)
 
 
 def _ensure_snow_emergencies_table() -> bool:
-    """Ensure the snow_emergencies table exists."""
+    """Ensure the snow_emergencies table exists and has required columns."""
     try:
         inspector = inspect(db.engine)
-        return "snow_emergencies" in inspector.get_table_names()
+        if "snow_emergencies" not in inspector.get_table_names():
+            return False
+
+        # Check if issues_emergencies column exists, add it if missing
+        columns = [col["name"] for col in inspector.get_columns("snow_emergencies")]
+        if "issues_emergencies" not in columns:
+            route_logger.info("Adding missing issues_emergencies column to snow_emergencies table")
+            with db.engine.begin() as conn:
+                conn.execute(text(
+                    "ALTER TABLE snow_emergencies ADD COLUMN issues_emergencies BOOLEAN NOT NULL DEFAULT TRUE"
+                ))
+            route_logger.info("Successfully added issues_emergencies column")
+
+        return True
     except Exception as exc:
-        route_logger.warning("Could not check snow_emergencies table: %s", exc)
+        route_logger.warning("Could not check/update snow_emergencies table: %s", exc)
         return False
 
 
