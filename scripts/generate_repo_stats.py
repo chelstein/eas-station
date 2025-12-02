@@ -272,23 +272,6 @@ def generate_html(stats: Dict) -> str:
         """Generate inline SVG HTML for language logo using module-level LANGUAGE_LOGOS constant."""
         return LANGUAGE_LOGOS.get(lang, LANGUAGE_LOGOS['Other'])
     
-    # For backward compatibility, keep emoji fallback for chart labels where HTML doesn't work
-    type_emoji = {
-        'Python': '🐍',
-        'HTML': '🌐',
-        'JavaScript': '⚡',
-        'CSS': '🎨',
-        'Markdown': '📝',
-        'Shell': '🐚',
-        'YAML': '⚙️',
-        'SQL': '🗄️',
-        'SVG': '🖼️',
-        'JSON': '📋',
-        'XML': '📄',
-        'Text': '📃',
-        'Other': '📦',
-    }
-    
     # Prepare data for charts
     sorted_types = sorted(stats['files_by_type'].items(), key=lambda x: x[1], reverse=True)
     sorted_lines = sorted(
@@ -310,11 +293,11 @@ def generate_html(stats: Dict) -> str:
         '#FF9F40', '#FF6384', '#C9CBCF', '#4BC0C0', '#FF6384'
     ]
     for i, (file_type, count) in enumerate(sorted_types[:8]):
-        files_labels.append(f"{type_emoji.get(file_type, '📦')} {file_type}")
+        files_labels.append(file_type)
         files_data.append(count)
     if len(sorted_types) > 8:
         other_count = sum(count for _, count in sorted_types[8:])
-        files_labels.append("📦 Other Types")
+        files_labels.append("Other Types")
         files_data.append(other_count)
     
     # Lines of code by language (top 8)
@@ -326,7 +309,7 @@ def generate_html(stats: Dict) -> str:
     ]
     for i, (lang, counts) in enumerate(sorted_lines[:8]):
         if counts['code'] > 0:
-            lines_labels.append(f"{type_emoji.get(lang, '📦')} {lang}")
+            lines_labels.append(lang)
             lines_data.append(counts['code'])
     
     # Routes data (top 15)
