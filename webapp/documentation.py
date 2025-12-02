@@ -41,21 +41,32 @@ logger = logging.getLogger(__name__)
 
 
 class MermaidRenderer(HTMLRenderer):
-    """Custom HTML renderer that handles Mermaid diagrams."""
+    """Custom HTML renderer that handles Mermaid diagrams.
+    
+    Extends the default HTMLRenderer to intercept mermaid code blocks
+    and render them as <div class="mermaid"> for client-side rendering.
+    All other markdown elements use the parent's escaping logic.
+    """
     
     def block_code(self, code, info=None):
-        """Override block_code to handle mermaid diagrams specially."""
+        """Override block_code to handle mermaid diagrams specially.
+        
+        Args:
+            code: The code block content
+            info: Language identifier (e.g., 'python', 'bash', 'mermaid')
+            
+        Returns:
+            HTML string with properly escaped content
+        """
         if info and info.strip().lower() == 'mermaid':
             # Render mermaid blocks as divs with the mermaid class
-            # Escape the code content so HTML entities are preserved
+            # Escape the code content so HTML entities are preserved for Mermaid.js
             escaped_code = escape(code)
             return f'<div class="mermaid">{escaped_code}</div>\n'
         
-        # For other code blocks, use default rendering
-        lang = info.strip() if info else ''
-        if lang:
-            return f'<pre><code class="language-{escape(lang)}">{escape(code)}</code></pre>\n'
-        return f'<pre><code>{escape(code)}</code></pre>\n'
+        # For all other code blocks, use parent's default rendering
+        # This ensures consistent escaping and formatting
+        return super().block_code(code, info)
 
 
 def _markdown_to_html(content: str) -> str:
@@ -66,9 +77,19 @@ def _markdown_to_html(content: str) -> str:
     - Mermaid diagram blocks
     - Code blocks with syntax highlighting
     - All standard markdown features
+    
+    Security: All user content is properly escaped by mistune's default renderer.
+    Only Mermaid diagram blocks receive special handling, with explicit escaping.
+    
+    Args:
+        content: Raw markdown content from documentation files
+        
+    Returns:
+        Safe HTML markup ready for rendering in templates
     """
     # Create markdown parser with custom renderer
-    renderer = MermaidRenderer(escape=False)  # We handle escaping in block_code
+    # escape=True ensures all content is properly escaped by default
+    renderer = MermaidRenderer(escape=True)
     markdown = mistune.create_markdown(
         renderer=renderer,
         plugins=[
@@ -79,7 +100,7 @@ def _markdown_to_html(content: str) -> str:
         ]
     )
     
-    # Convert markdown to HTML
+    # Convert markdown to HTML (all escaping handled by renderer)
     html = markdown(content)
     
     return Markup(html)
