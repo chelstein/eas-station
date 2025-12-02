@@ -29,6 +29,7 @@ from typing import Any, Dict, List, Optional
 import psutil
 from flask import Blueprint, flash, jsonify, redirect, render_template, request, url_for, Response
 from sqlalchemy import desc, func
+from sqlalchemy.exc import SQLAlchemyError
 
 from app_core.cache import cache
 from app_core.extensions import db
@@ -414,7 +415,7 @@ def alert_detail_pdf(alert_id):
             f"Event: {alert.event or 'N/A'}",
             f"Severity: {alert.severity or 'N/A'}",
             f"Status: {alert.status or 'N/A'}",
-            f"Message Type: {alert.msg_type or 'N/A'}",
+            f"Message Type: {alert.message_type or 'N/A'}",
             f"Urgency: {alert.urgency or 'N/A'}",
             f"Certainty: {alert.certainty or 'N/A'}",
             f"Identifier: {alert.identifier or 'N/A'}",
@@ -793,15 +794,10 @@ def get_boundaries():
 def api_system_status():
     """Get system status information using new helper functions with timezone support"""
     try:
-        total_boundaries = Boundary.query.count()
-        active_alerts = get_active_alerts_query().count()
-
-        last_poll = PollHistory.query.order_by(desc(PollHistory.timestamp)).first()
-
+        # Collect system metrics first (these don't require database)
         cpu = _get_cpu_usage_percent()
         memory = psutil.virtual_memory()
         disk = psutil.disk_usage('/')
-
         current_utc = utc_now()
         current_local = local_now()
         hostname = socket.gethostname()
@@ -818,6 +814,41 @@ def api_system_status():
                 status = 'critical'
             elif level == 'warning' and status != 'critical':
                 status = 'warning'
+
+        # Database queries with proper error handling
+        total_boundaries = None
+        active_alerts = None
+        last_poll = None
+        database_status = 'unknown'
+
+        try:
+            # Rollback any existing failed transaction before new queries.
+            # This is a defensive measure to recover from "current transaction is
+            # aborted" errors in PostgreSQL. We silently ignore rollback failures
+            # because the session may not have an active transaction, which is fine.
+            try:
+                db.session.rollback()
+            except SQLAlchemyError:
+                pass  # No active transaction to rollback, which is expected
+
+            total_boundaries = Boundary.query.count()
+            active_alerts = get_active_alerts_query().count()
+            last_poll = PollHistory.query.order_by(desc(PollHistory.timestamp)).first()
+            database_status = 'connected'
+        except SQLAlchemyError as db_exc:
+            api_bp.logger.warning('Database error in system_status: %s', db_exc)
+            database_status = 'error'
+            _record_status(
+                'critical',
+                f'Database connection error: {str(db_exc)[:100]}'
+            )
+            # Try to rollback to recover the session for subsequent requests.
+            # Rollback failure here is logged at debug level since the session
+            # may already be in an unusable state.
+            try:
+                db.session.rollback()
+            except SQLAlchemyError as rollback_exc:
+                api_bp.logger.debug('Rollback after DB error also failed: %s', rollback_exc)
 
         if cpu >= 90:
             _record_status(
@@ -915,7 +946,10 @@ def api_system_status():
                 'error_message': (last_poll.error_message or '').strip() or None,
                 'data_source': last_poll.data_source,
             }
-        else:
+        elif database_status == 'connected':
+            # Only record this warning if database is connected but no polls exist.
+            # When database_status is 'error' or 'unknown', we already reported a
+            # critical database error above, so we skip this warning to avoid confusion.
             _record_status(
                 'warning',
                 'No poll activity has been recorded yet; verify the poller service is '
@@ -942,7 +976,7 @@ def api_system_status():
                 'ip_address': ip_address,
                 'boundaries_count': total_boundaries,
                 'active_alerts_count': active_alerts,
-                'database_status': 'connected',
+                'database_status': database_status,
                 'last_poll': poll_snapshot,
                 'system_resources': {
                     'cpu_usage_percent': cpu,
