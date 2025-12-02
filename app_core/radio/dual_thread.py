@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 EAS Station - Emergency Alert System
 Copyright (c) 2025 Timothy Kramer (KR8MER)
@@ -59,8 +60,6 @@ Key benefits:
 4. Clean separation of concerns
 5. Independent error recovery for each thread
 """
-
-from __future__ import annotations
 
 import datetime
 import logging

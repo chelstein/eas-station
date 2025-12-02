@@ -50,19 +50,27 @@ services:
     security_opt:
       - no-new-privileges:true
 
-  # SDR Service - Dedicated SDR hardware processing
-  # Runs independently from web application and other hardware
-  # Publishes metrics to Redis every 5 seconds
+  # ==========================================================================
+  # SDR Service - Handles SDR hardware and publishes samples to Redis
+  # ==========================================================================
+  # This service handles ONLY SDR hardware operations with USB device access.
+  # It uses a dual-thread architecture for reliable 24/7 operation:
+  #   - USB Reader Thread: Reads samples from SDR, writes to ring buffer
+  #   - Publisher Thread: Reads from ring buffer, publishes to Redis
+  #
+  # For full architecture details, see: docs/SDR_SERVICE_ARCHITECTURE.md
+  # ==========================================================================
   sdr-service:
     build:
       context: .
       dockerfile: Dockerfile
     image: eas-station:latest
     container_name: eas-sdr-service
+    init: true
     restart: unless-stopped
     networks:
       - eas-network
-    command: ["python", "audio_service.py"]
+    command: ["python", "sdr_service.py"]
     volumes:
       - app-config:/app-config
     environment:
@@ -83,27 +91,21 @@ services:
 
       # SDR settings
       SDR_ARGS: ${SDR_ARGS:-driver=airspy}
-
-      # Icecast configuration
-      ICECAST_SERVER: ${ICECAST_SERVER:-icecast}
-      ICECAST_PORT: ${ICECAST_INTERNAL_PORT:-8000}
-      ICECAST_EXTERNAL_PORT: ${ICECAST_EXTERNAL_PORT:-8001}
-      ICECAST_SOURCE_PASSWORD: ${ICECAST_SOURCE_PASSWORD:-eas_station_source_password}
-      ICECAST_ADMIN_USER: ${ICECAST_ADMIN_USER:-admin}
-      ICECAST_ADMIN_PASSWORD: ${ICECAST_ADMIN_PASSWORD:-changeme_admin}
-      ICECAST_ENABLED: ${ICECAST_ENABLED:-true}
-      ICECAST_PUBLIC_HOSTNAME: ${ICECAST_PUBLIC_HOSTNAME:-}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     devices:
       # SDR Device Passthrough - ONLY this container needs USB access
       - /dev/bus/usb:/dev/bus/usb
     # Privileged mode required for USB device access and dynamic device node creation
-    # Provides CAP_SYS_RAWIO and other capabilities needed for direct hardware I/O
     privileged: true
     cap_add:
       - SYS_RAWIO    # Direct I/O access to hardware devices
       - SYS_ADMIN    # USB device operations
+    ulimits:
+      memlock:
+        soft: -1  # Unlimited locked memory for USB DMA
+        hard: -1
+    shm_size: '256mb'
     security_opt:
       - no-new-privileges:true
     depends_on:
@@ -116,7 +118,76 @@ services:
       retries: 3
       start_period: 10s
 
+  # ==========================================================================
+  # Audio Service - Handles audio processing, EAS decoding, and streaming
+  # ==========================================================================
+  # This service receives IQ samples from sdr-service via Redis and handles:
+  #   - Audio demodulation (FM, AM, etc.)
+  #   - EAS/SAME header detection and decoding
+  #   - Icecast streaming output
+  #   - Web audio streaming
+  #
+  # No USB access required - all SDR data comes from Redis.
+  # ==========================================================================
+  audio-service:
+    image: eas-station:latest
+    container_name: eas-audio-service
+    init: true
+    restart: unless-stopped
+    networks:
+      - eas-network
+    expose:
+      - "5002"  # HTTP streaming server for audio (internal only)
+    command: ["python", "audio_service.py"]
+    volumes:
+      - app-config:/app-config
+    environment:
+      # Database connection
+      POSTGRES_HOST: ${POSTGRES_HOST:-alerts-db}
+      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+      POSTGRES_DB: ${POSTGRES_DB:-alerts}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+
+      # Redis connection
+      REDIS_HOST: ${REDIS_HOST:-redis}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_DB: ${REDIS_DB:-0}
+
+      # Application settings
+      CONFIG_PATH: /app-config/.env
+
+      # Audio streaming settings
+      AUDIO_STREAMING_PORT: ${AUDIO_STREAMING_PORT:-5002}
+
+      # Icecast configuration
+      ICECAST_SERVER: ${ICECAST_SERVER:-icecast}
+      ICECAST_PORT: ${ICECAST_INTERNAL_PORT:-8000}
+      ICECAST_EXTERNAL_PORT: ${ICECAST_EXTERNAL_PORT:-8001}
+      ICECAST_SOURCE_PASSWORD: ${ICECAST_SOURCE_PASSWORD:-eas_station_source_password}
+      ICECAST_ADMIN_USER: ${ICECAST_ADMIN_USER:-admin}
+      ICECAST_ADMIN_PASSWORD: ${ICECAST_ADMIN_PASSWORD:-changeme_admin}
+      ICECAST_ENABLED: ${ICECAST_ENABLED:-true}
+      ICECAST_PUBLIC_HOSTNAME: ${ICECAST_PUBLIC_HOSTNAME:-}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    security_opt:
+      - no-new-privileges:true
+    depends_on:
+      redis:
+        condition: service_healthy
+      sdr-service:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import redis; r=redis.Redis(host=\"redis\"); r.ping()' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # ==========================================================================
   # Hardware Service - Dedicated GPIO/Display hardware management
+  # ==========================================================================
   # Isolated from SDR for fault tolerance
   hardware-service:
     image: eas-station:latest

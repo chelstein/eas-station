@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 EAS Station - Emergency Alert System
 Copyright (c) 2025 Timothy Kramer (KR8MER)
@@ -37,8 +38,6 @@ The ring buffer provides:
 - Overflow detection: Logs when samples are dropped
 - Health metrics: Buffer fill level, overflow count, etc.
 """
-
-from __future__ import annotations
 
 import logging
 import threading
