@@ -86,6 +86,7 @@ _audio_controller = None
 _eas_monitor = None
 _auto_streaming_service = None
 _radio_manager = None  # Reference to RadioManager for metrics collection
+_flask_app = None  # Flask app instance for thread contexts
 
 
 def signal_handler(signum, frame):
@@ -155,11 +156,13 @@ def _sanitize_value(value: Any) -> Any:
 
 def initialize_database():
     """Initialize database connection for configuration."""
+    global _flask_app
     from app_core.extensions import db
     from flask import Flask
 
     # Create minimal Flask app for database access
     app = Flask(__name__)
+    _flask_app = app  # Store globally for thread contexts
 
     # Database configuration
     postgres_host = os.getenv("POSTGRES_HOST", "localhost")
