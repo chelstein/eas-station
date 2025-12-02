@@ -183,7 +183,7 @@ security_opt:
 - `privileged: true` is HIGH RISK but necessary for USB SDR
 - All permissions are actually used by SoapySDR
 - Monolithic design forces this container to be powerful
-- **Recommendation**: See SDR_ARCHITECTURE_REFACTORING.md for separation plan
+- **Recommendation**: See ../architecture/SDR_ARCHITECTURE_REFACTORING.md for separation plan
 
 **Future Improvement**:
 If SDR and audio are separated:
@@ -388,7 +388,7 @@ icecast:
 
 ### Future Improvements (SDR Refactoring)
 
-When SDR and audio services are separated (see SDR_ARCHITECTURE_REFACTORING.md):
+When SDR and audio services are separated (see ../architecture/SDR_ARCHITECTURE_REFACTORING.md):
 
 1. **sdr-service** (new, SDR-only)
    - Keeps: `privileged: true`, `SYS_RAWIO`, `SYS_ADMIN`, `/dev/bus/usb`

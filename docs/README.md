@@ -66,7 +66,7 @@ EAS Station integrates multiple alert sources (NOAA Weather, IPAWS Federal) and 
 
 **[View Full Architecture Details →](architecture/SYSTEM_ARCHITECTURE)**
 
-**[View Visual Diagrams →](DIAGRAMS)**
+**[View Visual Diagrams →](reference/DIAGRAMS)**
 
 ---
 
@@ -78,14 +78,15 @@ docs/
 ├── hardware/            ← SDR, GPIO, Raspberry Pi setup
 ├── audio/               ← Audio system documentation
 ├── deployment/          ← Deployment and maintenance guides
-├── evaluations/         ← Hardware evaluation reports
 ├── troubleshooting/     ← Problem-solving guides
 ├── development/         ← Developer documentation
-├── architecture/        ← System design and theory
+├── architecture/        ← System design and theory (9 files)
 ├── frontend/            ← Web UI documentation
 ├── reference/           ← Technical reference materials
-├── security/            ← Security documentation
+├── security/            ← Security documentation (3 files)
 ├── roadmap/             ← Future features and planning
+├── policies/            ← Legal documents
+├── process/             ← Process and reliability guides
 └── resources/           ← Vendor PDFs and external docs
 ```
 
@@ -134,7 +135,7 @@ docs/
 |----------|------|
 | **About** | [Project Overview](reference/ABOUT) |
 | **Changelog** | [Version History](reference/CHANGELOG) |
-| **Roadmap** | [Future Features](roadmap/master_todo) |
+| **Roadmap** | [Future Features](roadmap/dasdec3-feature-roadmap) |
 | **License** | [AGPL v3](../LICENSE) (Open Source) / [Commercial](../LICENSE-COMMERCIAL) |
 
 ### Legal & Compliance
@@ -155,7 +156,7 @@ We welcome contributions! See:
 
 ---
 
-**Last Updated**: 2025-11-25
-**Documentation Version**: 3.0 (Reorganized Structure)
+**Last Updated**: 2025-12-02
+**Documentation Version**: 3.1 (Reorganized documentation structure)
 
 **[Return to Main README](../README.md)** | **[View Complete Index](INDEX)**
