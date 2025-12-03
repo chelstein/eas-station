@@ -31,3 +31,6 @@ tests/test_data/*
 !tests/logs/README.md
 htmlcov/
 .coverage
+
+# Backup PNG files (replaced with SVG)
+static/img/resources/*.png
