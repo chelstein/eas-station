@@ -730,11 +730,23 @@ The embedded database is automatically configured with these settings (from `doc
 - **Database Name**: `alerts_dev`
 - **Username**: `postgres`
 - **Password**: `devpassword`
-- **Port**: `5432` (exposed to localhost)
+- **Port**: `5432` (exposed on the Pi)
+
+**Important - Hostname depends on where your code runs**:
+
+1. **When running app in Docker container** (normal mode):
+   - Use `POSTGRES_HOST=alerts-db` in `.env`
+   - This is the Docker service name
+
+2. **When running app directly on Pi via PyCharm debugger** (debugging mode):
+   - Use `POSTGRES_HOST=localhost` in `.env`
+   - The database port (5432) is exposed to your Pi's localhost
+   - ❌ **Do NOT use** `host.docker.internal` - this doesn't work on Linux/Raspberry Pi
+   - ✅ Use `localhost` because you're debugging directly on the Pi, not inside a container
 
 #### Option 2: Use an External Database
 
-If you want to use an existing PostgreSQL installation:
+If you want to use an existing PostgreSQL installation instead of the embedded container:
 
 1. **Edit your `.env` file**:
 
@@ -743,12 +755,17 @@ If you want to use an existing PostgreSQL installation:
 nano .env
 
 # Update these settings:
-POSTGRES_HOST=192.168.1.100  # Your database server IP
+POSTGRES_HOST=192.168.1.100  # Your external database server IP (NOT localhost or host.docker.internal)
 POSTGRES_PORT=5432
 POSTGRES_DB=alerts_dev
 POSTGRES_USER=postgres
 POSTGRES_PASSWORD=your-secure-password
 ```
+
+**Important - Hostname depends on your setup**:
+- ✅ Use the actual IP address of your database server (e.g., `192.168.1.100`) for external databases
+- ✅ Use `localhost` if debugging directly on the Pi with embedded database
+- ❌ **Do NOT use** `host.docker.internal` - this doesn't work on Linux/Raspberry Pi
 
 2. **Create the database** (on your PostgreSQL server):
 
@@ -772,16 +789,60 @@ Test that the application can connect to the database:
 docker-compose logs app | grep -i "database\|postgres"
 
 # You should see: "Connected to PostgreSQL" or similar
-# If you see connection errors, double-check your .env settings
+# If you see connection errors, check your .env file
+```
+
+**Common connection issues**:
+
+When **debugging directly on the Pi** (not in Docker):
+- ❌ Using `host.docker.internal` → **This doesn't work on Linux!** Change to `localhost` in `.env`
+- ❌ Using `alerts-db` → Change to `localhost` in `.env`
+- ✅ Correct setting: `POSTGRES_HOST=localhost`
+
+When **running app in Docker container**:
+- ❌ Using `localhost` → Change to `alerts-db` in `.env`
+- ✅ Correct setting: `POSTGRES_HOST=alerts-db`
+
+#### Switching Between Debugging Modes
+
+You'll need to change `POSTGRES_HOST` depending on how you're running the app:
+
+**Quick Reference**:
+```bash
+# Edit .env file on your Pi
+nano .env
+
+# For PyCharm debugging (running Python directly on Pi):
+POSTGRES_HOST=localhost
+
+# For Docker debugging (running inside container):
+POSTGRES_HOST=alerts-db
+```
+
+**Pro Tip**: You can keep both settings commented in your `.env` file and uncomment the one you need:
+```bash
+# Uncomment ONE of these based on your debugging mode:
+# POSTGRES_HOST=localhost          # For PyCharm direct debugging on Pi
+# POSTGRES_HOST=alerts-db          # For running in Docker container
 ```
 
 #### Important Database Configuration Notes
 
-**For development**:
+**For development with embedded database**:
 - ✅ Use `alerts_dev` as the database name (not `alerts`)
 - ✅ The database is automatically created and migrated on first startup
 - ✅ Use `devpassword` for local testing (not secure, only for development)
-- ✅ The database port (5432) is exposed for tools like pgAdmin or DBeaver
+- ✅ The database port (5432) is exposed to your Pi for debugging and external tools
+
+**Critical: Choose the right hostname for `POSTGRES_HOST` in `.env`**:
+- 🐛 **Debugging directly on Pi with PyCharm**: Use `POSTGRES_HOST=localhost`
+  - You're running Python directly on the Pi, not in Docker
+  - The database container exposes port 5432 to the Pi's localhost
+  - ❌ **DO NOT use** `host.docker.internal` - this only works on Docker Desktop (Mac/Windows), not Linux/Pi!
+  
+- 🐳 **Running app in Docker container**: Use `POSTGRES_HOST=alerts-db`
+  - Docker services communicate via service names
+  - `alerts-db` is the database service name in docker-compose.yml
 
 **For production**:
 - ⚠️ Use a strong password (generate with `openssl rand -hex 32`)
