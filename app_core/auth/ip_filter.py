@@ -282,33 +282,25 @@ class FloodProtection:
     def check_flood(ip_address: str, rate_limiter) -> Tuple[bool, int]:
         """
         Check if an IP is flooding login attempts.
-        
+
         Args:
             ip_address: IP address to check
             rate_limiter: LoginRateLimiter instance
-            
+
         Returns:
             Tuple of (is_flooding, attempts_in_last_minute)
         """
         if not ip_address or not rate_limiter:
             return False, 0
-        
-        # Check attempts in last minute
-        now = datetime.utcnow()
-        one_minute_ago = now - timedelta(minutes=1)
-        
-        # Count recent attempts
-        if ip_address not in rate_limiter._attempts:
-            return False, 0
-        
-        recent = [
-            attempt for attempt in rate_limiter._attempts[ip_address]
-            if attempt > one_minute_ago
-        ]
-        
-        attempts_count = len(recent)
+
+        # Check attempts in last minute using public method
+        attempts_count = rate_limiter.get_attempts_in_window(
+            ip_address,
+            timedelta(minutes=1)
+        )
+
         is_flooding = attempts_count >= FloodProtection.MAX_ATTEMPTS_PER_MINUTE
-        
+
         return is_flooding, attempts_count
     
     @staticmethod

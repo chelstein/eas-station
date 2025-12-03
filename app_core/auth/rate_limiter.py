@@ -25,24 +25,27 @@ with automatic cleanup of old entries.
 """
 
 from datetime import datetime, timedelta
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Optional
 from collections import defaultdict
 import threading
 
 
 class LoginRateLimiter:
     """Rate limiter for login attempts to prevent brute force attacks."""
-    
+
     # Configuration
     MAX_ATTEMPTS = 5  # Maximum failed attempts before lockout
     LOCKOUT_DURATION = timedelta(minutes=15)  # How long to lock out after max attempts
     ATTEMPT_WINDOW = timedelta(minutes=5)  # Time window to count attempts
-    
+    CLEANUP_INTERVAL = 300  # Cleanup every 5 minutes (in seconds)
+
     def __init__(self):
         """Initialize the rate limiter with thread-safe storage."""
         self._attempts: Dict[str, List[datetime]] = defaultdict(list)
         self._lockouts: Dict[str, datetime] = {}
         self._lock = threading.Lock()
+        self._cleanup_timer: Optional[threading.Timer] = None
+        self._running = False
     
     def record_failed_attempt(self, ip_address: str) -> None:
         """
@@ -122,20 +125,20 @@ class LoginRateLimiter:
     def get_remaining_attempts(self, ip_address: str) -> int:
         """
         Get the number of remaining attempts before lockout.
-        
+
         Args:
             ip_address: The IP address to check
-            
+
         Returns:
             Number of remaining attempts
         """
         if not ip_address:
             return self.MAX_ATTEMPTS
-        
+
         with self._lock:
             now = datetime.utcnow()
             cutoff = now - self.ATTEMPT_WINDOW
-            
+
             # Count recent attempts
             if ip_address in self._attempts:
                 recent_attempts = [
@@ -143,18 +146,46 @@ class LoginRateLimiter:
                     if attempt > cutoff
                 ]
                 return max(0, self.MAX_ATTEMPTS - len(recent_attempts))
-            
+
             return self.MAX_ATTEMPTS
+
+    def get_attempts_in_window(self, ip_address: str, window: timedelta) -> int:
+        """
+        Get the number of attempts in a specific time window.
+
+        Args:
+            ip_address: The IP address to check
+            window: Time window to count attempts in
+
+        Returns:
+            Number of attempts in the time window
+        """
+        if not ip_address:
+            return 0
+
+        with self._lock:
+            now = datetime.utcnow()
+            cutoff = now - window
+
+            # Count recent attempts
+            if ip_address in self._attempts:
+                recent_attempts = [
+                    attempt for attempt in self._attempts[ip_address]
+                    if attempt > cutoff
+                ]
+                return len(recent_attempts)
+
+            return 0
     
     def cleanup_old_entries(self) -> None:
         """
         Clean up expired lockouts and old attempts.
-        
-        Should be called periodically to prevent memory growth.
+
+        This method is called automatically by the background cleanup task.
         """
         with self._lock:
             now = datetime.utcnow()
-            
+
             # Clean up expired lockouts
             expired_lockouts = [
                 ip for ip, lockout_time in self._lockouts.items()
@@ -164,7 +195,7 @@ class LoginRateLimiter:
                 del self._lockouts[ip]
                 if ip in self._attempts:
                     self._attempts[ip] = []
-            
+
             # Clean up old attempts
             cutoff = now - self.ATTEMPT_WINDOW
             for ip in list(self._attempts.keys()):
@@ -176,11 +207,60 @@ class LoginRateLimiter:
                 if not self._attempts[ip]:
                     del self._attempts[ip]
 
+        # Reschedule cleanup if still running
+        if self._running:
+            self._schedule_cleanup()
+
+    def _schedule_cleanup(self) -> None:
+        """Schedule the next cleanup task."""
+        self._cleanup_timer = threading.Timer(
+            self.CLEANUP_INTERVAL,
+            self.cleanup_old_entries
+        )
+        self._cleanup_timer.daemon = True
+        self._cleanup_timer.start()
+
+    def start_cleanup_task(self) -> None:
+        """
+        Start the automatic cleanup background task.
+
+        This should be called once when the application starts.
+        """
+        if not self._running:
+            self._running = True
+            self._schedule_cleanup()
+
+    def stop_cleanup_task(self) -> None:
+        """
+        Stop the automatic cleanup background task.
+
+        This should be called when the application shuts down.
+        """
+        self._running = False
+        if self._cleanup_timer:
+            self._cleanup_timer.cancel()
+            self._cleanup_timer = None
+
 
 # Global rate limiter instance
 _rate_limiter = LoginRateLimiter()
+_cleanup_started = False
+_cleanup_lock = threading.Lock()
 
 
 def get_rate_limiter() -> LoginRateLimiter:
-    """Get the global rate limiter instance."""
+    """
+    Get the global rate limiter instance.
+
+    Automatically starts the cleanup task on first access.
+    """
+    global _cleanup_started
+
+    # Start cleanup task on first access (thread-safe)
+    if not _cleanup_started:
+        with _cleanup_lock:
+            if not _cleanup_started:
+                _rate_limiter.start_cleanup_task()
+                _cleanup_started = True
+
     return _rate_limiter

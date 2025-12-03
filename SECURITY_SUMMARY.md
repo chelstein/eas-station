@@ -152,19 +152,33 @@ CREATE TABLE ip_filters (
 All thresholds are configurable in code:
 
 ```python
-# Rate Limiting
+# Rate Limiting (app_core/auth/rate_limiter.py)
 MAX_ATTEMPTS = 5
 LOCKOUT_DURATION = timedelta(minutes=15)
 ATTEMPT_WINDOW = timedelta(minutes=5)
+CLEANUP_INTERVAL = 300  # Cleanup every 5 minutes
 
-# Flood Protection  
+# Flood Protection (app_core/auth/ip_filter.py)
 MAX_ATTEMPTS_PER_MINUTE = 10
 FLOOD_BAN_HOURS = 1
 
-# Auto-Ban
+# Auto-Ban (app_core/auth/ip_filter.py)
 FAILED_ATTEMPTS_THRESHOLD = 5
 BAN_DURATION_HOURS = 24
 ```
+
+### Important Configuration Notes
+
+**Shared IP Networks**: The rate limiting and IP filtering are IP-based, which means:
+- In corporate networks, all users share the same public IP
+- In VPN scenarios, all VPN users may share an IP range
+- Multiple failed attempts from ANY user on that IP count together
+
+**Recommendation**: For shared networks, consider:
+1. Adding the network to the allowlist: `192.168.1.0/24`
+2. Increasing `MAX_ATTEMPTS` if you have many users
+3. Reducing ban durations for auto-bans
+4. Using user-specific tracking (requires code modifications)
 
 ## Usage Examples
 
@@ -226,30 +240,86 @@ if not is_allowed:
 
 ## Support & Troubleshooting
 
-**Locked Out?**
+### Admin Lockout Recovery
+
+**If you lock yourself out** after too many failed login attempts, you have several recovery options:
+
+#### Option 1: Database Recovery (Recommended)
+Connect to the database directly and remove the IP ban:
 ```sql
--- Remove IP from blocklist
+-- Check if your IP is blocked
+SELECT * FROM ip_filters WHERE ip_address = 'YOUR_IP';
+
+-- Remove the IP from blocklist
 DELETE FROM ip_filters WHERE ip_address = 'YOUR_IP';
 
--- Or via fail2ban
+-- Or disable all auto-bans temporarily
+UPDATE ip_filters SET is_active = false WHERE reason LIKE 'auto_%';
+```
+
+#### Option 2: Wait for Auto-Expiration
+- **Malicious input ban**: 24 hours
+- **Brute force ban**: 24 hours
+- **Flood ban**: 1 hour
+- **Rate limit lockout**: 15 minutes
+
+#### Option 3: Use fail2ban (if configured)
+```bash
+# Check if IP is banned
+sudo fail2ban-client status eas-station-auth
+
+# Unban your IP
 sudo fail2ban-client set eas-station-auth unbanip YOUR_IP
 ```
 
-**View Security Logs**:
-```bash
-tail -f /var/log/eas-station/security.log
+#### Option 4: Add to Allowlist
+If you have database access, add your IP to the allowlist to bypass all checks:
+```sql
+INSERT INTO ip_filters (ip_address, filter_type, reason, is_active, created_at)
+VALUES ('YOUR_IP', 'allowlist', 'manual', true, NOW());
 ```
 
-**Database Queries**:
+#### Option 5: Emergency Access
+If using a VPN or proxy, change your IP address and try again from a different IP.
+
+### Important Notes for Administrators
+
+1. **Save Your IP**: Add your admin workstation IP to the allowlist immediately after setup
+2. **VPN Users**: Consider allowlisting your entire VPN IP range (e.g., `10.0.0.0/24`)
+3. **Shared Networks**: Be aware that in corporate networks, one user's failed attempts affect everyone on that IP
+4. **Password Managers**: Use a password manager to avoid typos that trigger lockouts
+
+### View Security Logs
+```bash
+# Real-time security events
+tail -f /var/log/eas-station/security.log
+
+# Recent failed logins
+grep "FAILED_LOGIN" /var/log/eas-station/security.log | tail -20
+
+# Malicious attempts
+grep "MALICIOUS_LOGIN" /var/log/eas-station/security.log
+```
+
+### Database Queries
 ```sql
 -- Recent malicious attempts
-SELECT * FROM audit_logs 
-WHERE action = 'auth.login.failure' 
+SELECT * FROM audit_logs
+WHERE action = 'auth.login.failure'
 AND details->>'reason' = 'malicious_input'
 ORDER BY timestamp DESC LIMIT 20;
 
 -- Active IP filters
 SELECT * FROM ip_filters WHERE is_active = true;
+
+-- Check rate limit status (note: in-memory, not in database)
+-- Use the web UI at /admin/malicious-logins instead
+
+-- Recent auto-bans
+SELECT * FROM ip_filters
+WHERE reason LIKE 'auto_%'
+ORDER BY created_at DESC
+LIMIT 20;
 ```
 
 ## Conclusion

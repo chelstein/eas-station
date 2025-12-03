@@ -11,7 +11,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision = '20251203_add_ip_filters'
-down_revision = None  # Set this to the previous migration ID if known
+down_revision = '20251201_add_snow_emergency_opt_out'
 branch_labels = None
 depends_on = None
 
