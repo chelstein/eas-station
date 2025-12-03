@@ -37,6 +37,7 @@ from app_core.auth.mfa import MFASession, verify_user_mfa
 from app_core.auth.audit import AuditLogger, AuditAction
 from app_core.auth.input_validation import InputValidator
 from app_core.auth.rate_limiter import get_rate_limiter
+from app_core.auth.security_logger import log_malicious_login_attempt, log_failed_login_attempt, log_rate_limit_exceeded
 
 
 # Create Blueprint for auth routes
@@ -83,6 +84,10 @@ def login():
         if is_locked:
             minutes_remaining = (seconds_remaining + 59) // 60  # Round up to nearest minute
             error = f'Too many failed login attempts. Please try again in {minutes_remaining} minute(s).'
+            
+            # Log to security log for fail2ban
+            log_rate_limit_exceeded(request.remote_addr)
+            
             db.session.add(SystemLog(
                 level='WARNING',
                 message='Login attempt while locked out',
@@ -107,6 +112,10 @@ def login():
                 if not username_valid:
                     # Log malicious attempt with sanitized username
                     sanitized_username = InputValidator.sanitize_for_logging(username)
+                    
+                    # Log to security log for fail2ban (immediate ban)
+                    log_malicious_login_attempt(request.remote_addr, sanitized_username, 'sql_or_command_injection')
+                    
                     db.session.add(SystemLog(
                         level='WARNING',
                         message='Malicious login attempt detected',
@@ -171,6 +180,10 @@ def login():
                     # Failed login - record attempt and sanitize username before logging
                     rate_limiter.record_failed_attempt(request.remote_addr)
                     sanitized_username = InputValidator.sanitize_for_logging(username)
+                    
+                    # Log to security log for fail2ban
+                    log_failed_login_attempt(request.remote_addr, sanitized_username)
+                    
                     db.session.add(SystemLog(
                         level='WARNING',
                         message='Failed administrator login attempt',

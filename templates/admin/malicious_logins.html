@@ -1,0 +1,451 @@
+{% extends "base.html" %}
+
+{% block title %}Malicious Login Attempts - EAS Station{% endblock %}
+
+{% block extra_css %}
+<style>
+    .security-header {
+        background: linear-gradient(135deg, #dc3545, #c82333);
+        color: white;
+        padding: 2rem 0;
+        margin-bottom: 2rem;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+    }
+
+    .alert-danger-custom {
+        background: #f8d7da;
+        border-left: 4px solid #dc3545;
+        padding: 1rem;
+        margin-bottom: 1.5rem;
+        border-radius: 4px;
+    }
+
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 1.5rem;
+        margin-bottom: 2rem;
+    }
+
+    .stat-card {
+        background: white;
+        border-radius: 12px;
+        padding: 1.5rem;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        border-left: 4px solid #dc3545;
+    }
+
+    .stat-value {
+        font-size: 2.5rem;
+        font-weight: bold;
+        color: #dc3545;
+        margin: 0.5rem 0;
+    }
+
+    .stat-label {
+        color: #6c757d;
+        font-size: 0.9rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .malicious-table {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        overflow: hidden;
+    }
+
+    .malicious-badge {
+        padding: 0.35rem 0.75rem;
+        border-radius: 12px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        background: #dc3545;
+        color: white;
+    }
+
+    .ip-address {
+        font-family: 'Courier New', monospace;
+        font-weight: 600;
+        color: #495057;
+    }
+
+    .attempt-details {
+        font-family: 'Courier New', monospace;
+        font-size: 0.85rem;
+        background: #f8f9fa;
+        padding: 0.5rem;
+        border-radius: 4px;
+        max-height: 80px;
+        overflow-y: auto;
+    }
+
+    .ip-stats-card {
+        background: white;
+        border-radius: 12px;
+        padding: 1.5rem;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        margin-bottom: 2rem;
+    }
+
+    .ip-stat-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1rem;
+        border-bottom: 1px solid #e9ecef;
+    }
+
+    .ip-stat-item:last-child {
+        border-bottom: none;
+    }
+
+    .badge-count {
+        background: #dc3545;
+        color: white;
+        padding: 0.25rem 0.75rem;
+        border-radius: 12px;
+        font-weight: 600;
+    }
+
+    .filter-card {
+        background: white;
+        border-radius: 12px;
+        padding: 1.5rem;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        margin-bottom: 2rem;
+    }
+
+    .fail2ban-info {
+        background: #fff3cd;
+        border-left: 4px solid #ffc107;
+        padding: 1rem;
+        margin: 1.5rem 0;
+        border-radius: 4px;
+    }
+
+    .code-block {
+        background: #2d2d2d;
+        color: #f8f8f2;
+        padding: 1rem;
+        border-radius: 4px;
+        font-family: 'Courier New', monospace;
+        font-size: 0.85rem;
+        overflow-x: auto;
+        margin: 1rem 0;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="security-header">
+    <div class="container">
+        <h1><i class="bi bi-shield-exclamation"></i> Malicious Login Attempts</h1>
+        <p class="lead mb-0">Monitor and track SQL injection and command injection attempts</p>
+    </div>
+</div>
+
+<div class="container">
+    <!-- Alert Notice -->
+    <div class="alert-danger-custom">
+        <h5><i class="bi bi-exclamation-triangle-fill"></i> Security Alert</h5>
+        <p class="mb-0">These login attempts have been automatically flagged as malicious due to SQL injection or command injection patterns. All attempts are logged for fail2ban integration.</p>
+    </div>
+
+    <!-- Statistics -->
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-label">Total Attempts</div>
+            <div class="stat-value" id="total-attempts">0</div>
+            <small class="text-muted">Last 7 days</small>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Unique IPs</div>
+            <div class="stat-value" id="unique-ips">0</div>
+            <small class="text-muted">Attacking sources</small>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Today</div>
+            <div class="stat-value" id="today-attempts">0</div>
+            <small class="text-muted">Attempts in last 24h</small>
+        </div>
+    </div>
+
+    <!-- fail2ban Integration Info -->
+    <div class="fail2ban-info">
+        <h5><i class="bi bi-info-circle-fill"></i> fail2ban Integration</h5>
+        <p>Malicious login attempts are logged to the security log file for fail2ban to automatically ban attacking IPs.</p>
+        <button class="btn btn-sm btn-warning" onclick="showFail2banConfig()">
+            <i class="bi bi-file-earmark-code"></i> View fail2ban Configuration
+        </button>
+    </div>
+
+    <!-- Top Attacking IPs -->
+    <div class="ip-stats-card">
+        <h4 class="mb-3"><i class="bi bi-globe"></i> Top Attacking IP Addresses</h4>
+        <div id="ip-statistics">
+            <p class="text-center text-muted">Loading statistics...</p>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="filter-card">
+        <h5 class="mb-3">Filters</h5>
+        <div class="row">
+            <div class="col-md-4">
+                <label>Time Range</label>
+                <select class="form-select" id="days-filter">
+                    <option value="1">Last 24 hours</option>
+                    <option value="7" selected>Last 7 days</option>
+                    <option value="30">Last 30 days</option>
+                    <option value="90">Last 90 days</option>
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label>Per Page</label>
+                <select class="form-select" id="per-page-filter">
+                    <option value="25">25</option>
+                    <option value="50" selected>50</option>
+                    <option value="100">100</option>
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label>&nbsp;</label>
+                <button class="btn btn-primary w-100" onclick="loadAttempts()">
+                    <i class="bi bi-arrow-clockwise"></i> Refresh
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Attempts Table -->
+    <div class="malicious-table">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Timestamp</th>
+                        <th>IP Address</th>
+                        <th>Username Attempted</th>
+                        <th>Type</th>
+                        <th>Details</th>
+                    </tr>
+                </thead>
+                <tbody id="attempts-tbody">
+                    <tr>
+                        <td colspan="5" class="text-center text-muted">
+                            <div class="spinner-border spinner-border-sm" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                            Loading attempts...
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="pagination-container">
+            <div id="pagination-info">Showing 0 of 0 attempts</div>
+            <div id="pagination-controls"></div>
+        </div>
+    </div>
+</div>
+
+<!-- fail2ban Config Modal -->
+<div class="modal fade" id="fail2banModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">fail2ban Configuration</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Add the following configuration to your fail2ban setup to automatically ban IPs making malicious login attempts:</p>
+                
+                <h6>1. Jail Configuration (/etc/fail2ban/jail.local)</h6>
+                <div class="code-block" id="jail-config"></div>
+                
+                <h6>2. Filter Configuration (/etc/fail2ban/filter.d/eas-station-malicious.conf)</h6>
+                <div class="code-block" id="filter-config"></div>
+                
+                <button class="btn btn-sm btn-secondary" onclick="copyToClipboard('jail-config')">
+                    <i class="bi bi-clipboard"></i> Copy Jail Config
+                </button>
+                <button class="btn btn-sm btn-secondary" onclick="copyToClipboard('filter-config')">
+                    <i class="bi bi-clipboard"></i> Copy Filter Config
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let currentPage = 1;
+let modal = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadAttempts();
+    
+    // Setup modal
+    modal = new bootstrap.Modal(document.getElementById('fail2banModal'));
+});
+
+function loadAttempts() {
+    const days = document.getElementById('days-filter').value;
+    const perPage = document.getElementById('per-page-filter').value;
+    
+    fetch(`/security/malicious-login-attempts?page=${currentPage}&days=${days}&per_page=${perPage}`)
+        .then(response => response.json())
+        .then(data => {
+            displayAttempts(data.logs);
+            displayStatistics(data);
+            displayIPStats(data.ip_statistics);
+            updatePagination(data);
+        })
+        .catch(error => {
+            console.error('Error loading attempts:', error);
+            document.getElementById('attempts-tbody').innerHTML = 
+                '<tr><td colspan="5" class="text-center text-danger">Error loading attempts</td></tr>';
+        });
+}
+
+function displayAttempts(logs) {
+    const tbody = document.getElementById('attempts-tbody');
+    
+    if (logs.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">No malicious attempts found</td></tr>';
+        return;
+    }
+    
+    tbody.innerHTML = logs.map(log => {
+        const timestamp = new Date(log.timestamp).toLocaleString();
+        const reason = log.details?.reason || 'unknown';
+        const detailsStr = JSON.stringify(log.details, null, 2);
+        
+        return `
+            <tr>
+                <td>${timestamp}</td>
+                <td class="ip-address">${log.ip_address || 'N/A'}</td>
+                <td><code>${log.username || 'N/A'}</code></td>
+                <td><span class="malicious-badge">${reason}</span></td>
+                <td><div class="attempt-details">${escapeHtml(detailsStr)}</div></td>
+            </tr>
+        `;
+    }).join('');
+}
+
+function displayStatistics(data) {
+    document.getElementById('total-attempts').textContent = data.total || 0;
+    document.getElementById('unique-ips').textContent = Object.keys(data.ip_statistics || {}).length;
+    
+    // Calculate today's attempts
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayAttempts = (data.logs || []).filter(log => {
+        const logDate = new Date(log.timestamp);
+        return logDate >= today;
+    }).length;
+    document.getElementById('today-attempts').textContent = todayAttempts;
+}
+
+function displayIPStats(ipStats) {
+    const container = document.getElementById('ip-statistics');
+    
+    if (!ipStats || Object.keys(ipStats).length === 0) {
+        container.innerHTML = '<p class="text-center text-muted">No IP statistics available</p>';
+        return;
+    }
+    
+    // Sort by count
+    const sorted = Object.entries(ipStats)
+        .sort((a, b) => b[1].count - a[1].count)
+        .slice(0, 10); // Top 10
+    
+    container.innerHTML = sorted.map(([ip, stats]) => `
+        <div class="ip-stat-item">
+            <div>
+                <strong class="ip-address">${ip}</strong>
+                <br>
+                <small class="text-muted">
+                    Last: ${new Date(stats.last_attempt).toLocaleString()}
+                    | Usernames: ${stats.usernames.join(', ')}
+                </small>
+            </div>
+            <span class="badge-count">${stats.count} attempts</span>
+        </div>
+    `).join('');
+}
+
+function updatePagination(data) {
+    document.getElementById('pagination-info').textContent = 
+        `Showing ${data.logs.length} of ${data.total} attempts`;
+    
+    const controls = document.getElementById('pagination-controls');
+    if (data.pages <= 1) {
+        controls.innerHTML = '';
+        return;
+    }
+    
+    let html = '<nav><ul class="pagination pagination-sm mb-0">';
+    
+    if (currentPage > 1) {
+        html += `<li class="page-item"><a class="page-link" href="#" onclick="changePage(${currentPage - 1}); return false;">Previous</a></li>`;
+    }
+    
+    for (let i = Math.max(1, currentPage - 2); i <= Math.min(data.pages, currentPage + 2); i++) {
+        html += `<li class="page-item ${i === currentPage ? 'active' : ''}">
+            <a class="page-link" href="#" onclick="changePage(${i}); return false;">${i}</a>
+        </li>`;
+    }
+    
+    if (currentPage < data.pages) {
+        html += `<li class="page-item"><a class="page-link" href="#" onclick="changePage(${currentPage + 1}); return false;">Next</a></li>`;
+    }
+    
+    html += '</ul></nav>';
+    controls.innerHTML = html;
+}
+
+function changePage(page) {
+    currentPage = page;
+    loadAttempts();
+}
+
+function showFail2banConfig() {
+    // Load the config
+    const jailConfig = `[eas-station-malicious]
+enabled = true
+port = http,https
+filter = eas-station-malicious
+logpath = /var/log/eas-station/security.log
+maxretry = 1
+bantime = 3600
+findtime = 600`;
+    
+    const filterConfig = `[Definition]
+failregex = ^.*MALICIOUS_LOGIN from <HOST>.*$
+ignoreregex =`;
+    
+    document.getElementById('jail-config').textContent = jailConfig;
+    document.getElementById('filter-config').textContent = filterConfig;
+    
+    modal.show();
+}
+
+function copyToClipboard(elementId) {
+    const text = document.getElementById(elementId).textContent;
+    navigator.clipboard.writeText(text).then(() => {
+        alert('Copied to clipboard!');
+    });
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+</script>
+{% endblock %}

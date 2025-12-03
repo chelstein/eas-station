@@ -430,6 +430,55 @@ def list_audit_logs():
     })
 
 
+@security_bp.route('/malicious-login-attempts', methods=['GET'])
+@require_permission('logs.view')
+def list_malicious_login_attempts():
+    """List malicious login attempts with details."""
+    page = request.args.get('page', 1, type=int)
+    per_page = min(request.args.get('per_page', 50, type=int), 1000)
+    days = request.args.get('days', 7, type=int)
+    
+    # Query for malicious login attempts
+    cutoff = utc_now() - timedelta(days=days)
+    query = AuditLog.query.filter(
+        AuditLog.action == 'auth.login.failure',
+        AuditLog.timestamp >= cutoff,
+        AuditLog.details.op('->>')('reason').in_(['malicious_input', 'sql_injection', 'command_injection'])
+    ).order_by(AuditLog.timestamp.desc())
+    
+    # Paginate
+    pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+    
+    # Group by IP address for statistics
+    ip_stats = {}
+    for log in query.all():
+        ip = log.ip_address
+        if ip:
+            if ip not in ip_stats:
+                ip_stats[ip] = {'count': 0, 'last_attempt': None, 'usernames': set()}
+            ip_stats[ip]['count'] += 1
+            if log.timestamp:
+                if ip_stats[ip]['last_attempt'] is None or log.timestamp > ip_stats[ip]['last_attempt']:
+                    ip_stats[ip]['last_attempt'] = log.timestamp
+            if log.username:
+                ip_stats[ip]['usernames'].add(log.username)
+    
+    # Convert sets to lists for JSON serialization
+    for ip in ip_stats:
+        ip_stats[ip]['usernames'] = list(ip_stats[ip]['usernames'])
+        if ip_stats[ip]['last_attempt']:
+            ip_stats[ip]['last_attempt'] = ip_stats[ip]['last_attempt'].isoformat()
+    
+    return jsonify({
+        'logs': [log.to_dict() for log in pagination.items],
+        'ip_statistics': ip_stats,
+        'total': pagination.total,
+        'page': page,
+        'per_page': per_page,
+        'pages': pagination.pages
+    })
+
+
 @security_bp.route('/audit-logs/export', methods=['GET'])
 @require_permission('logs.export')
 def export_audit_logs():
