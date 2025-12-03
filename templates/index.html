@@ -40,7 +40,7 @@
     }
 
     .page-header {
-        background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+        background: linear-gradient(135deg, var(--primary-dark, var(--primary-color)), var(--secondary-dark, var(--secondary-color)));
         border-radius: var(--radius-md);
         color: #fff;
         padding: var(--spacing-md) var(--spacing-lg);
@@ -80,15 +80,20 @@
 
     .page-header .page-title {
         font-size: 1.4rem;
-        font-weight: 600;
+        font-weight: 700;
         margin: 0;
         letter-spacing: 0.01em;
+        color: #ffffff;
+        text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
     }
 
     .page-header .page-subtitle {
         font-size: 0.85rem;
-        opacity: 0.82;
+        opacity: 1;
         margin: 0;
+        color: #ffffff;
+        text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+        font-weight: 500;
     }
 
     /* Compact dashboard logo */
@@ -96,7 +101,9 @@
         height: 40px;
         width: auto;
         display: block;
-        filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
+        filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5));
+        position: relative;
+        z-index: 1;
     }
 
     .dashboard-page-logo .logo-text-primary,
@@ -106,6 +113,26 @@
 
     .dashboard-page-logo .logo-bar {
         fill: #ffffff;
+    }
+
+    /* Ensure buttons are visible on gradient */
+    .page-header-actions {
+        position: relative;
+        z-index: 1;
+        display: flex;
+        gap: 0.5rem;
+    }
+
+    .page-header .btn-outline-light {
+        color: #ffffff !important;
+        border-color: rgba(255, 255, 255, 0.8);
+        background-color: rgba(255, 255, 255, 0.1);
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+    }
+
+    .page-header .btn-outline-light:hover {
+        background-color: rgba(255, 255, 255, 0.25);
+        border-color: #ffffff;
     }
 
     /* Snow Emergency Banner */
