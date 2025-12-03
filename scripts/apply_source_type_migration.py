@@ -39,7 +39,6 @@ Or set DATABASE_URL directly:
 import os
 import sys
 import psycopg2
-from psycopg2 import sql
 from dotenv import load_dotenv
 
 # Try to load from stack.env or .env

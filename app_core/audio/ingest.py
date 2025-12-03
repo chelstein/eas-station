@@ -26,7 +26,6 @@ Provides a centralized interface for managing multiple audio sources
 with standardized PCM output, metering, and health monitoring.
 """
 
-import asyncio
 import logging
 import queue
 import threading

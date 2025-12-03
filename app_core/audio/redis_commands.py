@@ -45,7 +45,7 @@ import time
 from typing import Any, Callable, Dict, Optional
 
 import redis
-from app_core.redis_client import get_redis_client, redis_operation
+from app_core.redis_client import get_redis_client
 
 logger = logging.getLogger(__name__)
 
