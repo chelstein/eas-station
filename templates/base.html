@@ -43,6 +43,8 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/accessibility.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/professional-polish.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/modern-ui-enhancements.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/advanced-visual-effects.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/enhanced-map-styling.css') }}">
 
     <script>
         window.CSRF_TOKEN = {{ csrf_token | tojson }};
@@ -233,6 +235,9 @@
     <script src="{{ url_for('static', filename='js/core/utils.js') }}"></script>
     <script src="{{ url_for('static', filename='js/loading-error-utils.js') }}"></script>
     <script src="{{ url_for('static', filename='js/accessibility-utils.js') }}"></script>
+
+    <!-- Visual Effects Enhancement -->
+    <script src="{{ url_for('static', filename='js/visual-effects.js') }}"></script>
 
     <!-- 3. Page-specific scripts -->
     {% block scripts %}{% endblock %}
