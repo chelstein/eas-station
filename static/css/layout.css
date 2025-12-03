@@ -36,10 +36,49 @@
     }
 }
 
+/* Navbar text colors - adapt based on theme brightness */
 .navbar .navbar-brand,
 .navbar .nav-link,
 .navbar .navbar-toggler {
-    color: #f7f8ff !important;
+    color: #ffffff !important;
+}
+
+/* Light themes need darker text for contrast on bright gradient backgrounds */
+[data-theme="cosmo"] .navbar .navbar-brand,
+[data-theme="cosmo"] .navbar .nav-link,
+[data-theme="cosmo"] .navbar .navbar-toggler,
+[data-theme="spring"] .navbar .navbar-brand,
+[data-theme="spring"] .navbar .nav-link,
+[data-theme="spring"] .navbar .navbar-toggler,
+[data-theme="red"] .navbar .navbar-brand,
+[data-theme="red"] .navbar .nav-link,
+[data-theme="red"] .navbar .navbar-toggler,
+[data-theme="green"] .navbar .navbar-brand,
+[data-theme="green"] .navbar .nav-link,
+[data-theme="green"] .navbar .navbar-toggler,
+[data-theme="blue"] .navbar .navbar-brand,
+[data-theme="blue"] .navbar .nav-link,
+[data-theme="blue"] .navbar .navbar-toggler,
+[data-theme="purple"] .navbar .navbar-brand,
+[data-theme="purple"] .navbar .nav-link,
+[data-theme="purple"] .navbar .navbar-toggler,
+[data-theme="pink"] .navbar .navbar-brand,
+[data-theme="pink"] .navbar .nav-link,
+[data-theme="pink"] .navbar .navbar-toggler,
+[data-theme="orange"] .navbar .navbar-brand,
+[data-theme="orange"] .navbar .nav-link,
+[data-theme="orange"] .navbar .navbar-toggler,
+[data-theme="yellow"] .navbar .navbar-brand,
+[data-theme="yellow"] .navbar .nav-link,
+[data-theme="yellow"] .navbar .navbar-toggler,
+[data-theme="sunset"] .navbar .navbar-brand,
+[data-theme="sunset"] .navbar .nav-link,
+[data-theme="sunset"] .navbar .navbar-toggler,
+[data-theme="tide"] .navbar .navbar-brand,
+[data-theme="tide"] .navbar .nav-link,
+[data-theme="tide"] .navbar .navbar-toggler {
+    color: #ffffff !important;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
 }
 
 .navbar .navbar-brand {
@@ -72,7 +111,45 @@
 .navbar .nav-link:hover,
 .navbar .nav-link:focus,
 .navbar .nav-link.active {
-    color: var(--accent-color) !important;
+    color: rgba(255, 255, 255, 0.85) !important;
+}
+
+/* Light themes - enhance hover state with better contrast */
+[data-theme="cosmo"] .navbar .nav-link:hover,
+[data-theme="cosmo"] .navbar .nav-link:focus,
+[data-theme="cosmo"] .navbar .nav-link.active,
+[data-theme="spring"] .navbar .nav-link:hover,
+[data-theme="spring"] .navbar .nav-link:focus,
+[data-theme="spring"] .navbar .nav-link.active,
+[data-theme="red"] .navbar .nav-link:hover,
+[data-theme="red"] .navbar .nav-link:focus,
+[data-theme="red"] .navbar .nav-link.active,
+[data-theme="green"] .navbar .nav-link:hover,
+[data-theme="green"] .navbar .nav-link:focus,
+[data-theme="green"] .navbar .nav-link.active,
+[data-theme="blue"] .navbar .nav-link:hover,
+[data-theme="blue"] .navbar .nav-link:focus,
+[data-theme="blue"] .navbar .nav-link.active,
+[data-theme="purple"] .navbar .nav-link:hover,
+[data-theme="purple"] .navbar .nav-link:focus,
+[data-theme="purple"] .navbar .nav-link.active,
+[data-theme="pink"] .navbar .nav-link:hover,
+[data-theme="pink"] .navbar .nav-link:focus,
+[data-theme="pink"] .navbar .nav-link.active,
+[data-theme="orange"] .navbar .nav-link:hover,
+[data-theme="orange"] .navbar .nav-link:focus,
+[data-theme="orange"] .navbar .nav-link.active,
+[data-theme="yellow"] .navbar .nav-link:hover,
+[data-theme="yellow"] .navbar .nav-link:focus,
+[data-theme="yellow"] .navbar .nav-link.active,
+[data-theme="sunset"] .navbar .nav-link:hover,
+[data-theme="sunset"] .navbar .nav-link:focus,
+[data-theme="sunset"] .navbar .nav-link.active,
+[data-theme="tide"] .navbar .nav-link:hover,
+[data-theme="tide"] .navbar .nav-link:focus,
+[data-theme="tide"] .navbar .nav-link.active {
+    color: #ffffff !important;
+    background-color: rgba(255, 255, 255, 0.25);
 }
 
 .navbar-nav {
@@ -94,6 +171,32 @@
 .navbar-nav .nav-link:hover,
 .navbar-nav .nav-link:focus {
     background-color: rgba(255, 255, 255, 0.12);
+}
+
+/* Light themes - enhance hover visibility */
+[data-theme="cosmo"] .navbar-nav .nav-link:hover,
+[data-theme="cosmo"] .navbar-nav .nav-link:focus,
+[data-theme="spring"] .navbar-nav .nav-link:hover,
+[data-theme="spring"] .navbar-nav .nav-link:focus,
+[data-theme="red"] .navbar-nav .nav-link:hover,
+[data-theme="red"] .navbar-nav .nav-link:focus,
+[data-theme="green"] .navbar-nav .nav-link:hover,
+[data-theme="green"] .navbar-nav .nav-link:focus,
+[data-theme="blue"] .navbar-nav .nav-link:hover,
+[data-theme="blue"] .navbar-nav .nav-link:focus,
+[data-theme="purple"] .navbar-nav .nav-link:hover,
+[data-theme="purple"] .navbar-nav .nav-link:focus,
+[data-theme="pink"] .navbar-nav .nav-link:hover,
+[data-theme="pink"] .navbar-nav .nav-link:focus,
+[data-theme="orange"] .navbar-nav .nav-link:hover,
+[data-theme="orange"] .navbar-nav .nav-link:focus,
+[data-theme="yellow"] .navbar-nav .nav-link:hover,
+[data-theme="yellow"] .navbar-nav .nav-link:focus,
+[data-theme="sunset"] .navbar-nav .nav-link:hover,
+[data-theme="sunset"] .navbar-nav .nav-link:focus,
+[data-theme="tide"] .navbar-nav .nav-link:hover,
+[data-theme="tide"] .navbar-nav .nav-link:focus {
+    background-color: rgba(255, 255, 255, 0.22);
 }
 
 .navbar-nav .dropdown-menu {
@@ -253,7 +356,7 @@
 .theme-toggle-button {
     border: none;
     background: transparent;
-    color: #f7f8ff;
+    color: #ffffff;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -263,11 +366,53 @@
     transition: background-color var(--transition-fast), color var(--transition-fast), transform var(--transition-fast);
 }
 
+/* Light themes - ensure theme toggle button is visible */
+[data-theme="cosmo"] .navbar .theme-toggle-button,
+[data-theme="spring"] .navbar .theme-toggle-button,
+[data-theme="red"] .navbar .theme-toggle-button,
+[data-theme="green"] .navbar .theme-toggle-button,
+[data-theme="blue"] .navbar .theme-toggle-button,
+[data-theme="purple"] .navbar .theme-toggle-button,
+[data-theme="pink"] .navbar .theme-toggle-button,
+[data-theme="orange"] .navbar .theme-toggle-button,
+[data-theme="yellow"] .navbar .theme-toggle-button,
+[data-theme="sunset"] .navbar .theme-toggle-button,
+[data-theme="tide"] .navbar .theme-toggle-button {
+    color: #ffffff;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
 .theme-toggle-button:hover,
 .theme-toggle-button:focus {
     background-color: rgba(255, 255, 255, 0.18);
     color: #ffffff;
     transform: translateY(-1px);
+}
+
+/* Light themes - enhance hover visibility */
+[data-theme="cosmo"] .navbar .theme-toggle-button:hover,
+[data-theme="cosmo"] .navbar .theme-toggle-button:focus,
+[data-theme="spring"] .navbar .theme-toggle-button:hover,
+[data-theme="spring"] .navbar .theme-toggle-button:focus,
+[data-theme="red"] .navbar .theme-toggle-button:hover,
+[data-theme="red"] .navbar .theme-toggle-button:focus,
+[data-theme="green"] .navbar .theme-toggle-button:hover,
+[data-theme="green"] .navbar .theme-toggle-button:focus,
+[data-theme="blue"] .navbar .theme-toggle-button:hover,
+[data-theme="blue"] .navbar .theme-toggle-button:focus,
+[data-theme="purple"] .navbar .theme-toggle-button:hover,
+[data-theme="purple"] .navbar .theme-toggle-button:focus,
+[data-theme="pink"] .navbar .theme-toggle-button:hover,
+[data-theme="pink"] .navbar .theme-toggle-button:focus,
+[data-theme="orange"] .navbar .theme-toggle-button:hover,
+[data-theme="orange"] .navbar .theme-toggle-button:focus,
+[data-theme="yellow"] .navbar .theme-toggle-button:hover,
+[data-theme="yellow"] .navbar .theme-toggle-button:focus,
+[data-theme="sunset"] .navbar .theme-toggle-button:hover,
+[data-theme="sunset"] .navbar .theme-toggle-button:focus,
+[data-theme="tide"] .navbar .theme-toggle-button:hover,
+[data-theme="tide"] .navbar .theme-toggle-button:focus {
+    background-color: rgba(255, 255, 255, 0.30);
 }
 
 .theme-toggle-button:active {
@@ -345,8 +490,24 @@
     background-color: rgba(255, 255, 255, 0.16);
     border-radius: 999px;
     min-width: 0;
-    color: #f7f8ff;
+    color: #ffffff;
     backdrop-filter: blur(6px);
+}
+
+/* Light themes - ensure health indicator is visible */
+[data-theme="cosmo"] .navbar .health-indicator,
+[data-theme="spring"] .navbar .health-indicator,
+[data-theme="red"] .navbar .health-indicator,
+[data-theme="green"] .navbar .health-indicator,
+[data-theme="blue"] .navbar .health-indicator,
+[data-theme="purple"] .navbar .health-indicator,
+[data-theme="pink"] .navbar .health-indicator,
+[data-theme="orange"] .navbar .health-indicator,
+[data-theme="yellow"] .navbar .health-indicator,
+[data-theme="sunset"] .navbar .health-indicator,
+[data-theme="tide"] .navbar .health-indicator {
+    color: #ffffff;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
 }
 
 .health-label {
