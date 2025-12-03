@@ -436,42 +436,99 @@ a:hover .logo-wordmark {
 }
 
 /* ============================================
-   DARK MODE ADJUSTMENTS
+   DARK MODE ADJUSTMENTS - All Dark Themes
    ============================================ */
 
 [data-theme="dark"] .logo-bar,
 [data-theme="coffee"] .logo-bar,
 [data-theme="midnight"] .logo-bar,
 [data-theme="charcoal"] .logo-bar,
-[data-theme="obsidian"] .logo-bar {
-    filter: brightness(1.3);
+[data-theme="obsidian"] .logo-bar,
+[data-theme="slate"] .logo-bar,
+[data-theme="aurora"] .logo-bar,
+[data-theme="nebula"] .logo-bar {
+    filter: brightness(1.4) saturate(1.2);
 }
 
+/* Dark theme text colors - ensure good visibility */
 [data-theme="dark"] .logo-text-primary,
 [data-theme="coffee"] .logo-text-primary,
-[data-theme="midnight"] .logo-text-primary {
-    fill: var(--primary-color, #4f9ce8);
+[data-theme="midnight"] .logo-text-primary,
+[data-theme="charcoal"] .logo-text-primary,
+[data-theme="obsidian"] .logo-text-primary,
+[data-theme="slate"] .logo-text-primary,
+[data-theme="aurora"] .logo-text-primary,
+[data-theme="nebula"] .logo-text-primary {
+    fill: var(--primary-color);
 }
 
 [data-theme="dark"] .logo-text-secondary,
 [data-theme="coffee"] .logo-text-secondary,
-[data-theme="midnight"] .logo-text-secondary {
-    fill: var(--text-secondary, #a8b4c8);
+[data-theme="midnight"] .logo-text-secondary,
+[data-theme="charcoal"] .logo-text-secondary,
+[data-theme="obsidian"] .logo-text-secondary,
+[data-theme="slate"] .logo-text-secondary,
+[data-theme="aurora"] .logo-text-secondary,
+[data-theme="nebula"] .logo-text-secondary {
+    fill: var(--text-secondary);
 }
 
+/* Dark theme glow effects */
 [data-theme="dark"] .logo-wordmark,
 [data-theme="coffee"] .logo-wordmark,
-[data-theme="midnight"] .logo-wordmark {
-    filter: drop-shadow(0 2px 6px rgba(79, 156, 232, 0.4))
-            drop-shadow(0 0 20px rgba(79, 156, 232, 0.2));
+[data-theme="midnight"] .logo-wordmark,
+[data-theme="charcoal"] .logo-wordmark,
+[data-theme="obsidian"] .logo-wordmark,
+[data-theme="slate"] .logo-wordmark,
+[data-theme="aurora"] .logo-wordmark,
+[data-theme="nebula"] .logo-wordmark {
+    filter: drop-shadow(0 2px 6px rgba(107, 150, 255, 0.4))
+            drop-shadow(0 0 20px rgba(107, 150, 255, 0.2));
 }
 
 [data-theme="dark"] .logo-wordmark:hover,
 [data-theme="coffee"] .logo-wordmark:hover,
-[data-theme="midnight"] .logo-wordmark:hover {
-    filter: drop-shadow(0 4px 12px rgba(79, 156, 232, 0.6))
-            drop-shadow(0 0 30px rgba(79, 156, 232, 0.4))
-            drop-shadow(0 0 40px rgba(79, 156, 232, 0.2));
+[data-theme="midnight"] .logo-wordmark:hover,
+[data-theme="charcoal"] .logo-wordmark:hover,
+[data-theme="obsidian"] .logo-wordmark:hover,
+[data-theme="slate"] .logo-wordmark:hover,
+[data-theme="aurora"] .logo-wordmark:hover,
+[data-theme="nebula"] .logo-wordmark:hover {
+    filter: drop-shadow(0 4px 12px rgba(107, 150, 255, 0.6))
+            drop-shadow(0 0 30px rgba(107, 150, 255, 0.4))
+            drop-shadow(0 0 40px rgba(107, 150, 255, 0.2));
+}
+
+/* ============================================
+   LIGHT MODE ENHANCEMENTS - All Light Themes
+   ============================================ */
+
+[data-theme="cosmo"] .logo-text-primary,
+[data-theme="spring"] .logo-text-primary,
+[data-theme="red"] .logo-text-primary,
+[data-theme="green"] .logo-text-primary,
+[data-theme="blue"] .logo-text-primary,
+[data-theme="purple"] .logo-text-primary,
+[data-theme="pink"] .logo-text-primary,
+[data-theme="orange"] .logo-text-primary,
+[data-theme="yellow"] .logo-text-primary,
+[data-theme="sunset"] .logo-text-primary,
+[data-theme="tide"] .logo-text-primary {
+    fill: var(--primary-color);
+}
+
+[data-theme="cosmo"] .logo-text-secondary,
+[data-theme="spring"] .logo-text-secondary,
+[data-theme="red"] .logo-text-secondary,
+[data-theme="green"] .logo-text-secondary,
+[data-theme="blue"] .logo-text-secondary,
+[data-theme="purple"] .logo-text-secondary,
+[data-theme="pink"] .logo-text-secondary,
+[data-theme="orange"] .logo-text-secondary,
+[data-theme="yellow"] .logo-text-secondary,
+[data-theme="sunset"] .logo-text-secondary,
+[data-theme="tide"] .logo-text-secondary {
+    fill: var(--text-secondary);
 }
 
 /* ============================================
