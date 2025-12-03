@@ -1,52 +1,27 @@
 <svg width="220" height="100" viewBox="0 0 220 100" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
   <title id="title">NOAA Logo</title>
-  <desc id="desc">Official NOAA emblem with eagle and shield</desc>
-  <defs>
-    <linearGradient id="noaaBlue" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" style="stop-color:#003087;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#001F5C;stop-opacity:1" />
-    </linearGradient>
-  </defs>
+  <desc id="desc">Official National Oceanic and Atmospheric Administration logo</desc>
   
   <!-- Background -->
   <rect width="220" height="100" fill="#FFFFFF"/>
   
-  <!-- NOAA Circle Seal -->
-  <circle cx="50" cy="50" r="35" fill="url(#noaaBlue)" stroke="#C0A000" stroke-width="2"/>
-  
-  <!-- Inner white circle -->
-  <circle cx="50" cy="50" r="28" fill="#FFFFFF"/>
-  
-  <!-- Simplified eagle head silhouette -->
-  <path d="M 45 40 Q 40 38 38 42 L 38 45 Q 38 50 42 52 L 48 54 Q 52 56 56 54 L 60 52 Q 62 50 62 45 L 62 42 Q 60 38 55 40 L 50 42 Z" 
-        fill="#003087"/>
-  
-  <!-- Eagle beak -->
-  <path d="M 56 48 L 60 50 L 56 52 Z" fill="#C0A000"/>
-  
-  <!-- Anchor symbol below -->
-  <path d="M 50 58 L 50 64 M 46 64 L 54 64 M 46 62 Q 46 66 50 66 Q 54 66 54 62" 
-        stroke="#003087" stroke-width="2" fill="none" stroke-linecap="round"/>
-  
-  <!-- Stars -->
-  <circle cx="42" cy="35" r="1.5" fill="#FFFFFF"/>
-  <circle cx="58" cy="35" r="1.5" fill="#FFFFFF"/>
-  
-  <!-- Text: NOAA -->
-  <text x="110" y="45" font-family="Arial, Helvetica, sans-serif" font-size="32" font-weight="bold" fill="#003087">
+  <!-- NOAA text - main identifier -->
+  <text x="10" y="55" font-family="Arial, Helvetica, sans-serif" font-size="48" font-weight="bold" fill="#0055A4" letter-spacing="-2">
     NOAA
   </text>
   
-  <!-- Text: National Oceanic and Atmospheric Administration -->
-  <text x="110" y="62" font-family="Arial, Helvetica, sans-serif" font-size="8" fill="#003087">
-    National Oceanic and
-  </text>
-  <text x="110" y="72" font-family="Arial, Helvetica, sans-serif" font-size="8" fill="#003087">
-    Atmospheric Administration
+  <!-- Subtitle text -->
+  <text x="10" y="72" font-family="Arial, Helvetica, sans-serif" font-size="9" fill="#0055A4">
+    National Oceanic and Atmospheric Administration
   </text>
   
-  <!-- Department of Commerce indicator -->
-  <text x="110" y="85" font-family="Arial, Helvetica, sans-serif" font-size="7" fill="#666666" font-style="italic">
+  <!-- Department affiliation -->
+  <text x="10" y="88" font-family="Arial, Helvetica, sans-serif" font-size="8" fill="#666666">
     U.S. Department of Commerce
   </text>
+  
+  <!-- Decorative wave element (simplified from official logo) -->
+  <path d="M 180 40 Q 185 35 190 40 T 200 40" stroke="#0055A4" stroke-width="2" fill="none"/>
+  <path d="M 180 50 Q 185 45 190 50 T 200 50" stroke="#0055A4" stroke-width="2" fill="none"/>
+  <path d="M 180 60 Q 185 55 190 60 T 200 60" stroke="#0055A4" stroke-width="2" fill="none"/>
 </svg>
