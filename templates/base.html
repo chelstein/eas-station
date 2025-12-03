@@ -46,6 +46,8 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/advanced-visual-effects.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/enhanced-map-styling.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/logo-enhancements.css') }}">
+    <!-- Readability Improvements - Load LAST to ensure text is readable -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/readability-improvements.css') }}">
 
     <script>
         window.CSRF_TOKEN = {{ csrf_token | tojson }};
