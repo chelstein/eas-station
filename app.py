@@ -111,14 +111,13 @@ from flask import (
     flash,
     redirect,
     url_for,
-    render_template_string,
     has_app_context,
     session,
     g,
     send_file,
     abort,
 )
-from geoalchemy2.functions import ST_GeomFromGeoJSON, ST_Intersects, ST_AsGeoJSON
+from geoalchemy2.functions import ST_Intersects, ST_AsGeoJSON
 from sqlalchemy import text, func, or_, desc
 from sqlalchemy.exc import OperationalError
 

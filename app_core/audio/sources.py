@@ -64,7 +64,6 @@ except ImportError:
 
 try:
     import requests
-    import urllib.parse
     REQUESTS_AVAILABLE = True
 except ImportError:
     REQUESTS_AVAILABLE = False
