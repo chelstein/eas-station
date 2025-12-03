@@ -45,6 +45,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/modern-ui-enhancements.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/advanced-visual-effects.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/enhanced-map-styling.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/logo-enhancements.css') }}">
 
     <script>
         window.CSRF_TOKEN = {{ csrf_token | tojson }};
@@ -238,6 +239,7 @@
 
     <!-- Visual Effects Enhancement -->
     <script src="{{ url_for('static', filename='js/visual-effects.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/logo-effects.js') }}"></script>
 
     <!-- 3. Page-specific scripts -->
     {% block scripts %}{% endblock %}
