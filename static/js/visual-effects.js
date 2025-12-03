@@ -96,31 +96,27 @@
     // ANIMATED PAGE HEADER WITH ORBS
     // ============================================
 
+    function addOrbsToElement(element, orbCount) {
+        if (element.classList.contains('orbs-added')) {
+            return;
+        }
+        
+        for (let i = 0; i < orbCount; i++) {
+            const orb = document.createElement('div');
+            orb.className = 'orb';
+            element.appendChild(orb);
+        }
+        element.classList.add('orbs-added');
+    }
+
     function initHeaderOrbs() {
+        // Add orbs to page headers
         const headers = document.querySelectorAll('.page-header:not(.orbs-added)');
+        headers.forEach(header => addOrbsToElement(header, 3));
 
-        headers.forEach(header => {
-            // Add 3 animated orbs
-            for (let i = 0; i < 3; i++) {
-                const orb = document.createElement('div');
-                orb.className = 'orb';
-                header.appendChild(orb);
-            }
-            header.classList.add('orbs-added');
-        });
-
-        // Also add orbs to page-shell (container-fluid) elements
+        // Add orbs to page-shell (container-fluid) elements
         const pageShells = document.querySelectorAll('.page-shell:not(.orbs-added)');
-
-        pageShells.forEach(shell => {
-            // Add 5 animated orbs for larger container areas
-            for (let i = 0; i < 5; i++) {
-                const orb = document.createElement('div');
-                orb.className = 'orb';
-                shell.appendChild(orb);
-            }
-            shell.classList.add('orbs-added');
-        });
+        pageShells.forEach(shell => addOrbsToElement(shell, 5));
     }
 
     // ============================================

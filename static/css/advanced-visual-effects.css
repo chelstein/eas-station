@@ -28,11 +28,18 @@
 }
 
 .page-header .orb,
-.hero-section .orb,
-.page-shell .orb {
+.hero-section .orb {
     position: absolute;
     border-radius: 50%;
     background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.8), transparent);
+    pointer-events: none;
+    mix-blend-mode: overlay;
+    animation: floatOrb 20s ease-in-out infinite;
+}
+
+.page-shell .orb {
+    position: absolute;
+    border-radius: 50%;
     pointer-events: none;
     mix-blend-mode: overlay;
     animation: floatOrb 20s ease-in-out infinite;
