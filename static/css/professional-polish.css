@@ -29,8 +29,8 @@
 }
 
 .card-header {
-    border-bottom: 1px solid rgba(0, 0, 0, 0.06);
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.8), rgba(255, 255, 255, 0.4));
+    border-bottom: 1px solid var(--color-border-light);
+    background: var(--surface-color);
     padding: 1rem 1.25rem;
 }
 
@@ -39,9 +39,12 @@
 [data-theme="coffee"] .card-header,
 [data-theme="aurora"] .card-header,
 [data-theme="nebula"] .card-header,
-[data-theme="midnight"] .card-header {
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.02));
-    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+[data-theme="midnight"] .card-header,
+[data-theme="charcoal"] .card-header,
+[data-theme="obsidian"] .card-header,
+[data-theme="slate"] .card-header {
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03));
+    border-bottom: 1px solid var(--color-border-light);
 }
 
 .card-body {
@@ -183,7 +186,7 @@
 .table tbody td {
     padding: 0.875rem 1rem;
     vertical-align: middle;
-    border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+    border-bottom: 1px solid var(--color-border-light);
 }
 
 [data-theme-mode="dark"] .table tbody td,
@@ -191,8 +194,11 @@
 [data-theme="coffee"] .table tbody td,
 [data-theme="aurora"] .table tbody td,
 [data-theme="nebula"] .table tbody td,
-[data-theme="midnight"] .table tbody td {
-    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+[data-theme="midnight"] .table tbody td,
+[data-theme="charcoal"] .table tbody td,
+[data-theme="obsidian"] .table tbody td,
+[data-theme="slate"] .table tbody td {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .table tbody tr:last-child td {
@@ -220,28 +226,25 @@
     padding: 0.35em 0.75em;
 }
 
-/* Status badges - use Bootstrap's default backgrounds, just add subtle gradients
-   Note: These override Bootstrap's solid colors with subtle gradients for polish.
-   The rgba values here match the theme's --success-color, --warning-color, etc.
-   for the default Cosmo theme. Dark themes override these in base.css. */
+/* Status badges - use theme color variables for consistency across themes */
 .badge.bg-success {
-    background: linear-gradient(135deg, var(--success-color), var(--success-color)) !important;
+    background-color: var(--success-color) !important;
 }
 
 .badge.bg-warning {
-    background: linear-gradient(135deg, var(--warning-color), var(--warning-color)) !important;
+    background-color: var(--warning-color) !important;
 }
 
 .badge.bg-danger {
-    background: linear-gradient(135deg, var(--danger-color), var(--danger-color)) !important;
+    background-color: var(--danger-color) !important;
 }
 
 .badge.bg-info {
-    background: linear-gradient(135deg, var(--info-color), var(--info-color)) !important;
+    background-color: var(--info-color) !important;
 }
 
 .badge.bg-primary {
-    background: linear-gradient(135deg, var(--primary-color), var(--primary-color)) !important;
+    background-color: var(--primary-color) !important;
 }
 
 /* ============================================

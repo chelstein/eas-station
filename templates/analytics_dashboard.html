@@ -5,7 +5,7 @@
 {% block extra_css %}
 <style>
     .metric-card {
-        background: white;
+        background: var(--surface-color);
         border-radius: 8px;
         padding: 20px;
         box-shadow: 0 2px 4px rgba(0,0,0,0.1);
@@ -13,21 +13,21 @@
     }
     .metric-card h3 {
         font-size: 1.1rem;
-        color: #666;
+        color: var(--text-secondary);
         margin-bottom: 10px;
     }
     .metric-value {
         font-size: 2.5rem;
         font-weight: bold;
-        color: #204885;
+        color: var(--primary-color);
     }
     .metric-trend {
         font-size: 0.9rem;
         margin-top: 5px;
     }
-    .trend-rising { color: #28a745; }
-    .trend-falling { color: #dc3545; }
-    .trend-stable { color: #6c757d; }
+    .trend-rising { color: var(--success-color); }
+    .trend-falling { color: var(--danger-color); }
+    .trend-stable { color: var(--text-muted); }
     .anomaly-badge {
         padding: 4px 8px;
         border-radius: 4px;

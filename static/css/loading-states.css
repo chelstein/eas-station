@@ -248,7 +248,7 @@
     width: 12px;
     height: 12px;
     border-radius: 50%;
-    background-color: #007bff;
+    background-color: var(--color-primary-500);
     animation: pulse 1.5s ease-in-out infinite;
 }
 
@@ -361,17 +361,17 @@
 }
 
 .btn.btn-primary.loading::after {
-    border-top-color: #fff;
+    border-top-color: var(--color-text-inverse);
 }
 
 .btn.btn-outline-primary.loading::after {
-    border-top-color: #007bff;
+    border-top-color: var(--color-primary-500);
 }
 
 /* Form Loading States */
 .form-loading .form-control,
 .form-loading .form-select {
-    background-color: #f8f9fa;
+    background-color: var(--color-neutral-100);
     pointer-events: none;
 }
 
