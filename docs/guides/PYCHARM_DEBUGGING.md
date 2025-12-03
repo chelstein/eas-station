@@ -261,10 +261,11 @@ cp examples/docker-compose/docker-compose.development.yml docker-compose.overrid
 # Copy the example environment file if you don't have one
 if [ ! -f .env ]; then
     cp .env.example .env
+    echo "Created .env file - using default settings"
 fi
 
-# Start everything
-docker-compose up -d
+# Start everything with the embedded database
+docker-compose --profile embedded-db up -d
 
 # Wait a few seconds for containers to start
 sleep 10
@@ -528,38 +529,38 @@ If you're waiting for a PyCharm license or unsure which to choose:
 
 | Feature | VS Code | PyCharm Pro | PyCharm Community |
 |---------|---------|-------------|-------------------|
-| **Remote Development** |
+| **Remote Development** | | | |
 | SSH to Raspberry Pi | ✅ Excellent | ✅ Excellent | ❌ No |
 | Edit files on Pi | ✅ Yes | ✅ Yes | ❌ No |
 | Remote debugging | ✅ Yes (debugpy) | ✅ Yes (debugpy) | ❌ No |
 | Port forwarding | ✅ Built-in | ✅ Built-in | ❌ No |
-| **Python Features** |
+| **Python Features** | | | |
 | Code completion | ✅ Very Good | ✅ Excellent | ✅ Very Good |
 | Linting (pylint, flake8) | ✅ Yes | ✅ Yes | ✅ Yes |
 | Type checking | ✅ Yes (mypy) | ✅ Yes | ✅ Yes |
 | Refactoring | ✅ Good | ✅ Excellent | ✅ Good |
 | Test runner | ✅ Yes (pytest) | ✅ Yes | ✅ Yes |
 | Virtual env support | ✅ Yes | ✅ Yes | ✅ Yes |
-| **Debugging** |
+| **Debugging** | | | |
 | Breakpoints | ✅ Yes | ✅ Yes | ✅ Local only |
 | Variable inspection | ✅ Yes | ✅ Yes | ✅ Local only |
 | Watch expressions | ✅ Yes | ✅ Yes | ✅ Local only |
 | Step through code | ✅ Yes | ✅ Yes | ✅ Local only |
 | Remote attach | ✅ Yes | ✅ Yes | ❌ No |
-| **Docker Support** |
+| **Docker Support** | | | |
 | Dockerfile syntax | ✅ Yes | ✅ Yes | ✅ Basic |
 | Compose file support | ✅ Yes | ✅ Yes | ✅ Basic |
 | Container management | ✅ Yes (extension) | ✅ Yes | ❌ Limited |
 | Exec into container | ✅ Yes | ✅ Yes | ❌ No |
-| **Other Languages** |
+| **Other Languages** | | | |
 | JavaScript/HTML/CSS | ✅ Excellent | ✅ Good | ✅ Basic |
 | Bash/Shell | ✅ Excellent | ✅ Good | ✅ Basic |
 | YAML | ✅ Excellent | ✅ Good | ✅ Basic |
 | Markdown | ✅ Excellent | ✅ Good | ✅ Good |
-| **Performance** |
+| **Performance** | | | |
 | Startup time | ✅ Fast (1-2s) | ⚠️ Slower (5-10s) | ⚠️ Slower (5-10s) |
 | Memory usage | ✅ Low (~300MB) | ⚠️ High (~1GB) | ⚠️ High (~1GB) |
-| **Cost** |
+| **Cost** | | | |
 | Price | ✅ Free | ✅ Free (OSS)* | ✅ Free |
 | License wait | ✅ None | ⚠️ 2-7 days | ✅ None |
 | Renewal | ✅ N/A | ⚠️ Yearly | ✅ N/A |
@@ -706,6 +707,249 @@ docker-compose ps
 ```
 
 You should see services starting up. The `app` service will be listening on port 5678 for the debugger.
+
+---
+
+### Step 4b: Configure the Development Database
+
+The development configuration uses a separate PostgreSQL database to keep your development work isolated from any production data. Here's how to configure it:
+
+#### Option 1: Use the Embedded Database (Recommended for Development)
+
+The easiest approach is to use the embedded PostgreSQL container that comes with the development configuration:
+
+```bash
+# Make sure you're using the embedded database profile
+docker-compose --profile embedded-db up -d alerts-db
+
+# Verify the database is running
+docker-compose ps alerts-db
+```
+
+The embedded database is automatically configured with these settings (from `docker-compose.development.yml`):
+- **Database Name**: `alerts_dev`
+- **Username**: `postgres`
+- **Password**: `devpassword`
+- **Port**: `5432` (exposed on the Pi)
+
+**Important - Hostname depends on where your code runs**:
+
+1. **When running app in Docker container** (normal mode):
+   - Use `POSTGRES_HOST=alerts-db` in `.env`
+   - This is the Docker service name
+
+2. **When running app directly on Pi via PyCharm debugger** (debugging mode):
+   - Use `POSTGRES_HOST=localhost` in `.env`
+   - The database port (5432) is exposed to your Pi's localhost
+   - ❌ **Do NOT use** `host.docker.internal` - this doesn't work on Linux/Raspberry Pi
+   - ✅ Use `localhost` because you're debugging directly on the Pi, not inside a container
+
+#### Option 2: Use an External Database
+
+If you want to use an existing PostgreSQL installation instead of the embedded container:
+
+1. **Edit your `.env` file**:
+
+```bash
+# Open the .env file
+nano .env
+
+# Update these settings:
+POSTGRES_HOST=192.168.1.100  # Your external database server IP (NOT localhost or host.docker.internal)
+POSTGRES_PORT=5432
+POSTGRES_DB=alerts_dev
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=your-secure-password
+```
+
+**Important - Hostname depends on your setup**:
+- ✅ Use the actual IP address of your database server (e.g., `192.168.1.100`) for external databases
+- ✅ Use `localhost` if debugging directly on the Pi with embedded database
+- ❌ **Do NOT use** `host.docker.internal` - this doesn't work on Linux/Raspberry Pi
+
+2. **Create the database** (on your PostgreSQL server):
+
+```sql
+CREATE DATABASE alerts_dev;
+CREATE EXTENSION IF NOT EXISTS postgis;
+```
+
+3. **Restart the containers** to apply the new settings:
+
+```bash
+docker-compose restart app
+```
+
+#### Verifying Database Connection
+
+Test that the application can connect to the database:
+
+```bash
+# Check app logs for database connection
+docker-compose logs app | grep -i "database\|postgres"
+
+# You should see: "Connected to PostgreSQL" or similar
+# If you see connection errors, check your .env file
+```
+
+**Common connection issues**:
+
+When **debugging directly on the Pi** (not in Docker):
+- ❌ Using `host.docker.internal` → **This doesn't work on Linux!** Change to `localhost` in `.env`
+- ❌ Using `alerts-db` → Change to `localhost` in `.env`
+- ✅ Correct setting: `POSTGRES_HOST=localhost`
+
+When **running app in Docker container**:
+- ❌ Using `localhost` → Change to `alerts-db` in `.env`
+- ✅ Correct setting: `POSTGRES_HOST=alerts-db`
+
+#### Remote PyCharm Debugging: Network Architecture
+
+**Understanding the Setup**:
+
+When you debug remotely with PyCharm, you're running Python code **directly on the Pi**, not in a Docker container. PyCharm uses SSH to execute the code on the Pi as if you were sitting at the Pi itself.
+
+```
+Your Computer (PyCharm on Windows/Mac/Linux)
+    │
+    │ SSH Connection
+    ↓
+Raspberry Pi (Python runs here on host OS)
+    │
+    │ localhost:5432
+    ↓
+Docker Container (PostgreSQL)
+```
+
+**Key Insight**: Docker's internal network (`alerts-db`) is only accessible from *inside* Docker containers. When PyCharm runs Python on the Pi via SSH, the code runs on the Pi's host OS, not inside Docker, so it must connect to exposed ports on `localhost`.
+
+**Why Docker network names don't work**:
+- `alerts-db` only resolves inside the Docker network
+- Your PyCharm-executed code runs on the Pi's host OS
+- The Pi's host OS is on a different network than Docker's internal bridge network
+- Docker exposes ports to the Pi's localhost (e.g., `localhost:5432`) for host access
+
+**Solution for PyCharm SSH Remote Debugging**: Use `POSTGRES_HOST=localhost` because:
+1. PyCharm executes your Python code on the Pi via SSH
+2. The code runs on the Pi's host OS (not in Docker)
+3. Docker exposes the database port (5432) to the Pi's `localhost`
+4. Your code connects to `localhost:5432` which forwards to the Docker container
+
+#### Debugging from a Windows/Mac Machine (Outside Docker)
+
+If you're running Python **locally on your Windows/Mac machine** (not via SSH to the Pi), you need to connect to the Pi's IP address:
+
+**Network Setup**:
+```
+Your Windows/Mac Computer (Python runs here locally)
+    │
+    │ Network: 192.168.1.x
+    ↓
+Raspberry Pi (192.168.1.100)
+    │
+    │ Port 5432 exposed
+    ↓
+Docker Container (PostgreSQL)
+```
+
+**Configuration for local Windows/Mac debugging**:
+
+1. **Find your Pi's IP address** (on the Pi):
+   ```bash
+   hostname -I
+   # Example output: 192.168.1.100
+   ```
+
+2. **Verify the database port is exposed** (check `docker-compose.yml`):
+   ```yaml
+   alerts-db:
+     ports:
+       - "5432:5432"  # This exposes port 5432 to the network
+   ```
+
+3. **In your local `.env` file** (on Windows/Mac):
+   ```bash
+   POSTGRES_HOST=192.168.1.100  # Your Pi's IP address
+   POSTGRES_PORT=5432
+   POSTGRES_DB=alerts_dev
+   POSTGRES_USER=postgres
+   POSTGRES_PASSWORD=devpassword
+   ```
+
+4. **Test the connection** (from Windows/Mac):
+   ```bash
+   # Using psql (if installed):
+   psql -h 192.168.1.100 -p 5432 -U postgres -d alerts_dev
+   
+   # Or test with Python:
+   python -c "import psycopg2; psycopg2.connect(host='192.168.1.100', port=5432, user='postgres', password='devpassword', database='alerts_dev'); print('Connected!')"
+   ```
+
+**Firewall Note**: Ensure the Pi's firewall allows incoming connections on port 5432:
+```bash
+# On the Pi, allow PostgreSQL port:
+sudo ufw allow 5432/tcp
+sudo ufw status
+```
+
+**Security Warning**: Exposing PostgreSQL to your local network is acceptable for development, but:
+- ❌ Never expose it to the internet
+- ❌ Don't use `devpassword` in production
+- ✅ Only allow access from trusted local network IPs
+
+#### Switching Between Debugging Modes
+
+You'll need to change `POSTGRES_HOST` depending on how you're running the app:
+
+**Quick Reference**:
+```bash
+# Edit .env file on your Pi
+nano .env
+
+# For PyCharm debugging (running Python directly on Pi):
+POSTGRES_HOST=localhost
+
+# For Docker debugging (running inside container):
+POSTGRES_HOST=alerts-db
+```
+
+**Pro Tip**: You can keep both settings commented in your `.env` file and uncomment the one you need:
+```bash
+# Uncomment ONE of these based on your debugging mode:
+# POSTGRES_HOST=localhost          # For PyCharm direct debugging on Pi
+# POSTGRES_HOST=alerts-db          # For running in Docker container
+```
+
+#### Important Database Configuration Notes
+
+**For development with embedded database**:
+- ✅ Use `alerts_dev` as the database name (not `alerts`)
+- ✅ The database is automatically created and migrated on first startup
+- ✅ Use `devpassword` for local testing (not secure, only for development)
+- ✅ The database port (5432) is exposed to your Pi for debugging and external tools
+
+**Critical: Choose the right hostname for `POSTGRES_HOST` in `.env`**:
+
+- 🔌 **Debugging from Windows/Mac (Python runs on your computer)**: Use `POSTGRES_HOST=192.168.1.100` (your Pi's IP)
+  - Python runs locally on your Windows/Mac machine
+  - Must connect to the Pi's network IP address
+  - Requires port 5432 to be exposed in docker-compose.yml
+  - Use Pi's actual IP address, not `localhost` (which would be your own computer)
+  
+- 🐛 **Debugging via SSH (PyCharm remote interpreter on Pi)**: Use `POSTGRES_HOST=localhost`
+  - Python runs on the Pi via SSH (not on your computer)
+  - The database container exposes port 5432 to the Pi's localhost
+  - ❌ **DO NOT use** `host.docker.internal` - this only works on Docker Desktop, not on Linux/Pi!
+  
+- 🐳 **Running app in Docker container**: Use `POSTGRES_HOST=alerts-db`
+  - Docker services communicate via service names
+  - `alerts-db` is the database service name in docker-compose.yml
+
+**For production**:
+- ⚠️ Use a strong password (generate with `openssl rand -hex 32`)
+- ⚠️ Don't expose port 5432 to the internet
+- ⚠️ Use the production `docker-compose.yml` (not the override)
+- ⚠️ Set up regular backups
 
 ---
 
