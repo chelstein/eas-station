@@ -1,36 +1,69 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
-  <!-- ARES (Amateur Radio Emergency Service) Logo -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 240" width="200" height="240">
+  <!-- Official ARES (Amateur Radio Emergency Service) Logo -->
+  <!-- Based on the official ARRL ARES design -->
   
-  <!-- Outer shield/badge shape -->
-  <path d="M 50 5 L 75 15 L 85 40 L 85 65 L 50 95 L 15 65 L 15 40 L 25 15 Z" 
-        fill="#003f87" stroke="#ffd700" stroke-width="2"/>
+  <defs>
+    <linearGradient id="redGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#DC143C;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#8B0000;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="blueGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#1E3A8A;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#0C1E47;stop-opacity:1" />
+    </linearGradient>
+  </defs>
   
-  <!-- Inner shield highlight -->
-  <path d="M 50 10 L 72 18 L 80 40 L 80 63 L 50 88 L 20 63 L 20 40 L 28 18 Z" 
-        fill="none" stroke="#005eb8" stroke-width="1" opacity="0.5"/>
+  <!-- Diamond/Shield outline -->
+  <path d="M 100 10 L 180 60 L 100 110 L 20 60 Z" 
+        fill="url(#redGrad)" stroke="#FFD700" stroke-width="4"/>
   
-  <!-- Lightning bolt (emergency symbol) -->
-  <path d="M 52 20 L 45 42 L 54 42 L 48 60 L 62 38 L 52 38 L 58 20 Z" 
-        fill="#ffd700" stroke="#ff8c00" stroke-width="1"/>
+  <!-- Upper triangle (blue) -->
+  <path d="M 100 10 L 180 60 L 100 60 Z" 
+        fill="url(#blueGrad)"/>
   
-  <!-- Radio waves emanating (left side) -->
-  <path d="M 30 35 Q 25 40 30 45" fill="none" stroke="#ffd700" stroke-width="2" stroke-linecap="round"/>
-  <path d="M 25 30 Q 18 40 25 50" fill="none" stroke="#ffd700" stroke-width="1.5" stroke-linecap="round" opacity="0.7"/>
+  <!-- Lower triangle (red) -->
+  <path d="M 100 60 L 180 60 L 100 110 Z" 
+        fill="url(#redGrad)"/>
   
-  <!-- Radio waves emanating (right side) -->
-  <path d="M 70 35 Q 75 40 70 45" fill="none" stroke="#ffd700" stroke-width="2" stroke-linecap="round"/>
-  <path d="M 75 30 Q 82 40 75 50" fill="none" stroke="#ffd700" stroke-width="1.5" stroke-linecap="round" opacity="0.7"/>
+  <!-- White center stripe -->
+  <path d="M 100 35 L 140 60 L 100 85 L 60 60 Z" 
+        fill="#FFFFFF" opacity="0.9"/>
   
-  <!-- "ARES" text -->
-  <text x="50" y="75" font-family="Arial, sans-serif" font-size="14" font-weight="bold" 
-        fill="#ffd700" text-anchor="middle" stroke="#000" stroke-width="0.5">ARES</text>
+  <!-- Lightning bolt symbol -->
+  <path d="M 105 40 L 95 60 L 102 60 L 95 80 L 110 58 L 102 58 Z" 
+        fill="#FFD700" stroke="#8B4513" stroke-width="1"/>
   
-  <!-- "Amateur Radio Emergency Service" smaller text -->
-  <text x="50" y="85" font-family="Arial, sans-serif" font-size="5" 
-        fill="#ffffff" text-anchor="middle" opacity="0.9">EMERGENCY SERVICE</text>
+  <!-- ARES text -->
+  <text x="100" y="145" 
+        font-family="Arial, Helvetica, sans-serif" 
+        font-size="36" 
+        font-weight="bold" 
+        fill="#DC143C" 
+        text-anchor="middle"
+        stroke="#8B0000" 
+        stroke-width="1">ARES</text>
   
-  <!-- Small antenna symbol at top of shield -->
-  <line x1="50" y1="5" x2="50" y2="15" stroke="#ffd700" stroke-width="2" stroke-linecap="round"/>
-  <circle cx="50" cy="4" r="2" fill="#ff0000"/>
+  <!-- Amateur Radio Emergency Service text -->
+  <text x="100" y="170" 
+        font-family="Arial, Helvetica, sans-serif" 
+        font-size="12" 
+        font-weight="600" 
+        fill="#1E3A8A" 
+        text-anchor="middle">Amateur Radio</text>
+  
+  <text x="100" y="186" 
+        font-family="Arial, Helvetica, sans-serif" 
+        font-size="12" 
+        font-weight="600" 
+        fill="#1E3A8A" 
+        text-anchor="middle">Emergency Service</text>
+  
+  <!-- ARRL attribution -->
+  <text x="100" y="210" 
+        font-family="Arial, Helvetica, sans-serif" 
+        font-size="10" 
+        fill="#666666" 
+        text-anchor="middle"
+        font-style="italic">ARRL®</text>
 </svg>

@@ -807,14 +807,14 @@ When **running app in Docker container**:
 
 **Understanding the Setup**:
 
-When you debug remotely with PyCharm from your computer, you're actually running Python code **directly on the Pi**, not in a Docker container. PyCharm uses SSH to execute the code on the Pi as if you were sitting at the Pi itself.
+When you debug remotely with PyCharm, you're running Python code **directly on the Pi**, not in a Docker container. PyCharm uses SSH to execute the code on the Pi as if you were sitting at the Pi itself.
 
 ```
-Your Computer (PyCharm)
+Your Computer (PyCharm on Windows/Mac/Linux)
     │
     │ SSH Connection
     ↓
-Raspberry Pi (Python runs here)
+Raspberry Pi (Python runs here on host OS)
     │
     │ localhost:5432
     ↓
@@ -829,11 +829,73 @@ Docker Container (PostgreSQL)
 - The Pi's host OS is on a different network than Docker's internal bridge network
 - Docker exposes ports to the Pi's localhost (e.g., `localhost:5432`) for host access
 
-**Solution**: Use `POSTGRES_HOST=localhost` when debugging with PyCharm because:
+**Solution for PyCharm SSH Remote Debugging**: Use `POSTGRES_HOST=localhost` because:
 1. PyCharm executes your Python code on the Pi via SSH
 2. The code runs on the Pi's host OS (not in Docker)
 3. Docker exposes the database port (5432) to the Pi's `localhost`
 4. Your code connects to `localhost:5432` which forwards to the Docker container
+
+#### Debugging from a Windows/Mac Machine (Outside Docker)
+
+If you're running Python **locally on your Windows/Mac machine** (not via SSH to the Pi), you need to connect to the Pi's IP address:
+
+**Network Setup**:
+```
+Your Windows/Mac Computer (Python runs here locally)
+    │
+    │ Network: 192.168.1.x
+    ↓
+Raspberry Pi (192.168.1.100)
+    │
+    │ Port 5432 exposed
+    ↓
+Docker Container (PostgreSQL)
+```
+
+**Configuration for local Windows/Mac debugging**:
+
+1. **Find your Pi's IP address** (on the Pi):
+   ```bash
+   hostname -I
+   # Example output: 192.168.1.100
+   ```
+
+2. **Verify the database port is exposed** (check `docker-compose.yml`):
+   ```yaml
+   alerts-db:
+     ports:
+       - "5432:5432"  # This exposes port 5432 to the network
+   ```
+
+3. **In your local `.env` file** (on Windows/Mac):
+   ```bash
+   POSTGRES_HOST=192.168.1.100  # Your Pi's IP address
+   POSTGRES_PORT=5432
+   POSTGRES_DB=alerts_dev
+   POSTGRES_USER=postgres
+   POSTGRES_PASSWORD=devpassword
+   ```
+
+4. **Test the connection** (from Windows/Mac):
+   ```bash
+   # Using psql (if installed):
+   psql -h 192.168.1.100 -p 5432 -U postgres -d alerts_dev
+   
+   # Or test with Python:
+   python -c "import psycopg2; psycopg2.connect(host='192.168.1.100', port=5432, user='postgres', password='devpassword', database='alerts_dev'); print('Connected!')"
+   ```
+
+**Firewall Note**: Ensure the Pi's firewall allows incoming connections on port 5432:
+```bash
+# On the Pi, allow PostgreSQL port:
+sudo ufw allow 5432/tcp
+sudo ufw status
+```
+
+**Security Warning**: Exposing PostgreSQL to your local network is acceptable for development, but:
+- ❌ Never expose it to the internet
+- ❌ Don't use `devpassword` in production
+- ✅ Only allow access from trusted local network IPs
 
 #### Switching Between Debugging Modes
 
@@ -867,10 +929,17 @@ POSTGRES_HOST=alerts-db
 - ✅ The database port (5432) is exposed to your Pi for debugging and external tools
 
 **Critical: Choose the right hostname for `POSTGRES_HOST` in `.env`**:
-- 🐛 **Debugging directly on Pi with PyCharm**: Use `POSTGRES_HOST=localhost`
-  - You're running Python directly on the Pi, not in Docker
+
+- 🔌 **Debugging from Windows/Mac (Python runs on your computer)**: Use `POSTGRES_HOST=192.168.1.100` (your Pi's IP)
+  - Python runs locally on your Windows/Mac machine
+  - Must connect to the Pi's network IP address
+  - Requires port 5432 to be exposed in docker-compose.yml
+  - Use Pi's actual IP address, not `localhost` (which would be your own computer)
+  
+- 🐛 **Debugging via SSH (PyCharm remote interpreter on Pi)**: Use `POSTGRES_HOST=localhost`
+  - Python runs on the Pi via SSH (not on your computer)
   - The database container exposes port 5432 to the Pi's localhost
-  - ❌ **DO NOT use** `host.docker.internal` - this only works on Docker Desktop (Mac/Windows), not Linux/Pi!
+  - ❌ **DO NOT use** `host.docker.internal` - this only works on Docker Desktop, not on Linux/Pi!
   
 - 🐳 **Running app in Docker container**: Use `POSTGRES_HOST=alerts-db`
   - Docker services communicate via service names
