@@ -195,6 +195,7 @@ class AdminUser(db.Model):
     mfa_secret = db.Column(db.String(255), nullable=True)  # Base32-encoded TOTP secret
     mfa_backup_codes_hash = db.Column(db.Text, nullable=True)  # JSON array of hashed backup codes
     mfa_enrolled_at = db.Column(db.DateTime(timezone=True), nullable=True)
+    mfa_last_totp_at = db.Column(db.DateTime(timezone=True), nullable=True)  # Last successful TOTP code timestamp
 
     # Relationships
     role = db.relationship('Role', back_populates='users', lazy='joined')

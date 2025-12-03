@@ -234,7 +234,9 @@ def enroll_user_mfa(user, verify_code: str) -> Tuple[bool, Optional[List[str]]]:
     backup_codes = MFAManager.generate_backup_codes()
     user.mfa_backup_codes_hash = MFAManager.hash_backup_codes(backup_codes)
     user.mfa_enabled = True
-    user.mfa_enrolled_at = utc_now()
+    now = utc_now()
+    user.mfa_enrolled_at = now
+    user.mfa_last_totp_at = now  # Mark the enrollment code as used
 
     db.session.commit()
     current_app.logger.info(f"MFA enrolled for user {user.username}")
@@ -253,6 +255,7 @@ def disable_user_mfa(user):
     user.mfa_secret = None
     user.mfa_backup_codes_hash = None
     user.mfa_enrolled_at = None
+    user.mfa_last_totp_at = None
 
     db.session.commit()
     current_app.logger.info(f"MFA disabled for user {user.username}")
@@ -274,6 +277,22 @@ def verify_user_mfa(user, code: str) -> bool:
 
     # Try TOTP first
     if verify_totp_code(user.mfa_secret, code):
+        # Check if this code was already used recently (prevent reuse)
+        now = utc_now()
+        if user.mfa_last_totp_at:
+            # TOTP codes are valid for 30 seconds, with a window of +/- 30 seconds
+            # Prevent reuse within 90 seconds to be safe
+            time_since_last = (now - user.mfa_last_totp_at).total_seconds()
+            if time_since_last < 90:
+                current_app.logger.warning(
+                    f"TOTP code reuse attempt for user {user.username} "
+                    f"(last used {time_since_last:.1f}s ago)"
+                )
+                return False
+        
+        # Valid code and not a reuse - update timestamp
+        user.mfa_last_totp_at = now
+        db.session.commit()
         return True
 
     # Try backup code
