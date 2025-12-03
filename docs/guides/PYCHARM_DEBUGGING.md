@@ -803,6 +803,38 @@ When **running app in Docker container**:
 - ❌ Using `localhost` → Change to `alerts-db` in `.env`
 - ✅ Correct setting: `POSTGRES_HOST=alerts-db`
 
+#### Remote PyCharm Debugging: Network Architecture
+
+**Understanding the Setup**:
+
+When you debug remotely with PyCharm from your computer, you're actually running Python code **directly on the Pi**, not in a Docker container. PyCharm uses SSH to execute the code on the Pi as if you were sitting at the Pi itself.
+
+```
+Your Computer (PyCharm)
+    │
+    │ SSH Connection
+    ↓
+Raspberry Pi (Python runs here)
+    │
+    │ localhost:5432
+    ↓
+Docker Container (PostgreSQL)
+```
+
+**Key Insight**: Docker's internal network (`alerts-db`) is only accessible from *inside* Docker containers. When PyCharm runs Python on the Pi via SSH, the code runs on the Pi's host OS, not inside Docker, so it must connect to exposed ports on `localhost`.
+
+**Why Docker network names don't work**:
+- `alerts-db` only resolves inside the Docker network
+- Your PyCharm-executed code runs on the Pi's host OS
+- The Pi's host OS is on a different network than Docker's internal bridge network
+- Docker exposes ports to the Pi's localhost (e.g., `localhost:5432`) for host access
+
+**Solution**: Use `POSTGRES_HOST=localhost` when debugging with PyCharm because:
+1. PyCharm executes your Python code on the Pi via SSH
+2. The code runs on the Pi's host OS (not in Docker)
+3. Docker exposes the database port (5432) to the Pi's `localhost`
+4. Your code connects to `localhost:5432` which forwards to the Docker container
+
 #### Switching Between Debugging Modes
 
 You'll need to change `POSTGRES_HOST` depending on how you're running the app:
