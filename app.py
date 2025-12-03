@@ -878,7 +878,11 @@ def before_request():
             return redirect(url_for('setup_wizard'))
     else:
         # Ensure the database schema exists before handling the request.
-        initialize_database()
+        if not initialize_database():
+            logger.error("Database initialization failed - cannot handle request")
+            if request.path.startswith('/api/') or request.is_json or 'application/json' in request.headers.get('Accept', ''):
+                return jsonify({'error': 'Database initialization failed'}), 503
+            return "Database initialization failed. Please check server logs.", 503
 
         # Load the current user from the session for downstream use.
         user_id = session.get('user_id')
@@ -1038,12 +1042,12 @@ def initialize_database():
 
     # Double-checked locking pattern for thread safety
     if _db_initialized:
-        return
+        return True
 
     with _db_init_lock:
         # Check again after acquiring lock
         if _db_initialized:
-            return
+            return True
 
         try:
             postgis_helper = globals().get("ensure_postgis_extension")
@@ -1157,17 +1161,25 @@ def initialize_database():
             return True
 
 
+def _initialize_database_with_error_check():
+    """Wrapper to ensure database initialization errors are handled properly"""
+    if not initialize_database():
+        logger.critical("Database initialization failed! Application cannot start. Check logs for details.")
+        raise RuntimeError("Database initialization failed - application cannot continue")
+
 if hasattr(app, "before_serving"):
-    app.before_serving(initialize_database)
+    app.before_serving(_initialize_database_with_error_check)
 elif hasattr(app, "before_first_request"):
-    app.before_first_request(initialize_database)
+    app.before_first_request(_initialize_database_with_error_check)
 else:
     # Skip initialization if running migrations
     # This prevents the chicken-and-egg problem where migrations need to add
     # columns that the initialization code tries to query
     if not os.environ.get("SKIP_DB_INIT"):
         with app.app_context():
-            initialize_database()
+            if not initialize_database():
+                logger.critical("Database initialization failed! Application cannot start. Check logs for details.")
+                raise RuntimeError("Database initialization failed - application cannot continue")
 
 
 # =============================================================================
@@ -1177,7 +1189,9 @@ else:
 @app.cli.command()
 def init_db():
     """Initialize the database tables"""
-    initialize_database()
+    if not initialize_database():
+        logger.critical("Database initialization failed!")
+        raise click.ClickException("Database initialization failed - check logs for details")
     logger.info("Database tables created successfully")
 
 
@@ -1203,7 +1217,9 @@ def test_led():
 @click.option('--password', prompt=True, hide_input=True, confirmation_prompt=True)
 def create_admin_user_cli(username: str, password: str):
     """Create a new administrator user account."""
-    initialize_database()
+    if not initialize_database():
+        logger.critical("Database initialization failed!")
+        raise click.ClickException("Database initialization failed - check logs for details")
 
     username = username.strip()
     if not USERNAME_PATTERN.match(username):
@@ -1274,7 +1290,9 @@ def create_app(config=None):
     # columns that the initialization code tries to query
     if not os.environ.get("SKIP_DB_INIT"):
         with app.app_context():
-            initialize_database()
+            if not initialize_database():
+                logger.critical("Database initialization failed! Application cannot start. Check logs for details.")
+                raise RuntimeError("Database initialization failed - application cannot continue")
 
     return app
 
@@ -1285,7 +1303,10 @@ def create_app(config=None):
 
 if __name__ == '__main__':
     with app.app_context():
-        initialize_database()
+        if not initialize_database():
+            logger.critical("Database initialization failed! Application cannot start. Check logs for details.")
+            import sys
+            sys.exit(1)
 
     # Use FLASK_DEBUG environment variable to control debug mode (defaults to False for security)
     debug_mode = os.getenv('FLASK_DEBUG', 'False').lower() in ('true', '1', 'yes')
