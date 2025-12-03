@@ -1,0 +1,820 @@
+/**
+ * EAS Station - Modern UI Enhancements
+ * Sexy, contemporary design upgrades for a more visually appealing interface
+ * Version: 1.0
+ */
+
+/* ============================================
+   ANIMATED GRADIENTS & BACKGROUNDS
+   ============================================ */
+
+/* Animated gradient background for page headers */
+.page-header,
+.card-header.gradient-header {
+    background: linear-gradient(135deg,
+        var(--primary-color, #204885) 0%,
+        var(--secondary-color, #872a96) 50%,
+        var(--primary-color, #204885) 100%);
+    background-size: 200% 200%;
+    animation: gradientShift 8s ease infinite;
+    position: relative;
+    overflow: hidden;
+}
+
+@keyframes gradientShift {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+}
+
+/* Subtle animated background pattern */
+.page-header::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background:
+        radial-gradient(circle at 20% 50%, rgba(255, 255, 255, 0.08) 0%, transparent 50%),
+        radial-gradient(circle at 80% 80%, rgba(255, 255, 255, 0.08) 0%, transparent 50%),
+        radial-gradient(circle at 40% 20%, rgba(255, 255, 255, 0.06) 0%, transparent 50%);
+    animation: patternFloat 20s ease-in-out infinite;
+    pointer-events: none;
+}
+
+@keyframes patternFloat {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-10px); }
+}
+
+
+/* ============================================
+   GLASS MORPHISM EFFECTS
+   ============================================ */
+
+.card.glass-effect,
+.glass-panel {
+    background: rgba(255, 255, 255, 0.7);
+    backdrop-filter: blur(12px) saturate(180%);
+    -webkit-backdrop-filter: blur(12px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    box-shadow:
+        0 8px 32px rgba(32, 72, 133, 0.12),
+        inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+
+[data-theme="dark"] .card.glass-effect,
+[data-theme="dark"] .glass-panel {
+    background: rgba(30, 30, 45, 0.7);
+    backdrop-filter: blur(12px) saturate(180%);
+    -webkit-backdrop-filter: blur(12px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow:
+        0 8px 32px rgba(0, 0, 0, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+/* Frosted glass for modals */
+.modal-content {
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    box-shadow:
+        0 20px 60px rgba(32, 72, 133, 0.25),
+        0 0 0 1px rgba(255, 255, 255, 0.5) inset;
+}
+
+[data-theme="dark"] .modal-content {
+    background: rgba(30, 30, 45, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    box-shadow:
+        0 20px 60px rgba(0, 0, 0, 0.5),
+        0 0 0 1px rgba(255, 255, 255, 0.1) inset;
+}
+
+
+/* ============================================
+   ENHANCED SHADOWS & DEPTH
+   ============================================ */
+
+.card {
+    box-shadow:
+        0 2px 8px rgba(32, 72, 133, 0.08),
+        0 1px 2px rgba(32, 72, 133, 0.04);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.card:hover {
+    transform: translateY(-2px);
+    box-shadow:
+        0 12px 32px rgba(32, 72, 133, 0.15),
+        0 4px 8px rgba(32, 72, 133, 0.08);
+}
+
+/* Elevated cards with more dramatic shadows */
+.card.elevated,
+.sticky-card {
+    box-shadow:
+        0 4px 16px rgba(32, 72, 133, 0.12),
+        0 2px 4px rgba(32, 72, 133, 0.06),
+        0 0 0 1px rgba(32, 72, 133, 0.04);
+}
+
+.card.elevated:hover {
+    transform: translateY(-3px);
+    box-shadow:
+        0 16px 48px rgba(32, 72, 133, 0.18),
+        0 8px 16px rgba(32, 72, 133, 0.1),
+        0 0 0 1px rgba(32, 72, 133, 0.06);
+}
+
+
+/* ============================================
+   BUTTON ENHANCEMENTS
+   ============================================ */
+
+.btn {
+    position: relative;
+    overflow: hidden;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    font-weight: 600;
+    letter-spacing: 0.02em;
+}
+
+/* Ripple effect on click */
+.btn::before {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 0;
+    height: 0;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.5);
+    transform: translate(-50%, -50%);
+    transition: width 0.6s, height 0.6s;
+}
+
+.btn:active::before {
+    width: 300px;
+    height: 300px;
+}
+
+/* Primary button with gradient */
+.btn-primary {
+    background: linear-gradient(135deg, var(--primary-color, #204885), var(--secondary-color, #872a96));
+    border: none;
+    box-shadow:
+        0 4px 12px rgba(32, 72, 133, 0.3),
+        0 2px 4px rgba(32, 72, 133, 0.2);
+}
+
+.btn-primary:hover {
+    background: linear-gradient(135deg,
+        color-mix(in srgb, var(--primary-color, #204885) 90%, white),
+        color-mix(in srgb, var(--secondary-color, #872a96) 90%, white));
+    transform: translateY(-1px);
+    box-shadow:
+        0 8px 20px rgba(32, 72, 133, 0.35),
+        0 4px 8px rgba(32, 72, 133, 0.25);
+}
+
+.btn-primary:active {
+    transform: translateY(0);
+}
+
+/* Outline buttons with glow on hover */
+.btn-outline-primary:hover {
+    box-shadow:
+        0 0 20px rgba(32, 72, 133, 0.3),
+        0 0 40px rgba(32, 72, 133, 0.1),
+        inset 0 0 20px rgba(32, 72, 133, 0.05);
+}
+
+/* Light buttons for headers */
+.btn-outline-light {
+    border: 2px solid rgba(255, 255, 255, 0.6);
+    backdrop-filter: blur(8px);
+    transition: all 0.3s ease;
+}
+
+.btn-outline-light:hover {
+    background: rgba(255, 255, 255, 0.25);
+    border-color: rgba(255, 255, 255, 0.9);
+    transform: translateY(-1px);
+    box-shadow:
+        0 4px 12px rgba(255, 255, 255, 0.2),
+        0 2px 6px rgba(255, 255, 255, 0.15);
+}
+
+
+/* ============================================
+   FORM ENHANCEMENTS
+   ============================================ */
+
+.form-control,
+.form-select {
+    border: 2px solid var(--color-border, #dee2e6);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    background: var(--surface-color, #fff);
+}
+
+.form-control:focus,
+.form-select:focus {
+    border-color: var(--primary-color, #204885);
+    box-shadow:
+        0 0 0 4px rgba(32, 72, 133, 0.12),
+        0 4px 12px rgba(32, 72, 133, 0.15);
+    transform: translateY(-1px);
+}
+
+/* Animated checkboxes and switches */
+.form-check-input {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.form-check-input:checked {
+    transform: scale(1.05);
+    box-shadow: 0 0 0 4px rgba(32, 72, 133, 0.15);
+}
+
+.form-switch .form-check-input:checked {
+    background: linear-gradient(135deg, var(--primary-color, #204885), var(--secondary-color, #872a96));
+}
+
+
+/* ============================================
+   BADGE ENHANCEMENTS
+   ============================================ */
+
+.badge {
+    padding: 0.35em 0.75em;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    border-radius: 999px;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+    transition: all 0.2s ease;
+}
+
+.badge:hover {
+    transform: translateY(-1px) scale(1.05);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+/* Pulsing badges for important statuses */
+.badge.pulse {
+    animation: badgePulse 2s ease-in-out infinite;
+}
+
+@keyframes badgePulse {
+    0%, 100% {
+        box-shadow: 0 0 0 0 rgba(32, 72, 133, 0.4);
+    }
+    50% {
+        box-shadow: 0 0 0 8px rgba(32, 72, 133, 0);
+    }
+}
+
+
+/* ============================================
+   NAVBAR ENHANCEMENTS
+   ============================================ */
+
+.navbar {
+    backdrop-filter: blur(12px) saturate(180%);
+    -webkit-backdrop-filter: blur(12px) saturate(180%);
+    background: rgba(255, 255, 255, 0.95) !important;
+    border-bottom: 1px solid rgba(32, 72, 133, 0.1);
+    box-shadow:
+        0 4px 16px rgba(32, 72, 133, 0.08),
+        0 2px 4px rgba(32, 72, 133, 0.04);
+}
+
+[data-theme="dark"] .navbar {
+    background: rgba(30, 30, 45, 0.95) !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.nav-link {
+    position: relative;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.nav-link::after {
+    content: "";
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    width: 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--primary-color, #204885), var(--secondary-color, #872a96));
+    transform: translateX(-50%);
+    transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.nav-link:hover::after,
+.nav-link.active::after {
+    width: 80%;
+}
+
+.nav-link:hover {
+    transform: translateY(-2px);
+}
+
+
+/* ============================================
+   ALERT & TOAST ENHANCEMENTS
+   ============================================ */
+
+.alert {
+    border: none;
+    border-left: 4px solid;
+    backdrop-filter: blur(8px);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+    animation: slideInRight 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes slideInRight {
+    from {
+        opacity: 0;
+        transform: translateX(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+.toast {
+    backdrop-filter: blur(12px) saturate(180%);
+    box-shadow:
+        0 8px 32px rgba(0, 0, 0, 0.2),
+        0 0 0 1px rgba(255, 255, 255, 0.1) inset;
+    animation: toastSlideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes toastSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-20px) scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+
+/* ============================================
+   LOADING & SKELETON ENHANCEMENTS
+   ============================================ */
+
+.spinner,
+.spinner-border {
+    animation: spin 1s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+/* Shimmer effect for loading states */
+.skeleton,
+.loading-skeleton {
+    background: linear-gradient(
+        90deg,
+        var(--color-neutral-200, #e9ecef) 0%,
+        var(--color-neutral-100, #f1f3f5) 50%,
+        var(--color-neutral-200, #e9ecef) 100%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.5s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+
+/* ============================================
+   MAP ENHANCEMENTS
+   ============================================ */
+
+#map {
+    border-radius: var(--radius-md, 8px);
+    box-shadow:
+        0 12px 32px rgba(32, 72, 133, 0.15),
+        0 4px 8px rgba(32, 72, 133, 0.08),
+        inset 0 0 0 1px rgba(255, 255, 255, 0.5);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+#map:hover {
+    box-shadow:
+        0 16px 48px rgba(32, 72, 133, 0.2),
+        0 8px 16px rgba(32, 72, 133, 0.12),
+        inset 0 0 0 1px rgba(255, 255, 255, 0.6);
+}
+
+/* Enhanced Leaflet popup styling */
+.leaflet-popup-content-wrapper {
+    background: rgba(255, 255, 255, 0.98);
+    backdrop-filter: blur(12px) saturate(180%);
+    border-radius: 12px;
+    box-shadow:
+        0 12px 32px rgba(0, 0, 0, 0.2),
+        0 0 0 1px rgba(255, 255, 255, 0.5) inset;
+    padding: 16px;
+}
+
+[data-theme="dark"] .leaflet-popup-content-wrapper {
+    background: rgba(30, 30, 45, 0.98);
+}
+
+
+/* ============================================
+   TABLE ENHANCEMENTS
+   ============================================ */
+
+.table {
+    border-collapse: separate;
+    border-spacing: 0 8px;
+}
+
+.table thead th {
+    background: linear-gradient(135deg,
+        var(--primary-color, #204885),
+        var(--secondary-color, #872a96));
+    color: white;
+    border: none;
+    padding: 16px;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    font-size: 0.875rem;
+}
+
+.table thead th:first-child {
+    border-radius: 8px 0 0 8px;
+}
+
+.table thead th:last-child {
+    border-radius: 0 8px 8px 0;
+}
+
+.table tbody tr {
+    background: var(--surface-color, #fff);
+    box-shadow: 0 2px 8px rgba(32, 72, 133, 0.06);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.table tbody tr:hover {
+    transform: translateY(-2px) scale(1.01);
+    box-shadow:
+        0 8px 24px rgba(32, 72, 133, 0.12),
+        0 4px 8px rgba(32, 72, 133, 0.08);
+}
+
+.table tbody td {
+    border: none;
+    padding: 16px;
+    vertical-align: middle;
+}
+
+.table tbody tr td:first-child {
+    border-radius: 8px 0 0 8px;
+}
+
+.table tbody tr td:last-child {
+    border-radius: 0 8px 8px 0;
+}
+
+
+/* ============================================
+   PROGRESS BAR ENHANCEMENTS
+   ============================================ */
+
+.progress {
+    height: 8px;
+    border-radius: 999px;
+    background: var(--color-neutral-200, #e9ecef);
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
+    overflow: visible;
+}
+
+.progress-bar {
+    border-radius: 999px;
+    background: linear-gradient(90deg,
+        var(--primary-color, #204885),
+        var(--secondary-color, #872a96));
+    box-shadow: 0 2px 8px rgba(32, 72, 133, 0.4);
+    position: relative;
+    overflow: hidden;
+}
+
+.progress-bar::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    right: 0;
+    background: linear-gradient(
+        90deg,
+        transparent,
+        rgba(255, 255, 255, 0.3),
+        transparent
+    );
+    animation: progressShine 2s ease-in-out infinite;
+}
+
+@keyframes progressShine {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+}
+
+
+/* ============================================
+   STAT CARD ENHANCEMENTS
+   ============================================ */
+
+.stat-card,
+.metric-card {
+    position: relative;
+    overflow: hidden;
+    background: var(--surface-color, #fff);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.stat-card::before,
+.metric-card::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 4px;
+    height: 100%;
+    background: linear-gradient(180deg, var(--primary-color, #204885), var(--secondary-color, #872a96));
+    transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.stat-card:hover::before,
+.metric-card:hover::before {
+    width: 100%;
+    opacity: 0.08;
+}
+
+.stat-card:hover,
+.metric-card:hover {
+    transform: translateY(-4px) scale(1.02);
+    box-shadow:
+        0 16px 48px rgba(32, 72, 133, 0.18),
+        0 8px 16px rgba(32, 72, 133, 0.12);
+}
+
+
+/* ============================================
+   DROPDOWN ENHANCEMENTS
+   ============================================ */
+
+.dropdown-menu {
+    border: none;
+    background: rgba(255, 255, 255, 0.98);
+    backdrop-filter: blur(12px) saturate(180%);
+    border-radius: 12px;
+    box-shadow:
+        0 12px 32px rgba(32, 72, 133, 0.2),
+        0 0 0 1px rgba(255, 255, 255, 0.5) inset;
+    padding: 8px;
+    animation: dropdownSlideIn 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+[data-theme="dark"] .dropdown-menu {
+    background: rgba(30, 30, 45, 0.98);
+}
+
+@keyframes dropdownSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px) scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+.dropdown-item {
+    border-radius: 8px;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    margin: 2px 0;
+}
+
+.dropdown-item:hover {
+    background: linear-gradient(90deg,
+        rgba(32, 72, 133, 0.1),
+        rgba(135, 42, 150, 0.1));
+    transform: translateX(4px);
+}
+
+
+/* ============================================
+   SCROLL ENHANCEMENTS
+   ============================================ */
+
+/* Smooth scrolling */
+html {
+    scroll-behavior: smooth;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+    width: 12px;
+    height: 12px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--color-neutral-100, #f1f3f5);
+    border-radius: 6px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg,
+        var(--primary-color, #204885),
+        var(--secondary-color, #872a96));
+    border-radius: 6px;
+    border: 2px solid var(--color-neutral-100, #f1f3f5);
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(180deg,
+        color-mix(in srgb, var(--primary-color, #204885) 90%, white),
+        color-mix(in srgb, var(--secondary-color, #872a96) 90%, white));
+}
+
+
+/* ============================================
+   ACCORDION ENHANCEMENTS
+   ============================================ */
+
+.accordion-item {
+    border: none;
+    margin-bottom: 12px;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(32, 72, 133, 0.08);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.accordion-item:hover {
+    box-shadow: 0 8px 24px rgba(32, 72, 133, 0.15);
+    transform: translateY(-2px);
+}
+
+.accordion-button {
+    background: linear-gradient(135deg,
+        rgba(32, 72, 133, 0.05),
+        rgba(135, 42, 150, 0.05));
+    font-weight: 600;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.accordion-button:not(.collapsed) {
+    background: linear-gradient(135deg,
+        var(--primary-color, #204885),
+        var(--secondary-color, #872a96));
+    color: white;
+    box-shadow: 0 4px 12px rgba(32, 72, 133, 0.3);
+}
+
+
+/* ============================================
+   UTILITY ANIMATIONS
+   ============================================ */
+
+/* Fade in animation */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+.fade-in {
+    animation: fadeIn 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Slide up animation */
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.slide-up {
+    animation: slideUp 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Scale in animation */
+@keyframes scaleIn {
+    from {
+        opacity: 0;
+        transform: scale(0.9);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+.scale-in {
+    animation: scaleIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Glow effect */
+.glow {
+    box-shadow:
+        0 0 20px rgba(32, 72, 133, 0.3),
+        0 0 40px rgba(32, 72, 133, 0.2),
+        0 0 60px rgba(32, 72, 133, 0.1);
+}
+
+/* Floating animation */
+@keyframes float {
+    0%, 100% {
+        transform: translateY(0);
+    }
+    50% {
+        transform: translateY(-10px);
+    }
+}
+
+.float {
+    animation: float 3s ease-in-out infinite;
+}
+
+
+/* ============================================
+   RESPONSIVE ENHANCEMENTS
+   ============================================ */
+
+@media (max-width: 768px) {
+    /* Reduce animation complexity on mobile for performance */
+    .page-header::before {
+        animation: none;
+    }
+
+    .card:hover {
+        transform: none;
+    }
+
+    /* Simplify shadows on mobile */
+    .card {
+        box-shadow: 0 2px 8px rgba(32, 72, 133, 0.1);
+    }
+}
+
+/* Respect user's motion preferences */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}
+
+
+/* ============================================
+   PRINT STYLES
+   ============================================ */
+
+@media print {
+    /* Disable animations and effects for print */
+    *,
+    *::before,
+    *::after {
+        animation: none !important;
+        transition: none !important;
+        box-shadow: none !important;
+        backdrop-filter: none !important;
+    }
+
+    .navbar,
+    .btn,
+    .page-header::before {
+        display: none;
+    }
+}
