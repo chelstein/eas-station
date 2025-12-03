@@ -58,7 +58,7 @@
                             <i class="fas fa-bell"></i>
                             <span>Alerts</span>
                         </a>
-                        <ul class="dropdown-menu dropdown-menu-dark" aria-labelledby="alertsDropdown">
+                        <ul class="dropdown-menu" aria-labelledby="alertsDropdown">
                             <li><h6 class="dropdown-header">Internet (CAP Feeds)</h6></li>
                             <li>
                                 <a class="dropdown-item" href="/alerts">
@@ -93,7 +93,7 @@
                             <i class="fas fa-tower-broadcast"></i>
                             <span>Broadcast</span>
                         </a>
-                        <ul class="dropdown-menu dropdown-menu-dark" aria-labelledby="broadcastDropdown">
+                        <ul class="dropdown-menu" aria-labelledby="broadcastDropdown">
                             <li><h6 class="dropdown-header">Broadcast Builder</h6></li>
                             <li>
                                 <a class="dropdown-item" href="{{ url_for('eas.workflow_home') }}">
@@ -157,7 +157,7 @@
                             <i class="fas fa-cog"></i>
                             <span>Settings</span>
                         </a>
-                        <ul class="dropdown-menu dropdown-menu-dark" aria-labelledby="settingsDropdown">
+                        <ul class="dropdown-menu" aria-labelledby="settingsDropdown">
                             <li><h6 class="dropdown-header">System Configuration</h6></li>
                             <li>
                                 <a class="dropdown-item" href="/admin">
@@ -217,7 +217,7 @@
                             <i class="fas fa-wrench"></i>
                             <span>Tools</span>
                         </a>
-                        <ul class="dropdown-menu dropdown-menu-dark" aria-labelledby="toolsDropdown">
+                        <ul class="dropdown-menu" aria-labelledby="toolsDropdown">
                             <li><h6 class="dropdown-header">System Health</h6></li>
                             <li>
                                 <a class="dropdown-item" href="/diagnostics">
@@ -303,7 +303,7 @@
                             <i class="fas fa-circle-question"></i>
                             <span>Help</span>
                         </a>
-                        <ul class="dropdown-menu dropdown-menu-dark" aria-labelledby="helpDropdown">
+                        <ul class="dropdown-menu" aria-labelledby="helpDropdown">
                             <li>
                                 <a class="dropdown-item" href="{{ url_for('docs_index') }}">
                                     <i class="fas fa-book"></i> Documentation
@@ -342,7 +342,7 @@
                             <i class="fas fa-user-circle"></i>
                             <span>{{ current_user.username }}</span>
                         </a>
-                        <ul class="dropdown-menu dropdown-menu-dark dropdown-menu-end" aria-labelledby="userDropdown">
+                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
                             <li><h6 class="dropdown-header">{{ current_user.username }}</h6></li>
                             <li><hr class="dropdown-divider"></li>
                             <li>
