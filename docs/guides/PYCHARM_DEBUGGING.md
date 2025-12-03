@@ -261,10 +261,11 @@ cp examples/docker-compose/docker-compose.development.yml docker-compose.overrid
 # Copy the example environment file if you don't have one
 if [ ! -f .env ]; then
     cp .env.example .env
+    echo "Created .env file - using default settings"
 fi
 
-# Start everything
-docker-compose up -d
+# Start everything with the embedded database
+docker-compose --profile embedded-db up -d
 
 # Wait a few seconds for containers to start
 sleep 10
@@ -528,38 +529,38 @@ If you're waiting for a PyCharm license or unsure which to choose:
 
 | Feature | VS Code | PyCharm Pro | PyCharm Community |
 |---------|---------|-------------|-------------------|
-| **Remote Development** |
+| **Remote Development** | | | |
 | SSH to Raspberry Pi | ✅ Excellent | ✅ Excellent | ❌ No |
 | Edit files on Pi | ✅ Yes | ✅ Yes | ❌ No |
 | Remote debugging | ✅ Yes (debugpy) | ✅ Yes (debugpy) | ❌ No |
 | Port forwarding | ✅ Built-in | ✅ Built-in | ❌ No |
-| **Python Features** |
+| **Python Features** | | | |
 | Code completion | ✅ Very Good | ✅ Excellent | ✅ Very Good |
 | Linting (pylint, flake8) | ✅ Yes | ✅ Yes | ✅ Yes |
 | Type checking | ✅ Yes (mypy) | ✅ Yes | ✅ Yes |
 | Refactoring | ✅ Good | ✅ Excellent | ✅ Good |
 | Test runner | ✅ Yes (pytest) | ✅ Yes | ✅ Yes |
 | Virtual env support | ✅ Yes | ✅ Yes | ✅ Yes |
-| **Debugging** |
+| **Debugging** | | | |
 | Breakpoints | ✅ Yes | ✅ Yes | ✅ Local only |
 | Variable inspection | ✅ Yes | ✅ Yes | ✅ Local only |
 | Watch expressions | ✅ Yes | ✅ Yes | ✅ Local only |
 | Step through code | ✅ Yes | ✅ Yes | ✅ Local only |
 | Remote attach | ✅ Yes | ✅ Yes | ❌ No |
-| **Docker Support** |
+| **Docker Support** | | | |
 | Dockerfile syntax | ✅ Yes | ✅ Yes | ✅ Basic |
 | Compose file support | ✅ Yes | ✅ Yes | ✅ Basic |
 | Container management | ✅ Yes (extension) | ✅ Yes | ❌ Limited |
 | Exec into container | ✅ Yes | ✅ Yes | ❌ No |
-| **Other Languages** |
+| **Other Languages** | | | |
 | JavaScript/HTML/CSS | ✅ Excellent | ✅ Good | ✅ Basic |
 | Bash/Shell | ✅ Excellent | ✅ Good | ✅ Basic |
 | YAML | ✅ Excellent | ✅ Good | ✅ Basic |
 | Markdown | ✅ Excellent | ✅ Good | ✅ Good |
-| **Performance** |
+| **Performance** | | | |
 | Startup time | ✅ Fast (1-2s) | ⚠️ Slower (5-10s) | ⚠️ Slower (5-10s) |
 | Memory usage | ✅ Low (~300MB) | ⚠️ High (~1GB) | ⚠️ High (~1GB) |
-| **Cost** |
+| **Cost** | | | |
 | Price | ✅ Free | ✅ Free (OSS)* | ✅ Free |
 | License wait | ✅ None | ⚠️ 2-7 days | ✅ None |
 | Renewal | ✅ N/A | ⚠️ Yearly | ✅ N/A |
@@ -706,6 +707,87 @@ docker-compose ps
 ```
 
 You should see services starting up. The `app` service will be listening on port 5678 for the debugger.
+
+---
+
+### Step 4b: Configure the Development Database
+
+The development configuration uses a separate PostgreSQL database to keep your development work isolated from any production data. Here's how to configure it:
+
+#### Option 1: Use the Embedded Database (Recommended for Development)
+
+The easiest approach is to use the embedded PostgreSQL container that comes with the development configuration:
+
+```bash
+# Make sure you're using the embedded database profile
+docker-compose --profile embedded-db up -d alerts-db
+
+# Verify the database is running
+docker-compose ps alerts-db
+```
+
+The embedded database is automatically configured with these settings (from `docker-compose.development.yml`):
+- **Database Name**: `alerts_dev`
+- **Username**: `postgres`
+- **Password**: `devpassword`
+- **Port**: `5432` (exposed to localhost)
+
+#### Option 2: Use an External Database
+
+If you want to use an existing PostgreSQL installation:
+
+1. **Edit your `.env` file**:
+
+```bash
+# Open the .env file
+nano .env
+
+# Update these settings:
+POSTGRES_HOST=192.168.1.100  # Your database server IP
+POSTGRES_PORT=5432
+POSTGRES_DB=alerts_dev
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=your-secure-password
+```
+
+2. **Create the database** (on your PostgreSQL server):
+
+```sql
+CREATE DATABASE alerts_dev;
+CREATE EXTENSION IF NOT EXISTS postgis;
+```
+
+3. **Restart the containers** to apply the new settings:
+
+```bash
+docker-compose restart app
+```
+
+#### Verifying Database Connection
+
+Test that the application can connect to the database:
+
+```bash
+# Check app logs for database connection
+docker-compose logs app | grep -i "database\|postgres"
+
+# You should see: "Connected to PostgreSQL" or similar
+# If you see connection errors, double-check your .env settings
+```
+
+#### Important Database Configuration Notes
+
+**For development**:
+- ✅ Use `alerts_dev` as the database name (not `alerts`)
+- ✅ The database is automatically created and migrated on first startup
+- ✅ Use `devpassword` for local testing (not secure, only for development)
+- ✅ The database port (5432) is exposed for tools like pgAdmin or DBeaver
+
+**For production**:
+- ⚠️ Use a strong password (generate with `openssl rand -hex 32`)
+- ⚠️ Don't expose port 5432 to the internet
+- ⚠️ Use the production `docker-compose.yml` (not the override)
+- ⚠️ Set up regular backups
 
 ---
 
