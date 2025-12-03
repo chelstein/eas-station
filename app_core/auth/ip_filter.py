@@ -294,7 +294,6 @@ class FloodProtection:
             return False, 0
         
         # Check attempts in last minute
-        from datetime import datetime
         now = datetime.utcnow()
         one_minute_ago = now - timedelta(minutes=1)
         

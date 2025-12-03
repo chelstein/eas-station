@@ -148,7 +148,7 @@ def login():
                             sanitized_username = InputValidator.sanitize_for_logging(username)
                             
                             # Log to security log for fail2ban (immediate ban)
-                            log_malicious_login_attempt(request.remote_addr, sanitized_username, 'sql_or_command_injection')
+                            log_malicious_login_attempt(request.remote_addr, sanitized_username, 'malicious_input')
                             
                             # Auto-ban for malicious input
                             IPFilter.add_to_blocklist(

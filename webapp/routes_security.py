@@ -47,6 +47,8 @@ from app_core.auth.mfa import (
 from app_core.auth.audit import AuditLog, AuditLogger, AuditAction
 from app_core.auth.ip_filter import IPFilter, IPFilterType, IPFilterReason
 
+# Constants for malicious login reasons
+MALICIOUS_LOGIN_REASONS = ['malicious_input', 'sql_injection', 'command_injection']
 
 security_bp = Blueprint('security', __name__, url_prefix='/security')
 
@@ -444,7 +446,7 @@ def list_malicious_login_attempts():
     query = AuditLog.query.filter(
         AuditLog.action == 'auth.login.failure',
         AuditLog.timestamp >= cutoff,
-        AuditLog.details.op('->>')('reason').in_(['malicious_input', 'sql_injection', 'command_injection'])
+        AuditLog.details.op('->>')('reason').in_(MALICIOUS_LOGIN_REASONS)
     ).order_by(AuditLog.timestamp.desc())
     
     # Paginate
