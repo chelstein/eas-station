@@ -30,7 +30,7 @@
 
 .card-header {
     border-bottom: 1px solid var(--color-border-light);
-    background: linear-gradient(180deg, var(--color-surface-elevated), var(--color-surface));
+    background: var(--surface-color);
     padding: 1rem 1.25rem;
 }
 
