@@ -36,17 +36,37 @@
     }
 }
 
-/* Navbar text colors - adapt based on theme brightness */
-.navbar .navbar-brand,
-.navbar .nav-link,
-.navbar .navbar-toggler {
+/* Navbar text colors - dynamic based on theme brightness */
+/* Dark themes with dark gradients need light text */
+[data-theme="dark"] .navbar .navbar-brand,
+[data-theme="dark"] .navbar .nav-link,
+[data-theme="dark"] .navbar .navbar-toggler,
+[data-theme="coffee"] .navbar .navbar-brand,
+[data-theme="coffee"] .navbar .nav-link,
+[data-theme="coffee"] .navbar .navbar-toggler,
+[data-theme="aurora"] .navbar .navbar-brand,
+[data-theme="aurora"] .navbar .nav-link,
+[data-theme="aurora"] .navbar .navbar-toggler,
+[data-theme="nebula"] .navbar .navbar-brand,
+[data-theme="nebula"] .navbar .nav-link,
+[data-theme="nebula"] .navbar .navbar-toggler,
+[data-theme="midnight"] .navbar .navbar-brand,
+[data-theme="midnight"] .navbar .nav-link,
+[data-theme="midnight"] .navbar .navbar-toggler,
+[data-theme="charcoal"] .navbar .navbar-brand,
+[data-theme="charcoal"] .navbar .nav-link,
+[data-theme="charcoal"] .navbar .navbar-toggler,
+[data-theme="obsidian"] .navbar .navbar-brand,
+[data-theme="obsidian"] .navbar .nav-link,
+[data-theme="obsidian"] .navbar .navbar-toggler,
+[data-theme="slate"] .navbar .navbar-brand,
+[data-theme="slate"] .navbar .nav-link,
+[data-theme="slate"] .navbar .navbar-toggler {
     color: #ffffff !important;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
 }
 
-/* Light themes - add text-shadow for better contrast on bright gradient backgrounds
-   Note: Explicit theme selectors are used (rather than a shared class) to ensure 
-   theme-specific overrides work correctly and to maintain clarity about which 
-   themes receive the enhancement */
+/* Light themes with bright gradients need dark text for readability */
 [data-theme="cosmo"] .navbar .navbar-brand,
 [data-theme="cosmo"] .navbar .nav-link,
 [data-theme="cosmo"] .navbar .navbar-toggler,
@@ -81,7 +101,7 @@
 [data-theme="tide"] .navbar .nav-link,
 [data-theme="tide"] .navbar .navbar-toggler {
     color: #ffffff !important;
-    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
 }
 
 .navbar .navbar-brand {
@@ -111,48 +131,13 @@
     opacity: 0.75;
 }
 
+/* Navbar hover states - theme aware */
+/* All themes use white text with enhanced background on hover */
 .navbar .nav-link:hover,
 .navbar .nav-link:focus,
 .navbar .nav-link.active {
-    color: rgba(255, 255, 255, 0.85) !important;
-}
-
-/* Light themes - enhance hover state with better contrast */
-[data-theme="cosmo"] .navbar .nav-link:hover,
-[data-theme="cosmo"] .navbar .nav-link:focus,
-[data-theme="cosmo"] .navbar .nav-link.active,
-[data-theme="spring"] .navbar .nav-link:hover,
-[data-theme="spring"] .navbar .nav-link:focus,
-[data-theme="spring"] .navbar .nav-link.active,
-[data-theme="red"] .navbar .nav-link:hover,
-[data-theme="red"] .navbar .nav-link:focus,
-[data-theme="red"] .navbar .nav-link.active,
-[data-theme="green"] .navbar .nav-link:hover,
-[data-theme="green"] .navbar .nav-link:focus,
-[data-theme="green"] .navbar .nav-link.active,
-[data-theme="blue"] .navbar .nav-link:hover,
-[data-theme="blue"] .navbar .nav-link:focus,
-[data-theme="blue"] .navbar .nav-link.active,
-[data-theme="purple"] .navbar .nav-link:hover,
-[data-theme="purple"] .navbar .nav-link:focus,
-[data-theme="purple"] .navbar .nav-link.active,
-[data-theme="pink"] .navbar .nav-link:hover,
-[data-theme="pink"] .navbar .nav-link:focus,
-[data-theme="pink"] .navbar .nav-link.active,
-[data-theme="orange"] .navbar .nav-link:hover,
-[data-theme="orange"] .navbar .nav-link:focus,
-[data-theme="orange"] .navbar .nav-link.active,
-[data-theme="yellow"] .navbar .nav-link:hover,
-[data-theme="yellow"] .navbar .nav-link:focus,
-[data-theme="yellow"] .navbar .nav-link.active,
-[data-theme="sunset"] .navbar .nav-link:hover,
-[data-theme="sunset"] .navbar .nav-link:focus,
-[data-theme="sunset"] .navbar .nav-link.active,
-[data-theme="tide"] .navbar .nav-link:hover,
-[data-theme="tide"] .navbar .nav-link:focus,
-[data-theme="tide"] .navbar .nav-link.active {
     color: #ffffff !important;
-    background-color: rgba(255, 255, 255, 0.25);
+    background-color: rgba(255, 255, 255, 0.2);
 }
 
 .navbar-nav {
@@ -171,35 +156,10 @@
     transition: background-color var(--transition-fast), color var(--transition-fast);
 }
 
+/* Universal hover state for all themes */
 .navbar-nav .nav-link:hover,
 .navbar-nav .nav-link:focus {
-    background-color: rgba(255, 255, 255, 0.12);
-}
-
-/* Light themes - enhance hover visibility */
-[data-theme="cosmo"] .navbar-nav .nav-link:hover,
-[data-theme="cosmo"] .navbar-nav .nav-link:focus,
-[data-theme="spring"] .navbar-nav .nav-link:hover,
-[data-theme="spring"] .navbar-nav .nav-link:focus,
-[data-theme="red"] .navbar-nav .nav-link:hover,
-[data-theme="red"] .navbar-nav .nav-link:focus,
-[data-theme="green"] .navbar-nav .nav-link:hover,
-[data-theme="green"] .navbar-nav .nav-link:focus,
-[data-theme="blue"] .navbar-nav .nav-link:hover,
-[data-theme="blue"] .navbar-nav .nav-link:focus,
-[data-theme="purple"] .navbar-nav .nav-link:hover,
-[data-theme="purple"] .navbar-nav .nav-link:focus,
-[data-theme="pink"] .navbar-nav .nav-link:hover,
-[data-theme="pink"] .navbar-nav .nav-link:focus,
-[data-theme="orange"] .navbar-nav .nav-link:hover,
-[data-theme="orange"] .navbar-nav .nav-link:focus,
-[data-theme="yellow"] .navbar-nav .nav-link:hover,
-[data-theme="yellow"] .navbar-nav .nav-link:focus,
-[data-theme="sunset"] .navbar-nav .nav-link:hover,
-[data-theme="sunset"] .navbar-nav .nav-link:focus,
-[data-theme="tide"] .navbar-nav .nav-link:hover,
-[data-theme="tide"] .navbar-nav .nav-link:focus {
-    background-color: rgba(255, 255, 255, 0.22);
+    background-color: rgba(255, 255, 255, 0.15);
 }
 
 /* Dropdown menus - theme-aware styling */
@@ -336,16 +296,81 @@
     fill: var(--text-secondary, #64748b);
 }
 
-/* Navbar logo - ensure text is always readable on navbar gradient */
-.navbar .brand-logo .logo-text-primary {
+/* Navbar logo - theme-aware colors */
+/* Dark themes with dark navbar backgrounds */
+[data-theme="dark"] .navbar .brand-logo .logo-text-primary,
+[data-theme="coffee"] .navbar .brand-logo .logo-text-primary,
+[data-theme="aurora"] .navbar .brand-logo .logo-text-primary,
+[data-theme="nebula"] .navbar .brand-logo .logo-text-primary,
+[data-theme="midnight"] .navbar .brand-logo .logo-text-primary,
+[data-theme="charcoal"] .navbar .brand-logo .logo-text-primary,
+[data-theme="obsidian"] .navbar .brand-logo .logo-text-primary,
+[data-theme="slate"] .navbar .brand-logo .logo-text-primary {
     fill: #ffffff;
 }
 
-.navbar .brand-logo .logo-text-secondary {
+[data-theme="dark"] .navbar .brand-logo .logo-text-secondary,
+[data-theme="coffee"] .navbar .brand-logo .logo-text-secondary,
+[data-theme="aurora"] .navbar .brand-logo .logo-text-secondary,
+[data-theme="nebula"] .navbar .brand-logo .logo-text-secondary,
+[data-theme="midnight"] .navbar .brand-logo .logo-text-secondary,
+[data-theme="charcoal"] .navbar .brand-logo .logo-text-secondary,
+[data-theme="obsidian"] .navbar .brand-logo .logo-text-secondary,
+[data-theme="slate"] .navbar .brand-logo .logo-text-secondary {
     fill: rgba(255, 255, 255, 0.85);
 }
 
-.navbar .brand-logo .logo-bar {
+[data-theme="dark"] .navbar .brand-logo .logo-bar,
+[data-theme="coffee"] .navbar .brand-logo .logo-bar,
+[data-theme="aurora"] .navbar .brand-logo .logo-bar,
+[data-theme="nebula"] .navbar .brand-logo .logo-bar,
+[data-theme="midnight"] .navbar .brand-logo .logo-bar,
+[data-theme="charcoal"] .navbar .brand-logo .logo-bar,
+[data-theme="obsidian"] .navbar .brand-logo .logo-bar,
+[data-theme="slate"] .navbar .brand-logo .logo-bar {
+    fill: #ffffff;
+}
+
+/* Light themes with bright navbar backgrounds */
+[data-theme="cosmo"] .navbar .brand-logo .logo-text-primary,
+[data-theme="spring"] .navbar .brand-logo .logo-text-primary,
+[data-theme="red"] .navbar .brand-logo .logo-text-primary,
+[data-theme="green"] .navbar .brand-logo .logo-text-primary,
+[data-theme="blue"] .navbar .brand-logo .logo-text-primary,
+[data-theme="purple"] .navbar .brand-logo .logo-text-primary,
+[data-theme="pink"] .navbar .brand-logo .logo-text-primary,
+[data-theme="orange"] .navbar .brand-logo .logo-text-primary,
+[data-theme="yellow"] .navbar .brand-logo .logo-text-primary,
+[data-theme="sunset"] .navbar .brand-logo .logo-text-primary,
+[data-theme="tide"] .navbar .brand-logo .logo-text-primary {
+    fill: #ffffff;
+}
+
+[data-theme="cosmo"] .navbar .brand-logo .logo-text-secondary,
+[data-theme="spring"] .navbar .brand-logo .logo-text-secondary,
+[data-theme="red"] .navbar .brand-logo .logo-text-secondary,
+[data-theme="green"] .navbar .brand-logo .logo-text-secondary,
+[data-theme="blue"] .navbar .brand-logo .logo-text-secondary,
+[data-theme="purple"] .navbar .brand-logo .logo-text-secondary,
+[data-theme="pink"] .navbar .brand-logo .logo-text-secondary,
+[data-theme="orange"] .navbar .brand-logo .logo-text-secondary,
+[data-theme="yellow"] .navbar .brand-logo .logo-text-secondary,
+[data-theme="sunset"] .navbar .brand-logo .logo-text-secondary,
+[data-theme="tide"] .navbar .brand-logo .logo-text-secondary {
+    fill: rgba(255, 255, 255, 0.9);
+}
+
+[data-theme="cosmo"] .navbar .brand-logo .logo-bar,
+[data-theme="spring"] .navbar .brand-logo .logo-bar,
+[data-theme="red"] .navbar .brand-logo .logo-bar,
+[data-theme="green"] .navbar .brand-logo .logo-bar,
+[data-theme="blue"] .navbar .brand-logo .logo-bar,
+[data-theme="purple"] .navbar .brand-logo .logo-bar,
+[data-theme="pink"] .navbar .brand-logo .logo-bar,
+[data-theme="orange"] .navbar .brand-logo .logo-bar,
+[data-theme="yellow"] .navbar .brand-logo .logo-bar,
+[data-theme="sunset"] .navbar .brand-logo .logo-bar,
+[data-theme="tide"] .navbar .brand-logo .logo-bar {
     fill: #ffffff;
 }
 
