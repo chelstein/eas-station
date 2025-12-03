@@ -96,18 +96,27 @@
     // ANIMATED PAGE HEADER WITH ORBS
     // ============================================
 
-    function initHeaderOrbs() {
-        const headers = document.querySelectorAll('.page-header:not(.orbs-added)');
+    function addOrbsToElement(element, orbCount) {
+        if (element.classList.contains('orbs-added')) {
+            return;
+        }
+        
+        for (let i = 0; i < orbCount; i++) {
+            const orb = document.createElement('div');
+            orb.className = 'orb';
+            element.appendChild(orb);
+        }
+        element.classList.add('orbs-added');
+    }
 
-        headers.forEach(header => {
-            // Add 3 animated orbs
-            for (let i = 0; i < 3; i++) {
-                const orb = document.createElement('div');
-                orb.className = 'orb';
-                header.appendChild(orb);
-            }
-            header.classList.add('orbs-added');
-        });
+    function initHeaderOrbs() {
+        // Add orbs to page headers
+        const headers = document.querySelectorAll('.page-header:not(.orbs-added)');
+        headers.forEach(header => addOrbsToElement(header, 3));
+
+        // Add orbs to page-shell (container-fluid) elements
+        const pageShells = document.querySelectorAll('.page-shell:not(.orbs-added)');
+        pageShells.forEach(shell => addOrbsToElement(shell, 5));
     }
 
     // ============================================

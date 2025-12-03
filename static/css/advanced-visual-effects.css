@@ -22,7 +22,8 @@
 
 /* Floating orbs background effect */
 .page-header,
-.hero-section {
+.hero-section,
+.page-shell {
     position: relative;
 }
 
@@ -58,6 +59,58 @@
     top: 50%;
     right: 30%;
     animation-delay: -10s;
+}
+
+/* Orbs for page-shell containers - more subtle for background effect */
+.page-shell .orb {
+    position: absolute;
+    border-radius: 50%;
+    background: radial-gradient(circle at 30% 30%, rgba(32, 72, 133, 0.15), transparent);
+    pointer-events: none;
+    mix-blend-mode: overlay;
+    animation: floatOrb 20s ease-in-out infinite;
+    z-index: 0;
+    opacity: 0.5;
+}
+
+.page-shell .orb:nth-child(1) {
+    width: 300px;
+    height: 300px;
+    top: 15%;
+    right: 10%;
+    animation-delay: 0s;
+}
+
+.page-shell .orb:nth-child(2) {
+    width: 220px;
+    height: 220px;
+    top: 50%;
+    left: 5%;
+    animation-delay: -4s;
+}
+
+.page-shell .orb:nth-child(3) {
+    width: 250px;
+    height: 250px;
+    bottom: 20%;
+    right: 15%;
+    animation-delay: -8s;
+}
+
+.page-shell .orb:nth-child(4) {
+    width: 180px;
+    height: 180px;
+    top: 70%;
+    left: 25%;
+    animation-delay: -12s;
+}
+
+.page-shell .orb:nth-child(5) {
+    width: 200px;
+    height: 200px;
+    bottom: 35%;
+    right: 40%;
+    animation-delay: -16s;
 }
 
 @keyframes floatOrb {
