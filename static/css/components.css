@@ -415,7 +415,7 @@
 }
 
 [data-theme-mode="dark"] .progress {
-    background-color: var(--color-neutral-200);
+    background-color: var(--color-neutral-300);
 }
 
 .progress-bar {

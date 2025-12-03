@@ -95,7 +95,7 @@
     flex: 1;
     display: flex;
     flex-direction: column;
-    background: #e9ecef;
+    background: var(--color-neutral-200);
 }
 
 .canvas-toolbar {
@@ -140,8 +140,8 @@
 
 .canvas-container {
     position: relative;
-    background: #000;
-    border: 3px solid #333;
+    background: var(--bg-primary);
+    border: 3px solid var(--color-border-dark);
     border-radius: 8px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
     transform-origin: center center;
@@ -165,21 +165,21 @@
 
 .element-overlay {
     position: absolute;
-    border: 2px dashed #3b82f6;
-    background: rgba(59, 130, 246, 0.1);
+    border: 2px dashed var(--color-info);
+    background: var(--color-info-light);
     cursor: move;
     pointer-events: all;
     transition: border-color 0.2s;
 }
 
 .element-overlay:hover {
-    border-color: #2563eb;
+    border-color: var(--color-info-dark);
     background: rgba(59, 130, 246, 0.2);
 }
 
 .element-overlay.selected {
-    border-color: #f59e0b;
-    background: rgba(245, 158, 11, 0.2);
+    border-color: var(--color-warning);
+    background: var(--color-warning-light);
     border-style: solid;
 }
 
@@ -187,8 +187,8 @@
     position: absolute;
     top: -20px;
     left: 0;
-    background: #3b82f6;
-    color: white;
+    background: var(--color-info);
+    color: var(--color-text-inverse);
     padding: 2px 6px;
     font-size: 10px;
     border-radius: 3px;
@@ -196,7 +196,7 @@
 }
 
 .element-overlay.selected .element-overlay-label {
-    background: #f59e0b;
+    background: var(--color-warning);
 }
 
 .canvas-info {
@@ -232,13 +232,13 @@
 
 .layer-item:hover {
     background: var(--bg-secondary, #e9ecef);
-    border-color: #3b82f6;
+    border-color: var(--color-info);
 }
 
 .layer-item.selected {
-    background: #3b82f6;
-    color: white;
-    border-color: #3b82f6;
+    background: var(--color-info);
+    color: var(--color-text-inverse);
+    border-color: var(--color-info);
 }
 
 .layer-icon {
@@ -382,7 +382,7 @@
 .variable-item code {
     display: block;
     font-weight: 600;
-    color: #3b82f6;
+    color: var(--color-info);
     margin-bottom: 0.25rem;
 }
 
@@ -416,8 +416,8 @@
 
 .form-control:focus {
     outline: none;
-    border-color: #3b82f6;
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    border-color: var(--color-info);
+    box-shadow: 0 0 0 3px var(--color-info-light);
 }
 
 .form-range {
@@ -429,7 +429,7 @@
     margin-top: 0.25rem;
     font-size: 0.85rem;
     font-weight: 600;
-    color: #3b82f6;
+    color: var(--color-info);
 }
 
 .button-group {
