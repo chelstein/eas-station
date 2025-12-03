@@ -37,14 +37,6 @@
     animation: floatOrb 20s ease-in-out infinite;
 }
 
-.page-shell .orb {
-    position: absolute;
-    border-radius: 50%;
-    pointer-events: none;
-    mix-blend-mode: overlay;
-    animation: floatOrb 20s ease-in-out infinite;
-}
-
 .page-header .orb:nth-child(1) {
     width: 200px;
     height: 200px;
@@ -71,7 +63,12 @@
 
 /* Orbs for page-shell containers - more subtle for background effect */
 .page-shell .orb {
+    position: absolute;
+    border-radius: 50%;
     background: radial-gradient(circle at 30% 30%, rgba(32, 72, 133, 0.15), transparent);
+    pointer-events: none;
+    mix-blend-mode: overlay;
+    animation: floatOrb 20s ease-in-out infinite;
     z-index: 0;
     opacity: 0.5;
 }
