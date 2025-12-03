@@ -35,6 +35,10 @@ from app_core.models import AdminUser, SystemLog
 from app_utils import utc_now
 from app_core.auth.mfa import MFASession, verify_user_mfa
 from app_core.auth.audit import AuditLogger, AuditAction
+from app_core.auth.input_validation import InputValidator
+from app_core.auth.rate_limiter import get_rate_limiter
+from app_core.auth.security_logger import log_malicious_login_attempt, log_failed_login_attempt, log_rate_limit_exceeded
+from app_core.auth.ip_filter import IPFilter, FloodProtection, AutoBanManager
 
 
 # Create Blueprint for auth routes
@@ -74,65 +78,171 @@ def login():
 
     error = None
     if request.method == 'POST':
-        username = (request.form.get('username') or '').strip()
-        password = request.form.get('password') or ''
-
-        if not username or not password:
-            error = 'Username and password are required.'
-        else:
-            user = AdminUser.query.filter(
-                func.lower(AdminUser.username) == username.lower()
-            ).first()
-            if user and user.is_active and user.check_password(password):
-                csrf_key = current_app.config.get('CSRF_SESSION_KEY', '_csrf_token')
-
-                # Check if MFA is enabled for this user
-                if user.mfa_enabled:
-                    # Partial authentication - set pending MFA state
-                    session.clear()
-                    session[csrf_key] = secrets.token_urlsafe(32)
-                    MFASession.set_pending(session, user.id)
-
-                    # Redirect to MFA verification page
-                    return redirect(url_for('auth.mfa_verify', next=next_param))
-
-                # No MFA - complete login
-                session.clear()
-                session[csrf_key] = secrets.token_urlsafe(32)
-                session['user_id'] = user.id
-                session.permanent = True
-                user.last_login_at = utc_now()
-                log_entry = SystemLog(
-                    level='INFO',
-                    message='Administrator logged in',
-                    module='auth',
-                    details={
-                        'username': user.username,
-                        'remote_addr': request.remote_addr,
-                    },
-                )
-                db.session.add(user)
-                db.session.add(log_entry)
-                db.session.commit()
-
-                AuditLogger.log_login_success(user.id, user.username)
-
-                target = next_param if _is_safe_redirect_target(next_param) else url_for('dashboard.admin')
-                return redirect(target)
-
+        # Check IP filter first
+        is_allowed, block_reason = IPFilter.is_ip_allowed(request.remote_addr)
+        if not is_allowed:
+            error = 'Access denied. Your IP address has been blocked.'
             db.session.add(SystemLog(
                 level='WARNING',
-                message='Failed administrator login attempt',
+                message='Login attempt from blocked IP',
                 module='auth',
                 details={
-                    'username': username,
                     'remote_addr': request.remote_addr,
+                    'block_reason': block_reason,
                 },
             ))
             db.session.commit()
+        else:
+            # Check rate limiting
+            rate_limiter = get_rate_limiter()
+            
+            # Check for flooding
+            is_flooding, flood_attempts = FloodProtection.check_flood(request.remote_addr, rate_limiter)
+            if is_flooding:
+                # Auto-ban for flooding
+                FloodProtection.auto_ban_flooder(request.remote_addr)
+                error = 'Access denied. Too many rapid login attempts.'
+                db.session.add(SystemLog(
+                    level='CRITICAL',
+                    message='IP auto-banned for flooding',
+                    module='auth',
+                    details={
+                        'remote_addr': request.remote_addr,
+                        'attempts_per_minute': flood_attempts,
+                    },
+                ))
+                db.session.commit()
+            else:
+                is_locked, seconds_remaining = rate_limiter.is_locked_out(request.remote_addr)
+                
+                if is_locked:
+                    minutes_remaining = (seconds_remaining + 59) // 60  # Round up to nearest minute
+                    error = f'Too many failed login attempts. Please try again in {minutes_remaining} minute(s).'
+                    
+                    # Log to security log for fail2ban
+                    log_rate_limit_exceeded(request.remote_addr)
+                    
+                    db.session.add(SystemLog(
+                        level='WARNING',
+                        message='Login attempt while locked out',
+                        module='auth',
+                        details={
+                            'remote_addr': request.remote_addr,
+                            'seconds_remaining': seconds_remaining,
+                        },
+                    ))
+                    db.session.commit()
+                else:
+                    username = (request.form.get('username') or '').strip()
+                    password = request.form.get('password') or ''
 
-            AuditLogger.log_login_failure(username, 'invalid_credentials')
-            error = 'Invalid username or password.'
+                    if not username or not password:
+                        error = 'Username and password are required.'
+                    else:
+                        # Validate inputs for security issues
+                        username_valid, username_error = InputValidator.validate_username(username)
+                        password_valid, password_error = InputValidator.validate_password(password)
+                        
+                        if not username_valid:
+                            # Log malicious attempt with sanitized username
+                            sanitized_username = InputValidator.sanitize_for_logging(username)
+                            
+                            # Log to security log for fail2ban (immediate ban)
+                            log_malicious_login_attempt(request.remote_addr, sanitized_username, 'malicious_input')
+                            
+                            # Auto-ban for malicious input
+                            IPFilter.add_to_blocklist(
+                                ip_address=request.remote_addr,
+                                reason='auto_malicious',
+                                description='Automatically banned for SQL/command injection attempt',
+                                expires_in_hours=24
+                            )
+                            
+                            db.session.add(SystemLog(
+                                level='CRITICAL',
+                                message='Malicious login attempt detected - IP auto-banned',
+                                module='auth',
+                                details={
+                                    'username': sanitized_username,
+                                    'remote_addr': request.remote_addr,
+                                    'reason': 'invalid_input_format',
+                                },
+                            ))
+                            db.session.commit()
+                            AuditLogger.log_login_failure(sanitized_username, 'malicious_input')
+                            rate_limiter.record_failed_attempt(request.remote_addr)
+                            error = 'Invalid username or password.'
+                        elif not password_valid:
+                            rate_limiter.record_failed_attempt(request.remote_addr)
+                            error = 'Invalid username or password.'
+                        else:
+                            user = AdminUser.query.filter(
+                                func.lower(AdminUser.username) == username.lower()
+                            ).first()
+                            if user and user.is_active and user.check_password(password):
+                                # Clear rate limiting on successful login
+                                rate_limiter.clear_attempts(request.remote_addr)
+                                
+                                csrf_key = current_app.config.get('CSRF_SESSION_KEY', '_csrf_token')
+
+                                # Check if MFA is enabled for this user
+                                if user.mfa_enabled:
+                                    # Partial authentication - set pending MFA state
+                                    session.clear()
+                                    session[csrf_key] = secrets.token_urlsafe(32)
+                                    MFASession.set_pending(session, user.id)
+
+                                    # Redirect to MFA verification page
+                                    return redirect(url_for('auth.mfa_verify', next=next_param))
+
+                                # No MFA - complete login
+                                session.clear()
+                                session[csrf_key] = secrets.token_urlsafe(32)
+                                session['user_id'] = user.id
+                                session.permanent = True
+                                user.last_login_at = utc_now()
+                                log_entry = SystemLog(
+                                    level='INFO',
+                                    message='Administrator logged in',
+                                    module='auth',
+                                    details={
+                                        'username': user.username,
+                                        'remote_addr': request.remote_addr,
+                                    },
+                                )
+                                db.session.add(user)
+                                db.session.add(log_entry)
+                                db.session.commit()
+
+                                AuditLogger.log_login_success(user.id, user.username)
+
+                                target = next_param if _is_safe_redirect_target(next_param) else url_for('dashboard.admin')
+                                return redirect(target)
+
+                            # Failed login - record attempt and sanitize username before logging
+                            rate_limiter.record_failed_attempt(request.remote_addr)
+                            
+                            # Check if should auto-ban
+                            AutoBanManager.check_and_ban(request.remote_addr, rate_limiter)
+                            
+                            sanitized_username = InputValidator.sanitize_for_logging(username)
+                            
+                            # Log to security log for fail2ban
+                            log_failed_login_attempt(request.remote_addr, sanitized_username)
+                            
+                            db.session.add(SystemLog(
+                                level='WARNING',
+                                message='Failed administrator login attempt',
+                                module='auth',
+                                details={
+                                    'username': sanitized_username,
+                                    'remote_addr': request.remote_addr,
+                                },
+                            ))
+                            db.session.commit()
+
+                            AuditLogger.log_login_failure(sanitized_username, 'invalid_credentials')
+                            error = 'Invalid username or password.'
 
     show_setup = AdminUser.query.count() == 0
 
