@@ -280,8 +280,10 @@ def verify_user_mfa(user, code: str) -> bool:
         # Check if this code was already used recently (prevent reuse)
         now = utc_now()
         if user.mfa_last_totp_at:
-            # TOTP codes are valid for 30 seconds, with a window of +/- 30 seconds
-            # Prevent reuse within 90 seconds to be safe
+            # TOTP codes are valid for 30 seconds each
+            # With pyotp's window=1, codes are valid for 3 windows (90 seconds total):
+            # current window + 1 before + 1 after
+            # Prevent reuse within 90 seconds to cover all possible valid windows
             time_since_last = (now - user.mfa_last_totp_at).total_seconds()
             if time_since_last < 90:
                 current_app.logger.warning(
