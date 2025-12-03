@@ -108,6 +108,19 @@
             }
             header.classList.add('orbs-added');
         });
+
+        // Also add orbs to page-shell (container-fluid) elements
+        const pageShells = document.querySelectorAll('.page-shell:not(.orbs-added)');
+
+        pageShells.forEach(shell => {
+            // Add 5 animated orbs for larger container areas
+            for (let i = 0; i < 5; i++) {
+                const orb = document.createElement('div');
+                orb.className = 'orb';
+                shell.appendChild(orb);
+            }
+            shell.classList.add('orbs-added');
+        });
     }
 
     // ============================================

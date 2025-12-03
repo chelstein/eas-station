@@ -37,6 +37,13 @@
     .page-shell {
         padding-top: 0.5rem;
         padding-bottom: 2rem;
+        position: relative;
+    }
+
+    /* Ensure content appears above orbs */
+    .page-shell > *:not(.orb) {
+        position: relative;
+        z-index: 1;
     }
 
     .page-header {
