@@ -297,80 +297,16 @@
 }
 
 /* Navbar logo - theme-aware colors */
-/* Dark themes with dark navbar backgrounds */
-[data-theme="dark"] .navbar .brand-logo .logo-text-primary,
-[data-theme="coffee"] .navbar .brand-logo .logo-text-primary,
-[data-theme="aurora"] .navbar .brand-logo .logo-text-primary,
-[data-theme="nebula"] .navbar .brand-logo .logo-text-primary,
-[data-theme="midnight"] .navbar .brand-logo .logo-text-primary,
-[data-theme="charcoal"] .navbar .brand-logo .logo-text-primary,
-[data-theme="obsidian"] .navbar .brand-logo .logo-text-primary,
-[data-theme="slate"] .navbar .brand-logo .logo-text-primary {
+/* All themes use white logo on navbar gradient for maximum contrast */
+.navbar .brand-logo .logo-text-primary {
     fill: #ffffff;
 }
 
-[data-theme="dark"] .navbar .brand-logo .logo-text-secondary,
-[data-theme="coffee"] .navbar .brand-logo .logo-text-secondary,
-[data-theme="aurora"] .navbar .brand-logo .logo-text-secondary,
-[data-theme="nebula"] .navbar .brand-logo .logo-text-secondary,
-[data-theme="midnight"] .navbar .brand-logo .logo-text-secondary,
-[data-theme="charcoal"] .navbar .brand-logo .logo-text-secondary,
-[data-theme="obsidian"] .navbar .brand-logo .logo-text-secondary,
-[data-theme="slate"] .navbar .brand-logo .logo-text-secondary {
-    fill: rgba(255, 255, 255, 0.85);
-}
-
-[data-theme="dark"] .navbar .brand-logo .logo-bar,
-[data-theme="coffee"] .navbar .brand-logo .logo-bar,
-[data-theme="aurora"] .navbar .brand-logo .logo-bar,
-[data-theme="nebula"] .navbar .brand-logo .logo-bar,
-[data-theme="midnight"] .navbar .brand-logo .logo-bar,
-[data-theme="charcoal"] .navbar .brand-logo .logo-bar,
-[data-theme="obsidian"] .navbar .brand-logo .logo-bar,
-[data-theme="slate"] .navbar .brand-logo .logo-bar {
-    fill: #ffffff;
-}
-
-/* Light themes with bright navbar backgrounds */
-[data-theme="cosmo"] .navbar .brand-logo .logo-text-primary,
-[data-theme="spring"] .navbar .brand-logo .logo-text-primary,
-[data-theme="red"] .navbar .brand-logo .logo-text-primary,
-[data-theme="green"] .navbar .brand-logo .logo-text-primary,
-[data-theme="blue"] .navbar .brand-logo .logo-text-primary,
-[data-theme="purple"] .navbar .brand-logo .logo-text-primary,
-[data-theme="pink"] .navbar .brand-logo .logo-text-primary,
-[data-theme="orange"] .navbar .brand-logo .logo-text-primary,
-[data-theme="yellow"] .navbar .brand-logo .logo-text-primary,
-[data-theme="sunset"] .navbar .brand-logo .logo-text-primary,
-[data-theme="tide"] .navbar .brand-logo .logo-text-primary {
-    fill: #ffffff;
-}
-
-[data-theme="cosmo"] .navbar .brand-logo .logo-text-secondary,
-[data-theme="spring"] .navbar .brand-logo .logo-text-secondary,
-[data-theme="red"] .navbar .brand-logo .logo-text-secondary,
-[data-theme="green"] .navbar .brand-logo .logo-text-secondary,
-[data-theme="blue"] .navbar .brand-logo .logo-text-secondary,
-[data-theme="purple"] .navbar .brand-logo .logo-text-secondary,
-[data-theme="pink"] .navbar .brand-logo .logo-text-secondary,
-[data-theme="orange"] .navbar .brand-logo .logo-text-secondary,
-[data-theme="yellow"] .navbar .brand-logo .logo-text-secondary,
-[data-theme="sunset"] .navbar .brand-logo .logo-text-secondary,
-[data-theme="tide"] .navbar .brand-logo .logo-text-secondary {
+.navbar .brand-logo .logo-text-secondary {
     fill: rgba(255, 255, 255, 0.9);
 }
 
-[data-theme="cosmo"] .navbar .brand-logo .logo-bar,
-[data-theme="spring"] .navbar .brand-logo .logo-bar,
-[data-theme="red"] .navbar .brand-logo .logo-bar,
-[data-theme="green"] .navbar .brand-logo .logo-bar,
-[data-theme="blue"] .navbar .brand-logo .logo-bar,
-[data-theme="purple"] .navbar .brand-logo .logo-bar,
-[data-theme="pink"] .navbar .brand-logo .logo-bar,
-[data-theme="orange"] .navbar .brand-logo .logo-bar,
-[data-theme="yellow"] .navbar .brand-logo .logo-bar,
-[data-theme="sunset"] .navbar .brand-logo .logo-bar,
-[data-theme="tide"] .navbar .brand-logo .logo-bar {
+.navbar .brand-logo .logo-bar {
     fill: #ffffff;
 }
 
