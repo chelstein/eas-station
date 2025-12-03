@@ -45,6 +45,7 @@ from app_core.auth.mfa import (
     MFAManager, enroll_user_mfa, disable_user_mfa, verify_user_mfa
 )
 from app_core.auth.audit import AuditLog, AuditLogger, AuditAction
+from app_core.auth.ip_filter import IPFilter, IPFilterType, IPFilterReason
 
 
 security_bp = Blueprint('security', __name__, url_prefix='/security')
@@ -650,6 +651,158 @@ def security_settings():
         mfa_enabled=g.current_user.mfa_enabled,
         mfa_enrolled_at=g.current_user.mfa_enrolled_at
     )
+
+
+# ============================================================================
+# IP Filter Management Endpoints
+# ============================================================================
+
+@security_bp.route('/ip-filters', methods=['GET'])
+@require_permission('security.manage')
+def list_ip_filters():
+    """List all IP filters (allowlist and blocklist)."""
+    filter_type = request.args.get('type')  # allowlist or blocklist
+    is_active = request.args.get('active', type=lambda v: v.lower() == 'true' if v else None)
+    
+    query = IPFilter.query
+    
+    if filter_type:
+        query = query.filter_by(filter_type=filter_type)
+    
+    if is_active is not None:
+        query = query.filter_by(is_active=is_active)
+    
+    query = query.order_by(IPFilter.created_at.desc())
+    
+    filters = query.all()
+    
+    return jsonify({
+        'filters': [f.to_dict() for f in filters],
+        'total': len(filters)
+    })
+
+
+@security_bp.route('/ip-filters', methods=['POST'])
+@require_permission('security.manage')
+def add_ip_filter():
+    """Add a new IP filter."""
+    data = request.get_json()
+    
+    ip_address = data.get('ip_address')
+    filter_type = data.get('filter_type')  # allowlist or blocklist
+    description = data.get('description')
+    expires_in_hours = data.get('expires_in_hours')
+    
+    if not ip_address or not filter_type:
+        return jsonify({'error': 'ip_address and filter_type are required'}), 400
+    
+    if filter_type not in ['allowlist', 'blocklist']:
+        return jsonify({'error': 'filter_type must be allowlist or blocklist'}), 400
+    
+    user_id = session.get('user_id')
+    
+    try:
+        if filter_type == 'allowlist':
+            filter_entry = IPFilter.add_to_allowlist(
+                ip_address=ip_address,
+                description=description,
+                created_by=user_id
+            )
+        else:
+            filter_entry = IPFilter.add_to_blocklist(
+                ip_address=ip_address,
+                reason=IPFilterReason.MANUAL.value,
+                description=description,
+                created_by=user_id,
+                expires_in_hours=expires_in_hours
+            )
+        
+        # Log the action
+        AuditLogger.log(
+            action=AuditAction.CONFIG_UPDATED,
+            user_id=user_id,
+            details={
+                'action': f'added_{filter_type}',
+                'ip_address': ip_address
+            }
+        )
+        
+        return jsonify(filter_entry.to_dict()), 201
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+
+
+@security_bp.route('/ip-filters/<int:filter_id>', methods=['DELETE'])
+@require_permission('security.manage')
+def delete_ip_filter(filter_id):
+    """Delete an IP filter."""
+    user_id = session.get('user_id')
+    
+    filter_entry = IPFilter.query.get(filter_id)
+    if not filter_entry:
+        return jsonify({'error': 'Filter not found'}), 404
+    
+    ip_address = filter_entry.ip_address
+    filter_type = filter_entry.filter_type
+    
+    if IPFilter.remove_filter(filter_id):
+        # Log the action
+        AuditLogger.log(
+            action=AuditAction.CONFIG_UPDATED,
+            user_id=user_id,
+            details={
+                'action': f'removed_{filter_type}',
+                'ip_address': ip_address
+            }
+        )
+        
+        return jsonify({'success': True}), 200
+    else:
+        return jsonify({'error': 'Failed to delete filter'}), 500
+
+
+@security_bp.route('/ip-filters/<int:filter_id>/toggle', methods=['POST'])
+@require_permission('security.manage')
+def toggle_ip_filter(filter_id):
+    """Toggle an IP filter active/inactive."""
+    user_id = session.get('user_id')
+    
+    filter_entry = IPFilter.query.get(filter_id)
+    if not filter_entry:
+        return jsonify({'error': 'Filter not found'}), 404
+    
+    filter_entry.is_active = not filter_entry.is_active
+    db.session.add(filter_entry)
+    db.session.commit()
+    
+    # Log the action
+    AuditLogger.log(
+        action=AuditAction.CONFIG_UPDATED,
+        user_id=user_id,
+        details={
+            'action': f'toggled_{filter_entry.filter_type}',
+            'ip_address': filter_entry.ip_address,
+            'is_active': filter_entry.is_active
+        }
+    )
+    
+    return jsonify(filter_entry.to_dict()), 200
+
+
+@security_bp.route('/ip-filters/cleanup', methods=['POST'])
+@require_permission('security.manage')
+def cleanup_expired_filters():
+    """Clean up expired IP filters."""
+    count = IPFilter.cleanup_expired()
+    
+    user_id = session.get('user_id')
+    AuditLogger.log(
+        action=AuditAction.CONFIG_UPDATED,
+        user_id=user_id,
+        details={'action': 'cleanup_expired_filters', 'count': count}
+    )
+    
+    return jsonify({'cleaned_up': count}), 200
 
 
 # ============================================================================
