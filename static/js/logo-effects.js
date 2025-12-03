@@ -143,23 +143,53 @@
     }
 
     function updateGradientColors() {
-        const gradients = document.querySelectorAll('#logoGradient');
+        // Update all gradient types for new logo designs
+        const gradients = document.querySelectorAll('#logoGradient, #sleekGradient, #primaryGradient, #secondaryGradient, #modernGradient1, #modernGradient2');
 
         gradients.forEach(gradient => {
             const stops = gradient.querySelectorAll('stop');
-            if (stops.length >= 3) {
-                const primaryColor = getComputedStyle(document.documentElement)
-                    .getPropertyValue('--primary-color') || '#204885';
-                const secondaryColor = getComputedStyle(document.documentElement)
-                    .getPropertyValue('--secondary-color') || '#872a96';
+            const primaryColor = getComputedStyle(document.documentElement)
+                .getPropertyValue('--primary-color') || '#204885';
+            const secondaryColor = getComputedStyle(document.documentElement)
+                .getPropertyValue('--secondary-color') || '#872a96';
+            const accentColor = getComputedStyle(document.documentElement)
+                .getPropertyValue('--accent-color') || '#4f6fb3';
 
+            // Update based on gradient type
+            if (gradient.id === 'sleekGradient' && stops.length >= 3) {
+                stops[0].setAttribute('stop-color', primaryColor);
+                stops[1].setAttribute('stop-color', accentColor);
+                stops[2].setAttribute('stop-color', secondaryColor);
+            } else if (gradient.id === 'primaryGradient' && stops.length >= 2) {
+                stops[0].setAttribute('stop-color', primaryColor);
+                stops[1].setAttribute('stop-color', accentColor);
+            } else if (gradient.id === 'secondaryGradient' && stops.length >= 2) {
+                stops[0].setAttribute('stop-color', secondaryColor);
+                stops[1].setAttribute('stop-color', accentColor);
+            } else if ((gradient.id === 'modernGradient1' || gradient.id === 'logoGradient') && stops.length >= 2) {
                 stops[0].setAttribute('stop-color', primaryColor);
                 stops[1].setAttribute('stop-color', secondaryColor);
-                stops[2].setAttribute('stop-color', primaryColor);
+                if (stops.length >= 3) {
+                    stops[2].setAttribute('stop-color', primaryColor);
+                }
             }
         });
 
-        console.log('🎨 Logo gradients updated for new theme');
+        // Also update SVG text fills
+        const textPrimary = document.querySelectorAll('.logo-text-primary');
+        const textSecondary = document.querySelectorAll('.logo-text-secondary');
+        
+        textPrimary.forEach(text => {
+            text.setAttribute('fill', primaryColor);
+        });
+        
+        textSecondary.forEach(text => {
+            const textSecondaryColor = getComputedStyle(document.documentElement)
+                .getPropertyValue('--text-secondary') || '#5a6c8f';
+            text.setAttribute('fill', textSecondaryColor);
+        });
+
+        console.log('🎨 Logo gradients and colors updated for new theme');
     }
 
     // ============================================

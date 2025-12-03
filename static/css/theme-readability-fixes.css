@@ -1,0 +1,653 @@
+/**
+ * EAS Station - Theme Readability Fixes
+ * Comprehensive fixes for all 19 themes to ensure proper contrast and readability
+ * Addresses: card headers, form controls, switches, checkboxes, and general text visibility
+ * Version: 1.0
+ */
+
+/* ============================================
+   CARD HEADER FIXES - Ensure text is always visible
+   ============================================ */
+
+/* Default card headers - ensure proper contrast */
+.card-header {
+    background-color: var(--surface-color);
+    color: var(--text-color);
+    border-bottom: 1px solid var(--border-color);
+    padding: 0.75rem 1.25rem;
+    font-weight: 600;
+}
+
+/* Card headers with background classes need explicit text colors */
+.card-header.bg-primary {
+    background-color: var(--primary-color) !important;
+    color: #ffffff !important;
+    border-color: var(--primary-color);
+}
+
+.card-header.bg-secondary {
+    background-color: var(--secondary-color) !important;
+    color: #ffffff !important;
+    border-color: var(--secondary-color);
+}
+
+.card-header.bg-info {
+    background-color: var(--info-color) !important;
+    color: #ffffff !important;
+    border-color: var(--info-color);
+}
+
+.card-header.bg-success {
+    background-color: var(--success-color) !important;
+    color: #ffffff !important;
+    border-color: var(--success-color);
+}
+
+.card-header.bg-warning {
+    background-color: var(--warning-color) !important;
+    color: #1a1a1a !important;
+    border-color: var(--warning-color);
+}
+
+.card-header.bg-danger {
+    background-color: var(--danger-color) !important;
+    color: #ffffff !important;
+    border-color: var(--danger-color);
+}
+
+.card-header.bg-dark {
+    background-color: var(--dark-color) !important;
+    color: #ffffff !important;
+    border-color: var(--dark-color);
+}
+
+.card-header.bg-light {
+    background-color: var(--light-color) !important;
+    color: var(--text-color) !important;
+    border-color: var(--border-color);
+}
+
+/* Fix card body text visibility */
+.card-body {
+    background-color: var(--surface-color);
+    color: var(--text-color);
+}
+
+.card-footer {
+    background-color: var(--surface-color);
+    color: var(--text-color);
+    border-top: 1px solid var(--border-color);
+}
+
+/* ============================================
+   FORM CHECK AND SWITCH FIXES
+   ============================================ */
+
+/* Form check labels must be visible */
+.form-check-label {
+    color: var(--text-color) !important;
+    font-weight: 500;
+    cursor: pointer;
+}
+
+/* Form check input visibility */
+.form-check-input {
+    background-color: var(--surface-color);
+    border: 2px solid var(--border-color);
+    cursor: pointer;
+}
+
+.form-check-input:checked {
+    background-color: var(--primary-color);
+    border-color: var(--primary-color);
+}
+
+.form-check-input:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 0.25rem rgba(32, 72, 133, 0.25);
+}
+
+/* Form switches - ensure thumb is visible */
+.form-switch .form-check-input {
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='-4 -4 8 8'%3e%3ccircle r='3' fill='%23fff'/%3e%3c/svg%3e");
+    background-color: var(--text-muted);
+    border: 2px solid var(--border-color);
+}
+
+.form-switch .form-check-input:checked {
+    background-color: var(--primary-color);
+    border-color: var(--primary-color);
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='-4 -4 8 8'%3e%3ccircle r='3' fill='%23fff'/%3e%3c/svg%3e");
+}
+
+.form-switch .form-check-input:focus {
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='-4 -4 8 8'%3e%3ccircle r='3' fill='%23fff'/%3e%3c/svg%3e");
+}
+
+/* ============================================
+   THEME-SPECIFIC LOGO COLOR FIXES
+   ============================================ */
+
+/* Light themes - keep original logo colors */
+[data-theme="cosmo"] .logo-text-primary,
+[data-theme="spring"] .logo-text-primary,
+[data-theme="red"] .logo-text-primary,
+[data-theme="green"] .logo-text-primary,
+[data-theme="blue"] .logo-text-primary,
+[data-theme="purple"] .logo-text-primary,
+[data-theme="pink"] .logo-text-primary,
+[data-theme="orange"] .logo-text-primary,
+[data-theme="yellow"] .logo-text-primary,
+[data-theme="sunset"] .logo-text-primary,
+[data-theme="tide"] .logo-text-primary {
+    fill: var(--primary-color);
+}
+
+[data-theme="cosmo"] .logo-text-secondary,
+[data-theme="spring"] .logo-text-secondary,
+[data-theme="red"] .logo-text-secondary,
+[data-theme="green"] .logo-text-secondary,
+[data-theme="blue"] .logo-text-secondary,
+[data-theme="purple"] .logo-text-secondary,
+[data-theme="pink"] .logo-text-secondary,
+[data-theme="orange"] .logo-text-secondary,
+[data-theme="yellow"] .logo-text-secondary,
+[data-theme="sunset"] .logo-text-secondary,
+[data-theme="tide"] .logo-text-secondary {
+    fill: var(--text-secondary);
+}
+
+/* Dark themes - brighten logo for visibility */
+[data-theme="dark"] .logo-text-primary,
+[data-theme="coffee"] .logo-text-primary,
+[data-theme="aurora"] .logo-text-primary,
+[data-theme="nebula"] .logo-text-primary,
+[data-theme="midnight"] .logo-text-primary,
+[data-theme="charcoal"] .logo-text-primary,
+[data-theme="obsidian"] .logo-text-primary,
+[data-theme="slate"] .logo-text-primary {
+    fill: var(--primary-color);
+}
+
+[data-theme="dark"] .logo-text-secondary,
+[data-theme="coffee"] .logo-text-secondary,
+[data-theme="aurora"] .logo-text-secondary,
+[data-theme="nebula"] .logo-text-secondary,
+[data-theme="midnight"] .logo-text-secondary,
+[data-theme="charcoal"] .logo-text-secondary,
+[data-theme="obsidian"] .logo-text-secondary,
+[data-theme="slate"] .logo-text-secondary {
+    fill: var(--text-secondary);
+}
+
+/* Logo bars adapt to theme */
+[data-theme="dark"] .logo-bar,
+[data-theme="coffee"] .logo-bar,
+[data-theme="aurora"] .logo-bar,
+[data-theme="nebula"] .logo-bar,
+[data-theme="midnight"] .logo-bar,
+[data-theme="charcoal"] .logo-bar,
+[data-theme="obsidian"] .logo-bar,
+[data-theme="slate"] .logo-bar {
+    fill: var(--primary-color);
+    opacity: 0.9;
+}
+
+/* ============================================
+   SPECIFIC THEME READABILITY FIXES
+   ============================================ */
+
+/* Yellow theme - dark text on light backgrounds */
+[data-theme="yellow"] {
+    --text-color: #3e2723;
+    --text-secondary: #5d4037;
+}
+
+[data-theme="yellow"] .card-header {
+    color: var(--text-color);
+}
+
+[data-theme="yellow"] .form-check-label {
+    color: var(--text-color) !important;
+}
+
+/* Orange theme - ensure readability */
+[data-theme="orange"] {
+    --text-color: #3e2723;
+    --text-secondary: #5d4037;
+}
+
+[data-theme="orange"] .card-header {
+    color: var(--text-color);
+}
+
+[data-theme="orange"] .form-check-label {
+    color: var(--text-color) !important;
+}
+
+/* Sunset theme - ensure contrast */
+[data-theme="sunset"] .card-header {
+    color: var(--text-color);
+}
+
+[data-theme="sunset"] .form-check-label {
+    color: var(--text-color) !important;
+}
+
+/* Pink theme - ensure readability */
+[data-theme="pink"] .card-header {
+    color: var(--text-color);
+}
+
+[data-theme="pink"] .form-check-label {
+    color: var(--text-color) !important;
+}
+
+/* Spring theme - ensure readability */
+[data-theme="spring"] .card-header {
+    color: var(--text-color);
+}
+
+[data-theme="spring"] .form-check-label {
+    color: var(--text-color) !important;
+}
+
+/* Red theme - ensure readability */
+[data-theme="red"] .card-header {
+    color: var(--text-color);
+}
+
+[data-theme="red"] .form-check-label {
+    color: var(--text-color) !important;
+}
+
+/* Green theme - ensure readability */
+[data-theme="green"] .card-header {
+    color: var(--text-color);
+}
+
+[data-theme="green"] .form-check-label {
+    color: var(--text-color) !important;
+}
+
+/* Blue theme - ensure readability */
+[data-theme="blue"] .card-header {
+    color: var(--text-color);
+}
+
+[data-theme="blue"] .form-check-label {
+    color: var(--text-color) !important;
+}
+
+/* Purple theme - ensure readability */
+[data-theme="purple"] .card-header {
+    color: var(--text-color);
+}
+
+[data-theme="purple"] .form-check-label {
+    color: var(--text-color) !important;
+}
+
+/* Tide theme - ensure readability */
+[data-theme="tide"] .card-header {
+    color: var(--text-color);
+}
+
+[data-theme="tide"] .form-check-label {
+    color: var(--text-color) !important;
+}
+
+/* Aurora theme - ensure readability */
+[data-theme="aurora"] .card-header {
+    color: var(--text-color);
+}
+
+[data-theme="aurora"] .form-check-label {
+    color: var(--text-color) !important;
+}
+
+/* Nebula theme - ensure readability */
+[data-theme="nebula"] .card-header {
+    color: var(--text-color);
+}
+
+[data-theme="nebula"] .form-check-label {
+    color: var(--text-color) !important;
+}
+
+/* Midnight theme - ensure readability */
+[data-theme="midnight"] .card-header {
+    color: var(--text-color);
+}
+
+[data-theme="midnight"] .form-check-label {
+    color: var(--text-color) !important;
+}
+
+/* Charcoal theme - ensure readability */
+[data-theme="charcoal"] .card-header {
+    color: var(--text-color);
+}
+
+[data-theme="charcoal"] .form-check-label {
+    color: var(--text-color) !important;
+}
+
+/* Obsidian theme - ensure readability */
+[data-theme="obsidian"] .card-header {
+    color: var(--text-color);
+}
+
+[data-theme="obsidian"] .form-check-label {
+    color: var(--text-color) !important;
+}
+
+/* Slate theme - ensure readability */
+[data-theme="slate"] .card-header {
+    color: var(--text-color);
+}
+
+[data-theme="slate"] .form-check-label {
+    color: var(--text-color) !important;
+}
+
+/* Coffee theme - ensure readability */
+[data-theme="coffee"] .card-header {
+    color: var(--text-color);
+}
+
+[data-theme="coffee"] .form-check-label {
+    color: var(--text-color) !important;
+}
+
+/* Dark theme - ensure readability */
+[data-theme="dark"] .card-header {
+    color: var(--text-color);
+}
+
+[data-theme="dark"] .form-check-label {
+    color: var(--text-color) !important;
+}
+
+/* Cosmo theme (default) - ensure readability */
+[data-theme="cosmo"] .card-header {
+    color: var(--text-color);
+}
+
+[data-theme="cosmo"] .form-check-label {
+    color: var(--text-color) !important;
+}
+
+/* ============================================
+   FORM CONTROL ENHANCEMENTS
+   ============================================ */
+
+/* Ensure all form controls have good contrast */
+.form-control,
+.form-select,
+textarea,
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="number"],
+input[type="search"],
+input[type="tel"],
+input[type="url"] {
+    background-color: var(--surface-color);
+    color: var(--text-color);
+    border: 2px solid var(--border-color);
+}
+
+.form-control:focus,
+.form-select:focus,
+textarea:focus {
+    background-color: var(--surface-color);
+    color: var(--text-color);
+    border-color: var(--primary-color);
+}
+
+.form-control::placeholder {
+    color: var(--text-muted);
+    opacity: 0.7;
+}
+
+/* ============================================
+   BUTTON TEXT CONTRAST
+   ============================================ */
+
+/* Ensure button text is always readable */
+.btn-primary {
+    background-color: var(--primary-color);
+    border-color: var(--primary-color);
+    color: #ffffff !important;
+}
+
+.btn-secondary {
+    background-color: var(--secondary-color);
+    border-color: var(--secondary-color);
+    color: #ffffff !important;
+}
+
+.btn-success {
+    background-color: var(--success-color);
+    border-color: var(--success-color);
+    color: #ffffff !important;
+}
+
+.btn-danger {
+    background-color: var(--danger-color);
+    border-color: var(--danger-color);
+    color: #ffffff !important;
+}
+
+.btn-warning {
+    background-color: var(--warning-color);
+    border-color: var(--warning-color);
+    color: #1a1a1a !important;
+}
+
+.btn-info {
+    background-color: var(--info-color);
+    border-color: var(--info-color);
+    color: #ffffff !important;
+}
+
+/* ============================================
+   LIST GROUP ITEMS
+   ============================================ */
+
+.list-group-item {
+    background-color: var(--surface-color);
+    color: var(--text-color);
+    border-color: var(--border-color);
+}
+
+.list-group-item:hover {
+    background-color: var(--light-color);
+    color: var(--text-color);
+}
+
+/* ============================================
+   MODAL READABILITY
+   ============================================ */
+
+.modal-content {
+    background-color: var(--surface-color);
+    color: var(--text-color);
+}
+
+.modal-header {
+    background-color: var(--surface-color);
+    color: var(--text-color);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.modal-footer {
+    background-color: var(--surface-color);
+    color: var(--text-color);
+    border-top: 1px solid var(--border-color);
+}
+
+.modal-title {
+    color: var(--text-color);
+}
+
+/* ============================================
+   TABLE READABILITY
+   ============================================ */
+
+.table {
+    color: var(--text-color);
+}
+
+.table tbody td {
+    color: var(--text-color);
+}
+
+/* ============================================
+   NAVBAR TEXT
+   ============================================ */
+
+.navbar {
+    color: var(--text-color);
+}
+
+.navbar-brand {
+    color: var(--text-color);
+}
+
+.nav-link {
+    color: var(--text-secondary);
+}
+
+.nav-link:hover,
+.nav-link:focus {
+    color: var(--primary-color);
+}
+
+/* ============================================
+   BADGE READABILITY
+   ============================================ */
+
+.badge {
+    font-weight: 600;
+}
+
+.badge.bg-primary {
+    background-color: var(--primary-color) !important;
+    color: #ffffff !important;
+}
+
+.badge.bg-secondary {
+    background-color: var(--secondary-color) !important;
+    color: #ffffff !important;
+}
+
+.badge.bg-success {
+    background-color: var(--success-color) !important;
+    color: #ffffff !important;
+}
+
+.badge.bg-danger {
+    background-color: var(--danger-color) !important;
+    color: #ffffff !important;
+}
+
+.badge.bg-warning {
+    background-color: var(--warning-color) !important;
+    color: #1a1a1a !important;
+}
+
+.badge.bg-info {
+    background-color: var(--info-color) !important;
+    color: #ffffff !important;
+}
+
+/* ============================================
+   ALERT READABILITY
+   ============================================ */
+
+.alert {
+    border-width: 1px;
+    border-style: solid;
+}
+
+.alert-success {
+    background-color: rgba(46, 176, 141, 0.15);
+    border-color: var(--success-color);
+    color: var(--text-color);
+}
+
+.alert-warning {
+    background-color: rgba(246, 185, 104, 0.15);
+    border-color: var(--warning-color);
+    color: var(--text-color);
+}
+
+.alert-danger {
+    background-color: rgba(224, 82, 99, 0.15);
+    border-color: var(--danger-color);
+    color: var(--text-color);
+}
+
+.alert-info {
+    background-color: rgba(47, 90, 161, 0.15);
+    border-color: var(--info-color);
+    color: var(--text-color);
+}
+
+/* ============================================
+   DROPDOWN MENUS
+   ============================================ */
+
+.dropdown-menu {
+    background-color: var(--surface-color);
+    border-color: var(--border-color);
+}
+
+.dropdown-item {
+    color: var(--text-color);
+}
+
+.dropdown-item:hover,
+.dropdown-item:focus {
+    background-color: var(--light-color);
+    color: var(--text-color);
+}
+
+/* ============================================
+   TEXT COLOR UTILITIES
+   ============================================ */
+
+.text-muted {
+    color: var(--text-muted) !important;
+}
+
+.text-secondary {
+    color: var(--text-secondary) !important;
+}
+
+/* ============================================
+   ACCESSIBILITY ENHANCEMENTS
+   ============================================ */
+
+/* Ensure focus states are always visible */
+*:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+    .card-header {
+        border-width: 2px;
+    }
+    
+    .form-check-input {
+        border-width: 3px;
+    }
+    
+    .btn {
+        border-width: 2px;
+    }
+}
