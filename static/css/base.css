@@ -946,6 +946,13 @@ a:focus {
     border-bottom: 2px solid var(--border-color);
 }
 
+/* Bootstrap table-light class - fix gray text readability in light themes */
+.table-light th,
+thead.table-light th {
+    color: #212529 !important;
+    font-weight: 600 !important;
+}
+
 /* Bootstrap table-light class in dark themes */
 [data-theme-mode="dark"] .table-light th,
 [data-theme-mode="dark"] thead.table-light th {

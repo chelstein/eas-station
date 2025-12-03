@@ -655,6 +655,15 @@ def security_settings():
     )
 
 
+@security_bp.route('/malicious-logins', methods=['GET'])
+@require_permission('logs.view')
+def view_malicious_logins():
+    """Web page to view and manage malicious login attempts and IP filters."""
+    from flask import render_template
+
+    return render_template('admin/malicious_logins.html')
+
+
 # ============================================================================
 # IP Filter Management Endpoints
 # ============================================================================
