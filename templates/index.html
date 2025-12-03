@@ -40,7 +40,7 @@
     }
 
     .page-header {
-        background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+        background: linear-gradient(135deg, var(--primary-dark, var(--primary-color)), var(--secondary-dark, var(--secondary-color)));
         border-radius: var(--radius-md);
         color: #fff;
         padding: var(--spacing-md) var(--spacing-lg);
@@ -54,19 +54,6 @@
         box-shadow: 0 8px 20px rgba(32, 72, 133, 0.2);
     }
 
-    /* Add dark overlay to ensure text is always readable on gradient */
-    .page-header::before {
-        content: "";
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: rgba(0, 0, 0, 0.4);
-        pointer-events: none;
-        z-index: 0;
-    }
-
     .page-header::after {
         content: "";
         position: absolute;
@@ -76,7 +63,6 @@
         background: radial-gradient(circle at center, rgba(255, 255, 255, 0.15), transparent 70%);
         transform: rotate(-12deg);
         pointer-events: none;
-        z-index: 0;
     }
 
     .page-header .header-content {
