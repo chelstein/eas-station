@@ -33,6 +33,31 @@
 - ✅ **Proper debugging** - Set breakpoints, inspect variables, step through code
 - ✅ **Clean Git history** - Only commit working, tested code
 
+### How It Works (Windows → Pi)
+
+```
+Your Windows Computer                    Raspberry Pi
+┌─────────────────────┐                 ┌──────────────────────┐
+│  PyCharm/VS Code    │                 │   Docker Containers   │
+│  ┌───────────────┐  │   SSH + Code   │  ┌────────────────┐  │
+│  │ Edit Code     │──┼────────────────>│  │ Python App     │  │
+│  │ Set Breakpoint│  │                 │  │ (your code)    │  │
+│  │ View Variables│  │                 │  └────────┬───────┘  │
+│  └───────────────┘  │                 │           │           │
+│                     │                 │           ▼           │
+│  ┌───────────────┐  │   Port 5432    │  ┌────────────────┐  │
+│  │ Database Tools│──┼────────────────>│  │ PostgreSQL DB  │  │
+│  │ (pgAdmin, etc)│  │                 │  │ (alerts_dev)   │  │
+│  └───────────────┘  │                 │  └────────────────┘  │
+│                     │                 │                      │
+│  ┌───────────────┐  │   Port 5050    │  ┌────────────────┐  │
+│  │ Web Browser   │──┼────────────────>│  │ pgAdmin Web    │  │
+│  └───────────────┘  │                 │  └────────────────┘  │
+└─────────────────────┘                 └──────────────────────┘
+```
+
+**Key Insight**: Your code runs ON the Pi (via SSH), but you edit and debug from Windows!
+
 ---
 
 ## Getting the Right IDE
@@ -271,13 +296,45 @@ The development configuration includes an embedded PostgreSQL database for isola
 
 ### Understanding Database Connection
 
-The database hostname in your `.env` file depends on **where your Python code is running**:
+**IMPORTANT**: The database hostname depends on WHERE your Python code is running:
 
-| Running Mode | POSTGRES_HOST Value | Why |
-|--------------|-------------------|-----|
-| **In Docker container** (normal) | `alerts-db` | Docker service name |
-| **PyCharm SSH debugging** (on Pi) | `localhost` | Port exposed to Pi's localhost |
-| **Local debugging** (on Windows/Mac) | `192.168.1.100` | Pi's actual IP address |
+| Running Mode | Where Code Runs | POSTGRES_HOST Value | Why |
+|--------------|-----------------|-------------------|-----|
+| **In Docker container** | Inside Docker on Pi | `alerts-db` | Docker service name |
+| **PyCharm SSH Remote Interpreter** | On Pi via SSH | `localhost` | Port exposed to Pi's localhost |
+| **PyCharm Local Debugging** | On your Windows/Mac | `192.168.1.100` | Pi's actual IP address |
+
+### Two Ways to Use PyCharm
+
+#### Method 1: SSH Remote Interpreter (Recommended)
+
+**How it works**:
+- PyCharm on your Windows machine
+- Python code runs **on the Pi** via SSH
+- PyCharm just shows you the output
+
+**Database connection** in `.env` on the Pi:
+```bash
+POSTGRES_HOST=localhost  # Because code runs ON the Pi
+POSTGRES_PORT=5432
+```
+
+This is what the Quick Start section configures by default.
+
+#### Method 2: Local Debugging from Windows
+
+**How it works**:
+- PyCharm on your Windows machine
+- Python code runs **on Windows**
+- Connects to database on Pi over network
+
+**Database connection** in `.env` on Windows:
+```bash
+POSTGRES_HOST=192.168.1.100  # Your Pi's actual IP address
+POSTGRES_PORT=5432
+```
+
+**Note**: You'll also need to install Python dependencies on Windows and ensure the Pi's firewall allows port 5432.
 
 ### Default Configuration (Embedded Database)
 
@@ -332,47 +389,76 @@ docker-compose logs app | grep -i "database\|postgres"
 # You should see: "Connected to PostgreSQL" or similar
 ```
 
-### Database Tools
+### Accessing the Database from Windows
 
-#### Option 1: pgAdmin (Included by Default)
+The database runs on the Pi, but you can access it from your Windows machine in several ways:
 
-pgAdmin is automatically started with the development environment and provides a web-based database management interface.
+#### Option 1: pgAdmin Web Interface (Easiest)
 
-**Access pgAdmin**:
-1. Open your web browser
+pgAdmin runs on the Pi but you access it from your Windows web browser:
+
+1. **Open your Windows web browser**
 2. Go to: `http://YOUR_PI_IP:5050` (e.g., `http://192.168.1.100:5050`)
 3. Login:
    - Email: `admin@localhost`
    - Password: `admin`
-4. Add database server (first time only):
+4. **Add database server** (first time only):
    - Right-click **Servers** → **Register** → **Server**
    - **General** tab:
      - Name: `EAS Station Dev`
    - **Connection** tab:
-     - Host: `alerts-db`
-     - Port: `5432`
-     - Database: `alerts_dev`
-     - Username: `postgres`
-     - Password: `devpassword`
+     - **Host**: `alerts-db` (this is correct - pgAdmin runs on Pi in Docker network)
+     - **Port**: `5432`
+     - **Database**: `alerts_dev`
+     - **Username**: `postgres`
+     - **Password**: `devpassword`
    - Click **Save**
 
-You can now browse tables, run queries, and manage the database from your web browser.
+You can now browse tables, run queries, and manage the database from your Windows browser!
 
-#### Option 2: Connect with psql
+#### Option 2: Windows Desktop Database Tools (PyCharm DataGrip, DBeaver, TablePlus, etc.)
 
+Connect from Windows desktop tools directly to the Pi:
+
+**Connection settings**:
+- **Host**: Your Pi's IP (e.g., `192.168.1.100`)
+- **Port**: `5432`
+- **Database**: `alerts_dev`
+- **Username**: `postgres`
+- **Password**: `devpassword`
+
+**PyCharm Professional includes DataGrip database tools**:
+1. In PyCharm, open **Database** tool window (View → Tool Windows → Database)
+2. Click **+** → **Data Source** → **PostgreSQL**
+3. Enter the connection settings above
+4. Click **Test Connection** → **OK**
+
+#### Option 3: psql from the Pi
+
+If you SSH into the Pi:
 ```bash
-# From the Pi
+# From SSH session on the Pi
 psql -h localhost -U postgres -d alerts_dev
 ```
 
-#### Option 3: External GUI Tools
+### Ensuring Database Access from Windows
 
-Connect with desktop tools (DBeaver, TablePlus, DataGrip, etc.) from your computer:
-- Host: Your Pi's IP (e.g., `192.168.1.100`)
-- Port: `5432`
-- Database: `alerts_dev`
-- Username: `postgres`
-- Password: `devpassword`
+The database port (5432) is automatically exposed when you start with `--profile embedded-db`. Verify the Pi's firewall allows it:
+
+```bash
+# On the Pi, check if port 5432 is listening
+sudo netstat -tlnp | grep 5432
+
+# If you have ufw firewall enabled, allow the port:
+sudo ufw allow 5432/tcp
+sudo ufw status
+```
+
+**Test connectivity from Windows**:
+```powershell
+# In Windows PowerShell, test if you can reach the database port
+Test-NetConnection -ComputerName 192.168.1.100 -Port 5432
+```
 
 ---
 
@@ -468,25 +554,84 @@ ssh pi@192.168.1.100
 
 ### Problem: "Can't connect to database"
 
+**Cause**: Wrong hostname in `.env` or network/firewall issue.
+
 **Solution**:
 
-Check your `.env` file has the correct `POSTGRES_HOST`:
+1. **Check your `.env` file has the correct `POSTGRES_HOST`**:
 
 ```bash
-# For PyCharm SSH debugging on Pi, use:
+# For PyCharm SSH Remote Interpreter (code runs ON Pi):
 POSTGRES_HOST=localhost
 
-# For running in Docker container, use:
+# For running in Docker container:
 POSTGRES_HOST=alerts-db
 
-# For local debugging on Windows/Mac, use:
+# For local debugging on Windows (code runs ON Windows):
 POSTGRES_HOST=192.168.1.100  # Your Pi's actual IP
 ```
 
-Then restart:
+2. **For Windows desktop tools or local debugging**, verify network connectivity:
+
+```powershell
+# Test from Windows PowerShell:
+Test-NetConnection -ComputerName 192.168.1.100 -Port 5432
+```
+
+If this fails, check the Pi's firewall:
+```bash
+# On the Pi:
+sudo ufw allow 5432/tcp
+sudo ufw status
+
+# Verify the port is exposed:
+sudo netstat -tlnp | grep 5432
+```
+
+3. **Restart containers** after changing `.env`:
 ```bash
 docker-compose restart app
 docker-compose logs app
+```
+
+---
+
+### Problem: "Can't connect to database from Windows tools"
+
+**Cause**: Firewall blocking port 5432 or database not exposed.
+
+**Solution**:
+
+1. **Verify the database port is exposed** in `docker-compose.override.yml`:
+```yaml
+alerts-db:
+  ports:
+    - "5432:5432"  # This line must be present
+```
+
+2. **Check Pi's firewall**:
+```bash
+# On the Pi:
+sudo ufw allow 5432/tcp
+
+# If ufw is not active:
+sudo ufw status
+```
+
+3. **Test from Windows**:
+```powershell
+# Windows PowerShell:
+Test-NetConnection -ComputerName 192.168.1.100 -Port 5432
+
+# Should show: TcpTestSucceeded : True
+```
+
+4. **Verify Docker is listening on all interfaces** (not just localhost):
+```bash
+# On the Pi:
+sudo netstat -tlnp | grep 5432
+
+# Should show: 0.0.0.0:5432 (not 127.0.0.1:5432)
 ```
 
 ---
@@ -651,11 +796,17 @@ docker-compose down
 
 You now have a complete development environment where you can:
 
-1. ✅ Edit code in your IDE on your local machine
+1. ✅ Edit code in PyCharm/VS Code on your Windows machine
 2. ✅ Run and debug on real Raspberry Pi hardware
-3. ✅ Set breakpoints and inspect variables
-4. ✅ Test with actual GPIO, audio, and SDR hardware
-5. ✅ Commit only working, tested code to GitHub
+3. ✅ Access the database from Windows (pgAdmin web, desktop tools, PyCharm DataGrip)
+4. ✅ Set breakpoints and inspect variables
+5. ✅ Test with actual GPIO, audio, and SDR hardware
+6. ✅ Commit only working, tested code to GitHub
+
+**Key Points**:
+- **PyCharm on Windows** → Code runs on Pi via SSH → Database uses `localhost`
+- **Windows database tools** → Connect to Pi's IP (e.g., `192.168.1.100:5432`)
+- **pgAdmin web** → Access from Windows browser at `http://PI_IP:5050`
 
 **No more broken PRs. No more guess-and-check debugging. No more wasted time.**
 
