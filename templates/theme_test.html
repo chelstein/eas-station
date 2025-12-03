@@ -28,7 +28,8 @@
                     <h3 class="mb-0">Logo Display</h3>
                 </div>
                 <div class="card-body text-center py-5" style="background: var(--bg-color);">
-                    {% include 'partials/logo_wordmark.html' with {'logo_style': 'height: 120px;'} %}
+                    {% set logo_style = 'height: 120px;' %}
+                    {% include 'partials/logo_wordmark.html' %}
                     <div class="mt-3">
                         <small class="text-muted">Current theme: <strong id="current-theme-name"></strong></small>
                     </div>

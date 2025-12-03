@@ -195,6 +195,9 @@
 
 /* ============================================
    SPECIFIC THEME READABILITY FIXES
+   These override theme variables to fix inadequate contrast
+   in base.css theme definitions. Without these overrides,
+   some light themes have poor text visibility.
    ============================================ */
 
 /* Yellow theme - dark text on light backgrounds */
