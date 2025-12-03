@@ -43,7 +43,10 @@
     color: #ffffff !important;
 }
 
-/* Light themes need darker text for contrast on bright gradient backgrounds */
+/* Light themes - add text-shadow for better contrast on bright gradient backgrounds
+   Note: Explicit theme selectors are used (rather than a shared class) to ensure 
+   theme-specific overrides work correctly and to maintain clarity about which 
+   themes receive the enhancement */
 [data-theme="cosmo"] .navbar .navbar-brand,
 [data-theme="cosmo"] .navbar .nav-link,
 [data-theme="cosmo"] .navbar .navbar-toggler,
