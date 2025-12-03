@@ -277,6 +277,13 @@
                                 </a>
                             </li>
                             {% endif %}
+                            {% if can_view_logs %}
+                            <li>
+                                <a class="dropdown-item" href="/security/malicious-logins">
+                                    <i class="fas fa-shield-exclamation"></i> Malicious Login Attempts
+                                </a>
+                            </li>
+                            {% endif %}
                             {% endif %}
                         </ul>
                     </li>
