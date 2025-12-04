@@ -916,10 +916,11 @@ class _SoapySDRReceiver(ReceiverInterface):
         consecutive_failures = 0
         
         # Initialize ring buffer for jitter absorption
-        # 0.5 seconds of buffer is usually enough to absorb USB jitter
-        ring_buffer_size = int(self.config.sample_rate * 0.5)
-        # Ensure buffer is at least 4x the read chunk size
-        ring_buffer_size = max(ring_buffer_size, 65536)
+        # Use centralized buffer size calculation for consistency
+        ring_buffer_size = calculate_buffer_size(
+            self.config.sample_rate,
+            buffer_time_seconds=0.5
+        )
         
         ring_buffer = None
         ring_write_pos = 0
@@ -968,8 +969,10 @@ class _SoapySDRReceiver(ReceiverInterface):
                 buffer = new_handle.numpy.zeros(capture_buffer_size, dtype=new_handle.numpy.complex64)
                 
                 # Re-initialize ring buffer on new connection
-                ring_buffer_size = int(self.config.sample_rate * 0.5)
-                ring_buffer_size = max(ring_buffer_size, 65536)
+                ring_buffer_size = calculate_buffer_size(
+                    self.config.sample_rate,
+                    buffer_time_seconds=0.5
+                )
                 ring_buffer = new_handle.numpy.zeros(ring_buffer_size, dtype=new_handle.numpy.complex64)
                 ring_write_pos = 0
                 
