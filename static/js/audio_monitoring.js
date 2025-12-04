@@ -1109,6 +1109,103 @@ async function deleteSource(sourceId) {
 }
 
 /**
+ * Update edit source type specific configuration
+ */
+function updateEditSourceTypeConfig(sourceType, deviceParams) {
+    const container = document.getElementById('editSourceTypeConfig');
+
+    let html = '';
+
+    switch (sourceType) {
+        case 'stream':
+            const streamUrl = deviceParams?.stream_url || '';
+            const streamFormat = deviceParams?.format || 'mp3';
+            html = `
+                <div class="mb-3">
+                    <label for="editStreamUrl" class="form-label">Stream URL <span class="text-danger">*</span></label>
+                    <input type="url" class="form-control" id="editStreamUrl"
+                           value="${escapeHtml(streamUrl)}"
+                           placeholder="https://stream.revma.ihrhls.com/zc####" required>
+                    <small class="form-text text-muted">
+                        <strong>Examples:</strong><br>
+                        • iHeartRadio: https://stream.revma.ihrhls.com/zc####<br>
+                        • Direct MP3: https://example.com/stream.mp3<br>
+                        • M3U Playlist: https://example.com/playlist.m3u8<br>
+                        Supports MP3, AAC, and OGG formats with automatic reconnection.
+                    </small>
+                </div>
+                <div class="mb-3">
+                    <label for="editStreamFormat" class="form-label">Stream Format</label>
+                    <select class="form-select" id="editStreamFormat">
+                        <option value="mp3" ${streamFormat === 'mp3' ? 'selected' : ''}>MP3 (auto-detect)</option>
+                        <option value="aac" ${streamFormat === 'aac' ? 'selected' : ''}>AAC</option>
+                        <option value="ogg" ${streamFormat === 'ogg' ? 'selected' : ''}>OGG Vorbis</option>
+                        <option value="raw" ${streamFormat === 'raw' ? 'selected' : ''}>Raw PCM</option>
+                    </select>
+                    <small class="form-text text-muted">Format will be auto-detected from HTTP Content-Type header</small>
+                </div>
+            `;
+            break;
+        case 'alsa':
+            const deviceName = deviceParams?.device_name || 'default';
+            html = `
+                <div class="mb-3">
+                    <label for="editDeviceName" class="form-label">ALSA Device Name</label>
+                    <input type="text" class="form-control" id="editDeviceName"
+                           value="${escapeHtml(deviceName)}"
+                           placeholder="e.g., default, hw:0,0">
+                    <small class="form-text text-muted">Leave as "default" to use system default device</small>
+                </div>
+            `;
+            break;
+        case 'pulse':
+            const deviceIndex = deviceParams?.device_index || '';
+            html = `
+                <div class="mb-3">
+                    <label for="editDeviceIndex" class="form-label">PulseAudio Device Index (optional)</label>
+                    <input type="number" class="form-control" id="editDeviceIndex"
+                           value="${deviceIndex}"
+                           placeholder="Leave blank for default">
+                    <small class="form-text text-muted">Optional: Specific device index from PulseAudio</small>
+                </div>
+            `;
+            break;
+        case 'file':
+            const filePath = deviceParams?.file_path || '';
+            const loop = deviceParams?.loop !== false;
+            html = `
+                <div class="mb-3">
+                    <label for="editFilePath" class="form-label">Audio File Path <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" id="editFilePath"
+                           value="${escapeHtml(filePath)}"
+                           placeholder="/path/to/audio.wav" required>
+                    <small class="form-text text-muted">Absolute path to WAV or MP3 file</small>
+                </div>
+                <div class="mb-3">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="editLoop" ${loop ? 'checked' : ''}>
+                        <label class="form-check-label" for="editLoop">
+                            Loop playback continuously
+                        </label>
+                    </div>
+                </div>
+            `;
+            break;
+        case 'sdr':
+            const receiverId = deviceParams?.receiver_id || '';
+            html = `
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle"></i> SDR sources are managed through the Radio Settings page.
+                    This source is linked to receiver: <strong>${escapeHtml(receiverId)}</strong>
+                </div>
+            `;
+            break;
+    }
+
+    container.innerHTML = html;
+}
+
+/**
  * Edit an audio source
  */
 async function editSource(sourceId) {
@@ -1138,6 +1235,9 @@ async function editSource(sourceId) {
         document.getElementById('editAutoStart').checked = source.auto_start || false;
         document.getElementById('editDescription').value = source.description || '';
 
+        // Populate type-specific configuration
+        updateEditSourceTypeConfig(source.type, config.device_params || {});
+
         // Show the modal
         const modal = new bootstrap.Modal(document.getElementById('editSourceModal'));
         modal.show();
@@ -1153,6 +1253,7 @@ async function editSource(sourceId) {
 async function saveEditedSource() {
     try {
         const sourceId = document.getElementById('editSourceId').value;
+        const sourceType = document.getElementById('editSourceType').value.toLowerCase();
 
         const updates = {
             enabled: document.getElementById('editEnabled').checked,
@@ -1162,6 +1263,56 @@ async function saveEditedSource() {
             auto_start: document.getElementById('editAutoStart').checked,
             description: document.getElementById('editDescription').value,
         };
+
+        // Collect device-specific parameters
+        const deviceParams = {};
+        let hasDeviceParams = false;
+
+        switch (sourceType) {
+            case 'stream':
+                const streamUrl = document.getElementById('editStreamUrl')?.value;
+                const streamFormat = document.getElementById('editStreamFormat')?.value;
+                if (!streamUrl) {
+                    showError('Stream URL is required');
+                    return;
+                }
+                deviceParams.stream_url = streamUrl;
+                if (streamFormat && streamFormat !== 'mp3') {
+                    deviceParams.format = streamFormat;
+                }
+                hasDeviceParams = true;
+                break;
+            case 'alsa':
+                const deviceName = document.getElementById('editDeviceName')?.value;
+                if (deviceName) {
+                    deviceParams.device_name = deviceName;
+                    hasDeviceParams = true;
+                }
+                break;
+            case 'pulse':
+                const deviceIndex = document.getElementById('editDeviceIndex')?.value;
+                if (deviceIndex) {
+                    deviceParams.device_index = parseInt(deviceIndex);
+                    hasDeviceParams = true;
+                }
+                break;
+            case 'file':
+                const filePath = document.getElementById('editFilePath')?.value;
+                const loop = document.getElementById('editLoop')?.checked;
+                if (!filePath) {
+                    showError('File path is required');
+                    return;
+                }
+                deviceParams.file_path = filePath;
+                deviceParams.loop = loop;
+                hasDeviceParams = true;
+                break;
+        }
+
+        // Add device params to updates if present
+        if (hasDeviceParams) {
+            updates.device_params = deviceParams;
+        }
 
         const response = await fetch(`/api/audio/sources/${encodeURIComponent(sourceId)}`, {
             method: 'PATCH',
