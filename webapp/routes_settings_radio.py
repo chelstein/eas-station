@@ -1621,7 +1621,7 @@ def register(app: Flask, logger) -> None:
                                     "config": receiver_data.get("config", {})
                                 }
 
-                            route_logger.debug("Loaded radio manager metrics from Redis: %d receivers", len(loaded_receivers))
+                    route_logger.debug("Loaded radio manager metrics from Redis: %d receivers", len(loaded_receivers))
                 else:
                     route_logger.debug("No metrics found in Redis (key: eas:metrics)")
 
