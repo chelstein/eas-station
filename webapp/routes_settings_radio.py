@@ -126,12 +126,12 @@ def _receiver_to_dict(receiver: RadioReceiver) -> Dict[str, Any]:
         redis_client = get_redis_client()
         redis_available = True
 
-        # Read radio_manager metrics from Redis
-        radio_manager_raw = redis_client.hget("eas:metrics", "radio_manager")
-        if radio_manager_raw:
-            if isinstance(radio_manager_raw, bytes):
-                radio_manager_raw = radio_manager_raw.decode('utf-8')
-            radio_manager_data = json.loads(radio_manager_raw)
+        # Read sdr-service metrics from Redis (published to sdr:metrics)
+        sdr_metrics_json = redis_client.get("sdr:metrics")
+        if sdr_metrics_json:
+            if isinstance(sdr_metrics_json, bytes):
+                sdr_metrics_json = sdr_metrics_json.decode('utf-8')
+            radio_manager_data = json.loads(sdr_metrics_json)
             radio_manager_found = True
 
             # Find this receiver's status in the Redis data
@@ -1575,23 +1575,31 @@ def register(app: Flask, logger) -> None:
 
                 redis_client = get_redis_client()
 
-                # Read from eas:metrics hash (published by audio_service.py)
-                raw_metrics = redis_client.hgetall("eas:metrics")
+                # Read from sdr:metrics key (published by sdr_service.py)
+                # Note: This was changed from eas:metrics to match the actual key published by sdr_service.py
+                raw_metrics_json = redis_client.get("sdr:metrics")
+                raw_metrics = {}
+
+                if raw_metrics_json:
+                    import json
+                    try:
+                        if isinstance(raw_metrics_json, bytes):
+                            raw_metrics_json = raw_metrics_json.decode('utf-8')
+                        raw_metrics = json.loads(raw_metrics_json)
+                    except json.JSONDecodeError as e:
+                        route_logger.warning("Failed to decode sdr:metrics JSON: %s", e)
 
                 if raw_metrics:
-                    # Parse radio_manager metrics from Redis hash
-                    radio_manager_raw = raw_metrics.get(b"radio_manager") or raw_metrics.get("radio_manager")
-                    if radio_manager_raw:
-                        if isinstance(radio_manager_raw, bytes):
-                            radio_manager_raw = radio_manager_raw.decode('utf-8')
-                        radio_manager_metrics = json.loads(radio_manager_raw)
-                        redis_radio_manager = radio_manager_metrics
+                    # sdr_service.py publishes metrics directly as JSON
+                    redis_radio_manager = raw_metrics
 
-                        if radio_manager_metrics:
-                            available_drivers = radio_manager_metrics.get("available_drivers", [])
+                    # Extract available drivers from receiver configs
+                    receivers_data = raw_metrics.get("receivers", {})
+                    if receivers_data:
+                        available_drivers = list(set(r.get("driver") for r in receivers_data.values() if r.get("driver")))
 
-                            # Convert audio-service metrics to expected format
-                            for identifier, receiver_data in radio_manager_metrics.get("receivers", {}).items():
+                    # Convert sdr-service metrics to expected format
+                    for identifier, receiver_data in receivers_data.items():
                                 # Decode error message if present
                                 error_info = _decode_soapysdr_error(receiver_data.get("last_error")) if receiver_data.get("last_error") else None
 

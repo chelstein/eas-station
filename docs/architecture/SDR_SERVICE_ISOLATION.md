@@ -188,8 +188,18 @@ docker-compose up -d
 
 ## Files Changed
 
-- `docker-compose.yml` - Service rename and USB removal
+### Infrastructure Changes
+- `docker-compose.yml` - Service rename and USB removal from pollers
+
+### Code Refactoring (2025-12-04)
+- `app_core/radio/drivers.py` - Removed unused `DualThreadSDRMixin` inheritance (416 lines of orphaned code)
+- `app_core/radio/dual_thread.py` - Deleted entire file (was never used)
+- `app.py` - Removed dead `_initialize_radio_receivers()` function (28 lines)
+- `poller/cap_poller.py` - Disabled RadioManager initialization (pollers have no USB access)
+- `docs/troubleshooting/SDR_WATERFALL_TROUBLESHOOTING.md` - Updated to reflect containerized architecture
 - `docs/architecture/SDR_SERVICE_ISOLATION.md` - This document
+
+**Total cleanup**: ~500 lines of duplicated/orphaned code removed
 
 ## Related Issues
 

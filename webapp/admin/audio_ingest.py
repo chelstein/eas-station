@@ -2576,15 +2576,15 @@ def api_stream_audio(source_name: str):
         except Exception as exc:
             logger.warning('Local audio stream fallback failed for %s: %s', source_name, exc)
 
-        # SEPARATED ARCHITECTURE: Proxy streaming requests to sdr-service container
-        # The app container doesn't have audio adapters, but the sdr-service container does.
-        # We proxy the streaming request to sdr-service:5002 which serves the actual audio.
+        # SEPARATED ARCHITECTURE: Proxy streaming requests to audio-service container
+        # The app container doesn't have audio adapters, but the audio-service container does.
+        # We proxy the streaming request to audio-service:5002 which serves the actual audio.
         #
         # This allows VU meters and real-time monitoring to work in separated architecture
         # while still keeping audio processing isolated in the dedicated container.
-        
-        # Try to proxy to sdr-service container
-        audio_service_host = os.environ.get('AUDIO_SERVICE_HOST', 'sdr-service')
+
+        # Try to proxy to audio-service container
+        audio_service_host = os.environ.get('AUDIO_SERVICE_HOST', 'audio-service')
         audio_service_port = os.environ.get('AUDIO_SERVICE_PORT', '5002')
         
         # Build list of hosts to try (primary host, then localhost fallback for development)

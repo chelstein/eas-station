@@ -875,15 +875,34 @@ class CAPPoller:
             self.logger.warning("Unable to verify radio tables: %s", exc)
             return
 
-        try:
-            manager = RadioManager()
-            manager.register_builtin_drivers()
-        except Exception as exc:
-            self.logger.warning("Radio manager unavailable: %s", exc)
-            return
+        # NOTE: RadioManager initialization DISABLED in CAP poller container.
+        # This container does not have USB device access (/dev/bus/usb) and cannot
+        # directly control SDR hardware. The SDR hardware is managed by the sdr-service
+        # container which has proper USB access and privileges.
+        #
+        # TODO: Migrate radio capture coordination to use Redis command queue pattern:
+        #   - Send capture requests to sdr-service via Redis (sdr:commands)
+        #   - Receive capture results via Redis (sdr:command_result:{command_id})
+        #   - See docs/troubleshooting/CONTAINERIZATION_FIXES.md for architecture
+        #
+        # For now, radio captures from CAP poller are disabled. The _coordinate_radio_captures
+        # and _record_receiver_statuses methods will return early since radio_manager is None.
 
-        self.radio_manager = manager
-        self._refresh_radio_configuration(initial=True)
+        self.logger.info(
+            "Radio capture coordination from CAP poller is not yet implemented "
+            "for containerized deployment. Set CAP_POLLER_ENABLE_RADIO=0 to suppress this message."
+        )
+
+        # Commented out to prevent USB access attempts in container without device passthrough:
+        # try:
+        #     manager = RadioManager()
+        #     manager.register_builtin_drivers()
+        # except Exception as exc:
+        #     self.logger.warning("Radio manager unavailable: %s", exc)
+        #     return
+        #
+        # self.radio_manager = manager
+        # self._refresh_radio_configuration(initial=True)
 
     def _refresh_radio_configuration(self, initial: bool = False) -> None:
         """Refresh radio receiver configuration from database.

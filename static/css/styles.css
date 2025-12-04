@@ -197,8 +197,410 @@
     --shadow-color: rgba(67, 160, 71, 0.12);
 }
 
-/* Additional themes defined: orange, yellow, pink, sunset, aurora, nebula, midnight, charcoal, obsidian, slate
-   Full theme definitions for each are included in this file */
+/* Red Theme */
+[data-theme="red"] {
+    --primary-color: #d32f2f;
+    --primary-soft: #ef5350;
+    --primary-dark: #c62828;
+    --secondary-color: #f44336;
+    --secondary-soft: #e57373;
+    --secondary-dark: #d32f2f;
+    --accent-color: #ff1744;
+    --success-color: #4caf50;
+    --danger-color: #d32f2f;
+    --warning-color: #ffa726;
+    --info-color: #29b6f6;
+    --critical-color: #b71c1c;
+    --light-color: #ffebee;
+    --dark-color: #b71c1c;
+    --bg-color: #fafafa;
+    --surface-color: #ffffff;
+    --bg-card: #ffffff;
+    --bg-primary: #d32f2f;
+    --text-color: #212121;
+    --text-secondary: #424242;
+    --text-muted: #757575;
+    --border-color: #e0e0e0;
+    --shadow-color: rgba(211, 47, 47, 0.12);
+}
+
+/* Green Theme */
+[data-theme="green"] {
+    --primary-color: #388e3c;
+    --primary-soft: #66bb6a;
+    --primary-dark: #2e7d32;
+    --secondary-color: #4caf50;
+    --secondary-soft: #81c784;
+    --secondary-dark: #388e3c;
+    --accent-color: #00c853;
+    --success-color: #4caf50;
+    --danger-color: #ef5350;
+    --warning-color: #ffa726;
+    --info-color: #29b6f6;
+    --critical-color: #e53935;
+    --light-color: #e8f5e9;
+    --dark-color: #1b5e20;
+    --bg-color: #fafafa;
+    --surface-color: #ffffff;
+    --bg-card: #ffffff;
+    --bg-primary: #388e3c;
+    --text-color: #212121;
+    --text-secondary: #424242;
+    --text-muted: #757575;
+    --border-color: #e0e0e0;
+    --shadow-color: rgba(56, 142, 60, 0.12);
+}
+
+/* Blue Theme */
+[data-theme="blue"] {
+    --primary-color: #1976d2;
+    --primary-soft: #42a5f5;
+    --primary-dark: #1565c0;
+    --secondary-color: #2196f3;
+    --secondary-soft: #64b5f6;
+    --secondary-dark: #1976d2;
+    --accent-color: #2979ff;
+    --success-color: #4caf50;
+    --danger-color: #ef5350;
+    --warning-color: #ffa726;
+    --info-color: #29b6f6;
+    --critical-color: #e53935;
+    --light-color: #e3f2fd;
+    --dark-color: #0d47a1;
+    --bg-color: #fafafa;
+    --surface-color: #ffffff;
+    --bg-card: #ffffff;
+    --bg-primary: #1976d2;
+    --text-color: #212121;
+    --text-secondary: #424242;
+    --text-muted: #757575;
+    --border-color: #e0e0e0;
+    --shadow-color: rgba(25, 118, 210, 0.12);
+}
+
+/* Purple Theme */
+[data-theme="purple"] {
+    --primary-color: #7b1fa2;
+    --primary-soft: #ab47bc;
+    --primary-dark: #6a1b9a;
+    --secondary-color: #9c27b0;
+    --secondary-soft: #ba68c8;
+    --secondary-dark: #7b1fa2;
+    --accent-color: #d500f9;
+    --success-color: #4caf50;
+    --danger-color: #ef5350;
+    --warning-color: #ffa726;
+    --info-color: #29b6f6;
+    --critical-color: #e53935;
+    --light-color: #f3e5f5;
+    --dark-color: #4a148c;
+    --bg-color: #fafafa;
+    --surface-color: #ffffff;
+    --bg-card: #ffffff;
+    --bg-primary: #7b1fa2;
+    --text-color: #212121;
+    --text-secondary: #424242;
+    --text-muted: #757575;
+    --border-color: #e0e0e0;
+    --shadow-color: rgba(123, 31, 162, 0.12);
+}
+
+/* Pink Theme */
+[data-theme="pink"] {
+    --primary-color: #c2185b;
+    --primary-soft: #ec407a;
+    --primary-dark: #ad1457;
+    --secondary-color: #e91e63;
+    --secondary-soft: #f06292;
+    --secondary-dark: #c2185b;
+    --accent-color: #f50057;
+    --success-color: #4caf50;
+    --danger-color: #ef5350;
+    --warning-color: #ffa726;
+    --info-color: #29b6f6;
+    --critical-color: #e53935;
+    --light-color: #fce4ec;
+    --dark-color: #880e4f;
+    --bg-color: #fafafa;
+    --surface-color: #ffffff;
+    --bg-card: #ffffff;
+    --bg-primary: #c2185b;
+    --text-color: #212121;
+    --text-secondary: #424242;
+    --text-muted: #757575;
+    --border-color: #e0e0e0;
+    --shadow-color: rgba(194, 24, 91, 0.12);
+}
+
+/* Orange Theme */
+[data-theme="orange"] {
+    --primary-color: #f57c00;
+    --primary-soft: #ff9800;
+    --primary-dark: #e65100;
+    --secondary-color: #ff9800;
+    --secondary-soft: #ffb74d;
+    --secondary-dark: #f57c00;
+    --accent-color: #ff6d00;
+    --success-color: #4caf50;
+    --danger-color: #ef5350;
+    --warning-color: #ffa726;
+    --info-color: #29b6f6;
+    --critical-color: #e53935;
+    --light-color: #fff3e0;
+    --dark-color: #e65100;
+    --bg-color: #fafafa;
+    --surface-color: #ffffff;
+    --bg-card: #ffffff;
+    --bg-primary: #f57c00;
+    --text-color: #212121;
+    --text-secondary: #424242;
+    --text-muted: #757575;
+    --border-color: #e0e0e0;
+    --shadow-color: rgba(245, 124, 0, 0.12);
+}
+
+/* Yellow Theme */
+[data-theme="yellow"] {
+    --primary-color: #f9a825;
+    --primary-soft: #fdd835;
+    --primary-dark: #f57f17;
+    --secondary-color: #ffeb3b;
+    --secondary-soft: #fff59d;
+    --secondary-dark: #f9a825;
+    --accent-color: #ffc400;
+    --success-color: #4caf50;
+    --danger-color: #ef5350;
+    --warning-color: #ffa726;
+    --info-color: #29b6f6;
+    --critical-color: #e53935;
+    --light-color: #fffde7;
+    --dark-color: #f57f17;
+    --bg-color: #fafafa;
+    --surface-color: #ffffff;
+    --bg-card: #ffffff;
+    --bg-primary: #f9a825;
+    --text-color: #212121;
+    --text-secondary: #424242;
+    --text-muted: #757575;
+    --border-color: #e0e0e0;
+    --shadow-color: rgba(249, 168, 37, 0.12);
+}
+
+/* Aurora Theme - Polar lights with teal and violet glows */
+[data-theme="aurora"] {
+    --primary-color: #00bcd4;
+    --primary-soft: #26c6da;
+    --primary-dark: #0097a7;
+    --secondary-color: #7c4dff;
+    --secondary-soft: #b388ff;
+    --secondary-dark: #651fff;
+    --accent-color: #18ffff;
+    --success-color: #00e676;
+    --danger-color: #ff5252;
+    --warning-color: #ffab40;
+    --info-color: #40c4ff;
+    --critical-color: #ff1744;
+    --light-color: #e0f7fa;
+    --dark-color: #006064;
+    --bg-color: #1a2332;
+    --surface-color: #263238;
+    --bg-card: #2c3e50;
+    --bg-primary: #00838f;
+    --text-color: #e0f7fa;
+    --text-secondary: #b2ebf2;
+    --text-muted: #80deea;
+    --border-color: #37474f;
+    --shadow-color: rgba(0, 188, 212, 0.2);
+}
+
+/* Nebula Theme - Deep space magenta and cyan */
+[data-theme="nebula"] {
+    --primary-color: #ab47bc;
+    --primary-soft: #ce93d8;
+    --primary-dark: #8e24aa;
+    --secondary-color: #00acc1;
+    --secondary-soft: #4dd0e1;
+    --secondary-dark: #00838f;
+    --accent-color: #ea80fc;
+    --success-color: #00e676;
+    --danger-color: #ff5252;
+    --warning-color: #ffab40;
+    --info-color: #40c4ff;
+    --critical-color: #ff1744;
+    --light-color: #f3e5f5;
+    --dark-color: #4a148c;
+    --bg-color: #1a1a2e;
+    --surface-color: #16213e;
+    --bg-card: #0f3460;
+    --bg-primary: #7b1fa2;
+    --text-color: #e1bee7;
+    --text-secondary: #ce93d8;
+    --text-muted: #ba68c8;
+    --border-color: #4a148c;
+    --shadow-color: rgba(171, 71, 188, 0.2);
+}
+
+/* Sunset Theme - Golden hour gradient with warm oranges */
+[data-theme="sunset"] {
+    --primary-color: #ff6f00;
+    --primary-soft: #ff9800;
+    --primary-dark: #e65100;
+    --secondary-color: #ff5722;
+    --secondary-soft: #ff8a65;
+    --secondary-dark: #e64a19;
+    --accent-color: #ffab00;
+    --success-color: #4caf50;
+    --danger-color: #ef5350;
+    --warning-color: #ffa726;
+    --info-color: #29b6f6;
+    --critical-color: #e53935;
+    --light-color: #fff3e0;
+    --dark-color: #bf360c;
+    --bg-color: #fff8f0;
+    --surface-color: #ffffff;
+    --bg-card: #ffffff;
+    --bg-primary: #ff6f00;
+    --text-color: #212121;
+    --text-secondary: #424242;
+    --text-muted: #757575;
+    --border-color: #e0e0e0;
+    --shadow-color: rgba(255, 111, 0, 0.12);
+}
+
+/* Midnight Theme - Deep slate with neon telemetry accents */
+[data-theme="midnight"] {
+    --primary-color: #304ffe;
+    --primary-soft: #536dfe;
+    --primary-dark: #1a237e;
+    --secondary-color: #00e5ff;
+    --secondary-soft: #18ffff;
+    --secondary-dark: #00b8d4;
+    --accent-color: #651fff;
+    --success-color: #00e676;
+    --danger-color: #ff5252;
+    --warning-color: #ffab40;
+    --info-color: #40c4ff;
+    --critical-color: #ff1744;
+    --light-color: #e8eaf6;
+    --dark-color: #1a237e;
+    --bg-color: #0a0e27;
+    --surface-color: #1a1d35;
+    --bg-card: #242942;
+    --bg-primary: #1a237e;
+    --text-color: #c5cae9;
+    --text-secondary: #9fa8da;
+    --text-muted: #7986cb;
+    --border-color: #3f51b5;
+    --shadow-color: rgba(48, 79, 254, 0.2);
+}
+
+/* Tide Theme - Crisp coastal palette with aqua highlights */
+[data-theme="tide"] {
+    --primary-color: #0097a7;
+    --primary-soft: #26c6da;
+    --primary-dark: #00838f;
+    --secondary-color: #00acc1;
+    --secondary-soft: #4dd0e1;
+    --secondary-dark: #0097a7;
+    --accent-color: #00e5ff;
+    --success-color: #4caf50;
+    --danger-color: #ef5350;
+    --warning-color: #ffa726;
+    --info-color: #29b6f6;
+    --critical-color: #e53935;
+    --light-color: #e0f7fa;
+    --dark-color: #006064;
+    --bg-color: #f0f9ff;
+    --surface-color: #ffffff;
+    --bg-card: #ffffff;
+    --bg-primary: #0097a7;
+    --text-color: #212121;
+    --text-secondary: #424242;
+    --text-muted: #757575;
+    --border-color: #e0e0e0;
+    --shadow-color: rgba(0, 151, 167, 0.12);
+}
+
+/* Charcoal Theme - Deep gray dark theme */
+[data-theme="charcoal"] {
+    --primary-color: #78909c;
+    --primary-soft: #90a4ae;
+    --primary-dark: #546e7a;
+    --secondary-color: #607d8b;
+    --secondary-soft: #78909c;
+    --secondary-dark: #455a64;
+    --accent-color: #80cbc4;
+    --success-color: #00e676;
+    --danger-color: #ff5252;
+    --warning-color: #ffab40;
+    --info-color: #40c4ff;
+    --critical-color: #ff1744;
+    --light-color: #eceff1;
+    --dark-color: #263238;
+    --bg-color: #2c3e50;
+    --surface-color: #34495e;
+    --bg-card: #3e5363;
+    --bg-primary: #455a64;
+    --text-color: #eceff1;
+    --text-secondary: #cfd8dc;
+    --text-muted: #b0bec5;
+    --border-color: #455a64;
+    --shadow-color: rgba(38, 50, 56, 0.3);
+}
+
+/* Obsidian Theme - Pure black AMOLED theme */
+[data-theme="obsidian"] {
+    --primary-color: #7c4dff;
+    --primary-soft: #b388ff;
+    --primary-dark: #651fff;
+    --secondary-color: #18ffff;
+    --secondary-soft: #84ffff;
+    --secondary-dark: #00e5ff;
+    --accent-color: #ff4081;
+    --success-color: #00e676;
+    --danger-color: #ff5252;
+    --warning-color: #ffab40;
+    --info-color: #40c4ff;
+    --critical-color: #ff1744;
+    --light-color: #ede7f6;
+    --dark-color: #4a148c;
+    --bg-color: #000000;
+    --surface-color: #0d0d0d;
+    --bg-card: #1a1a1a;
+    --bg-primary: #1a1a1a;
+    --text-color: #e1bee7;
+    --text-secondary: #ce93d8;
+    --text-muted: #ba68c8;
+    --border-color: #212121;
+    --shadow-color: rgba(124, 77, 255, 0.3);
+}
+
+/* Slate Theme - Blue-gray professional dark theme */
+[data-theme="slate"] {
+    --primary-color: #5c6bc0;
+    --primary-soft: #7986cb;
+    --primary-dark: #3f51b5;
+    --secondary-color: #42a5f5;
+    --secondary-soft: #64b5f6;
+    --secondary-dark: #2196f3;
+    --accent-color: #536dfe;
+    --success-color: #00e676;
+    --danger-color: #ff5252;
+    --warning-color: #ffab40;
+    --info-color: #40c4ff;
+    --critical-color: #ff1744;
+    --light-color: #e8eaf6;
+    --dark-color: #1a237e;
+    --bg-color: #263238;
+    --surface-color: #37474f;
+    --bg-card: #455a64;
+    --bg-primary: #3f51b5;
+    --text-color: #e8eaf6;
+    --text-secondary: #c5cae9;
+    --text-muted: #9fa8da;
+    --border-color: #546e7a;
+    --shadow-color: rgba(92, 107, 192, 0.2);
+}
 
 
 /* ============================================
@@ -324,6 +726,49 @@ small,
     transition: all var(--transition-medium);
     position: relative;
     overflow: hidden;
+}
+
+/* Make logo bigger - increased from default size */
+.navbar-brand .logo-wordmark,
+.navbar-brand .brand-logo {
+    height: 50px;  /* Increased from implicit ~40px */
+    width: auto;
+}
+
+/* Hide duplicate footer logo */
+.footer .footer-brand .footer-logo {
+    display: none;
+}
+
+/* Make theme toggle buttons less obvious */
+.theme-toggle-nav-item {
+    opacity: 0.5;
+    transition: opacity var(--transition-fast);
+}
+
+.theme-toggle-nav-item:hover {
+    opacity: 1;
+}
+
+.theme-toggle-button {
+    background: transparent;
+    border: none;
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 0.9rem;  /* Smaller than default */
+    padding: 0.4rem 0.6rem;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.theme-toggle-button:hover {
+    color: rgba(255, 255, 255, 0.9);
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.theme-toggle-button:focus {
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.2);
 }
 
 .navbar-brand:hover {

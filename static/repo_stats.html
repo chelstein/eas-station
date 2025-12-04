@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="cosmo">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,23 +7,17 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Link to main app CSS for theme support -->
+    <link rel="stylesheet" href="/static/css/styles.css">
     <style>
-        :root {
-            --primary-color: #0d6efd;
-            --secondary-color: #6c757d;
-            --success-color: #198754;
-            --info-color: #0dcaf0;
-            --warning-color: #ffc107;
-            --danger-color: #dc3545;
-            --gradient-start: #667eea;
-            --gradient-end: #764ba2;
-        }
-        
+        /* Use theme-aware CSS variables */
         body {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: var(--bg-color);
             min-height: 100vh;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             padding: 2rem 0;
+            color: var(--text-color);
+            transition: background-color 0.3s ease, color 0.3s ease;
         }
         
         .stats-container {
@@ -33,57 +27,95 @@
         }
         
         .hero-section {
-            background: linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.98) 100%);
+            background: var(--bg-card);
             border-radius: 20px;
             padding: 3rem 2rem;
             margin-bottom: 2rem;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            box-shadow: 0 20px 60px var(--shadow-color);
             text-align: center;
-            backdrop-filter: blur(10px);
+            border: 1px solid var(--border-color);
+            transition: all 0.3s ease;
         }
-        
+
         .hero-section h1 {
             font-size: 3rem;
             font-weight: 700;
-            background: linear-gradient(135deg, var(--gradient-start), var(--gradient-end));
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
             margin-bottom: 1rem;
         }
-        
+
         .hero-section .timestamp {
-            color: var(--secondary-color);
+            color: var(--text-secondary);
             font-size: 1.1rem;
             font-weight: 500;
         }
-        
+
         .stat-card {
-            background: white;
+            background: var(--bg-card);
             border-radius: 15px;
             padding: 1.5rem;
             margin-bottom: 1.5rem;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            box-shadow: 0 10px 30px var(--shadow-color);
             transition: transform 0.3s ease, box-shadow 0.3s ease;
-            border: none;
+            border: 1px solid var(--border-color);
         }
-        
+
         .stat-card:hover {
             transform: translateY(-5px);
-            box-shadow: 0 15px 40px rgba(0,0,0,0.2);
+            box-shadow: 0 15px 40px var(--shadow-color);
         }
-        
+
         .stat-card-header {
-            border-bottom: 2px solid #f0f0f0;
+            border-bottom: 2px solid var(--border-color);
             padding-bottom: 1rem;
             margin-bottom: 1.5rem;
         }
-        
+
         .stat-card-header h2 {
             font-size: 1.8rem;
             font-weight: 700;
-            color: #333;
+            color: var(--text-color);
             margin: 0;
+        }
+
+        /* Theme Controls */
+        .theme-controls {
+            position: fixed;
+            top: 1rem;
+            right: 1rem;
+            z-index: 1000;
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .theme-btn {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            color: var(--text-color);
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 0.9rem;
+            box-shadow: 0 2px 8px var(--shadow-color);
+        }
+
+        .theme-btn:hover {
+            background: var(--primary-color);
+            color: white;
+            transform: translateY(-2px);
+        }
+
+        .back-btn {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .back-btn:hover {
+            background: var(--primary-dark);
         }
         
         .quick-stats {
@@ -156,7 +188,7 @@
         }
         
         .stats-table tbody tr:hover {
-            background-color: #f8f9fa;
+            background-color: var(--hover-color);
         }
         
         .stats-table td {
@@ -227,12 +259,25 @@
     </style>
 </head>
 <body>
+    <!-- Theme Controls -->
+    <div class="theme-controls">
+        <button class="theme-btn back-btn" onclick="window.location.href='/'">
+            <i class="fas fa-arrow-left"></i> Back to App
+        </button>
+        <button class="theme-btn" onclick="toggleTheme()">
+            <i id="theme-icon" class="fas fa-moon"></i>
+        </button>
+        <button class="theme-btn" onclick="showThemeSelector()">
+            <i class="fas fa-palette"></i>
+        </button>
+    </div>
+
     <div class="stats-container">
         <!-- Hero Section -->
         <div class="hero-section">
             <h1>📊 EAS Station Repository Statistics</h1>
             <p class="timestamp">
-                <i class="far fa-clock"></i> Last Updated: 2025-12-04 20:33:32 UTC
+                <i class="far fa-clock"></i> Last Updated: 2025-12-04 21:55:35 UTC
             </p>
         </div>
         
@@ -240,7 +285,7 @@
         <div class="quick-stats">
             <div class="quick-stat-item">
                 <div class="icon">📁</div>
-                <div class="value">609</div>
+                <div class="value">608</div>
                 <div class="label">Total Files</div>
             </div>
             <div class="quick-stat-item">
@@ -250,17 +295,17 @@
             </div>
             <div class="quick-stat-item">
                 <div class="icon">📝</div>
-                <div class="value">216,376</div>
+                <div class="value">216,469</div>
                 <div class="label">Total Lines</div>
             </div>
             <div class="quick-stat-item">
                 <div class="icon">💻</div>
-                <div class="value">125,795</div>
+                <div class="value">125,470</div>
                 <div class="label">Code Lines</div>
             </div>
             <div class="quick-stat-item">
                 <div class="icon">💬</div>
-                <div class="value">57,680</div>
+                <div class="value">58,143</div>
                 <div class="label">Comments</div>
             </div>
             <div class="quick-stat-item">
@@ -320,13 +365,13 @@
                     <tbody>
                         <tr>
                             <td><strong><svg viewBox="0 0 24 24" width="20" height="20" fill="#3776AB" style="vertical-align: middle; margin-right: 6px;"><path d="M14.25.18l.9.2.73.26.59.3.45.32.34.34.25.34.16.33.1.3.04.26.02.2-.01.13V8.5l-.05.63-.13.55-.21.46-.26.38-.3.31-.33.25-.35.19-.35.14-.33.1-.3.07-.26.04-.21.02H8.77l-.69.05-.59.14-.5.22-.41.27-.33.32-.27.35-.2.36-.15.37-.1.35-.07.32-.04.27-.02.21v3.06H3.17l-.21-.03-.28-.07-.32-.12-.35-.18-.36-.26-.36-.36-.35-.46-.32-.59-.28-.73-.21-.88-.14-1.05-.05-1.23.06-1.22.16-1.04.24-.87.32-.71.36-.57.4-.44.42-.33.42-.24.4-.16.36-.1.32-.05.24-.01h.16l.06.01h8.16v-.83H6.18l-.01-2.75-.02-.37.05-.34.11-.31.17-.28.25-.26.31-.23.38-.2.44-.18.51-.15.58-.12.64-.1.71-.06.77-.04.84-.02 1.27.05zm-6.3 1.98l-.23.33-.08.41.08.41.23.34.33.22.41.09.41-.09.33-.22.23-.34.08-.41-.08-.41-.23-.33-.33-.22-.41-.09-.41.09zm13.09 3.95l.28.06.32.12.35.18.36.27.36.35.35.47.32.59.28.73.21.88.14 1.04.05 1.23-.06 1.23-.16 1.04-.24.86-.32.71-.36.57-.4.45-.42.33-.42.24-.4.16-.36.09-.32.05-.24.02-.16-.01h-8.22v.82h5.84l.01 2.76.02.36-.05.34-.11.31-.17.29-.25.25-.31.24-.38.2-.44.17-.51.15-.58.13-.64.09-.71.07-.77.04-.84.01-1.27-.04-1.07-.14-.9-.2-.73-.25-.59-.3-.45-.33-.34-.34-.25-.34-.16-.33-.1-.3-.04-.25-.02-.2.01-.13v-5.34l.05-.64.13-.54.21-.46.26-.38.3-.32.33-.24.35-.2.35-.14.33-.1.3-.06.26-.04.21-.02.13-.01h5.84l.69-.05.59-.14.5-.21.41-.28.33-.32.27-.35.2-.36.15-.36.1-.35.07-.32.04-.28.02-.21V6.07h2.09l.14.01zm-6.47 14.25l-.23.33-.08.41.08.41.23.33.33.23.41.08.41-.08.33-.23.23-.33.08-.41-.08-.41-.23-.33-.33-.23-.41-.08-.41.08z"/></svg>Python</strong></td>
-                            <td class="text-end">114,970</td>
-                            <td class="text-end">41,548</td>
-                            <td class="text-end">53,625</td>
+                            <td class="text-end">114,607</td>
+                            <td class="text-end">41,215</td>
+                            <td class="text-end">53,664</td>
                             <td class="text-end">36%</td>
                             <td>
                                 <div style="background: #e9ecef; border-radius: 4px; height: 8px; overflow: hidden;">
-                                    <div class="progress-bar-custom" style="width: 33.0%;"></div>
+                                    <div class="progress-bar-custom" style="width: 32.8%;"></div>
                                 </div>
                             </td>
                         </tr>
@@ -338,19 +383,19 @@
                             <td class="text-end">91%</td>
                             <td>
                                 <div style="background: #e9ecef; border-radius: 4px; height: 8px; overflow: hidden;">
-                                    <div class="progress-bar-custom" style="width: 39.5%;"></div>
+                                    <div class="progress-bar-custom" style="width: 39.6%;"></div>
                                 </div>
                             </td>
                         </tr>
                         <tr>
                             <td><strong><svg viewBox="0 0 24 24" width="20" height="20" fill="#000000" style="vertical-align: middle; margin-right: 6px;"><path d="M22.27 19.385H1.73A1.73 1.73 0 010 17.655V6.345a1.73 1.73 0 011.73-1.73h20.54A1.73 1.73 0 0124 6.345v11.308a1.73 1.73 0 01-1.73 1.731zM5.769 15.923v-4.5l2.308 2.885 2.307-2.885v4.5h2.308V8.078h-2.308l-2.307 2.885-2.308-2.885H3.46v7.847zM21.232 12h-2.309V8.077h-2.307V12h-2.308l3.461 4.039z"/></svg>Markdown</strong></td>
-                            <td class="text-end">26,336</td>
-                            <td class="text-end">20,170</td>
+                            <td class="text-end">26,347</td>
+                            <td class="text-end">20,178</td>
                             <td class="text-end">0</td>
                             <td class="text-end">77%</td>
                             <td>
                                 <div style="background: #e9ecef; border-radius: 4px; height: 8px; overflow: hidden;">
-                                    <div class="progress-bar-custom" style="width: 16.0%;"></div>
+                                    <div class="progress-bar-custom" style="width: 16.1%;"></div>
                                 </div>
                             </td>
                         </tr>
@@ -363,6 +408,18 @@
                             <td>
                                 <div style="background: #e9ecef; border-radius: 4px; height: 8px; overflow: hidden;">
                                     <div class="progress-bar-custom" style="width: 3.9%;"></div>
+                                </div>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td><strong><svg viewBox="0 0 24 24" width="20" height="20" fill="#1572B6" style="vertical-align: middle; margin-right: 6px;"><path d="M1.5 0h21l-1.91 21.563L11.977 24l-8.565-2.438L1.5 0zm17.09 4.413L5.41 4.41l.213 2.622 10.125.002-.255 2.716h-6.64l.24 2.573h6.182l-.366 3.523-2.91.804-2.956-.81-.188-2.11h-2.61l.29 3.855L12 19.288l5.373-1.53L18.59 4.414z"/></svg>CSS</strong></td>
+                            <td class="text-end">2,561</td>
+                            <td class="text-end">185</td>
+                            <td class="text-end">2,043</td>
+                            <td class="text-end">7%</td>
+                            <td>
+                                <div style="background: #e9ecef; border-radius: 4px; height: 8px; overflow: hidden;">
+                                    <div class="progress-bar-custom" style="width: 0.1%;"></div>
                                 </div>
                             </td>
                         </tr>
@@ -399,18 +456,6 @@
                             <td>
                                 <div style="background: #e9ecef; border-radius: 4px; height: 8px; overflow: hidden;">
                                     <div class="progress-bar-custom" style="width: 1.4%;"></div>
-                                </div>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td><strong><svg viewBox="0 0 24 24" width="20" height="20" fill="#1572B6" style="vertical-align: middle; margin-right: 6px;"><path d="M1.5 0h21l-1.91 21.563L11.977 24l-8.565-2.438L1.5 0zm17.09 4.413L5.41 4.41l.213 2.622 10.125.002-.255 2.716h-6.64l.24 2.573h6.182l-.366 3.523-2.91.804-2.956-.81-.188-2.11h-2.61l.29 3.855L12 19.288l5.373-1.53L18.59 4.414z"/></svg>CSS</strong></td>
-                            <td class="text-end">2,116</td>
-                            <td class="text-end">185</td>
-                            <td class="text-end">1,619</td>
-                            <td class="text-end">9%</td>
-                            <td>
-                                <div style="background: #e9ecef; border-radius: 4px; height: 8px; overflow: hidden;">
-                                    <div class="progress-bar-custom" style="width: 0.1%;"></div>
                                 </div>
                             </td>
                         </tr>
@@ -511,7 +556,7 @@
             data: {
                 labels: ['💻 Code', '💬 Comments', '⬜ Whitespace'],
                 datasets: [{
-                    data: [125795, 57680, 32901],
+                    data: [125470, 58143, 32856],
                     backgroundColor: [
                         'rgba(102, 126, 234, 0.8)',
                         'rgba(118, 75, 162, 0.8)',
@@ -544,7 +589,7 @@
                             label: function(context) {
                                 let label = context.label || '';
                                 let value = context.parsed || 0;
-                                let total = 216376;
+                                let total = 216469;
                                 let percentage = ((value / total) * 100).toFixed(1);
                                 return label + ': ' + value.toLocaleString() + ' lines (' + percentage + '%)';
                             }
@@ -562,7 +607,7 @@
                 labels: ["Python", "HTML", "Other", "Markdown", "Shell", "SVG", "JavaScript", "YAML", "Other Types"],
                 datasets: [{
                     label: 'Number of Files',
-                    data: [306, 86, 71, 67, 18, 16, 16, 13, 16],
+                    data: [305, 86, 71, 67, 18, 16, 16, 13, 16],
                     backgroundColor: 'rgba(102, 126, 234, 0.8)',
                     borderColor: 'rgba(102, 126, 234, 1)',
                     borderWidth: 2,
@@ -618,10 +663,10 @@
         new Chart(linesByLanguageCtx, {
             type: 'bar',
             data: {
-                labels: ["Python", "HTML", "Markdown", "JavaScript", "Shell", "SVG", "YAML", "CSS"],
+                labels: ["Python", "HTML", "Markdown", "JavaScript", "CSS", "Shell", "SVG", "YAML"],
                 datasets: [{
                     label: 'Lines of Code',
-                    data: [41548, 49650, 20170, 4932, 1768, 1911, 1704, 185],
+                    data: [41215, 49650, 20178, 4932, 185, 1768, 1911, 1704],
                     backgroundColor: 'rgba(118, 75, 162, 0.8)',
                     borderColor: 'rgba(118, 75, 162, 1)',
                     borderWidth: 2,
@@ -678,7 +723,7 @@
         new Chart(routesByModuleCtx, {
             type: 'bar',
             data: {
-                labels: ["routes_settings_radio", "routes_screens", "routes_public", "routes_led", "routes_vfd", "routes_analytics", "routes_monitoring", "routes_setup", "routes_stream_profiles", "routes_backups", "eas/workflow", "routes/system_controls", "documentation", "routes/alert_verification", "routes_debug"],
+                labels: ["routes_settings_radio", "routes_screens", "routes_public", "routes_led", "routes_analytics", "routes_vfd", "routes_monitoring", "routes_setup", "routes_stream_profiles", "routes_backups", "eas/workflow", "routes/system_controls", "documentation", "routes/alert_verification", "routes_debug"],
                 datasets: [{
                     label: 'Number of Routes',
                     data: [21, 17, 14, 13, 12, 12, 10, 9, 9, 8, 8, 7, 6, 6, 5],
@@ -732,6 +777,13 @@
                 }
             }
         });
+    </script>
+
+    <!-- Theme Switching Script -->
+    <script src="/static/js/core/theme.js"></script>
+    <script>
+        // Load saved theme on page load
+        loadTheme();
     </script>
 </body>
 </html>
