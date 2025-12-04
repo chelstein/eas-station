@@ -291,9 +291,16 @@ DEFAULT_ZONE_CODES=XXZ001,XXC001
 EAS_BROADCAST_ENABLED=false
 EAS_ORIGINATOR=WXR
 EAS_STATION_ID=YOURCALL
+
+# Resource allocation (adjust for your RAM)
+# For 16GB RAM systems, quadruple these values
+TMPFS_SDR_SERVICE=64M
+TMPFS_AUDIO_SERVICE=128M
+TMPFS_APP=128M
 ```
 
-See [Configuration Guide](docs/guides/HELP) for complete reference.
+See [Configuration Guide](docs/guides/HELP) for complete reference.  
+See [tmpfs Configuration](docs/deployment/TMPFS_CONFIGURATION.md) for RAM optimization.
 
 ## 📊 System Diagrams
 

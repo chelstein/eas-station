@@ -92,7 +92,7 @@ services:
     volumes:
       - app-config:/app-config
     tmpfs:
-      - /tmp:size=256M,mode=1777
+      - /tmp:size=${TMPFS_SDR_SERVICE:-64M},mode=1777
     environment:
       # Database connection
       POSTGRES_HOST: ${POSTGRES_HOST:-alerts-db}
@@ -166,7 +166,7 @@ services:
     volumes:
       - app-config:/app-config
     tmpfs:
-      - /tmp:size=512M,mode=1777
+      - /tmp:size=${TMPFS_AUDIO_SERVICE:-128M},mode=1777
     environment:
       # Database connection
       POSTGRES_HOST: ${POSTGRES_HOST:-alerts-db}
@@ -227,7 +227,7 @@ services:
       - /run/dbus:/run/dbus:ro  # DBus for NetworkManager communication
       - /var/run/dbus:/var/run/dbus:ro  # Alternative DBus location
     tmpfs:
-      - /tmp:size=256M,mode=1777
+      - /tmp:size=${TMPFS_HARDWARE_SERVICE:-64M},mode=1777
     environment:
       # Database connection
       POSTGRES_HOST: ${POSTGRES_HOST:-alerts-db}
@@ -284,7 +284,7 @@ services:
       # Docker socket removed to prevent /dev/pts permission errors
       # Health checks can be done via HTTP endpoints instead
     tmpfs:
-      - /tmp:size=512M,mode=1777
+      - /tmp:size=${TMPFS_APP:-128M},mode=1777
     environment:
       # Database connection - external database (change POSTGRES_HOST to your database server)
       POSTGRES_HOST: ${POSTGRES_HOST:-alerts-db}
@@ -384,7 +384,7 @@ services:
     volumes:
       - app-config:/app-config  # Persistent volume for .env file
     tmpfs:
-      - /tmp:size=256M,mode=1777
+      - /tmp:size=${TMPFS_IPAWS_POLLER:-64M},mode=1777
     environment:
       # Database connection - external database
       POSTGRES_HOST: ${POSTGRES_HOST:-alerts-db}
