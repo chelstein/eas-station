@@ -385,8 +385,7 @@ class ContinuousEASMonitor:
         sample_rate: int = 16000,
         alert_callback: Optional[Callable[[EASAlert], None]] = None,
         save_audio_files: bool = True,
-        audio_archive_dir: str = "/tmp/eas-audio",
-        audio_retention_hours: int = 24
+        audio_archive_dir: str = "/tmp/eas-audio"
     ):
         """
         Initialize continuous EAS monitor with real-time streaming decoder.
@@ -397,7 +396,6 @@ class ContinuousEASMonitor:
             alert_callback: Optional callback function called when alert detected
             save_audio_files: Whether to save audio files of detected alerts
             audio_archive_dir: Directory to save alert audio files (uses tmpfs in Docker)
-            audio_retention_hours: Hours to retain archived audio files (unused - tmpfs auto-clears)
             
         How it works:
             Audio samples are processed immediately as they arrive using a
@@ -414,7 +412,6 @@ class ContinuousEASMonitor:
         self.alert_callback = alert_callback
         self.save_audio_files = save_audio_files
         self.audio_archive_dir = audio_archive_dir
-        self.audio_retention_hours = audio_retention_hours
 
         # Create audio archive directory
         if save_audio_files:
@@ -464,7 +461,7 @@ class ContinuousEASMonitor:
             f"decoder_sample_rate={sample_rate}Hz, "
             f"streaming_mode=True, "
             f"watchdog_timeout={self._watchdog_timeout}s, "
-            f"audio_retention={audio_retention_hours}h"
+            f"save_audio_files={save_audio_files}"
         )
 
     def start(self) -> bool:

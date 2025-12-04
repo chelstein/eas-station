@@ -376,8 +376,7 @@ def initialize_eas_monitor(app, audio_controller):
             sample_rate=16000,
             alert_callback=alert_callback,
             save_audio_files=save_audio_files,
-            audio_archive_dir="/tmp/eas-audio",
-            audio_retention_hours=int(os.environ.get('EAS_AUDIO_RETENTION_HOURS', '24'))
+            audio_archive_dir="/tmp/eas-audio"
         )
 
         # Start monitoring

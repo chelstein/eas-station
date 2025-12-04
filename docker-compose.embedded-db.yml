@@ -67,6 +67,8 @@ services:
       --appendfsync everysec
       --maxmemory 256mb
       --maxmemory-policy allkeys-lru
+      --auto-aof-rewrite-percentage 100
+      --auto-aof-rewrite-min-size 64mb
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -96,6 +98,8 @@ services:
     command: ["python", "sdr_service.py"]
     volumes:
       - app-config:/app-config
+    tmpfs:
+      - /tmp:size=256M,mode=1777
     environment:
       # Database connection - embedded database
       POSTGRES_HOST: ${POSTGRES_HOST:-alerts-db}
@@ -170,6 +174,8 @@ services:
     command: ["python", "audio_service.py"]
     volumes:
       - app-config:/app-config
+    tmpfs:
+      - /tmp:size=512M,mode=1777
     environment:
       # Database connection - embedded database
       POSTGRES_HOST: ${POSTGRES_HOST:-alerts-db}
@@ -228,6 +234,8 @@ services:
     command: ["python", "hardware_service.py"]
     volumes:
       - app-config:/app-config
+    tmpfs:
+      - /tmp:size=256M,mode=1777
       - /run/dbus:/run/dbus:ro  # DBus for NetworkManager communication
       - /var/run/dbus:/var/run/dbus:ro  # Alternative DBus location
     environment:
@@ -285,6 +293,8 @@ services:
     volumes:
       - app-config:/app-config  # Persistent volume for .env file
       - certbot-conf:/etc/letsencrypt:ro  # Allow SSL export routes to read certificates
+    tmpfs:
+      - /tmp:size=512M,mode=1777
       # Docker socket removed to prevent /dev/pts permission errors
       # Health checks can be done via HTTP endpoints instead
     environment:
@@ -346,6 +356,8 @@ services:
       # NOTE: .env removed - loads empty file from Git. App loads from CONFIG_PATH at runtime.
     volumes:
       - app-config:/app-config  # Persistent volume for .env file
+    tmpfs:
+      - /tmp:size=256M,mode=1777
     environment:
       # Database connection - embedded database
       POSTGRES_HOST: ${POSTGRES_HOST:-alerts-db}
@@ -386,6 +398,8 @@ services:
       # NOTE: .env removed - loads empty file from Git. App loads from CONFIG_PATH at runtime.
     volumes:
       - app-config:/app-config  # Persistent volume for .env file
+    tmpfs:
+      - /tmp:size=256M,mode=1777
     environment:
       # Database connection - embedded database
       POSTGRES_HOST: ${POSTGRES_HOST:-alerts-db}
