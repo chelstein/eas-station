@@ -11,9 +11,9 @@
 
 /* Default card headers - ensure proper contrast */
 .card-header {
-    background-color: var(--surface-color);
-    color: var(--text-color);
-    border-bottom: 1px solid var(--border-color);
+    background: linear-gradient(120deg, var(--primary-color), var(--secondary-color));
+    color: white;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
     padding: 0.75rem 1.25rem;
     font-weight: 600;
 }

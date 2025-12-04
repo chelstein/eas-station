@@ -99,8 +99,9 @@
     
     .card-header {
         padding: 1rem;
-        background-color: var(--surface-color);
-        border-bottom: 1px solid var(--border-color);
+        background: linear-gradient(120deg, var(--primary-color), var(--secondary-color));
+        color: white;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.2);
     }
     
     .card-body {
