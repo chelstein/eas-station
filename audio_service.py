@@ -570,7 +570,7 @@ def publish_metrics_to_redis(metrics):
                                 # Get source config for FFT info
                                 sample_rate = getattr(source, 'sample_rate', 44100)
                                 fft_size = getattr(source, '_fft_size', 2048)
-                                
+
                                 spectrogram_payload = {
                                     'spectrogram': spectrogram_list,
                                     'time_frames': len(spectrogram_list),
@@ -581,6 +581,16 @@ def publish_metrics_to_redis(metrics):
                                     'source_name': name,
                                     'status': 'available'
                                 }
+
+                                # Add receiver frequency info for SDR sources (for waterfall tuning indicator)
+                                if hasattr(source, 'metrics') and hasattr(source.metrics, 'metadata'):
+                                    metadata = source.metrics.metadata or {}
+                                    if 'receiver_frequency_hz' in metadata:
+                                        spectrogram_payload['center_frequency_hz'] = metadata['receiver_frequency_hz']
+                                    if 'receiver_modulation' in metadata:
+                                        spectrogram_payload['modulation'] = metadata['receiver_modulation']
+                                    if 'demodulation_enabled' in metadata:
+                                        spectrogram_payload['demodulation_enabled'] = metadata['demodulation_enabled']
                                 # Store spectrogram data with short expiry (10 seconds)
                                 pipe.setex(
                                     f"eas:spectrogram:{name}",

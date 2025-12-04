@@ -1279,7 +1279,10 @@ def register(app: Flask, logger) -> None:
                             "spectrum": spectrum_payload.get('spectrum', []),
                             "timestamp": spectrum_payload.get('timestamp', time.time()),
                             "source": "redis",
-                            "status": "available"
+                            "status": "available",
+                            "modulation_type": receiver.modulation_type,
+                            "audio_output": receiver.audio_output,
+                            "demod_frequency": receiver.frequency_hz  # Frequency being demodulated
                         })
                     except (json.JSONDecodeError, KeyError) as e:
                         route_logger.debug(f"Error parsing spectrum from Redis: {e}")
@@ -1416,7 +1419,10 @@ def register(app: Flask, logger) -> None:
                     "fft_size": fft_size,
                     "spectrum": spectrum_data,
                     "timestamp": time.time(),
-                    "source": "sdr-service"  # Indicate data came from sdr-service container
+                    "source": "sdr-service",  # Indicate data came from sdr-service container
+                    "modulation_type": receiver.modulation_type,
+                    "audio_output": receiver.audio_output,
+                    "demod_frequency": receiver.frequency_hz  # Frequency being demodulated
                 })
 
             except Exception as command_exc:
