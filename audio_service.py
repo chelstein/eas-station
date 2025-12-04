@@ -194,44 +194,27 @@ def initialize_database():
 
 
 def initialize_radio_receivers(app):
-    """Initialize radio manager for metrics collection (does NOT start receivers).
+    """DO NOT initialize radio receivers in audio-service.
 
     In the separated architecture:
     - sdr-service: Manages SDR hardware and publishes IQ samples to Redis
     - audio-service: Reads IQ samples from Redis, processes audio, publishes metrics
 
-    This function only initializes the RadioManager reference for metrics collection.
-    The actual receiver startup is handled by sdr-service.
+    The audio-service container should NOT access SDR hardware at all.
+    All SDR operations (initialization, starting, reading samples) are handled by sdr-service.
+    
+    This function is kept for backward compatibility but does nothing in separated mode.
     """
     global _radio_manager
-
-    try:
-        with app.app_context():
-            from app_core.models import RadioReceiver
-            from app_core.extensions import get_radio_manager
-
-            # Get all configured receivers from database
-            receivers = RadioReceiver.query.filter_by(enabled=True).all()
-            if not receivers:
-                logger.info("No radio receivers configured in database")
-                return
-
-            # Get or create the radio manager for metrics collection only
-            radio_manager = get_radio_manager()
-            _radio_manager = radio_manager  # Store reference for metrics collection
-
-            # Configure receivers from database records (metadata only, no hardware access)
-            radio_manager.configure_from_records(receivers)
-            logger.info(f"Configured {len(receivers)} radio receiver(s) from database (metadata only)")
-
-            # DO NOT start receivers here - that's sdr-service's responsibility!
-            # In separated architecture, audio-service reads from Redis, not from hardware
-            logger.info("⚠️  Audio service does NOT start receivers (sdr-service handles hardware)")
-            logger.info(f"   Found {len(receivers)} receiver(s) in database - sdr-service will manage them")
-
-    except Exception as exc:
-        logger.error(f"Failed to initialize radio receivers: {exc}", exc_info=True)
-        raise
+    
+    # In separated architecture, audio-service does NOT initialize radio receivers
+    # sdr-service is the only container that should access SDR hardware
+    logger.info("⚠️  Skipping radio receiver initialization in audio-service")
+    logger.info("   SDR hardware is managed by sdr-service container")
+    logger.info("   Audio-service receives IQ samples via Redis pub/sub")
+    
+    # Do NOT initialize radio manager - we don't need it in audio-service
+    _radio_manager = None
 
 
 def initialize_audio_controller(app):
@@ -403,131 +386,18 @@ def initialize_eas_monitor(app, audio_controller):
 
 
 def process_commands():
-    """Process commands from Redis command queue.
-
-    Supports commands from webapp container:
-    - restart: Restart a receiver
-    - get_spectrum: Get IQ samples for waterfall display
+    """Process commands from Redis command queue - DISABLED in separated architecture.
+    
+    In the separated architecture:
+    - sdr-service: Handles ALL SDR hardware commands (restart, start, stop, get_spectrum)
+    - audio-service: Does NOT interact with SDR hardware
+    
+    This function is kept for backward compatibility but does nothing in separated mode.
+    All SDR commands should be sent to sdr-service, not audio-service.
     """
-    global _radio_manager, _redis_client
-
-    if not _radio_manager or not _redis_client:
-        return
-
-    try:
-        # Check for pending commands (non-blocking)
-        command_json = _redis_client.lpop("sdr:commands")
-        if not command_json:
-            return
-
-        command = json.loads(command_json)
-        action = command.get("action")
-        receiver_id = command.get("receiver_id")
-        command_id = command.get("command_id", "unknown")
-
-        logger.info(f"Processing command: {action} for receiver {receiver_id} (command_id={command_id})")
-
-        if action == "restart":
-            # Restart receiver
-            instance = _radio_manager.get_receiver(receiver_id)
-            if not instance:
-                result = {
-                    "command_id": command_id,
-                    "success": False,
-                    "error": f"Receiver '{receiver_id}' not found in RadioManager",
-                    "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-                }
-            else:
-                try:
-                    # Stop and restart
-                    instance.stop()
-                    time.sleep(0.5)  # Brief pause
-                    instance.start()
-
-                    status = instance.get_status()
-                    result = {
-                        "command_id": command_id,
-                        "success": True,
-                        "receiver_id": receiver_id,
-                        "status": {
-                            "locked": status.locked,
-                            "signal_strength": status.signal_strength,
-                            "running": instance.is_running() if hasattr(instance, 'is_running') else False,
-                        },
-                        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-                    }
-                    logger.info(f"✅ Successfully restarted receiver {receiver_id}")
-                except Exception as e:
-                    logger.error(f"❌ Failed to restart receiver {receiver_id}: {e}")
-                    result = {
-                        "command_id": command_id,
-                        "success": False,
-                        "error": str(e),
-                        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-                    }
-
-            # Publish result
-            _redis_client.setex(
-                f"sdr:command_result:{command_id}",
-                30,  # 30 second TTL
-                json.dumps(result)
-            )
-
-        elif action == "get_spectrum":
-            # Get spectrum data for waterfall
-            instance = _radio_manager.get_receiver(receiver_id)
-            if not instance:
-                result = {
-                    "command_id": command_id,
-                    "success": False,
-                    "error": f"Receiver '{receiver_id}' not found",
-                    "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-                }
-            else:
-                try:
-                    num_samples = command.get("num_samples", 2048)
-                    iq_samples = instance.get_samples(num_samples=num_samples)
-
-                    if iq_samples is None or len(iq_samples) == 0:
-                        result = {
-                            "command_id": command_id,
-                            "success": False,
-                            "error": "No samples available from receiver",
-                            "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-                        }
-                    else:
-                        # Convert complex samples to list of [real, imag] pairs
-                        samples_list = [[float(s.real), float(s.imag)] for s in iq_samples[:num_samples]]
-                        result = {
-                            "command_id": command_id,
-                            "success": True,
-                            "samples": samples_list,
-                            "num_samples": len(samples_list),
-                            "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-                        }
-                except Exception as e:
-                    logger.error(f"❌ Failed to get spectrum for receiver {receiver_id}: {e}")
-                    result = {
-                        "command_id": command_id,
-                        "success": False,
-                        "error": str(e),
-                        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-                    }
-
-            # Publish result
-            _redis_client.setex(
-                f"sdr:command_result:{command_id}",
-                30,  # 30 second TTL
-                json.dumps(result)
-            )
-
-        else:
-            logger.warning(f"Unknown command action: {action}")
-
-    except json.JSONDecodeError as e:
-        logger.error(f"Failed to parse command JSON: {e}")
-    except Exception as e:
-        logger.error(f"Error processing command: {e}", exc_info=True)
+    # Do nothing - SDR commands are handled by sdr-service container
+    # This prevents audio-service from trying to access SDR hardware
+    pass
 
 
 def collect_metrics():
@@ -541,68 +411,10 @@ def collect_metrics():
     }
 
     try:
-        # Get radio manager stats (for app container to read via Redis)
-        if _radio_manager:
-            try:
-                radio_stats: Dict[str, Any] = {
-                    "available_drivers": list(_radio_manager.available_drivers().keys()),
-                    "loaded_receiver_count": 0,
-                    "running_receiver_count": 0,
-                    "locked_receiver_count": 0,
-                    "receivers_with_samples": 0,
-                    "receivers": {}
-                }
-                
-                if hasattr(_radio_manager, '_receivers'):
-                    radio_stats["loaded_receiver_count"] = len(_radio_manager._receivers)
-                    
-                    for identifier, receiver_instance in _radio_manager._receivers.items():
-                        try:
-                            status = receiver_instance.get_status()
-                            is_running = receiver_instance._running.is_set() if hasattr(receiver_instance, '_running') else False
-                            is_locked = status.locked
-                            
-                            # Check if samples are available
-                            samples_available = False
-                            sample_count = 0
-                            if hasattr(receiver_instance, 'get_samples'):
-                                try:
-                                    samples = receiver_instance.get_samples(num_samples=100)
-                                    if samples is not None:
-                                        samples_available = True
-                                        sample_count = len(samples)
-                                except Exception:
-                                    pass
-                            
-                            if is_running:
-                                radio_stats["running_receiver_count"] += 1
-                            if is_locked:
-                                radio_stats["locked_receiver_count"] += 1
-                            if samples_available:
-                                radio_stats["receivers_with_samples"] += 1
-                            
-                            radio_stats["receivers"][identifier] = {
-                                "identifier": identifier,
-                                "running": is_running,
-                                "locked": is_locked,
-                                "signal_strength": _sanitize_value(status.signal_strength),
-                                "last_error": status.last_error,
-                                "reported_at": status.reported_at.isoformat() if status.reported_at else None,
-                                "samples_available": samples_available,
-                                "sample_count": sample_count,
-                                "config": {
-                                    "frequency_hz": receiver_instance.config.frequency_hz,
-                                    "sample_rate": receiver_instance.config.sample_rate,
-                                    "driver": receiver_instance.config.driver,
-                                    "modulation_type": receiver_instance.config.modulation_type,
-                                } if hasattr(receiver_instance, 'config') else {}
-                            }
-                        except Exception as e:
-                            logger.debug(f"Error getting receiver stats for '{identifier}': {e}")
-                
-                metrics["radio_manager"] = radio_stats
-            except Exception as e:
-                logger.error(f"Error getting radio manager stats: {e}")
+        # DO NOT collect radio manager stats in audio-service
+        # In separated architecture, sdr-service publishes SDR metrics to Redis
+        # Audio-service should NOT access SDR hardware or collect SDR metrics
+        # Web application reads SDR metrics from sdr:metrics key (published by sdr-service)
         
         # Get audio controller stats
         if _audio_controller:
@@ -757,134 +569,10 @@ def publish_metrics_to_redis(metrics):
                 except Exception as e:
                     logger.debug(f"Error publishing visualization data for '{name}': {e}")
         
-        # Publish spectrum data for each SDR receiver (for waterfall display in web UI)
-        if _radio_manager:
-            try:
-                import numpy as np
-                
-                if hasattr(_radio_manager, '_receivers'):
-                    for identifier, receiver_instance in _radio_manager._receivers.items():
-                        try:
-                            # Check if receiver is running
-                            is_running = receiver_instance._running.is_set() if hasattr(receiver_instance, '_running') else False
-
-                            # Get status for diagnostics
-                            status = receiver_instance.get_status() if hasattr(receiver_instance, 'get_status') else None
-
-                            # Always publish spectrum status (even if not running or no samples)
-                            # This allows the UI to show appropriate messages
-                            if not is_running:
-                                # Receiver is stopped - publish minimal status
-                                spectrum_payload = {
-                                    'receiver_identifier': identifier,
-                                    'timestamp': time.time(),
-                                    'status': 'stopped',
-                                    'spectrum': [],
-                                    'fft_size': 0,
-                                    'sample_rate': 0,
-                                    'center_frequency': 0,
-                                    'error': 'Receiver is not running'
-                                }
-                                pipe.setex(
-                                    f"eas:spectrum:{identifier}",
-                                    5,
-                                    json.dumps(spectrum_payload)
-                                )
-                                continue
-
-                            # Get IQ samples for spectrum
-                            if hasattr(receiver_instance, 'get_samples'):
-                                iq_samples = receiver_instance.get_samples(num_samples=2048)
-
-                                if iq_samples is not None and len(iq_samples) > 0:
-                                    # Compute FFT for spectrum display
-                                    fft_size = min(len(iq_samples), 2048)
-                                    
-                                    # Remove DC offset before FFT computation
-                                    # This is critical for high-powered FM stations where the DC component
-                                    # from the tuner's local oscillator leakage can dominate the spectrum
-                                    # and make everything else look like "garbage" (horizontal lines)
-                                    samples_slice = iq_samples[:fft_size]
-                                    samples_for_fft = samples_slice - np.mean(samples_slice)
-                                    
-                                    window = np.hanning(fft_size)
-                                    windowed = samples_for_fft * window
-                                    fft_result = np.fft.fftshift(np.fft.fft(windowed))
-                                    
-                                    # Convert to magnitude (dB)
-                                    magnitude = np.abs(fft_result)
-                                    magnitude = np.where(magnitude > 0, magnitude, FFT_MIN_MAGNITUDE)
-                                    magnitude_db = 20 * np.log10(magnitude)
-                                    
-                                    # Normalize to 0-1 range using FIXED dB scale for consistent display
-                                    # This approach shows actual signal levels rather than stretching
-                                    # noise to fill the display (which makes everything look like garbage)
-                                    normalized = np.clip(
-                                        (magnitude_db - SPECTRUM_DB_MIN) / (SPECTRUM_DB_MAX - SPECTRUM_DB_MIN),
-                                        0.0, 1.0
-                                    )
-                                    
-                                    # Get receiver config for frequency info
-                                    config = receiver_instance.config if hasattr(receiver_instance, 'config') else None
-                                    frequency_hz = config.frequency_hz if config else 0
-                                    sample_rate = config.sample_rate if config else 0
-                                    
-                                    spectrum_payload = {
-                                        'identifier': identifier,
-                                        'spectrum': _sanitize_value(normalized.tolist()),
-                                        'fft_size': fft_size,
-                                        'sample_rate': sample_rate,
-                                        'center_frequency': frequency_hz,
-                                        'freq_min': frequency_hz - (sample_rate / 2) if sample_rate else 0,
-                                        'freq_max': frequency_hz + (sample_rate / 2) if sample_rate else 0,
-                                        'timestamp': time.time(),
-                                        'status': 'available'
-                                    }
-                                    
-                                    # Store spectrum data with short expiry (5 seconds - waterfall needs frequent updates)
-                                    pipe.setex(
-                                        f"eas:spectrum:{identifier}",
-                                        5,
-                                        json.dumps(spectrum_payload)
-                                    )
-                                    logger.debug(f"Published spectrum data for receiver '{identifier}'")
-                                else:
-                                    # Receiver is running but no samples available - publish status
-                                    config = receiver_instance.config if hasattr(receiver_instance, 'config') else None
-                                    # Use correct default based on driver type
-                                    if config and config.sample_rate:
-                                        sample_rate = config.sample_rate
-                                    else:
-                                        driver_hint = getattr(config, 'driver_hint', '') if config else ''
-                                        sample_rate = 2500000 if 'airspy' in driver_hint.lower() else 2400000
-                                    center_freq = config.frequency_hz if config else 0
-
-                                    error_msg = "Starting up" if status and status.locked else "Waiting for signal lock"
-                                    spectrum_payload = {
-                                        'identifier': identifier,
-                                        'spectrum': [],
-                                        'fft_size': 0,
-                                        'sample_rate': sample_rate,
-                                        'center_frequency': center_freq,
-                                        'freq_min': center_freq - (sample_rate / 2) if sample_rate else 0,
-                                        'freq_max': center_freq + (sample_rate / 2) if sample_rate else 0,
-                                        'timestamp': time.time(),
-                                        'status': 'no_samples',
-                                        'error': error_msg
-                                    }
-                                    pipe.setex(
-                                        f"eas:spectrum:{identifier}",
-                                        5,
-                                        json.dumps(spectrum_payload)
-                                    )
-                                    logger.debug(f"Published no-samples status for receiver '{identifier}': {error_msg}")
-
-                        except Exception as e:
-                            logger.debug(f"Error publishing spectrum for receiver '{identifier}': {e}")
-            except ImportError:
-                logger.debug("NumPy not available for spectrum generation")
-            except Exception as e:
-                logger.debug(f"Error publishing spectrum data: {e}")
+        # DO NOT publish spectrum data in audio-service
+        # In separated architecture, sdr-service publishes spectrum data to Redis
+        # Audio-service should NOT access SDR hardware or read samples from receivers
+        # Spectrum data is published by sdr-service to sdr:spectrum:{identifier} keys
         
         pipe.execute()
 
@@ -916,15 +604,16 @@ def main():
         logger.info("Initializing database connection...")
         app = initialize_database()
 
-        # Initialize radio receivers (SoapySDR)
-        logger.info("Initializing radio receivers (SDR hardware)...")
+        # DO NOT initialize radio receivers in audio-service (separated architecture)
+        # sdr-service container handles ALL SDR hardware operations
+        logger.info("Skipping radio receiver initialization (handled by sdr-service)...")
         try:
             initialize_radio_receivers(app)
-            logger.info("✅ Radio receivers initialized successfully")
+            # This function now does nothing - just logs that SDR is handled by sdr-service
         except Exception as e:
-            logger.error(f"❌ Failed to initialize radio receivers: {e}", exc_info=True)
-            logger.warning("⚠️ Continuing without radio receivers - SDR audio sources will not work!")
-            # Continue - other audio sources (streams, files) might still work
+            # Should never happen since function does nothing now
+            logger.warning(f"Unexpected error in initialize_radio_receivers: {e}")
+            # Continue - audio-service doesn't need SDR hardware
 
         # Initialize audio controller
         logger.info("Initializing audio controller...")
@@ -1213,8 +902,8 @@ def main():
             try:
                 current_time = time.time()
 
-                # Process pending commands from webapp (non-blocking)
-                process_commands()
+                # DO NOT process SDR commands in audio-service
+                # In separated architecture, SDR commands are handled by sdr-service
 
                 # Publish metrics periodically
                 if current_time - last_metrics_time >= metrics_interval:

@@ -514,6 +514,42 @@ def process_commands(redis_client):
                 result = {"command_id": command_id, "success": True}
             else:
                 result = {"command_id": command_id, "success": False, "error": "Not found"}
+        elif action == "get_spectrum":
+            # Get spectrum data for waterfall display
+            receiver = radio_manager.get_receiver(receiver_id)
+            if not receiver:
+                result = {
+                    "command_id": command_id,
+                    "success": False,
+                    "error": f"Receiver '{receiver_id}' not found"
+                }
+            else:
+                try:
+                    num_samples = command.get("num_samples", 2048)
+                    iq_samples = receiver.get_samples(num_samples=num_samples)
+                    
+                    if iq_samples is None or len(iq_samples) == 0:
+                        result = {
+                            "command_id": command_id,
+                            "success": False,
+                            "error": "No samples available from receiver"
+                        }
+                    else:
+                        # Convert complex samples to list of [real, imag] pairs
+                        samples_list = [[float(s.real), float(s.imag)] for s in iq_samples[:num_samples]]
+                        result = {
+                            "command_id": command_id,
+                            "success": True,
+                            "samples": samples_list,
+                            "num_samples": len(samples_list)
+                        }
+                except Exception as e:
+                    logger.error(f"Failed to get spectrum for receiver {receiver_id}: {e}")
+                    result = {
+                        "command_id": command_id,
+                        "success": False,
+                        "error": str(e)
+                    }
         else:
             result = {
                 "command_id": command_id,
