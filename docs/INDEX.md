@@ -11,6 +11,8 @@ If you're new to EAS Station, start here:
 | [Main README](https://github.com/KR8MER/eas-station/blob/main/README.md) | Installation and overview |
 | [Setup Instructions](guides/SETUP_INSTRUCTIONS) | First-run configuration |
 | [Portainer Deployment](deployment/PORTAINER_DEPLOYMENT) | Container-based setup |
+| [tmpfs Configuration](deployment/TMPFS_CONFIGURATION) | RAM optimization for different system sizes |
+| [Quick tmpfs Guide](deployment/QUICK_TMPFS_GUIDE) | Copy-paste configurations for 4GB/8GB/16GB/32GB+ systems |
 
 ## 📊 Visual Documentation
 
