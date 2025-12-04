@@ -467,8 +467,9 @@ def _load_or_cache_audio_data(message: EASMessage, *, variant: str = 'primary') 
     try:
         db.session.add(message)
         db.session.commit()
-    except Exception:
+    except Exception as e:
         db.session.rollback()
+        logger.error(f"Failed to cache audio data for message {message.id}: {e}", exc_info=True)
 
     return data
 
@@ -1082,12 +1083,12 @@ def initialize_database():
             timezone_name = settings.get('timezone')
             if timezone_name:
                 set_location_timezone(timezone_name)
-            if not LED_AVAILABLE:
+            if LED_AVAILABLE:
                 initialise_led_controller(logger)
                 ensure_led_tables()
-            if not OLED_AVAILABLE:
+            if OLED_AVAILABLE:
                 initialise_oled_display(logger)
-            if not VFD_AVAILABLE:
+            if VFD_AVAILABLE:
                 initialise_vfd_controller(logger)
                 ensure_vfd_tables()
             # Initialize RBAC roles and permissions

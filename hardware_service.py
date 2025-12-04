@@ -152,7 +152,7 @@ def initialize_led_controller():
     try:
         from app_core.led import initialise_led_controller, ensure_led_tables, LED_AVAILABLE
 
-        if not LED_AVAILABLE:
+        if LED_AVAILABLE:
             controller = initialise_led_controller(logger)
             if controller:
                 logger.info("✅ LED controller initialized")
@@ -164,7 +164,7 @@ def initialize_led_controller():
             else:
                 logger.info("LED controller disabled or unavailable")
         else:
-            logger.info("LED controller already initialized")
+            logger.info("LED hardware not available")
 
     except Exception as e:
         logger.warning(f"⚠️  LED controller not available: {e}")
@@ -176,7 +176,7 @@ def initialize_vfd_controller():
     try:
         from app_core.vfd import initialise_vfd_controller, ensure_vfd_tables, VFD_AVAILABLE
 
-        if not VFD_AVAILABLE:
+        if VFD_AVAILABLE:
             controller = initialise_vfd_controller(logger)
             if controller:
                 logger.info("✅ VFD controller initialized")
@@ -188,7 +188,7 @@ def initialize_vfd_controller():
             else:
                 logger.info("VFD controller disabled or unavailable")
         else:
-            logger.info("VFD controller already initialized")
+            logger.info("VFD hardware not available")
 
     except Exception as e:
         logger.warning(f"⚠️  VFD controller not available: {e}")
@@ -200,7 +200,7 @@ def initialize_oled_display():
     try:
         from app_core.oled import initialise_oled_display, ensure_oled_button, OLED_AVAILABLE
 
-        if not OLED_AVAILABLE:
+        if OLED_AVAILABLE:
             controller = initialise_oled_display(logger)
             if controller:
                 logger.info("✅ OLED display initialized")
@@ -214,7 +214,7 @@ def initialize_oled_display():
             else:
                 logger.info("OLED display disabled or unavailable")
         else:
-            logger.info("OLED display already initialized")
+            logger.info("OLED hardware not available")
 
     except Exception as e:
         logger.warning(f"⚠️  OLED display not available: {e}")

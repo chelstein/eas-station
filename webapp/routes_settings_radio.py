@@ -456,10 +456,8 @@ def _sync_radio_manager_state(route_logger) -> Dict[str, Any]:
 
     for receiver in enabled_receivers:
         instance = radio_manager.get_receiver(receiver.identifier)
-        if instance is None:
-            continue
 
-        if receiver.auto_start:
+        if instance is not None and receiver.auto_start:
             try:
                 instance.start()
                 summary["auto_started"].append(receiver.identifier)
