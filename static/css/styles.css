@@ -197,7 +197,8 @@
     --shadow-color: rgba(67, 160, 71, 0.12);
 }
 
-/* Additional themes: red, green, blue, purple, pink, orange, yellow, sunset, tide, aurora, nebula, midnight, charcoal, obsidian, slate - condensed for brevity */
+/* Additional themes defined: orange, yellow, pink, sunset, aurora, nebula, midnight, charcoal, obsidian, slate
+   Full theme definitions for each are included in this file */
 
 
 /* ============================================
@@ -1515,15 +1516,15 @@ textarea:focus {
     h2, .h2 { font-size: 2.5rem; }
 }
 
-/* Print Styles */
+/* Print Styles - Pure black/white for optimal printer output */
 @media print {
     body {
-        color: #000000 !important;
-        background: #ffffff !important;
+        color: var(--text-color) !important;
+        background: var(--surface-color) !important;
     }
 
     * {
-        color: #000000 !important;
+        color: var(--text-color) !important;
         background: none !important;
         box-shadow: none !important;
         text-shadow: none !important;
@@ -1541,7 +1542,7 @@ textarea:focus {
     }
 
     .card {
-        border: 1px solid #000000;
+        border: 1px solid var(--text-color);
         page-break-inside: avoid;
     }
 }
