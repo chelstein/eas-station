@@ -32,8 +32,9 @@
 
 .card-header {
     padding: var(--space-4) var(--space-6);
-    border-bottom: 1px solid var(--border-color);
-    background-color: var(--surface-color);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    background: linear-gradient(120deg, var(--primary-color), var(--secondary-color));
+    color: white;
 }
 
 .card-title {
