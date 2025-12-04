@@ -208,8 +208,6 @@
 .page-header {
     padding: var(--space-8, 2rem) 0;
     margin-bottom: var(--space-6, 1.5rem);
-    background-color: var(--bg-color);
-    color: var(--text-color);
 }
 
 .page-header-gradient {
