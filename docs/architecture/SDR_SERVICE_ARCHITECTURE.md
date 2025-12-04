@@ -126,22 +126,22 @@ MAX_SIZE = 4194304  # ~1.6s at 2.5 MHz
 buffer_size = sample_rate * 1.0
 ```
 
-### 3. Dual-Thread Architecture (`app_core/radio/dual_thread.py`)
+### 3. Single-Thread Capture Loop (CURRENT IMPLEMENTATION)
 
-**Purpose:** Separate USB reading from processing.
+**Status:** As of 2025-12-04, the dual-thread architecture code was removed as it was never activated.
 
-**Threads:**
-1. **USB Reader Thread (Producer)**
-   - Only calls `readStream()`
-   - Never blocks on processing
-   - 100ms read timeout
-   - Writes directly to ring buffer
+**Current Implementation:** Single-threaded capture loop in `_SoapySDRReceiver._capture_loop()`
+- Reads samples from USB
+- Performs FFT for spectrum analysis
+- Updates signal strength metrics
+- Maintains ring buffer for USB jitter absorption
+- Handles capture requests
 
-2. **Processing Thread (Consumer)**
-   - Reads from ring buffer
-   - FFT computation
-   - Signal strength calculation
-   - Audio sample buffer updates
+**Note:** A dual-thread architecture was prototyped but never integrated. The mixin code was removed during refactoring. If needed in future, it can be re-implemented based on the single-thread foundation.
+
+~~**Previous Design (Not Implemented):**~~
+~~1. USB Reader Thread (Producer) - read from hardware~~
+~~2. Processing Thread (Consumer) - FFT and analysis~~
 
 ### 4. Audio Service (`audio_service.py`)
 

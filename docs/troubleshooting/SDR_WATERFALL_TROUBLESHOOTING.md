@@ -81,12 +81,13 @@ Open browser Developer Tools (F12) and check the Console tab for:
 
 ## What the Fixes Do
 
-### Fix 1: RadioManager Initialization (`app.py`)
-Added `_initialize_radio_receivers()` function that:
+### Fix 1: RadioManager Initialization (Containerized Architecture)
+Radio receiver initialization is handled by the `sdr-service` container (`sdr_service.py`):
 - Loads all enabled receivers from database
 - Configures RadioManager with those receivers
 - Starts receivers that have `auto_start=True`
-- Called automatically during app startup
+- Runs in dedicated container with USB device access
+- Publishes samples to Redis for consumption by other services
 
 ### Fix 2: Sample Buffer Race Condition (`app_core/radio/drivers.py`)
 - Sample buffer now initialized BEFORE capture thread starts

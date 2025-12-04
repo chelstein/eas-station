@@ -28,7 +28,6 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 from .manager import ReceiverConfig, ReceiverInterface, ReceiverStatus, RadioManager
-from .dual_thread import DualThreadSDRMixin
 from .ring_buffer import SDRRingBuffer, calculate_buffer_size
 
 
@@ -126,16 +125,14 @@ class _CaptureTicket:
                 self._file = None
         self.event.set()
 
-class _SoapySDRReceiver(DualThreadSDRMixin, ReceiverInterface):
+class _SoapySDRReceiver(ReceiverInterface):
     """Common functionality for receivers implemented via SoapySDR.
-    
-    This class uses a dual-thread architecture for reliable SDR operation:
-    - USB Reader Thread: Reads samples from SDR hardware (time-critical)
-    - Processing Thread: Handles FFT, audio, captures (can block)
-    
-    The threads communicate via a lock-free ring buffer, ensuring USB reads
-    are never blocked by processing delays. This design is inspired by
-    dump1090 and other robust SDR applications.
+
+    This receiver uses a single-threaded capture loop that reads samples from
+    the SDR hardware via SoapySDR, performs spectrum analysis, and makes samples
+    available for audio processing and capture requests.
+
+    A ring buffer absorbs USB timing jitter to ensure reliable operation.
     """
 
     driver_hint: str = ""
