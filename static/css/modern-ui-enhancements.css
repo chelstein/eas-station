@@ -12,9 +12,9 @@
 .page-header,
 .card-header.gradient-header {
     background: linear-gradient(135deg,
-        var(--primary-color, #204885) 0%,
-        var(--secondary-color, #872a96) 50%,
-        var(--primary-color, #204885) 100%);
+        var(--primary-color) 0%,
+        var(--secondary-color) 50%,
+        var(--primary-color) 100%);
     background-size: 200% 200%;
     animation: gradientShift 8s ease infinite;
     position: relative;
@@ -80,7 +80,7 @@
     -webkit-backdrop-filter: blur(12px) saturate(180%);
     border: 1px solid rgba(255, 255, 255, 0.25);
     box-shadow:
-        0 8px 32px rgba(32, 72, 133, 0.12),
+        0 8px 32px var(--shadow-color),
         inset 0 1px 0 rgba(255, 255, 255, 0.6);
     /* Ensure text is readable */
     color: var(--text-color);
@@ -108,7 +108,7 @@
     -webkit-backdrop-filter: blur(20px) saturate(180%);
     border: 1px solid rgba(255, 255, 255, 0.3);
     box-shadow:
-        0 20px 60px rgba(32, 72, 133, 0.25),
+        0 20px 60px var(--shadow-color),
         0 0 0 1px rgba(255, 255, 255, 0.5) inset;
     color: var(--text-color);
 }
@@ -130,33 +130,33 @@
 
 .card {
     box-shadow:
-        0 2px 8px rgba(32, 72, 133, 0.08),
-        0 1px 2px rgba(32, 72, 133, 0.04);
+        0 2px 8px var(--shadow-color),
+        0 1px 2px var(--border-color));
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .card:hover {
     transform: translateY(-2px);
     box-shadow:
-        0 12px 32px rgba(32, 72, 133, 0.15),
-        0 4px 8px rgba(32, 72, 133, 0.08);
+        0 12px 32px var(--shadow-color),
+        0 4px 8px var(--shadow-color);
 }
 
 /* Elevated cards with more dramatic shadows */
 .card.elevated,
 .sticky-card {
     box-shadow:
-        0 4px 16px rgba(32, 72, 133, 0.12),
-        0 2px 4px rgba(32, 72, 133, 0.06),
-        0 0 0 1px rgba(32, 72, 133, 0.04);
+        0 4px 16px var(--shadow-color),
+        0 2px 4px var(--shadow-color),
+        0 0 0 1px var(--border-color));
 }
 
 .card.elevated:hover {
     transform: translateY(-3px);
     box-shadow:
-        0 16px 48px rgba(32, 72, 133, 0.18),
-        0 8px 16px rgba(32, 72, 133, 0.1),
-        0 0 0 1px rgba(32, 72, 133, 0.06);
+        0 16px 48px var(--shadow-color),
+        0 8px 16px var(--border-color)),
+        0 0 0 1px var(--shadow-color);
 }
 
 
@@ -193,23 +193,23 @@
 
 /* Primary button with gradient */
 .btn-primary {
-    background: linear-gradient(135deg, var(--primary-color, #204885), var(--secondary-color, #872a96));
+    background: linear-gradient(135deg, var(--primary-color, var(--primary-color)), var(--secondary-color, var(--secondary-color)));
     border: none;
     box-shadow:
-        0 4px 12px rgba(32, 72, 133, 0.3),
-        0 2px 4px rgba(32, 72, 133, 0.2);
+        0 4px 12px var(--border-color)),
+        0 2px 4px var(--shadow-color);
     /* Ensure text is always white and readable */
     color: #ffffff !important;
 }
 
 .btn-primary:hover {
     background: linear-gradient(135deg,
-        color-mix(in srgb, var(--primary-color, #204885) 90%, white),
-        color-mix(in srgb, var(--secondary-color, #872a96) 90%, white));
+        color-mix(in srgb, var(--primary-color, var(--primary-color)) 90%, white),
+        color-mix(in srgb, var(--secondary-color, var(--secondary-color)) 90%, white));
     transform: translateY(-1px);
     box-shadow:
-        0 8px 20px rgba(32, 72, 133, 0.35),
-        0 4px 8px rgba(32, 72, 133, 0.25);
+        0 8px 20px var(--shadow-color),
+        0 4px 8px var(--shadow-color);
     color: #ffffff !important;
 }
 
@@ -225,9 +225,9 @@
 /* Outline buttons with glow on hover */
 .btn-outline-primary:hover {
     box-shadow:
-        0 0 20px rgba(32, 72, 133, 0.3),
-        0 0 40px rgba(32, 72, 133, 0.1),
-        inset 0 0 20px rgba(32, 72, 133, 0.05);
+        0 0 20px var(--border-color)),
+        0 0 40px var(--border-color)),
+        inset 0 0 20px var(--border-color));
 }
 
 /* Light buttons for headers */
@@ -260,10 +260,10 @@
 
 .form-control:focus,
 .form-select:focus {
-    border-color: var(--primary-color, #204885);
+    border-color: var(--primary-color, var(--primary-color));
     box-shadow:
-        0 0 0 4px rgba(32, 72, 133, 0.12),
-        0 4px 12px rgba(32, 72, 133, 0.15);
+        0 0 0 4px var(--shadow-color),
+        0 4px 12px var(--shadow-color);
     transform: translateY(-1px);
 }
 
@@ -274,11 +274,11 @@
 
 .form-check-input:checked {
     transform: scale(1.05);
-    box-shadow: 0 0 0 4px rgba(32, 72, 133, 0.15);
+    box-shadow: 0 0 0 4px var(--shadow-color);
 }
 
 .form-switch .form-check-input:checked {
-    background: linear-gradient(135deg, var(--primary-color, #204885), var(--secondary-color, #872a96));
+    background: linear-gradient(135deg, var(--primary-color, var(--primary-color)), var(--secondary-color, var(--secondary-color)));
 }
 
 
@@ -307,10 +307,10 @@
 
 @keyframes badgePulse {
     0%, 100% {
-        box-shadow: 0 0 0 0 rgba(32, 72, 133, 0.4);
+        box-shadow: 0 0 0 0 var(--primary-soft);
     }
     50% {
-        box-shadow: 0 0 0 8px rgba(32, 72, 133, 0);
+        box-shadow: 0 0 0 8px transparent;
     }
 }
 
@@ -323,10 +323,10 @@
     backdrop-filter: blur(12px) saturate(180%);
     -webkit-backdrop-filter: blur(12px) saturate(180%);
     background: rgba(255, 255, 255, 0.95) !important;
-    border-bottom: 1px solid rgba(32, 72, 133, 0.1);
+    border-bottom: 1px solid var(--border-color));
     box-shadow:
-        0 4px 16px rgba(32, 72, 133, 0.08),
-        0 2px 4px rgba(32, 72, 133, 0.04);
+        0 4px 16px var(--shadow-color),
+        0 2px 4px var(--border-color));
 }
 
 [data-theme="dark"] .navbar {
@@ -346,7 +346,7 @@
     left: 50%;
     width: 0;
     height: 2px;
-    background: linear-gradient(90deg, var(--primary-color, #204885), var(--secondary-color, #872a96));
+    background: linear-gradient(90deg, var(--primary-color, var(--primary-color)), var(--secondary-color, var(--secondary-color)));
     transform: translateX(-50%);
     transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -444,16 +444,16 @@
 #map {
     border-radius: var(--radius-md, 8px);
     box-shadow:
-        0 12px 32px rgba(32, 72, 133, 0.15),
-        0 4px 8px rgba(32, 72, 133, 0.08),
+        0 12px 32px var(--shadow-color),
+        0 4px 8px var(--shadow-color),
         inset 0 0 0 1px rgba(255, 255, 255, 0.5);
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 #map:hover {
     box-shadow:
-        0 16px 48px rgba(32, 72, 133, 0.2),
-        0 8px 16px rgba(32, 72, 133, 0.12),
+        0 16px 48px var(--shadow-color),
+        0 8px 16px var(--shadow-color),
         inset 0 0 0 1px rgba(255, 255, 255, 0.6);
 }
 
@@ -484,8 +484,8 @@
 
 .table thead th {
     background: linear-gradient(135deg,
-        var(--primary-color, #204885),
-        var(--secondary-color, #872a96));
+        var(--primary-color, var(--primary-color)),
+        var(--secondary-color, var(--secondary-color)));
     color: #ffffff !important;
     border: none;
     padding: 16px;
@@ -507,15 +507,15 @@
 
 .table tbody tr {
     background: var(--surface-color, #fff);
-    box-shadow: 0 2px 8px rgba(32, 72, 133, 0.06);
+    box-shadow: 0 2px 8px var(--shadow-color);
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .table tbody tr:hover {
     transform: translateY(-2px) scale(1.01);
     box-shadow:
-        0 8px 24px rgba(32, 72, 133, 0.12),
-        0 4px 8px rgba(32, 72, 133, 0.08);
+        0 8px 24px var(--shadow-color),
+        0 4px 8px var(--shadow-color);
 }
 
 .table tbody td {
@@ -548,9 +548,9 @@
 .progress-bar {
     border-radius: 999px;
     background: linear-gradient(90deg,
-        var(--primary-color, #204885),
-        var(--secondary-color, #872a96));
-    box-shadow: 0 2px 8px rgba(32, 72, 133, 0.4);
+        var(--primary-color, var(--primary-color)),
+        var(--secondary-color, var(--secondary-color)));
+    box-shadow: 0 2px 8px var(--primary-soft);
     position: relative;
     overflow: hidden;
 }
@@ -597,7 +597,7 @@
     left: 0;
     width: 4px;
     height: 100%;
-    background: linear-gradient(180deg, var(--primary-color, #204885), var(--secondary-color, #872a96));
+    background: linear-gradient(180deg, var(--primary-color, var(--primary-color)), var(--secondary-color, var(--secondary-color)));
     transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -611,8 +611,8 @@
 .metric-card:hover {
     transform: translateY(-4px) scale(1.02);
     box-shadow:
-        0 16px 48px rgba(32, 72, 133, 0.18),
-        0 8px 16px rgba(32, 72, 133, 0.12);
+        0 16px 48px var(--shadow-color),
+        0 8px 16px var(--shadow-color);
 }
 
 
@@ -627,7 +627,7 @@
     backdrop-filter: blur(12px) saturate(180%);
     border-radius: 12px;
     box-shadow:
-        0 12px 32px rgba(32, 72, 133, 0.2),
+        0 12px 32px var(--shadow-color),
         0 0 0 1px rgba(255, 255, 255, 0.5) inset;
     padding: 8px;
     animation: dropdownSlideIn 0.2s cubic-bezier(0.4, 0, 0.2, 1);
@@ -659,8 +659,8 @@
 
 .dropdown-item:hover {
     background: linear-gradient(90deg,
-        rgba(32, 72, 133, 0.1),
-        rgba(135, 42, 150, 0.1));
+        var(--border-color)),
+        var(--secondary-soft));
     transform: translateX(4px);
 }
 
@@ -687,16 +687,16 @@ html {
 
 ::-webkit-scrollbar-thumb {
     background: linear-gradient(180deg,
-        var(--primary-color, #204885),
-        var(--secondary-color, #872a96));
+        var(--primary-color, var(--primary-color)),
+        var(--secondary-color, var(--secondary-color)));
     border-radius: 6px;
     border: 2px solid var(--color-neutral-100, #f1f3f5);
 }
 
 ::-webkit-scrollbar-thumb:hover {
     background: linear-gradient(180deg,
-        color-mix(in srgb, var(--primary-color, #204885) 90%, white),
-        color-mix(in srgb, var(--secondary-color, #872a96) 90%, white));
+        color-mix(in srgb, var(--primary-color, var(--primary-color)) 90%, white),
+        color-mix(in srgb, var(--secondary-color, var(--secondary-color)) 90%, white));
 }
 
 
@@ -709,29 +709,29 @@ html {
     margin-bottom: 12px;
     border-radius: 12px;
     overflow: hidden;
-    box-shadow: 0 2px 8px rgba(32, 72, 133, 0.08);
+    box-shadow: 0 2px 8px var(--shadow-color);
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .accordion-item:hover {
-    box-shadow: 0 8px 24px rgba(32, 72, 133, 0.15);
+    box-shadow: 0 8px 24px var(--shadow-color);
     transform: translateY(-2px);
 }
 
 .accordion-button {
     background: linear-gradient(135deg,
-        rgba(32, 72, 133, 0.05),
-        rgba(135, 42, 150, 0.05));
+        var(--border-color)),
+        var(--border-color));
     font-weight: 600;
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .accordion-button:not(.collapsed) {
     background: linear-gradient(135deg,
-        var(--primary-color, #204885),
-        var(--secondary-color, #872a96));
+        var(--primary-color, var(--primary-color)),
+        var(--secondary-color, var(--secondary-color)));
     color: white;
-    box-shadow: 0 4px 12px rgba(32, 72, 133, 0.3);
+    box-shadow: 0 4px 12px var(--border-color));
 }
 
 
@@ -788,9 +788,9 @@ html {
 /* Glow effect */
 .glow {
     box-shadow:
-        0 0 20px rgba(32, 72, 133, 0.3),
-        0 0 40px rgba(32, 72, 133, 0.2),
-        0 0 60px rgba(32, 72, 133, 0.1);
+        0 0 20px var(--border-color)),
+        0 0 40px var(--shadow-color),
+        0 0 60px var(--border-color));
 }
 
 /* Floating animation */
@@ -827,8 +827,8 @@ html {
         background-size: 100% 100%;
         /* Static gradient - no animation */
         background: linear-gradient(135deg,
-            var(--primary-color, #204885) 0%,
-            var(--secondary-color, #872a96) 100%);
+            var(--primary-color, var(--primary-color)) 0%,
+            var(--secondary-color, var(--secondary-color)) 100%);
     }
 
     /* Disable hover effects on mobile - use touch instead */
@@ -838,12 +838,12 @@ html {
 
     /* Simplify shadows on mobile for better performance */
     .card {
-        box-shadow: 0 2px 8px rgba(32, 72, 133, 0.1);
+        box-shadow: 0 2px 8px var(--border-color));
     }
 
     .card.elevated,
     .sticky-card {
-        box-shadow: 0 4px 12px rgba(32, 72, 133, 0.12);
+        box-shadow: 0 4px 12px var(--shadow-color);
     }
 
     /* Reduce glass morphism blur on mobile - it's performance intensive */
@@ -898,20 +898,20 @@ html {
     /* Disable table hover effects on mobile */
     .table tbody tr:hover {
         transform: none;
-        box-shadow: 0 2px 8px rgba(32, 72, 133, 0.08);
+        box-shadow: 0 2px 8px var(--shadow-color);
     }
 
     /* Simplify stat card animations */
     .stat-card:hover,
     .metric-card:hover {
         transform: none;
-        box-shadow: 0 4px 16px rgba(32, 72, 133, 0.12);
+        box-shadow: 0 4px 16px var(--shadow-color);
     }
 
     /* Disable accordion hover effects */
     .accordion-item:hover {
         transform: none;
-        box-shadow: 0 2px 8px rgba(32, 72, 133, 0.08);
+        box-shadow: 0 2px 8px var(--shadow-color);
     }
 
     /* Simplify progress bar animations */
@@ -940,11 +940,11 @@ html {
 
     /* Reduce map shadow complexity */
     #map {
-        box-shadow: 0 4px 16px rgba(32, 72, 133, 0.12);
+        box-shadow: 0 4px 16px var(--shadow-color);
     }
 
     #map:hover {
-        box-shadow: 0 4px 16px rgba(32, 72, 133, 0.12);
+        box-shadow: 0 4px 16px var(--shadow-color);
     }
 
     /* Mobile-specific touch enhancements */
@@ -1049,8 +1049,8 @@ html {
     /* Dropdown item tap feedback */
     .dropdown-item:active {
         background: linear-gradient(90deg,
-            rgba(32, 72, 133, 0.15),
-            rgba(135, 42, 150, 0.15));
+            var(--shadow-color),
+            var(--secondary-soft));
     }
 
     /* Badge tap feedback */
@@ -1061,7 +1061,7 @@ html {
     /* Form control focus - larger for touch */
     .form-control:focus,
     .form-select:focus {
-        box-shadow: 0 0 0 0.3rem rgba(32, 72, 133, 0.15);
+        box-shadow: 0 0 0 0.3rem var(--shadow-color);
     }
 
     /* List group item tap feedback */

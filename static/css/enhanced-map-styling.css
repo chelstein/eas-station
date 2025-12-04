@@ -13,8 +13,8 @@
     border-radius: 16px !important;
     overflow: hidden;
     box-shadow:
-        0 20px 60px rgba(32, 72, 133, 0.25),
-        0 8px 20px rgba(32, 72, 133, 0.15),
+        0 20px 60px var(--shadow-color),
+        0 8px 20px var(--shadow-color),
         0 0 0 1px rgba(255, 255, 255, 0.1) inset,
         0 2px 4px rgba(0, 0, 0, 0.1);
     transition: all 0.5s cubic-bezier(0.23, 1, 0.32, 1);
@@ -23,10 +23,10 @@
 
 #map:hover {
     box-shadow:
-        0 30px 80px rgba(32, 72, 133, 0.3),
-        0 12px 30px rgba(32, 72, 133, 0.2),
+        0 30px 80px var(--border-color)),
+        0 12px 30px var(--shadow-color),
         0 0 0 1px rgba(255, 255, 255, 0.2) inset,
-        0 0 40px rgba(32, 72, 133, 0.1);
+        0 0 40px var(--border-color));
     transform: translateY(-2px) scale(1.001);
 }
 
@@ -200,7 +200,7 @@
 .leaflet-control-zoom {
     border: none !important;
     box-shadow:
-        0 8px 24px rgba(32, 72, 133, 0.2),
+        0 8px 24px var(--shadow-color),
         0 0 0 1px rgba(255, 255, 255, 0.3) inset !important;
     border-radius: 12px !important;
     overflow: hidden;
@@ -227,22 +227,22 @@
     color: white !important;
     transform: scale(1.1);
     box-shadow:
-        0 4px 12px rgba(32, 72, 133, 0.4),
-        0 0 20px rgba(32, 72, 133, 0.2) !important;
+        0 4px 12px var(--primary-soft),
+        0 0 20px var(--shadow-color) !important;
 }
 
 .leaflet-control-zoom a:first-child {
-    border-bottom: 1px solid rgba(32, 72, 133, 0.1) !important;
+    border-bottom: 1px solid var(--border-color)) !important;
 }
 
 /* Scale control */
 .leaflet-control-scale {
     background: rgba(255, 255, 255, 0.95) !important;
     backdrop-filter: blur(12px) saturate(180%) !important;
-    border: 2px solid rgba(32, 72, 133, 0.2) !important;
+    border: 2px solid var(--shadow-color) !important;
     border-radius: 8px !important;
     padding: 6px 12px !important;
-    box-shadow: 0 4px 12px rgba(32, 72, 133, 0.15) !important;
+    box-shadow: 0 4px 12px var(--shadow-color) !important;
     font-weight: 600 !important;
 }
 
@@ -260,7 +260,7 @@
         0 8px 20px rgba(0, 0, 0, 0.2),
         0 0 0 1px rgba(255, 255, 255, 0.6) inset !important;
     padding: 20px !important;
-    border: 2px solid rgba(32, 72, 133, 0.1);
+    border: 2px solid var(--border-color));
 }
 
 [data-theme="dark"] .leaflet-popup-content-wrapper {
@@ -504,8 +504,8 @@
         var(--secondary-color)) !important;
     border-color: var(--primary-color);
     box-shadow:
-        0 0 20px rgba(32, 72, 133, 0.4),
-        0 4px 12px rgba(32, 72, 133, 0.3),
+        0 0 20px var(--primary-soft),
+        0 4px 12px var(--border-color)),
         inset 0 1px 2px rgba(255, 255, 255, 0.3);
     transform: scale(1.05);
 }

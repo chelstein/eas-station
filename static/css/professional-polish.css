@@ -141,7 +141,7 @@
 .form-select:focus {
     border-color: var(--primary-color);
     box-shadow: 
-        0 0 0 3px rgba(32, 72, 133, 0.12),
+        0 0 0 3px var(--shadow-color),
         0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
@@ -529,7 +529,7 @@
 }
 
 .page-item.active .page-link {
-    box-shadow: 0 2px 8px rgba(32, 72, 133, 0.25);
+    box-shadow: 0 2px 8px var(--shadow-color);
 }
 
 /* ============================================
@@ -579,7 +579,7 @@
 
 .layer-section:hover {
     border-color: var(--primary-soft);
-    box-shadow: 0 4px 12px rgba(32, 72, 133, 0.08);
+    box-shadow: 0 4px 12px var(--shadow-color);
 }
 
 .form-check.form-switch .form-check-input {

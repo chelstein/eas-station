@@ -130,7 +130,7 @@ small.gradient-text,
 h1.gradient-text,
 .page-title.gradient-text {
     /* Provide fallback for better readability */
-    color: var(--primary-color, #204885);
+    color: var(--primary-color, var(--primary-color));
 }
 
 /* ============================================
@@ -231,7 +231,7 @@ textarea:focus {
 .dropdown-item:hover,
 .dropdown-item:focus {
     color: var(--text-color, #1c2233);
-    background: rgba(32, 72, 133, 0.1);
+    background: var(--border-color));
 }
 
 [data-theme="dark"] .dropdown-item:hover,
@@ -321,7 +321,7 @@ textarea:focus {
 }
 
 .popup-title {
-    color: var(--primary-color, #204885) !important;
+    color: var(--primary-color, var(--primary-color)) !important;
     /* Remove gradient for better readability */
     background: none !important;
     -webkit-text-fill-color: currentColor !important;
@@ -388,13 +388,13 @@ pre,
    ============================================ */
 
 a {
-    color: var(--primary-color, #204885);
+    color: var(--primary-color, var(--primary-color));
     text-decoration: none;
 }
 
 a:hover,
 a:focus {
-    color: var(--secondary-color, #872a96);
+    color: var(--secondary-color, var(--secondary-color));
     text-decoration: underline;
 }
 
@@ -413,24 +413,24 @@ a:focus {
 
 *:focus,
 *:focus-visible {
-    outline: 2px solid var(--primary-color, #204885);
+    outline: 2px solid var(--primary-color, var(--primary-color));
     outline-offset: 2px;
 }
 
 .btn:focus,
 .btn:focus-visible {
     box-shadow:
-        0 0 0 4px rgba(32, 72, 133, 0.25),
-        0 4px 12px rgba(32, 72, 133, 0.15);
+        0 0 0 4px var(--shadow-color),
+        0 4px 12px var(--shadow-color);
 }
 
 .form-control:focus,
 .form-select:focus {
     outline: none;
-    border-color: var(--primary-color, #204885);
+    border-color: var(--primary-color, var(--primary-color));
     box-shadow:
-        0 0 0 4px rgba(32, 72, 133, 0.15),
-        0 4px 12px rgba(32, 72, 133, 0.1);
+        0 0 0 4px var(--shadow-color),
+        0 4px 12px var(--border-color));
 }
 
 /* ============================================
