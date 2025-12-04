@@ -645,12 +645,280 @@ textarea:focus {
     .card-header {
         border-width: 2px;
     }
-    
+
     .form-check-input {
         border-width: 3px;
     }
-    
+
     .btn {
         border-width: 2px;
     }
+}
+
+/* ============================================
+   HARDCODED INLINE STYLE OVERRIDES
+   Fixes for common hardcoded colors in templates
+   ============================================ */
+
+/* Override hardcoded alert backgrounds with theme-aware colors */
+[style*="background: #f8d7da"],
+[style*="background:#f8d7da"],
+[style*="background-color: #f8d7da"],
+[style*="background-color:#f8d7da"] {
+    background: color-mix(in srgb, var(--danger-color) 20%, var(--surface-color)) !important;
+    color: var(--text-color) !important;
+}
+
+[style*="background: #d4edda"],
+[style*="background:#d4edda"],
+[style*="background-color: #d4edda"],
+[style*="background-color:#d4edda"] {
+    background: color-mix(in srgb, var(--success-color) 20%, var(--surface-color)) !important;
+    color: var(--text-color) !important;
+}
+
+[style*="background: #fff3cd"],
+[style*="background:#fff3cd"],
+[style*="background-color: #fff3cd"],
+[style*="background-color:#fff3cd"] {
+    background: color-mix(in srgb, var(--warning-color) 20%, var(--surface-color)) !important;
+    color: var(--text-color) !important;
+}
+
+[style*="background: #e7f1ff"],
+[style*="background:#e7f1ff"],
+[style*="background-color: #e7f1ff"],
+[style*="background-color:#e7f1ff"] {
+    background: color-mix(in srgb, var(--info-color) 20%, var(--surface-color)) !important;
+    color: var(--text-color) !important;
+}
+
+/* Override hardcoded light gray backgrounds */
+[style*="background: #f8f9fa"],
+[style*="background:#f8f9fa"],
+[style*="background-color: #f8f9fa"],
+[style*="background-color:#f8f9fa"] {
+    background: color-mix(in srgb, var(--surface-color) 70%, var(--border-color)) !important;
+    color: var(--text-color) !important;
+}
+
+[style*="background: #e9ecef"],
+[style*="background:#e9ecef"],
+[style*="background-color: #e9ecef"],
+[style*="background-color:#e9ecef"] {
+    background: var(--border-color) !important;
+    color: var(--text-color) !important;
+}
+
+/* Override hardcoded text colors with theme-aware colors */
+[style*="color: #6c757d"],
+[style*="color:#6c757d"],
+[style*="color: #495057"],
+[style*="color:#495057"] {
+    color: var(--text-muted) !important;
+}
+
+[style*="color: #155724"],
+[style*="color:#155724"],
+[style*="color: #0f5132"],
+[style*="color:#0f5132"] {
+    color: color-mix(in srgb, var(--success-color) 80%, var(--text-color)) !important;
+}
+
+[style*="color: #721c24"],
+[style*="color:#721c24"],
+[style*="color: #842029"],
+[style*="color:#842029"] {
+    color: color-mix(in srgb, var(--danger-color) 80%, var(--text-color)) !important;
+}
+
+[style*="color: #004085"],
+[style*="color:#004085"],
+[style*="color: #084298"],
+[style*="color:#084298"] {
+    color: color-mix(in srgb, var(--info-color) 80%, var(--text-color)) !important;
+}
+
+[style*="color: #664d03"],
+[style*="color:#664d03"],
+[style*="color: #856404"],
+[style*="color:#856404"] {
+    color: color-mix(in srgb, var(--warning-color) 80%, var(--text-color)) !important;
+}
+
+/* Override hardcoded borders */
+[style*="border-color: #e9ecef"],
+[style*="border-color:#e9ecef"],
+[style*="border: 1px solid #e9ecef"],
+[style*="border-bottom: 1px solid #e9ecef"] {
+    border-color: var(--border-color) !important;
+}
+
+/* Override hardcoded code blocks */
+[style*="background: #2d2d2d"],
+[style*="background:#2d2d2d"],
+[style*="background-color: #2d2d2d"],
+[style*="background-color:#2d2d2d"] {
+    background: color-mix(in srgb, var(--bg-color) 85%, black) !important;
+    color: var(--text-secondary) !important;
+    border: 1px solid var(--border-color) !important;
+}
+
+/* Card body universal fixes - ensure all card bodies respect theme */
+.card .card-body,
+div[class*="card"] .card-body,
+div[class*="-card"] > div {
+    background-color: var(--surface-color) !important;
+    color: var(--text-color) !important;
+}
+
+/* Table readability fixes */
+.table {
+    color: var(--text-color);
+}
+
+.table thead th {
+    background-color: var(--surface-color);
+    color: var(--text-color);
+    border-color: var(--border-color);
+}
+
+.table tbody td {
+    color: var(--text-color);
+    border-color: var(--border-color);
+}
+
+.table-striped tbody tr:nth-of-type(odd) {
+    background-color: color-mix(in srgb, var(--surface-color) 95%, var(--border-color));
+}
+
+.table-hover tbody tr:hover {
+    background-color: color-mix(in srgb, var(--primary-color) 10%, var(--surface-color));
+}
+
+/* Badge readability */
+.badge {
+    color: var(--text-color);
+}
+
+.badge.bg-primary {
+    background-color: var(--primary-color) !important;
+}
+
+.badge.bg-secondary {
+    background-color: var(--secondary-color) !important;
+}
+
+.badge.bg-success {
+    background-color: var(--success-color) !important;
+}
+
+.badge.bg-danger {
+    background-color: var(--danger-color) !important;
+}
+
+.badge.bg-warning {
+    background-color: var(--warning-color) !important;
+    color: var(--text-color) !important;
+}
+
+.badge.bg-info {
+    background-color: var(--info-color) !important;
+}
+
+/* Alert component fixes */
+.alert {
+    color: var(--text-color);
+    border-color: var(--border-color);
+}
+
+.alert-success {
+    background-color: color-mix(in srgb, var(--success-color) 20%, var(--surface-color)) !important;
+    border-color: var(--success-color) !important;
+    color: var(--text-color) !important;
+}
+
+.alert-danger {
+    background-color: color-mix(in srgb, var(--danger-color) 20%, var(--surface-color)) !important;
+    border-color: var(--danger-color) !important;
+    color: var(--text-color) !important;
+}
+
+.alert-warning {
+    background-color: color-mix(in srgb, var(--warning-color) 20%, var(--surface-color)) !important;
+    border-color: var(--warning-color) !important;
+    color: var(--text-color) !important;
+}
+
+.alert-info {
+    background-color: color-mix(in srgb, var(--info-color) 20%, var(--surface-color)) !important;
+    border-color: var(--info-color) !important;
+    color: var(--text-color) !important;
+}
+
+/* List group items */
+.list-group-item {
+    background-color: var(--surface-color);
+    color: var(--text-color);
+    border-color: var(--border-color);
+}
+
+.list-group-item:hover {
+    background-color: color-mix(in srgb, var(--primary-color) 10%, var(--surface-color));
+}
+
+/* Modal readability */
+.modal-content {
+    background-color: var(--surface-color);
+    color: var(--text-color);
+    border-color: var(--border-color);
+}
+
+.modal-header {
+    background-color: var(--surface-color);
+    color: var(--text-color);
+    border-bottom-color: var(--border-color);
+}
+
+.modal-body {
+    color: var(--text-color);
+}
+
+.modal-footer {
+    background-color: var(--surface-color);
+    border-top-color: var(--border-color);
+}
+
+/* Ensure all text in containers is visible */
+small,
+.small {
+    color: var(--text-muted) !important;
+}
+
+/* Lead text */
+.lead {
+    color: var(--text-secondary) !important;
+}
+
+/* Monospace text (code, IP addresses, etc.) */
+code,
+pre,
+.font-monospace,
+[style*="font-family: 'Courier New'"],
+[style*='font-family: "Courier New"'] {
+    color: var(--text-secondary) !important;
+}
+
+/* Ensure headers in colored backgrounds have proper contrast */
+h1, h2, h3, h4, h5, h6 {
+    color: var(--text-color);
+}
+
+/* Link readability */
+a:not(.btn) {
+    color: var(--primary-color);
+}
+
+a:not(.btn):hover {
+    color: color-mix(in srgb, var(--primary-color) 80%, var(--text-color));
 }

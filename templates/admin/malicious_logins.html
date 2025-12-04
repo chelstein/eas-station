@@ -5,19 +5,20 @@
 {% block extra_css %}
 <style>
     .security-header {
-        background: linear-gradient(135deg, #dc3545, #c82333);
-        color: white;
+        background: linear-gradient(135deg, var(--danger-color), color-mix(in srgb, var(--danger-color) 85%, black));
+        color: var(--text-color);
         padding: 2rem 0;
         margin-bottom: 2rem;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        box-shadow: 0 4px 20px var(--shadow-color);
     }
 
     .alert-danger-custom {
-        background: #f8d7da;
-        border-left: 4px solid #dc3545;
+        background: color-mix(in srgb, var(--danger-color) 20%, var(--surface-color));
+        border-left: 4px solid var(--danger-color);
         padding: 1rem;
         margin-bottom: 1.5rem;
         border-radius: 4px;
+        color: var(--text-color);
     }
 
     .stats-grid {
@@ -31,19 +32,20 @@
         background: var(--surface-color);
         border-radius: 12px;
         padding: 1.5rem;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-        border-left: 4px solid #dc3545;
+        box-shadow: 0 2px 10px var(--shadow-color);
+        border-left: 4px solid var(--danger-color);
+        color: var(--text-color);
     }
 
     .stat-value {
         font-size: 2.5rem;
         font-weight: bold;
-        color: #dc3545;
+        color: var(--danger-color);
         margin: 0.5rem 0;
     }
 
     .stat-label {
-        color: #6c757d;
+        color: var(--text-muted);
         font-size: 0.9rem;
         text-transform: uppercase;
         letter-spacing: 0.5px;
@@ -52,8 +54,9 @@
     .malicious-table {
         background: var(--surface-color);
         border-radius: 12px;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        box-shadow: 0 2px 10px var(--shadow-color);
         overflow: hidden;
+        color: var(--text-color);
     }
 
     .malicious-badge {
@@ -61,20 +64,21 @@
         border-radius: 12px;
         font-size: 0.85rem;
         font-weight: 600;
-        background: #dc3545;
-        color: white;
+        background: var(--danger-color);
+        color: var(--text-color);
     }
 
     .ip-address {
         font-family: 'Courier New', monospace;
         font-weight: 600;
-        color: #495057;
+        color: var(--text-color);
     }
 
     .attempt-details {
         font-family: 'Courier New', monospace;
         font-size: 0.85rem;
-        background: #f8f9fa;
+        background: color-mix(in srgb, var(--surface-color) 70%, var(--border-color));
+        color: var(--text-color);
         padding: 0.5rem;
         border-radius: 4px;
         max-height: 80px;
@@ -85,8 +89,9 @@
         background: var(--surface-color);
         border-radius: 12px;
         padding: 1.5rem;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        box-shadow: 0 2px 10px var(--shadow-color);
         margin-bottom: 2rem;
+        color: var(--text-color);
     }
 
     .ip-stat-item {
@@ -94,7 +99,7 @@
         justify-content: space-between;
         align-items: center;
         padding: 1rem;
-        border-bottom: 1px solid #e9ecef;
+        border-bottom: 1px solid var(--border-color);
     }
 
     .ip-stat-item:last-child {
@@ -102,8 +107,8 @@
     }
 
     .badge-count {
-        background: #dc3545;
-        color: white;
+        background: var(--danger-color);
+        color: var(--text-color);
         padding: 0.25rem 0.75rem;
         border-radius: 12px;
         font-weight: 600;
@@ -113,40 +118,47 @@
         background: var(--surface-color);
         border-radius: 12px;
         padding: 1.5rem;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        box-shadow: 0 2px 10px var(--shadow-color);
         margin-bottom: 2rem;
+        color: var(--text-color);
     }
 
     .fail2ban-info {
-        background: #fff3cd;
-        border-left: 4px solid #ffc107;
+        background: color-mix(in srgb, var(--warning-color) 20%, var(--surface-color));
+        border-left: 4px solid var(--warning-color);
         padding: 1rem;
         margin: 1.5rem 0;
         border-radius: 4px;
+        color: var(--text-color);
     }
 
     .code-block {
-        background: #2d2d2d;
-        color: #f8f8f2;
+        background: color-mix(in srgb, var(--bg-color) 85%, black);
+        color: var(--text-secondary);
         padding: 1rem;
         border-radius: 4px;
         font-family: 'Courier New', monospace;
         font-size: 0.85rem;
         overflow-x: auto;
         margin: 1rem 0;
+        border: 1px solid var(--border-color);
     }
 
     /* Theme-aware table header styling */
     .malicious-table thead th {
-        background-color: #dc3545 !important;
-        color: white !important;
+        background-color: var(--danger-color) !important;
+        color: var(--text-color) !important;
         font-weight: 600;
-        border-bottom: 2px solid #bd2130;
+        border-bottom: 2px solid color-mix(in srgb, var(--danger-color) 85%, black);
         padding: 0.75rem;
     }
 
     .malicious-table tbody tr:hover {
-        background-color: rgba(220, 53, 69, 0.05);
+        background-color: color-mix(in srgb, var(--danger-color) 10%, var(--surface-color));
+    }
+
+    .malicious-table tbody td {
+        color: var(--text-color);
     }
 </style>
 {% endblock %}
