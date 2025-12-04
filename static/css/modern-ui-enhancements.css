@@ -19,6 +19,24 @@
     animation: gradientShift 8s ease infinite;
     position: relative;
     overflow: hidden;
+    /* Ensure text is always readable on gradient backgrounds */
+    color: #ffffff !important;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+/* Ensure all child text elements in gradient headers are readable */
+.page-header *,
+.card-header.gradient-header * {
+    color: #ffffff !important;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+/* Exception for buttons and badges in headers - they handle their own colors */
+.page-header .btn,
+.page-header .badge,
+.card-header.gradient-header .btn,
+.card-header.gradient-header .badge {
+    text-shadow: none;
 }
 
 @keyframes gradientShift {
@@ -35,10 +53,11 @@
     left: 0;
     right: 0;
     bottom: 0;
+    /* Reduced opacity for better text contrast */
     background:
-        radial-gradient(circle at 20% 50%, rgba(255, 255, 255, 0.08) 0%, transparent 50%),
-        radial-gradient(circle at 80% 80%, rgba(255, 255, 255, 0.08) 0%, transparent 50%),
-        radial-gradient(circle at 40% 20%, rgba(255, 255, 255, 0.06) 0%, transparent 50%);
+        radial-gradient(circle at 20% 50%, rgba(255, 255, 255, 0.04) 0%, transparent 50%),
+        radial-gradient(circle at 80% 80%, rgba(255, 255, 255, 0.04) 0%, transparent 50%),
+        radial-gradient(circle at 40% 20%, rgba(255, 255, 255, 0.03) 0%, transparent 50%);
     animation: patternFloat 20s ease-in-out infinite;
     pointer-events: none;
 }
@@ -55,43 +74,53 @@
 
 .card.glass-effect,
 .glass-panel {
-    background: rgba(255, 255, 255, 0.7);
+    /* Increased opacity for better contrast */
+    background: rgba(255, 255, 255, 0.85);
     backdrop-filter: blur(12px) saturate(180%);
     -webkit-backdrop-filter: blur(12px) saturate(180%);
     border: 1px solid rgba(255, 255, 255, 0.25);
     box-shadow:
         0 8px 32px rgba(32, 72, 133, 0.12),
         inset 0 1px 0 rgba(255, 255, 255, 0.6);
+    /* Ensure text is readable */
+    color: var(--text-color);
 }
 
 [data-theme="dark"] .card.glass-effect,
 [data-theme="dark"] .glass-panel {
-    background: rgba(30, 30, 45, 0.7);
+    /* Increased opacity for better contrast */
+    background: rgba(30, 30, 45, 0.85);
     backdrop-filter: blur(12px) saturate(180%);
     -webkit-backdrop-filter: blur(12px) saturate(180%);
     border: 1px solid rgba(255, 255, 255, 0.1);
     box-shadow:
         0 8px 32px rgba(0, 0, 0, 0.3),
         inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    /* Ensure text is readable */
+    color: var(--text-color);
 }
 
 /* Frosted glass for modals */
 .modal-content {
-    background: rgba(255, 255, 255, 0.95);
+    /* Full opacity for maximum readability */
+    background: rgba(255, 255, 255, 0.98);
     backdrop-filter: blur(20px) saturate(180%);
     -webkit-backdrop-filter: blur(20px) saturate(180%);
     border: 1px solid rgba(255, 255, 255, 0.3);
     box-shadow:
         0 20px 60px rgba(32, 72, 133, 0.25),
         0 0 0 1px rgba(255, 255, 255, 0.5) inset;
+    color: var(--text-color);
 }
 
 [data-theme="dark"] .modal-content {
-    background: rgba(30, 30, 45, 0.95);
+    /* Increased opacity for better contrast */
+    background: rgba(30, 30, 45, 0.98);
     border: 1px solid rgba(255, 255, 255, 0.15);
     box-shadow:
         0 20px 60px rgba(0, 0, 0, 0.5),
         0 0 0 1px rgba(255, 255, 255, 0.1) inset;
+    color: var(--text-color);
 }
 
 
@@ -169,6 +198,8 @@
     box-shadow:
         0 4px 12px rgba(32, 72, 133, 0.3),
         0 2px 4px rgba(32, 72, 133, 0.2);
+    /* Ensure text is always white and readable */
+    color: #ffffff !important;
 }
 
 .btn-primary:hover {
@@ -179,10 +210,16 @@
     box-shadow:
         0 8px 20px rgba(32, 72, 133, 0.35),
         0 4px 8px rgba(32, 72, 133, 0.25);
+    color: #ffffff !important;
 }
 
 .btn-primary:active {
     transform: translateY(0);
+    color: #ffffff !important;
+}
+
+.btn-primary:focus {
+    color: #ffffff !important;
 }
 
 /* Outline buttons with glow on hover */
@@ -449,13 +486,15 @@
     background: linear-gradient(135deg,
         var(--primary-color, #204885),
         var(--secondary-color, #872a96));
-    color: white;
+    color: #ffffff !important;
     border: none;
     padding: 16px;
-    font-weight: 600;
-    letter-spacing: 0.03em;
+    font-weight: 700; /* Increased from 600 for better readability */
+    letter-spacing: 0.05em; /* Increased for better readability */
     text-transform: uppercase;
     font-size: 0.875rem;
+    /* Add text shadow for better contrast on gradient */
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
 }
 
 .table thead th:first-child {
@@ -583,7 +622,8 @@
 
 .dropdown-menu {
     border: none;
-    background: rgba(255, 255, 255, 0.98);
+    /* Solid background for maximum readability */
+    background: rgba(255, 255, 255, 1);
     backdrop-filter: blur(12px) saturate(180%);
     border-radius: 12px;
     box-shadow:
@@ -591,10 +631,13 @@
         0 0 0 1px rgba(255, 255, 255, 0.5) inset;
     padding: 8px;
     animation: dropdownSlideIn 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    color: var(--text-color);
 }
 
 [data-theme="dark"] .dropdown-menu {
-    background: rgba(30, 30, 45, 0.98);
+    /* Solid background for maximum readability */
+    background: rgba(30, 30, 45, 1);
+    color: var(--text-color);
 }
 
 @keyframes dropdownSlideIn {
@@ -773,15 +816,395 @@ html {
     /* Reduce animation complexity on mobile for performance */
     .page-header::before {
         animation: none;
+        /* Completely remove pattern on mobile for better performance */
+        display: none;
     }
 
+    /* Simplify gradient animations on mobile */
+    .page-header,
+    .card-header.gradient-header {
+        animation: none;
+        background-size: 100% 100%;
+        /* Static gradient - no animation */
+        background: linear-gradient(135deg,
+            var(--primary-color, #204885) 0%,
+            var(--secondary-color, #872a96) 100%);
+    }
+
+    /* Disable hover effects on mobile - use touch instead */
     .card:hover {
         transform: none;
     }
 
-    /* Simplify shadows on mobile */
+    /* Simplify shadows on mobile for better performance */
     .card {
         box-shadow: 0 2px 8px rgba(32, 72, 133, 0.1);
+    }
+
+    .card.elevated,
+    .sticky-card {
+        box-shadow: 0 4px 12px rgba(32, 72, 133, 0.12);
+    }
+
+    /* Reduce glass morphism blur on mobile - it's performance intensive */
+    .card.glass-effect,
+    .glass-panel {
+        backdrop-filter: blur(8px) saturate(150%);
+        -webkit-backdrop-filter: blur(8px) saturate(150%);
+        /* Increase opacity to compensate for less blur */
+        background: rgba(255, 255, 255, 0.92);
+    }
+
+    [data-theme="dark"] .card.glass-effect,
+    [data-theme="dark"] .glass-panel {
+        backdrop-filter: blur(8px) saturate(150%);
+        -webkit-backdrop-filter: blur(8px) saturate(150%);
+        background: rgba(30, 30, 45, 0.92);
+    }
+
+    /* Simplify modal backdrop blur */
+    .modal-content {
+        backdrop-filter: blur(10px) saturate(150%);
+        -webkit-backdrop-filter: blur(10px) saturate(150%);
+    }
+
+    /* Simplify navbar blur */
+    .navbar {
+        backdrop-filter: blur(8px) saturate(150%);
+        -webkit-backdrop-filter: blur(8px) saturate(150%);
+    }
+
+    /* Disable transform animations on buttons for mobile */
+    .btn:hover {
+        transform: none;
+    }
+
+    .btn-primary:hover {
+        transform: none;
+    }
+
+    /* Disable nav-link transform on mobile */
+    .nav-link:hover {
+        transform: none;
+    }
+
+    /* Simplify dropdown animations */
+    .dropdown-menu {
+        backdrop-filter: blur(6px) saturate(150%);
+        -webkit-backdrop-filter: blur(6px) saturate(150%);
+        animation: none; /* Instant appearance on mobile */
+    }
+
+    /* Disable table hover effects on mobile */
+    .table tbody tr:hover {
+        transform: none;
+        box-shadow: 0 2px 8px rgba(32, 72, 133, 0.08);
+    }
+
+    /* Simplify stat card animations */
+    .stat-card:hover,
+    .metric-card:hover {
+        transform: none;
+        box-shadow: 0 4px 16px rgba(32, 72, 133, 0.12);
+    }
+
+    /* Disable accordion hover effects */
+    .accordion-item:hover {
+        transform: none;
+        box-shadow: 0 2px 8px rgba(32, 72, 133, 0.08);
+    }
+
+    /* Simplify progress bar animations */
+    .progress-bar::after {
+        animation: none; /* Disable shine effect on mobile */
+    }
+
+    /* Disable badge pulse animation on mobile */
+    .badge.pulse {
+        animation: none;
+    }
+
+    /* Simplify alert animations */
+    .alert {
+        animation: none;
+    }
+
+    .toast {
+        animation: none;
+    }
+
+    /* Disable floating animation on mobile */
+    .float {
+        animation: none;
+    }
+
+    /* Reduce map shadow complexity */
+    #map {
+        box-shadow: 0 4px 16px rgba(32, 72, 133, 0.12);
+    }
+
+    #map:hover {
+        box-shadow: 0 4px 16px rgba(32, 72, 133, 0.12);
+    }
+
+    /* Mobile-specific touch enhancements */
+
+    /* Increase tap target size for buttons */
+    .btn {
+        min-height: 44px;
+        padding: 0.75rem 1.25rem;
+    }
+
+    .btn-sm {
+        min-height: 38px;
+        padding: 0.5rem 1rem;
+    }
+
+    /* Make badges more touch-friendly */
+    .badge {
+        padding: 0.45em 0.85em;
+        font-size: 0.875rem;
+    }
+
+    /* Disable hover scale on badges */
+    .badge:hover {
+        transform: none;
+    }
+
+    /* Optimize form controls for touch */
+    .form-control,
+    .form-select {
+        min-height: 44px;
+        font-size: 16px; /* Prevents zoom on iOS */
+        padding: 0.75rem 1rem;
+    }
+
+    /* Larger checkboxes and switches for touch */
+    .form-check-input {
+        width: 1.25rem;
+        height: 1.25rem;
+    }
+
+    .form-switch .form-check-input {
+        width: 2.5rem;
+        height: 1.25rem;
+    }
+
+    /* Make dropdown items more touch-friendly */
+    .dropdown-item {
+        padding: 0.75rem 1rem;
+        font-size: 0.95rem;
+        min-height: 44px;
+        display: flex;
+        align-items: center;
+    }
+
+    /* Disable dropdown item hover transform */
+    .dropdown-item:hover {
+        transform: none;
+    }
+
+    /* Optimize accordion buttons for touch */
+    .accordion-button {
+        padding: 1rem 1.25rem;
+        font-size: 1rem;
+    }
+
+    /* Better spacing for list group items on touch */
+    .list-group-item {
+        padding: 0.875rem 1.25rem;
+    }
+
+    /* Simplify custom scrollbar on mobile */
+    ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+    }
+
+    ::-webkit-scrollbar-thumb {
+        /* Static color - no gradient on mobile */
+        background: var(--primary-color);
+        border-width: 1px;
+    }
+
+    /* Touch feedback - add active states for better UX */
+
+    /* Button tap feedback */
+    .btn:active {
+        transform: scale(0.98);
+        opacity: 0.9;
+    }
+
+    /* Card tap feedback */
+    .card:active {
+        transform: scale(0.99);
+        opacity: 0.95;
+    }
+
+    /* Nav link tap feedback */
+    .nav-link:active {
+        opacity: 0.85;
+    }
+
+    /* Dropdown item tap feedback */
+    .dropdown-item:active {
+        background: linear-gradient(90deg,
+            rgba(32, 72, 133, 0.15),
+            rgba(135, 42, 150, 0.15));
+    }
+
+    /* Badge tap feedback */
+    .badge:active {
+        transform: scale(0.95);
+    }
+
+    /* Form control focus - larger for touch */
+    .form-control:focus,
+    .form-select:focus {
+        box-shadow: 0 0 0 0.3rem rgba(32, 72, 133, 0.15);
+    }
+
+    /* List group item tap feedback */
+    .list-group-item:active {
+        opacity: 0.9;
+    }
+
+    /* Table row tap feedback */
+    .table tbody tr:active {
+        opacity: 0.95;
+    }
+
+    /* Accordion item tap feedback */
+    .accordion-button:active {
+        opacity: 0.9;
+    }
+
+    /* Optimize page headers for mobile */
+    .page-header {
+        padding: 1.5rem 1rem;
+        text-align: center;
+    }
+
+    .page-header h1,
+    .page-header h2 {
+        font-size: 1.5rem;
+        margin-bottom: 0.5rem;
+    }
+
+    /* Optimize card headers for mobile */
+    .card-header.gradient-header {
+        padding: 0.875rem 1rem;
+        font-size: 1rem;
+    }
+
+    /* Better stat cards on mobile */
+    .stat-card,
+    .metric-card {
+        padding: 1rem;
+        text-align: center;
+    }
+
+    /* Optimize table for mobile */
+    .table {
+        font-size: 0.875rem;
+    }
+
+    .table thead th {
+        padding: 0.75rem 0.5rem;
+        font-size: 0.75rem;
+    }
+
+    .table tbody td {
+        padding: 0.75rem 0.5rem;
+    }
+}
+
+/* Small mobile devices (≤576px) */
+@media (max-width: 576px) {
+    /* Further simplify on very small screens */
+
+    /* Remove all backdrop filters on very small screens for performance */
+    .card.glass-effect,
+    .glass-panel,
+    .modal-content,
+    .navbar,
+    .dropdown-menu {
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
+    }
+
+    /* Solid backgrounds for maximum compatibility and performance */
+    .card.glass-effect,
+    .glass-panel {
+        background: var(--surface-color);
+    }
+
+    .modal-content {
+        background: var(--surface-color);
+    }
+
+    .navbar {
+        background: var(--surface-color) !important;
+    }
+
+    .dropdown-menu {
+        background: var(--surface-color);
+    }
+
+    /* Smaller tap targets acceptable on very small screens */
+    .btn-sm {
+        min-height: 36px;
+        padding: 0.4rem 0.8rem;
+        font-size: 0.85rem;
+    }
+
+    /* Compact badges */
+    .badge {
+        padding: 0.35em 0.65em;
+        font-size: 0.75rem;
+    }
+
+    /* Compact form controls */
+    .form-control,
+    .form-select {
+        min-height: 40px;
+        padding: 0.625rem 0.875rem;
+    }
+
+    /* Compact page headers */
+    .page-header {
+        padding: 1rem 0.75rem;
+    }
+
+    .page-header h1,
+    .page-header h2 {
+        font-size: 1.25rem;
+    }
+
+    /* Compact cards */
+    .card {
+        margin-bottom: 0.75rem;
+    }
+
+    .card-body {
+        padding: 0.875rem;
+    }
+
+    .card-header,
+    .card-header.gradient-header {
+        padding: 0.75rem 0.875rem;
+        font-size: 0.9rem;
+    }
+
+    /* Compact modals */
+    .modal-dialog {
+        margin: 0.5rem;
+    }
+
+    .modal-header,
+    .modal-body,
+    .modal-footer {
+        padding: 0.875rem;
     }
 }
 
