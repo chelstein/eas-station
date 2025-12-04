@@ -241,8 +241,18 @@ class AudioCommandSubscriber:
         try:
             if command == 'source_start':
                 source_name = params['source_name']
+
+                # Check if source exists (may have been skipped if SDR in separated architecture)
+                if source_name not in self.audio_controller._sources:
+                    logger.info(f"Source '{source_name}' not found - may be SDR source in separated architecture")
+                    return {
+                        'success': True,
+                        'message': f'Source {source_name} not managed by this service',
+                        'skipped': True
+                    }
+
                 self.audio_controller.start_source(source_name)
-                
+
                 # Also add source to Icecast streaming if service is available
                 if self.auto_streaming_service and self.auto_streaming_service.is_available():
                     try:
@@ -254,7 +264,7 @@ class AudioCommandSubscriber:
                                 logger.warning(f"Failed to add {source_name} to Icecast streaming")
                     except Exception as e:
                         logger.warning(f"Error adding {source_name} to Icecast: {e}")
-                
+
                 return {'success': True, 'message': f'Started source {source_name}'}
 
             elif command == 'source_stop':
@@ -274,13 +284,28 @@ class AudioCommandSubscriber:
             elif command == 'source_add':
                 config = params['config']
                 source_name = config.get('name')
-                
+
                 # Import required modules
                 from app_core.audio.ingest import AudioSourceConfig, AudioSourceType
                 from app_core.audio.sources import create_audio_source
-                
+
                 # Create runtime configuration
                 source_type = AudioSourceType(config.get('source_type', 'sdr'))
+
+                # In separated architecture, skip SDR sources in audio-service
+                # SDR sources are managed by sdr-service container, not audio-service
+                if source_type == AudioSourceType.SDR:
+                    # Check if we have radio manager (indicates we can handle SDR)
+                    from app_core.extensions import get_radio_manager
+                    radio_mgr = get_radio_manager()
+                    if not radio_mgr:
+                        logger.info(f"⏭️  Skipping SDR source '{source_name}' - no radio manager (handled by sdr-service)")
+                        return {
+                            'success': True,
+                            'message': f'SDR source {source_name} skipped (managed by sdr-service)',
+                            'skipped': True
+                        }
+
                 runtime_config = AudioSourceConfig(
                     source_type=source_type,
                     name=source_name,
@@ -293,7 +318,7 @@ class AudioCommandSubscriber:
                     silence_duration_seconds=config.get('silence_duration_seconds', 5.0),
                     device_params=config.get('device_params', {}),
                 )
-                
+
                 # Remove existing source if it exists
                 if source_name in self.audio_controller._sources:
                     if self.auto_streaming_service:
@@ -302,7 +327,7 @@ class AudioCommandSubscriber:
                         except Exception as e:
                             logger.debug(f"Error removing {source_name} from Icecast: {e}")
                     self.audio_controller.remove_source(source_name)
-                
+
                 # Create adapter and add to controller
                 adapter = create_audio_source(runtime_config)
                 self.audio_controller.add_source(adapter)

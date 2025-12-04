@@ -148,20 +148,34 @@ class SDRSourceAdapter(AudioSourceAdapter):
         self._radio_manager = get_radio_manager()
         self._receiver_id = receiver_id
 
+        # In separated architecture, radio manager may not be initialized
+        # audio-service container doesn't have hardware access - receivers run in sdr-service
+        if not self._radio_manager:
+            raise RuntimeError(
+                f"Radio manager not available for receiver {receiver_id}. "
+                "In separated architecture, SDR receivers must run in sdr-service container, "
+                "not audio-service container."
+            )
+
         # Get receiver configuration to check demodulation settings
         from app_core.models import RadioReceiver
         from app_core.radio.demodulation import create_demodulator, DemodulatorConfig
 
-        # Access database within application context
-        # Audio sources run in separate threads, so we need to create our own context
-        # Get the Flask app from audio_service.py's global reference
-        import audio_service
-        app = audio_service._flask_app
-        if not app:
-            raise RuntimeError("Flask app not initialized - audio_service may not be running")
+        # Try to access database if Flask app is available
+        # In separated architecture (audio-service container), Flask app may not be initialized
+        # and we'll use configuration from device_params instead
+        db_receiver = None
+        try:
+            import audio_service
+            app = audio_service._flask_app
+            if app:
+                with app.app_context():
+                    db_receiver = RadioReceiver.query.filter_by(identifier=receiver_id).first()
+            else:
+                logger.warning(f"Flask app not available for receiver {receiver_id} - using device_params configuration")
+        except Exception as e:
+            logger.warning(f"Could not access database for receiver {receiver_id}: {e} - using device_params configuration")
 
-        with app.app_context():
-            db_receiver = RadioReceiver.query.filter_by(identifier=receiver_id).first()
         if db_receiver:
             self._receiver_config = db_receiver.to_receiver_config()
 
@@ -254,6 +268,36 @@ class SDRSourceAdapter(AudioSourceAdapter):
             
             # Single metadata update after all demodulator setup is complete
             self.metrics.metadata = metadata
+        else:
+            # No database access - use minimal configuration from device_params
+            # This path is used in separated architecture where audio-service doesn't have database access
+            logger.info(f"Initializing SDR source {receiver_id} without database - using device_params configuration")
+
+            # Use device_params or fallback defaults
+            self._squelch_enabled = self.config.device_params.get('squelch_enabled', False)
+            self._squelch_threshold_db = float(self.config.device_params.get('squelch_threshold_db', -45.0))
+            self._squelch_open_ms = int(self.config.device_params.get('squelch_open_ms', 250))
+            self._squelch_close_ms = int(self.config.device_params.get('squelch_close_ms', 2000))
+            self._squelch_alarm_enabled = self.config.device_params.get('squelch_alarm', False)
+            self._squelch_state_open = not self._squelch_enabled
+            self._squelch_last_change = time.time()
+            self._squelch_open_timer = None
+            self._squelch_close_timer = None
+
+            # Set up minimal metadata
+            metadata = self.metrics.metadata or {}
+            metadata.setdefault('receiver_identifier', receiver_id)
+            metadata.setdefault('source_category', 'sdr')
+            metadata.setdefault('icecast_mount', f"/{self.config.name}")
+            metadata.setdefault('squelch_enabled', self._squelch_enabled)
+            metadata.setdefault('squelch_threshold_db', self._squelch_threshold_db)
+            metadata.setdefault('carrier_present', None if self._squelch_enabled else True)
+            metadata.setdefault('squelch_state', 'pending' if self._squelch_enabled else 'open')
+            metadata.setdefault('demodulation_enabled', False)
+            metadata.setdefault('demodulation_reason', 'database_unavailable')
+            self.metrics.metadata = metadata
+
+            logger.info(f"SDR source {receiver_id} initialized with defaults (no demodulation, squelch {'enabled' if self._squelch_enabled else 'disabled'})")
 
         # Start IQ capture from the specified receiver
         # Retry with backoff since the receiver may still be starting up
