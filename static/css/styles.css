@@ -728,6 +728,49 @@ small,
     overflow: hidden;
 }
 
+/* Make logo bigger - increased from default size */
+.navbar-brand .logo-wordmark,
+.navbar-brand .brand-logo {
+    height: 50px;  /* Increased from implicit ~40px */
+    width: auto;
+}
+
+/* Hide duplicate footer logo */
+.footer .footer-brand .footer-logo {
+    display: none;
+}
+
+/* Make theme toggle buttons less obvious */
+.theme-toggle-nav-item {
+    opacity: 0.5;
+    transition: opacity var(--transition-fast);
+}
+
+.theme-toggle-nav-item:hover {
+    opacity: 1;
+}
+
+.theme-toggle-button {
+    background: transparent;
+    border: none;
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 0.9rem;  /* Smaller than default */
+    padding: 0.4rem 0.6rem;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.theme-toggle-button:hover {
+    color: rgba(255, 255, 255, 0.9);
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.theme-toggle-button:focus {
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.2);
+}
+
 .navbar-brand:hover {
     transform: scale(1.02);
 }
