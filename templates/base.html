@@ -26,29 +26,13 @@
     <link rel="mask-icon" href="{{ url_for('static', filename='img/eas-system-wordmark.svg') }}" color="#204885">
     <meta name="theme-color" content="#204885">
 
-    <!-- Bootstrap CSS (local to avoid third-party blocking) -->
-    <link href="{{ url_for('static', filename='vendor/bootstrap/bootstrap.min.css') }}" rel="stylesheet">
+    <!-- Vendor CSS (Bootstrap) -->
+    <link href="{{ url_for('static', filename='css/vendor.css') }}" rel="stylesheet">
     <!-- Font Awesome -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
 
-    <!-- EAS Station Stylesheets -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/design-system.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/components.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/utilities.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/layout.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/responsive-enhancements.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/loading-states.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/error-handling.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/accessibility.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/professional-polish.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/modern-ui-enhancements.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/advanced-visual-effects.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/enhanced-map-styling.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/logo-enhancements.css') }}">
-    <!-- Readability Improvements - Load LAST to ensure text is readable -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/readability-improvements.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/theme-readability-fixes.css') }}">
+    <!-- EAS Station Styles (Consolidated) -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
 
     <script>
         window.CSRF_TOKEN = {{ csrf_token | tojson }};
