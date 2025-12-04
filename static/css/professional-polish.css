@@ -29,7 +29,7 @@
 }
 
 .card-header {
-    border-bottom: 1px solid var(--color-border-light);
+    border-bottom: 1px solid var(--border-color);
     background: var(--surface-color);
     padding: 1rem 1.25rem;
 }
@@ -44,7 +44,7 @@
 [data-theme="obsidian"] .card-header,
 [data-theme="slate"] .card-header {
     background: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03));
-    border-bottom: 1px solid var(--color-border-light);
+    border-bottom: 1px solid var(--border-color);
 }
 
 .card-body {

@@ -51,19 +51,19 @@
     --color-info-light: #dbeafe;
     --color-info-dark: #1e40af;
     
-    /* Semantic Color Aliases */
-    --color-background: var(--bg-color, var(--color-neutral-50));
-    --color-surface: var(--surface-color, #ffffff);
-    --color-surface-elevated: var(--bg-card, var(--surface-color, #ffffff));
+    /* Semantic Color Aliases - All use theme variables */
+    --color-background: var(--bg-color);
+    --color-surface: var(--surface-color);
+    --color-surface-elevated: var(--bg-card, var(--surface-color));
 
-    --color-text-primary: var(--text-color, var(--color-neutral-900));
-    --color-text-secondary: var(--text-secondary, var(--color-neutral-700));
-    --color-text-muted: var(--text-muted, var(--color-neutral-500));
-    --color-text-inverse: var(--text-inverse, #ffffff);
+    --color-text-primary: var(--text-color);
+    --color-text-secondary: var(--text-secondary);
+    --color-text-muted: var(--text-muted);
+    --color-text-inverse: #ffffff;
 
-    --color-border: var(--border-color, var(--color-neutral-300));
-    --color-border-light: var(--border-color-light, var(--color-neutral-200));
-    --color-border-dark: var(--border-color-dark, var(--color-neutral-400));
+    --color-border: var(--border-color);
+    --color-border-light: var(--border-color);
+    --color-border-dark: var(--border-color);
     
     /* ===== TYPOGRAPHY ===== */
     
@@ -197,17 +197,17 @@
     
     /* Semantic Colors */
     --color-background: var(--bg-color, #141b29);
-    --color-surface: var(--surface-color, #1f2736);
-    --color-surface-elevated: var(--bg-card, var(--surface-color, #283142));
+    --color-surface: var(--surface-color);
+    --color-surface-elevated: var(--bg-card, var(--surface-color));
 
-    --color-text-primary: var(--text-color, #f5f8ff);
-    --color-text-secondary: var(--text-secondary, #d5deed);
-    --color-text-muted: var(--text-muted, #a8b4cc);
-    --color-text-inverse: var(--text-inverse, #212529);
+    --color-text-primary: var(--text-color);
+    --color-text-secondary: var(--text-secondary);
+    --color-text-muted: var(--text-muted);
+    --color-text-inverse: #212529;
 
-    --color-border: var(--border-color, #38465a);
-    --color-border-light: var(--border-color-light, #2a3547);
-    --color-border-dark: var(--border-color-dark, #46556b);
+    --color-border: var(--border-color);
+    --color-border-light: var(--border-color);
+    --color-border-dark: var(--border-color);
     
     /* Shadows (Darker for dark mode) */
     --shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
