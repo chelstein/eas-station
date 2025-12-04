@@ -322,7 +322,7 @@ def generate_html(stats: Dict) -> str:
         routes_data.append(count)
     
     html = f'''<!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="cosmo">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -330,23 +330,17 @@ def generate_html(stats: Dict) -> str:
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Link to main app CSS for theme support -->
+    <link rel="stylesheet" href="/static/css/styles.css">
     <style>
-        :root {{
-            --primary-color: #0d6efd;
-            --secondary-color: #6c757d;
-            --success-color: #198754;
-            --info-color: #0dcaf0;
-            --warning-color: #ffc107;
-            --danger-color: #dc3545;
-            --gradient-start: #667eea;
-            --gradient-end: #764ba2;
-        }}
-        
+        /* Use theme-aware CSS variables */
         body {{
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: var(--bg-color);
             min-height: 100vh;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             padding: 2rem 0;
+            color: var(--text-color);
+            transition: background-color 0.3s ease, color 0.3s ease;
         }}
         
         .stats-container {{
@@ -356,57 +350,95 @@ def generate_html(stats: Dict) -> str:
         }}
         
         .hero-section {{
-            background: linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.98) 100%);
+            background: var(--bg-card);
             border-radius: 20px;
             padding: 3rem 2rem;
             margin-bottom: 2rem;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            box-shadow: 0 20px 60px var(--shadow-color);
             text-align: center;
-            backdrop-filter: blur(10px);
+            border: 1px solid var(--border-color);
+            transition: all 0.3s ease;
         }}
-        
+
         .hero-section h1 {{
             font-size: 3rem;
             font-weight: 700;
-            background: linear-gradient(135deg, var(--gradient-start), var(--gradient-end));
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
             margin-bottom: 1rem;
         }}
-        
+
         .hero-section .timestamp {{
-            color: var(--secondary-color);
+            color: var(--text-secondary);
             font-size: 1.1rem;
             font-weight: 500;
         }}
-        
+
         .stat-card {{
-            background: white;
+            background: var(--bg-card);
             border-radius: 15px;
             padding: 1.5rem;
             margin-bottom: 1.5rem;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            box-shadow: 0 10px 30px var(--shadow-color);
             transition: transform 0.3s ease, box-shadow 0.3s ease;
-            border: none;
+            border: 1px solid var(--border-color);
         }}
-        
+
         .stat-card:hover {{
             transform: translateY(-5px);
-            box-shadow: 0 15px 40px rgba(0,0,0,0.2);
+            box-shadow: 0 15px 40px var(--shadow-color);
         }}
-        
+
         .stat-card-header {{
-            border-bottom: 2px solid #f0f0f0;
+            border-bottom: 2px solid var(--border-color);
             padding-bottom: 1rem;
             margin-bottom: 1.5rem;
         }}
-        
+
         .stat-card-header h2 {{
             font-size: 1.8rem;
             font-weight: 700;
-            color: #333;
+            color: var(--text-color);
             margin: 0;
+        }}
+
+        /* Theme Controls */
+        .theme-controls {{
+            position: fixed;
+            top: 1rem;
+            right: 1rem;
+            z-index: 1000;
+            display: flex;
+            gap: 0.5rem;
+        }}
+
+        .theme-btn {{
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            color: var(--text-color);
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 0.9rem;
+            box-shadow: 0 2px 8px var(--shadow-color);
+        }}
+
+        .theme-btn:hover {{
+            background: var(--primary-color);
+            color: white;
+            transform: translateY(-2px);
+        }}
+
+        .back-btn {{
+            background: var(--primary-color);
+            color: white;
+        }}
+
+        .back-btn:hover {{
+            background: var(--primary-dark);
         }}
         
         .quick-stats {{
@@ -479,7 +511,7 @@ def generate_html(stats: Dict) -> str:
         }}
         
         .stats-table tbody tr:hover {{
-            background-color: #f8f9fa;
+            background-color: var(--hover-color);
         }}
         
         .stats-table td {{
@@ -550,6 +582,19 @@ def generate_html(stats: Dict) -> str:
     </style>
 </head>
 <body>
+    <!-- Theme Controls -->
+    <div class="theme-controls">
+        <button class="theme-btn back-btn" onclick="window.location.href='/'">
+            <i class="fas fa-arrow-left"></i> Back to App
+        </button>
+        <button class="theme-btn" onclick="toggleTheme()">
+            <i id="theme-icon" class="fas fa-moon"></i>
+        </button>
+        <button class="theme-btn" onclick="showThemeSelector()">
+            <i class="fas fa-palette"></i>
+        </button>
+    </div>
+
     <div class="stats-container">
         <!-- Hero Section -->
         <div class="hero-section">
@@ -944,6 +989,13 @@ def generate_html(stats: Dict) -> str:
         }});'''
     
     html += '''
+    </script>
+
+    <!-- Theme Switching Script -->
+    <script src="/static/js/core/theme.js"></script>
+    <script>
+        // Load saved theme on page load
+        loadTheme();
     </script>
 </body>
 </html>'''
