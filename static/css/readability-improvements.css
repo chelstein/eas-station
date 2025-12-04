@@ -129,8 +129,8 @@ small.gradient-text,
 /* Page titles can have gradient, but with fallback */
 h1.gradient-text,
 .page-title.gradient-text {
-    /* Provide fallback for better readability */
-    color: var(--primary-color, var(--primary-color));
+    /* Use theme primary color */
+    color: var(--primary-color);
 }
 
 /* ============================================

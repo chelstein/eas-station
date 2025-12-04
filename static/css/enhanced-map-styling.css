@@ -298,7 +298,7 @@
     color: var(--primary-color) !important;
     margin-bottom: 12px !important;
     padding-bottom: 8px !important;
-    border-bottom: 2px solid rgba(var(--primary-color-rgb, 32, 72, 133), 0.2);
+    border-bottom: 2px solid var(--border-color);
     background: linear-gradient(135deg,
         var(--primary-color),
         var(--secondary-color));
