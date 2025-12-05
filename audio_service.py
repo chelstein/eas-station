@@ -450,9 +450,10 @@ def initialize_redis_audio_publisher(app, audio_controller):
 def initialize_eas_monitor(app, audio_controller):
     """Initialize EAS monitor in audio-service.
 
-    In separated architecture, audio-service needs its own EAS monitor instance
-    for web UI control commands to work. This monitor subscribes to the audio
-    controller's broadcast queue just like eas-service does, allowing both:
+    In separated architecture, audio-service runs as a standalone service (not Gunicorn multi-worker),
+    so it ALWAYS acts as the master. We bypass the worker coordinator and create the monitor directly.
+
+    This allows both:
     - eas-service: Always-on EAS monitoring for production alerts
     - audio-service EAS monitor: User-controlled testing/validation via web UI
 
@@ -463,13 +464,14 @@ def initialize_eas_monitor(app, audio_controller):
 
     with app.app_context():
         try:
-            from app_core.audio.monitor_manager import initialize_eas_monitor as init_monitor
+            from app_core.audio.eas_monitor import ContinuousEASMonitor
+            from app_core.audio.broadcast_adapter import BroadcastAudioAdapter
             from app_core.audio.startup_integration import (
                 load_fips_codes_from_config,
                 create_fips_filtering_callback
             )
 
-            logger.info("Initializing EAS monitor in audio-service...")
+            logger.info("Initializing EAS monitor in audio-service (standalone mode)...")
 
             # Load FIPS codes from configuration
             configured_fips = load_fips_codes_from_config()
@@ -481,21 +483,31 @@ def initialize_eas_monitor(app, audio_controller):
                 flask_app=app
             )
 
-            # Initialize monitor (auto_start=False since we want UI control)
-            success = init_monitor(
-                audio_manager=audio_controller,
-                alert_callback=fips_callback,
-                auto_start=False  # Don't auto-start - let user control via web UI
+            # Create broadcast audio adapter for non-destructive subscription
+            broadcast_queue = audio_controller.get_broadcast_queue()
+            ingest_sample_rate = audio_controller.get_active_sample_rate() or 44100
+
+            audio_adapter = BroadcastAudioAdapter(
+                broadcast_queue=broadcast_queue,
+                subscriber_id="eas-monitor-audio-service",
+                sample_rate=int(ingest_sample_rate)
+            )
+            logger.info(
+                f"EAS monitor subscribed to broadcast queue: {broadcast_queue.name} "
+                f"(source_sample_rate={ingest_sample_rate}Hz)"
             )
 
-            if success:
-                from app_core.audio.monitor_manager import get_eas_monitor_instance
-                _eas_monitor = get_eas_monitor_instance()
-                logger.info("✅ EAS monitor initialized successfully (not started - use web UI to start)")
-                return _eas_monitor
-            else:
-                logger.warning("⚠️  EAS monitor initialization returned False")
-                return None
+            # Create EAS monitor directly (bypass worker coordinator for standalone service)
+            _eas_monitor = ContinuousEASMonitor(
+                audio_manager=audio_adapter,
+                sample_rate=16000,  # EAS decoder optimal rate
+                alert_callback=fips_callback,
+                save_audio_files=True,
+                audio_archive_dir="/tmp/eas-audio"
+            )
+
+            logger.info("✅ EAS monitor initialized successfully (not started - use web UI to start)")
+            return _eas_monitor
 
         except Exception as e:
             logger.error(f"Failed to initialize EAS monitor: {e}", exc_info=True)
