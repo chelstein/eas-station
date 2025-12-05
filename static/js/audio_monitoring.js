@@ -1013,7 +1013,7 @@ async function addAudioSource() {
                 showError('Stream URL is required for stream sources');
                 return;
             }
-            deviceParams.stream_url = streamUrl;
+            deviceParams.url = streamUrl;
             if (streamFormat && streamFormat !== 'mp3') {
                 deviceParams.format = streamFormat;
             }
@@ -1164,7 +1164,7 @@ function updateEditSourceTypeConfig(sourceType, deviceParams) {
 
     switch (sourceType) {
         case 'stream':
-            const streamUrl = deviceParams?.stream_url || '';
+            const streamUrl = deviceParams?.url || '';
             const streamFormat = deviceParams?.format || 'mp3';
             html = `
                 <div class="mb-3">
@@ -1322,7 +1322,7 @@ async function saveEditedSource() {
                     showError('Stream URL is required');
                     return;
                 }
-                deviceParams.stream_url = streamUrl;
+                deviceParams.url = streamUrl;
                 if (streamFormat && streamFormat !== 'mp3') {
                     deviceParams.format = streamFormat;
                 }
