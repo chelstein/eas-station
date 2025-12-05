@@ -827,6 +827,12 @@ small,
 [data-theme="sunset"] .navbar,
 [data-theme="tide"] .navbar {
     color: var(--text-color);
+    /* Override transparent background with solid gradient for visibility */
+    background: linear-gradient(135deg,
+        var(--primary-color),
+        var(--secondary-color)) !important;
+    /* Light border for definition */
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
 }
 
 [data-theme="cosmo"] .navbar .navbar-brand,
