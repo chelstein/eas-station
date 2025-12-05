@@ -1262,6 +1262,25 @@ class _SoapySDRReceiver(ReceiverInterface):
                         self._sample_buffer[:self._sample_buffer_pos]
                     ])
 
+    def get_ring_buffer_stats(self) -> Optional[Dict[str, object]]:
+        """Get ring buffer statistics if available.
+        
+        Returns:
+            Dictionary with buffer stats, or None if not available
+        """
+        # Ring buffer infrastructure exists but is not currently used
+        # The sample buffer (_sample_buffer) is used instead
+        # Return basic stats from the sample buffer
+        if not self._running.is_set() or self._sample_buffer is None:
+            return None
+        
+        with self._sample_buffer_lock:
+            return {
+                'samples_available': self._sample_buffer_size,
+                'buffer_size': self._sample_buffer_size,
+                'fill_percentage': 0.0,  # Not tracked for simple buffer
+            }
+
 
 class RTLSDRReceiver(_SoapySDRReceiver):
     """Driver for RTL2832U based SDRs via the SoapyRTLSDR module."""
@@ -1293,7 +1312,7 @@ class AirspyReceiver(_SoapySDRReceiver):
         self._effective_sample_rate: Optional[int] = None
         super().__init__(config, event_logger=event_logger)
 
-    def _open_device(self):
+    def _open_handle(self) -> _SoapySDRHandle:
         """Open Airspy device with Airspy-specific configuration."""
         # Validate sample rate before opening - store effective rate without modifying config
         effective_rate = self.config.sample_rate
@@ -1306,15 +1325,15 @@ class AirspyReceiver(_SoapySDRReceiver):
             )
             effective_rate = closest
         
-        # Store effective rate for use in _open_device_impl
+        # Store effective rate for use in parent implementation
         self._effective_sample_rate = effective_rate
         
         # Temporarily update config sample rate for parent implementation
-        # This is necessary because _SoapySDRReceiver._open_device reads from config
+        # This is necessary because _SoapySDRReceiver._open_handle reads from config
         original_rate = self.config.sample_rate
         try:
             self.config.sample_rate = effective_rate
-            handle = super()._open_device()
+            handle = super()._open_handle()
         finally:
             # Restore original config to avoid side effects
             self.config.sample_rate = original_rate
