@@ -663,6 +663,10 @@ class RadioReceiver(db.Model):
 
     Note: For internet stream sources (HTTP/M3U), use the AudioSource system instead.
     RadioReceiver is exclusively for SDR hardware like RTL-SDR and Airspy.
+
+    IMPORTANT: sample_rate vs audio_sample_rate
+    - sample_rate: IQ sample rate from SDR hardware (e.g., 2.4 MHz for RTL-SDR)
+    - audio_sample_rate: Demodulated audio output rate (e.g., 48 kHz for FM stereo)
     """
 
     __tablename__ = "radio_receivers"
@@ -672,7 +676,8 @@ class RadioReceiver(db.Model):
     display_name = db.Column(db.String(128), nullable=False)
     driver = db.Column(db.String(64), nullable=False)
     frequency_hz = db.Column(db.Float, nullable=False)
-    sample_rate = db.Column(db.Integer, nullable=False)
+    sample_rate = db.Column(db.Integer, nullable=False)  # IQ sample rate (MHz range, e.g., 2400000)
+    audio_sample_rate = db.Column(db.Integer, nullable=True)  # Audio output rate (kHz range, e.g., 48000)
     gain = db.Column(db.Float)
     channel = db.Column(db.Integer)
     serial = db.Column(db.String(128))
@@ -714,11 +719,27 @@ class RadioReceiver(db.Model):
 
         from app_core.radio import ReceiverConfig
 
+        # Determine audio sample rate with intelligent defaults
+        audio_rate = self.audio_sample_rate
+        if audio_rate is None or audio_rate < 20000:
+            # Auto-select based on modulation type and stereo settings
+            modulation = (self.modulation_type or 'IQ').upper()
+            if modulation in ('FM', 'WFM', 'WBFM'):
+                # Wide FM (broadcast): higher quality needed
+                audio_rate = 48000 if self.stereo_enabled else 32000
+            elif modulation in ('NFM', 'AM'):
+                # Narrowband FM or AM: lower rate acceptable
+                audio_rate = 24000
+            else:
+                # IQ or unknown: safe default
+                audio_rate = 44100
+
         return ReceiverConfig(
             identifier=self.identifier,
             driver=self.driver,
             frequency_hz=float(self.frequency_hz),
             sample_rate=int(self.sample_rate),
+            audio_sample_rate=int(audio_rate),
             gain=self.gain,
             channel=self.channel,
             serial=self.serial,
