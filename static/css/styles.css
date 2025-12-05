@@ -1968,6 +1968,166 @@ textarea:focus {
 }
 
 
+   15. HELP PAGE STYLES
+
+/* Help Page Quick Links */
+.quick-links-card {
+    background: var(--surface-color);
+    transition: all var(--transition-medium);
+}
+
+.help-quick-link {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem;
+    border-radius: var(--radius-md);
+    background: var(--surface-color);
+    border: 2px solid var(--border-color);
+    text-decoration: none;
+    color: var(--text-color);
+    transition: all var(--transition-medium);
+}
+
+.help-quick-link:hover {
+    border-color: var(--primary-color);
+    background: color-mix(in srgb, var(--primary-color) 5%, var(--surface-color));
+    transform: translateX(4px);
+    box-shadow: 0 4px 12px var(--shadow-color);
+    text-decoration: none;
+    color: var(--text-color);
+}
+
+.help-quick-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    height: 48px;
+    border-radius: var(--radius-md);
+    font-size: 1.5rem;
+    flex-shrink: 0;
+    transition: all var(--transition-medium);
+}
+
+.help-quick-link:hover .help-quick-icon {
+    transform: scale(1.1);
+}
+
+/* Operations Flow */
+.operations-flow-card {
+    background: var(--surface-color);
+}
+
+.operations-flow {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    position: relative;
+}
+
+.operations-flow li {
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+    padding: 1rem 0;
+    position: relative;
+}
+
+.operations-flow li:not(:last-child) {
+    border-bottom: 1px dashed var(--border-color);
+}
+
+.operations-flow li:not(:last-child)::after {
+    content: "";
+    position: absolute;
+    left: 20px;
+    top: 60px;
+    width: 2px;
+    height: calc(100% - 40px);
+    background: linear-gradient(180deg,
+        var(--primary-color) 0%,
+        var(--secondary-color) 100%);
+    opacity: 0.3;
+}
+
+.flow-step {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+    color: white;
+    font-weight: var(--font-weight-bold);
+    font-size: 1.125rem;
+    box-shadow: 0 4px 12px var(--shadow-color);
+    z-index: 1;
+    position: relative;
+}
+
+/* Help Resource Cards */
+.help-resource-card {
+    background: var(--surface-color);
+    border: 2px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    padding: 1.5rem;
+    text-align: center;
+    transition: all var(--transition-medium);
+}
+
+.help-resource-card:hover {
+    border-color: var(--primary-color);
+    transform: translateY(-4px);
+    box-shadow: 0 8px 24px var(--shadow-color);
+}
+
+.help-resource-logo {
+    width: 100%;
+    max-width: 200px;
+    height: auto;
+    margin: 0 auto;
+    display: block;
+    border-radius: var(--radius-md);
+    transition: all var(--transition-medium);
+}
+
+.help-resource-card:hover .help-resource-logo {
+    transform: scale(1.05);
+}
+
+.help-resource-card h5 {
+    color: var(--primary-color);
+    font-weight: var(--font-weight-bold);
+    margin-top: 1rem;
+    margin-bottom: 0.5rem;
+}
+
+.help-resource-card p {
+    color: var(--text-secondary);
+    margin-bottom: 1rem;
+}
+
+.help-resource-card ul {
+    padding-left: 0;
+}
+
+.help-resource-card li {
+    margin-bottom: 0.5rem;
+}
+
+.help-resource-card a {
+    color: var(--primary-color);
+    transition: color var(--transition-fast);
+}
+
+.help-resource-card a:hover {
+    color: var(--secondary-color);
+}
+
+
    PERFORMANCE OPTIMIZATIONS
 
 /* GPU Acceleration for Animations */
