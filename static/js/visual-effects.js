@@ -1,15 +1,5 @@
-/**
- * EAS Station - Visual Effects
- * Interactive visual enhancements and animations
- * Version: 2.0
- */
-
 (function() {
     'use strict';
-
-    // ============================================
-    // 3D TILT EFFECT FOR CARDS
-    // ============================================
 
     function init3DTilt() {
         const tiltCards = document.querySelectorAll('.card-3d-tilt');
@@ -39,10 +29,6 @@
             });
         });
     }
-
-    // ============================================
-    // MAGNETIC BUTTON EFFECT
-    // ============================================
 
     function initMagneticEffect() {
         const magneticElements = document.querySelectorAll('.magnetic');

@@ -119,10 +119,9 @@
 
         const textPrimary = document.querySelectorAll('.logo-text-primary');
         const textSecondary = document.querySelectorAll('.logo-text-secondary');
-        const textSecondaryColor = getComputedStyle(document.documentElement).getPropertyValue('--text-secondary') || '#5a6c8f';
 
-        textPrimary.forEach(text => text.setAttribute('fill', primaryColor));
-        textSecondary.forEach(text => text.setAttribute('fill', textSecondaryColor));
+        textPrimary.forEach(text => text.setAttribute('fill', 'white'));
+        textSecondary.forEach(text => text.setAttribute('fill', 'rgba(255, 255, 255, 0.85)'));
     }
 
     function addRainbowEffect() {
