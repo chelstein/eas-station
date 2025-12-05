@@ -12,8 +12,7 @@ class AccessibilityUtils {
     }
 
     init() {
-        // Add CSS if not already included
-        this.ensureStylesheet();
+        // Note: All styles are consolidated in styles.css (no separate CSS files needed)
         // Setup keyboard detection
         this.setupKeyboardDetection();
         // Setup focus management
@@ -24,15 +23,6 @@ class AccessibilityUtils {
         this.setupFormAccessibility();
         // Setup screen reader announcements
         this.setupScreenReaderAnnouncements();
-    }
-
-    ensureStylesheet() {
-        if (!document.querySelector('link[href*="accessibility.css"]')) {
-            const link = document.createElement('link');
-            link.rel = 'stylesheet';
-            link.href = '/static/css/accessibility.css';
-            document.head.appendChild(link);
-        }
     }
 
     // Keyboard Detection

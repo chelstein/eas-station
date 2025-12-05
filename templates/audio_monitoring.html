@@ -156,9 +156,9 @@
 
                 <!-- Streaming Performance -->
                 <div class="mt-3 pt-3 border-top">
-                    <h6 class="mb-3">
+                    <h5 class="mb-3">
                         <i class="fas fa-tachometer-alt"></i> Streaming Performance
-                    </h6>
+                    </h5>
                     
                     <div class="row g-3">
                         <div class="col-md-4 col-sm-6">
@@ -381,6 +381,11 @@ const PEAK_HOLD_TIME_MS = 1500; // Hold peak for 1.5 seconds
 const PEAK_ATTACK_SMOOTHING = 0.7; // Attack: high alpha = quick response to increases (0-1)
 const PEAK_RELEASE_SMOOTHING = 0.2; // Release: low alpha = slow response to decreases (0-1)
 const RMS_SMOOTHING = 0.3; // RMS uses moderate smoothing (0-1)
+
+// Debug logging throttle - only log once per interval to avoid console spam
+const DEBUG_LOG_INTERVAL_MS = 5000; // Log debug messages at most once every 5 seconds
+let lastVuMeterDebugLog = 0;
+let lastBroadcastQueueDebugLog = 0;
 
 function getPreferredStreamMode() {
     const stored = (localStorage.getItem(STREAM_MODE_KEY) || '').toLowerCase();
@@ -1730,7 +1735,11 @@ function updateLevelMetersFromSnapshot(snapshot) {
         updatedCount++;
     });
 
-    console.debug(`Updated ${updatedCount} VU meters from ${snapshot.live_metrics.length} metrics`);
+    // Throttle debug logging to avoid console spam (log at most once every 5 seconds)
+    if (now - lastVuMeterDebugLog > DEBUG_LOG_INTERVAL_MS) {
+        console.debug(`Updated ${updatedCount} VU meters from ${snapshot.live_metrics.length} metrics`);
+        lastVuMeterDebugLog = now;
+    }
 }
 
 // ============================================================================
@@ -2234,13 +2243,17 @@ function initializeWebSocket() {
                     updateEASMonitorDisplay(data.eas_monitor);
                 }
 
-                // Log broadcast queue stats for diagnostics
+                // Log broadcast queue stats for diagnostics (throttled to avoid console spam)
                 if (data.audio_metrics && data.audio_metrics.broadcast_stats) {
                     const stats = data.audio_metrics.broadcast_stats;
-                    console.debug(
-                        `Broadcast queue: ${stats.subscribers} subscribers, ` +
-                        `${stats.published_chunks} published, ${stats.dropped_chunks} dropped`
-                    );
+                    const now = Date.now();
+                    if (now - lastBroadcastQueueDebugLog > DEBUG_LOG_INTERVAL_MS) {
+                        console.debug(
+                            `Broadcast queue: ${stats.subscribers} subscribers, ` +
+                            `${stats.published_chunks} published, ${stats.dropped_chunks} dropped`
+                        );
+                        lastBroadcastQueueDebugLog = now;
+                    }
                 }
             } catch (error) {
                 console.error('Error processing WebSocket update:', error);
@@ -2260,6 +2273,7 @@ function initializeWebSocket() {
 document.addEventListener('DOMContentLoaded', function() {
     renderStreamModeControls();
     loadAudioSources(true); // Initial full render
+    loadEASMonitorStatus(); // Load EAS monitor status immediately on page load
 
     // Try to initialize WebSocket for real-time updates
     // If it fails, will automatically fall back to polling
