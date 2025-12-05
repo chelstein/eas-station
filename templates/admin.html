@@ -470,11 +470,28 @@
             <div class="tab-content" id="adminTabContent">
                 <!-- System Health Tab (Now First) -->
                 <div class="tab-pane fade show active" id="health" role="tabpanel">
-                    <!-- Page Header -->
-                    <div class="mb-4">
-                        <h4 class="mb-2"><i class="fas fa-upload text-primary"></i> Upload Boundary Files</h4>
-                        <p class="text-muted">Upload GeoJSON files to add new boundary layers to the system.</p>
+                    <div class="mb-3">
+                        <h4 class="mb-2"><i class="fas fa-heartbeat text-info"></i> System Health Monitor</h4>
+                        <p class="text-muted mb-0">Real-time system health and performance monitoring.</p>
                     </div>
+
+                    <!-- Embed System Health Page -->
+                    <iframe src="/system_health" 
+                            style="width: 100%; min-height: 360px; border: none; border-radius: 8px;"
+                            title="System Health Monitor"
+                            id="systemHealthFrame">
+                    </iframe>
+                    <noscript>
+                        <div class="alert alert-warning">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            JavaScript is required to view system health. Please enable JavaScript or 
+                            <a href="/system_health" target="_blank">open system health in a new tab</a>.
+                        </div>
+                    </noscript>
+                </div>
+
+                <!-- Location Settings Tab (Moved Earlier) -->
+                <div class="tab-pane fade" id="location-settings" role="tabpanel">
                     <form id="uploadForm" enctype="multipart/form-data" class="mt-4">
                         <div class="row">
                             <div class="col-md-6">
