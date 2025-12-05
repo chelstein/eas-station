@@ -212,7 +212,7 @@ class FFmpegAudioSource:
             self._process = subprocess.Popen(
                 cmd,
                 stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,  # Discard stderr to prevent pipe buffer filling
                 stdin=subprocess.DEVNULL,
                 bufsize=8192
             )
