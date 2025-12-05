@@ -925,17 +925,27 @@ def main():
                 try:
                     if not _audio_controller:
                         return jsonify({'error': 'Audio controller not initialized'}), 503
-                    
+
+                    # Try exact name first, then try with redis- prefix for separated architecture
                     adapter = _audio_controller._sources.get(source_name)
+                    if not adapter and not source_name.startswith('redis-'):
+                        # In separated architecture, SDR sources are named redis-{original_name}
+                        adapter = _audio_controller._sources.get(f'redis-{source_name}')
+                        if adapter:
+                            logger.debug(f'Matched source "{source_name}" to redis-prefixed source')
+
                     if not adapter:
-                        return jsonify({'error': f'Audio source "{source_name}" not found'}), 404
-                    
-                    if adapter.status != AudioSourceStatus.RUNNING:
+                        available = list(_audio_controller._sources.keys())
                         return jsonify({
-                            'error': f'Audio source "{source_name}" is not running',
-                            'status': adapter.status.value
-                        }), 503
-                    
+                            'error': f'Audio source "{source_name}" not found',
+                            'available_sources': available
+                        }), 404
+
+                    # Stream even if source is not running - generator will yield silence
+                    # This allows web players to connect and wait for audio instead of failing
+                    if adapter.status != AudioSourceStatus.RUNNING:
+                        logger.info(f'Streaming silence for non-running source "{source_name}" (status: {adapter.status.value})')
+
                     return Response(
                         stream_with_context(generate_wav_stream(adapter, source_name)),
                         mimetype='audio/wav',
