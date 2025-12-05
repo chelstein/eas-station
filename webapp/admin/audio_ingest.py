@@ -1331,13 +1331,88 @@ def api_create_audio_source():
         except ValueError:
             return jsonify({'error': f'Invalid source type: {source_type}'}), 400
 
-        # In separated architecture, sources are created via Redis commands to audio-service
-        # This generic endpoint is deprecated - use SDR-specific endpoint instead
+        # Check if source already exists
+        existing_source = AudioSourceConfigDB.query.filter_by(name=name).first()
+        if existing_source:
+            return jsonify({'error': f'Audio source "{name}" already exists'}), 409
+
+        # Extract configuration from request
+        sample_rate = data.get('sample_rate', 44100)
+        channels = data.get('channels', 1)
+        buffer_size = data.get('buffer_size', 4096)
+        enabled = data.get('enabled', True)
+        priority = data.get('priority', 1)
+        auto_start = data.get('auto_start', False)
+        description = data.get('description', '')
+
+        # Device-specific parameters
+        device_params = data.get('device_params', {})
+
+        # For STREAM type, ensure URL is provided
+        if audio_type == AudioSourceType.STREAM:
+            if not device_params.get('url'):
+                return jsonify({'error': 'url is required in device_params for STREAM sources'}), 400
+
+        # Create database configuration
+        config_params = {
+            'sample_rate': sample_rate,
+            'channels': channels,
+            'buffer_size': buffer_size,
+            'silence_threshold_db': data.get('silence_threshold_db', -60.0),
+            'silence_duration_seconds': data.get('silence_duration_seconds', 5.0),
+            'device_params': device_params,
+        }
+
+        db_config = AudioSourceConfigDB(
+            name=name,
+            source_type=audio_type.value,
+            enabled=enabled,
+            priority=priority,
+            auto_start=auto_start,
+            description=description,
+            config_params=config_params
+        )
+
+        db.session.add(db_config)
+        try:
+            db.session.commit()
+            logger.info(f'Created audio source in database: {name} ({audio_type.value})')
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f'Failed to save audio source to database: {e}')
+            return jsonify({'error': f'Database error: {str(e)}'}), 500
+
+        # Send command to audio-service to reload sources
+        try:
+            from app_core.audio.redis_commands import get_audio_command_publisher
+            publisher = get_audio_command_publisher()
+
+            # Send reload command to pick up new source
+            result = publisher.send_command('reload_sources', {})
+
+            if result.get('success'):
+                logger.info(f'Sent reload command to audio-service for new source: {name}')
+            else:
+                logger.warning(f'Failed to send reload command: {result.get("message")}')
+                # Don't fail the request - source is in DB and will load on next restart
+
+        except Exception as e:
+            logger.warning(f'Could not notify audio-service of new source: {e}')
+            # Don't fail - source is saved in DB
+
         return jsonify({
-            'error': 'Direct audio source creation not supported in separated architecture',
-            'hint': 'Use POST /api/admin/radio/receivers/{id}/configure_audio_source for SDR sources',
-            'separated_architecture': True
-        }), 501  # Not Implemented
+            'message': f'Audio source "{name}" created successfully',
+            'source': {
+                'name': name,
+                'type': audio_type.value,
+                'enabled': enabled,
+                'priority': priority,
+                'auto_start': auto_start,
+                'description': description,
+                'config': config_params
+            },
+            'hint': 'Restart audio-service container to load this source, or it will load automatically on next startup'
+        }), 201
 
     except Exception as exc:
         logger.error('Error creating audio source: %s', exc)
