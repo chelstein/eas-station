@@ -338,8 +338,8 @@ class AudioCommandSubscriber:
                         logger.info(f"⏭️  Skipping SDR source '{source_name}' - no radio manager (handled by sdr-service)")
                         logger.info(f"   Use 'redis_sdr' source type for separated architecture")
                         return {
-                            'success': False,
-                            'message': f'SDR source {source_name} requires radio manager. Use redis_sdr type for separated architecture.',
+                            'success': True,
+                            'message': f'SDR source {source_name} skipped (no radio manager). Use redis_sdr type for separated architecture.',
                             'skipped': True
                         }
 

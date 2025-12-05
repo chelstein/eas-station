@@ -173,6 +173,7 @@ class RedisSDRSourceAdapter(AudioSourceAdapter):
 
                         if audio_samples is not None and len(audio_samples) > 0:
                             # Put audio in queue for _read_audio_chunk() to consume
+                            # The base class capture loop will handle metrics updates and broadcasting
                             try:
                                 self._audio_chunk_queue.put(audio_samples, timeout=0.1)
                                 self._samples_received += len(audio_samples)
