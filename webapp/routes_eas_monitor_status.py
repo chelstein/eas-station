@@ -103,7 +103,7 @@ def register_eas_monitor_routes(app: Flask, logger_instance) -> None:
                     "debug_status_value": str(status) if status else None
                 })
 
-            if status is None or not status:
+            if not status:
                 return jsonify({
                     "running": False,
                     "error": "EAS monitor not running in audio-service",
