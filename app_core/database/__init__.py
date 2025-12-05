@@ -9,5 +9,7 @@ This module provides database-related functionality including:
 Extracted from app.py as part of the refactoring effort to improve maintainability.
 """
 
-# Public API will be populated as functions are extracted
-__all__ = []
+from .connectivity import check_database_connectivity
+from .postgis import ensure_postgis_extension
+
+__all__ = ['check_database_connectivity', 'ensure_postgis_extension']
