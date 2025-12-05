@@ -7,6 +7,7 @@ Create Date: 2025-12-03 15:30:00.000000
 """
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy import inspect
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
@@ -15,11 +16,37 @@ down_revision = '20251201_add_snow_emergency_opt_out'
 branch_labels = None
 depends_on = None
 
+TABLE_NAME = 'ip_filters'
+
+
+def _table_exists() -> bool:
+    """Check if ip_filters table exists."""
+    conn = op.get_bind()
+    inspector = inspect(conn)
+    try:
+        return TABLE_NAME in inspector.get_table_names()
+    except Exception:
+        return False
+
+
+def _index_exists(index_name: str) -> bool:
+    """Check if an index exists."""
+    conn = op.get_bind()
+    inspector = inspect(conn)
+    try:
+        indexes = inspector.get_indexes(TABLE_NAME)
+        return any(idx['name'] == index_name for idx in indexes)
+    except Exception:
+        return False
+
 
 def upgrade():
     """Create ip_filters table."""
+    if _table_exists():
+        return  # Table already exists, skip creation
+    
     op.create_table(
-        'ip_filters',
+        TABLE_NAME,
         sa.Column('id', sa.Integer(), nullable=False),
         sa.Column('ip_address', sa.String(length=45), nullable=False),
         sa.Column('filter_type', sa.String(length=20), nullable=False),
@@ -33,12 +60,19 @@ def upgrade():
     )
     
     # Create indexes
-    op.create_index('ix_ip_filters_ip_address', 'ip_filters', ['ip_address'])
-    op.create_index('ix_ip_filters_filter_type', 'ip_filters', ['filter_type'])
+    if not _index_exists('ix_ip_filters_ip_address'):
+        op.create_index('ix_ip_filters_ip_address', TABLE_NAME, ['ip_address'])
+    if not _index_exists('ix_ip_filters_filter_type'):
+        op.create_index('ix_ip_filters_filter_type', TABLE_NAME, ['filter_type'])
 
 
 def downgrade():
     """Drop ip_filters table."""
-    op.drop_index('ix_ip_filters_filter_type', table_name='ip_filters')
-    op.drop_index('ix_ip_filters_ip_address', table_name='ip_filters')
-    op.drop_table('ip_filters')
+    if not _table_exists():
+        return  # Table doesn't exist, nothing to drop
+    
+    if _index_exists('ix_ip_filters_filter_type'):
+        op.drop_index('ix_ip_filters_filter_type', table_name=TABLE_NAME)
+    if _index_exists('ix_ip_filters_ip_address'):
+        op.drop_index('ix_ip_filters_ip_address', table_name=TABLE_NAME)
+    op.drop_table(TABLE_NAME)
