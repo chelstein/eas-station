@@ -2072,17 +2072,21 @@ async function inspectBoundaries() {
                             const boundaries = boundariesByType[type];
                             // Use CSS custom properties for theme-aware colors
                             const rootStyles = getComputedStyle(document.documentElement);
-                            const typeColors = {
-                                'county': rootStyles.getPropertyValue('--text-muted').trim() || 'var(--text-muted)',
-                                'township': rootStyles.getPropertyValue('--success-color').trim() || 'var(--success-color)',
-                                'village': rootStyles.getPropertyValue('--info-color').trim() || 'var(--info-color)',
-                                'fire': rootStyles.getPropertyValue('--danger-color').trim() || 'var(--danger-color)',
-                                'ems': rootStyles.getPropertyValue('--primary-color').trim() || 'var(--primary-color)',
-                                'school': rootStyles.getPropertyValue('--warning-color').trim() || 'var(--warning-color)',
-                                'electric': rootStyles.getPropertyValue('--secondary-color').trim() || 'var(--secondary-color)',
-                                'telephone': rootStyles.getPropertyValue('--accent-color').trim() || 'var(--accent-color)'
+                            const getColorVar = (varName) => {
+                                const value = rootStyles.getPropertyValue(varName).trim();
+                                return value || varName; // Return var name if empty
                             };
-                            const color = typeColors[type.toLowerCase()] || rootStyles.getPropertyValue('--text-muted').trim() || 'var(--text-muted)';
+                            const typeColors = {
+                                'county': getColorVar('--text-muted'),
+                                'township': getColorVar('--success-color'),
+                                'village': getColorVar('--info-color'),
+                                'fire': getColorVar('--danger-color'),
+                                'ems': getColorVar('--primary-color'),
+                                'school': getColorVar('--warning-color'),
+                                'electric': getColorVar('--secondary-color'),
+                                'telephone': getColorVar('--accent-color')
+                            };
+                            const color = typeColors[type.toLowerCase()] || getColorVar('--text-muted');
 
                             return `
                                 <div class="type-section">

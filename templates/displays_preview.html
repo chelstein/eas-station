@@ -351,6 +351,10 @@ vfdCanvas.style.maxWidth = vfdMaxWidth;
 function initDisplays() {
     // Get computed colors for theme support
     const rootStyles = getComputedStyle(document.documentElement);
+    const getColor = (varName, fallback) => {
+        const value = rootStyles.getPropertyValue(varName).trim();
+        return value || fallback;
+    };
     
     // Clear OLED (true black for OLED hardware simulation)
     oledCtx.fillStyle = '#000';
@@ -360,13 +364,13 @@ function initDisplays() {
     vfdCtx.fillStyle = '#001a00';
     vfdCtx.fillRect(0, 0, 140, 32);
 
-    // Draw "No Signal" message on OLED
-    oledCtx.fillStyle = rootStyles.getPropertyValue('--text-muted').trim() || '#888';
+    // Draw "No Signal" message on OLED (use theme-aware muted color)
+    oledCtx.fillStyle = getColor('--text-muted', '#888');
     oledCtx.font = '8px monospace';
     oledCtx.textAlign = 'center';
     oledCtx.fillText('No Signal', 64, 32);
 
-    // Draw "No Signal" message on VFD (dim green for VFD)
+    // Draw "No Signal" message on VFD (dim green for VFD hardware)
     vfdCtx.fillStyle = '#004400';
     vfdCtx.font = '10px monospace';
     vfdCtx.textAlign = 'center';
