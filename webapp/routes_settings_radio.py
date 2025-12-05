@@ -267,11 +267,11 @@ def _parse_receiver_payload(payload: Dict[str, Any], *, partial: bool = False) -
         except Exception:
             return None, "Frequency must be a positive number of hertz."
 
-    # Sample rate is required
+    # IQ Sample rate is required (this is the SDR hardware rate, e.g., 2.4 MHz)
     if not partial or "sample_rate" in payload:
         sample_rate_val = payload.get("sample_rate")
         if sample_rate_val in (None, "", []):
-            return None, "Sample rate is required."
+            return None, "IQ sample rate is required."
         try:
             sample_rate = int(sample_rate_val)
             if sample_rate <= 0:
@@ -300,7 +300,25 @@ def _parse_receiver_payload(payload: Dict[str, Any], *, partial: bool = False) -
                     # Allow the sample rate anyway - hardware validation is not critical
 
         except ValueError:
-            return None, "Sample rate must be a positive integer."
+            return None, "IQ sample rate must be a positive integer."
+
+    # Audio sample rate (optional) - this is the demodulated audio output rate (e.g., 48 kHz)
+    # If not specified, it will be auto-selected based on modulation type
+    if "audio_sample_rate" in payload:
+        audio_sample_rate_val = payload.get("audio_sample_rate")
+        if audio_sample_rate_val in (None, "", []):
+            data["audio_sample_rate"] = None  # Will use auto-selection
+        else:
+            try:
+                audio_sample_rate = int(audio_sample_rate_val)
+                if audio_sample_rate <= 0:
+                    raise ValueError
+                # Sanity check: audio rates should be in kHz range (< 100 kHz)
+                if audio_sample_rate >= 100000:
+                    return None, "Audio sample rate should be in kHz range (e.g., 48000), not MHz range."
+                data["audio_sample_rate"] = audio_sample_rate
+            except ValueError:
+                return None, "Audio sample rate must be a positive integer."
 
     if "gain" in payload:
         gain = payload.get("gain")

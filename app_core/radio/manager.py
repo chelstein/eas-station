@@ -35,12 +35,18 @@ if TYPE_CHECKING:  # pragma: no cover - imported for type checking only
 
 @dataclass(frozen=True)
 class ReceiverConfig:
-    """Configuration describing how to initialise a receiver driver."""
+    """Configuration describing how to initialise a receiver driver.
+
+    IMPORTANT: sample_rate vs audio_sample_rate
+    - sample_rate: IQ sample rate from SDR hardware (e.g., 2.4 MHz for RTL-SDR)
+    - audio_sample_rate: Demodulated audio output rate (e.g., 48 kHz for FM stereo)
+    """
 
     identifier: str
     driver: str
     frequency_hz: float
-    sample_rate: int
+    sample_rate: int  # IQ sample rate (MHz range, e.g., 2400000)
+    audio_sample_rate: int = 48000  # Audio output rate (kHz range, e.g., 48000)
     gain: Optional[float] = None
     channel: Optional[int] = None
     serial: Optional[str] = None

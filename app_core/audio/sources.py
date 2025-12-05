@@ -226,23 +226,37 @@ class SDRSourceAdapter(AudioSourceAdapter):
 
             # Create demodulator if audio output is enabled and modulation is not IQ
             if self._receiver_config.audio_output and self._receiver_config.modulation_type != 'IQ':
+                # Use the new audio_sample_rate field (kHz range) for demodulated audio output
+                # and sample_rate field (MHz range) for IQ input
                 demod_config = DemodulatorConfig(
                     modulation_type=self._receiver_config.modulation_type,
-                    sample_rate=self._receiver_config.sample_rate,
-                    audio_sample_rate=self.config.sample_rate,
+                    sample_rate=self._receiver_config.sample_rate,  # IQ rate (e.g., 2.4 MHz)
+                    audio_sample_rate=self._receiver_config.audio_sample_rate,  # Audio rate (e.g., 48 kHz)
                     stereo_enabled=self._receiver_config.stereo_enabled,
                     deemphasis_us=self._receiver_config.deemphasis_us,
                     enable_rbds=self._receiver_config.enable_rbds
                 )
                 self._demodulator = create_demodulator(demod_config)
+
+                # Update audio source config to match demodulator output
+                self.config.sample_rate = self._receiver_config.audio_sample_rate
+                self.metrics.sample_rate = self._receiver_config.audio_sample_rate
+
                 if self._receiver_config.stereo_enabled:
                     self.config.channels = 2
                     self.metrics.channels = 2
-                logger.info(f"Created {self._receiver_config.modulation_type} demodulator for receiver: {receiver_id}")
+
+                logger.info(
+                    f"Created {self._receiver_config.modulation_type} demodulator for receiver: {receiver_id} "
+                    f"(IQ: {self._receiver_config.sample_rate} Hz → Audio: {self._receiver_config.audio_sample_rate} Hz)"
+                )
+
                 # Update metadata to reflect demodulation is enabled
                 metadata['demodulation_enabled'] = True
                 metadata['demodulation_type'] = self._receiver_config.modulation_type
                 metadata['demodulation_reason'] = None  # No issue - demodulation is working
+                metadata['iq_sample_rate'] = self._receiver_config.sample_rate
+                metadata['audio_sample_rate'] = self._receiver_config.audio_sample_rate
             else:
                 # Update metadata to reflect demodulation is NOT enabled
                 metadata['demodulation_enabled'] = False

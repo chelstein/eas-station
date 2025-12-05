@@ -82,7 +82,11 @@ from app_core.eas_storage import (
 )
 from app_core.system_health import get_system_health, start_health_alert_worker
 from app_core.poller_debug import ensure_poll_debug_table
-from app_core.radio import ensure_radio_tables, ensure_radio_squelch_columns
+from app_core.radio import (
+    ensure_radio_tables,
+    ensure_radio_squelch_columns,
+    ensure_radio_audio_sample_rate_column,
+)
 from app_core.zones import ensure_zone_catalog
 from app_core.auth.roles import initialize_default_roles_and_permissions, Role
 from webapp import register_routes
@@ -1065,6 +1069,11 @@ def initialize_database():
             if not ensure_radio_squelch_columns(logger):
                 _db_initialization_error = RuntimeError(
                     "Radio squelch columns could not be ensured"
+                )
+                return False
+            if not ensure_radio_audio_sample_rate_column(logger):
+                _db_initialization_error = RuntimeError(
+                    "Radio audio_sample_rate column could not be ensured"
                 )
                 return False
             if not ensure_zone_catalog(logger):

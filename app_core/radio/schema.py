@@ -40,6 +40,11 @@ _SQUELCH_COLUMN_DEFINITIONS: tuple[tuple[str, str]] = (
     ("squelch_alarm", "BOOLEAN NOT NULL DEFAULT FALSE"),
 )
 
+_AUDIO_SAMPLE_RATE_COLUMN_DEFINITION: tuple[str, str] = (
+    "audio_sample_rate",
+    "INTEGER DEFAULT NULL",
+)
+
 _IndexDefinition = Tuple[str, Callable[[], db.Index], Tuple[str, ...], bool]
 _INDEX_DEFINITIONS: dict[str, Tuple[_IndexDefinition, ...]] = {
     "radio_receivers": (
@@ -183,4 +188,82 @@ def ensure_radio_squelch_columns(logger) -> bool:
         return False
 
 
-__all__ = ["ensure_radio_tables", "ensure_radio_squelch_columns"]
+def ensure_radio_audio_sample_rate_column(logger) -> bool:
+    """Backfill audio_sample_rate column when migrations haven't run.
+
+    This column separates IQ sample rate (sample_rate) from audio output rate (audio_sample_rate).
+    """
+
+    engine = db.engine
+    inspector = inspect(engine)
+
+    if "radio_receivers" not in inspector.get_table_names():
+        logger.debug(
+            "Skipping audio_sample_rate column verification; radio_receivers table missing",
+        )
+        return True
+
+    try:
+        existing_columns = {column["name"] for column in inspector.get_columns("radio_receivers")}
+
+        column_name, column_definition = _AUDIO_SAMPLE_RATE_COLUMN_DEFINITION
+        if column_name in existing_columns:
+            return True
+
+        logger.info(
+            "Adding radio_receivers.%s column to separate IQ and audio sample rates",
+            column_name,
+        )
+
+        # Add the column
+        ddl = f"ALTER TABLE radio_receivers ADD COLUMN {column_name} {column_definition}"
+        db.session.execute(text(ddl))
+
+        # Populate with intelligent defaults based on modulation type
+        db.session.execute(
+            text("""
+                UPDATE radio_receivers
+                SET audio_sample_rate = CASE
+                    WHEN modulation_type IN ('FM', 'WFM', 'WBFM') AND stereo_enabled = true THEN 48000
+                    WHEN modulation_type IN ('FM', 'WFM', 'WBFM') THEN 32000
+                    WHEN modulation_type IN ('NFM', 'AM') THEN 24000
+                    ELSE 44100
+                END
+                WHERE audio_sample_rate IS NULL
+            """)
+        )
+
+        # Fix any sample_rate values that are clearly audio rates (< 1 MHz)
+        result = db.session.execute(
+            text("""
+                UPDATE radio_receivers
+                SET sample_rate = CASE
+                    WHEN driver = 'rtlsdr' AND sample_rate < 1000000 THEN 2400000
+                    WHEN driver = 'airspy' AND sample_rate < 1000000 THEN 10000000
+                    WHEN sample_rate < 1000000 THEN 2400000
+                    ELSE sample_rate
+                END
+                WHERE sample_rate < 1000000
+            """)
+        )
+
+        db.session.commit()
+
+        if result.rowcount > 0:
+            logger.info(
+                "Fixed %d radio receiver(s) with incorrect IQ sample rates (< 1 MHz)",
+                result.rowcount,
+            )
+
+        return True
+    except SQLAlchemyError as exc:
+        logger.warning("Could not ensure audio_sample_rate column: %s", exc)
+        db.session.rollback()
+        return False
+
+
+__all__ = [
+    "ensure_radio_tables",
+    "ensure_radio_squelch_columns",
+    "ensure_radio_audio_sample_rate_column",
+]
