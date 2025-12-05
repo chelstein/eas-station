@@ -12,9 +12,26 @@ class LoadingErrorUtils {
     }
 
     init() {
-        // Note: All styles are consolidated in styles.css (no separate CSS files needed)
+        // Add CSS files if not already included
+        this.ensureStylesheets();
         // Initialize global error handlers
         this.setupGlobalErrorHandlers();
+    }
+
+    ensureStylesheets() {
+        const stylesheets = [
+            '/static/css/loading-states.css',
+            '/static/css/error-handling.css'
+        ];
+
+        stylesheets.forEach(href => {
+            if (!document.querySelector(`link[href="${href}"]`)) {
+                const link = document.createElement('link');
+                link.rel = 'stylesheet';
+                link.href = href;
+                document.head.appendChild(link);
+            }
+        });
     }
 
     setupGlobalErrorHandlers() {
