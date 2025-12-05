@@ -1,14 +1,6 @@
-/**
- * EAS Station - Utility Functions Module
- * Common utility functions used throughout the application
- */
-
 (function() {
     'use strict';
 
-    /**
-     * Update current time display in footer
-     */
     function updateCurrentTime() {
         const now = new Date();
         const timeString = now.toLocaleString('en-US', {
@@ -27,11 +19,6 @@
         }
     }
 
-    /**
-     * Simple CSV export utility
-     * @param {Array} data - Array of objects to export
-     * @param {string} baseFilename - Base filename for the export
-     */
     function exportToExcel(data, baseFilename = 'export') {
         if (!Array.isArray(data) || data.length === 0) {
             window.showToast && window.showToast('No data available to export.', 'warning');

@@ -1,20 +1,6 @@
-/**
- * Real-time VU Meter Implementation using Web Audio API
- * Updates at 60Hz for smooth, professional-looking level meters
- * 
- * This analyzes the actual audio stream playing in the browser,
- * providing true real-time visual feedback without server polling.
- */
-
-// Store audio contexts and analyzers for each source
 const audioAnalyzers = new Map();
 let animationFrameId = null;
 
-/**
- * Initialize real-time VU meter for an audio element
- * @param {HTMLAudioElement} audioElement - The audio element to analyze
- * @param {string} sourceName - Name of the audio source
- */
 function initializeRealtimeVUMeter(audioElement, sourceName) {
     if (!audioElement || !sourceName) {
         console.warn('Invalid audio element or source name for VU meter');

@@ -1,36 +1,6 @@
-/**
- * EAS Station - Consolidated Styles
- * Performance-optimized single CSS file
- * Version: 3.0
- * Generated: 2025-12-04
- *
- * This file consolidates 16 separate CSS files into one optimized stylesheet
- * All hardcoded colors replaced with CSS theme variables for consistency
- */
+/* EAS Station Consolidated Styles */
 
-/* ============================================
-   TABLE OF CONTENTS
-   ============================================
-   1. CSS VARIABLES & DESIGN SYSTEM
-   2. BASE & RESET STYLES
-   3. TYPOGRAPHY
-   4. LAYOUT (Navbar, Containers, Footer)
-   5. COMPONENTS (Cards, Buttons, Forms, Tables, etc.)
-   6. UTILITIES (Spacing, Text, Display, etc.)
-   7. LOADING STATES
-   8. ERROR HANDLING
-   9. ACCESSIBILITY
-   10. VISUAL EFFECTS (Animations, Shadows, etc.)
-   11. MAP STYLING
-   12. LOGO ENHANCEMENTS
-   13. RESPONSIVE DESIGN
-   14. THEME-SPECIFIC OVERRIDES
-   ============================================ */
-
-
-/* ============================================
-   1. CSS VARIABLES & DESIGN SYSTEM
-   ============================================ */
+/* 1. CSS VARIABLES & DESIGN SYSTEM */
 
 /* Cosmo Theme (Default Light Theme) */
 :root,
@@ -111,7 +81,6 @@
     --footer-margin-top: 60px;
 }
 
-/* Dark Theme */
 [data-theme="dark"] {
     --primary-color: #6b96ff;
     --primary-soft: #5580d8;
@@ -132,13 +101,13 @@
     --bg-card: #243046;
     --bg-primary: #161d2b;
     --text-color: #ffffff;
-    --text-secondary: #dbe4f8;
+    --text-secondary: #8892a6;
     --text-muted: #acbad8;
     --border-color: #40516c;
     --shadow-color: rgba(8, 11, 19, 0.55);
     --shadow: rgba(8, 11, 19, 0.55);
-    --logo-backdrop: rgba(255, 255, 255, 0.95);
-    --logo-border-color: rgba(173, 207, 255, 0.45);
+    --logo-backdrop: rgba(36, 48, 70, 0.95);
+    --logo-border-color: rgba(107, 150, 255, 0.35);
     --logo-shadow: 0 14px 32px rgba(5, 9, 16, 0.55);
 }
 
@@ -603,9 +572,7 @@
 }
 
 
-/* ============================================
    2. BASE & RESET STYLES
-   ============================================ */
 
 * {
     box-sizing: border-box;
@@ -632,9 +599,7 @@ body {
 }
 
 
-/* ============================================
    3. TYPOGRAPHY
-   ============================================ */
 
 h1, h2, h3, h4, h5, h6,
 .h1, .h2, .h3, .h4, .h5, .h6 {
@@ -698,9 +663,7 @@ small,
 }
 
 
-/* ============================================
    4. LAYOUT (Navbar, Containers, Footer)
-   ============================================ */
 
 /* Navbar - FIXED: Removed hardcoded white background */
 .navbar {
@@ -728,10 +691,9 @@ small,
     overflow: hidden;
 }
 
-/* Make logo bigger - increased from default size */
 .navbar-brand .logo-wordmark,
 .navbar-brand .brand-logo {
-    height: 50px;  /* Increased from implicit ~40px */
+    height: 65px;
     width: auto;
 }
 
@@ -855,9 +817,7 @@ footer a:hover {
 }
 
 
-/* ============================================
    5. COMPONENTS (Cards, Buttons, Forms, Tables, etc.)
-   ============================================ */
 
 /* Cards */
 .card {
@@ -1245,9 +1205,7 @@ textarea:focus {
 }
 
 
-/* ============================================
    6. UTILITIES (Spacing, Text, Display, etc.)
-   ============================================ */
 
 /* Spacing Utilities */
 .m-0 { margin: 0; }
@@ -1359,9 +1317,7 @@ textarea:focus {
 .shadow-lg { box-shadow: 0 12px 32px var(--shadow-color); }
 
 
-/* ============================================
    7. LOADING STATES
-   ============================================ */
 
 .loading-spinner {
     display: inline-block;
@@ -1429,9 +1385,7 @@ textarea:focus {
 }
 
 
-/* ============================================
    8. ERROR HANDLING
-   ============================================ */
 
 .error-page {
     display: flex;
@@ -1475,9 +1429,7 @@ textarea:focus {
 }
 
 
-/* ============================================
    9. ACCESSIBILITY
-   ============================================ */
 
 /* Focus States */
 *:focus,
@@ -1561,9 +1513,7 @@ textarea:focus {
 }
 
 
-/* ============================================
    10. VISUAL EFFECTS (Animations, Shadows, etc.)
-   ============================================ */
 
 /* Floating Orbs Background Effect */
 .page-header .orb,
@@ -1678,9 +1628,7 @@ textarea:focus {
 }
 
 
-/* ============================================
    11. MAP STYLING
-   ============================================ */
 
 #map {
     position: relative;
@@ -1810,9 +1758,7 @@ textarea:focus {
 }
 
 
-/* ============================================
    12. LOGO ENHANCEMENTS
-   ============================================ */
 
 .logo-wordmark,
 .brand-logo {
@@ -1860,9 +1806,7 @@ textarea:focus {
 }
 
 
-/* ============================================
    13. RESPONSIVE DESIGN
-   ============================================ */
 
 /* Tablet (768px and below) */
 @media (max-width: 768px) {
@@ -1993,9 +1937,7 @@ textarea:focus {
 }
 
 
-/* ============================================
    14. THEME-SPECIFIC OVERRIDES
-   ============================================ */
 
 /* Dark Themes - Enhanced Visibility */
 [data-theme="dark"] .logo-bar,
@@ -2026,9 +1968,7 @@ textarea:focus {
 }
 
 
-/* ============================================
    PERFORMANCE OPTIMIZATIONS
-   ============================================ */
 
 /* GPU Acceleration for Animations */
 .card-3d,
