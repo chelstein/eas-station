@@ -724,9 +724,25 @@ function renderAudioSources(fullRender = true) {
                                      aria-valuemax="100"></div>
                             </div>
                             <small class="text-muted">
-                                ${(source.metrics.buffer_utilization || 0) < 0.01 ? '⚠️ No data flowing' :
-                                  (source.metrics.buffer_utilization || 0) > 0.95 ? '⚠️ Buffer nearly full' :
-                                  '✓ Data flowing normally'}
+                                ${(() => {
+                                    const util = source.metrics.buffer_utilization || 0;
+                                    if (util < 0.01) {
+                                        // Provide specific diagnostic messages
+                                        if (source.status !== 'running') {
+                                            return '⚠️ Source not started - click Start button to begin streaming';
+                                        } else if (source.source_type === 'sdr') {
+                                            return '⚠️ No data from SDR - check sdr-service logs and hardware connection';
+                                        } else if (source.source_type === 'http_stream') {
+                                            return '⚠️ Stream not responding - check URL and network connectivity';
+                                        } else {
+                                            return '⚠️ No audio data flowing - check source configuration';
+                                        }
+                                    } else if (util > 0.95) {
+                                        return '⚠️ Buffer nearly full - consumers may be slow';
+                                    } else {
+                                        return '✓ Data flowing normally';
+                                    }
+                                })()}
                             </small>
                         </div>
 
@@ -1904,7 +1920,15 @@ function updateEASMonitorDisplay(status) {
     const scansBreakdown = document.getElementById('eas-scans-breakdown');
     if (scansBreakdown) {
         // Use wall clock runtime for consistent display (doesn't fluctuate with sample rate)
-        const runtime = status.wall_clock_runtime_seconds || status.runtime_seconds || 0;
+        // Validate runtime is a valid number
+        let runtime = status.wall_clock_runtime_seconds;
+        if (typeof runtime !== 'number' || isNaN(runtime)) {
+            runtime = status.runtime_seconds;
+        }
+        if (typeof runtime !== 'number' || isNaN(runtime)) {
+            runtime = 0;
+        }
+        
         const hours = Math.floor(runtime / 3600);
         const minutes = Math.floor((runtime % 3600) / 60);
         const seconds = Math.floor(runtime % 60);
@@ -1959,15 +1983,25 @@ function updateEASMonitorDisplay(status) {
     const scanOverlap = document.getElementById('eas-scan-overlap');
     if (scanOverlap) {
         // Use wall clock runtime for consistent display
-        const runtime = status.wall_clock_runtime_seconds || status.runtime_seconds || 0;
+        // Validate runtime is a valid number
+        let runtime = status.wall_clock_runtime_seconds;
+        if (typeof runtime !== 'number' || isNaN(runtime)) {
+            runtime = status.runtime_seconds;
+        }
+        if (typeof runtime !== 'number' || isNaN(runtime)) {
+            runtime = 0;
+        }
+        
         const hours = Math.floor(runtime / 3600);
         const minutes = Math.floor((runtime % 3600) / 60);
+        const seconds = Math.floor(runtime % 60);
+        
         if (hours > 0) {
             scanOverlap.textContent = `${hours}h ${minutes}m`;
         } else if (minutes > 0) {
-            scanOverlap.textContent = `${minutes}m`;
+            scanOverlap.textContent = `${minutes}m ${seconds}s`;
         } else {
-            scanOverlap.textContent = '< 1m';
+            scanOverlap.textContent = `${seconds}s`;
         }
     }
 
@@ -1988,22 +2022,28 @@ function updateEASMonitorDisplay(status) {
     }
 
     const lastAlert = document.getElementById('eas-last-alert');
-    if (lastAlert && status.last_alert_time) {
-        const alertTime = new Date(status.last_alert_time * 1000);
-        const now = new Date();
-        const diffMinutes = Math.floor((now - alertTime) / 60000);
-        if (diffMinutes < 1) {
-            lastAlert.textContent = 'Just now';
-        } else if (diffMinutes < 60) {
-            lastAlert.textContent = `${diffMinutes}m ago`;
+    if (lastAlert) {
+        // Validate that last_alert_time is a valid positive number
+        if (status.last_alert_time && 
+            typeof status.last_alert_time === 'number' && 
+            !isNaN(status.last_alert_time) && 
+            status.last_alert_time > 0) {
+            const alertTime = new Date(status.last_alert_time * 1000);
+            const now = new Date();
+            const diffMinutes = Math.floor((now - alertTime) / 60000);
+            if (diffMinutes < 1) {
+                lastAlert.textContent = 'Just now';
+            } else if (diffMinutes < 60) {
+                lastAlert.textContent = `${diffMinutes}m ago`;
+            } else {
+                const diffHours = Math.floor(diffMinutes / 60);
+                lastAlert.textContent = `${diffHours}h ago`;
+            }
+            lastAlert.style.color = diffMinutes < 60 ? '#28a745' : '#6c757d';
         } else {
-            const diffHours = Math.floor(diffMinutes / 60);
-            lastAlert.textContent = `${diffHours}h ago`;
+            lastAlert.textContent = 'Never';
+            lastAlert.style.color = '#6c757d';
         }
-        lastAlert.style.color = diffMinutes < 60 ? '#28a745' : '#6c757d';
-    } else if (lastAlert) {
-        lastAlert.textContent = 'Never';
-        lastAlert.style.color = '#6c757d';
     }
 
     const scanWarnings = document.getElementById('eas-scan-warnings');

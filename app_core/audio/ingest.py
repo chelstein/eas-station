@@ -324,6 +324,9 @@ class AudioSourceAdapter(ABC):
         current_metadata['source_start_time'] = self._start_time
 
         # Update metrics
+        # Use broadcast queue utilization instead of legacy queue for accurate streaming health
+        buffer_util = self._source_broadcast.get_average_utilization()
+        
         self.metrics = AudioMetrics(
             timestamp=current_time,
             peak_level_db=peak_db,
@@ -332,7 +335,7 @@ class AudioSourceAdapter(ABC):
             channels=self.config.channels,
             frames_captured=self.metrics.frames_captured + len(audio_chunk),
             silence_detected=silence_detected,
-            buffer_utilization=self._audio_queue.qsize() / self._audio_queue.maxsize,
+            buffer_utilization=buffer_util,
             metadata=current_metadata,
         )
 
