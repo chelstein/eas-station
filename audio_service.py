@@ -235,11 +235,20 @@ def initialize_audio_controller(app):
         saved_configs = AudioSourceConfigDB.query.all()
         logger.info(f"Loading {len(saved_configs)} audio source configurations from database")
 
-        # Load all audio sources (including SDR in monolithic mode)
+        # In separated architecture, skip SDR sources (handled by sdr-service)
+        sdr_sources_skipped = 0
+
         for db_config in saved_configs:
             try:
                 # Parse source type
                 source_type = AudioSourceType(db_config.source_type)
+
+                # Skip SDR sources in separated architecture
+                # SDR hardware is managed by sdr-service container, not audio-service
+                if source_type == AudioSourceType.SDR:
+                    sdr_sources_skipped += 1
+                    logger.info(f"⏭️  Skipping SDR source '{db_config.name}' (managed by sdr-service container)")
+                    continue
 
                 # Create runtime configuration from database config
                 config_params = db_config.config_params or {}
@@ -264,12 +273,16 @@ def initialize_audio_controller(app):
             except Exception as e:
                 logger.error(f"Error loading source '{db_config.name}': {e}", exc_info=True)
 
+        if sdr_sources_skipped > 0:
+            logger.info(f"⏭️  Skipped {sdr_sources_skipped} SDR source(s) (managed by sdr-service container)")
+
         logger.info(f"Loaded {len(_audio_controller._sources)} audio source configurations")
 
-        # Start auto-start sources (all types in monolithic mode)
+        # Start auto-start sources (skip SDR sources in separated architecture)
         auto_start_sources = [
             db_config for db_config in saved_configs
             if db_config.enabled and db_config.auto_start
+            and AudioSourceType(db_config.source_type) != AudioSourceType.SDR
         ]
         if auto_start_sources:
             logger.info(f"Auto-starting {len(auto_start_sources)} enabled source(s)...")
