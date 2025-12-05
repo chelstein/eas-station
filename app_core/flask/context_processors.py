@@ -43,7 +43,7 @@ def inject_global_vars(app) -> dict:
     from app_utils.time import utc_now, local_now, get_location_timezone_name
     from app_utils.versioning import get_current_version, get_current_commit
     from app_core.boundaries import BOUNDARY_TYPE_CONFIG, BOUNDARY_GROUP_LABELS
-    from app_utils.media import get_shield_logo_data
+    from app_utils.assets import get_shield_logo_data
     
     LED_AVAILABLE = app.config.get('LED_AVAILABLE', False)
     
