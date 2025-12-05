@@ -179,6 +179,32 @@ from app_core.models import (
     SystemLog,
 )
 
+# Refactored modules (PR #1191)
+from app_core.config.environment import parse_env_list, parse_int_env
+from app_core.config.database import build_database_url
+from app_core.database.connectivity import check_database_connectivity
+from app_core.database.postgis import ensure_postgis_extension
+from app_core.eas.file_operations import (
+    get_eas_output_root,
+    get_eas_static_prefix as get_eas_static_prefix_from_config,
+    resolve_eas_disk_path,
+    load_or_cache_audio_data,
+    load_or_cache_summary_payload,
+    remove_eas_files,
+)
+from app_core.flask.csrf import (
+    generate_csrf_token,
+    CSRF_SESSION_KEY,
+    CSRF_HEADER_NAME,
+    CSRF_PROTECTED_METHODS,
+    CSRF_EXEMPT_ENDPOINTS,
+    CSRF_EXEMPT_PATHS,
+)
+from app_core.flask.url_defaults import add_static_cache_bust
+from app_core.flask.template_filters import shields_escape
+from app_core.flask.context_processors import inject_global_vars
+from app_core.datetime.parsing import parse_nws_datetime
+
 # =============================================================================
 # CONFIGURATION AND SETUP
 # =============================================================================
@@ -294,31 +320,14 @@ app.config['CORS_ALLOW_CREDENTIALS'] = (
 )
 
 
-def _parse_env_list(name: str) -> List[str]:
-    raw_value = os.environ.get(name, '')
-    if not raw_value:
-        return []
-    return [entry.strip() for entry in raw_value.split(',') if entry and entry.strip()]
-
-
-def _parse_int_env(name: str, default: int) -> int:
-    raw_value = os.environ.get(name)
-    if raw_value is None:
-        return default
-    try:
-        return int(str(raw_value).strip())
-    except (TypeError, ValueError):
-        return default
-
-
-app.config['COMPLIANCE_ALERT_EMAILS'] = _parse_env_list('COMPLIANCE_ALERT_EMAILS')
-app.config['COMPLIANCE_SNMP_TARGETS'] = _parse_env_list('COMPLIANCE_SNMP_TARGETS')
+app.config['COMPLIANCE_ALERT_EMAILS'] = parse_env_list('COMPLIANCE_ALERT_EMAILS')
+app.config['COMPLIANCE_SNMP_TARGETS'] = parse_env_list('COMPLIANCE_SNMP_TARGETS')
 app.config['COMPLIANCE_SNMP_COMMUNITY'] = os.environ.get('COMPLIANCE_SNMP_COMMUNITY', 'public')
-app.config['COMPLIANCE_HEALTH_INTERVAL'] = _parse_int_env('COMPLIANCE_HEALTH_INTERVAL', 300)
-app.config['RECEIVER_OFFLINE_THRESHOLD_MINUTES'] = _parse_int_env(
+app.config['COMPLIANCE_HEALTH_INTERVAL'] = parse_int_env('COMPLIANCE_HEALTH_INTERVAL', 300)
+app.config['RECEIVER_OFFLINE_THRESHOLD_MINUTES'] = parse_int_env(
     'RECEIVER_OFFLINE_THRESHOLD_MINUTES', 10
 )
-app.config['AUDIO_PATH_ALERT_THRESHOLD_MINUTES'] = _parse_int_env(
+app.config['AUDIO_PATH_ALERT_THRESHOLD_MINUTES'] = parse_int_env(
     'AUDIO_PATH_ALERT_THRESHOLD_MINUTES', 60
 )
 
@@ -338,11 +347,7 @@ PUBLIC_API_GET_PATHS = {
     # Snow emergency status (public safety information)
     '/api/snow_emergencies',
 }
-CSRF_SESSION_KEY = '_csrf_token'
-CSRF_HEADER_NAME = 'X-CSRF-Token'
-CSRF_PROTECTED_METHODS = {'POST', 'PUT', 'PATCH', 'DELETE'}
-CSRF_EXEMPT_ENDPOINTS = {'login', 'logout', 'auth.login', 'auth.logout', 'static'}
-CSRF_EXEMPT_PATHS = {'/login', '/logout'}
+# CSRF constants are now imported from app_core.flask.csrf
 app.config['CSRF_SESSION_KEY'] = CSRF_SESSION_KEY
 
 # Require SECRET_KEY to be explicitly set (fail fast if missing or using default)
@@ -374,182 +379,44 @@ else:
     app.config['STATIC_ASSET_VERSION'] = app.config['SYSTEM_VERSION']
 
 
-def generate_csrf_token() -> str:
-    token = session.get(CSRF_SESSION_KEY)
-    if not token:
-        token = secrets.token_urlsafe(32)
-        session[CSRF_SESSION_KEY] = token
-    return token
-
-
 @app.url_defaults
-def add_static_cache_bust(endpoint: str, values: Dict[str, Any]) -> None:
-    """Append a cache-busting query parameter to all static asset URLs."""
-
-    if endpoint != 'static' or values is None:
-        return
-
-    if 'v' in values:
-        return
-
-    values['v'] = app.config.get('STATIC_ASSET_VERSION', get_current_version())
-
-
-def _build_database_url() -> str:
-    """Build database URL from environment variables.
-
-    Prioritizes DATABASE_URL if set, otherwise builds from POSTGRES_* variables.
-    
-    Defaults:
-        POSTGRES_HOST: alerts-db
-        POSTGRES_PORT: 5432
-        POSTGRES_DB: alerts
-        POSTGRES_USER: postgres
-        POSTGRES_PASSWORD: postgres
-    """
-    url = os.getenv('DATABASE_URL')
-    if url:
-        return url
-
-    # Build from individual POSTGRES_* variables
-    user = os.getenv('POSTGRES_USER', 'postgres') or 'postgres'
-    password = os.getenv('POSTGRES_PASSWORD', 'postgres')
-    host = os.getenv('POSTGRES_HOST', 'alerts-db') or 'alerts-db'
-    port = os.getenv('POSTGRES_PORT', '5432') or '5432'
-    database = os.getenv('POSTGRES_DB', 'alerts') or 'alerts'
-
-    # URL-encode credentials to handle special characters
-    user_part = quote(user, safe='')
-    password_part = quote(password, safe='') if password else ''
-
-    if password_part:
-        auth_segment = f"{user_part}:{password_part}"
-    else:
-        auth_segment = user_part
-
-    return f"postgresql+psycopg2://{auth_segment}@{host}:{port}/{database}"
+def _add_static_cache_bust_wrapper(endpoint: str, values: Dict[str, Any]) -> None:
+    """Wrapper for add_static_cache_bust to work with app.url_defaults decorator."""
+    add_static_cache_bust(app, endpoint, values)
 
 
 def _get_eas_output_root() -> Optional[str]:
-    output_root = str(app.config.get('EAS_OUTPUT_DIR') or '').strip()
-    return output_root or None
+    """Wrapper for backward compatibility - calls extracted function."""
+    return get_eas_output_root(app)
 
 
 def _get_eas_static_prefix() -> str:
-    return app.config.get('EAS_OUTPUT_WEB_SUBDIR', 'eas_messages').strip('/')
+    """Wrapper for backward compatibility - calls extracted function."""
+    return get_eas_static_prefix_from_config(app)
 
 
 def _resolve_eas_disk_path(filename: Optional[str]) -> Optional[str]:
-    output_root = _get_eas_output_root()
-    if not output_root or not filename:
-        return None
-
-    safe_fragment = str(filename).strip().lstrip('/\\')
-    if not safe_fragment:
-        return None
-
-    candidate = os.path.abspath(os.path.join(output_root, safe_fragment))
-    root = os.path.abspath(output_root)
-
-    try:
-        common = os.path.commonpath([candidate, root])
-    except ValueError:
-        return None
-
-    if common != root:
-        return None
-
-    if os.path.exists(candidate):
-        return candidate
-
-    return None
+    """Wrapper for backward compatibility - calls extracted function."""
+    return resolve_eas_disk_path(app, filename)
 
 
 def _load_or_cache_audio_data(message: EASMessage, *, variant: str = 'primary') -> Optional[bytes]:
-    if variant == 'eom':
-        data = message.eom_audio_data
-        filename = (message.metadata_payload or {}).get('eom_filename') if message.metadata_payload else None
-    else:
-        data = message.audio_data
-        filename = message.audio_filename
-
-    if data:
-        return data
-
-    disk_path = _resolve_eas_disk_path(filename)
-    if not disk_path:
-        return None
-
-    try:
-        with open(disk_path, 'rb') as handle:
-            data = handle.read()
-    except OSError:
-        return None
-
-    if not data:
-        return None
-
-    if variant == 'eom':
-        message.eom_audio_data = data
-    else:
-        message.audio_data = data
-
-    try:
-        db.session.add(message)
-        db.session.commit()
-    except Exception as e:
-        db.session.rollback()
-        logger.error(f"Failed to cache audio data for message {message.id}: {e}", exc_info=True)
-
-    return data
+    """Wrapper for backward compatibility - calls extracted function."""
+    return load_or_cache_audio_data(app, db, message, variant=variant)
 
 
 def _load_or_cache_summary_payload(message: EASMessage) -> Optional[Dict[str, Any]]:
-    if message.text_payload:
-        return dict(message.text_payload)
-
-    disk_path = _resolve_eas_disk_path(message.text_filename)
-    if not disk_path:
-        return None
-
-    try:
-        with open(disk_path, 'r', encoding='utf-8') as handle:
-            payload = json_loads(handle.read())
-    except (OSError, JSONDecodeError) as exc:
-        logger.debug('Unable to load summary payload from %s: %s', disk_path, exc)
-        return None
-
-    message.text_payload = payload
-    try:
-        db.session.add(message)
-        db.session.commit()
-    except Exception:
-        db.session.rollback()
-
-    return dict(payload)
+    """Wrapper for backward compatibility - calls extracted function."""
+    return load_or_cache_summary_payload(app, db, message)
 
 
 def _remove_eas_files(message: EASMessage) -> None:
-    filenames = {
-        message.audio_filename,
-        message.text_filename,
-    }
-    metadata = message.metadata_payload or {}
-    eom_filename = metadata.get('eom_filename') if isinstance(metadata, dict) else None
-    filenames.add(eom_filename)
-
-    for filename in filenames:
-        disk_path = _resolve_eas_disk_path(filename)
-        if not disk_path:
-            continue
-        try:
-            os.remove(disk_path)
-        except OSError:
-            continue
+    """Wrapper for backward compatibility - calls extracted function."""
+    return remove_eas_files(app, message)
 
 
 # Database configuration
-DATABASE_URL = _build_database_url()
+DATABASE_URL = build_database_url()
 os.environ.setdefault('DATABASE_URL', DATABASE_URL)
 app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
@@ -579,53 +446,8 @@ from flask_socketio import SocketIO
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
 
 
-def _check_database_connectivity(max_retries: int = 5, initial_backoff: float = 1.0) -> bool:
-    """
-    Attempt to connect to the database with retry logic.
-
-    Args:
-        max_retries: Maximum number of connection attempts
-        initial_backoff: Initial retry delay in seconds
-
-    Returns:
-        True if connection successful, False otherwise
-    """
-    attempt = 0
-    backoff = initial_backoff
-
-    while attempt < max_retries:
-        try:
-            with app.app_context():
-                with db.engine.connect() as connection:
-                    connection.execute(text("SELECT 1"))
-
-            if attempt > 0:
-                logger.info(f"✅ Database connection succeeded after {attempt + 1} attempts")
-            return True
-
-        except OperationalError as exc:
-            attempt += 1
-
-            if attempt >= max_retries:
-                logger.error(f"❌ Database connection failed after {max_retries} attempts: %s", exc)
-                break
-
-            logger.warning(
-                f"⚠️  Database connection failed (attempt {attempt}/{max_retries}): {exc}. "
-                f"Retrying in {backoff:.1f}s..."
-            )
-            time.sleep(backoff)
-            backoff = min(backoff * 2, 30.0)  # Exponential backoff, max 30s
-
-        except Exception as exc:  # noqa: BLE001 - broad catch to log unexpected failures
-            logger.exception("Unexpected error during database connectivity check: %s", exc)
-            break
-
-    return False
-
-
 logger.info("Checking database connectivity at startup...")
-if _check_database_connectivity():
+if check_database_connectivity(app, db):
     logger.info("Database connectivity check succeeded.")
 else:
     logger.error("Database connectivity check failed; application may not operate correctly.")
@@ -639,31 +461,6 @@ if app.config['SETUP_MODE']:
         'Setup mode enabled due to: %s. Visit /setup to complete configuration.',
         ', '.join(_setup_mode_reasons),
     )
-
-
-def ensure_postgis_extension() -> bool:
-    """Ensure the PostGIS extension exists for PostgreSQL databases."""
-
-    database_uri = app.config.get('SQLALCHEMY_DATABASE_URI', '') or ''
-    if not database_uri.startswith('postgresql'):
-        logger.debug(
-            "Skipping PostGIS extension check for non-PostgreSQL database URI: %s",
-            database_uri,
-        )
-        return True
-
-    try:
-        with db.engine.begin() as connection:
-            connection.execute(text("CREATE EXTENSION IF NOT EXISTS postgis"))
-    except OperationalError as exc:
-        logger.error("Failed to ensure PostGIS extension: %s", exc)
-        return False
-    except Exception as exc:  # noqa: BLE001 - capture unexpected errors for logging
-        logger.exception("Unexpected error ensuring PostGIS extension: %s", exc)
-        return False
-
-    logger.debug("PostGIS extension ensured for current database.")
-    return True
 
 
 # Configure EAS output integration
@@ -717,10 +514,7 @@ USERNAME_PATTERN = re.compile(r'^[A-Za-z0-9_.-]{3,64}$')
 # =============================================================================
 
 
-def parse_nws_datetime(dt_string):
-    """Parse NWS datetime strings while reusing the shared utility logger."""
-
-    return _parse_nws_datetime(dt_string, logger=logger)
+# parse_nws_datetime is now imported from app_core.datetime.parsing
 
 
 
@@ -775,42 +569,9 @@ def bad_request_error(error):
 # =============================================================================
 
 @app.context_processor
-def inject_global_vars():
-    """Inject global variables into all templates"""
-    from app_core.auth.roles import has_permission
-
-    setup_mode_active = app.config.get('SETUP_MODE', False)
-    location_settings = {}
-    if not setup_mode_active:
-        try:
-            location_settings = get_location_settings()
-        except Exception as exc:  # pragma: no cover - defensive logging
-            logger.warning('Failed to load location settings; continuing without defaults: %s', exc)
-            location_settings = {}
-    return {
-        'current_utc_time': utc_now(),
-        'current_local_time': local_now(),
-        'timezone_name': get_location_timezone_name(),
-        'led_available': LED_AVAILABLE,
-        'system_version': app.config.get('SYSTEM_VERSION', get_current_version()),
-        'static_asset_version': app.config.get('STATIC_ASSET_VERSION', get_current_version()),
-        'git_commit': get_current_commit(7),
-        'shield_logos': {
-            slug: get_shield_logo_data(slug)
-            for slug in ('icecast', 'soapysdr')
-        },
-        'location_settings': location_settings,
-        'boundary_type_config': BOUNDARY_TYPE_CONFIG,
-        'boundary_group_labels': BOUNDARY_GROUP_LABELS,
-        'current_user': getattr(g, 'current_user', None),
-        'eas_broadcast_enabled': app.config.get('EAS_BROADCAST_ENABLED', False),
-        'eas_output_web_subdir': app.config.get('EAS_OUTPUT_WEB_SUBDIR', 'eas_messages'),
-        'setup_mode': setup_mode_active,
-        'setup_mode_reasons': app.config.get('SETUP_MODE_REASONS', ()),
-        'csrf_token': generate_csrf_token(),
-        'has_permission': has_permission,
-        'google_site_verification': app.config.get('GOOGLE_SITE_VERIFICATION'),
-    }
+def _inject_global_vars_wrapper():
+    """Wrapper for inject_global_vars to work with app.context_processor decorator."""
+    return inject_global_vars(app)
 
 
 # =============================================================================
@@ -819,26 +580,8 @@ def inject_global_vars():
 
 @app.template_filter('shields_escape')
 def shields_escape_filter(text):
-    """Escape text for use in shields.io badge URLs.
-    
-    Shields.io uses dashes as separators in badge URLs, so:
-    - Dashes (-) must be doubled (--)
-    - Underscores (_) must be doubled (__) as they represent spaces
-    - Spaces remain as-is (shields.io handles them)
-    
-    Args:
-        text: The text to escape for shields.io
-        
-    Returns:
-        Escaped text safe for use in shields.io badge URLs
-    """
-    if not text:
-        return text
-    # Replace underscores first to avoid double-escaping
-    escaped = str(text).replace('_', '__')
-    # Replace dashes with double dashes
-    escaped = escaped.replace('-', '--')
-    return escaped
+    """Wrapper for shields_escape to work with app.template_filter decorator."""
+    return shields_escape(text)
 
 
 # =============================================================================
@@ -1059,7 +802,7 @@ def initialize_database():
                 logger.warning(
                     "PostGIS helper unavailable during initialization; skipping extension check.",
                 )
-            elif not postgis_helper():
+            elif not postgis_helper(app, db):
                 _db_initialization_error = RuntimeError("PostGIS extension could not be ensured")
                 return False
             db.create_all()
