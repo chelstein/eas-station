@@ -8,5 +8,6 @@ This module provides datetime-related functionality including:
 Extracted from app.py as part of the refactoring effort to improve maintainability.
 """
 
-# Public API will be populated as functions are extracted
-__all__ = []
+from .parsing import parse_nws_datetime
+
+__all__ = ['parse_nws_datetime']

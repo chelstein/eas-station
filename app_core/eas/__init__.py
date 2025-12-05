@@ -9,5 +9,20 @@ This module provides EAS-specific functionality including:
 Extracted from app.py as part of the refactoring effort to improve maintainability.
 """
 
-# Public API will be populated as functions are extracted
-__all__ = []
+from .file_operations import (
+    get_eas_output_root,
+    get_eas_static_prefix,
+    resolve_eas_disk_path,
+    load_or_cache_audio_data,
+    load_or_cache_summary_payload,
+    remove_eas_files,
+)
+
+__all__ = [
+    'get_eas_output_root',
+    'get_eas_static_prefix',
+    'resolve_eas_disk_path',
+    'load_or_cache_audio_data',
+    'load_or_cache_summary_payload',
+    'remove_eas_files',
+]
