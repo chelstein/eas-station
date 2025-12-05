@@ -90,7 +90,7 @@ except OperationalError as e:
 
 **Themes**: 11 built-in (Cosmo, Dark, Coffee, Spring, Red, Green, Blue, Purple, Pink, Orange, Yellow)
 
-**See**: [Theme System](../../docs/development/AGENTS.md#theme-system-architecture) | [Template Structure](../../docs/frontend/TEMPLATE_STRUCTURE.md)
+**See**: [Theme System](../../docs/development/AGENTS.md#theme-system-architecture) | [UI Guide](../../docs/frontend/USER_INTERFACE_GUIDE.md)
 
 
 
@@ -166,7 +166,7 @@ sudo docker compose logs -f app
 **Adding Dependencies**:
 1. Add to `requirements.txt` with version pin
 2. Test in Docker
-3. Update `docs/reference/dependency_attribution.md` (required for legal compliance)
+3. Update documentation (required for legal compliance)
 4. Document if affects users
 
 **See**: [Dependency Management](../../docs/development/AGENTS.md#dependency-management)
@@ -188,12 +188,9 @@ sudo docker compose logs -f app
 
 ## 📖 Code Navigation
 
-**Function Tree**: Complete module, class, and function catalog with file paths and line numbers
-- `docs/reference/FUNCTION_TREE.md` - Full catalog
-- `docs/reference/FUNCTION_TREE_INDEX.md` - Quick navigation
-- `docs/reference/FUNCTION_TREE_SUMMARY.txt` - Overview
+**Architecture**: See [System Architecture](../../docs/architecture/SYSTEM_ARCHITECTURE.md) and [Theory of Operation](../../docs/architecture/THEORY_OF_OPERATION.md)
 
-**Known Bugs**: `docs/reference/KNOWN_BUGS.md` - Check before starting work, remove when fixed
+**Reference**: [CHANGELOG](../../docs/reference/CHANGELOG.md) | [About](../../docs/reference/ABOUT.md) | [Diagrams](../../docs/reference/DIAGRAMS.md)
 
 
 
