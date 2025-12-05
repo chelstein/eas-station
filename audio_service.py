@@ -414,66 +414,55 @@ def initialize_auto_streaming(app, audio_controller):
         return None
 
 
-def initialize_eas_monitor(app, audio_controller):
-    """Initialize EAS monitoring system."""
-    global _eas_monitor
+def initialize_redis_audio_publisher(app, audio_controller):
+    """Initialize Redis audio publisher for eas-service (3-tier architecture)."""
+    global _redis_audio_publisher
 
     with app.app_context():
-        from app_core.audio.eas_monitor import ContinuousEASMonitor, create_fips_filtering_callback
-        from app_core.audio.broadcast_adapter import BroadcastAudioAdapter
-        from app_core.audio.startup_integration import load_fips_codes_from_config
+        from app_core.audio.redis_audio_publisher import RedisAudioPublisher
 
-        logger.info("Initializing EAS monitor...")
+        logger.info("Initializing Redis audio publisher for eas-service...")
 
-        # Get broadcast queue for non-destructive audio access
+        # Get broadcast queue
         broadcast_queue = audio_controller.get_broadcast_queue()
-        ingest_sample_rate = audio_controller.get_active_sample_rate() or 44100
+        sample_rate = audio_controller.get_active_sample_rate() or 44100
 
-        # Create broadcast adapter
-        audio_adapter = BroadcastAudioAdapter(
+        # Create Redis audio publisher
+        # This publishes audio to Redis channel audio:samples:main
+        # for consumption by eas-service
+        publisher = RedisAudioPublisher(
             broadcast_queue=broadcast_queue,
-            subscriber_id="eas-monitor",
-            sample_rate=int(ingest_sample_rate)
+            source_name="main",
+            sample_rate=int(sample_rate),
+            publish_interval_ms=100  # Publish every 100ms
         )
 
-        # Load FIPS codes
-        configured_fips = load_fips_codes_from_config()
-        logger.info(f"Loaded {len(configured_fips)} FIPS codes for alert filtering")
-
-        # Create alert callback with filtering
-        def forward_alert_handler(alert):
-            """Forward matched alerts."""
-            from app_core.audio.alert_forwarding import forward_alert_to_api
-            logger.info(f"Forwarding alert: {alert.get('event_code')} for {alert.get('location_codes')}")
-            forward_alert_to_api(alert)
-
-        alert_callback = create_fips_filtering_callback(
-            configured_fips_codes=configured_fips,
-            forward_callback=forward_alert_handler,
-            logger_instance=logger
-        )
-
-        # Create EAS monitor (16 kHz for optimal SAME decoding)
-        # Audio archiving disabled by default to prevent disk space issues
-        # Enable via environment variable EAS_SAVE_AUDIO_FILES=true if needed for debugging
-        save_audio_files = os.environ.get('EAS_SAVE_AUDIO_FILES', 'false').lower() == 'true'
-        
-        _eas_monitor = ContinuousEASMonitor(
-            audio_manager=audio_adapter,
-            sample_rate=16000,
-            alert_callback=alert_callback,
-            save_audio_files=save_audio_files,
-            audio_archive_dir="/tmp/eas-audio"
-        )
-
-        # Start monitoring
-        if _eas_monitor.start():
-            logger.info("✅ EAS monitor started successfully")
+        # Start publisher
+        if publisher.start():
+            logger.info("✅ Redis audio publisher started (publishing to audio:samples:main)")
+            _redis_audio_publisher = publisher
+            return publisher
         else:
-            logger.error("❌ EAS monitor failed to start")
-            return None
+            logger.error("❌ Redis audio publisher failed to start")
+            raise RuntimeError("Failed to start Redis audio publisher")
 
-        return _eas_monitor
+
+def initialize_eas_monitor(app, audio_controller):
+    """DEPRECATED - EAS monitoring moved to eas-service in 3-tier architecture.
+
+    In the 3-tier separated architecture:
+    - sdr-service: SDR hardware + IQ publishing
+    - audio-service: Audio demodulation + audio publishing (this service)
+    - eas-service: EAS monitoring + alert storage
+
+    This function is kept for backward compatibility but should NOT be called.
+    Use initialize_redis_audio_publisher() instead.
+    """
+    logger.warning(
+        "⚠️  initialize_eas_monitor() called but EAS monitoring is handled by eas-service. "
+        "Use initialize_redis_audio_publisher() instead for 3-tier architecture."
+    )
+    return None
 
 
 def process_commands():
@@ -761,12 +750,13 @@ def main():
                 except Exception as e:
                     logger.error(f"❌ Error adding '{source_name}' to Icecast: {e}", exc_info=True)
 
-        # Initialize EAS monitor
-        logger.info("Initializing EAS monitor...")
-        eas_monitor = initialize_eas_monitor(app, audio_controller)
+        # Initialize Redis audio publisher (3-tier architecture)
+        # Publishes audio to Redis for eas-service to consume
+        logger.info("Initializing Redis audio publisher for eas-service...")
+        redis_publisher = initialize_redis_audio_publisher(app, audio_controller)
 
-        if not eas_monitor:
-            logger.error("Failed to initialize EAS monitor")
+        if not redis_publisher:
+            logger.error("Failed to initialize Redis audio publisher")
             return 1
 
         # Initialize Redis Pub/Sub command subscriber
@@ -780,7 +770,7 @@ def main():
             command_subscriber = AudioCommandSubscriber(
                 audio_controller,
                 auto_streaming,
-                eas_monitor=eas_monitor  # Pass EAS monitor for control commands
+                eas_monitor=None  # EAS monitor moved to eas-service in 3-tier architecture
             )
 
             # Start subscriber in background thread
