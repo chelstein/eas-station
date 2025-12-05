@@ -138,36 +138,19 @@ def _try_acquire_lock(lock_file_path: str, mode: str = 'a'):
         return None, False
 
 
-def _get_audio_controller() -> AudioIngestController:
-    """Get or create the global audio ingest controller."""
-    global _audio_controller, _initialization_started
+def _get_audio_controller() -> Optional[AudioIngestController]:
+    """
+    DEPRECATED: In separated architecture, webapp does not have a local audio controller.
 
-    if _audio_controller is None:
-        # Capture Flask app for background thread context
-        app = current_app._get_current_object()
-        
-        # Create the controller immediately (lightweight)
-        # Pass Flask app so background threads can use app context
-        _audio_controller = AudioIngestController(flask_app=app)
+    Audio processing is handled by the dedicated audio-service container.
+    The webapp communicates with audio-service via Redis pub/sub.
 
-        # Load audio source configs from database (fast - just DB query)
-        # This makes sources visible in UI immediately
-        _load_audio_source_configs(_audio_controller)
-
-        # Start sources and streaming in background to avoid blocking worker
-        if not _initialization_started:
-            _initialization_started = True
-            import threading
-            init_thread = threading.Thread(
-                target=_start_audio_sources_background,
-                args=(app,),
-                daemon=True,
-                name="AudioSourceStarter"
-            )
-            init_thread.start()
-            logger.info("Started audio source initialization in background thread")
-
-    return _audio_controller
+    Returns:
+        None - local controller not available in separated architecture
+    """
+    # In separated architecture, webapp does not run audio processing
+    # All audio operations are handled by audio-service container via Redis
+    return None
 
 
 def _load_audio_source_configs(controller: AudioIngestController) -> None:
@@ -212,60 +195,17 @@ def _load_audio_source_configs(controller: AudioIngestController) -> None:
 
 def _start_audio_sources_background(app: Flask) -> None:
     """
-    Start audio sources and streaming in background (slow, async).
+    DEPRECATED: In separated architecture, audio processing is handled by audio-service container.
 
-    SEPARATED ARCHITECTURE: This function should NOT run in the app container.
-    Audio processing is handled entirely by the dedicated audio-service container.
+    This function should NOT run in the app container.
     The app container only serves the UI and reads metrics from Redis.
-    
-    INTEGRATED MODE: Set AUDIO_INTEGRATED_MODE=true to run audio processing in
-    the webapp process (useful for development or single-process deployments).
+    Audio processing is handled entirely by the dedicated audio-service container.
     """
-    global _audio_controller, _streaming_lock_file, _audio_initialization_lock_file
-
-    # Check for integrated mode (for development or single-process deployment)
-    integrated_mode = os.environ.get('AUDIO_INTEGRATED_MODE', '').lower() in ('true', '1', 'yes')
-    
-    if not integrated_mode:
-        # Separated architecture: Audio processing handled by dedicated audio-service container
-        # Skip ALL audio initialization in app container
-        logger.info("🌐 App container in separated architecture - skipping audio source startup")
-        logger.info("   Audio processing handled by dedicated audio-service container")
-        logger.info("   Set AUDIO_INTEGRATED_MODE=true to enable integrated audio processing")
-        return
-    
-    logger.info("🔧 Running in INTEGRATED MODE - audio processing in webapp process")
-    
-    # Give the app time to fully start before initializing audio
-    import time
-    time.sleep(2.0)
-    
-    with app.app_context():
-        try:
-            controller = _get_audio_controller()
-            if controller is None:
-                logger.warning("Audio controller not available for integrated mode")
-                return
-            
-            # Start sources that are configured as auto-start in the database
-            from app_core.models import AudioSourceConfigDB
-            db_configs = AudioSourceConfigDB.query.filter_by(auto_start=True, enabled=True).all()
-            
-            for db_config in db_configs:
-                try:
-                    source_name = db_config.name
-                    if source_name in controller._sources:
-                        adapter = controller._sources[source_name]
-                        if adapter.status != AudioSourceStatus.RUNNING:
-                            logger.info(f"Auto-starting audio source: {source_name}")
-                            controller.start_source(source_name)
-                except Exception as e:
-                    logger.error(f"Failed to auto-start source {db_config.name}: {e}")
-            
-            logger.info("✅ Integrated mode audio initialization complete")
-            
-        except Exception as e:
-            logger.error(f"Error in integrated mode audio initialization: {e}", exc_info=True)
+    # Separated architecture: Audio processing handled by dedicated audio-service container
+    # Skip ALL audio initialization in app container
+    logger.info("🌐 App container in separated architecture - skipping audio source startup")
+    logger.info("   Audio processing handled by dedicated audio-service container")
+    return
 
 
 
@@ -314,29 +254,11 @@ def _initialize_auto_streaming() -> None:
 
         if auto_config.is_enabled():
             logger.info("Initializing auto-streaming service from environment config")
-            # Get controller for broadcast queue access (non-destructive audio)
-            controller = _get_audio_controller()
-            _auto_streaming_service = AutoStreamingService(
-                icecast_server=auto_config.server,
-                icecast_port=auto_config.port,
-                icecast_password=auto_config.source_password,
-                icecast_admin_user=auto_config.admin_user,
-                icecast_admin_password=auto_config.admin_password,
-                default_bitrate=128,
-                enabled=True,
-                audio_controller=controller
-            )
-            _auto_streaming_service.start()
-            logger.info("Auto-streaming service initialized and started")
-
-            # Start streaming for any already-running sources
-            for source_name, adapter in controller._sources.items():
-                if adapter.status == AudioSourceStatus.RUNNING:
-                    try:
-                        _auto_streaming_service.add_source(source_name, adapter)
-                        logger.info(f'Auto-started Icecast stream for already-running source: {source_name}')
-                    except Exception as e:
-                        logger.warning(f'Failed to auto-start Icecast stream for {source_name}: {e}')
+            # In separated architecture, auto-streaming runs in audio-service container
+            # Webapp does not initialize local streaming service
+            logger.warning("Auto-streaming initialization skipped in webapp - should run in audio-service")
+            _auto_streaming_service = None
+            return
         else:
             logger.info("Icecast auto-config not enabled, auto-streaming disabled")
             _auto_streaming_service = None
@@ -347,41 +269,18 @@ def _initialize_auto_streaming() -> None:
 
 
 def _reload_auto_streaming_from_env() -> None:
-    """Reload auto-streaming configuration after Icecast settings change."""
+    """
+    DEPRECATED: In separated architecture, auto-streaming runs in audio-service container.
 
+    Reload auto-streaming configuration after Icecast settings change.
+    This should be handled by audio-service, not webapp.
+    """
     global _auto_streaming_service
 
-    service = _get_auto_streaming_service()
-    if service:
-        try:
-            service.stop()
-        except Exception as exc:  # pylint: disable=broad-except
-            logger.warning("Error stopping existing auto-streaming service: %s", exc)
-        finally:
-            _auto_streaming_service = None
-
-    try:
-        from app_core.audio.icecast_auto_config import get_icecast_auto_config
-        from app_core.audio.auto_streaming import AutoStreamingService
-
-        auto_config = get_icecast_auto_config()
-        if auto_config.is_enabled():
-            logger.info("Re-initializing auto-streaming service with updated Icecast settings")
-            # Get controller for broadcast queue access (non-destructive audio)
-            controller = _get_audio_controller()
-            _auto_streaming_service = AutoStreamingService(
-                icecast_server=auto_config.server,
-                icecast_port=auto_config.port,
-                icecast_password=auto_config.source_password,
-                icecast_admin_user=auto_config.admin_user,
-                icecast_admin_password=auto_config.admin_password,
-                default_bitrate=128,
-                enabled=True,
-                audio_controller=controller
-            )
-            _auto_streaming_service.start()
-    except Exception as exc:  # pylint: disable=broad-except
-        logger.error("Failed to reload auto-streaming configuration: %s", exc)
+    logger.warning("Auto-streaming reload skipped in webapp - should run in audio-service")
+    logger.info("Icecast configuration changes require audio-service container restart")
+    _auto_streaming_service = None
+    return
 
 
 def _safe_auto_stream_status(service) -> Optional[Dict[str, Any]]:
@@ -617,11 +516,9 @@ def remove_radio_managed_audio_source(
         else:
             logger.warning(f"Failed to send source_delete to sdr-service: {result.get('message')}")
     except Exception as exc:
-        logger.warning('Failed to notify sdr-service about removing %s: %s', source_name, exc)
-        # Fall back to local controller if Redis communication fails
-        controller = _audio_controller
-        if controller and source_name in controller._sources:
-            controller.remove_source(source_name)
+        logger.error('Failed to notify sdr-service about removing %s: %s', source_name, exc)
+        # In separated architecture, Redis communication is required
+        # If Redis is down, the operation cannot be completed
 
         if stop_stream:
             auto_streaming = _get_auto_streaming_service()
@@ -665,7 +562,7 @@ def ensure_sdr_audio_monitor_source(
             'removed': removed,
         }
 
-    controller = _get_audio_controller()
+    # In separated architecture, webapp does not use local controller
     sample_rate, channels = _recommend_audio_stream(receiver)
     buffer_size = 4096 if channels == 1 else 8192
     silence_threshold = float(receiver.squelch_threshold_db or -60.0)
@@ -807,50 +704,11 @@ def ensure_sdr_audio_monitor_source(
                 logger.warning(f"Failed to send source_add to audio-service: {result.get('message')}")
                 
         except Exception as exc:
-            logger.warning('Failed to notify audio-service about Redis SDR audio source %s: %s', source_name, exc)
-            # Fall back to local controller if Redis communication fails
-            try:
-                controller = _get_audio_controller()
-                auto_streaming = _get_auto_streaming_service()
-
-                if controller._sources.get(source_name):
-                    if auto_streaming:
-                        try:
-                            auto_streaming.remove_source(source_name)
-                        except Exception as e:
-                            logger.debug('Auto-stream removal for %s during reconfigure failed: %s', source_name, e)
-                    controller.remove_source(source_name)
-
-                runtime_config = AudioSourceConfig(
-                    source_type=AudioSourceType.SDR,
-                    name=source_name,
-                    enabled=True,
-                    priority=priority,
-                    sample_rate=sample_rate,
-                    channels=channels,
-                    buffer_size=buffer_size,
-                    silence_threshold_db=silence_threshold,
-                    silence_duration_seconds=silence_duration,
-                    device_params=device_params,
-                )
-
-                adapter = create_audio_source(runtime_config)
-                metadata = adapter.metrics.metadata or {}
-                metadata.update({k: v for k, v in _base_radio_metadata(receiver, source_name).items() if v is not None})
-                metadata.setdefault('carrier_present', None)
-                metadata.setdefault('squelch_state', 'open' if not squelch_enabled else 'pending')
-                metadata.setdefault('squelch_last_rms_db', None)
-                metadata.setdefault('carrier_alarm', False)
-                metadata.setdefault('rbds_program_type_name', None)
-                metadata.setdefault('rbds_last_updated', None)
-                adapter.metrics.metadata = metadata
-                controller.add_source(adapter)
-
-                started = controller.start_source(source_name)
-                if started and auto_streaming and auto_streaming.is_available():
-                    icecast_started = bool(auto_streaming.add_source(source_name, adapter))
-            except Exception as fallback_exc:
-                logger.error('Fallback to local controller also failed: %s', fallback_exc)
+            logger.error('Failed to notify audio-service about Redis SDR audio source %s: %s', source_name, exc)
+            # In separated architecture, Redis communication is required
+            # If Redis is down, the operation cannot be completed
+            started = False
+            icecast_started = False
 
     return {
         'source_name': source_name,
@@ -999,51 +857,20 @@ def _restore_audio_source_from_db_config(
 
 def _get_controller_and_adapter(
     source_name: str,
-) -> Tuple[AudioIngestController, Optional[Any], Optional[AudioSourceConfigDB], bool]:
-    """Return the audio controller, adapter, DB config, and whether a restore occurred.
-    
-    Implements retry logic to reduce 503 errors when sources temporarily fail to load.
+) -> Tuple[Optional[AudioIngestController], Optional[Any], Optional[AudioSourceConfigDB], bool]:
+    """
+    DEPRECATED: In separated architecture, returns only DB config.
+
+    Controller and adapter are always None in separated architecture.
+    Audio processing is handled by audio-service container via Redis.
     """
 
-    controller = _get_audio_controller()
-    adapter = controller._sources.get(source_name)
+    # In separated architecture, webapp does not have local controller/adapter
+    # Audio processing is handled by audio-service container via Redis
+    controller = None
+    adapter = None
     db_config = AudioSourceConfigDB.query.filter_by(name=source_name).first()
     restored = False
-
-    if adapter is None and db_config is not None:
-        # Try to restore with retry logic (up to 2 retries)
-        max_retries = 2
-        for attempt in range(max_retries + 1):
-            try:
-                adapter = _restore_audio_source_from_db_config(controller, db_config)
-                restored = adapter is not None
-                if restored:
-                    logger.info(
-                        "Successfully restored audio source %s on attempt %d",
-                        source_name,
-                        attempt + 1,
-                    )
-                    break
-            except Exception as exc:  # pylint: disable=broad-except
-                if attempt < max_retries:
-                    logger.warning(
-                        "Failed to restore audio source %s (attempt %d/%d): %s - retrying",
-                        source_name,
-                        attempt + 1,
-                        max_retries + 1,
-                        exc,
-                    )
-                    # Brief delay before retry
-                    time.sleep(0.5)
-                else:
-                    logger.error(
-                        "Failed to restore audio source %s after %d attempts: %s",
-                        source_name,
-                        max_retries + 1,
-                        exc,
-                        exc_info=True,
-                    )
-                adapter = None
 
     return controller, adapter, db_config, restored
 
@@ -1219,8 +1046,7 @@ def api_get_audio_sources():
             except Exception as e:
                 logger.warning(f"Failed to parse Redis audio controller data: {e}")
 
-        # Get local controller (may be empty in separated architecture)
-        controller = _get_audio_controller()
+        # In separated architecture, all source data comes from Redis (published by audio-service)
         sources: List[Dict[str, Any]] = []
 
         # Query DATABASE for all sources (source of truth)
@@ -1289,23 +1115,7 @@ def api_get_audio_sources():
                     else:
                         logger.debug(f"Found Redis data for source '{db_config.name}': {redis_source_data}")
 
-            if not redis_source_data:
-                # Fall back to local controller (integrated mode or Redis unavailable)
-                adapter = controller._sources.get(db_config.name)
-
-            # If we have an actual adapter (integrated mode), serialize it
-            if adapter:
-                sources.append(
-                    _serialize_audio_source(
-                        db_config.name,
-                        adapter,
-                        latest_metric,
-                        icecast_stats,
-                    )
-                )
-                continue
-
-            # If we have Redis data (separated mode), use it
+            # In separated architecture, use Redis data only
             if redis_source_data:
                 redis_streaming_stats = redis_source_data.get('streaming') if isinstance(redis_source_data, dict) else None
                 if not icecast_stats and redis_streaming_stats:
@@ -1521,77 +1331,13 @@ def api_create_audio_source():
         except ValueError:
             return jsonify({'error': f'Invalid source type: {source_type}'}), 400
 
-        # Get controller first to ensure it's initialized
-        # (prevents duplicate adapter creation when controller initializes from DB)
-        controller = _get_audio_controller()
-
-        # Check if source already exists in DATABASE (source of truth)
-        existing_db_config = AudioSourceConfigDB.query.filter_by(name=name).first()
-        if existing_db_config:
-            return jsonify({
-                'error': f'Source "{name}" already exists in database',
-                'hint': 'Use DELETE /api/audio/sources/{name} first, or use PATCH to update'
-            }), 400
-
-        # Also check if source exists in memory (shouldn't happen, but be safe)
-        if name in controller._sources:
-            return jsonify({
-                'error': f'Source "{name}" exists in memory but not in database (inconsistent state)',
-                'hint': 'Contact system administrator - database sync issue'
-            }), 500
-
-        # Create configuration
-        config = AudioSourceConfig(
-            source_type=audio_type,
-            name=name,
-            enabled=data.get('enabled', True),
-            priority=data.get('priority', 100),
-            sample_rate=data.get('sample_rate', 44100),  # Native rate for source/stream
-            channels=data.get('channels', 1),
-            buffer_size=data.get('buffer_size', 4096),
-            silence_threshold_db=data.get('silence_threshold_db', -60.0),
-            silence_duration_seconds=data.get('silence_duration_seconds', 5.0),
-            device_params=data.get('device_params', {}),
-        )
-
-        # Create adapter
-        adapter = create_audio_source(config)
-
-        # Add to controller
-        controller.add_source(adapter)
-
-        # Save to database AFTER adding to controller
-        db_config = AudioSourceConfigDB(
-            name=name,
-            source_type=source_type,
-            config_params={
-                'sample_rate': config.sample_rate,
-                'channels': config.channels,
-                'buffer_size': config.buffer_size,
-                'silence_threshold_db': config.silence_threshold_db,
-                'silence_duration_seconds': config.silence_duration_seconds,
-                'device_params': config.device_params,
-            },
-            priority=config.priority,
-            enabled=config.enabled,
-            auto_start=data.get('auto_start', False),
-            description=data.get('description', ''),
-        )
-        db.session.add(db_config)
-        try:
-            db.session.commit()
-        except Exception:
-            # If database commit fails, remove from controller to keep state consistent
-            db.session.rollback()
-            controller.remove_source(name)
-            raise
-
-        logger.info('Created audio source: %s (Type: %s)', name, source_type)
-
+        # In separated architecture, sources are created via Redis commands to audio-service
+        # This generic endpoint is deprecated - use SDR-specific endpoint instead
         return jsonify({
-            'source': _serialize_audio_source(name, adapter),
-            'message': 'Audio source created successfully'
-        }), 201
+            'error': 'Direct audio source creation not supported in separated architecture',
+            'hint': 'Use POST /api/admin/radio/receivers/{id}/configure_audio_source for SDR sources',
+            'separated_architecture': True
+        }), 501  # Not Implemented
 
     except Exception as exc:
         logger.error('Error creating audio source: %s', exc)
@@ -1963,12 +1709,22 @@ def api_get_audio_health():
                 'timestamp': record.timestamp.isoformat() if record.timestamp else None,
             })
 
-        # Get controller status
-        controller = _get_audio_controller()
-        active_sources = sum(
-            1 for adapter in controller._sources.values()
-            if adapter.status == AudioSourceStatus.RUNNING
-        )
+        # In separated architecture, count active sources from Redis metrics
+        active_sources = 0
+        try:
+            redis_metrics = _read_audio_metrics_from_redis()
+            if redis_metrics:
+                audio_controller_data = redis_metrics.get('audio_controller')
+                if isinstance(audio_controller_data, str):
+                    audio_controller_data = json.loads(audio_controller_data)
+                if isinstance(audio_controller_data, dict):
+                    sources = audio_controller_data.get('sources', {})
+                    active_sources = sum(
+                        1 for source_data in sources.values()
+                        if isinstance(source_data, dict) and source_data.get('status') == 'RUNNING'
+                    )
+        except Exception as e:
+            logger.warning(f"Failed to get active source count from Redis: {e}")
 
         # Calculate overall health
         if health_list:
@@ -2594,21 +2350,6 @@ def api_stream_audio(source_name: str):
             return None
 
     try:
-        # First, try to stream directly from the in-process controller when available.
-        try:
-            controller = _get_audio_controller()
-            active_adapter = getattr(controller, '_sources', {}).get(source_name)
-
-            if active_adapter is not None:
-                logger.info('Streaming audio locally for %s via in-process controller', source_name)
-                return Response(
-                    stream_with_context(generate_wav_stream(active_adapter)),
-                    mimetype='audio/wav',
-                    headers=_build_stream_headers({'X-Stream-Source': 'local-controller'})
-                )
-        except Exception as exc:
-            logger.warning('Local audio stream fallback failed for %s: %s', source_name, exc)
-
         # SEPARATED ARCHITECTURE: Proxy streaming requests to audio-service container
         # The app container doesn't have audio adapters, but the audio-service container does.
         # We proxy the streaming request to audio-service:5002 which serves the actual audio.

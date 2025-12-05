@@ -345,14 +345,10 @@ def initialize_audio_controller(app):
             if not source or not source.config.enabled:
                 continue
 
-            # For Redis SDR sources, check if original SDR source had auto_start
-            if source_name.startswith("redis-"):
-                original_name = source_name.replace("redis-", "", 1)
-                db_config = next((c for c in saved_configs if c.name == original_name), None)
-                should_auto_start = db_config and db_config.auto_start
-            else:
-                db_config = next((c for c in saved_configs if c.name == source_name), None)
-                should_auto_start = db_config and db_config.auto_start
+            # Check database config for auto_start setting
+            # Sources now use original names (no redis- prefix)
+            db_config = next((c for c in saved_configs if c.name == source_name), None)
+            should_auto_start = db_config and db_config.auto_start
 
             if should_auto_start:
                 try:
@@ -918,13 +914,9 @@ def main():
                     if not _audio_controller:
                         return jsonify({'error': 'Audio controller not initialized'}), 503
 
-                    # Try exact name first, then try with redis- prefix for separated architecture
+                    # Get audio source adapter by name
+                    # Sources use original names (no redis- prefix in separated architecture)
                     adapter = _audio_controller._sources.get(source_name)
-                    if not adapter and not source_name.startswith('redis-'):
-                        # In separated architecture, SDR sources are named redis-{original_name}
-                        adapter = _audio_controller._sources.get(f'redis-{source_name}')
-                        if adapter:
-                            logger.debug(f'Matched source "{source_name}" to redis-prefixed source')
 
                     if not adapter:
                         available = list(_audio_controller._sources.keys())

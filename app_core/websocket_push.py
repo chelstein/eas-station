@@ -148,44 +148,9 @@ def _push_worker(app: 'Flask', socketio: 'SocketIO') -> None:
 
                     eas_monitor_status = redis_metrics.get('eas_monitor')
 
-                # Fall back to local controller metrics when Redis is unavailable
-                # NOTE: In separated architecture, audio processing happens in audio-service
-                # container. The app container may have an empty local controller.
-                if not redis_metrics:
-                    controller = _get_audio_controller()
-
-                    for source_name, adapter in controller._sources.items():
-                        if adapter.metrics:
-                            source_metrics.append({
-                                'source_id': source_name,
-                                'source_name': adapter.config.name,
-                                'source_type': adapter.config.source_type.value,
-                                'source_status': adapter.status.value,
-                                'timestamp': adapter.metrics.timestamp,
-                                'peak_level_db': float(adapter.metrics.peak_level_db) if adapter.metrics.peak_level_db is not None else -120.0,
-                                'rms_level_db': float(adapter.metrics.rms_level_db) if adapter.metrics.rms_level_db is not None else -120.0,
-                                'sample_rate': adapter.metrics.sample_rate,
-                                'channels': adapter.metrics.channels,
-                                'frames_captured': adapter.metrics.frames_captured,
-                                'silence_detected': bool(adapter.metrics.silence_detected),
-                                'buffer_utilization': float(adapter.metrics.buffer_utilization) if adapter.metrics.buffer_utilization is not None else 0.0,
-                            })
-
-                    broadcast_stats = controller.get_broadcast_queue().get_stats()
-                    active_source = controller.get_active_source()
-
-                    audio_sources = []
-                    for source_name, adapter in controller._sources.items():
-                        audio_sources.append({
-                            'name': adapter.config.name,
-                            'type': adapter.config.source_type.value,
-                            'status': adapter.status.value,
-                            'enabled': adapter.config.enabled,
-                            'priority': adapter.config.priority,
-                        })
-
-                    # NOTE: EAS monitor is NOT available in app container in separated architecture
-                    # It runs exclusively in audio-service container. EAS status comes from Redis.
+                # SEPARATED ARCHITECTURE: All metrics come from Redis
+                # No fallback to local controller - audio processing is in audio-service container
+                # If Redis is unavailable, show empty metrics (audio-service may be down)
 
                 # Broadcast all data to connected clients
                 socketio.emit('audio_monitoring_update', {
