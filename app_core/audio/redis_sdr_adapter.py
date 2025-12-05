@@ -82,7 +82,7 @@ class RedisSDRSourceAdapter(AudioSourceAdapter):
             self._redis_client = get_redis_client()
             logger.info(f"Connected to Redis for receiver {self._receiver_id}")
         except Exception as e:
-            raise RuntimeError(f"Failed to connect to Redis: {e}")
+            raise RuntimeError(f"Failed to connect to Redis: {e}") from e
 
         # Get demodulation settings from config
         demod_mode = self.config.device_params.get('demod_mode', 'FM')
@@ -91,11 +91,10 @@ class RedisSDRSourceAdapter(AudioSourceAdapter):
         from app_core.radio.demodulation import create_demodulator, DemodulatorConfig
 
         demod_config = DemodulatorConfig(
-            mode=demod_mode,
-            input_rate=self._iq_sample_rate,  # IQ sample rate from SDR
-            output_rate=self.config.sample_rate,  # Audio output rate (e.g., 44100)
-            squelch_enabled=False,  # Squelch handled separately if needed
-            squelch_threshold_db=-65.0,
+            modulation_type=demod_mode,
+            sample_rate=self._iq_sample_rate,  # IQ sample rate from SDR
+            audio_sample_rate=self.config.sample_rate,  # Audio output rate (e.g., 44100)
+            stereo_enabled=True,  # Enable stereo decoding for FM
         )
 
         self._demodulator = create_demodulator(demod_config)
@@ -124,9 +123,12 @@ class RedisSDRSourceAdapter(AudioSourceAdapter):
         logger.info(f"Redis subscriber loop started for {self._receiver_id}")
 
         try:
-            for message in self._pubsub.listen():
-                if not self._running.is_set():
-                    break
+            while self._running.is_set():
+                # Use get_message with timeout instead of listen() to allow graceful shutdown
+                message = self._pubsub.get_message(timeout=1.0)
+
+                if message is None:
+                    continue
 
                 if message['type'] != 'message':
                     continue

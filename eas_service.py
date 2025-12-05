@@ -56,7 +56,7 @@ import sys
 import time
 import signal
 import logging
-from typing import Optional
+from typing import Optional, Any
 from dotenv import load_dotenv
 
 # Configure logging early
@@ -84,8 +84,8 @@ else:
     logger.info("Loaded environment from .env file")
 
 # Global state
-_flask_app: Optional[any] = None
-_eas_monitor: Optional[any] = None
+_flask_app: Optional[Any] = None
+_eas_monitor: Optional[Any] = None
 _running = True
 
 
@@ -213,7 +213,7 @@ def main():
                 _eas_monitor.stop()
                 logger.info("✅ EAS monitor stopped")
             except Exception as e:
-                logger.error(f"Error stopping EAS monitor: {e}")
+                logger.exception("Error stopping EAS monitor")
 
         logger.info("EAS service shutdown complete")
 

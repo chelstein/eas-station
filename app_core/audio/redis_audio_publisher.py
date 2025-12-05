@@ -101,7 +101,7 @@ class RedisAudioPublisher:
                 sample_rate=self.sample_rate,
                 read_timeout=0.5
             )
-            logger.info(f"Subscribed to broadcast queue for Redis publishing")
+            logger.info("Subscribed to broadcast queue for Redis publishing")
 
             # Start publisher thread
             self._running.set()

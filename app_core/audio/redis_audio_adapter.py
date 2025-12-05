@@ -98,12 +98,12 @@ class RedisAudioAdapter:
             self._redis_client = get_redis_client()
             logger.info(f"Redis audio adapter '{self.subscriber_id}' connected to Redis")
         except Exception as e:
-            raise RuntimeError(f"Failed to connect to Redis: {e}")
+            raise RuntimeError(f"Failed to connect to Redis: {e}") from e
 
         # Subscribe to all audio channels (audio:samples:*)
         self._pubsub = self._redis_client.pubsub(ignore_subscribe_messages=True)
         self._pubsub.psubscribe("audio:samples:*")  # Pattern subscription
-        logger.info(f"Subscribed to Redis pattern: audio:samples:*")
+        logger.info("Subscribed to Redis pattern: audio:samples:*")
 
         # Start subscriber thread
         self._running.set()
@@ -113,11 +113,11 @@ class RedisAudioAdapter:
             daemon=True
         )
         self._subscriber_thread.start()
-        logger.info(f"Started Redis audio subscriber thread")
+        logger.info("Started Redis audio subscriber thread")
 
     def _redis_subscriber_loop(self) -> None:
         """Redis pub/sub subscriber loop - receives audio samples."""
-        logger.info(f"Redis audio subscriber loop started")
+        logger.info("Redis audio subscriber loop started")
 
         try:
             for message in self._pubsub.listen():
@@ -164,7 +164,7 @@ class RedisAudioAdapter:
         except Exception as e:
             logger.error(f"Redis audio subscriber loop error: {e}", exc_info=True)
         finally:
-            logger.info(f"Redis audio subscriber loop exited")
+            logger.info("Redis audio subscriber loop exited")
 
     def _consolidate_chunks(self) -> np.ndarray:
         """Consolidate chunk list into a single contiguous array."""

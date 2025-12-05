@@ -313,7 +313,7 @@ def initialize_audio_controller(app):
                         silence_duration_seconds=db_config.config_params.get('silence_duration_seconds', 5.0),
                         device_params={
                             'receiver_id': receiver_id,
-                            'demod_mode': receiver.demod_mode or 'FM',
+                            'demod_mode': receiver.modulation_type or 'FM',
                         },
                     )
 
@@ -753,10 +753,10 @@ def main():
         # Initialize Redis audio publisher (3-tier architecture)
         # Publishes audio to Redis for eas-service to consume
         logger.info("Initializing Redis audio publisher for eas-service...")
-        redis_publisher = initialize_redis_audio_publisher(app, audio_controller)
-
-        if not redis_publisher:
-            logger.error("Failed to initialize Redis audio publisher")
+        try:
+            redis_publisher = initialize_redis_audio_publisher(app, audio_controller)
+        except RuntimeError as e:
+            logger.error(f"Failed to initialize Redis audio publisher: {e}")
             return 1
 
         # Initialize Redis Pub/Sub command subscriber

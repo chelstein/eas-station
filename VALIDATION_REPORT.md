@@ -26,7 +26,7 @@
 
 All files compiled successfully without syntax errors:
 
-```
+```text
 ✓ eas_service.py - No syntax errors
 ✓ audio_service.py - No syntax errors
 ✓ sdr_service.py - No syntax errors
@@ -67,7 +67,7 @@ All files compiled successfully without syntax errors:
 
 ### Publisher → Subscriber Mapping
 
-```
+```text
 sdr-service (sdr_service.py)
     ↓ publishes to: sdr:samples:{receiver_id}
     ↓
