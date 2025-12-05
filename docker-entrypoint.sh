@@ -305,10 +305,17 @@ fi
 # Run database migrations with retry logic
 # Skip migrations for standalone service containers (audio-service, sdr-service, eas-service, hardware-service)
 # These services don't need migrations and should not load the Flask app
+# NOTE: This pattern matches any command that includes one of the service script names
+# Add new service scripts to this pattern if they should also skip migrations
 SKIP_MIGRATIONS=false
-if echo "$@" | grep -qE "audio_service\.py|sdr_service\.py|eas_service\.py|hardware_service\.py"; then
+SERVICE_PATTERN="audio_service\.py|sdr_service\.py|eas_service\.py|hardware_service\.py"
+
+# Check if the command contains any of the service script names
+if echo "$@" | grep -qE "$SERVICE_PATTERN"; then
     SKIP_MIGRATIONS=true
-    echo "⏭️  Skipping migrations for standalone service container"
+    # Detect which specific service is being started for better logging
+    DETECTED_SERVICE=$(echo "$@" | grep -oE "audio_service|sdr_service|eas_service|hardware_service" | head -1)
+    echo "⏭️  Skipping migrations for ${DETECTED_SERVICE:-standalone service} container"
 fi
 
 if [ "$SKIP_MIGRATIONS" = false ]; then
