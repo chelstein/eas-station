@@ -56,7 +56,9 @@ import sys
 import time
 import signal
 import logging
-from typing import Optional, Any
+import json
+import redis
+from typing import Optional, Any, Dict
 from dotenv import load_dotenv
 
 # Configure logging early
@@ -86,6 +88,7 @@ else:
 # Global state
 _flask_app: Optional[Any] = None
 _eas_monitor: Optional[Any] = None
+_redis_client: Optional[redis.Redis] = None
 _running = True
 
 
@@ -94,6 +97,25 @@ def signal_handler(signum, frame):
     global _running
     logger.info(f"Received signal {signum}, shutting down...")
     _running = False
+
+
+def get_redis_client() -> redis.Redis:
+    """Get or create Redis client with retry logic."""
+    global _redis_client
+
+    # Use robust Redis client with retry logic
+    from app_core.redis_client import get_redis_client as get_robust_client
+
+    try:
+        _redis_client = get_robust_client(
+            max_retries=5,
+            initial_backoff=1.0,
+            max_backoff=30.0
+        )
+        return _redis_client
+    except Exception as e:
+        logger.error(f"❌ Failed to connect to Redis: {e}")
+        raise
 
 
 def create_app():
@@ -174,6 +196,123 @@ def initialize_eas_monitor(app):
         return _eas_monitor
 
 
+def _sanitize_value(value: Any) -> Any:
+    """Convert runtime values to JSON-serializable primitives."""
+    try:
+        import numpy as np  # type: ignore
+
+        if isinstance(value, (np.floating, np.integer)):
+            return float(value)
+        if isinstance(value, np.bool_):
+            return bool(value)
+    except Exception:
+        # numpy is optional in some deployments; ignore if unavailable
+        pass
+
+    if isinstance(value, (str, int, float, bool)):
+        return value
+
+    if isinstance(value, dict):
+        return {str(k): _sanitize_value(v) for k, v in value.items()}
+
+    if isinstance(value, (list, tuple, set)):
+        return [_sanitize_value(v) for v in value]
+
+    if hasattr(value, "isoformat"):
+        try:
+            return value.isoformat()
+        except Exception:
+            pass
+
+    try:
+        return float(value)
+    except Exception:
+        return str(value)
+
+
+def collect_eas_metrics() -> Dict[str, Any]:
+    """Collect metrics from EAS monitor."""
+    metrics = {
+        "eas_monitor": None,
+        "timestamp": time.time()
+    }
+
+    try:
+        if _eas_monitor:
+            # Get EAS monitor stats
+            eas_stats = _eas_monitor.get_stats()
+            if eas_stats:
+                metrics["eas_monitor"] = _sanitize_value(eas_stats)
+                logger.debug(f"Collected EAS monitor stats: {list(eas_stats.keys())}")
+            else:
+                logger.debug("EAS monitor returned no stats")
+                metrics["eas_monitor"] = {
+                    "running": False,
+                    "error": "No stats available from EAS monitor"
+                }
+        else:
+            logger.debug("EAS monitor not initialized")
+            metrics["eas_monitor"] = {
+                "running": False,
+                "error": "EAS monitor not initialized"
+            }
+
+    except Exception as e:
+        logger.error(f"Error collecting EAS metrics: {e}")
+        metrics["eas_monitor"] = {
+            "running": False,
+            "error": str(e)
+        }
+
+    return metrics
+
+
+def publish_eas_metrics_to_redis(metrics: Dict[str, Any]):
+    """Publish EAS metrics to Redis for web application.
+    
+    Merges EAS monitor metrics into the existing eas:metrics hash
+    published by audio-service, so webapp can read both audio and EAS
+    metrics from the same Redis key.
+    """
+    try:
+        r = get_redis_client()
+
+        # Add heartbeat timestamp and process ID
+        metrics["_eas_heartbeat"] = time.time()
+        metrics["_eas_pid"] = os.getpid()
+
+        # Read existing metrics from audio-service (if any)
+        existing_metrics = r.hgetall("eas:metrics")
+        
+        # Flatten nested dicts to strings for Redis hash
+        flat_metrics = {}
+        
+        # Keep existing metrics from audio-service
+        if existing_metrics:
+            flat_metrics.update(existing_metrics)
+        
+        # Add/update EAS metrics
+        for key, value in metrics.items():
+            if isinstance(value, (dict, list)):
+                flat_metrics[key] = json.dumps(value)
+            else:
+                flat_metrics[key] = str(value)
+
+        # Store in Redis with pipeline for atomicity
+        pipe = r.pipeline()
+        pipe.hset("eas:metrics", mapping=flat_metrics)
+        pipe.expire("eas:metrics", 60)  # Expire if service dies
+        pipe.execute()
+
+        # Publish notification for real-time updates
+        r.publish("eas:metrics:update", "1")
+        
+        logger.debug("Published EAS metrics to Redis (eas:metrics)")
+
+    except Exception as e:
+        logger.error(f"Error publishing EAS metrics to Redis: {e}")
+
+
 def main():
     """Main entry point for EAS service."""
     global _flask_app, _eas_monitor, _running
@@ -188,18 +327,47 @@ def main():
     signal.signal(signal.SIGINT, signal_handler)
 
     try:
+        # Initialize Redis
+        logger.info("Connecting to Redis...")
+        r = get_redis_client()
+        logger.info("✅ Connected to Redis")
+
         # Create Flask app for database access
         _flask_app = create_app()
 
         # Initialize EAS monitor
         _eas_monitor = initialize_eas_monitor(_flask_app)
 
+        logger.info("=" * 80)
         logger.info("✅ EAS service started successfully")
+        logger.info("   - EAS monitoring: ACTIVE")
+        logger.info("   - Metrics publishing: ACTIVE")
+        logger.info("=" * 80)
         logger.info("Monitoring for EAS alerts...")
 
-        # Main loop - just keep service alive
+        # Main loop - publish metrics every 5 seconds
+        last_metrics_time = 0
+        metrics_interval = 5.0
+
         while _running:
-            time.sleep(1.0)
+            try:
+                current_time = time.time()
+
+                # Publish metrics periodically
+                if current_time - last_metrics_time >= metrics_interval:
+                    metrics = collect_eas_metrics()
+                    publish_eas_metrics_to_redis(metrics)
+                    last_metrics_time = current_time
+
+                # Sleep briefly
+                time.sleep(0.5)
+
+            except KeyboardInterrupt:
+                logger.info("Received keyboard interrupt")
+                break
+            except Exception as e:
+                logger.error(f"Error in main loop: {e}", exc_info=True)
+                time.sleep(5)
 
     except KeyboardInterrupt:
         logger.info("Received keyboard interrupt, shutting down...")
@@ -214,6 +382,11 @@ def main():
                 logger.info("✅ EAS monitor stopped")
             except Exception as e:
                 logger.exception("Error stopping EAS monitor")
+
+        # Close Redis connection
+        if _redis_client:
+            logger.info("Closing Redis connection...")
+            _redis_client.close()
 
         logger.info("EAS service shutdown complete")
 
