@@ -2072,21 +2072,21 @@ async function inspectBoundaries() {
                             const boundaries = boundariesByType[type];
                             // Use CSS custom properties for theme-aware colors
                             const rootStyles = getComputedStyle(document.documentElement);
-                            const getColorVar = (varName) => {
+                            const getColorVar = (varName, fallback) => {
                                 const value = rootStyles.getPropertyValue(varName).trim();
-                                return value || varName; // Return var name if empty
+                                return value || fallback;
                             };
                             const typeColors = {
-                                'county': getColorVar('--text-muted'),
-                                'township': getColorVar('--success-color'),
-                                'village': getColorVar('--info-color'),
-                                'fire': getColorVar('--danger-color'),
-                                'ems': getColorVar('--primary-color'),
-                                'school': getColorVar('--warning-color'),
-                                'electric': getColorVar('--secondary-color'),
-                                'telephone': getColorVar('--accent-color')
+                                'county': getColorVar('--text-muted', '#6c757d'),
+                                'township': getColorVar('--success-color', '#28a745'),
+                                'village': getColorVar('--info-color', '#17a2b8'),
+                                'fire': getColorVar('--danger-color', '#dc3545'),
+                                'ems': getColorVar('--primary-color', '#007bff'),
+                                'school': getColorVar('--warning-color', '#ffc107'),
+                                'electric': getColorVar('--secondary-color', '#6f42c1'),
+                                'telephone': getColorVar('--accent-color', '#fd7e14')
                             };
-                            const color = typeColors[type.toLowerCase()] || getColorVar('--text-muted');
+                            const color = typeColors[type.toLowerCase()] || getColorVar('--text-muted', '#6c757d');
 
                             return `
                                 <div class="type-section">

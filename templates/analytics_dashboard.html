@@ -35,8 +35,8 @@
         font-weight: 600;
     }
     .severity-critical { background-color: var(--danger-color); color: white; }
-    .severity-high { background-color: var(--warning-color); color: white; }
-    .severity-medium { background-color: var(--warning-color); color: white; }
+    .severity-high { background-color: color-mix(in srgb, var(--warning-color) 80%, #000); color: white; }
+    .severity-medium { background-color: color-mix(in srgb, var(--warning-color) 90%, #fff); color: var(--text-color); }
     .severity-low { background-color: var(--info-color); color: white; }
     .chart-container {
         position: relative;
