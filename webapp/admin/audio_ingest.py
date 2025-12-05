@@ -1260,19 +1260,23 @@ def api_get_audio_sources():
             adapter = None
             redis_source_data = None
 
-            if use_redis and db_config.name in redis_sources:
-                redis_source_data = redis_sources[db_config.name]
+            if use_redis:
+                # In separated architecture, SDR sources are named redis-{original_name} in audio-service
+                # Try both the unprefixed and redis-prefixed names
+                redis_source_data = redis_sources.get(db_config.name) or redis_sources.get(f"redis-{db_config.name}")
 
-                if not isinstance(redis_source_data, dict):
-                    logger.warning(
-                        "Redis audio source data for %s is not a dict (type=%s); ignoring",
-                        db_config.name,
-                        type(redis_source_data),
-                    )
-                    redis_source_data = {}
+                if redis_source_data:
+                    if not isinstance(redis_source_data, dict):
+                        logger.warning(
+                            "Redis audio source data for %s is not a dict (type=%s); ignoring",
+                            db_config.name,
+                            type(redis_source_data),
+                        )
+                        redis_source_data = {}
+                    else:
+                        logger.debug(f"Found Redis data for source '{db_config.name}': {redis_source_data}")
 
-                logger.debug(f"Found Redis data for source '{db_config.name}': {redis_source_data}")
-            else:
+            if not redis_source_data:
                 # Fall back to local controller (integrated mode or Redis unavailable)
                 adapter = controller._sources.get(db_config.name)
 
@@ -1830,10 +1834,13 @@ def api_get_audio_metrics():
 
                     # Build source metrics from Redis data
                     for source_name, source_data in redis_sources.items():
-                        config = db_configs.get(source_name)
+                        # In separated architecture, SDR sources are named redis-{original_name}
+                        # Strip prefix when looking up config from database
+                        config_lookup_name = source_name.replace("redis-", "", 1) if source_name.startswith("redis-") else source_name
+                        config = db_configs.get(config_lookup_name)
                         source_metrics.append({
-                            'source_id': source_name,
-                            'source_name': source_name,
+                            'source_id': config_lookup_name,  # Use database name for consistency with frontend
+                            'source_name': config_lookup_name,
                             'source_type': getattr(config.source_type, 'value', None) if config else 'unknown',
                             'source_description': config.description if config else None,
                             'priority': config.priority if config else None,
@@ -2688,6 +2695,9 @@ def api_get_health_dashboard():
                     total_sources = len(redis_sources)
 
                     for source_name, source_data in redis_sources.items():
+                        # In separated architecture, SDR sources are named redis-{original_name}
+                        # Strip prefix for consistency (health aggregation doesn't need full internal name)
+                        config_lookup_name = source_name.replace("redis-", "", 1) if source_name.startswith("redis-") else source_name
                         status = source_data.get('status', 'unknown')
                         silence_detected = source_data.get('silence_detected', True)
                         peak_level_db = source_data.get('peak_level_db', -120.0)
@@ -2772,8 +2782,11 @@ def api_get_health_metrics():
                     redis_sources = audio_controller_data.get('sources', {})
 
                     for source_name, source_data in redis_sources.items():
+                        # In separated architecture, SDR sources are named redis-{original_name}
+                        # Strip prefix when returning to frontend for consistency with database names
+                        config_lookup_name = source_name.replace("redis-", "", 1) if source_name.startswith("redis-") else source_name
                         metrics_list.append({
-                            'source_name': source_name,
+                            'source_name': config_lookup_name,  # Use database name for consistency with frontend
                             'timestamp': source_data.get('timestamp', time.time()),
                             'peak_level_db': source_data.get('peak_level_db', -120.0),
                             'rms_level_db': source_data.get('rms_level_db', -120.0),
