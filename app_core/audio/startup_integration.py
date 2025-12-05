@@ -72,7 +72,7 @@ def load_fips_codes_from_config() -> list:
         from app_core.location import get_location_settings
 
         settings = get_location_settings()
-        fips_codes = settings.get('monitored_fips_codes', [])
+        fips_codes = settings.get('fips_codes', [])
 
         # Ensure it's a list
         if isinstance(fips_codes, str):
