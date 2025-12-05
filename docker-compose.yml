@@ -84,15 +84,19 @@ services:
     restart: unless-stopped
     networks:
       - eas-network
-    # NOTE: sdr_service.py is the new dedicated SDR-only service.
-    # For backward compatibility, audio_service.py still works but handles
-    # both SDR and audio processing in a single container.
-    # Use sdr_service.py + audio-service for full separation (recommended).
-    command: ["python", "sdr_service.py"]
+    expose:
+      - "5002"  # HTTP streaming server for audio (monolithic mode)
+    # NOTE: Running in MONOLITHIC mode - sdr-service handles EVERYTHING.
+    # This includes: SDR hardware, audio processing, EAS monitoring, and Icecast streaming.
+    # audio-service container should be DISABLED when using monolithic mode.
+    #
+    # For separated architecture (sdr_service.py + audio-service), the Redis IQ
+    # subscription mechanism needs to be implemented. Currently incomplete.
+    command: ["python", "audio_service.py"]
     volumes:
       - app-config:/app-config
     tmpfs:
-      - /tmp:size=${TMPFS_SDR_SERVICE:-64M},mode=1777
+      - /tmp:size=${TMPFS_SDR_SERVICE:-256M},mode=1777  # Increased for audio processing + EAS
     environment:
       # Database connection
       POSTGRES_HOST: ${POSTGRES_HOST:-alerts-db}
@@ -111,6 +115,19 @@ services:
 
       # SDR settings
       SDR_ARGS: ${SDR_ARGS:-driver=airspy}
+
+      # Audio streaming settings (monolithic mode)
+      AUDIO_STREAMING_PORT: ${AUDIO_STREAMING_PORT:-5002}
+
+      # Icecast configuration (monolithic mode)
+      ICECAST_SERVER: ${ICECAST_SERVER:-icecast}
+      ICECAST_PORT: ${ICECAST_INTERNAL_PORT:-8000}
+      ICECAST_EXTERNAL_PORT: ${ICECAST_EXTERNAL_PORT:-8001}
+      ICECAST_SOURCE_PASSWORD: ${ICECAST_SOURCE_PASSWORD:-eas_station_source_password}
+      ICECAST_ADMIN_USER: ${ICECAST_ADMIN_USER:-admin}
+      ICECAST_ADMIN_PASSWORD: ${ICECAST_ADMIN_PASSWORD:-changeme_admin}
+      ICECAST_ENABLED: ${ICECAST_ENABLED:-true}
+      ICECAST_PUBLIC_HOSTNAME: ${ICECAST_PUBLIC_HOSTNAME:-}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     devices:
@@ -143,17 +160,21 @@ services:
       start_period: 10s
 
   # ==========================================================================
-  # Audio Service - Handles audio processing, EAS decoding, and streaming
+  # Audio Service - DISABLED (using monolithic mode in sdr-service instead)
   # ==========================================================================
-  # This service receives IQ samples from sdr-service via Redis and handles:
-  #   - Audio demodulation (FM, AM, etc.)
-  #   - EAS/SAME header detection and decoding
-  #   - Icecast streaming output
-  #   - Web audio streaming
+  # NOTE: This container is DISABLED by default because sdr-service is running
+  # in monolithic mode (audio_service.py) which handles everything.
   #
-  # No USB access required - all SDR data comes from Redis.
+  # To enable separated architecture:
+  #   1. Change sdr-service command to: ["python", "sdr_service.py"]
+  #   2. Remove the "profiles: [separated]" line below
+  #   3. Implement Redis IQ subscription in audio_service.py (currently incomplete)
+  #
+  # For now, use monolithic mode for a working EAS system.
   # ==========================================================================
   audio-service:
+    profiles:
+      - separated  # Disabled by default - only start with: docker compose --profile separated up
     image: eas-station:latest
     container_name: eas-audio-service
     init: true
