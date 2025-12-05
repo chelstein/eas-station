@@ -86,13 +86,15 @@ class AudioCommandPublisher:
             logger.error(f"Failed to connect to Redis: {e}")
             raise
 
-    def _publish_command(self, command: str, params: Dict[str, Any]) -> Dict[str, Any]:
+    def _publish_command(self, command: str, params: Dict[str, Any], wait_for_response: bool = False, timeout: float = 5.0) -> Dict[str, Any]:
         """
-        Publish a command and wait for response.
+        Publish a command and optionally wait for response.
 
         Args:
             command: Command name (e.g., 'source_start')
             params: Command parameters
+            wait_for_response: If True, wait for audio-service to respond
+            timeout: Response timeout in seconds (only used if wait_for_response=True)
 
         Returns:
             Response dict with 'success', 'message', and optional 'data'
@@ -103,20 +105,57 @@ class AudioCommandPublisher:
             'command_id': command_id,
             'command': command,
             'params': params,
-            'timestamp': time.time()
+            'timestamp': time.time(),
+            'wait_for_response': wait_for_response
         }
 
         try:
             # Publish command
             self.redis_client.publish(AUDIO_COMMAND_CHANNEL, json.dumps(message))
-            logger.info(f"Published command: {command} (id: {command_id})")
+            logger.info(f"Published command: {command} (id: {command_id}, wait_response: {wait_for_response})")
 
-            # For now, return success immediately
-            # TODO: Implement response waiting mechanism if needed
+            if not wait_for_response:
+                # Fire-and-forget mode (backward compatible)
+                return {
+                    'success': True,
+                    'message': f'Command {command} sent to audio-service',
+                    'command_id': command_id
+                }
+
+            # Wait for response mode
+            # Create a temporary subscriber to listen for this specific response
+            response_key = f"eas:audio:response:{command_id}"
+            
+            # Poll for response with timeout
+            start_time = time.time()
+            while time.time() - start_time < timeout:
+                response_data = self.redis_client.get(response_key)
+                if response_data:
+                    # Clean up response key
+                    self.redis_client.delete(response_key)
+                    
+                    try:
+                        response = json.loads(response_data)
+                        logger.info(f"Command {command} completed: {response.get('message')}")
+                        return response
+                    except json.JSONDecodeError as e:
+                        logger.error(f"Failed to decode response for {command_id}: {e}")
+                        return {
+                            'success': False,
+                            'message': f'Invalid response format: {str(e)}',
+                            'command_id': command_id
+                        }
+                
+                # Sleep briefly to avoid busy-waiting
+                time.sleep(0.1)
+            
+            # Timeout reached
+            logger.warning(f"Command {command} timed out after {timeout}s")
             return {
-                'success': True,
-                'message': f'Command {command} sent to audio-service',
-                'command_id': command_id
+                'success': False,
+                'message': f'Command timed out after {timeout}s - audio-service may be unresponsive',
+                'command_id': command_id,
+                'timeout': True
             }
 
         except Exception as e:
@@ -126,13 +165,13 @@ class AudioCommandPublisher:
                 'message': f'Failed to send command: {str(e)}'
             }
 
-    def start_source(self, source_name: str) -> Dict[str, Any]:
+    def start_source(self, source_name: str, wait_for_response: bool = True) -> Dict[str, Any]:
         """Start an audio source."""
-        return self._publish_command('source_start', {'source_name': source_name})
+        return self._publish_command('source_start', {'source_name': source_name}, wait_for_response=wait_for_response)
 
-    def stop_source(self, source_name: str) -> Dict[str, Any]:
+    def stop_source(self, source_name: str, wait_for_response: bool = True) -> Dict[str, Any]:
         """Stop an audio source."""
-        return self._publish_command('source_stop', {'source_name': source_name})
+        return self._publish_command('source_stop', {'source_name': source_name}, wait_for_response=wait_for_response)
 
     def add_source(self, source_config: Dict[str, Any]) -> Dict[str, Any]:
         """Add a new audio source."""
@@ -216,12 +255,27 @@ class AudioCommandSubscriber:
             command = message['command']
             params = message['params']
             command_id = message['command_id']
+            wait_for_response = message.get('wait_for_response', False)
 
-            logger.info(f"Received command: {command} (id: {command_id})")
+            logger.info(f"Received command: {command} (id: {command_id}, wait_response: {wait_for_response})")
 
             # Execute command
             result = self._execute_command(command, params)
 
+            # Publish response if requested
+            if wait_for_response:
+                response_key = f"eas:audio:response:{command_id}"
+                response = {
+                    'command_id': command_id,
+                    'success': result.get('success', True),
+                    'message': result.get('message', 'Command executed'),
+                    'data': result.get('data'),
+                    'timestamp': time.time()
+                }
+                # Store response with 30 second TTL
+                self.redis_client.setex(response_key, 30, json.dumps(response))
+                logger.debug(f"Published response for command {command_id}")
+            
             logger.info(f"Command {command} completed: {result}")
 
         except Exception as e:

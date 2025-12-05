@@ -187,6 +187,10 @@ class StreamingSAMEDecoder:
             # Batch copy samples into the circular buffer.
             # Since we limited samples_to_add to space_in_buffer, this slice
             # is guaranteed to fit within bounds [buffer_pos, corr_len).
+            # Add assertion to catch any buffer overflow bugs during development
+            assert self.buffer_pos + samples_to_add <= self.corr_len, \
+                f"Buffer overflow: buffer_pos={self.buffer_pos}, samples_to_add={samples_to_add}, corr_len={self.corr_len}"
+            
             self.sample_buffer[self.buffer_pos:self.buffer_pos + samples_to_add] = \
                 samples[sample_idx:sample_idx + samples_to_add]
             
