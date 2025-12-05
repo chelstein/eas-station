@@ -109,10 +109,13 @@ def _push_worker(app: 'Flask', socketio: 'SocketIO') -> None:
                         active_source = audio_controller_data.get('active_source')
                         redis_sources = audio_controller_data.get('sources', {})
                         for source_name, source_data in redis_sources.items():
-                            config = config_cache.get(source_name)
+                            # In separated architecture, SDR sources are named redis-{original_name}
+                            # Strip prefix when looking up config from database
+                            config_lookup_name = source_name.replace("redis-", "", 1) if source_name.startswith("redis-") else source_name
+                            config = config_cache.get(config_lookup_name)
                             source_metrics.append({
-                                'source_id': source_name,
-                                'source_name': source_name,
+                                'source_id': config_lookup_name,  # Use database name for consistency with frontend
+                                'source_name': config_lookup_name,
                                 'source_type': getattr(config.source_type, 'value', None) if config else 'unknown',
                                 'source_status': source_data.get('status', 'unknown'),
                                 'timestamp': source_data.get('timestamp', redis_metrics.get('timestamp', time.time())),
@@ -127,9 +130,12 @@ def _push_worker(app: 'Flask', socketio: 'SocketIO') -> None:
 
                         audio_sources = []
                         for name, data in redis_sources.items():
-                            config = config_cache.get(name)
+                            # In separated architecture, SDR sources are named redis-{original_name}
+                            # Strip prefix when looking up config from database
+                            config_lookup_name = name.replace("redis-", "", 1) if name.startswith("redis-") else name
+                            config = config_cache.get(config_lookup_name)
                             audio_sources.append({
-                                'name': name,
+                                'name': config_lookup_name,  # Use database name for consistency with frontend
                                 'type': getattr(getattr(config, 'source_type', None), 'value', None) if config else 'unknown',
                                 'status': data.get('status', 'unknown'),
                                 'enabled': getattr(config, 'enabled', None),
