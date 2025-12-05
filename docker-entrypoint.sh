@@ -303,34 +303,44 @@ PYEOF
 fi
 
 # Run database migrations with retry logic
-# This is safe to run concurrently - Alembic handles locking
-echo "Running database migrations..."
-max_attempts=5
-attempt=0
+# Skip migrations for standalone service containers (audio-service, sdr-service, eas-service, hardware-service)
+# These services don't need migrations and should not load the Flask app
+SKIP_MIGRATIONS=false
+if echo "$@" | grep -qE "audio_service\.py|sdr_service\.py|eas_service\.py|hardware_service\.py"; then
+    SKIP_MIGRATIONS=true
+    echo "⏭️  Skipping migrations for standalone service container"
+fi
 
-# Set flag to skip database initialization during migrations
-export SKIP_DB_INIT=1
+if [ "$SKIP_MIGRATIONS" = false ]; then
+    # This is safe to run concurrently - Alembic handles locking
+    echo "Running database migrations..."
+    max_attempts=5
+    attempt=0
 
-while [ $attempt -lt $max_attempts ]; do
-    if python -m alembic upgrade heads 2>&1 | tee /tmp/migration.log; then
-        echo "✅ Migrations complete."
-        break
-    else
-        attempt=$((attempt + 1))
-        if [ $attempt -lt $max_attempts ]; then
-            echo "⚠️  Migration attempt $attempt failed. Retrying in 2 seconds..."
-            sleep 2
+    # Set flag to skip database initialization during migrations
+    export SKIP_DB_INIT=1
+
+    while [ $attempt -lt $max_attempts ]; do
+        if python -m alembic upgrade heads 2>&1 | tee /tmp/migration.log; then
+            echo "✅ Migrations complete."
+            break
         else
-            echo "⚠️  WARNING: Migrations failed after $max_attempts attempts."
-            echo "   Application will start anyway, but may have schema mismatches."
-            echo "   Check logs above for errors. You may need to fix migrations manually."
-            # Don't exit - allow app to start
+            attempt=$((attempt + 1))
+            if [ $attempt -lt $max_attempts ]; then
+                echo "⚠️  Migration attempt $attempt failed. Retrying in 2 seconds..."
+                sleep 2
+            else
+                echo "⚠️  WARNING: Migrations failed after $max_attempts attempts."
+                echo "   Application will start anyway, but may have schema mismatches."
+                echo "   Check logs above for errors. You may need to fix migrations manually."
+                # Don't exit - allow app to start
+            fi
         fi
-    fi
-done
+    done
 
-# Unset the flag after migrations are complete
-unset SKIP_DB_INIT
+    # Unset the flag after migrations are complete
+    unset SKIP_DB_INIT
+fi
 
 echo "Starting application..."
 
