@@ -73,8 +73,10 @@ def resolve_eas_disk_path(app, filename: Optional[str]) -> Optional[str]:
     if not output_root or not filename:
         return None
 
+    # Sanitize filename: strip leading separators and check for path traversal
     safe_fragment = str(filename).strip().lstrip('/\\')
-    if not safe_fragment:
+    if not safe_fragment or '..' in safe_fragment:
+        # Reject paths containing '..' to prevent directory traversal
         return None
 
     candidate = os.path.abspath(os.path.join(output_root, safe_fragment))
@@ -141,7 +143,7 @@ def load_or_cache_audio_data(app, db, message, *, variant: str = 'primary') -> O
     try:
         db.session.add(message)
         db.session.commit()
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - catch all to ensure rollback and prevent data corruption
         db.session.rollback()
         logger.error(f"Failed to cache audio data for message {message.id}: {e}", exc_info=True)
 
@@ -181,7 +183,7 @@ def load_or_cache_summary_payload(app, db, message) -> Optional[Dict[str, Any]]:
     try:
         db.session.add(message)
         db.session.commit()
-    except Exception:
+    except Exception:  # noqa: BLE001 - catch all to ensure rollback and prevent data corruption
         db.session.rollback()
 
     return dict(payload)

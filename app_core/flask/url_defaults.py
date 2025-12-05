@@ -41,7 +41,9 @@ def add_static_cache_bust(app, endpoint: str, values: Dict[str, Any]) -> None:
     if 'v' in values:
         return
 
-    # Import here to avoid circular dependency
+    # Import here to avoid circular dependency:
+    # app_utils.versioning imports app_core modules for database access,
+    # so importing at module level would create a circular dependency chain.
     from app_utils.versioning import get_current_version
     
     values['v'] = app.config.get('STATIC_ASSET_VERSION', get_current_version())

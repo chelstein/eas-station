@@ -56,19 +56,19 @@ def check_database_connectivity(
                     connection.execute(text("SELECT 1"))
 
             if attempt > 0:
-                logger.info(f"✅ Database connection succeeded after {attempt + 1} attempts")
+                logger.info("✅ Database connection succeeded after %d attempts", attempt + 1)
             return True
 
         except OperationalError as exc:
             attempt += 1
 
             if attempt >= max_retries:
-                logger.error(f"❌ Database connection failed after {max_retries} attempts: %s", exc)
+                logger.error("❌ Database connection failed after %d attempts: %s", max_retries, exc)
                 break
 
             logger.warning(
-                f"⚠️  Database connection failed (attempt {attempt}/{max_retries}): {exc}. "
-                f"Retrying in {backoff:.1f}s..."
+                "⚠️  Database connection failed (attempt %d/%d): %s. Retrying in %.1fs...",
+                attempt, max_retries, exc, backoff
             )
             time.sleep(backoff)
             backoff = min(backoff * 2, 30.0)  # Exponential backoff, max 30s

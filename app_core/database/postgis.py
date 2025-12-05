@@ -52,7 +52,7 @@ def ensure_postgis_extension(app, db) -> bool:
     except OperationalError as exc:
         logger.error("Failed to ensure PostGIS extension: %s", exc)
         return False
-    except Exception as exc:  # noqa: BLE001 - capture unexpected errors for logging
+    except Exception as exc:  # Broad catch to handle any unexpected database errors gracefully
         logger.exception("Unexpected error ensuring PostGIS extension: %s", exc)
         return False
 
