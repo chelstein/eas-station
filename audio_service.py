@@ -545,7 +545,12 @@ def collect_metrics():
 
 
 def publish_metrics_to_redis(metrics):
-    """Publish metrics to Redis for web application."""
+    """Publish metrics to Redis for web application.
+    
+    Merges audio metrics with existing eas:metrics hash to preserve
+    eas_monitor metrics published by eas-service. Both services write
+    to the same Redis key but manage different metric keys.
+    """
     try:
         r = get_redis_client()
 
@@ -553,8 +558,17 @@ def publish_metrics_to_redis(metrics):
         metrics["_heartbeat"] = time.time()
         metrics["_master_pid"] = os.getpid()
 
+        # Read existing metrics from eas-service (if any)
+        existing_metrics = r.hgetall("eas:metrics")
+
         # Flatten nested dicts to strings for Redis hash
         flat_metrics = {}
+        
+        # Keep existing metrics from eas-service (preserves eas_monitor key)
+        if existing_metrics:
+            flat_metrics.update(existing_metrics)
+        
+        # Add/update audio metrics
         for key, value in metrics.items():
             if isinstance(value, (dict, list)):
                 flat_metrics[key] = json.dumps(value)
@@ -563,7 +577,6 @@ def publish_metrics_to_redis(metrics):
 
         # Store in Redis with pipeline for atomicity
         pipe = r.pipeline()
-        pipe.delete("eas:metrics")  # Use same key as worker coordinator
         pipe.hset("eas:metrics", mapping=flat_metrics)
         pipe.expire("eas:metrics", 60)  # Expire if service dies
         
