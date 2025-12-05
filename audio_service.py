@@ -738,8 +738,11 @@ def main():
         # Initialize Redis audio publisher (3-tier architecture)
         # Publishes audio to Redis for eas-service to consume
         logger.info("Initializing Redis audio publisher for eas-service...")
+        redis_publisher = None
         try:
-            redis_publisher = initialize_redis_audio_publisher(app, audio_controller)
+            # TEMPORARY: Skip Redis audio publisher to debug startup hang
+            logger.warning("⚠️  SKIPPING Redis audio publisher initialization (debug mode)")
+            # redis_publisher = initialize_redis_audio_publisher(app, audio_controller)
         except RuntimeError as e:
             logger.error(f"Failed to initialize Redis audio publisher: {e}")
             return 1
