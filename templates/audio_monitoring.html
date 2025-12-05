@@ -724,9 +724,25 @@ function renderAudioSources(fullRender = true) {
                                      aria-valuemax="100"></div>
                             </div>
                             <small class="text-muted">
-                                ${(source.metrics.buffer_utilization || 0) < 0.01 ? '⚠️ No data flowing' :
-                                  (source.metrics.buffer_utilization || 0) > 0.95 ? '⚠️ Buffer nearly full' :
-                                  '✓ Data flowing normally'}
+                                ${(() => {
+                                    const util = source.metrics.buffer_utilization || 0;
+                                    if (util < 0.01) {
+                                        // Provide specific diagnostic messages
+                                        if (source.status !== 'running') {
+                                            return '⚠️ Source not started - click Start button to begin streaming';
+                                        } else if (source.source_type === 'sdr') {
+                                            return '⚠️ No data from SDR - check sdr-service logs and hardware connection';
+                                        } else if (source.source_type === 'http_stream') {
+                                            return '⚠️ Stream not responding - check URL and network connectivity';
+                                        } else {
+                                            return '⚠️ No audio data flowing - check source configuration';
+                                        }
+                                    } else if (util > 0.95) {
+                                        return '⚠️ Buffer nearly full - consumers may be slow';
+                                    } else {
+                                        return '✓ Data flowing normally';
+                                    }
+                                })()}
                             </small>
                         </div>
 

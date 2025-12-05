@@ -164,6 +164,26 @@ class BroadcastQueue:
 
         return delivered
 
+    def get_average_utilization(self) -> float:
+        """
+        Get average queue utilization across all subscribers.
+        
+        Returns:
+            Float between 0.0 and 1.0 representing average utilization.
+            Returns 0.0 if no subscribers.
+        """
+        with self._lock:
+            if not self._subscribers:
+                return 0.0
+            
+            total_utilization = 0.0
+            for subscriber_queue in self._subscribers.values():
+                # Calculate utilization for this subscriber's queue
+                utilization = subscriber_queue.qsize() / self.max_queue_size
+                total_utilization += utilization
+            
+            return total_utilization / len(self._subscribers)
+    
     def get_stats(self) -> dict:
         """Get broadcast queue statistics."""
         with self._lock:
@@ -174,6 +194,7 @@ class BroadcastQueue:
                 "published_chunks": self._published_chunks,
                 "dropped_chunks": self._dropped_chunks,
                 "max_queue_size": self.max_queue_size,
+                "average_utilization": self.get_average_utilization(),
             }
 
     def clear_subscriber_queue(self, subscriber_id: str) -> int:
