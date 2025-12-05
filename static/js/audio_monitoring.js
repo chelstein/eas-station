@@ -267,6 +267,46 @@ function createSourceCard(source) {
                         <canvas id="waveform-${safeId}" class="waveform-canvas" width="800" height="120"></canvas>
                     </div>
                 </div>
+                ${source.status === 'running' ? `
+                <div class="row mt-3">
+                    <div class="col-12">
+                        <div class="audio-player-container">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <small class="text-muted">
+                                    <i class="fas fa-volume-up"></i> Audio Stream
+                                </small>
+                                ${source.icecast_url ? `
+                                <small class="text-muted">
+                                    <i class="fas fa-broadcast-tower"></i> Icecast Stream
+                                    ${source.streaming && source.streaming.icecast ? `
+                                        ${typeof source.streaming.icecast.bitrate_kbps === 'number' ? ` • ${Number(source.streaming.icecast.bitrate_kbps).toFixed(1)} kbps` : ''}
+                                    ` : ''}
+                                </small>
+                                ` : ''}
+                            </div>
+                            <audio 
+                                controls 
+                                preload="none" 
+                                class="w-100"
+                                id="audio-player-${safeId}"
+                                style="height: 40px;">
+                                ${source.icecast_url ? `<source src="${escapeHtml(source.icecast_url)}" type="audio/mpeg">` : ''}
+                                <source src="/api/audio/stream/${encodeURIComponent(source.name)}" type="audio/mpeg">
+                                Your browser does not support the audio element.
+                            </audio>
+                            ${source.icecast_url ? `
+                            <small class="text-muted d-block mt-1">
+                                <i class="fas fa-info-circle"></i> Stream URL: <a href="${escapeHtml(source.icecast_url)}" target="_blank" class="text-decoration-none">${escapeHtml(source.icecast_url)}</a>
+                            </small>
+                            ` : `
+                            <small class="text-muted d-block mt-1">
+                                <i class="fas fa-info-circle"></i> Using built-in proxy stream
+                            </small>
+                            `}
+                        </div>
+                    </div>
+                </div>
+                ` : ''}
                 ${metrics.silence_detected ? `
                 <div class="alert alert-warning mt-3 mb-0 silence-warning">
                     <i class="fas fa-volume-mute"></i> Silence detected on this source
