@@ -448,21 +448,58 @@ def initialize_redis_audio_publisher(app, audio_controller):
 
 
 def initialize_eas_monitor(app, audio_controller):
-    """DEPRECATED - EAS monitoring moved to eas-service in 3-tier architecture.
+    """Initialize EAS monitor in audio-service.
 
-    In the 3-tier separated architecture:
-    - sdr-service: SDR hardware + IQ publishing
-    - audio-service: Audio demodulation + audio publishing (this service)
-    - eas-service: EAS monitoring + alert storage
+    In separated architecture, audio-service needs its own EAS monitor instance
+    for web UI control commands to work. This monitor subscribes to the audio
+    controller's broadcast queue just like eas-service does, allowing both:
+    - eas-service: Always-on EAS monitoring for production alerts
+    - audio-service EAS monitor: User-controlled testing/validation via web UI
 
-    This function is kept for backward compatibility but should NOT be called.
-    Use initialize_redis_audio_publisher() instead.
+    Both can run simultaneously without conflict since BroadcastQueue allows
+    multiple independent subscriptions.
     """
-    logger.warning(
-        "⚠️  initialize_eas_monitor() called but EAS monitoring is handled by eas-service. "
-        "Use initialize_redis_audio_publisher() instead for 3-tier architecture."
-    )
-    return None
+    global _eas_monitor
+
+    with app.app_context():
+        try:
+            from app_core.audio.monitor_manager import initialize_eas_monitor as init_monitor
+            from app_core.audio.startup_integration import (
+                load_fips_codes_from_config,
+                create_fips_filtering_callback
+            )
+
+            logger.info("Initializing EAS monitor in audio-service...")
+
+            # Load FIPS codes from configuration
+            configured_fips = load_fips_codes_from_config()
+            logger.info(f"Loaded {len(configured_fips)} FIPS codes for monitoring")
+
+            # Create FIPS filtering callback
+            fips_callback = create_fips_filtering_callback(
+                configured_fips_codes=configured_fips,
+                flask_app=app
+            )
+
+            # Initialize monitor (auto_start=False since we want UI control)
+            success = init_monitor(
+                audio_manager=audio_controller,
+                alert_callback=fips_callback,
+                auto_start=False  # Don't auto-start - let user control via web UI
+            )
+
+            if success:
+                from app_core.audio.monitor_manager import get_eas_monitor_instance
+                _eas_monitor = get_eas_monitor_instance()
+                logger.info("✅ EAS monitor initialized successfully (not started - use web UI to start)")
+                return _eas_monitor
+            else:
+                logger.warning("⚠️  EAS monitor initialization returned False")
+                return None
+
+        except Exception as e:
+            logger.error(f"Failed to initialize EAS monitor: {e}", exc_info=True)
+            return None
 
 
 def process_commands():
@@ -759,6 +796,22 @@ def main():
             logger.error(f"Failed to initialize Redis audio publisher: {e}")
             return 1
 
+        # Initialize EAS monitor for web UI control
+        # Note: eas-service also has its own EAS monitor that runs independently
+        # Both can coexist since they use separate BroadcastQueue subscriptions
+        logger.info("Initializing EAS monitor for web UI control...")
+        eas_monitor_instance = None
+        try:
+            eas_monitor_instance = initialize_eas_monitor(app, audio_controller)
+            if eas_monitor_instance:
+                logger.info("✅ EAS monitor initialized and ready for web UI control")
+            else:
+                logger.warning("⚠️  EAS monitor initialization failed - web UI start/stop will not work")
+        except Exception as e:
+            logger.warning(f"⚠️  Failed to initialize EAS monitor: {e}")
+            logger.warning("   Web UI start/stop commands will not work, but audio processing continues")
+            eas_monitor_instance = None
+
         # Initialize Redis Pub/Sub command subscriber
         logger.info("Starting Redis command subscriber...")
         command_subscriber = None
@@ -770,7 +823,7 @@ def main():
             command_subscriber = AudioCommandSubscriber(
                 audio_controller,
                 auto_streaming,
-                eas_monitor=None  # EAS monitor moved to eas-service in 3-tier architecture
+                eas_monitor=eas_monitor_instance  # Pass EAS monitor for web UI control
             )
 
             # Start subscriber in background thread
