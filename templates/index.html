@@ -219,18 +219,18 @@
     }
 
     .snow-county-card.level-1 {
-        border-color: #ffc107;
-        background: rgba(255, 193, 7, 0.1);
+        border-color: var(--warning-color);
+        background: color-mix(in srgb, var(--warning-color) 10%, var(--surface-color));
     }
 
     .snow-county-card.level-2 {
-        border-color: #fd7e14;
-        background: rgba(253, 126, 20, 0.1);
+        border-color: var(--warning-color);
+        background: color-mix(in srgb, var(--warning-color) 10%, var(--surface-color));
     }
 
     .snow-county-card.level-3 {
-        border-color: #dc3545;
-        background: rgba(220, 53, 69, 0.15);
+        border-color: var(--danger-color);
+        background: color-mix(in srgb, var(--danger-color) 15%, var(--surface-color));
         animation: pulse-danger 2s infinite;
     }
 
@@ -352,23 +352,23 @@
     }
 
     .snow-level-option[data-level="0"].selected {
-        border-color: #28a745;
-        background: rgba(40, 167, 69, 0.1);
+        border-color: var(--success-color);
+        background: color-mix(in srgb, var(--success-color) 10%, var(--surface-color));
     }
 
     .snow-level-option[data-level="1"].selected {
-        border-color: #ffc107;
-        background: rgba(255, 193, 7, 0.15);
+        border-color: var(--warning-color);
+        background: color-mix(in srgb, var(--warning-color) 15%, var(--surface-color));
     }
 
     .snow-level-option[data-level="2"].selected {
-        border-color: #fd7e14;
-        background: rgba(253, 126, 20, 0.15);
+        border-color: var(--warning-color);
+        background: color-mix(in srgb, var(--warning-color) 15%, var(--surface-color));
     }
 
     .snow-level-option[data-level="3"].selected {
-        border-color: #dc3545;
-        background: rgba(220, 53, 69, 0.15);
+        border-color: var(--danger-color);
+        background: color-mix(in srgb, var(--danger-color) 15%, var(--surface-color));
     }
 
     .page-header-actions {
@@ -2070,12 +2070,23 @@ async function inspectBoundaries() {
 
                         ${sortedTypes.map(type => {
                             const boundaries = boundariesByType[type];
-                            const typeColors = {
-                                'county': '#6c757d', 'township': '#28a745', 'village': '#17a2b8',
-                                'fire': '#dc3545', 'ems': '#007bff', 'school': '#ffc107',
-                                'electric': '#fd7e14', 'telephone': '#6f42c1'
+                            // Use CSS custom properties for theme-aware colors
+                            const rootStyles = getComputedStyle(document.documentElement);
+                            const getColorVar = (varName, fallback) => {
+                                const value = rootStyles.getPropertyValue(varName).trim();
+                                return value || fallback;
                             };
-                            const color = typeColors[type.toLowerCase()] || '#6c757d';
+                            const typeColors = {
+                                'county': getColorVar('--text-muted', '#6c757d'),
+                                'township': getColorVar('--success-color', '#28a745'),
+                                'village': getColorVar('--info-color', '#17a2b8'),
+                                'fire': getColorVar('--danger-color', '#dc3545'),
+                                'ems': getColorVar('--primary-color', '#007bff'),
+                                'school': getColorVar('--warning-color', '#ffc107'),
+                                'electric': getColorVar('--secondary-color', '#6f42c1'),
+                                'telephone': getColorVar('--accent-color', '#fd7e14')
+                            };
+                            const color = typeColors[type.toLowerCase()] || getColorVar('--text-muted', '#6c757d');
 
                             return `
                                 <div class="type-section">

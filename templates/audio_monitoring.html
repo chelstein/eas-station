@@ -269,7 +269,8 @@
 }
 
 .metric-item {
-    background: #e9ecef;
+    background: var(--surface-color);
+    border: 1px solid var(--border-color);
     padding: 0.75rem;
     border-radius: 6px;
     text-align: center;
@@ -277,7 +278,7 @@
 
 .metric-label {
     font-size: 0.75rem;
-    color: #6c757d;
+    color: var(--text-secondary);
     text-transform: uppercase;
     letter-spacing: 0.5px;
 }
@@ -285,7 +286,7 @@
 .metric-value {
     font-size: 1.25rem;
     font-weight: bold;
-    color: #212529;
+    color: var(--text-color);
 }
 
 .now-playing-title {
@@ -296,17 +297,17 @@
 
 .now-playing-artist {
     font-size: 0.95rem;
-    color: #495057;
+    color: var(--text-secondary);
 }
 
 .now-playing-meta {
     font-size: 0.85rem;
-    color: #6c757d;
+    color: var(--text-muted);
 }
 
 .level-meter {
     height: 20px;
-    background: linear-gradient(to right, #28a745, #ffc107, #dc3545);
+    background: linear-gradient(to right, var(--success-color), var(--warning-color), var(--danger-color));
     border-radius: 10px;
     position: relative;
     overflow: hidden;
@@ -318,12 +319,12 @@
     top: 0;
     bottom: 0;
     width: 2px;
-    background: #000;
+    background: var(--text-color);
     transform: translateX(-50%);
 }
 
 .vu-meter {
-    background: #101010;
+    background: var(--bg-primary);
     border-radius: 10px;
     padding: 0.75rem;
     box-shadow: inset 0 0 0 1px rgba(255,255,255,0.04);
@@ -333,7 +334,7 @@
     position: relative;
     height: 14px;
     border-radius: 7px;
-    background: linear-gradient(90deg, #1e7e34, #ffc107 70%, #dc3545);
+    background: linear-gradient(90deg, var(--success-color), var(--warning-color) 70%, var(--danger-color));
     overflow: hidden;
 }
 
@@ -355,7 +356,7 @@
 
 .vu-labels {
     font-size: 0.85rem;
-    color: #adb5bd;
+    color: var(--text-muted);
 }
 
 .vu-labels span {
@@ -1953,13 +1954,13 @@ function updateEASMonitorDisplay(status) {
     const activeScans = document.getElementById('eas-active-scans');
     if (activeScans) {
         if (status.decoder_in_message) {
-            activeScans.innerHTML = '<span style="color: #dc3545;">🔴 Decoding Message</span>';
+            activeScans.innerHTML = '<span style="color: var(--danger-color);">🔴 Decoding Message</span>';
         } else if (status.decoder_synced) {
-            activeScans.innerHTML = '<span style="color: #28a745;">🟢 Synced</span>';
+            activeScans.innerHTML = '<span style="color: var(--success-color);">🟢 Synced</span>';
         } else if (audioFlowing) {
-            activeScans.innerHTML = '<span style="color: #6c757d;">⚪ Listening</span>';
+            activeScans.innerHTML = '<span style="color: var(--text-muted);">⚪ Listening</span>';
         } else {
-            activeScans.innerHTML = '<span style="color: #6c757d;">⏸️ Idle</span>';
+            activeScans.innerHTML = '<span style="color: var(--text-muted);">⏸️ Idle</span>';
         }
     }
 
@@ -2015,9 +2016,9 @@ function updateEASMonitorDisplay(status) {
     const lastScan = document.getElementById('eas-last-scan');
     if (lastScan) {
         if (status.decoder_synced) {
-            lastScan.innerHTML = '<span style="color: #28a745;">✓ Yes</span>';
+            lastScan.innerHTML = '<span style="color: var(--success-color);">✓ Yes</span>';
         } else {
-            lastScan.innerHTML = '<span style="color: #6c757d;">No</span>';
+            lastScan.innerHTML = '<span style="color: var(--text-muted);">No</span>';
         }
     }
 
@@ -2039,19 +2040,19 @@ function updateEASMonitorDisplay(status) {
                 const diffHours = Math.floor(diffMinutes / 60);
                 lastAlert.textContent = `${diffHours}h ago`;
             }
-            lastAlert.style.color = diffMinutes < 60 ? '#28a745' : '#6c757d';
+            lastAlert.style.color = diffMinutes < 60 ? 'var(--success-color)' : 'var(--text-muted)';
         } else {
             lastAlert.textContent = 'Never';
-            lastAlert.style.color = '#6c757d';
+            lastAlert.style.color = 'var(--text-muted)';
         }
     }
 
     const scanWarnings = document.getElementById('eas-scan-warnings');
     if (scanWarnings) {
         if (status.decoder_in_message) {
-            scanWarnings.innerHTML = '<span style="color: #dc3545;">Yes</span>';
+            scanWarnings.innerHTML = '<span style="color: var(--danger-color);">Yes</span>';
         } else {
-            scanWarnings.innerHTML = '<span style="color: #28a745;">No</span>';
+            scanWarnings.innerHTML = '<span style="color: var(--success-color);">No</span>';
         }
     }
 
@@ -2060,10 +2061,10 @@ function updateEASMonitorDisplay(status) {
     if (performanceStatus) {
         if (!running) {
             performanceStatus.textContent = 'Monitor stopped. Start monitoring to see real-time performance.';
-            performanceStatus.style.color = '#6c757d';
+            performanceStatus.style.color = 'var(--text-muted)';
         } else if (!audioFlowing) {
             performanceStatus.textContent = 'Waiting for audio data from sources. Configure and start audio sources to begin processing.';
-            performanceStatus.style.color = '#856404';
+            performanceStatus.style.color = 'var(--warning-color)';
         } else {
             // Audio is flowing - show processing rate
             const sps = status.samples_per_second || 0;
@@ -2071,12 +2072,12 @@ function updateEASMonitorDisplay(status) {
             const percentage = expectedRate > 0 ? ((sps / expectedRate) * 100).toFixed(1) : 0;
             
             if (status.health_percentage >= 0.95) {
-                performanceStatus.innerHTML = `<span style="color: #28a745;">✓ Processing at ${percentage}% of line rate (${(sps / 1000).toFixed(1)}k samples/sec). Real-time streaming active.</span>`;
+                performanceStatus.innerHTML = `<span style="color: var(--success-color);">✓ Processing at ${percentage}% of line rate (${(sps / 1000).toFixed(1)}k samples/sec). Real-time streaming active.</span>`;
             } else if (status.health_percentage >= 0.8) {
-                performanceStatus.innerHTML = `<span style="color: #0c5460;">Processing at ${percentage}% of line rate (${(sps / 1000).toFixed(1)}k samples/sec). Building up to full rate...</span>`;
+                performanceStatus.innerHTML = `<span style="color: var(--info-color);">Processing at ${percentage}% of line rate (${(sps / 1000).toFixed(1)}k samples/sec). Building up to full rate...</span>`;
             } else {
                 // Below 80% health - show warning
-                performanceStatus.innerHTML = `<span style="color: #856404;">⚠️ Processing at ${percentage}% of expected rate (${(sps / 1000).toFixed(1)}k samples/sec). Check audio sources.</span>`;
+                performanceStatus.innerHTML = `<span style="color: var(--warning-color);">⚠️ Processing at ${percentage}% of expected rate (${(sps / 1000).toFixed(1)}k samples/sec). Check audio sources.</span>`;
             }
         }
     }

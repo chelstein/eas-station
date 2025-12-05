@@ -307,7 +307,7 @@
 
 <style>
     .nav-pills .nav-link {
-        color: #6c757d;
+        color: var(--text-muted);
         border: 1px solid transparent;
         margin-right: 0.25rem;
         margin-bottom: 0.25rem;
@@ -316,49 +316,50 @@
     }
 
     .nav-pills .nav-link:hover {
-        background-color: #e9ecef;
-        border-color: #dee2e6;
+        background-color: color-mix(in srgb, var(--surface-color) 95%, var(--border-color));
+        border-color: var(--border-color);
     }
 
     .nav-pills .nav-link.active {
-        background-color: #0d6efd;
+        background-color: var(--primary-color);
         color: white;
-        border-color: #0d6efd;
+        border-color: var(--primary-color);
     }
 
     #logsTable tbody tr.log-row:hover {
-        background-color: #f8f9fa;
+        background-color: color-mix(in srgb, var(--primary-color) 5%, var(--surface-color));
         cursor: pointer;
     }
 
     .log-level-error,
     .log-level-critical {
-        border-left: 3px solid #dc3545;
+        border-left: 3px solid var(--danger-color);
     }
 
     .log-level-warning {
-        border-left: 3px solid #ffc107;
+        border-left: 3px solid var(--warning-color);
     }
 
     .log-level-success {
-        border-left: 3px solid #28a745;
+        border-left: 3px solid var(--success-color);
     }
 
     .log-level-info {
-        border-left: 3px solid #17a2b8;
+        border-left: 3px solid var(--info-color);
     }
 
     .log-level-debug {
-        border-left: 3px solid #6c757d;
+        border-left: 3px solid var(--text-muted);
     }
 
     pre {
         white-space: pre-wrap;
         word-wrap: break-word;
-        background-color: #f8f9fa;
-        border: 1px solid #dee2e6;
+        background-color: var(--surface-color);
+        border: 1px solid var(--border-color);
         border-radius: 4px;
         padding: 10px;
+        color: var(--text-color);
     }
 
     .log-message {
@@ -371,7 +372,7 @@
     }
 
     #autoRefreshBtn.active {
-        background-color: #0d6efd;
+        background-color: var(--primary-color);
         color: white;
     }
 </style>
