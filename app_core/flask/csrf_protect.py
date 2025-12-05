@@ -8,7 +8,7 @@ Functions:
     setup_csrf_protection: Initialize CSRF protection for Flask app
 """
 
-from flask_wtf.csrf import CSRFProtect
+from flask_wtf.csrf import CSRFProtect, csrf_exempt
 
 csrf = CSRFProtect()
 
@@ -62,7 +62,6 @@ def exempt_route(func):
         def public_endpoint():
             return {'status': 'ok'}
     """
-    from flask_wtf.csrf import csrf_exempt
     return csrf_exempt(func)
 
 
