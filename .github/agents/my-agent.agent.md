@@ -5,6 +5,7 @@
 # For format details, see: https://gh.io/customagents/config
 
 name: EAS-STATION
+description: AI agent for the NOAA CAP Emergency Alert System, providing coding standards and guidelines for development
 ---
 
 # My Agent
