@@ -74,7 +74,9 @@ This guide provides detailed instructions for migrating from the current EAS Sta
 
 **1. Create src/ directory:**
 ```bash
-cd /home/runner/work/eas-station/eas-station
+# Navigate to your eas-station repository root directory
+# (Replace with your actual repository path)
+cd path/to/eas-station
 mkdir -p src/{api,domain,application,infrastructure,services,shared}
 ```
 
