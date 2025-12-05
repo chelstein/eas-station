@@ -1345,13 +1345,17 @@ def api_create_audio_source():
         auto_start = data.get('auto_start', False)
         description = data.get('description', '')
 
-        # Device-specific parameters
-        device_params = data.get('device_params', {})
+        # Device-specific parameters - accept URL at top level OR in device_params
+        device_params = data.get('device_params', {}).copy() if data.get('device_params') else {}
 
-        # For STREAM type, ensure URL is provided
+        # If URL is provided at top level (common for STREAM sources), move it into device_params
+        if 'url' in data and not device_params.get('url'):
+            device_params['url'] = data['url']
+
+        # For STREAM type, ensure URL is provided (in either location)
         if audio_type == AudioSourceType.STREAM:
             if not device_params.get('url'):
-                return jsonify({'error': 'url is required in device_params for STREAM sources'}), 400
+                return jsonify({'error': 'url is required for STREAM sources (provide as "url" field or in "device_params.url")'}), 400
 
         # Create database configuration
         config_params = {
@@ -1382,26 +1386,11 @@ def api_create_audio_source():
             logger.error(f'Failed to save audio source to database: {e}')
             return jsonify({'error': f'Database error: {str(e)}'}), 500
 
-        # Send command to audio-service to reload sources
-        try:
-            from app_core.audio.redis_commands import get_audio_command_publisher
-            publisher = get_audio_command_publisher()
-
-            # Send reload command to pick up new source
-            result = publisher.send_command('reload_sources', {})
-
-            if result.get('success'):
-                logger.info(f'Sent reload command to audio-service for new source: {name}')
-            else:
-                logger.warning(f'Failed to send reload command: {result.get("message")}')
-                # Don't fail the request - source is in DB and will load on next restart
-
-        except Exception as e:
-            logger.warning(f'Could not notify audio-service of new source: {e}')
-            # Don't fail - source is saved in DB
+        # Source is saved to database - audio-service will load it on next restart
+        logger.info(f'Audio source "{name}" saved to database - will load on audio-service restart')
 
         return jsonify({
-            'message': f'Audio source "{name}" created successfully',
+            'message': f'Audio source "{name}" created successfully - restart audio-service to activate',
             'source': {
                 'name': name,
                 'type': audio_type.value,
@@ -1410,8 +1399,7 @@ def api_create_audio_source():
                 'auto_start': auto_start,
                 'description': description,
                 'config': config_params
-            },
-            'hint': 'Restart audio-service container to load this source, or it will load automatically on next startup'
+            }
         }), 201
 
     except Exception as exc:
