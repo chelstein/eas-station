@@ -218,13 +218,22 @@ app = Flask(__name__)
 from flask.json.provider import DefaultJSONProvider
 
 class SafeJSONProvider(DefaultJSONProvider):
-    """JSON provider that converts inf/nan to safe values."""
+    """JSON provider that converts inf/nan to safe values.
+    
+    Audio metrics use dB levels where -120dB represents silence (minimum)
+    and 120dB represents maximum level. These values replace infinity/NaN
+    to ensure valid JSON serialization while maintaining audio semantics.
+    """
+    # Audio level boundaries in dB
+    MIN_AUDIO_LEVEL_DB = -120.0  # Silence threshold
+    MAX_AUDIO_LEVEL_DB = 120.0   # Maximum level
+    
     def default(self, obj):
         if isinstance(obj, float):
             if math.isinf(obj):
-                return -120.0 if obj < 0 else 120.0
+                return self.MIN_AUDIO_LEVEL_DB if obj < 0 else self.MAX_AUDIO_LEVEL_DB
             elif math.isnan(obj):
-                return -120.0
+                return self.MIN_AUDIO_LEVEL_DB
         return super().default(obj)
 
 app.json = SafeJSONProvider(app)
