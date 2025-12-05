@@ -212,6 +212,23 @@ if _docker_icecast_enabled and _docker_icecast_enabled.lower() in ('true', '1', 
 # Create Flask app
 app = Flask(__name__)
 
+# Configure JSON encoder to handle Infinity and NaN values
+# Flask's default jsonify() produces non-standard JSON (Infinity, NaN)
+# which JavaScript cannot parse. This ensures valid JSON output.
+from flask.json.provider import DefaultJSONProvider
+
+class SafeJSONProvider(DefaultJSONProvider):
+    """JSON provider that converts inf/nan to safe values."""
+    def default(self, obj):
+        if isinstance(obj, float):
+            if math.isinf(obj):
+                return -120.0 if obj < 0 else 120.0
+            elif math.isnan(obj):
+                return -120.0
+        return super().default(obj)
+
+app.json = SafeJSONProvider(app)
+
 _setup_mode_reasons: List[str] = []
 
 app.config['SESSION_COOKIE_HTTPONLY'] = True

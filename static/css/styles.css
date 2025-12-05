@@ -814,6 +814,119 @@ small,
     background: rgba(255, 255, 255, 0.2);
 }
 
+/* Light theme navbar adjustments - use dark text on light backgrounds */
+[data-theme="cosmo"] .navbar,
+[data-theme="spring"] .navbar,
+[data-theme="red"] .navbar,
+[data-theme="green"] .navbar,
+[data-theme="blue"] .navbar,
+[data-theme="purple"] .navbar,
+[data-theme="pink"] .navbar,
+[data-theme="orange"] .navbar,
+[data-theme="yellow"] .navbar,
+[data-theme="sunset"] .navbar,
+[data-theme="tide"] .navbar {
+    color: var(--text-color);
+}
+
+[data-theme="cosmo"] .navbar .navbar-brand,
+[data-theme="spring"] .navbar .navbar-brand,
+[data-theme="red"] .navbar .navbar-brand,
+[data-theme="green"] .navbar .navbar-brand,
+[data-theme="blue"] .navbar .navbar-brand,
+[data-theme="purple"] .navbar .navbar-brand,
+[data-theme="pink"] .navbar .navbar-brand,
+[data-theme="orange"] .navbar .navbar-brand,
+[data-theme="yellow"] .navbar .navbar-brand,
+[data-theme="sunset"] .navbar .navbar-brand,
+[data-theme="tide"] .navbar .navbar-brand {
+    color: var(--text-color);
+}
+
+[data-theme="cosmo"] .navbar .nav-link,
+[data-theme="spring"] .navbar .nav-link,
+[data-theme="red"] .navbar .nav-link,
+[data-theme="green"] .navbar .nav-link,
+[data-theme="blue"] .navbar .nav-link,
+[data-theme="purple"] .navbar .nav-link,
+[data-theme="pink"] .navbar .nav-link,
+[data-theme="orange"] .navbar .nav-link,
+[data-theme="yellow"] .navbar .nav-link,
+[data-theme="sunset"] .navbar .nav-link,
+[data-theme="tide"] .navbar .nav-link {
+    color: rgba(0, 0, 0, 0.75);
+}
+
+[data-theme="cosmo"] .navbar .nav-link:hover,
+[data-theme="spring"] .navbar .nav-link:hover,
+[data-theme="red"] .navbar .nav-link:hover,
+[data-theme="green"] .navbar .nav-link:hover,
+[data-theme="blue"] .navbar .nav-link:hover,
+[data-theme="purple"] .navbar .nav-link:hover,
+[data-theme="pink"] .navbar .nav-link:hover,
+[data-theme="orange"] .navbar .nav-link:hover,
+[data-theme="yellow"] .navbar .nav-link:hover,
+[data-theme="sunset"] .navbar .nav-link:hover,
+[data-theme="tide"] .navbar .nav-link:hover,
+[data-theme="cosmo"] .navbar .nav-link:focus,
+[data-theme="spring"] .navbar .nav-link:focus,
+[data-theme="red"] .navbar .nav-link:focus,
+[data-theme="green"] .navbar .nav-link:focus,
+[data-theme="blue"] .navbar .nav-link:focus,
+[data-theme="purple"] .navbar .nav-link:focus,
+[data-theme="pink"] .navbar .nav-link:focus,
+[data-theme="orange"] .navbar .nav-link:focus,
+[data-theme="yellow"] .navbar .nav-link:focus,
+[data-theme="sunset"] .navbar .nav-link:focus,
+[data-theme="tide"] .navbar .nav-link:focus {
+    color: rgba(0, 0, 0, 0.95);
+    background: rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="cosmo"] .navbar .nav-link.active,
+[data-theme="spring"] .navbar .nav-link.active,
+[data-theme="red"] .navbar .nav-link.active,
+[data-theme="green"] .navbar .nav-link.active,
+[data-theme="blue"] .navbar .nav-link.active,
+[data-theme="purple"] .navbar .nav-link.active,
+[data-theme="pink"] .navbar .nav-link.active,
+[data-theme="orange"] .navbar .nav-link.active,
+[data-theme="yellow"] .navbar .nav-link.active,
+[data-theme="sunset"] .navbar .nav-link.active,
+[data-theme="tide"] .navbar .nav-link.active {
+    color: rgba(0, 0, 0, 0.95);
+    background: rgba(0, 0, 0, 0.12);
+}
+
+[data-theme="cosmo"] .navbar .theme-toggle-button,
+[data-theme="spring"] .navbar .theme-toggle-button,
+[data-theme="red"] .navbar .theme-toggle-button,
+[data-theme="green"] .navbar .theme-toggle-button,
+[data-theme="blue"] .navbar .theme-toggle-button,
+[data-theme="purple"] .navbar .theme-toggle-button,
+[data-theme="pink"] .navbar .theme-toggle-button,
+[data-theme="orange"] .navbar .theme-toggle-button,
+[data-theme="yellow"] .navbar .theme-toggle-button,
+[data-theme="sunset"] .navbar .theme-toggle-button,
+[data-theme="tide"] .navbar .theme-toggle-button {
+    color: rgba(0, 0, 0, 0.6);
+}
+
+[data-theme="cosmo"] .navbar .theme-toggle-button:hover,
+[data-theme="spring"] .navbar .theme-toggle-button:hover,
+[data-theme="red"] .navbar .theme-toggle-button:hover,
+[data-theme="green"] .navbar .theme-toggle-button:hover,
+[data-theme="blue"] .navbar .theme-toggle-button:hover,
+[data-theme="purple"] .navbar .theme-toggle-button:hover,
+[data-theme="pink"] .navbar .theme-toggle-button:hover,
+[data-theme="orange"] .navbar .theme-toggle-button:hover,
+[data-theme="yellow"] .navbar .theme-toggle-button:hover,
+[data-theme="sunset"] .navbar .theme-toggle-button:hover,
+[data-theme="tide"] .navbar .theme-toggle-button:hover {
+    color: rgba(0, 0, 0, 0.9);
+    background: rgba(0, 0, 0, 0.1);
+}
+
 /* Container */
 .container {
     max-width: 1200px;
