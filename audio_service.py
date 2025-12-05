@@ -300,9 +300,11 @@ def initialize_audio_controller(app):
                         continue
 
                     # Create Redis SDR source configuration
+                    # CRITICAL: Use original source name (no prefix) so webapp commands work
+                    # Webapp sends start/stop commands using the original database name
                     redis_config = AudioSourceConfig(
                         source_type=AudioSourceType.STREAM,  # Use STREAM type for Redis sources
-                        name=f"redis-{db_config.name}",
+                        name=db_config.name,  # Use original name, NOT prefixed
                         enabled=db_config.enabled,
                         priority=db_config.priority,
                         sample_rate=44100,  # Output audio sample rate
@@ -321,7 +323,7 @@ def initialize_audio_controller(app):
                     adapter = RedisSDRSourceAdapter(redis_config)
                     _audio_controller.add_source(adapter)
                     redis_sources_created += 1
-                    logger.info(f"✅ Created Redis SDR source: redis-{db_config.name} (receiver: {receiver_id})")
+                    logger.info(f"✅ Created Redis SDR source: {db_config.name} (receiver: {receiver_id})")
 
                 except Exception as e:
                     logger.error(f"Error creating Redis SDR source for '{db_config.name}': {e}", exc_info=True)
