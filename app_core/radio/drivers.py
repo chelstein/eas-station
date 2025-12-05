@@ -1336,15 +1336,19 @@ class AirspyReceiver(_SoapySDRReceiver):
         # Store effective rate for use in parent implementation
         self._effective_sample_rate = effective_rate
         
-        # Temporarily update config sample rate for parent implementation
-        # This is necessary because _SoapySDRReceiver._open_handle reads from config
-        original_rate = self.config.sample_rate
-        try:
-            self.config.sample_rate = effective_rate
+        # Create a new config with the corrected sample rate instead of modifying frozen dataclass
+        # ReceiverConfig is frozen, so we need to create a new instance with replace()
+        from dataclasses import replace
+        if effective_rate != self.config.sample_rate:
+            original_config = self.config
+            self.config = replace(self.config, sample_rate=effective_rate)
+            try:
+                handle = super()._open_handle()
+            finally:
+                # Restore original config to avoid side effects
+                self.config = original_config
+        else:
             handle = super()._open_handle()
-        finally:
-            # Restore original config to avoid side effects
-            self.config.sample_rate = original_rate
         
         # Airspy-specific post-configuration
         if handle and handle.device:
