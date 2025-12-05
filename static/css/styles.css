@@ -1,71 +1,121 @@
 /* EAS Station Consolidated Styles */
 
+/* ============================================================================
+   EAS STATION - PROFESSIONAL DESIGN SYSTEM
+   
+   A comprehensive, enterprise-grade design system for emergency alert
+   management. Every component follows strict design principles for
+   consistency, accessibility, and professional presentation.
+   
+   Version: 3.0 - Professional Edition
+   Author: EAS Station Development Team
+   ============================================================================ */
+
 /* 1. CSS VARIABLES & DESIGN SYSTEM */
 
-/* Cosmo Theme (Default Light Theme) */
+/* Professional Animation Curves */
+:root {
+    --ease-smooth: cubic-bezier(0.4, 0.0, 0.2, 1);
+    --ease-enter: cubic-bezier(0.0, 0.0, 0.2, 1);
+    --ease-exit: cubic-bezier(0.4, 0.0, 1, 1);
+}
+
+/* Cosmo Theme (Default Light Theme) - Professional Palette */
 :root,
 [data-theme="cosmo"] {
-    /* Primary Brand Colors */
-    --primary-color: #204885;
-    --primary-soft: #2f5fa4;
-    --primary-dark: #132b4f;
-    --secondary-color: #872a96;
-    --secondary-soft: #9d5bb1;
-    --secondary-dark: #51195a;
-    --accent-color: #4f6fb3;
+    /* Primary Brand Colors - Refined for professionalism */
+    --primary-color: #1e3a8a;
+    --primary-soft: #3b82f6;
+    --primary-dark: #1e40af;
+    --secondary-color: #7c3aed;
+    --secondary-soft: #a78bfa;
+    --secondary-dark: #5b21b6;
+    --accent-color: #3b82f6;
 
-    /* Status Colors */
-    --success-color: #2eb08d;
-    --danger-color: #e05263;
-    --warning-color: #f6b968;
-    --info-color: #2f5aa1;
-    --critical-color: #ff4f8b;
+    /* Status Colors - Professional Grade */
+    --success-color: #10b981;
+    --danger-color: #ef4444;
+    --warning-color: #f59e0b;
+    --info-color: #3b82f6;
+    --critical-color: #dc2626;
 
-    /* Background Colors */
-    --light-color: #f4f5fb;
-    --dark-color: #19263a;
-    --bg-color: #e8ecf7;
+    /* Background Colors - Professional Neutrals */
+    --light-color: #f8fafc;
+    --dark-color: #0f172a;
+    --bg-color: #f1f5f9;
     --surface-color: #ffffff;
     --bg-card: #ffffff;
-    --bg-primary: #19263a;
+    --bg-primary: #1e3a8a;
 
-    /* Text Colors */
-    --text-color: #1c2233;
-    --text-secondary: #5a6c8f;
-    --text-muted: #8892a6;
+    /* Text Colors - Professional Typography */
+    --text-color: #0f172a;
+    --text-secondary: #475569;
+    --text-muted: #94a3b8;
 
-    /* Borders & Shadows */
-    --border-color: #ced7ea;
-    --shadow-color: rgba(32, 72, 133, 0.12);
-    --shadow: rgba(32, 72, 133, 0.12);
+    /* Borders & Shadows - Refined Depth */
+    --border-color: #e2e8f0;
+    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+    --shadow-color: rgba(0, 0, 0, 0.1);
+    --shadow: rgba(0, 0, 0, 0.1);
 
-    /* Border Radius */
-    --radius-sm: 6px;
-    --radius-md: 8px;
-    --radius-lg: 12px;
+    /* Border Radius - Professional Rounding */
+    --radius-sm: 0.375rem;   /* 6px */
+    --radius-md: 0.5rem;     /* 8px */
+    --radius-lg: 0.75rem;    /* 12px */
+    --radius-xl: 1rem;       /* 16px */
+    --radius-2xl: 1.5rem;    /* 24px */
 
-    /* Spacing Scale */
-    --spacing-xs: 0.5rem;
-    --spacing-sm: 0.75rem;
-    --spacing-md: 1rem;
-    --spacing-lg: 1.5rem;
-    --spacing-xl: 2.25rem;
+    /* Spacing Scale - Perfect Scale (4px base) */
+    --spacing-1: 0.25rem;   /* 4px */
+    --spacing-2: 0.5rem;    /* 8px */
+    --spacing-3: 0.75rem;   /* 12px */
+    --spacing-4: 1rem;      /* 16px */
+    --spacing-5: 1.25rem;   /* 20px */
+    --spacing-6: 1.5rem;    /* 24px */
+    --spacing-8: 2rem;      /* 32px */
+    --spacing-10: 2.5rem;   /* 40px */
+    --spacing-12: 3rem;     /* 48px */
+    --spacing-16: 4rem;     /* 64px */
+    
+    /* Legacy spacing for compatibility */
+    --spacing-xs: var(--spacing-2);
+    --spacing-sm: var(--spacing-3);
+    --spacing-md: var(--spacing-4);
+    --spacing-lg: var(--spacing-6);
+    --spacing-xl: var(--spacing-8);
 
-    /* Transitions */
-    --transition-fast: 0.2s ease-in-out;
-    --transition-medium: 0.3s ease-in-out;
+    /* Professional Transitions */
+    --transition-fast: 150ms var(--ease-smooth);
+    --transition-medium: 250ms var(--ease-smooth);
+    --transition-slow: 350ms var(--ease-smooth);
 
-    /* Typography Scale */
-    --font-family-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-    --font-family-mono: "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-    --font-size-base: 1rem;
-    --font-size-sm: 0.875rem;
-    --font-size-lg: 1.125rem;
-    --line-height-base: 1.6;
+    /* Professional Typography System */
+    --font-family-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+    --font-family-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    
+    /* Type Scale - Perfect Fourth (1.333) */
+    --font-size-xs: 0.75rem;      /* 12px */
+    --font-size-sm: 0.875rem;     /* 14px */
+    --font-size-base: 1rem;       /* 16px */
+    --font-size-lg: 1.125rem;     /* 18px */
+    --font-size-xl: 1.333rem;     /* 21px */
+    --font-size-2xl: 1.777rem;    /* 28px */
+    --font-size-3xl: 2.369rem;    /* 38px */
+    
+    /* Line Heights - Optimized for readability */
+    --line-height-tight: 1.25;
+    --line-height-base: 1.5;
+    --line-height-relaxed: 1.75;
+    
+    /* Font Weights - Professional Hierarchy */
     --font-weight-normal: 400;
     --font-weight-medium: 500;
     --font-weight-semibold: 600;
     --font-weight-bold: 700;
+    --font-weight-extrabold: 800;
 
     /* Logo Treatment */
     --logo-backdrop: rgba(255, 255, 255, 0.96);
@@ -665,21 +715,26 @@ small,
 
    4. LAYOUT (Navbar, Containers, Footer)
 
-/* Navbar - Modern transparent design with backdrop blur */
+/* Professional Navigation Bar */
 .navbar {
     background: linear-gradient(135deg,
-        color-mix(in srgb, var(--primary-color) 85%, transparent),
-        color-mix(in srgb, var(--secondary-color) 85%, transparent)) !important;
-    backdrop-filter: blur(20px) saturate(180%);
-    -webkit-backdrop-filter: blur(20px) saturate(180%);
-    box-shadow: 0 4px 20px var(--shadow-color),
-                0 1px 0 0 rgba(255, 255, 255, 0.1) inset;
-    border-bottom: 1px solid color-mix(in srgb, var(--border-color) 30%, transparent);
-    padding: 0.75rem 1.5rem;
+        color-mix(in srgb, var(--primary-color) 95%, transparent),
+        color-mix(in srgb, var(--secondary-color) 92%, transparent)) !important;
+    backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    box-shadow: var(--shadow-sm),
+                0 1px 0 0 rgba(255, 255, 255, 0.05) inset;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 0.875rem 2rem;
     position: sticky;
     top: 0;
     z-index: 1030;
     transition: all var(--transition-medium);
+}
+
+.navbar:hover {
+    box-shadow: var(--shadow-md),
+                0 1px 0 0 rgba(255, 255, 255, 0.08) inset;
 }
 
 .navbar-brand {
@@ -778,13 +833,13 @@ small,
     position: relative;
 }
 
-/* Page Header */
+/* Standard Page Header - Unified Design */
 .page-header {
     background: linear-gradient(135deg,
         var(--primary-color),
         var(--secondary-color));
     color: white;
-    padding: 2rem 0;
+    padding: 1.75rem 2rem;
     margin-bottom: 2rem;
     border-radius: var(--radius-lg);
     box-shadow: 0 8px 32px var(--shadow-color);
@@ -792,11 +847,77 @@ small,
     overflow: hidden;
 }
 
+.page-header::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    right: -10%;
+    width: 40%;
+    height: 100%;
+    background: radial-gradient(ellipse at center, rgba(255, 255, 255, 0.1), transparent 70%);
+    pointer-events: none;
+}
+
 .page-header h1,
 .page-header h2,
 .page-header .page-title {
     color: white;
     text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    font-size: 1.75rem;
+    font-weight: 700;
+    margin: 0;
+    position: relative;
+    z-index: 1;
+}
+
+.page-header .page-subtitle {
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 0.95rem;
+    margin-top: 0.5rem;
+    margin-bottom: 0;
+    font-weight: 400;
+    position: relative;
+    z-index: 1;
+}
+
+.page-header-actions {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    flex-wrap: wrap;
+    position: relative;
+    z-index: 1;
+}
+
+/* Page Title Row (for pages without full header) */
+.page-title-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 2px solid var(--border-color);
+}
+
+.page-title-row h1,
+.page-title-row .page-title {
+    font-size: 1.75rem;
+    font-weight: 700;
+    margin: 0;
+    color: var(--text-color);
+}
+
+.page-title-row .page-subtitle {
+    font-size: 0.95rem;
+    color: var(--text-secondary);
+    margin-top: 0.25rem;
+}
+
+.page-actions {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    flex-wrap: wrap;
 }
 
 /* Footer */
@@ -822,28 +943,64 @@ footer a:hover {
 
    5. COMPONENTS (Cards, Buttons, Forms, Tables, etc.)
 
-/* Cards */
+/* Professional Card Design */
 .card {
     background: var(--surface-color);
     border: 1px solid var(--border-color);
-    border-radius: var(--radius-lg);
-    box-shadow: 0 2px 8px var(--shadow-color);
-    margin-bottom: 1.5rem;
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-sm);
+    margin-bottom: var(--spacing-6);
     transition: all var(--transition-medium);
     overflow: hidden;
+    position: relative;
+}
+
+.card::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.5), transparent);
+    opacity: 0;
+    transition: opacity var(--transition-medium);
 }
 
 .card:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 12px 32px var(--shadow-color);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
+    border-color: color-mix(in srgb, var(--primary-color) 30%, var(--border-color));
+}
+
+.card:hover::before {
+    opacity: 1;
 }
 
 .card-header {
-    background: linear-gradient(120deg, var(--primary-color), var(--secondary-color));
+    background: linear-gradient(135deg, 
+        var(--primary-color) 0%, 
+        color-mix(in srgb, var(--primary-color) 85%, var(--secondary-color)) 50%,
+        var(--secondary-color) 100%);
     color: white;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
-    padding: 0.75rem 1.25rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 1rem 1.5rem;
     font-weight: var(--font-weight-semibold);
+    font-size: var(--font-size-base);
+    letter-spacing: 0.01em;
+    position: relative;
+    overflow: hidden;
+}
+
+.card-header::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    right: -50%;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(ellipse at top right, rgba(255, 255, 255, 0.15), transparent 60%);
+    pointer-events: none;
 }
 
 /* Override bg-* classes on card-header to use gradients */
@@ -955,28 +1112,66 @@ footer a:hover {
     color: white;
 }
 
-/* Buttons */
+/* Professional Button System */
 .btn {
-    display: inline-block;
-    padding: 0.5rem 1.5rem;
-    font-weight: var(--font-weight-semibold);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.625rem 1.25rem;
+    font-weight: var(--font-weight-medium);
+    font-size: var(--font-size-sm);
     text-align: center;
+    line-height: 1.5;
     border-radius: var(--radius-md);
-    border: 2px solid transparent;
+    border: 1px solid transparent;
     cursor: pointer;
     transition: all var(--transition-fast);
     text-decoration: none;
+    white-space: nowrap;
+    position: relative;
+    overflow: hidden;
+}
+
+.btn::before {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 0;
+    height: 0;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.2);
+    transform: translate(-50%, -50%);
+    transition: width 0.6s, height 0.6s;
+}
+
+.btn:active::before {
+    width: 300px;
+    height: 300px;
+    transition: width 0s, height 0s;
 }
 
 .btn-primary {
-    background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+    background: linear-gradient(135deg, 
+        var(--primary-color) 0%, 
+        color-mix(in srgb, var(--primary-color) 85%, var(--secondary-color)) 100%);
     color: white;
-    border-color: var(--primary-color);
+    border-color: transparent;
+    box-shadow: var(--shadow-sm);
 }
 
 .btn-primary:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 20px var(--shadow-color);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+    background: linear-gradient(135deg, 
+        color-mix(in srgb, var(--primary-color) 90%, #000) 0%, 
+        color-mix(in srgb, var(--primary-color) 80%, var(--secondary-color)) 100%);
+}
+
+.btn-primary:active {
+    transform: translateY(0);
+    box-shadow: var(--shadow-sm);
 }
 
 .btn-secondary {
@@ -1401,6 +1596,125 @@ textarea:focus {
 .bg-info { background-color: var(--info-color) !important; color: white; }
 .bg-light { background-color: var(--light-color) !important; color: var(--text-color); }
 .bg-dark { background-color: var(--dark-color) !important; color: white; }
+
+/* Section Headers - Unified Design */
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+    padding: 1rem 1.25rem;
+    background: linear-gradient(135deg, 
+        color-mix(in srgb, var(--primary-color) 10%, var(--surface-color)),
+        color-mix(in srgb, var(--secondary-color) 8%, var(--surface-color)));
+    border-radius: var(--radius-md);
+    border-left: 4px solid var(--primary-color);
+}
+
+.section-header h2,
+.section-header h3,
+.section-header .section-title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin: 0;
+    color: var(--text-color);
+}
+
+.section-header .section-subtitle {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    margin-top: 0.25rem;
+}
+
+.section-actions {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+/* Content Grid - Standard Layout */
+.content-grid {
+    display: grid;
+    gap: 1.5rem;
+}
+
+.content-grid-2 {
+    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+}
+
+.content-grid-3 {
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+}
+
+.content-grid-4 {
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+}
+
+/* Info Boxes - Unified Design */
+.info-box {
+    padding: 1rem 1.25rem;
+    border-radius: var(--radius-md);
+    border-left: 4px solid var(--info-color);
+    background: color-mix(in srgb, var(--info-color) 8%, var(--surface-color));
+    color: var(--text-color);
+    margin-bottom: 1rem;
+}
+
+.info-box.success {
+    border-left-color: var(--success-color);
+    background: color-mix(in srgb, var(--success-color) 8%, var(--surface-color));
+}
+
+.info-box.warning {
+    border-left-color: var(--warning-color);
+    background: color-mix(in srgb, var(--warning-color) 8%, var(--surface-color));
+}
+
+.info-box.danger {
+    border-left-color: var(--danger-color);
+    background: color-mix(in srgb, var(--danger-color) 8%, var(--surface-color));
+}
+
+.info-box-title {
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    color: var(--text-color);
+}
+
+/* Stats Grid - Unified Design */
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+/* Empty State - Unified Design */
+.empty-state {
+    text-align: center;
+    padding: 3rem 2rem;
+    border: 2px dashed var(--border-color);
+    border-radius: var(--radius-lg);
+    background: color-mix(in srgb, var(--surface-color) 50%, var(--bg-color));
+}
+
+.empty-state-icon {
+    font-size: 3rem;
+    color: var(--text-muted);
+    margin-bottom: 1rem;
+}
+
+.empty-state-title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--text-color);
+    margin-bottom: 0.5rem;
+}
+
+.empty-state-text {
+    color: var(--text-secondary);
+    margin-bottom: 1.5rem;
+}
 
 /* Border Utilities */
 .border { border: 1px solid var(--border-color); }
