@@ -73,33 +73,33 @@
                         </a>
                     </li>
 
-                    <!-- Alerts & Monitoring -->
+                    <!-- Monitor (Alerts & Monitoring) -->
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle"
                            href="#"
-                           id="alertsDropdown"
+                           id="monitorDropdown"
                            role="button"
                            data-bs-toggle="dropdown"
                            aria-expanded="false">
-                            <i class="fas fa-bell"></i>
-                            <span>Alerts</span>
+                            <i class="fas fa-satellite-dish"></i>
+                            <span>Monitor</span>
                         </a>
-                        <ul class="dropdown-menu" aria-labelledby="alertsDropdown">
-                            <li><h6 class="dropdown-header">Internet (CAP Feeds)</h6></li>
+                        <ul class="dropdown-menu" aria-labelledby="monitorDropdown">
+                            <li><h6 class="dropdown-header">Internet Alerts</h6></li>
                             <li>
                                 <a class="dropdown-item" href="/alerts">
-                                    <i class="fas fa-satellite-dish"></i> Active & History
+                                    <i class="fas fa-bell"></i> Active Alerts
                                 </a>
                             </li>
                             <li>
                                 <a class="dropdown-item" href="/stats">
-                                    <i class="fas fa-chart-bar"></i> Alert Statistics
+                                    <i class="fas fa-chart-bar"></i> Statistics
                                 </a>
                             </li>
 
                             {% if show_alerts_radio_section %}
                             <li><hr class="dropdown-divider"></li>
-                            <li><h6 class="dropdown-header">Over-the-Air (Radio)</h6></li>
+                            <li><h6 class="dropdown-header">Radio Monitoring</h6></li>
                             <li>
                                 <a class="dropdown-item" href="/audio/received">
                                     <i class="fas fa-radio"></i> Received Alerts
@@ -107,14 +107,14 @@
                             </li>
                             <li>
                                 <a class="dropdown-item" href="/audio-monitor">
-                                    <i class="fas fa-headphones"></i> Live Monitor
+                                    <i class="fas fa-headphones"></i> Live Audio
                                 </a>
                             </li>
                             {% endif %}
                         </ul>
                     </li>
 
-                    <!-- Broadcast Operations -->
+                    <!-- Broadcast -->
                     {% if show_broadcast_dropdown %}
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle"
@@ -128,7 +128,7 @@
                         </a>
                         <ul class="dropdown-menu" aria-labelledby="broadcastDropdown">
                             {% if show_broadcast_workflow %}
-                            <li><h6 class="dropdown-header">Create & Schedule</h6></li>
+                            <li><h6 class="dropdown-header">Create & Send</h6></li>
                             <li>
                                 <a class="dropdown-item" href="{{ url_for('eas.workflow_home') }}">
                                     <i class="fas fa-broadcast-tower"></i> Broadcast Builder
@@ -136,12 +136,12 @@
                             </li>
                             <li>
                                 <a class="dropdown-item" href="{{ url_for('rwt_schedule_page') }}">
-                                    <i class="fas fa-calendar-check"></i> Weekly Test Scheduler
+                                    <i class="fas fa-calendar-check"></i> Weekly Tests
                                 </a>
                             </li>
                             <li>
                                 <a class="dropdown-item" href="{{ url_for('audio_history') }}">
-                                    <i class="fas fa-archive"></i> Broadcast History
+                                    <i class="fas fa-history"></i> History
                                 </a>
                             </li>
                             {% endif %}
@@ -150,10 +150,10 @@
                             {% if show_broadcast_workflow %}
                             <li><hr class="dropdown-divider"></li>
                             {% endif %}
-                            <li><h6 class="dropdown-header">Displays & Outputs</h6></li>
+                            <li><h6 class="dropdown-header">Display Outputs</h6></li>
                             <li>
                                 <a class="dropdown-item" href="{{ url_for('displays_preview_page') }}">
-                                    <i class="fas fa-eye"></i> Display Preview
+                                    <i class="fas fa-eye"></i> Preview
                                 </a>
                             </li>
                             <li>
@@ -172,20 +172,40 @@
                                 </a>
                             </li>
                             {% endif %}
+                        </ul>
+                    </li>
+                    {% endif %}
 
-                            {% if show_broadcast_inputs %}
-                            {% if show_broadcast_workflow or show_broadcast_outputs %}
-                            <li><hr class="dropdown-divider"></li>
-                            {% endif %}
-                            <li><h6 class="dropdown-header">Audio Inputs</h6></li>
+                    <!-- Hardware -->
+                    {% if show_broadcast_inputs %}
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle"
+                           href="#"
+                           id="hardwareDropdown"
+                           role="button"
+                           data-bs-toggle="dropdown"
+                           aria-expanded="false">
+                            <i class="fas fa-microchip"></i>
+                            <span>Hardware</span>
+                        </a>
+                        <ul class="dropdown-menu" aria-labelledby="hardwareDropdown">
+                            <li><h6 class="dropdown-header">Radio & Audio</h6></li>
                             <li>
                                 <a class="dropdown-item" href="{{ url_for('radio_settings') }}">
-                                    <i class="fas fa-signal"></i> Radio/SDR Receivers
+                                    <i class="fas fa-signal"></i> SDR Receivers
                                 </a>
                             </li>
                             <li>
                                 <a class="dropdown-item" href="{{ url_for('audio_settings') }}">
                                     <i class="fas fa-stream"></i> Audio Streams
+                                </a>
+                            </li>
+                            {% if can_view_gpio %}
+                            <li><hr class="dropdown-divider"></li>
+                            <li><h6 class="dropdown-header">Control</h6></li>
+                            <li>
+                                <a class="dropdown-item" href="/admin/gpio">
+                                    <i class="fas fa-plug"></i> GPIO & Relays
                                 </a>
                             </li>
                             {% endif %}
