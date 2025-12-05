@@ -4,7 +4,21 @@ All notable changes to this project are documented in this file. The format is b
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project currently
 tracks releases under the 2.x series.
 
-## [2.12.22] - 2025-11-30
+## [Unreleased]
+
+## [2.12.23] - 2025-12-05
+### Documentation
+- Clarified that SDR frontend already accepts frequency in MHz (not Hz) with automatic conversion
+- Confirmed hardware-specific validation is already implemented (Airspy sample rate constraints, frequency range validation based on service type)
+- Frontend validates sample rates based on hardware capabilities via `/api/radio/capabilities` endpoint
+- Backend validates sample rate compatibility with driver via `validate_sample_rate_for_driver()` function
+
+## [2.12.22] - 2025-12-05
+### Fixed
+- Fixed AirspyReceiver method override bug where `_open_device()` was defined but parent class uses `_open_handle()`, preventing Airspy-specific configuration (sample rate validation, linearity mode, bias-T settings) from ever executing
+- Added `get_ring_buffer_stats()` method to SDR receivers to fix method-not-found errors when SDR service attempts to publish ring buffer statistics to Redis
+
+## [2.12.21] - 2025-11-27
 ### Added
 - Made SDR++ Server the default and recommended SDR option in the Radio Receiver settings UI
 - Added prominent "SDR++ Server" quick-add button in the Quick Setup panel
