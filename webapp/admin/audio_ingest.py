@@ -1345,13 +1345,17 @@ def api_create_audio_source():
         auto_start = data.get('auto_start', False)
         description = data.get('description', '')
 
-        # Device-specific parameters
-        device_params = data.get('device_params', {})
+        # Device-specific parameters - accept URL at top level OR in device_params
+        device_params = data.get('device_params', {}).copy() if data.get('device_params') else {}
 
-        # For STREAM type, ensure URL is provided
+        # If URL is provided at top level (common for STREAM sources), move it into device_params
+        if 'url' in data and not device_params.get('url'):
+            device_params['url'] = data['url']
+
+        # For STREAM type, ensure URL is provided (in either location)
         if audio_type == AudioSourceType.STREAM:
             if not device_params.get('url'):
-                return jsonify({'error': 'url is required in device_params for STREAM sources'}), 400
+                return jsonify({'error': 'url is required for STREAM sources (provide as "url" field or in "device_params.url")'}), 400
 
         # Create database configuration
         config_params = {
