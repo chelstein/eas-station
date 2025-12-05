@@ -515,8 +515,6 @@ USERNAME_PATTERN = re.compile(r'^[A-Za-z0-9_.-]{3,64}$')
 
 
 # parse_nws_datetime is now imported from app_core.datetime.parsing
-# The old implementation called _parse_nws_datetime with logger parameter
-# but the new version handles this internally
 
 
 
