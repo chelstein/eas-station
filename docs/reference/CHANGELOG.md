@@ -6,6 +6,13 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.12.23] - 2025-12-05
+### Documentation
+- Clarified that SDR frontend already accepts frequency in MHz (not Hz) with automatic conversion
+- Confirmed hardware-specific validation is already implemented (Airspy sample rate constraints, frequency range validation based on service type)
+- Frontend validates sample rates based on hardware capabilities via `/api/radio/capabilities` endpoint
+- Backend validates sample rate compatibility with driver via `validate_sample_rate_for_driver()` function
+
 ## [2.12.22] - 2025-12-05
 ### Fixed
 - Fixed AirspyReceiver method override bug where `_open_device()` was defined but parent class uses `_open_handle()`, preventing Airspy-specific configuration (sample rate validation, linearity mode, bias-T settings) from ever executing
