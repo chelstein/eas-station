@@ -59,7 +59,6 @@ class RedisSDRSourceAdapter(AudioSourceAdapter):
         super().__init__(config)
         self._redis_client: Optional[Any] = None
         self._pubsub: Optional[Any] = None
-        self._subscriber_thread: Optional[threading.Thread] = None
         # Note: self._audio_queue is created by base class via BroadcastQueue subscription
         # Don't override it - use self._source_broadcast.publish() instead
         self._receiver_id: Optional[str] = None
@@ -68,6 +67,27 @@ class RedisSDRSourceAdapter(AudioSourceAdapter):
         self._samples_received: int = 0
         self._iq_sample_rate: int = 2500000  # Will be updated from Redis messages
         self._center_frequency: int = 0  # Will be updated from Redis messages
+        # Queue for audio chunks from Redis subscriber thread
+        self._audio_chunk_queue: queue.Queue = queue.Queue(maxsize=100)
+
+    def _create_demodulator(self) -> None:
+        """Create or recreate demodulator with current settings."""
+        demod_mode = self.config.device_params.get('demod_mode', 'FM')
+        
+        from app_core.radio.demodulation import create_demodulator, DemodulatorConfig
+
+        demod_config = DemodulatorConfig(
+            modulation_type=demod_mode,
+            sample_rate=self._iq_sample_rate,  # IQ sample rate from SDR
+            audio_sample_rate=self.config.sample_rate,  # Audio output rate (e.g., 44100)
+            stereo_enabled=True,  # Enable stereo decoding for FM
+        )
+
+        self._demodulator = create_demodulator(demod_config)
+        logger.info(
+            f"Created {demod_mode} demodulator: "
+            f"{self._iq_sample_rate}Hz IQ → {self.config.sample_rate}Hz audio"
+        )
 
     def _start_capture(self) -> None:
         """Start Redis subscription and audio processing."""
@@ -84,24 +104,8 @@ class RedisSDRSourceAdapter(AudioSourceAdapter):
         except Exception as e:
             raise RuntimeError(f"Failed to connect to Redis: {e}") from e
 
-        # Get demodulation settings from config
-        demod_mode = self.config.device_params.get('demod_mode', 'FM')
-
         # Create demodulator
-        from app_core.radio.demodulation import create_demodulator, DemodulatorConfig
-
-        demod_config = DemodulatorConfig(
-            modulation_type=demod_mode,
-            sample_rate=self._iq_sample_rate,  # IQ sample rate from SDR
-            audio_sample_rate=self.config.sample_rate,  # Audio output rate (e.g., 44100)
-            stereo_enabled=True,  # Enable stereo decoding for FM
-        )
-
-        self._demodulator = create_demodulator(demod_config)
-        logger.info(
-            f"Created {demod_mode} demodulator: "
-            f"{self._iq_sample_rate}Hz IQ → {self.config.sample_rate}Hz audio"
-        )
+        self._create_demodulator()
 
         # Subscribe to Redis pub/sub channel
         self._pubsub = self._redis_client.pubsub(ignore_subscribe_messages=True)
@@ -109,13 +113,14 @@ class RedisSDRSourceAdapter(AudioSourceAdapter):
         self._pubsub.subscribe(channel)
         logger.info(f"Subscribed to Redis channel: {channel}")
 
-        # Start subscriber thread
-        self._subscriber_thread = threading.Thread(
+        # Start Redis subscriber thread (separate from capture thread)
+        # This thread receives IQ samples from Redis and demodulates them
+        subscriber_thread = threading.Thread(
             target=self._redis_subscriber_loop,
             name=f"redis-sdr-{self._receiver_id}",
             daemon=True
         )
-        self._subscriber_thread.start()
+        subscriber_thread.start()
         logger.info(f"Started Redis SDR subscriber for {self._receiver_id}")
 
     def _redis_subscriber_loop(self) -> None:
@@ -123,7 +128,8 @@ class RedisSDRSourceAdapter(AudioSourceAdapter):
         logger.info(f"Redis subscriber loop started for {self._receiver_id}")
 
         try:
-            while self._running.is_set():
+            # Use _stop_event from base class instead of undefined _running
+            while not self._stop_event.is_set():
                 # Use get_message with timeout instead of listen() to allow graceful shutdown
                 message = self._pubsub.get_message(timeout=1.0)
 
@@ -138,8 +144,15 @@ class RedisSDRSourceAdapter(AudioSourceAdapter):
                     data = json.loads(message['data'])
 
                     # Update metadata
-                    self._iq_sample_rate = data.get('sample_rate', self._iq_sample_rate)
+                    new_sample_rate = data.get('sample_rate', self._iq_sample_rate)
                     self._center_frequency = data.get('center_frequency', self._center_frequency)
+                    
+                    # Update demodulator if sample rate changed
+                    if new_sample_rate != self._iq_sample_rate:
+                        logger.info(f"IQ sample rate changed: {self._iq_sample_rate}Hz -> {new_sample_rate}Hz")
+                        self._iq_sample_rate = new_sample_rate
+                        # Recreate demodulator with new sample rate
+                        self._create_demodulator()
 
                     # Decode IQ samples
                     encoded_samples = data.get('samples', '')
@@ -159,14 +172,13 @@ class RedisSDRSourceAdapter(AudioSourceAdapter):
                         audio_samples = self._demodulator.process(iq_samples)
 
                         if audio_samples is not None and len(audio_samples) > 0:
-                            # Publish to BroadcastQueue for web streams and other consumers
-                            # This allows multiple independent subscribers (Icecast, web player, EAS monitor)
-                            self._source_broadcast.publish(audio_samples)
-
-                            # Update metrics
-                            self._update_metrics(audio_samples)
-                            self._samples_received += len(audio_samples)
-                            self._last_sample_time = time.time()
+                            # Put audio in queue for _read_audio_chunk() to consume
+                            try:
+                                self._audio_chunk_queue.put(audio_samples, timeout=0.1)
+                                self._samples_received += len(audio_samples)
+                                self._last_sample_time = time.time()
+                            except queue.Full:
+                                logger.warning(f"Audio chunk queue full for {self._receiver_id}, dropping samples")
 
                 except Exception as e:
                     logger.error(f"Error processing Redis IQ sample: {e}", exc_info=True)
@@ -185,13 +197,29 @@ class RedisSDRSourceAdapter(AudioSourceAdapter):
             except Exception as e:
                 logger.error(f"Error closing Redis pub/sub: {e}")
 
-        if self._subscriber_thread and self._subscriber_thread.is_alive():
-            self._subscriber_thread.join(timeout=5.0)
+        # Clear audio chunk queue
+        while not self._audio_chunk_queue.empty():
+            try:
+                self._audio_chunk_queue.get_nowait()
+            except queue.Empty:
+                break
 
         logger.info(f"Stopped Redis SDR source for {self._receiver_id}")
 
-    # Note: get_audio_chunk() inherited from base class - reads from BroadcastQueue subscription
-    # No need to override since base class handles it correctly
+    def _read_audio_chunk(self) -> Optional[np.ndarray]:
+        """Read an audio chunk from the queue filled by Redis subscriber thread.
+        
+        This method is called by the base class's capture loop.
+        The Redis subscriber thread demodulates IQ samples and puts audio in the queue.
+        """
+        try:
+            # Get audio chunk from queue with short timeout
+            # This allows the capture loop to check _stop_event periodically
+            audio_chunk = self._audio_chunk_queue.get(timeout=0.1)
+            return audio_chunk
+        except queue.Empty:
+            # No audio available yet - this is normal, return None
+            return None
 
     def _update_metrics(self, audio_chunk: Optional[np.ndarray] = None) -> None:
         """Update metrics from Redis SDR source."""
