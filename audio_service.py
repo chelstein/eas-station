@@ -694,7 +694,7 @@ def publish_metrics_to_redis(metrics):
                                     json.dumps(spectrogram_payload)
                                 )
                 except Exception as e:
-                    logger.debug(f"Error publishing visualization data for '{name}': {e}")
+                    logger.error(f"Error publishing visualization data for '{name}': {e}", exc_info=True)
         
         # DO NOT publish spectrum data in audio-service
         # In separated architecture, sdr-service publishes spectrum data to Redis
