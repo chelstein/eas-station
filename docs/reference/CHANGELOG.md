@@ -6,6 +6,12 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.12.25] - 2025-12-05
+### Fixed
+- **CRITICAL**: Fixed audio sources not starting when clicking start button - source name mismatch between webapp and audio-service (webapp sends "WIMT", audio-service expected "redis-WIMT")
+- Fixed race condition in metrics publishing where audio-service was deleting eas_monitor metrics from Redis causing "No metrics available from audio-service" error
+- Audio-service now uses original source names (not prefixed with "redis-") for separated architecture compatibility
+
 ## [2.12.24] - 2025-12-05
 ### Fixed
 - Fixed audio-service container running Flask app.py during migrations by skipping database migrations in standalone service containers (audio-service, sdr-service, eas-service, hardware-service) that should not load the main Flask application

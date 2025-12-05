@@ -300,9 +300,11 @@ def initialize_audio_controller(app):
                         continue
 
                     # Create Redis SDR source configuration
+                    # CRITICAL: Use original source name (no prefix) so webapp commands work
+                    # Webapp sends start/stop commands using the original database name
                     redis_config = AudioSourceConfig(
                         source_type=AudioSourceType.STREAM,  # Use STREAM type for Redis sources
-                        name=f"redis-{db_config.name}",
+                        name=db_config.name,  # Use original name, NOT prefixed
                         enabled=db_config.enabled,
                         priority=db_config.priority,
                         sample_rate=44100,  # Output audio sample rate
@@ -321,7 +323,7 @@ def initialize_audio_controller(app):
                     adapter = RedisSDRSourceAdapter(redis_config)
                     _audio_controller.add_source(adapter)
                     redis_sources_created += 1
-                    logger.info(f"✅ Created Redis SDR source: redis-{db_config.name} (receiver: {receiver_id})")
+                    logger.info(f"✅ Created Redis SDR source: {db_config.name} (receiver: {receiver_id})")
 
                 except Exception as e:
                     logger.error(f"Error creating Redis SDR source for '{db_config.name}': {e}", exc_info=True)
@@ -545,7 +547,12 @@ def collect_metrics():
 
 
 def publish_metrics_to_redis(metrics):
-    """Publish metrics to Redis for web application."""
+    """Publish metrics to Redis for web application.
+    
+    Merges audio metrics with existing eas:metrics hash to preserve
+    eas_monitor metrics published by eas-service. Both services write
+    to the same Redis key but manage different metric keys.
+    """
     try:
         r = get_redis_client()
 
@@ -553,8 +560,17 @@ def publish_metrics_to_redis(metrics):
         metrics["_heartbeat"] = time.time()
         metrics["_master_pid"] = os.getpid()
 
+        # Read existing metrics from eas-service (if any)
+        existing_metrics = r.hgetall("eas:metrics")
+
         # Flatten nested dicts to strings for Redis hash
         flat_metrics = {}
+        
+        # Keep existing metrics from eas-service (preserves eas_monitor key)
+        if existing_metrics:
+            flat_metrics.update(existing_metrics)
+        
+        # Add/update audio metrics
         for key, value in metrics.items():
             if isinstance(value, (dict, list)):
                 flat_metrics[key] = json.dumps(value)
@@ -563,7 +579,6 @@ def publish_metrics_to_redis(metrics):
 
         # Store in Redis with pipeline for atomicity
         pipe = r.pipeline()
-        pipe.delete("eas:metrics")  # Use same key as worker coordinator
         pipe.hset("eas:metrics", mapping=flat_metrics)
         pipe.expire("eas:metrics", 60)  # Expire if service dies
         
