@@ -275,27 +275,97 @@ def initialize_audio_controller(app):
 
         if sdr_sources_skipped > 0:
             logger.info(f"⏭️  Skipped {sdr_sources_skipped} SDR source(s) (managed by sdr-service container)")
+            logger.info("🔗 Auto-discovering Redis SDR sources from sdr-service...")
 
-        logger.info(f"Loaded {len(_audio_controller._sources)} audio source configurations")
+            # Auto-discover SDR receivers from sdr-service via Redis
+            # For each skipped SDR source, create a Redis SDR source that subscribes to IQ samples
+            from app_core.audio.redis_sdr_adapter import RedisSDRSourceAdapter
+            from app_core.models import RadioReceiver
 
-        # Start auto-start sources (skip SDR sources in separated architecture)
-        auto_start_sources = [
-            db_config for db_config in saved_configs
-            if db_config.enabled and db_config.auto_start
-            and AudioSourceType(db_config.source_type) != AudioSourceType.SDR
-        ]
-        if auto_start_sources:
-            logger.info(f"Auto-starting {len(auto_start_sources)} enabled source(s)...")
-            for db_config in auto_start_sources:
+            redis_sources_created = 0
+            for db_config in saved_configs:
                 try:
-                    logger.info(f"Auto-starting source: '{db_config.name}' (type: {db_config.source_type})")
-                    result = _audio_controller.start_source(db_config.name)
-                    if result:
-                        logger.info(f"✅ Successfully started '{db_config.name}'")
-                    else:
-                        logger.warning(f"⚠️ Failed to start '{db_config.name}' (start returned False)")
+                    if AudioSourceType(db_config.source_type) != AudioSourceType.SDR:
+                        continue
+
+                    # Get receiver ID from device params
+                    receiver_id = db_config.config_params.get('device_params', {}).get('receiver_id')
+                    if not receiver_id:
+                        logger.warning(f"SDR source '{db_config.name}' missing receiver_id, skipping Redis source")
+                        continue
+
+                    # Get receiver config from database for demodulation settings
+                    receiver = RadioReceiver.query.filter_by(identifier=receiver_id).first()
+                    if not receiver:
+                        logger.warning(f"Receiver {receiver_id} not found in database, skipping Redis source")
+                        continue
+
+                    # Create Redis SDR source configuration
+                    redis_config = AudioSourceConfig(
+                        source_type=AudioSourceType.STREAM,  # Use STREAM type for Redis sources
+                        name=f"redis-{db_config.name}",
+                        enabled=db_config.enabled,
+                        priority=db_config.priority,
+                        sample_rate=44100,  # Output audio sample rate
+                        channels=1,  # Mono audio output
+                        buffer_size=4096,
+                        silence_threshold_db=db_config.config_params.get('silence_threshold_db', -60.0),
+                        silence_duration_seconds=db_config.config_params.get('silence_duration_seconds', 5.0),
+                        device_params={
+                            'receiver_id': receiver_id,
+                            'demod_mode': receiver.demod_mode or 'FM',
+                        },
+                    )
+
+                    # Create Redis SDR adapter directly
+                    adapter = RedisSDRSourceAdapter(redis_config)
+                    _audio_controller.add_source(adapter)
+                    redis_sources_created += 1
+                    logger.info(f"✅ Created Redis SDR source: redis-{db_config.name} (receiver: {receiver_id})")
+
                 except Exception as e:
-                    logger.error(f"❌ Exception auto-starting '{db_config.name}': {e}", exc_info=True)
+                    logger.error(f"Error creating Redis SDR source for '{db_config.name}': {e}", exc_info=True)
+
+            if redis_sources_created > 0:
+                logger.info(f"✅ Created {redis_sources_created} Redis SDR source(s) for separated architecture")
+            else:
+                logger.warning("⚠️  No Redis SDR sources created - check receiver configurations")
+
+        logger.info(f"Loaded {len(_audio_controller._sources)} audio source configurations (including Redis SDR)")
+
+        # Start auto-start sources (includes Redis SDR sources in separated architecture)
+        # Get all sources currently in controller (includes Redis SDR sources)
+        all_source_names = list(_audio_controller._sources.keys())
+        auto_start_count = 0
+
+        for source_name in all_source_names:
+            source = _audio_controller._sources.get(source_name)
+            if not source or not source.config.enabled:
+                continue
+
+            # For Redis SDR sources, check if original SDR source had auto_start
+            if source_name.startswith("redis-"):
+                original_name = source_name.replace("redis-", "", 1)
+                db_config = next((c for c in saved_configs if c.name == original_name), None)
+                should_auto_start = db_config and db_config.auto_start
+            else:
+                db_config = next((c for c in saved_configs if c.name == source_name), None)
+                should_auto_start = db_config and db_config.auto_start
+
+            if should_auto_start:
+                try:
+                    logger.info(f"Auto-starting source: '{source_name}'")
+                    result = _audio_controller.start_source(source_name)
+                    if result:
+                        logger.info(f"✅ Successfully started '{source_name}'")
+                        auto_start_count += 1
+                    else:
+                        logger.warning(f"⚠️ Failed to start '{source_name}' (start returned False)")
+                except Exception as e:
+                    logger.error(f"❌ Exception auto-starting '{source_name}': {e}", exc_info=True)
+
+        if auto_start_count > 0:
+            logger.info(f"✅ Auto-started {auto_start_count} source(s)")
         else:
             logger.info("No sources configured for auto-start")
 
