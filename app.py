@@ -192,7 +192,14 @@ from app_core.eas.file_operations import (
     load_or_cache_summary_payload,
     remove_eas_files,
 )
-from app_core.flask.csrf import generate_csrf_token
+from app_core.flask.csrf import (
+    generate_csrf_token,
+    CSRF_SESSION_KEY,
+    CSRF_HEADER_NAME,
+    CSRF_PROTECTED_METHODS,
+    CSRF_EXEMPT_ENDPOINTS,
+    CSRF_EXEMPT_PATHS,
+)
 from app_core.flask.url_defaults import add_static_cache_bust
 from app_core.flask.template_filters import shields_escape
 from app_core.flask.context_processors import inject_global_vars
@@ -340,11 +347,7 @@ PUBLIC_API_GET_PATHS = {
     # Snow emergency status (public safety information)
     '/api/snow_emergencies',
 }
-CSRF_SESSION_KEY = '_csrf_token'
-CSRF_HEADER_NAME = 'X-CSRF-Token'
-CSRF_PROTECTED_METHODS = {'POST', 'PUT', 'PATCH', 'DELETE'}
-CSRF_EXEMPT_ENDPOINTS = {'login', 'logout', 'auth.login', 'auth.logout', 'static'}
-CSRF_EXEMPT_PATHS = {'/login', '/logout'}
+# CSRF constants are now imported from app_core.flask.csrf
 app.config['CSRF_SESSION_KEY'] = CSRF_SESSION_KEY
 
 # Require SECRET_KEY to be explicitly set (fail fast if missing or using default)
@@ -801,7 +804,7 @@ def initialize_database():
                 logger.warning(
                     "PostGIS helper unavailable during initialization; skipping extension check.",
                 )
-            elif not postgis_helper():
+            elif not postgis_helper(app, db):
                 _db_initialization_error = RuntimeError("PostGIS extension could not be ensured")
                 return False
             db.create_all()
