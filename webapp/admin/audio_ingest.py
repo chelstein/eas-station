@@ -2153,11 +2153,17 @@ def api_get_waveform(source_name: str):
     """
     try:
         from app_core.redis_client import get_redis_client
-        
+
         # Get waveform data from Redis
+        # In separated architecture, sources may be named redis-{name}
         r = get_redis_client()
         waveform_key = f"eas:waveform:{source_name}"
         waveform_json = r.get(waveform_key)
+
+        # If not found, try with redis- prefix
+        if not waveform_json:
+            waveform_key_prefixed = f"eas:waveform:redis-{source_name}"
+            waveform_json = r.get(waveform_key_prefixed)
         
         if not waveform_json:
             # No waveform data available - source may not be running
@@ -2186,11 +2192,17 @@ def api_get_spectrogram(source_name: str):
     """
     try:
         from app_core.redis_client import get_redis_client
-        
+
         # Get spectrogram data from Redis
+        # In separated architecture, sources may be named redis-{name}
         r = get_redis_client()
         spectrogram_key = f"eas:spectrogram:{source_name}"
         spectrogram_json = r.get(spectrogram_key)
+
+        # If not found, try with redis- prefix
+        if not spectrogram_json:
+            spectrogram_key_prefixed = f"eas:spectrogram:redis-{source_name}"
+            spectrogram_json = r.get(spectrogram_key_prefixed)
         
         if not spectrogram_json:
             # No spectrogram data available - source may not be running
