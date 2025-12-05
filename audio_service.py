@@ -578,8 +578,6 @@ def publish_metrics_to_redis(metrics):
         pipe.hset("eas:metrics", mapping=flat_metrics)
         pipe.expire("eas:metrics", 60)  # Expire if service dies
         pipe.execute()
-
-        logger.info(f"✅ Published {len(flat_metrics)} metric keys to Redis (eas:metrics)")
         
         # Publish waveform and spectrogram data for each source separately (to keep main metrics lightweight)
         if _audio_controller:
@@ -743,9 +741,7 @@ def main():
         logger.info("Initializing Redis audio publisher for eas-service...")
         redis_publisher = None
         try:
-            # TEMPORARY: Skip Redis audio publisher to debug startup hang
-            logger.warning("⚠️  SKIPPING Redis audio publisher initialization (debug mode)")
-            # redis_publisher = initialize_redis_audio_publisher(app, audio_controller)
+            redis_publisher = initialize_redis_audio_publisher(app, audio_controller)
         except RuntimeError as e:
             logger.error(f"Failed to initialize Redis audio publisher: {e}")
             return 1
@@ -998,11 +994,8 @@ def main():
 
                 # Publish metrics periodically
                 if current_time - last_metrics_time >= metrics_interval:
-                    logger.info("📊 Publishing metrics to Redis...")
                     metrics = collect_metrics()
-                    logger.info(f"📊 Collected metrics: {list(metrics.keys())}")
                     publish_metrics_to_redis(metrics)
-                    logger.info(f"📊 Published metrics to Redis (sources: {list(metrics.get('audio_controller', {}).get('sources', {}).keys())})")
                     last_metrics_time = current_time
 
                 # Sleep briefly (check for commands every 500ms)
