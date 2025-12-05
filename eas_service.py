@@ -243,9 +243,9 @@ def collect_eas_metrics() -> Dict[str, Any]:
             eas_stats = _eas_monitor.get_stats()
             if eas_stats:
                 metrics["eas_monitor"] = _sanitize_value(eas_stats)
-                logger.debug(f"Collected EAS monitor stats: {list(eas_stats.keys())}")
+                logger.info(f"📊 Collected EAS monitor stats: running={eas_stats.get('running')}, samples={eas_stats.get('samples_processed', 0):,}")
             else:
-                logger.debug("EAS monitor returned no stats")
+                logger.warning("EAS monitor returned no stats")
                 metrics["eas_monitor"] = {
                     "running": False,
                     "error": "No stats available from EAS monitor"
@@ -306,8 +306,8 @@ def publish_eas_metrics_to_redis(metrics: Dict[str, Any]):
 
         # Publish notification for real-time updates
         r.publish("eas:metrics:update", "1")
-        
-        logger.debug("Published EAS metrics to Redis (eas:metrics)")
+
+        logger.info(f"✅ Published EAS metrics to Redis: {len(flat_metrics)} keys, eas_monitor={metrics.get('eas_monitor', {}).get('running', 'N/A')}")
 
     except Exception as e:
         logger.error(f"Error publishing EAS metrics to Redis: {e}")
