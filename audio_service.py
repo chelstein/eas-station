@@ -275,27 +275,97 @@ def initialize_audio_controller(app):
 
         if sdr_sources_skipped > 0:
             logger.info(f"⏭️  Skipped {sdr_sources_skipped} SDR source(s) (managed by sdr-service container)")
+            logger.info("🔗 Auto-discovering Redis SDR sources from sdr-service...")
 
-        logger.info(f"Loaded {len(_audio_controller._sources)} audio source configurations")
+            # Auto-discover SDR receivers from sdr-service via Redis
+            # For each skipped SDR source, create a Redis SDR source that subscribes to IQ samples
+            from app_core.audio.redis_sdr_adapter import RedisSDRSourceAdapter
+            from app_core.models import RadioReceiver
 
-        # Start auto-start sources (skip SDR sources in separated architecture)
-        auto_start_sources = [
-            db_config for db_config in saved_configs
-            if db_config.enabled and db_config.auto_start
-            and AudioSourceType(db_config.source_type) != AudioSourceType.SDR
-        ]
-        if auto_start_sources:
-            logger.info(f"Auto-starting {len(auto_start_sources)} enabled source(s)...")
-            for db_config in auto_start_sources:
+            redis_sources_created = 0
+            for db_config in saved_configs:
                 try:
-                    logger.info(f"Auto-starting source: '{db_config.name}' (type: {db_config.source_type})")
-                    result = _audio_controller.start_source(db_config.name)
-                    if result:
-                        logger.info(f"✅ Successfully started '{db_config.name}'")
-                    else:
-                        logger.warning(f"⚠️ Failed to start '{db_config.name}' (start returned False)")
+                    if AudioSourceType(db_config.source_type) != AudioSourceType.SDR:
+                        continue
+
+                    # Get receiver ID from device params
+                    receiver_id = db_config.config_params.get('device_params', {}).get('receiver_id')
+                    if not receiver_id:
+                        logger.warning(f"SDR source '{db_config.name}' missing receiver_id, skipping Redis source")
+                        continue
+
+                    # Get receiver config from database for demodulation settings
+                    receiver = RadioReceiver.query.filter_by(identifier=receiver_id).first()
+                    if not receiver:
+                        logger.warning(f"Receiver {receiver_id} not found in database, skipping Redis source")
+                        continue
+
+                    # Create Redis SDR source configuration
+                    redis_config = AudioSourceConfig(
+                        source_type=AudioSourceType.STREAM,  # Use STREAM type for Redis sources
+                        name=f"redis-{db_config.name}",
+                        enabled=db_config.enabled,
+                        priority=db_config.priority,
+                        sample_rate=44100,  # Output audio sample rate
+                        channels=1,  # Mono audio output
+                        buffer_size=4096,
+                        silence_threshold_db=db_config.config_params.get('silence_threshold_db', -60.0),
+                        silence_duration_seconds=db_config.config_params.get('silence_duration_seconds', 5.0),
+                        device_params={
+                            'receiver_id': receiver_id,
+                            'demod_mode': receiver.demod_mode or 'FM',
+                        },
+                    )
+
+                    # Create Redis SDR adapter directly
+                    adapter = RedisSDRSourceAdapter(redis_config)
+                    _audio_controller.add_source(adapter)
+                    redis_sources_created += 1
+                    logger.info(f"✅ Created Redis SDR source: redis-{db_config.name} (receiver: {receiver_id})")
+
                 except Exception as e:
-                    logger.error(f"❌ Exception auto-starting '{db_config.name}': {e}", exc_info=True)
+                    logger.error(f"Error creating Redis SDR source for '{db_config.name}': {e}", exc_info=True)
+
+            if redis_sources_created > 0:
+                logger.info(f"✅ Created {redis_sources_created} Redis SDR source(s) for separated architecture")
+            else:
+                logger.warning("⚠️  No Redis SDR sources created - check receiver configurations")
+
+        logger.info(f"Loaded {len(_audio_controller._sources)} audio source configurations (including Redis SDR)")
+
+        # Start auto-start sources (includes Redis SDR sources in separated architecture)
+        # Get all sources currently in controller (includes Redis SDR sources)
+        all_source_names = list(_audio_controller._sources.keys())
+        auto_start_count = 0
+
+        for source_name in all_source_names:
+            source = _audio_controller._sources.get(source_name)
+            if not source or not source.config.enabled:
+                continue
+
+            # For Redis SDR sources, check if original SDR source had auto_start
+            if source_name.startswith("redis-"):
+                original_name = source_name.replace("redis-", "", 1)
+                db_config = next((c for c in saved_configs if c.name == original_name), None)
+                should_auto_start = db_config and db_config.auto_start
+            else:
+                db_config = next((c for c in saved_configs if c.name == source_name), None)
+                should_auto_start = db_config and db_config.auto_start
+
+            if should_auto_start:
+                try:
+                    logger.info(f"Auto-starting source: '{source_name}'")
+                    result = _audio_controller.start_source(source_name)
+                    if result:
+                        logger.info(f"✅ Successfully started '{source_name}'")
+                        auto_start_count += 1
+                    else:
+                        logger.warning(f"⚠️ Failed to start '{source_name}' (start returned False)")
+                except Exception as e:
+                    logger.error(f"❌ Exception auto-starting '{source_name}': {e}", exc_info=True)
+
+        if auto_start_count > 0:
+            logger.info(f"✅ Auto-started {auto_start_count} source(s)")
         else:
             logger.info("No sources configured for auto-start")
 
@@ -344,66 +414,55 @@ def initialize_auto_streaming(app, audio_controller):
         return None
 
 
-def initialize_eas_monitor(app, audio_controller):
-    """Initialize EAS monitoring system."""
-    global _eas_monitor
+def initialize_redis_audio_publisher(app, audio_controller):
+    """Initialize Redis audio publisher for eas-service (3-tier architecture)."""
+    global _redis_audio_publisher
 
     with app.app_context():
-        from app_core.audio.eas_monitor import ContinuousEASMonitor, create_fips_filtering_callback
-        from app_core.audio.broadcast_adapter import BroadcastAudioAdapter
-        from app_core.audio.startup_integration import load_fips_codes_from_config
+        from app_core.audio.redis_audio_publisher import RedisAudioPublisher
 
-        logger.info("Initializing EAS monitor...")
+        logger.info("Initializing Redis audio publisher for eas-service...")
 
-        # Get broadcast queue for non-destructive audio access
+        # Get broadcast queue
         broadcast_queue = audio_controller.get_broadcast_queue()
-        ingest_sample_rate = audio_controller.get_active_sample_rate() or 44100
+        sample_rate = audio_controller.get_active_sample_rate() or 44100
 
-        # Create broadcast adapter
-        audio_adapter = BroadcastAudioAdapter(
+        # Create Redis audio publisher
+        # This publishes audio to Redis channel audio:samples:main
+        # for consumption by eas-service
+        publisher = RedisAudioPublisher(
             broadcast_queue=broadcast_queue,
-            subscriber_id="eas-monitor",
-            sample_rate=int(ingest_sample_rate)
+            source_name="main",
+            sample_rate=int(sample_rate),
+            publish_interval_ms=100  # Publish every 100ms
         )
 
-        # Load FIPS codes
-        configured_fips = load_fips_codes_from_config()
-        logger.info(f"Loaded {len(configured_fips)} FIPS codes for alert filtering")
-
-        # Create alert callback with filtering
-        def forward_alert_handler(alert):
-            """Forward matched alerts."""
-            from app_core.audio.alert_forwarding import forward_alert_to_api
-            logger.info(f"Forwarding alert: {alert.get('event_code')} for {alert.get('location_codes')}")
-            forward_alert_to_api(alert)
-
-        alert_callback = create_fips_filtering_callback(
-            configured_fips_codes=configured_fips,
-            forward_callback=forward_alert_handler,
-            logger_instance=logger
-        )
-
-        # Create EAS monitor (16 kHz for optimal SAME decoding)
-        # Audio archiving disabled by default to prevent disk space issues
-        # Enable via environment variable EAS_SAVE_AUDIO_FILES=true if needed for debugging
-        save_audio_files = os.environ.get('EAS_SAVE_AUDIO_FILES', 'false').lower() == 'true'
-        
-        _eas_monitor = ContinuousEASMonitor(
-            audio_manager=audio_adapter,
-            sample_rate=16000,
-            alert_callback=alert_callback,
-            save_audio_files=save_audio_files,
-            audio_archive_dir="/tmp/eas-audio"
-        )
-
-        # Start monitoring
-        if _eas_monitor.start():
-            logger.info("✅ EAS monitor started successfully")
+        # Start publisher
+        if publisher.start():
+            logger.info("✅ Redis audio publisher started (publishing to audio:samples:main)")
+            _redis_audio_publisher = publisher
+            return publisher
         else:
-            logger.error("❌ EAS monitor failed to start")
-            return None
+            logger.error("❌ Redis audio publisher failed to start")
+            raise RuntimeError("Failed to start Redis audio publisher")
 
-        return _eas_monitor
+
+def initialize_eas_monitor(app, audio_controller):
+    """DEPRECATED - EAS monitoring moved to eas-service in 3-tier architecture.
+
+    In the 3-tier separated architecture:
+    - sdr-service: SDR hardware + IQ publishing
+    - audio-service: Audio demodulation + audio publishing (this service)
+    - eas-service: EAS monitoring + alert storage
+
+    This function is kept for backward compatibility but should NOT be called.
+    Use initialize_redis_audio_publisher() instead.
+    """
+    logger.warning(
+        "⚠️  initialize_eas_monitor() called but EAS monitoring is handled by eas-service. "
+        "Use initialize_redis_audio_publisher() instead for 3-tier architecture."
+    )
+    return None
 
 
 def process_commands():
@@ -691,12 +750,13 @@ def main():
                 except Exception as e:
                     logger.error(f"❌ Error adding '{source_name}' to Icecast: {e}", exc_info=True)
 
-        # Initialize EAS monitor
-        logger.info("Initializing EAS monitor...")
-        eas_monitor = initialize_eas_monitor(app, audio_controller)
+        # Initialize Redis audio publisher (3-tier architecture)
+        # Publishes audio to Redis for eas-service to consume
+        logger.info("Initializing Redis audio publisher for eas-service...")
+        redis_publisher = initialize_redis_audio_publisher(app, audio_controller)
 
-        if not eas_monitor:
-            logger.error("Failed to initialize EAS monitor")
+        if not redis_publisher:
+            logger.error("Failed to initialize Redis audio publisher")
             return 1
 
         # Initialize Redis Pub/Sub command subscriber
@@ -710,7 +770,7 @@ def main():
             command_subscriber = AudioCommandSubscriber(
                 audio_controller,
                 auto_streaming,
-                eas_monitor=eas_monitor  # Pass EAS monitor for control commands
+                eas_monitor=None  # EAS monitor moved to eas-service in 3-tier architecture
             )
 
             # Start subscriber in background thread
@@ -865,17 +925,27 @@ def main():
                 try:
                     if not _audio_controller:
                         return jsonify({'error': 'Audio controller not initialized'}), 503
-                    
+
+                    # Try exact name first, then try with redis- prefix for separated architecture
                     adapter = _audio_controller._sources.get(source_name)
+                    if not adapter and not source_name.startswith('redis-'):
+                        # In separated architecture, SDR sources are named redis-{original_name}
+                        adapter = _audio_controller._sources.get(f'redis-{source_name}')
+                        if adapter:
+                            logger.debug(f'Matched source "{source_name}" to redis-prefixed source')
+
                     if not adapter:
-                        return jsonify({'error': f'Audio source "{source_name}" not found'}), 404
-                    
-                    if adapter.status != AudioSourceStatus.RUNNING:
+                        available = list(_audio_controller._sources.keys())
                         return jsonify({
-                            'error': f'Audio source "{source_name}" is not running',
-                            'status': adapter.status.value
-                        }), 503
-                    
+                            'error': f'Audio source "{source_name}" not found',
+                            'available_sources': available
+                        }), 404
+
+                    # Stream even if source is not running - generator will yield silence
+                    # This allows web players to connect and wait for audio instead of failing
+                    if adapter.status != AudioSourceStatus.RUNNING:
+                        logger.info(f'Streaming silence for non-running source "{source_name}" (status: {adapter.status.value})')
+
                     return Response(
                         stream_with_context(generate_wav_stream(adapter, source_name)),
                         mimetype='audio/wav',
