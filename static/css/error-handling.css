@@ -1,0 +1,332 @@
+/**
+ * Error Handling CSS
+ * Provides consistent error states, warnings, success messages, and toast notifications
+ */
+
+/* =============================================================================
+   ERROR CONTAINERS
+   ============================================================================= */
+
+.error-container {
+    text-align: center;
+    padding: 2rem;
+    border: 2px solid var(--danger-color, #ef4444);
+    border-radius: var(--radius-lg, 0.75rem);
+    background: rgba(239, 68, 68, 0.1);
+}
+
+.error-icon {
+    color: var(--danger-color, #ef4444);
+    font-size: 3rem;
+    margin-bottom: 1rem;
+}
+
+.error-title {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: var(--danger-color, #ef4444);
+    margin-bottom: 0.5rem;
+}
+
+.error-message {
+    font-size: 1rem;
+    color: var(--text-secondary, #475569);
+    margin-bottom: 1rem;
+}
+
+.error-actions {
+    margin-top: 1.5rem;
+}
+
+/* Error Alert */
+.error-alert {
+    background: rgba(239, 68, 68, 0.15);
+    border-left: 4px solid var(--danger-color, #ef4444);
+    color: var(--text-color, #0f172a);
+    padding: 1rem 1.5rem;
+    border-radius: var(--radius-md, 0.5rem);
+    margin-bottom: 1rem;
+}
+
+/* Network Error */
+.network-error {
+    position: fixed;
+    top: 1rem;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--danger-color, #ef4444);
+    color: white;
+    padding: 1rem 1.5rem;
+    border-radius: var(--radius-md, 0.5rem);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    z-index: 9999;
+    min-width: 300px;
+    max-width: 500px;
+}
+
+.network-error-title {
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.network-error-message {
+    font-size: 0.9rem;
+}
+
+/* =============================================================================
+   WARNING CONTAINERS
+   ============================================================================= */
+
+.warning-container {
+    text-align: center;
+    padding: 2rem;
+    border: 2px solid var(--warning-color, #f59e0b);
+    border-radius: var(--radius-lg, 0.75rem);
+    background: rgba(245, 158, 11, 0.1);
+}
+
+.warning-icon {
+    color: var(--warning-color, #f59e0b);
+    font-size: 3rem;
+    margin-bottom: 1rem;
+}
+
+.warning-title {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: var(--warning-color, #f59e0b);
+    margin-bottom: 0.5rem;
+}
+
+.warning-message {
+    font-size: 1rem;
+    color: var(--text-secondary, #475569);
+    margin-bottom: 1rem;
+}
+
+.warning-actions {
+    margin-top: 1.5rem;
+}
+
+/* =============================================================================
+   SUCCESS CONTAINERS
+   ============================================================================= */
+
+.success-container {
+    text-align: center;
+    padding: 2rem;
+    border: 2px solid var(--success-color, #10b981);
+    border-radius: var(--radius-lg, 0.75rem);
+    background: rgba(16, 185, 129, 0.1);
+}
+
+.success-icon {
+    color: var(--success-color, #10b981);
+    font-size: 3rem;
+    margin-bottom: 1rem;
+}
+
+.success-title {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: var(--success-color, #10b981);
+    margin-bottom: 0.5rem;
+}
+
+.success-message {
+    font-size: 1rem;
+    color: var(--text-secondary, #475569);
+    margin-bottom: 1rem;
+}
+
+.success-actions {
+    margin-top: 1.5rem;
+}
+
+/* =============================================================================
+   EMPTY STATES
+   ============================================================================= */
+
+.empty-state {
+    text-align: center;
+    padding: 3rem 2rem;
+    border: 2px dashed var(--border-color, #e2e8f0);
+    border-radius: var(--radius-lg, 0.75rem);
+    background: rgba(248, 250, 252, 0.5);
+}
+
+.empty-state-icon {
+    font-size: 3rem;
+    color: var(--text-muted, #94a3b8);
+    margin-bottom: 1rem;
+}
+
+.empty-state-title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--text-color, #0f172a);
+    margin-bottom: 0.5rem;
+}
+
+.empty-state-message {
+    color: var(--text-secondary, #475569);
+    margin-bottom: 1.5rem;
+}
+
+.empty-state-actions {
+    margin-top: 1.5rem;
+}
+
+/* =============================================================================
+   TOAST NOTIFICATIONS
+   ============================================================================= */
+
+.toast-container {
+    position: fixed;
+    top: 0;
+    right: 0;
+    padding: 1rem;
+    z-index: 9999;
+}
+
+.toast-notification {
+    min-width: 250px;
+    max-width: 400px;
+    margin-bottom: 0.5rem;
+    border-radius: var(--radius-md, 0.5rem);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    overflow: hidden;
+}
+
+.toast-notification .toast-body {
+    padding: 1rem;
+}
+
+/* Toast Types */
+.toast-info {
+    background: var(--info-color, #3b82f6);
+    color: white;
+}
+
+.toast-success {
+    background: var(--success-color, #10b981);
+    color: white;
+}
+
+.toast-warning {
+    background: var(--warning-color, #f59e0b);
+    color: white;
+}
+
+.toast-error {
+    background: var(--danger-color, #ef4444);
+    color: white;
+}
+
+/* Toast Close Button */
+.toast-notification .btn-close {
+    opacity: 0.8;
+}
+
+.toast-notification .btn-close:hover {
+    opacity: 1;
+}
+
+.toast-notification .btn-close-white {
+    filter: brightness(0) invert(1);
+}
+
+/* =============================================================================
+   FORM VALIDATION
+   ============================================================================= */
+
+.field-error {
+    border-color: var(--danger-color, #ef4444) !important;
+}
+
+.form-group.error {
+    margin-bottom: 1.5rem;
+}
+
+.inline-error {
+    color: var(--danger-color, #ef4444);
+    font-size: 0.875rem;
+    margin-top: 0.25rem;
+    display: block;
+}
+
+/* =============================================================================
+   BUTTONS
+   ============================================================================= */
+
+.btn-retry {
+    background: var(--primary-color, #1e3a8a);
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: var(--radius-md, 0.5rem);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    transition: background 0.2s ease;
+}
+
+.btn-retry:hover {
+    background: var(--primary-dark, #1e40af);
+}
+
+.btn-outline-secondary {
+    background: transparent;
+    color: var(--text-secondary, #475569);
+    border: 1px solid var(--border-color, #e2e8f0);
+    padding: 0.5rem 1rem;
+    border-radius: var(--radius-md, 0.5rem);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    transition: all 0.2s ease;
+}
+
+.btn-outline-secondary:hover {
+    background: var(--bg-color, #f1f5f9);
+    border-color: var(--text-secondary, #475569);
+}
+
+/* =============================================================================
+   ANIMATIONS
+   ============================================================================= */
+
+.fade-in {
+    animation: fadeIn 0.3s ease-in;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.fade-out {
+    animation: fadeOut 0.3s ease-out;
+}
+
+@keyframes fadeOut {
+    from {
+        opacity: 1;
+        transform: translateY(0);
+    }
+    to {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+}
