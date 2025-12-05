@@ -171,7 +171,7 @@ services:
       - eas-network
     expose:
       - "5002"  # HTTP streaming server for audio (internal only)
-    command: ["python", "audio_service.py"]
+    command: ["python3", "audio_service.py"]
     volumes:
       - app-config:/app-config
     tmpfs:
