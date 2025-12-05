@@ -215,10 +215,13 @@ sudo docker compose logs -f app
 **CRITICAL**: When users report bugs, INVESTIGATE CODE FIRST - don't assume deployment/cache issues.
 
 **Debugging Approach**:
-1. Trust the user - if they say it doesn't work, investigate
-2. Search for hardcoded values, element ID mismatches, function execution order issues
-3. Check for code that overrides earlier fixes
-4. Only suggest cache clearing if code inspection confirms no bugs
+1. **Trace error messages directly to source** - Don't make assumptions or get lost in architecture
+2. Trust the user - if they say it doesn't work, investigate
+3. Search for hardcoded values, element ID mismatches, function execution order issues
+4. Check for code that overrides earlier fixes
+5. Only suggest cache clearing if code inspection confirms no bugs
+
+**Example**: Error says "No metrics available from audio-service" → Check Redis metrics key → Verify which service publishes to that key
 
 **Common Patterns**: JavaScript ID mismatches, hardcoded backend values, event listener issues, CSS specificity conflicts
 
