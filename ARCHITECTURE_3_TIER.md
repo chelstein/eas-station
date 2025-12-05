@@ -29,24 +29,25 @@ This document describes the complete 3-tier separated architecture for EAS Stati
 
 ## Components Created
 
-### ✅ Already Implemented
+### ✅ Implementation Complete
 
 1. **app_core/audio/redis_sdr_adapter.py** - Subscribes to Redis IQ samples
 2. **app_core/audio/redis_audio_adapter.py** - Subscribes to Redis audio samples
 3. **app_core/audio/redis_audio_publisher.py** - Publishes audio to Redis
 4. **eas_service.py** - Standalone EAS service
+5. **audio_service.py** - EAS monitor initialization removed (EAS handled by eas-service)
+6. **docker-compose.yml** - Includes eas-service container
+7. **docker-compose.embedded-db.yml** - Includes eas-service container
 
-### 🔄 Needs Modification
+## ⚠️ Important: Single EAS Monitor Architecture
 
-1. **audio_service.py**:
-   - Replace `initialize_eas_monitor()` with `initialize_redis_audio_publisher()`
-   - Remove EAS monitor initialization
-   - Add Redis audio publisher initialization
+**Only the `eas-service` container performs EAS monitoring.** The `audio-service` container does NOT run EAS monitoring.
 
-2. **docker-compose.yml**:
-   - Ensure sdr-service runs `sdr_service.py` ✅ (already correct)
-   - Ensure audio-service runs `audio_service.py` ✅ (already correct)
-   - Add new `eas-service` container
+This separation provides:
+- **Clear responsibility**: Each service has one job
+- **Reliability**: EAS crashes don't affect audio processing
+- **Scalability**: Services can be restarted independently
+- **Simplicity**: No coordination needed between multiple EAS monitors
 
 ## Changes Needed to audio_service.py
 
