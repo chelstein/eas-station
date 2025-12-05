@@ -665,13 +665,16 @@ small,
 
    4. LAYOUT (Navbar, Containers, Footer)
 
-/* Navbar - FIXED: Removed hardcoded white background */
+/* Navbar - Modern transparent design with backdrop blur */
 .navbar {
     background: linear-gradient(135deg,
-        var(--primary-color),
-        var(--secondary-color)) !important;
-    backdrop-filter: blur(12px) saturate(180%);
-    box-shadow: 0 4px 20px var(--shadow-color);
+        color-mix(in srgb, var(--primary-color) 85%, transparent),
+        color-mix(in srgb, var(--secondary-color) 85%, transparent)) !important;
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    box-shadow: 0 4px 20px var(--shadow-color),
+                0 1px 0 0 rgba(255, 255, 255, 0.1) inset;
+    border-bottom: 1px solid color-mix(in srgb, var(--border-color) 30%, transparent);
     padding: 0.75rem 1.5rem;
     position: sticky;
     top: 0;
@@ -843,6 +846,47 @@ footer a:hover {
     font-weight: var(--font-weight-semibold);
 }
 
+/* Override bg-* classes on card-header to use gradients */
+.card-header.bg-primary {
+    background: linear-gradient(120deg, var(--primary-color), var(--secondary-color)) !important;
+    color: white !important;
+}
+
+.card-header.bg-success {
+    background: linear-gradient(120deg, var(--success-color), color-mix(in srgb, var(--success-color) 80%, var(--info-color))) !important;
+    color: white !important;
+}
+
+.card-header.bg-warning {
+    background: linear-gradient(120deg, var(--warning-color), color-mix(in srgb, var(--warning-color) 80%, var(--secondary-color))) !important;
+    color: white !important;
+}
+
+.card-header.bg-danger {
+    background: linear-gradient(120deg, var(--danger-color), color-mix(in srgb, var(--danger-color) 80%, var(--secondary-color))) !important;
+    color: white !important;
+}
+
+.card-header.bg-info {
+    background: linear-gradient(120deg, var(--info-color), color-mix(in srgb, var(--info-color) 80%, var(--primary-color))) !important;
+    color: white !important;
+}
+
+.card-header.bg-secondary {
+    background: linear-gradient(120deg, var(--secondary-color), color-mix(in srgb, var(--secondary-color) 80%, var(--primary-color))) !important;
+    color: white !important;
+}
+
+.card-header.bg-light {
+    background: linear-gradient(120deg, var(--light-color), color-mix(in srgb, var(--light-color) 90%, var(--surface-color))) !important;
+    color: var(--text-color) !important;
+}
+
+.card-header.bg-dark {
+    background: linear-gradient(120deg, var(--dark-color), color-mix(in srgb, var(--dark-color) 90%, var(--primary-color))) !important;
+    color: white !important;
+}
+
 .card-body {
     background-color: var(--surface-color);
     color: var(--text-color);
@@ -865,6 +909,50 @@ footer a:hover {
     box-shadow:
         0 8px 32px var(--shadow-color),
         inset 0 1px 0 color-mix(in srgb, white 20%, transparent);
+}
+
+/* Gradient Stat Cards - Unified styling for statistics cards */
+.stat-card,
+.card-stat-gradient {
+    background: linear-gradient(135deg, var(--primary-color), var(--info-color));
+    color: white;
+    padding: 1.5rem;
+    border-radius: var(--radius-lg);
+    text-align: center;
+    border: none;
+    box-shadow: 0 4px 12px var(--shadow-color);
+    transition: all var(--transition-medium);
+}
+
+.stat-card:hover,
+.card-stat-gradient:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 24px var(--shadow-color);
+}
+
+/* Gradient variants for stat cards */
+.stat-card-success,
+.card.bg-success-gradient {
+    background: linear-gradient(135deg, var(--success-color), color-mix(in srgb, var(--success-color) 80%, var(--info-color))) !important;
+    color: white;
+}
+
+.stat-card-warning,
+.card.bg-warning-gradient {
+    background: linear-gradient(135deg, var(--warning-color), color-mix(in srgb, var(--warning-color) 80%, var(--secondary-color))) !important;
+    color: white;
+}
+
+.stat-card-danger,
+.card.bg-danger-gradient {
+    background: linear-gradient(135deg, var(--danger-color), color-mix(in srgb, var(--danger-color) 80%, var(--secondary-color))) !important;
+    color: white;
+}
+
+.stat-card-info,
+.card.bg-info-gradient {
+    background: linear-gradient(135deg, var(--info-color), color-mix(in srgb, var(--info-color) 80%, var(--primary-color))) !important;
+    color: white;
 }
 
 /* Buttons */
