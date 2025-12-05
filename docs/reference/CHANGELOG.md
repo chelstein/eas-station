@@ -6,6 +6,10 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.12.24] - 2025-12-05
+### Fixed
+- Fixed audio-service container running Flask app.py during migrations by skipping database migrations in standalone service containers (audio-service, sdr-service, eas-service, hardware-service) that should not load the main Flask application
+
 ## [2.12.23] - 2025-12-05
 ### Documentation
 - Clarified that SDR frontend already accepts frequency in MHz (not Hz) with automatic conversion
