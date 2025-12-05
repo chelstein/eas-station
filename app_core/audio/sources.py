@@ -110,9 +110,9 @@ class SDRSourceAdapter(AudioSourceAdapter):
     """Audio source adapter for SDR receivers via the radio manager."""
 
     # Retry configuration for receiver startup
-    RECEIVER_START_MAX_RETRIES = 5
+    RECEIVER_START_MAX_RETRIES = 10  # Increased from 5 for slower systems
     RECEIVER_START_INITIAL_DELAY = 1.0  # seconds
-    RECEIVER_START_MAX_DELAY = 5.0  # seconds
+    RECEIVER_START_MAX_DELAY = 10.0  # seconds (increased from 5.0)
 
     def __init__(self, config: AudioSourceConfig):
         super().__init__(config)
@@ -133,6 +133,8 @@ class SDRSourceAdapter(AudioSourceAdapter):
         self._squelch_close_timer: Optional[float] = None
         self._last_rms_db = float("-inf")
         self._last_no_demod_warning: float = 0.0  # Throttle "no demodulator" warnings
+        # Hysteresis: use different thresholds for opening vs closing to prevent chatter
+        self._squelch_hysteresis_db = 3.0  # 3dB hysteresis band
 
     def _start_capture(self) -> None:
         """Start SDR audio capture via radio manager."""
@@ -314,7 +316,7 @@ class SDRSourceAdapter(AudioSourceAdapter):
             logger.info(f"SDR source {receiver_id} initialized with defaults (no demodulation, squelch {'enabled' if self._squelch_enabled else 'disabled'})")
 
         # Start IQ capture from the specified receiver
-        # Retry with backoff since the receiver may still be starting up
+        # Retry with exponential backoff since the receiver may still be starting up
         max_retries = self.RECEIVER_START_MAX_RETRIES
         retry_delay = self.RECEIVER_START_INITIAL_DELAY
         last_error = None
@@ -329,19 +331,22 @@ class SDRSourceAdapter(AudioSourceAdapter):
                         channels=self.config.channels,
                         format='iq' if self._demodulator else 'pcm'
                     )
+                    logger.info(f"Successfully started audio capture for receiver '{self._receiver_id}' on attempt {attempt + 1}")
                     break
                 else:
                     last_error = RuntimeError(f"Receiver '{self._receiver_id}' not running yet")
                     if attempt < max_retries - 1:
-                        logger.info(f"Waiting for receiver '{self._receiver_id}' to start (attempt {attempt + 1}/{max_retries})...")
+                        logger.info(f"Waiting for receiver '{self._receiver_id}' to start (attempt {attempt + 1}/{max_retries}, retry in {retry_delay:.1f}s)...")
                         time.sleep(retry_delay)
-                        retry_delay = min(retry_delay * 1.5, self.RECEIVER_START_MAX_DELAY)
+                        # Exponential backoff: 1.0, 2.0, 4.0, 8.0, 10.0 (capped)
+                        retry_delay = min(retry_delay * 2.0, self.RECEIVER_START_MAX_DELAY)
             except Exception as e:
                 last_error = e
                 if attempt < max_retries - 1:
                     logger.warning(f"Failed to start audio capture (attempt {attempt + 1}/{max_retries}): {e}")
                     time.sleep(retry_delay)
-                    retry_delay = min(retry_delay * 1.5, self.RECEIVER_START_MAX_DELAY)
+                    # Exponential backoff: 1.0, 2.0, 4.0, 8.0, 10.0 (capped)
+                    retry_delay = min(retry_delay * 2.0, self.RECEIVER_START_MAX_DELAY)
         else:
             # All retries exhausted
             error_msg = f"Failed to start SDR audio capture after {max_retries} attempts: {last_error}"
@@ -435,10 +440,15 @@ class SDRSourceAdapter(AudioSourceAdapter):
 
         now = time.time()
         previous_state = self._squelch_state_open
-        open_threshold = self._squelch_threshold_db + 2.5
+        
+        # Hysteresis: use different thresholds for opening vs closing
+        # This prevents rapid on/off switching (chatter) near the threshold
+        close_threshold = self._squelch_threshold_db
+        open_threshold = self._squelch_threshold_db + self._squelch_hysteresis_db
 
         if self._squelch_state_open:
-            if rms_db < self._squelch_threshold_db:
+            # Currently open - check if signal dropped below close threshold
+            if rms_db < close_threshold:
                 if self._squelch_close_timer is None:
                     self._squelch_close_timer = now
                 elif (now - self._squelch_close_timer) * 1000.0 >= self._squelch_close_ms:
@@ -446,9 +456,12 @@ class SDRSourceAdapter(AudioSourceAdapter):
                     self._squelch_last_change = now
                     self._squelch_close_timer = None
                     self._emit_carrier_event(False, rms_db)
+                    logger.debug(f"Squelch closed: RMS {rms_db:.1f}dB < {close_threshold:.1f}dB")
             else:
+                # Signal still above close threshold, cancel any pending close
                 self._squelch_close_timer = None
         else:
+            # Currently closed - check if signal rose above open threshold
             if rms_db >= open_threshold:
                 if self._squelch_open_timer is None:
                     self._squelch_open_timer = now
@@ -457,7 +470,9 @@ class SDRSourceAdapter(AudioSourceAdapter):
                     self._squelch_last_change = now
                     self._squelch_open_timer = None
                     self._emit_carrier_event(True, rms_db)
+                    logger.debug(f"Squelch opened: RMS {rms_db:.1f}dB >= {open_threshold:.1f}dB")
             else:
+                # Signal still below open threshold, cancel any pending open
                 self._squelch_open_timer = None
 
         if previous_state == self._squelch_state_open:
@@ -556,6 +571,11 @@ class SDRSourceAdapter(AudioSourceAdapter):
                             f"Raw IQ data cannot be played as audio. "
                             f"Enable 'audio_output' and set 'modulation_type' to FM/AM in receiver settings."
                         )
+                        
+                        # Update metadata to indicate demodulation is missing
+                        if self.metrics.metadata:
+                            self.metrics.metadata['demodulation_missing'] = True
+                            self.metrics.metadata['demodulation_error'] = 'No demodulator configured - outputting silence'
                     
                     # Return silence (zeros) instead of the noisy envelope-detected signal
                     # This prevents the loud tone that users were experiencing
