@@ -1275,10 +1275,15 @@ class _SoapySDRReceiver(ReceiverInterface):
             return None
         
         with self._sample_buffer_lock:
+            # Calculate approximate fill based on buffer position
+            # Note: This is a simple ring buffer, not the full SDRRingBuffer implementation
+            samples_available = self._sample_buffer_pos if self._sample_buffer_pos > 0 else self._sample_buffer_size
+            fill_pct = (samples_available / self._sample_buffer_size * 100) if self._sample_buffer_size > 0 else 0.0
+            
             return {
-                'samples_available': self._sample_buffer_size,
+                'samples_available': samples_available,
                 'buffer_size': self._sample_buffer_size,
-                'fill_percentage': 0.0,  # Not tracked for simple buffer
+                'fill_percentage': round(fill_pct, 2),
             }
 
 
