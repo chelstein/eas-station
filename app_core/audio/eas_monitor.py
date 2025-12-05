@@ -1345,12 +1345,22 @@ class ContinuousEASMonitor:
     def get_stats(self) -> dict:
         """Get monitoring statistics for streaming mode."""
         decoder_stats = self._streaming_decoder.get_stats()
+
+        # Determine if audio is flowing based on whether we've processed samples recently
+        audio_flowing = decoder_stats['samples_processed'] > 0
+
         return {
             'running': not self._stop_event.is_set(),
+            'audio_flowing': audio_flowing,
             'samples_processed': decoder_stats['samples_processed'],
             'alerts_detected': self._alerts_detected,
             'active_source': self.audio_manager.get_active_source(),
-            'last_alert_time': self._last_alert_time
+            'last_alert_time': self._last_alert_time,
+            # Pass through decoder stats
+            'sample_rate': decoder_stats.get('sample_rate', 16000),
+            'decoder_synced': decoder_stats.get('synced', False),
+            'decoder_in_message': decoder_stats.get('in_message', False),
+            'decoder_bytes_decoded': decoder_stats.get('bytes_decoded', 0),
         }
 
 
