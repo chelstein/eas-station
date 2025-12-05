@@ -271,10 +271,10 @@
     font-weight: 600;
 }
 
-.priority-0 { background-color: rgba(220,53,69,0.18); color: #dc3545; }
-.priority-1 { background-color: rgba(253,126,20,0.18); color: #fd7e14; }
-.priority-2 { background-color: rgba(13,202,240,0.18); color: #0dcaf0; }
-.priority-3 { background-color: rgba(108,117,125,0.18); color: #6c757d; }
+.priority-0 { background-color: color-mix(in srgb, var(--danger-color) 18%, var(--surface-color)); color: var(--danger-color); }
+.priority-1 { background-color: color-mix(in srgb, var(--warning-color) 18%, var(--surface-color)); color: var(--warning-color); }
+.priority-2 { background-color: color-mix(in srgb, var(--info-color) 18%, var(--surface-color)); color: var(--info-color); }
+.priority-3 { background-color: color-mix(in srgb, var(--text-muted) 18%, var(--surface-color)); color: var(--text-muted); }
 
 .doc-card table {
     margin-top: 1rem;

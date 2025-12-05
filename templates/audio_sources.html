@@ -6,7 +6,7 @@
 <style>
 .audio-meter {
     height: 24px;
-    background: #2d2d2d;
+    background: var(--bg-primary);
     border-radius: 4px;
     overflow: hidden;
     position: relative;
@@ -20,20 +20,20 @@
 
 .audio-meter-bar.peak {
     background: linear-gradient(90deg,
-        #4CAF50 0%,
-        #8BC34A 40%,
-        #FFC107 75%,
-        #FF5722 90%,
-        #f44336 100%);
+        var(--success-color) 0%,
+        var(--success-color) 40%,
+        var(--warning-color) 75%,
+        var(--danger-color) 90%,
+        var(--danger-color) 100%);
 }
 
 .audio-meter-bar.rms {
     background: linear-gradient(90deg,
-        #2E7D32 0%,
-        #558B2F 40%,
-        #F57C00 75%,
-        #D32F2F 90%,
-        #C62828 100%);
+        color-mix(in srgb, var(--success-color) 70%, #000) 0%,
+        color-mix(in srgb, var(--success-color) 60%, #000) 40%,
+        color-mix(in srgb, var(--warning-color) 70%, #000) 75%,
+        color-mix(in srgb, var(--danger-color) 70%, #000) 90%,
+        color-mix(in srgb, var(--danger-color) 80%, #000) 100%);
 }
 
 .audio-meter-value {
@@ -48,20 +48,20 @@
 }
 
 .source-card {
-    border-left: 4px solid #6c757d;
+    border-left: 4px solid var(--text-muted);
     transition: all 0.3s ease;
 }
 
 .source-card.status-running {
-    border-left-color: #28a745;
+    border-left-color: var(--success-color);
 }
 
 .source-card.status-error {
-    border-left-color: #dc3545;
+    border-left-color: var(--danger-color);
 }
 
 .source-card.status-starting {
-    border-left-color: #ffc107;
+    border-left-color: var(--warning-color);
 }
 
 .health-score-circle {
@@ -73,7 +73,7 @@
     justify-content: center;
     font-size: 24px;
     font-weight: bold;
-    background: conic-gradient(#28a745 0deg, #28a745 calc(var(--score) * 3.6deg), #e9ecef calc(var(--score) * 3.6deg));
+    background: conic-gradient(var(--success-color) 0deg, var(--success-color) calc(var(--score) * 3.6deg), var(--border-color) calc(var(--score) * 3.6deg));
 }
 
 .health-score-inner {
@@ -114,8 +114,8 @@
 }
 
 @keyframes flash {
-    0%, 100% { background-color: #fff3cd; }
-    50% { background-color: #ffc107; }
+    0%, 100% { background-color: color-mix(in srgb, var(--warning-color) 30%, var(--surface-color)); }
+    50% { background-color: var(--warning-color); }
 }
 
 .metric-display {

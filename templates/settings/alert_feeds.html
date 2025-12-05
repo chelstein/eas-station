@@ -318,7 +318,7 @@
         <!-- NOAA Configuration -->
         <div class="feed-section">
             <h2>
-                <i class="fas fa-cloud" style="color: #3B82F6;"></i>
+                <i class="fas fa-cloud" style="color: var(--info-color);"></i>
                 NOAA Weather Alerts
                 {% if noaa_status.configured %}
                 <span class="status-badge active">✓ Active</span>
@@ -388,7 +388,7 @@
         <!-- IPAWS Configuration -->
         <div class="feed-section">
             <h2>
-                <i class="fas fa-satellite-dish" style="color: #EF4444;"></i>
+                <i class="fas fa-satellite-dish" style="color: var(--danger-color);"></i>
                 FEMA IPAWS Alerts
                 {% if ipaws_status.configured %}
                 <span class="status-badge active">✓ Active</span>

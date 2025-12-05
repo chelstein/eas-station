@@ -2070,12 +2070,19 @@ async function inspectBoundaries() {
 
                         ${sortedTypes.map(type => {
                             const boundaries = boundariesByType[type];
+                            // Use CSS custom properties for theme-aware colors
+                            const rootStyles = getComputedStyle(document.documentElement);
                             const typeColors = {
-                                'county': '#6c757d', 'township': '#28a745', 'village': '#17a2b8',
-                                'fire': '#dc3545', 'ems': '#007bff', 'school': '#ffc107',
-                                'electric': '#fd7e14', 'telephone': '#6f42c1'
+                                'county': rootStyles.getPropertyValue('--text-muted').trim() || 'var(--text-muted)',
+                                'township': rootStyles.getPropertyValue('--success-color').trim() || 'var(--success-color)',
+                                'village': rootStyles.getPropertyValue('--info-color').trim() || 'var(--info-color)',
+                                'fire': rootStyles.getPropertyValue('--danger-color').trim() || 'var(--danger-color)',
+                                'ems': rootStyles.getPropertyValue('--primary-color').trim() || 'var(--primary-color)',
+                                'school': rootStyles.getPropertyValue('--warning-color').trim() || 'var(--warning-color)',
+                                'electric': rootStyles.getPropertyValue('--secondary-color').trim() || 'var(--secondary-color)',
+                                'telephone': rootStyles.getPropertyValue('--accent-color').trim() || 'var(--accent-color)'
                             };
-                            const color = typeColors[type.toLowerCase()] || '#6c757d';
+                            const color = typeColors[type.toLowerCase()] || rootStyles.getPropertyValue('--text-muted').trim() || 'var(--text-muted)';
 
                             return `
                                 <div class="type-section">

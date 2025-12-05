@@ -5,11 +5,11 @@
 {% block extra_css %}
 <style>
     .display-container {
-        background: #2c3e50;
+        background: var(--surface-color);
         border-radius: 12px;
         padding: 20px;
         margin-bottom: 20px;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        box-shadow: var(--shadow-md);
     }
 
     .display-header {
@@ -24,7 +24,7 @@
     .display-title {
         font-size: 1.2rem;
         font-weight: 600;
-        color: #ecf0f1;
+        color: var(--text-color);
         display: flex;
         align-items: center;
         gap: 10px;
@@ -43,18 +43,18 @@
     }
 
     .display-status.enabled {
-        background: #27ae60;
+        background: var(--success-color);
         color: white;
     }
 
     .display-status.disabled {
-        background: #7f8c8d;
+        background: var(--text-muted);
         color: white;
     }
 
     .display-canvas-wrapper {
-        background: #000;
-        border: 3px solid #34495e;
+        background: var(--bg-primary);
+        border: 3px solid var(--border-color);
         border-radius: 8px;
         padding: 15px;
         display: flex;
@@ -76,25 +76,25 @@
     .display-info {
         margin-top: 12px;
         font-size: 0.9rem;
-        color: #95a5a6;
+        color: var(--text-muted);
         font-family: 'Courier New', monospace;
     }
 
     .oled-canvas {
-        background: #000;
-        border: 2px solid #2c3e50;
+        background: var(--bg-primary);
+        border: 2px solid var(--border-color);
         max-width: 512px;
     }
 
     .vfd-canvas {
-        background: #001a00;
-        border: 2px solid #003300;
+        background: color-mix(in srgb, var(--success-color) 5%, var(--bg-primary));
+        border: 2px solid color-mix(in srgb, var(--success-color) 15%, var(--bg-primary));
         max-width: 420px;
     }
 
     .led-canvas {
-        background: #1a1a1a;
-        border: 2px solid #333;
+        background: var(--bg-primary);
+        border: 2px solid var(--border-color);
     }
 
     .refresh-indicator {
@@ -102,7 +102,7 @@
         width: 8px;
         height: 8px;
         border-radius: 50%;
-        background: #27ae60;
+        background: var(--success-color);
         margin-left: 10px;
         animation: pulse 1s infinite;
     }
@@ -115,18 +115,19 @@
     .display-specs {
         margin-top: 10px;
         padding: 10px;
-        background: #34495e;
+        background: var(--surface-color);
+        border: 1px solid var(--border-color);
         border-radius: 6px;
         font-size: 0.85rem;
-        color: #ecf0f1;
+        color: var(--text-color);
     }
 
     .display-specs strong {
-        color: #3498db;
+        color: var(--primary-color);
     }
 
     .led-preview {
-        background: #000;
+        background: var(--bg-primary);
         padding: 10px;
         border-radius: 4px;
         font-family: 'Courier New', monospace;
@@ -143,19 +144,19 @@
         text-shadow: 0 0 10px currentColor;
     }
 
-    .led-color-amber { color: #ffaa00; }
-    .led-color-red { color: #ff0000; }
-    .led-color-green { color: #00ff00; }
-    .led-color-yellow { color: #ffff00; }
-    .led-color-orange { color: #ff8800; }
+    .led-color-amber { color: var(--warning-color); }
+    .led-color-red { color: var(--danger-color); }
+    .led-color-green { color: var(--success-color); }
+    .led-color-yellow { color: var(--warning-color); }
+    .led-color-orange { color: var(--secondary-color); }
 
     .page-header {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
         color: white;
         padding: 30px;
         border-radius: 12px;
         margin-bottom: 30px;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        box-shadow: var(--shadow-md);
     }
 
     .page-header h1 {
@@ -348,21 +349,24 @@ vfdCanvas.style.maxWidth = vfdMaxWidth;
 
 // Initialize displays
 function initDisplays() {
-    // Clear OLED
+    // Get computed colors for theme support
+    const rootStyles = getComputedStyle(document.documentElement);
+    
+    // Clear OLED (true black for OLED hardware simulation)
     oledCtx.fillStyle = '#000';
     oledCtx.fillRect(0, 0, 128, 64);
 
-    // Clear VFD
+    // Clear VFD (dark green background for VFD hardware simulation)
     vfdCtx.fillStyle = '#001a00';
     vfdCtx.fillRect(0, 0, 140, 32);
 
     // Draw "No Signal" message on OLED
-    oledCtx.fillStyle = '#888';
+    oledCtx.fillStyle = rootStyles.getPropertyValue('--text-muted').trim() || '#888';
     oledCtx.font = '8px monospace';
     oledCtx.textAlign = 'center';
     oledCtx.fillText('No Signal', 64, 32);
 
-    // Draw "No Signal" message on VFD
+    // Draw "No Signal" message on VFD (dim green for VFD)
     vfdCtx.fillStyle = '#004400';
     vfdCtx.font = '10px monospace';
     vfdCtx.textAlign = 'center';
@@ -371,7 +375,7 @@ function initDisplays() {
 
 // Render OLED display
 function renderOLED(state) {
-    // Clear canvas
+    // Clear canvas (true black for OLED hardware)
     oledCtx.fillStyle = '#000';
     oledCtx.fillRect(0, 0, 128, 64);
 
@@ -386,7 +390,7 @@ function renderOLED(state) {
         return;
     }
 
-    // Fallback: render simulated display if no preview available
+    // Fallback: render simulated display if no preview available (white text on OLED)
     oledCtx.fillStyle = '#fff';
     oledCtx.font = '8px monospace';
     oledCtx.textAlign = 'left';
@@ -416,10 +420,11 @@ function renderOLED(state) {
 
 // Render VFD display
 function renderVFD(state) {
-    // Clear canvas with VFD green glow
+    // Clear canvas with VFD dark green background (hardware simulation)
     vfdCtx.fillStyle = '#001a00';
     vfdCtx.fillRect(0, 0, 140, 32);
 
+    // Bright green text for VFD display (hardware characteristic)
     vfdCtx.fillStyle = '#00ff00';
     vfdCtx.font = '10px monospace';
     vfdCtx.textAlign = 'center';

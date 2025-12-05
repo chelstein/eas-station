@@ -597,11 +597,11 @@
         }).join('');
         
         // Determine color based on signal level (matching radio_diagnostics.html)
-        let color = '#6c757d';  // gray (no signal)
-        if (rssiDb > -50) color = '#28a745';      // green (excellent)
-        else if (rssiDb > -70) color = '#28a745'; // green (good)
-        else if (rssiDb > -85) color = '#ffc107'; // yellow (fair)
-        else if (rssiDb > -100) color = '#dc3545'; // red (poor)
+        let color = 'var(--text-muted)';  // gray (no signal)
+        if (rssiDb > -50) color = 'var(--success-color)';      // green (excellent)
+        else if (rssiDb > -70) color = 'var(--success-color)'; // green (good)
+        else if (rssiDb > -85) color = 'var(--warning-color)'; // yellow (fair)
+        else if (rssiDb > -100) color = 'var(--danger-color)'; // red (poor)
         
         return `
             <div class="d-flex align-items-end gap-2">

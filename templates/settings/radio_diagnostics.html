@@ -276,11 +276,11 @@ sudo systemctl restart eas-station</code></pre>
         }).join('');
 
         // Determine color based on RSSI
-        let color = '#6c757d';  // gray (no signal)
-        if (rssi > -50) color = '#28a745';      // green (excellent)
-        else if (rssi > -70) color = '#28a745'; // green (good)
-        else if (rssi > -85) color = '#ffc107'; // yellow (fair)
-        else if (rssi > -100) color = '#dc3545'; // red (poor)
+        let color = 'var(--text-muted)';  // gray (no signal)
+        if (rssi > -50) color = 'var(--success-color)';      // green (excellent)
+        else if (rssi > -70) color = 'var(--success-color)'; // green (good)
+        else if (rssi > -85) color = 'var(--warning-color)'; // yellow (fair)
+        else if (rssi > -100) color = 'var(--danger-color)'; // red (poor)
 
         return `
             <div style="display:flex; align-items:flex-end; gap:0.5rem;">
