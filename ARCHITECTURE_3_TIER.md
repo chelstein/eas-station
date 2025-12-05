@@ -4,7 +4,7 @@
 
 This document describes the complete 3-tier separated architecture for EAS Station:
 
-```
+```text
 ┌──────────────────┐
 │  sdr-service     │  ─→ SDR hardware access only
 │  (sdr_service.py)│  ─→ Publishes IQ samples to Redis: sdr:samples:{receiver_id}
