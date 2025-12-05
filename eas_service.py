@@ -239,11 +239,13 @@ def collect_eas_metrics() -> Dict[str, Any]:
 
     try:
         if _eas_monitor:
-            # Get EAS monitor stats
-            eas_stats = _eas_monitor.get_stats()
+            # Get EAS monitor status (complete UI metrics)
+            # Use get_status() not get_stats() - get_status() returns full metrics
+            # including health_percentage, runtime_seconds, samples_per_second, etc.
+            eas_stats = _eas_monitor.get_status()
             if eas_stats:
                 metrics["eas_monitor"] = _sanitize_value(eas_stats)
-                logger.info(f"📊 Collected EAS monitor stats: running={eas_stats.get('running')}, samples={eas_stats.get('samples_processed', 0):,}")
+                logger.info(f"📊 Collected EAS monitor stats: running={eas_stats.get('running')}, samples={eas_stats.get('samples_processed', 0):,}, health={eas_stats.get('health_percentage', 0):.1%}")
             else:
                 logger.warning("EAS monitor returned no stats")
                 metrics["eas_monitor"] = {
