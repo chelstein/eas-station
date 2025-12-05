@@ -83,7 +83,6 @@ else:
 _running = True
 _redis_client: Optional[redis.Redis] = None
 _audio_controller = None
-_eas_monitor = None
 _auto_streaming_service = None
 _radio_manager = None  # Reference to RadioManager for metrics collection
 _flask_app = None  # Flask app instance for thread contexts
@@ -448,73 +447,6 @@ def initialize_redis_audio_publisher(app, audio_controller):
             raise RuntimeError("Failed to start Redis audio publisher")
 
 
-def initialize_eas_monitor(app, audio_controller):
-    """Initialize EAS monitor in audio-service.
-
-    In separated architecture, audio-service runs as a standalone service (not Gunicorn multi-worker),
-    so it ALWAYS acts as the master. We bypass the worker coordinator and create the monitor directly.
-
-    This allows both:
-    - eas-service: Always-on EAS monitoring for production alerts
-    - audio-service EAS monitor: User-controlled testing/validation via web UI
-
-    Both can run simultaneously without conflict since BroadcastQueue allows
-    multiple independent subscriptions.
-    """
-    global _eas_monitor
-
-    with app.app_context():
-        try:
-            from app_core.audio.eas_monitor import ContinuousEASMonitor
-            from app_core.audio.broadcast_adapter import BroadcastAudioAdapter
-            from app_core.audio.startup_integration import (
-                load_fips_codes_from_config,
-                create_fips_filtering_callback
-            )
-
-            logger.info("Initializing EAS monitor in audio-service (standalone mode)...")
-
-            # Load FIPS codes from configuration
-            configured_fips = load_fips_codes_from_config()
-            logger.info(f"Loaded {len(configured_fips)} FIPS codes for monitoring")
-
-            # Create FIPS filtering callback
-            fips_callback = create_fips_filtering_callback(
-                configured_fips_codes=configured_fips,
-                flask_app=app
-            )
-
-            # Create broadcast audio adapter for non-destructive subscription
-            broadcast_queue = audio_controller.get_broadcast_queue()
-            ingest_sample_rate = audio_controller.get_active_sample_rate() or 44100
-
-            audio_adapter = BroadcastAudioAdapter(
-                broadcast_queue=broadcast_queue,
-                subscriber_id="eas-monitor-audio-service",
-                sample_rate=int(ingest_sample_rate)
-            )
-            logger.info(
-                f"EAS monitor subscribed to broadcast queue: {broadcast_queue.name} "
-                f"(source_sample_rate={ingest_sample_rate}Hz)"
-            )
-
-            # Create EAS monitor directly (bypass worker coordinator for standalone service)
-            _eas_monitor = ContinuousEASMonitor(
-                audio_manager=audio_adapter,
-                sample_rate=16000,  # EAS decoder optimal rate
-                alert_callback=fips_callback,
-                save_audio_files=True,
-                audio_archive_dir="/tmp/eas-audio"
-            )
-
-            logger.info("✅ EAS monitor initialized successfully (not started - use web UI to start)")
-            return _eas_monitor
-
-        except Exception as e:
-            logger.error(f"Failed to initialize EAS monitor: {e}", exc_info=True)
-            return None
-
-
 def process_commands():
     """Process commands from Redis command queue - DISABLED in separated architecture.
     
@@ -531,10 +463,9 @@ def process_commands():
 
 
 def collect_metrics():
-    """Collect metrics from audio controller, radio manager, and EAS monitor."""
+    """Collect metrics from audio controller and radio manager."""
     metrics = {
         "audio_controller": None,
-        "eas_monitor": None,
         "broadcast_queue": None,
         "radio_manager": None,  # Add radio manager metrics for app container
         "timestamp": time.time()
@@ -606,13 +537,6 @@ def collect_metrics():
                     metrics["broadcast_queue"] = _sanitize_value(broadcast_queue.get_stats())
             except Exception as e:
                 logger.error(f"Error getting broadcast queue stats: {e}")
-
-        # Get EAS monitor stats (use get_status for comprehensive health metrics)
-        if _eas_monitor:
-            try:
-                metrics["eas_monitor"] = _eas_monitor.get_status()
-            except Exception as e:
-                logger.error(f"Error getting EAS monitor stats: {e}")
 
     except Exception as e:
         logger.error(f"Error collecting metrics: {e}")
@@ -809,21 +733,8 @@ def main():
             logger.error(f"Failed to initialize Redis audio publisher: {e}")
             return 1
 
-        # Initialize EAS monitor for web UI control
-        # Note: eas-service also has its own EAS monitor that runs independently
-        # Both can coexist since they use separate BroadcastQueue subscriptions
-        logger.info("Initializing EAS monitor for web UI control...")
-        eas_monitor_instance = None
-        try:
-            eas_monitor_instance = initialize_eas_monitor(app, audio_controller)
-            if eas_monitor_instance:
-                logger.info("✅ EAS monitor initialized and ready for web UI control")
-            else:
-                logger.warning("⚠️  EAS monitor initialization failed - web UI start/stop will not work")
-        except Exception as e:
-            logger.warning(f"⚠️  Failed to initialize EAS monitor: {e}")
-            logger.warning("   Web UI start/stop commands will not work, but audio processing continues")
-            eas_monitor_instance = None
+        logger.info("EAS monitoring handled by dedicated eas-service container")
+        logger.info("   Audio-service publishes audio samples to Redis for eas-service")
 
         # Initialize Redis Pub/Sub command subscriber
         logger.info("Starting Redis command subscriber...")
@@ -836,7 +747,7 @@ def main():
             command_subscriber = AudioCommandSubscriber(
                 audio_controller,
                 auto_streaming,
-                eas_monitor=eas_monitor_instance  # Pass EAS monitor for web UI control
+                eas_monitor=None  # EAS monitor managed by eas-service
             )
 
             # Start subscriber in background thread
@@ -1078,12 +989,6 @@ def main():
                     publish_metrics_to_redis(metrics)
                     last_metrics_time = current_time
 
-                    # Log health status
-                    if metrics.get("eas_monitor"):
-                        samples = metrics["eas_monitor"].get("samples_processed", 0)
-                        running = metrics["eas_monitor"].get("running", False)
-                        logger.debug(f"EAS Monitor: running={running}, samples={samples}")
-
                 # Sleep briefly (check for commands every 500ms)
                 time.sleep(0.5)
 
@@ -1103,11 +1008,6 @@ def main():
                 command_subscriber.stop()
             except Exception as e:
                 logger.warning(f"Error stopping command subscriber: {e}")
-
-        # Stop EAS monitor
-        if _eas_monitor:
-            logger.info("Stopping EAS monitor...")
-            _eas_monitor.stop()
 
         # Stop audio controller
         if _audio_controller:
