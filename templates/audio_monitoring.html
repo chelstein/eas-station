@@ -1736,7 +1736,6 @@ function updateLevelMetersFromSnapshot(snapshot) {
     });
 
     // Throttle debug logging to avoid console spam (log at most once every 5 seconds)
-    const now = Date.now();
     if (now - lastVuMeterDebugLog > DEBUG_LOG_INTERVAL_MS) {
         console.debug(`Updated ${updatedCount} VU meters from ${snapshot.live_metrics.length} metrics`);
         lastVuMeterDebugLog = now;
