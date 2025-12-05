@@ -170,10 +170,10 @@ class BroadcastQueue:
         
         Returns:
             Float between 0.0 and 1.0 representing average utilization.
-            Returns 0.0 if no subscribers.
+            Returns 0.0 if no subscribers or max_queue_size is 0.
         """
         with self._lock:
-            if not self._subscribers:
+            if not self._subscribers or self.max_queue_size == 0:
                 return 0.0
             
             total_utilization = 0.0
