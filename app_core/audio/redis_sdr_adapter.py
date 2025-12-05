@@ -74,19 +74,25 @@ class RedisSDRSourceAdapter(AudioSourceAdapter):
         """Create or recreate demodulator with current settings."""
         demod_mode = self.config.device_params.get('demod_mode', 'FM')
         
+        # Determine stereo support based on modulation type
+        # WFM (Wide FM for FM broadcast) supports stereo
+        # NFM (Narrow FM for NOAA, public safety) is mono only
+        stereo_enabled = (demod_mode.upper() == 'WFM' or demod_mode.upper() == 'FM')
+        
         from app_core.radio.demodulation import create_demodulator, DemodulatorConfig
 
         demod_config = DemodulatorConfig(
             modulation_type=demod_mode,
             sample_rate=self._iq_sample_rate,  # IQ sample rate from SDR
             audio_sample_rate=self.config.sample_rate,  # Audio output rate (e.g., 44100)
-            stereo_enabled=True,  # Enable stereo decoding for FM
+            stereo_enabled=stereo_enabled,
         )
 
         self._demodulator = create_demodulator(demod_config)
         logger.info(
             f"Created {demod_mode} demodulator: "
-            f"{self._iq_sample_rate}Hz IQ → {self.config.sample_rate}Hz audio"
+            f"{self._iq_sample_rate}Hz IQ → {self.config.sample_rate}Hz audio "
+            f"(stereo={'yes' if stereo_enabled else 'no'})"
         )
 
     def _start_capture(self) -> None:
@@ -96,6 +102,13 @@ class RedisSDRSourceAdapter(AudioSourceAdapter):
         if not self._receiver_id:
             raise ValueError("receiver_id required in device_params for Redis SDR source")
 
+        # Get IQ sample rate from config if provided (preferred method)
+        # Otherwise will be set from first Redis message
+        config_sample_rate = self.config.device_params.get('iq_sample_rate')
+        if config_sample_rate:
+            self._iq_sample_rate = int(config_sample_rate)
+            logger.info(f"Using IQ sample rate from config: {self._iq_sample_rate}Hz")
+
         # Connect to Redis
         from app_core.redis_client import get_redis_client
         try:
@@ -104,8 +117,15 @@ class RedisSDRSourceAdapter(AudioSourceAdapter):
         except Exception as e:
             raise RuntimeError(f"Failed to connect to Redis: {e}") from e
 
-        # Create demodulator
-        self._create_demodulator()
+        # CRITICAL FIX: Don't create demodulator yet if we don't have rate from config
+        # Wait for first Redis message to get actual sample rate from sdr-service
+        if config_sample_rate:
+            self._create_demodulator()
+        else:
+            logger.warning(
+                f"IQ sample rate not in config for {self._receiver_id}. "
+                f"Demodulator will be created when first IQ sample is received."
+            )
 
         # Subscribe to Redis pub/sub channel
         self._pubsub = self._redis_client.pubsub(ignore_subscribe_messages=True)
@@ -126,6 +146,9 @@ class RedisSDRSourceAdapter(AudioSourceAdapter):
     def _redis_subscriber_loop(self) -> None:
         """Redis pub/sub subscriber loop - receives IQ samples and demodulates to audio."""
         logger.info(f"Redis subscriber loop started for {self._receiver_id}")
+        
+        last_log_time = time.time()
+        messages_received = 0
 
         try:
             # Use _stop_event from base class instead of undefined _running
@@ -133,13 +156,24 @@ class RedisSDRSourceAdapter(AudioSourceAdapter):
                 # Use get_message with timeout instead of listen() to allow graceful shutdown
                 message = self._pubsub.get_message(timeout=1.0)
 
+                # Log periodically if no samples received
+                current_time = time.time()
                 if message is None:
+                    if current_time - last_log_time > 10.0:
+                        if messages_received == 0:
+                            logger.warning(
+                                f"No IQ samples received for {self._receiver_id} in {current_time - last_log_time:.1f}s. "
+                                f"Check if sdr-service is publishing to sdr:samples:{self._receiver_id}"
+                            )
+                        last_log_time = current_time
                     continue
 
                 if message['type'] != 'message':
                     continue
 
                 try:
+                    messages_received += 1
+                    
                     # Parse message
                     data = json.loads(message['data'])
 
@@ -147,8 +181,16 @@ class RedisSDRSourceAdapter(AudioSourceAdapter):
                     new_sample_rate = data.get('sample_rate', self._iq_sample_rate)
                     self._center_frequency = data.get('center_frequency', self._center_frequency)
                     
+                    # Create demodulator on first message if not already created
+                    if self._demodulator is None:
+                        logger.info(
+                            f"Creating demodulator from first IQ sample: "
+                            f"rate={new_sample_rate}Hz, freq={self._center_frequency/1e6:.3f}MHz"
+                        )
+                        self._iq_sample_rate = new_sample_rate
+                        self._create_demodulator()
                     # Update demodulator if sample rate changed
-                    if new_sample_rate != self._iq_sample_rate:
+                    elif new_sample_rate != self._iq_sample_rate:
                         logger.info(f"IQ sample rate changed: {self._iq_sample_rate}Hz -> {new_sample_rate}Hz")
                         self._iq_sample_rate = new_sample_rate
                         # Recreate demodulator with new sample rate
@@ -157,6 +199,7 @@ class RedisSDRSourceAdapter(AudioSourceAdapter):
                     # Decode IQ samples
                     encoded_samples = data.get('samples', '')
                     if not encoded_samples:
+                        logger.warning(f"Empty IQ sample data from {self._receiver_id}")
                         continue
 
                     # Decompress and decode (zlib + base64)
@@ -178,8 +221,17 @@ class RedisSDRSourceAdapter(AudioSourceAdapter):
                                 self._audio_chunk_queue.put(audio_samples, timeout=0.1)
                                 self._samples_received += len(audio_samples)
                                 self._last_sample_time = time.time()
+                                
+                                # Log first successful sample
+                                if messages_received == 1:
+                                    logger.info(
+                                        f"✅ First audio chunk decoded for {self._receiver_id}: "
+                                        f"{len(audio_samples)} samples"
+                                    )
                             except queue.Full:
                                 logger.warning(f"Audio chunk queue full for {self._receiver_id}, dropping samples")
+                    else:
+                        logger.error(f"No demodulator available for {self._receiver_id} - cannot process IQ samples")
 
                 except Exception as e:
                     logger.error(f"Error processing Redis IQ sample: {e}", exc_info=True)
@@ -187,7 +239,10 @@ class RedisSDRSourceAdapter(AudioSourceAdapter):
         except Exception as e:
             logger.error(f"Redis subscriber loop error: {e}", exc_info=True)
         finally:
-            logger.info(f"Redis subscriber loop exited for {self._receiver_id}")
+            logger.info(
+                f"Redis subscriber loop exited for {self._receiver_id}. "
+                f"Processed {messages_received} messages"
+            )
 
     def _stop_capture(self) -> None:
         """Stop Redis subscription."""

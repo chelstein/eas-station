@@ -314,6 +314,7 @@ def initialize_audio_controller(app):
                         device_params={
                             'receiver_id': receiver_id,
                             'demod_mode': receiver.modulation_type or 'FM',
+                            'iq_sample_rate': receiver.sample_rate,  # IQ sample rate from receiver config
                         },
                     )
 

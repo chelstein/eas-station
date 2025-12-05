@@ -787,6 +787,7 @@ def ensure_sdr_audio_monitor_source(
                 'device_params': {
                     'receiver_id': receiver.identifier,  # Receiver ID for Redis channel subscription
                     'demod_mode': receiver.modulation_type or 'FM',  # Demodulation mode
+                    'iq_sample_rate': receiver.sample_rate,  # IQ sample rate from receiver config (CRITICAL!)
                     **device_params  # Include other metadata
                 },
             }
