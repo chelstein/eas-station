@@ -577,6 +577,9 @@ def publish_metrics_to_redis(metrics):
         pipe = r.pipeline()
         pipe.hset("eas:metrics", mapping=flat_metrics)
         pipe.expire("eas:metrics", 60)  # Expire if service dies
+        pipe.execute()
+
+        logger.info(f"✅ Published {len(flat_metrics)} metric keys to Redis (eas:metrics)")
         
         # Publish waveform and spectrogram data for each source separately (to keep main metrics lightweight)
         if _audio_controller:
@@ -995,8 +998,11 @@ def main():
 
                 # Publish metrics periodically
                 if current_time - last_metrics_time >= metrics_interval:
+                    logger.info("📊 Publishing metrics to Redis...")
                     metrics = collect_metrics()
+                    logger.info(f"📊 Collected metrics: {list(metrics.keys())}")
                     publish_metrics_to_redis(metrics)
+                    logger.info(f"📊 Published metrics to Redis (sources: {list(metrics.get('audio_controller', {}).get('sources', {}).keys())})")
                     last_metrics_time = current_time
 
                 # Sleep briefly (check for commands every 500ms)
