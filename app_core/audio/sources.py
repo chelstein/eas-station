@@ -950,6 +950,9 @@ class StreamSourceAdapter(AudioSourceAdapter):
 
     def _resolve_stream_url(self, url: str) -> str:
         """Validate the configured URL and resolve playlists when needed."""
+        # Strip whitespace from the input URL
+        url = url.strip() if url else ""
+        
         if not url:
             raise ValueError("stream_url must be configured for stream sources")
 
@@ -976,6 +979,8 @@ class StreamSourceAdapter(AudioSourceAdapter):
                     continue
 
                 candidate = urljoin(url, entry)
+                # Strip whitespace from the resolved candidate URL
+                candidate = candidate.strip()
                 candidate_parsed = urlparse(candidate)
                 if candidate_parsed.scheme in ("http", "https") and candidate_parsed.netloc:
                     logger.info(f"Resolved M3U entry to stream URL: {candidate}")

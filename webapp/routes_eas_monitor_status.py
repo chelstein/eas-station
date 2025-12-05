@@ -91,7 +91,19 @@ def register_eas_monitor_routes(app: Flask, logger_instance) -> None:
             # Extract EAS monitor stats from shared metrics
             status = shared_metrics.get("eas_monitor", {})
 
-            if status is None:
+            # Ensure status is a dictionary, not a string or other type
+            if not isinstance(status, dict):
+                logger.error(f"EAS monitor status has unexpected type: {type(status).__name__}, value: {status}")
+                return jsonify({
+                    "running": False,
+                    "error": f"EAS monitor status has invalid type: {type(status).__name__}",
+                    "worker_role": "app",
+                    "initialization_attempted": False,
+                    "debug_status_type": type(status).__name__,
+                    "debug_status_value": str(status) if status else None
+                })
+
+            if not status:
                 return jsonify({
                     "running": False,
                     "error": "EAS monitor not running in audio-service",
