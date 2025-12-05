@@ -284,25 +284,62 @@ class AudioCommandSubscriber:
             elif command == 'source_add':
                 config = params['config']
                 source_name = config.get('name')
+                source_type_str = config.get('source_type', 'sdr')
 
                 # Import required modules
                 from app_core.audio.ingest import AudioSourceConfig, AudioSourceType
                 from app_core.audio.sources import create_audio_source
 
-                # Create runtime configuration
-                source_type = AudioSourceType(config.get('source_type', 'sdr'))
+                # Handle redis_sdr as a special case for separated architecture
+                # redis_sdr sources subscribe to Redis IQ samples from sdr-service
+                if source_type_str == 'redis_sdr':
+                    from app_core.audio.redis_sdr_adapter import RedisSDRSourceAdapter
+                    
+                    # Create runtime configuration for Redis SDR source
+                    # Use STREAM type since redis_sdr is not in the AudioSourceType enum
+                    runtime_config = AudioSourceConfig(
+                        source_type=AudioSourceType.STREAM,  # Use STREAM as placeholder
+                        name=source_name,
+                        enabled=config.get('enabled', True),
+                        priority=config.get('priority', 10),
+                        sample_rate=config.get('sample_rate', 44100),
+                        channels=config.get('channels', 1),
+                        buffer_size=config.get('buffer_size', 4096),
+                        silence_threshold_db=config.get('silence_threshold_db', -60.0),
+                        silence_duration_seconds=config.get('silence_duration_seconds', 5.0),
+                        device_params=config.get('device_params', {}),
+                    )
+                    
+                    # Remove existing source if it exists
+                    if source_name in self.audio_controller._sources:
+                        if self.auto_streaming_service:
+                            try:
+                                self.auto_streaming_service.remove_source(source_name)
+                            except Exception as e:
+                                logger.debug(f"Error removing {source_name} from Icecast: {e}")
+                        self.audio_controller.remove_source(source_name)
+                    
+                    # Create Redis SDR adapter directly
+                    adapter = RedisSDRSourceAdapter(runtime_config)
+                    self.audio_controller.add_source(adapter)
+                    logger.info(f"✅ Added Redis SDR source {source_name} via Redis command")
+                    return {'success': True, 'message': f'Redis SDR source {source_name} added'}
 
-                # In separated architecture, skip SDR sources in audio-service
-                # SDR sources are managed by sdr-service container, not audio-service
+                # Create runtime configuration for normal audio source types
+                source_type = AudioSourceType(source_type_str)
+
+                # In separated architecture, skip regular SDR sources in audio-service
+                # Regular SDR sources require direct hardware access - use redis_sdr instead
                 if source_type == AudioSourceType.SDR:
                     # Check if we have radio manager (indicates we can handle SDR)
                     from app_core.extensions import get_radio_manager
                     radio_mgr = get_radio_manager()
                     if not radio_mgr:
                         logger.info(f"⏭️  Skipping SDR source '{source_name}' - no radio manager (handled by sdr-service)")
+                        logger.info(f"   Use 'redis_sdr' source type for separated architecture")
                         return {
                             'success': True,
-                            'message': f'SDR source {source_name} skipped (managed by sdr-service)',
+                            'message': f'SDR source {source_name} skipped (no radio manager). Use redis_sdr type for separated architecture.',
                             'skipped': True
                         }
 

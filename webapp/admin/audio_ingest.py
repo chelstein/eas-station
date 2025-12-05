@@ -754,47 +754,60 @@ def ensure_sdr_audio_monitor_source(
             db.session.rollback()
             raise
 
-    # In separated architecture, audio processing happens in sdr-service container.
-    # We need to notify the sdr-service via Redis to reload/start the source.
+    # In separated architecture, audio processing happens in audio-service container.
+    # We need to notify the audio-service via Redis to reload/start the source.
     # The local controller in webapp is only used for metrics display, not audio processing.
+    # 
+    # CRITICAL: SDR sources must be created as Redis SDR sources in audio-service, NOT regular SDR sources.
+    # In separated architecture:
+    #   - sdr-service: Manages SDR hardware, publishes IQ samples to Redis (sdr:samples:{receiver_id})
+    #   - audio-service: Subscribes to Redis IQ samples via RedisSDRSourceAdapter, demodulates to audio
+    #   - webapp: Sends commands to audio-service to start/stop audio sources
     started = False
     icecast_started = False
     
     if start_flag:
         try:
-            # Send command to sdr-service to reload and start the source
+            # Send command to audio-service to reload and start the Redis SDR source
             publisher = get_audio_command_publisher()
             
-            # Build the source config that sdr-service can use
+            # Build the source config for audio-service
+            # IMPORTANT: For separated architecture, audio-service creates RedisSDRSourceAdapter
+            # which subscribes to sdr:samples:{receiver_id} published by sdr-service
             source_config = {
-                'source_type': AudioSourceType.SDR.value,
+                'source_type': 'redis_sdr',  # Special type for RedisSDRSourceAdapter
                 'name': source_name,
                 'enabled': True,
                 'priority': priority,
-                'sample_rate': sample_rate,
+                'sample_rate': sample_rate,  # Audio output sample rate (e.g., 44100)
                 'channels': channels,
                 'buffer_size': buffer_size,
                 'silence_threshold_db': silence_threshold,
                 'silence_duration_seconds': silence_duration,
-                'device_params': device_params,
+                'device_params': {
+                    'receiver_id': receiver.identifier,  # Receiver ID for Redis channel subscription
+                    'demod_mode': receiver.modulation_type or 'FM',  # Demodulation mode
+                    'iq_sample_rate': receiver.sample_rate,  # IQ sample rate from receiver config (CRITICAL!)
+                    **device_params  # Include other metadata
+                },
             }
             
-            # Send add_source command (sdr-service will create adapter and start it)
+            # Send add_source command (audio-service will create RedisSDRSourceAdapter and start it)
             result = publisher.add_source(source_config)
             if result.get('success'):
-                logger.info(f"Sent source_add command to sdr-service for {source_name}")
+                logger.info(f"Sent redis_sdr source_add command to audio-service for {source_name}")
                 # Also send start command to ensure it starts
                 start_result = publisher.start_source(source_name)
                 if start_result.get('success'):
                     started = True
-                    logger.info(f"Sent source_start command to sdr-service for {source_name}")
+                    logger.info(f"Sent source_start command to audio-service for {source_name}")
                 else:
-                    logger.warning(f"Failed to send source_start to sdr-service: {start_result.get('message')}")
+                    logger.warning(f"Failed to send source_start to audio-service: {start_result.get('message')}")
             else:
-                logger.warning(f"Failed to send source_add to sdr-service: {result.get('message')}")
+                logger.warning(f"Failed to send source_add to audio-service: {result.get('message')}")
                 
         except Exception as exc:
-            logger.warning('Failed to notify sdr-service about SDR audio source %s: %s', source_name, exc)
+            logger.warning('Failed to notify audio-service about Redis SDR audio source %s: %s', source_name, exc)
             # Fall back to local controller if Redis communication fails
             try:
                 controller = _get_audio_controller()
