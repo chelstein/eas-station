@@ -60,7 +60,8 @@ class RedisSDRSourceAdapter(AudioSourceAdapter):
         self._redis_client: Optional[Any] = None
         self._pubsub: Optional[Any] = None
         self._subscriber_thread: Optional[threading.Thread] = None
-        self._audio_queue: queue.Queue = queue.Queue(maxsize=100)
+        # Note: self._audio_queue is created by base class via BroadcastQueue subscription
+        # Don't override it - use self._source_broadcast.publish() instead
         self._receiver_id: Optional[str] = None
         self._demodulator: Optional[Any] = None
         self._last_sample_time: float = 0.0
@@ -156,14 +157,14 @@ class RedisSDRSourceAdapter(AudioSourceAdapter):
                         audio_samples = self._demodulator.process(iq_samples)
 
                         if audio_samples is not None and len(audio_samples) > 0:
-                            # Put audio samples in queue for get_audio_chunk()
-                            try:
-                                self._audio_queue.put(audio_samples, timeout=0.1)
-                                self._samples_received += len(audio_samples)
-                                self._last_sample_time = time.time()
-                            except queue.Full:
-                                # Drop samples if queue is full (consumer too slow)
-                                pass
+                            # Publish to BroadcastQueue for web streams and other consumers
+                            # This allows multiple independent subscribers (Icecast, web player, EAS monitor)
+                            self._source_broadcast.publish(audio_samples)
+
+                            # Update metrics
+                            self._update_metrics(audio_samples)
+                            self._samples_received += len(audio_samples)
+                            self._last_sample_time = time.time()
 
                 except Exception as e:
                     logger.error(f"Error processing Redis IQ sample: {e}", exc_info=True)
@@ -187,12 +188,8 @@ class RedisSDRSourceAdapter(AudioSourceAdapter):
 
         logger.info(f"Stopped Redis SDR source for {self._receiver_id}")
 
-    def get_audio_chunk(self, timeout: float = 0.5) -> Optional[np.ndarray]:
-        """Get next audio chunk from demodulated IQ samples."""
-        try:
-            return self._audio_queue.get(timeout=timeout)
-        except queue.Empty:
-            return None
+    # Note: get_audio_chunk() inherited from base class - reads from BroadcastQueue subscription
+    # No need to override since base class handles it correctly
 
     def _update_metrics(self, audio_chunk: Optional[np.ndarray] = None) -> None:
         """Update metrics from Redis SDR source."""
