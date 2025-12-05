@@ -1,0 +1,627 @@
+{% extends "base.html" %}
+
+{% block title %}Design System Style Guide - EAS Station{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Page Header -->
+    <div class="page-header">
+        <div class="container-fluid">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+                <div>
+                    <h1 class="page-title mb-0">
+                        <i class="fas fa-palette me-2"></i>Design System Style Guide
+                    </h1>
+                    <p class="page-subtitle mb-0">Unified component library and usage guidelines</p>
+                </div>
+                <div class="page-header-actions">
+                    <a href="/" class="btn btn-outline-light">
+                        <i class="fas fa-gauge-high me-1"></i>Dashboard
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Table of Contents -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0"><i class="fas fa-list"></i> Table of Contents</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-3">
+                    <ul class="list-unstyled">
+                        <li><a href="#page-headers">Page Headers</a></li>
+                        <li><a href="#section-headers">Section Headers</a></li>
+                        <li><a href="#cards">Cards</a></li>
+                        <li><a href="#buttons">Buttons</a></li>
+                    </ul>
+                </div>
+                <div class="col-md-3">
+                    <ul class="list-unstyled">
+                        <li><a href="#forms">Forms</a></li>
+                        <li><a href="#tables">Tables</a></li>
+                        <li><a href="#alerts">Alerts & Messages</a></li>
+                        <li><a href="#badges">Badges</a></li>
+                    </ul>
+                </div>
+                <div class="col-md-3">
+                    <ul class="list-unstyled">
+                        <li><a href="#stats-cards">Statistics Cards</a></li>
+                        <li><a href="#info-boxes">Info Boxes</a></li>
+                        <li><a href="#empty-states">Empty States</a></li>
+                        <li><a href="#grids">Layout Grids</a></li>
+                    </ul>
+                </div>
+                <div class="col-md-3">
+                    <ul class="list-unstyled">
+                        <li><a href="#typography">Typography</a></li>
+                        <li><a href="#colors">Colors</a></li>
+                        <li><a href="#spacing">Spacing</a></li>
+                        <li><a href="#icons">Icons</a></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 1. Page Headers -->
+    <section id="page-headers" class="mb-5">
+        <div class="section-header">
+            <div>
+                <h3 class="section-title mb-0">
+                    <i class="fas fa-heading me-2"></i>Page Headers
+                </h3>
+                <p class="section-subtitle mb-0">Every page MUST start with a standard page header</p>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Usage Template</h5>
+            </div>
+            <div class="card-body">
+                <pre class="bg-dark text-light p-3 rounded"><code>&lt;div class="page-header"&gt;
+    &lt;div class="container-fluid"&gt;
+        &lt;div class="d-flex justify-content-between align-items-center flex-wrap gap-3"&gt;
+            &lt;div&gt;
+                &lt;h1 class="page-title mb-0"&gt;
+                    &lt;i class="fas fa-icon-name me-2"&gt;&lt;/i&gt;Page Title
+                &lt;/h1&gt;
+                &lt;p class="page-subtitle mb-0"&gt;Brief description of the page&lt;/p&gt;
+            &lt;/div&gt;
+            &lt;div class="page-header-actions"&gt;
+                &lt;a href="/path" class="btn btn-outline-light"&gt;
+                    &lt;i class="fas fa-icon me-1"&gt;&lt;/i&gt;Action
+                &lt;/a&gt;
+            &lt;/div&gt;
+        &lt;/div&gt;
+    &lt;/div&gt;
+&lt;/div&gt;</code></pre>
+                <h6 class="mt-3">Example:</h6>
+                <div class="page-header">
+                    <div class="container-fluid">
+                        <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+                            <div>
+                                <h1 class="page-title mb-0">
+                                    <i class="fas fa-bell me-2"></i>Example Page
+                                </h1>
+                                <p class="page-subtitle mb-0">This is what every page header should look like</p>
+                            </div>
+                            <div class="page-header-actions">
+                                <button class="btn btn-success">
+                                    <i class="fas fa-plus me-1"></i>Create New
+                                </button>
+                                <a href="#" class="btn btn-outline-light">
+                                    <i class="fas fa-cog me-1"></i>Settings
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 2. Section Headers -->
+    <section id="section-headers" class="mb-5">
+        <div class="section-header">
+            <div>
+                <h3 class="section-title mb-0">
+                    <i class="fas fa-heading me-2"></i>Section Headers
+                </h3>
+                <p class="section-subtitle mb-0">Use to divide page content into logical sections</p>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Usage Template</h5>
+            </div>
+            <div class="card-body">
+                <pre class="bg-dark text-light p-3 rounded"><code>&lt;div class="section-header"&gt;
+    &lt;div&gt;
+        &lt;h3 class="section-title mb-0"&gt;
+            &lt;i class="fas fa-icon me-2"&gt;&lt;/i&gt;Section Title
+        &lt;/h3&gt;
+        &lt;p class="section-subtitle mb-0"&gt;Optional description&lt;/p&gt;
+    &lt;/div&gt;
+    &lt;div class="section-actions"&gt;
+        &lt;button class="btn btn-sm btn-primary"&gt;Action&lt;/button&gt;
+    &lt;/div&gt;
+&lt;/div&gt;</code></pre>
+                <h6 class="mt-3">Example:</h6>
+                <div class="section-header">
+                    <div>
+                        <h3 class="section-title mb-0">
+                            <i class="fas fa-filter me-2"></i>Filter Options
+                        </h3>
+                        <p class="section-subtitle mb-0">Refine your search results</p>
+                    </div>
+                    <div class="section-actions">
+                        <button class="btn btn-sm btn-outline-primary">
+                            <i class="fas fa-redo me-1"></i>Reset
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 3. Cards -->
+    <section id="cards" class="mb-5">
+        <div class="section-header">
+            <div>
+                <h3 class="section-title mb-0">
+                    <i class="fas fa-square me-2"></i>Cards
+                </h3>
+                <p class="section-subtitle mb-0">Standard content containers</p>
+            </div>
+        </div>
+
+        <div class="row g-3">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">Standard Card with Gradient Header</h5>
+                    </div>
+                    <div class="card-body">
+                        <p>All cards automatically use gradient headers. The gradient adapts to the current theme.</p>
+                        <pre class="bg-dark text-light p-2 rounded small"><code>&lt;div class="card"&gt;
+    &lt;div class="card-header"&gt;
+        &lt;h5 class="mb-0"&gt;Title&lt;/h5&gt;
+    &lt;/div&gt;
+    &lt;div class="card-body"&gt;
+        Content here
+    &lt;/div&gt;
+&lt;/div&gt;</code></pre>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header bg-success">
+                        <h5 class="mb-0">Colored Header Card</h5>
+                    </div>
+                    <div class="card-body">
+                        <p>Use <code>.bg-success</code>, <code>.bg-warning</code>, <code>.bg-danger</code>, <code>.bg-info</code> for colored headers.</p>
+                        <pre class="bg-dark text-light p-2 rounded small"><code>&lt;div class="card"&gt;
+    &lt;div class="card-header bg-success"&gt;
+        &lt;h5 class="mb-0"&gt;Title&lt;/h5&gt;
+    &lt;/div&gt;
+    &lt;div class="card-body"&gt;
+        Content
+    &lt;/div&gt;
+&lt;/div&gt;</code></pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 4. Statistics Cards -->
+    <section id="stats-cards" class="mb-5">
+        <div class="section-header">
+            <div>
+                <h3 class="section-title mb-0">
+                    <i class="fas fa-chart-bar me-2"></i>Statistics Cards
+                </h3>
+                <p class="section-subtitle mb-0">Use for displaying metrics and KPIs</p>
+            </div>
+        </div>
+
+        <div class="card mb-3">
+            <div class="card-header">
+                <h5 class="mb-0">Standard Stats Grid</h5>
+            </div>
+            <div class="card-body">
+                <pre class="bg-dark text-light p-3 rounded mb-3"><code>&lt;div class="stats-grid"&gt;
+    &lt;div class="card bg-success-gradient text-white"&gt;
+        &lt;div class="card-body text-center"&gt;
+            &lt;h3 class="mb-0"&gt;125&lt;/h3&gt;
+            &lt;small&gt;Active Alerts&lt;/small&gt;
+        &lt;/div&gt;
+    &lt;/div&gt;
+    &lt;!-- More stat cards --&gt;
+&lt;/div&gt;</code></pre>
+
+                <div class="stats-grid">
+                    <div class="card bg-success-gradient text-white">
+                        <div class="card-body text-center">
+                            <h3 class="mb-0">125</h3>
+                            <small>Active Alerts</small>
+                        </div>
+                    </div>
+                    <div class="card bg-warning-gradient text-white">
+                        <div class="card-body text-center">
+                            <h3 class="mb-0">48</h3>
+                            <small>Expired</small>
+                        </div>
+                    </div>
+                    <div class="card bg-info-gradient text-white">
+                        <div class="card-body text-center">
+                            <h3 class="mb-0">1,234</h3>
+                            <small>Total</small>
+                        </div>
+                    </div>
+                    <div class="card bg-danger-gradient text-white">
+                        <div class="card-body text-center">
+                            <h3 class="mb-0">3</h3>
+                            <small>Errors</small>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="info-box">
+                    <strong>Available classes:</strong> <code>.bg-success-gradient</code>, <code>.bg-warning-gradient</code>, 
+                    <code>.bg-danger-gradient</code>, <code>.bg-info-gradient</code>, <code>.stat-card</code>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 5. Buttons -->
+    <section id="buttons" class="mb-5">
+        <div class="section-header">
+            <div>
+                <h3 class="section-title mb-0">
+                    <i class="fas fa-hand-pointer me-2"></i>Buttons
+                </h3>
+                <p class="section-subtitle mb-0">Standard button styles and usage</p>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Button Styles</h5>
+            </div>
+            <div class="card-body">
+                <h6>Primary Actions:</h6>
+                <div class="mb-3">
+                    <button class="btn btn-primary me-2"><i class="fas fa-check me-1"></i>Primary</button>
+                    <button class="btn btn-success me-2"><i class="fas fa-plus me-1"></i>Success</button>
+                    <button class="btn btn-danger me-2"><i class="fas fa-trash me-1"></i>Danger</button>
+                    <button class="btn btn-warning me-2"><i class="fas fa-exclamation me-1"></i>Warning</button>
+                    <button class="btn btn-info me-2"><i class="fas fa-info me-1"></i>Info</button>
+                </div>
+
+                <h6>Secondary Actions:</h6>
+                <div class="mb-3">
+                    <button class="btn btn-outline-primary me-2"><i class="fas fa-cog me-1"></i>Outline Primary</button>
+                    <button class="btn btn-outline-secondary me-2"><i class="fas fa-times me-1"></i>Outline Secondary</button>
+                </div>
+
+                <h6>Page Header Actions (use on gradient backgrounds):</h6>
+                <div class="p-3 rounded" style="background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));">
+                    <button class="btn btn-outline-light me-2"><i class="fas fa-cog me-1"></i>Settings</button>
+                    <button class="btn btn-success me-2"><i class="fas fa-plus me-1"></i>Create</button>
+                </div>
+
+                <div class="info-box mt-3">
+                    <strong>Icon Guidelines:</strong> Always include an icon with buttons using <code>&lt;i class="fas fa-icon me-1"&gt;&lt;/i&gt;</code> before the text.
+                    Use <code>me-1</code> for spacing between icon and text.
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 6. Info Boxes -->
+    <section id="info-boxes" class="mb-5">
+        <div class="section-header">
+            <div>
+                <h3 class="section-title mb-0">
+                    <i class="fas fa-info-circle me-2"></i>Info Boxes
+                </h3>
+                <p class="section-subtitle mb-0">Contextual information and notices</p>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Info Box Variants</h5>
+            </div>
+            <div class="card-body">
+                <div class="info-box">
+                    <div class="info-box-title"><i class="fas fa-info-circle me-2"></i>Info</div>
+                    Use for general information and helpful tips.
+                </div>
+
+                <div class="info-box success">
+                    <div class="info-box-title"><i class="fas fa-check-circle me-2"></i>Success</div>
+                    Use for successful operations and positive messages.
+                </div>
+
+                <div class="info-box warning">
+                    <div class="info-box-title"><i class="fas fa-exclamation-triangle me-2"></i>Warning</div>
+                    Use for warnings and important notices that require attention.
+                </div>
+
+                <div class="info-box danger">
+                    <div class="info-box-title"><i class="fas fa-times-circle me-2"></i>Danger</div>
+                    Use for errors and critical issues.
+                </div>
+
+                <pre class="bg-dark text-light p-3 rounded mt-3"><code>&lt;div class="info-box"&gt;
+    &lt;div class="info-box-title"&gt;&lt;i class="fas fa-info-circle me-2"&gt;&lt;/i&gt;Title&lt;/div&gt;
+    Message content here
+&lt;/div&gt;
+
+&lt;!-- Variants: .success, .warning, .danger --&gt;</code></pre>
+            </div>
+        </div>
+    </section>
+
+    <!-- 7. Empty States -->
+    <section id="empty-states" class="mb-5">
+        <div class="section-header">
+            <div>
+                <h3 class="section-title mb-0">
+                    <i class="fas fa-inbox me-2"></i>Empty States
+                </h3>
+                <p class="section-subtitle mb-0">Use when there's no content to display</p>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Empty State Template</h5>
+            </div>
+            <div class="card-body">
+                <div class="empty-state">
+                    <div class="empty-state-icon">
+                        <i class="fas fa-inbox"></i>
+                    </div>
+                    <div class="empty-state-title">No Items Found</div>
+                    <div class="empty-state-text">There are no items to display at this time.</div>
+                    <button class="btn btn-primary">
+                        <i class="fas fa-plus me-1"></i>Create First Item
+                    </button>
+                </div>
+
+                <pre class="bg-dark text-light p-3 rounded mt-3"><code>&lt;div class="empty-state"&gt;
+    &lt;div class="empty-state-icon"&gt;
+        &lt;i class="fas fa-inbox"&gt;&lt;/i&gt;
+    &lt;/div&gt;
+    &lt;div class="empty-state-title"&gt;No Items Found&lt;/div&gt;
+    &lt;div class="empty-state-text"&gt;Description&lt;/div&gt;
+    &lt;button class="btn btn-primary"&gt;Action&lt;/button&gt;
+&lt;/div&gt;</code></pre>
+            </div>
+        </div>
+    </section>
+
+    <!-- 8. Layout Grids -->
+    <section id="grids" class="mb-5">
+        <div class="section-header">
+            <div>
+                <h3 class="section-title mb-0">
+                    <i class="fas fa-th me-2"></i>Layout Grids
+                </h3>
+                <p class="section-subtitle mb-0">Responsive grid layouts</p>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Content Grids</h5>
+            </div>
+            <div class="card-body">
+                <p>Use standard grid classes for consistent layouts:</p>
+                
+                <h6>.content-grid-2 (2 columns)</h6>
+                <div class="content-grid content-grid-2 mb-4">
+                    <div class="card"><div class="card-body">Column 1</div></div>
+                    <div class="card"><div class="card-body">Column 2</div></div>
+                </div>
+
+                <h6>.content-grid-3 (3 columns)</h6>
+                <div class="content-grid content-grid-3 mb-4">
+                    <div class="card"><div class="card-body">Column 1</div></div>
+                    <div class="card"><div class="card-body">Column 2</div></div>
+                    <div class="card"><div class="card-body">Column 3</div></div>
+                </div>
+
+                <h6>.content-grid-4 (4 columns)</h6>
+                <div class="content-grid content-grid-4">
+                    <div class="card"><div class="card-body">1</div></div>
+                    <div class="card"><div class="card-body">2</div></div>
+                    <div class="card"><div class="card-body">3</div></div>
+                    <div class="card"><div class="card-body">4</div></div>
+                </div>
+
+                <pre class="bg-dark text-light p-3 rounded mt-3"><code>&lt;div class="content-grid content-grid-3"&gt;
+    &lt;div class="card"&gt;...&lt;/div&gt;
+    &lt;div class="card"&gt;...&lt;/div&gt;
+    &lt;div class="card"&gt;...&lt;/div&gt;
+&lt;/div&gt;</code></pre>
+            </div>
+        </div>
+    </section>
+
+    <!-- 9. Forms -->
+    <section id="forms" class="mb-5">
+        <div class="section-header">
+            <div>
+                <h3 class="section-title mb-0">
+                    <i class="fas fa-edit me-2"></i>Forms
+                </h3>
+                <p class="section-subtitle mb-0">Standard form styling</p>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Form Elements</h5>
+            </div>
+            <div class="card-body">
+                <form>
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label for="exampleInput" class="form-label">Text Input</label>
+                            <input type="text" class="form-control" id="exampleInput" placeholder="Enter text">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="exampleSelect" class="form-label">Select Dropdown</label>
+                            <select class="form-select" id="exampleSelect">
+                                <option>Option 1</option>
+                                <option>Option 2</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="exampleTextarea" class="form-label">Textarea</label>
+                        <textarea class="form-control" id="exampleTextarea" rows="3"></textarea>
+                    </div>
+
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" id="check1">
+                        <label class="form-check-label" for="check1">Checkbox option</label>
+                    </div>
+
+                    <div class="form-check form-switch mb-3">
+                        <input class="form-check-input" type="checkbox" id="switch1">
+                        <label class="form-check-label" for="switch1">Toggle switch</label>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save me-1"></i>Submit
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary">
+                        <i class="fas fa-times me-1"></i>Cancel
+                    </button>
+                </form>
+            </div>
+        </div>
+    </section>
+
+    <!-- 10. Typography -->
+    <section id="typography" class="mb-5">
+        <div class="section-header">
+            <div>
+                <h3 class="section-title mb-0">
+                    <i class="fas fa-font me-2"></i>Typography
+                </h3>
+                <p class="section-subtitle mb-0">Text styles and hierarchy</p>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Heading Hierarchy</h5>
+            </div>
+            <div class="card-body">
+                <h1>Heading 1 (h1) - 2.5rem</h1>
+                <h2>Heading 2 (h2) - 2rem</h2>
+                <h3>Heading 3 (h3) - 1.75rem</h3>
+                <h4>Heading 4 (h4) - 1.5rem</h4>
+                <h5>Heading 5 (h5) - 1.25rem</h5>
+                <h6>Heading 6 (h6) - 1rem</h6>
+                
+                <p class="mt-3">Regular paragraph text. Use <code>.text-muted</code> for secondary text, <code>.text-primary</code> for primary color, etc.</p>
+                
+                <p class="text-muted">Muted text for less important information</p>
+                <p class="text-primary">Primary colored text</p>
+                <small class="text-muted">Small text for captions and fine print</small>
+            </div>
+        </div>
+    </section>
+
+    <!-- Design Principles -->
+    <section id="principles" class="mb-5">
+        <div class="section-header">
+            <div>
+                <h3 class="section-title mb-0">
+                    <i class="fas fa-lightbulb me-2"></i>Design Principles
+                </h3>
+                <p class="section-subtitle mb-0">Guidelines for consistent design</p>
+            </div>
+        </div>
+
+        <div class="content-grid content-grid-2">
+            <div class="card">
+                <div class="card-header bg-primary">
+                    <h5 class="mb-0">Consistency</h5>
+                </div>
+                <div class="card-body">
+                    <ul>
+                        <li>Every page MUST use the standard page header</li>
+                        <li>Use section headers to divide content</li>
+                        <li>All stat cards use gradient backgrounds</li>
+                        <li>Icons always precede text with <code>me-1</code> or <code>me-2</code> spacing</li>
+                        <li>Always use the defined grid classes for layouts</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header bg-success">
+                    <h5 class="mb-0">Visual Hierarchy</h5>
+                </div>
+                <div class="card-body">
+                    <ul>
+                        <li>Page header → Section headers → Cards</li>
+                        <li>Important actions use solid buttons (primary, success)</li>
+                        <li>Secondary actions use outline buttons</li>
+                        <li>Group related items in cards</li>
+                        <li>Use info boxes for contextual help</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header bg-warning">
+                    <h5 class="mb-0">Spacing</h5>
+                </div>
+                <div class="card-body">
+                    <ul>
+                        <li>Page header: <code>mb-4</code> (margin-bottom: 2rem)</li>
+                        <li>Section spacing: <code>mb-4</code> or <code>mb-5</code></li>
+                        <li>Card spacing: <code>mb-3</code> or <code>mb-4</code></li>
+                        <li>Button groups: <code>gap-2</code></li>
+                        <li>Form fields: <code>g-3</code> in rows</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header bg-info">
+                    <h5 class="mb-0">Accessibility</h5>
+                </div>
+                <div class="card-body">
+                    <ul>
+                        <li>Always include icon classes alongside text</li>
+                        <li>Use semantic HTML (h1, h2, section, etc.)</li>
+                        <li>Forms have visible labels</li>
+                        <li>Buttons have descriptive text or aria-labels</li>
+                        <li>Color is not the only indicator (use icons too)</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </section>
+
+</div>
+{% endblock %}
