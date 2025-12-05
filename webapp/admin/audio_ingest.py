@@ -2315,11 +2315,12 @@ def api_stream_audio(source_name: str):
 
         # Pre-buffer audio for smooth playback - continue even if we can't fill buffer
         # CRITICAL FIX: Use subscription queue instead of destructive get_audio_chunk()
+        # UPDATED: Reduced prebuffer from 5s to 0.5s for instant web playback (user-requested)
         logger.info(f'Pre-buffering audio for {source_name} from broadcast subscription')
         prebuffer = []
-        prebuffer_target = int(sample_rate * 5)  # 5 seconds of audio for smooth playback on Pi
+        prebuffer_target = int(sample_rate * 0.5)  # 0.5 seconds for instant playback with minimal jitter protection
         prebuffer_samples = 0
-        prebuffer_timeout = 10.0  # Max 10 seconds to fill prebuffer (increased for larger buffer)
+        prebuffer_timeout = 2.0  # Max 2 seconds to fill prebuffer (reduced for faster startup)
         prebuffer_start = time.time()
         prebuffer_errors = 0
 
