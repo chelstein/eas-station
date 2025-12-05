@@ -1113,6 +1113,12 @@ async function deleteSource(sourceId) {
  */
 function updateEditSourceTypeConfig(sourceType, deviceParams) {
     const container = document.getElementById('editSourceTypeConfig');
+    
+    // Defensive check: if container doesn't exist, log error and return
+    if (!container) {
+        console.error('editSourceTypeConfig element not found in DOM');
+        return;
+    }
 
     let html = '';
 
