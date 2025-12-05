@@ -405,29 +405,55 @@ def publish_sdr_metrics(redis_client):
                 try:
                     status = receiver.get_status()
                     is_running = receiver._running.is_set() if hasattr(receiver, '_running') else False
-                    
+
+                    # Check if samples are available
+                    samples_available = False
+                    sample_count = 0
+                    if hasattr(receiver, 'get_samples'):
+                        try:
+                            # Try to peek at samples without consuming them
+                            test_samples = receiver.get_samples(num_samples=1)
+                            if test_samples is not None and len(test_samples) > 0:
+                                samples_available = True
+                                # Get actual buffer stats for sample count
+                                if hasattr(receiver, 'get_ring_buffer_stats'):
+                                    ring_stats = receiver.get_ring_buffer_stats()
+                                    if ring_stats:
+                                        sample_count = ring_stats.get('samples_available', 0)
+                        except Exception:
+                            pass
+
+                    # Build config object (webapp expects nested structure)
+                    config = {
+                        'frequency_hz': receiver.config.frequency_hz,
+                        'sample_rate': receiver.config.sample_rate,
+                        'driver': receiver.config.driver,
+                        'modulation_type': receiver.config.modulation_type if hasattr(receiver.config, 'modulation_type') else None,
+                    }
+
                     receiver_metrics = {
                         'running': is_running,
                         'locked': status.locked,
                         'signal_strength': float(status.signal_strength) if status.signal_strength else 0.0,
                         'last_error': status.last_error,
-                        'frequency_hz': receiver.config.frequency_hz,
-                        'sample_rate': receiver.config.sample_rate,
-                        'driver': receiver.config.driver,
+                        'samples_available': samples_available,
+                        'sample_count': sample_count,
+                        'reported_at': time.time(),
+                        'config': config,
                     }
-                    
+
                     # Add ring buffer stats if available
                     if hasattr(receiver, 'get_ring_buffer_stats'):
                         ring_stats = receiver.get_ring_buffer_stats()
                         if ring_stats:
                             receiver_metrics['ring_buffer'] = ring_stats
-                    
+
                     # Add connection health if available
                     if hasattr(receiver, 'get_connection_health'):
                         health = receiver.get_connection_health()
                         if health:
                             receiver_metrics['connection_health'] = health
-                    
+
                     metrics['receivers'][identifier] = receiver_metrics
                     
                 except Exception as e:
