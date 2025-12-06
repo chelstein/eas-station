@@ -562,6 +562,41 @@ def ensure_sdr_audio_monitor_source(
             'removed': removed,
         }
 
+    # Validate and fix Airspy-specific requirements
+    if receiver.driver == 'airspy':
+        changes_made = False
+
+        # Airspy R2 ONLY supports 2.5 MHz and 10 MHz IQ sample rates
+        AIRSPY_VALID_RATES = {2500000, 10000000}
+        if receiver.sample_rate not in AIRSPY_VALID_RATES:
+            old_rate = receiver.sample_rate
+            receiver.sample_rate = 2500000  # Default to 2.5 MHz
+            logger.warning(
+                f"Airspy receiver {receiver.identifier} had invalid sample rate {old_rate}. "
+                f"Changed to {receiver.sample_rate} (2.5 MHz). Airspy only supports 2.5 MHz and 10 MHz."
+            )
+            changes_made = True
+
+        # Ensure audio_sample_rate is set for demodulated audio
+        if not receiver.audio_sample_rate:
+            receiver.audio_sample_rate = 32000  # Good default for NFM
+            logger.info(f"Set audio_sample_rate to {receiver.audio_sample_rate} for Airspy {receiver.identifier}")
+            changes_made = True
+
+        # Ensure modulation type is set (cannot be 'IQ' for audio output)
+        if not receiver.modulation_type or receiver.modulation_type == 'IQ':
+            receiver.modulation_type = 'NFM'  # Default to Narrow FM (good for NOAA weather)
+            logger.info(f"Set modulation_type to {receiver.modulation_type} for Airspy {receiver.identifier}")
+            changes_made = True
+
+        if changes_made and commit:
+            try:
+                db.session.commit()
+                logger.info(f"Applied Airspy configuration fixes for {receiver.identifier}")
+            except Exception as e:
+                db.session.rollback()
+                logger.error(f"Failed to save Airspy configuration fixes: {e}")
+
     # In separated architecture, webapp does not use local controller
     sample_rate, channels = _recommend_audio_stream(receiver)
     buffer_size = 4096 if channels == 1 else 8192
@@ -665,9 +700,22 @@ def ensure_sdr_audio_monitor_source(
     
     if start_flag:
         try:
+            # Validate critical parameters before sending to audio-service
+            if not receiver.sample_rate:
+                raise ValueError(
+                    f"Receiver {receiver.identifier} has no sample_rate configured. "
+                    f"Cannot create audio monitor without IQ sample rate."
+                )
+
+            if not receiver.modulation_type or receiver.modulation_type == 'IQ':
+                raise ValueError(
+                    f"Receiver {receiver.identifier} has invalid modulation_type '{receiver.modulation_type}'. "
+                    f"Cannot demodulate IQ-only output to audio. Use NFM, WFM, or AM."
+                )
+
             # Send command to audio-service to reload and start the Redis SDR source
             publisher = get_audio_command_publisher()
-            
+
             # Build the source config for audio-service
             # IMPORTANT: For separated architecture, audio-service creates RedisSDRSourceAdapter
             # which subscribes to sdr:samples:{receiver_id} published by sdr-service
