@@ -855,6 +855,36 @@ def _restore_audio_source_from_db_config(
     return adapter
 
 
+def _get_audio_source_from_redis(source_name: str) -> Optional[Dict[str, Any]]:
+    """
+    Get audio source information from Redis metrics (separated architecture).
+    
+    Returns source metrics and status from audio-service via Redis.
+    """
+    try:
+        from app_core.redis_client import get_redis_client
+        import json
+        
+        redis_client = get_redis_client()
+        
+        # Get audio controller metrics from Redis
+        metrics_data = redis_client.hget("eas:metrics", "audio_controller")
+        if not metrics_data:
+            return None
+        
+        controller_metrics = json.loads(metrics_data)
+        sources = controller_metrics.get("sources", {})
+        
+        if source_name not in sources:
+            return None
+        
+        return sources[source_name]
+        
+    except Exception as e:
+        logger.error(f"Error reading audio source from Redis: {e}")
+        return None
+
+
 def _get_controller_and_adapter(
     source_name: str,
 ) -> Tuple[Optional[AudioIngestController], Optional[Any], Optional[AudioSourceConfigDB], bool]:
@@ -1413,10 +1443,38 @@ def api_get_audio_source(source_name: str):
         controller, adapter, db_config, _ = _get_controller_and_adapter(source_name)
 
         if adapter is None:
+            # In separated architecture, try to get source info from Redis
+            redis_source = _get_audio_source_from_redis(source_name)
+            
+            if redis_source and db_config:
+                # Build response from Redis metrics and database config
+                response = {
+                    'name': source_name,
+                    'type': db_config.source_type,
+                    'enabled': db_config.enabled,
+                    'priority': db_config.priority,
+                    'auto_start': db_config.auto_start,
+                    'description': db_config.description,
+                    'status': redis_source.get('status', 'unknown'),
+                    'sample_rate': redis_source.get('sample_rate'),
+                    'channels': redis_source.get('channels'),
+                    'peak_level_db': redis_source.get('peak_level_db'),
+                    'rms_level_db': redis_source.get('rms_level_db'),
+                    'frames_captured': redis_source.get('frames_captured'),
+                    'buffer_utilization': redis_source.get('buffer_utilization'),
+                    'silence_detected': redis_source.get('silence_detected', False),
+                    'timestamp': redis_source.get('timestamp'),
+                    'metadata': redis_source.get('metadata', {}),
+                    'error_message': redis_source.get('error_message'),
+                    'config': redis_source.get('config', {}),
+                    'streaming': redis_source.get('streaming'),
+                }
+                return jsonify(response)
+            
             if db_config:
                 return jsonify({
                     'error': 'Source exists in database but could not be loaded',
-                    'hint': 'Check audio ingest logs for initialization errors',
+                    'hint': 'Check audio-service logs for initialization errors, or restart audio-service',
                 }), 503
             return jsonify({
                 'error': f'Audio source "{source_name}" not found',
