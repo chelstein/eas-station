@@ -398,7 +398,10 @@ python app.py
 - 🐛 **Issues**: [GitHub Issues](https://github.com/KR8MER/eas-station/issues)
 - 📡 **Community**: Join our amateur radio forums
 
-> **Quick Diagnostics**: Run `bash scripts/diagnostics/troubleshoot_connection.sh` to diagnose connection issues, or see [scripts/diagnostics/README.md](scripts/diagnostics/README.md) for all available tools.
+> **Quick Diagnostics**: 
+> - **SDR not working?** Run `bash scripts/collect_sdr_diagnostics.sh` or see [SDR Quick Fix Guide](docs/troubleshooting/SDR_QUICK_FIX_GUIDE.md)
+> - **Connection issues?** Run `bash scripts/diagnostics/troubleshoot_connection.sh` 
+> - **See all tools**: [scripts/diagnostics/README.md](scripts/diagnostics/README.md)
 
 > **Alert Self-Test**: Open **Tools → Alert Verification** and use the built-in Alert Self-Test panel to replay bundled RWT captures and confirm your configured FIPS codes still trigger activations.
 
