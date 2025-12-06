@@ -147,25 +147,43 @@ class FMDemodulator:
         return audio.astype(np.float32), rbds_data
 
     def _resample(self, signal: np.ndarray, from_rate: int, to_rate: int) -> np.ndarray:
-        """Simple resampling using linear interpolation."""
+        """Resample signal using polyphase filtering (high quality) or linear interpolation (fallback)."""
         if from_rate == to_rate:
             return signal
 
+        # Try using scipy.signal.resample_poly for high-quality resampling
+        # This is critical for SDR demodulation to avoid aliasing artifacts
+        try:
+            from scipy import signal as scipy_signal
+            import math
+            
+            # Calculate integer ratio for polyphase resampling
+            gcd = math.gcd(int(from_rate), int(to_rate))
+            up = int(to_rate // gcd)
+            down = int(from_rate // gcd)
+            
+            # Use resample_poly which applies an anti-aliasing filter
+            if signal.ndim == 1:
+                return scipy_signal.resample_poly(signal, up, down).astype(signal.dtype)
+            else:
+                return scipy_signal.resample_poly(signal, up, down, axis=0).astype(signal.dtype)
+        except ImportError:
+            # Fallback to linear interpolation if scipy is not available
+            pass
+
         ratio = to_rate / from_rate
+        new_length = int(len(signal) * ratio)
+        old_indices = np.arange(len(signal))
+        new_indices = np.linspace(0, len(signal) - 1, new_length)
+
         if signal.ndim == 1:
-            new_length = max(int(len(signal) * ratio), 1)
-            old_indices = np.arange(len(signal))
-            new_indices = np.linspace(0, len(signal) - 1, new_length)
-            return np.interp(new_indices, old_indices, signal)
+            return np.interp(new_indices, old_indices, signal).astype(signal.dtype)
 
         channels = []
         for ch in range(signal.shape[1]):
             channel_data = signal[:, ch]
-            new_length = max(int(len(channel_data) * ratio), 1)
-            old_indices = np.arange(len(channel_data))
-            new_indices = np.linspace(0, len(channel_data) - 1, new_length)
             channels.append(np.interp(new_indices, old_indices, channel_data))
-        return np.column_stack(channels)
+        return np.column_stack(channels).astype(signal.dtype)
 
     def _apply_deemphasis(self, audio: np.ndarray) -> np.ndarray:
         """Apply de-emphasis filter (single-pole IIR lowpass)."""

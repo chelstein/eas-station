@@ -1529,6 +1529,14 @@ def api_create_audio_source():
 
         logger.info('Created audio source: %s (Type: %s)', name, source_type)
 
+        streaming_service = _get_auto_streaming_service()
+        if streaming_service and streaming_service.is_available():
+            try:
+                streaming_service.add_source(name, adapter)
+                logger.info(f'✅ Registered {name} with Icecast streaming')
+            except Exception as e:
+                logger.warning(f'⚠️ Failed to register {name} with Icecast: {e}')
+
         return jsonify({
             'source': _serialize_audio_source(name, adapter),
             'message': 'Audio source created successfully'
@@ -2133,32 +2141,64 @@ def api_get_waveform(source_name: str):
 def api_get_spectrogram(source_name: str):
     """Get spectrogram data for a specific audio source (for waterfall display).
 
-    Reads spectrogram data from Redis, published by the audio-service.
+    For separated architecture: reads from Redis published by audio-service.
+    For local development: reads directly from audio controller.
     """
     try:
-        from app_core.redis_client import get_redis_client
+        spectrogram_data = None
         
-        # Get spectrogram data from Redis
-        r = get_redis_client()
-        spectrogram_key = f"eas:spectrogram:{source_name}"
-        spectrogram_json = r.get(spectrogram_key)
+        try:
+            from app_core.redis_client import get_redis_client
+            r = get_redis_client()
+            spectrogram_key = f"eas:spectrogram:{source_name}"
+            spectrogram_json = r.get(spectrogram_key)
+            if spectrogram_json:
+                spectrogram_data = json.loads(spectrogram_json)
+        except Exception as redis_err:
+            logger.debug(f"Redis spectrogram unavailable: {redis_err}")
         
-        if not spectrogram_json:
-            # No spectrogram data available - source may not be running
-            return jsonify({
+        if not spectrogram_data:
+            controller = _get_audio_controller()
+            if source_name not in controller._sources:
+                return jsonify({
+                    'source_name': source_name,
+                    'spectrogram': [],
+                    'time_frames': 0,
+                    'frequency_bins': 0,
+                    'sample_rate': 48000,
+                    'fft_size': 1024,
+                    'timestamp': time.time(),
+                    'status': 'not_found',
+                    'message': f'Audio source {source_name} not found'
+                }), 404
+            
+            adapter = controller._sources[source_name]
+            spec_array = adapter.get_spectrogram_data()
+            
+            if spec_array is None or spec_array.size == 0:
+                return jsonify({
+                    'source_name': source_name,
+                    'spectrogram': [],
+                    'time_frames': 0,
+                    'frequency_bins': 0,
+                    'sample_rate': adapter.config.sample_rate,
+                    'fft_size': adapter._fft_size,
+                    'timestamp': time.time(),
+                    'status': 'no_data',
+                    'message': 'No spectrogram data available - source may not be running'
+                }), 200
+            
+            spectrogram_data = {
                 'source_name': source_name,
-                'spectrogram': [],
-                'time_frames': 0,
-                'frequency_bins': 0,
-                'sample_rate': 48000,
-                'fft_size': 1024,
+                'spectrogram': spec_array.tolist(),
+                'time_frames': int(spec_array.shape[0]),
+                'frequency_bins': int(spec_array.shape[1]),
+                'sample_rate': adapter.config.sample_rate,
+                'fft_size': adapter._fft_size,
                 'timestamp': time.time(),
-                'status': 'no_data',
-                'message': 'No spectrogram data available - source may not be running'
-            }), 200
+                'status': 'ok'
+            }
         
-        # Parse and return spectrogram data
-        spectrogram_data = json.loads(spectrogram_json)
         return jsonify(spectrogram_data), 200
 
     except Exception as exc:

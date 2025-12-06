@@ -88,7 +88,7 @@ WHERE
 \echo 'Fix 3: Correcting SDR audio source configurations...'
 
 -- For each SDR audio source, set appropriate sample rate based on linked receiver
-UPDATE audio_source_configs asc
+UPDATE audio_source_configs ac
 SET config = jsonb_set(
     config,
     '{sample_rate}',
@@ -101,11 +101,11 @@ SET config = jsonb_set(
 )
 FROM radio_receivers rr
 WHERE
-    asc.source_type = 'sdr'
-    AND asc.enabled = true
-    AND asc.config->'device_params'->>'receiver_id' = rr.identifier
+    ac.source_type = 'sdr'
+    AND ac.enabled = true
+    AND ac.config->'device_params'->>'receiver_id' = rr.identifier
     AND rr.enabled = true
-    AND (asc.config->>'sample_rate')::int < 20000;  -- Only fix if obviously wrong
+    AND (ac.config->>'sample_rate')::int < 20000;  -- Only fix if obviously wrong
 
 \echo 'SDR audio sources updated.'
 

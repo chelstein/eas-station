@@ -168,17 +168,19 @@ Comprehensive test coverage:
 
 ## 📊 Codebase Statistics
 
-- **Python Modules**: 100+ files across core, utilities, and application
-- **Test Files**: 50+ comprehensive test suites
-- **HTML Templates**: 30+ Jinja2 templates
-- **Documentation Files**: Extensive markdown documentation in `docs/`
-- **Lines of Code**: Major files range from 1-60+ KB
+- **Total Files**: 644
+- **Python Modules**: 322 files
+- **HTML Templates**: 85 Jinja2 templates
+- **Documentation Files**: 56 markdown files
+- **Total Lines**: 221,050 (129,747 code lines)
+- **Total Routes**: 189 Flask routes
 
 ### Largest Components
-- `fips_codes.py` - 88.56 KB (FIPS code reference database)
-- `eas.py` - 64.75 KB (Core EAS processing)
-- `system.py` - 85.83 KB (System utilities)
 - `admin.html` - 336 KB (Admin dashboard UI)
+- `cap_poller.py` - 130 KB (CAP Polling Service)
+- `fips_codes.py` - 88 KB (FIPS code reference database)
+- `system.py` - 85 KB (System utilities)
+- `eas.py` - 64 KB (Core EAS processing)
 
 ---
 
@@ -305,4 +307,4 @@ EAS Station is experimental software for research and development purposes only.
 ---
 
 *Generated from EAS Station repository structure*  
-*Last updated: November 2025*
+*Last updated: November 29, 2025*

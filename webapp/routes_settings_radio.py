@@ -34,9 +34,7 @@ from app_core.location import get_location_settings
 from app_core.models import RadioReceiver
 from app_core.radio import (
     ensure_radio_tables,
-    enumerate_devices,
     check_soapysdr_installation,
-    get_device_capabilities,
     get_recommended_settings,
     validate_sample_rate_for_driver,
     SDR_PRESETS,
@@ -88,6 +86,34 @@ def _log_radio_event(
         _module_logger.debug(
             "RadioManager.log_event failed for message '%s': %s", message, exc, exc_info=True
         )
+
+
+def _send_sdr_command(action: str, **kwargs) -> Dict[str, Any]:
+    """Send a command to the sdr-service via Redis and wait for response."""
+    try:
+        redis_client = get_redis_client()
+        command_id = str(uuid.uuid4())
+        
+        command = {
+            "action": action,
+            "command_id": command_id,
+            **kwargs
+        }
+        
+        redis_client.rpush("sdr:commands", json.dumps(command))
+        
+        # Wait for result (5s timeout)
+        start_time = time.time()
+        while time.time() - start_time < 5.0:
+            result_json = redis_client.get(f"sdr:command_result:{command_id}")
+            if result_json:
+                return json.loads(result_json)
+            time.sleep(0.1)
+            
+        return {"success": False, "error": "Timeout waiting for sdr-service"}
+        
+    except Exception as e:
+        return {"success": False, "error": str(e)}
 
 
 def _make_offline_status(last_error: str, **flags) -> Dict[str, Any]:
@@ -914,8 +940,16 @@ def register(app: Flask, logger) -> None:
     def api_discover_devices() -> Any:
         """Enumerate all SoapySDR-compatible devices connected to the system."""
         try:
-            devices = enumerate_devices()
-            return jsonify({"devices": devices, "count": len(devices)})
+            # Use Redis command to discover devices via sdr-service
+            result = _send_sdr_command("discover_devices")
+            
+            if result.get("success"):
+                devices = result.get("devices", [])
+                return jsonify({"devices": devices, "count": len(devices)})
+            else:
+                error = result.get("error", "Unknown error")
+                raise Exception(error)
+                
         except Exception as exc:
             route_logger.error("Device enumeration failed: %s", exc)
             _log_radio_event(
@@ -930,7 +964,13 @@ def register(app: Flask, logger) -> None:
     def api_list_devices_simple() -> Any:
         """List detected SDR devices in simplified format for dropdown selection."""
         try:
-            devices = enumerate_devices()
+            # Use Redis command to discover devices via sdr-service
+            result = _send_sdr_command("discover_devices")
+            
+            if not result.get("success"):
+                raise Exception(result.get("error", "Unknown error"))
+                
+            devices = result.get("devices", [])
 
             # Simplify device list for dropdown
             simple_devices = []
@@ -1073,11 +1113,22 @@ def register(app: Flask, logger) -> None:
             if request.args.get("device_id"):
                 device_args["device_id"] = request.args.get("device_id")
 
-            capabilities = get_device_capabilities(driver, device_args if device_args else None)
-            if capabilities is None:
-                return jsonify({"error": f"Unable to query capabilities for driver '{driver}'"}), 404
+            # Use Redis command to get capabilities via sdr-service
+            result = _send_sdr_command(
+                "get_device_capabilities", 
+                driver=driver, 
+                device_args=device_args if device_args else None
+            )
+            
+            if result.get("success"):
+                capabilities = result.get("capabilities")
+                if capabilities is None:
+                    return jsonify({"error": f"Unable to query capabilities for driver '{driver}'"}), 404
+                return jsonify(capabilities)
+            else:
+                # If sdr-service failed, raise exception to trigger failsafe
+                raise Exception(result.get("error", "Unknown error"))
 
-            return jsonify(capabilities)
         except Exception as exc:
             route_logger.error("Failed to query capabilities for driver '%s': %s", driver, exc, exc_info=True)
             _log_radio_event(

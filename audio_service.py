@@ -508,6 +508,97 @@ def process_commands():
                 json.dumps(result)
             )
 
+        elif action == "discover_devices":
+            # Enumerate SoapySDR devices
+            try:
+                import SoapySDR  # type: ignore
+                devices = SoapySDR.Device.enumerate()
+                
+                results = []
+                for idx, device_info in enumerate(devices):
+                    device_dict = dict(device_info)
+                    parsed = {
+                        "index": idx,
+                        "driver": device_dict.get("driver", "unknown"),
+                        "label": device_dict.get("label", f"Device {idx}"),
+                        "serial": device_dict.get("serial", None),
+                        "manufacturer": device_dict.get("manufacturer", None),
+                        "product": device_dict.get("product", None),
+                        "hardware": device_dict.get("hardware", None),
+                        "device_id": device_dict.get("device_id", None),
+                        "raw_info": device_dict,
+                    }
+                    results.append(parsed)
+                
+                result = {
+                    "command_id": command_id,
+                    "success": True,
+                    "devices": results,
+                    "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                }
+                logger.info(f"✅ Discovered {len(results)} SDR devices")
+                
+                # Also cache the discovery result in a persistent key for quick access
+                _redis_client.set("eas:sdr:devices", json.dumps(results))
+                
+            except ImportError:
+                logger.error("SoapySDR not installed")
+                result = {
+                    "command_id": command_id,
+                    "success": False,
+                    "error": "SoapySDR not installed",
+                    "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                }
+            except Exception as e:
+                logger.error(f"❌ Failed to discover devices: {e}")
+                result = {
+                    "command_id": command_id,
+                    "success": False,
+                    "error": str(e),
+                    "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                }
+
+            # Publish result
+            _redis_client.setex(
+                f"sdr:command_result:{command_id}",
+                30,  # 30 second TTL
+                json.dumps(result)
+            )
+
+        elif action == "get_device_capabilities":
+            driver = command.get("driver")
+            device_args = command.get("device_args")
+            
+            try:
+                # Reuse the logic from app_core.radio.discovery but run it here
+                from app_core.radio.discovery import get_device_capabilities
+                
+                capabilities = get_device_capabilities(driver, device_args)
+                
+                result = {
+                    "command_id": command_id,
+                    "success": True,
+                    "capabilities": capabilities,
+                    "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                }
+                logger.info(f"✅ Retrieved capabilities for driver {driver}")
+                
+            except Exception as e:
+                logger.error(f"❌ Failed to get capabilities for {driver}: {e}")
+                result = {
+                    "command_id": command_id,
+                    "success": False,
+                    "error": str(e),
+                    "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                }
+
+            # Publish result
+            _redis_client.setex(
+                f"sdr:command_result:{command_id}",
+                30,  # 30 second TTL
+                json.dumps(result)
+            )
+
         else:
             logger.warning(f"Unknown command action: {action}")
 
@@ -704,7 +795,7 @@ def publish_metrics_to_redis(metrics):
                                 waveform_payload = {
                                     'waveform': waveform_list,
                                     'sample_count': len(waveform_list),
-                                    'timestamp': time.time(),
+                                    'timestamp': time.time() * 1000,  # Milliseconds for JS
                                     'source_name': name,
                                     'status': 'available'
                                 }
@@ -731,7 +822,7 @@ def publish_metrics_to_redis(metrics):
                                     'frequency_bins': len(spectrogram_list[0]) if len(spectrogram_list) > 0 else 0,
                                     'sample_rate': sample_rate,
                                     'fft_size': fft_size,
-                                    'timestamp': time.time(),
+                                    'timestamp': time.time() * 1000,  # Milliseconds for JS
                                     'source_name': name,
                                     'status': 'available'
                                 }
@@ -764,7 +855,7 @@ def publish_metrics_to_redis(metrics):
                                 # Receiver is stopped - publish minimal status
                                 spectrum_payload = {
                                     'receiver_identifier': identifier,
-                                    'timestamp': time.time(),
+                                    'timestamp': time.time() * 1000,  # Milliseconds for JS
                                     'status': 'stopped',
                                     'spectrum': [],
                                     'fft_size': 0,
@@ -779,7 +870,31 @@ def publish_metrics_to_redis(metrics):
                                 )
                                 continue
 
-                            # Get IQ samples for spectrum
+                            # Get spectrum data (pre-computed by driver if available)
+                            # This is more efficient and uses the driver's optimized FFT
+                            if hasattr(receiver_instance, 'get_spectrum'):
+                                try:
+                                    spectrum_data = receiver_instance.get_spectrum()
+                                    if spectrum_data:
+                                        spectrum_payload = {
+                                            'receiver_identifier': identifier,
+                                            'timestamp': time.time() * 1000,  # Milliseconds for JS
+                                            'status': 'running',
+                                            'spectrum': spectrum_data,
+                                            'fft_size': getattr(receiver_instance, '_fft_size', 2048),
+                                            'sample_rate': getattr(receiver_instance.config, 'sample_rate', 0),
+                                            'center_frequency': getattr(receiver_instance.config, 'frequency_hz', 0),
+                                        }
+                                        pipe.setex(
+                                            f"eas:spectrum:{identifier}",
+                                            5,
+                                            json.dumps(spectrum_payload)
+                                        )
+                                        continue
+                                except Exception as e:
+                                    logger.debug(f"Error getting pre-computed spectrum for '{identifier}': {e}")
+
+                            # Fallback: Get IQ samples and compute FFT manually
                             if hasattr(receiver_instance, 'get_samples'):
                                 iq_samples = receiver_instance.get_samples(num_samples=2048)
 
@@ -816,7 +931,7 @@ def publish_metrics_to_redis(metrics):
                                         'center_frequency': frequency_hz,
                                         'freq_min': frequency_hz - (sample_rate / 2) if sample_rate else 0,
                                         'freq_max': frequency_hz + (sample_rate / 2) if sample_rate else 0,
-                                        'timestamp': time.time(),
+                                        'timestamp': time.time() * 1000,  # Milliseconds for JS
                                         'status': 'available'
                                     }
                                     
@@ -842,7 +957,7 @@ def publish_metrics_to_redis(metrics):
                                         'center_frequency': center_freq,
                                         'freq_min': center_freq - (sample_rate / 2) if sample_rate else 0,
                                         'freq_max': center_freq + (sample_rate / 2) if sample_rate else 0,
-                                        'timestamp': time.time(),
+                                        'timestamp': time.time() * 1000,  # Milliseconds for JS
                                         'status': 'no_samples',
                                         'error': error_msg
                                     }

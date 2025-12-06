@@ -187,6 +187,7 @@ def register(app: Flask, logger) -> None:
                     }
                 )
             except Exception as exc:
+                db.session.rollback()
                 route_logger.error("Error getting basic counts: %s", exc)
                 stats_data.update(
                     {
@@ -210,6 +211,7 @@ def register(app: Flask, logger) -> None:
                     for boundary_type, count in boundary_stats
                 ]
             except Exception as exc:
+                db.session.rollback()
                 route_logger.error("Error getting boundary stats: %s", exc)
                 stats_data["boundary_stats"] = []
 
@@ -253,6 +255,7 @@ def register(app: Flask, logger) -> None:
                     for event, count in alert_by_event
                 ]
             except Exception as exc:
+                db.session.rollback()
                 route_logger.error("Error getting alert category stats: %s", exc)
                 stats_data.update(
                     {
@@ -323,6 +326,7 @@ def register(app: Flask, logger) -> None:
                     if year
                 ]
             except Exception as exc:
+                db.session.rollback()
                 route_logger.error("Error getting time-based stats: %s", exc)
                 stats_data.update(
                     {

@@ -210,12 +210,13 @@ class AutoStreamingService:
                     admin_password=self.icecast_admin_password,
                 )
 
-                # CRITICAL: Each Icecast stream reads DIRECTLY from its own audio source
-                # NOT from the broadcast queue! The broadcast queue is for monitoring only.
+                # CRITICAL: Each Icecast stream subscribes to its OWN source's audio
+                # via the source's BroadcastQueue. This ensures it gets an independent
+                # copy of the audio without starving the EAS monitor or other consumers.
                 # This ensures WNCI stream outputs WNCI audio, WIMT outputs WIMT audio, etc.
                 logger.info(
-                    f"Icecast stream '{source_name}' will read directly from source "
-                    f"at native {sample_rate} Hz (pass-through mode)"
+                    f"Icecast stream '{source_name}' will subscribe to source "
+                    f"at native {sample_rate} Hz (broadcast mode)"
                 )
 
                 # Create and start streamer with direct source access
@@ -224,7 +225,7 @@ class AutoStreamingService:
                     self._streamers[source_name] = streamer
                     logger.info(
                         f"Started Icecast stream for {source_name} at "
-                        f"http://{self.icecast_server}:{self.icecast_port}/{source_name}"
+                        f"http://{self.icecast_server}:{self.icecast_port}{mount_point}"
                     )
                     return True
                 else:
@@ -271,10 +272,13 @@ class AutoStreamingService:
             Stream URL if source is streaming, None otherwise
         """
         with self._lock:
-            if source_name in self._streamers:
-                return (
-                    f"http://{self.icecast_server}:{self.icecast_port}/{source_name}"
-                )
+            streamer = self._streamers.get(source_name)
+            if streamer:
+                mount_point = getattr(streamer.config, 'mount', None)
+                if mount_point:
+                    return (
+                        f"http://{self.icecast_server}:{self.icecast_port}{mount_point}"
+                    )
             return None
 
     def get_status(self) -> dict:

@@ -348,6 +348,17 @@ class _SoapySDRReceiver(ReceiverInterface):
             return
 
         self._running.clear()
+
+        # Attempt to stop the stream to unblock readStream if it's stuck
+        # This is critical for drivers that block indefinitely on readStream
+        if self._handle:
+            try:
+                self._handle.device.deactivateStream(self._handle.stream)
+            except Exception:
+                # Ignore errors here - we're shutting down anyway
+                # and _teardown_handle will try again
+                pass
+
         if self._thread:
             self._thread.join(timeout=2.0)
 
@@ -540,8 +551,63 @@ class _SoapySDRReceiver(ReceiverInterface):
         try:
             device.setSampleRate(SoapySDR.SOAPY_SDR_RX, channel, self.config.sample_rate)
             device.setFrequency(SoapySDR.SOAPY_SDR_RX, channel, self.config.frequency_hz)
+            
+            # Configure Gain
             if self.config.gain is not None:
-                device.setGain(SoapySDR.SOAPY_SDR_RX, channel, float(self.config.gain))
+                try:
+                    device.setGain(SoapySDR.SOAPY_SDR_RX, channel, float(self.config.gain))
+                    self._interface_logger.info(
+                        "Set gain to %.1f dB for %s", 
+                        float(self.config.gain), 
+                        self.config.identifier
+                    )
+                except Exception as exc:
+                    self._interface_logger.warning(
+                        "Failed to set gain to %.1f dB for %s: %s", 
+                        float(self.config.gain), 
+                        self.config.identifier,
+                        exc
+                    )
+            else:
+                # Enable AGC if gain is not specified and device supports it
+                try:
+                    if device.hasGainMode(SoapySDR.SOAPY_SDR_RX, channel):
+                        device.setGainMode(SoapySDR.SOAPY_SDR_RX, channel, True)
+                        self._interface_logger.info(
+                            "Enabled Automatic Gain Control (AGC) for %s (no fixed gain specified)", 
+                            self.config.identifier
+                        )
+                    else:
+                        self._interface_logger.debug(
+                            "Device %s does not support AGC and no gain specified", 
+                            self.config.identifier
+                        )
+                except Exception as exc:
+                    self._interface_logger.debug(
+                        "Failed to enable AGC for %s: %s", 
+                        self.config.identifier, 
+                        exc
+                    )
+
+            # Set bandwidth to match sample rate if supported (helps with anti-aliasing)
+            try:
+                device.setBandwidth(SoapySDR.SOAPY_SDR_RX, channel, self.config.sample_rate)
+            except Exception:
+                # Not all devices support setting bandwidth, which is fine
+                pass
+
+            # Log available antennas for diagnostics
+            try:
+                antennas = device.listAntennas(SoapySDR.SOAPY_SDR_RX, channel)
+                if antennas:
+                    current_antenna = device.getAntenna(SoapySDR.SOAPY_SDR_RX, channel)
+                    self._interface_logger.info(
+                        "Available antennas: %s. Using: %s", 
+                        antennas, 
+                        current_antenna
+                    )
+            except Exception:
+                pass
 
             # Configure stream with appropriate MTU for USB bandwidth
             # AirSpy and other SDRs benefit from larger buffer sizes to prevent
@@ -759,18 +825,6 @@ class _SoapySDRReceiver(ReceiverInterface):
         retry_delay = self._retry_backoff
         consecutive_failures = 0
         
-        # Initialize ring buffer for jitter absorption
-        # 0.5 seconds of buffer is usually enough to absorb USB jitter
-        ring_buffer_size = int(self.config.sample_rate * 0.5)
-        # Ensure buffer is at least 4x the read chunk size
-        ring_buffer_size = max(ring_buffer_size, 65536)
-        
-        ring_buffer = None
-        ring_write_pos = 0
-        
-        if handle:
-             ring_buffer = handle.numpy.zeros(ring_buffer_size, dtype=handle.numpy.complex64)
-        
         last_spectrum_time = 0
 
         while self._running.is_set():
@@ -810,12 +864,6 @@ class _SoapySDRReceiver(ReceiverInterface):
                 self._initialize_sample_buffer(new_handle.numpy)
                 # Use larger buffer to reduce USB transfer overhead and prevent SOAPY_SDR_OVERFLOW (-4)
                 buffer = new_handle.numpy.zeros(16384, dtype=new_handle.numpy.complex64)
-                
-                # Re-initialize ring buffer on new connection
-                ring_buffer_size = int(self.config.sample_rate * 0.5)
-                ring_buffer_size = max(ring_buffer_size, 65536)
-                ring_buffer = new_handle.numpy.zeros(ring_buffer_size, dtype=new_handle.numpy.complex64)
-                ring_write_pos = 0
                 
                 retry_delay = self._retry_backoff
                 continue
@@ -911,7 +959,6 @@ class _SoapySDRReceiver(ReceiverInterface):
                 self._teardown_handle(handle)
                 handle = None
                 buffer = None
-                ring_buffer = None
                 self._cancel_capture_requests(RuntimeError(f"Capture error: {exc}"), teardown=False)
                 if not self._running.is_set():
                     break

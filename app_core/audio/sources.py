@@ -213,9 +213,12 @@ class SDRSourceAdapter(AudioSourceAdapter):
                 logger.info(f"Created {self._receiver_config.modulation_type} demodulator for receiver: {receiver_id}")
 
         # Start IQ capture from the specified receiver
+        # When capturing IQ samples, use the receiver's native sample rate
+        # The demodulator will resample to the desired audio output rate
+        capture_sample_rate = self._receiver_config.sample_rate if self._demodulator else self.config.sample_rate
         self._capture_handle = self._radio_manager.start_audio_capture(
             receiver_id=self._receiver_id,
-            sample_rate=self.config.sample_rate,
+            sample_rate=capture_sample_rate,
             channels=self.config.channels,
             format='iq' if self._demodulator else 'pcm'
         )
@@ -840,6 +843,15 @@ class StreamSourceAdapter(AudioSourceAdapter):
 
     def _build_ffmpeg_command(self, stream_url: str) -> List[str]:
         """Construct the FFmpeg command used for streaming + decoding."""
+        output_sample_rate = self.config.sample_rate
+        if output_sample_rate < 32000:
+            logger.warning(
+                f"StreamSourceAdapter {self.config.name}: sample_rate is {output_sample_rate} Hz "
+                f"which is below normal audio range. Using 48000 Hz instead. "
+                f"(If configured for EAS decoder, that should be applied downstream, not to source)"
+            )
+            output_sample_rate = 48000
+        
         return [
             'ffmpeg',
             '-hide_banner',
@@ -855,7 +867,7 @@ class StreamSourceAdapter(AudioSourceAdapter):
             '-i', stream_url,
             '-vn',
             '-acodec', 'pcm_s16le',
-            '-ar', str(self.config.sample_rate),
+            '-ar', str(output_sample_rate),
             '-ac', str(self.config.channels),
             '-f', 's16le',
             'pipe:1',
