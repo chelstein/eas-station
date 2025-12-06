@@ -66,17 +66,27 @@ If you're new to EAS Station, start here:
 
 ## 🔧 Troubleshooting
 
+### SDR & Radio
+| Document | Description |
+|----------|-------------|
+| **[SDR Quick Fix Guide](troubleshooting/SDR_QUICK_FIX_GUIDE)** ⭐ | **5-minute checklist for common SDR problems** |
+| **[SDR Master Troubleshooting Guide](troubleshooting/SDR_MASTER_TROUBLESHOOTING_GUIDE)** | **Complete step-by-step SDR diagnostic procedures** |
+| [SDR Troubleshooting Flowchart](troubleshooting/SDR_TROUBLESHOOTING_FLOWCHART) | Visual decision tree for SDR issues |
+| [SDR Audio Tuning Issues](troubleshooting/SDR_AUDIO_TUNING_ISSUES) | Audio-specific SDR troubleshooting |
+| [SDR Waterfall Issues](troubleshooting/SDR_WATERFALL_TROUBLESHOOTING) | Waterfall display troubleshooting |
+| [SDR Streaming Issues](troubleshooting/SDR_STREAMING_ISSUES_ANALYSIS) | SDR streaming analysis |
+| [Airspy Container Fix](troubleshooting/AIRSPY_CONTAINER_FIX) | Airspy SDR container issues |
+| [Audio SDR Issues](troubleshooting/AUDIO_SDR_ISSUES_EXPLAINED) | SDR audio problems explained |
+
+### General Troubleshooting
 | Document | Description |
 |----------|-------------|
 | [Database Issues](troubleshooting/DATABASE_CONSISTENCY_FIXES) | PostgreSQL troubleshooting |
-| [SDR Waterfall Issues](troubleshooting/SDR_WATERFALL_TROUBLESHOOTING) | SDR troubleshooting |
 | [Firewall Requirements](troubleshooting/FIREWALL_REQUIREMENTS) | Network ports and firewall setup |
 | [IPv6 Connectivity](troubleshooting/FIX_IPV6_CONNECTIVITY) | IPv6 troubleshooting |
-| [Airspy Container Fix](troubleshooting/AIRSPY_CONTAINER_FIX) | Airspy SDR container issues |
 | [Audio Squeal Fix](troubleshooting/AUDIO_SQUEAL_FIX) | Audio feedback/squeal issues |
-| [Audio SDR Issues](troubleshooting/AUDIO_SDR_ISSUES_EXPLAINED) | SDR audio problems explained |
 | [Containerization Fixes](troubleshooting/CONTAINERIZATION_FIXES) | Docker container issues |
-| [SDR Streaming Issues](troubleshooting/SDR_STREAMING_ISSUES_ANALYSIS) | SDR streaming analysis |
+| [Audio Streaming Setup](troubleshooting/AUDIO_STREAMING_SETUP) | Audio streaming configuration |
 
 ## 🔐 Security & Legal
 
