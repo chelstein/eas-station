@@ -190,6 +190,201 @@
             font-size: 0.85rem;
             word-break: break-all;
         }
+
+        /* Enhanced Visual Effects */
+        @keyframes pulse-glow {
+            0%, 100% { box-shadow: 0 0 5px var(--success-color); }
+            50% { box-shadow: 0 0 20px var(--success-color); }
+        }
+
+        @keyframes pulse-warning {
+            0%, 100% { box-shadow: 0 0 5px var(--warning-color); }
+            50% { box-shadow: 0 0 15px var(--warning-color); }
+        }
+
+        @keyframes pulse-danger {
+            0%, 100% { box-shadow: 0 0 5px var(--danger-color); }
+            50% { box-shadow: 0 0 15px var(--danger-color); }
+        }
+
+        @keyframes fade-in-up {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .health-card {
+            animation: fade-in-up 0.5s ease-out;
+        }
+
+        .status-badge.bg-success {
+            animation: pulse-glow 2s infinite;
+        }
+
+        .status-badge.bg-warning {
+            animation: pulse-warning 2s infinite;
+        }
+
+        .status-badge.bg-danger {
+            animation: pulse-danger 1.5s infinite;
+        }
+
+        .smart-status-badge.bg-success {
+            background: linear-gradient(135deg, var(--success-color) 0%, #28a745 100%) !important;
+            border: none;
+            box-shadow: 0 2px 8px rgba(40, 167, 69, 0.3);
+        }
+
+        .smart-status-badge.bg-danger {
+            background: linear-gradient(135deg, var(--danger-color) 0%, #c82333 100%) !important;
+            border: none;
+            box-shadow: 0 2px 8px rgba(220, 53, 69, 0.3);
+            animation: pulse-danger 1.5s infinite;
+        }
+
+        .smart-status-badge.bg-warning {
+            background: linear-gradient(135deg, var(--warning-color) 0%, #e0a800 100%) !important;
+            border: none;
+            box-shadow: 0 2px 8px rgba(255, 193, 7, 0.3);
+        }
+
+        .progress-bar {
+            background: linear-gradient(90deg,
+                var(--primary-color) 0%,
+                var(--secondary-color) 100%);
+            transition: width 0.6s ease;
+        }
+
+        .progress-bar.bg-success {
+            background: linear-gradient(90deg, #28a745 0%, #20c997 100%);
+        }
+
+        .progress-bar.bg-warning {
+            background: linear-gradient(90deg, #ffc107 0%, #fd7e14 100%);
+        }
+
+        .progress-bar.bg-danger {
+            background: linear-gradient(90deg, #dc3545 0%, #e83e8c 100%);
+        }
+
+        .metric-value.display-number {
+            text-shadow: 0 2px 4px var(--shadow-color);
+            font-weight: 700;
+        }
+
+        .section-icon {
+            filter: drop-shadow(0 2px 4px var(--shadow-color));
+        }
+
+        .container-table tbody tr {
+            transition: all 0.3s ease;
+        }
+
+        .container-table tbody tr:hover {
+            transform: scale(1.01);
+            box-shadow: 0 2px 8px var(--shadow-color);
+        }
+
+        .device-inventory-table tbody tr:hover,
+        .usb-device-table tbody tr:hover,
+        .network-traffic-table tbody tr:hover {
+            background: linear-gradient(90deg,
+                var(--bg-color) 0%,
+                var(--hover-color) 50%,
+                var(--bg-color) 100%);
+        }
+
+        .badge-showcase img {
+            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));
+        }
+
+        .distro-logo {
+            filter: brightness(1.1) drop-shadow(0 4px 8px rgba(0,0,0,0.3));
+        }
+
+        .hardware-badge {
+            transition: all 0.3s ease;
+        }
+
+        .hardware-badge:hover {
+            transform: scale(1.05);
+            box-shadow: 0 2px 6px var(--shadow-color);
+        }
+
+        /* Enhanced Container Status Indicators */
+        .container-table .badge {
+            padding: 0.4em 0.8em;
+            font-weight: 600;
+            letter-spacing: 0.02em;
+        }
+
+        .container-table .badge.bg-success::before {
+            content: '●';
+            margin-right: 0.4em;
+            animation: pulse-glow 2s infinite;
+        }
+
+        .container-table .badge.bg-warning::before {
+            content: '⚠';
+            margin-right: 0.3em;
+        }
+
+        .container-table .badge.bg-danger::before {
+            content: '✖';
+            margin-right: 0.3em;
+        }
+
+        /* S.M.A.R.T. Health Status Visual Enhancements */
+        .smart-device-card {
+            border-left: 3px solid var(--border-color);
+            padding-left: 1rem;
+            margin-bottom: 1rem;
+            transition: all 0.3s ease;
+        }
+
+        .smart-device-card:hover {
+            border-left-color: var(--primary-color);
+            background: var(--hover-color);
+            border-radius: var(--radius-sm);
+        }
+
+        .smart-device-card.status-passed {
+            border-left-color: var(--success-color);
+        }
+
+        .smart-device-card.status-failed {
+            border-left-color: var(--danger-color);
+        }
+
+        .smart-device-card.status-warning {
+            border-left-color: var(--warning-color);
+        }
+
+        /* Refresh button enhancement */
+        .refresh-btn {
+            transition: all 0.3s ease;
+        }
+
+        .refresh-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 6px 20px var(--shadow-color);
+        }
+
+        .refresh-btn:active {
+            transform: scale(0.95);
+        }
+
+        /* Card stagger animation */
+        .health-card:nth-child(1) { animation-delay: 0s; }
+        .health-card:nth-child(2) { animation-delay: 0.1s; }
+        .health-card:nth-child(3) { animation-delay: 0.2s; }
+        .health-card:nth-child(4) { animation-delay: 0.3s; }
+        .health-card:nth-child(5) { animation-delay: 0.4s; }
     </style>
 {% endblock %}
 
@@ -742,8 +937,10 @@
                                 </small>
                             {% endif %}
                         {% else %}
-                            <div class="alert alert-warning mb-0 py-2">
-                                Container information unavailable{% if containers_data.error %}: {{ containers_data.error }}{% endif %}
+                            <div class="alert alert-info mb-0 py-2">
+                                <strong>Container Monitoring Unavailable</strong>
+                                <p class="mb-2 mt-2">{{ containers_data.error or 'No container engine detected' }}</p>
+                                <p class="mb-0"><small><strong>Tip:</strong> Mount the Docker socket (<code>-v /var/run/docker.sock:/var/run/docker.sock</code>) or set <code>DOCKER_HOST</code> environment variable.</small></p>
                             </div>
                         {% endif %}
                     </div>
@@ -994,7 +1191,7 @@
                                         {% set badge_class = 'warning' %}
                                         {% set status_label = device.overall_status or 'Unknown' %}
                                     {% endif %}
-                                    <div class="mb-3">
+                                    <div class="smart-device-card status-{{ 'passed' if badge_class == 'success' else 'failed' if badge_class == 'danger' else 'warning' }}">
                                         <div class="d-flex justify-content-between align-items-center">
                                             <div>
                                                 <span class="metric-label">{{ device.path or device.name or 'Unknown device' }}</span>

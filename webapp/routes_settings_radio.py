@@ -152,12 +152,12 @@ def _receiver_to_dict(receiver: RadioReceiver) -> Dict[str, Any]:
         redis_client = get_redis_client()
         redis_available = True
 
-        # Read radio_manager metrics from Redis
-        radio_manager_raw = redis_client.hget("eas:metrics", "radio_manager")
-        if radio_manager_raw:
-            if isinstance(radio_manager_raw, bytes):
-                radio_manager_raw = radio_manager_raw.decode('utf-8')
-            radio_manager_data = json.loads(radio_manager_raw)
+        # Read sdr-service metrics from Redis (published to sdr:metrics)
+        sdr_metrics_json = redis_client.get("sdr:metrics")
+        if sdr_metrics_json:
+            if isinstance(sdr_metrics_json, bytes):
+                sdr_metrics_json = sdr_metrics_json.decode('utf-8')
+            radio_manager_data = json.loads(sdr_metrics_json)
             radio_manager_found = True
 
             # Find this receiver's status in the Redis data
@@ -293,11 +293,11 @@ def _parse_receiver_payload(payload: Dict[str, Any], *, partial: bool = False) -
         except Exception:
             return None, "Frequency must be a positive number of hertz."
 
-    # Sample rate is required
+    # IQ Sample rate is required (this is the SDR hardware rate, e.g., 2.4 MHz)
     if not partial or "sample_rate" in payload:
         sample_rate_val = payload.get("sample_rate")
         if sample_rate_val in (None, "", []):
-            return None, "Sample rate is required."
+            return None, "IQ sample rate is required."
         try:
             sample_rate = int(sample_rate_val)
             if sample_rate <= 0:
@@ -326,7 +326,25 @@ def _parse_receiver_payload(payload: Dict[str, Any], *, partial: bool = False) -
                     # Allow the sample rate anyway - hardware validation is not critical
 
         except ValueError:
-            return None, "Sample rate must be a positive integer."
+            return None, "IQ sample rate must be a positive integer."
+
+    # Audio sample rate (optional) - this is the demodulated audio output rate (e.g., 48 kHz)
+    # If not specified, it will be auto-selected based on modulation type
+    if "audio_sample_rate" in payload:
+        audio_sample_rate_val = payload.get("audio_sample_rate")
+        if audio_sample_rate_val in (None, "", []):
+            data["audio_sample_rate"] = None  # Will use auto-selection
+        else:
+            try:
+                audio_sample_rate = int(audio_sample_rate_val)
+                if audio_sample_rate <= 0:
+                    raise ValueError
+                # Sanity check: audio rates should be in kHz range (< 100 kHz)
+                if audio_sample_rate >= 100000:
+                    return None, "Audio sample rate should be in kHz range (e.g., 48000), not MHz range."
+                data["audio_sample_rate"] = audio_sample_rate
+            except ValueError:
+                return None, "Audio sample rate must be a positive integer."
 
     if "gain" in payload:
         gain = payload.get("gain")
@@ -482,10 +500,8 @@ def _sync_radio_manager_state(route_logger) -> Dict[str, Any]:
 
     for receiver in enabled_receivers:
         instance = radio_manager.get_receiver(receiver.identifier)
-        if instance is None:
-            continue
 
-        if receiver.auto_start:
+        if instance is not None and receiver.auto_start:
             try:
                 instance.start()
                 summary["auto_started"].append(receiver.identifier)
@@ -1215,7 +1231,12 @@ def register(app: Flask, logger) -> None:
             except (ValueError, TypeError):
                 num_samples = 512  # Default
 
-            sample_rate = receiver.sample_rate if receiver.sample_rate else 2400000
+            # Use correct default based on driver type
+            if receiver.sample_rate:
+                sample_rate = receiver.sample_rate
+            else:
+                driver_lower = (receiver.driver or '').lower()
+                sample_rate = 2500000 if 'airspy' in driver_lower else 2400000
 
             # Generate simulated waveform (in production, this would be real audio data)
             waveform = np.random.randn(num_samples) * 0.1  # Small random noise
@@ -1325,7 +1346,10 @@ def register(app: Flask, logger) -> None:
                             "spectrum": spectrum_payload.get('spectrum', []),
                             "timestamp": spectrum_payload.get('timestamp', time.time()),
                             "source": "redis",
-                            "status": "available"
+                            "status": "available",
+                            "modulation_type": receiver.modulation_type,
+                            "audio_output": receiver.audio_output,
+                            "demod_frequency": receiver.frequency_hz  # Frequency being demodulated
                         })
                     except (json.JSONDecodeError, KeyError) as e:
                         route_logger.debug(f"Error parsing spectrum from Redis: {e}")
@@ -1414,8 +1438,16 @@ def register(app: Flask, logger) -> None:
 
                 # Compute FFT
                 fft_size = min(len(iq_samples), 2048)
+                
+                # Remove DC offset before FFT computation
+                # This is critical for high-powered FM stations where the DC component
+                # from the tuner's local oscillator leakage can dominate the spectrum
+                # and make everything else look like "garbage" (horizontal lines)
+                samples_slice = iq_samples[:fft_size]
+                samples_for_fft = samples_slice - np.mean(samples_slice)
+                
                 window = np.hanning(fft_size)
-                windowed = iq_samples[:fft_size] * window
+                windowed = samples_for_fft * window
                 fft_result = np.fft.fftshift(np.fft.fft(windowed))
 
                 # Convert to magnitude (dB)
@@ -1434,8 +1466,12 @@ def register(app: Flask, logger) -> None:
                 # Convert to list for JSON
                 spectrum_data = normalized.tolist()
 
-                # Calculate frequency bins
-                sample_rate = receiver.sample_rate if receiver.sample_rate else 2400000
+                # Calculate frequency bins - use correct default based on driver
+                if receiver.sample_rate:
+                    sample_rate = receiver.sample_rate
+                else:
+                    driver_lower = (receiver.driver or '').lower()
+                    sample_rate = 2500000 if 'airspy' in driver_lower else 2400000
                 freq_min = receiver.frequency_hz - (sample_rate / 2)
                 freq_max = receiver.frequency_hz + (sample_rate / 2)
 
@@ -1450,7 +1486,10 @@ def register(app: Flask, logger) -> None:
                     "fft_size": fft_size,
                     "spectrum": spectrum_data,
                     "timestamp": time.time(),
-                    "source": "sdr-service"  # Indicate data came from sdr-service container
+                    "source": "sdr-service",  # Indicate data came from sdr-service container
+                    "modulation_type": receiver.modulation_type,
+                    "audio_output": receiver.audio_output,
+                    "demod_frequency": receiver.frequency_hz  # Frequency being demodulated
                 })
 
             except Exception as command_exc:
@@ -1560,12 +1599,13 @@ def register(app: Flask, logger) -> None:
                 ]
             },
             -7: {
-                "name": "SOAPY_SDR_UNDERFLOW",
-                "explanation": "Buffer underflow - not enough data provided",
+                "name": "SOAPY_SDR_NOT_LOCKED",
+                "explanation": "PLL not locked - receiver tuner or reference clock not synchronized",
                 "solutions": [
-                    "Increase buffer size",
-                    "Check application performance",
-                    "Reduce sample rate"
+                    "Check antenna connection",
+                    "Verify tuner frequency is supported",
+                    "Check reference clock (if external)",
+                    "Try a different frequency"
                 ]
             }
         }
@@ -1608,23 +1648,31 @@ def register(app: Flask, logger) -> None:
 
                 redis_client = get_redis_client()
 
-                # Read from eas:metrics hash (published by audio_service.py)
-                raw_metrics = redis_client.hgetall("eas:metrics")
+                # Read from sdr:metrics key (published by sdr_service.py)
+                # Note: This was changed from eas:metrics to match the actual key published by sdr_service.py
+                raw_metrics_json = redis_client.get("sdr:metrics")
+                raw_metrics = {}
+
+                if raw_metrics_json:
+                    import json
+                    try:
+                        if isinstance(raw_metrics_json, bytes):
+                            raw_metrics_json = raw_metrics_json.decode('utf-8')
+                        raw_metrics = json.loads(raw_metrics_json)
+                    except json.JSONDecodeError as e:
+                        route_logger.warning("Failed to decode sdr:metrics JSON: %s", e)
 
                 if raw_metrics:
-                    # Parse radio_manager metrics from Redis hash
-                    radio_manager_raw = raw_metrics.get(b"radio_manager") or raw_metrics.get("radio_manager")
-                    if radio_manager_raw:
-                        if isinstance(radio_manager_raw, bytes):
-                            radio_manager_raw = radio_manager_raw.decode('utf-8')
-                        radio_manager_metrics = json.loads(radio_manager_raw)
-                        redis_radio_manager = radio_manager_metrics
+                    # sdr_service.py publishes metrics directly as JSON
+                    redis_radio_manager = raw_metrics
 
-                        if radio_manager_metrics:
-                            available_drivers = radio_manager_metrics.get("available_drivers", [])
+                    # Extract available drivers from receiver configs
+                    receivers_data = raw_metrics.get("receivers", {})
+                    if receivers_data:
+                        available_drivers = list(set(r.get("driver") for r in receivers_data.values() if r.get("driver")))
 
-                            # Convert audio-service metrics to expected format
-                            for identifier, receiver_data in radio_manager_metrics.get("receivers", {}).items():
+                    # Convert sdr-service metrics to expected format
+                    for identifier, receiver_data in receivers_data.items():
                                 # Decode error message if present
                                 error_info = _decode_soapysdr_error(receiver_data.get("last_error")) if receiver_data.get("last_error") else None
 
@@ -1646,7 +1694,7 @@ def register(app: Flask, logger) -> None:
                                     "config": receiver_data.get("config", {})
                                 }
 
-                            route_logger.debug("Loaded radio manager metrics from Redis: %d receivers", len(loaded_receivers))
+                    route_logger.debug("Loaded radio manager metrics from Redis: %d receivers", len(loaded_receivers))
                 else:
                     route_logger.debug("No metrics found in Redis (key: eas:metrics)")
 

@@ -80,14 +80,14 @@ def call_hardware_service(endpoint, method='GET', data=None):
 
 def get_zigbee_config():
     """Get Zigbee configuration from environment."""
-    from app_utils.config import get_config
+    import os
 
     return {
-        'enabled': get_config('ZIGBEE_ENABLED', 'false').lower() in ('true', '1', 'yes'),
-        'port': get_config('ZIGBEE_PORT', '/dev/ttyAMA0'),
-        'baudrate': int(get_config('ZIGBEE_BAUDRATE', '115200')),
-        'channel': int(get_config('ZIGBEE_CHANNEL', '15')),
-        'pan_id': get_config('ZIGBEE_PAN_ID', '0x1A62'),
+        'enabled': os.getenv('ZIGBEE_ENABLED', 'false').lower() in ('true', '1', 'yes'),
+        'port': os.getenv('ZIGBEE_PORT', '/dev/ttyAMA0'),
+        'baudrate': int(os.getenv('ZIGBEE_BAUDRATE', '115200')),
+        'channel': int(os.getenv('ZIGBEE_CHANNEL', '15')),
+        'pan_id': os.getenv('ZIGBEE_PAN_ID', '0x1A62'),
     }
 
 

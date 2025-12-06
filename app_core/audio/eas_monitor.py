@@ -395,12 +395,16 @@ class ContinuousEASMonitor:
             sample_rate: Audio sample rate in Hz (default: 16000)
             alert_callback: Optional callback function called when alert detected
             save_audio_files: Whether to save audio files of detected alerts
-            audio_archive_dir: Directory to save alert audio files
+            audio_archive_dir: Directory to save alert audio files (uses tmpfs in Docker)
             
         How it works:
             Audio samples are processed immediately as they arrive using a
             streaming SAME decoder. No buffering, no batching, no delays.
             Detection latency is <200ms, matching commercial EAS decoders.
+            
+        Note:
+            When running in Docker, /tmp is mounted as tmpfs (RAM disk) which
+            automatically clears on container restart. No manual cleanup needed.
         """
         self.audio_manager = audio_manager
         self.sample_rate = sample_rate
@@ -456,7 +460,8 @@ class ContinuousEASMonitor:
             f"source_sample_rate={self.source_sample_rate}Hz, "
             f"decoder_sample_rate={sample_rate}Hz, "
             f"streaming_mode=True, "
-            f"watchdog_timeout={self._watchdog_timeout}s"
+            f"watchdog_timeout={self._watchdog_timeout}s, "
+            f"save_audio_files={save_audio_files}"
         )
 
     def start(self) -> bool:
@@ -1340,12 +1345,22 @@ class ContinuousEASMonitor:
     def get_stats(self) -> dict:
         """Get monitoring statistics for streaming mode."""
         decoder_stats = self._streaming_decoder.get_stats()
+
+        # Determine if audio is flowing based on whether we've processed samples recently
+        audio_flowing = decoder_stats['samples_processed'] > 0
+
         return {
             'running': not self._stop_event.is_set(),
+            'audio_flowing': audio_flowing,
             'samples_processed': decoder_stats['samples_processed'],
             'alerts_detected': self._alerts_detected,
             'active_source': self.audio_manager.get_active_source(),
-            'last_alert_time': self._last_alert_time
+            'last_alert_time': self._last_alert_time,
+            # Pass through decoder stats
+            'sample_rate': decoder_stats.get('sample_rate', 16000),
+            'decoder_synced': decoder_stats.get('synced', False),
+            'decoder_in_message': decoder_stats.get('in_message', False),
+            'decoder_bytes_decoded': decoder_stats.get('bytes_decoded', 0),
         }
 
 

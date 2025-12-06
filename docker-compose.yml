@@ -56,6 +56,8 @@ services:
       --appendfsync everysec
       --maxmemory 256mb
       --maxmemory-policy allkeys-lru
+      --auto-aof-rewrite-percentage 100
+      --auto-aof-rewrite-min-size 64mb
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -65,6 +67,16 @@ services:
     security_opt:
       - no-new-privileges:true
 
+  # ==========================================================================
+  # SDR Service - Handles SDR hardware and publishes samples to Redis
+  # ==========================================================================
+  # This service handles ONLY SDR hardware operations with USB device access.
+  # It uses a dual-thread architecture for reliable 24/7 operation:
+  #   - USB Reader Thread: Reads samples from SDR, writes to ring buffer
+  #   - Publisher Thread: Reads from ring buffer, publishes to Redis
+  #
+  # For full architecture details, see: docs/architecture/SDR_SERVICE_ARCHITECTURE.md
+  # ==========================================================================
   sdr-service:
     image: eas-station:latest
     container_name: eas-sdr-service
@@ -72,9 +84,15 @@ services:
     restart: unless-stopped
     networks:
       - eas-network
-    command: ["python", "audio_service.py"]
+    # NOTE: sdr_service.py is the new dedicated SDR-only service.
+    # For backward compatibility, audio_service.py still works but handles
+    # both SDR and audio processing in a single container.
+    # Use sdr_service.py + audio-service for full separation (recommended).
+    command: ["python", "sdr_service.py"]
     volumes:
       - app-config:/app-config
+    tmpfs:
+      - /tmp:size=${TMPFS_SDR_SERVICE:-64M},mode=1777
     environment:
       # Database connection
       POSTGRES_HOST: ${POSTGRES_HOST:-alerts-db}
@@ -93,16 +111,6 @@ services:
 
       # SDR settings
       SDR_ARGS: ${SDR_ARGS:-driver=airspy}
-
-      # Icecast configuration
-      ICECAST_SERVER: ${ICECAST_SERVER:-icecast}
-      ICECAST_PORT: ${ICECAST_INTERNAL_PORT:-8000}
-      ICECAST_EXTERNAL_PORT: ${ICECAST_EXTERNAL_PORT:-8001}
-      ICECAST_SOURCE_PASSWORD: ${ICECAST_SOURCE_PASSWORD:-eas_station_source_password}
-      ICECAST_ADMIN_USER: ${ICECAST_ADMIN_USER:-admin}
-      ICECAST_ADMIN_PASSWORD: ${ICECAST_ADMIN_PASSWORD:-changeme_admin}
-      ICECAST_ENABLED: ${ICECAST_ENABLED:-true}
-      ICECAST_PUBLIC_HOSTNAME: ${ICECAST_PUBLIC_HOSTNAME:-}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     devices:
@@ -134,6 +142,129 @@ services:
       retries: 3
       start_period: 10s
 
+  # ==========================================================================
+  # Audio Service - Handles audio processing, EAS decoding, and streaming
+  # ==========================================================================
+  # This service receives IQ samples from sdr-service via Redis and handles:
+  #   - Audio demodulation (FM, AM, etc.)
+  #   - EAS/SAME header detection and decoding
+  #   - Icecast streaming output
+  #   - Web audio streaming
+  #
+  # No USB access required - all SDR data comes from Redis.
+  # ==========================================================================
+  audio-service:
+    image: eas-station:latest
+    container_name: eas-audio-service
+    init: true
+    restart: unless-stopped
+    networks:
+      - eas-network
+    expose:
+      - "5002"  # HTTP streaming server for audio (internal only)
+    command: ["python3", "audio_service.py"]
+    volumes:
+      - app-config:/app-config
+    tmpfs:
+      - /tmp:size=${TMPFS_AUDIO_SERVICE:-128M},mode=1777
+    environment:
+      # Database connection
+      POSTGRES_HOST: ${POSTGRES_HOST:-alerts-db}
+      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+      POSTGRES_DB: ${POSTGRES_DB:-alerts}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+
+      # Redis connection
+      REDIS_HOST: ${REDIS_HOST:-redis}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_DB: ${REDIS_DB:-0}
+
+      # Application settings
+      CONFIG_PATH: /app-config/.env
+
+      # Audio streaming settings
+      AUDIO_STREAMING_PORT: ${AUDIO_STREAMING_PORT:-5002}
+
+      # Icecast configuration
+      ICECAST_SERVER: ${ICECAST_SERVER:-icecast}
+      ICECAST_PORT: ${ICECAST_INTERNAL_PORT:-8000}
+      ICECAST_EXTERNAL_PORT: ${ICECAST_EXTERNAL_PORT:-8001}
+      ICECAST_SOURCE_PASSWORD: ${ICECAST_SOURCE_PASSWORD:-eas_station_source_password}
+      ICECAST_ADMIN_USER: ${ICECAST_ADMIN_USER:-admin}
+      ICECAST_ADMIN_PASSWORD: ${ICECAST_ADMIN_PASSWORD:-changeme_admin}
+      ICECAST_ENABLED: ${ICECAST_ENABLED:-true}
+      ICECAST_PUBLIC_HOSTNAME: ${ICECAST_PUBLIC_HOSTNAME:-}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    # NOTE: No USB access needed - receives samples from sdr-service via Redis
+    security_opt:
+      - no-new-privileges:true
+    depends_on:
+      redis:
+        condition: service_healthy
+      sdr-service:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import redis; r=redis.Redis(host=\"redis\"); r.ping()' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # ==========================================================================
+  # EAS Service - Handles EAS monitoring and alert detection ONLY
+  # ==========================================================================
+  # This service receives audio from audio-service via Redis and handles:
+  #   - SAME header detection and decoding
+  #   - FIPS code filtering
+  #   - Alert database storage
+  #
+  # No audio processing, no SDR access - pure EAS monitoring.
+  # ==========================================================================
+  eas-service:
+    image: eas-station:latest
+    container_name: eas-eas-service
+    init: true
+    restart: unless-stopped
+    networks:
+      - eas-network
+    command: ["python", "eas_service.py"]
+    volumes:
+      - app-config:/app-config
+    tmpfs:
+      - /tmp:size=${TMPFS_EAS_SERVICE:-64M},mode=1777
+    environment:
+      # Database connection
+      POSTGRES_HOST: ${POSTGRES_HOST:-alerts-db}
+      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+      POSTGRES_DB: ${POSTGRES_DB:-alerts}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+
+      # Redis connection
+      REDIS_HOST: ${REDIS_HOST:-redis}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_DB: ${REDIS_DB:-0}
+
+      # Application settings
+      CONFIG_PATH: /app-config/.env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    security_opt:
+      - no-new-privileges:true
+    depends_on:
+      redis:
+        condition: service_healthy
+      audio-service:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import redis; r=redis.Redis(host=\"redis\"); r.ping()' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
   hardware-service:
     image: eas-station:latest
     container_name: eas-hardware-service
@@ -148,6 +279,8 @@ services:
       - app-config:/app-config
       - /run/dbus:/run/dbus:ro  # DBus for NetworkManager communication
       - /var/run/dbus:/var/run/dbus:ro  # Alternative DBus location
+    tmpfs:
+      - /tmp:size=${TMPFS_HARDWARE_SERVICE:-64M},mode=1777
     environment:
       # Database connection
       POSTGRES_HOST: ${POSTGRES_HOST:-alerts-db}
@@ -203,6 +336,8 @@ services:
       - certbot-conf:/etc/letsencrypt:ro  # Allow SSL export routes to read certificates
       # Docker socket removed to prevent /dev/pts permission errors
       # Health checks can be done via HTTP endpoints instead
+    tmpfs:
+      - /tmp:size=${TMPFS_APP:-128M},mode=1777
     environment:
       # Database connection - external database (change POSTGRES_HOST to your database server)
       POSTGRES_HOST: ${POSTGRES_HOST:-alerts-db}
@@ -227,14 +362,18 @@ services:
       DEFAULT_COUNTY_NAME: ${DEFAULT_COUNTY_NAME:-}
       DEFAULT_STATE_CODE: ${DEFAULT_STATE_CODE:-}
 
+      # Audio service connection (for streaming proxy to sdr-service)
+      AUDIO_SERVICE_HOST: ${AUDIO_SERVICE_HOST:-sdr-service}
+      AUDIO_SERVICE_PORT: ${AUDIO_SERVICE_PORT:-5002}
+
       # Note: Audio-related settings (SDR, Icecast) removed from app container.
-      # These are configured in the audio-service container.
-      # See docker-compose.separated.yml for audio-service configuration.
+      # These are configured in the sdr-service container.
+      # See docker-compose.separated.yml for sdr-service configuration.
     extra_hosts:
       - "host.docker.internal:host-gateway"
     # Note: Device passthrough removed - app container serves UI only.
-    # USB devices, GPIO, and other hardware access moved to audio-service container.
-    # For hardware access, see audio-service configuration in docker-compose.separated.yml
+    # USB devices, GPIO, and other hardware access moved to sdr-service container.
+    # For hardware access, see sdr-service configuration above.
     security_opt:
       - no-new-privileges:true
     depends_on:
@@ -255,6 +394,8 @@ services:
       # NOTE: .env removed - loads empty file from Git. App loads from CONFIG_PATH at runtime.
     volumes:
       - app-config:/app-config  # Persistent volume for .env file
+    tmpfs:
+      - /tmp:size=256M,mode=1777
     environment:
       # Database connection - external database
       POSTGRES_HOST: ${POSTGRES_HOST:-alerts-db}
@@ -295,6 +436,8 @@ services:
       # NOTE: .env removed - loads empty file from Git. App loads from CONFIG_PATH at runtime.
     volumes:
       - app-config:/app-config  # Persistent volume for .env file
+    tmpfs:
+      - /tmp:size=${TMPFS_IPAWS_POLLER:-64M},mode=1777
     environment:
       # Database connection - external database
       POSTGRES_HOST: ${POSTGRES_HOST:-alerts-db}

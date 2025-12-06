@@ -594,7 +594,7 @@ def register(app, logger):
 
         try:
             from app_core.location import _derive_county_zone_codes_from_fips
-            from app_utils.zones import load_zone_lookup
+            from app_core.zones import get_zone_lookup
 
             data = request.get_json() or {}
             fips_codes_str = data.get("fips_codes", "")
@@ -606,7 +606,7 @@ def register(app, logger):
                 return jsonify({"zone_codes": []})
 
             # Load zone lookup
-            zone_lookup = load_zone_lookup()
+            zone_lookup = get_zone_lookup()
 
             # Derive zone codes
             derived = _derive_county_zone_codes_from_fips(fips_codes, zone_lookup)

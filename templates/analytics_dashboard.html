@@ -5,7 +5,7 @@
 {% block extra_css %}
 <style>
     .metric-card {
-        background: white;
+        background: var(--surface-color);
         border-radius: 8px;
         padding: 20px;
         box-shadow: 0 2px 4px rgba(0,0,0,0.1);
@@ -13,31 +13,31 @@
     }
     .metric-card h3 {
         font-size: 1.1rem;
-        color: #666;
+        color: var(--text-secondary);
         margin-bottom: 10px;
     }
     .metric-value {
         font-size: 2.5rem;
         font-weight: bold;
-        color: #204885;
+        color: var(--primary-color);
     }
     .metric-trend {
         font-size: 0.9rem;
         margin-top: 5px;
     }
-    .trend-rising { color: #28a745; }
-    .trend-falling { color: #dc3545; }
-    .trend-stable { color: #6c757d; }
+    .trend-rising { color: var(--success-color); }
+    .trend-falling { color: var(--danger-color); }
+    .trend-stable { color: var(--text-muted); }
     .anomaly-badge {
         padding: 4px 8px;
         border-radius: 4px;
         font-size: 0.85rem;
         font-weight: 600;
     }
-    .severity-critical { background-color: #dc3545; color: white; }
-    .severity-high { background-color: #fd7e14; color: white; }
-    .severity-medium { background-color: #ffc107; color: black; }
-    .severity-low { background-color: #17a2b8; color: white; }
+    .severity-critical { background-color: var(--danger-color); color: white; }
+    .severity-high { background-color: color-mix(in srgb, var(--warning-color) 80%, var(--bg-primary)); color: white; }
+    .severity-medium { background-color: color-mix(in srgb, var(--warning-color) 90%, var(--surface-color)); color: var(--text-color); }
+    .severity-low { background-color: var(--info-color); color: white; }
     .chart-container {
         position: relative;
         height: 300px;

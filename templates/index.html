@@ -37,164 +37,363 @@
     .page-shell {
         padding-top: 0.5rem;
         padding-bottom: 2rem;
+        position: relative;
+    }
+
+    /* Ensure content appears above orbs */
+    .page-shell > *:not(.orb) {
+        position: relative;
+        z-index: 1;
     }
 
     .page-header {
-        background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+        background: linear-gradient(135deg, var(--primary-dark, var(--primary-color)), var(--secondary-dark, var(--secondary-color)));
         border-radius: var(--radius-md);
         color: #fff;
-        padding: var(--spacing-lg);
+        padding: var(--spacing-md) var(--spacing-lg);
         display: flex;
-        align-items: flex-start;
+        align-items: center;
         justify-content: space-between;
         flex-wrap: wrap;
-        gap: var(--spacing-md);
+        gap: var(--spacing-sm);
         position: relative;
         overflow: hidden;
-        box-shadow: 0 18px 40px rgba(32, 72, 133, 0.28);
+        box-shadow: 0 8px 20px rgba(32, 72, 133, 0.2);
     }
 
     .page-header::after {
         content: "";
         position: absolute;
         inset: auto -40% -70% auto;
-        width: 360px;
-        height: 360px;
-        background: radial-gradient(circle at center, rgba(255, 255, 255, 0.25), transparent 70%);
+        width: 200px;
+        height: 200px;
+        background: radial-gradient(circle at center, rgba(255, 255, 255, 0.15), transparent 70%);
         transform: rotate(-12deg);
         pointer-events: none;
     }
 
     .page-header .header-content {
-        max-width: 620px;
+        display: flex;
+        align-items: center;
+        gap: var(--spacing-md);
         position: relative;
         z-index: 1;
     }
 
-    .page-header .eyebrow {
-        font-size: 0.75rem;
-        letter-spacing: 0.18em;
-        text-transform: uppercase;
-        opacity: 0.7;
-        display: block;
-        margin-bottom: 0.35rem;
+    .page-header .header-text {
+        display: flex;
+        flex-direction: column;
     }
 
     .page-header .page-title {
-        font-size: 1.9rem;
-        font-weight: 600;
-        margin-bottom: 0.35rem;
+        font-size: 1.4rem;
+        font-weight: 700;
+        margin: 0;
         letter-spacing: 0.01em;
+        color: #ffffff;
+        text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
     }
 
     .page-header .page-subtitle {
-        font-size: 1rem;
-        opacity: 0.82;
-        margin-bottom: 0;
+        font-size: 0.85rem;
+        opacity: 1;
+        margin: 0;
+        color: #ffffff;
+        text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+        font-weight: 500;
     }
 
-    /* Prominent dashboard logo - larger for visual impact
-       Note: White fill and fixed dark shadow are intentional for visibility 
-       on the gradient header background regardless of theme */
+    /* Compact dashboard logo */
     .dashboard-page-logo {
-        height: auto;
-        width: 100%;
-        max-width: 360px;
+        height: 40px;
+        width: auto;
         display: block;
-        filter: drop-shadow(0 6px 16px rgba(0, 0, 0, 0.35));
+        filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5));
+        position: relative;
+        z-index: 1;
     }
 
     .dashboard-page-logo .logo-text-primary,
     .dashboard-page-logo .logo-text-secondary {
-        fill: #ffffff; /* White for visibility on colored gradient header */
+        fill: #ffffff;
     }
 
     .dashboard-page-logo .logo-bar {
-        fill: #ffffff; /* White for visibility on colored gradient header */
+        fill: #ffffff;
     }
-    
-    /* Responsive logo sizing for dashboard */
-    @media (max-width: 767.98px) {
-        .dashboard-page-logo {
-            max-width: 280px;
+
+    /* Ensure buttons are visible on gradient */
+    .page-header-actions {
+        position: relative;
+        z-index: 1;
+        display: flex;
+        gap: 0.5rem;
+    }
+
+    .page-header .btn-outline-light {
+        color: #ffffff !important;
+        border-color: rgba(255, 255, 255, 0.8);
+        background-color: rgba(255, 255, 255, 0.1);
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+    }
+
+    .page-header .btn-outline-light:hover {
+        background-color: rgba(255, 255, 255, 0.25);
+        border-color: #ffffff;
+    }
+
+    /* Snow Emergency Banner */
+    .snow-emergency-banner {
+        margin-top: var(--spacing-md);
+        border-radius: var(--radius-md);
+        overflow: hidden;
+    }
+
+    .snow-emergency-banner.has-emergencies {
+        background: var(--surface-color);
+        border: 1px solid var(--border-color);
+        box-shadow: 0 4px 12px var(--shadow-color);
+    }
+
+    .snow-emergency-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: var(--spacing-sm) var(--spacing-md);
+        background: var(--bg-color);
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .snow-emergency-header h6 {
+        margin: 0;
+        font-size: 0.85rem;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .snow-emergency-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+        gap: var(--spacing-sm);
+        padding: var(--spacing-sm) var(--spacing-md);
+    }
+
+    /* Mobile-specific snow emergency grid - ensure cards are visible on small screens */
+    @media (max-width: 576px) {
+        .snow-emergency-grid {
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            gap: 0.5rem;
+            padding: 0.5rem;
         }
+        
+        .snow-emergency-header {
+            padding: 0.5rem;
+        }
+        
+        .snow-county-card {
+            padding: 0.5rem;
+        }
+        
+        .snow-county-name {
+            font-size: 0.75rem;
+            text-align: center;
+        }
+        
+        .snow-level-badge {
+            font-size: 0.65rem;
+            padding: 0.1rem 0.4rem;
+        }
+    }
+
+    .snow-county-card {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: var(--spacing-sm);
+        border-radius: var(--radius-sm);
+        background: var(--bg-color);
+        border: 2px solid transparent;
+        transition: all var(--transition-fast);
+    }
+
+    .snow-county-card.level-1 {
+        border-color: var(--warning-color);
+        background: color-mix(in srgb, var(--warning-color) 10%, var(--surface-color));
+    }
+
+    .snow-county-card.level-2 {
+        border-color: var(--warning-color);
+        background: color-mix(in srgb, var(--warning-color) 10%, var(--surface-color));
+    }
+
+    .snow-county-card.level-3 {
+        border-color: var(--danger-color);
+        background: color-mix(in srgb, var(--danger-color) 15%, var(--surface-color));
+        animation: pulse-danger 2s infinite;
+    }
+
+    @keyframes pulse-danger {
+        0%, 100% { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.4); }
+        50% { box-shadow: 0 0 0 8px rgba(220, 53, 69, 0); }
+    }
+
+    .snow-county-name {
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: var(--text-color);
+        margin-bottom: 0.25rem;
+    }
+
+    .snow-level-badge {
+        font-size: 0.7rem;
+        font-weight: 700;
+        padding: 0.15rem 0.5rem;
+        border-radius: 999px;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+
+    .snow-level-badge.level-1 {
+        background: #ffc107;
+        color: #000;
+    }
+
+    .snow-level-badge.level-2 {
+        background: #fd7e14;
+        color: #fff;
+    }
+
+    .snow-level-badge.level-3 {
+        background: #dc3545;
+        color: #fff;
+    }
+
+    .snow-emergency-info {
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius-md);
+        background: var(--bg-color);
+    }
+
+    .snow-level-description-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 0.75rem;
+    }
+
+    .snow-level-description {
+        padding: 0.75rem;
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius-sm);
+        background: var(--light-color);
+    }
+
+    .snow-level-description strong {
+        display: block;
+        margin-bottom: 0.25rem;
+    }
+
+    /* Snow Emergency Edit Modal */
+    .snow-edit-county {
+        padding: var(--spacing-sm);
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius-sm);
+        margin-bottom: var(--spacing-sm);
+        background: var(--bg-color);
+    }
+
+    .snow-edit-county-name {
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .snow-edit-county-name .primary-badge {
+        font-size: 0.65rem;
+        background: var(--primary-color);
+        color: #fff;
+        padding: 0.1rem 0.4rem;
+        border-radius: 999px;
+    }
+
+    .snow-level-options {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+    }
+
+    .snow-level-option {
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+        padding: 0.25rem 0.5rem;
+        border-radius: var(--radius-sm);
+        cursor: pointer;
+        font-size: 0.8rem;
+        border: 2px solid var(--border-color);
+        background: var(--surface-color);
+        transition: all var(--transition-fast);
+    }
+
+    .snow-level-option:hover {
+        background: var(--bg-color);
+    }
+
+    .snow-level-option input[type="radio"] {
+        margin: 0;
+    }
+
+    .snow-level-option.selected {
+        border-color: var(--primary-color);
+        background: rgba(47, 90, 161, 0.1);
+    }
+
+    .snow-level-option[data-level="0"].selected {
+        border-color: var(--success-color);
+        background: color-mix(in srgb, var(--success-color) 10%, var(--surface-color));
+    }
+
+    .snow-level-option[data-level="1"].selected {
+        border-color: var(--warning-color);
+        background: color-mix(in srgb, var(--warning-color) 15%, var(--surface-color));
+    }
+
+    .snow-level-option[data-level="2"].selected {
+        border-color: var(--warning-color);
+        background: color-mix(in srgb, var(--warning-color) 15%, var(--surface-color));
+    }
+
+    .snow-level-option[data-level="3"].selected {
+        border-color: var(--danger-color);
+        background: color-mix(in srgb, var(--danger-color) 15%, var(--surface-color));
     }
 
     .page-header-actions {
         display: flex;
         flex-wrap: wrap;
-        gap: 0.75rem;
+        gap: 0.5rem;
         position: relative;
         z-index: 1;
     }
 
     .page-header-actions .btn {
         border-radius: var(--radius-sm);
-        padding: 0.6rem 1.3rem;
+        padding: 0.4rem 0.8rem;
         display: inline-flex;
         align-items: center;
-        gap: 0.5rem;
+        gap: 0.35rem;
         font-weight: 600;
-        box-shadow: 0 14px 28px rgba(12, 20, 38, 0.22);
+        font-size: 0.85rem;
+        box-shadow: 0 4px 8px rgba(12, 20, 38, 0.15);
         transition: transform 0.2s ease, box-shadow 0.2s ease;
     }
 
     .page-header-actions .btn:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 18px 36px rgba(12, 20, 38, 0.28);
-    }
-
-    .summary-metrics .metric-card {
-        background: var(--surface-color);
-        border: 1px solid var(--border-color);
-        border-radius: var(--radius-md);
-        padding: var(--spacing-md);
-        display: flex;
-        align-items: center;
-        gap: var(--spacing-sm);
-        box-shadow: 0 12px 26px var(--shadow-color);
-        min-height: 100%;
-    }
-
-    .metric-icon {
-        width: 48px;
-        height: 48px;
-        border-radius: 14px;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 1.35rem;
-        color: var(--color-text-inverse);
-    }
-
-    /* Using CSS variables for metric icons - all colors from theme variables */
-    .metric-icon.metric-alert { background: var(--danger-color); }
-    .metric-icon.metric-boundary { background: var(--success-color); }
-    .metric-icon.metric-clock { background: var(--warning-color); color: var(--text-color); }
-    .metric-icon.metric-map { background: var(--info-color); }
-
-    .metric-label {
-        font-size: 0.78rem;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.14em;
-        color: var(--text-muted);
-        margin-bottom: 0.35rem;
-    }
-
-    .metric-value {
-        font-size: 1.6rem;
-        font-weight: 600;
-        color: var(--text-color);
-        line-height: 1.1;
-    }
-
-    .metric-value small {
-        font-size: 0.85rem;
-        font-weight: 500;
-        color: var(--text-muted);
-        display: block;
-        margin-top: 0.35rem;
+        transform: translateY(-1px);
+        box-shadow: 0 6px 12px rgba(12, 20, 38, 0.2);
     }
 
     .sticky-card {
@@ -578,14 +777,6 @@
             height: 420px;
         }
 
-        .summary-metrics .metric-card {
-            padding: var(--spacing-sm);
-        }
-
-        .metric-value {
-            font-size: 1.35rem;
-        }
-
         .map-refresh-meta {
             align-items: flex-start;
             width: 100%;
@@ -620,85 +811,55 @@
     {% set state_code = location_settings.state_code if location_settings is defined and location_settings and location_settings.state_code else '' %}
     <div class="page-header">
         <div class="header-content">
-            <div class="dashboard-logo mb-3">
-                {% with logo_classes='dashboard-page-logo', logo_style='max-width: 300px;' %}
-                    {% include 'partials/logo_wordmark.html' %}
-                {% endwith %}
+            {% with logo_classes='dashboard-page-logo', logo_style='height: 36px; width: auto;' %}
+                {% include 'partials/logo_wordmark.html' %}
+            {% endwith %}
+            <div class="header-text">
+                <h1 class="page-title">Emergency Alert Dashboard</h1>
+                <p class="page-subtitle">{{ county_name }}{% if state_code %}, {{ state_code }}{% endif %}</p>
             </div>
-            <span class="eyebrow">Operations Dashboard</span>
-            <h1 class="page-title">Interactive Emergency Alert Map</h1>
-            <p class="page-subtitle">Stay aware of CAP activity across {{ county_name }}{% if state_code %}, {{ state_code }}{% endif %}.</p>
         </div>
         <div class="page-header-actions">
-            <button class="btn btn-light text-primary d-inline-flex align-items-center" onclick="refreshData({ includeBoundaries: true, reason: 'Manual refresh' })">
+            <button class="btn btn-outline-light" onclick="refreshData({ includeBoundaries: true, reason: 'Manual refresh' })">
                 <i class="fas fa-sync-alt" id="refresh-icon"></i>
-                <span>Refresh Map</span>
+                <span>Refresh</span>
             </button>
-            <a href="/alerts" class="btn btn-outline-light d-inline-flex align-items-center">
+            <a href="/alerts" class="btn btn-outline-light">
                 <i class="fas fa-history"></i>
-                <span>View Alerts</span>
+                <span>Alerts</span>
             </a>
         </div>
     </div>
 
-    <div class="row g-3 summary-metrics my-4">
-        <div class="col-12 col-sm-6 col-xl-3">
-            <div class="metric-card">
-                <div class="metric-icon metric-alert">
-                    <i class="fas fa-exclamation-triangle"></i>
-                </div>
-                <div>
-                    <span class="metric-label">Active Alerts</span>
-                    <div class="metric-value" id="active-alert-count">Loading...</div>
-                </div>
+    <!-- Snow Emergency Banner - Shows active emergencies, hidden when none -->
+    <div id="snow-emergency-banner" class="snow-emergency-banner" style="display: none;">
+        <div class="snow-emergency-header">
+            <h6><i class="fas fa-snowflake"></i> Snow Emergencies</h6>
+        </div>
+        <div id="snow-emergency-grid" class="snow-emergency-grid"></div>
+    </div>
+
+    <!-- Snow Emergency Level Definitions - Shows when there are active emergencies -->
+    <div id="snow-emergency-definitions" class="snow-emergency-info mt-3 p-3" style="display: none;">
+        <h6 class="mb-2"><i class="fas fa-info-circle text-info me-2"></i>Ohio Snow Emergency Levels Explained</h6>
+        <p class="text-muted small mb-3">Ohio sheriffs use a standardized three-level snow emergency system to communicate road conditions and travel advisories:</p>
+        <div class="snow-level-description-grid">
+            <div class="snow-level-description">
+                <strong><span class="badge bg-warning text-dark me-1">Level 1</span></strong>
+                <span class="small"><strong>Roadways are hazardous</strong> with blowing and drifting snow. Roads may also be icy. Motorists are urged to drive very cautiously.</span>
+            </div>
+            <div class="snow-level-description">
+                <strong><span class="badge me-1" style="background-color: #fd7e14; color: #fff;">Level 2</span></strong>
+                <span class="small"><strong>Roadways are hazardous.</strong> Only those who feel it is necessary to drive should be out. Contact your employer to see if you should report to work.</span>
+            </div>
+            <div class="snow-level-description">
+                <strong><span class="badge bg-danger me-1">Level 3</span></strong>
+                <span class="small"><strong>All roadways are closed</strong> to non-emergency personnel. Those traveling on the roadways may subject themselves to arrest.</span>
             </div>
         </div>
-        <div class="col-12 col-sm-6 col-xl-3">
-            <div class="metric-card">
-                <div class="metric-icon metric-boundary">
-                    <i class="fas fa-draw-polygon"></i>
-                </div>
-                <div>
-                    <span class="metric-label">Boundary Layers</span>
-                    <div class="metric-value" id="boundary-count">Loading...</div>
-                </div>
-            </div>
-        </div>
-        <div class="col-12 col-sm-6 col-xl-3">
-            <div class="metric-card">
-                <div class="metric-icon metric-clock">
-                    <i class="fas fa-clock"></i>
-                </div>
-                <div>
-                    <span class="metric-label">Last Update</span>
-                    <div class="metric-value" id="last-update">--</div>
-                    <small>Local time</small>
-                </div>
-            </div>
-        </div>
-        <div class="col-12 col-sm-6 col-xl-3">
-            <div class="metric-card">
-                <div class="metric-icon metric-map">
-                    <i class="fas fa-map"></i>
-                </div>
-                <div>
-                    <span class="metric-label">Map Status</span>
-                    <div class="metric-value" id="map-status">Initializing...</div>
-                    <small>Leaflet renderer</small>
-                </div>
-            </div>
-        </div>
-        <div class="col-12 col-sm-6 col-xl-3">
-            <div class="metric-card">
-                <div class="metric-icon" style="background: #7c3aed;">
-                    <i class="fas fa-waveform"></i>
-                </div>
-                <div>
-                    <span class="metric-label">Audio System</span>
-                    <div class="metric-value" id="audio-health">--<span style="font-size: 0.9rem; font-weight: normal; color: var(--text-muted);">%</span></div>
-                    <small id="audio-sources-status">Loading...</small>
-                </div>
-            </div>
+        <div class="alert alert-secondary mt-3 mb-0 small">
+            <i class="fas fa-gavel me-1"></i>
+            <strong>Note:</strong> During a Level 3 emergency, only emergency personnel and essential workers should be on the roads. Violators may be ticketed or arrested, and tow trucks may not respond to non-emergency calls.
         </div>
     </div>
 
@@ -948,13 +1109,8 @@ function updateLastUpdateDisplays() {
     }
 
     const formattedTime = lastRefreshTimestamp.toLocaleTimeString();
-    const metricElement = document.getElementById('last-update');
     const headerElement = document.getElementById('map-data-last-updated');
     const sourceElement = document.getElementById('map-refresh-source');
-
-    if (metricElement) {
-        metricElement.textContent = formattedTime;
-    }
 
     if (headerElement) {
         headerElement.textContent = formattedTime;
@@ -1151,7 +1307,6 @@ async function loadAlerts() {
         if (response.ok && data.features) {
             alertData.active = data.features;
             displayAlerts(data.features);
-            updateAlertCount(data.features.length);
             updateAlertSummary(data.features);
             console.log(`✅ Loaded ${data.features.length} alerts`);
 
@@ -1161,12 +1316,10 @@ async function loadAlerts() {
             }
         } else {
             console.warn('⚠️ No alert features in API response:', data);
-            updateAlertCount(0);
         }
     } catch (error) {
         console.error('❌ Error loading alerts:', error);
         showToast('Failed to load alerts: ' + error.message, 'error');
-        updateAlertCount(0);
     }
 }
 
@@ -1356,11 +1509,9 @@ async function loadBoundaries() {
 
         renderBoundaryControls();
         renderBoundaryLegend();
-        updateBoundaryCount(totalLoaded);
     } catch (error) {
         console.error('❌ Error loading boundaries:', error);
         showToast('Failed to load boundaries: ' + error.message, 'error');
-        updateBoundaryCount(0);
         boundaryTypeMetadata.clear();
         renderBoundaryControls();
         renderBoundaryLegend();
@@ -1568,30 +1719,12 @@ function isAlertExpired(expiresDate) {
 // Update UI functions
 function updateMapStatus(status, type) {
     const badge = document.getElementById('map-status-badge');
-    const statusElement = document.getElementById('map-status');
 
     if (badge) {
         badge.textContent = status;
         badge.className = `badge bg-${type} ms-2`;
     }
 
-    if (statusElement) {
-        statusElement.textContent = status;
-    }
-}
-
-function updateAlertCount(count) {
-    const element = document.getElementById('active-alert-count');
-    if (element) {
-        element.textContent = count;
-    }
-}
-
-function updateBoundaryCount(count) {
-    const element = document.getElementById('boundary-count');
-    if (element) {
-        element.textContent = count;
-    }
 }
 
 function updateAlertSummary(alerts) {
@@ -1817,7 +1950,7 @@ async function inspectBoundaries() {
                             margin: 0;
                         }
                         .report {
-                            background: white;
+                            background: var(--surface-color);
                             padding: 30px;
                             border-radius: 8px;
                             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
@@ -1873,7 +2006,7 @@ async function inspectBoundaries() {
                             font-style: italic;
                             margin-top: 5px;
                             padding: 5px;
-                            background: white;
+                            background: var(--surface-color);
                             border-radius: 4px;
                         }
                         .stats-grid {
@@ -1899,7 +2032,7 @@ async function inspectBoundaries() {
                             opacity: 0.9;
                         }
                         @media print {
-                            body { background: white; }
+                            body { background: var(--surface-color); }
                             .report { box-shadow: none; }
                         }
                     </style>
@@ -1937,12 +2070,23 @@ async function inspectBoundaries() {
 
                         ${sortedTypes.map(type => {
                             const boundaries = boundariesByType[type];
-                            const typeColors = {
-                                'county': '#6c757d', 'township': '#28a745', 'village': '#17a2b8',
-                                'fire': '#dc3545', 'ems': '#007bff', 'school': '#ffc107',
-                                'electric': '#fd7e14', 'telephone': '#6f42c1'
+                            // Use CSS custom properties for theme-aware colors
+                            const rootStyles = getComputedStyle(document.documentElement);
+                            const getColorVar = (varName, fallback) => {
+                                const value = rootStyles.getPropertyValue(varName).trim();
+                                return value || fallback;
                             };
-                            const color = typeColors[type.toLowerCase()] || '#6c757d';
+                            const typeColors = {
+                                'county': getColorVar('--text-muted', '#6c757d'),
+                                'township': getColorVar('--success-color', '#28a745'),
+                                'village': getColorVar('--info-color', '#17a2b8'),
+                                'fire': getColorVar('--danger-color', '#dc3545'),
+                                'ems': getColorVar('--primary-color', '#007bff'),
+                                'school': getColorVar('--warning-color', '#ffc107'),
+                                'electric': getColorVar('--secondary-color', '#6f42c1'),
+                                'telephone': getColorVar('--accent-color', '#fd7e14')
+                            };
+                            const color = typeColors[type.toLowerCase()] || getColorVar('--text-muted', '#6c757d');
 
                             return `
                                 <div class="type-section">
@@ -2105,53 +2249,64 @@ console.log('  • window.mapDebug.refreshAll() - Refresh all map data');
 console.log('  • window.mapDebug.inspectMap() - Inspect map objects');
 console.log('  • window.mapDebug.analyzeBoundaries() - Analyze boundary types');
 
-// Audio Health Widget
-async function updateAudioHealth() {
+// ===== SNOW EMERGENCY FUNCTIONS =====
+
+let snowEmergencyData = { emergencies: [], levels: {} };
+
+async function loadSnowEmergencies() {
     try {
-        const response = await fetch('/api/audio/health');
+        const response = await fetch('/api/snow_emergencies');
         if (!response.ok) {
-            throw new Error(`HTTP ${response.status}`);
+            console.warn('Snow emergencies API not available');
+            return;
         }
-        const health = await response.json();
-
-        const healthElement = document.getElementById('audio-health');
-        const statusElement = document.getElementById('audio-sources-status');
-
-        if (healthElement) {
-            healthElement.innerHTML = `${health.health_score}<span style="font-size: 0.9rem; font-weight: normal; color: var(--text-muted);">%</span>`;
-
-            // Color code based on health score
-            if (health.health_score >= 80) {
-                healthElement.style.color = '#2eb08d';
-            } else if (health.health_score >= 50) {
-                healthElement.style.color = '#f6b968';
-            } else {
-                healthElement.style.color = '#e05263';
-            }
-        }
-
-        if (statusElement) {
-            const activeText = health.active_sources === 1 ? 'source' : 'sources';
-            statusElement.textContent = `${health.active_sources} ${activeText} active`;
-        }
+        const data = await response.json();
+        snowEmergencyData = data;
+        renderSnowEmergencyBanner(data);
     } catch (error) {
-        console.error('Failed to update audio health:', error);
-        const healthElement = document.getElementById('audio-health');
-        const statusElement = document.getElementById('audio-sources-status');
-
-        if (healthElement) {
-            healthElement.textContent = '—';
-            healthElement.style.color = 'var(--text-muted)';
-        }
-        if (statusElement) {
-            statusElement.textContent = 'Unavailable';
-        }
+        console.warn('Failed to load snow emergencies:', error);
     }
 }
 
-// Update audio health periodically (every 2 seconds for real-time monitoring)
-updateAudioHealth();
-// REDUCED: 30 seconds instead of 5 seconds - health status doesn't change rapidly
-setInterval(updateAudioHealth, 30000);
+function renderSnowEmergencyBanner(data) {
+    const banner = document.getElementById('snow-emergency-banner');
+    const grid = document.getElementById('snow-emergency-grid');
+    const definitions = document.getElementById('snow-emergency-definitions');
+
+    if (!banner || !grid) return;
+
+    const activeEmergencies = (data.emergencies || []).filter(
+        e => e.level > 0 && e.issues_emergencies !== false
+    );
+
+    if (activeEmergencies.length === 0) {
+        banner.style.display = 'none';
+        banner.classList.remove('has-emergencies');
+        if (definitions) definitions.style.display = 'none';
+        return;
+    }
+
+    banner.style.display = 'block';
+    banner.classList.add('has-emergencies');
+    if (definitions) definitions.style.display = 'block';
+
+    grid.innerHTML = activeEmergencies.map(e => `
+        <div class="snow-county-card level-${e.level}">
+            <span class="snow-county-name">${escapeHtml(e.county_name)}</span>
+            <span class="snow-level-badge level-${e.level}">${escapeHtml(e.level_name)}</span>
+        </div>
+    `).join('');
+}
+
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// Load snow emergencies on page load and periodically
+loadSnowEmergencies();
+setInterval(loadSnowEmergencies, 60000); // Refresh every minute
 </script>
 {% endblock %}

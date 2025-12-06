@@ -26,7 +26,6 @@ Provides a centralized interface for managing multiple audio sources
 with standardized PCM output, metering, and health monitoring.
 """
 
-import asyncio
 import logging
 import queue
 import threading
@@ -114,9 +113,21 @@ class AudioSourceAdapter(ABC):
         )
         self._stop_event = threading.Event()
         self._capture_thread: Optional[threading.Thread] = None
-        # Increased to 2000 to prevent overflow at 48 seconds (44100Hz = ~180s buffer @ 4096 samples/chunk)
-        # Previous 500 limit caused stuttering after 45-48 seconds of playback
-        self._audio_queue = queue.Queue(maxsize=2000)
+        
+        # Per-source BroadcastQueue for non-destructive audio distribution
+        # This allows multiple consumers (Icecast, web streaming, monitoring) to
+        # receive audio from this source independently without competing for chunks.
+        # CRITICAL FIX: Previously all consumers called get_audio_chunk() which
+        # destructively removed from a shared queue - now each subscribes independently.
+        self._source_broadcast = BroadcastQueue(
+            name=f"source-{config.name}",
+            max_queue_size=2000  # ~180s buffer at 44100Hz with 4096 samples/chunk
+        )
+        
+        # Legacy queue for backward compatibility - subscribers get independent copies
+        self._legacy_subscriber_id = f"legacy-{config.name}"
+        self._audio_queue = self._source_broadcast.subscribe(self._legacy_subscriber_id)
+        
         self._last_metrics_update = 0.0
         self._start_time = 0.0
         # Waveform buffer for visualization (stores last 2048 samples)
@@ -216,11 +227,31 @@ class AudioSourceAdapter(ABC):
                 break
 
     def get_audio_chunk(self, timeout: float = 1.0) -> Optional[np.ndarray]:
-        """Get the next audio chunk from the queue."""
+        """Get the next audio chunk from the queue.
+        
+        NOTE: This method uses the legacy subscriber queue which receives
+        independent copies from the per-source broadcast queue. Multiple
+        consumers calling this method will each get their own copy of audio.
+        
+        For new code, prefer using get_broadcast_queue().subscribe() directly
+        to create an independent subscription with its own queue.
+        """
         try:
             return self._audio_queue.get(timeout=timeout)
         except queue.Empty:
             return None
+
+    def get_broadcast_queue(self) -> BroadcastQueue:
+        """Get this source's broadcast queue for subscribing to audio.
+        
+        Creates independent subscriptions that each receive a copy of all
+        audio chunks. This allows multiple consumers (Icecast streams,
+        web streaming, EAS monitoring) to receive audio without competing.
+        
+        Returns:
+            BroadcastQueue instance for this source
+        """
+        return self._source_broadcast
 
     def _capture_loop(self) -> None:
         """Main capture loop running in separate thread."""
@@ -233,16 +264,10 @@ class AudioSourceAdapter(ABC):
                     # Update metrics
                     self._update_metrics(audio_chunk)
 
-                    # Add to queue, drop if full
-                    try:
-                        self._audio_queue.put_nowait(audio_chunk)
-                    except queue.Full:
-                        # Drop oldest chunk and add new one
-                        try:
-                            self._audio_queue.get_nowait()
-                            self._audio_queue.put_nowait(audio_chunk)
-                        except queue.Empty:
-                            pass
+                    # Publish to per-source broadcast queue - all subscribers get independent copies
+                    # This enables multiple consumers (Icecast, web streaming, controller pump)
+                    # to receive audio without competing for chunks.
+                    self._source_broadcast.publish(audio_chunk)
                 else:
                     # No decoded audio chunk available
                     # Only sleep if source had no data activity (prevents busy loops on truly idle sources)
@@ -299,6 +324,9 @@ class AudioSourceAdapter(ABC):
         current_metadata['source_start_time'] = self._start_time
 
         # Update metrics
+        # Use broadcast queue utilization instead of legacy queue for accurate streaming health
+        buffer_util = self._source_broadcast.get_average_utilization()
+        
         self.metrics = AudioMetrics(
             timestamp=current_time,
             peak_level_db=peak_db,
@@ -307,7 +335,7 @@ class AudioSourceAdapter(ABC):
             channels=self.config.channels,
             frames_captured=self.metrics.frames_captured + len(audio_chunk),
             silence_detected=silence_detected,
-            buffer_utilization=self._audio_queue.qsize() / self._audio_queue.maxsize,
+            buffer_utilization=buffer_util,
             metadata=current_metadata,
         )
 

@@ -43,6 +43,7 @@ import os
 import time
 import logging
 import functools
+import threading
 from typing import Optional, Any, Callable
 from enum import Enum
 
@@ -55,6 +56,7 @@ logger = logging.getLogger(__name__)
 _redis_client: Optional[redis.Redis] = None
 _redis_connection_attempts = 0
 _last_connection_attempt = 0
+_redis_lock = threading.RLock()  # Reentrant lock for thread safety
 
 
 class CircuitState(Enum):
@@ -183,88 +185,98 @@ def get_redis_client(
     """
     global _redis_client, _redis_connection_attempts, _last_connection_attempt
 
-    # Return existing client if healthy
+    # Quick check without lock for existing healthy client
     if _redis_client is not None and not force_reconnect:
         try:
             _redis_client.ping()
             return _redis_client
         except (ConnectionError, TimeoutError, RedisError):
-            logger.warning("Existing Redis client unhealthy, reconnecting...")
-            _redis_client = None
+            pass  # Will reconnect with lock below
 
-    # Get connection parameters
-    # Default to 'redis' for Docker, not 'localhost' (prevents connection refused errors)
-    redis_host = os.getenv("REDIS_HOST", "redis")
-    redis_port = int(os.getenv("REDIS_PORT", "6379"))
-    redis_db = int(os.getenv("REDIS_DB", "0"))
-    redis_password = os.getenv("REDIS_PASSWORD")
+    # Use lock to prevent multiple threads from creating connections simultaneously
+    with _redis_lock:
+        # Double-check pattern: another thread may have created client while we waited for lock
+        if _redis_client is not None and not force_reconnect:
+            try:
+                _redis_client.ping()
+                return _redis_client
+            except (ConnectionError, TimeoutError, RedisError):
+                logger.warning("Existing Redis client unhealthy, reconnecting...")
+                _redis_client = None
 
-    # Retry with exponential backoff
-    attempt = 0
-    backoff = initial_backoff
-    last_error = None
+        # Get connection parameters
+        # Default to 'redis' for Docker, not 'localhost' (prevents connection refused errors)
+        redis_host = os.getenv("REDIS_HOST", "redis")
+        redis_port = int(os.getenv("REDIS_PORT", "6379"))
+        redis_db = int(os.getenv("REDIS_DB", "0"))
+        redis_password = os.getenv("REDIS_PASSWORD")
 
-    while max_retries == 0 or attempt < max_retries:
-        try:
-            # Rate limit connection attempts (max 1 per second)
-            time_since_last = time.time() - _last_connection_attempt
-            if time_since_last < 1.0:
-                time.sleep(1.0 - time_since_last)
+        # Retry with exponential backoff
+        attempt = 0
+        backoff = initial_backoff
+        last_error = None
 
-            _last_connection_attempt = time.time()
-            _redis_connection_attempts += 1
+        while max_retries == 0 or attempt < max_retries:
+            try:
+                # Rate limit connection attempts (max 1 per second)
+                time_since_last = time.time() - _last_connection_attempt
+                if time_since_last < 1.0:
+                    time.sleep(1.0 - time_since_last)
 
-            logger.info(
-                f"Connecting to Redis at {redis_host}:{redis_port} "
-                f"(attempt {attempt + 1}/{max_retries if max_retries > 0 else '∞'})"
-            )
+                _last_connection_attempt = time.time()
+                _redis_connection_attempts += 1
 
-            client = redis.Redis(
-                host=redis_host,
-                port=redis_port,
-                db=redis_db,
-                password=redis_password,
-                decode_responses=True,
-                socket_connect_timeout=5,
-                socket_timeout=5,
-                socket_keepalive=True,
-                health_check_interval=30,
-                retry_on_timeout=True,
-                max_connections=50,
-            )
-
-            # Test connection
-            client.ping()
-
-            logger.info(f"✅ Redis connected successfully (total attempts: {_redis_connection_attempts})")
-            _redis_client = client
-            _circuit_breaker.failure_count = 0  # Reset circuit breaker
-            return client
-
-        except (ConnectionError, TimeoutError) as e:
-            last_error = e
-            attempt += 1
-
-            if max_retries > 0 and attempt >= max_retries:
-                logger.error(
-                    f"❌ Failed to connect to Redis after {max_retries} attempts: {e}"
-                )
-                raise ConnectionError(
-                    f"Unable to connect to Redis at {redis_host}:{redis_port} "
-                    f"after {max_retries} attempts: {e}"
+                logger.info(
+                    f"Connecting to Redis at {redis_host}:{redis_port} "
+                    f"(attempt {attempt + 1}/{max_retries if max_retries > 0 else '∞'})"
                 )
 
-            logger.warning(
-                f"⚠️  Redis connection failed (attempt {attempt}): {e}. "
-                f"Retrying in {backoff:.1f}s..."
-            )
-            time.sleep(backoff)
+                client = redis.Redis(
+                    host=redis_host,
+                    port=redis_port,
+                    db=redis_db,
+                    password=redis_password,
+                    decode_responses=True,
+                    socket_connect_timeout=5,
+                    socket_timeout=5,
+                    socket_keepalive=True,
+                    health_check_interval=30,
+                    retry_on_timeout=True,
+                    max_connections=50,
+                )
 
-            # Exponential backoff: 1s, 2s, 4s, 8s, 16s, 30s (max)
-            backoff = min(backoff * 2, max_backoff)
+                # Test connection
+                client.ping()
 
-    # Should never reach here, but just in case
-    raise ConnectionError(f"Unable to connect to Redis: {last_error}")
+                logger.info(f"✅ Redis connected successfully (total attempts: {_redis_connection_attempts})")
+                _redis_client = client
+                _circuit_breaker.failure_count = 0  # Reset circuit breaker
+                return client
+
+            except (ConnectionError, TimeoutError) as e:
+                last_error = e
+                attempt += 1
+
+                if max_retries > 0 and attempt >= max_retries:
+                    logger.error(
+                        f"❌ Failed to connect to Redis after {max_retries} attempts: {e}"
+                    )
+                    raise ConnectionError(
+                        f"Unable to connect to Redis at {redis_host}:{redis_port} "
+                        f"after {max_retries} attempts: {e}"
+                    )
+
+                logger.warning(
+                    f"⚠️  Redis connection failed (attempt {attempt}): {e}. "
+                    f"Retrying in {backoff:.1f}s..."
+                )
+                time.sleep(backoff)
+
+                # Exponential backoff: 1s, 2s, 4s, 8s, 16s, 30s (max)
+                backoff = min(backoff * 2, max_backoff)
+
+        # Should never reach here, but just in case
+        raise ConnectionError(f"Unable to connect to Redis: {last_error}")
 
 
 def redis_operation(

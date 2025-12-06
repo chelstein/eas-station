@@ -25,9 +25,8 @@ EAS Station is a software-defined drop-in replacement for commercial EAS encoder
 ## 📋 State EAS Plan Documentation
 
 **Ohio Emergency Alert System Plan** (FCC-approved March 2019) is now documented:
-- **[📖 Ohio EAS Documentation](docs/OHIO_EAS_README)** - Complete plan, station listings, test procedures
-- **[📊 Event Code Analysis](docs/EAS_EVENT_CODES_COMPLETE)** - All 78+ FCC event codes with implementation status
-- **[⚠️ Critical Alert](docs/EAS_CRITICAL_ALERT)** - 6 missing critical codes identified (SQW, ISW, WCW, LSW, LFW, EQE)
+- **[📖 Ohio EAS Documentation](docs/reference/OHIO_EAS_DOCUMENTATION.md)** - Complete plan, station listings, test procedures
+- **[⚠️ Critical Issues Status](docs/architecture/CRITICAL_ISSUES_STATUS.md)** - System status and known issues
 
 **Event Code Update (Nov 2025)**: Added 6 critical missing codes to codebase:
 - **SQW** (Snow Squall Warning) - Sudden whiteout conditions on highways
@@ -154,8 +153,9 @@ graph TD
 | **First Time Setup** | [Setup Instructions](docs/guides/SETUP_INSTRUCTIONS) → [Quick Start](#quick-start) |
 | **Radio Configuration** | [SDR Setup Guide](docs/hardware/SDR_SETUP) |
 | **Daily Operations** | [User Guide](docs/guides/HELP) |
-| **Deployment** | [Portainer Guide](docs/guides/PORTAINER_DEPLOYMENT) |
+| **Deployment** | [Portainer Guide](docs/deployment/PORTAINER_DEPLOYMENT.md) |
 | **Development** | [Developer Guide](docs/development/AGENTS) |
+| **Debugging on Pi** | [PyCharm Remote Debugging Guide](docs/guides/PYCHARM_DEBUGGING) |
 
 **📖 [Complete Documentation Index](docs/INDEX)** - Searchable topics and detailed guides
 
@@ -163,9 +163,9 @@ graph TD
 
 EAS Station exposes a comprehensive REST API for automation and integrations:
 
-- [Endpoint reference](docs/frontend/JAVASCRIPT_API) – Complete request/response catalog and authentication model
-- [Architecture overview](docs/architecture/SYSTEM_ARCHITECTURE) – How the API interacts with pollers, database, and broadcast services
-- [SDK examples](docs/frontend/FRONTEND_INDEX#javascript-api-usage) – Using the JavaScript client to control GPIO and audio devices
+- [Endpoint reference](docs/frontend/JAVASCRIPT_API.md) – Complete request/response catalog and authentication model
+- [Architecture overview](docs/architecture/SYSTEM_ARCHITECTURE.md) – How the API interacts with pollers, database, and broadcast services
+- [JavaScript API Guide](docs/frontend/JAVASCRIPT_API.md) – Using the JavaScript client to control GPIO and audio devices
 
 > Tip: All API routes are namespaced under `/api/`. Use the `X-API-Key` header generated from the Configuration → API Keys page.
 
@@ -270,7 +270,7 @@ graph TB
 
 > 📘 **Docker users**: All system packages are pre-installed in the container.
 >
-> 📘 **Source installation**: See [SYSTEM_DEPENDENCIES.md](docs/reference/SYSTEM_DEPENDENCIES) for complete installation guide.
+> 📘 **Source installation**: See [Setup Instructions](docs/guides/SETUP_INSTRUCTIONS.md) for complete installation guide.
 
 ## 🛠️ Configuration
 
@@ -291,9 +291,16 @@ DEFAULT_ZONE_CODES=XXZ001,XXC001
 EAS_BROADCAST_ENABLED=false
 EAS_ORIGINATOR=WXR
 EAS_STATION_ID=YOURCALL
+
+# Resource allocation (adjust for your RAM)
+# For 16GB RAM systems, quadruple these values
+TMPFS_SDR_SERVICE=64M
+TMPFS_AUDIO_SERVICE=128M
+TMPFS_APP=128M
 ```
 
-See [Configuration Guide](docs/guides/HELP) for complete reference.
+See [Configuration Guide](docs/guides/HELP) for complete reference.  
+See [tmpfs Configuration](docs/deployment/TMPFS_CONFIGURATION.md) for RAM optimization.
 
 ## 📊 System Diagrams
 
@@ -393,7 +400,7 @@ python app.py
 
 > **Quick Diagnostics**: Run `bash scripts/diagnostics/troubleshoot_connection.sh` to diagnose connection issues, or see [scripts/diagnostics/README.md](scripts/diagnostics/README.md) for all available tools.
 
-> **Alert Self-Test**: Open **Tools → Alert Verification** and use the built-in Alert Self-Test panel (or run `python scripts/run_alert_self_test.py`) to replay bundled RWT captures and confirm your configured FIPS codes still trigger activations. Detailed guidance lives in [docs/runbooks/alert_self_test.md](docs/runbooks/alert_self_test.md).
+> **Alert Self-Test**: Open **Tools → Alert Verification** and use the built-in Alert Self-Test panel to replay bundled RWT captures and confirm your configured FIPS codes still trigger activations.
 
 ## ⚖️ Legal & Compliance
 
@@ -418,7 +425,7 @@ Current development focuses on:
 - ⏳ **Certification**: FCC Part 11 compliance documentation
 - ⏳ **Advanced Features**: Cloud sync, mobile app, multi-site coordination
 
-See [Roadmap](docs/roadmap/master_todo) for complete details.
+See [Feature Roadmap](docs/roadmap/dasdec3-feature-roadmap.md) for complete details.
 
 ### Recent Additions (November 2025)
 
@@ -426,7 +433,7 @@ See [Roadmap](docs/roadmap/master_todo) for complete details.
 - **Stream Profile Manager** (`/settings/stream-profiles`) - Configure multiple Icecast streams with different bitrates and formats
 - **Quick Start Guide** - 15-minute deployment guide with common scenarios and troubleshooting
 
-See [New Features Guide](docs/NEW_FEATURES_2025-11) for detailed documentation.
+See [Changelog](docs/reference/CHANGELOG.md) for detailed documentation of recent changes.
 
 ## 📜 License
 

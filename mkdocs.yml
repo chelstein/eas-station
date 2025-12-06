@@ -128,6 +128,7 @@ nav:
   - User Guides:
       - Setup Instructions: guides/SETUP_INSTRUCTIONS.md
       - Help & Operations: guides/HELP.md
+      - PyCharm Remote Debugging: guides/PYCHARM_DEBUGGING.md
       - Portainer Deployment: guides/PORTAINER_DEPLOYMENT.md
       - Database Fixes: guides/DATABASE_CONSISTENCY_FIXES.md
       - Environment Migration: guides/ENV_MIGRATION_GUIDE.md

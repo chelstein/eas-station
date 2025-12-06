@@ -81,6 +81,11 @@ def admin():
             return default
 
     try:
+        try:
+            db.session.rollback()
+        except SQLAlchemyError:  # pragma: no cover - defensive
+            pass
+
         setup_mode = getattr(g, 'admin_setup_mode', None)
         if setup_mode is None:
             setup_mode = safe_db_operation(

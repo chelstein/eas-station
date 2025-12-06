@@ -258,7 +258,7 @@
         <div class="modal-content">
             <form id="addSourceForm">
                 <div class="modal-header">
-                    <h5 class="modal-title" id="audioSourceModalLabel">Add Audio Source</h5>
+                    <h3 class="modal-title h5" id="audioSourceModalLabel">Add Audio Source</h3>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
@@ -320,7 +320,7 @@
     <div class="modal-dialog modal-xl modal-dialog-scrollable">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="discoveryModalLabel">Discovered Audio Devices</h5>
+                <h3 class="modal-title h5" id="discoveryModalLabel">Discovered Audio Devices</h3>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
@@ -346,7 +346,7 @@
         <div class="modal-content">
             <form id="editSourceForm">
                 <div class="modal-header">
-                    <h5 class="modal-title" id="editSourceModalLabel">Edit Audio Source</h5>
+                    <h3 class="modal-title h5" id="editSourceModalLabel">Edit Audio Source</h3>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
@@ -362,6 +362,10 @@
                             <input type="text" class="form-control" id="editSourceType" readonly>
                             <small class="form-text text-muted">Source type cannot be changed</small>
                         </div>
+                        
+                        <!-- Device-specific configuration section -->
+                        <div id="editSourceTypeConfig" class="col-12"></div>
+                        
                         <div class="col-md-6">
                             <label for="editPriority" class="form-label">Priority</label>
                             <input type="number" class="form-control" id="editPriority" min="1" max="1000">

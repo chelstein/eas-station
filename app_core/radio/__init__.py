@@ -21,7 +21,11 @@ Repository: https://github.com/KR8MER/eas-station
 
 from .drivers import AirspyReceiver, RTLSDRReceiver, register_builtin_drivers
 from .manager import ReceiverInterface, ReceiverConfig, RadioManager, ReceiverStatus
-from .schema import ensure_radio_tables, ensure_radio_squelch_columns
+from .schema import (
+    ensure_radio_tables,
+    ensure_radio_squelch_columns,
+    ensure_radio_audio_sample_rate_column,
+)
 from .discovery import (
     enumerate_devices,
     get_device_capabilities,
@@ -39,6 +43,7 @@ __all__ = [
     "ReceiverStatus",
     "ensure_radio_tables",
     "ensure_radio_squelch_columns",
+    "ensure_radio_audio_sample_rate_column",
     "AirspyReceiver",
     "RTLSDRReceiver",
     "register_builtin_drivers",

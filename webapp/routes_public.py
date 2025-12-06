@@ -29,6 +29,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from flask import Flask, render_template, request, url_for, Response
 from sqlalchemy import func, or_
+from sqlalchemy.exc import OperationalError
 
 from app_core.alerts import get_active_alerts_query, get_expired_alerts_query
 from app_core.eas_storage import get_eas_static_prefix, format_local_datetime
@@ -311,11 +312,16 @@ def register(app: Flask, logger) -> None:
                         monthly_data[int(month) - 1] = count
                 stats_data["alert_by_month"] = monthly_data
 
+                # Filter to only include years from the last 5 years to exclude
+                # potentially corrupted data (e.g., 1970 from Unix epoch defaults)
+                from datetime import datetime
+                min_year = datetime.now().year - 5
                 alert_by_year = (
                     db.session.query(
                         func.extract("year", CAPAlert.sent).label("year"),
                         func.count(CAPAlert.id).label("count"),
                     )
+                    .filter(func.extract("year", CAPAlert.sent) >= min_year)
                     .group_by(func.extract("year", CAPAlert.sent))
                     .order_by(func.extract("year", CAPAlert.sent))
                     .all()
@@ -355,6 +361,7 @@ def register(app: Flask, logger) -> None:
                     for name, b_type, count in most_affected
                 ]
             except Exception as exc:
+                db.session.rollback()
                 route_logger.error("Error getting affected boundaries: %s", exc)
                 stats_data["most_affected_boundaries"] = []
 
@@ -392,6 +399,7 @@ def register(app: Flask, logger) -> None:
                     )
                 ]
             except Exception as exc:
+                db.session.rollback()
                 route_logger.error("Error calculating duration stats: %s", exc)
                 stats_data["duration_stats"] = []
 
@@ -471,6 +479,7 @@ def register(app: Flask, logger) -> None:
                 stats_data["recent_by_day"] = daily_alerts[-30:]
                 stats_data["dow_hour_matrix"] = hourly_matrix
             except Exception as exc:
+                db.session.rollback()
                 route_logger.error("Error preparing alert events for stats: %s", exc)
                 stats_data["alert_events"] = []
                 stats_data["filter_options"] = {
@@ -542,6 +551,11 @@ def register(app: Flask, logger) -> None:
                         if last_error and last_error.timestamp
                         else None,
                         "recent_runs": recent_runs,
+                        # Additional keys expected by the template
+                        "total_polls": total_runs,
+                        "successful_polls": successes,
+                        "failed_polls": failures,
+                        "avg_time_ms": avg_execution,
                     }
                 else:
                     stats_data["polling"] = {
@@ -549,14 +563,23 @@ def register(app: Flask, logger) -> None:
                         "total_runs": 0,
                         "failed_runs": 0,
                         "recent_runs": [],
+                        "total_polls": 0,
+                        "successful_polls": 0,
+                        "failed_polls": 0,
+                        "avg_time_ms": 0,
                     }
             except Exception as exc:
+                db.session.rollback()
                 route_logger.error("Error calculating polling metrics: %s", exc)
                 stats_data["polling"] = {
                     "success_rate": 0,
                     "total_runs": 0,
                     "failed_runs": 0,
                     "recent_runs": [],
+                    "total_polls": 0,
+                    "successful_polls": 0,
+                    "failed_polls": 0,
+                    "avg_time_ms": 0,
                 }
 
             stats_data.setdefault("boundary_stats", [])
@@ -583,6 +606,7 @@ def register(app: Flask, logger) -> None:
 
             return render_template("stats.html", **stats_data)
         except Exception as exc:  # pragma: no cover - fallback content
+            db.session.rollback()
             route_logger.error("Error loading statistics: %s", exc)
             return (
                 "<h1>Error loading statistics</h1>"
@@ -646,6 +670,16 @@ def register(app: Flask, logger) -> None:
     @app.route("/alerts")
     def alerts():
         try:
+            # Rollback any failed transaction before starting new queries.
+            # This prevents "current transaction is aborted" errors that occur when
+            # a previous request left the database connection in a bad state.
+            # PostgreSQL requires a rollback before new commands can be issued when
+            # a transaction has failed. This is a defensive measure for robustness.
+            try:
+                db.session.rollback()
+            except Exception:
+                pass
+
             # Validate pagination parameters
             page = request.args.get("page", 1, type=int)
             page = max(1, page)  # Ensure page is at least 1
@@ -665,6 +699,63 @@ def register(app: Flask, logger) -> None:
                 "yes",
                 "on",
             }
+
+            # Fetch filter options and counts for the template
+            # Default values in case of database errors
+            statuses: List[str] = []
+            severities: List[str] = []
+            events: List[str] = []
+            sources: List[str] = []
+            active_alerts: int = 0
+            expired_alerts: int = 0
+            total_alerts: int = 0
+
+            try:
+                # Fetch all distinct filter options in a single database transaction
+                statuses = [
+                    row[0] for row in
+                    db.session.query(CAPAlert.status)
+                    .filter(CAPAlert.status.isnot(None))
+                    .distinct()
+                    .order_by(CAPAlert.status)
+                    .all()
+                ]
+                severities = [
+                    row[0] for row in
+                    db.session.query(CAPAlert.severity)
+                    .filter(CAPAlert.severity.isnot(None))
+                    .distinct()
+                    .order_by(CAPAlert.severity)
+                    .all()
+                ]
+                events = [
+                    row[0] for row in
+                    db.session.query(CAPAlert.event)
+                    .filter(CAPAlert.event.isnot(None))
+                    .distinct()
+                    .order_by(CAPAlert.event)
+                    .all()
+                ]
+                sources = [
+                    row[0] for row in
+                    db.session.query(CAPAlert.source)
+                    .filter(CAPAlert.source.isnot(None))
+                    .distinct()
+                    .order_by(CAPAlert.source)
+                    .all()
+                ]
+                # Get alert counts
+                active_alerts = get_active_alerts_query().count()
+                expired_alerts = get_expired_alerts_query().count()
+                total_alerts = CAPAlert.query.count()
+            except OperationalError as exc:
+                # Database connection or operational error - rollback and use defaults
+                db.session.rollback()
+                route_logger.warning("Database operational error fetching filter options: %s", exc)
+            except Exception as exc:
+                # Unexpected error - rollback and log
+                db.session.rollback()
+                route_logger.warning("Error fetching filter options for alerts page: %s", exc)
 
             query = CAPAlert.query
 
@@ -695,14 +786,27 @@ def register(app: Flask, logger) -> None:
 
             query = query.order_by(CAPAlert.sent.desc())
 
+            total_count = 0
             try:
                 pagination = query.paginate(page=page, per_page=per_page, error_out=False)
                 alerts_list = pagination.items
+                total_count = pagination.total
             except Exception as exc:
                 route_logger.warning("Pagination error: %s", exc)
-                total_count = query.count()
-                offset = (page - 1) * per_page
-                alerts_list = query.offset(offset).limit(per_page).all()
+                try:
+                    db.session.rollback()
+                except Exception:
+                    pass
+
+                try:
+                    total_count = query.count()
+                    offset = (page - 1) * per_page
+                    alerts_list = query.offset(offset).limit(per_page).all()
+                except Exception as fallback_exc:
+                    db.session.rollback()
+                    route_logger.error("Fallback pagination failed: %s", fallback_exc)
+                    alerts_list = []
+                    total_count = 0
 
                 class MockPagination:
                     def __init__(self, page_num: int, page_size: int, total: int, items):
@@ -785,6 +889,7 @@ def register(app: Flask, logger) -> None:
                                 }
                             )
                     except Exception as exc:
+                        db.session.rollback()
                         route_logger.warning("Error loading EAS messages for alerts: %s", exc)
 
             manual_messages: List[ManualEASActivation] = []
@@ -796,6 +901,7 @@ def register(app: Flask, logger) -> None:
                     .all()
                 )
             except Exception as exc:
+                db.session.rollback()
                 route_logger.warning("Error loading manual activations: %s", exc)
 
             current_filters = {
@@ -815,8 +921,16 @@ def register(app: Flask, logger) -> None:
                 audio_map=audio_map,
                 manual_messages=manual_messages,
                 current_filters=current_filters,
+                statuses=statuses,
+                severities=severities,
+                events=events,
+                sources=sources,
+                active_alerts=active_alerts,
+                expired_alerts=expired_alerts,
+                total_alerts=total_alerts,
             )
         except Exception as exc:  # pragma: no cover - fallback content
+            db.session.rollback()
             route_logger.error("Error loading alerts: %s", exc)
             return (
                 "<h1>Error loading alerts</h1>"
@@ -1033,6 +1147,7 @@ def register(app: Flask, logger) -> None:
             # ============================================================
             # Error handling: Log and return user-friendly error page
             # ============================================================
+            db.session.rollback()
             route_logger.error("Error generating alerts PDF: %s", exc)
             return (
                 "<h1>Error generating PDF</h1>"
@@ -1479,6 +1594,7 @@ def register(app: Flask, logger) -> None:
             )
 
         except Exception as exc:  # pragma: no cover - fallback content
+            db.session.rollback()
             route_logger.error("Error loading logs: %s", exc)
             return (
                 "<h1>Error loading logs</h1>"
@@ -1528,6 +1644,7 @@ def register(app: Flask, logger) -> None:
             return response
 
         except Exception as exc:
+            db.session.rollback()
             route_logger.error('Error generating logs CSV: %s', exc)
             return (
                 "<h1>Error generating CSV</h1>"
@@ -1582,6 +1699,7 @@ def register(app: Flask, logger) -> None:
             return response
 
         except Exception as exc:
+            db.session.rollback()
             route_logger.error('Error generating logs PDF: %s', exc)
             return (
                 "<h1>Error generating PDF</h1>"

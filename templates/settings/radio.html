@@ -14,13 +14,27 @@
         </button>
     </div>
 
+    <div class="alert alert-success" role="alert">
+        <div class="d-flex">
+            <div class="me-3">
+                <i class="fas fa-star fa-lg"></i>
+            </div>
+            <div>
+                <strong>Recommended: SDR++ Server</strong> — Connect to <a href="https://www.sdrpp.org/" target="_blank" rel="noopener" class="alert-link">SDR++</a> running on any machine for professional spectrum visualization, shared SDR access, and remote monitoring. 
+                <button type="button" class="btn btn-success btn-sm ms-2" id="addSdrppServerBtn">
+                    <i class="fas fa-plus"></i> Add SDR++ Server
+                </button>
+            </div>
+        </div>
+    </div>
+
     <div class="alert alert-info" role="alert">
         <div class="d-flex">
             <div class="me-3">
                 <i class="fas fa-plug fa-lg"></i>
             </div>
             <div>
-                <strong>Hardware tip:</strong> map your USB interfaces into the container without privileged mode. Follow the
+                <strong>Direct USB SDR:</strong> For direct USB connections, map your USB interfaces into the container. Follow the
                 <a href="{{ url_for('static', filename='docs/radio_usb_passthrough.html') }}" target="_blank" rel="noopener">USB passthrough guide</a>
                 to expose <code>/dev/bus/usb</code> safely.
             </div>
@@ -47,8 +61,11 @@
                     <strong>Quick Setup</strong>
                 </div>
                 <div class="btn-group btn-group-sm" role="group">
+                    <button type="button" class="btn btn-warning" id="addSdrppQuickBtn" title="Recommended: Add SDR++ Server">
+                        <i class="fas fa-star"></i> SDR++ Server
+                    </button>
                     <button type="button" class="btn btn-light" id="discoverDevicesBtn">
-                        <i class="fas fa-satellite-dish"></i> Discover Devices
+                        <i class="fas fa-satellite-dish"></i> Discover USB Devices
                     </button>
                     <button type="button" class="btn btn-light" id="runDiagnosticsBtn">
                         <i class="fas fa-stethoscope"></i> Run Diagnostics
@@ -62,7 +79,7 @@
         <div class="card-body">
             <div id="quickSetupContent" class="text-center text-muted py-3">
                 <i class="fas fa-info-circle fa-2x mb-2"></i>
-                <p class="mb-0">Use the buttons above to discover connected SDRs, run diagnostics, or apply preset configurations.</p>
+                <p class="mb-0">Click <strong>SDR++ Server</strong> to connect to a remote SDR, or <strong>Discover USB Devices</strong> for directly connected hardware.</p>
             </div>
         </div>
     </div>
@@ -148,14 +165,14 @@
                 <div class="card-body">
                     <h2 class="h6 text-uppercase text-muted mb-3">Capture Workflow</h2>
                     <ol class="ps-3 small mb-0">
-                        <li class="mb-2">Create receivers for each USB dongle with a unique identifier.</li>
+                        <li class="mb-2">Create receivers using <strong>SDR++ Server</strong> (recommended) or direct USB SDR.</li>
                         <li class="mb-2">Enable <strong>Auto-start</strong> to let the poller launch tuned listeners.</li>
                         <li class="mb-2">When the poller hears SAME bursts it requests captures from every enabled receiver.</li>
                         <li class="mb-0">Monitor signal lock and error states below to diagnose hardware or driver issues.</li>
                     </ol>
                 </div>
                 <div class="card-footer text-muted small">
-                    Built-in drivers: RTL-SDR (RTL2832U) and Airspy via SoapySDR.
+                    Supported: <strong>SDR++ Server</strong> (recommended), RTL-SDR, Airspy, SoapyRemote.
                 </div>
             </div>
         </div>
@@ -552,6 +569,48 @@
             .replace(/'/g, '&#039;');
     }
 
+    function formatSignalStrength(magnitude) {
+        // Convert linear magnitude (0-1 range from SDR) to RSSI in dBFS
+        // Using 20*log10(magnitude) gives relative power in dBFS (dB Full Scale)
+        if (magnitude === null || magnitude === undefined) return null;
+        
+        const numValue = typeof magnitude === 'number' ? magnitude : Number.parseFloat(magnitude);
+        if (!Number.isFinite(numValue) || numValue <= 0) return null;
+        
+        // Convert to dBFS (relative to full scale, where 1.0 = 0 dBFS)
+        const rssiDb = 20 * Math.log10(numValue);
+        
+        // Determine signal bars (like cell phone signal)
+        // Using same thresholds as radio_diagnostics.html for consistency
+        let bars = 0;
+        if (rssiDb > -50) bars = 4;       // Excellent
+        else if (rssiDb > -70) bars = 3;  // Good
+        else if (rssiDb > -85) bars = 2;  // Fair
+        else if (rssiDb > -100) bars = 1; // Poor
+        else bars = 0;                    // Very weak/no signal
+        
+        // Generate signal bars HTML (smallest to tallest, left to right)
+        const barsHtml = Array.from({length: 4}, (_, i) => {
+            const height = 6 + (i * 4); // 6, 10, 14, 18 pixels
+            const active = i < bars;
+            return `<div style="display:inline-block; width:3px; height:${height}px; margin:0 1px; background:${active ? '#28a745' : '#dee2e6'}; border-radius:1px; vertical-align:bottom;"></div>`;
+        }).join('');
+        
+        // Determine color based on signal level (matching radio_diagnostics.html)
+        let color = 'var(--text-muted)';  // gray (no signal)
+        if (rssiDb > -50) color = 'var(--success-color)';      // green (excellent)
+        else if (rssiDb > -70) color = 'var(--success-color)'; // green (good)
+        else if (rssiDb > -85) color = 'var(--warning-color)'; // yellow (fair)
+        else if (rssiDb > -100) color = 'var(--danger-color)'; // red (poor)
+        
+        return `
+            <div class="d-flex align-items-end gap-2">
+                <div style="display:flex; align-items:flex-end; gap:1px;">${barsHtml}</div>
+                <span style="color:${color}; font-weight:600;">${rssiDb.toFixed(1)} dBFS</span>
+            </div>
+        `;
+    }
+
     function setStatus(message, kind = 'info') {
         if (!statusBanner) {
             return;
@@ -677,13 +736,10 @@
         const badgeClass = locked ? 'bg-success' : 'bg-warning text-dark';
         const label = locked ? 'Locked' : 'No lock';
 
-        const strengthValue = typeof status.signal_strength === 'number'
-            ? status.signal_strength
-            : (typeof status.signal_strength === 'string'
-                ? Number.parseFloat(status.signal_strength)
-                : Number.NaN);
-        const strength = Number.isFinite(strengthValue)
-            ? `<div class="small text-muted">Signal: ${strengthValue.toFixed(1)} dBFS</div>`
+        // Use proper signal strength formatting (linear magnitude to dB with signal bars)
+        const strengthHtml = formatSignalStrength(status.signal_strength);
+        const strength = strengthHtml
+            ? `<div class="small mt-1">${strengthHtml}</div>`
             : '';
         const mode = status.capture_mode
             ? `<div class="small text-muted text-uppercase">Mode: ${escapeHtml(status.capture_mode)}</div>`
@@ -1281,11 +1337,32 @@
             const response = await fetch('/api/radio/devices/simple');
             const data = await response.json();
 
-            deviceSelect.innerHTML = '<option value="">-- Select a device --</option>';
+            // Always include SDR++ Server as first option (recommended)
+            deviceSelect.innerHTML = `
+                <option value="">-- Select SDR source --</option>
+                <option value="sdrpp:" data-driver="sdrpp" data-serial="">⭐ SDR++ Server (Network) - Recommended</option>
+            `;
 
             let preSelectedDevice = null;
 
+            // Check if pre-selecting SDR++ Server
+            if (preSelectSerial && preSelectSerial.startsWith('tcp://')) {
+                // This is an SDR++ Server connection
+                const sdrppOption = deviceSelect.querySelector('option[value="sdrpp:"]');
+                if (sdrppOption) {
+                    sdrppOption.selected = true;
+                    sdrppOption.dataset.serial = preSelectSerial;
+                    preSelectedDevice = { driver: 'sdrpp', serial: preSelectSerial };
+                }
+            }
+
             if (data.devices && data.devices.length > 0) {
+                // Add separator
+                const separator = document.createElement('option');
+                separator.disabled = true;
+                separator.textContent = '── USB Devices ──';
+                deviceSelect.appendChild(separator);
+
                 data.devices.forEach(device => {
                     const option = document.createElement('option');
                     option.value = device.value;
@@ -1300,39 +1377,34 @@
                         preSelectedDevice = device;
                     }
                 });
+            }
 
-                // Auto-select if only one device is detected and no pre-selection was specified
-                if (!preSelectedDevice && data.devices.length === 1) {
-                    deviceSelect.selectedIndex = 1; // Select the first device (index 1, after "Select a device")
-                    preSelectedDevice = data.devices[0];
+            // If a device was pre-selected, populate hidden fields and trigger sample rate population
+            if (preSelectedDevice) {
+                console.log('[SDR] Auto-selected device:', preSelectedDevice);
+                const driverField = document.getElementById('receiverDriver');
+                const serialField = document.getElementById('receiverSerial');
+
+                if (driverField && serialField) {
+                    driverField.value = preSelectedDevice.driver;
+                    serialField.value = preSelectedDevice.serial || '';
+                    console.log('[SDR] Driver field set to:', driverField.value);
+                } else {
+                    console.error('[SDR] Hidden fields not found!', {driverField, serialField});
                 }
 
-                // If a device was pre-selected or auto-selected, populate hidden fields and trigger sample rate population
-                if (preSelectedDevice) {
-                    console.log('[SDR] Auto-selected device:', preSelectedDevice);
-                    const driverField = document.getElementById('receiverDriver');
-                    const serialField = document.getElementById('receiverSerial');
-
-                    if (driverField && serialField) {
-                        driverField.value = preSelectedDevice.driver;
-                        serialField.value = preSelectedDevice.serial || '';
-                        console.log('[SDR] Driver field set to:', driverField.value);
-                    } else {
-                        console.error('[SDR] Hidden fields not found!', {driverField, serialField});
-                    }
-
-                    // Trigger sample rate population if service type is already selected
-                    if (currentServiceType) {
-                        console.log('[SDR] Current service type:', currentServiceType);
-                        await populateSampleRates(currentServiceType);
-                    }
+                // Trigger sample rate population if service type is already selected
+                if (currentServiceType) {
+                    console.log('[SDR] Current service type:', currentServiceType);
+                    await populateSampleRates(currentServiceType);
                 }
-            } else {
-                deviceSelect.innerHTML = '<option value="">-- No devices detected --</option>';
             }
         } catch (error) {
             console.error('Failed to load SDR devices:', error);
-            deviceSelect.innerHTML = '<option value="">-- Error loading devices --</option>';
+            deviceSelect.innerHTML = `
+                <option value="">-- Error loading devices --</option>
+                <option value="sdrpp:" data-driver="sdrpp" data-serial="">⭐ SDR++ Server (Network) - Still available</option>
+            `;
         }
     }
 
@@ -1340,15 +1412,40 @@
     document.getElementById('receiverDevice')?.addEventListener('change', async (e) => {
         const selectedOption = e.target.selectedOptions[0];
         if (selectedOption && selectedOption.dataset.driver) {
-            document.getElementById('receiverDriver').value = selectedOption.dataset.driver;
-            document.getElementById('receiverSerial').value = selectedOption.dataset.serial || '';
+            const driver = selectedOption.dataset.driver;
+            document.getElementById('receiverDriver').value = driver;
+            
+            // For SDR++ Server, set a default TCP address, otherwise use serial
+            if (driver === 'sdrpp') {
+                const serialField = document.getElementById('receiverSerial');
+                if (serialField && (!serialField.value || !serialField.value.startsWith('tcp://'))) {
+                    serialField.value = 'tcp://localhost:5259';
+                }
+                // Pre-fill display name if empty
+                const displayNameField = document.getElementById('receiverDisplayName');
+                if (displayNameField && !displayNameField.value) {
+                    displayNameField.value = 'SDR++ Server';
+                }
+                // Show helpful note
+                const notesField = document.getElementById('receiverNotes');
+                const gainField = document.getElementById('receiverGain');
+                const freqHelp = document.getElementById('frequencyHelp');
+                if (notesField) notesField.value = 'Connect to SDR++ Server. Change tcp://localhost:5259 to your server address.';
+                if (gainField) gainField.value = ''; // Gain controlled by SDR++
+                if (freqHelp) freqHelp.textContent = 'SDR++ Server - gain controlled in SDR++ application';
+            } else {
+                const serialField = document.getElementById('receiverSerial');
+                if (serialField) serialField.value = selectedOption.dataset.serial || '';
+            }
 
             // Auto-generate identifier from display name if creating new
-            if (!document.getElementById('receiverId').value) {
-                const displayName = document.getElementById('receiverDisplayName').value;
-                if (displayName) {
-                    const identifier = displayName.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
-                    document.getElementById('receiverIdentifier').value = identifier;
+            const receiverIdField = document.getElementById('receiverId');
+            if (receiverIdField && !receiverIdField.value) {
+                const displayNameField = document.getElementById('receiverDisplayName');
+                const identifierField = document.getElementById('receiverIdentifier');
+                if (displayNameField && identifierField && displayNameField.value) {
+                    const identifier = displayNameField.value.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+                    identifierField.value = identifier;
                 }
             }
 
@@ -1413,6 +1510,7 @@
     // Handle service type selection
     let currentServiceType = null;
     let currentServiceConfig = null;
+    let isEditingExistingReceiver = false;  // Track edit vs create mode
 
     // NOTE: These hardcoded sample rate options are NO LONGER USED
     // Sample rates are now determined dynamically from actual hardware capabilities
@@ -1730,6 +1828,42 @@
     // Apply service configuration to hidden fields
     function applyServiceConfig() {
         if (!currentServiceConfig) return;
+        
+        // IMPORTANT: When editing an existing receiver, don't overwrite user's saved settings
+        // with service defaults. Only apply defaults when creating a new receiver.
+        if (isEditingExistingReceiver) {
+            console.log('[SDR] Skipping service config application - editing existing receiver');
+            // Only update UI constraints (like NFM mono-only) but keep user values
+            const modulationType = document.getElementById('receiverModulation').value;
+            const isNFM = modulationType === 'NFM';
+            const fmStereoCheckbox = document.getElementById('receiverStereo');
+            const rbdsCheckbox = document.getElementById('receiverRBDS');
+            
+            if (fmStereoCheckbox) {
+                fmStereoCheckbox.disabled = isNFM;
+                if (isNFM) {
+                    fmStereoCheckbox.checked = false;
+                    fmStereoCheckbox.parentElement?.classList.add('text-muted');
+                } else {
+                    fmStereoCheckbox.parentElement?.classList.remove('text-muted');
+                }
+            }
+            
+            if (rbdsCheckbox) {
+                rbdsCheckbox.disabled = isNFM;
+                if (isNFM) {
+                    rbdsCheckbox.checked = false;
+                    rbdsCheckbox.parentElement?.classList.add('text-muted');
+                } else {
+                    rbdsCheckbox.parentElement?.classList.remove('text-muted');
+                }
+            }
+            
+            // Still update squelch input enabled state based on user's audio_output setting
+            const audioOutputEnabled = document.getElementById('receiverAudioOutput').checked;
+            toggleSquelchInputs(audioOutputEnabled);
+            return;
+        }
 
         // NOTE: sample_rate is NOT set here - it's populated by populateSampleRates()
         // based on actual hardware capabilities, not hardcoded service config values
@@ -1815,6 +1949,7 @@
         // Reset service selection
         currentServiceType = null;
         currentServiceConfig = null;
+        isEditingExistingReceiver = receiver !== null;  // Track whether editing or creating
         document.querySelectorAll('input[name="serviceType"]').forEach(r => r.checked = false);
         document.getElementById('receiverFrequencyInput').disabled = true;
         document.getElementById('receiverFrequencyInput').value = '';
@@ -2281,6 +2416,79 @@
     refreshButton?.addEventListener('click', () => {
         refreshReceivers({ endpoint: MONITORING_ENDPOINT, silent: false, showSpinner: true });
     });
+
+    // SDR++ Server quick add buttons
+    const addSdrppServerBtn = document.getElementById('addSdrppServerBtn');
+    const addSdrppQuickBtn = document.getElementById('addSdrppQuickBtn');
+    
+    const openSdrppModal = () => {
+        // Open the modal with SDR++ Server preset pre-filled
+        openModal();
+        
+        // Pre-fill with SDR++ Server settings after modal is rendered
+        setTimeout(() => {
+            // Get all elements with null checks
+            const displayNameEl = document.getElementById('receiverDisplayName');
+            const identifierEl = document.getElementById('receiverIdentifier');
+            const driverEl = document.getElementById('receiverDriver');
+            const serialEl = document.getElementById('receiverSerial');
+            const frequencyEl = document.getElementById('receiverFrequency');
+            const frequencyInputEl = document.getElementById('receiverFrequencyInput');
+            const sampleRateSelect = document.getElementById('receiverSampleRate');
+            const gainEl = document.getElementById('receiverGain');
+            const modulationEl = document.getElementById('receiverModulation');
+            const freqDisplay = document.getElementById('frequencyDisplay');
+            const freqHelp = document.getElementById('frequencyHelp');
+            const deviceSelect = document.getElementById('receiverDevice');
+            const notesEl = document.getElementById('receiverNotes');
+            
+            // Safely set values with null checks
+            if (displayNameEl) displayNameEl.value = 'SDR++ Server';
+            if (identifierEl) identifierEl.value = 'sdrpp_server';
+            if (driverEl) driverEl.value = 'sdrpp';
+            if (serialEl) serialEl.value = 'tcp://localhost:5259';
+            if (frequencyEl) frequencyEl.value = '162550000';
+            if (frequencyInputEl) frequencyInputEl.value = '162.550';
+            
+            // Set sample rate dropdown
+            if (sampleRateSelect) {
+                sampleRateSelect.disabled = false;
+                sampleRateSelect.innerHTML = `
+                    <option value="2500000" selected>2.5 MHz (2,500,000 Hz) ⭐ Recommended</option>
+                    <option value="1024000">1.0 MHz (1,024,000 Hz)</option>
+                    <option value="2400000">2.4 MHz (2,400,000 Hz)</option>
+                `;
+            }
+            
+            // Leave gain empty (controlled by SDR++)
+            if (gainEl) gainEl.value = '';
+            
+            // Set modulation to NFM for NOAA
+            if (modulationEl) modulationEl.value = 'NFM';
+            
+            // Update frequency display
+            if (freqDisplay) {
+                freqDisplay.innerHTML = '<i class="fas fa-info-circle"></i> <strong>162.550 MHz</strong> (NOAA WX7)';
+                freqDisplay.className = 'alert alert-info mb-0';
+            }
+            
+            if (freqHelp) freqHelp.textContent = 'SDR++ Server - gain controlled in SDR++ application';
+            
+            // Show device dropdown with SDR++ Server selected
+            if (deviceSelect) {
+                deviceSelect.innerHTML = `
+                    <option value="sdrpp:" selected>SDR++ Server (Network) ⭐ Recommended</option>
+                    <option value="">-- Or select USB device --</option>
+                `;
+            }
+            
+            // Show helpful note
+            if (notesEl) notesEl.value = 'Connect to SDR++ Server. Change tcp://localhost:5259 to your server address.';
+        }, 100);
+    };
+    
+    addSdrppServerBtn?.addEventListener('click', openSdrppModal);
+    addSdrppQuickBtn?.addEventListener('click', openSdrppModal);
 
     document.addEventListener('visibilitychange', () => {
         if (document.hidden) {
@@ -2804,20 +3012,23 @@
 
     function createWaveformCanvas(receiver) {
         const canvasId = `waveform-${receiver.id}`;
+        const spectrumCanvasId = `spectrum-${receiver.id}`;
 
         const col = document.createElement('div');
         col.className = 'col-md-6';
         col.id = `waveform-container-${receiver.id}`;
 
+        // SDRtrunk-style layout: spectrum graph on top, waterfall below
         col.innerHTML = `
-            <div class="card">
-                <div class="card-header d-flex justify-content-between align-items-center">
+            <div class="card bg-dark text-white border-secondary">
+                <div class="card-header d-flex justify-content-between align-items-center py-2 border-secondary">
                     <strong>${escapeHtml(receiver.display_name)}</strong>
                     <span class="badge bg-secondary">${escapeHtml(receiver.identifier)}</span>
                 </div>
-                <div class="card-body p-2">
-                    <canvas id="${canvasId}" width="800" height="300" style="width: 100%; height: auto;"></canvas>
-                    <div class="small text-muted text-center mt-2">
+                <div class="card-body p-0">
+                    <canvas id="${spectrumCanvasId}" width="800" height="80" style="width: 100%; display: block;"></canvas>
+                    <canvas id="${canvasId}" width="800" height="200" style="width: 100%; display: block;"></canvas>
+                    <div class="small text-muted text-center py-1 bg-dark" style="font-family: monospace;">
                         <span id="waveform-info-${receiver.id}">Initializing...</span>
                     </div>
                 </div>
@@ -2830,29 +3041,217 @@
         return col;
     }
 
-    function drawWaterfall(canvas, history, spectrumData) {
+    // SDRtrunk-style color gradient for waterfall
+    function getWaterfallColor(intensity) {
+        // Color mapping similar to SDRtrunk: dark navy -> blue -> cyan -> yellow -> red/white
+        let r, g, b;
+        
+        if (intensity < 0.15) {
+            // Very dark navy (noise floor)
+            r = 0;
+            g = 0;
+            b = Math.floor(40 + intensity * 6.67 * 80);  // 40-80
+        } else if (intensity < 0.35) {
+            // Navy to blue
+            const t = (intensity - 0.15) / 0.20;
+            r = 0;
+            g = Math.floor(t * 50);
+            b = Math.floor(80 + t * 175);  // 80-255
+        } else if (intensity < 0.50) {
+            // Blue to cyan
+            const t = (intensity - 0.35) / 0.15;
+            r = 0;
+            g = Math.floor(50 + t * 205);  // 50-255
+            b = 255;
+        } else if (intensity < 0.65) {
+            // Cyan to green
+            const t = (intensity - 0.50) / 0.15;
+            r = 0;
+            g = 255;
+            b = Math.floor(255 - t * 255);  // 255-0
+        } else if (intensity < 0.80) {
+            // Green to yellow
+            const t = (intensity - 0.65) / 0.15;
+            r = Math.floor(t * 255);
+            g = 255;
+            b = 0;
+        } else if (intensity < 0.92) {
+            // Yellow to red
+            const t = (intensity - 0.80) / 0.12;
+            r = 255;
+            g = Math.floor(255 - t * 255);  // 255-0
+            b = 0;
+        } else {
+            // Red to white (peak signals)
+            const t = (intensity - 0.92) / 0.08;
+            r = 255;
+            g = Math.floor(t * 255);
+            b = Math.floor(t * 255);
+        }
+        
+        return `rgb(${r}, ${g}, ${b})`;
+    }
+
+    // Draw spectrum graph (top panel, like SDRtrunk)
+    function drawSpectrumGraph(canvas, spectrumData, freqMin, freqMax, demodFreq, audioOutput, modulationType) {
+        const ctx = canvas.getContext('2d');
+        const width = canvas.width;
+        const height = canvas.height;
+
+        // Dark background
+        ctx.fillStyle = '#0a0a12';
+        ctx.fillRect(0, 0, width, height);
+
+        if (!spectrumData || spectrumData.length === 0) {
+            return;
+        }
+
+        // Draw grid lines
+        ctx.strokeStyle = '#1a2a4a';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+
+        // Horizontal grid lines (dB levels)
+        for (let i = 1; i < 4; i++) {
+            const y = (i / 4) * height;
+            ctx.moveTo(0, y);
+            ctx.lineTo(width, y);
+        }
+
+        // Vertical grid lines (frequency)
+        for (let i = 1; i < 8; i++) {
+            const x = (i / 8) * width;
+            ctx.moveTo(x, 0);
+            ctx.lineTo(x, height);
+        }
+        ctx.stroke();
+
+        // Draw demodulator bandwidth indicator first (behind spectrum)
+        if (audioOutput && demodFreq && freqMin && freqMax && modulationType !== 'IQ') {
+            // Calculate x position of the demodulated frequency
+            const freqRange = freqMax - freqMin;
+            const demodPos = (demodFreq - freqMin) / freqRange;
+            const centerX = demodPos * width;
+
+            // Draw bandwidth indicator based on modulation type
+            let bandwidth = 0;
+            if (modulationType === 'WFM') {
+                bandwidth = 200000;  // ±100 kHz for wideband FM
+            } else if (modulationType === 'FM') {
+                bandwidth = 200000;  // ±100 kHz for broadcast FM
+            } else if (modulationType === 'NFM') {
+                bandwidth = 25000;   // ±12.5 kHz for narrowband FM
+            } else if (modulationType === 'AM') {
+                bandwidth = 10000;   // ±5 kHz for AM
+            }
+
+            if (bandwidth > 0) {
+                const bwPixels = (bandwidth / freqRange) * width;
+                // Fill bandwidth region with semi-transparent green
+                ctx.fillStyle = 'rgba(0, 255, 0, 0.15)';
+                ctx.fillRect(centerX - bwPixels / 2, 0, bwPixels, height);
+            }
+        }
+
+        // Draw spectrum line with gradient fill
+        ctx.beginPath();
+        ctx.moveTo(0, height);
+
+        const binWidth = width / spectrumData.length;
+
+        for (let i = 0; i < spectrumData.length; i++) {
+            const x = i * binWidth;
+            const y = height - (spectrumData[i] * height * 0.95);  // Leave some margin
+            if (i === 0) {
+                ctx.lineTo(x, y);
+            } else {
+                ctx.lineTo(x, y);
+            }
+        }
+
+        ctx.lineTo(width, height);
+        ctx.closePath();
+
+        // Create gradient fill (cyan at bottom, fading up)
+        const gradient = ctx.createLinearGradient(0, height, 0, 0);
+        gradient.addColorStop(0, 'rgba(0, 255, 255, 0.5)');
+        gradient.addColorStop(0.5, 'rgba(0, 128, 255, 0.2)');
+        gradient.addColorStop(1, 'rgba(0, 64, 128, 0.05)');
+        ctx.fillStyle = gradient;
+        ctx.fill();
+
+        // Draw spectrum line on top
+        ctx.beginPath();
+        ctx.strokeStyle = '#00ffff';
+        ctx.lineWidth = 1.5;
+
+        for (let i = 0; i < spectrumData.length; i++) {
+            const x = i * binWidth;
+            const y = height - (spectrumData[i] * height * 0.95);
+            if (i === 0) {
+                ctx.moveTo(x, y);
+            } else {
+                ctx.lineTo(x, y);
+            }
+        }
+        ctx.stroke();
+
+        // Draw demodulator center frequency indicator (on top of spectrum)
+        if (audioOutput && demodFreq && freqMin && freqMax && modulationType !== 'IQ') {
+            const freqRange = freqMax - freqMin;
+            const demodPos = (demodFreq - freqMin) / freqRange;
+            const centerX = demodPos * width;
+
+            // Draw vertical line at tuned frequency
+            ctx.strokeStyle = '#00ff00';  // Bright green
+            ctx.lineWidth = 2;
+            ctx.setLineDash([5, 3]);  // Dashed line
+            ctx.beginPath();
+            ctx.moveTo(centerX, 0);
+            ctx.lineTo(centerX, height);
+            ctx.stroke();
+            ctx.setLineDash([]);  // Reset to solid
+        }
+
+        // Draw frequency labels
+        ctx.fillStyle = '#6080a0';
+        ctx.font = '9px monospace';
+        ctx.textAlign = 'center';
+
+        if (freqMin && freqMax) {
+            const freqRange = freqMax - freqMin;
+            for (let i = 0; i <= 4; i++) {
+                const x = (i / 4) * width;
+                const freq = freqMin + (i / 4) * freqRange;
+                const freqMHz = (freq / 1e6).toFixed(2);
+                ctx.fillText(`${freqMHz}`, x, height - 2);
+            }
+        }
+    }
+
+    function drawWaterfall(canvas, history, spectrumData, freqMin, freqMax, demodFreq, audioOutput, modulationType) {
         const ctx = canvas.getContext('2d');
         const width = canvas.width;
         const height = canvas.height;
 
         if (!spectrumData || spectrumData.length === 0) {
             // Clear canvas if no data
-            ctx.fillStyle = '#1a1a1a';
+            ctx.fillStyle = '#0a0a12';
             ctx.fillRect(0, 0, width, height);
             return;
         }
 
         // Add new spectrum to history
-        history.push(spectrumData);
+        history.push([...spectrumData]);  // Clone to prevent mutation
         if (history.length > WATERFALL_HISTORY_SIZE) {
             history.shift(); // Remove oldest
         }
 
-        // Clear canvas
-        ctx.fillStyle = '#000';
+        // Clear canvas with dark background
+        ctx.fillStyle = '#0a0a12';
         ctx.fillRect(0, 0, width, height);
 
-        // Draw waterfall (newest at bottom)
+        // Draw waterfall (newest at bottom, SDRtrunk style)
         const lineHeight = height / WATERFALL_HISTORY_SIZE;
         const binWidth = width / spectrumData.length;
 
@@ -2861,40 +3260,57 @@
             const y = height - (history.length - row) * lineHeight;
 
             for (let bin = 0; bin < spectrum.length; bin++) {
-                const intensity = spectrum[bin]; // 0 to 1
+                const intensity = Math.min(1, Math.max(0, spectrum[bin])); // Clamp to 0-1
                 const x = bin * binWidth;
 
-                // Color mapping: blue (weak) -> cyan -> green -> yellow -> red (strong)
-                let r, g, b;
-                if (intensity < 0.2) {
-                    // Dark blue to blue
-                    r = 0;
-                    g = 0;
-                    b = Math.floor(intensity * 5 * 255);
-                } else if (intensity < 0.4) {
-                    // Blue to cyan
-                    r = 0;
-                    g = Math.floor((intensity - 0.2) * 5 * 255);
-                    b = 255;
-                } else if (intensity < 0.6) {
-                    // Cyan to green
-                    r = 0;
-                    g = 255;
-                    b = 255 - Math.floor((intensity - 0.4) * 5 * 255);
-                } else if (intensity < 0.8) {
-                    // Green to yellow
-                    r = Math.floor((intensity - 0.6) * 5 * 255);
-                    g = 255;
-                    b = 0;
-                } else {
-                    // Yellow to red
-                    r = 255;
-                    g = 255 - Math.floor((intensity - 0.8) * 5 * 255);
-                    b = 0;
-                }
-
-                ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
+                ctx.fillStyle = getWaterfallColor(intensity);
                 ctx.fillRect(x, y, Math.ceil(binWidth), Math.ceil(lineHeight) + 1);
+            }
+        }
+
+        // Draw demodulator tuning indicator if audio output is enabled
+        if (audioOutput && demodFreq && freqMin && freqMax && modulationType !== 'IQ') {
+            // Calculate x position of the demodulated frequency
+            const freqRange = freqMax - freqMin;
+            const demodPos = (demodFreq - freqMin) / freqRange;
+            const x = demodPos * width;
+
+            // Draw vertical line at tuned frequency
+            ctx.strokeStyle = '#00ff00';  // Bright green
+            ctx.lineWidth = 2;
+            ctx.setLineDash([5, 3]);  // Dashed line
+            ctx.beginPath();
+            ctx.moveTo(x, 0);
+            ctx.lineTo(x, height);
+            ctx.stroke();
+            ctx.setLineDash([]);  // Reset to solid
+
+            // Draw bandwidth indicator based on modulation type
+            let bandwidth = 0;
+            if (modulationType === 'WFM') {
+                bandwidth = 200000;  // ±100 kHz for wideband FM
+            } else if (modulationType === 'FM') {
+                bandwidth = 200000;  // ±100 kHz for broadcast FM
+            } else if (modulationType === 'NFM') {
+                bandwidth = 25000;   // ±12.5 kHz for narrowband FM
+            } else if (modulationType === 'AM') {
+                bandwidth = 10000;   // ±5 kHz for AM
+            }
+
+            if (bandwidth > 0) {
+                const bwPixels = (bandwidth / freqRange) * width;
+                ctx.strokeStyle = 'rgba(0, 255, 0, 0.3)';  // Semi-transparent green
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(x - bwPixels / 2, 0);
+                ctx.lineTo(x - bwPixels / 2, height);
+                ctx.moveTo(x + bwPixels / 2, 0);
+                ctx.lineTo(x + bwPixels / 2, height);
+                ctx.stroke();
+
+                // Fill bandwidth region with semi-transparent green
+                ctx.fillStyle = 'rgba(0, 255, 0, 0.1)';
+                ctx.fillRect(x - bwPixels / 2, 0, bwPixels, height);
             }
         }
     }
@@ -2925,8 +3341,16 @@
                 history = waterfallHistory.get(receiver.id);
             }
 
-            // Draw waterfall
-            drawWaterfall(canvas, history, data.spectrum);
+            // Get spectrum canvas for the live graph
+            const spectrumCanvas = document.getElementById(`spectrum-${receiver.id}`);
+
+            // Draw spectrum graph (top panel)
+            if (spectrumCanvas) {
+                drawSpectrumGraph(spectrumCanvas, data.spectrum, data.freq_min, data.freq_max, data.demod_frequency, data.audio_output, data.modulation_type);
+            }
+
+            // Draw waterfall (bottom panel)
+            drawWaterfall(canvas, history, data.spectrum, data.freq_min, data.freq_max, data.demod_frequency, data.audio_output, data.modulation_type);
 
             // Update info
             const infoElement = document.getElementById(`waveform-info-${receiver.id}`);
@@ -2934,7 +3358,17 @@
                 const centerFreq = data.center_frequency ? (data.center_frequency / 1000000).toFixed(3) : '?';
                 const freqMin = data.freq_min ? (data.freq_min / 1000000).toFixed(3) : '?';
                 const freqMax = data.freq_max ? (data.freq_max / 1000000).toFixed(3) : '?';
-                infoElement.textContent = `Center: ${centerFreq} MHz | Range: ${freqMin} - ${freqMax} MHz`;
+                const status = data.status || 'available';
+                
+                if (status === 'available' && data.spectrum && data.spectrum.length > 0) {
+                    infoElement.innerHTML = `<span class="text-success">●</span> ${centerFreq} MHz | ${freqMin} - ${freqMax} MHz`;
+                } else if (status === 'stopped') {
+                    infoElement.innerHTML = `<span class="text-danger">●</span> Receiver stopped`;
+                } else if (status === 'no_samples') {
+                    infoElement.innerHTML = `<span class="text-warning">●</span> ${data.error || 'Waiting for signal...'}`;
+                } else {
+                    infoElement.innerHTML = `<span class="text-muted">●</span> ${centerFreq} MHz (no data)`;
+                }
             }
 
         } catch (error) {

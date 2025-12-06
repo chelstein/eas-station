@@ -475,6 +475,12 @@ Value: OH
 - `LED_SIGN_IP` - If you have an LED sign
 - `IPAWS_CAP_FEED_URLS` - If using IPAWS feeds
 
+**Performance tuning (for systems with more RAM):**
+- `TMPFS_*` variables - Adjust tmpfs sizes based on your RAM
+  - 4GB RAM: Use defaults (no changes needed)
+  - 16GB RAM: Quadruple all tmpfs values (see [tmpfs Guide](TMPFS_CONFIGURATION.md))
+  - See [Quick tmpfs Guide](QUICK_TMPFS_GUIDE.md) for copy-paste configurations
+
 ---
 
 ### Step 9: Registries

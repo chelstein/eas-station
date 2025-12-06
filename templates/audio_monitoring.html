@@ -156,9 +156,9 @@
 
                 <!-- Streaming Performance -->
                 <div class="mt-3 pt-3 border-top">
-                    <h6 class="mb-3">
+                    <h5 class="mb-3">
                         <i class="fas fa-tachometer-alt"></i> Streaming Performance
-                    </h6>
+                    </h5>
                     
                     <div class="row g-3">
                         <div class="col-md-4 col-sm-6">
@@ -269,7 +269,8 @@
 }
 
 .metric-item {
-    background: #e9ecef;
+    background: var(--surface-color);
+    border: 1px solid var(--border-color);
     padding: 0.75rem;
     border-radius: 6px;
     text-align: center;
@@ -277,7 +278,7 @@
 
 .metric-label {
     font-size: 0.75rem;
-    color: #6c757d;
+    color: var(--text-secondary);
     text-transform: uppercase;
     letter-spacing: 0.5px;
 }
@@ -285,7 +286,7 @@
 .metric-value {
     font-size: 1.25rem;
     font-weight: bold;
-    color: #212529;
+    color: var(--text-color);
 }
 
 .now-playing-title {
@@ -296,17 +297,17 @@
 
 .now-playing-artist {
     font-size: 0.95rem;
-    color: #495057;
+    color: var(--text-secondary);
 }
 
 .now-playing-meta {
     font-size: 0.85rem;
-    color: #6c757d;
+    color: var(--text-muted);
 }
 
 .level-meter {
     height: 20px;
-    background: linear-gradient(to right, #28a745, #ffc107, #dc3545);
+    background: linear-gradient(to right, var(--success-color), var(--warning-color), var(--danger-color));
     border-radius: 10px;
     position: relative;
     overflow: hidden;
@@ -318,12 +319,12 @@
     top: 0;
     bottom: 0;
     width: 2px;
-    background: #000;
+    background: var(--text-color);
     transform: translateX(-50%);
 }
 
 .vu-meter {
-    background: #101010;
+    background: var(--bg-primary);
     border-radius: 10px;
     padding: 0.75rem;
     box-shadow: inset 0 0 0 1px rgba(255,255,255,0.04);
@@ -333,7 +334,7 @@
     position: relative;
     height: 14px;
     border-radius: 7px;
-    background: linear-gradient(90deg, #1e7e34, #ffc107 70%, #dc3545);
+    background: linear-gradient(90deg, var(--success-color), var(--warning-color) 70%, var(--danger-color));
     overflow: hidden;
 }
 
@@ -355,7 +356,7 @@
 
 .vu-labels {
     font-size: 0.85rem;
-    color: #adb5bd;
+    color: var(--text-muted);
 }
 
 .vu-labels span {
@@ -381,6 +382,11 @@ const PEAK_HOLD_TIME_MS = 1500; // Hold peak for 1.5 seconds
 const PEAK_ATTACK_SMOOTHING = 0.7; // Attack: high alpha = quick response to increases (0-1)
 const PEAK_RELEASE_SMOOTHING = 0.2; // Release: low alpha = slow response to decreases (0-1)
 const RMS_SMOOTHING = 0.3; // RMS uses moderate smoothing (0-1)
+
+// Debug logging throttle - only log once per interval to avoid console spam
+const DEBUG_LOG_INTERVAL_MS = 5000; // Log debug messages at most once every 5 seconds
+let lastVuMeterDebugLog = 0;
+let lastBroadcastQueueDebugLog = 0;
 
 function getPreferredStreamMode() {
     const stored = (localStorage.getItem(STREAM_MODE_KEY) || '').toLowerCase();
@@ -638,7 +644,7 @@ function renderAudioSources(fullRender = true) {
                             <audio
                                 controls
                                 id="audio-${source.name}"
-                                preload="metadata"
+                                preload="none"
                                 data-source-name="${escapeHtml(source.name)}"
                                 data-icecast-url="${source.icecast_url ? escapeHtml(source.icecast_url) : ''}"
                                 data-proxy-url="/api/audio/stream/${encodeURIComponent(source.name)}"
@@ -719,9 +725,25 @@ function renderAudioSources(fullRender = true) {
                                      aria-valuemax="100"></div>
                             </div>
                             <small class="text-muted">
-                                ${(source.metrics.buffer_utilization || 0) < 0.01 ? '⚠️ No data flowing' :
-                                  (source.metrics.buffer_utilization || 0) > 0.95 ? '⚠️ Buffer nearly full' :
-                                  '✓ Data flowing normally'}
+                                ${(() => {
+                                    const util = source.metrics.buffer_utilization || 0;
+                                    if (util < 0.01) {
+                                        // Provide specific diagnostic messages
+                                        if (source.status !== 'running') {
+                                            return '⚠️ Source not started - click Start button to begin streaming';
+                                        } else if (source.source_type === 'sdr') {
+                                            return '⚠️ No data from SDR - check sdr-service logs and hardware connection';
+                                        } else if (source.source_type === 'http_stream') {
+                                            return '⚠️ Stream not responding - check URL and network connectivity';
+                                        } else {
+                                            return '⚠️ No audio data flowing - check source configuration';
+                                        }
+                                    } else if (util > 0.95) {
+                                        return '⚠️ Buffer nearly full - consumers may be slow';
+                                    } else {
+                                        return '✓ Data flowing normally';
+                                    }
+                                })()}
                             </small>
                         </div>
 
@@ -1730,7 +1752,11 @@ function updateLevelMetersFromSnapshot(snapshot) {
         updatedCount++;
     });
 
-    console.debug(`Updated ${updatedCount} VU meters from ${snapshot.live_metrics.length} metrics`);
+    // Throttle debug logging to avoid console spam (log at most once every 5 seconds)
+    if (now - lastVuMeterDebugLog > DEBUG_LOG_INTERVAL_MS) {
+        console.debug(`Updated ${updatedCount} VU meters from ${snapshot.live_metrics.length} metrics`);
+        lastVuMeterDebugLog = now;
+    }
 }
 
 // ============================================================================
@@ -1895,7 +1921,15 @@ function updateEASMonitorDisplay(status) {
     const scansBreakdown = document.getElementById('eas-scans-breakdown');
     if (scansBreakdown) {
         // Use wall clock runtime for consistent display (doesn't fluctuate with sample rate)
-        const runtime = status.wall_clock_runtime_seconds || status.runtime_seconds || 0;
+        // Validate runtime is a valid number
+        let runtime = status.wall_clock_runtime_seconds;
+        if (typeof runtime !== 'number' || isNaN(runtime)) {
+            runtime = status.runtime_seconds;
+        }
+        if (typeof runtime !== 'number' || isNaN(runtime)) {
+            runtime = 0;
+        }
+        
         const hours = Math.floor(runtime / 3600);
         const minutes = Math.floor((runtime % 3600) / 60);
         const seconds = Math.floor(runtime % 60);
@@ -1920,13 +1954,13 @@ function updateEASMonitorDisplay(status) {
     const activeScans = document.getElementById('eas-active-scans');
     if (activeScans) {
         if (status.decoder_in_message) {
-            activeScans.innerHTML = '<span style="color: #dc3545;">🔴 Decoding Message</span>';
+            activeScans.innerHTML = '<span style="color: var(--danger-color);">🔴 Decoding Message</span>';
         } else if (status.decoder_synced) {
-            activeScans.innerHTML = '<span style="color: #28a745;">🟢 Synced</span>';
+            activeScans.innerHTML = '<span style="color: var(--success-color);">🟢 Synced</span>';
         } else if (audioFlowing) {
-            activeScans.innerHTML = '<span style="color: #6c757d;">⚪ Listening</span>';
+            activeScans.innerHTML = '<span style="color: var(--text-muted);">⚪ Listening</span>';
         } else {
-            activeScans.innerHTML = '<span style="color: #6c757d;">⏸️ Idle</span>';
+            activeScans.innerHTML = '<span style="color: var(--text-muted);">⏸️ Idle</span>';
         }
     }
 
@@ -1950,15 +1984,25 @@ function updateEASMonitorDisplay(status) {
     const scanOverlap = document.getElementById('eas-scan-overlap');
     if (scanOverlap) {
         // Use wall clock runtime for consistent display
-        const runtime = status.wall_clock_runtime_seconds || status.runtime_seconds || 0;
+        // Validate runtime is a valid number
+        let runtime = status.wall_clock_runtime_seconds;
+        if (typeof runtime !== 'number' || isNaN(runtime)) {
+            runtime = status.runtime_seconds;
+        }
+        if (typeof runtime !== 'number' || isNaN(runtime)) {
+            runtime = 0;
+        }
+        
         const hours = Math.floor(runtime / 3600);
         const minutes = Math.floor((runtime % 3600) / 60);
+        const seconds = Math.floor(runtime % 60);
+        
         if (hours > 0) {
             scanOverlap.textContent = `${hours}h ${minutes}m`;
         } else if (minutes > 0) {
-            scanOverlap.textContent = `${minutes}m`;
+            scanOverlap.textContent = `${minutes}m ${seconds}s`;
         } else {
-            scanOverlap.textContent = '< 1m';
+            scanOverlap.textContent = `${seconds}s`;
         }
     }
 
@@ -1972,37 +2016,43 @@ function updateEASMonitorDisplay(status) {
     const lastScan = document.getElementById('eas-last-scan');
     if (lastScan) {
         if (status.decoder_synced) {
-            lastScan.innerHTML = '<span style="color: #28a745;">✓ Yes</span>';
+            lastScan.innerHTML = '<span style="color: var(--success-color);">✓ Yes</span>';
         } else {
-            lastScan.innerHTML = '<span style="color: #6c757d;">No</span>';
+            lastScan.innerHTML = '<span style="color: var(--text-muted);">No</span>';
         }
     }
 
     const lastAlert = document.getElementById('eas-last-alert');
-    if (lastAlert && status.last_alert_time) {
-        const alertTime = new Date(status.last_alert_time * 1000);
-        const now = new Date();
-        const diffMinutes = Math.floor((now - alertTime) / 60000);
-        if (diffMinutes < 1) {
-            lastAlert.textContent = 'Just now';
-        } else if (diffMinutes < 60) {
-            lastAlert.textContent = `${diffMinutes}m ago`;
+    if (lastAlert) {
+        // Validate that last_alert_time is a valid positive number
+        if (status.last_alert_time && 
+            typeof status.last_alert_time === 'number' && 
+            !isNaN(status.last_alert_time) && 
+            status.last_alert_time > 0) {
+            const alertTime = new Date(status.last_alert_time * 1000);
+            const now = new Date();
+            const diffMinutes = Math.floor((now - alertTime) / 60000);
+            if (diffMinutes < 1) {
+                lastAlert.textContent = 'Just now';
+            } else if (diffMinutes < 60) {
+                lastAlert.textContent = `${diffMinutes}m ago`;
+            } else {
+                const diffHours = Math.floor(diffMinutes / 60);
+                lastAlert.textContent = `${diffHours}h ago`;
+            }
+            lastAlert.style.color = diffMinutes < 60 ? 'var(--success-color)' : 'var(--text-muted)';
         } else {
-            const diffHours = Math.floor(diffMinutes / 60);
-            lastAlert.textContent = `${diffHours}h ago`;
+            lastAlert.textContent = 'Never';
+            lastAlert.style.color = 'var(--text-muted)';
         }
-        lastAlert.style.color = diffMinutes < 60 ? '#28a745' : '#6c757d';
-    } else if (lastAlert) {
-        lastAlert.textContent = 'Never';
-        lastAlert.style.color = '#6c757d';
     }
 
     const scanWarnings = document.getElementById('eas-scan-warnings');
     if (scanWarnings) {
         if (status.decoder_in_message) {
-            scanWarnings.innerHTML = '<span style="color: #dc3545;">Yes</span>';
+            scanWarnings.innerHTML = '<span style="color: var(--danger-color);">Yes</span>';
         } else {
-            scanWarnings.innerHTML = '<span style="color: #28a745;">No</span>';
+            scanWarnings.innerHTML = '<span style="color: var(--success-color);">No</span>';
         }
     }
 
@@ -2011,10 +2061,10 @@ function updateEASMonitorDisplay(status) {
     if (performanceStatus) {
         if (!running) {
             performanceStatus.textContent = 'Monitor stopped. Start monitoring to see real-time performance.';
-            performanceStatus.style.color = '#6c757d';
+            performanceStatus.style.color = 'var(--text-muted)';
         } else if (!audioFlowing) {
             performanceStatus.textContent = 'Waiting for audio data from sources. Configure and start audio sources to begin processing.';
-            performanceStatus.style.color = '#856404';
+            performanceStatus.style.color = 'var(--warning-color)';
         } else {
             // Audio is flowing - show processing rate
             const sps = status.samples_per_second || 0;
@@ -2022,12 +2072,12 @@ function updateEASMonitorDisplay(status) {
             const percentage = expectedRate > 0 ? ((sps / expectedRate) * 100).toFixed(1) : 0;
             
             if (status.health_percentage >= 0.95) {
-                performanceStatus.innerHTML = `<span style="color: #28a745;">✓ Processing at ${percentage}% of line rate (${(sps / 1000).toFixed(1)}k samples/sec). Real-time streaming active.</span>`;
+                performanceStatus.innerHTML = `<span style="color: var(--success-color);">✓ Processing at ${percentage}% of line rate (${(sps / 1000).toFixed(1)}k samples/sec). Real-time streaming active.</span>`;
             } else if (status.health_percentage >= 0.8) {
-                performanceStatus.innerHTML = `<span style="color: #0c5460;">Processing at ${percentage}% of line rate (${(sps / 1000).toFixed(1)}k samples/sec). Building up to full rate...</span>`;
+                performanceStatus.innerHTML = `<span style="color: var(--info-color);">Processing at ${percentage}% of line rate (${(sps / 1000).toFixed(1)}k samples/sec). Building up to full rate...</span>`;
             } else {
                 // Below 80% health - show warning
-                performanceStatus.innerHTML = `<span style="color: #856404;">⚠️ Processing at ${percentage}% of expected rate (${(sps / 1000).toFixed(1)}k samples/sec). Check audio sources.</span>`;
+                performanceStatus.innerHTML = `<span style="color: var(--warning-color);">⚠️ Processing at ${percentage}% of expected rate (${(sps / 1000).toFixed(1)}k samples/sec). Check audio sources.</span>`;
             }
         }
     }
@@ -2234,13 +2284,17 @@ function initializeWebSocket() {
                     updateEASMonitorDisplay(data.eas_monitor);
                 }
 
-                // Log broadcast queue stats for diagnostics
+                // Log broadcast queue stats for diagnostics (throttled to avoid console spam)
                 if (data.audio_metrics && data.audio_metrics.broadcast_stats) {
                     const stats = data.audio_metrics.broadcast_stats;
-                    console.debug(
-                        `Broadcast queue: ${stats.subscribers} subscribers, ` +
-                        `${stats.published_chunks} published, ${stats.dropped_chunks} dropped`
-                    );
+                    const now = Date.now();
+                    if (now - lastBroadcastQueueDebugLog > DEBUG_LOG_INTERVAL_MS) {
+                        console.debug(
+                            `Broadcast queue: ${stats.subscribers} subscribers, ` +
+                            `${stats.published_chunks} published, ${stats.dropped_chunks} dropped`
+                        );
+                        lastBroadcastQueueDebugLog = now;
+                    }
                 }
             } catch (error) {
                 console.error('Error processing WebSocket update:', error);
@@ -2260,6 +2314,7 @@ function initializeWebSocket() {
 document.addEventListener('DOMContentLoaded', function() {
     renderStreamModeControls();
     loadAudioSources(true); // Initial full render
+    loadEASMonitorStatus(); // Load EAS monitor status immediately on page load
 
     // Try to initialize WebSocket for real-time updates
     // If it fails, will automatically fall back to polling

@@ -34,6 +34,8 @@ Commands:
     - source_delete: Delete an audio source
     - streaming_start: Start auto-streaming service
     - streaming_stop: Stop auto-streaming service
+    - eas_monitor_start: Start EAS monitor
+    - eas_monitor_stop: Stop EAS monitor
 """
 
 import json
@@ -43,7 +45,7 @@ import time
 from typing import Any, Callable, Dict, Optional
 
 import redis
-from app_core.redis_client import get_redis_client, redis_operation
+from app_core.redis_client import get_redis_client
 
 logger = logging.getLogger(__name__)
 
@@ -84,13 +86,15 @@ class AudioCommandPublisher:
             logger.error(f"Failed to connect to Redis: {e}")
             raise
 
-    def _publish_command(self, command: str, params: Dict[str, Any]) -> Dict[str, Any]:
+    def _publish_command(self, command: str, params: Dict[str, Any], wait_for_response: bool = False, timeout: float = 5.0) -> Dict[str, Any]:
         """
-        Publish a command and wait for response.
+        Publish a command and optionally wait for response.
 
         Args:
             command: Command name (e.g., 'source_start')
             params: Command parameters
+            wait_for_response: If True, wait for audio-service to respond
+            timeout: Response timeout in seconds (only used if wait_for_response=True)
 
         Returns:
             Response dict with 'success', 'message', and optional 'data'
@@ -101,20 +105,57 @@ class AudioCommandPublisher:
             'command_id': command_id,
             'command': command,
             'params': params,
-            'timestamp': time.time()
+            'timestamp': time.time(),
+            'wait_for_response': wait_for_response
         }
 
         try:
             # Publish command
             self.redis_client.publish(AUDIO_COMMAND_CHANNEL, json.dumps(message))
-            logger.info(f"Published command: {command} (id: {command_id})")
+            logger.info(f"Published command: {command} (id: {command_id}, wait_response: {wait_for_response})")
 
-            # For now, return success immediately
-            # TODO: Implement response waiting mechanism if needed
+            if not wait_for_response:
+                # Fire-and-forget mode (backward compatible)
+                return {
+                    'success': True,
+                    'message': f'Command {command} sent to audio-service',
+                    'command_id': command_id
+                }
+
+            # Wait for response mode
+            # Create a temporary subscriber to listen for this specific response
+            response_key = f"eas:audio:response:{command_id}"
+            
+            # Poll for response with timeout
+            start_time = time.time()
+            while time.time() - start_time < timeout:
+                response_data = self.redis_client.get(response_key)
+                if response_data:
+                    # Clean up response key
+                    self.redis_client.delete(response_key)
+                    
+                    try:
+                        response = json.loads(response_data)
+                        logger.info(f"Command {command} completed: {response.get('message')}")
+                        return response
+                    except json.JSONDecodeError as e:
+                        logger.error(f"Failed to decode response for {command_id}: {e}")
+                        return {
+                            'success': False,
+                            'message': f'Invalid response format: {str(e)}',
+                            'command_id': command_id
+                        }
+                
+                # Sleep briefly to avoid busy-waiting
+                time.sleep(0.1)
+            
+            # Timeout reached
+            logger.warning(f"Command {command} timed out after {timeout}s")
             return {
-                'success': True,
-                'message': f'Command {command} sent to audio-service',
-                'command_id': command_id
+                'success': False,
+                'message': f'Command timed out after {timeout}s - audio-service may be unresponsive',
+                'command_id': command_id,
+                'timeout': True
             }
 
         except Exception as e:
@@ -124,13 +165,13 @@ class AudioCommandPublisher:
                 'message': f'Failed to send command: {str(e)}'
             }
 
-    def start_source(self, source_name: str) -> Dict[str, Any]:
+    def start_source(self, source_name: str, wait_for_response: bool = True) -> Dict[str, Any]:
         """Start an audio source."""
-        return self._publish_command('source_start', {'source_name': source_name})
+        return self._publish_command('source_start', {'source_name': source_name}, wait_for_response=wait_for_response)
 
-    def stop_source(self, source_name: str) -> Dict[str, Any]:
+    def stop_source(self, source_name: str, wait_for_response: bool = True) -> Dict[str, Any]:
         """Stop an audio source."""
-        return self._publish_command('source_stop', {'source_name': source_name})
+        return self._publish_command('source_stop', {'source_name': source_name}, wait_for_response=wait_for_response)
 
     def add_source(self, source_config: Dict[str, Any]) -> Dict[str, Any]:
         """Add a new audio source."""
@@ -155,6 +196,14 @@ class AudioCommandPublisher:
         """Stop auto-streaming service."""
         return self._publish_command('streaming_stop', {})
 
+    def start_eas_monitor(self) -> Dict[str, Any]:
+        """Start EAS monitor in audio-service."""
+        return self._publish_command('eas_monitor_start', {})
+
+    def stop_eas_monitor(self) -> Dict[str, Any]:
+        """Stop EAS monitor in audio-service."""
+        return self._publish_command('eas_monitor_stop', {})
+
 
 class AudioCommandSubscriber:
     """
@@ -163,16 +212,18 @@ class AudioCommandSubscriber:
     Used by audio-service container to receive and execute commands from app.
     """
 
-    def __init__(self, audio_controller, auto_streaming_service=None):
+    def __init__(self, audio_controller, auto_streaming_service=None, eas_monitor=None):
         """
         Initialize Redis subscriber with retry logic.
 
         Args:
             audio_controller: AudioIngestController instance to execute commands on
             auto_streaming_service: Optional AutoStreamingService for Icecast streaming
+            eas_monitor: Optional ContinuousEASMonitor for EAS monitoring control
         """
         self.audio_controller = audio_controller
         self.auto_streaming_service = auto_streaming_service
+        self.eas_monitor = eas_monitor
         try:
             self.redis_client = get_redis_client(max_retries=5)
             self.pubsub = self.redis_client.pubsub()
@@ -204,12 +255,27 @@ class AudioCommandSubscriber:
             command = message['command']
             params = message['params']
             command_id = message['command_id']
+            wait_for_response = message.get('wait_for_response', False)
 
-            logger.info(f"Received command: {command} (id: {command_id})")
+            logger.info(f"Received command: {command} (id: {command_id}, wait_response: {wait_for_response})")
 
             # Execute command
             result = self._execute_command(command, params)
 
+            # Publish response if requested
+            if wait_for_response:
+                response_key = f"eas:audio:response:{command_id}"
+                response = {
+                    'command_id': command_id,
+                    'success': result.get('success', True),
+                    'message': result.get('message', 'Command executed'),
+                    'data': result.get('data'),
+                    'timestamp': time.time()
+                }
+                # Store response with 30 second TTL
+                self.redis_client.setex(response_key, 30, json.dumps(response))
+                logger.debug(f"Published response for command {command_id}")
+            
             logger.info(f"Command {command} completed: {result}")
 
         except Exception as e:
@@ -229,8 +295,18 @@ class AudioCommandSubscriber:
         try:
             if command == 'source_start':
                 source_name = params['source_name']
+
+                # Check if source exists (may have been skipped if SDR in separated architecture)
+                if source_name not in self.audio_controller._sources:
+                    logger.info(f"Source '{source_name}' not found - may be SDR source in separated architecture")
+                    return {
+                        'success': True,
+                        'message': f'Source {source_name} not managed by this service',
+                        'skipped': True
+                    }
+
                 self.audio_controller.start_source(source_name)
-                
+
                 # Also add source to Icecast streaming if service is available
                 if self.auto_streaming_service and self.auto_streaming_service.is_available():
                     try:
@@ -242,7 +318,7 @@ class AudioCommandSubscriber:
                                 logger.warning(f"Failed to add {source_name} to Icecast streaming")
                     except Exception as e:
                         logger.warning(f"Error adding {source_name} to Icecast: {e}")
-                
+
                 return {'success': True, 'message': f'Started source {source_name}'}
 
             elif command == 'source_stop':
@@ -262,13 +338,65 @@ class AudioCommandSubscriber:
             elif command == 'source_add':
                 config = params['config']
                 source_name = config.get('name')
-                
+                source_type_str = config.get('source_type', 'sdr')
+
                 # Import required modules
                 from app_core.audio.ingest import AudioSourceConfig, AudioSourceType
                 from app_core.audio.sources import create_audio_source
-                
-                # Create runtime configuration
-                source_type = AudioSourceType(config.get('source_type', 'sdr'))
+
+                # Handle redis_sdr as a special case for separated architecture
+                # redis_sdr sources subscribe to Redis IQ samples from sdr-service
+                if source_type_str == 'redis_sdr':
+                    from app_core.audio.redis_sdr_adapter import RedisSDRSourceAdapter
+                    
+                    # Create runtime configuration for Redis SDR source
+                    # Use STREAM type since redis_sdr is not in the AudioSourceType enum
+                    runtime_config = AudioSourceConfig(
+                        source_type=AudioSourceType.STREAM,  # Use STREAM as placeholder
+                        name=source_name,
+                        enabled=config.get('enabled', True),
+                        priority=config.get('priority', 10),
+                        sample_rate=config.get('sample_rate', 44100),
+                        channels=config.get('channels', 1),
+                        buffer_size=config.get('buffer_size', 4096),
+                        silence_threshold_db=config.get('silence_threshold_db', -60.0),
+                        silence_duration_seconds=config.get('silence_duration_seconds', 5.0),
+                        device_params=config.get('device_params', {}),
+                    )
+                    
+                    # Remove existing source if it exists
+                    if source_name in self.audio_controller._sources:
+                        if self.auto_streaming_service:
+                            try:
+                                self.auto_streaming_service.remove_source(source_name)
+                            except Exception as e:
+                                logger.debug(f"Error removing {source_name} from Icecast: {e}")
+                        self.audio_controller.remove_source(source_name)
+                    
+                    # Create Redis SDR adapter directly
+                    adapter = RedisSDRSourceAdapter(runtime_config)
+                    self.audio_controller.add_source(adapter)
+                    logger.info(f"✅ Added Redis SDR source {source_name} via Redis command")
+                    return {'success': True, 'message': f'Redis SDR source {source_name} added'}
+
+                # Create runtime configuration for normal audio source types
+                source_type = AudioSourceType(source_type_str)
+
+                # In separated architecture, skip regular SDR sources in audio-service
+                # Regular SDR sources require direct hardware access - use redis_sdr instead
+                if source_type == AudioSourceType.SDR:
+                    # Check if we have radio manager (indicates we can handle SDR)
+                    from app_core.extensions import get_radio_manager
+                    radio_mgr = get_radio_manager()
+                    if not radio_mgr:
+                        logger.info(f"⏭️  Skipping SDR source '{source_name}' - no radio manager (handled by sdr-service)")
+                        logger.info(f"   Use 'redis_sdr' source type for separated architecture")
+                        return {
+                            'success': True,
+                            'message': f'SDR source {source_name} skipped (no radio manager). Use redis_sdr type for separated architecture.',
+                            'skipped': True
+                        }
+
                 runtime_config = AudioSourceConfig(
                     source_type=source_type,
                     name=source_name,
@@ -281,7 +409,7 @@ class AudioCommandSubscriber:
                     silence_duration_seconds=config.get('silence_duration_seconds', 5.0),
                     device_params=config.get('device_params', {}),
                 )
-                
+
                 # Remove existing source if it exists
                 if source_name in self.audio_controller._sources:
                     if self.auto_streaming_service:
@@ -290,7 +418,7 @@ class AudioCommandSubscriber:
                         except Exception as e:
                             logger.debug(f"Error removing {source_name} from Icecast: {e}")
                     self.audio_controller.remove_source(source_name)
-                
+
                 # Create adapter and add to controller
                 adapter = create_audio_source(runtime_config)
                 self.audio_controller.add_source(adapter)
@@ -327,6 +455,21 @@ class AudioCommandSubscriber:
                     self.auto_streaming_service.stop()
                     return {'success': True, 'message': 'Streaming service stopped'}
                 return {'success': False, 'message': 'Streaming service not available'}
+
+            elif command == 'eas_monitor_start':
+                if self.eas_monitor:
+                    result = self.eas_monitor.start()
+                    if result:
+                        return {'success': True, 'message': 'EAS monitor started'}
+                    else:
+                        return {'success': False, 'message': 'EAS monitor failed to start or already running'}
+                return {'success': False, 'message': 'EAS monitor not available'}
+
+            elif command == 'eas_monitor_stop':
+                if self.eas_monitor:
+                    self.eas_monitor.stop()
+                    return {'success': True, 'message': 'EAS monitor stopped'}
+                return {'success': False, 'message': 'EAS monitor not available'}
 
             else:
                 return {'success': False, 'message': f'Unknown command: {command}'}

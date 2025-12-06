@@ -195,6 +195,7 @@ class AdminUser(db.Model):
     mfa_secret = db.Column(db.String(255), nullable=True)  # Base32-encoded TOTP secret
     mfa_backup_codes_hash = db.Column(db.Text, nullable=True)  # JSON array of hashed backup codes
     mfa_enrolled_at = db.Column(db.DateTime(timezone=True), nullable=True)
+    mfa_last_totp_at = db.Column(db.DateTime(timezone=True), nullable=True)  # Last successful TOTP code timestamp
 
     # Relationships
     role = db.relationship('Role', back_populates='users', lazy='joined')
@@ -662,6 +663,10 @@ class RadioReceiver(db.Model):
 
     Note: For internet stream sources (HTTP/M3U), use the AudioSource system instead.
     RadioReceiver is exclusively for SDR hardware like RTL-SDR and Airspy.
+
+    IMPORTANT: sample_rate vs audio_sample_rate
+    - sample_rate: IQ sample rate from SDR hardware (e.g., 2.4 MHz for RTL-SDR)
+    - audio_sample_rate: Demodulated audio output rate (e.g., 48 kHz for FM stereo)
     """
 
     __tablename__ = "radio_receivers"
@@ -671,7 +676,8 @@ class RadioReceiver(db.Model):
     display_name = db.Column(db.String(128), nullable=False)
     driver = db.Column(db.String(64), nullable=False)
     frequency_hz = db.Column(db.Float, nullable=False)
-    sample_rate = db.Column(db.Integer, nullable=False)
+    sample_rate = db.Column(db.Integer, nullable=False)  # IQ sample rate (MHz range, e.g., 2400000)
+    audio_sample_rate = db.Column(db.Integer, nullable=True)  # Audio output rate (kHz range, e.g., 48000)
     gain = db.Column(db.Float)
     channel = db.Column(db.Integer)
     serial = db.Column(db.String(128))
@@ -713,11 +719,27 @@ class RadioReceiver(db.Model):
 
         from app_core.radio import ReceiverConfig
 
+        # Determine audio sample rate with intelligent defaults
+        audio_rate = self.audio_sample_rate
+        if audio_rate is None or audio_rate < 20000:
+            # Auto-select based on modulation type and stereo settings
+            modulation = (self.modulation_type or 'IQ').upper()
+            if modulation in ('FM', 'WFM', 'WBFM'):
+                # Wide FM (broadcast): higher quality needed
+                audio_rate = 48000 if self.stereo_enabled else 32000
+            elif modulation in ('NFM', 'AM'):
+                # Narrowband FM or AM: lower rate acceptable
+                audio_rate = 24000
+            else:
+                # IQ or unknown: safe default
+                audio_rate = 44100
+
         return ReceiverConfig(
             identifier=self.identifier,
             driver=self.driver,
             frequency_hz=float(self.frequency_hz),
             sample_rate=int(self.sample_rate),
+            audio_sample_rate=int(audio_rate),
             gain=self.gain,
             channel=self.channel,
             serial=self.serial,
@@ -1241,6 +1263,152 @@ class RWTScheduleConfig(db.Model):
         }
 
 
+# Snow emergency levels as defined by Ohio law
+SNOW_EMERGENCY_LEVELS = {
+    0: {
+        "name": "None",
+        "color": "#28a745",  # Green
+        "description": "No snow emergency in effect. Normal driving conditions.",
+    },
+    1: {
+        "name": "Level 1",
+        "color": "#ffc107",  # Yellow
+        "description": "Roadways are hazardous with blowing and drifting snow. Roads may also be icy. "
+                       "Motorists are urged to drive very cautiously.",
+    },
+    2: {
+        "name": "Level 2",
+        "color": "#fd7e14",  # Orange
+        "description": "Roadways are hazardous with blowing and drifting snow. Only those who feel it is "
+                       "necessary to drive should be out on the roadways. Contact your employer to see if "
+                       "you should report to work.",
+    },
+    3: {
+        "name": "Level 3",
+        "color": "#dc3545",  # Red
+        "description": "All roadways are closed to non-emergency personnel. No one should be out during "
+                       "these conditions unless it is absolutely necessary to travel. Employees should "
+                       "contact their employer to see if they should report to work. Those traveling on "
+                       "the roadways may subject themselves to arrest.",
+    },
+}
+
+# Counties adjoining Putnam County, Ohio with their FIPS codes
+# Putnam County borders: Defiance, Henry, Wood, Hancock, Allen, Van Wert, Paulding
+PUTNAM_REGION_COUNTIES = {
+    "039137": {"name": "Putnam", "state": "OH", "is_primary": True, "order": 0},
+    "039003": {"name": "Allen", "state": "OH", "is_primary": False, "order": 1},
+    "039039": {"name": "Defiance", "state": "OH", "is_primary": False, "order": 2},
+    "039063": {"name": "Hancock", "state": "OH", "is_primary": False, "order": 3},
+    "039069": {"name": "Henry", "state": "OH", "is_primary": False, "order": 4},
+    "039125": {"name": "Paulding", "state": "OH", "is_primary": False, "order": 5},
+    "039161": {"name": "Van Wert", "state": "OH", "is_primary": False, "order": 6},
+    "039173": {"name": "Wood", "state": "OH", "is_primary": False, "order": 7},
+}
+
+
+class SnowEmergency(db.Model):
+    """Current snow emergency status for a county.
+
+    Simple tracking of snow emergency levels for Putnam County and adjoining
+    counties in Ohio. One row per county, updated when level changes.
+    Level 0 means no emergency in effect.
+
+    History of changes is tracked in the history JSONB column.
+    """
+
+    __tablename__ = "snow_emergencies"
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    # County identification (unique per county)
+    county_fips = db.Column(db.String(6), nullable=False, unique=True, index=True)
+    county_name = db.Column(db.String(128), nullable=False)
+    state_code = db.Column(db.String(2), nullable=False, default="OH")
+
+    # Current snow emergency level (0 = none, 1-3 = emergency levels)
+    level = db.Column(db.Integer, nullable=False, default=0)
+
+    # Whether this county issues snow emergencies (some sheriffs may opt out)
+    issues_emergencies = db.Column(db.Boolean, nullable=False, default=True)
+
+    # When the current level was set
+    level_set_at = db.Column(db.DateTime(timezone=True), default=utc_now, nullable=False)
+
+    # Who set the current level (username)
+    level_set_by = db.Column(db.String(128))
+
+    # Audit fields
+    created_at = db.Column(db.DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at = db.Column(db.DateTime(timezone=True), default=utc_now, onupdate=utc_now)
+
+    # History tracking (JSON array of {level, set_at, set_by, previous_level})
+    history = db.Column(JSONB, default=list)
+
+    def is_active(self) -> bool:
+        """Check if a snow emergency is currently in effect (level > 0)."""
+        return self.issues_emergencies and self.level > 0
+
+    def get_level_info(self) -> Dict[str, Any]:
+        """Get the level information (name, color, description)."""
+        return SNOW_EMERGENCY_LEVELS.get(self.level, SNOW_EMERGENCY_LEVELS[0])
+
+    def to_dict(self, include_history: bool = False) -> Dict[str, Any]:
+        """Convert to dictionary for API responses."""
+        level_info = self.get_level_info()
+        result = {
+            "id": self.id,
+            "county_fips": self.county_fips,
+            "county_name": self.county_name,
+            "state_code": self.state_code,
+            "level": self.level,
+            "level_name": level_info["name"],
+            "level_color": level_info["color"],
+            "level_description": level_info["description"],
+            "is_active": self.is_active(),
+            "issues_emergencies": self.issues_emergencies,
+            "level_set_at": self.level_set_at.isoformat() if self.level_set_at else None,
+            "level_set_by": self.level_set_by,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+        if include_history:
+            result["history"] = list(self.history or [])
+
+        return result
+
+    def set_level(self, new_level: int, set_by: str) -> None:
+        """Update the snow emergency level and record in history."""
+        if new_level < 0 or new_level > 3:
+            raise ValueError(f"Invalid snow emergency level: {new_level}")
+
+        if not self.issues_emergencies and new_level > 0:
+            raise ValueError("This county does not issue snow emergencies")
+
+        if new_level != self.level:
+            # Record the change in history
+            history_entry = {
+                "previous_level": self.level,
+                "new_level": new_level,
+                "set_at": utc_now().isoformat(),
+                "set_by": set_by,
+            }
+            if self.history is None:
+                self.history = []
+            # Keep last 100 history entries
+            self.history = (list(self.history) + [history_entry])[-100:]
+
+            self.level = new_level
+            self.level_set_at = utc_now()
+            self.level_set_by = set_by
+
+    def __repr__(self) -> str:
+        return (
+            f"<SnowEmergency county={self.county_name} "
+            f"level={self.level}>"
+        )
+
+
 __all__ = [
     "Boundary",
     "CAPAlert",
@@ -1266,4 +1434,7 @@ __all__ = [
     "VFDDisplay",
     "VFDStatus",
     "RWTScheduleConfig",
+    "SnowEmergency",
+    "SNOW_EMERGENCY_LEVELS",
+    "PUTNAM_REGION_COUNTIES",
 ]

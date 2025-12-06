@@ -13,6 +13,8 @@ Flask==3.0.3
 Flask-SQLAlchemy==3.1.1
 Flask-Caching==2.3.0
 Flask-SocketIO==5.4.1
+Flask-WTF==1.2.2  # CSRF protection and form validation
+Flask-Limiter==3.8.0  # Rate limiting with Redis/memory backend
 python-socketio==5.11.4
 Werkzeug==3.0.6
 
@@ -35,6 +37,9 @@ psutil==6.1.1
 
 # Environment variables
 python-dotenv==1.0.1
+
+# Markdown rendering for documentation viewer
+mistune==3.0.2  # Fast, extensible markdown parser with full GFM support
 
 # YAML parsing for compose file validation
 PyYAML==6.0.2
