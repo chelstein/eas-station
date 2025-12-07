@@ -540,6 +540,79 @@ def process_commands(redis_client):
                 result = {"command_id": command_id, "success": True}
             else:
                 result = {"command_id": command_id, "success": False, "error": "Not found"}
+        elif action == "discover_devices":
+            # Enumerate all connected SoapySDR devices
+            try:
+                from app_core.radio.discovery import enumerate_devices
+                devices = enumerate_devices()
+                result = {
+                    "command_id": command_id,
+                    "success": True,
+                    "devices": devices,
+                    "count": len(devices)
+                }
+            except Exception as e:
+                logger.error(f"Failed to enumerate devices: {e}")
+                result = {
+                    "command_id": command_id,
+                    "success": False,
+                    "error": str(e),
+                    "devices": []
+                }
+        elif action == "reload_receivers":
+            # Reload receiver configuration from database
+            # This is called when receivers are added/updated/deleted via webapp
+            try:
+                from app_core.models import RadioReceiver
+                from flask import current_app
+                
+                with current_app.app_context():
+                    receivers = RadioReceiver.query.filter_by(enabled=True).all()
+                    
+                    if not radio_manager:
+                        from app_core.extensions import get_radio_manager
+                        radio_manager = get_radio_manager()
+                        _state.radio_manager = radio_manager
+                    
+                    # Stop all existing receivers
+                    if hasattr(radio_manager, '_receivers'):
+                        for identifier in list(radio_manager._receivers.keys()):
+                            try:
+                                receiver = radio_manager.get_receiver(identifier)
+                                if receiver:
+                                    receiver.stop()
+                            except Exception as e:
+                                logger.warning(f"Error stopping receiver {identifier}: {e}")
+                    
+                    # Reconfigure from database
+                    radio_manager.configure_from_records(receivers)
+                    logger.info(f"Reloaded {len(receivers)} receiver(s) from database")
+                    
+                    # Auto-start enabled receivers
+                    auto_start_count = 0
+                    for r in receivers:
+                        if r.auto_start:
+                            instance = radio_manager.get_receiver(r.identifier)
+                            if instance:
+                                try:
+                                    instance.start()
+                                    auto_start_count += 1
+                                except Exception as e:
+                                    logger.error(f"Failed to auto-start {r.identifier}: {e}")
+                    
+                    result = {
+                        "command_id": command_id,
+                        "success": True,
+                        "receivers_configured": len(receivers),
+                        "receivers_started": auto_start_count
+                    }
+            except Exception as e:
+                logger.error(f"Failed to reload receivers: {e}", exc_info=True)
+                result = {
+                    "command_id": command_id,
+                    "success": False,
+                    "error": str(e)
+                }
         elif action == "get_spectrum":
             # Get spectrum data for waterfall display
             receiver = radio_manager.get_receiver(receiver_id)

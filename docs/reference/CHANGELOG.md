@@ -6,6 +6,19 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.13.2] - 2025-12-07
+### Fixed
+- **CRITICAL END-TO-END**: Complete signal chain from detection to audio now works
+- **Device Discovery**: Added `discover_devices` command handler in sdr-service
+- **Receiver Creation**: Added `reload_receivers` command to sync database changes to sdr-service
+- **Auto-Start**: New/updated receivers now automatically loaded by sdr-service
+- Webapp now properly communicates with sdr-service for device discovery and receiver management
+### Improved
+- _sync_radio_manager_state now tells sdr-service to reload configuration
+- Fallback to app-side radio manager if sdr-service unavailable
+- Better error handling and logging throughout signal chain
+- Device enumeration works in separated architecture
+
 ## [2.13.1] - 2025-12-07
 ### Fixed
 - **CRITICAL AIRSPY BUG**: AirspyReceiver class was completely empty with NO Airspy-specific configuration

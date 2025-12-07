@@ -479,45 +479,57 @@ def _sync_radio_manager_state(route_logger) -> Dict[str, Any]:
         "auto_started": [],
         "errors": [],
     }
-
-    try:
-        radio_manager = get_radio_manager()
-    except Exception as exc:  # pragma: no cover - defensive
-        route_logger.error("Failed to acquire RadioManager: %s", exc, exc_info=True)
-        summary["errors"].append(str(exc))
-        _log_radio_event(
-            "ERROR",
-            f"Failed to acquire RadioManager: {exc}",
-            module_suffix="sync",
-            details={"error": str(exc)},
-        )
-        return summary
-
+    
     enabled_receivers = RadioReceiver.query.filter_by(enabled=True).all()
     summary["configured"] = len(enabled_receivers)
 
-    radio_manager.configure_from_records(enabled_receivers)
+    # CRITICAL: In separated architecture, tell sdr-service to reload receivers from database
+    # This ensures sdr-service picks up newly created/updated/deleted receivers
+    try:
+        reload_result = _send_sdr_command("reload_receivers")
+        if reload_result.get("success"):
+            route_logger.info(
+                "SDR service reloaded: %d receivers configured, %d started",
+                reload_result.get("receivers_configured", 0),
+                reload_result.get("receivers_started", 0)
+            )
+            summary["auto_started"] = [r.identifier for r in enabled_receivers if r.auto_start]
+        else:
+            error_msg = reload_result.get("error", "Unknown error")
+            route_logger.warning("SDR service reload failed: %s", error_msg)
+            summary["errors"].append(f"SDR service: {error_msg}")
+    except Exception as exc:
+        route_logger.error("Failed to communicate with SDR service: %s", exc)
+        summary["errors"].append(f"SDR service unreachable: {exc}")
+        
+        # Fall back to app-side radio manager (for backward compatibility)
+        try:
+            radio_manager = get_radio_manager()
+            radio_manager.configure_from_records(enabled_receivers)
 
-    for receiver in enabled_receivers:
-        instance = radio_manager.get_receiver(receiver.identifier)
+            for receiver in enabled_receivers:
+                instance = radio_manager.get_receiver(receiver.identifier)
 
-        if instance is not None and receiver.auto_start:
-            try:
-                instance.start()
-                summary["auto_started"].append(receiver.identifier)
-            except Exception as exc:  # pragma: no cover - hardware specific
-                message = f"Failed to auto-start {receiver.identifier}: {exc}"
-                route_logger.error(message, exc_info=True)
-                summary["errors"].append(message)
-                _log_radio_event(
-                    "ERROR",
-                    message,
-                    module_suffix="sync",
-                    details={
-                        "identifier": receiver.identifier,
-                        "error": str(exc),
-                    },
-                )
+                if instance is not None and receiver.auto_start:
+                    try:
+                        instance.start()
+                        summary["auto_started"].append(receiver.identifier)
+                    except Exception as exc:  # pragma: no cover - hardware specific
+                        message = f"Failed to auto-start {receiver.identifier}: {exc}"
+                        route_logger.error(message, exc_info=True)
+                        summary["errors"].append(message)
+                        _log_radio_event(
+                            "ERROR",
+                            message,
+                            module_suffix="sync",
+                            details={
+                                "identifier": receiver.identifier,
+                                "error": str(exc),
+                            },
+                        )
+        except Exception as fallback_exc:
+            route_logger.error("Fallback radio manager also failed: %s", fallback_exc)
+            summary["errors"].append(str(fallback_exc))
 
     _sync_audio_monitors(route_logger, enabled_receivers)
 
