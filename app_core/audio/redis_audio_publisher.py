@@ -132,6 +132,26 @@ class RedisAudioPublisher:
                     audio_chunk = self._audio_adapter.read_audio(chunk_samples)
 
                     if audio_chunk is not None and len(audio_chunk) > 0:
+                        # STEREO TO MONO CONVERSION: EAS monitoring requires mono audio
+                        # Convert stereo (2D) to mono (1D) before publishing
+                        if audio_chunk.ndim == 2:
+                            if audio_chunk.shape[1] == 2:
+                                # Stereo audio - average both channels to create mono
+                                audio_chunk = audio_chunk.mean(axis=1)
+                            elif audio_chunk.shape[1] == 1:
+                                # Mono audio in 2D format - flatten to 1D
+                                audio_chunk = audio_chunk.flatten()
+                            else:
+                                # Unexpected number of channels - take first channel only
+                                logger.warning(
+                                    f"Unexpected audio shape {audio_chunk.shape} from {self.source_name} - using first channel only"
+                                )
+                                audio_chunk = audio_chunk[:, 0]
+                        
+                        # Ensure audio is 1D array (mono audio)
+                        if audio_chunk.ndim > 1:
+                            audio_chunk = audio_chunk.flatten()
+                        
                         # Encode audio samples as base64 (float32 array)
                         sample_bytes = audio_chunk.astype(np.float32).tobytes()
                         encoded_samples = base64.b64encode(sample_bytes).decode('ascii')
