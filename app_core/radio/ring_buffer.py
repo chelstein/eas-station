@@ -100,9 +100,10 @@ class SDRRingBuffer:
     
     # Minimum buffer size (256KB of samples = ~0.1s at 2.5 MHz)
     MIN_SIZE = 262144
-    
-    # Maximum buffer size (4MB of samples = ~1.6s at 2.5 MHz)  
-    MAX_SIZE = 4194304
+
+    # Maximum buffer size (8MB of samples = ~3.2s at 2.5 MHz)
+    # Larger buffer provides more headroom for processing latency spikes
+    MAX_SIZE = 8388608
     
     def __init__(
         self,

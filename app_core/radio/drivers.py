@@ -179,6 +179,17 @@ class _SoapySDRReceiver(ReceiverInterface):
         self._last_successful_connection: Optional[datetime.datetime] = None
         self._stream_errors_count = 0
 
+        # Ring buffer overflow logging rate-limiting
+        self._overflow_last_log_time = 0.0
+        self._overflow_log_interval = 5.0  # Log at most every 5 seconds
+        self._overflow_dropped_since_last_log = 0
+
+        # Device enumeration warning rate-limiting (avoid log spam during retries)
+        self._no_devices_last_log_time = 0.0
+        self._no_devices_log_interval = 30.0  # Log "no devices found" at most every 30 seconds
+        self._fallback_last_log_time = 0.0
+        self._fallback_log_interval = 30.0  # Log fallback messages at most every 30 seconds
+
     # ------------------------------------------------------------------
     # Lifecycle helpers
     # ------------------------------------------------------------------
@@ -257,13 +268,52 @@ class _SoapySDRReceiver(ReceiverInterface):
         return message
 
     def _enumerate_available_devices(self, sdr_module) -> List[Dict[str, str]]:
-        """Enumerate available SoapySDR devices for diagnostic purposes."""
-        try:
-            devices = sdr_module.Device.enumerate()
-            return [dict(d) for d in devices]
-        except Exception as exc:
-            self._interface_logger.warning("Failed to enumerate devices: %s", exc)
-            return []
+        """Enumerate available SoapySDR devices for diagnostic purposes.
+
+        Uses driver-specific enumeration to avoid issues with problematic
+        modules (e.g., soapysdr-module-remote failing on avahi).
+        """
+        all_devices = []
+
+        # First try driver-specific enumeration for our driver
+        # This avoids issues with other modules (like remote) failing during enum
+        if self.driver_hint:
+            try:
+                driver_devices = sdr_module.Device.enumerate(f"driver={self.driver_hint}")
+                for dev in driver_devices:
+                    all_devices.append(dict(dev))
+                if driver_devices:
+                    self._interface_logger.debug(
+                        "Found %d device(s) for driver %s",
+                        len(driver_devices),
+                        self.driver_hint
+                    )
+            except Exception as exc:
+                self._interface_logger.debug(
+                    "Driver-specific enumeration failed for %s: %s",
+                    self.driver_hint,
+                    exc
+                )
+
+        # If driver-specific found nothing, try general enumeration
+        # but wrap it to handle module failures gracefully
+        if not all_devices:
+            try:
+                devices = sdr_module.Device.enumerate()
+                for dev in devices:
+                    dev_dict = dict(dev)
+                    # Avoid duplicates
+                    if dev_dict not in all_devices:
+                        all_devices.append(dev_dict)
+            except Exception as exc:
+                # General enumeration can fail if ANY module has issues
+                # (e.g., soapysdr-module-remote fails without avahi)
+                self._interface_logger.debug(
+                    "General device enumeration failed (some modules may have issues): %s",
+                    exc
+                )
+
+        return all_devices
 
     def get_connection_health(self) -> Dict[str, object]:
         """Get diagnostic information about device connection health.
@@ -496,8 +546,9 @@ class _SoapySDRReceiver(ReceiverInterface):
         # Initialize SDRRingBuffer for robust USB reading if enabled
         if self._ring_buffer_enabled and _RING_BUFFER_AVAILABLE:
             try:
-                # Calculate buffer size for ~1 second of samples
-                buffer_size = calculate_buffer_size(self.config.sample_rate, buffer_time_seconds=1.0)
+                # Calculate buffer size for ~2 seconds of samples
+                # Larger buffer provides more headroom for processing latency spikes
+                buffer_size = calculate_buffer_size(self.config.sample_rate, buffer_time_seconds=2.0)
                 
                 self._ring_buffer = SDRRingBuffer(
                     size=buffer_size,
@@ -591,9 +642,13 @@ class _SoapySDRReceiver(ReceiverInterface):
                          if d.get("driver") == self.driver_hint]
                     )
         else:
-            self._interface_logger.warning(
-                "No SoapySDR devices found. Ensure device is connected and drivers are installed."
-            )
+            # Rate-limit "no devices found" warning to avoid log spam during retries
+            now = time.time()
+            if now - self._no_devices_last_log_time >= self._no_devices_log_interval:
+                self._interface_logger.warning(
+                    "No SoapySDR devices found. Ensure device is connected and drivers are installed."
+                )
+                self._no_devices_last_log_time = now
 
         try:
             device = SoapySDR.Device(args)
@@ -772,21 +827,26 @@ class _SoapySDRReceiver(ReceiverInterface):
         fallback_exc = None
 
         if not skip_first_fallback:
-            self._emit_event(
-                "warning",
-                "Falling back to autodetected SDR device after serial open failure",
-                details={
-                    "driver": self.driver_hint,
-                    "serial": serial,
-                    "error": str(original_exc),
-                },
-            )
-            self._interface_logger.warning(
-                "Failed to open SDR %s with serial %s (%s); retrying without serial filter",
-                self.driver_hint or "unknown",
-                serial,
-                original_exc,
-            )
+            # Rate-limit fallback warnings to avoid log spam during repeated retries
+            now = time.time()
+            should_log = now - self._fallback_last_log_time >= self._fallback_log_interval
+            if should_log:
+                self._emit_event(
+                    "warning",
+                    "Falling back to autodetected SDR device after serial open failure",
+                    details={
+                        "driver": self.driver_hint,
+                        "serial": serial,
+                        "error": str(original_exc),
+                    },
+                )
+                self._interface_logger.warning(
+                    "Failed to open SDR %s with serial %s (%s); retrying without serial filter",
+                    self.driver_hint or "unknown",
+                    serial,
+                    original_exc,
+                )
+                self._fallback_last_log_time = now
 
             try:
                 device = sdr_module.Device(fallback_args)
@@ -802,10 +862,14 @@ class _SoapySDRReceiver(ReceiverInterface):
             fallback_exc = original_exc  # Skip first fallback, use original exception
 
         # Second fallback: Try with ONLY driver (no serial, no device_id)
-        self._interface_logger.warning(
-            "Attempting to open device with driver-only filter (serial '%s' was not found)",
-            serial,
-        )
+        # Rate-limit this warning as well
+        now = time.time()
+        if now - self._fallback_last_log_time >= self._fallback_log_interval:
+            self._interface_logger.warning(
+                "Attempting to open device with driver-only filter (serial '%s' was not found)",
+                serial,
+            )
+            self._fallback_last_log_time = now
 
         try:
             device = sdr_module.Device(minimal_args)
@@ -932,12 +996,16 @@ class _SoapySDRReceiver(ReceiverInterface):
                 consecutive_failures += 1
                 self._connection_attempts += 1
                 try:
-                    self._interface_logger.info(
-                        "Attempting to open device for %s (retry #%d, waiting %.1f seconds)...",
-                        self.config.identifier,
-                        consecutive_failures,
-                        min(retry_delay, self._max_retry_backoff)
-                    )
+                    # Log retry attempts, but less verbosely after many failures
+                    # First 5 retries: log each one
+                    # After that: log every 10th retry or every 60 seconds
+                    if consecutive_failures <= 5 or consecutive_failures % 10 == 0:
+                        self._interface_logger.info(
+                            "Attempting to open device for %s (retry #%d, waiting %.1f seconds)...",
+                            self.config.identifier,
+                            consecutive_failures,
+                            min(retry_delay, self._max_retry_backoff)
+                        )
                     new_handle = self._open_handle()
                     consecutive_failures = 0  # Reset on success
                     self._last_successful_connection = datetime.datetime.now(datetime.timezone.utc)
@@ -1028,11 +1096,20 @@ class _SoapySDRReceiver(ReceiverInterface):
                                 # Overflow detected - ring buffer is full
                                 # This is a significant operational issue indicating
                                 # processing can't keep up with USB data rate
-                                self._interface_logger.warning(
-                                    "Ring buffer overflow for %s: dropped %d samples (processing too slow)",
-                                    self.config.identifier,
-                                    len(samples) - written
-                                )
+                                dropped = len(samples) - written
+                                self._overflow_dropped_since_last_log += dropped
+
+                                # Rate-limit overflow logging to avoid log spam
+                                now = time.time()
+                                if now - self._overflow_last_log_time >= self._overflow_log_interval:
+                                    self._interface_logger.warning(
+                                        "Ring buffer overflow for %s: dropped %d samples in last %.1fs (processing too slow)",
+                                        self.config.identifier,
+                                        self._overflow_dropped_since_last_log,
+                                        now - self._overflow_last_log_time if self._overflow_last_log_time > 0 else 0.0
+                                    )
+                                    self._overflow_last_log_time = now
+                                    self._overflow_dropped_since_last_log = 0
                         except Exception as e:
                             self._interface_logger.debug(
                                 "Error writing to ring buffer for %s: %s",

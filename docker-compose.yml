@@ -111,6 +111,10 @@ services:
 
       # SDR settings
       SDR_ARGS: ${SDR_ARGS:-driver=airspy}
+
+      # SoapySDR module path - ensure modules are found on all architectures
+      # On ARM64 (Raspberry Pi), modules may be in a different location
+      SOAPY_SDR_PLUGIN_PATH: /usr/lib/aarch64-linux-gnu/SoapySDR/modules0.8:/usr/lib/arm-linux-gnueabihf/SoapySDR/modules0.8:/usr/lib/x86_64-linux-gnu/SoapySDR/modules0.8:/usr/lib/SoapySDR/modules0.8
     extra_hosts:
       - "host.docker.internal:host-gateway"
     devices:
