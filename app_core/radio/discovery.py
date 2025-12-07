@@ -85,32 +85,72 @@ def enumerate_devices() -> List[Dict[str, Any]]:
         logger.warning("SoapySDR Python bindings not found. Cannot enumerate devices.")
         return []
 
-    try:
-        devices = SoapySDR.Device.enumerate()
+    results = []
+    seen_serials = set()
 
-        results = []
-        for idx, device_info in enumerate(devices):
-            # Convert SoapySDRKwargs to dict first (doesn't support .get() method directly)
-            device_dict = dict(device_info)
-            parsed = {
-                "index": idx,
-                "driver": device_dict.get("driver", "unknown"),
-                "label": device_dict.get("label", f"Device {idx}"),
-                "serial": device_dict.get("serial", None),
-                "manufacturer": device_dict.get("manufacturer", None),
-                "product": device_dict.get("product", None),
-                "hardware": device_dict.get("hardware", None),
-                "device_id": device_dict.get("device_id", None),
-                "raw_info": device_dict,
-            }
-            results.append(parsed)
+    # Try driver-specific enumeration first to avoid issues with
+    # problematic modules (e.g., soapysdr-module-remote failing on avahi)
+    known_drivers = ["airspy", "rtlsdr", "hackrf", "sdrplay", "bladerf"]
 
-        logger.info(f"Enumerated {len(results)} SoapySDR device(s)")
-        return results
+    for driver in known_drivers:
+        try:
+            driver_devices = SoapySDR.Device.enumerate(f"driver={driver}")
+            for device_info in driver_devices:
+                device_dict = dict(device_info)
+                serial = device_dict.get("serial")
+                # Avoid duplicates by serial
+                if serial and serial in seen_serials:
+                    continue
+                if serial:
+                    seen_serials.add(serial)
 
-    except Exception as exc:
-        logger.error(f"Failed to enumerate SoapySDR devices: {exc}")
-        return []
+                parsed = {
+                    "index": len(results),
+                    "driver": device_dict.get("driver", driver),
+                    "label": device_dict.get("label", f"Device {len(results)}"),
+                    "serial": serial,
+                    "manufacturer": device_dict.get("manufacturer", None),
+                    "product": device_dict.get("product", None),
+                    "hardware": device_dict.get("hardware", None),
+                    "device_id": device_dict.get("device_id", None),
+                    "raw_info": device_dict,
+                }
+                results.append(parsed)
+                logger.debug(f"Found {driver} device: serial={serial}")
+        except Exception as exc:
+            # Driver-specific enumeration can fail if driver module has issues
+            logger.debug(f"Driver-specific enumeration for {driver} failed: {exc}")
+
+    # If driver-specific found nothing, try general enumeration as fallback
+    if not results:
+        try:
+            devices = SoapySDR.Device.enumerate()
+            for idx, device_info in enumerate(devices):
+                device_dict = dict(device_info)
+                serial = device_dict.get("serial")
+                if serial and serial in seen_serials:
+                    continue
+                if serial:
+                    seen_serials.add(serial)
+
+                parsed = {
+                    "index": len(results),
+                    "driver": device_dict.get("driver", "unknown"),
+                    "label": device_dict.get("label", f"Device {len(results)}"),
+                    "serial": serial,
+                    "manufacturer": device_dict.get("manufacturer", None),
+                    "product": device_dict.get("product", None),
+                    "hardware": device_dict.get("hardware", None),
+                    "device_id": device_dict.get("device_id", None),
+                    "raw_info": device_dict,
+                }
+                results.append(parsed)
+        except Exception as exc:
+            # General enumeration can fail if ANY module has issues
+            logger.warning(f"General SoapySDR enumeration failed (some modules may have issues): {exc}")
+
+    logger.info(f"Enumerated {len(results)} SoapySDR device(s)")
+    return results
 
 
 def get_device_capabilities(driver: str, device_args: Optional[Dict[str, str]] = None) -> Optional[Dict[str, Any]]:

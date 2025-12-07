@@ -8,8 +8,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 # Allow callers to limit which SoapySDR hardware drivers are installed
 # (comma-separated list such as "rtlsdr" or "rtlsdr,airspy").
-# "remote" enables network SDR support (SDR++ Server, SoapyRemote)
-ARG SOAPYSDR_DRIVERS="rtlsdr,airspy,remote"
+# NOTE: "remote" module removed from defaults as it requires avahi-daemon
+# and can interfere with USB device enumeration when avahi isn't running.
+# Add "remote" to SOAPYSDR_DRIVERS if you need SoapyRemote/SDR++ Server support.
+ARG SOAPYSDR_DRIVERS="rtlsdr,airspy"
 
 # Install system dependencies required for psycopg2, GeoAlchemy, and SoapySDR
 RUN --mount=type=cache,target=/var/lib/apt \
@@ -24,8 +26,10 @@ RUN --mount=type=cache,target=/var/lib/apt \
         ca-certificates \
         libusb-1.0-0 \
         libusb-1.0-0-dev \
+        usbutils \
         python3-soapysdr \
         soapysdr-tools \
+        libairspy0 \
         smartmontools; \
     if [ -n "$SOAPYSDR_DRIVERS" ]; then \
         IFS=','; \

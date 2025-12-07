@@ -268,13 +268,52 @@ class _SoapySDRReceiver(ReceiverInterface):
         return message
 
     def _enumerate_available_devices(self, sdr_module) -> List[Dict[str, str]]:
-        """Enumerate available SoapySDR devices for diagnostic purposes."""
-        try:
-            devices = sdr_module.Device.enumerate()
-            return [dict(d) for d in devices]
-        except Exception as exc:
-            self._interface_logger.warning("Failed to enumerate devices: %s", exc)
-            return []
+        """Enumerate available SoapySDR devices for diagnostic purposes.
+
+        Uses driver-specific enumeration to avoid issues with problematic
+        modules (e.g., soapysdr-module-remote failing on avahi).
+        """
+        all_devices = []
+
+        # First try driver-specific enumeration for our driver
+        # This avoids issues with other modules (like remote) failing during enum
+        if self.driver_hint:
+            try:
+                driver_devices = sdr_module.Device.enumerate(f"driver={self.driver_hint}")
+                for dev in driver_devices:
+                    all_devices.append(dict(dev))
+                if driver_devices:
+                    self._interface_logger.debug(
+                        "Found %d device(s) for driver %s",
+                        len(driver_devices),
+                        self.driver_hint
+                    )
+            except Exception as exc:
+                self._interface_logger.debug(
+                    "Driver-specific enumeration failed for %s: %s",
+                    self.driver_hint,
+                    exc
+                )
+
+        # If driver-specific found nothing, try general enumeration
+        # but wrap it to handle module failures gracefully
+        if not all_devices:
+            try:
+                devices = sdr_module.Device.enumerate()
+                for dev in devices:
+                    dev_dict = dict(dev)
+                    # Avoid duplicates
+                    if dev_dict not in all_devices:
+                        all_devices.append(dev_dict)
+            except Exception as exc:
+                # General enumeration can fail if ANY module has issues
+                # (e.g., soapysdr-module-remote fails without avahi)
+                self._interface_logger.debug(
+                    "General device enumeration failed (some modules may have issues): %s",
+                    exc
+                )
+
+        return all_devices
 
     def get_connection_health(self) -> Dict[str, object]:
         """Get diagnostic information about device connection health.
