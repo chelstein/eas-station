@@ -13,13 +13,41 @@
 
 /* 1. CSS VARIABLES & DESIGN SYSTEM */
 
-/* Professional Animation Curves - Enhanced for Modern Feel */
+/* iOS 26-Inspired Animation Curves - Fluid & Bouncy */
 :root {
+    /* Spring-based easing for tactile feel */
     --ease-smooth: cubic-bezier(0.4, 0.0, 0.2, 1);
     --ease-enter: cubic-bezier(0.0, 0.0, 0.2, 1);
     --ease-exit: cubic-bezier(0.4, 0.0, 1, 1);
     --ease-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55);
     --ease-fluid: cubic-bezier(0.23, 1, 0.32, 1);
+    --ease-spring: cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    --ease-elastic: cubic-bezier(0.68, -0.6, 0.32, 1.6);
+    --ease-ios: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+
+    /* Glass/Blur effect values */
+    --glass-blur: 24px;
+    --glass-blur-heavy: 40px;
+    --glass-saturation: 180%;
+    --glass-opacity: 0.75;
+
+    /* Vibrant accent colors for iOS-style pops of color */
+    --vibrant-blue: #007AFF;
+    --vibrant-purple: #AF52DE;
+    --vibrant-pink: #FF2D92;
+    --vibrant-red: #FF3B30;
+    --vibrant-orange: #FF9500;
+    --vibrant-yellow: #FFCC00;
+    --vibrant-green: #34C759;
+    --vibrant-teal: #5AC8FA;
+    --vibrant-indigo: #5856D6;
+    --vibrant-mint: #00C7BE;
+
+    /* Mesh gradient colors */
+    --mesh-1: #667eea;
+    --mesh-2: #764ba2;
+    --mesh-3: #f093fb;
+    --mesh-4: #f5576c;
 }
 
 /* Cosmo Theme (Default Light Theme) - Professional Palette */
@@ -64,13 +92,15 @@
     --shadow-color: rgba(0, 0, 0, 0.12);
     --shadow: rgba(0, 0, 0, 0.12);
 
-    /* Border Radius - Modern Sophisticated Rounding */
-    --radius-sm: 0.5rem;     /* 8px */
-    --radius-md: 0.75rem;    /* 12px */
-    --radius-lg: 1rem;       /* 16px */
-    --radius-xl: 1.25rem;    /* 20px */
-    --radius-2xl: 1.75rem;   /* 28px */
-    --radius-3xl: 2rem;      /* 32px */
+    /* Border Radius - iOS 26 Style (Larger, Softer) */
+    --radius-sm: 0.75rem;    /* 12px */
+    --radius-md: 1rem;       /* 16px */
+    --radius-lg: 1.25rem;    /* 20px */
+    --radius-xl: 1.5rem;     /* 24px */
+    --radius-2xl: 2rem;      /* 32px */
+    --radius-3xl: 2.5rem;    /* 40px */
+    --radius-pill: 9999px;   /* Pill shape */
+    --radius-blob: 40% 60% 60% 40% / 60% 30% 70% 40%; /* Organic blob */
 
     /* Spacing Scale - Perfect Scale (4px base) */
     --spacing-1: 0.25rem;   /* 4px */
@@ -719,29 +749,41 @@ small,
 
    4. LAYOUT (Navbar, Containers, Footer)
 
-/* Professional Navigation Bar - Modern Elevated Design */
+/* iOS 26 Navigation Bar - Translucent Blur Effect */
 .navbar {
     background: linear-gradient(135deg,
-        color-mix(in srgb, var(--primary-color) 96%, transparent),
-        color-mix(in srgb, var(--primary-color) 85%, var(--secondary-color)),
-        color-mix(in srgb, var(--secondary-color) 93%, transparent)) !important;
-    backdrop-filter: blur(32px) saturate(200%);
-    -webkit-backdrop-filter: blur(32px) saturate(200%);
-    box-shadow: var(--shadow-md),
-                0 1px 0 0 rgba(255, 255, 255, 0.08) inset,
-                0 -1px 0 0 rgba(255, 255, 255, 0.03) inset;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
-    padding: 1rem 2.5rem;
+        color-mix(in srgb, var(--vibrant-indigo) 85%, transparent) 0%,
+        color-mix(in srgb, var(--vibrant-purple) 80%, transparent) 50%,
+        color-mix(in srgb, var(--vibrant-blue) 85%, transparent) 100%) !important;
+    backdrop-filter: blur(var(--glass-blur-heavy)) saturate(200%);
+    -webkit-backdrop-filter: blur(var(--glass-blur-heavy)) saturate(200%);
+    box-shadow:
+        0 8px 32px rgba(0, 0, 0, 0.15),
+        0 1px 0 rgba(255, 255, 255, 0.15) inset;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.18);
+    padding: 0.875rem 2rem;
     position: sticky;
     top: 0;
     z-index: 1030;
-    transition: all var(--transition-medium);
+    transition: all 0.4s var(--ease-ios);
+}
+
+/* Subtle animation on scroll */
+.navbar.scrolled {
+    padding: 0.625rem 2rem;
+    background: linear-gradient(135deg,
+        color-mix(in srgb, var(--vibrant-indigo) 92%, transparent) 0%,
+        color-mix(in srgb, var(--vibrant-purple) 88%, transparent) 50%,
+        color-mix(in srgb, var(--vibrant-blue) 92%, transparent) 100%) !important;
+    box-shadow:
+        0 12px 40px rgba(0, 0, 0, 0.2),
+        0 1px 0 rgba(255, 255, 255, 0.2) inset;
 }
 
 .navbar:hover {
-    box-shadow: var(--shadow-lg),
-                0 1px 0 0 rgba(255, 255, 255, 0.12) inset,
-                0 -1px 0 0 rgba(255, 255, 255, 0.05) inset;
+    box-shadow:
+        0 12px 40px rgba(0, 0, 0, 0.18),
+        0 1px 0 rgba(255, 255, 255, 0.2) inset;
 }
 
 .navbar-brand {
@@ -803,39 +845,59 @@ small,
 }
 
 .nav-link {
-    color: rgba(255, 255, 255, 0.92);
+    color: rgba(255, 255, 255, 0.9);
     font-weight: var(--font-weight-medium);
     padding: 0.625rem 1.25rem;
-    border-radius: var(--radius-lg);
-    transition: all var(--ease-fluid);
+    border-radius: var(--radius-pill);
+    transition: all 0.3s var(--ease-spring);
     position: relative;
+    overflow: hidden;
 }
 
+/* Glow effect behind link */
 .nav-link::before {
     content: "";
     position: absolute;
     inset: 0;
-    background: linear-gradient(135deg, rgba(255, 255, 255, 0.15), rgba(255, 255, 255, 0.05));
-    border-radius: var(--radius-lg);
+    background: linear-gradient(135deg,
+        rgba(255, 255, 255, 0.2),
+        rgba(255, 255, 255, 0.05));
+    border-radius: var(--radius-pill);
     opacity: 0;
-    transition: opacity var(--ease-fluid);
+    transition: all 0.3s var(--ease-spring);
+    transform: scale(0.9);
 }
 
 .nav-link:hover::before,
 .nav-link:focus::before {
     opacity: 1;
+    transform: scale(1);
 }
 
 .nav-link:hover,
 .nav-link:focus {
     color: white;
-    transform: translateY(-1px);
+    transform: translateY(-2px);
 }
 
+/* iOS-style pill active state */
 .nav-link.active {
     color: white;
-    background: rgba(255, 255, 255, 0.22);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    background: linear-gradient(135deg,
+        rgba(255, 255, 255, 0.25) 0%,
+        rgba(255, 255, 255, 0.15) 100%);
+    box-shadow:
+        0 4px 12px rgba(0, 0, 0, 0.15),
+        0 0 0 1px rgba(255, 255, 255, 0.2) inset;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+}
+
+.nav-link.active:hover {
+    transform: translateY(-2px) scale(1.02);
+    box-shadow:
+        0 6px 20px rgba(0, 0, 0, 0.2),
+        0 0 0 1px rgba(255, 255, 255, 0.25) inset;
 }
 
 /* Light theme navbar adjustments - use dark text on light backgrounds */
@@ -1143,60 +1205,116 @@ footer a:hover {
 
    5. COMPONENTS (Cards, Buttons, Forms, Tables, etc.)
 
-/* Professional Card Design - Modern Elevated Style */
+/* iOS 26 Floating Island Cards */
 .card {
-    background: var(--surface-color);
-    border: 1px solid var(--border-color);
+    background: linear-gradient(
+        180deg,
+        var(--surface-color) 0%,
+        color-mix(in srgb, var(--surface-color) 98%, var(--primary-color)) 100%
+    );
+    border: 1px solid color-mix(in srgb, var(--border-color) 50%, transparent);
     border-radius: var(--radius-2xl);
-    box-shadow: var(--shadow-md), 0 0 0 1px rgba(255, 255, 255, 0.03) inset;
+    box-shadow:
+        0 4px 20px rgba(0, 0, 0, 0.08),
+        0 8px 32px rgba(0, 0, 0, 0.04),
+        0 0 0 1px rgba(255, 255, 255, 0.05) inset;
     margin-bottom: var(--spacing-6);
-    transition: all var(--ease-fluid);
+    transition: all 0.4s var(--ease-spring);
     overflow: hidden;
     position: relative;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
 }
 
+/* Gradient accent line at top */
 .card::before {
     content: "";
     position: absolute;
     top: 0;
     left: 0;
     right: 0;
-    height: 2px;
+    height: 3px;
     background: linear-gradient(90deg,
-        transparent,
-        color-mix(in srgb, var(--primary-color) 40%, rgba(255, 255, 255, 0.6)),
-        color-mix(in srgb, var(--secondary-color) 40%, rgba(255, 255, 255, 0.6)),
-        transparent);
+        var(--vibrant-blue),
+        var(--vibrant-purple),
+        var(--vibrant-pink),
+        var(--vibrant-orange));
     opacity: 0;
-    transition: opacity var(--ease-fluid);
+    transition: opacity 0.4s var(--ease-spring);
+}
+
+/* Animated glow effect */
+.card::after {
+    content: "";
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(
+        circle at center,
+        color-mix(in srgb, var(--vibrant-blue) 5%, transparent) 0%,
+        transparent 50%
+    );
+    opacity: 0;
+    transition: opacity 0.6s var(--ease-ios);
+    pointer-events: none;
+    z-index: 0;
 }
 
 .card:hover {
-    transform: translateY(-4px) scale(1.005);
-    box-shadow: var(--shadow-xl),
-                0 0 0 1px rgba(255, 255, 255, 0.06) inset,
-                0 0 32px color-mix(in srgb, var(--primary-color) 8%, transparent);
-    border-color: color-mix(in srgb, var(--primary-color) 35%, var(--border-color));
+    transform: translateY(-8px) scale(1.01);
+    box-shadow:
+        0 12px 40px rgba(0, 0, 0, 0.12),
+        0 20px 60px color-mix(in srgb, var(--vibrant-blue) 10%, transparent),
+        0 0 0 1px rgba(255, 255, 255, 0.1) inset;
+    border-color: color-mix(in srgb, var(--vibrant-blue) 30%, transparent);
 }
 
 .card:hover::before {
     opacity: 1;
 }
 
+.card:hover::after {
+    opacity: 1;
+}
+
 .card-header {
     background: linear-gradient(135deg,
-        var(--primary-color) 0%,
-        color-mix(in srgb, var(--primary-color) 90%, var(--secondary-color)) 35%,
-        color-mix(in srgb, var(--primary-color) 75%, var(--secondary-color)) 65%,
-        var(--secondary-color) 100%);
+        var(--vibrant-blue) 0%,
+        var(--vibrant-indigo) 50%,
+        var(--vibrant-purple) 100%);
     color: white;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
-    padding: 1.125rem 1.75rem;
+    border-bottom: none;
+    padding: 1.25rem 1.75rem;
     font-weight: var(--font-weight-semibold);
     font-size: var(--font-size-base);
     letter-spacing: 0.015em;
     position: relative;
     overflow: hidden;
+    z-index: 1;
+}
+
+/* Shimmer effect on card header */
+.card-header::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(
+        90deg,
+        transparent,
+        rgba(255, 255, 255, 0.15),
+        transparent
+    );
+    animation: cardHeaderShimmer 3s ease-in-out infinite;
+}
+
+@keyframes cardHeaderShimmer {
+    0%, 100% { left: -100%; }
+    50% { left: 100%; }
 }
 
 .card-header::after {
@@ -1207,7 +1325,7 @@ footer a:hover {
     width: 120%;
     height: 200%;
     background: radial-gradient(ellipse at top right,
-        rgba(255, 255, 255, 0.18),
+        rgba(255, 255, 255, 0.2),
         rgba(255, 255, 255, 0.08) 40%,
         transparent 70%);
     pointer-events: none;
@@ -1267,106 +1385,242 @@ footer a:hover {
     padding: 0.75rem 1.25rem;
 }
 
-/* Glass Effect Cards - Enhanced Glassmorphism */
+/* iOS 26 Glassmorphism - Frosted Glass Effect */
 .card.glass-effect,
-.glass-panel {
-    background: color-mix(in srgb, var(--surface-color) 92%, transparent);
-    backdrop-filter: blur(32px) saturate(200%);
-    -webkit-backdrop-filter: blur(32px) saturate(200%);
-    border: 1px solid color-mix(in srgb, var(--border-color) 60%, transparent);
+.glass-panel,
+.glass {
+    background: linear-gradient(
+        135deg,
+        color-mix(in srgb, var(--surface-color) 85%, transparent) 0%,
+        color-mix(in srgb, var(--surface-color) 70%, transparent) 100%
+    );
+    backdrop-filter: blur(var(--glass-blur-heavy)) saturate(var(--glass-saturation));
+    -webkit-backdrop-filter: blur(var(--glass-blur-heavy)) saturate(var(--glass-saturation));
+    border: 1px solid rgba(255, 255, 255, 0.2);
     box-shadow:
-        var(--shadow-xl),
-        0 0 0 1px rgba(255, 255, 255, 0.08) inset,
-        0 0 24px color-mix(in srgb, var(--primary-color) 4%, transparent);
+        0 8px 32px rgba(0, 0, 0, 0.12),
+        0 0 0 1px rgba(255, 255, 255, 0.1) inset,
+        0 -1px 0 rgba(255, 255, 255, 0.15) inset;
 }
 
-/* Gradient Stat Cards - Modern Vibrant Statistics */
+/* Glass variants */
+.glass-light {
+    background: rgba(255, 255, 255, 0.65);
+    backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation));
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation));
+    border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.glass-dark {
+    background: rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation));
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation));
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.glass-vibrant {
+    background: linear-gradient(
+        135deg,
+        color-mix(in srgb, var(--vibrant-blue) 15%, transparent) 0%,
+        color-mix(in srgb, var(--vibrant-purple) 15%, transparent) 50%,
+        color-mix(in srgb, var(--vibrant-pink) 15%, transparent) 100%
+    );
+    backdrop-filter: blur(var(--glass-blur-heavy)) saturate(200%);
+    -webkit-backdrop-filter: blur(var(--glass-blur-heavy)) saturate(200%);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+/* iOS 26 Stat Cards - Vibrant Mesh Gradient Style */
 .stat-card,
 .card-stat-gradient {
     background: linear-gradient(135deg,
-        var(--primary-color) 0%,
-        color-mix(in srgb, var(--primary-color) 85%, var(--info-color)) 50%,
-        var(--info-color) 100%);
+        var(--vibrant-blue) 0%,
+        var(--vibrant-indigo) 35%,
+        var(--vibrant-purple) 65%,
+        var(--vibrant-pink) 100%);
     color: white;
     padding: 1.75rem;
-    border-radius: var(--radius-xl);
+    border-radius: var(--radius-2xl);
     text-align: center;
     border: none;
-    box-shadow: var(--shadow-lg),
-                0 0 0 1px rgba(255, 255, 255, 0.1) inset;
-    transition: all var(--ease-fluid);
+    box-shadow:
+        0 8px 32px color-mix(in srgb, var(--vibrant-blue) 25%, transparent),
+        0 4px 12px rgba(0, 0, 0, 0.1),
+        0 0 0 1px rgba(255, 255, 255, 0.15) inset;
+    transition: all 0.4s var(--ease-spring);
     position: relative;
     overflow: hidden;
 }
 
+/* Animated gradient shimmer */
 .stat-card::before,
 .card-stat-gradient::before {
     content: "";
     position: absolute;
+    top: 0;
+    left: -100%;
+    width: 200%;
+    height: 100%;
+    background: linear-gradient(
+        90deg,
+        transparent 0%,
+        rgba(255, 255, 255, 0.1) 25%,
+        rgba(255, 255, 255, 0.3) 50%,
+        rgba(255, 255, 255, 0.1) 75%,
+        transparent 100%
+    );
+    animation: statShimmer 3s ease-in-out infinite;
+    pointer-events: none;
+}
+
+@keyframes statShimmer {
+    0% { left: -100%; }
+    100% { left: 100%; }
+}
+
+/* Glow orb effect */
+.stat-card::after,
+.card-stat-gradient::after {
+    content: "";
+    position: absolute;
     top: -50%;
     right: -30%;
-    width: 100%;
-    height: 200%;
-    background: radial-gradient(circle, rgba(255, 255, 255, 0.15), transparent 60%);
+    width: 120%;
+    height: 150%;
+    background: radial-gradient(circle,
+        rgba(255, 255, 255, 0.2) 0%,
+        transparent 60%);
     pointer-events: none;
+    transition: all 0.6s var(--ease-ios);
 }
 
 .stat-card:hover,
 .card-stat-gradient:hover {
-    transform: translateY(-6px) scale(1.02);
-    box-shadow: var(--shadow-2xl),
-                0 0 0 1px rgba(255, 255, 255, 0.15) inset,
-                0 0 32px color-mix(in srgb, var(--primary-color) 20%, transparent);
+    transform: translateY(-8px) scale(1.02) rotateX(2deg);
+    box-shadow:
+        0 20px 50px color-mix(in srgb, var(--vibrant-purple) 35%, transparent),
+        0 8px 20px rgba(0, 0, 0, 0.15),
+        0 0 0 1px rgba(255, 255, 255, 0.2) inset;
 }
 
-/* Gradient variants for stat cards */
+.stat-card:hover::after,
+.card-stat-gradient:hover::after {
+    transform: scale(1.2) translate(-10%, 10%);
+}
+
+/* Vibrant gradient variants for stat cards */
 .stat-card-success,
 .card.bg-success-gradient {
-    background: linear-gradient(135deg, var(--success-color), color-mix(in srgb, var(--success-color) 80%, var(--info-color))) !important;
+    background: linear-gradient(135deg,
+        var(--vibrant-green) 0%,
+        var(--vibrant-mint) 50%,
+        var(--vibrant-teal) 100%) !important;
+    box-shadow:
+        0 8px 32px color-mix(in srgb, var(--vibrant-green) 30%, transparent),
+        0 4px 12px rgba(0, 0, 0, 0.1),
+        0 0 0 1px rgba(255, 255, 255, 0.15) inset;
     color: white;
 }
 
 .stat-card-warning,
 .card.bg-warning-gradient {
-    background: linear-gradient(135deg, var(--warning-color), color-mix(in srgb, var(--warning-color) 80%, var(--secondary-color))) !important;
-    color: white;
+    background: linear-gradient(135deg,
+        var(--vibrant-orange) 0%,
+        var(--vibrant-yellow) 50%,
+        #FFD60A 100%) !important;
+    box-shadow:
+        0 8px 32px color-mix(in srgb, var(--vibrant-orange) 30%, transparent),
+        0 4px 12px rgba(0, 0, 0, 0.1),
+        0 0 0 1px rgba(255, 255, 255, 0.15) inset;
+    color: #1a1a1a;
 }
 
 .stat-card-danger,
 .card.bg-danger-gradient {
-    background: linear-gradient(135deg, var(--danger-color), color-mix(in srgb, var(--danger-color) 80%, var(--secondary-color))) !important;
+    background: linear-gradient(135deg,
+        var(--vibrant-red) 0%,
+        #FF6B6B 50%,
+        var(--vibrant-pink) 100%) !important;
+    box-shadow:
+        0 8px 32px color-mix(in srgb, var(--vibrant-red) 30%, transparent),
+        0 4px 12px rgba(0, 0, 0, 0.1),
+        0 0 0 1px rgba(255, 255, 255, 0.15) inset;
     color: white;
 }
 
 .stat-card-info,
 .card.bg-info-gradient {
-    background: linear-gradient(135deg, var(--info-color), color-mix(in srgb, var(--info-color) 80%, var(--primary-color))) !important;
+    background: linear-gradient(135deg,
+        var(--vibrant-teal) 0%,
+        var(--vibrant-blue) 50%,
+        var(--vibrant-indigo) 100%) !important;
+    box-shadow:
+        0 8px 32px color-mix(in srgb, var(--vibrant-teal) 30%, transparent),
+        0 4px 12px rgba(0, 0, 0, 0.1),
+        0 0 0 1px rgba(255, 255, 255, 0.15) inset;
     color: white;
 }
 
-/* Professional Button System - Modern Elevated Design */
+.stat-card-purple,
+.card.bg-purple-gradient {
+    background: linear-gradient(135deg,
+        var(--vibrant-purple) 0%,
+        var(--vibrant-indigo) 50%,
+        var(--vibrant-blue) 100%) !important;
+    box-shadow:
+        0 8px 32px color-mix(in srgb, var(--vibrant-purple) 30%, transparent),
+        0 4px 12px rgba(0, 0, 0, 0.1),
+        0 0 0 1px rgba(255, 255, 255, 0.15) inset;
+    color: white;
+}
+
+/* iOS 26 Button System - Vibrant & Tactile */
 .btn {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: 0.5rem;
-    padding: 0.75rem 1.5rem;
+    padding: 0.875rem 1.75rem;
     font-weight: var(--font-weight-semibold);
     font-size: var(--font-size-sm);
     text-align: center;
-    line-height: 1.5;
-    border-radius: var(--radius-lg);
-    border: 1px solid transparent;
+    line-height: 1.4;
+    border-radius: var(--radius-xl);
+    border: none;
     cursor: pointer;
-    transition: all var(--ease-fluid);
+    transition: all 0.3s var(--ease-spring);
     text-decoration: none;
     white-space: nowrap;
     position: relative;
     overflow: hidden;
-    letter-spacing: 0.01em;
+    letter-spacing: 0.02em;
+    transform-style: preserve-3d;
+    backface-visibility: hidden;
 }
 
+/* Shimmer effect on hover */
 .btn::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(
+        90deg,
+        transparent,
+        rgba(255, 255, 255, 0.3),
+        transparent
+    );
+    transition: left 0.5s var(--ease-ios);
+}
+
+.btn:hover::before {
+    left: 100%;
+}
+
+/* Ripple effect on click */
+.btn::after {
     content: "";
     position: absolute;
     top: 50%;
@@ -1374,85 +1628,167 @@ footer a:hover {
     width: 0;
     height: 0;
     border-radius: 50%;
-    background: radial-gradient(circle, rgba(255, 255, 255, 0.25), rgba(255, 255, 255, 0.1));
+    background: rgba(255, 255, 255, 0.4);
     transform: translate(-50%, -50%);
-    transition: width 0.6s ease, height 0.6s ease;
+    transition: width 0.4s var(--ease-spring), height 0.4s var(--ease-spring), opacity 0.4s;
+    opacity: 0;
 }
 
-.btn:active::before {
-    width: 300px;
-    height: 300px;
-    transition: width 0s, height 0s;
+.btn:active::after {
+    width: 200px;
+    height: 200px;
+    opacity: 0;
+    transition: width 0s, height 0s, opacity 0.4s;
 }
 
 .btn-primary {
     background: linear-gradient(135deg,
-        var(--primary-color) 0%,
-        color-mix(in srgb, var(--primary-color) 92%, var(--secondary-color)) 50%,
-        color-mix(in srgb, var(--primary-color) 80%, var(--secondary-color)) 100%);
+        var(--vibrant-blue) 0%,
+        var(--vibrant-indigo) 50%,
+        var(--vibrant-purple) 100%);
     color: white;
-    border-color: transparent;
-    box-shadow: var(--shadow-md),
-                0 1px 0 0 rgba(255, 255, 255, 0.1) inset;
+    box-shadow:
+        0 4px 15px color-mix(in srgb, var(--vibrant-blue) 40%, transparent),
+        0 2px 4px rgba(0, 0, 0, 0.1),
+        0 1px 0 rgba(255, 255, 255, 0.2) inset;
 }
 
 .btn-primary:hover {
-    transform: translateY(-2px) scale(1.02);
-    box-shadow: var(--shadow-lg),
-                0 1px 0 0 rgba(255, 255, 255, 0.15) inset,
-                0 0 20px color-mix(in srgb, var(--primary-color) 30%, transparent);
-    background: linear-gradient(135deg,
-        color-mix(in srgb, var(--primary-color) 95%, #000) 0%,
-        color-mix(in srgb, var(--primary-color) 88%, var(--secondary-color)) 50%,
-        color-mix(in srgb, var(--primary-color) 75%, var(--secondary-color)) 100%);
+    transform: translateY(-3px) scale(1.02);
+    box-shadow:
+        0 8px 25px color-mix(in srgb, var(--vibrant-blue) 50%, transparent),
+        0 4px 8px rgba(0, 0, 0, 0.15),
+        0 1px 0 rgba(255, 255, 255, 0.3) inset;
+    filter: brightness(1.05);
 }
 
 .btn-primary:active {
-    transform: translateY(0) scale(0.98);
-    box-shadow: var(--shadow-sm),
-                0 1px 0 0 rgba(255, 255, 255, 0.08) inset;
+    transform: translateY(-1px) scale(0.98);
+    box-shadow:
+        0 2px 8px color-mix(in srgb, var(--vibrant-blue) 30%, transparent),
+        0 1px 2px rgba(0, 0, 0, 0.1);
+    filter: brightness(0.95);
 }
 
 .btn-secondary {
-    background-color: var(--secondary-color);
-    border-color: var(--secondary-color);
+    background: linear-gradient(135deg,
+        var(--vibrant-purple) 0%,
+        var(--vibrant-pink) 100%);
     color: white;
+    box-shadow: 0 4px 15px color-mix(in srgb, var(--vibrant-purple) 40%, transparent);
+}
+
+.btn-secondary:hover {
+    transform: translateY(-3px) scale(1.02);
+    box-shadow: 0 8px 25px color-mix(in srgb, var(--vibrant-purple) 50%, transparent);
+    filter: brightness(1.05);
 }
 
 .btn-success {
-    background-color: var(--success-color);
-    border-color: var(--success-color);
+    background: linear-gradient(135deg,
+        var(--vibrant-green) 0%,
+        var(--vibrant-mint) 100%);
     color: white;
+    box-shadow: 0 4px 15px color-mix(in srgb, var(--vibrant-green) 40%, transparent);
+}
+
+.btn-success:hover {
+    transform: translateY(-3px) scale(1.02);
+    box-shadow: 0 8px 25px color-mix(in srgb, var(--vibrant-green) 50%, transparent);
+    filter: brightness(1.05);
 }
 
 .btn-danger {
-    background-color: var(--danger-color);
-    border-color: var(--danger-color);
+    background: linear-gradient(135deg,
+        var(--vibrant-red) 0%,
+        var(--vibrant-pink) 100%);
     color: white;
+    box-shadow: 0 4px 15px color-mix(in srgb, var(--vibrant-red) 40%, transparent);
+}
+
+.btn-danger:hover {
+    transform: translateY(-3px) scale(1.02);
+    box-shadow: 0 8px 25px color-mix(in srgb, var(--vibrant-red) 50%, transparent);
+    filter: brightness(1.05);
 }
 
 .btn-warning {
-    background-color: var(--warning-color);
-    border-color: var(--warning-color);
-    color: var(--text-color);
+    background: linear-gradient(135deg,
+        var(--vibrant-orange) 0%,
+        var(--vibrant-yellow) 100%);
+    color: #1a1a1a;
+    box-shadow: 0 4px 15px color-mix(in srgb, var(--vibrant-orange) 40%, transparent);
+}
+
+.btn-warning:hover {
+    transform: translateY(-3px) scale(1.02);
+    box-shadow: 0 8px 25px color-mix(in srgb, var(--vibrant-orange) 50%, transparent);
+    filter: brightness(1.05);
 }
 
 .btn-info {
-    background-color: var(--info-color);
-    border-color: var(--info-color);
+    background: linear-gradient(135deg,
+        var(--vibrant-teal) 0%,
+        var(--vibrant-blue) 100%);
     color: white;
+    box-shadow: 0 4px 15px color-mix(in srgb, var(--vibrant-teal) 40%, transparent);
+}
+
+.btn-info:hover {
+    transform: translateY(-3px) scale(1.02);
+    box-shadow: 0 8px 25px color-mix(in srgb, var(--vibrant-teal) 50%, transparent);
+    filter: brightness(1.05);
 }
 
 .btn-light {
-    background-color: var(--light-color);
-    border-color: var(--border-color);
+    background: linear-gradient(135deg,
+        rgba(255, 255, 255, 0.9) 0%,
+        rgba(245, 245, 247, 0.95) 100%);
     color: var(--text-color);
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.btn-light:hover {
+    transform: translateY(-3px) scale(1.02);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+    background: linear-gradient(135deg,
+        rgba(255, 255, 255, 1) 0%,
+        rgba(250, 250, 252, 1) 100%);
 }
 
 .btn-dark {
-    background-color: var(--dark-color);
-    border-color: var(--dark-color);
+    background: linear-gradient(135deg,
+        #1a1a1a 0%,
+        #2d2d2d 100%);
     color: white;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+}
+
+.btn-dark:hover {
+    transform: translateY(-3px) scale(1.02);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4);
+    filter: brightness(1.1);
+}
+
+/* Pill-shaped button variant */
+.btn-pill {
+    border-radius: var(--radius-pill) !important;
+    padding: 0.875rem 2rem;
+}
+
+/* Outline button variants with glass effect */
+.btn-outline-primary {
+    background: transparent;
+    border: 2px solid var(--vibrant-blue);
+    color: var(--vibrant-blue);
+    box-shadow: none;
+}
+
+.btn-outline-primary:hover {
+    background: var(--vibrant-blue);
+    color: white;
+    box-shadow: 0 8px 25px color-mix(in srgb, var(--vibrant-blue) 40%, transparent);
 }
 
 /* Button Liquid Effect */
@@ -2698,103 +3034,551 @@ textarea:focus {
 }
 
 
-   13. RESPONSIVE DESIGN
+   13. RESPONSIVE DESIGN - iOS 26 Mobile-First Approach
 
-/* Tablet (768px and below) */
-@media (max-width: 768px) {
-    html {
-        font-size: 14px;
-    }
-
+/* ========================================
+   LARGE DESKTOP (1400px and above)
+   ======================================== */
+@media (min-width: 1400px) {
     .container {
-        padding: 1rem;
+        max-width: 1400px;
     }
 
-    .navbar {
-        padding: 0.5rem 1rem;
-    }
+    h1, .h1 { font-size: 3.5rem; }
+    h2, .h2 { font-size: 2.75rem; }
 
     .page-header {
-        padding: 1.5rem 1rem;
-    }
-
-    h1, .h1 { font-size: 2rem; }
-    h2, .h2 { font-size: 1.75rem; }
-    h3, .h3 { font-size: 1.5rem; }
-
-    .card {
-        margin-bottom: 1rem;
-    }
-
-    .btn {
-        padding: 0.4rem 1rem;
-        font-size: var(--font-size-sm);
-    }
-
-    /* Hide heavy animations on mobile */
-    .orb,
-    .card-3d:hover,
-    .logo-wordmark::after {
-        display: none;
-    }
-
-    #map {
-        border-radius: var(--radius-md);
-    }
-
-    /* Simplify effects */
-    .card-3d:hover {
-        transform: translateY(-4px) scale(1.02);
-    }
-
-    /* Stack flex items */
-    .d-flex {
-        flex-direction: column;
+        padding: 3rem 3.5rem;
     }
 }
 
-/* Mobile (576px and below) */
-@media (max-width: 576px) {
-    html {
-        font-size: 13px;
+/* ========================================
+   DESKTOP (1200px and above)
+   ======================================== */
+@media (min-width: 1200px) {
+    .container {
+        max-width: 1320px;
+    }
+
+    h1, .h1 { font-size: 3rem; }
+    h2, .h2 { font-size: 2.5rem; }
+}
+
+/* ========================================
+   TABLET LANDSCAPE (992px and below)
+   ======================================== */
+@media (max-width: 991.98px) {
+    :root {
+        --glass-blur: 20px;
+        --glass-blur-heavy: 32px;
     }
 
     .container,
     .container-fluid {
-        padding: 0.75rem;
+        padding-left: 1.25rem;
+        padding-right: 1.25rem;
+    }
+
+    .navbar {
+        padding: 0.75rem 1.25rem;
+    }
+
+    .page-header {
+        padding: 1.75rem 1.5rem;
+        margin-bottom: 1.75rem;
+        border-radius: var(--radius-xl);
+    }
+
+    h1, .h1 { font-size: 2.25rem; }
+    h2, .h2 { font-size: 1.875rem; }
+    h3, .h3 { font-size: 1.5rem; }
+
+    /* Grid adjustments */
+    .stats-grid,
+    .content-grid-3 {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .content-grid-4 {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+/* ========================================
+   TABLET PORTRAIT (768px and below)
+   ======================================== */
+@media (max-width: 767.98px) {
+    html {
+        font-size: 15px;
+    }
+
+    :root {
+        --radius-sm: 0.625rem;
+        --radius-md: 0.875rem;
+        --radius-lg: 1rem;
+        --radius-xl: 1.25rem;
+        --radius-2xl: 1.5rem;
+    }
+
+    .container,
+    .container-fluid {
+        padding-left: 1rem;
+        padding-right: 1rem;
+    }
+
+    /* iOS-style floating navbar on tablet */
+    .navbar {
+        padding: 0.625rem 1rem;
+        margin: 0.5rem;
+        border-radius: var(--radius-2xl);
+        position: sticky;
+        top: 0.5rem;
+    }
+
+    .navbar-brand .logo-wordmark,
+    .navbar-brand .brand-logo {
+        height: 50px;
+    }
+
+    /* Hamburger menu styling */
+    .navbar-toggler {
+        border: none;
+        padding: 0.5rem;
+        border-radius: var(--radius-lg);
+        background: rgba(255, 255, 255, 0.15);
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+    }
+
+    .navbar-toggler:focus {
+        box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.25);
+    }
+
+    .navbar-collapse {
+        background: linear-gradient(135deg,
+            color-mix(in srgb, var(--vibrant-indigo) 90%, transparent),
+            color-mix(in srgb, var(--vibrant-purple) 85%, transparent));
+        backdrop-filter: blur(var(--glass-blur-heavy));
+        -webkit-backdrop-filter: blur(var(--glass-blur-heavy));
+        margin-top: 0.75rem;
+        padding: 1rem;
+        border-radius: var(--radius-xl);
+        border: 1px solid rgba(255, 255, 255, 0.15);
+    }
+
+    .nav-link {
+        padding: 0.875rem 1.25rem;
+        margin-bottom: 0.25rem;
+    }
+
+    .page-header {
+        padding: 1.5rem 1.25rem;
+        margin-bottom: 1.5rem;
+        border-radius: var(--radius-xl);
+    }
+
+    .page-header h1,
+    .page-header .page-title {
+        font-size: 1.5rem;
+    }
+
+    h1, .h1 { font-size: 2rem; }
+    h2, .h2 { font-size: 1.625rem; }
+    h3, .h3 { font-size: 1.375rem; }
+    h4, .h4 { font-size: 1.125rem; }
+
+    /* Card adjustments */
+    .card {
+        margin-bottom: 1rem;
+        border-radius: var(--radius-xl);
+    }
+
+    .card:hover {
+        transform: translateY(-4px) scale(1.005);
+    }
+
+    .card-header {
+        padding: 1rem 1.25rem;
+    }
+
+    .card-body {
+        padding: 1.25rem;
+    }
+
+    /* Button sizing */
+    .btn {
+        padding: 0.75rem 1.25rem;
+        font-size: 0.9375rem;
+        border-radius: var(--radius-lg);
+    }
+
+    .btn-lg {
+        padding: 0.875rem 1.5rem;
+    }
+
+    .btn-sm {
+        padding: 0.5rem 1rem;
+        font-size: 0.8125rem;
+    }
+
+    /* Hide heavy animations */
+    .orb,
+    .card-3d:hover,
+    .logo-wordmark::after,
+    .card-header::before {
+        display: none !important;
+        animation: none !important;
+    }
+
+    #map {
+        border-radius: var(--radius-lg);
+        min-height: 300px;
+    }
+
+    /* Grid to single/double column */
+    .stats-grid,
+    .content-grid-3,
+    .content-grid-4 {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 0.875rem;
+    }
+
+    /* Footer adjustments */
+    footer {
+        padding: 2rem 0;
+        margin-top: 3rem;
+    }
+
+    .footer-content .row {
+        text-align: center;
+    }
+
+    .tech-stack-badges {
+        gap: 0.5rem !important;
+    }
+
+    .tech-stack-badges img {
+        height: 18px !important;
+    }
+}
+
+/* ========================================
+   MOBILE LARGE (576px and below)
+   ======================================== */
+@media (max-width: 575.98px) {
+    html {
+        font-size: 14px;
+    }
+
+    :root {
+        --radius-sm: 0.5rem;
+        --radius-md: 0.75rem;
+        --radius-lg: 0.875rem;
+        --radius-xl: 1rem;
+        --radius-2xl: 1.25rem;
+    }
+
+    .container,
+    .container-fluid {
+        padding-left: 0.875rem;
+        padding-right: 0.875rem;
     }
 
     .page-shell {
-        padding: 1rem 0;
+        padding: 0.75rem 0 2rem;
+    }
+
+    /* Floating pill navbar on mobile */
+    .navbar {
+        margin: 0.375rem;
+        padding: 0.5rem 0.875rem;
+        border-radius: var(--radius-2xl);
+    }
+
+    .navbar-brand {
+        padding: 0.25rem 0.5rem;
+        margin-right: 0.5rem;
+    }
+
+    .navbar-brand .logo-wordmark,
+    .navbar-brand .brand-logo {
+        height: 42px;
+    }
+
+    .page-header {
+        padding: 1.25rem 1rem;
+        margin-bottom: 1.25rem;
+        margin-left: -0.125rem;
+        margin-right: -0.125rem;
+        border-radius: var(--radius-lg);
+    }
+
+    .page-header h1,
+    .page-header .page-title {
+        font-size: 1.375rem;
+    }
+
+    .page-header .page-subtitle {
+        font-size: 0.875rem;
+    }
+
+    h1, .h1 { font-size: 1.75rem; }
+    h2, .h2 { font-size: 1.5rem; }
+    h3, .h3 { font-size: 1.25rem; }
+    h4, .h4 { font-size: 1.125rem; }
+    h5, .h5 { font-size: 1rem; }
+
+    .card {
+        margin-bottom: 0.875rem;
+        border-radius: var(--radius-lg);
+    }
+
+    .card:hover {
+        transform: translateY(-2px);
+    }
+
+    .card-header {
+        padding: 0.875rem 1rem;
+        font-size: 0.9375rem;
     }
 
     .card-body {
         padding: 1rem;
     }
 
+    .card-footer {
+        padding: 0.75rem 1rem;
+    }
+
+    /* Full-width buttons on mobile */
     .btn {
         width: 100%;
+        padding: 0.875rem 1rem;
+        font-size: 1rem;
+        border-radius: var(--radius-lg);
         margin-bottom: 0.5rem;
     }
 
+    .btn-group .btn {
+        width: auto;
+        margin-bottom: 0;
+    }
+
+    /* Inline button option */
+    .btn-inline {
+        width: auto !important;
+        display: inline-flex !important;
+    }
+
+    /* Side-by-side buttons */
+    .btn-row {
+        display: flex;
+        gap: 0.5rem;
+    }
+
+    .btn-row .btn {
+        flex: 1;
+        margin-bottom: 0;
+    }
+
+    /* Single column grid */
+    .stats-grid,
+    .content-grid-2,
+    .content-grid-3,
+    .content-grid-4 {
+        grid-template-columns: 1fr;
+        gap: 0.75rem;
+    }
+
     .table {
-        font-size: var(--font-size-sm);
+        font-size: 0.875rem;
+    }
+
+    .table th,
+    .table td {
+        padding: 0.625rem 0.5rem;
     }
 
     .badge {
-        font-size: 0.7rem;
-        padding: 0.25em 0.5em;
+        font-size: 0.75rem;
+        padding: 0.375em 0.625em;
+        border-radius: var(--radius-sm);
+    }
+
+    /* Form inputs */
+    .form-control,
+    .form-select {
+        padding: 0.75rem 1rem;
+        font-size: 1rem;
+        border-radius: var(--radius-lg);
+    }
+
+    .form-label {
+        font-size: 0.9375rem;
+        margin-bottom: 0.375rem;
+    }
+
+    /* Footer mobile */
+    footer {
+        padding: 1.5rem 0;
+        margin-top: 2.5rem;
+    }
+
+    .footer-links {
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+
+    .footer-links .text-muted {
+        display: none;
+    }
+
+    .tech-stack-badges {
+        display: none !important;
+    }
+
+    .footer-disclaimer {
+        font-size: 0.75rem;
+        padding: 0 0.5rem;
     }
 }
 
-/* Desktop (1200px and above) */
-@media (min-width: 1200px) {
-    .container {
-        max-width: 1400px;
+/* ========================================
+   MOBILE SMALL (400px and below)
+   ======================================== */
+@media (max-width: 399.98px) {
+    html {
+        font-size: 13px;
     }
 
-    h1, .h1 { font-size: 3rem; }
-    h2, .h2 { font-size: 2.5rem; }
+    .container,
+    .container-fluid {
+        padding-left: 0.625rem;
+        padding-right: 0.625rem;
+    }
+
+    .navbar {
+        margin: 0.25rem;
+        padding: 0.375rem 0.625rem;
+    }
+
+    .navbar-brand .logo-wordmark,
+    .navbar-brand .brand-logo {
+        height: 36px;
+    }
+
+    .page-header {
+        padding: 1rem 0.875rem;
+    }
+
+    .page-header h1,
+    .page-header .page-title {
+        font-size: 1.25rem;
+    }
+
+    h1, .h1 { font-size: 1.5rem; }
+    h2, .h2 { font-size: 1.375rem; }
+    h3, .h3 { font-size: 1.125rem; }
+
+    .card-header {
+        padding: 0.75rem 0.875rem;
+    }
+
+    .card-body {
+        padding: 0.875rem;
+    }
+}
+
+/* ========================================
+   TOUCH DEVICE OPTIMIZATIONS
+   ======================================== */
+@media (hover: none) and (pointer: coarse) {
+    /* Larger touch targets */
+    .btn {
+        min-height: 44px;
+        min-width: 44px;
+    }
+
+    .nav-link {
+        min-height: 44px;
+        display: flex;
+        align-items: center;
+    }
+
+    /* Remove hover effects that don't work on touch */
+    .card:hover {
+        transform: none;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08),
+            0 8px 32px rgba(0, 0, 0, 0.04);
+    }
+
+    .btn:hover {
+        transform: none;
+        filter: none;
+    }
+
+    /* Active states for touch feedback */
+    .btn:active {
+        transform: scale(0.97);
+        filter: brightness(0.95);
+    }
+
+    .card:active {
+        transform: scale(0.99);
+    }
+
+    .nav-link:active {
+        transform: scale(0.98);
+        background: rgba(255, 255, 255, 0.2);
+    }
+}
+
+/* ========================================
+   LANDSCAPE PHONE OPTIMIZATION
+   ======================================== */
+@media (max-height: 500px) and (orientation: landscape) {
+    .navbar {
+        padding: 0.375rem 1rem;
+    }
+
+    .navbar-brand .logo-wordmark,
+    .navbar-brand .brand-logo {
+        height: 36px;
+    }
+
+    .page-header {
+        padding: 1rem 1.25rem;
+        margin-bottom: 1rem;
+    }
+
+    .page-header h1,
+    .page-header .page-title {
+        font-size: 1.25rem;
+    }
+
+    footer {
+        padding: 1rem 0;
+    }
+}
+
+/* ========================================
+   SAFE AREA INSETS (iPhone X+, etc.)
+   ======================================== */
+@supports (padding: max(0px)) {
+    .navbar {
+        padding-left: max(1rem, env(safe-area-inset-left));
+        padding-right: max(1rem, env(safe-area-inset-right));
+    }
+
+    .container,
+    .container-fluid {
+        padding-left: max(0.875rem, env(safe-area-inset-left));
+        padding-right: max(0.875rem, env(safe-area-inset-right));
+    }
+
+    footer {
+        padding-bottom: max(1.5rem, env(safe-area-inset-bottom));
+    }
 }
 
 /* Print Styles - Pure black/white for optimal printer output */
@@ -3037,6 +3821,381 @@ textarea:focus {
 .parallax-bg {
     will-change: transform;
     transform: translateZ(0);
+}
+
+
+/* ============================================================================
+   iOS 26 UTILITY CLASSES & MICRO-INTERACTIONS
+   ============================================================================ */
+
+/* === ANIMATION UTILITIES === */
+
+/* Spring bounce animation */
+@keyframes springBounce {
+    0% { transform: scale(0.95); opacity: 0; }
+    50% { transform: scale(1.02); }
+    100% { transform: scale(1); opacity: 1; }
+}
+
+.animate-spring {
+    animation: springBounce 0.5s var(--ease-spring) forwards;
+}
+
+/* Fade in up animation */
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.animate-fade-in-up {
+    animation: fadeInUp 0.6s var(--ease-ios) forwards;
+}
+
+/* Pulse glow animation */
+@keyframes pulseGlow {
+    0%, 100% {
+        box-shadow: 0 0 0 0 color-mix(in srgb, var(--vibrant-blue) 40%, transparent);
+    }
+    50% {
+        box-shadow: 0 0 0 15px color-mix(in srgb, var(--vibrant-blue) 0%, transparent);
+    }
+}
+
+.animate-pulse-glow {
+    animation: pulseGlow 2s ease-in-out infinite;
+}
+
+/* Floating animation */
+@keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+}
+
+.animate-float {
+    animation: float 4s ease-in-out infinite;
+}
+
+/* === GRADIENT UTILITIES === */
+
+.gradient-mesh {
+    background: linear-gradient(135deg,
+        var(--mesh-1) 0%,
+        var(--mesh-2) 25%,
+        var(--mesh-3) 50%,
+        var(--mesh-4) 75%,
+        var(--mesh-1) 100%);
+    background-size: 400% 400%;
+    animation: gradientShift 15s ease infinite;
+}
+
+@keyframes gradientShift {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+}
+
+.gradient-vibrant {
+    background: linear-gradient(135deg,
+        var(--vibrant-blue) 0%,
+        var(--vibrant-purple) 50%,
+        var(--vibrant-pink) 100%);
+}
+
+.gradient-sunset {
+    background: linear-gradient(135deg,
+        var(--vibrant-pink) 0%,
+        var(--vibrant-orange) 50%,
+        var(--vibrant-yellow) 100%);
+}
+
+.gradient-ocean {
+    background: linear-gradient(135deg,
+        var(--vibrant-teal) 0%,
+        var(--vibrant-blue) 50%,
+        var(--vibrant-indigo) 100%);
+}
+
+.gradient-forest {
+    background: linear-gradient(135deg,
+        var(--vibrant-mint) 0%,
+        var(--vibrant-green) 50%,
+        var(--vibrant-teal) 100%);
+}
+
+/* Text gradient */
+.text-gradient {
+    background: linear-gradient(135deg,
+        var(--vibrant-blue) 0%,
+        var(--vibrant-purple) 50%,
+        var(--vibrant-pink) 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+/* === BLUR UTILITIES === */
+
+.blur-sm { backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+.blur-md { backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); }
+.blur-lg { backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); }
+.blur-xl { backdrop-filter: blur(40px); -webkit-backdrop-filter: blur(40px); }
+
+/* === SHADOW UTILITIES (iOS-style colored shadows) === */
+
+.shadow-glow-blue {
+    box-shadow: 0 8px 32px color-mix(in srgb, var(--vibrant-blue) 35%, transparent);
+}
+
+.shadow-glow-purple {
+    box-shadow: 0 8px 32px color-mix(in srgb, var(--vibrant-purple) 35%, transparent);
+}
+
+.shadow-glow-pink {
+    box-shadow: 0 8px 32px color-mix(in srgb, var(--vibrant-pink) 35%, transparent);
+}
+
+.shadow-glow-green {
+    box-shadow: 0 8px 32px color-mix(in srgb, var(--vibrant-green) 35%, transparent);
+}
+
+.shadow-glow-orange {
+    box-shadow: 0 8px 32px color-mix(in srgb, var(--vibrant-orange) 35%, transparent);
+}
+
+/* Floating shadow (for elevated elements) */
+.shadow-float {
+    box-shadow:
+        0 4px 6px -1px rgba(0, 0, 0, 0.1),
+        0 10px 15px -3px rgba(0, 0, 0, 0.1),
+        0 20px 25px -5px rgba(0, 0, 0, 0.1);
+}
+
+/* === INTERACTIVE UTILITIES === */
+
+/* Scale on hover */
+.hover-scale {
+    transition: transform 0.3s var(--ease-spring);
+}
+
+.hover-scale:hover {
+    transform: scale(1.05);
+}
+
+/* Lift on hover */
+.hover-lift {
+    transition: transform 0.3s var(--ease-spring), box-shadow 0.3s var(--ease-spring);
+}
+
+.hover-lift:hover {
+    transform: translateY(-6px);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
+}
+
+/* Glow on hover */
+.hover-glow {
+    transition: box-shadow 0.4s var(--ease-ios);
+}
+
+.hover-glow:hover {
+    box-shadow:
+        0 0 20px color-mix(in srgb, var(--vibrant-blue) 30%, transparent),
+        0 0 40px color-mix(in srgb, var(--vibrant-purple) 20%, transparent);
+}
+
+/* Press effect */
+.press-effect {
+    transition: transform 0.15s var(--ease-spring);
+}
+
+.press-effect:active {
+    transform: scale(0.97);
+}
+
+/* === BADGE UTILITIES (iOS-style) === */
+
+.badge-ios {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.375rem 0.875rem;
+    font-size: 0.75rem;
+    font-weight: var(--font-weight-semibold);
+    border-radius: var(--radius-pill);
+    background: linear-gradient(135deg,
+        var(--vibrant-blue) 0%,
+        var(--vibrant-purple) 100%);
+    color: white;
+    box-shadow: 0 2px 8px color-mix(in srgb, var(--vibrant-blue) 30%, transparent);
+}
+
+.badge-ios-success {
+    background: linear-gradient(135deg,
+        var(--vibrant-green) 0%,
+        var(--vibrant-mint) 100%);
+    box-shadow: 0 2px 8px color-mix(in srgb, var(--vibrant-green) 30%, transparent);
+}
+
+.badge-ios-danger {
+    background: linear-gradient(135deg,
+        var(--vibrant-red) 0%,
+        var(--vibrant-pink) 100%);
+    box-shadow: 0 2px 8px color-mix(in srgb, var(--vibrant-red) 30%, transparent);
+}
+
+.badge-ios-warning {
+    background: linear-gradient(135deg,
+        var(--vibrant-orange) 0%,
+        var(--vibrant-yellow) 100%);
+    color: #1a1a1a;
+    box-shadow: 0 2px 8px color-mix(in srgb, var(--vibrant-orange) 30%, transparent);
+}
+
+/* === CHIP/TAG COMPONENT (iOS-style) === */
+
+.chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.5rem 1rem;
+    font-size: 0.875rem;
+    font-weight: var(--font-weight-medium);
+    border-radius: var(--radius-pill);
+    background: color-mix(in srgb, var(--surface-color) 90%, var(--primary-color));
+    border: 1px solid var(--border-color);
+    color: var(--text-color);
+    transition: all 0.3s var(--ease-spring);
+    cursor: pointer;
+}
+
+.chip:hover {
+    background: color-mix(in srgb, var(--vibrant-blue) 15%, var(--surface-color));
+    border-color: var(--vibrant-blue);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.chip-active {
+    background: linear-gradient(135deg,
+        var(--vibrant-blue) 0%,
+        var(--vibrant-purple) 100%);
+    color: white;
+    border-color: transparent;
+    box-shadow: 0 4px 15px color-mix(in srgb, var(--vibrant-blue) 40%, transparent);
+}
+
+/* === TOGGLE SWITCH (iOS-style) === */
+
+.toggle-switch {
+    position: relative;
+    width: 51px;
+    height: 31px;
+    appearance: none;
+    -webkit-appearance: none;
+    background: #e9e9eb;
+    border-radius: var(--radius-pill);
+    cursor: pointer;
+    transition: background 0.3s var(--ease-ios);
+}
+
+.toggle-switch::before {
+    content: "";
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 27px;
+    height: 27px;
+    background: white;
+    border-radius: 50%;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    transition: transform 0.3s var(--ease-spring);
+}
+
+.toggle-switch:checked {
+    background: linear-gradient(135deg,
+        var(--vibrant-green) 0%,
+        var(--vibrant-mint) 100%);
+}
+
+.toggle-switch:checked::before {
+    transform: translateX(20px);
+}
+
+/* === SKELETON LOADING (iOS-style) === */
+
+.skeleton {
+    background: linear-gradient(
+        90deg,
+        color-mix(in srgb, var(--text-color) 8%, transparent) 0%,
+        color-mix(in srgb, var(--text-color) 15%, transparent) 50%,
+        color-mix(in srgb, var(--text-color) 8%, transparent) 100%
+    );
+    background-size: 200% 100%;
+    animation: skeletonShimmer 1.5s ease-in-out infinite;
+    border-radius: var(--radius-md);
+}
+
+@keyframes skeletonShimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+/* === TOOLTIP (iOS-style) === */
+
+[data-tooltip] {
+    position: relative;
+}
+
+[data-tooltip]::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%) translateY(10px);
+    padding: 0.5rem 0.875rem;
+    background: rgba(0, 0, 0, 0.85);
+    backdrop-filter: blur(8px);
+    color: white;
+    font-size: 0.8125rem;
+    font-weight: var(--font-weight-medium);
+    white-space: nowrap;
+    border-radius: var(--radius-lg);
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.3s var(--ease-spring);
+    pointer-events: none;
+    z-index: 1000;
+}
+
+[data-tooltip]:hover::after {
+    opacity: 1;
+    visibility: visible;
+    transform: translateX(-50%) translateY(0);
+}
+
+/* === REDUCED MOTION === */
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+
+    .animate-spring,
+    .animate-fade-in-up,
+    .animate-pulse-glow,
+    .animate-float,
+    .gradient-mesh {
+        animation: none !important;
+    }
 }
 
 /* End of Consolidated Styles */
