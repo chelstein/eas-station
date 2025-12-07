@@ -37,6 +37,7 @@ import zlib
 from typing import Optional, Any
 
 import numpy as np
+import redis.exceptions
 
 from .ingest import AudioSourceAdapter, AudioSourceConfig, AudioSourceStatus, AudioMetrics
 
@@ -162,10 +163,11 @@ class RedisSDRSourceAdapter(AudioSourceAdapter):
                         break
                     
                     message = pubsub.get_message(timeout=1.0)
-                except (OSError, ConnectionError) as e:
+                except (OSError, ConnectionError, redis.exceptions.ConnectionError) as e:
                     # Handle connection errors gracefully (e.g., socket closed during shutdown)
                     # OSError with errno 9 = Bad file descriptor (socket was closed)
-                    # ConnectionError = Connection reset by peer
+                    # ConnectionError = Built-in connection reset by peer
+                    # redis.exceptions.ConnectionError = Redis-specific connection errors (e.g., server closed connection)
                     if self._stop_event.is_set():
                         # Expected during shutdown - log at debug level
                         logger.debug(f"Redis connection closed during shutdown for {self._receiver_id}: {e}")
