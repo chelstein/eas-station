@@ -1202,7 +1202,25 @@ class _SoapySDRReceiver(ReceiverInterface):
         Returns:
             numpy array of complex64 samples, or None if receiver is not running
         """
-        if not self._running.is_set() or self._sample_buffer is None:
+        if not self._running.is_set():
+            return None
+
+        # If ring buffer is available, read from it (this drains the buffer)
+        if self._ring_buffer is not None:
+            if num_samples is None:
+                # Read as many samples as available, up to a reasonable limit
+                num_samples = min(self._ring_buffer.fill_level, self._sample_buffer_size)
+
+            if num_samples == 0:
+                return None
+
+            # Read from ring buffer with short timeout
+            # This is the consumer that drains the producer (USB read thread)
+            samples = self._ring_buffer.read(num_samples, timeout=0.01)
+            return samples
+
+        # Fallback to sample buffer if ring buffer not available
+        if self._sample_buffer is None:
             return None
 
         with self._sample_buffer_lock:
