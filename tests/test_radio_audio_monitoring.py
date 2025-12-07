@@ -179,6 +179,7 @@ def test_ensure_sdr_audio_monitor_source_creates_config(audio_app):
         config = AudioSourceConfigDB.query.filter_by(name="sdr-wx42").first()
         assert config is not None
         assert config.config_params["device_params"]["receiver_id"] == "WX42"
+        assert config.config_params["device_params"]["iq_sample_rate"] == 2_400_000
         assert config.description.startswith("SDR monitor for Weather 42")
         assert config.config_params["squelch_enabled"] is True
         assert config.config_params["squelch_threshold_db"] == pytest.approx(-58.5)
