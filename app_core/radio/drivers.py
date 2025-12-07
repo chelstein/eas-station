@@ -153,10 +153,9 @@ class _SoapySDRReceiver(ReceiverInterface):
         self._window = None
         
         # Ring buffer for robust SDR reading (USB jitter absorption)
-        self._ring_buffer = None
-        self._ring_write_pos = 0
-        self._ring_read_pos = 0
-        self._ring_buffer_size = 0  # Will be set based on sample rate
+        # This is the SDRRingBuffer from ring_buffer.py for production use
+        self._ring_buffer = None  # Will be initialized with SDRRingBuffer instance
+        self._ring_buffer_enabled = True  # Enable robust ring buffer operation
         self._consecutive_timeouts = 0
         self._max_consecutive_timeouts = 10
         self._timeout_backoff = 0.01
@@ -472,6 +471,36 @@ class _SoapySDRReceiver(ReceiverInterface):
         with self._sample_buffer_lock:
             self._sample_buffer = numpy_module.zeros(self._sample_buffer_size, dtype=numpy_module.complex64)
             self._sample_buffer_pos = 0
+        
+        # Initialize SDRRingBuffer for robust USB reading if enabled
+        if self._ring_buffer_enabled:
+            try:
+                from .ring_buffer import SDRRingBuffer, calculate_buffer_size
+                
+                # Calculate buffer size for ~1 second of samples
+                buffer_size = calculate_buffer_size(self.config.sample_rate, buffer_time_seconds=1.0)
+                
+                self._ring_buffer = SDRRingBuffer(
+                    size=buffer_size,
+                    numpy_module=numpy_module,
+                    identifier=self.config.identifier
+                )
+                self._interface_logger.info(
+                    "Initialized ring buffer for %s: %d samples (%.2f MB, %.2fs at %d Hz)",
+                    self.config.identifier,
+                    buffer_size,
+                    buffer_size * 8 / 1024 / 1024,  # complex64 = 8 bytes
+                    buffer_size / self.config.sample_rate,
+                    self.config.sample_rate
+                )
+            except Exception as e:
+                self._interface_logger.warning(
+                    "Failed to initialize ring buffer for %s, continuing without it: %s",
+                    self.config.identifier,
+                    e
+                )
+                self._ring_buffer = None
+                self._ring_buffer_enabled = False
 
     def _open_handle(self) -> _SoapySDRHandle:
         try:
@@ -1122,6 +1151,48 @@ class _SoapySDRReceiver(ReceiverInterface):
                         self._sample_buffer[start_pos:],
                         self._sample_buffer[:self._sample_buffer_pos]
                     ])
+
+    def get_ring_buffer_stats(self) -> Optional[Dict[str, object]]:
+        """Get ring buffer health statistics.
+        
+        Returns dictionary with buffer metrics for monitoring, or None if
+        the ring buffer is not available or receiver is not running.
+        """
+        if not self._running.is_set():
+            return None
+        
+        # Use SDRRingBuffer stats if available
+        if self._ring_buffer is not None:
+            try:
+                stats = self._ring_buffer.get_stats()
+                return stats.to_dict()
+            except Exception as e:
+                self._interface_logger.debug(
+                    "Error getting ring buffer stats for %s: %s",
+                    self.config.identifier,
+                    e
+                )
+        
+        # Fallback to simple sample buffer stats if ring buffer not available
+        if self._sample_buffer is not None:
+            with self._sample_buffer_lock:
+                fill_level = self._sample_buffer_pos
+                fill_percentage = (fill_level / self._sample_buffer_size * 100) if self._sample_buffer_size > 0 else 0
+                
+                return {
+                    'size': self._sample_buffer_size,
+                    'fill_level': fill_level,
+                    'fill_percentage': fill_percentage,
+                    'samples_available': fill_level,
+                    'buffer_type': 'simple',
+                    'total_samples_written': 0,
+                    'total_samples_read': 0,
+                    'overflow_count': 0,
+                    'underflow_count': 0,
+                    'uptime_seconds': 0.0,
+                }
+        
+        return None
 
 
 class RTLSDRReceiver(_SoapySDRReceiver):
