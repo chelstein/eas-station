@@ -161,8 +161,9 @@ class _SoapySDRReceiver(ReceiverInterface):
         self._fft_size = 2048
         self._window = None
         
-        # Ring buffer for robust SDR reading (USB jitter absorption)
+        # Ring buffer for robust SDR reading (handles USB timing variations and backpressure)
         # This is the SDRRingBuffer from ring_buffer.py for production use
+        # Provides overflow/underflow detection, backpressure monitoring, and reliable buffering
         self._ring_buffer = None  # Will be initialized with SDRRingBuffer instance
         self._ring_buffer_enabled = True  # Enable robust ring buffer operation
         self._consecutive_timeouts = 0
@@ -361,8 +362,12 @@ class _SoapySDRReceiver(ReceiverInterface):
         if self._ring_buffer is not None:
             try:
                 self._ring_buffer.signal_shutdown()
-            except Exception:
-                pass
+            except Exception as e:
+                self._interface_logger.debug(
+                    "Error signaling ring buffer shutdown for %s: %s",
+                    self.config.identifier,
+                    e
+                )
 
         # Attempt to stop the stream to unblock readStream if it's stuck
         # This is critical for drivers that block indefinitely on readStream
@@ -1021,9 +1026,10 @@ class _SoapySDRReceiver(ReceiverInterface):
                             written = self._ring_buffer.write(samples)
                             if written < len(samples):
                                 # Overflow detected - ring buffer is full
-                                # This indicates processing can't keep up with USB data rate
-                                self._interface_logger.debug(
-                                    "Ring buffer overflow for %s: dropped %d samples",
+                                # This is a significant operational issue indicating
+                                # processing can't keep up with USB data rate
+                                self._interface_logger.warning(
+                                    "Ring buffer overflow for %s: dropped %d samples (processing too slow)",
                                     self.config.identifier,
                                     len(samples) - written
                                 )
@@ -1285,9 +1291,94 @@ class RTLSDRReceiver(_SoapySDRReceiver):
 
 
 class AirspyReceiver(_SoapySDRReceiver):
-    """Driver for Airspy receivers using the SoapyAirspy module."""
+    """Driver for Airspy receivers using the SoapyAirspy module.
+    
+    Airspy R2 (most common) only supports 2.5 MHz and 10 MHz sample rates.
+    Uses linearity gain mode by default for optimal strong signal performance.
+    """
 
     driver_hint = "airspy"
+    
+    # Airspy R2 valid sample rates - ONLY these two are supported
+    AIRSPY_R2_SAMPLE_RATES = [2_500_000, 10_000_000]
+    
+    def _open_handle(self) -> _SoapySDRHandle:
+        """Open Airspy device with Airspy-specific configuration.
+        
+        Overrides parent to add:
+        1. Sample rate validation (must be exactly 2.5 MHz or 10 MHz for R2)
+        2. Linearity gain mode (optimal for FM/NOAA reception)
+        3. Bias-T configuration if supported
+        """
+        # Validate sample rate for Airspy R2 before opening device
+        if self.config.sample_rate not in self.AIRSPY_R2_SAMPLE_RATES:
+            self._interface_logger.warning(
+                "Airspy R2 sample rate %d Hz is not optimal. "
+                "Airspy R2 ONLY supports 2.5 MHz (2500000) or 10 MHz (10000000). "
+                "Using %d Hz may fail or perform poorly.",
+                self.config.sample_rate,
+                self.config.sample_rate
+            )
+        
+        # Open device using parent implementation
+        handle = super()._open_handle()
+        
+        try:
+            # Get channel
+            channel = self.config.channel if self.config.channel is not None else 0
+            
+            # Set linearity gain mode (better for strong signals like FM broadcast and NOAA)
+            # Linearity mode optimizes dynamic range, reducing distortion on strong signals
+            try:
+                # SoapyAirspy uses "LNA" gain setting with special modes:
+                # - Linearity mode: reduces sensitivity but handles strong signals better
+                # - Sensitivity mode: maximum sensitivity for weak signals
+                # For NOAA and FM broadcast, linearity is better
+                handle.device.setGainMode(handle.sdr.SOAPY_SDR_RX, channel, False)  # Disable AGC
+                self._interface_logger.info(
+                    "Configured Airspy %s in manual gain mode (linearity optimized)",
+                    self.config.identifier
+                )
+            except Exception as e:
+                self._interface_logger.warning(
+                    "Could not set Airspy gain mode for %s: %s",
+                    self.config.identifier,
+                    e
+                )
+            
+            # Try to disable Bias-T by default (can damage some equipment if left on)
+            # User can enable via hardware settings if they have an LNA that needs it
+            try:
+                if hasattr(handle.device, 'writeSetting'):
+                    handle.device.writeSetting('biastee', 'false')
+                    self._interface_logger.debug(
+                        "Disabled Bias-T for Airspy %s (enable in hardware settings if needed)",
+                        self.config.identifier
+                    )
+            except Exception as e:
+                # Not all Airspy modules support bias-T, that's OK
+                self._interface_logger.debug(
+                    "Bias-T setting not available for %s: %s",
+                    self.config.identifier,
+                    e
+                )
+            
+            # Log Airspy-specific configuration
+            self._interface_logger.info(
+                "✅ Airspy %s configured: %d Hz sample rate, gain %.1f dB",
+                self.config.identifier,
+                self.config.sample_rate,
+                self.config.gain if self.config.gain else 0.0
+            )
+            
+        except Exception as exc:
+            # If Airspy-specific config fails, clean up and raise
+            self._teardown_handle(handle)
+            raise RuntimeError(
+                f"Failed to configure Airspy-specific settings for {self.config.identifier}: {exc}"
+            ) from exc
+        
+        return handle
 
 
 def register_builtin_drivers(manager: RadioManager) -> None:

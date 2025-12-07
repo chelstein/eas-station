@@ -6,6 +6,19 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.13.1] - 2025-12-07
+### Fixed
+- **CRITICAL AIRSPY BUG**: AirspyReceiver class was completely empty with NO Airspy-specific configuration
+- **Airspy Never Worked**: Device would never get warm because no samples were being processed correctly
+- Implemented proper `_open_handle()` override with Airspy R2 sample rate validation (2.5 MHz or 10 MHz only)
+- Configured linearity gain mode for optimal strong signal handling (FM/NOAA)
+- Added Bias-T safety (disabled by default to prevent equipment damage)
+- Airspy R2 TCXO provides accurate frequency - no PPM correction needed
+### Improved
+- Comprehensive Airspy R2 configuration logging
+- Sample rate validation with clear error messages
+- Better exception handling for Airspy-specific settings
+
 ## [2.13.0] - 2025-12-07
 ### Added
 - **MAJOR FEATURE**: PPM (Parts Per Million) frequency correction support for compensating crystal oscillator drift in SDRs
