@@ -153,8 +153,26 @@ class RedisSDRSourceAdapter(AudioSourceAdapter):
         try:
             # Use _stop_event from base class instead of undefined _running
             while not self._stop_event.is_set():
-                # Use get_message with timeout instead of listen() to allow graceful shutdown
-                message = self._pubsub.get_message(timeout=1.0)
+                try:
+                    # Use get_message with timeout instead of listen() to allow graceful shutdown
+                    # Check pubsub availability inside try block to avoid race conditions
+                    pubsub = self._pubsub
+                    if pubsub is None:
+                        logger.debug(f"Redis pubsub closed for {self._receiver_id}, exiting subscriber loop")
+                        break
+                    
+                    message = pubsub.get_message(timeout=1.0)
+                except (OSError, ConnectionError) as e:
+                    # Handle connection errors gracefully (e.g., socket closed during shutdown)
+                    # OSError with errno 9 = Bad file descriptor (socket was closed)
+                    # ConnectionError = Connection reset by peer
+                    if self._stop_event.is_set():
+                        # Expected during shutdown - log at debug level
+                        logger.debug(f"Redis connection closed during shutdown for {self._receiver_id}: {e}")
+                    else:
+                        # Unexpected connection error - log as error
+                        logger.error(f"Redis connection error for {self._receiver_id}: {e}")
+                    break
 
                 # Log periodically if no samples received
                 current_time = time.time()
@@ -251,7 +269,11 @@ class RedisSDRSourceAdapter(AudioSourceAdapter):
                 self._pubsub.unsubscribe()
                 self._pubsub.close()
             except Exception as e:
-                logger.error(f"Error closing Redis pub/sub: {e}")
+                # Log at debug level since errors during cleanup are expected
+                logger.debug(f"Error closing Redis pub/sub for {self._receiver_id}: {e}")
+            finally:
+                # Mark pubsub as None to signal subscriber loop to exit
+                self._pubsub = None
 
         # Clear audio chunk queue
         while not self._audio_chunk_queue.empty():

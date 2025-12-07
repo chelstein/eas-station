@@ -99,12 +99,54 @@ class BroadcastAudioAdapter:
         
         OPTIMIZATION: Only concatenates when needed (when extracting samples),
         instead of on every chunk append. This amortizes the O(n) cost.
+        
+        Handles dimension normalization to prevent concatenation errors when
+        chunks have inconsistent shapes (e.g., mixing mono and stereo audio).
         """
         if not self._chunk_list:
             return np.array([], dtype=np.float32)
         if len(self._chunk_list) == 1:
             return self._chunk_list[0]
-        result = np.concatenate(self._chunk_list)
+        
+        # Normalize all chunks to consistent shape before concatenation
+        # This handles cases where audio source switches between mono/stereo
+        normalized_chunks = []
+        target_ndim = None
+        
+        # Determine target dimensionality from first valid chunk
+        for chunk in self._chunk_list:
+            if chunk is not None and len(chunk) > 0:
+                target_ndim = chunk.ndim
+                break
+        
+        if target_ndim is None:
+            # All chunks are empty/None
+            return np.array([], dtype=np.float32)
+        
+        # Normalize all chunks to match target dimensionality
+        for chunk in self._chunk_list:
+            if chunk is None or len(chunk) == 0:
+                continue
+                
+            if chunk.ndim == target_ndim:
+                normalized_chunks.append(chunk)
+            elif target_ndim == 2 and chunk.ndim == 1:
+                # Convert mono (1D) to stereo (2D) by duplicating to both channels
+                # Use reshape + tile for memory efficiency (avoids full copy)
+                normalized_chunks.append(np.tile(chunk.reshape(-1, 1), (1, 2)))
+            elif target_ndim == 1 and chunk.ndim == 2:
+                # Convert stereo (2D) to mono (1D) by averaging channels
+                normalized_chunks.append(chunk.mean(axis=1))
+            else:
+                logger.warning(
+                    f"BroadcastAudioAdapter: Unexpected chunk shape {chunk.shape}, "
+                    f"target_ndim={target_ndim}. Skipping chunk."
+                )
+        
+        if not normalized_chunks:
+            return np.array([], dtype=np.float32)
+        
+        result = np.concatenate(normalized_chunks)
         self._chunk_list = [result]
         self._chunk_total_samples = len(result)
         return result
