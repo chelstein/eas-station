@@ -6,6 +6,17 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.13.4] - 2025-12-07
+### Fixed
+- **CRITICAL SEPARATION MISMATCH**: Fixed audio-service startup failing to load SDR sources from database
+- audio-service was trying to create SDRSourceAdapter for `source_type='sdr'` but had no radio manager (separated architecture)
+- Added detection: if source is radio-managed (`managed_by='radio'`), create RedisSDRSourceAdapter instead
+- Now audio-service properly loads SDR sources on startup and subscribes to IQ samples from sdr-service
+### Impact
+- ✅ Audio sources persist across audio-service restarts
+- ✅ No more "SDR source not available - radio manager missing" errors
+- ✅ Separated architecture fully functional at startup
+
 ## [2.13.3] - 2025-12-07
 ### Fixed
 - **CRITICAL AUDIO BUG**: Fixed source_type mismatch preventing audio from playing and Icecast mounts from appearing
