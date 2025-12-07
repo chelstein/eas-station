@@ -8,6 +8,7 @@ when the Redis server closes the connection unexpectedly.
 
 import sys
 import os
+import time
 import unittest
 from unittest.mock import Mock, MagicMock, patch
 import redis.exceptions
@@ -72,7 +73,6 @@ class TestRedisConnectionErrorHandling(unittest.TestCase):
                 adapter._start_capture()
                 
                 # Give the subscriber thread time to hit the exception
-                import time
                 time.sleep(0.5)
                 
                 # Stop the adapter
@@ -125,7 +125,6 @@ class TestRedisConnectionErrorHandling(unittest.TestCase):
                         adapter._start_capture()
                         
                         # Give the subscriber thread time to hit the exception
-                        import time
                         time.sleep(0.5)
                         
                         # Stop the adapter
