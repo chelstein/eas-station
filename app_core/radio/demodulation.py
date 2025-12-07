@@ -124,6 +124,23 @@ class FMDemodulator:
         # RBDS uses differential BPSK, so we must keep the previous symbol polarity
         self._rbds_prev_symbol: float = 1.0
 
+    def process(self, iq_samples: np.ndarray) -> np.ndarray:
+        """
+        Process IQ samples and return audio samples.
+        
+        This is the main entry point used by audio processing pipeline.
+        RBDS data is intentionally discarded for simplicity in the audio pipeline.
+        For full demodulation with RBDS data extraction, use demodulate() instead.
+        
+        Args:
+            iq_samples: Complex IQ samples
+            
+        Returns:
+            Audio samples (float32 numpy array) with RBDS data discarded
+        """
+        audio, _ = self.demodulate(iq_samples)
+        return audio
+
     def demodulate(self, iq_samples: np.ndarray) -> Tuple[np.ndarray, Optional[RBDSData]]:
         """
         Demodulate FM signal from IQ samples.
@@ -420,6 +437,21 @@ class AMDemodulator:
         self.config = config
         self.dc_offset = 0.0
         self.dc_alpha = 0.001  # DC removal filter coefficient
+
+    def process(self, iq_samples: np.ndarray) -> np.ndarray:
+        """
+        Process IQ samples and return audio samples.
+        
+        This is the main entry point used by audio processing pipeline.
+        
+        Args:
+            iq_samples: Complex IQ samples
+            
+        Returns:
+            Audio samples (float32 numpy array)
+        """
+        audio, _ = self.demodulate(iq_samples)
+        return audio
 
     def demodulate(self, iq_samples: np.ndarray) -> Tuple[np.ndarray, None]:
         """

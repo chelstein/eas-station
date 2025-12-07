@@ -45,6 +45,11 @@ _AUDIO_SAMPLE_RATE_COLUMN_DEFINITION: tuple[str, str] = (
     "INTEGER DEFAULT NULL",
 )
 
+_FREQUENCY_CORRECTION_PPM_COLUMN_DEFINITION: tuple[str, str] = (
+    "frequency_correction_ppm",
+    "DOUBLE PRECISION NOT NULL DEFAULT 0.0",
+)
+
 _IndexDefinition = Tuple[str, Callable[[], db.Index], Tuple[str, ...], bool]
 _INDEX_DEFINITIONS: dict[str, Tuple[_IndexDefinition, ...]] = {
     "radio_receivers": (
@@ -262,8 +267,43 @@ def ensure_radio_audio_sample_rate_column(logger) -> bool:
         return False
 
 
+def ensure_radio_frequency_correction_column(logger) -> bool:
+    """Ensure radio_receivers table has frequency_correction_ppm column.
+    
+    This column stores PPM (parts per million) frequency correction for
+    compensating crystal oscillator drift in low-cost SDRs like RTL-SDR.
+    Typical values range from -50 to +50 PPM.
+    
+    Args:
+        logger: Logger instance for status messages
+        
+    Returns:
+        True if column exists or was added successfully, False otherwise
+    """
+    try:
+        inspector = inspect(db.engine)
+        columns = {col["name"]: col for col in inspector.get_columns("radio_receivers")}
+        
+        col_name, col_definition = _FREQUENCY_CORRECTION_PPM_COLUMN_DEFINITION
+        
+        if col_name not in columns:
+            logger.info("Adding %s column to radio_receivers table", col_name)
+            db.session.execute(
+                text(f"ALTER TABLE radio_receivers ADD COLUMN {col_name} {col_definition}")
+            )
+            db.session.commit()
+            logger.info("✅ Added %s column for PPM frequency correction", col_name)
+        
+        return True
+    except SQLAlchemyError as exc:
+        logger.warning("Could not ensure %s column: %s", col_name, exc)
+        db.session.rollback()
+        return False
+
+
 __all__ = [
     "ensure_radio_tables",
     "ensure_radio_squelch_columns",
     "ensure_radio_audio_sample_rate_column",
+    "ensure_radio_frequency_correction_column",
 ]

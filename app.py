@@ -86,6 +86,7 @@ from app_core.radio import (
     ensure_radio_tables,
     ensure_radio_squelch_columns,
     ensure_radio_audio_sample_rate_column,
+    ensure_radio_frequency_correction_column,
 )
 from app_core.zones import ensure_zone_catalog
 from app_core.auth.roles import initialize_default_roles_and_permissions, Role
@@ -843,6 +844,11 @@ def initialize_database():
             if not ensure_radio_audio_sample_rate_column(logger):
                 _db_initialization_error = RuntimeError(
                     "Radio audio_sample_rate column could not be ensured"
+                )
+                return False
+            if not ensure_radio_frequency_correction_column(logger):
+                _db_initialization_error = RuntimeError(
+                    "Radio frequency_correction_ppm column could not be ensured"
                 )
                 return False
             if not ensure_zone_catalog(logger):

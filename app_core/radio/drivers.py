@@ -29,6 +29,15 @@ from typing import Dict, List, Optional
 
 from .manager import ReceiverConfig, ReceiverInterface, ReceiverStatus, RadioManager
 
+# Import ring buffer at module level to avoid repeated import overhead
+try:
+    from .ring_buffer import SDRRingBuffer, calculate_buffer_size
+    _RING_BUFFER_AVAILABLE = True
+except ImportError:
+    _RING_BUFFER_AVAILABLE = False
+    SDRRingBuffer = None
+    calculate_buffer_size = None
+
 
 class _SoapySDRHandle:
     """Thin wrapper storing objects needed for a SoapySDR stream."""
@@ -152,11 +161,11 @@ class _SoapySDRReceiver(ReceiverInterface):
         self._fft_size = 2048
         self._window = None
         
-        # Ring buffer for robust SDR reading (USB jitter absorption)
-        self._ring_buffer = None
-        self._ring_write_pos = 0
-        self._ring_read_pos = 0
-        self._ring_buffer_size = 0  # Will be set based on sample rate
+        # Ring buffer for robust SDR reading (handles USB timing variations and backpressure)
+        # This is the SDRRingBuffer from ring_buffer.py for production use
+        # Provides overflow/underflow detection, backpressure monitoring, and reliable buffering
+        self._ring_buffer = None  # Will be initialized with SDRRingBuffer instance
+        self._ring_buffer_enabled = True  # Enable robust ring buffer operation
         self._consecutive_timeouts = 0
         self._max_consecutive_timeouts = 10
         self._timeout_backoff = 0.01
@@ -349,6 +358,17 @@ class _SoapySDRReceiver(ReceiverInterface):
 
         self._running.clear()
 
+        # Signal ring buffer to wake up any waiting consumers
+        if self._ring_buffer is not None:
+            try:
+                self._ring_buffer.signal_shutdown()
+            except Exception as e:
+                self._interface_logger.debug(
+                    "Error signaling ring buffer shutdown for %s: %s",
+                    self.config.identifier,
+                    e
+                )
+
         # Attempt to stop the stream to unblock readStream if it's stuck
         # This is critical for drivers that block indefinitely on readStream
         if self._handle:
@@ -472,6 +492,40 @@ class _SoapySDRReceiver(ReceiverInterface):
         with self._sample_buffer_lock:
             self._sample_buffer = numpy_module.zeros(self._sample_buffer_size, dtype=numpy_module.complex64)
             self._sample_buffer_pos = 0
+        
+        # Initialize SDRRingBuffer for robust USB reading if enabled
+        if self._ring_buffer_enabled and _RING_BUFFER_AVAILABLE:
+            try:
+                # Calculate buffer size for ~1 second of samples
+                buffer_size = calculate_buffer_size(self.config.sample_rate, buffer_time_seconds=1.0)
+                
+                self._ring_buffer = SDRRingBuffer(
+                    size=buffer_size,
+                    numpy_module=numpy_module,
+                    identifier=self.config.identifier
+                )
+                self._interface_logger.info(
+                    "Initialized ring buffer for %s: %d samples (%.2f MB, %.2fs at %d Hz)",
+                    self.config.identifier,
+                    buffer_size,
+                    buffer_size * 8 / 1024 / 1024,  # complex64 = 8 bytes
+                    buffer_size / self.config.sample_rate,
+                    self.config.sample_rate
+                )
+            except Exception as e:
+                self._interface_logger.warning(
+                    "Failed to initialize ring buffer for %s, continuing without it: %s",
+                    self.config.identifier,
+                    e
+                )
+                self._ring_buffer = None
+                self._ring_buffer_enabled = False
+        elif self._ring_buffer_enabled and not _RING_BUFFER_AVAILABLE:
+            self._interface_logger.warning(
+                "Ring buffer requested for %s but module not available",
+                self.config.identifier
+            )
+            self._ring_buffer_enabled = False
 
     def _open_handle(self) -> _SoapySDRHandle:
         try:
@@ -550,7 +604,50 @@ class _SoapySDRReceiver(ReceiverInterface):
 
         try:
             device.setSampleRate(SoapySDR.SOAPY_SDR_RX, channel, self.config.sample_rate)
-            device.setFrequency(SoapySDR.SOAPY_SDR_RX, channel, self.config.frequency_hz)
+            
+            # Apply frequency correction (PPM) if specified
+            # RTL-SDR and other low-cost SDRs have crystal oscillator drift
+            # Typical values: -50 to +50 PPM
+            corrected_freq = self.config.frequency_hz
+            if self.config.frequency_correction_ppm != 0.0:
+                correction_factor = 1.0 + (self.config.frequency_correction_ppm / 1_000_000.0)
+                corrected_freq = self.config.frequency_hz * correction_factor
+                self._interface_logger.info(
+                    "Applying %+.1f PPM frequency correction for %s: %.6f MHz -> %.6f MHz",
+                    self.config.frequency_correction_ppm,
+                    self.config.identifier,
+                    self.config.frequency_hz / 1_000_000,
+                    corrected_freq / 1_000_000
+                )
+            
+            device.setFrequency(SoapySDR.SOAPY_SDR_RX, channel, corrected_freq)
+            
+            # Log the frequency that was set for diagnostics
+            try:
+                actual_freq = device.getFrequency(SoapySDR.SOAPY_SDR_RX, channel)
+                self._interface_logger.info(
+                    "Tuned %s to %.6f MHz (requested: %.6f MHz, readback: %.6f MHz)",
+                    self.config.identifier,
+                    self.config.frequency_hz / 1_000_000,
+                    corrected_freq / 1_000_000,
+                    actual_freq / 1_000_000
+                )
+                # Warn if readback differs significantly (more than 1 kHz)
+                if abs(actual_freq - corrected_freq) > 1000:
+                    self._interface_logger.warning(
+                        "Frequency readback mismatch for %s: requested %.6f MHz, got %.6f MHz (%.1f kHz error)",
+                        self.config.identifier,
+                        corrected_freq / 1_000_000,
+                        actual_freq / 1_000_000,
+                        (actual_freq - corrected_freq) / 1000
+                    )
+            except Exception as e:
+                # Some devices don't support getFrequency, that's OK
+                self._interface_logger.debug(
+                    "Could not read back frequency for %s: %s",
+                    self.config.identifier,
+                    e
+                )
             
             # Configure Gain
             if self.config.gain is not None:
@@ -922,6 +1019,27 @@ class _SoapySDRReceiver(ReceiverInterface):
                 if result.ret > 0:
                     samples = buffer[: result.ret]
                     
+                    # Write samples to ring buffer if enabled
+                    # This provides overflow detection and backpressure monitoring
+                    if self._ring_buffer is not None:
+                        try:
+                            written = self._ring_buffer.write(samples)
+                            if written < len(samples):
+                                # Overflow detected - ring buffer is full
+                                # This is a significant operational issue indicating
+                                # processing can't keep up with USB data rate
+                                self._interface_logger.warning(
+                                    "Ring buffer overflow for %s: dropped %d samples (processing too slow)",
+                                    self.config.identifier,
+                                    len(samples) - written
+                                )
+                        except Exception as e:
+                            self._interface_logger.debug(
+                                "Error writing to ring buffer for %s: %s",
+                                self.config.identifier,
+                                e
+                            )
+                    
                     # 1. Compute Spectrum (if interval elapsed)
                     now = time.time()
                     if now - last_spectrum_time > self._spectrum_update_interval:
@@ -1123,6 +1241,48 @@ class _SoapySDRReceiver(ReceiverInterface):
                         self._sample_buffer[:self._sample_buffer_pos]
                     ])
 
+    def get_ring_buffer_stats(self) -> Optional[Dict[str, object]]:
+        """Get ring buffer health statistics.
+        
+        Returns dictionary with buffer metrics for monitoring, or None if
+        the ring buffer is not available or receiver is not running.
+        """
+        if not self._running.is_set():
+            return None
+        
+        # Use SDRRingBuffer stats if available
+        if self._ring_buffer is not None:
+            try:
+                stats = self._ring_buffer.get_stats()
+                return stats.to_dict()
+            except Exception as e:
+                self._interface_logger.debug(
+                    "Error getting ring buffer stats for %s: %s",
+                    self.config.identifier,
+                    e
+                )
+        
+        # Fallback to simple sample buffer stats if ring buffer not available
+        if self._sample_buffer is not None:
+            with self._sample_buffer_lock:
+                fill_level = self._sample_buffer_pos
+                fill_percentage = (fill_level / self._sample_buffer_size * 100) if self._sample_buffer_size > 0 else 0
+                
+                return {
+                    'size': self._sample_buffer_size,
+                    'fill_level': fill_level,
+                    'fill_percentage': fill_percentage,
+                    'samples_available': fill_level,
+                    'buffer_type': 'simple',
+                    'total_samples_written': 0,
+                    'total_samples_read': 0,
+                    'overflow_count': 0,
+                    'underflow_count': 0,
+                    'uptime_seconds': 0.0,
+                }
+        
+        return None
+
 
 class RTLSDRReceiver(_SoapySDRReceiver):
     """Driver for RTL2832U based SDRs via the SoapyRTLSDR module."""
@@ -1131,9 +1291,94 @@ class RTLSDRReceiver(_SoapySDRReceiver):
 
 
 class AirspyReceiver(_SoapySDRReceiver):
-    """Driver for Airspy receivers using the SoapyAirspy module."""
+    """Driver for Airspy receivers using the SoapyAirspy module.
+    
+    Airspy R2 (most common) only supports 2.5 MHz and 10 MHz sample rates.
+    Uses linearity gain mode by default for optimal strong signal performance.
+    """
 
     driver_hint = "airspy"
+    
+    # Airspy R2 valid sample rates - ONLY these two are supported
+    AIRSPY_R2_SAMPLE_RATES = [2_500_000, 10_000_000]
+    
+    def _open_handle(self) -> _SoapySDRHandle:
+        """Open Airspy device with Airspy-specific configuration.
+        
+        Overrides parent to add:
+        1. Sample rate validation (must be exactly 2.5 MHz or 10 MHz for R2)
+        2. Linearity gain mode (optimal for FM/NOAA reception)
+        3. Bias-T configuration if supported
+        """
+        # Validate sample rate for Airspy R2 before opening device
+        if self.config.sample_rate not in self.AIRSPY_R2_SAMPLE_RATES:
+            self._interface_logger.warning(
+                "Airspy R2 sample rate %d Hz is not optimal. "
+                "Airspy R2 ONLY supports 2.5 MHz (2500000) or 10 MHz (10000000). "
+                "Using %d Hz may fail or perform poorly.",
+                self.config.sample_rate,
+                self.config.sample_rate
+            )
+        
+        # Open device using parent implementation
+        handle = super()._open_handle()
+        
+        try:
+            # Get channel
+            channel = self.config.channel if self.config.channel is not None else 0
+            
+            # Set linearity gain mode (better for strong signals like FM broadcast and NOAA)
+            # Linearity mode optimizes dynamic range, reducing distortion on strong signals
+            try:
+                # SoapyAirspy uses "LNA" gain setting with special modes:
+                # - Linearity mode: reduces sensitivity but handles strong signals better
+                # - Sensitivity mode: maximum sensitivity for weak signals
+                # For NOAA and FM broadcast, linearity is better
+                handle.device.setGainMode(handle.sdr.SOAPY_SDR_RX, channel, False)  # Disable AGC
+                self._interface_logger.info(
+                    "Configured Airspy %s in manual gain mode (linearity optimized)",
+                    self.config.identifier
+                )
+            except Exception as e:
+                self._interface_logger.warning(
+                    "Could not set Airspy gain mode for %s: %s",
+                    self.config.identifier,
+                    e
+                )
+            
+            # Try to disable Bias-T by default (can damage some equipment if left on)
+            # User can enable via hardware settings if they have an LNA that needs it
+            try:
+                if hasattr(handle.device, 'writeSetting'):
+                    handle.device.writeSetting('biastee', 'false')
+                    self._interface_logger.debug(
+                        "Disabled Bias-T for Airspy %s (enable in hardware settings if needed)",
+                        self.config.identifier
+                    )
+            except Exception as e:
+                # Not all Airspy modules support bias-T, that's OK
+                self._interface_logger.debug(
+                    "Bias-T setting not available for %s: %s",
+                    self.config.identifier,
+                    e
+                )
+            
+            # Log Airspy-specific configuration
+            self._interface_logger.info(
+                "✅ Airspy %s configured: %d Hz sample rate, gain %.1f dB",
+                self.config.identifier,
+                self.config.sample_rate,
+                self.config.gain if self.config.gain else 0.0
+            )
+            
+        except Exception as exc:
+            # If Airspy-specific config fails, clean up and raise
+            self._teardown_handle(handle)
+            raise RuntimeError(
+                f"Failed to configure Airspy-specific settings for {self.config.identifier}: {exc}"
+            ) from exc
+        
+        return handle
 
 
 def register_builtin_drivers(manager: RadioManager) -> None:

@@ -242,7 +242,39 @@ def initialize_audio_controller(app):
         for db_config in saved_configs:
             try:
                 # Parse source type
-                source_type = AudioSourceType(db_config.source_type)
+                source_type_str = db_config.source_type
+                
+                # CRITICAL: In separated architecture, convert 'sdr' to redis_sdr
+                # Database stores 'sdr' for radio-managed sources, but audio-service
+                # must use RedisSDRSourceAdapter to subscribe to IQ samples from sdr-service
+                if source_type_str == 'sdr':
+                    # Check if this is a radio-managed source (from RadioReceiver)
+                    config_params = db_config.config_params or {}
+                    if config_params.get('managed_by') == 'radio':
+                        # This is an SDR receiver - use Redis adapter in separated architecture
+                        from app_core.audio.redis_sdr_adapter import RedisSDRSourceAdapter
+                        
+                        runtime_config = AudioSourceConfig(
+                            source_type=AudioSourceType.STREAM,  # Use STREAM as placeholder
+                            name=db_config.name,
+                            enabled=db_config.enabled,
+                            priority=db_config.priority,
+                            sample_rate=config_params.get('sample_rate', 44100),
+                            channels=config_params.get('channels', 1),
+                            buffer_size=config_params.get('buffer_size', 4096),
+                            silence_threshold_db=config_params.get('silence_threshold_db', -60.0),
+                            silence_duration_seconds=config_params.get('silence_duration_seconds', 5.0),
+                            device_params=config_params.get('device_params', {}),
+                        )
+                        
+                        # Create Redis SDR adapter directly (subscribes to IQ samples)
+                        adapter = RedisSDRSourceAdapter(runtime_config)
+                        _audio_controller.add_source(adapter)
+                        logger.info(f"✅ Loaded Redis SDR source: {db_config.name} (subscribes to sdr-service)")
+                        continue
+                
+                # Normal source type handling
+                source_type = AudioSourceType(source_type_str)
 
                 # Create runtime configuration from database config
                 config_params = db_config.config_params or {}

@@ -6,6 +6,87 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.13.4] - 2025-12-07
+### Fixed
+- **CRITICAL SEPARATION MISMATCH**: Fixed audio-service startup failing to load SDR sources from database
+- audio-service was trying to create SDRSourceAdapter for `source_type='sdr'` but had no radio manager (separated architecture)
+- Added detection: if source is radio-managed (`managed_by='radio'`), create RedisSDRSourceAdapter instead
+- Now audio-service properly loads SDR sources on startup and subscribes to IQ samples from sdr-service
+### Impact
+- ✅ Audio sources persist across audio-service restarts
+- ✅ No more "SDR source not available - radio manager missing" errors
+- ✅ Separated architecture fully functional at startup
+
+## [2.13.3] - 2025-12-07
+### Fixed
+- **CRITICAL AUDIO BUG**: Fixed source_type mismatch preventing audio from playing and Icecast mounts from appearing
+- `ensure_sdr_audio_monitor_source` was sending `source_type: 'sdr'` but audio-service expected `'redis_sdr'` for separated architecture
+- Result: RedisSDRSourceAdapter was never created, no audio demodulation happened, no Icecast mount appeared
+- Changed to `source_type: 'redis_sdr'` so audio-service properly creates Redis IQ subscriber and Icecast output
+### Impact
+- ✅ Audio now plays from SDR receivers
+- ✅ Icecast mounts now appear (e.g., /receiver.mp3)
+- ✅ Complete end-to-end audio pipeline working
+
+## [2.13.2] - 2025-12-07
+### Fixed
+- **CRITICAL END-TO-END**: Complete signal chain from detection to audio now works
+- **Device Discovery**: Added `discover_devices` command handler in sdr-service
+- **Receiver Creation**: Added `reload_receivers` command to sync database changes to sdr-service
+- **Auto-Start**: New/updated receivers now automatically loaded by sdr-service
+- Webapp now properly communicates with sdr-service for device discovery and receiver management
+### Improved
+- _sync_radio_manager_state now tells sdr-service to reload configuration
+- Fallback to app-side radio manager if sdr-service unavailable
+- Better error handling and logging throughout signal chain
+- Device enumeration works in separated architecture
+
+## [2.13.1] - 2025-12-07
+### Fixed
+- **CRITICAL AIRSPY BUG**: AirspyReceiver class was completely empty with NO Airspy-specific configuration
+- **Airspy Never Worked**: Device would never get warm because no samples were being processed correctly
+- Implemented proper `_open_handle()` override with Airspy R2 sample rate validation (2.5 MHz or 10 MHz only)
+- Configured linearity gain mode for optimal strong signal handling (FM/NOAA)
+- Added Bias-T safety (disabled by default to prevent equipment damage)
+- Airspy R2 TCXO provides accurate frequency - no PPM correction needed
+### Improved
+- Comprehensive Airspy R2 configuration logging
+- Sample rate validation with clear error messages
+- Better exception handling for Airspy-specific settings
+
+## [2.13.0] - 2025-12-07
+### Added
+- **MAJOR FEATURE**: PPM (Parts Per Million) frequency correction support for compensating crystal oscillator drift in SDRs
+- Added `frequency_correction_ppm` field to RadioReceiver model and database schema
+- Hardware frequency readback verification with mismatch warnings
+- Comprehensive frequency tuning diagnostics and logging
+### Fixed
+- **Frequency Accuracy**: RTL-SDR and other low-cost SDRs now properly compensate for clock drift (typically ±50 PPM)
+- **Tuning Verification**: Actual tuned frequency is now logged and verified against requested frequency
+- **Diagnostic Logging**: Frequency settings, PPM correction, and readback values now logged for troubleshooting
+### Improved
+- Frequency accuracy can now be calibrated using PPM correction (e.g., calibrate with GSM cell tower or known station)
+- Mismatch warnings help identify hardware tuning issues (> 1 kHz error triggers warning)
+- Better separation: PPM correction in `ReceiverConfig` dataclass, not just database
+
+## [2.12.27] - 2025-12-07
+### Fixed
+- **CRITICAL Demodulation Bug**: Added missing `process()` method to FMDemodulator and AMDemodulator classes that was being called by RedisSDRSourceAdapter but didn't exist, causing audio demodulation to fail completely
+- Fixed method signature mismatch where redis_sdr_adapter.py called `demodulator.process()` but only `demodulate()` existed, preventing any audio from being generated from IQ samples
+
+## [2.12.26] - 2025-12-07
+### Fixed
+- **SDR Core**: Implemented missing `get_ring_buffer_stats()` method in `_SoapySDRReceiver` that was being called by sdr_service.py but didn't exist, causing silent failures in buffer health monitoring
+- **SDR Core**: Integrated SDRRingBuffer initialization in receiver startup to enable proper USB jitter absorption and backpressure handling
+- **SDR Core**: Ring buffer now properly instantiated when device opens, providing robust sample buffering for reliable 24/7 SDR operation
+- **SDR Core**: Capture loop now writes samples to ring buffer for overflow detection and backpressure monitoring
+- **SDR Core**: Ring buffer properly shut down when receiver stops, preventing resource leaks
+### Improved
+- Enhanced ring buffer statistics reporting with fallback to simple buffer stats when SDRRingBuffer unavailable
+- Added comprehensive buffer health metrics (overflow/underflow counts, fill percentage, total samples) to Redis
+- Improved separation between app.py and SDR service - all SDR operations completely independent of Flask application
+- Ring buffer overflow detection now logs dropped samples when processing can't keep up with USB data rate
+
 ## [2.12.25] - 2025-12-05
 ### Fixed
 - **CRITICAL**: Fixed audio sources not starting when clicking start button - source name mismatch between webapp and audio-service (webapp sends "WIMT", audio-service expected "redis-WIMT")
