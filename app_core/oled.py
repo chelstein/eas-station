@@ -256,9 +256,10 @@ class ArgonOLEDController:
             line_height = self._line_height(font)
             for idx, segment in enumerate(segments):
                 line_y = entry.y if entry.y is not None else cursor_y
-                # Check if text would extend beyond screen bounds
-                if line_y + line_height > self.height:
-                    break
+                # Skip this segment if it starts completely outside the display
+                # Allow partial rendering - PIL clips naturally at image boundaries
+                if line_y >= self.height:
+                    continue
 
                 fill_colour = text_colour
                 if entry.invert is True:
@@ -347,11 +348,14 @@ class ArgonOLEDController:
                     x = max(0, self.width - text_width)
                 y = max(0, min(self.height - 1, y))
 
-                # Skip text only if it starts completely outside the display bounds
-                # PIL will naturally clip text that extends beyond the image
-                text_height = self._line_height(font)
+                # Allow partial rendering - PIL will naturally clip text that extends
+                # beyond the image boundaries. Only skip if text starts completely
+                # outside the visible display area.
                 if y >= self.height:
                     continue
+                # Note: We intentionally do NOT check if y + text_height > self.height
+                # because PIL clips content naturally and partial text is better than
+                # no text at all for readability.
 
                 elem_invert = element.get('invert')
                 if elem_invert is True:
@@ -952,7 +956,12 @@ _oled_lock = threading.Lock()
 
 
 def ensure_oled_button(log: Optional[logging.Logger] = None) -> Optional[Button]:
-    """Initialise and return the OLED front-panel button if available."""
+    """Initialise and return the OLED front-panel button if available.
+
+    Returns:
+        Button instance if successfully initialized, None otherwise.
+        Returns existing button if already initialized.
+    """
 
     if Button is None:
         if log:
@@ -968,8 +977,20 @@ def ensure_oled_button(log: Optional[logging.Logger] = None) -> Optional[Button]
 
     with _oled_lock:
         global oled_button_device
+
+        # Return existing button if it's still valid
         if oled_button_device is not None:
-            return oled_button_device
+            try:
+                # Verify the button is still functional by checking its state
+                _ = oled_button_device.is_pressed
+                return oled_button_device
+            except Exception as exc:
+                logger_ref.warning("Existing OLED button device is invalid, re-initializing: %s", exc)
+                try:
+                    oled_button_device.close()
+                except Exception:
+                    pass
+                oled_button_device = None
 
         if not ensure_gpiozero_pin_factory(logger_ref):
             logger_ref.debug("gpiozero pin factory unavailable; cannot initialise OLED button")
