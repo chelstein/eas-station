@@ -668,7 +668,8 @@
             if (!reportedAt) {
                 continue;
             }
-            const date = new Date(reportedAt);
+            // Convert Unix timestamp (seconds) to milliseconds for JavaScript Date
+            const date = new Date(reportedAt * 1000);
             if (Number.isNaN(date.getTime())) {
                 continue;
             }
@@ -750,8 +751,9 @@
         const error = (!locked && status.last_error)
             ? `<div class="small text-danger mt-1">${escapeHtml(status.last_error)}</div>`
             : '';
+        // Convert Unix timestamp (seconds) to milliseconds for JavaScript Date
         const timestamp = status.reported_at
-            ? `<div class="small text-muted">${new Date(status.reported_at).toLocaleString()}</div>`
+            ? `<div class="small text-muted">${new Date(status.reported_at * 1000).toLocaleString()}</div>`
             : '';
 
         return `

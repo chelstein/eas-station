@@ -763,6 +763,28 @@ class ContinuousEASMonitor:
         if samples is None or len(samples) == 0:
             return samples
 
+        # STEREO TO MONO CONVERSION: EAS decoder requires mono audio
+        # If audio is stereo (2D array with shape (n, 2)), convert to mono by averaging channels
+        if samples.ndim == 2:
+            if samples.shape[1] == 2:
+                # Stereo audio - average both channels to create mono
+                samples = samples.mean(axis=1)
+            elif samples.shape[1] == 1:
+                # Mono audio in 2D format - flatten to 1D
+                samples = samples.flatten()
+            else:
+                # Unexpected number of channels - take first channel only
+                # EAS monitoring requires mono audio for accurate SAME tone detection
+                logger.warning(
+                    f"Unexpected audio shape {samples.shape} with {samples.shape[1]} channels - "
+                    f"EAS monitoring requires mono audio, using first channel only"
+                )
+                samples = samples[:, 0]
+        
+        # Ensure samples is 1D array (mono audio)
+        if samples.ndim > 1:
+            samples = samples.flatten()
+
         if self.source_sample_rate == self.sample_rate:
             # No resampling needed - already at target rate
             return samples
