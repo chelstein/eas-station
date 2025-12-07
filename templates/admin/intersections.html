@@ -5,36 +5,36 @@
 {% block extra_css %}
 <style>
     .intersections-header {
-        background: linear-gradient(135deg, #6f42c1, #5a32a3);
+        background: linear-gradient(135deg, var(--secondary-color), var(--secondary-dark));
         color: white;
         padding: 2rem 0;
         margin-bottom: 2rem;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        box-shadow: var(--shadow-lg);
     }
 
     .operation-card {
         background: var(--surface-color);
         border-radius: 12px;
         padding: 1.5rem;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        box-shadow: var(--shadow-md);
         margin-bottom: 2rem;
-        border-left: 4px solid #6f42c1;
+        border-left: 4px solid var(--secondary-color);
     }
 
     .operation-card h5 {
-        color: #6f42c1;
+        color: var(--secondary-color);
         margin-bottom: 1rem;
     }
 
     .operation-description {
-        color: #6c757d;
+        color: var(--text-secondary);
         margin-bottom: 1rem;
         font-size: 0.95rem;
     }
 
     .result-box {
-        background: #f8f9fa;
-        border: 1px solid #dee2e6;
+        background: var(--bg-color);
+        border: 1px solid var(--border-color);
         border-radius: 8px;
         padding: 1rem;
         margin-top: 1rem;
@@ -46,8 +46,8 @@
     }
 
     .stat-badge {
-        background: #e7f1ff;
-        color: #0d6efd;
+        background: color-mix(in srgb, var(--info-color) 20%, var(--surface-color));
+        color: var(--info-color);
         padding: 0.5rem 1rem;
         border-radius: 8px;
         display: inline-block;
@@ -60,16 +60,16 @@
     }
 
     .info-box {
-        background: #e7f3ff;
-        border-left: 4px solid #0dcaf0;
+        background: color-mix(in srgb, var(--info-color) 15%, var(--surface-color));
+        border-left: 4px solid var(--info-color);
         padding: 1rem;
         margin-bottom: 1rem;
         border-radius: 4px;
     }
 
     .warning-box {
-        background: #fff3cd;
-        border-left: 4px solid #ffc107;
+        background: color-mix(in srgb, var(--warning-color) 15%, var(--surface-color));
+        border-left: 4px solid var(--warning-color);
         padding: 1rem;
         margin-bottom: 1rem;
         border-radius: 4px;
@@ -83,7 +83,7 @@
     }
 
     .stat-item {
-        background: #f8f9fa;
+        background: var(--bg-color);
         padding: 1rem;
         border-radius: 8px;
         text-align: center;
@@ -92,11 +92,11 @@
     .stat-number {
         font-size: 1.5rem;
         font-weight: bold;
-        color: #6f42c1;
+        color: var(--secondary-color);
     }
 
     .stat-label {
-        color: #6c757d;
+        color: var(--text-secondary);
         font-size: 0.85rem;
         text-transform: uppercase;
     }
@@ -340,7 +340,7 @@ async function recalculateAllIntersections() {
                     <span class="stat-badge">Alerts Processed: ${data.stats.alerts_processed}</span>
                     <span class="stat-badge">Intersections Created: ${data.stats.intersections_created}</span>
                     <span class="stat-badge">Deleted: ${data.stats.deleted_intersections}</span>
-                    ${data.stats.errors > 0 ? '<span class="stat-badge" style="background: #fff3cd; color: #856404;">Errors: ' + data.stats.errors + '</span>' : ''}
+                    ${data.stats.errors > 0 ? '<span class="stat-badge" style="background: color-mix(in srgb, var(--warning-color) 20%, var(--surface-color)); color: var(--warning-color);">Errors: ' + data.stats.errors + '</span>' : ''}
                 </div>
             `;
             loadStats();

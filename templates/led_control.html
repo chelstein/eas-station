@@ -212,10 +212,20 @@
     font-weight: bold;
 }
 
-.priority-emergency { background: #dc3545; color: white; }
-.priority-urgent { background: #fd7e14; color: white; }
-.priority-normal { background: #17a2b8; color: white; }
-.priority-low { background: #28a745; color: white; }
+.priority-emergency { background: var(--danger-color); color: white; }
+.priority-urgent { background: color-mix(in srgb, var(--danger-color) 70%, var(--warning-color)); color: white; }
+.priority-normal { background: var(--info-color); color: white; }
+.priority-low { background: var(--success-color); color: white; }
+
+/* Color preset buttons for LED control */
+.color-preset-red { background: color-mix(in srgb, red 100%, transparent) !important; color: white !important; }
+.color-preset-green { background: color-mix(in srgb, lime 100%, transparent) !important; color: black !important; }
+.color-preset-blue { background: color-mix(in srgb, blue 100%, transparent) !important; color: white !important; }
+.color-preset-magenta { background: color-mix(in srgb, magenta 100%, transparent) !important; color: white !important; }
+.color-preset-yellow { background: color-mix(in srgb, yellow 100%, transparent) !important; color: black !important; }
+.color-preset-cyan { background: color-mix(in srgb, cyan 100%, transparent) !important; color: black !important; }
+.color-preset-orange { background: color-mix(in srgb, orange 100%, transparent) !important; color: white !important; }
+.color-preset-purple { background: color-mix(in srgb, purple 100%, transparent) !important; color: white !important; }
 
 @media (max-width: 768px) {
     .tab-content { padding: 1rem; }
@@ -645,14 +655,14 @@
                                 <div class="col-md-6">
                                     <label class="form-label">Color Presets</label>
                                     <div class="d-flex gap-2 flex-wrap">
-                                        <button type="button" class="btn btn-sm" style="background: #FF0000; color: white;" onclick="setRGBColor('FF0000')">Red</button>
-                                        <button type="button" class="btn btn-sm" style="background: #00FF00; color: black;" onclick="setRGBColor('00FF00')">Green</button>
-                                        <button type="button" class="btn btn-sm" style="background: #0000FF; color: white;" onclick="setRGBColor('0000FF')">Blue</button>
-                                        <button type="button" class="btn btn-sm" style="background: #FF00FF; color: white;" onclick="setRGBColor('FF00FF')">Magenta</button>
-                                        <button type="button" class="btn btn-sm" style="background: #FFFF00; color: black;" onclick="setRGBColor('FFFF00')">Yellow</button>
-                                        <button type="button" class="btn btn-sm" style="background: #00FFFF; color: black;" onclick="setRGBColor('00FFFF')">Cyan</button>
-                                        <button type="button" class="btn btn-sm" style="background: #FF6600; color: white;" onclick="setRGBColor('FF6600')">Orange</button>
-                                        <button type="button" class="btn btn-sm" style="background: #8000FF; color: white;" onclick="setRGBColor('8000FF')">Purple</button>
+                                        <button type="button" class="btn btn-sm color-preset-red" onclick="setRGBColor('FF0000')">Red</button>
+                                        <button type="button" class="btn btn-sm color-preset-green" onclick="setRGBColor('00FF00')">Green</button>
+                                        <button type="button" class="btn btn-sm color-preset-blue" onclick="setRGBColor('0000FF')">Blue</button>
+                                        <button type="button" class="btn btn-sm color-preset-magenta" onclick="setRGBColor('FF00FF')">Magenta</button>
+                                        <button type="button" class="btn btn-sm color-preset-yellow" onclick="setRGBColor('FFFF00')">Yellow</button>
+                                        <button type="button" class="btn btn-sm color-preset-cyan" onclick="setRGBColor('00FFFF')">Cyan</button>
+                                        <button type="button" class="btn btn-sm color-preset-orange" onclick="setRGBColor('FF6600')">Orange</button>
+                                        <button type="button" class="btn btn-sm color-preset-purple" onclick="setRGBColor('8000FF')">Purple</button>
                                     </div>
                                 </div>
                             </div>
@@ -866,7 +876,7 @@
                         <div class="sticky-top" style="top: 20px;">
                             <div class="mb-3">
                                 <label class="form-label">Emergency Preview</label>
-                                <div class="message-preview flash-preview" id="emergency-preview" style="background: #330000; color: #ff6666;">
+                                <div class="message-preview flash-preview" id="emergency-preview" style="background: color-mix(in srgb, var(--danger-color) 20%, var(--dark-color)); color: var(--danger-color);">
                                     <div class="preview-line" id="emergency-preview-line1">EMERGENCY</div>
                                     <div class="preview-line" id="emergency-preview-line2">ALERT</div>
                                     <div class="preview-line" id="emergency-preview-line3">Enter emergency</div>

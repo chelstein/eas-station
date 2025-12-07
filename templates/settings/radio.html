@@ -593,7 +593,7 @@
         const barsHtml = Array.from({length: 4}, (_, i) => {
             const height = 6 + (i * 4); // 6, 10, 14, 18 pixels
             const active = i < bars;
-            return `<div style="display:inline-block; width:3px; height:${height}px; margin:0 1px; background:${active ? '#28a745' : '#dee2e6'}; border-radius:1px; vertical-align:bottom;"></div>`;
+            return `<div style="display:inline-block; width:3px; height:${height}px; margin:0 1px; background:${active ? 'var(--success-color)' : 'var(--border-color)'}; border-radius:1px; vertical-align:bottom;"></div>`;
         }).join('');
         
         // Determine color based on signal level (matching radio_diagnostics.html)

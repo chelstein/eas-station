@@ -11,10 +11,10 @@
 }
 
 .page-hero {
-    background: linear-gradient(120deg, #2b59ff, #3a8ef6);
+    background: linear-gradient(120deg, var(--primary-color), var(--primary-soft));
     border-radius: 18px;
     padding: 2rem;
-    color: #fff;
+    color: white;
     position: relative;
     overflow: hidden;
 }
@@ -145,10 +145,10 @@
     border-radius: 12px;
     padding: 1rem;
     margin: 1.25rem 0 0.5rem;
-    background: #050505;
+    background: var(--dark-color);
     font-family: 'JetBrains Mono', 'Courier New', monospace;
     min-height: 110px;
-    border: 1px solid rgba(255,255,255,0.08);
+    border: 1px solid var(--border-color);
 }
 
 .screen-preview[data-display="led"] { background: var(--bg-primary); color: var(--warning-color); text-shadow: 0 0 12px color-mix(in srgb, var(--warning-color) 60%, transparent); }
@@ -197,7 +197,7 @@
     padding: 0.2rem 0.65rem;
     border-radius: 999px;
     font-size: 0.8rem;
-    background: rgba(13, 202, 240, 0.12);
+    background: color-mix(in srgb, var(--info-color) 12%, transparent);
     color: var(--text-color);
     margin-right: 0.35rem;
 }
@@ -235,7 +235,7 @@
     height: 32px;
     border-radius: 50%;
     background: var(--primary-color);
-    color: #fff;
+    color: white;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -295,7 +295,7 @@
     display: inline-flex;
     align-items: center;
     gap: 0.3rem;
-    background: rgba(0, 123, 255, 0.12);
+    background: color-mix(in srgb, var(--primary-color) 12%, transparent);
     color: var(--text-color);
     padding: 0.2rem 0.6rem;
     border-radius: 999px;
