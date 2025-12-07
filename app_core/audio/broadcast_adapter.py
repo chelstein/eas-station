@@ -132,13 +132,14 @@ class BroadcastAudioAdapter:
                 normalized_chunks.append(chunk)
             elif target_ndim == 2 and chunk.ndim == 1:
                 # Convert mono (1D) to stereo (2D) by duplicating to both channels
-                normalized_chunks.append(np.column_stack([chunk, chunk]))
+                # Use reshape + tile for memory efficiency (avoids full copy)
+                normalized_chunks.append(np.tile(chunk.reshape(-1, 1), (1, 2)))
             elif target_ndim == 1 and chunk.ndim == 2:
                 # Convert stereo (2D) to mono (1D) by averaging channels
                 normalized_chunks.append(chunk.mean(axis=1))
             else:
                 logger.warning(
-                    f"{self.subscriber_id}: Unexpected chunk shape {chunk.shape}, "
+                    f"BroadcastAudioAdapter: Unexpected chunk shape {chunk.shape}, "
                     f"target_ndim={target_ndim}. Skipping chunk."
                 )
         

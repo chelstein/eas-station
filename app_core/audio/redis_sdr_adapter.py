@@ -153,14 +153,15 @@ class RedisSDRSourceAdapter(AudioSourceAdapter):
         try:
             # Use _stop_event from base class instead of undefined _running
             while not self._stop_event.is_set():
-                # Check if pubsub connection is still valid before attempting read
-                if self._pubsub is None:
-                    logger.debug(f"Redis pubsub closed for {self._receiver_id}, exiting subscriber loop")
-                    break
-                
                 try:
                     # Use get_message with timeout instead of listen() to allow graceful shutdown
-                    message = self._pubsub.get_message(timeout=1.0)
+                    # Check pubsub availability inside try block to avoid race conditions
+                    pubsub = self._pubsub
+                    if pubsub is None:
+                        logger.debug(f"Redis pubsub closed for {self._receiver_id}, exiting subscriber loop")
+                        break
+                    
+                    message = pubsub.get_message(timeout=1.0)
                 except (OSError, ConnectionError) as e:
                     # Handle connection errors gracefully (e.g., socket closed during shutdown)
                     # OSError with errno 9 = Bad file descriptor (socket was closed)
