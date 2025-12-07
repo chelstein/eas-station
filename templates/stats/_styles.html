@@ -590,12 +590,22 @@
     }
 
     /* Heatmap Specific Styles */
+    .chart-container.heatmap-container {
+        min-height: 280px;
+        max-height: 320px;
+    }
+
+    .chart-container.heatmap-container #temporalHeatmapChart {
+        height: 220px !important;
+        max-height: 220px;
+    }
+
     .heatmap-legend {
         display: flex;
         align-items: center;
         justify-content: center;
         gap: 0.5rem;
-        margin-top: 1rem;
+        margin-top: 0.75rem;
         font-size: 0.8rem;
         color: var(--text-muted);
     }
@@ -606,11 +616,16 @@
         border-radius: 6px;
         background: linear-gradient(90deg,
             rgba(102, 126, 234, 0.1) 0%,
-            rgba(102, 126, 234, 0.3) 25%,
-            rgba(102, 126, 234, 0.5) 50%,
-            rgba(102, 126, 234, 0.75) 75%,
-            rgba(102, 126, 234, 1) 100%
+            rgba(129, 140, 248, 0.3) 25%,
+            rgba(168, 85, 247, 0.5) 50%,
+            rgba(236, 72, 153, 0.75) 75%,
+            rgba(244, 63, 94, 1) 100%
         );
+    }
+
+    /* Compact chart for heatmap row */
+    .chart-compact {
+        min-height: 280px;
     }
 
     /* Footer */

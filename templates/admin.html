@@ -100,24 +100,41 @@
             background: linear-gradient(135deg, #667eea, #764ba2);
             color: white;
             padding: 1.5rem;
-            border-radius: 12px;
+            border-radius: 16px;
             text-align: center;
-            transition: all 0.3s ease;
+            transition: box-shadow 0.3s ease, transform 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -30%;
+            width: 80%;
+            height: 150%;
+            background: radial-gradient(circle, rgba(255,255,255,0.12) 0%, transparent 60%);
+            pointer-events: none;
         }
 
         .stat-card:hover {
-            transform: scale(1.03);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+            transform: translateY(-3px);
         }
 
         .stat-number {
-            font-size: 2rem;
-            font-weight: bold;
+            font-size: 2.25rem;
+            font-weight: 800;
             margin-bottom: 0.5rem;
+            position: relative;
         }
 
         .stat-label {
             font-size: 0.9rem;
             opacity: 0.9;
+            font-weight: 500;
+            position: relative;
         }
 
         .operation-grid {
