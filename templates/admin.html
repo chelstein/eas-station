@@ -345,15 +345,15 @@
                         <div class="stat-number">{{ active_alerts or 0 }}</div>
                         <div class="stat-label">Active Alerts</div>
                     </div>
-                    <div class="stat-card" style="background: linear-gradient(135deg, var(--warning-color), #f39c12);">
+                    <div class="stat-card" style="background: linear-gradient(135deg, var(--warning-color), color-mix(in srgb, var(--warning-color) 80%, var(--danger-color)));">
                         <div class="stat-number">{{ expired_alerts or 0 }}</div>
                         <div class="stat-label">Expired Alerts</div>
                     </div>
-                    <div class="stat-card" style="background: linear-gradient(135deg, var(--success-color), #20c997);">
+                    <div class="stat-card" style="background: linear-gradient(135deg, var(--success-color), color-mix(in srgb, var(--success-color) 80%, var(--info-color)));">
                         <div class="stat-number">{{ total_boundaries or 0 }}</div>
                         <div class="stat-label">Total Boundaries</div>
                     </div>
-                    <div class="stat-card" style="background: linear-gradient(135deg, var(--info-color), #339af0);">
+                    <div class="stat-card" style="background: linear-gradient(135deg, var(--info-color), color-mix(in srgb, var(--info-color) 80%, var(--primary-color)));">
                         <div class="stat-number">{{ total_alerts or 0 }}</div>
                         <div class="stat-label">Total Alerts</div>
                     </div>
@@ -1706,10 +1706,10 @@
                                     </div>
                                 </div>
                                 <div class="col-lg-3">
-                                    <div class="card h-100 border-warning" style="border-color: #fd7e14 !important;">
+                                    <div class="card h-100 border-warning" style="border-color: color-mix(in srgb, var(--warning-color) 80%, var(--danger-color)) !important;">
                                         <div class="card-body">
                                             <h6 class="card-title d-flex align-items-center">
-                                                <span class="badge me-2" style="background-color: #fd7e14;">Level 2</span>
+                                                <span class="badge me-2" style="background-color: color-mix(in srgb, var(--warning-color) 80%, var(--danger-color));">Level 2</span>
                                             </h6>
                                             <p class="card-text small"><strong>Roadways are hazardous.</strong> Only those who feel it is necessary to drive should be out. Contact your employer to see if you should report to work.</p>
                                         </div>

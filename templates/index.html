@@ -849,7 +849,7 @@
                 <span class="small"><strong>Roadways are hazardous</strong> with blowing and drifting snow. Roads may also be icy. Motorists are urged to drive very cautiously.</span>
             </div>
             <div class="snow-level-description">
-                <strong><span class="badge me-1" style="background-color: #fd7e14; color: #fff;">Level 2</span></strong>
+                <strong><span class="badge me-1" style="background-color: color-mix(in srgb, var(--warning-color) 80%, var(--danger-color)); color: white;">Level 2</span></strong>
                 <span class="small"><strong>Roadways are hazardous.</strong> Only those who feel it is necessary to drive should be out. Contact your employer to see if you should report to work.</span>
             </div>
             <div class="snow-level-description">
@@ -1025,30 +1025,30 @@
                             <div class="col-md-4">
                                 <p class="text-uppercase small text-muted fw-semibold mb-2">Alert Severity</p>
                                 <div class="legend-item">
-                                    <div class="legend-color" style="background-color: #dc3545;"></div>
+                                    <div class="legend-color" style="background-color: var(--danger-color);"></div>
                                     <span>Extreme</span>
                                 </div>
                                 <div class="legend-item">
-                                    <div class="legend-color" style="background-color: #fd7e14;"></div>
+                                    <div class="legend-color" style="background-color: color-mix(in srgb, var(--danger-color) 70%, var(--warning-color));"></div>
                                     <span>Severe</span>
                                 </div>
                                 <div class="legend-item">
-                                    <div class="legend-color" style="background-color: #ffc107;"></div>
+                                    <div class="legend-color" style="background-color: var(--warning-color);"></div>
                                     <span>Moderate</span>
                                 </div>
                                 <div class="legend-item">
-                                    <div class="legend-color" style="background-color: #17a2b8;"></div>
+                                    <div class="legend-color" style="background-color: var(--info-color);"></div>
                                     <span>Minor</span>
                                 </div>
                             </div>
                             <div class="col-md-4">
                                 <p class="text-uppercase small text-muted fw-semibold mb-2">Alert Status</p>
                                 <div class="legend-item">
-                                    <div class="legend-color" style="background-color: #28a745;"></div>
+                                    <div class="legend-color" style="background-color: var(--success-color);"></div>
                                     <span>Active Alerts</span>
                                 </div>
                                 <div class="legend-item">
-                                    <div class="legend-color" style="background: repeating-linear-gradient(45deg, #6c757d, #6c757d 3px, transparent 3px, transparent 6px);"></div>
+                                    <div class="legend-color" style="background: repeating-linear-gradient(45deg, var(--text-muted), var(--text-muted) 3px, transparent 3px, transparent 6px);"></div>
                                     <span>Historical Alerts</span>
                                 </div>
                             </div>
@@ -1651,15 +1651,15 @@ function createAlertPopup(props) {
     const severityClass = `severity-${(props.severity || 'unknown').toLowerCase()}`;
     const isActive = !isAlertExpired(props.expires);
     const statusBadge = isActive ?
-        '<span class="popup-badge" style="background: #28a745; color: white;">ACTIVE</span>' :
-        '<span class="popup-badge" style="background: #6c757d; color: white;">EXPIRED</span>';
+        '<span class="popup-badge" style="background: var(--success-color); color: white;">ACTIVE</span>' :
+        '<span class="popup-badge" style="background: var(--text-muted); color: white;">EXPIRED</span>';
 
     return `
         <div class="popup-title">${props.event || 'Unknown Event'}</div>
         <div class="popup-detail">
             <span class="popup-badge ${severityClass}">${props.severity || 'Unknown'}</span>
             ${statusBadge}
-            ${props.is_county_wide ? '<span class="popup-badge" style="background: #17a2b8; color: white;">COUNTY-WIDE</span>' : ''}
+            ${props.is_county_wide ? '<span class="popup-badge" style="background: var(--info-color); color: white;">COUNTY-WIDE</span>' : ''}
         </div>
         <div class="popup-detail"><strong>Area:</strong> ${props.area_desc || 'Unknown'}</div>
         <div class="popup-detail"><strong>Effective:</strong> ${props.effective ? new Date(props.effective).toLocaleString() : 'Unknown'}</div>

@@ -5,27 +5,27 @@
 {% block extra_css %}
 <style>
     .rbac-header {
-        background: linear-gradient(135deg, #204885, #0d6efd);
+        background: linear-gradient(135deg, var(--primary-color), var(--primary-soft));
         color: white;
         padding: 2rem 0;
         margin-bottom: 2rem;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        box-shadow: var(--shadow-lg);
     }
 
     .role-card {
-        border-left: 4px solid #0d6efd;
+        border-left: 4px solid var(--primary-color);
         transition: all 0.3s ease;
         height: 100%;
     }
 
     .role-card:hover {
         transform: translateY(-5px);
-        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        box-shadow: var(--shadow-lg);
     }
 
-    .role-card.admin { border-left-color: #dc3545; }
-    .role-card.operator { border-left-color: #0d6efd; }
-    .role-card.viewer { border-left-color: #6c757d; }
+    .role-card.admin { border-left-color: var(--danger-color); }
+    .role-card.operator { border-left-color: var(--primary-color); }
+    .role-card.viewer { border-left-color: var(--text-muted); }
 
     .permission-badge {
         display: inline-block;
@@ -33,19 +33,19 @@
         border-radius: 12px;
         font-size: 0.85rem;
         margin: 0.25rem;
-        background: #e9ecef;
-        color: #495057;
+        background: var(--bg-color);
+        color: var(--text-secondary);
     }
 
     .permission-group {
         margin-bottom: 1.5rem;
         padding: 1rem;
-        background: #f8f9fa;
+        background: var(--bg-color);
         border-radius: 8px;
     }
 
     .permission-group h6 {
-        color: #204885;
+        color: var(--primary-color);
         font-weight: bold;
         margin-bottom: 0.75rem;
     }
@@ -54,7 +54,7 @@
         display: inline-flex;
         align-items: center;
         padding: 0.5rem 1rem;
-        background: linear-gradient(135deg, #28a745, #20c997);
+        background: linear-gradient(135deg, var(--success-color), color-mix(in srgb, var(--success-color) 80%, var(--info-color)));
         color: white;
         border-radius: 20px;
         font-weight: 600;

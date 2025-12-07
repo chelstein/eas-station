@@ -5,18 +5,18 @@
 {% block extra_css %}
 <style>
     .stats-header {
-        background: linear-gradient(135deg, #28a745, #20c997);
+        background: linear-gradient(135deg, var(--success-color), color-mix(in srgb, var(--success-color) 80%, var(--info-color)));
         color: white;
         padding: 2rem 0;
         margin-bottom: 2rem;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        box-shadow: var(--shadow-lg);
     }
 
     .stat-card {
         background: var(--surface-color);
         border-radius: 12px;
         padding: 1.5rem;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        box-shadow: var(--shadow-md);
         text-align: center;
         transition: transform 0.3s ease;
         height: 100%;
@@ -24,18 +24,18 @@
 
     .stat-card:hover {
         transform: translateY(-5px);
-        box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+        box-shadow: var(--shadow-lg);
     }
 
     .stat-number {
         font-size: 2.5rem;
         font-weight: bold;
-        color: #204885;
+        color: var(--primary-color);
         margin-bottom: 0.5rem;
     }
 
     .stat-label {
-        color: #6c757d;
+        color: var(--text-secondary);
         font-size: 0.9rem;
         text-transform: uppercase;
         letter-spacing: 1px;
@@ -45,7 +45,7 @@
         background: var(--surface-color);
         border-radius: 12px;
         padding: 1.5rem;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        box-shadow: var(--shadow-md);
         margin-bottom: 2rem;
     }
 
@@ -53,14 +53,14 @@
         background: var(--surface-color);
         border-radius: 12px;
         padding: 1.5rem;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        box-shadow: var(--shadow-md);
         margin-bottom: 1rem;
-        border-left: 4px solid #0d6efd;
+        border-left: 4px solid var(--primary-color);
     }
 
     .usage-bar {
         height: 8px;
-        background: #e9ecef;
+        background: var(--bg-color);
         border-radius: 4px;
         overflow: hidden;
         margin-top: 0.5rem;
@@ -68,7 +68,7 @@
 
     .usage-fill {
         height: 100%;
-        background: linear-gradient(90deg, #28a745, #20c997);
+        background: linear-gradient(90deg, var(--success-color), color-mix(in srgb, var(--success-color) 80%, var(--info-color)));
         transition: width 0.3s ease;
     }
 
@@ -81,10 +81,10 @@
         display: inline-block;
     }
 
-    .type-manual { background: #cfe2ff; color: #084298; }
-    .type-automatic { background: #d1e7dd; color: #0f5132; }
-    .type-test { background: #fff3cd; color: #664d03; }
-    .type-override { background: #f8d7da; color: #842029; }
+    .type-manual { background: color-mix(in srgb, var(--info-color) 20%, var(--surface-color)); color: var(--info-color); }
+    .type-automatic { background: color-mix(in srgb, var(--success-color) 20%, var(--surface-color)); color: var(--success-color); }
+    .type-test { background: color-mix(in srgb, var(--warning-color) 20%, var(--surface-color)); color: var(--warning-color); }
+    .type-override { background: color-mix(in srgb, var(--danger-color) 20%, var(--surface-color)); color: var(--danger-color); }
 </style>
 {% endblock %}
 

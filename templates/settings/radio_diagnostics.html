@@ -272,7 +272,7 @@ sudo systemctl restart eas-station</code></pre>
         const barsHtml = Array.from({length: 4}, (_, i) => {
             const height = 6 + (i * 4); // 6, 10, 14, 18 pixels
             const active = i < bars; // Fill leftmost (shortest) bars first
-            return `<div style="display:inline-block; width:3px; height:${height}px; margin:0 1px; background:${active ? '#28a745' : '#dee2e6'}; border-radius:1px;"></div>`;
+            return `<div style="display:inline-block; width:3px; height:${height}px; margin:0 1px; background:${active ? 'var(--success-color)' : 'var(--border-color)'}; border-radius:1px;"></div>`;
         }).join('');
 
         // Determine color based on RSSI
