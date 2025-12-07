@@ -6,6 +6,17 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.13.3] - 2025-12-07
+### Fixed
+- **CRITICAL AUDIO BUG**: Fixed source_type mismatch preventing audio from playing and Icecast mounts from appearing
+- `ensure_sdr_audio_monitor_source` was sending `source_type: 'sdr'` but audio-service expected `'redis_sdr'` for separated architecture
+- Result: RedisSDRSourceAdapter was never created, no audio demodulation happened, no Icecast mount appeared
+- Changed to `source_type: 'redis_sdr'` so audio-service properly creates Redis IQ subscriber and Icecast output
+### Impact
+- ✅ Audio now plays from SDR receivers
+- ✅ Icecast mounts now appear (e.g., /receiver.mp3)
+- ✅ Complete end-to-end audio pipeline working
+
 ## [2.13.2] - 2025-12-07
 ### Fixed
 - **CRITICAL END-TO-END**: Complete signal chain from detection to audio now works

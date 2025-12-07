@@ -723,9 +723,11 @@ def ensure_sdr_audio_monitor_source(
             # Send command to sdr-service to reload and start the source
             publisher = get_audio_command_publisher()
             
-            # Build the source config that sdr-service can use
+            # Build the source config that audio-service can use
+            # CRITICAL: Use 'redis_sdr' type for separated architecture
+            # audio-service will create RedisSDRSourceAdapter to subscribe to IQ samples
             source_config = {
-                'source_type': AudioSourceType.SDR.value,
+                'source_type': 'redis_sdr',  # NOT AudioSourceType.SDR - use redis_sdr for separated arch
                 'name': source_name,
                 'enabled': True,
                 'priority': priority,
