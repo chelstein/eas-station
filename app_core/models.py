@@ -678,6 +678,7 @@ class RadioReceiver(db.Model):
     frequency_hz = db.Column(db.Float, nullable=False)
     sample_rate = db.Column(db.Integer, nullable=False)  # IQ sample rate (MHz range, e.g., 2400000)
     audio_sample_rate = db.Column(db.Integer, nullable=True)  # Audio output rate (kHz range, e.g., 48000)
+    frequency_correction_ppm = db.Column(db.Float, nullable=False, default=0.0)  # PPM correction for clock drift
     gain = db.Column(db.Float)
     channel = db.Column(db.Integer)
     serial = db.Column(db.String(128))
@@ -740,6 +741,7 @@ class RadioReceiver(db.Model):
             frequency_hz=float(self.frequency_hz),
             sample_rate=int(self.sample_rate),
             audio_sample_rate=int(audio_rate),
+            frequency_correction_ppm=float(self.frequency_correction_ppm or 0.0),
             gain=self.gain,
             channel=self.channel,
             serial=self.serial,

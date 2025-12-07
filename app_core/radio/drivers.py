@@ -599,7 +599,50 @@ class _SoapySDRReceiver(ReceiverInterface):
 
         try:
             device.setSampleRate(SoapySDR.SOAPY_SDR_RX, channel, self.config.sample_rate)
-            device.setFrequency(SoapySDR.SOAPY_SDR_RX, channel, self.config.frequency_hz)
+            
+            # Apply frequency correction (PPM) if specified
+            # RTL-SDR and other low-cost SDRs have crystal oscillator drift
+            # Typical values: -50 to +50 PPM
+            corrected_freq = self.config.frequency_hz
+            if self.config.frequency_correction_ppm != 0.0:
+                correction_factor = 1.0 + (self.config.frequency_correction_ppm / 1_000_000.0)
+                corrected_freq = self.config.frequency_hz * correction_factor
+                self._interface_logger.info(
+                    "Applying %+.1f PPM frequency correction for %s: %.6f MHz -> %.6f MHz",
+                    self.config.frequency_correction_ppm,
+                    self.config.identifier,
+                    self.config.frequency_hz / 1_000_000,
+                    corrected_freq / 1_000_000
+                )
+            
+            device.setFrequency(SoapySDR.SOAPY_SDR_RX, channel, corrected_freq)
+            
+            # Log the frequency that was set for diagnostics
+            try:
+                actual_freq = device.getFrequency(SoapySDR.SOAPY_SDR_RX, channel)
+                self._interface_logger.info(
+                    "Tuned %s to %.6f MHz (requested: %.6f MHz, readback: %.6f MHz)",
+                    self.config.identifier,
+                    self.config.frequency_hz / 1_000_000,
+                    corrected_freq / 1_000_000,
+                    actual_freq / 1_000_000
+                )
+                # Warn if readback differs significantly (more than 1 kHz)
+                if abs(actual_freq - corrected_freq) > 1000:
+                    self._interface_logger.warning(
+                        "Frequency readback mismatch for %s: requested %.6f MHz, got %.6f MHz (%.1f kHz error)",
+                        self.config.identifier,
+                        corrected_freq / 1_000_000,
+                        actual_freq / 1_000_000,
+                        (actual_freq - corrected_freq) / 1000
+                    )
+            except Exception as e:
+                # Some devices don't support getFrequency, that's OK
+                self._interface_logger.debug(
+                    "Could not read back frequency for %s: %s",
+                    self.config.identifier,
+                    e
+                )
             
             # Configure Gain
             if self.config.gain is not None:

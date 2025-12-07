@@ -51,6 +51,8 @@ class ReceiverConfig:
     channel: Optional[int] = None
     serial: Optional[str] = None
     enabled: bool = True
+    # Frequency correction for crystal oscillator drift (PPM)
+    frequency_correction_ppm: float = 0.0  # Parts per million correction (e.g., -10 to +50)
     # Audio demodulation settings
     modulation_type: str = 'IQ'  # IQ, FM, AM, NFM, WFM
     audio_output: bool = False  # Enable demodulated audio output

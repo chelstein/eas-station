@@ -6,6 +6,21 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.13.0] - 2025-12-07
+### Added
+- **MAJOR FEATURE**: PPM (Parts Per Million) frequency correction support for compensating crystal oscillator drift in SDRs
+- Added `frequency_correction_ppm` field to RadioReceiver model and database schema
+- Hardware frequency readback verification with mismatch warnings
+- Comprehensive frequency tuning diagnostics and logging
+### Fixed
+- **Frequency Accuracy**: RTL-SDR and other low-cost SDRs now properly compensate for clock drift (typically ±50 PPM)
+- **Tuning Verification**: Actual tuned frequency is now logged and verified against requested frequency
+- **Diagnostic Logging**: Frequency settings, PPM correction, and readback values now logged for troubleshooting
+### Improved
+- Frequency accuracy can now be calibrated using PPM correction (e.g., calibrate with GSM cell tower or known station)
+- Mismatch warnings help identify hardware tuning issues (> 1 kHz error triggers warning)
+- Better separation: PPM correction in `ReceiverConfig` dataclass, not just database
+
 ## [2.12.27] - 2025-12-07
 ### Fixed
 - **CRITICAL Demodulation Bug**: Added missing `process()` method to FMDemodulator and AMDemodulator classes that was being called by RedisSDRSourceAdapter but didn't exist, causing audio demodulation to fail completely
