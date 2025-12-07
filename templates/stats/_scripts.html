@@ -5,84 +5,137 @@
 <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-matrix@2.0.0/dist/chartjs-chart-matrix.min.js"></script>
 
 <script>
-console.log('🚀 Statistics dashboard initializing (Chart.js)...');
+console.log('Statistics dashboard initializing...');
 
-// Register Chart.js plugins globally where needed
+// Register Chart.js plugins
 Chart.register(ChartDataLabels);
 
 // ============================================
-// THEME-AWARE COLOR MANAGEMENT FOR CHART.JS
+// GRADIENT COLOR SYSTEM
 // ============================================
 
-/**
- * Get a CSS custom property value from the root element
- * @param {string} varName - CSS variable name (e.g., '--text-color')
- * @param {string} fallback - Fallback color if variable not found
- * @returns {string} The resolved color value
- */
+const GRADIENT_PALETTES = {
+    primary: ['#667eea', '#764ba2'],
+    success: ['#11998e', '#38ef7d'],
+    danger: ['#eb3349', '#f45c43'],
+    warning: ['#f093fb', '#f5576c'],
+    info: ['#4facfe', '#00f2fe'],
+    purple: ['#a855f7', '#6366f1'],
+    teal: ['#0891b2', '#06b6d4'],
+    orange: ['#f97316', '#fb923c'],
+    pink: ['#ec4899', '#f472b6'],
+    indigo: ['#6366f1', '#818cf8']
+};
+
+const CHART_GRADIENTS = [
+    GRADIENT_PALETTES.primary,
+    GRADIENT_PALETTES.success,
+    GRADIENT_PALETTES.warning,
+    GRADIENT_PALETTES.danger,
+    GRADIENT_PALETTES.info,
+    GRADIENT_PALETTES.purple,
+    GRADIENT_PALETTES.teal,
+    GRADIENT_PALETTES.orange,
+    GRADIENT_PALETTES.pink,
+    GRADIENT_PALETTES.indigo
+];
+
+function createGradient(ctx, colorStops, vertical = true) {
+    const gradient = vertical
+        ? ctx.createLinearGradient(0, 0, 0, ctx.canvas.height)
+        : ctx.createLinearGradient(0, 0, ctx.canvas.width, 0);
+    gradient.addColorStop(0, colorStops[0]);
+    gradient.addColorStop(1, colorStops[1]);
+    return gradient;
+}
+
+function createRadialGradient(ctx, colorStops) {
+    const centerX = ctx.canvas.width / 2;
+    const centerY = ctx.canvas.height / 2;
+    const radius = Math.min(centerX, centerY);
+    const gradient = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, radius);
+    gradient.addColorStop(0, colorStops[0]);
+    gradient.addColorStop(1, colorStops[1]);
+    return gradient;
+}
+
+// Heatmap color interpolation
+function getHeatmapColor(value, max) {
+    if (max === 0) return 'rgba(102, 126, 234, 0.05)';
+    const ratio = Math.min(value / max, 1);
+
+    // Beautiful gradient from light purple to deep purple/pink
+    const colors = [
+        { pos: 0, r: 102, g: 126, b: 234, a: 0.1 },
+        { pos: 0.25, r: 129, g: 140, b: 248, a: 0.3 },
+        { pos: 0.5, r: 168, g: 85, b: 247, a: 0.5 },
+        { pos: 0.75, r: 236, g: 72, b: 153, a: 0.75 },
+        { pos: 1, r: 244, g: 63, b: 94, a: 0.95 }
+    ];
+
+    let lower = colors[0], upper = colors[colors.length - 1];
+    for (let i = 0; i < colors.length - 1; i++) {
+        if (ratio >= colors[i].pos && ratio <= colors[i + 1].pos) {
+            lower = colors[i];
+            upper = colors[i + 1];
+            break;
+        }
+    }
+
+    const range = upper.pos - lower.pos || 1;
+    const t = (ratio - lower.pos) / range;
+
+    const r = Math.round(lower.r + (upper.r - lower.r) * t);
+    const g = Math.round(lower.g + (upper.g - lower.g) * t);
+    const b = Math.round(lower.b + (upper.b - lower.b) * t);
+    const a = lower.a + (upper.a - lower.a) * t;
+
+    return `rgba(${r}, ${g}, ${b}, ${a})`;
+}
+
+// ============================================
+// THEME MANAGEMENT
+// ============================================
+
 function getCSSVar(varName, fallback = '#212529') {
-    const root = document.documentElement;
-    const value = getComputedStyle(root).getPropertyValue(varName).trim();
+    const value = getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
     return value || fallback;
 }
 
-/**
- * Get theme-aware colors for charts
- * This function reads CSS variables to ensure charts adapt to the current theme
- * @returns {object} Object containing all theme-aware colors
- */
 function getChartThemeColors() {
-    const isDarkMode = document.documentElement.getAttribute('data-theme-mode') === 'dark';
-
+    const isDark = document.documentElement.getAttribute('data-theme-mode') === 'dark';
     return {
-        text: getCSSVar('--text-color', isDarkMode ? '#ffffff' : '#212529'),
-        textSecondary: getCSSVar('--text-secondary', isDarkMode ? '#d5deed' : '#5a6c8f'),
-        textMuted: getCSSVar('--text-muted', isDarkMode ? '#a8b4cc' : '#8892a6'),
-        background: getCSSVar('--bg-color', isDarkMode ? '#1b2434' : '#e8ecf7'),
-        surface: getCSSVar('--surface-color', isDarkMode ? '#243046' : '#ffffff'),
-        border: getCSSVar('--border-color', isDarkMode ? '#40516c' : '#ced7ea'),
-        primary: getCSSVar('--primary-color', isDarkMode ? '#6b96ff' : '#204885'),
-        secondary: getCSSVar('--secondary-color', isDarkMode ? '#c9a8ff' : '#872a96'),
-        success: getCSSVar('--success-color', isDarkMode ? '#67ffd6' : '#2eb08d'),
-        danger: getCSSVar('--danger-color', isDarkMode ? '#ffafbf' : '#e05263'),
-        warning: getCSSVar('--warning-color', isDarkMode ? '#ffe3ad' : '#f6b968'),
-        info: getCSSVar('--info-color', isDarkMode ? '#adcfff' : '#2f5aa1'),
-        gridLines: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'
+        text: getCSSVar('--text-color', isDark ? '#ffffff' : '#212529'),
+        textMuted: getCSSVar('--text-muted', isDark ? '#a8b4cc' : '#8892a6'),
+        surface: getCSSVar('--surface-color', isDark ? '#243046' : '#ffffff'),
+        border: getCSSVar('--border-color', isDark ? '#40516c' : '#ced7ea'),
+        gridLines: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)'
     };
 }
 
-/**
- * Apply theme colors to Chart.js global defaults
- */
 function applyChartTheme() {
     const colors = getChartThemeColors();
-
-    Chart.defaults.font.family = 'Segoe UI, sans-serif';
+    Chart.defaults.font.family = "'Inter', 'Segoe UI', sans-serif";
     Chart.defaults.color = colors.text;
     Chart.defaults.borderColor = colors.border;
-    Chart.defaults.backgroundColor = colors.surface;
-
-    // Update legend defaults
-    Chart.defaults.plugins.legend.display = true;
     Chart.defaults.plugins.legend.labels.color = colors.text;
-
-    // Update tooltip defaults
-    Chart.defaults.plugins.tooltip.enabled = true;
     Chart.defaults.plugins.tooltip.backgroundColor = colors.surface;
     Chart.defaults.plugins.tooltip.titleColor = colors.text;
     Chart.defaults.plugins.tooltip.bodyColor = colors.text;
     Chart.defaults.plugins.tooltip.borderColor = colors.border;
     Chart.defaults.plugins.tooltip.borderWidth = 1;
-
+    Chart.defaults.plugins.tooltip.cornerRadius = 8;
+    Chart.defaults.plugins.tooltip.padding = 12;
     Chart.defaults.responsive = true;
     Chart.defaults.maintainAspectRatio = false;
-
-    // Disable datalabels plugin by default (enable per chart as needed)
     Chart.defaults.plugins.datalabels.display = false;
 }
 
-// Apply theme on load
 applyChartTheme();
+
+// ============================================
+// DATA INITIALIZATION
+// ============================================
 
 const statsData = {
     alertByEvent: {{ alert_by_event | tojson | safe }} || [],
@@ -95,89 +148,21 @@ const statsData = {
     boundaryStats: {{ boundary_stats | tojson | safe }} || [],
     polling: {{ polling | tojson | safe }} || {},
     alertEvents: {{ alert_events | tojson | safe }} || [],
-    filterOptions: {{ filter_options | tojson | safe }} || {"severities": [], "statuses": [], "events": []},
+    filterOptions: {{ filter_options | tojson | safe }} || { severities: [], statuses: [], events: [] },
     dailyAlerts: {{ daily_alerts | tojson | safe }} || [],
     dowHourMatrix: {{ dow_hour_matrix | tojson | safe }} || Array.from({ length: 7 }, () => Array(24).fill(0)),
     lifecycleTimeline: {{ lifecycle_timeline | tojson | safe }} || []
 };
-console.log('✅ Data loaded:', statsData);
 
 const baseAlerts = (statsData.alertEvents || []).map(alert => ({
     ...alert,
     sentDate: alert.sent ? new Date(alert.sent) : null,
     expiresDate: alert.expires ? new Date(alert.expires) : null
-})).filter(alert => alert.sentDate && !Number.isNaN(alert.sentDate.getTime()));
+})).filter(alert => alert.sentDate && !isNaN(alert.sentDate.getTime()));
 
-const ACTIVE_STATUS_CANDIDATES = ['actual', 'active', 'alert', 'in effect'];
-const EXPIRED_STATUS_CANDIDATES = ['expired', 'past', 'cancelled', 'canceled', 'cancel', 'ended', 'test'];
-
-/**
- * Get theme-aware severity colors
- * @returns {object} Severity color mapping
- */
-function getSeverityColors() {
-    const isDarkMode = document.documentElement.getAttribute('data-theme-mode') === 'dark';
-
-    if (isDarkMode) {
-        return {
-            'Extreme': '#f87171',
-            'Severe': '#fb923c',
-            'Moderate': '#fbbf24',
-            'Minor': '#22d3ee',
-            'Unknown': '#94a3b8'
-        };
-    } else {
-        return {
-            'Extreme': '#dc3545',
-            'Severe': '#fd7e14',
-            'Moderate': '#ffc107',
-            'Minor': '#17a2b8',
-            'Unknown': '#6c757d'
-        };
-    }
-}
-
-const severityColors = getSeverityColors();
-
-/**
- * Get a theme-aware color palette for charts
- * Returns colors that work well in both light and dark themes
- * @returns {Array<string>} Array of color hex codes
- */
-function getChartColorPalette() {
-    const isDarkMode = document.documentElement.getAttribute('data-theme-mode') === 'dark';
-
-    if (isDarkMode) {
-        // Brighter, more saturated colors for dark backgrounds
-        return [
-            '#60a5fa', // Blue
-            '#34d399', // Green
-            '#fbbf24', // Yellow
-            '#f87171', // Red
-            '#22d3ee', // Cyan
-            '#a78bfa', // Purple
-            '#fb923c', // Orange
-            '#2dd4bf', // Teal
-            '#94a3b8'  // Gray
-        ];
-    } else {
-        // Standard Bootstrap-like colors for light backgrounds
-        return [
-            '#007bff', // Blue
-            '#28a745', // Green
-            '#ffc107', // Yellow
-            '#dc3545', // Red
-            '#17a2b8', // Cyan
-            '#6f42c1', // Purple
-            '#fd7e14', // Orange
-            '#20c997', // Teal
-            '#6c757d'  // Gray
-        ];
-    }
-}
-
-// Chart.js color palette (will update on theme change)
-let chartColors = getChartColorPalette();
+// ============================================
+// STATE MANAGEMENT
+// ============================================
 
 const state = {
     charts: {},
@@ -191,45 +176,31 @@ const state = {
     },
     filteredAlerts: [],
     aggregates: null,
+    systemStartDate: localStorage.getItem('statsSystemStartDate') || '2024-01-01',
     staticChartsInitialized: false
 };
+
+// ============================================
+// FILTER MANAGEMENT
+// ============================================
 
 function populateFilterSelect(id, options) {
     const select = document.getElementById(id);
     if (!select) return;
-    select.innerHTML = '';
-    options.forEach(option => {
-        const opt = document.createElement('option');
-        opt.value = option;
-        opt.textContent = option;
-        select.appendChild(opt);
-    });
+    select.innerHTML = options.map(opt => `<option value="${opt}">${opt}</option>`).join('');
 }
 
 function setPresetDates(preset) {
     const end = new Date();
     end.setHours(23, 59, 59, 999);
     const start = new Date(end);
-    switch (preset) {
-        case 'last7':
-            start.setDate(end.getDate() - 6);
-            break;
-        case 'last30':
-            start.setDate(end.getDate() - 29);
-            break;
-        case 'last90':
-            start.setDate(end.getDate() - 89);
-            break;
-        case 'last180':
-            start.setDate(end.getDate() - 179);
-            break;
-        case 'last365':
-            start.setDate(end.getDate() - 364);
-            break;
-        default:
-            return;
+
+    const days = { last7: 6, last30: 29, last90: 89, last180: 179, last365: 364 };
+    if (days[preset] !== undefined) {
+        start.setDate(end.getDate() - days[preset]);
     }
     start.setHours(0, 0, 0, 0);
+
     state.filters.preset = preset;
     state.filters.startDate = start;
     state.filters.endDate = end;
@@ -239,20 +210,16 @@ function setPresetDates(preset) {
 function updateDateInputs() {
     const startInput = document.getElementById('startDateInput');
     const endInput = document.getElementById('endDateInput');
-    if (startInput) {
-        startInput.value = state.filters.startDate ? state.filters.startDate.toISOString().slice(0, 10) : '';
+    if (startInput && state.filters.startDate) {
+        startInput.value = state.filters.startDate.toISOString().slice(0, 10);
     }
-    if (endInput) {
-        const endDate = state.filters.endDate ? new Date(state.filters.endDate) : null;
-        if (endDate) {
-            endDate.setHours(0, 0, 0, 0);
-        }
-        endInput.value = endDate ? endDate.toISOString().slice(0, 10) : '';
+    if (endInput && state.filters.endDate) {
+        endInput.value = state.filters.endDate.toISOString().slice(0, 10);
     }
 }
 
-function handlePresetChange(event) {
-    const preset = event.target.value;
+function handlePresetChange(e) {
+    const preset = e.target.value;
     if (preset !== 'custom') {
         setPresetDates(preset);
         applyFiltersFromInputs();
@@ -261,54 +228,42 @@ function handlePresetChange(event) {
     }
 }
 
-function getSelectedValues(selectElement) {
-    if (!selectElement) return [];
-    return Array.from(selectElement.selectedOptions).map(option => option.value);
+function getSelectedValues(select) {
+    return select ? Array.from(select.selectedOptions).map(o => o.value) : [];
 }
 
 function applyFiltersFromInputs() {
-    const datePreset = document.getElementById('dateRangePreset');
-    const presetValue = datePreset ? datePreset.value : state.filters.preset;
-    if (presetValue === 'custom') {
+    const presetSelect = document.getElementById('dateRangePreset');
+    const preset = presetSelect ? presetSelect.value : state.filters.preset;
+
+    if (preset === 'custom') {
         state.filters.preset = 'custom';
         const startInput = document.getElementById('startDateInput');
         const endInput = document.getElementById('endDateInput');
-        state.filters.startDate = startInput && startInput.value ? new Date(startInput.value + 'T00:00:00') : null;
-        state.filters.endDate = endInput && endInput.value ? new Date(endInput.value + 'T23:59:59') : null;
+        state.filters.startDate = startInput?.value ? new Date(startInput.value + 'T00:00:00') : null;
+        state.filters.endDate = endInput?.value ? new Date(endInput.value + 'T23:59:59') : null;
     } else {
-        setPresetDates(presetValue);
+        setPresetDates(preset);
     }
 
-    const severityFilter = document.getElementById('severityFilter');
-    const statusFilter = document.getElementById('statusFilter');
-    const eventFilter = document.getElementById('eventFilter');
-
-    state.filters.severities = new Set(getSelectedValues(severityFilter));
-    state.filters.statuses = new Set(getSelectedValues(statusFilter));
-    state.filters.events = new Set(getSelectedValues(eventFilter));
+    state.filters.severities = new Set(getSelectedValues(document.getElementById('severityFilter')));
+    state.filters.statuses = new Set(getSelectedValues(document.getElementById('statusFilter')));
+    state.filters.events = new Set(getSelectedValues(document.getElementById('eventFilter')));
 
     updateDashboard();
 }
 
 function resetFilters() {
-    state.filters = {
-        preset: 'last30',
-        startDate: null,
-        endDate: null,
-        severities: new Set(),
-        statuses: new Set(),
-        events: new Set()
-    };
-    const datePreset = document.getElementById('dateRangePreset');
-    if (datePreset) {
-        datePreset.value = 'last30';
-    }
+    state.filters = { preset: 'last30', startDate: null, endDate: null, severities: new Set(), statuses: new Set(), events: new Set() };
+
+    const presetSelect = document.getElementById('dateRangePreset');
+    if (presetSelect) presetSelect.value = 'last30';
+
     ['severityFilter', 'statusFilter', 'eventFilter'].forEach(id => {
         const select = document.getElementById(id);
-        if (select) {
-            Array.from(select.options).forEach(option => { option.selected = false; });
-        }
+        if (select) Array.from(select.options).forEach(o => o.selected = false);
     });
+
     setPresetDates('last30');
     updateDashboard();
 }
@@ -318,210 +273,112 @@ function exportFilteredData() {
         alert('No filtered alerts to export.');
         return;
     }
+
     const header = ['identifier', 'sent', 'expires', 'severity', 'status', 'event'];
-    const rows = state.filteredAlerts.map(alert => [
-        `"${alert.id || ''}"`,
-        alert.sentDate ? alert.sentDate.toISOString() : '',
-        alert.expiresDate ? alert.expiresDate.toISOString() : '',
-        `"${alert.severity}"`,
-        `"${alert.status}"`,
-        `"${alert.event}"`
+    const rows = state.filteredAlerts.map(a => [
+        `"${a.id || ''}"`,
+        a.sentDate?.toISOString() || '',
+        a.expiresDate?.toISOString() || '',
+        `"${a.severity}"`,
+        `"${a.status}"`,
+        `"${a.event}"`
     ].join(','));
-    const csvContent = [header.join(','), ...rows].join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
+
+    const blob = new Blob([[header.join(','), ...rows].join('\n')], { type: 'text/csv' });
     const link = document.createElement('a');
-    link.href = url;
+    link.href = URL.createObjectURL(blob);
     link.download = 'filtered_alerts.csv';
-    document.body.appendChild(link);
     link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
 }
 
-function updateFilterSummary(filteredAlerts) {
+// ============================================
+// SYSTEM DATE MANAGEMENT
+// ============================================
+
+function updateSystemStartDate() {
+    const input = document.getElementById('systemStartDate');
+    if (input && input.value) {
+        state.systemStartDate = input.value;
+        localStorage.setItem('statsSystemStartDate', input.value);
+        updateSystemInfo();
+    }
+}
+
+function resetSystemStartDate() {
+    state.systemStartDate = '2024-01-01';
+    localStorage.removeItem('statsSystemStartDate');
+    const input = document.getElementById('systemStartDate');
+    if (input) input.value = state.systemStartDate;
+    updateSystemInfo();
+}
+
+// ============================================
+// UI UPDATES
+// ============================================
+
+function updateFilterSummary(alerts) {
     const summary = document.getElementById('filterSummary');
     if (!summary) return;
-    const formatter = new Intl.NumberFormat();
-    const pieces = [];
-    pieces.push(`<strong>${formatter.format(filteredAlerts.length)}</strong> alerts match the current filters.`);
+
+    const fmt = new Intl.NumberFormat();
+    const parts = [`<strong>${fmt.format(alerts.length)}</strong> alerts match current filters.`];
+
     if (state.filters.startDate || state.filters.endDate) {
-        const startText = state.filters.startDate ? state.filters.startDate.toLocaleDateString() : 'beginning';
-        const endText = state.filters.endDate ? state.filters.endDate.toLocaleDateString() : 'now';
-        pieces.push(`<span class="filter-pill"><i class="fas fa-calendar"></i> ${startText} → ${endText}</span>`);
+        const start = state.filters.startDate?.toLocaleDateString() || 'beginning';
+        const end = state.filters.endDate?.toLocaleDateString() || 'now';
+        parts.push(`<span class="filter-pill"><i class="fas fa-calendar"></i> ${start} - ${end}</span>`);
     }
     if (state.filters.severities.size) {
-        pieces.push(`<span class="filter-pill"><i class="fas fa-exclamation-triangle"></i> ${Array.from(state.filters.severities).join(', ')}</span>`);
+        parts.push(`<span class="filter-pill"><i class="fas fa-exclamation-triangle"></i> ${[...state.filters.severities].join(', ')}</span>`);
     }
-    if (state.filters.statuses.size) {
-        pieces.push(`<span class="filter-pill"><i class="fas fa-toggle-on"></i> ${Array.from(state.filters.statuses).join(', ')}</span>`);
-    }
-    if (state.filters.events.size) {
-        pieces.push(`<span class="filter-pill"><i class="fas fa-bell"></i> ${Array.from(state.filters.events).join(', ')}</span>`);
-    }
-    summary.innerHTML = pieces.join(' ');
+
+    summary.innerHTML = parts.join(' ');
 }
 
-function updateQuickStats(aggregates) {
-    const formatter = new Intl.NumberFormat();
-    const totalEl = document.getElementById('filteredTotalAlerts');
-    if (totalEl) {
-        totalEl.textContent = formatter.format(aggregates.totalAlerts);
-    }
-    const avgEl = document.getElementById('filteredAvgPerDay');
-    if (avgEl) {
-        avgEl.textContent = aggregates.avgPerDay ? aggregates.avgPerDay.toFixed(1) : '0';
-    }
-    const severityEl = document.getElementById('filteredTopSeverity');
-    if (severityEl) {
-        severityEl.textContent = aggregates.topSeverity || '—';
-    }
-    const eventEl = document.getElementById('filteredTopEvent');
-    if (eventEl) {
-        eventEl.textContent = aggregates.topEvent || '—';
-    }
-}
+function updateQuickStats(agg) {
+    const fmt = new Intl.NumberFormat();
 
-function sumStatusCounts(aggregates, candidates) {
-    if (!aggregates.statusTotalsNormalized) {
-        return 0;
-    }
-    return candidates.reduce((acc, candidate) => acc + (aggregates.statusTotalsNormalized.get(candidate.toLowerCase()) || 0), 0);
-}
+    const els = {
+        filteredTotalAlerts: fmt.format(agg.totalAlerts),
+        filteredAvgPerDay: agg.avgPerDay?.toFixed(1) || '0',
+        filteredTopSeverity: agg.topSeverity || '-',
+        filteredTopEvent: agg.topEvent || '-'
+    };
 
-function updateKpiCards(aggregates) {
-    const formatter = new Intl.NumberFormat();
-    const totalDelta = document.getElementById('totalAlertsDelta');
-    if (totalDelta) {
-        totalDelta.textContent = `Filtered: ${formatter.format(aggregates.totalAlerts)}`;
-    }
-    const activeDelta = document.getElementById('activeAlertsDelta');
-    if (activeDelta) {
-        const activeCount = sumStatusCounts(aggregates, ACTIVE_STATUS_CANDIDATES);
-        activeDelta.textContent = `Filtered: ${formatter.format(activeCount)}`;
-        activeDelta.classList.toggle('positive', activeCount > 0);
-    }
-    const expiredDelta = document.getElementById('expiredAlertsDelta');
-    if (expiredDelta) {
-        const expiredCount = sumStatusCounts(aggregates, EXPIRED_STATUS_CANDIDATES);
-        expiredDelta.textContent = `Filtered: ${formatter.format(expiredCount)}`;
-        expiredDelta.classList.toggle('negative', expiredCount > 0);
-    }
-    const boundaryDelta = document.getElementById('boundaryDelta');
-    if (boundaryDelta) {
-        boundaryDelta.textContent = 'Static: based on configured geography';
-    }
-    const uptimeDelta = document.getElementById('uptimeDelta');
-    if (uptimeDelta) {
-        uptimeDelta.textContent = 'Approximate launch date baseline';
-    }
-    const reliabilityDelta = document.getElementById('reliabilityDelta');
-    if (reliabilityDelta && statsData.polling) {
-        const provenance = statsData.polling.data_source || 'poll_history';
-        const sources = (statsData.polling.sources && statsData.polling.sources.length)
-            ? statsData.polling.sources.join(', ')
-            : 'Unknown';
-        reliabilityDelta.textContent = `Source: ${sources} (${provenance})`;
-    }
-}
-
-function buildStatusSparklineSeries(aggregates, candidates) {
-    if (!aggregates.dailyStatusCounts) {
-        return [];
-    }
-    const combined = new Map();
-    candidates.forEach(candidate => {
-        const series = aggregates.dailyStatusCounts.get(candidate.toLowerCase());
-        if (!series) return;
-        series.forEach((count, day) => {
-            combined.set(day, (combined.get(day) || 0) + count);
-        });
-    });
-    return Array.from(combined.entries())
-        .sort((a, b) => new Date(a[0]) - new Date(b[0]))
-        .slice(-14)
-        .map(([date, count]) => ({ x: new Date(date).getTime(), y: count }));
-}
-
-function createSparkline(containerId, series, color) {
-    const container = document.getElementById(containerId);
-    if (!container || !series.length) {
-        return;
-    }
-    if (state.charts[containerId]) {
-        state.charts[containerId].destroy();
-    }
-
-    const canvas = document.createElement('canvas');
-    canvas.height = 60;
-    container.innerHTML = '';
-    container.appendChild(canvas);
-
-    state.charts[containerId] = new Chart(canvas, {
-        type: 'line',
-        data: {
-            datasets: [{
-                data: series,
-                borderColor: color,
-                backgroundColor: color + '33',
-                fill: true,
-                tension: 0.4,
-                borderWidth: 1.5,
-                pointRadius: 0
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: { display: false },
-                tooltip: {
-                    callbacks: {
-                        title: (items) => {
-                            const date = new Date(items[0].parsed.x);
-                            return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-                        },
-                        label: (item) => `${item.parsed.y} alerts`
-                    }
-                }
-            },
-            scales: {
-                x: {
-                    type: 'time',
-                    display: false
-                },
-                y: {
-                    display: false
-                }
-            }
-        }
+    Object.entries(els).forEach(([id, val]) => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = val;
     });
 }
 
-function renderSparklines(aggregates) {
-    const totalSeries = aggregates.dailySeries.slice(-14).map(item => ({ x: new Date(item.date).getTime(), y: item.count }));
-    if (totalSeries.length) {
-        createSparkline('sparkline-total', totalSeries, '#007bff');
+function updateSystemInfo() {
+    const timestampEl = document.getElementById('stats-timestamp');
+    if (timestampEl) timestampEl.textContent = new Date().toLocaleString();
+
+    const uptimeEl = document.getElementById('uptime-days');
+    if (uptimeEl) {
+        const startDate = new Date(state.systemStartDate + 'T00:00:00');
+        const now = new Date();
+        const days = Math.max(0, Math.floor((now - startDate) / (1000 * 60 * 60 * 24)));
+        uptimeEl.textContent = days.toLocaleString();
     }
-    const activeSeries = buildStatusSparklineSeries(aggregates, ACTIVE_STATUS_CANDIDATES);
-    if (activeSeries.length) {
-        createSparkline('sparkline-active', activeSeries, '#28a745');
-    }
-    const expiredSeries = buildStatusSparklineSeries(aggregates, EXPIRED_STATUS_CANDIDATES);
-    if (expiredSeries.length) {
-        createSparkline('sparkline-expired', expiredSeries, '#dc3545');
+
+    const startInput = document.getElementById('systemStartDate');
+    if (startInput && !startInput.value) {
+        startInput.value = state.systemStartDate;
     }
 }
+
+// ============================================
+// DATA AGGREGATION
+// ============================================
 
 function getFilteredAlerts() {
     const start = state.filters.startDate ? new Date(state.filters.startDate) : null;
     const end = state.filters.endDate ? new Date(state.filters.endDate) : null;
-    if (start) {
-        start.setHours(0, 0, 0, 0);
-    }
-    if (end) {
-        end.setHours(23, 59, 59, 999);
-    }
+    if (start) start.setHours(0, 0, 0, 0);
+    if (end) end.setHours(23, 59, 59, 999);
+
     return baseAlerts.filter(alert => {
         if (start && alert.sentDate < start) return false;
         if (end && alert.sentDate > end) return false;
@@ -532,263 +389,62 @@ function getFilteredAlerts() {
     });
 }
 
-function computeMovingAverage(dailySeries, window) {
-    if (!dailySeries.length) return [];
-    const values = dailySeries.map(item => item.count);
-    return dailySeries.map((item, idx) => {
-        const start = Math.max(0, idx - window + 1);
-        const slice = values.slice(start, idx + 1);
-        const avg = slice.reduce((acc, value) => acc + value, 0) / slice.length;
-        return { date: item.date, value: Number(avg.toFixed(2)) };
-    });
-}
-
-function startOfWeek(date) {
-    const result = new Date(date);
-    result.setHours(0, 0, 0, 0);
-    const day = result.getDay();
-    const diff = (day + 6) % 7;
-    result.setDate(result.getDate() - diff);
-    return result;
-}
-
-function computeTimelineComparison(dailySeries, filters) {
-    if (!dailySeries.length) {
-        return null;
-    }
-    const endDate = filters.endDate ? new Date(filters.endDate) : new Date(dailySeries[dailySeries.length - 1].date);
-    endDate.setHours(0, 0, 0, 0);
-    const currentWeekStart = startOfWeek(endDate);
-    const previousWeekStart = new Date(currentWeekStart);
-    previousWeekStart.setDate(previousWeekStart.getDate() - 7);
-    const lastYearStart = new Date(currentWeekStart);
-    lastYearStart.setFullYear(lastYearStart.getFullYear() - 1);
-
-    const dayMap = new Map(dailySeries.map(item => [item.date, item.count]));
-
-    function buildSeries(start) {
-        const series = [];
-        for (let i = 0; i < 7; i += 1) {
-            const day = new Date(start);
-            day.setDate(start.getDate() + i);
-            const key = day.toISOString().slice(0, 10);
-            series.push({ date: key, count: dayMap.get(key) || 0 });
-        }
-        return series;
-    }
-
-    const movingAverages = {
-        sevenDay: computeMovingAverage(dailySeries, 7),
-        thirtyDay: computeMovingAverage(dailySeries, 30),
-        ninetyDay: computeMovingAverage(dailySeries, 90)
-    };
-
-    const peakDay = dailySeries.reduce((acc, item) => {
-        if (!acc || item.count > acc.count) return item;
-        return acc;
-    }, null);
-
-    return {
-        currentWeek: buildSeries(currentWeekStart),
-        previousWeek: buildSeries(previousWeekStart),
-        lastYearWeek: buildSeries(lastYearStart),
-        movingAverages,
-        annotations: peakDay ? [{ date: peakDay.date, text: `Peak: ${peakDay.count} alerts` }] : []
-    };
-}
-
-function computeSeasonalAverage(dailySeries) {
-    const buckets = Array.from({ length: 7 }, () => []);
-    dailySeries.forEach(item => {
-        const dow = new Date(item.date).getDay();
-        buckets[dow].push(item.count);
-    });
-    return buckets.map((values, index) => ({
-        dow: index,
-        average: values.length ? Number((values.reduce((a, b) => a + b, 0) / values.length).toFixed(2)) : 0
-    }));
-}
-
-function computeForecast(dailySeries) {
-    if (dailySeries.length < 7) {
-        return null;
-    }
-    const counts = dailySeries.map(item => item.count);
-    const x = dailySeries.map((_, idx) => idx);
-    const meanX = x.reduce((acc, val) => acc + val, 0) / x.length;
-    const meanY = counts.reduce((acc, val) => acc + val, 0) / counts.length;
-    const numerator = x.reduce((acc, val, idx) => acc + (val - meanX) * (counts[idx] - meanY), 0);
-    const denominator = x.reduce((acc, val) => acc + Math.pow(val - meanX, 2), 0) || 1;
-    const slope = numerator / denominator;
-    const intercept = meanY - slope * meanX;
-    const residuals = counts.map((value, idx) => value - (slope * x[idx] + intercept));
-    const variance = residuals.reduce((acc, val) => acc + Math.pow(val, 2), 0) / (residuals.length || 1);
-    const stdDev = Math.sqrt(variance);
-    const interval = 1.96 * stdDev;
-
-    const lastDate = new Date(dailySeries[dailySeries.length - 1].date);
-    const projection = [];
-    let total = 0;
-
-    for (let i = 1; i <= 7; i += 1) {
-        const forecastDate = new Date(lastDate);
-        forecastDate.setDate(forecastDate.getDate() + i);
-        const xi = x.length + i - 1;
-        const value = slope * xi + intercept;
-        const normalized = Math.max(value, 0);
-        total += normalized;
-        projection.push({
-            date: forecastDate.toISOString().slice(0, 10),
-            value: Number(normalized.toFixed(2)),
-            lower: Number(Math.max(normalized - interval, 0).toFixed(2)),
-            upper: Number((normalized + interval).toFixed(2))
-        });
-    }
-
-    return {
-        projection,
-        interval,
-        expectedNext7: Number(total.toFixed(1)),
-        seasonal: computeSeasonalAverage(dailySeries)
-    };
-}
-
-function formatMonthKey(monthKey) {
-    const [year, month] = monthKey.split('-').map(Number);
-    const date = new Date(Date.UTC(year, month - 1, 1));
-    return date.toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
-}
-
-function computeMasterDetail(alerts) {
-    const events = new Map();
-    alerts.forEach(alert => {
-        const eventName = alert.event || 'Unknown';
-        const sent = alert.sentDate;
-        if (!sent) return;
-        const monthKey = `${sent.getFullYear()}-${String(sent.getMonth() + 1).padStart(2, '0')}`;
-        if (!events.has(eventName)) {
-            events.set(eventName, { total: 0, months: new Map() });
-        }
-        const eventEntry = events.get(eventName);
-        eventEntry.total += 1;
-        if (!eventEntry.months.has(monthKey)) {
-            eventEntry.months.set(monthKey, { count: 0, days: new Map() });
-        }
-        const monthEntry = eventEntry.months.get(monthKey);
-        monthEntry.count += 1;
-        const dayKey = sent.toISOString().slice(0, 10);
-        monthEntry.days.set(dayKey, (monthEntry.days.get(dayKey) || 0) + 1);
-    });
-
-    const baseSeries = [];
-    const drilldownData = new Map();
-    const sortedEvents = Array.from(events.entries()).sort((a, b) => b[1].total - a[1].total).slice(0, 6);
-
-    sortedEvents.forEach(([eventName, data]) => {
-        baseSeries.push({ name: eventName, y: data.total, eventName });
-        const months = Array.from(data.months.entries())
-            .sort((a, b) => new Date(`${a[0]}-01`) - new Date(`${b[0]}-01`))
-            .slice(-12);
-
-        drilldownData.set(eventName, {
-            months: months.map(([monthKey, monthData]) => ({
-                month: formatMonthKey(monthKey),
-                count: monthData.count,
-                monthKey
-            })),
-            days: new Map(months.map(([monthKey, monthData]) => [
-                monthKey,
-                Array.from(monthData.days.entries())
-                    .sort((a, b) => new Date(a[0]) - new Date(b[0]))
-                    .map(([day, count]) => ({ day, count }))
-            ]))
-        });
-    });
-
-    return { baseSeries, drilldownData };
-}
-
-function aggregateAlerts(alerts, filters) {
+function aggregateAlerts(alerts) {
     const eventCounts = new Map();
     const severityCounts = new Map();
     const statusCounts = new Map();
-    const statusTotalsNormalized = new Map();
-    const statusDisplayNames = new Map();
     const hourlyTotals = Array(24).fill(0);
     const monthlyTotals = Array(12).fill(0);
     const yearlyCounts = new Map();
     const hourlyMatrix = Array.from({ length: 7 }, () => Array(24).fill(0));
     const dailyCounts = new Map();
-    const dailyStatusCounts = new Map();
 
     alerts.forEach(alert => {
         const sent = alert.sentDate;
         if (!sent) return;
+
         const dayKey = sent.toISOString().slice(0, 10);
         const hour = sent.getHours();
         const dow = sent.getDay();
         const month = sent.getMonth();
         const year = sent.getFullYear();
 
-        const severity = alert.severity || 'Unknown';
-        const status = alert.status || 'Unknown';
-        const eventName = alert.event || 'Unknown';
-        const statusKey = status.toLowerCase();
+        eventCounts.set(alert.event || 'Unknown', (eventCounts.get(alert.event) || 0) + 1);
+        severityCounts.set(alert.severity || 'Unknown', (severityCounts.get(alert.severity) || 0) + 1);
+        statusCounts.set(alert.status || 'Unknown', (statusCounts.get(alert.status) || 0) + 1);
 
-        eventCounts.set(eventName, (eventCounts.get(eventName) || 0) + 1);
-        severityCounts.set(severity, (severityCounts.get(severity) || 0) + 1);
-        statusCounts.set(status, (statusCounts.get(status) || 0) + 1);
-        statusTotalsNormalized.set(statusKey, (statusTotalsNormalized.get(statusKey) || 0) + 1);
-        if (!statusDisplayNames.has(statusKey)) {
-            statusDisplayNames.set(statusKey, status);
-        }
-
-        hourlyTotals[hour] += 1;
-        hourlyMatrix[dow][hour] += 1;
-        monthlyTotals[month] += 1;
+        hourlyTotals[hour]++;
+        hourlyMatrix[dow][hour]++;
+        monthlyTotals[month]++;
         yearlyCounts.set(year, (yearlyCounts.get(year) || 0) + 1);
         dailyCounts.set(dayKey, (dailyCounts.get(dayKey) || 0) + 1);
-
-        if (!dailyStatusCounts.has(statusKey)) {
-            dailyStatusCounts.set(statusKey, new Map());
-        }
-        const statusDaily = dailyStatusCounts.get(statusKey);
-        statusDaily.set(dayKey, (statusDaily.get(dayKey) || 0) + 1);
     });
 
-    const dailySeries = Array.from(dailyCounts.entries())
+    const dailySeries = [...dailyCounts.entries()]
         .sort((a, b) => new Date(a[0]) - new Date(b[0]))
         .map(([date, count]) => ({ date, count }));
-    const recentByDay = dailySeries.slice(-30);
-    const dowTotals = hourlyMatrix.map(row => row.reduce((acc, value) => acc + value, 0));
-    const timelineComparison = computeTimelineComparison(dailySeries, filters);
-    const forecast = computeForecast(dailySeries);
-    const masterDetail = computeMasterDetail(alerts);
-    const yearlyTotals = Array.from(yearlyCounts.entries())
-        .sort((a, b) => a[0] - b[0])
-        .map(([year, count]) => ({ year, count }));
 
-    const alertByEvent = Array.from(eventCounts.entries())
+    const alertByEvent = [...eventCounts.entries()]
         .sort((a, b) => b[1] - a[1])
         .slice(0, 10)
         .map(([event, count]) => ({ event, count }));
 
-    const alertBySeverity = Array.from(severityCounts.entries())
+    const alertBySeverity = [...severityCounts.entries()]
         .sort((a, b) => b[1] - a[1])
         .map(([severity, count]) => ({ severity, count }));
 
-    const alertByStatus = Array.from(statusCounts.entries())
+    const alertByStatus = [...statusCounts.entries()]
         .sort((a, b) => b[1] - a[1])
         .map(([status, count]) => ({ status, count }));
 
-    const totalAlerts = alerts.length;
-    const avgPerDay = dailySeries.length ? (dailySeries.reduce((acc, item) => acc + item.count, 0) / dailySeries.length) : 0;
-    const topSeverity = alertBySeverity.length ? alertBySeverity[0].severity : '—';
-    const topEvent = alertByEvent.length ? alertByEvent[0].event : '—';
-    const peakDay = timelineComparison && timelineComparison.annotations.length ? timelineComparison.annotations[0] : null;
+    const yearlyTotals = [...yearlyCounts.entries()]
+        .sort((a, b) => a[0] - b[0])
+        .map(([year, count]) => ({ year, count }));
+
+    const dowTotals = hourlyMatrix.map(row => row.reduce((a, b) => a + b, 0));
 
     return {
-        totalAlerts,
+        totalAlerts: alerts.length,
         alertByEvent,
         alertBySeverity,
         alertByStatus,
@@ -798,830 +454,562 @@ function aggregateAlerts(alerts, filters) {
         monthlyTotals,
         yearlyTotals,
         dailySeries,
-        recentByDay,
-        timelineComparison,
-        forecast,
-        masterDetail,
-        avgPerDay,
-        topSeverity,
-        topEvent,
-        statusTotalsNormalized,
-        statusDisplayNames,
-        dailyStatusCounts,
-        peakDay
+        recentByDay: dailySeries.slice(-30),
+        avgPerDay: dailySeries.length ? dailySeries.reduce((a, b) => a + b.count, 0) / dailySeries.length : 0,
+        topSeverity: alertBySeverity[0]?.severity || '-',
+        topEvent: alertByEvent[0]?.event || '-'
     };
 }
 
-function createOrUpdateChart(containerId, chartFactory) {
+// ============================================
+// CHART UTILITIES
+// ============================================
+
+function createOrUpdateChart(containerId, factory) {
     const container = document.getElementById(containerId);
-    if (!container) {
-        return;
-    }
+    if (!container) return;
+
     if (state.charts[containerId]) {
         state.charts[containerId].destroy();
     }
+
     container.innerHTML = '';
     const canvas = document.createElement('canvas');
     container.appendChild(canvas);
-    const chart = chartFactory(canvas);
-    if (chart) {
-        state.charts[containerId] = chart;
-    }
-}
 
-function showError(containerId, message) {
-    const container = document.getElementById(containerId);
-    if (!container) return;
-    if (state.charts[containerId]) {
-        state.charts[containerId].destroy();
-        delete state.charts[containerId];
-    }
-    container.innerHTML = `<div class="simple-chart text-danger"><i class="fas fa-exclamation-triangle"></i> ${message}</div>`;
+    const chart = factory(canvas);
+    if (chart) state.charts[containerId] = chart;
 }
 
 function showNoData(containerId, message) {
     const container = document.getElementById(containerId);
     if (!container) return;
+
     if (state.charts[containerId]) {
         state.charts[containerId].destroy();
         delete state.charts[containerId];
     }
-    container.innerHTML = `<div class="simple-chart text-muted"><i class="fas fa-info-circle"></i> ${message}</div>`;
+
+    container.innerHTML = `<div class="simple-chart"><i class="fas fa-chart-bar"></i><span>${message}</span></div>`;
 }
 
-function createAlertTypesChart(aggregates) {
-    const containerId = 'alertTypesChart';
-    if (!document.getElementById(containerId)) return;
-    if (!aggregates.alertByEvent.length) {
-        showNoData(containerId, 'No alert type data available for this filter');
-        return;
-    }
-    createOrUpdateChart(containerId, (canvas) => new Chart(canvas, {
-        type: 'pie',
-        data: {
-            labels: aggregates.alertByEvent.map(item => item.event || 'Unknown'),
-            datasets: [{
-                data: aggregates.alertByEvent.map(item => item.count || 0),
-                backgroundColor: chartColors
-            }]
-        },
-        options: {
-            plugins: {
-                legend: { display: true, position: 'right' },
-                tooltip: { enabled: true },
-                datalabels: {
-                    display: true,
-                    color: '#fff',
-                    font: { weight: 'bold' },
-                    formatter: (value, context) => {
-                        const total = context.dataset.data.reduce((a, b) => a + b, 0);
-                        const percentage = ((value / total) * 100).toFixed(1);
-                        return `${percentage}%`;
-                    }
-                }
-            }
-        }
-    }));
-}
+// ============================================
+// CHART CREATION FUNCTIONS
+// ============================================
 
-function createSeverityChart(aggregates) {
-    const containerId = 'severityChart';
-    if (!document.getElementById(containerId)) return;
-    if (!aggregates.alertBySeverity.length) {
-        showNoData(containerId, 'No severity data available for this filter');
-        return;
-    }
-    createOrUpdateChart(containerId, (canvas) => new Chart(canvas, {
-        type: 'bar',
-        data: {
-            labels: aggregates.alertBySeverity.map(item => item.severity),
-            datasets: [{
-                label: 'Alerts',
-                data: aggregates.alertBySeverity.map(item => item.count),
-                backgroundColor: aggregates.alertBySeverity.map(item =>
-                    severityColors[item.severity] || severityColors.Unknown
-                )
-            }]
-        },
-        options: {
-            indexAxis: 'x',
-            plugins: {
-                legend: { display: false }
-            },
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    title: { display: true, text: 'Number of Alerts' }
-                },
-                x: {
-                    title: { display: true, text: 'Severity Level' }
-                }
-            }
-        }
-    }));
-}
+function createAlertTypesChart(agg) {
+    const id = 'alertTypesChart';
+    if (!document.getElementById(id)) return;
+    if (!agg.alertByEvent.length) return showNoData(id, 'No alert data available');
 
-function createStatusChart(aggregates) {
-    const containerId = 'statusChart';
-    if (!document.getElementById(containerId)) return;
-    if (!aggregates.alertByStatus.length) {
-        showNoData(containerId, 'No status data available for this filter');
-        return;
-    }
-    createOrUpdateChart(containerId, (canvas) => new Chart(canvas, {
-        type: 'pie',
-        data: {
-            labels: aggregates.alertByStatus.map(item => item.status || 'Unknown'),
-            datasets: [{
-                data: aggregates.alertByStatus.map(item => item.count || 0),
-                backgroundColor: chartColors
-            }]
-        },
-        options: {
-            plugins: {
-                legend: { display: true, position: 'right' },
-                tooltip: { enabled: true },
-                datalabels: {
-                    display: true,
-                    color: '#fff',
-                    font: { weight: 'bold' },
-                    formatter: (value) => value
-                }
-            }
-        }
-    }));
-}
-
-function createTemporalHeatmapChart(aggregates) {
-    const containerId = 'temporalHeatmapChart';
-    const container = document.getElementById(containerId);
-    if (!container) return;
-    const matrix = aggregates.hourlyMatrix || [];
-    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    const data = [];
-    matrix.forEach((row, dow) => {
-        row.forEach((value, hour) => {
-            data.push({ x: hour, y: dow, v: value || 0 });
-        });
-    });
-    if (!data.some(point => point.v > 0)) {
-        showNoData(containerId, 'No temporal activity for this filter');
-        return;
-    }
-
-    createOrUpdateChart(containerId, (canvas) => new Chart(canvas, {
-        type: 'matrix',
-        data: {
-            datasets: [{
-                label: 'Alerts per hour',
-                data,
-                backgroundColor(context) {
-                    const value = context.dataset.data[context.dataIndex].v;
-                    const max = Math.max(...context.dataset.data.map(d => d.v));
-                    const alpha = value / max;
-                    return `rgba(0, 123, 255, ${alpha})`;
-                },
-                borderWidth: 1,
-                borderColor: '#fff',
-                width: ({ chart }) => (chart.chartArea || {}).width / 24 - 1,
-                height: ({ chart }) => (chart.chartArea || {}).height / 7 - 1
-            }]
-        },
-        options: {
-            plugins: {
-                legend: { display: false },
-                tooltip: {
-                    callbacks: {
-                        title() {
-                            return '';
-                        },
-                        label(context) {
-                            const v = context.dataset.data[context.dataIndex];
-                            return `${dayNames[v.y]} ${v.x}:00 → ${v.v} alerts`;
-                        }
-                    }
-                }
-            },
-            scales: {
-                x: {
-                    type: 'linear',
-                    position: 'bottom',
-                    min: 0,
-                    max: 23,
-                    ticks: {
-                        stepSize: 1,
-                        callback: (value) => `${value}:00`
-                    },
-                    title: { display: true, text: 'Hour of Day' }
-                },
-                y: {
-                    type: 'linear',
-                    min: 0,
-                    max: 6,
-                    reverse: true,
-                    ticks: {
-                        stepSize: 1,
-                        callback: (value) => dayNames[value]
-                    },
-                    title: { display: true, text: 'Day of Week' }
-                }
-            }
-        }
-    }));
-}
-
-function createDayOfWeekChart(aggregates) {
-    const containerId = 'dayOfWeekChart';
-    if (!document.getElementById(containerId)) return;
-    if (!aggregates.dowTotals.some(value => value > 0)) {
-        showNoData(containerId, 'No day-of-week activity for this filter');
-        return;
-    }
-    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    createOrUpdateChart(containerId, (canvas) => new Chart(canvas, {
-        type: 'bar',
-        data: {
-            labels: dayNames,
-            datasets: [{
-                label: 'Alerts',
-                data: aggregates.dowTotals,
-                backgroundColor: '#28a745'
-            }]
-        },
-        options: {
-            plugins: {
-                legend: { display: false }
-            },
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    title: { display: true, text: 'Number of Alerts' }
-                },
-                x: {
-                    title: { display: true, text: 'Day of Week' }
-                }
-            }
-        }
-    }));
-}
-
-function createMonthlyChart(aggregates) {
-    const containerId = 'monthlyChart';
-    if (!document.getElementById(containerId)) return;
-    if (!aggregates.monthlyTotals.some(value => value > 0)) {
-        showNoData(containerId, 'No monthly activity for this filter');
-        return;
-    }
-    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    createOrUpdateChart(containerId, (canvas) => new Chart(canvas, {
-        type: 'line',
-        data: {
-            labels: monthNames,
-            datasets: [{
-                label: 'Monthly Alerts',
-                data: aggregates.monthlyTotals,
-                borderColor: '#007bff',
-                backgroundColor: 'rgba(0, 123, 255, 0.1)',
-                fill: true,
-                tension: 0.4
-            }]
-        },
-        options: {
-            plugins: {
-                legend: { display: false }
-            },
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    title: { display: true, text: 'Number of Alerts' }
-                },
-                x: {
-                    title: { display: true, text: 'Month' }
-                }
-            }
-        }
-    }));
-}
-
-function createYearlyTrendChart(aggregates) {
-    const containerId = 'yearlyTrendChart';
-    const container = document.getElementById(containerId);
-    if (!container) return;
-    const data = aggregates.yearlyTotals && aggregates.yearlyTotals.length ? aggregates.yearlyTotals : (statsData.alertByYear || []);
-    if (!data.length) {
-        showNoData(containerId, 'Not enough yearly data to plot');
-        return;
-    }
-    createOrUpdateChart(containerId, (canvas) => new Chart(canvas, {
-        type: 'line',
-        data: {
-            labels: data.map(item => item.year),
-            datasets: [{
-                label: 'Annual Alerts',
-                data: data.map(item => item.count),
-                borderColor: '#6f42c1',
-                backgroundColor: '#6f42c1',
-                pointRadius: 5
-            }]
-        },
-        options: {
-            plugins: {
-                legend: { display: false },
-                datalabels: {
-                    display: true,
-                    align: 'top',
-                    color: '#6f42c1'
-                }
-            },
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    title: { display: true, text: 'Number of Alerts' }
-                },
-                x: {
-                    title: { display: true, text: 'Year' }
-                }
-            }
-        }
-    }));
-}
-
-function createRecentActivityChart(aggregates) {
-    const containerId = 'recentActivityChart';
-    const container = document.getElementById(containerId);
-    if (!container) return;
-    const series = aggregates.recentByDay.length ? aggregates.recentByDay : (statsData.recentByDay || []);
-    if (!series.length) {
-        showNoData(containerId, 'No recent activity available');
-        return;
-    }
-    createOrUpdateChart(containerId, (canvas) => new Chart(canvas, {
-        type: 'line',
-        data: {
-            labels: series.map(item => new Date(item.date).toLocaleDateString()),
-            datasets: [{
-                label: 'Daily Alerts',
-                data: series.map(item => item.count),
-                borderColor: '#20c997',
-                backgroundColor: '#20c997',
-                pointRadius: 4,
-                borderWidth: 3,
-                tension: 0.4
-            }]
-        },
-        options: {
-            plugins: {
-                legend: { display: false }
-            },
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    title: { display: true, text: 'Number of Alerts' }
-                },
-                x: {
-                    title: { display: true, text: 'Date' }
-                }
-            }
-        }
-    }));
-}
-
-function createMultiTimelineChart(aggregates) {
-    const containerId = 'multiTimelineChart';
-    const container = document.getElementById(containerId);
-    if (!container) return;
-    const comparison = aggregates.timelineComparison;
-    if (!comparison) {
-        showNoData(containerId, 'Not enough timeline data to compare weeks');
-        return;
-    }
-    const toPoints = points => points.map(point => ({ x: new Date(point.date), y: point.count }));
-
-    createOrUpdateChart(containerId, (canvas) => new Chart(canvas, {
-        type: 'line',
-        data: {
-            datasets: [
-                {
-                    label: 'Current Week',
-                    data: toPoints(comparison.currentWeek),
-                    borderColor: '#007bff',
-                    backgroundColor: 'rgba(0, 123, 255, 0.1)',
-                    fill: false
-                },
-                {
-                    label: 'Previous Week',
-                    data: toPoints(comparison.previousWeek),
-                    borderColor: '#20c997',
-                    backgroundColor: 'rgba(32, 201, 151, 0.1)',
-                    fill: false
-                },
-                {
-                    label: 'Same Week Last Year',
-                    data: toPoints(comparison.lastYearWeek),
-                    borderColor: '#6c757d',
-                    backgroundColor: 'rgba(108, 117, 125, 0.1)',
-                    fill: false
-                },
-                {
-                    label: '7-day Avg',
-                    data: comparison.movingAverages.sevenDay.map(p => ({ x: new Date(p.date), y: p.value })),
-                    borderColor: '#fd7e14',
-                    borderDash: [5, 5],
-                    fill: false
-                },
-                {
-                    label: '30-day Avg',
-                    data: comparison.movingAverages.thirtyDay.map(p => ({ x: new Date(p.date), y: p.value })),
-                    borderColor: '#dc3545',
-                    borderDash: [2, 2],
-                    fill: false
-                }
-            ]
-        },
-        options: {
-            plugins: {
-                legend: { display: true, position: 'top' }
-            },
-            scales: {
-                x: {
-                    type: 'time',
-                    time: { unit: 'day' },
-                    title: { display: true, text: 'Date' }
-                },
-                y: {
-                    beginAtZero: true,
-                    title: { display: true, text: 'Alerts' }
-                }
-            }
-        }
-    }));
-
-    const annotations = document.getElementById('timelineAnnotations');
-    if (annotations) {
-        annotations.textContent = comparison.annotations.length ? comparison.annotations.map(item => `${new Date(item.date).toLocaleDateString()}: ${item.text}`).join(' | ') : 'No notable peaks detected in this range.';
-    }
-}
-
-function createForecastChart(aggregates) {
-    const containerId = 'forecastChart';
-    const container = document.getElementById(containerId);
-    if (!container) return;
-    const forecast = aggregates.forecast;
-    if (!forecast) {
-        showNoData(containerId, 'Need more history to forecast alerts');
-        return;
-    }
-    const actualSeries = aggregates.dailySeries.slice(-30).map(item => ({ x: new Date(item.date), y: item.count }));
-    const projectionSeries = forecast.projection.map(item => ({ x: new Date(item.date), y: item.value }));
-
-    createOrUpdateChart(containerId, (canvas) => new Chart(canvas, {
-        type: 'line',
-        data: {
-            datasets: [
-                {
-                    label: 'Last 30 Days',
-                    data: actualSeries,
-                    borderColor: '#007bff',
-                    backgroundColor: 'rgba(0, 123, 255, 0.1)',
-                    fill: true,
-                    tension: 0.4
-                },
-                {
-                    label: 'Projected',
-                    data: projectionSeries,
-                    borderColor: '#dc3545',
-                    backgroundColor: 'rgba(220, 53, 69, 0.1)',
-                    borderDash: [5, 5],
-                    fill: false,
-                    pointRadius: 4
-                }
-            ]
-        },
-        options: {
-            plugins: {
-                legend: { display: true, position: 'top' },
-                tooltip: { mode: 'index', intersect: false }
-            },
-            scales: {
-                x: {
-                    type: 'time',
-                    time: { unit: 'day' },
-                    title: { display: true, text: 'Date' }
-                },
-                y: {
-                    beginAtZero: true,
-                    title: { display: true, text: 'Alerts' }
-                }
-            }
-        }
-    }));
-
-    const summary = document.getElementById('forecastSummary');
-    if (summary) {
-        summary.textContent = `Expected alerts next 7 days: ${forecast.expectedNext7}`;
-    }
-}
-
-// Drilldown state management
-let drilldownStack = [];
-
-function createMasterDetailChart(aggregates) {
-    const containerId = 'masterDetailChart';
-    const container = document.getElementById(containerId);
-    if (!container) return;
-    const masterDetail = aggregates.masterDetail;
-    if (!masterDetail || !masterDetail.baseSeries.length) {
-        showNoData(containerId, 'Not enough alert variety to build drilldown');
-        return;
-    }
-
-    drilldownStack = [];
-    renderMasterDetailLevel(containerId, masterDetail.baseSeries, masterDetail.drilldownData, null);
-}
-
-function renderMasterDetailLevel(containerId, data, drilldownData, eventName) {
-    createOrUpdateChart(containerId, (canvas) => {
-        const chart = new Chart(canvas, {
-            type: 'bar',
+    createOrUpdateChart(id, canvas => {
+        const ctx = canvas.getContext('2d');
+        return new Chart(canvas, {
+            type: 'doughnut',
             data: {
-                labels: data.map(item => item.name || item.month),
+                labels: agg.alertByEvent.map(i => i.event),
                 datasets: [{
-                    label: 'Alerts',
-                    data: data.map(item => item.y || item.count),
-                    backgroundColor: chartColors
+                    data: agg.alertByEvent.map(i => i.count),
+                    backgroundColor: agg.alertByEvent.map((_, i) => {
+                        const colors = CHART_GRADIENTS[i % CHART_GRADIENTS.length];
+                        return createRadialGradient(ctx, colors);
+                    }),
+                    borderWidth: 0,
+                    hoverOffset: 8
                 }]
             },
             options: {
-                onClick: (event, elements) => {
-                    if (elements.length > 0) {
-                        const index = elements[0].index;
-                        const item = data[index];
-
-                        if (!eventName && item.eventName) {
-                            // First level: drill into event
-                            const drillData = drilldownData.get(item.eventName);
-                            if (drillData) {
-                                drilldownStack.push({ data, drilldownData, eventName: null });
-                                renderMasterDetailLevel(containerId, drillData.months, drilldownData, item.eventName);
-                            }
-                        }
-                    }
-                },
+                cutout: '60%',
                 plugins: {
-                    legend: { display: false },
-                    title: {
-                        display: !!eventName,
-                        text: eventName ? `${eventName} by month (click chart to go back)` : 'Click bars to drill down'
-                    }
-                },
-                scales: {
-                    x: { type: 'category' },
-                    y: {
-                        beginAtZero: true,
-                        title: { display: true, text: 'Alerts' }
+                    legend: { position: 'right', labels: { padding: 15, usePointStyle: true } },
+                    datalabels: {
+                        display: true,
+                        color: '#fff',
+                        font: { weight: 'bold', size: 11 },
+                        formatter: (val, ctx) => {
+                            const total = ctx.dataset.data.reduce((a, b) => a + b, 0);
+                            return `${((val / total) * 100).toFixed(0)}%`;
+                        }
                     }
                 }
             }
         });
-
-        // Add back navigation if drilled down
-        if (drilldownStack.length > 0) {
-            canvas.style.cursor = 'pointer';
-            canvas.addEventListener('dblclick', () => {
-                if (drilldownStack.length > 0) {
-                    const previous = drilldownStack.pop();
-                    renderMasterDetailLevel(containerId, previous.data, previous.drilldownData, previous.eventName);
-                }
-            });
-        }
-
-        return chart;
     });
 }
 
-function createLifecycleChart(filteredAlerts) {
-    const containerId = 'lifecycleChart';
-    const container = document.getElementById(containerId);
-    if (!container) return;
-    const alerts = filteredAlerts
-        .filter(alert => alert.sentDate)
-        .sort((a, b) => b.sentDate - a.sentDate)
-        .slice(0, 25);
-    if (!alerts.length) {
-        showNoData(containerId, 'No alerts with lifecycle data in this filter');
-        return;
-    }
+function createSeverityChart(agg) {
+    const id = 'severityChart';
+    if (!document.getElementById(id)) return;
+    if (!agg.alertBySeverity.length) return showNoData(id, 'No severity data');
 
-    const categories = alerts.map(alert => `${alert.event} (${alert.severity})`);
-    const data = alerts.map((alert, index) => {
-        const start = alert.sentDate.getTime();
-        const end = alert.expiresDate ? alert.expiresDate.getTime() : start + (60 * 60 * 1000);
-        return {
-            y: index,
-            x: [start, end],
-            backgroundColor: severityColors[alert.severity] || severityColors.Unknown
-        };
+    const severityGradients = {
+        'Extreme': GRADIENT_PALETTES.danger,
+        'Severe': GRADIENT_PALETTES.orange,
+        'Moderate': GRADIENT_PALETTES.warning,
+        'Minor': GRADIENT_PALETTES.info,
+        'Unknown': ['#94a3b8', '#64748b']
+    };
+
+    createOrUpdateChart(id, canvas => {
+        const ctx = canvas.getContext('2d');
+        return new Chart(canvas, {
+            type: 'bar',
+            data: {
+                labels: agg.alertBySeverity.map(i => i.severity),
+                datasets: [{
+                    label: 'Alerts',
+                    data: agg.alertBySeverity.map(i => i.count),
+                    backgroundColor: agg.alertBySeverity.map(i => {
+                        const colors = severityGradients[i.severity] || severityGradients.Unknown;
+                        return createGradient(ctx, colors);
+                    }),
+                    borderRadius: 8,
+                    borderSkipped: false
+                }]
+            },
+            options: {
+                plugins: { legend: { display: false } },
+                scales: {
+                    y: { beginAtZero: true, grid: { color: getChartThemeColors().gridLines } },
+                    x: { grid: { display: false } }
+                }
+            }
+        });
+    });
+}
+
+function createStatusChart(agg) {
+    const id = 'statusChart';
+    if (!document.getElementById(id)) return;
+    if (!agg.alertByStatus.length) return showNoData(id, 'No status data');
+
+    createOrUpdateChart(id, canvas => {
+        const ctx = canvas.getContext('2d');
+        return new Chart(canvas, {
+            type: 'pie',
+            data: {
+                labels: agg.alertByStatus.map(i => i.status),
+                datasets: [{
+                    data: agg.alertByStatus.map(i => i.count),
+                    backgroundColor: agg.alertByStatus.map((_, i) => {
+                        const colors = CHART_GRADIENTS[i % CHART_GRADIENTS.length];
+                        return createRadialGradient(ctx, colors);
+                    }),
+                    borderWidth: 2,
+                    borderColor: getChartThemeColors().surface
+                }]
+            },
+            options: {
+                plugins: {
+                    legend: { position: 'right', labels: { padding: 12, usePointStyle: true } },
+                    datalabels: {
+                        display: true,
+                        color: '#fff',
+                        font: { weight: 'bold' },
+                        formatter: val => val
+                    }
+                }
+            }
+        });
+    });
+}
+
+function createTemporalHeatmapChart(agg) {
+    const id = 'temporalHeatmapChart';
+    const container = document.getElementById(id);
+    if (!container) return;
+
+    const matrix = agg.hourlyMatrix || [];
+    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const data = [];
+    let maxVal = 0;
+
+    matrix.forEach((row, dow) => {
+        row.forEach((val, hour) => {
+            data.push({ x: hour, y: dow, v: val || 0 });
+            if (val > maxVal) maxVal = val;
+        });
     });
 
-    createOrUpdateChart(containerId, (canvas) => new Chart(canvas, {
-        type: 'bar',
+    if (!data.some(p => p.v > 0)) return showNoData(id, 'No activity data');
+
+    createOrUpdateChart(id, canvas => new Chart(canvas, {
+        type: 'matrix',
         data: {
-            labels: categories,
             datasets: [{
-                label: 'Alert Lifecycle',
+                label: 'Alerts',
                 data,
-                backgroundColor: data.map(d => d.backgroundColor),
-                borderColor: 'rgba(0,0,0,0.15)',
-                borderWidth: 1
+                backgroundColor: ctx => getHeatmapColor(ctx.dataset.data[ctx.dataIndex].v, maxVal),
+                borderWidth: 2,
+                borderColor: getChartThemeColors().surface,
+                borderRadius: 4,
+                width: ({ chart }) => (chart.chartArea?.width || 600) / 24 - 3,
+                height: ({ chart }) => (chart.chartArea?.height || 300) / 7 - 3
             }]
         },
         options: {
-            indexAxis: 'y',
             plugins: {
                 legend: { display: false },
                 tooltip: {
                     callbacks: {
-                        label: (context) => {
-                            const alert = alerts[context.dataIndex];
-                            const start = alert.sentDate.toLocaleString();
-                            const end = alert.expiresDate ? alert.expiresDate.toLocaleString() : 'Unknown';
-                            return [`Start: ${start}`, `End: ${end}`];
+                        title: () => '',
+                        label: ctx => {
+                            const d = ctx.dataset.data[ctx.dataIndex];
+                            return `${dayNames[d.y]} ${d.x}:00 - ${d.v} alerts`;
                         }
                     }
                 }
             },
             scales: {
                 x: {
-                    type: 'time',
-                    title: { display: true, text: 'Timeline' }
+                    type: 'linear',
+                    min: -0.5,
+                    max: 23.5,
+                    ticks: { stepSize: 1, callback: v => `${v}:00` },
+                    grid: { display: false }
                 },
                 y: {
-                    title: { display: false }
+                    type: 'linear',
+                    min: -0.5,
+                    max: 6.5,
+                    reverse: true,
+                    ticks: { stepSize: 1, callback: v => dayNames[v] },
+                    grid: { display: false }
                 }
             }
         }
     }));
+
+    // Add legend
+    const legendHtml = `
+        <div class="heatmap-legend">
+            <span>Less</span>
+            <div class="heatmap-gradient"></div>
+            <span>More</span>
+        </div>
+    `;
+    const legendDiv = document.createElement('div');
+    legendDiv.innerHTML = legendHtml;
+    container.appendChild(legendDiv);
+}
+
+function createDayOfWeekChart(agg) {
+    const id = 'dayOfWeekChart';
+    if (!document.getElementById(id)) return;
+    if (!agg.dowTotals.some(v => v > 0)) return showNoData(id, 'No day data');
+
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+    createOrUpdateChart(id, canvas => {
+        const ctx = canvas.getContext('2d');
+        return new Chart(canvas, {
+            type: 'bar',
+            data: {
+                labels: dayNames,
+                datasets: [{
+                    label: 'Alerts',
+                    data: agg.dowTotals,
+                    backgroundColor: createGradient(ctx, GRADIENT_PALETTES.success),
+                    borderRadius: 8,
+                    borderSkipped: false
+                }]
+            },
+            options: {
+                plugins: { legend: { display: false } },
+                scales: {
+                    y: { beginAtZero: true, grid: { color: getChartThemeColors().gridLines } },
+                    x: { grid: { display: false } }
+                }
+            }
+        });
+    });
+}
+
+function createMonthlyChart(agg) {
+    const id = 'monthlyChart';
+    if (!document.getElementById(id)) return;
+    if (!agg.monthlyTotals.some(v => v > 0)) return showNoData(id, 'No monthly data');
+
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+    createOrUpdateChart(id, canvas => {
+        const ctx = canvas.getContext('2d');
+        const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+        gradient.addColorStop(0, 'rgba(102, 126, 234, 0.4)');
+        gradient.addColorStop(1, 'rgba(102, 126, 234, 0.02)');
+
+        return new Chart(canvas, {
+            type: 'line',
+            data: {
+                labels: months,
+                datasets: [{
+                    label: 'Monthly Alerts',
+                    data: agg.monthlyTotals,
+                    borderColor: '#667eea',
+                    backgroundColor: gradient,
+                    fill: true,
+                    tension: 0.4,
+                    pointRadius: 4,
+                    pointBackgroundColor: '#667eea',
+                    pointBorderColor: '#fff',
+                    pointBorderWidth: 2
+                }]
+            },
+            options: {
+                plugins: { legend: { display: false } },
+                scales: {
+                    y: { beginAtZero: true, grid: { color: getChartThemeColors().gridLines } },
+                    x: { grid: { display: false } }
+                }
+            }
+        });
+    });
+}
+
+function createRecentActivityChart(agg) {
+    const id = 'recentActivityChart';
+    const container = document.getElementById(id);
+    if (!container) return;
+
+    const series = agg.recentByDay.length ? agg.recentByDay : (statsData.recentByDay || []);
+    if (!series.length) return showNoData(id, 'No recent activity');
+
+    createOrUpdateChart(id, canvas => {
+        const ctx = canvas.getContext('2d');
+        const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+        gradient.addColorStop(0, 'rgba(17, 153, 142, 0.5)');
+        gradient.addColorStop(1, 'rgba(56, 239, 125, 0.05)');
+
+        return new Chart(canvas, {
+            type: 'line',
+            data: {
+                labels: series.map(i => new Date(i.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })),
+                datasets: [{
+                    label: 'Daily Alerts',
+                    data: series.map(i => i.count),
+                    borderColor: '#11998e',
+                    backgroundColor: gradient,
+                    fill: true,
+                    tension: 0.4,
+                    pointRadius: 3,
+                    pointBackgroundColor: '#11998e',
+                    pointBorderColor: '#fff',
+                    pointBorderWidth: 2
+                }]
+            },
+            options: {
+                plugins: { legend: { display: false } },
+                scales: {
+                    y: { beginAtZero: true, grid: { color: getChartThemeColors().gridLines } },
+                    x: { grid: { display: false } }
+                }
+            }
+        });
+    });
+}
+
+function createYearlyTrendChart(agg) {
+    const id = 'yearlyTrendChart';
+    const container = document.getElementById(id);
+    if (!container) return;
+
+    const data = agg.yearlyTotals.length ? agg.yearlyTotals : (statsData.alertByYear || []);
+    if (!data.length) return showNoData(id, 'No yearly data');
+
+    createOrUpdateChart(id, canvas => {
+        const ctx = canvas.getContext('2d');
+        const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+        gradient.addColorStop(0, 'rgba(168, 85, 247, 0.4)');
+        gradient.addColorStop(1, 'rgba(99, 102, 241, 0.05)');
+
+        return new Chart(canvas, {
+            type: 'line',
+            data: {
+                labels: data.map(i => i.year),
+                datasets: [{
+                    label: 'Annual Alerts',
+                    data: data.map(i => i.count),
+                    borderColor: '#a855f7',
+                    backgroundColor: gradient,
+                    fill: true,
+                    tension: 0.3,
+                    pointRadius: 6,
+                    pointBackgroundColor: '#a855f7',
+                    pointBorderColor: '#fff',
+                    pointBorderWidth: 2
+                }]
+            },
+            options: {
+                plugins: {
+                    legend: { display: false },
+                    datalabels: {
+                        display: true,
+                        align: 'top',
+                        color: '#a855f7',
+                        font: { weight: 'bold' }
+                    }
+                },
+                scales: {
+                    y: { beginAtZero: true, grid: { color: getChartThemeColors().gridLines } },
+                    x: { grid: { display: false } }
+                }
+            }
+        });
+    });
 }
 
 function createAffectedAreasChart() {
-    const containerId = 'affectedAreasChart';
-    const container = document.getElementById(containerId);
+    const id = 'affectedAreasChart';
+    const container = document.getElementById(id);
     if (!container) return;
-    if (!statsData.mostAffectedBoundaries || !statsData.mostAffectedBoundaries.length) {
-        showNoData(containerId, 'No boundary impact data available');
-        return;
-    }
-    createOrUpdateChart(containerId, (canvas) => new Chart(canvas, {
-        type: 'bar',
-        data: {
-            labels: statsData.mostAffectedBoundaries.map(item => item.name),
-            datasets: [{
-                label: 'Alert Count',
-                data: statsData.mostAffectedBoundaries.map(item => item.count),
-                backgroundColor: '#17a2b8'
-            }]
-        },
-        options: {
-            indexAxis: 'y',
-            plugins: {
-                legend: { display: false }
+    if (!statsData.mostAffectedBoundaries?.length) return showNoData(id, 'No boundary data');
+
+    createOrUpdateChart(id, canvas => {
+        const ctx = canvas.getContext('2d');
+        return new Chart(canvas, {
+            type: 'bar',
+            data: {
+                labels: statsData.mostAffectedBoundaries.slice(0, 10).map(i => i.name),
+                datasets: [{
+                    label: 'Alert Count',
+                    data: statsData.mostAffectedBoundaries.slice(0, 10).map(i => i.count),
+                    backgroundColor: createGradient(ctx, GRADIENT_PALETTES.info, false),
+                    borderRadius: 6,
+                    borderSkipped: false
+                }]
             },
-            scales: {
-                x: {
-                    beginAtZero: true,
-                    title: { display: true, text: 'Number of Alerts' }
-                },
-                y: {
-                    title: { display: true, text: 'Boundary' }
+            options: {
+                indexAxis: 'y',
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { beginAtZero: true, grid: { color: getChartThemeColors().gridLines } },
+                    y: { grid: { display: false } }
                 }
             }
-        }
-    }));
+        });
+    });
 }
 
 function createBoundaryTypesChart() {
-    const containerId = 'boundaryTypesChart';
-    const container = document.getElementById(containerId);
+    const id = 'boundaryTypesChart';
+    const container = document.getElementById(id);
     if (!container) return;
-    if (!statsData.boundaryStats || !statsData.boundaryStats.length) {
-        showNoData(containerId, 'No boundary types data available');
-        return;
-    }
-    createOrUpdateChart(containerId, (canvas) => new Chart(canvas, {
-        type: 'pie',
-        data: {
-            labels: statsData.boundaryStats.map(item => item.type),
-            datasets: [{
-                data: statsData.boundaryStats.map(item => item.count),
-                backgroundColor: chartColors
-            }]
-        },
-        options: {
-            plugins: {
-                legend: { display: true, position: 'right' },
-                datalabels: {
-                    display: true,
-                    color: '#fff',
-                    font: { weight: 'bold' }
+    if (!statsData.boundaryStats?.length) return showNoData(id, 'No boundary types');
+
+    createOrUpdateChart(id, canvas => {
+        const ctx = canvas.getContext('2d');
+        return new Chart(canvas, {
+            type: 'doughnut',
+            data: {
+                labels: statsData.boundaryStats.map(i => i.type),
+                datasets: [{
+                    data: statsData.boundaryStats.map(i => i.count),
+                    backgroundColor: statsData.boundaryStats.map((_, i) => {
+                        const colors = CHART_GRADIENTS[i % CHART_GRADIENTS.length];
+                        return createRadialGradient(ctx, colors);
+                    }),
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                cutout: '55%',
+                plugins: {
+                    legend: { position: 'right', labels: { usePointStyle: true } },
+                    datalabels: { display: true, color: '#fff', font: { weight: 'bold' } }
                 }
             }
-        }
-    }));
+        });
+    });
 }
 
 function createReliabilityGauge() {
-    const containerId = 'reliabilityGauge';
-    const container = document.getElementById(containerId);
-    if (!container || !statsData.polling || typeof statsData.polling.success_rate === 'undefined') return;
+    const id = 'reliabilityGauge';
+    const container = document.getElementById(id);
+    if (!container || !statsData.polling?.success_rate) return;
 
-    const rate = statsData.polling.success_rate || 0;
-    const percentage = Math.round(rate * 100);
+    const rate = statsData.polling.success_rate;
+    const pct = Math.round(rate * 100);
+    const color = rate < 0.5 ? GRADIENT_PALETTES.danger : rate < 0.9 ? GRADIENT_PALETTES.warning : GRADIENT_PALETTES.success;
 
-    createOrUpdateChart(containerId, (canvas) => new Chart(canvas, {
-        type: 'doughnut',
-        data: {
-            datasets: [{
-                data: [rate, 1 - rate],
-                backgroundColor: [
-                    rate < 0.5 ? '#dc3545' : rate < 0.9 ? '#ffc107' : '#28a745',
-                    '#EEE'
-                ],
-                circumference: 180,
-                rotation: 270
-            }]
-        },
-        options: {
-            plugins: {
-                legend: { display: false },
-                tooltip: { enabled: false },
-                title: {
-                    display: true,
-                    text: 'System Reliability'
+    createOrUpdateChart(id, canvas => {
+        const ctx = canvas.getContext('2d');
+        return new Chart(canvas, {
+            type: 'doughnut',
+            data: {
+                datasets: [{
+                    data: [rate, 1 - rate],
+                    backgroundColor: [createGradient(ctx, color), 'rgba(0,0,0,0.05)'],
+                    borderWidth: 0,
+                    circumference: 180,
+                    rotation: 270
+                }]
+            },
+            options: {
+                cutout: '75%',
+                plugins: { legend: { display: false }, tooltip: { enabled: false } }
+            },
+            plugins: [{
+                id: 'gaugeText',
+                afterDraw(chart) {
+                    const { ctx, chartArea: { width, height } } = chart;
+                    ctx.save();
+                    ctx.font = 'bold 32px Inter, sans-serif';
+                    ctx.fillStyle = getChartThemeColors().text;
+                    ctx.textAlign = 'center';
+                    ctx.fillText(`${pct}%`, width / 2, height / 2 + 30);
+                    ctx.font = '14px Inter, sans-serif';
+                    ctx.fillStyle = getChartThemeColors().textMuted;
+                    ctx.fillText('Reliability', width / 2, height / 2 + 55);
+                    ctx.restore();
                 }
-            }
-        },
-        plugins: [{
-            id: 'gaugeText',
-            afterDraw(chart) {
-                const { ctx, chartArea: { width, height } } = chart;
-                ctx.save();
-                ctx.font = 'bold 24px Segoe UI';
-                ctx.fillStyle = '#212529';
-                ctx.textAlign = 'center';
-                ctx.fillText(`${percentage}%`, width / 2, height / 2 + 20);
-                ctx.font = '12px Segoe UI';
-                ctx.fillStyle = '#6c757d';
-                ctx.fillText('Uptime', width / 2, height / 2 + 40);
-                ctx.restore();
-            }
-        }]
-    }));
+            }]
+        });
+    });
 }
 
 function createDurationChart() {
-    const containerId = 'durationChart';
-    const container = document.getElementById(containerId);
-    if (!container || !statsData.avgDurations || !statsData.avgDurations.length) return;
-    createOrUpdateChart(containerId, (canvas) => new Chart(canvas, {
-        type: 'bar',
-        data: {
-            labels: statsData.avgDurations.map(item => item.event),
-            datasets: [{
-                label: 'Duration',
-                data: statsData.avgDurations.map(item => Math.round(item.avg_hours * 10) / 10),
-                backgroundColor: '#fd7e14'
-            }]
-        },
-        options: {
-            plugins: {
-                legend: { display: false }
+    const id = 'durationChart';
+    const container = document.getElementById(id);
+    if (!container || !statsData.avgDurations?.length) return;
+
+    createOrUpdateChart(id, canvas => {
+        const ctx = canvas.getContext('2d');
+        return new Chart(canvas, {
+            type: 'bar',
+            data: {
+                labels: statsData.avgDurations.map(i => i.event),
+                datasets: [{
+                    label: 'Avg Hours',
+                    data: statsData.avgDurations.map(i => Math.round(i.avg_hours * 10) / 10),
+                    backgroundColor: createGradient(ctx, GRADIENT_PALETTES.orange),
+                    borderRadius: 6,
+                    borderSkipped: false
+                }]
             },
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    title: { display: true, text: 'Average Duration (hours)' }
-                },
-                x: {
-                    title: { display: true, text: 'Alert Type' }
+            options: {
+                plugins: { legend: { display: false } },
+                scales: {
+                    y: { beginAtZero: true, title: { display: true, text: 'Hours' }, grid: { color: getChartThemeColors().gridLines } },
+                    x: { grid: { display: false } }
                 }
             }
-        }
-    }));
+        });
+    });
 }
 
-function renderDynamicCharts(aggregates) {
-    createAlertTypesChart(aggregates);
-    createSeverityChart(aggregates);
-    createStatusChart(aggregates);
-    createTemporalHeatmapChart(aggregates);
-    createDayOfWeekChart(aggregates);
-    createMonthlyChart(aggregates);
-    createYearlyTrendChart(aggregates);
-    createRecentActivityChart(aggregates);
-    createMultiTimelineChart(aggregates);
-    createForecastChart(aggregates);
-    createMasterDetailChart(aggregates);
-    createLifecycleChart(state.filteredAlerts);
+// ============================================
+// DASHBOARD RENDERING
+// ============================================
+
+function renderDynamicCharts(agg) {
+    createAlertTypesChart(agg);
+    createSeverityChart(agg);
+    createStatusChart(agg);
+    createTemporalHeatmapChart(agg);
+    createDayOfWeekChart(agg);
+    createMonthlyChart(agg);
+    createYearlyTrendChart(agg);
+    createRecentActivityChart(agg);
 }
 
 function renderStaticCharts() {
@@ -1631,120 +1019,67 @@ function renderStaticCharts() {
     createDurationChart();
 }
 
-function updateSystemInfo() {
-    const timestamp = document.getElementById('stats-timestamp');
-    if (timestamp) {
-        timestamp.textContent = new Date().toLocaleString();
-    }
-    const uptimeDays = document.getElementById('uptime-days');
-    if (uptimeDays) {
-        const startDate = new Date('2025-01-01T00:00:00');
-        const now = new Date();
-        const days = Math.max(0, Math.floor((now - startDate) / (1000 * 60 * 60 * 24)));
-        uptimeDays.textContent = days.toLocaleString();
-    }
-}
-
 function updateDashboard() {
     state.filteredAlerts = getFilteredAlerts();
     updateFilterSummary(state.filteredAlerts);
-    state.aggregates = aggregateAlerts(state.filteredAlerts, state.filters);
+    state.aggregates = aggregateAlerts(state.filteredAlerts);
     updateQuickStats(state.aggregates);
-    updateKpiCards(state.aggregates);
-    renderSparklines(state.aggregates);
     renderDynamicCharts(state.aggregates);
+
     if (!state.staticChartsInitialized) {
         renderStaticCharts();
         state.staticChartsInitialized = true;
     }
 }
 
+// ============================================
+// INITIALIZATION
+// ============================================
+
 function initializeFilters() {
     populateFilterSelect('severityFilter', statsData.filterOptions.severities || []);
     populateFilterSelect('statusFilter', statsData.filterOptions.statuses || []);
     populateFilterSelect('eventFilter', statsData.filterOptions.events || []);
 
-    const presetSelect = document.getElementById('dateRangePreset');
-    if (presetSelect) {
-        presetSelect.addEventListener('change', handlePresetChange);
-    }
-    const applyBtn = document.getElementById('applyFiltersBtn');
-    if (applyBtn) {
-        applyBtn.addEventListener('click', () => {
-            if (presetSelect && presetSelect.value === 'custom') {
-                state.filters.preset = 'custom';
-            }
-            applyFiltersFromInputs();
-        });
-    }
-    const resetBtn = document.getElementById('resetFiltersBtn');
-    if (resetBtn) {
-        resetBtn.addEventListener('click', resetFilters);
-    }
-    const exportBtn = document.getElementById('exportDashboardBtn');
-    if (exportBtn) {
-        exportBtn.addEventListener('click', exportFilteredData);
-    }
+    document.getElementById('dateRangePreset')?.addEventListener('change', handlePresetChange);
+    document.getElementById('applyFiltersBtn')?.addEventListener('click', applyFiltersFromInputs);
+    document.getElementById('resetFiltersBtn')?.addEventListener('click', resetFilters);
+    document.getElementById('exportDashboardBtn')?.addEventListener('click', exportFilteredData);
+    document.getElementById('updateStartDateBtn')?.addEventListener('click', updateSystemStartDate);
+    document.getElementById('resetStartDateBtn')?.addEventListener('click', resetSystemStartDate);
 
     setPresetDates('last30');
-    updateDateInputs();
 }
 
 function initializeDashboard() {
-    if (window.__statsDashboardInitialized) {
-        console.warn('Statistics dashboard initialization skipped because it already ran.');
-        return;
-    }
-
+    if (window.__statsDashboardInitialized) return;
     window.__statsDashboardInitialized = true;
+
     initializeFilters();
+    updateSystemInfo();
     updateDashboard();
-    console.log('📊 Dashboard ready (Chart.js)');
+
+    console.log('Dashboard ready');
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    updateSystemInfo();
     try {
         initializeDashboard();
     } catch (error) {
-        console.error('❌ Statistics dashboard failed to initialize', error);
+        console.error('Dashboard initialization failed:', error);
         const root = document.getElementById('statisticsDashboardRoot');
         if (root) {
-            const alert = document.createElement('div');
-            alert.className = 'alert alert-danger mt-3';
-            alert.innerHTML = `<strong>Failed to initialize statistics dashboard.</strong> ${error.message}`;
-            root.prepend(alert);
+            root.innerHTML = `<div class="alert alert-danger m-3"><strong>Dashboard Error:</strong> ${error.message}</div>`;
         }
     }
 });
 
-// ============================================
-// THEME CHANGE LISTENER
-// ============================================
-
-/**
- * Listen for theme changes and update all charts
- */
-window.addEventListener('theme-changed', (event) => {
-    console.log('🎨 Theme changed to:', event.detail.theme, '- Updating all charts...');
-
-    // Update theme colors
+// Theme change listener
+window.addEventListener('theme-changed', () => {
     applyChartTheme();
-    chartColors = getChartColorPalette();
-
-    // Destroy and recreate all charts with new theme colors
-    Object.keys(state.charts).forEach(chartId => {
-        if (state.charts[chartId]) {
-            state.charts[chartId].destroy();
-            delete state.charts[chartId];
-        }
-    });
-
-    // Re-render all charts with new colors
-    if (state.aggregates) {
-        updateDashboard();
-    }
-
-    console.log('✅ All charts updated for new theme');
+    Object.values(state.charts).forEach(c => c?.destroy());
+    state.charts = {};
+    state.staticChartsInitialized = false;
+    if (state.aggregates) updateDashboard();
 });
 </script>

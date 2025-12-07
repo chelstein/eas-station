@@ -4,8 +4,9 @@
 
 {% block extra_css %}
 <style>
+        /* Admin Page - Theme-Aware Styles */
         .admin-header {
-            background: linear-gradient(135deg, var(--primary-color), var(--info-color));
+            background: linear-gradient(135deg, #667eea, #764ba2);
             color: white;
             padding: 2rem 0;
             margin-bottom: 0.5rem;
@@ -14,21 +15,78 @@
 
         .tab-content {
             padding: 1.5rem 2rem 2rem 2rem;
+            background: var(--surface-color);
+            color: var(--text-color);
+        }
+
+        /* Cards and panels need proper backgrounds */
+        .card {
+            background: var(--surface-color);
+            border-color: var(--border-color);
+            color: var(--text-color);
+        }
+
+        .card-header {
+            background: var(--bg-color);
+            border-color: var(--border-color);
+            color: var(--text-color);
+        }
+
+        .card-body {
+            background: var(--surface-color);
+            color: var(--text-color);
+        }
+
+        /* Nav tabs need proper styling */
+        .nav-tabs {
+            border-color: var(--border-color);
+            background: var(--bg-color);
+        }
+
+        .nav-tabs .nav-link {
+            color: var(--text-secondary);
+            border: none;
+            padding: 1rem 1.25rem;
+            transition: all 0.2s ease;
+        }
+
+        .nav-tabs .nav-link:hover {
+            color: var(--text-color);
+            background: var(--surface-color);
+        }
+
+        .nav-tabs .nav-link.active {
+            background: var(--surface-color);
+            color: var(--primary-color);
+            border-bottom: 3px solid var(--primary-color);
         }
 
         .form-control, .form-select {
-            background-color: var(--bg-color);
-            border: 2px solid var(--border-color);
+            background-color: var(--surface-color);
+            border: 1px solid var(--border-color);
             color: var(--text-color);
             border-radius: 8px;
-            transition: all 0.3s ease;
+            transition: all 0.2s ease;
         }
 
         .form-control:focus, .form-select:focus {
             border-color: var(--primary-color);
-            box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
-            background-color: var(--bg-color);
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2);
+            background-color: var(--surface-color);
             color: var(--text-color);
+        }
+
+        .form-control::placeholder {
+            color: var(--text-muted);
+        }
+
+        .form-label {
+            color: var(--text-color);
+            font-weight: 500;
+        }
+
+        .form-text {
+            color: var(--text-muted);
         }
 
         .stats-grid {
@@ -39,7 +97,7 @@
         }
 
         .stat-card {
-            background: linear-gradient(135deg, var(--primary-color), var(--info-color));
+            background: linear-gradient(135deg, #667eea, #764ba2);
             color: white;
             padding: 1.5rem;
             border-radius: 12px;
@@ -48,7 +106,7 @@
         }
 
         .stat-card:hover {
-            transform: scale(1.05);
+            transform: scale(1.03);
         }
 
         .stat-number {
@@ -69,6 +127,7 @@
             margin: 1.5rem 0;
         }
 
+        /* Alert styles - theme-aware */
         .alert-custom {
             border-radius: 8px;
             border: none;
@@ -78,27 +137,52 @@
         }
 
         .alert-success-custom {
-            background: linear-gradient(135deg, rgba(40, 167, 69, 0.1), rgba(32, 201, 151, 0.1));
+            background: color-mix(in srgb, var(--success-color) 12%, var(--surface-color));
             border-left: 4px solid var(--success-color);
-            color: var(--success-color);
+            color: var(--text-color);
         }
 
         .alert-danger-custom {
-            background: linear-gradient(135deg, rgba(220, 53, 69, 0.1), rgba(231, 76, 60, 0.1));
+            background: color-mix(in srgb, var(--danger-color) 12%, var(--surface-color));
             border-left: 4px solid var(--danger-color);
-            color: var(--danger-color);
+            color: var(--text-color);
         }
 
         .alert-warning-custom {
-            background: linear-gradient(135deg, rgba(255, 196, 7, 0.1), rgba(243, 156, 18, 0.1));
+            background: color-mix(in srgb, var(--warning-color) 12%, var(--surface-color));
             border-left: 4px solid var(--warning-color);
-            color: #856404;
+            color: var(--text-color);
         }
 
         .alert-info-custom {
-            background: linear-gradient(135deg, rgba(23, 162, 184, 0.1), rgba(51, 154, 240, 0.1));
+            background: color-mix(in srgb, var(--info-color) 12%, var(--surface-color));
             border-left: 4px solid var(--info-color);
-            color: var(--info-color);
+            color: var(--text-color);
+        }
+
+        /* Standard Bootstrap alerts - fix colors */
+        .alert-info {
+            background: color-mix(in srgb, var(--info-color) 15%, var(--surface-color));
+            border-color: var(--info-color);
+            color: var(--text-color);
+        }
+
+        .alert-warning {
+            background: color-mix(in srgb, var(--warning-color) 15%, var(--surface-color));
+            border-color: var(--warning-color);
+            color: var(--text-color);
+        }
+
+        .alert-success {
+            background: color-mix(in srgb, var(--success-color) 15%, var(--surface-color));
+            border-color: var(--success-color);
+            color: var(--text-color);
+        }
+
+        .alert-danger {
+            background: color-mix(in srgb, var(--danger-color) 15%, var(--surface-color));
+            border-color: var(--danger-color);
+            color: var(--text-color);
         }
 
         .loading-spinner {
@@ -116,34 +200,46 @@
         }
 
         .modal-content {
-            background: var(--bg-color);
-            border: none;
+            background: var(--surface-color);
+            border: 1px solid var(--border-color);
             border-radius: 15px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            box-shadow: 0 20px 60px var(--shadow-color);
+            color: var(--text-color);
         }
 
         .modal-header {
-            border-bottom: 2px solid var(--border-color);
-            background: linear-gradient(135deg, var(--danger-color), #e74c3c);
+            border-bottom: 1px solid var(--border-color);
+            background: linear-gradient(135deg, #eb3349, #f45c43);
             color: white;
             border-radius: 15px 15px 0 0;
+        }
+
+        .modal-body {
+            background: var(--surface-color);
+            color: var(--text-color);
+        }
+
+        .modal-footer {
+            background: var(--surface-color);
+            border-color: var(--border-color);
         }
 
         .preview-container {
             max-height: 400px;
             overflow-y: auto;
-            border: 2px solid var(--border-color);
+            border: 1px solid var(--border-color);
             border-radius: 8px;
             padding: 1rem;
-            background: var(--light-color);
+            background: var(--bg-color);
         }
 
         .preview-item {
-            background: var(--bg-color);
+            background: var(--surface-color);
             border: 1px solid var(--border-color);
             border-radius: 6px;
             padding: 0.75rem;
             margin-bottom: 0.5rem;
+            color: var(--text-color);
         }
 
         .keyboard-shortcuts {
@@ -164,7 +260,7 @@
         }
 
         .mini-stat {
-            background: var(--light-color);
+            background: var(--bg-color);
             border: 1px solid var(--border-color);
             border-radius: 12px;
             padding: 0.75rem 1rem;
@@ -186,7 +282,7 @@
             padding: 2rem;
             background: var(--bg-color);
             text-align: center;
-            color: var(--text-muted-color, #6c757d);
+            color: var(--text-muted);
         }
 
         .boundary-empty-state i {
@@ -203,40 +299,44 @@
             background: var(--surface-color);
             border: 1px solid var(--border-color);
             border-radius: 12px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+            box-shadow: 0 4px 12px var(--shadow-color);
         }
 
         .manage-card .card-header {
-            background: transparent;
+            background: var(--bg-color);
             border-color: var(--border-color);
+            color: var(--text-color);
         }
 
         .manage-card .card-body {
             background: var(--surface-color);
+            color: var(--text-color);
         }
 
         .hint-box {
-            background: var(--light-color);
+            background: var(--bg-color);
             border: 1px dashed var(--border-color);
             border-radius: 12px;
             padding: 0.75rem 0.9rem;
+            color: var(--text-color);
         }
 
         .boundary-chip {
-            background: var(--bg-color);
+            background: var(--surface-color);
             border: 1px solid var(--border-color);
             border-radius: 10px;
             padding: 0.6rem 0.75rem;
             transition: border-color 0.2s ease, box-shadow 0.2s ease;
+            color: var(--text-color);
         }
 
         .boundary-chip:hover {
             border-color: var(--primary-color);
-            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
+            box-shadow: 0 4px 12px var(--shadow-color);
         }
 
         .boundary-chip .badge-soft {
-            background: rgba(13, 110, 253, 0.08);
+            background: color-mix(in srgb, var(--primary-color) 15%, transparent);
             color: var(--primary-color);
         }
 
@@ -246,17 +346,17 @@
         }
 
         .badge-soft-success {
-            background: rgba(25, 135, 84, 0.12);
+            background: color-mix(in srgb, var(--success-color) 15%, transparent);
             color: var(--success-color);
         }
 
         .badge-soft-info {
-            background: rgba(13, 110, 253, 0.12);
+            background: color-mix(in srgb, var(--info-color) 15%, transparent);
             color: var(--info-color);
         }
 
         .badge-soft-warning {
-            background: rgba(255, 193, 7, 0.18);
+            background: color-mix(in srgb, var(--warning-color) 15%, transparent);
             color: var(--warning-color);
         }
 
@@ -273,10 +373,12 @@
             border: 1px dashed var(--border-color);
             border-radius: 8px;
             padding: 0.5rem 0.75rem;
+            color: var(--text-color);
         }
 
         .snow-history summary {
             cursor: pointer;
+            color: var(--text-color);
         }
 
         .snow-policy-note {
@@ -284,12 +386,51 @@
             color: var(--text-muted);
         }
 
+        /* Text utilities */
+        .text-muted {
+            color: var(--text-muted) !important;
+        }
+
+        /* Table styles */
+        .table {
+            color: var(--text-color);
+        }
+
+        .table thead th {
+            background: var(--bg-color);
+            border-color: var(--border-color);
+            color: var(--text-color);
+        }
+
+        .table td, .table th {
+            border-color: var(--border-color);
+        }
+
+        .table-striped tbody tr:nth-of-type(odd) {
+            background: color-mix(in srgb, var(--bg-color) 50%, transparent);
+        }
+
+        /* Code blocks */
+        code {
+            background: var(--bg-color);
+            color: var(--danger-color);
+            padding: 0.15rem 0.4rem;
+            border-radius: 4px;
+        }
+
+        /* List groups */
+        .list-group-item {
+            background: var(--surface-color);
+            border-color: var(--border-color);
+            color: var(--text-color);
+        }
+
         @media (max-width: 768px) {
             .stats-grid, .operation-grid {
                 grid-template-columns: 1fr;
             }
         }
-        /* Print styles */
+
         @media print {
             .keyboard-shortcuts {
                 display: none !important;
