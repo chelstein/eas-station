@@ -6,6 +6,11 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.12.27] - 2025-12-07
+### Fixed
+- **CRITICAL Demodulation Bug**: Added missing `process()` method to FMDemodulator and AMDemodulator classes that was being called by RedisSDRSourceAdapter but didn't exist, causing audio demodulation to fail completely
+- Fixed method signature mismatch where redis_sdr_adapter.py called `demodulator.process()` but only `demodulate()` existed, preventing any audio from being generated from IQ samples
+
 ## [2.12.26] - 2025-12-07
 ### Fixed
 - **SDR Core**: Implemented missing `get_ring_buffer_stats()` method in `_SoapySDRReceiver` that was being called by sdr_service.py but didn't exist, causing silent failures in buffer health monitoring
