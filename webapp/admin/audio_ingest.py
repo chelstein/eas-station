@@ -639,6 +639,7 @@ def ensure_sdr_audio_monitor_source(
         'receiver_driver': receiver.driver,
         'receiver_frequency_hz': float(receiver.frequency_hz or 0.0),
         'receiver_modulation': (receiver.modulation_type or 'IQ').upper(),
+        'iq_sample_rate': receiver.sample_rate,
         'rbds_enabled': bool(receiver.enable_rbds),
         'squelch_enabled': squelch_enabled,
         'squelch_threshold_db': silence_threshold,

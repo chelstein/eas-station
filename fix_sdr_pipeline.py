@@ -135,7 +135,8 @@ def fix_sdr_pipeline():
                         'silence_threshold_db': -60.0,
                         'silence_duration_seconds': 5.0,
                         'device_params': {
-                            'receiver_id': receiver.identifier
+                            'receiver_id': receiver.identifier,
+                            'iq_sample_rate': receiver.sample_rate
                         }
                     }
                 )
@@ -172,6 +173,20 @@ def fix_sdr_pipeline():
                         device_params['receiver_id'] = 'wxj93'
                         source.config_params['device_params'] = device_params
                         print(f"  🔧 Set receiver_id to 'wxj93'")
+                        needs_fix = True
+                
+                # Check if iq_sample_rate is missing and add it from the receiver
+                if receiver_id and 'iq_sample_rate' not in device_params:
+                    receiver = RadioReceiver.query.filter_by(identifier=receiver_id).first()
+                    if receiver and receiver.sample_rate:
+                        print(f"  ⚠️  ISSUE: No iq_sample_rate in device_params")
+                        device_params['iq_sample_rate'] = receiver.sample_rate
+                        # Update the source config with modified device_params
+                        config_params = source.config_params.copy()
+                        config_params['device_params'] = device_params
+                        source.config_params = config_params
+                        print(f"  🔧 Set iq_sample_rate to {receiver.sample_rate}Hz from receiver")
+                        fixes_needed.append(f"  - Added iq_sample_rate to {source.name}")
                         needs_fix = True
                 
                 if needs_fix:
