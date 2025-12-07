@@ -178,25 +178,37 @@
         <i class="fas fa-clock"></i> Temporal Patterns
     </h2>
 
-    <!-- Heatmap -->
-    <div class="chart-grid-large">
-        <div class="chart-container">
+    <!-- Heatmap - Compact -->
+    <div class="chart-grid">
+        <div class="chart-container heatmap-container">
             <div class="chart-title">
                 <i class="fas fa-th"></i> Activity Heatmap (Day x Hour)
             </div>
-            <div id="temporalHeatmapChart">
-                <div class="loading-message">
+            <div id="temporalHeatmapChart" style="height: 200px;">
+                <div class="loading-message" style="height: 160px;">
                     <div class="spinner"></div>
                     <div>Loading heatmap...</div>
                 </div>
             </div>
         </div>
-    </div>
 
-    <div class="chart-grid-small">
         <div class="chart-container">
             <div class="chart-title">
-                <i class="fas fa-calendar-week"></i> By Day of Week
+                <i class="fas fa-chart-line"></i> Hourly Distribution
+            </div>
+            <div id="hourlyLineChart">
+                <div class="loading-message">
+                    <div class="spinner"></div>
+                    <div>Loading...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="chart-grid">
+        <div class="chart-container">
+            <div class="chart-title">
+                <i class="fas fa-chart-area"></i> Weekly Trend
             </div>
             <div id="dayOfWeekChart">
                 <div class="loading-message">
@@ -208,7 +220,7 @@
 
         <div class="chart-container">
             <div class="chart-title">
-                <i class="fas fa-calendar-alt"></i> Monthly Distribution
+                <i class="fas fa-chart-line"></i> Monthly Trend
             </div>
             <div id="monthlyChart">
                 <div class="loading-message">
@@ -217,7 +229,9 @@
                 </div>
             </div>
         </div>
+    </div>
 
+    <div class="chart-grid">
         <div class="chart-container">
             <div class="chart-title">
                 <i class="fas fa-toggle-on"></i> By Status

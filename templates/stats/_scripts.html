@@ -693,25 +693,82 @@ function createTemporalHeatmapChart(agg) {
     container.appendChild(legendDiv);
 }
 
+function createHourlyLineChart(agg) {
+    const id = 'hourlyLineChart';
+    if (!document.getElementById(id)) return;
+    if (!agg.hourlyTotals.some(v => v > 0)) return showNoData(id, 'No hourly data');
+
+    const hours = Array.from({ length: 24 }, (_, i) => `${i}:00`);
+
+    createOrUpdateChart(id, canvas => {
+        const ctx = canvas.getContext('2d');
+        const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+        gradient.addColorStop(0, 'rgba(236, 72, 153, 0.5)');
+        gradient.addColorStop(0.5, 'rgba(168, 85, 247, 0.3)');
+        gradient.addColorStop(1, 'rgba(99, 102, 241, 0.05)');
+
+        return new Chart(canvas, {
+            type: 'line',
+            data: {
+                labels: hours,
+                datasets: [{
+                    label: 'Alerts by Hour',
+                    data: agg.hourlyTotals,
+                    borderColor: '#ec4899',
+                    backgroundColor: gradient,
+                    fill: true,
+                    tension: 0.4,
+                    pointRadius: 4,
+                    pointBackgroundColor: '#ec4899',
+                    pointBorderColor: '#fff',
+                    pointBorderWidth: 2,
+                    pointHoverRadius: 6,
+                    borderWidth: 3
+                }]
+            },
+            options: {
+                plugins: { legend: { display: false } },
+                scales: {
+                    y: { beginAtZero: true, grid: { color: getChartThemeColors().gridLines } },
+                    x: { grid: { display: false }, ticks: { maxTicksLimit: 12 } }
+                },
+                interaction: { intersect: false, mode: 'index' }
+            }
+        });
+    });
+}
+
 function createDayOfWeekChart(agg) {
     const id = 'dayOfWeekChart';
     if (!document.getElementById(id)) return;
     if (!agg.dowTotals.some(v => v > 0)) return showNoData(id, 'No day data');
 
-    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
     createOrUpdateChart(id, canvas => {
         const ctx = canvas.getContext('2d');
+        const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+        gradient.addColorStop(0, 'rgba(17, 153, 142, 0.5)');
+        gradient.addColorStop(0.5, 'rgba(56, 239, 125, 0.25)');
+        gradient.addColorStop(1, 'rgba(56, 239, 125, 0.02)');
+
         return new Chart(canvas, {
-            type: 'bar',
+            type: 'line',
             data: {
                 labels: dayNames,
                 datasets: [{
-                    label: 'Alerts',
+                    label: 'Weekly Pattern',
                     data: agg.dowTotals,
-                    backgroundColor: createGradient(ctx, GRADIENT_PALETTES.success),
-                    borderRadius: 8,
-                    borderSkipped: false
+                    borderColor: '#11998e',
+                    backgroundColor: gradient,
+                    fill: true,
+                    tension: 0.4,
+                    pointRadius: 6,
+                    pointBackgroundColor: '#11998e',
+                    pointBorderColor: '#fff',
+                    pointBorderWidth: 3,
+                    pointHoverRadius: 8,
+                    borderWidth: 3
                 }]
             },
             options: {
@@ -719,7 +776,8 @@ function createDayOfWeekChart(agg) {
                 scales: {
                     y: { beginAtZero: true, grid: { color: getChartThemeColors().gridLines } },
                     x: { grid: { display: false } }
-                }
+                },
+                interaction: { intersect: false, mode: 'index' }
             }
         });
     });
@@ -1006,6 +1064,7 @@ function renderDynamicCharts(agg) {
     createSeverityChart(agg);
     createStatusChart(agg);
     createTemporalHeatmapChart(agg);
+    createHourlyLineChart(agg);
     createDayOfWeekChart(agg);
     createMonthlyChart(agg);
     createYearlyTrendChart(agg);
