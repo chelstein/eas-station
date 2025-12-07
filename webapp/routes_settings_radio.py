@@ -493,7 +493,15 @@ def _sync_radio_manager_state(route_logger) -> Dict[str, Any]:
                 reload_result.get("receivers_configured", 0),
                 reload_result.get("receivers_started", 0)
             )
-            summary["auto_started"] = [r.identifier for r in enabled_receivers if r.auto_start]
+            # Only report actually started receivers, not just those with auto_start flag
+            started_count = reload_result.get("receivers_started", 0)
+            if started_count > 0:
+                # Get the list of receivers that should have started
+                auto_start_receivers = [r.identifier for r in enabled_receivers if r.auto_start]
+                # Truncate to actual started count
+                summary["auto_started"] = auto_start_receivers[:started_count]
+            else:
+                summary["auto_started"] = []
         else:
             error_msg = reload_result.get("error", "Unknown error")
             route_logger.warning("SDR service reload failed: %s", error_msg)

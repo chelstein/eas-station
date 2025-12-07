@@ -564,9 +564,11 @@ def process_commands(redis_client):
             # This is called when receivers are added/updated/deleted via webapp
             try:
                 from app_core.models import RadioReceiver
-                from flask import current_app
+                from app_core.extensions import db
                 
-                with current_app.app_context():
+                # sdr-service has its own database connection (initialized at startup)
+                # No need for Flask app context - we're already in the service context
+                with db.session.no_autoflush:
                     receivers = RadioReceiver.query.filter_by(enabled=True).all()
                     
                     if not radio_manager:
