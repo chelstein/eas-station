@@ -348,6 +348,13 @@ class _SoapySDRReceiver(ReceiverInterface):
 
         self._running.clear()
 
+        # Signal ring buffer to wake up any waiting consumers
+        if self._ring_buffer is not None:
+            try:
+                self._ring_buffer.signal_shutdown()
+            except Exception:
+                pass
+
         # Attempt to stop the stream to unblock readStream if it's stuck
         # This is critical for drivers that block indefinitely on readStream
         if self._handle:
@@ -950,6 +957,26 @@ class _SoapySDRReceiver(ReceiverInterface):
 
                 if result.ret > 0:
                     samples = buffer[: result.ret]
+                    
+                    # Write samples to ring buffer if enabled
+                    # This provides overflow detection and backpressure monitoring
+                    if self._ring_buffer is not None:
+                        try:
+                            written = self._ring_buffer.write(samples)
+                            if written < len(samples):
+                                # Overflow detected - ring buffer is full
+                                # This indicates processing can't keep up with USB data rate
+                                self._interface_logger.debug(
+                                    "Ring buffer overflow for %s: dropped %d samples",
+                                    self.config.identifier,
+                                    len(samples) - written
+                                )
+                        except Exception as e:
+                            self._interface_logger.debug(
+                                "Error writing to ring buffer for %s: %s",
+                                self.config.identifier,
+                                e
+                            )
                     
                     # 1. Compute Spectrum (if interval elapsed)
                     now = time.time()

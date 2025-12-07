@@ -11,10 +11,13 @@ tracks releases under the 2.x series.
 - **SDR Core**: Implemented missing `get_ring_buffer_stats()` method in `_SoapySDRReceiver` that was being called by sdr_service.py but didn't exist, causing silent failures in buffer health monitoring
 - **SDR Core**: Integrated SDRRingBuffer initialization in receiver startup to enable proper USB jitter absorption and backpressure handling
 - **SDR Core**: Ring buffer now properly instantiated when device opens, providing robust sample buffering for reliable 24/7 SDR operation
+- **SDR Core**: Capture loop now writes samples to ring buffer for overflow detection and backpressure monitoring
+- **SDR Core**: Ring buffer properly shut down when receiver stops, preventing resource leaks
 ### Improved
 - Enhanced ring buffer statistics reporting with fallback to simple buffer stats when SDRRingBuffer unavailable
 - Added comprehensive buffer health metrics (overflow/underflow counts, fill percentage, total samples) to Redis
 - Improved separation between app.py and SDR service - all SDR operations completely independent of Flask application
+- Ring buffer overflow detection now logs dropped samples when processing can't keep up with USB data rate
 
 ## [2.12.25] - 2025-12-05
 ### Fixed
