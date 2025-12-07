@@ -774,8 +774,10 @@ class ContinuousEASMonitor:
                 samples = samples.flatten()
             else:
                 # Unexpected number of channels - take first channel only
+                # EAS monitoring requires mono audio for accurate SAME tone detection
                 logger.warning(
-                    f"Unexpected audio shape {samples.shape} - using first channel only"
+                    f"Unexpected audio shape {samples.shape} with {samples.shape[1]} channels - "
+                    f"EAS monitoring requires mono audio, using first channel only"
                 )
                 samples = samples[:, 0]
         

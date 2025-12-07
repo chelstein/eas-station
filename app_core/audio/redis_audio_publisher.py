@@ -143,8 +143,11 @@ class RedisAudioPublisher:
                                 audio_chunk = audio_chunk.flatten()
                             else:
                                 # Unexpected number of channels - take first channel only
+                                # EAS monitoring requires mono audio for accurate SAME tone detection
                                 logger.warning(
-                                    f"Unexpected audio shape {audio_chunk.shape} from {self.source_name} - using first channel only"
+                                    f"Source '{self.source_name}': Unexpected audio shape {audio_chunk.shape} "
+                                    f"with {audio_chunk.shape[1]} channels - EAS monitoring requires mono audio, "
+                                    f"using first channel only"
                                 )
                                 audio_chunk = audio_chunk[:, 0]
                         

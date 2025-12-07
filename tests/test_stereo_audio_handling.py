@@ -30,6 +30,9 @@ from unittest.mock import Mock, MagicMock
 
 from app_core.audio.streaming_same_decoder import StreamingSAMEDecoder
 
+# Constants
+FLOAT32_BYTES = 4  # Number of bytes per float32 value
+
 
 class MockAudioManager:
     """Mock audio manager for testing."""
@@ -192,8 +195,8 @@ class TestStereoAudioHandling:
             
             # Encode and verify
             sample_bytes = audio_chunk.astype(np.float32).tobytes()
-            # Byte length should be 1600 samples * 4 bytes/float32 = 6400 bytes
-            assert len(sample_bytes) == 1600 * 4
+            # Byte length should be 1600 samples * FLOAT32_BYTES = 6400 bytes
+            assert len(sample_bytes) == 1600 * FLOAT32_BYTES
 
 
 class TestAudioShapeNormalization:
