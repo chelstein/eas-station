@@ -129,15 +129,16 @@ class FMDemodulator:
         Process IQ samples and return audio samples.
         
         This is the main entry point used by audio processing pipeline.
-        For full demodulation with RBDS data, use demodulate() instead.
+        RBDS data is intentionally discarded for simplicity in the audio pipeline.
+        For full demodulation with RBDS data extraction, use demodulate() instead.
         
         Args:
             iq_samples: Complex IQ samples
             
         Returns:
-            Audio samples (float32 numpy array)
+            Audio samples (float32 numpy array) with RBDS data discarded
         """
-        audio, _rbds = self.demodulate(iq_samples)
+        audio, _ = self.demodulate(iq_samples)
         return audio
 
     def demodulate(self, iq_samples: np.ndarray) -> Tuple[np.ndarray, Optional[RBDSData]]:

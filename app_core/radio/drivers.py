@@ -29,6 +29,15 @@ from typing import Dict, List, Optional
 
 from .manager import ReceiverConfig, ReceiverInterface, ReceiverStatus, RadioManager
 
+# Import ring buffer at module level to avoid repeated import overhead
+try:
+    from .ring_buffer import SDRRingBuffer, calculate_buffer_size
+    _RING_BUFFER_AVAILABLE = True
+except ImportError:
+    _RING_BUFFER_AVAILABLE = False
+    SDRRingBuffer = None
+    calculate_buffer_size = None
+
 
 class _SoapySDRHandle:
     """Thin wrapper storing objects needed for a SoapySDR stream."""
@@ -480,10 +489,8 @@ class _SoapySDRReceiver(ReceiverInterface):
             self._sample_buffer_pos = 0
         
         # Initialize SDRRingBuffer for robust USB reading if enabled
-        if self._ring_buffer_enabled:
+        if self._ring_buffer_enabled and _RING_BUFFER_AVAILABLE:
             try:
-                from .ring_buffer import SDRRingBuffer, calculate_buffer_size
-                
                 # Calculate buffer size for ~1 second of samples
                 buffer_size = calculate_buffer_size(self.config.sample_rate, buffer_time_seconds=1.0)
                 
@@ -508,6 +515,12 @@ class _SoapySDRReceiver(ReceiverInterface):
                 )
                 self._ring_buffer = None
                 self._ring_buffer_enabled = False
+        elif self._ring_buffer_enabled and not _RING_BUFFER_AVAILABLE:
+            self._interface_logger.warning(
+                "Ring buffer requested for %s but module not available",
+                self.config.identifier
+            )
+            self._ring_buffer_enabled = False
 
     def _open_handle(self) -> _SoapySDRHandle:
         try:
