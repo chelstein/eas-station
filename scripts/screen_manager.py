@@ -416,6 +416,18 @@ class ScreenManager:
         """Attach callbacks for the Argon OLED button when available."""
 
         if self._oled_button_initialized:
+            # If we already have a working button, verify callbacks are still attached
+            if self._oled_button is not None:
+                try:
+                    # Re-attach callbacks if they were somehow cleared
+                    if self._oled_button.when_pressed is None:
+                        self._oled_button.when_pressed = self._handle_oled_button_press
+                    if self._oled_button.when_released is None:
+                        self._oled_button.when_released = self._handle_oled_button_release
+                    if self._oled_button.when_held is None:
+                        self._oled_button.when_held = self._handle_oled_button_hold
+                except Exception as exc:
+                    logger.debug("Could not verify OLED button callbacks: %s", exc)
             return
 
         try:
@@ -427,15 +439,22 @@ class ScreenManager:
 
         button = ensure_oled_button(logger)
         if button is None:
-            self._oled_button_initialized = True
+            # Don't set initialized to True if button is None due to hardware issues
+            # This allows retry on next loop iteration
+            logger.debug("OLED button not available, will retry")
             return
 
-        button.when_pressed = self._handle_oled_button_press
-        button.when_released = self._handle_oled_button_release
-        button.when_held = self._handle_oled_button_hold
-        self._oled_button = button
-        self._oled_button_initialized = True
-        logger.info("OLED front-panel button listener registered")
+        try:
+            button.when_pressed = self._handle_oled_button_press
+            button.when_released = self._handle_oled_button_release
+            button.when_held = self._handle_oled_button_hold
+            self._oled_button = button
+            self._oled_button_initialized = True
+            logger.info("OLED front-panel button listener registered")
+        except Exception as exc:
+            logger.warning("Failed to attach OLED button callbacks: %s", exc)
+            # Don't mark as initialized so we can retry
+            return
 
     def _queue_oled_button_action(self, action: str) -> None:
         with self._oled_button_lock:

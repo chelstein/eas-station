@@ -121,8 +121,8 @@ def test_draw_bar_graph_clamps_coordinates(oled_controller, mock_pil_modules):
     _assert_points_within_bounds(draw_obj.rectangle.call_args_list, oled_controller.width, oled_controller.height)
 
 
-def test_render_frame_text_height_bounds_checking(oled_controller, mock_pil_modules):
-    """Test that text extending beyond screen height is not rendered"""
+def test_render_frame_text_partial_rendering_allowed(oled_controller, mock_pil_modules):
+    """Test that text extending beyond screen height is still rendered (PIL clips naturally)"""
     draw_obj = mock_pil_modules['draw_obj']
     font_obj = mock_pil_modules['font'].truetype.return_value
 
@@ -131,12 +131,14 @@ def test_render_frame_text_height_bounds_checking(oled_controller, mock_pil_modu
     draw_obj.text.reset_mock()
 
     # Text at Y=58 with height 12 would extend to Y=70 (beyond 64)
+    # But it should still be rendered - PIL will clip it naturally
     oled_controller.render_frame([
-        {'type': 'text', 'text': 'Out of bounds', 'x': 0, 'y': 58, 'font': 'small'}
+        {'type': 'text', 'text': 'Partial visible', 'x': 0, 'y': 58, 'font': 'small'}
     ])
 
-    # Text should NOT be rendered since it would exceed bounds
-    assert draw_obj.text.call_count == 0, "Text extending beyond screen bounds should not be rendered"
+    # Text SHOULD be rendered - partial rendering is better than no rendering
+    # PIL will naturally clip any content that extends beyond the image bounds
+    assert draw_obj.text.call_count == 1, "Text starting within bounds should be rendered (PIL clips naturally)"
 
 
 def test_render_frame_text_exactly_at_bounds(oled_controller, mock_pil_modules):
@@ -185,9 +187,9 @@ def test_render_frame_text_within_bounds(oled_controller, mock_pil_modules):
     assert y == 40
 
 
-def test_display_lines_text_height_bounds_checking(oled_controller, mock_pil_modules):
-    """Test that display_lines respects text height bounds"""
-    from app_core.oled import OLEDLineEntry
+def test_display_lines_partial_rendering_allowed(oled_controller, mock_pil_modules):
+    """Test that display_lines allows partial rendering (PIL clips naturally)"""
+    from app_core.oled import OLEDLine
 
     draw_obj = mock_pil_modules['draw_obj']
     font_obj = mock_pil_modules['font'].truetype.return_value
@@ -196,26 +198,28 @@ def test_display_lines_text_height_bounds_checking(oled_controller, mock_pil_mod
     font_obj.getbbox = Mock(return_value=(0, 0, 50, 12))
     draw_obj.text.reset_mock()
 
-    # Create lines where the last one would exceed bounds
+    # Create lines where the last one extends beyond bounds but starts within
     lines = [
-        OLEDLineEntry(text="Line 1", x=0, y=0, font="small"),
-        OLEDLineEntry(text="Line 2", x=0, y=52, font="small"),  # Y=52, extends to 64 - OK
-        OLEDLineEntry(text="Line 3", x=0, y=58, font="small"),  # Y=58, extends to 70 - OUT OF BOUNDS
+        OLEDLine(text="Line 1", x=0, y=0, font="small"),
+        OLEDLine(text="Line 2", x=0, y=52, font="small"),  # Y=52, extends to 64 - OK
+        OLEDLine(text="Line 3", x=0, y=58, font="small"),  # Y=58, extends to 70 - partially visible
     ]
 
     oled_controller.display_lines(lines)
 
-    # Should render only first 2 lines, not the third
-    assert draw_obj.text.call_count == 2, "Only text within bounds should be rendered"
+    # All 3 lines should be rendered - partial rendering is allowed
+    # PIL will clip any content that extends beyond the image bounds
+    assert draw_obj.text.call_count == 3, "All lines starting within bounds should be rendered"
 
     # Verify the Y coordinates of rendered text
     call_args_list = draw_obj.text.call_args_list
     assert call_args_list[0].args[0][1] == 0  # First line at Y=0
     assert call_args_list[1].args[0][1] == 52  # Second line at Y=52
+    assert call_args_list[2].args[0][1] == 58  # Third line at Y=58 (partial)
 
 
 def test_render_frame_multiple_font_sizes(oled_controller, mock_pil_modules):
-    """Test bounds checking with different font sizes"""
+    """Test partial rendering with different font sizes"""
     draw_obj = mock_pil_modules['draw_obj']
     font_obj = mock_pil_modules['font'].truetype.return_value
     draw_obj.text.reset_mock()
@@ -224,12 +228,12 @@ def test_render_frame_multiple_font_sizes(oled_controller, mock_pil_modules):
     font_obj.getbbox = Mock(return_value=(0, 0, 50, 18))
 
     oled_controller.render_frame([
-        # Y=50 + 18 = 68, exceeds 64
+        # Y=50 + 18 = 68, exceeds 64 but starts within bounds
         {'type': 'text', 'text': 'Large font', 'x': 0, 'y': 50, 'font': 'large'},
     ])
 
-    # Should not render
-    assert draw_obj.text.call_count == 0, "Large font text exceeding bounds should not be rendered"
+    # Should render - partial rendering is allowed (PIL clips naturally)
+    assert draw_obj.text.call_count == 1, "Large font text starting within bounds should be rendered (partial)"
 
     draw_obj.text.reset_mock()
 
@@ -241,3 +245,14 @@ def test_render_frame_multiple_font_sizes(oled_controller, mock_pil_modules):
 
     # Should render
     assert draw_obj.text.call_count == 1, "Large font text exactly fitting should be rendered"
+
+    draw_obj.text.reset_mock()
+
+    # Test text starting completely outside bounds
+    oled_controller.render_frame([
+        # Y=64 starts at the bottom edge (outside visible area)
+        {'type': 'text', 'text': 'Invisible', 'x': 0, 'y': 64, 'font': 'large'},
+    ])
+
+    # Should NOT render - text starts completely outside the display
+    assert draw_obj.text.call_count == 0, "Text starting outside display bounds should not be rendered"
