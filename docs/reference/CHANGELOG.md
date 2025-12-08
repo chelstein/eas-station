@@ -6,6 +6,22 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.15.5] - 2025-12-08
+### Fixed
+- **CRITICAL: Complete SDR Hardware Separation**: Removed ALL SDR hardware access from audio-service.py
+  - **Root Cause**: Both audio-service and sdr-service were fighting for USB access to SDR hardware
+  - Removed `initialize_radio_receivers()` functionality from audio-service (kept stub for backward compat)
+  - Removed RadioManager initialization and all `_radio_manager` references
+  - Removed process_commands() SDR hardware operations (restart, get_spectrum, discover_devices)
+  - Removed collect_metrics() radio_manager stats collection
+  - Removed spectrum publishing loop with direct IQ sample access
+  - **Result**: audio-service.py now ONLY subscribes to Redis channels from sdr-service
+  - **Impact**: SDR hardware access is now exclusive to sdr-service.py container
+  - **Why SDR Never Worked**: Both containers tried to open same USB devices → conflict
+  - Fixed audio_sample_rate handling - now uses explicit setting or auto-detects from modulation
+  - **Action Required**: Restart both containers: `docker restart eas-sdr-service eas-audio-service`
+  - **Verification**: Check logs show sdr-service publishing and audio-service subscribing
+
 ## [2.15.4] - 2025-12-08
 ### Fixed
 - **Code Quality: Removed Bare Except Statements**: Fixed 4 bare `except:` statements that could mask errors
