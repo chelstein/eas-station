@@ -19,9 +19,9 @@ Repository: https://github.com/KR8MER/eas-station
 """
 
 """
-Audio Processing & EAS Monitoring Service
+EAS Monitoring Service
 
-IMPORTANT: Despite the filename "audio_service.py", this service does NOT access SDR hardware!
+This service handles EAS/SAME monitoring and audio processing (NO SDR hardware access).
 
 This service handles:
 - Audio demodulation from IQ samples (received via Redis from sdr-service)

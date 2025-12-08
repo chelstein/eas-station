@@ -19,9 +19,9 @@ Repository: https://github.com/KR8MER/eas-station
 """
 
 """
-Standalone SDR Service
+SDR Hardware Service
 
-This service handles ONLY SDR hardware operations:
+This service handles ONLY SDR hardware operations (exclusive USB access):
 - SoapySDR device management (open, configure, read)
 - Dual-thread USB reading for reliable operation
 - Publishing IQ samples to Redis for downstream consumers

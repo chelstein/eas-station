@@ -6,6 +6,41 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.16.0] - 2025-12-08
+### Changed
+- **BREAKING: Service Renaming - Clean Architecture**
+  - Renamed `audio_service.py` → `eas_monitoring_service.py` (reflects actual purpose)
+  - Renamed `sdr_service.py` → `sdr_hardware_service.py` (clarifies exclusive hardware access)
+  - Updated ALL docker-compose files to use new service names
+  - **Why**: Old names were confusing and led to architectural mistakes
+  - **Impact**: Requires docker-compose.yml update (see deployment section)
+  - **No backward compatibility wrappers** - clean break for clarity
+  
+### Files Changed
+- `eas_monitoring_service.py`: New name for EAS monitoring + audio processing service
+- `sdr_hardware_service.py`: New name for SDR hardware access service
+- `docker-compose.yml`: Updated service commands
+- `docker-compose.embedded-db.yml`: Updated service commands
+- `docker-compose.separated.yml`: Updated service commands
+- `RENAME_SERVICES.md`: Updated to reflect completed rename
+- Old files (`audio_service.py`, `sdr_service.py`) removed completely
+
+### Deployment Notes
+**IMPORTANT**: After updating, change your docker-compose.yml commands:
+```yaml
+sdr-service:
+  command: ["python", "sdr_hardware_service.py"]  # WAS: sdr_service.py
+  
+audio-service:
+  command: ["python3", "eas_monitoring_service.py"]  # WAS: audio_service.py
+```
+
+Then rebuild and restart:
+```bash
+docker compose build
+docker restart eas-sdr-service eas-audio-service
+```
+
 ## [2.15.5] - 2025-12-08
 ### Fixed
 - **CRITICAL: Complete SDR Hardware Separation**: Removed ALL SDR hardware access from audio-service.py

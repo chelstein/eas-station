@@ -70,7 +70,7 @@ services:
     restart: unless-stopped
     networks:
       - eas-network
-    command: ["python", "sdr_service.py"]
+    command: ["python", "sdr_hardware_service.py"]
     volumes:
       - app-config:/app-config
     environment:
@@ -138,7 +138,7 @@ services:
       - eas-network
     expose:
       - "5002"  # HTTP streaming server for audio (internal only)
-    command: ["python3", "audio_service.py"]
+    command: ["python3", "eas_monitoring_service.py"]
     volumes:
       - app-config:/app-config
     environment:

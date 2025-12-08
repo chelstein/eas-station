@@ -100,8 +100,14 @@ if __name__ == "__main__":
 
 ## Current Status
 
-- [x] Documentation updated in audio_service.py header
+✅ **COMPLETED in v2.16.0**
+
+- [x] Documentation updated
 - [x] USB access verified exclusive to sdr-service
 - [x] All SDR hardware code removed from audio_service.py
-- [ ] Create rename plan (this document)
-- [ ] Implement rename in v2.16.0
+- [x] Created rename plan (this document)
+- [x] Implemented rename in v2.16.0
+  - [x] Created `eas_monitoring_service.py`
+  - [x] Created `sdr_hardware_service.py`
+  - [x] Updated all docker-compose files
+  - [x] Removed old service files (no backward compatibility)
