@@ -388,8 +388,8 @@ def cleanup_coordinator():
     if _redis_client is not None:
         try:
             _redis_client.close()
-        except:
-            pass
+        except Exception as e:
+            logger.debug(f"Error closing Redis connection: {e}")
         _redis_client = None
 
 

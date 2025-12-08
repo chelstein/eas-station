@@ -19,9 +19,9 @@ Repository: https://github.com/KR8MER/eas-station
 """
 
 """
-Standalone SDR Service
+SDR Hardware Service
 
-This service handles ONLY SDR hardware operations:
+This service handles ONLY SDR hardware operations (exclusive USB access):
 - SoapySDR device management (open, configure, read)
 - Dual-thread USB reading for reliable operation
 - Publishing IQ samples to Redis for downstream consumers
@@ -33,30 +33,31 @@ Architecture:
                     │   USB Device    │
                     └────────┬────────┘
                              │
-            ┌────────────────┴────────────────┐
-            │         sdr_service.py          │
-            │   (This file - USB access)      │
-            │                                 │
-            │  ┌───────────┐  ┌────────────┐ │
-            │  │USB Reader │──│Ring Buffer │ │
-            │  │  Thread   │  └─────┬──────┘ │
-            │  └───────────┘        │        │
-            │                       ▼        │
-            │              ┌────────────┐    │
-            │              │ Publisher  │    │
-            │              │   Thread   │    │
-            │              └─────┬──────┘    │
-            └────────────────────┼───────────┘
+            ┌───────────────────┴─────────────────┐
+            │   sdr_hardware_service.py        │
+            │   (This file - USB access)       │
+            │                                  │
+            │  ┌───────────┐  ┌────────────┐  │
+            │  │USB Reader │──│Ring Buffer │  │
+            │  │  Thread   │  └─────┬──────┘  │
+            │  └───────────┘        │         │
+            │                       ▼         │
+            │              ┌────────────┐     │
+            │              │ Publisher  │     │
+            │              │   Thread   │     │
+            │              └─────┬──────┘     │
+            └────────────────────┼────────────┘
                                  │ Redis pub/sub
+                                 │ sdr:samples:{id}
                                  ▼
-            ┌────────────────────────────────┐
-            │       audio_service.py         │
-            │   (No USB access needed)       │
-            │                                │
-            │  - Demodulation                │
-            │  - EAS/SAME decoding           │
-            │  - Icecast streaming           │
-            └────────────────────────────────┘
+            ┌────────────────────────────────────┐
+            │   eas_monitoring_service.py        │
+            │   (No USB access needed)           │
+            │                                    │
+            │  - IQ demodulation (FM/AM/NFM)     │
+            │  - EAS/SAME decoding               │
+            │  - Icecast streaming               │
+            └────────────────────────────────────┘
 
 Benefits:
 - SDR crashes don't affect audio processing

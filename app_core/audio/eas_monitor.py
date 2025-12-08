@@ -182,8 +182,8 @@ def _store_received_alert(
         try:
             from app_core.extensions import db
             db.session.rollback()
-        except:
-            pass
+        except Exception as rollback_error:
+            logger.debug(f"Failed to rollback database session: {rollback_error}")
 
 
 @dataclass
@@ -1094,8 +1094,8 @@ class ContinuousEASMonitor:
                 if len(parts) >= 3:
                     originator = parts[1]
                     event_code = parts[2]
-            except:
-                pass
+            except (IndexError, AttributeError) as e:
+                logger.debug(f"Failed to parse SAME header parts for filename: {e}")
         
         filename = f"{timestamp_str}_{originator}-{event_code}.wav"
         filepath = os.path.join(ram_disk_dir, filename)

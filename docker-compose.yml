@@ -84,11 +84,18 @@ services:
     restart: unless-stopped
     networks:
       - eas-network
-    # NOTE: sdr_service.py is the new dedicated SDR-only service.
-    # For backward compatibility, audio_service.py still works but handles
-    # both SDR and audio processing in a single container.
-    # Use sdr_service.py + audio-service for full separation (recommended).
-    command: ["python", "sdr_service.py"]
+    # ==========================================================================
+    # SDR Hardware Service - EXCLUSIVE SDR/USB Access
+    # ==========================================================================
+    # This service has EXCLUSIVE access to SDR hardware via USB.
+    # - Reads IQ samples from SDR devices (RTL-SDR, Airspy, etc.)
+    # - Publishes IQ samples to Redis pub/sub (sdr:samples:{receiver_id})
+    # - Publishes spectrum data for waterfall display
+    # - Handles all SoapySDR hardware operations
+    #
+    # NO OTHER SERVICE should access SDR hardware!
+    # ==========================================================================
+    command: ["python", "sdr_hardware_service.py"]
     volumes:
       - app-config:/app-config
     tmpfs:
@@ -147,15 +154,18 @@ services:
       start_period: 10s
 
   # ==========================================================================
-  # Audio Service - Handles audio processing, EAS decoding, and streaming
+  # Audio Processing & EAS Monitoring Service - NO SDR Hardware Access
   # ==========================================================================
   # This service receives IQ samples from sdr-service via Redis and handles:
-  #   - Audio demodulation (FM, AM, etc.)
-  #   - EAS/SAME header detection and decoding
+  #   - Audio demodulation from IQ samples (FM, AM, NFM, WFM)
+  #   - EAS/SAME header detection and decoding (PRIMARY FUNCTION)
+  #   - HTTP/Icecast stream ingestion (LP1, LP2, SP1, etc.)
   #   - Icecast streaming output
   #   - Web audio streaming
   #
-  # No USB access required - all SDR data comes from Redis.
+  # - No USB device access
+  # - No SoapySDR operations
+  # - Only subscribes to Redis channels from sdr-service
   # ==========================================================================
   audio-service:
     image: eas-station:latest
@@ -166,7 +176,7 @@ services:
       - eas-network
     expose:
       - "5002"  # HTTP streaming server for audio (internal only)
-    command: ["python3", "audio_service.py"]
+    command: ["python3", "eas_monitoring_service.py"]
     volumes:
       - app-config:/app-config
     tmpfs:

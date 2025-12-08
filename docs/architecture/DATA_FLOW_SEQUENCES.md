@@ -216,104 +216,95 @@ sequenceDiagram
 
 ---
 
-## Multi-Source Audio Ingest Data Flow
+## Multi-Source Audio Ingest Data Flow (Separated Architecture)
 
-This sequence shows how audio data from multiple sources (SDR, ALSA, PulseAudio, streams) flows through adapters into a unified audio controller.
+This sequence shows how audio data from multiple sources flows through adapters in the **separated architecture** where SDR hardware is isolated.
 
 **Key Components:**
-- `app_core/audio/sources.py` - Source adapter implementations
+- `sdr_hardware_service.py` - Exclusive SDR hardware access (separate container)
+- `eas_monitoring_service.py` - Audio processing + EAS monitoring (separate container)
+- `app_core/audio/redis_sdr_adapter.py` - Redis SDR subscriber
+- `app_core/audio/sources.py` - Other source adapters
 - `app_core/audio/ingest.py` - AudioIngestController
-- `app_core/audio/metering.py` - Audio level monitoring
 
 ```mermaid
 sequenceDiagram
-    participant Sources as Audio Sources<br>(SDR/ALSA/Stream/File)
-    participant Adapters as Source Adapters<br>sources.py
-    participant Controller as Audio Controller<br>ingest.py
-    participant Meter as Audio Meter<br>metering.py
-    participant Buffer as Audio Buffer<br>Queue
-    participant Consumer as Audio Consumer<br>(Broadcast/Monitor)
-    participant DB as Database<br>Metrics
+    participant SDR_HW as sdr-hardware-service<br>(USB access)
+    participant Redis as Redis Pub/Sub<br>sdr:samples:{id}
+    participant RedisAdapter as RedisSDRSourceAdapter<br>redis_sdr_adapter.py
+    participant Streams as HTTP/Icecast Streams<br>(LP1, LP2, SP1)
+    participant StreamAdapter as StreamSourceAdapter<br>sources.py
+    participant Controller as AudioIngestController<br>ingest.py
+    participant BroadcastQ as Per-Source<br>BroadcastQueues
+    participant EAS_Mon as Per-Source<br>EAS Monitors
 
-    Note over Controller: System startup
+    Note over SDR_HW,EAS_Mon: Separated Architecture - NO shared hardware access
 
-    Controller->>Controller: start_all()
-
-    par Start all sources
-        Controller->>Adapters: SDRSourceAdapter.start()
-        Controller->>Adapters: ALSASourceAdapter.start()
-        Controller->>Adapters: StreamSourceAdapter.start()
-        Controller->>Adapters: FileSourceAdapter.start()
-    end
-
-    loop Each adapter capture loop
-        Adapters->>Adapters: Start _capture_loop() thread
-    end
-
-    loop Continuous audio ingestion
-        par SDR Source
-            Sources->>Adapters: SDR: PCM audio from RadioManager
-            Adapters->>Adapters: Validate format (float32, 24kHz)
-        and ALSA Source
-            Sources->>Adapters: ALSA: Read from hw:X,Y device
-            Adapters->>Adapters: Convert to PCM float32
-        and Stream Source
-            Sources->>Adapters: HTTP Stream: Read chunks
-            Adapters->>Adapters: Decode (MP3/AAC → PCM)
-            Adapters->>Adapters: Resample to 24kHz
-        and File Source
-            Sources->>Adapters: File: Read WAV/MP3
-            Adapters->>Adapters: Decode and convert
+    par SDR Hardware Service (separate container)
+        SDR_HW->>SDR_HW: RadioManager.start_all()
+        loop For each receiver (LP1, LP2, SP1)
+            SDR_HW->>SDR_HW: Receiver.get_samples() → IQ samples
+            SDR_HW->>SDR_HW: Compress + base64 encode
+            SDR_HW->>Redis: PUBLISH sdr:samples:LP1 {iq_data}
+            SDR_HW->>Redis: PUBLISH sdr:samples:LP2 {iq_data}
+            SDR_HW->>Redis: PUBLISH sdr:samples:SP1 {iq_data}
         end
-
-        Adapters->>Adapters: _read_audio_chunk()
-        Note right of Adapters: Standardize to PCM float32
-
-        Adapters->>Controller: Audio chunk ready
-        Controller->>Controller: Priority selection
-        Note right of Controller: Priority order:<br>1. SDR (highest)<br>2. ALSA<br>3. PulseAudio<br>4. Stream<br>5. File (lowest)
-
-        Controller->>Controller: Select highest priority active source
-        Controller->>Meter: process_chunk(audio_data)
-
-        Meter->>Meter: Calculate peak level
-        Note right of Meter: peak_db = 20*log10(max(abs(samples)))
-
-        Meter->>Meter: Calculate RMS level
-        Note right of Meter: rms_db = 20*log10(sqrt(mean(samples²)))
-
-        Meter->>Meter: Detect silence
-        Note right of Meter: silence = rms_db < threshold
-
-        alt Silence detected
-            Meter->>DB: INSERT INTO audio_alerts
-            Note right of Meter: Log silence event
+    and EAS Monitoring Service (separate container)
+        Note over RedisAdapter: Subscribes to Redis channels
+        RedisAdapter->>Redis: SUBSCRIBE sdr:samples:LP1
+        RedisAdapter->>Redis: SUBSCRIBE sdr:samples:LP2
+        RedisAdapter->>Redis: SUBSCRIBE sdr:samples:SP3
+        
+        loop Receive IQ samples via Redis
+            Redis-->>RedisAdapter: IQ samples (compressed)
+            RedisAdapter->>RedisAdapter: Decompress + decode
+            RedisAdapter->>RedisAdapter: Demodulate IQ → Audio (FM/AM)
+            RedisAdapter->>Controller: Audio PCM chunks
         end
-
-        Meter->>Meter: Calculate health score
-        Note right of Meter: Score based on:<br>- Signal level<br>- Stability<br>- Error rate
-
-        Meter->>Controller: Metrics (peak, rms, health)
-        Controller->>DB: INSERT INTO audio_source_metrics
-
-        Controller->>Buffer: enqueue(audio_chunk)
-        Buffer->>Consumer: dequeue()
-
-        Consumer->>Consumer: Process audio
-        Note right of Consumer: Broadcast, monitor,<br>or analysis
+    and HTTP Stream Sources
+        loop Stream ingestion
+            Streams-->>StreamAdapter: HTTP chunks (MP3/AAC)
+            StreamAdapter->>StreamAdapter: Decode → PCM
+            StreamAdapter->>StreamAdapter: Resample
+            StreamAdapter->>Controller: Audio PCM chunks
+        end
     end
 
-    Note over Sources,DB: Continuous flow until stop()
+    Note over Controller: Each source publishes to its own BroadcastQueue
+    
+    loop For each source
+        Controller->>BroadcastQ: Source → BroadcastQueue (independent)
+        BroadcastQ->>EAS_Mon: Each monitor subscribes to one queue
+    end
+    
+    Note over EAS_Mon: ALL sources monitored simultaneously (not just highest priority)
 ```
 
-**Data Transformations:**
-1. **Raw audio → PCM float32** (Format conversion)
-2. **Variable sample rate → 24 kHz** (Resampling)
-3. **PCM samples → dB levels** (Peak/RMS calculation)
-4. **Levels → Health score** (Health algorithm)
-5. **Audio chunks → Buffer queue** (Priority selection)
+**Critical Architecture Changes (v2.16.0):**
 
-**Files:** `app_core/audio/ingest.py:356`, `app_core/audio/sources.py:~500`, `app_core/audio/metering.py`
+1. **SDR Hardware Separation**: 
+   - SDR hardware access ONLY in `sdr-hardware-service.py` (separate container with USB access)
+   - No RadioManager in `eas-monitoring-service.py`
+   - Communication via Redis pub/sub: `sdr:samples:{receiver_id}`
+
+2. **Per-Source EAS Monitoring**:
+   - Each source has its own BroadcastQueue
+   - Each source has its own EAS monitor instance
+   - ALL sources monitored simultaneously (not priority-based selection)
+   - Fixed bug where only highest-priority source was monitored
+
+3. **Data Transformations:**
+   - **IQ samples (SDR)**: Complex → Demodulated PCM (FM/AM/NFM)
+   - **HTTP streams**: Compressed (MP3/AAC) → PCM
+   - **All sources**: Variable rate → Configured rate (16-48 kHz)
+   - **PCM samples → dB levels**: Peak/RMS for metering
+   - **Audio chunks → Per-source queues**: Independent broadcast queues
+
+**Service Files:**
+- `sdr_hardware_service.py` - SDR hardware operations (was: sdr_service.py)
+- `eas_monitoring_service.py` - Audio processing + EAS monitoring (was: audio_service.py)
+- `app_core/audio/redis_sdr_adapter.py` - Redis IQ sample subscriber
+- `app_core/audio/ingest.py` - Audio controller with per-source queues
 
 ---
 

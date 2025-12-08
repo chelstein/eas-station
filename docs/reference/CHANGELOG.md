@@ -6,6 +6,107 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.16.0] - 2025-12-08
+### Changed
+- **BREAKING: Service Renaming - Clean Architecture**
+  - Renamed `audio_service.py` → `eas_monitoring_service.py` (reflects actual purpose)
+  - Renamed `sdr_service.py` → `sdr_hardware_service.py` (clarifies exclusive hardware access)
+  - Updated ALL docker-compose files to use new service names
+  - **Why**: Old names were confusing and led to architectural mistakes
+  - **Impact**: Requires docker-compose.yml update (see deployment section)
+  - **No backward compatibility wrappers** - clean break for clarity
+  
+### Files Changed
+- `eas_monitoring_service.py`: New name for EAS monitoring + audio processing service
+- `sdr_hardware_service.py`: New name for SDR hardware access service
+- `docker-compose.yml`: Updated service commands
+- `docker-compose.embedded-db.yml`: Updated service commands
+- `docker-compose.separated.yml`: Updated service commands
+- `RENAME_SERVICES.md`: Updated to reflect completed rename
+- Old files (`audio_service.py`, `sdr_service.py`) removed completely
+
+### Deployment Notes
+**IMPORTANT**: After updating, change your docker-compose.yml commands:
+```yaml
+sdr-service:
+  command: ["python", "sdr_hardware_service.py"]  # WAS: sdr_service.py
+  
+audio-service:
+  command: ["python3", "eas_monitoring_service.py"]  # WAS: audio_service.py
+```
+
+Then rebuild and restart:
+```bash
+docker compose build
+docker restart eas-sdr-service eas-audio-service
+```
+
+## [2.15.5] - 2025-12-08
+### Fixed
+- **CRITICAL: Complete SDR Hardware Separation**: Removed ALL SDR hardware access from audio-service.py
+  - **Root Cause**: Both audio-service and sdr-service were fighting for USB access to SDR hardware
+  - Removed `initialize_radio_receivers()` functionality from audio-service (kept stub for backward compat)
+  - Removed RadioManager initialization and all `_radio_manager` references
+  - Removed process_commands() SDR hardware operations (restart, get_spectrum, discover_devices)
+  - Removed collect_metrics() radio_manager stats collection
+  - Removed spectrum publishing loop with direct IQ sample access
+  - **Result**: audio-service.py now ONLY subscribes to Redis channels from sdr-service
+  - **Impact**: SDR hardware access is now exclusive to sdr-service.py container
+  - **Why SDR Never Worked**: Both containers tried to open same USB devices → conflict
+  - Fixed audio_sample_rate handling - now uses explicit setting or auto-detects from modulation
+  - **Action Required**: Restart both containers: `docker restart eas-sdr-service eas-audio-service`
+  - **Verification**: Check logs show sdr-service publishing and audio-service subscribing
+
+## [2.15.4] - 2025-12-08
+### Fixed
+- **Code Quality: Removed Bare Except Statements**: Fixed 4 bare `except:` statements that could mask errors
+  - `app_core/audio/eas_monitor.py`: Database rollback and SAME header parsing now log errors
+  - `app_core/audio/streaming_same_decoder.py`: Message validation errors now logged at debug level
+  - `app_core/audio/worker_coordinator_redis.py`: Redis connection close errors now logged
+  - All exceptions now specify expected types (IndexError, AttributeError, Exception)
+  - Improves debugging by making error paths visible in logs
+  - Follows Python best practices for exception handling
+  - **Impact**: Better error visibility and easier troubleshooting
+
+## [2.15.3] - 2025-12-08
+### Fixed
+- **CRITICAL: Multi-Stream EAS Monitoring (LP1, LP2, SP1)**: Implemented per-source EAS monitoring
+  - **Root Cause**: EAS monitor only listened to ONE audio source at a time (highest priority)
+  - AudioIngestController.broadcast_pump selected only the highest priority running source
+  - Main broadcast queue received audio from only ONE source, others were ignored
+  - Result: LP1, LP2, SP1 web streams ran successfully but only ONE was monitored for EAS
+  - **Fix**: Changed from single EAS monitor to per-source monitors (one for each stream)
+  - Each audio source now has its own dedicated EAS monitor instance
+  - All sources monitored simultaneously for SAME/EAS alerts
+  - Alerts include source name in metadata for proper attribution
+  - **Why IPAWS worked**: IPAWS uses internet polling (cap_poller.py), not audio monitoring
+  - Enhanced logging shows which sources are being monitored
+  - Proper shutdown handling for multiple monitor instances
+  - Metrics collection aggregates stats from all monitors
+  - **Impact**: Fixes complete loss of EAS monitoring from multiple web streams
+  - **Action Required**: Restart audio-service after update: `docker restart eas-audio-service`
+  - **Applies to**: All deployments monitoring multiple audio sources (streams or SDR)
+
+## [2.15.2] - 2025-12-08
+### Fixed
+- **CRITICAL: Audio Chain for SDR Sources (LP1, LP2, SP1)**: Fixed missing audio pipeline for SDR-based EAS monitoring
+  - Added automatic audio source synchronization on audio-service startup
+  - Previously, audio sources for radio receivers weren't created automatically, breaking the audio chain
+  - In separated architecture, sdr-service publishes IQ samples to Redis, but audio-service needs AudioSourceConfigDB entries
+  - Without these entries, RedisSDRSourceAdapter instances weren't created, preventing audio from reaching EAS monitor
+  - New `sync_radio_receiver_audio_sources()` function ensures audio sources exist for all enabled receivers
+  - Sets critical `managed_by='radio'` flag to trigger Redis adapter creation
+  - Enhanced logging shows receiver details, subscription channels, and startup status
+  - Affects LP1, LP2, SP1 and any other SDR receivers with audio_output=True
+  - **Impact**: Fixes complete loss of EAS monitoring from local/state primary SDR sources
+  - **Action Required**: Restart audio-service container after update: `docker restart eas-audio-service`
+
+### Added
+- **Diagnostic Tools**: Created comprehensive audio chain diagnostic utilities
+  - `diagnose_audio_chain.py` - Full audio chain health check from SDR to EAS monitor
+  - `fix_audio_source_sync.py` - Manual audio source sync tool with dry-run support
+  - Both tools check receivers, audio sources, Redis connectivity, and IQ sample flow
+
 ## [2.15.1] - 2025-12-08
 ### Fixed
 - **Template Consistency**: Fixed deprecated block usage in zigbee.html template, resolving CI failures
