@@ -6,6 +6,13 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.15.1] - 2025-12-08
+### Fixed
+- **Template Consistency**: Fixed deprecated block usage in zigbee.html template, resolving CI failures
+  - Changed `templates/settings/zigbee.html` from deprecated `{% block extra_js %}` to standard `{% block scripts %}`
+  - Ensures all templates consistently use the `scripts` block for page-specific JavaScript
+  - Fixes template consistency check CI workflow that was failing
+
 ## [2.15.0] - 2025-12-08
 ### Added - Phase 3: Professional Polish & UX Enhancements
 - **Enhanced Error Messages**: Context-aware troubleshooting hints for network operations
