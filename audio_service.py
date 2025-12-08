@@ -67,8 +67,9 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
-# Constants for spectrum computation
+# Constants
 FFT_MIN_MAGNITUDE = 1e-10  # Minimum magnitude to avoid log(0) in dB conversion
+MIN_AUDIO_SAMPLE_RATE = 8000  # Minimum valid audio sample rate (Hz)
 
 # Load environment variables from persistent config volume
 # This must happen before initializing audio sources
@@ -247,7 +248,7 @@ def sync_radio_receiver_audio_sources(app):
             modulation = (receiver.modulation_type or 'IQ').upper()
             
             # Use explicit audio_sample_rate if configured, otherwise auto-detect
-            if receiver.audio_sample_rate and receiver.audio_sample_rate >= 8000:
+            if receiver.audio_sample_rate and receiver.audio_sample_rate >= MIN_AUDIO_SAMPLE_RATE:
                 sample_rate = receiver.audio_sample_rate
                 # Channels based on stereo setting
                 channels = 2 if (modulation in ('FM', 'WFM', 'WBFM') and receiver.stereo_enabled) else 1
@@ -661,212 +662,6 @@ def process_commands():
     """
     # Do nothing - all SDR hardware access is in sdr-service.py
     return
-
-    try:
-        # Check for pending commands (non-blocking)
-        command_json = _redis_client.lpop("sdr:commands")
-        if not command_json:
-            return
-
-        command = json.loads(command_json)
-        action = command.get("action")
-        receiver_id = command.get("receiver_id")
-        command_id = command.get("command_id", "unknown")
-
-        logger.info(f"Processing command: {action} for receiver {receiver_id} (command_id={command_id})")
-
-        if action == "restart":
-            # Restart receiver
-            instance = _radio_manager.get_receiver(receiver_id)
-            if not instance:
-                result = {
-                    "command_id": command_id,
-                    "success": False,
-                    "error": f"Receiver '{receiver_id}' not found in RadioManager",
-                    "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-                }
-            else:
-                try:
-                    # Stop and restart
-                    instance.stop()
-                    time.sleep(0.5)  # Brief pause
-                    instance.start()
-
-                    status = instance.get_status()
-                    result = {
-                        "command_id": command_id,
-                        "success": True,
-                        "receiver_id": receiver_id,
-                        "status": {
-                            "locked": status.locked,
-                            "signal_strength": status.signal_strength,
-                            "running": instance.is_running() if hasattr(instance, 'is_running') else False,
-                        },
-                        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-                    }
-                    logger.info(f"✅ Successfully restarted receiver {receiver_id}")
-                except Exception as e:
-                    logger.error(f"❌ Failed to restart receiver {receiver_id}: {e}")
-                    result = {
-                        "command_id": command_id,
-                        "success": False,
-                        "error": str(e),
-                        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-                    }
-
-            # Publish result
-            _redis_client.setex(
-                f"sdr:command_result:{command_id}",
-                30,  # 30 second TTL
-                json.dumps(result)
-            )
-
-        elif action == "get_spectrum":
-            # Get spectrum data for waterfall
-            instance = _radio_manager.get_receiver(receiver_id)
-            if not instance:
-                result = {
-                    "command_id": command_id,
-                    "success": False,
-                    "error": f"Receiver '{receiver_id}' not found",
-                    "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-                }
-            else:
-                try:
-                    num_samples = command.get("num_samples", 2048)
-                    iq_samples = instance.get_samples(num_samples=num_samples)
-
-                    if iq_samples is None or len(iq_samples) == 0:
-                        result = {
-                            "command_id": command_id,
-                            "success": False,
-                            "error": "No samples available from receiver",
-                            "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-                        }
-                    else:
-                        # Convert complex samples to list of [real, imag] pairs
-                        samples_list = [[float(s.real), float(s.imag)] for s in iq_samples[:num_samples]]
-                        result = {
-                            "command_id": command_id,
-                            "success": True,
-                            "samples": samples_list,
-                            "num_samples": len(samples_list),
-                            "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-                        }
-                except Exception as e:
-                    logger.error(f"❌ Failed to get spectrum for receiver {receiver_id}: {e}")
-                    result = {
-                        "command_id": command_id,
-                        "success": False,
-                        "error": str(e),
-                        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-                    }
-
-            # Publish result
-            _redis_client.setex(
-                f"sdr:command_result:{command_id}",
-                30,  # 30 second TTL
-                json.dumps(result)
-            )
-
-        elif action == "discover_devices":
-            # Enumerate SoapySDR devices
-            try:
-                import SoapySDR  # type: ignore
-                devices = SoapySDR.Device.enumerate()
-                
-                results = []
-                for idx, device_info in enumerate(devices):
-                    device_dict = dict(device_info)
-                    parsed = {
-                        "index": idx,
-                        "driver": device_dict.get("driver", "unknown"),
-                        "label": device_dict.get("label", f"Device {idx}"),
-                        "serial": device_dict.get("serial", None),
-                        "manufacturer": device_dict.get("manufacturer", None),
-                        "product": device_dict.get("product", None),
-                        "hardware": device_dict.get("hardware", None),
-                        "device_id": device_dict.get("device_id", None),
-                        "raw_info": device_dict,
-                    }
-                    results.append(parsed)
-                
-                result = {
-                    "command_id": command_id,
-                    "success": True,
-                    "devices": results,
-                    "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-                }
-                logger.info(f"✅ Discovered {len(results)} SDR devices")
-                
-                # Also cache the discovery result in a persistent key for quick access
-                _redis_client.set("eas:sdr:devices", json.dumps(results))
-                
-            except ImportError:
-                logger.error("SoapySDR not installed")
-                result = {
-                    "command_id": command_id,
-                    "success": False,
-                    "error": "SoapySDR not installed",
-                    "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-                }
-            except Exception as e:
-                logger.error(f"❌ Failed to discover devices: {e}")
-                result = {
-                    "command_id": command_id,
-                    "success": False,
-                    "error": str(e),
-                    "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-                }
-
-            # Publish result
-            _redis_client.setex(
-                f"sdr:command_result:{command_id}",
-                30,  # 30 second TTL
-                json.dumps(result)
-            )
-
-        elif action == "get_device_capabilities":
-            driver = command.get("driver")
-            device_args = command.get("device_args")
-            
-            try:
-                # Reuse the logic from app_core.radio.discovery but run it here
-                from app_core.radio.discovery import get_device_capabilities
-                
-                capabilities = get_device_capabilities(driver, device_args)
-                
-                result = {
-                    "command_id": command_id,
-                    "success": True,
-                    "capabilities": capabilities,
-                    "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-                }
-                logger.info(f"✅ Retrieved capabilities for driver {driver}")
-                
-            except Exception as e:
-                logger.error(f"❌ Failed to get capabilities for {driver}: {e}")
-                result = {
-                    "command_id": command_id,
-                    "success": False,
-                    "error": str(e),
-                    "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-                }
-
-            # Publish result
-            _redis_client.setex(
-                f"sdr:command_result:{command_id}",
-                30,  # 30 second TTL
-                json.dumps(result)
-            )
-
-        else:
-            logger.warning(f"Unknown command action: {action}")
-
-    except json.JSONDecodeError as e:
-        logger.error(f"Failed to parse command JSON: {e}")
-    except Exception as e:
-        logger.error(f"Error processing command: {e}", exc_info=True)
 
 
 def collect_metrics():
