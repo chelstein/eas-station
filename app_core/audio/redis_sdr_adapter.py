@@ -74,11 +74,14 @@ class RedisSDRSourceAdapter(AudioSourceAdapter):
     def _create_demodulator(self) -> None:
         """Create or recreate demodulator with current settings."""
         demod_mode = self.config.device_params.get('demod_mode', 'FM')
-        
+
+        # Normalize modulation type to uppercase for consistent handling
+        demod_mode = demod_mode.upper()
+
         # Determine stereo support based on modulation type
         # WFM (Wide FM for FM broadcast) supports stereo
         # NFM (Narrow FM for NOAA, public safety) is mono only
-        stereo_enabled = (demod_mode.upper() == 'WFM' or demod_mode.upper() == 'FM')
+        stereo_enabled = (demod_mode == 'WFM' or demod_mode == 'FM')
         
         from app_core.radio.demodulation import create_demodulator, DemodulatorConfig
 
@@ -109,6 +112,14 @@ class RedisSDRSourceAdapter(AudioSourceAdapter):
         if config_sample_rate:
             self._iq_sample_rate = int(config_sample_rate)
             logger.info(f"Using IQ sample rate from config: {self._iq_sample_rate}Hz")
+        else:
+            # Default to common Airspy rate if not specified
+            # Will be updated from first Redis message if different
+            self._iq_sample_rate = 2_500_000  # Airspy R2 default
+            logger.warning(
+                f"IQ sample rate not in config for {self._receiver_id}. "
+                f"Using default {self._iq_sample_rate}Hz, will update from first sample."
+            )
 
         # Connect to Redis
         from app_core.redis_client import get_redis_client
@@ -118,15 +129,10 @@ class RedisSDRSourceAdapter(AudioSourceAdapter):
         except Exception as e:
             raise RuntimeError(f"Failed to connect to Redis: {e}") from e
 
-        # CRITICAL FIX: Don't create demodulator yet if we don't have rate from config
-        # Wait for first Redis message to get actual sample rate from sdr-service
-        if config_sample_rate:
-            self._create_demodulator()
-        else:
-            logger.warning(
-                f"IQ sample rate not in config for {self._receiver_id}. "
-                f"Demodulator will be created when first IQ sample is received."
-            )
+        # ALWAYS create demodulator at startup to avoid dropping initial audio
+        # Sample rate will be adjusted if first Redis message has different rate
+        self._create_demodulator()
+        logger.info(f"Pre-created demodulator for {self._receiver_id} (rate: {self._iq_sample_rate}Hz)")
 
         # Subscribe to Redis pub/sub channel
         self._pubsub = self._redis_client.pubsub(ignore_subscribe_messages=True)
@@ -200,21 +206,17 @@ class RedisSDRSourceAdapter(AudioSourceAdapter):
                     # Update metadata
                     new_sample_rate = data.get('sample_rate', self._iq_sample_rate)
                     self._center_frequency = data.get('center_frequency', self._center_frequency)
-                    
-                    # Create demodulator on first message if not already created
-                    if self._demodulator is None:
-                        logger.info(
-                            f"Creating demodulator from first IQ sample: "
-                            f"rate={new_sample_rate}Hz, freq={self._center_frequency/1e6:.3f}MHz"
-                        )
-                        self._iq_sample_rate = new_sample_rate
-                        self._create_demodulator()
+
                     # Update demodulator if sample rate changed
-                    elif new_sample_rate != self._iq_sample_rate:
-                        logger.info(f"IQ sample rate changed: {self._iq_sample_rate}Hz -> {new_sample_rate}Hz")
+                    if new_sample_rate != self._iq_sample_rate:
+                        logger.info(
+                            f"IQ sample rate changed: {self._iq_sample_rate}Hz -> {new_sample_rate}Hz. "
+                            f"Recreating demodulator..."
+                        )
                         self._iq_sample_rate = new_sample_rate
                         # Recreate demodulator with new sample rate
                         self._create_demodulator()
+                        logger.info(f"✅ Demodulator updated for rate {new_sample_rate}Hz")
 
                     # Decode IQ samples
                     encoded_samples = data.get('samples', '')
