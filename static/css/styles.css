@@ -1105,23 +1105,26 @@ small,
 .page-header h1,
 .page-header h2,
 .page-header .page-title {
-    color: white;
-    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    color: #ffffff;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3),
+                 0 2px 8px rgba(0, 0, 0, 0.15);
     font-size: 1.75rem;
     font-weight: 700;
     margin: 0;
     position: relative;
-    z-index: 1;
+    z-index: 2;
+    letter-spacing: -0.01em;
 }
 
 .page-header .page-subtitle {
-    color: rgba(255, 255, 255, 0.9);
+    color: rgba(255, 255, 255, 0.95);
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
     font-size: 0.95rem;
     margin-top: 0.5rem;
     margin-bottom: 0;
-    font-weight: 400;
+    font-weight: 500;
     position: relative;
-    z-index: 1;
+    z-index: 2;
 }
 
 .page-header-actions {
@@ -1130,7 +1133,18 @@ small,
     align-items: center;
     flex-wrap: wrap;
     position: relative;
-    z-index: 1;
+    z-index: 2;
+}
+
+/* Header content wrapper for better z-index control */
+.page-header .header-content {
+    position: relative;
+    z-index: 2;
+}
+
+.page-header .header-icon {
+    position: relative;
+    z-index: 2;
 }
 
 /* Page Title Row (for pages without full header) */
@@ -2551,129 +2565,114 @@ textarea:focus {
 
    10. VISUAL EFFECTS (Animations, Shadows, etc.)
 
-/* Floating Orbs Background Effect */
+/* Floating Orbs Background Effect - Subtle Ambient Accents */
 .page-header .orb,
 .hero-section .orb,
 .page-shell .orb {
     position: absolute;
     border-radius: 50%;
-    width: 300px;
-    height: 300px;
+    width: 100px;
+    height: 100px;
     background: radial-gradient(circle at 30% 30%,
-        color-mix(in srgb, var(--primary-color) 40%, transparent),
-        color-mix(in srgb, var(--secondary-color) 15%, transparent),
+        color-mix(in srgb, var(--secondary-soft) 25%, transparent),
+        color-mix(in srgb, var(--accent-color) 10%, transparent),
         transparent);
     pointer-events: none;
-    mix-blend-mode: screen;
-    animation: floatOrb 20s ease-in-out infinite;
-    opacity: 0.6;
-    filter: blur(40px);
+    mix-blend-mode: soft-light;
+    animation: floatOrb 25s ease-in-out infinite;
+    opacity: 0.25;
+    filter: blur(30px);
     z-index: 0;
 }
 
-/* Individual orb positioning and variations */
+/* Individual orb positioning - subtle accents */
 .page-header .orb:nth-child(1) {
-    top: -100px;
-    left: -50px;
-    width: 400px;
-    height: 400px;
+    top: -20px;
+    left: 10%;
+    width: 120px;
+    height: 120px;
     animation-delay: 0s;
-    background: radial-gradient(circle at 30% 30%,
-        color-mix(in srgb, var(--primary-color) 50%, transparent),
-        color-mix(in srgb, var(--accent-color) 20%, transparent),
-        transparent);
+    opacity: 0.3;
 }
 
 .page-header .orb:nth-child(2) {
-    top: -80px;
-    right: -100px;
-    width: 350px;
-    height: 350px;
-    animation-delay: -7s;
-    background: radial-gradient(circle at 30% 30%,
-        color-mix(in srgb, var(--secondary-color) 45%, transparent),
-        color-mix(in srgb, var(--primary-color) 20%, transparent),
-        transparent);
+    top: 10px;
+    right: 15%;
+    width: 90px;
+    height: 90px;
+    animation-delay: -8s;
+    opacity: 0.25;
 }
 
 .page-header .orb:nth-child(3) {
-    bottom: -120px;
-    left: 30%;
-    width: 320px;
-    height: 320px;
-    animation-delay: -14s;
+    bottom: -10px;
+    left: 50%;
+    width: 100px;
+    height: 100px;
+    animation-delay: -16s;
+    opacity: 0.2;
 }
 
 .page-shell .orb:nth-child(1) {
-    top: 10%;
-    left: 5%;
-    width: 450px;
-    height: 450px;
+    top: 5%;
+    left: 8%;
+    width: 140px;
+    height: 140px;
     animation-delay: 0s;
-    animation-duration: 25s;
+    animation-duration: 30s;
+    opacity: 0.2;
 }
 
 .page-shell .orb:nth-child(2) {
-    top: 20%;
-    right: 8%;
-    width: 380px;
-    height: 380px;
-    animation-delay: -8s;
-    animation-duration: 22s;
-    background: radial-gradient(circle at 30% 30%,
-        color-mix(in srgb, var(--accent-color) 45%, transparent),
-        color-mix(in srgb, var(--primary-color) 18%, transparent),
-        transparent);
+    top: 15%;
+    right: 10%;
+    width: 110px;
+    height: 110px;
+    animation-delay: -10s;
+    animation-duration: 28s;
+    opacity: 0.18;
 }
 
 .page-shell .orb:nth-child(3) {
-    top: 50%;
+    top: 45%;
     left: 50%;
     transform: translate(-50%, -50%);
-    width: 500px;
-    height: 500px;
-    animation-delay: -5s;
-    animation-duration: 30s;
+    width: 160px;
+    height: 160px;
+    animation-delay: -6s;
+    animation-duration: 35s;
+    opacity: 0.15;
 }
 
 .page-shell .orb:nth-child(4) {
-    bottom: 15%;
-    left: 15%;
-    width: 340px;
-    height: 340px;
-    animation-delay: -12s;
-    animation-duration: 28s;
+    bottom: 20%;
+    left: 12%;
+    width: 100px;
+    height: 100px;
+    animation-delay: -15s;
+    animation-duration: 32s;
+    opacity: 0.18;
 }
 
 .page-shell .orb:nth-child(5) {
-    bottom: 10%;
-    right: 12%;
-    width: 420px;
-    height: 420px;
-    animation-delay: -18s;
-    animation-duration: 26s;
-    background: radial-gradient(circle at 30% 30%,
-        color-mix(in srgb, var(--success-color) 35%, transparent),
-        color-mix(in srgb, var(--primary-color) 15%, transparent),
-        transparent);
+    bottom: 8%;
+    right: 15%;
+    width: 130px;
+    height: 130px;
+    animation-delay: -20s;
+    animation-duration: 30s;
+    opacity: 0.2;
 }
 
 @keyframes floatOrb {
     0%, 100% {
         transform: translate(0, 0) scale(1);
-        opacity: 0.6;
     }
-    25% {
-        transform: translate(30px, -30px) scale(1.1);
-        opacity: 0.8;
+    33% {
+        transform: translate(15px, -10px) scale(1.05);
     }
-    50% {
-        transform: translate(-20px, 20px) scale(0.9);
-        opacity: 0.5;
-    }
-    75% {
-        transform: translate(20px, 30px) scale(1.05);
-        opacity: 0.7;
+    66% {
+        transform: translate(-10px, 12px) scale(0.95);
     }
 }
 
@@ -2796,6 +2795,71 @@ textarea:focus {
 @keyframes iconFloat {
     0%, 100% { transform: translateY(0); }
     50% { transform: translateY(-3px); }
+}
+
+/* Enhanced Focus States for Accessibility */
+:focus-visible {
+    outline: 2px solid var(--primary-soft);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+}
+
+.btn:focus-visible,
+.form-control:focus-visible,
+.form-select:focus-visible {
+    outline: 2px solid var(--primary-soft);
+    outline-offset: 2px;
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary-color) 15%, transparent);
+}
+
+/* Smooth Selection Highlight */
+::selection {
+    background: color-mix(in srgb, var(--primary-color) 25%, transparent);
+    color: var(--text-color);
+}
+
+/* Refined Input Styling */
+.form-control,
+.form-select {
+    transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+}
+
+.form-control:hover:not(:focus),
+.form-select:hover:not(:focus) {
+    border-color: color-mix(in srgb, var(--primary-color) 30%, var(--border-color));
+}
+
+/* Subtle link underline animation */
+a:not(.btn):not(.nav-link):not(.dropdown-item) {
+    text-decoration: none;
+    background-image: linear-gradient(currentColor, currentColor);
+    background-size: 0% 1px;
+    background-position: 0 100%;
+    background-repeat: no-repeat;
+    transition: background-size 0.25s ease;
+}
+
+a:not(.btn):not(.nav-link):not(.dropdown-item):hover {
+    background-size: 100% 1px;
+}
+
+/* Card header accent line */
+.card-header {
+    position: relative;
+}
+
+.card-header::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 1rem;
+    right: 1rem;
+    height: 1px;
+    background: linear-gradient(90deg,
+        transparent,
+        color-mix(in srgb, var(--primary-color) 20%, transparent) 20%,
+        color-mix(in srgb, var(--primary-color) 20%, transparent) 80%,
+        transparent);
 }
 
 /* Enhanced Page Header Effects */
