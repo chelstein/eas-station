@@ -33,7 +33,7 @@ import threading
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urljoin, urlparse, unquote
 
 import numpy as np
 
@@ -791,7 +791,8 @@ class StreamSourceAdapter(AudioSourceAdapter):
 
     def __init__(self, config: AudioSourceConfig):
         super().__init__(config)
-        self._stream_url = self.config.device_params.get('stream_url', '')
+        # Support both 'url' (new) and 'stream_url' (legacy) parameter names
+        self._stream_url = self.config.device_params.get('url') or self.config.device_params.get('stream_url', '')
         self._resolved_stream_url: Optional[str] = None
         self._ffmpeg_process: Optional[subprocess.Popen] = None
         self._stderr_thread: Optional[threading.Thread] = None
@@ -806,6 +807,9 @@ class StreamSourceAdapter(AudioSourceAdapter):
 
     def _resolve_stream_url(self, url: str) -> str:
         """Validate the configured URL and resolve playlists when needed."""
+        # Strip leading/trailing whitespace from URL
+        url = url.strip() if url else ''
+
         if not url:
             raise ValueError("stream_url must be configured for stream sources")
 
@@ -1257,21 +1261,22 @@ class StreamSourceAdapter(AudioSourceAdapter):
             display_song = None
 
             # Try to extract text="" or song="" attribute (iHeartRadio format)
+            # URL-decode the values to handle %20 and other encoded characters
             text_match = re.search(r'text="([^"]+)"', stream_title)
             song_attr_match = re.search(r'song="([^"]+)"', stream_title)
             if text_match:
-                title = text_match.group(1).strip()
+                title = unquote(text_match.group(1)).strip()
                 updates['song_title'] = title
                 updates['title'] = title
             elif song_attr_match:
-                title = song_attr_match.group(1).strip()
+                title = unquote(song_attr_match.group(1)).strip()
                 updates['song_title'] = title
                 updates['title'] = title
 
             # Try to extract artist="" attribute
             artist_match = re.search(r'artist="([^"]+)"', stream_title)
             if artist_match:
-                artist = artist_match.group(1).strip()
+                artist = unquote(artist_match.group(1)).strip()
                 updates['artist'] = artist
                 updates['song_artist'] = artist
             elif text_match or song_attr_match:
@@ -1280,7 +1285,7 @@ class StreamSourceAdapter(AudioSourceAdapter):
                 prefix_pattern = rf'(?P<artist>.+?)-\s*{attr_key}="'
                 prefix_match = re.match(prefix_pattern, stream_title)
                 if prefix_match:
-                    artist_candidate = prefix_match.group('artist').strip()
+                    artist_candidate = unquote(prefix_match.group('artist')).strip()
                     if artist_candidate:
                         artist = artist_candidate
                         updates['artist'] = artist
@@ -1293,7 +1298,7 @@ class StreamSourceAdapter(AudioSourceAdapter):
             elif artist:
                 display_song = artist
 
-            # Try to extract album art URL
+            # Try to extract album art URL (no need to decode URLs - they're already encoded properly)
             artwork_match = re.search(r'(?:amgArtworkURL|artworkURL|artwork_url)="([^"]+)"', stream_title)
             if artwork_match:
                 updates['artwork_url'] = artwork_match.group(1).strip()
@@ -1306,7 +1311,7 @@ class StreamSourceAdapter(AudioSourceAdapter):
             # Try to extract album name
             album_match = re.search(r'album="([^"]+)"', stream_title)
             if album_match:
-                updates['album'] = album_match.group(1).strip()
+                updates['album'] = unquote(album_match.group(1)).strip()
 
             # If we didn't find text="" attribute, try traditional "Artist - Title" format
             if not text_match and ' - ' in stream_title:
@@ -1314,6 +1319,8 @@ class StreamSourceAdapter(AudioSourceAdapter):
                 clean_title = re.sub(r'\s+\w+="[^"]*"', '', stream_title)
                 clean_title = re.sub(r'\s+\w+=\S+', '', clean_title)
                 clean_title = ' '.join(clean_title.split()).strip()
+                # URL-decode the cleaned title to handle encoded characters
+                clean_title = unquote(clean_title)
 
                 if ' - ' in clean_title:
                     artist_candidate, title_candidate = clean_title.split(' - ', 1)
