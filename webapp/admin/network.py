@@ -127,7 +127,11 @@ def forget_wifi():
 @network_bp.route('/api/network/interfaces')
 @require_permission('system.configure')
 def get_interfaces():
-    """Get all network interfaces via hardware-service."""
+    """Get all network interfaces (WiFi and Ethernet) via hardware-service.
+    
+    Returns interface details including device name, type, state, connection,
+    and IP addresses for both wireless and wired interfaces.
+    """
     return jsonify(call_hardware_service('/api/network/interfaces', method='GET'))
 
 

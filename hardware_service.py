@@ -46,6 +46,8 @@ import json
 import redis
 import subprocess
 import threading
+import glob
+import ipaddress
 from typing import Optional
 from datetime import datetime, timezone
 from dotenv import load_dotenv
@@ -80,6 +82,7 @@ _running = True
 _redis_client: Optional[redis.Redis] = None
 _screen_manager = None
 _gpio_controller = None
+_nmcli_available: Optional[bool] = None  # Cached nmcli availability check
 
 
 def signal_handler(signum, frame):
@@ -493,11 +496,21 @@ def run_command(cmd, check=True, timeout=30):
 def check_nmcli_available():
     """Check if nmcli (NetworkManager CLI) is available.
     
+    Uses cached result after first check for performance.
+    
     Returns:
         bool: True if nmcli is available, False otherwise
     """
-    result = run_command(['which', 'nmcli'], check=False, timeout=5)
-    return result['success'] and result['returncode'] == 0
+    global _nmcli_available
+    
+    # Return cached result if available
+    if _nmcli_available is not None:
+        return _nmcli_available
+    
+    # Check using shutil.which (more efficient than subprocess)
+    import shutil
+    _nmcli_available = shutil.which('nmcli') is not None
+    return _nmcli_available
 
 
 def get_wifi_interface():
@@ -517,7 +530,6 @@ def get_wifi_interface():
                         return parts[0]
         
         # Fallback: Check common WiFi interface names
-        import glob
         for pattern in ['/sys/class/net/wlan*', '/sys/class/net/wlp*']:
             interfaces = glob.glob(pattern)
             if interfaces:
@@ -1031,7 +1043,6 @@ def create_api_app():
 
                 # Calculate CIDR prefix from netmask
                 try:
-                    import ipaddress
                     prefix = ipaddress.IPv4Network(f'0.0.0.0/{netmask}').prefixlen
                 except ValueError:
                     return jsonify({
@@ -1145,6 +1156,17 @@ def create_api_app():
 
             if not connection:
                 return jsonify({'success': False, 'error': 'Connection name required'}), 400
+
+            # Validate DNS servers are valid IP addresses
+            if dns_servers:
+                for server in dns_servers:
+                    try:
+                        ipaddress.ip_address(server)
+                    except ValueError:
+                        return jsonify({
+                            'success': False,
+                            'error': f'Invalid DNS server IP address: {server}'
+                        }), 400
 
             logger.info(f"Configuring DNS servers for {connection}")
 
