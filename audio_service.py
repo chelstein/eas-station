@@ -221,6 +221,119 @@ def initialize_radio_receivers(app):
         raise
 
 
+def sync_radio_receiver_audio_sources(app):
+    """Ensure audio sources exist for all enabled radio receivers with audio_output=True.
+    
+    This is critical for the separated architecture where sdr-service publishes IQ samples
+    to Redis and audio-service needs AudioSourceConfigDB entries to know which channels
+    to subscribe to via RedisSDRSourceAdapter.
+    """
+    with app.app_context():
+        from app_core.models import RadioReceiver, AudioSourceConfigDB
+        from app_core.audio.ingest import AudioSourceType
+        
+        logger.info("Syncing audio sources for radio receivers...")
+        
+        # Get all radio receivers that should have audio sources
+        receivers = RadioReceiver.query.filter_by(enabled=True, audio_output=True).all()
+        
+        if not receivers:
+            logger.info("No radio receivers with audio output enabled")
+            return
+        
+        created = 0
+        updated = 0
+        
+        for receiver in receivers:
+            source_name = f"sdr-{receiver.identifier}"
+            
+            # Recommend audio settings based on receiver config
+            modulation = (receiver.modulation_type or 'IQ').upper()
+            if modulation in ('FM', 'WFM', 'WBFM') and receiver.stereo_enabled:
+                channels = 2
+                sample_rate = 48000
+            elif modulation in ('FM', 'WFM', 'WBFM'):
+                channels = 1
+                sample_rate = 32000
+            elif modulation in ('NFM', 'AM'):
+                channels = 1
+                sample_rate = 24000
+            else:
+                channels = 1
+                sample_rate = 44100
+            
+            buffer_size = 4096 if channels == 1 else 8192
+            silence_threshold = float(receiver.squelch_threshold_db or -60.0)
+            silence_duration = max(float(receiver.squelch_close_ms or 750) / 1000.0, 0.1)
+            
+            device_params = {
+                'receiver_id': receiver.identifier,
+                'receiver_display_name': receiver.display_name,
+                'receiver_driver': receiver.driver,
+                'receiver_frequency_hz': float(receiver.frequency_hz or 0.0),
+                'receiver_modulation': modulation,
+                'iq_sample_rate': receiver.sample_rate,
+                'demod_mode': receiver.modulation_type or 'FM',
+                'rbds_enabled': bool(receiver.enable_rbds),
+                'squelch_enabled': bool(receiver.squelch_enabled),
+                'squelch_threshold_db': silence_threshold,
+                'squelch_open_ms': int(receiver.squelch_open_ms or 150),
+                'squelch_close_ms': int(receiver.squelch_close_ms or 750),
+                'carrier_alarm_enabled': bool(receiver.squelch_alarm),
+            }
+            
+            config_params = {
+                'sample_rate': sample_rate,
+                'channels': channels,
+                'buffer_size': buffer_size,
+                'silence_threshold_db': silence_threshold,
+                'silence_duration_seconds': silence_duration,
+                'device_params': device_params,
+                'managed_by': 'radio',  # CRITICAL: This flag tells audio-service to use RedisSDRSourceAdapter
+                'squelch_enabled': bool(receiver.squelch_enabled),
+                'squelch_threshold_db': silence_threshold,
+                'squelch_open_ms': int(receiver.squelch_open_ms or 150),
+                'squelch_close_ms': int(receiver.squelch_close_ms or 750),
+                'carrier_alarm_enabled': bool(receiver.squelch_alarm),
+            }
+            
+            freq_display = f"{receiver.frequency_hz/1e6:.3f} MHz" if receiver.frequency_hz else "Unknown"
+            description = f"SDR monitor for {receiver.display_name} · {freq_display}"
+            
+            # Check if audio source exists
+            db_config = AudioSourceConfigDB.query.filter_by(name=source_name).first()
+            
+            if db_config is None:
+                # Create new audio source
+                logger.info(f"Creating audio source for receiver '{receiver.identifier}': {source_name}")
+                db_config = AudioSourceConfigDB(
+                    name=source_name,
+                    source_type=AudioSourceType.SDR.value,
+                    config_params=config_params,
+                    priority=10,
+                    enabled=True,
+                    auto_start=receiver.auto_start,
+                    description=description,
+                )
+                db.session.add(db_config)
+                created += 1
+            else:
+                # Update existing audio source if config changed
+                if (db_config.config_params or {}) != config_params:
+                    logger.info(f"Updating audio source for receiver '{receiver.identifier}': {source_name}")
+                    db_config.config_params = config_params
+                    db_config.enabled = True
+                    db_config.auto_start = receiver.auto_start
+                    db_config.description = description
+                    updated += 1
+        
+        if created > 0 or updated > 0:
+            db.session.commit()
+            logger.info(f"✅ Synced audio sources: {created} created, {updated} updated")
+        else:
+            logger.info("✅ All audio sources already in sync")
+
+
 def initialize_audio_controller(app):
     """Initialize audio ingestion controller."""
     global _audio_controller
@@ -231,6 +344,10 @@ def initialize_audio_controller(app):
         from app_core.models import AudioSourceConfigDB
 
         logger.info("Initializing audio controller...")
+        
+        # CRITICAL FIX: Sync audio sources for radio receivers before loading from database
+        # This ensures that audio sources exist for all enabled receivers with audio_output=True
+        sync_radio_receiver_audio_sources(app)
 
         # Create controller
         _audio_controller = AudioIngestController()
