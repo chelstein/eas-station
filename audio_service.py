@@ -505,36 +505,39 @@ def initialize_auto_streaming(app, audio_controller):
 
 
 def initialize_eas_monitor(app, audio_controller):
-    """Initialize EAS monitoring system."""
+    """Initialize EAS monitoring system with per-source monitors.
+    
+    CRITICAL FIX: Create separate EAS monitor for each audio source to enable
+    simultaneous monitoring of multiple streams (LP1, LP2, SP1, etc).
+    
+    Previously, only ONE source was monitored at a time (highest priority).
+    Now ALL sources are monitored simultaneously for EAS alerts.
+    """
     global _eas_monitor
 
     with app.app_context():
         from app_core.audio.eas_monitor import ContinuousEASMonitor, create_fips_filtering_callback
         from app_core.audio.broadcast_adapter import BroadcastAudioAdapter
         from app_core.audio.startup_integration import load_fips_codes_from_config
+        from app_core.audio.ingest import AudioSourceStatus
 
-        logger.info("Initializing EAS monitor...")
-
-        # Get broadcast queue for non-destructive audio access
-        broadcast_queue = audio_controller.get_broadcast_queue()
-        ingest_sample_rate = audio_controller.get_active_sample_rate() or 44100
-
-        # Create broadcast adapter
-        audio_adapter = BroadcastAudioAdapter(
-            broadcast_queue=broadcast_queue,
-            subscriber_id="eas-monitor",
-            sample_rate=int(ingest_sample_rate)
-        )
+        logger.info("Initializing per-source EAS monitors...")
 
         # Load FIPS codes
         configured_fips = load_fips_codes_from_config()
         logger.info(f"Loaded {len(configured_fips)} FIPS codes for alert filtering")
 
-        # Create alert callback with filtering
+        # Create alert callback with filtering (shared by all monitors)
         def forward_alert_handler(alert):
             """Forward matched alerts."""
             from app_core.audio.alert_forwarding import forward_alert_to_api
-            logger.info(f"Forwarding alert: {alert.get('event_code')} for {alert.get('location_codes')}")
+            source_name = alert.get('source_name', 'unknown')
+            event_code = alert.get('event_code', 'UNKNOWN')
+            location_codes = alert.get('location_codes', [])
+            logger.info(
+                f"Forwarding alert from source '{source_name}': "
+                f"{event_code} for {location_codes}"
+            )
             forward_alert_to_api(alert)
 
         alert_callback = create_fips_filtering_callback(
@@ -543,22 +546,63 @@ def initialize_eas_monitor(app, audio_controller):
             logger_instance=logger
         )
 
-        # Create EAS monitor (16 kHz for optimal SAME decoding)
-        _eas_monitor = ContinuousEASMonitor(
-            audio_manager=audio_adapter,
-            sample_rate=16000,
-            alert_callback=alert_callback,
-            save_audio_files=True,
-            audio_archive_dir="/tmp/eas-audio"
-        )
-
-        # Start monitoring
-        if _eas_monitor.start():
-            logger.info("✅ EAS monitor started successfully")
-        else:
-            logger.error("❌ EAS monitor failed to start")
+        # Create dictionary to store all monitors
+        monitors = {}
+        
+        # Create a monitor for each RUNNING audio source
+        for source_name, source_adapter in audio_controller._sources.items():
+            if source_adapter.status != AudioSourceStatus.RUNNING:
+                logger.warning(
+                    f"Skipping EAS monitor for '{source_name}' - "
+                    f"source not running (status: {source_adapter.status.value})"
+                )
+                continue
+            
+            try:
+                # Get source's individual broadcast queue (not the main controller queue!)
+                source_broadcast_queue = source_adapter.get_broadcast_queue()
+                source_sample_rate = source_adapter.config.sample_rate
+                
+                # Create broadcast adapter for this specific source
+                subscriber_id = f"eas-monitor-{source_name}"
+                audio_adapter = BroadcastAudioAdapter(
+                    broadcast_queue=source_broadcast_queue,
+                    subscriber_id=subscriber_id,
+                    sample_rate=int(source_sample_rate)
+                )
+                
+                # Create EAS monitor for this source (16 kHz for optimal SAME decoding)
+                monitor = ContinuousEASMonitor(
+                    audio_manager=audio_adapter,
+                    sample_rate=16000,
+                    alert_callback=alert_callback,
+                    save_audio_files=True,
+                    audio_archive_dir="/tmp/eas-audio"
+                )
+                
+                # Start monitoring this source
+                if monitor.start():
+                    monitors[source_name] = monitor
+                    logger.info(f"✅ EAS monitor started for source: {source_name}")
+                else:
+                    logger.error(f"❌ EAS monitor failed to start for source: {source_name}")
+                    
+            except Exception as e:
+                logger.error(f"❌ Failed to create EAS monitor for '{source_name}': {e}", exc_info=True)
+        
+        if not monitors:
+            logger.error("❌ No EAS monitors started - no running sources")
             return None
-
+        
+        logger.info(f"✅ Started {len(monitors)} EAS monitor(s) for sources: {list(monitors.keys())}")
+        
+        # Store all monitors (we'll use the dict for management)
+        # For backward compatibility, store first monitor as _eas_monitor
+        _eas_monitor = list(monitors.values())[0] if monitors else None
+        
+        # Store all monitors globally for management (stop, status, etc)
+        _eas_monitor._all_monitors = monitors  # Attach to first monitor for access
+        
         return _eas_monitor
 
 
@@ -916,10 +960,36 @@ def collect_metrics():
             except Exception as e:
                 logger.error(f"Error getting broadcast queue stats: {e}")
 
-        # Get EAS monitor stats (use get_status for comprehensive health metrics)
+        # Get EAS monitor stats (collect from all monitors)
         if _eas_monitor:
             try:
-                metrics["eas_monitor"] = _eas_monitor.get_status()
+                # Check if we have multiple monitors (new per-source architecture)
+                if hasattr(_eas_monitor, '_all_monitors'):
+                    # Collect stats from all monitors
+                    all_monitor_stats = {}
+                    total_samples = 0
+                    any_running = False
+                    
+                    for source_name, monitor in _eas_monitor._all_monitors.items():
+                        try:
+                            monitor_status = monitor.get_status()
+                            all_monitor_stats[source_name] = monitor_status
+                            total_samples += monitor_status.get('samples_processed', 0)
+                            if monitor_status.get('running', False):
+                                any_running = True
+                        except Exception as e:
+                            logger.debug(f"Error getting status for monitor '{source_name}': {e}")
+                    
+                    # Aggregate stats for backward compatibility
+                    metrics["eas_monitor"] = {
+                        "running": any_running,
+                        "samples_processed": total_samples,
+                        "monitor_count": len(_eas_monitor._all_monitors),
+                        "monitors": all_monitor_stats
+                    }
+                else:
+                    # Legacy single monitor
+                    metrics["eas_monitor"] = _eas_monitor.get_status()
             except Exception as e:
                 logger.error(f"Error getting EAS monitor stats: {e}")
 
@@ -1441,7 +1511,18 @@ def main():
         logger.info("✅ Audio service started successfully")
         logger.info("   - Audio ingestion: ACTIVE")
         logger.info(f"   - Icecast streaming: {'ACTIVE' if auto_streaming else 'DISABLED'}")
-        logger.info("   - EAS monitoring: ACTIVE")
+        
+        # Show EAS monitoring status (single or multi-monitor)
+        if eas_monitor:
+            if hasattr(eas_monitor, '_all_monitors'):
+                monitor_count = len(eas_monitor._all_monitors)
+                monitor_names = ', '.join(eas_monitor._all_monitors.keys())
+                logger.info(f"   - EAS monitoring: ACTIVE ({monitor_count} sources: {monitor_names})")
+            else:
+                logger.info("   - EAS monitoring: ACTIVE (single source)")
+        else:
+            logger.info("   - EAS monitoring: FAILED")
+        
         logger.info("   - Metrics publishing: ACTIVE")
         logger.info(f"   - Command subscriber: {'ACTIVE' if command_subscriber else 'DISABLED'}")
         logger.info(f"   - HTTP streaming: {'ACTIVE' if streaming_server_thread else 'DISABLED'} (port 5001)")
@@ -1466,9 +1547,20 @@ def main():
 
                     # Log health status
                     if metrics.get("eas_monitor"):
-                        samples = metrics["eas_monitor"].get("samples_processed", 0)
-                        running = metrics["eas_monitor"].get("running", False)
-                        logger.debug(f"EAS Monitor: running={running}, samples={samples}")
+                        eas_metrics = metrics["eas_monitor"]
+                        if "monitors" in eas_metrics:
+                            # Multi-monitor mode
+                            monitor_count = eas_metrics.get("monitor_count", 0)
+                            total_samples = eas_metrics.get("samples_processed", 0)
+                            logger.debug(
+                                f"EAS Monitors: {monitor_count} active, "
+                                f"total samples processed={total_samples}"
+                            )
+                        else:
+                            # Legacy single monitor
+                            samples = eas_metrics.get("samples_processed", 0)
+                            running = eas_metrics.get("running", False)
+                            logger.debug(f"EAS Monitor: running={running}, samples={samples}")
 
                 # Sleep briefly (check for commands every 500ms)
                 time.sleep(0.5)
@@ -1490,10 +1582,19 @@ def main():
             except Exception as e:
                 logger.warning(f"Error stopping command subscriber: {e}")
 
-        # Stop EAS monitor
+        # Stop EAS monitors (handle both single and multi-monitor architectures)
         if _eas_monitor:
-            logger.info("Stopping EAS monitor...")
-            _eas_monitor.stop()
+            if hasattr(_eas_monitor, '_all_monitors'):
+                logger.info(f"Stopping {len(_eas_monitor._all_monitors)} EAS monitor(s)...")
+                for source_name, monitor in _eas_monitor._all_monitors.items():
+                    try:
+                        logger.info(f"Stopping EAS monitor for '{source_name}'...")
+                        monitor.stop()
+                    except Exception as e:
+                        logger.warning(f"Error stopping monitor for '{source_name}': {e}")
+            else:
+                logger.info("Stopping EAS monitor...")
+                _eas_monitor.stop()
 
         # Stop audio controller
         if _audio_controller:

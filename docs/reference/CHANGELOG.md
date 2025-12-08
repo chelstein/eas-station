@@ -6,6 +6,25 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.15.3] - 2025-12-08
+### Fixed
+- **CRITICAL: Multi-Stream EAS Monitoring (LP1, LP2, SP1)**: Implemented per-source EAS monitoring
+  - **Root Cause**: EAS monitor only listened to ONE audio source at a time (highest priority)
+  - AudioIngestController.broadcast_pump selected only the highest priority running source
+  - Main broadcast queue received audio from only ONE source, others were ignored
+  - Result: LP1, LP2, SP1 web streams ran successfully but only ONE was monitored for EAS
+  - **Fix**: Changed from single EAS monitor to per-source monitors (one for each stream)
+  - Each audio source now has its own dedicated EAS monitor instance
+  - All sources monitored simultaneously for SAME/EAS alerts
+  - Alerts include source name in metadata for proper attribution
+  - **Why IPAWS worked**: IPAWS uses internet polling (cap_poller.py), not audio monitoring
+  - Enhanced logging shows which sources are being monitored
+  - Proper shutdown handling for multiple monitor instances
+  - Metrics collection aggregates stats from all monitors
+  - **Impact**: Fixes complete loss of EAS monitoring from multiple web streams
+  - **Action Required**: Restart audio-service after update: `docker restart eas-audio-service`
+  - **Applies to**: All deployments monitoring multiple audio sources (streams or SDR)
+
 ## [2.15.2] - 2025-12-08
 ### Fixed
 - **CRITICAL: Audio Chain for SDR Sources (LP1, LP2, SP1)**: Fixed missing audio pipeline for SDR-based EAS monitoring
