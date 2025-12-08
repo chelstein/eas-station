@@ -6,6 +6,120 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.15.0] - 2025-12-08
+### Added - Phase 3: Professional Polish & UX Enhancements
+- **Enhanced Error Messages**: Context-aware troubleshooting hints for network operations
+  - Intelligent error parsing with user-friendly explanations
+  - Specific hints based on error type (connection, scan, configuration)
+  - Technical details available for advanced users
+  - Common network issues with actionable solutions
+- **Hostname Configuration**: Full system hostname management via NetworkManager
+  - View current system hostname in Status tab
+  - Set hostname with RFC 1123 validation
+  - Persistent across reboots using hostnamectl
+  - Real-time validation and feedback
+- **Signal Strength Color Coding**: Visual quality indicators for WiFi networks
+  - Red (0-25%): Poor signal strength
+  - Orange (26-50%): Fair signal strength
+  - Green (51-75%): Good signal strength
+  - Teal (76-100%): Excellent signal strength
+- **Information Tooltips**: Context-sensitive help throughout network UI
+  - Bootstrap tooltips explaining technical terms (DHCP, Static IP, CIDR, DNS, Gateway)
+  - Help icons next to complex form fields
+  - Example values for IP addresses and network settings
+  - Popular DNS server recommendations (Google, Cloudflare, Quad9)
+- **Password Validation & Strength Indicator**: Real-time WiFi password feedback
+  - WPA2/WPA3 validation (8-63 characters)
+  - Visual strength indicator with color coding
+  - Feedback messages for password quality
+  - Frontend validation before submission
+- **Loading States & Progress Indicators**: Professional async operation feedback
+  - Spinners for network scans and long operations
+  - Button disabling during operations to prevent double-clicks
+  - Clear visual feedback for all network operations
+- **Confirmation Dialogs**: Enhanced safety for destructive operations
+  - Warning icons and explanations for network forget/delete
+  - Clear consequences described in confirmation prompts
+- **Session Persistence**: Remember user preferences
+  - Last selected tab restored from session storage
+  - Seamless navigation experience across page reloads
+- **Auto-Refresh**: Intelligent status updates
+  - Network status refreshes after configuration changes
+  - Gateway info updates after connections
+  - Connections list refreshes after modifications
+- **Keyboard Shortcuts**: Power user features
+  - Ctrl+R to refresh WiFi scan (on WiFi tab)
+
+### Changed
+- Network error displays now show hint and technical details
+- Password input now includes real-time validation
+- Confirmation dialogs provide more context for destructive actions
+- Netmask dropdown now shows common use cases
+- DNS server input includes popular server recommendations
+
+## [2.14.0] - 2025-12-08
+### Added - Phase 2: Core DASDEC3 Network Features
+- **Wired Ethernet Support**: Added detection and display of eth0/ethernet interfaces with connection status
+- **Static IP Configuration**: Full UI and backend for static IP settings (IP address, netmask, gateway) with toggle between DHCP and Static per interface
+- **DNS Server Configuration**: Added ability to view, add, remove, and apply DNS server settings via NetworkManager
+- **Network Diagnostics Tools**: Professional troubleshooting tools including:
+  - Ping test with customizable packet count
+  - Traceroute showing hop-by-hop network path
+  - DNS lookup (nslookup) for hostname resolution
+  - Default gateway information display
+  - Complete routing table viewer
+- **Saved Networks Management**: Display all saved WiFi profiles (not just in-range) with auto-connect status editing
+- **Connection Profiles**: Complete NetworkManager connection management with:
+  - List all saved connections with type and status
+  - Show connection details (interface, autoconnect state)
+  - Activate/deactivate connections
+  - Toggle auto-connect per connection
+  - Delete WiFi profiles
+- **Tabbed Interface**: Professional Bootstrap tabs UI organizing features:
+  - Status: Network overview and gateway info
+  - WiFi: Wireless network scanning and connection
+  - Wired: Ethernet interface configuration
+  - DNS: DNS server management
+  - Diagnostics: Network troubleshooting tools
+  - Connections: Saved profile management
+### Technical Details
+- Added 12 new API endpoints to hardware_service.py for Phase 2 features
+- Added corresponding proxy routes in webapp/admin/network.py
+- Complete UI rewrite with Bootstrap tabs and professional DASDEC3-style layout
+- All features use NetworkManager (nmcli) for consistency and reliability
+- Static IP configuration with CIDR prefix calculation
+- DNS configuration per connection with restart to apply changes
+- Diagnostics tools with real-time output display
+- Connection management with activate/deactivate and autoconnect toggle
+### Impact
+- ✅ Professional network management matching DASDEC3 standards
+- ✅ Static IP support for production deployments
+- ✅ DNS configuration for custom network environments
+- ✅ Comprehensive diagnostics for troubleshooting
+- ✅ Full control over saved network profiles
+- ✅ Wired and wireless interface support
+- ✅ DASDEC3-compatible feature set for professional EAS systems
+
+## [2.13.5] - 2025-12-08
+### Fixed
+- **CRITICAL WiFi BUG**: Fixed WiFi scanning returning no networks even when networks available
+- Added nmcli availability check - prevents silent failures when NetworkManager not installed
+- Added WiFi interface auto-detection - finds wlan0/wlp* interfaces dynamically instead of hardcoded assumptions
+- Fixed network status endpoint - now returns correct data structure with wifi.ssid that frontend expects
+- Fixed WiFi scan race condition - replaced arbitrary 2-second sleep with proper completion detection
+- Fixed disconnect functionality - backend now auto-detects active connection name instead of requiring frontend to send it
+- Fixed empty scan results handling - now properly detects and reports when no networks found vs. scan failure
+- Enhanced error handling and logging throughout WiFi operations
+- Frontend now properly parses backend network status response structure
+- Frontend disconnect sends empty body (backend auto-detects connection)
+- Improved user feedback with toast notifications instead of alerts
+### Impact
+- ✅ WiFi scan now reliably detects and returns available networks
+- ✅ Network status display shows current connection properly
+- ✅ Disconnect functionality works correctly
+- ✅ Better error messages help diagnose WiFi issues
+- ✅ All WiFi operations (scan, connect, disconnect, forget) fully functional
+
 ## [2.13.4] - 2025-12-07
 ### Fixed
 - **CRITICAL SEPARATION MISMATCH**: Fixed audio-service startup failing to load SDR sources from database
