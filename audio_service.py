@@ -596,12 +596,51 @@ def initialize_eas_monitor(app, audio_controller):
         
         logger.info(f"✅ Started {len(monitors)} EAS monitor(s) for sources: {list(monitors.keys())}")
         
-        # Store all monitors (we'll use the dict for management)
-        # For backward compatibility, store first monitor as _eas_monitor
-        _eas_monitor = list(monitors.values())[0] if monitors else None
+        # Return a monitor manager object instead of attaching to first monitor
+        # This avoids fragile coupling and provides cleaner API
+        class MultiMonitorManager:
+            """Manager for multiple EAS monitor instances."""
+            def __init__(self, monitors_dict):
+                self._all_monitors = monitors_dict
+            
+            def stop(self):
+                """Stop all monitors."""
+                for name, monitor in self._all_monitors.items():
+                    try:
+                        monitor.stop()
+                    except Exception as e:
+                        logger.warning(f"Error stopping monitor '{name}': {e}")
+            
+            def get_status(self):
+                """Get aggregated status from all monitors."""
+                all_stats = {}
+                total_samples = 0
+                any_running = False
+                
+                for name, monitor in self._all_monitors.items():
+                    try:
+                        stats = monitor.get_status()
+                        all_stats[name] = stats
+                        total_samples += stats.get('samples_processed', 0)
+                        if stats.get('running', False):
+                            any_running = True
+                    except Exception as e:
+                        logger.debug(f"Error getting status for monitor '{name}': {e}")
+                
+                return {
+                    "running": any_running,
+                    "samples_processed": total_samples,
+                    "monitor_count": len(self._all_monitors),
+                    "monitors": all_stats
+                }
         
-        # Store all monitors globally for management (stop, status, etc)
-        _eas_monitor._all_monitors = monitors  # Attach to first monitor for access
+        # Return manager object for multi-monitor or single monitor
+        if len(monitors) > 1:
+            _eas_monitor = MultiMonitorManager(monitors)
+            logger.info(f"✅ Created multi-monitor manager for {len(monitors)} sources")
+        else:
+            # Single monitor - return it directly for backward compatibility
+            _eas_monitor = list(monitors.values())[0] if monitors else None
         
         return _eas_monitor
 
@@ -960,36 +999,10 @@ def collect_metrics():
             except Exception as e:
                 logger.error(f"Error getting broadcast queue stats: {e}")
 
-        # Get EAS monitor stats (collect from all monitors)
+        # Get EAS monitor stats (supports both single and multi-monitor)
         if _eas_monitor:
             try:
-                # Check if we have multiple monitors (new per-source architecture)
-                if hasattr(_eas_monitor, '_all_monitors'):
-                    # Collect stats from all monitors
-                    all_monitor_stats = {}
-                    total_samples = 0
-                    any_running = False
-                    
-                    for source_name, monitor in _eas_monitor._all_monitors.items():
-                        try:
-                            monitor_status = monitor.get_status()
-                            all_monitor_stats[source_name] = monitor_status
-                            total_samples += monitor_status.get('samples_processed', 0)
-                            if monitor_status.get('running', False):
-                                any_running = True
-                        except Exception as e:
-                            logger.debug(f"Error getting status for monitor '{source_name}': {e}")
-                    
-                    # Aggregate stats for backward compatibility
-                    metrics["eas_monitor"] = {
-                        "running": any_running,
-                        "samples_processed": total_samples,
-                        "monitor_count": len(_eas_monitor._all_monitors),
-                        "monitors": all_monitor_stats
-                    }
-                else:
-                    # Legacy single monitor
-                    metrics["eas_monitor"] = _eas_monitor.get_status()
+                metrics["eas_monitor"] = _eas_monitor.get_status()
             except Exception as e:
                 logger.error(f"Error getting EAS monitor stats: {e}")
 
@@ -1512,14 +1525,18 @@ def main():
         logger.info("   - Audio ingestion: ACTIVE")
         logger.info(f"   - Icecast streaming: {'ACTIVE' if auto_streaming else 'DISABLED'}")
         
-        # Show EAS monitoring status (single or multi-monitor)
+        # Show EAS monitoring status
         if eas_monitor:
-            if hasattr(eas_monitor, '_all_monitors'):
-                monitor_count = len(eas_monitor._all_monitors)
-                monitor_names = ', '.join(eas_monitor._all_monitors.keys())
-                logger.info(f"   - EAS monitoring: ACTIVE ({monitor_count} sources: {monitor_names})")
-            else:
-                logger.info("   - EAS monitoring: ACTIVE (single source)")
+            try:
+                status = eas_monitor.get_status()
+                monitor_count = status.get('monitor_count', 1)
+                if monitor_count > 1 and 'monitors' in status:
+                    monitor_names = ', '.join(status['monitors'].keys())
+                    logger.info(f"   - EAS monitoring: ACTIVE ({monitor_count} sources: {monitor_names})")
+                else:
+                    logger.info("   - EAS monitoring: ACTIVE (single source)")
+            except Exception:
+                logger.info("   - EAS monitoring: ACTIVE")
         else:
             logger.info("   - EAS monitoring: FAILED")
         
@@ -1582,19 +1599,10 @@ def main():
             except Exception as e:
                 logger.warning(f"Error stopping command subscriber: {e}")
 
-        # Stop EAS monitors (handle both single and multi-monitor architectures)
+        # Stop EAS monitor(s) - works for both single and multi-monitor
         if _eas_monitor:
-            if hasattr(_eas_monitor, '_all_monitors'):
-                logger.info(f"Stopping {len(_eas_monitor._all_monitors)} EAS monitor(s)...")
-                for source_name, monitor in _eas_monitor._all_monitors.items():
-                    try:
-                        logger.info(f"Stopping EAS monitor for '{source_name}'...")
-                        monitor.stop()
-                    except Exception as e:
-                        logger.warning(f"Error stopping monitor for '{source_name}': {e}")
-            else:
-                logger.info("Stopping EAS monitor...")
-                _eas_monitor.stop()
+            logger.info("Stopping EAS monitor(s)...")
+            _eas_monitor.stop()
 
         # Stop audio controller
         if _audio_controller:
