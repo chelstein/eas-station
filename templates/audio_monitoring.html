@@ -10,29 +10,7 @@
     </div>
 </div>
 
-<div class="row mb-3">
-    <div class="col-12">
-        <div class="card">
-            <div class="card-body d-flex flex-wrap gap-3 align-items-center justify-content-between">
-                <div>
-                    <h3 class="h5 mb-1">Streaming mode</h3>
-                    <p class="text-muted small mb-0">
-                        Use the built-in HTTPS player when Icecast is blocked or unreliable. Switch to Icecast when available for long-distance listening.
-                    </p>
-                </div>
-                <div class="btn-group" role="group" aria-label="Audio streaming mode">
-                    <button type="button" class="btn btn-outline-primary" id="stream-mode-builtin" onclick="setPreferredStreamMode('builtin')">
-                        <i class="fas fa-lock"></i> Built-in (HTTPS)
-                    </button>
-                    <button type="button" class="btn btn-outline-secondary" id="stream-mode-icecast" onclick="setPreferredStreamMode('icecast')">
-                        <i class="fas fa-broadcast-tower"></i> Icecast (if available)
-                    </button>
-                </div>
-                <div class="text-muted small" id="stream-mode-status"></div>
-            </div>
-        </div>
-    </div>
-</div>
+<!-- Stream mode toggle removed - web audio always uses secure HTTPS streaming via built-in proxy -->
 
 <div class="row mb-3">
     <div class="col-12">
@@ -368,7 +346,6 @@
 <script>
 let audioSources = [];
 let audioMonitoringSocket = null;
-const STREAM_MODE_KEY = 'audioMonitorStreamMode';
 const htmlEntityDecoder = document.createElement('textarea');
 
 // EAS Monitor warmup configuration
@@ -388,38 +365,8 @@ const DEBUG_LOG_INTERVAL_MS = 5000; // Log debug messages at most once every 5 s
 let lastVuMeterDebugLog = 0;
 let lastBroadcastQueueDebugLog = 0;
 
-function getPreferredStreamMode() {
-    const stored = (localStorage.getItem(STREAM_MODE_KEY) || '').toLowerCase();
-    return stored === 'icecast' ? 'icecast' : 'builtin';
-}
-
-function setPreferredStreamMode(mode) {
-    const normalized = mode === 'icecast' ? 'icecast' : 'builtin';
-    localStorage.setItem(STREAM_MODE_KEY, normalized);
-    renderStreamModeControls();
-    // Re-evaluate current players using the newly selected mode
-    initializeAudioPlayers();
-}
-
-function renderStreamModeControls() {
-    const mode = getPreferredStreamMode();
-    const builtInBtn = document.getElementById('stream-mode-builtin');
-    const icecastBtn = document.getElementById('stream-mode-icecast');
-    const statusEl = document.getElementById('stream-mode-status');
-
-    if (builtInBtn && icecastBtn) {
-        builtInBtn.classList.toggle('btn-primary', mode === 'builtin');
-        builtInBtn.classList.toggle('btn-outline-primary', mode !== 'builtin');
-        icecastBtn.classList.toggle('btn-secondary', mode === 'icecast');
-        icecastBtn.classList.toggle('btn-outline-secondary', mode !== 'icecast');
-    }
-
-    if (statusEl) {
-        statusEl.textContent = mode === 'icecast'
-            ? 'Icecast will be used when reachable; HTTPS-only pages still fall back automatically.'
-            : 'Built-in HTTPS stream preferred. Icecast will only be used if you switch modes.';
-    }
-}
+// Stream mode functions removed - web audio ALWAYS uses secure HTTPS proxy
+// Icecast is only for external players (VLC, Winamp, etc.) - not for web playback
 
 // Fetch audio sources from API
 async function loadAudioSources(fullRender = true) {
@@ -652,27 +599,16 @@ function renderAudioSources(fullRender = true) {
                                 Your browser does not support the audio element.
                             </audio>
                             <div class="audio-player-status small mt-2 text-muted" id="player-status-${source.name}"></div>
-                            ${source.icecast_url ? `
-                                <small class="d-block mt-1 text-muted">
-                                    <i class="fas fa-broadcast-tower"></i> Icecast streaming available
-                                    ${source.streaming && source.streaming.icecast ? `
-                                        ${typeof source.streaming.icecast.bitrate_kbps === 'number' ? ` • ${Number(source.streaming.icecast.bitrate_kbps).toFixed(1)} kbps` : ''}
-                                        ${typeof source.streaming.icecast.uptime_seconds === 'number' ? ` • <i class="fas fa-clock"></i> Uptime ${Math.floor(source.streaming.icecast.uptime_seconds / 60)}m` : ''}
-                                    ` : ''}
-                                    <span class="d-block small mt-1">
-                                        <i class="fas fa-info-circle"></i> If Icecast is not HTTPS, the UI will use a secure proxied player instead to avoid mixed-content blocking.
-                                    </span>
-                                </small>
-                            ` : `
-                                <small class="text-muted d-block mt-1">
-                                    <i class="fas fa-info-circle"></i> Basic Streaming Mode
-                                    <span class="d-block small text-muted mt-1">A secure built-in player is used automatically on HTTPS deployments.</span>
-                                    <a href="/settings/audio#icecast" class="d-inline-flex align-items-center gap-1 text-primary mt-1">
-                                        <i class="fas fa-arrow-up-right-from-square"></i>
-                                        <span>Enable Icecast for professional quality</span>
+                            <small class="text-muted d-block mt-1">
+                                <i class="fas fa-info-circle"></i> Secure HTTPS Streaming
+                                <span class="d-block small text-muted mt-1">Audio is streamed directly from the server over HTTPS.</span>
+                                ${source.icecast_url ? `
+                                    <a href="${escapeHtml(source.icecast_url)}" target="_blank" class="d-inline-flex align-items-center gap-1 text-primary mt-1">
+                                        <i class="fas fa-external-link-alt"></i>
+                                        <span>Open in external player (VLC, Winamp, etc.)</span>
                                     </a>
-                                </small>
-                            `}
+                                ` : ''}
+                            </small>
                         ` : `
                             <div class="alert alert-secondary mb-0">
                                 <i class="fas fa-pause-circle"></i>
@@ -976,7 +912,7 @@ function initializeAudioPlayers(playingStates = {}, currentTimes = {}) {
                 audioEl.load();
             }
 
-            setPlayerStatus(source.name, 'Ready. Press play to listen via Icecast.', 'muted');
+            setPlayerStatus(source.name, 'Ready. Press play to listen.', 'muted');
 
             if (wasPlaying) {
                 const resumeTime = currentTimes[source.name] || 0;
@@ -996,11 +932,10 @@ function initializeAudioPlayers(playingStates = {}, currentTimes = {}) {
             return;
         }
 
-        const fallbackReason = audioEl.dataset.icecastUrl ? 'Icecast stream is unavailable on secure connections.' : '';
-
+        // Always use secure HTTPS proxy for web playback
         switchToProxyStream(audioEl, source.name, {
             autoplay: wasPlaying,
-            reason: fallbackReason,
+            reason: '',
             notify: !wasPlaying
         });
     });
@@ -1054,28 +989,17 @@ function bindAudioPlayerEvents(audioEl) {
 }
 
 function shouldUseIcecastStream(audioEl) {
-    const icecastUrl = audioEl.dataset.icecastUrl;
-    if (!icecastUrl) {
-        return false;
-    }
-
-    if (getPreferredStreamMode() !== 'icecast') {
-        return false;
-    }
-
-    if (window.location.protocol === 'https:' && /^http:\/\//i.test(icecastUrl)) {
-        return false;
-    }
-
-    return true;
+    // Web audio playback ALWAYS uses the secure HTTPS proxy stream
+    // Icecast is for external players only (VLC, Winamp, etc.)
+    // This prevents mixed-content errors and provides consistent HTTPS streaming
+    return false;
 }
 
 function switchToProxyStream(audioEl, sourceName, options = {}) {
     const { autoplay = false, reason = '', notify = true } = options;
     const proxyUrl = audioEl.dataset.proxyUrl || `/api/audio/stream/${encodeURIComponent(sourceName)}`;
 
-    audioEl.dataset.streamType = 'flask-proxy';
-    audioEl.dataset.fallbackActive = audioEl.dataset.icecastUrl ? '1' : audioEl.dataset.fallbackActive;
+    audioEl.dataset.streamType = 'https-stream';
 
     const finalUrl = appendCacheBuster(proxyUrl);
     if (audioEl.src !== finalUrl) {
@@ -1085,26 +1009,17 @@ function switchToProxyStream(audioEl, sourceName, options = {}) {
     audioEl.load();
 
     if (notify) {
-        if (audioEl.dataset.icecastUrl) {
-            const baseMessage = 'Using secure fallback stream.';
-            const message = reason ? `${reason} ${baseMessage}`.trim() : baseMessage;
-            setPlayerStatus(sourceName, message, reason ? 'warning' : 'info');
-        } else {
-            setPlayerStatus(sourceName, 'Ready. Press play to listen.', 'muted');
-        }
+        setPlayerStatus(sourceName, 'Ready. Press play to listen.', 'muted');
     }
 
     if (autoplay) {
         const playPromise = audioEl.play();
         if (playPromise && typeof playPromise.then === 'function') {
             playPromise.then(() => {
-                setPlayerStatus(sourceName, `${labelForStreamType(audioEl.dataset.streamType)} playing.`, 'success');
+                setPlayerStatus(sourceName, 'Streaming.', 'success');
             }).catch(err => {
                 console.debug(`Autoplay blocked for ${sourceName}:`, err.message);
-                setPlayerStatus(sourceName, audioEl.dataset.icecastUrl
-                    ? 'Fallback stream ready. Press play to start listening.'
-                    : 'Ready. Press play to listen.',
-                    audioEl.dataset.icecastUrl ? 'warning' : 'muted');
+                setPlayerStatus(sourceName, 'Ready. Press play to listen.', 'muted');
             });
         }
     }
@@ -1126,30 +1041,17 @@ function clearStreamRecoveryTimer(audioEl) {
 function scheduleStreamRecovery(audioEl, sourceName) {
     clearStreamRecoveryTimer(audioEl);
 
-    const streamType = audioEl.dataset.streamType || audioEl.dataset.initialStreamType || 'unknown';
     const wasPlaying = !audioEl.paused;
-    // Use longer timeouts to allow network/server time to recover naturally
-    // These values prevent aggressive reconnection loops that worsen the problem
-    const timeoutMs = streamType === 'icecast' ? 15000 : 12000;
+    // Use 12 second timeout to allow network/server time to recover naturally
+    // This prevents aggressive reconnection loops that worsen the problem
+    const timeoutMs = 12000;
 
     const timerId = window.setTimeout(() => {
         audioEl.dataset.stallTimerId = '';
 
-        const currentType = audioEl.dataset.streamType || audioEl.dataset.initialStreamType || 'unknown';
-        if (currentType !== streamType) {
-            return;
-        }
-
-        if (currentType === 'icecast') {
-            const reason = 'Icecast stream stalled or unreachable. Switching to secure fallback.';
-            switchToProxyStream(audioEl, sourceName, { autoplay: wasPlaying, reason });
-            return;
-        }
-
-        if (currentType === 'flask-proxy') {
-            setPlayerStatus(sourceName, 'Reconnecting to secure stream…', 'warning');
-            switchToProxyStream(audioEl, sourceName, { autoplay: wasPlaying, notify: false });
-        }
+        // Reconnect to HTTPS stream
+        setPlayerStatus(sourceName, 'Reconnecting to stream…', 'warning');
+        switchToProxyStream(audioEl, sourceName, { autoplay: wasPlaying, notify: false });
     }, timeoutMs);
 
     audioEl.dataset.stallTimerId = String(timerId);
@@ -1177,14 +1079,8 @@ function setPlayerStatus(sourceName, message, level = 'muted') {
 }
 
 function labelForStreamType(streamType) {
-    switch (streamType) {
-        case 'icecast':
-            return 'Icecast stream';
-        case 'flask-proxy':
-            return 'Secure built-in stream';
-        default:
-            return 'Audio stream';
-    }
+    // Web audio always uses HTTPS streaming
+    return 'Audio';
 }
 
 function onAudioPlaybackError(event) {
@@ -2312,7 +2208,6 @@ function initializeWebSocket() {
 
 // Load sources on page load
 document.addEventListener('DOMContentLoaded', function() {
-    renderStreamModeControls();
     loadAudioSources(true); // Initial full render
     loadEASMonitorStatus(); // Load EAS monitor status immediately on page load
 
