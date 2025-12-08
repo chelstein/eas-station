@@ -132,6 +132,7 @@ class SDRServiceState:
     redis_client: Optional[Any] = None
     radio_manager: Optional[Any] = None
     publisher_thread: Optional[threading.Thread] = None
+    flask_app: Optional[Any] = None  # Store Flask app for database access
     last_metrics_time: float = 0.0
     metrics_interval: float = 1.0  # Publish metrics every second
 
@@ -145,61 +146,141 @@ def signal_handler(signum, frame):
     _state.running = False
 
 
-def get_redis_client():
+def verify_soapysdr_installation():
+    """Verify SoapySDR and NumPy are properly installed."""
+    logger.info("Verifying SDR dependencies...")
+
+    # Check SoapySDR Python bindings
+    try:
+        import SoapySDR
+        logger.info(f"✅ SoapySDR Python bindings installed (API version: {SoapySDR.getAPIVersion()})")
+    except ImportError as e:
+        logger.error("❌ SoapySDR Python bindings NOT installed")
+        logger.error("   Install with: apt-get install python3-soapysdr")
+        logger.error(f"   Error: {e}")
+        return False
+
+    # Check NumPy
+    try:
+        import numpy as np
+        logger.info(f"✅ NumPy installed (version: {np.__version__})")
+    except ImportError as e:
+        logger.error("❌ NumPy NOT installed")
+        logger.error(f"   Error: {e}")
+        return False
+
+    # Test USB device enumeration
+    try:
+        devices = SoapySDR.Device.enumerate()
+        logger.info(f"✅ USB device enumeration working ({len(devices)} device(s) found)")
+        if devices:
+            for idx, dev in enumerate(devices):
+                dev_dict = dict(dev)
+                driver = dev_dict.get('driver', 'unknown')
+                serial = dev_dict.get('serial', 'N/A')
+                logger.info(f"   Device {idx}: {driver} (serial: {serial})")
+        else:
+            logger.warning("⚠️  No SDR devices found - check USB connections and permissions")
+    except Exception as e:
+        logger.error(f"❌ USB device enumeration failed: {e}")
+        logger.error("   Check USB permissions: devices=/dev/bus/usb, privileged=true")
+        return False
+
+    return True
+
+
+def get_redis_client(retry=True):
     """Get or create Redis client with retry logic."""
     if _state.redis_client is not None:
-        return _state.redis_client
-    
-    try:
-        import redis
-        
-        # Use app_core redis client for robust connection handling
-        from app_core.redis_client import get_redis_client as get_robust_client
-        
-        _state.redis_client = get_robust_client(
-            max_retries=5,
-            initial_backoff=1.0,
-            max_backoff=30.0
-        )
-        logger.info(f"✅ Connected to Redis at {REDIS_HOST}:{REDIS_PORT}")
-        return _state.redis_client
-    except Exception as e:
-        logger.error(f"❌ Failed to connect to Redis: {e}")
-        raise
+        try:
+            # Verify connection is still alive
+            _state.redis_client.ping()
+            return _state.redis_client
+        except Exception:
+            logger.warning("Redis connection lost, reconnecting...")
+            _state.redis_client = None
+
+    max_retries = 5 if retry else 1
+    for attempt in range(max_retries):
+        try:
+            import redis
+
+            # Use app_core redis client for robust connection handling
+            from app_core.redis_client import get_redis_client as get_robust_client
+
+            _state.redis_client = get_robust_client(
+                max_retries=5,
+                initial_backoff=1.0,
+                max_backoff=30.0
+            )
+            logger.info(f"✅ Connected to Redis at {REDIS_HOST}:{REDIS_PORT}")
+            return _state.redis_client
+        except Exception as e:
+            if attempt < max_retries - 1:
+                wait_time = min(2 ** attempt, 30)
+                logger.warning(f"Failed to connect to Redis (attempt {attempt + 1}/{max_retries}): {e}")
+                logger.info(f"Retrying in {wait_time} seconds...")
+                time.sleep(wait_time)
+            else:
+                logger.error(f"❌ Failed to connect to Redis after {max_retries} attempts: {e}")
+                raise
 
 
 def initialize_database():
-    """Initialize database connection for receiver configuration."""
+    """Initialize database connection for receiver configuration with retry logic."""
     from app_core.extensions import db
     from flask import Flask
-    
-    app = Flask(__name__)
-    
+
     postgres_host = os.getenv("POSTGRES_HOST", "localhost")
     postgres_port = os.getenv("POSTGRES_PORT", "5432")
     postgres_db = os.getenv("POSTGRES_DB", "alerts")
     postgres_user = os.getenv("POSTGRES_USER", "postgres")
     postgres_password = os.getenv("POSTGRES_PASSWORD", "postgres")
-    
+
     from urllib.parse import quote_plus
     escaped_password = quote_plus(postgres_password)
-    
+
     # Build database URI without logging credentials
     db_uri = (
         f"postgresql://{postgres_user}:{escaped_password}@"
         f"{postgres_host}:{postgres_port}/{postgres_db}"
     )
-    app.config["SQLALCHEMY_DATABASE_URI"] = db_uri
-    app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-    # Prevent SQLAlchemy from echoing queries (which could contain sensitive data)
-    app.config["SQLALCHEMY_ECHO"] = False
-    
-    db.init_app(app)
-    
+
     # Log connection info without credentials
-    logger.info(f"Database configured: {postgres_user}@{postgres_host}:{postgres_port}/{postgres_db}")
-    
-    return app
+    logger.info(f"Connecting to database: {postgres_user}@{postgres_host}:{postgres_port}/{postgres_db}")
+
+    # Retry database connection with exponential backoff
+    max_retries = 10
+    for attempt in range(max_retries):
+        try:
+            app = Flask(__name__)
+            app.config["SQLALCHEMY_DATABASE_URI"] = db_uri
+            app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+            app.config["SQLALCHEMY_ECHO"] = False
+
+            db.init_app(app)
+
+            # Test connection by executing a simple query
+            with app.app_context():
+                from sqlalchemy import text
+                db.session.execute(text("SELECT 1"))
+
+            logger.info(f"✅ Database connection established")
+            # Store app instance for later use (e.g., reload_receivers command)
+            _state.flask_app = app
+            return app
+
+        except Exception as e:
+            if attempt < max_retries - 1:
+                wait_time = min(2 ** attempt, 30)
+                logger.warning(f"Database connection failed (attempt {attempt + 1}/{max_retries}): {e}")
+                logger.info(f"Retrying in {wait_time} seconds...")
+                time.sleep(wait_time)
+            else:
+                logger.error(f"❌ Failed to connect to database after {max_retries} attempts")
+                logger.error(f"   Connection string: postgresql://{postgres_user}:***@{postgres_host}:{postgres_port}/{postgres_db}")
+                logger.error(f"   Error: {e}")
+                raise
 
 
 def initialize_radio_receivers(app):
@@ -208,29 +289,58 @@ def initialize_radio_receivers(app):
         with app.app_context():
             from app_core.models import RadioReceiver
             from app_core.extensions import get_radio_manager
-            
+
             receivers = RadioReceiver.query.filter_by(enabled=True).all()
             if not receivers:
-                logger.info("No radio receivers configured in database")
+                logger.error("=" * 80)
+                logger.error("❌ NO SDR RECEIVERS CONFIGURED IN DATABASE")
+                logger.error("=" * 80)
+                logger.error("The SDR service will run but will NOT receive any radio signals.")
+                logger.error("")
+                logger.error("To configure receivers:")
+                logger.error("  1. Go to the web interface: Settings → Radio Receivers")
+                logger.error("  2. Add at least one receiver configuration")
+                logger.error("  3. Enable the receiver and set auto_start=true")
+                logger.error("  4. Restart the sdr-service container")
+                logger.error("")
+                logger.error("The service will continue running and wait for configuration via")
+                logger.error("the 'reload_receivers' command through Redis.")
+                logger.error("=" * 80)
+
+                # Publish warning status to Redis so UI can show alert
+                try:
+                    redis_client = get_redis_client(retry=False)
+                    redis_client.setex(
+                        "sdr:status",
+                        300,  # 5 minute TTL
+                        json.dumps({
+                            "status": "no_receivers_configured",
+                            "message": "No SDR receivers configured in database",
+                            "timestamp": time.time()
+                        })
+                    )
+                except Exception:
+                    pass  # Don't fail if Redis publish fails
+
                 return None
-            
+
             radio_manager = get_radio_manager()
             _state.radio_manager = radio_manager
-            
+
             radio_manager.configure_from_records(receivers)
             logger.info(f"Configured {len(receivers)} radio receiver(s) from database")
-            
+
             auto_start = [r for r in receivers if r.auto_start]
             if auto_start:
                 radio_manager.start_all()
                 logger.info(f"✅ Started {len(auto_start)} receiver(s) with auto_start")
             else:
-                logger.info("No receivers have auto_start enabled")
-            
+                logger.warning("⚠️  No receivers have auto_start enabled - they must be started manually")
+
             return radio_manager
-            
+
     except Exception as exc:
-        logger.error(f"Failed to initialize radio receivers: {exc}", exc_info=True)
+        logger.error(f"❌ Failed to initialize radio receivers: {exc}", exc_info=True)
         raise
 
 
@@ -565,18 +675,20 @@ def process_commands(redis_client):
             # This is called when receivers are added/updated/deleted via webapp
             try:
                 from app_core.models import RadioReceiver
-                from app_core.extensions import db
-                
-                # sdr-service has its own database connection (initialized at startup)
-                # No need for Flask app context - we're already in the service context
-                with db.session.no_autoflush:
+                from app_core.extensions import get_radio_manager
+
+                # Get the Flask app instance (stored during initialization)
+                # This ensures proper database session management
+                if not _state.flask_app:
+                    raise RuntimeError("Flask app not initialized - cannot reload receivers")
+
+                with _state.flask_app.app_context():
                     receivers = RadioReceiver.query.filter_by(enabled=True).all()
-                    
+
                     if not radio_manager:
-                        from app_core.extensions import get_radio_manager
                         radio_manager = get_radio_manager()
                         _state.radio_manager = radio_manager
-                    
+
                     # Stop all existing receivers
                     if hasattr(radio_manager, '_receivers'):
                         for identifier in list(radio_manager._receivers.keys()):
@@ -586,11 +698,11 @@ def process_commands(redis_client):
                                     receiver.stop()
                             except Exception as e:
                                 logger.warning(f"Error stopping receiver {identifier}: {e}")
-                    
+
                     # Reconfigure from database
                     radio_manager.configure_from_records(receivers)
                     logger.info(f"Reloaded {len(receivers)} receiver(s) from database")
-                    
+
                     # Auto-start enabled receivers
                     auto_start_count = 0
                     for r in receivers:
@@ -602,7 +714,7 @@ def process_commands(redis_client):
                                     auto_start_count += 1
                                 except Exception as e:
                                     logger.error(f"Failed to auto-start {r.identifier}: {e}")
-                    
+
                     result = {
                         "command_id": command_id,
                         "success": True,
@@ -682,12 +794,30 @@ def main():
     logger.info("  - Publishing IQ samples to Redis")
     logger.info("  - Publishing SDR health metrics")
     logger.info("=" * 80)
-    
+
     # Register signal handlers
     signal.signal(signal.SIGTERM, signal_handler)
     signal.signal(signal.SIGINT, signal_handler)
-    
+
     try:
+        # Verify SDR dependencies FIRST before anything else
+        logger.info("=" * 80)
+        if not verify_soapysdr_installation():
+            logger.error("=" * 80)
+            logger.error("❌ SDR DEPENDENCIES NOT PROPERLY INSTALLED")
+            logger.error("=" * 80)
+            logger.error("The SDR service cannot start without SoapySDR Python bindings.")
+            logger.error("")
+            logger.error("Required dependencies:")
+            logger.error("  - SoapySDR Python bindings (python3-soapysdr)")
+            logger.error("  - NumPy (python3-numpy)")
+            logger.error("  - USB device access (/dev/bus/usb)")
+            logger.error("")
+            logger.error("Check Dockerfile to ensure dependencies are installed correctly.")
+            logger.error("=" * 80)
+            return 1
+        logger.info("=" * 80)
+
         # Initialize Redis
         logger.info("Connecting to Redis...")
         redis_client = get_redis_client()

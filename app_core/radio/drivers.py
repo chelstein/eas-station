@@ -167,7 +167,10 @@ class _SoapySDRReceiver(ReceiverInterface):
         self._ring_buffer = None  # Will be initialized with SDRRingBuffer instance
         self._ring_buffer_enabled = True  # Enable robust ring buffer operation
         self._consecutive_timeouts = 0
-        self._max_consecutive_timeouts = 10
+        # Configurable timeout threshold - increased from 10 to 30 for weak signals
+        # For very weak signals, even 30 timeouts may be normal before signal acquisition
+        # Can be overridden per-receiver via config if needed
+        self._max_consecutive_timeouts = int(os.environ.get('SDR_MAX_CONSECUTIVE_TIMEOUTS', '30'))
         self._timeout_backoff = 0.01
 
         self._retry_backoff = 0.25
@@ -289,10 +292,14 @@ class _SoapySDRReceiver(ReceiverInterface):
                         self.driver_hint
                     )
             except Exception as exc:
-                self._interface_logger.debug(
-                    "Driver-specific enumeration failed for %s: %s",
+                # Log at warning level if driver-specific enumeration fails
+                # This could indicate missing driver modules or permissions issues
+                self._interface_logger.warning(
+                    "Driver-specific enumeration failed for %s: %s. "
+                    "Check if SoapySDR module is installed (e.g., soapysdr-module-%s)",
                     self.driver_hint,
-                    exc
+                    exc,
+                    self.driver_hint
                 )
 
         # If driver-specific found nothing, try general enumeration
@@ -308,9 +315,13 @@ class _SoapySDRReceiver(ReceiverInterface):
             except Exception as exc:
                 # General enumeration can fail if ANY module has issues
                 # (e.g., soapysdr-module-remote fails without avahi)
-                self._interface_logger.debug(
-                    "General device enumeration failed (some modules may have issues): %s",
-                    exc
+                # Log at warning level so users know why devices aren't found
+                self._interface_logger.warning(
+                    "General device enumeration failed (some SoapySDR modules may have issues): %s. "
+                    "Common cause: soapysdr-module-remote without avahi-daemon. "
+                    "This may prevent detecting %s devices.",
+                    exc,
+                    self.driver_hint
                 )
 
         return all_devices
@@ -659,12 +670,22 @@ class _SoapySDRReceiver(ReceiverInterface):
 
         try:
             device.setSampleRate(SoapySDR.SOAPY_SDR_RX, channel, self.config.sample_rate)
-            
+
             # Apply frequency correction (PPM) if specified
             # RTL-SDR and other low-cost SDRs have crystal oscillator drift
-            # Typical values: -50 to +50 PPM
+            # Typical values: -50 to +50 PPM, extreme range: -200 to +200 PPM
             corrected_freq = self.config.frequency_hz
             if self.config.frequency_correction_ppm != 0.0:
+                # Validate PPM range - reject extreme values that are likely errors
+                if not -200.0 <= self.config.frequency_correction_ppm <= 200.0:
+                    error_msg = (
+                        f"Invalid frequency correction PPM: {self.config.frequency_correction_ppm}. "
+                        f"Valid range is -200 to +200 PPM. Typical values are -50 to +50 PPM. "
+                        f"Extreme PPM values indicate configuration error."
+                    )
+                    self._interface_logger.error(error_msg)
+                    raise ValueError(error_msg)
+
                 correction_factor = 1.0 + (self.config.frequency_correction_ppm / 1_000_000.0)
                 corrected_freq = self.config.frequency_hz * correction_factor
                 self._interface_logger.info(
@@ -1399,22 +1420,24 @@ class AirspyReceiver(_SoapySDRReceiver):
     
     def _open_handle(self) -> _SoapySDRHandle:
         """Open Airspy device with Airspy-specific configuration.
-        
+
         Overrides parent to add:
         1. Sample rate validation (must be exactly 2.5 MHz or 10 MHz for R2)
         2. Linearity gain mode (optimal for FM/NOAA reception)
         3. Bias-T configuration if supported
         """
         # Validate sample rate for Airspy R2 before opening device
+        # Airspy R2 hardware ONLY supports these two rates - no other rates work
         if self.config.sample_rate not in self.AIRSPY_R2_SAMPLE_RATES:
-            self._interface_logger.warning(
-                "Airspy R2 sample rate %d Hz is not optimal. "
-                "Airspy R2 ONLY supports 2.5 MHz (2500000) or 10 MHz (10000000). "
-                "Using %d Hz may fail or perform poorly.",
-                self.config.sample_rate,
-                self.config.sample_rate
+            error_msg = (
+                f"Invalid Airspy R2 sample rate: {self.config.sample_rate} Hz. "
+                f"Airspy R2 hardware ONLY supports 2.5 MHz (2500000) or 10 MHz (10000000). "
+                f"Using any other sample rate will cause continuous stream errors. "
+                f"Please reconfigure the receiver with a valid sample rate."
             )
-        
+            self._interface_logger.error(error_msg)
+            raise ValueError(error_msg)
+
         # Open device using parent implementation
         handle = super()._open_handle()
         

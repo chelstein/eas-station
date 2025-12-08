@@ -74,6 +74,10 @@ class FMDemodulator:
     def __init__(self, config: DemodulatorConfig):
         self.config = config
 
+        # Normalize modulation type to uppercase for consistent lookup
+        # This prevents issues with case sensitivity (fm vs FM vs Fm)
+        self.config.modulation_type = config.modulation_type.upper()
+
         # Previous complex sample for phase continuity
         self._prev_sample: Optional[np.complex64] = None
         self._sample_index: int = 0
@@ -83,7 +87,7 @@ class FMDemodulator:
         # For FM, the actual audio values are much smaller because:
         #   phase_diff_per_sample = 2π × deviation / sample_rate
         # We need to scale up by: sample_rate / (2 × deviation) to get full-scale audio
-        deviation_hz = self.FM_DEVIATION_HZ.get(config.modulation_type, self.DEFAULT_DEVIATION_HZ)
+        deviation_hz = self.FM_DEVIATION_HZ.get(self.config.modulation_type, self.DEFAULT_DEVIATION_HZ)
         # The discriminator already divides by π, so we scale by:
         # sample_rate / (2 × deviation) = the factor to convert frequency deviation to amplitude
         self._audio_gain = config.sample_rate / (2.0 * deviation_hz)
@@ -630,12 +634,18 @@ class RBDSDecoder:
 
 def create_demodulator(config: DemodulatorConfig):
     """Factory function to create the appropriate demodulator."""
-    if config.modulation_type in ('FM', 'WFM', 'NFM'):
+    # Normalize modulation type to uppercase for consistent comparison
+    mod_type = config.modulation_type.upper()
+
+    if mod_type in ('FM', 'WFM', 'NFM'):
         return FMDemodulator(config)
-    elif config.modulation_type == 'AM':
+    elif mod_type == 'AM':
         return AMDemodulator(config)
-    elif config.modulation_type == 'IQ':
+    elif mod_type == 'IQ':
         # No demodulation, return raw IQ
         return None
     else:
-        raise ValueError(f"Unsupported modulation type: {config.modulation_type}")
+        raise ValueError(
+            f"Unsupported modulation type: {config.modulation_type}. "
+            f"Valid types: FM, WFM, NFM, AM, IQ"
+        )

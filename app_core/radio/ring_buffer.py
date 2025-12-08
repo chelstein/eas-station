@@ -136,9 +136,11 @@ class SDRRingBuffer:
         # Signaling for data availability
         self._data_available = threading.Event()
         
-        # Overflow tracking
+        # Overflow tracking with exponential backoff logging
         self._overflow_logged = False
         self._last_overflow_time = 0.0
+        self._overflow_log_interval = 5.0  # Start at 5 seconds
+        self._max_overflow_log_interval = 300.0  # Max 5 minutes between overflow logs
         
         logger.info(
             "Created ring buffer for %s: %d samples (%.1f MB, %.2fs at 2.5MHz)",
@@ -197,16 +199,22 @@ class SDRRingBuffer:
             with self._stats_lock:
                 self._stats.overflow_count += 1
             
-            # Rate-limit overflow logging
+            # Rate-limit overflow logging with exponential backoff
+            # Start at 5s, double each time up to 5 minutes max
             now = time.time()
-            if not self._overflow_logged or now - self._last_overflow_time > 5.0:
+            if not self._overflow_logged or now - self._last_overflow_time >= self._overflow_log_interval:
                 logger.warning(
                     "Ring buffer overflow for %s: dropped %d samples (buffer full, "
-                    "processing may be too slow)",
-                    self._identifier, dropped
+                    "processing may be too slow). Next log in %.0fs.",
+                    self._identifier, dropped, self._overflow_log_interval
                 )
                 self._overflow_logged = True
                 self._last_overflow_time = now
+                # Exponential backoff: 5s -> 10s -> 20s -> 40s -> 80s -> 160s -> 300s (max)
+                self._overflow_log_interval = min(
+                    self._overflow_log_interval * 2,
+                    self._max_overflow_log_interval
+                )
         else:
             samples_to_write = num_samples
         
