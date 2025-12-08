@@ -31,17 +31,13 @@ This service handles:
 - Metrics publishing to Redis
 
 Architecture (Separated):
-┌─────────────────┐         Redis          ┌──────────────────────┐
-│  sdr-service.py │ ──> IQ samples ──>     │  audio_service.py    │
-│  (USB access)   │    (pub/sub)           │  (NO USB access)     │
-│  - SDR hardware │                        │  - Demodulation      │
-│  - IQ sampling  │                        │  - EAS monitoring    │
-└─────────────────┘                        │  - Icecast streaming │
-                                           └──────────────────────┘
-
-NOTE: Naming is historical. Consider renaming to:
-  - eas_monitoring_service.py (more accurate)
-  - audio_processing_service.py (clearer scope)
+┌────────────────────────┐      Redis       ┌──────────────────────────┐
+│ sdr_hardware_service.py│ ──> IQ samples ──>│ eas_monitoring_service.py│
+│ (USB access)           │   (pub/sub)      │ (NO USB access)          │
+│ - SDR hardware         │                  │ - Demodulation           │
+│ - IQ sampling          │                  │ - EAS monitoring         │
+└────────────────────────┘                  │ - Icecast streaming      │
+                                            └──────────────────────────┘
   
 The web application reads metrics from Redis and serves the UI.
 """

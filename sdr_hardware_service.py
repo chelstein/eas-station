@@ -33,30 +33,31 @@ Architecture:
                     │   USB Device    │
                     └────────┬────────┘
                              │
-            ┌────────────────┴────────────────┐
-            │         sdr_service.py          │
-            │   (This file - USB access)      │
-            │                                 │
-            │  ┌───────────┐  ┌────────────┐ │
-            │  │USB Reader │──│Ring Buffer │ │
-            │  │  Thread   │  └─────┬──────┘ │
-            │  └───────────┘        │        │
-            │                       ▼        │
-            │              ┌────────────┐    │
-            │              │ Publisher  │    │
-            │              │   Thread   │    │
-            │              └─────┬──────┘    │
-            └────────────────────┼───────────┘
+            ┌───────────────────┴─────────────────┐
+            │   sdr_hardware_service.py        │
+            │   (This file - USB access)       │
+            │                                  │
+            │  ┌───────────┐  ┌────────────┐  │
+            │  │USB Reader │──│Ring Buffer │  │
+            │  │  Thread   │  └─────┬──────┘  │
+            │  └───────────┘        │         │
+            │                       ▼         │
+            │              ┌────────────┐     │
+            │              │ Publisher  │     │
+            │              │   Thread   │     │
+            │              └─────┬──────┘     │
+            └────────────────────┼────────────┘
                                  │ Redis pub/sub
+                                 │ sdr:samples:{id}
                                  ▼
-            ┌────────────────────────────────┐
-            │       audio_service.py         │
-            │   (No USB access needed)       │
-            │                                │
-            │  - Demodulation                │
-            │  - EAS/SAME decoding           │
-            │  - Icecast streaming           │
-            └────────────────────────────────┘
+            ┌────────────────────────────────────┐
+            │   eas_monitoring_service.py        │
+            │   (No USB access needed)           │
+            │                                    │
+            │  - IQ demodulation (FM/AM/NFM)     │
+            │  - EAS/SAME decoding               │
+            │  - Icecast streaming               │
+            └────────────────────────────────────┘
 
 Benefits:
 - SDR crashes don't affect audio processing
