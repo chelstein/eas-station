@@ -129,6 +129,12 @@
         background: var(--success-color);
     }
 
+    /* Signal strength color coding */
+    .signal-bar.active.signal-poor { background: #dc3545; }      /* Red: 0-25% */
+    .signal-bar.active.signal-fair { background: #fd7e14; }      /* Orange: 26-50% */
+    .signal-bar.active.signal-good { background: #28a745; }      /* Green: 51-75% */
+    .signal-bar.active.signal-excellent { background: #20c997; } /* Teal: 76-100% */
+
     .signal-bar:nth-child(1) { height: 6px; }
     .signal-bar:nth-child(2) { height: 10px; }
     .signal-bar:nth-child(3) { height: 14px; }
@@ -271,6 +277,73 @@
         background: var(--bg-secondary);
         border: 1px solid var(--border-color);
     }
+
+    /* Password strength indicator */
+    .password-strength {
+        height: 4px;
+        background: var(--border-color);
+        border-radius: 2px;
+        margin-top: 0.5rem;
+        overflow: hidden;
+    }
+
+    .password-strength-bar {
+        height: 100%;
+        transition: width 0.3s, background-color 0.3s;
+    }
+
+    .password-strength-weak { background: #dc3545; }
+    .password-strength-fair { background: #fd7e14; }
+    .password-strength-good { background: #ffc107; }
+    .password-strength-strong { background: #28a745; }
+
+    .password-feedback {
+        font-size: 0.75rem;
+        margin-top: 0.25rem;
+    }
+
+    /* Help icons and tooltips */
+    .help-icon {
+        display: inline-block;
+        width: 16px;
+        height: 16px;
+        line-height: 16px;
+        text-align: center;
+        border-radius: 50%;
+        background: var(--primary-color);
+        color: white;
+        font-size: 0.7rem;
+        cursor: help;
+        margin-left: 0.25rem;
+    }
+
+    /* Error message with hint */
+    .error-with-hint {
+        background: rgba(220, 53, 69, 0.1);
+        border: 1px solid rgba(220, 53, 69, 0.3);
+        border-radius: 0.375rem;
+        padding: 0.75rem;
+    }
+
+    .error-message {
+        font-weight: 600;
+        color: var(--danger-color);
+        margin-bottom: 0.5rem;
+    }
+
+    .error-hint {
+        font-size: 0.875rem;
+        color: var(--text-secondary);
+    }
+
+    .error-technical {
+        font-size: 0.75rem;
+        font-family: 'Courier New', monospace;
+        color: var(--text-secondary);
+        margin-top: 0.5rem;
+        padding-top: 0.5rem;
+        border-top: 1px solid var(--border-color);
+    }
 </style>
 {% endblock %}
 
@@ -332,6 +405,37 @@
             </div>
 
             <div class="network-section">
+                <h3><i class="fas fa-desktop"></i> Hostname</h3>
+                <div id="hostname-loading">
+                    <div class="spinner"></div> Loading hostname...
+                </div>
+                <div id="hostname-content" style="display: none;">
+                    <div class="connection-info">
+                        <div class="info-card">
+                            <div class="info-label">Current Hostname</div>
+                            <div class="info-value" id="current-hostname"></div>
+                        </div>
+                    </div>
+                    <div class="mt-3">
+                        <label class="form-label">
+                            Change Hostname
+                            <span class="help-icon" data-bs-toggle="tooltip" 
+                                  data-bs-placement="right"
+                                  title="Hostname must be 1-63 characters, containing only letters, numbers, and hyphens. Cannot start or end with hyphen.">?</span>
+                        </label>
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="new-hostname" 
+                                   placeholder="eas-station" maxlength="63">
+                            <button class="btn btn-primary" id="set-hostname-btn">
+                                <i class="fas fa-save"></i> Set Hostname
+                            </button>
+                        </div>
+                        <small class="text-muted">Changes will take effect immediately.</small>
+                    </div>
+                </div>
+            </div>
+
+            <div class="network-section">
                 <h3><i class="fas fa-route"></i> Default Gateway</h3>
                 <div id="gateway-info"></div>
             </div>
@@ -389,7 +493,12 @@
                         </select>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">DNS Servers</label>
+                        <label class="form-label">
+                            DNS Servers
+                            <span class="help-icon" data-bs-toggle="tooltip" 
+                                  data-bs-placement="right"
+                                  title="DNS servers translate domain names to IP addresses. Common choices: Google (8.8.8.8), Cloudflare (1.1.1.1), Quad9 (9.9.9.9)">?</span>
+                        </label>
                         <div id="dns-servers-display" class="mb-2"></div>
                         <div class="input-group mb-2">
                             <input type="text" class="form-control" id="dns-server-input" placeholder="8.8.8.8">
@@ -397,7 +506,7 @@
                                 <i class="fas fa-plus"></i> Add
                             </button>
                         </div>
-                        <small class="text-muted">Enter DNS server IP address (e.g., 8.8.8.8, 1.1.1.1)</small>
+                        <small class="text-muted">Popular DNS: Google (8.8.8.8), Cloudflare (1.1.1.1), Quad9 (9.9.9.9)</small>
                     </div>
                     <button class="btn btn-primary" id="apply-dns-btn">
                         <i class="fas fa-save"></i> Apply DNS Configuration
@@ -498,8 +607,18 @@
                     <input type="text" class="form-control" id="connect-ssid" readonly>
                 </div>
                 <div class="mb-3" id="password-group">
-                    <label class="form-label">Password</label>
-                    <input type="password" class="form-control" id="connect-password">
+                    <label class="form-label">
+                        Password
+                        <span class="help-icon" data-bs-toggle="tooltip" 
+                              data-bs-placement="right"
+                              title="WPA2/WPA3 requires 8-63 characters">?</span>
+                    </label>
+                    <input type="password" class="form-control" id="connect-password" 
+                           minlength="8" maxlength="63">
+                    <div class="password-strength">
+                        <div class="password-strength-bar" id="password-strength-bar"></div>
+                    </div>
+                    <small class="password-feedback text-muted" id="password-feedback"></small>
                 </div>
                 <div id="connect-error" class="alert alert-danger" style="display: none;"></div>
             </div>
@@ -526,7 +645,12 @@
                     <input type="text" class="form-control" id="config-connection-display" readonly>
                 </div>
                 <div class="mb-3">
-                    <label class="form-label">IP Configuration</label>
+                    <label class="form-label">
+                        IP Configuration
+                        <span class="help-icon" data-bs-toggle="tooltip" 
+                              data-bs-placement="right"
+                              title="DHCP automatically assigns IP settings from your router. Static IP uses manually configured settings.">?</span>
+                    </label>
                     <select class="form-select" id="config-method">
                         <option value="auto">DHCP (Automatic)</option>
                         <option value="manual">Static IP (Manual)</option>
@@ -534,21 +658,38 @@
                 </div>
                 <div id="static-ip-fields" style="display: none;">
                     <div class="mb-3">
-                        <label class="form-label">IP Address</label>
+                        <label class="form-label">
+                            IP Address
+                            <span class="help-icon" data-bs-toggle="tooltip" 
+                                  data-bs-placement="right"
+                                  title="The unique IP address for this device on your network (e.g., 192.168.1.100)">?</span>
+                        </label>
                         <input type="text" class="form-control" id="config-ip" placeholder="192.168.1.100">
+                        <small class="text-muted">Example: 192.168.1.100</small>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Netmask</label>
+                        <label class="form-label">
+                            Netmask
+                            <span class="help-icon" data-bs-toggle="tooltip" 
+                                  data-bs-placement="right"
+                                  title="Defines the size of your network. /24 is common for home networks (254 usable addresses).">?</span>
+                        </label>
                         <select class="form-select" id="config-netmask">
-                            <option value="255.255.255.0">255.255.255.0 (/24)</option>
-                            <option value="255.255.0.0">255.255.0.0 (/16)</option>
-                            <option value="255.0.0.0">255.0.0.0 (/8)</option>
-                            <option value="255.255.255.128">255.255.255.128 (/25)</option>
+                            <option value="255.255.255.0">255.255.255.0 (/24) - Common for home</option>
+                            <option value="255.255.0.0">255.255.0.0 (/16) - Large network</option>
+                            <option value="255.0.0.0">255.0.0.0 (/8) - Very large network</option>
+                            <option value="255.255.255.128">255.255.255.128 (/25) - Small network</option>
                         </select>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Gateway (Optional)</label>
+                        <label class="form-label">
+                            Gateway (Optional)
+                            <span class="help-icon" data-bs-toggle="tooltip" 
+                                  data-bs-placement="right"
+                                  title="The IP address of your router. Leave blank to use default gateway (e.g., 192.168.1.1)">?</span>
+                        </label>
                         <input type="text" class="form-control" id="config-gateway" placeholder="192.168.1.1">
+                        <small class="text-muted">Example: 192.168.1.1 (usually your router)</small>
                     </div>
                 </div>
                 <div id="config-error" class="alert alert-danger" style="display: none;"></div>
@@ -574,18 +715,59 @@ const NetworkConfig = {
     init() {
         this.connectModal = new bootstrap.Modal(document.getElementById('connectModal'));
         this.configureInterfaceModal = new bootstrap.Modal(document.getElementById('configureInterfaceModal'));
+        
+        // Initialize Bootstrap tooltips
+        this.initializeTooltips();
+        
+        // Restore last active tab from session storage
+        this.restoreActiveTab();
+        
         this.attachEventListeners();
         this.loadNetworkStatus();
         this.loadGatewayInfo();
+        this.loadHostname();
         this.loadInterfaces();
         this.loadDNSConfig();
         this.loadConnections();
+    },
+
+    initializeTooltips() {
+        // Initialize all Bootstrap tooltips
+        const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+        tooltipTriggerList.map(function (tooltipTriggerEl) {
+            return new bootstrap.Tooltip(tooltipTriggerEl);
+        });
+    },
+
+    restoreActiveTab() {
+        // Restore last selected tab from session storage
+        const lastTab = sessionStorage.getItem('networkLastTab');
+        if (lastTab) {
+            const tabEl = document.querySelector(`button[data-bs-target="${lastTab}"]`);
+            if (tabEl) {
+                const tab = new bootstrap.Tab(tabEl);
+                tab.show();
+            }
+        }
+        
+        // Save tab selection on change
+        document.querySelectorAll('#networkTabs button[data-bs-toggle="tab"]').forEach(button => {
+            button.addEventListener('shown.bs.tab', (e) => {
+                sessionStorage.setItem('networkLastTab', e.target.getAttribute('data-bs-target'));
+            });
+        });
     },
 
     attachEventListeners() {
         // WiFi
         document.getElementById('scan-btn').addEventListener('click', () => this.scanNetworks());
         document.getElementById('connect-submit').addEventListener('click', () => this.connectToNetwork());
+        
+        // Password strength indicator
+        const passwordInput = document.getElementById('connect-password');
+        if (passwordInput) {
+            passwordInput.addEventListener('input', (e) => this.updatePasswordStrength(e.target.value));
+        }
         
         // Wired
         document.getElementById('refresh-interfaces-btn').addEventListener('click', () => this.loadInterfaces());
@@ -594,6 +776,9 @@ const NetworkConfig = {
                 e.target.value === 'manual' ? 'block' : 'none';
         });
         document.getElementById('config-submit').addEventListener('click', () => this.configureInterface());
+        
+        // Hostname
+        document.getElementById('set-hostname-btn').addEventListener('click', () => this.setHostname());
         
         // DNS
         document.getElementById('add-dns-btn').addEventListener('click', () => this.addDNSServer());
@@ -607,6 +792,89 @@ const NetworkConfig = {
         
         // Connections
         document.getElementById('refresh-connections-btn').addEventListener('click', () => this.loadConnections());
+        
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            // Ctrl+R to refresh WiFi scan (only on WiFi tab)
+            if (e.ctrlKey && e.key === 'r' && document.getElementById('wifi').classList.contains('active')) {
+                e.preventDefault();
+                this.scanNetworks();
+            }
+        });
+    },
+
+    updatePasswordStrength(password) {
+        const strengthBar = document.getElementById('password-strength-bar');
+        const feedback = document.getElementById('password-feedback');
+        
+        if (!password) {
+            strengthBar.style.width = '0%';
+            strengthBar.className = 'password-strength-bar';
+            feedback.textContent = '';
+            return;
+        }
+        
+        // Calculate password strength
+        let strength = 0;
+        let feedbackText = '';
+        let className = '';
+        
+        if (password.length < 8) {
+            feedbackText = 'Password must be at least 8 characters';
+            className = 'password-strength-weak';
+            strength = 25;
+        } else if (password.length >= 8 && password.length < 12) {
+            feedbackText = 'Weak password';
+            className = 'password-strength-weak';
+            strength = 40;
+        } else if (password.length >= 12 && password.length < 16) {
+            feedbackText = 'Fair password';
+            className = 'password-strength-fair';
+            strength = 60;
+        } else if (password.length >= 16 && password.length < 20) {
+            feedbackText = 'Good password';
+            className = 'password-strength-good';
+            strength = 80;
+        } else {
+            feedbackText = 'Strong password';
+            className = 'password-strength-strong';
+            strength = 100;
+        }
+        
+        // Bonus points for complexity
+        if (/[A-Z]/.test(password)) strength += 5;
+        if (/[a-z]/.test(password)) strength += 5;
+        if (/[0-9]/.test(password)) strength += 5;
+        if (/[^A-Za-z0-9]/.test(password)) strength += 10;
+        
+        strength = Math.min(strength, 100);
+        
+        strengthBar.style.width = strength + '%';
+        strengthBar.className = 'password-strength-bar ' + className;
+        feedback.textContent = feedbackText;
+    },
+
+    validatePassword(password) {
+        // WPA2/WPA3 password validation
+        if (!password) return { valid: true }; // Open networks
+        
+        if (password.length < 8) {
+            return {
+                valid: false,
+                error: 'Password must be at least 8 characters',
+                hint: 'WPA2/WPA3 requires 8-63 characters'
+            };
+        }
+        
+        if (password.length > 63) {
+            return {
+                valid: false,
+                error: 'Password must be 63 characters or less',
+                hint: 'WPA2/WPA3 allows maximum 63 characters'
+            };
+        }
+        
+        return { valid: true };
     },
 
     async loadNetworkStatus() {
@@ -697,6 +965,77 @@ const NetworkConfig = {
         }
     },
 
+    async loadHostname() {
+        try {
+            const response = await fetch('/api/network/hostname');
+            const data = await response.json();
+
+            if (data.success && data.hostname) {
+                document.getElementById('current-hostname').textContent = data.hostname;
+                document.getElementById('new-hostname').placeholder = data.hostname;
+            }
+        } catch (error) {
+            console.error('Failed to load hostname:', error);
+        } finally {
+            document.getElementById('hostname-loading').style.display = 'none';
+            document.getElementById('hostname-content').style.display = 'block';
+        }
+    },
+
+    async setHostname() {
+        const newHostname = document.getElementById('new-hostname').value.trim();
+        const btn = document.getElementById('set-hostname-btn');
+        
+        if (!newHostname) {
+            showToast('Please enter a hostname', 'warning');
+            return;
+        }
+        
+        btn.disabled = true;
+        
+        try {
+            const response = await fetch('/api/network/hostname', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ hostname: newHostname })
+            });
+            const data = await response.json();
+            
+            if (data.success) {
+                showToast(`Hostname set to ${data.hostname}`, 'success');
+                document.getElementById('current-hostname').textContent = data.hostname;
+                document.getElementById('new-hostname').value = '';
+                // Reload after short delay to show new hostname everywhere
+                setTimeout(() => this.loadHostname(), 1000);
+            } else {
+                this.showEnhancedError('Hostname Error', data);
+            }
+        } catch (error) {
+            showToast(`Error: ${error.message}`, 'danger');
+        } finally {
+            btn.disabled = false;
+        }
+    },
+
+    showEnhancedError(title, errorData) {
+        // Display enhanced error messages with hints
+        let errorHtml = `<div class="error-with-hint">`;
+        errorHtml += `<div class="error-message">${errorData.error || 'Operation failed'}</div>`;
+        
+        if (errorData.hint) {
+            errorHtml += `<div class="error-hint"><i class="fas fa-lightbulb"></i> <strong>Hint:</strong> ${errorData.hint}</div>`;
+        }
+        
+        if (errorData.technical) {
+            errorHtml += `<div class="error-technical"><strong>Technical details:</strong> ${errorData.technical}</div>`;
+        }
+        
+        errorHtml += `</div>`;
+        
+        showToast(title, 'danger');
+        return errorHtml;
+    },
+
     async scanNetworks() {
         const btn = document.getElementById('scan-btn');
         const loadingDiv = document.getElementById('scan-loading');
@@ -746,8 +1085,15 @@ const NetworkConfig = {
 
     renderNetwork(network) {
         const signal = network.signal || 0;
+        
+        // Determine signal strength class for color coding
+        let signalClass = 'signal-poor';
+        if (signal > 75) signalClass = 'signal-excellent';
+        else if (signal > 50) signalClass = 'signal-good';
+        else if (signal > 25) signalClass = 'signal-fair';
+        
         const bars = [25, 50, 75, 100].map(threshold =>
-            `<div class="signal-bar ${signal >= threshold ? 'active' : ''}"></div>`
+            `<div class="signal-bar ${signal >= threshold ? 'active ' + signalClass : ''}"></div>`
         ).join('');
 
         const isSecure = network.security && network.security !== '';
@@ -791,6 +1137,17 @@ const NetworkConfig = {
         const submitBtn = document.getElementById('connect-submit');
         const errorDiv = document.getElementById('connect-error');
 
+        // Validate password
+        const validation = this.validatePassword(password);
+        if (!validation.valid) {
+            errorDiv.innerHTML = this.showEnhancedError('Invalid Password', {
+                error: validation.error,
+                hint: validation.hint
+            });
+            errorDiv.style.display = 'block';
+            return;
+        }
+
         submitBtn.disabled = true;
         errorDiv.style.display = 'none';
 
@@ -805,14 +1162,21 @@ const NetworkConfig = {
             if (data.success) {
                 this.connectModal.hide();
                 showToast(`Successfully connected to ${ssid}`, 'success');
-                this.loadNetworkStatus();
-                this.scanNetworks();
+                // Auto-refresh network status after connection
+                setTimeout(() => {
+                    this.loadNetworkStatus();
+                    this.loadGatewayInfo();
+                    this.scanNetworks();
+                }, 2000);
             } else {
-                errorDiv.textContent = data.error || 'Connection failed';
+                errorDiv.innerHTML = this.showEnhancedError('Connection Failed', data);
                 errorDiv.style.display = 'block';
             }
         } catch (error) {
-            errorDiv.textContent = 'Failed to connect: ' + error.message;
+            errorDiv.innerHTML = this.showEnhancedError('Connection Error', {
+                error: error.message,
+                hint: 'Check your network connection and try again.'
+            });
             errorDiv.style.display = 'block';
         } finally {
             submitBtn.disabled = false;
@@ -1295,7 +1659,10 @@ const NetworkConfig = {
     },
 
     async forgetConnection(name) {
-        if (!confirm(`Forget network ${name}? This will remove the saved password.`)) return;
+        // Enhanced confirmation dialog for destructive operation
+        if (!confirm(`⚠️ Forget network "${name}"?\n\nThis will permanently delete the saved connection profile. You will need to reconfigure it to reconnect.`)) {
+            return;
+        }
 
         try {
             const response = await fetch('/api/network/wifi/forget', {
@@ -1307,12 +1674,13 @@ const NetworkConfig = {
 
             if (data.success) {
                 showToast(`Forgot network ${name}`, 'success');
-                this.loadConnections();
+                // Auto-refresh connections list
+                setTimeout(() => this.loadConnections(), 500);
             } else {
-                showToast('Failed to forget network: ' + (data.error || 'Unknown error'), 'error');
+                showToast('Failed to forget network: ' + (data.error || 'Unknown error'), 'danger');
             }
         } catch (error) {
-            showToast('Failed to forget network: ' + error.message, 'error');
+            showToast('Failed to forget network: ' + error.message, 'danger');
         }
     }
 };

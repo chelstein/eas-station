@@ -541,6 +541,197 @@ def get_wifi_interface():
         return None
 
 
+def enhance_error_message(error_msg, context=''):
+    """Enhance error messages with helpful troubleshooting hints.
+    
+    Parses nmcli and common network error messages and adds context-aware
+    troubleshooting suggestions for users.
+    
+    Args:
+        error_msg: Raw error message from nmcli or system
+        context: Context of the operation (e.g., 'scan', 'connect', 'configure')
+    
+    Returns:
+        dict: Enhanced error with 'message' and 'hint' keys
+    """
+    error_lower = str(error_msg).lower()
+    
+    # Common error patterns and their user-friendly messages
+    error_patterns = {
+        'not found': {
+            'message': 'Interface or network not found',
+            'hint': 'Check that your WiFi/Ethernet adapter is properly connected and enabled.'
+        },
+        'no such device': {
+            'message': 'Network device not available',
+            'hint': 'Ensure your network hardware is connected and drivers are installed.'
+        },
+        'no wifi interface': {
+            'message': 'No WiFi adapter detected',
+            'hint': 'Check if your WiFi adapter is connected, powered on, and recognized by the system.'
+        },
+        'connection activation failed': {
+            'message': 'Failed to connect to network',
+            'hint': 'Verify the password is correct and the network is in range. Try forgetting and reconnecting.'
+        },
+        'secrets were required': {
+            'message': 'Password required',
+            'hint': 'This network requires a password. Please enter the correct WiFi password.'
+        },
+        'timeout': {
+            'message': 'Operation timed out',
+            'hint': 'The network operation took too long. Check network signal strength and try again.'
+        },
+        'no networks in range': {
+            'message': 'No networks detected',
+            'hint': 'Move closer to a WiFi access point or check if WiFi is enabled on the router.'
+        },
+        'already exists': {
+            'message': 'Connection already configured',
+            'hint': 'This network is already saved. Try activating the existing connection instead.'
+        },
+        'permission denied': {
+            'message': 'Permission denied',
+            'hint': 'Network configuration requires administrator privileges. Contact your system administrator.'
+        },
+        'invalid ip': {
+            'message': 'Invalid IP address',
+            'hint': 'Enter a valid IP address in format: 192.168.1.100'
+        },
+        'invalid gateway': {
+            'message': 'Invalid gateway address',
+            'hint': 'Gateway must be in the same subnet as the IP address.'
+        },
+    }
+    
+    # Find matching error pattern
+    for pattern, enhanced in error_patterns.items():
+        if pattern in error_lower:
+            return {
+                'message': enhanced['message'],
+                'hint': enhanced['hint'],
+                'technical': error_msg
+            }
+    
+    # Context-specific hints if no pattern matched
+    context_hints = {
+        'scan': 'Make sure WiFi is enabled and your adapter is working properly.',
+        'connect': 'Check the network password and signal strength.',
+        'configure': 'Verify the IP settings are valid for your network.',
+        'dns': 'Enter valid DNS server IP addresses (e.g., 8.8.8.8).',
+        'hostname': 'Hostname must contain only letters, numbers, and hyphens.',
+    }
+    
+    return {
+        'message': str(error_msg),
+        'hint': context_hints.get(context, 'Try refreshing and attempting the operation again.'),
+        'technical': error_msg
+    }
+
+
+def get_hostname():
+    """Get the current system hostname.
+    
+    Returns:
+        dict: Success status and hostname or error message
+    """
+    try:
+        result = run_command(['hostname'], check=False, timeout=5)
+        if result['success'] and result['stdout']:
+            hostname = result['stdout'].strip()
+            return {
+                'success': True,
+                'hostname': hostname
+            }
+        else:
+            return {
+                'success': False,
+                'error': 'Failed to get hostname'
+            }
+    except Exception as e:
+        logger.error(f"Error getting hostname: {e}")
+        return {
+            'success': False,
+            'error': str(e)
+        }
+
+
+def set_hostname(new_hostname):
+    """Set the system hostname using hostnamectl.
+    
+    Validates hostname format according to RFC 1123 before setting.
+    
+    Args:
+        new_hostname: New hostname to set
+    
+    Returns:
+        dict: Success status and message or error
+    """
+    try:
+        import re
+        
+        # Validate hostname format (RFC 1123)
+        # - 1-63 characters
+        # - Only letters, numbers, hyphens
+        # - Cannot start or end with hyphen
+        # - Case insensitive (converted to lowercase)
+        hostname_pattern = r'^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$'
+        
+        if not new_hostname:
+            enhanced = enhance_error_message('Hostname cannot be empty', 'hostname')
+            return {
+                'success': False,
+                'error': enhanced['message'],
+                'hint': enhanced['hint']
+            }
+        
+        if len(new_hostname) > 63:
+            enhanced = enhance_error_message('Hostname too long (max 63 characters)', 'hostname')
+            return {
+                'success': False,
+                'error': enhanced['message'],
+                'hint': enhanced['hint']
+            }
+        
+        if not re.match(hostname_pattern, new_hostname):
+            enhanced = enhance_error_message('Invalid hostname format', 'hostname')
+            return {
+                'success': False,
+                'error': enhanced['message'],
+                'hint': 'Hostname must contain only letters, numbers, and hyphens. Cannot start or end with hyphen.'
+            }
+        
+        # Use hostnamectl to set hostname (persistent across reboots)
+        result = run_command(['hostnamectl', 'set-hostname', new_hostname], check=False, timeout=10)
+        
+        if result['success']:
+            logger.info(f"Hostname changed to: {new_hostname}")
+            return {
+                'success': True,
+                'message': f'Hostname set to {new_hostname}',
+                'hostname': new_hostname
+            }
+        else:
+            error_msg = result.get('stderr', result.get('error', 'Failed to set hostname'))
+            enhanced = enhance_error_message(error_msg, 'hostname')
+            logger.error(f"Failed to set hostname: {error_msg}")
+            return {
+                'success': False,
+                'error': enhanced['message'],
+                'hint': enhanced.get('hint', ''),
+                'technical': error_msg
+            }
+    
+    except Exception as e:
+        logger.error(f"Error setting hostname: {e}", exc_info=True)
+        enhanced = enhance_error_message(str(e), 'hostname')
+        return {
+            'success': False,
+            'error': enhanced['message'],
+            'hint': enhanced.get('hint', '')
+        }
+
+
 def create_api_app():
     """Create Flask API application for hardware proxy operations."""
     api_app = Flask(__name__)
@@ -814,9 +1005,12 @@ def create_api_app():
             else:
                 error_msg = result.get('stderr', result.get('error', 'Connection failed'))
                 logger.error(f"Failed to connect to {ssid}: {error_msg}")
+                enhanced = enhance_error_message(error_msg, 'connect')
                 return jsonify({
                     'success': False,
-                    'error': error_msg
+                    'error': enhanced['message'],
+                    'hint': enhanced.get('hint', ''),
+                    'technical': enhanced.get('technical', '')
                 })
 
         except Exception as e:
@@ -1578,6 +1772,43 @@ def create_api_app():
 
         except Exception as e:
             logger.error(f"Error testing serial port: {e}")
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    # Hostname Configuration Endpoints
+
+    @api_app.route('/api/network/hostname', methods=['GET'])
+    def api_get_hostname():
+        """Get the current system hostname."""
+        try:
+            result = get_hostname()
+            if result['success']:
+                return jsonify(result)
+            else:
+                return jsonify(result), 500
+        except Exception as e:
+            logger.error(f"Error getting hostname: {e}", exc_info=True)
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @api_app.route('/api/network/hostname', methods=['POST'])
+    def api_set_hostname():
+        """Set the system hostname."""
+        try:
+            data = request.json
+            if not data:
+                return jsonify({'success': False, 'error': 'No JSON data provided'}), 400
+
+            new_hostname = data.get('hostname')
+            if not new_hostname:
+                return jsonify({'success': False, 'error': 'Hostname required'}), 400
+
+            result = set_hostname(new_hostname)
+            if result['success']:
+                return jsonify(result)
+            else:
+                return jsonify(result), 400
+
+        except Exception as e:
+            logger.error(f"Error setting hostname: {e}", exc_info=True)
             return jsonify({'success': False, 'error': str(e)}), 500
 
     return api_app

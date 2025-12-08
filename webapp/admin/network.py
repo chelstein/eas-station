@@ -227,6 +227,21 @@ def set_autoconnect():
     return jsonify(call_hardware_service('/api/network/connection/autoconnect', method='POST', data=data))
 
 
+@network_bp.route('/api/network/hostname', methods=['GET'])
+@require_permission('system.configure')
+def get_hostname():
+    """Get system hostname via hardware-service."""
+    return jsonify(call_hardware_service('/api/network/hostname', method='GET'))
+
+
+@network_bp.route('/api/network/hostname', methods=['POST'])
+@require_permission('system.configure')
+def set_hostname():
+    """Set system hostname via hardware-service."""
+    data = request.get_json()
+    return jsonify(call_hardware_service('/api/network/hostname', method='POST', data=data))
+
+
 def register_network_routes(app, logger):
     """Register network management routes with the Flask app."""
     app.register_blueprint(network_bp)
