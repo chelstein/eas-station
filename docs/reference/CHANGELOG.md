@@ -6,6 +6,26 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.13.5] - 2025-12-08
+### Fixed
+- **CRITICAL WiFi BUG**: Fixed WiFi scanning returning no networks even when networks available
+- Added nmcli availability check - prevents silent failures when NetworkManager not installed
+- Added WiFi interface auto-detection - finds wlan0/wlp* interfaces dynamically instead of hardcoded assumptions
+- Fixed network status endpoint - now returns correct data structure with wifi.ssid that frontend expects
+- Fixed WiFi scan race condition - replaced arbitrary 2-second sleep with proper completion detection
+- Fixed disconnect functionality - backend now auto-detects active connection name instead of requiring frontend to send it
+- Fixed empty scan results handling - now properly detects and reports when no networks found vs. scan failure
+- Enhanced error handling and logging throughout WiFi operations
+- Frontend now properly parses backend network status response structure
+- Frontend disconnect sends empty body (backend auto-detects connection)
+- Improved user feedback with toast notifications instead of alerts
+### Impact
+- ✅ WiFi scan now reliably detects and returns available networks
+- ✅ Network status display shows current connection properly
+- ✅ Disconnect functionality works correctly
+- ✅ Better error messages help diagnose WiFi issues
+- ✅ All WiFi operations (scan, connect, disconnect, forget) fully functional
+
 ## [2.13.4] - 2025-12-07
 ### Fixed
 - **CRITICAL SEPARATION MISMATCH**: Fixed audio-service startup failing to load SDR sources from database

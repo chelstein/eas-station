@@ -310,7 +310,7 @@ const NetworkConfig = {
         const infoDiv = document.getElementById('connection-info');
 
         // Display connection status
-        if (data.wifi) {
+        if (data.wifi && data.wifi.ssid) {
             statusDiv.innerHTML = `
                 <div class="status-badge connected">
                     <i class="fas fa-check-circle"></i> Connected to ${data.wifi.ssid}
@@ -319,7 +319,7 @@ const NetworkConfig = {
 
             // Display connection details
             let infoCards = '';
-            if (data.interfaces) {
+            if (data.interfaces && Object.keys(data.interfaces).length > 0) {
                 for (const [iface, addrs] of Object.entries(data.interfaces)) {
                     for (const addr of addrs) {
                         infoCards += `
@@ -331,6 +331,17 @@ const NetworkConfig = {
                     }
                 }
             }
+            
+            // Add interface info even without IP addresses
+            if (!infoCards && data.wifi.interface) {
+                infoCards = `
+                    <div class="info-card">
+                        <div class="info-label">Interface</div>
+                        <div class="info-value">${data.wifi.interface}</div>
+                    </div>
+                `;
+            }
+            
             infoDiv.innerHTML = infoCards;
         } else {
             statusDiv.innerHTML = `
@@ -456,7 +467,7 @@ const NetworkConfig = {
 
             if (data.success) {
                 this.connectModal.hide();
-                alert(`Successfully connected to ${ssid}`);
+                showToast(`Successfully connected to ${ssid}`, 'success');
                 this.loadNetworkStatus();
                 this.scanNetworks();
             } else {
@@ -480,19 +491,19 @@ const NetworkConfig = {
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ device: 'wlan0' })
+                body: JSON.stringify({})
             });
             const data = await response.json();
 
             if (data.success) {
-                alert('Disconnected from WiFi');
+                showToast('Disconnected from WiFi', 'success');
                 this.loadNetworkStatus();
                 this.scanNetworks();
             } else {
-                alert('Failed to disconnect: ' + (data.error || 'Unknown error'));
+                showToast('Failed to disconnect: ' + (data.error || 'Unknown error'), 'error');
             }
         } catch (error) {
-            alert('Failed to disconnect: ' + error.message);
+            showToast('Failed to disconnect: ' + error.message, 'error');
         }
     }
 };
