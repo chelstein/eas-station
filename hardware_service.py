@@ -48,6 +48,7 @@ import subprocess
 import threading
 import glob
 import ipaddress
+import re
 from typing import Optional
 from datetime import datetime, timezone
 from dotenv import load_dotenv
@@ -83,6 +84,12 @@ _redis_client: Optional[redis.Redis] = None
 _screen_manager = None
 _gpio_controller = None
 _nmcli_available: Optional[bool] = None  # Cached nmcli availability check
+
+# Hostname validation pattern (RFC 1123) - compiled once at module level
+# - 1-63 characters
+# - Only letters, numbers, hyphens
+# - Cannot start or end with hyphen
+HOSTNAME_PATTERN = re.compile(r'^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$')
 
 
 def signal_handler(signum, frame):
@@ -668,15 +675,6 @@ def set_hostname(new_hostname):
         dict: Success status and message or error
     """
     try:
-        import re
-        
-        # Validate hostname format (RFC 1123)
-        # - 1-63 characters
-        # - Only letters, numbers, hyphens
-        # - Cannot start or end with hyphen
-        # - Case insensitive (converted to lowercase)
-        hostname_pattern = r'^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$'
-        
         if not new_hostname:
             enhanced = enhance_error_message('Hostname cannot be empty', 'hostname')
             return {
@@ -693,7 +691,7 @@ def set_hostname(new_hostname):
                 'hint': enhanced['hint']
             }
         
-        if not re.match(hostname_pattern, new_hostname):
+        if not HOSTNAME_PATTERN.match(new_hostname):
             enhanced = enhance_error_message('Invalid hostname format', 'hostname')
             return {
                 'success': False,
