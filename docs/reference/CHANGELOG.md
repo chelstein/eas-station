@@ -6,6 +6,26 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.15.2] - 2025-12-08
+### Fixed
+- **CRITICAL: Audio Chain for SDR Sources (LP1, LP2, SP1)**: Fixed missing audio pipeline for SDR-based EAS monitoring
+  - Added automatic audio source synchronization on audio-service startup
+  - Previously, audio sources for radio receivers weren't created automatically, breaking the audio chain
+  - In separated architecture, sdr-service publishes IQ samples to Redis, but audio-service needs AudioSourceConfigDB entries
+  - Without these entries, RedisSDRSourceAdapter instances weren't created, preventing audio from reaching EAS monitor
+  - New `sync_radio_receiver_audio_sources()` function ensures audio sources exist for all enabled receivers
+  - Sets critical `managed_by='radio'` flag to trigger Redis adapter creation
+  - Enhanced logging shows receiver details, subscription channels, and startup status
+  - Affects LP1, LP2, SP1 and any other SDR receivers with audio_output=True
+  - **Impact**: Fixes complete loss of EAS monitoring from local/state primary SDR sources
+  - **Action Required**: Restart audio-service container after update: `docker restart eas-audio-service`
+
+### Added
+- **Diagnostic Tools**: Created comprehensive audio chain diagnostic utilities
+  - `diagnose_audio_chain.py` - Full audio chain health check from SDR to EAS monitor
+  - `fix_audio_source_sync.py` - Manual audio source sync tool with dry-run support
+  - Both tools check receivers, audio sources, Redis connectivity, and IQ sample flow
+
 ## [2.15.1] - 2025-12-08
 ### Fixed
 - **Template Consistency**: Fixed deprecated block usage in zigbee.html template, resolving CI failures

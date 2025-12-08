@@ -387,7 +387,19 @@ def initialize_audio_controller(app):
                         # Create Redis SDR adapter directly (subscribes to IQ samples)
                         adapter = RedisSDRSourceAdapter(runtime_config)
                         _audio_controller.add_source(adapter)
-                        logger.info(f"✅ Loaded Redis SDR source: {db_config.name} (subscribes to sdr-service)")
+                        
+                        # Log with receiver details for debugging
+                        device_params = config_params.get('device_params', {})
+                        receiver_id = device_params.get('receiver_id', 'unknown')
+                        receiver_name = device_params.get('receiver_display_name', 'unknown')
+                        receiver_freq = device_params.get('receiver_frequency_hz', 0)
+                        freq_display = f"{receiver_freq/1e6:.3f} MHz" if receiver_freq else "unknown"
+                        
+                        logger.info(
+                            f"✅ Loaded Redis SDR source: {db_config.name} "
+                            f"(receiver: {receiver_name} @ {freq_display}, "
+                            f"subscribes to sdr:samples:{receiver_id})"
+                        )
                         continue
                 
                 # Normal source type handling
@@ -424,7 +436,19 @@ def initialize_audio_controller(app):
             logger.info(f"Auto-starting {len(auto_start_sources)} enabled source(s)...")
             for db_config in auto_start_sources:
                 try:
-                    logger.info(f"Auto-starting source: '{db_config.name}' (type: {db_config.source_type})")
+                    # Extract receiver info for SDR sources
+                    if db_config.source_type == 'sdr':
+                        config_params = db_config.config_params or {}
+                        device_params = config_params.get('device_params', {})
+                        receiver_id = device_params.get('receiver_id', 'unknown')
+                        receiver_name = device_params.get('receiver_display_name', 'unknown')
+                        logger.info(
+                            f"Auto-starting source: '{db_config.name}' "
+                            f"(type: {db_config.source_type}, receiver: {receiver_name}, id: {receiver_id})"
+                        )
+                    else:
+                        logger.info(f"Auto-starting source: '{db_config.name}' (type: {db_config.source_type})")
+                    
                     result = _audio_controller.start_source(db_config.name)
                     if result:
                         logger.info(f"✅ Successfully started '{db_config.name}'")
