@@ -356,8 +356,9 @@ class StreamingSAMEDecoder:
                     
                     if dash_count >= min_dashes:
                         return 'ZCZC' in msg_text or 'NNNN' in msg_text
-                except:
-                    pass
+                except (ValueError, IndexError, AttributeError) as e:
+                    # Ignore parse errors in message validation - not critical
+                    logger.debug(f"Error parsing message structure: {e}")
         
         # Safety: prevent runaway messages
         if len(self.current_msg) > self.MAX_MSG_LEN:

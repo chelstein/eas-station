@@ -6,6 +6,17 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.15.4] - 2025-12-08
+### Fixed
+- **Code Quality: Removed Bare Except Statements**: Fixed 4 bare `except:` statements that could mask errors
+  - `app_core/audio/eas_monitor.py`: Database rollback and SAME header parsing now log errors
+  - `app_core/audio/streaming_same_decoder.py`: Message validation errors now logged at debug level
+  - `app_core/audio/worker_coordinator_redis.py`: Redis connection close errors now logged
+  - All exceptions now specify expected types (IndexError, AttributeError, Exception)
+  - Improves debugging by making error paths visible in logs
+  - Follows Python best practices for exception handling
+  - **Impact**: Better error visibility and easier troubleshooting
+
 ## [2.15.3] - 2025-12-08
 ### Fixed
 - **CRITICAL: Multi-Stream EAS Monitoring (LP1, LP2, SP1)**: Implemented per-source EAS monitoring
