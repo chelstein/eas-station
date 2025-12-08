@@ -915,6 +915,605 @@ def create_api_app():
             logger.error(f"Error forgetting network: {e}", exc_info=True)
             return jsonify({'success': False, 'error': str(e)}), 500
 
+    # Phase 2: Core DASDEC3 Network Features
+
+    @api_app.route('/api/network/interfaces', methods=['GET'])
+    def get_network_interfaces():
+        """Get all network interfaces (both WiFi and Ethernet)."""
+        try:
+            if not check_nmcli_available():
+                return jsonify({
+                    'success': False,
+                    'error': 'NetworkManager (nmcli) not available'
+                }), 500
+
+            # Get all devices with their types and states
+            result = run_command([
+                'nmcli', '-t', '-f',
+                'DEVICE,TYPE,STATE,CONNECTION',
+                'device'
+            ], check=False, timeout=10)
+
+            interfaces = []
+            if result['success'] and result['stdout']:
+                for line in result['stdout'].split('\n'):
+                    if line.strip():
+                        parts = line.split(':')
+                        if len(parts) >= 4:
+                            device = parts[0]
+                            iface_type = parts[1]
+                            state = parts[2]
+                            connection = parts[3] if parts[3] != '--' else None
+
+                            # Get detailed info for this interface
+                            detail_result = run_command([
+                                'nmcli', '-t', '-f',
+                                'IP4.ADDRESS,IP4.GATEWAY,IP6.ADDRESS',
+                                'device', 'show', device
+                            ], check=False, timeout=10)
+
+                            ipv4_addrs = []
+                            ipv4_gateway = None
+                            ipv6_addrs = []
+
+                            if detail_result['success'] and detail_result['stdout']:
+                                for detail_line in detail_result['stdout'].split('\n'):
+                                    if detail_line.startswith('IP4.ADDRESS'):
+                                        addr_str = detail_line.split(':', 1)[1].strip()
+                                        if addr_str and '/' in addr_str:
+                                            addr, prefix = addr_str.split('/')
+                                            ipv4_addrs.append({
+                                                'address': addr,
+                                                'prefixlen': int(prefix)
+                                            })
+                                    elif detail_line.startswith('IP4.GATEWAY'):
+                                        ipv4_gateway = detail_line.split(':', 1)[1].strip()
+                                    elif detail_line.startswith('IP6.ADDRESS'):
+                                        addr_str = detail_line.split(':', 1)[1].strip()
+                                        if addr_str and '/' in addr_str:
+                                            addr, prefix = addr_str.rsplit('/', 1)
+                                            ipv6_addrs.append({
+                                                'address': addr,
+                                                'prefixlen': int(prefix)
+                                            })
+
+                            interfaces.append({
+                                'device': device,
+                                'type': iface_type,
+                                'state': state,
+                                'connection': connection,
+                                'ipv4_addresses': ipv4_addrs,
+                                'ipv4_gateway': ipv4_gateway,
+                                'ipv6_addresses': ipv6_addrs
+                            })
+
+            return jsonify({
+                'success': True,
+                'interfaces': interfaces
+            })
+
+        except Exception as e:
+            logger.error(f"Error getting network interfaces: {e}", exc_info=True)
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @api_app.route('/api/network/interface/configure', methods=['POST'])
+    def configure_interface():
+        """Configure network interface with static IP or DHCP."""
+        try:
+            if not check_nmcli_available():
+                return jsonify({
+                    'success': False,
+                    'error': 'NetworkManager (nmcli) not available'
+                }), 500
+
+            data = request.json
+            if not data:
+                return jsonify({'success': False, 'error': 'No JSON data provided'}), 400
+
+            connection = data.get('connection')
+            method = data.get('method', 'auto')  # 'auto' (DHCP) or 'manual' (static)
+            ip_address = data.get('ip_address')
+            netmask = data.get('netmask')
+            gateway = data.get('gateway')
+
+            if not connection:
+                return jsonify({'success': False, 'error': 'Connection name required'}), 400
+
+            logger.info(f"Configuring interface {connection} with method {method}")
+
+            if method == 'manual':
+                # Static IP configuration
+                if not ip_address or not netmask:
+                    return jsonify({
+                        'success': False,
+                        'error': 'IP address and netmask required for static configuration'
+                    }), 400
+
+                # Calculate CIDR prefix from netmask
+                try:
+                    import ipaddress
+                    prefix = ipaddress.IPv4Network(f'0.0.0.0/{netmask}').prefixlen
+                except ValueError:
+                    return jsonify({
+                        'success': False,
+                        'error': 'Invalid netmask format'
+                    }), 400
+
+                # Set static IP
+                cmd = [
+                    'nmcli', 'connection', 'modify', connection,
+                    'ipv4.method', 'manual',
+                    'ipv4.addresses', f'{ip_address}/{prefix}'
+                ]
+
+                if gateway:
+                    cmd.extend(['ipv4.gateway', gateway])
+
+                result = run_command(cmd, check=False, timeout=15)
+
+                if not result['success']:
+                    return jsonify({
+                        'success': False,
+                        'error': result.get('stderr', result.get('error', 'Failed to configure static IP'))
+                    })
+
+            else:
+                # DHCP configuration
+                cmd = [
+                    'nmcli', 'connection', 'modify', connection,
+                    'ipv4.method', 'auto',
+                    'ipv4.addresses', '',
+                    'ipv4.gateway', ''
+                ]
+                result = run_command(cmd, check=False, timeout=15)
+
+                if not result['success']:
+                    return jsonify({
+                        'success': False,
+                        'error': result.get('stderr', result.get('error', 'Failed to configure DHCP'))
+                    })
+
+            # Restart connection to apply changes
+            restart_cmd = ['nmcli', 'connection', 'up', connection]
+            restart_result = run_command(restart_cmd, check=False, timeout=20)
+
+            if restart_result['success']:
+                logger.info(f"Successfully configured {connection} with {method}")
+                return jsonify({
+                    'success': True,
+                    'message': f'Interface configured with {method}'
+                })
+            else:
+                return jsonify({
+                    'success': False,
+                    'error': 'Configuration saved but failed to restart connection'
+                })
+
+        except Exception as e:
+            logger.error(f"Error configuring interface: {e}", exc_info=True)
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @api_app.route('/api/network/dns', methods=['GET'])
+    def get_dns_servers():
+        """Get current DNS server configuration."""
+        try:
+            if not check_nmcli_available():
+                return jsonify({
+                    'success': False,
+                    'error': 'NetworkManager (nmcli) not available'
+                }), 500
+
+            # Get DNS servers from active connections
+            result = run_command([
+                'nmcli', '-t', '-f', 'IP4.DNS,IP6.DNS',
+                'device', 'show'
+            ], check=False, timeout=10)
+
+            dns_servers = []
+            if result['success'] and result['stdout']:
+                for line in result['stdout'].split('\n'):
+                    if line.strip() and (line.startswith('IP4.DNS') or line.startswith('IP6.DNS')):
+                        server = line.split(':', 1)[1].strip()
+                        if server and server not in dns_servers:
+                            dns_servers.append(server)
+
+            return jsonify({
+                'success': True,
+                'dns_servers': dns_servers
+            })
+
+        except Exception as e:
+            logger.error(f"Error getting DNS servers: {e}", exc_info=True)
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @api_app.route('/api/network/dns/configure', methods=['POST'])
+    def configure_dns():
+        """Configure DNS servers for a connection."""
+        try:
+            if not check_nmcli_available():
+                return jsonify({
+                    'success': False,
+                    'error': 'NetworkManager (nmcli) not available'
+                }), 500
+
+            data = request.json
+            if not data:
+                return jsonify({'success': False, 'error': 'No JSON data provided'}), 400
+
+            connection = data.get('connection')
+            dns_servers = data.get('dns_servers', [])
+
+            if not connection:
+                return jsonify({'success': False, 'error': 'Connection name required'}), 400
+
+            logger.info(f"Configuring DNS servers for {connection}")
+
+            # Set DNS servers (space-separated list)
+            dns_list = ' '.join(dns_servers) if dns_servers else ''
+            cmd = [
+                'nmcli', 'connection', 'modify', connection,
+                'ipv4.dns', dns_list
+            ]
+
+            result = run_command(cmd, check=False, timeout=15)
+
+            if result['success']:
+                # Restart connection to apply changes
+                restart_cmd = ['nmcli', 'connection', 'up', connection]
+                restart_result = run_command(restart_cmd, check=False, timeout=20)
+
+                if restart_result['success']:
+                    logger.info(f"Successfully configured DNS for {connection}")
+                    return jsonify({
+                        'success': True,
+                        'message': 'DNS servers configured'
+                    })
+                else:
+                    return jsonify({
+                        'success': False,
+                        'error': 'DNS configuration saved but failed to restart connection'
+                    })
+            else:
+                return jsonify({
+                    'success': False,
+                    'error': result.get('stderr', result.get('error', 'Failed to configure DNS'))
+                })
+
+        except Exception as e:
+            logger.error(f"Error configuring DNS: {e}", exc_info=True)
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @api_app.route('/api/network/diagnostics/ping', methods=['POST'])
+    def ping_host():
+        """Ping a host to test connectivity."""
+        try:
+            data = request.json
+            if not data:
+                return jsonify({'success': False, 'error': 'No JSON data provided'}), 400
+
+            host = data.get('host')
+            count = data.get('count', 4)
+
+            if not host:
+                return jsonify({'success': False, 'error': 'Host required'}), 400
+
+            # Validate count is reasonable
+            try:
+                count = int(count)
+                if count < 1 or count > 10:
+                    count = 4
+            except ValueError:
+                count = 4
+
+            logger.info(f"Pinging {host} ({count} packets)")
+
+            # Use ping command (works on most Linux systems)
+            cmd = ['ping', '-c', str(count), '-W', '2', host]
+            result = run_command(cmd, check=False, timeout=30)
+
+            return jsonify({
+                'success': result['success'],
+                'output': result.get('stdout', ''),
+                'error': result.get('stderr', '') if not result['success'] else None
+            })
+
+        except Exception as e:
+            logger.error(f"Error pinging host: {e}", exc_info=True)
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @api_app.route('/api/network/diagnostics/traceroute', methods=['POST'])
+    def traceroute_host():
+        """Traceroute to a host to see network path."""
+        try:
+            data = request.json
+            if not data:
+                return jsonify({'success': False, 'error': 'No JSON data provided'}), 400
+
+            host = data.get('host')
+
+            if not host:
+                return jsonify({'success': False, 'error': 'Host required'}), 400
+
+            logger.info(f"Traceroute to {host}")
+
+            # Use traceroute command (may need to be installed)
+            # Try traceroute first, fall back to tracepath
+            cmd = ['traceroute', '-m', '15', '-w', '2', host]
+            result = run_command(cmd, check=False, timeout=60)
+
+            if not result['success'] and 'not found' in result.get('error', '').lower():
+                # Try tracepath as fallback
+                cmd = ['tracepath', '-m', '15', host]
+                result = run_command(cmd, check=False, timeout=60)
+
+            return jsonify({
+                'success': result['success'],
+                'output': result.get('stdout', ''),
+                'error': result.get('stderr', '') if not result['success'] else None
+            })
+
+        except Exception as e:
+            logger.error(f"Error traceroute: {e}", exc_info=True)
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @api_app.route('/api/network/diagnostics/nslookup', methods=['POST'])
+    def nslookup_host():
+        """DNS lookup for a hostname."""
+        try:
+            data = request.json
+            if not data:
+                return jsonify({'success': False, 'error': 'No JSON data provided'}), 400
+
+            host = data.get('host')
+
+            if not host:
+                return jsonify({'success': False, 'error': 'Host required'}), 400
+
+            logger.info(f"DNS lookup for {host}")
+
+            # Use nslookup or dig
+            cmd = ['nslookup', host]
+            result = run_command(cmd, check=False, timeout=15)
+
+            if not result['success'] and 'not found' in result.get('error', '').lower():
+                # Try dig as fallback
+                cmd = ['dig', '+short', host]
+                result = run_command(cmd, check=False, timeout=15)
+
+            return jsonify({
+                'success': result['success'],
+                'output': result.get('stdout', ''),
+                'error': result.get('stderr', '') if not result['success'] else None
+            })
+
+        except Exception as e:
+            logger.error(f"Error DNS lookup: {e}", exc_info=True)
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @api_app.route('/api/network/diagnostics/route', methods=['GET'])
+    def get_routing_table():
+        """Get system routing table."""
+        try:
+            logger.info("Getting routing table")
+
+            # Use ip route command
+            cmd = ['ip', 'route', 'show']
+            result = run_command(cmd, check=False, timeout=10)
+
+            if result['success']:
+                return jsonify({
+                    'success': True,
+                    'output': result.get('stdout', '')
+                })
+            else:
+                return jsonify({
+                    'success': False,
+                    'error': result.get('stderr', result.get('error', 'Failed to get routing table'))
+                })
+
+        except Exception as e:
+            logger.error(f"Error getting routing table: {e}", exc_info=True)
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @api_app.route('/api/network/diagnostics/gateway', methods=['GET'])
+    def get_default_gateway():
+        """Get default gateway information."""
+        try:
+            logger.info("Getting default gateway")
+
+            # Get default route
+            cmd = ['ip', 'route', 'show', 'default']
+            result = run_command(cmd, check=False, timeout=10)
+
+            gateway = None
+            interface = None
+
+            if result['success'] and result['stdout']:
+                # Parse output: "default via 192.168.1.1 dev eth0"
+                parts = result['stdout'].split()
+                if 'via' in parts:
+                    gateway_idx = parts.index('via') + 1
+                    if gateway_idx < len(parts):
+                        gateway = parts[gateway_idx]
+                if 'dev' in parts:
+                    dev_idx = parts.index('dev') + 1
+                    if dev_idx < len(parts):
+                        interface = parts[dev_idx]
+
+            return jsonify({
+                'success': True,
+                'gateway': gateway,
+                'interface': interface,
+                'raw_output': result.get('stdout', '')
+            })
+
+        except Exception as e:
+            logger.error(f"Error getting default gateway: {e}", exc_info=True)
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @api_app.route('/api/network/connections', methods=['GET'])
+    def get_connections():
+        """Get all saved NetworkManager connections."""
+        try:
+            if not check_nmcli_available():
+                return jsonify({
+                    'success': False,
+                    'error': 'NetworkManager (nmcli) not available'
+                }), 500
+
+            # Get all connections with details
+            result = run_command([
+                'nmcli', '-t', '-f',
+                'NAME,TYPE,DEVICE,AUTOCONNECT',
+                'connection', 'show'
+            ], check=False, timeout=10)
+
+            connections = []
+            if result['success'] and result['stdout']:
+                for line in result['stdout'].split('\n'):
+                    if line.strip():
+                        parts = line.split(':')
+                        if len(parts) >= 4:
+                            connections.append({
+                                'name': parts[0],
+                                'type': parts[1],
+                                'device': parts[2] if parts[2] != '--' else None,
+                                'autoconnect': parts[3] == 'yes'
+                            })
+
+            return jsonify({
+                'success': True,
+                'connections': connections
+            })
+
+        except Exception as e:
+            logger.error(f"Error getting connections: {e}", exc_info=True)
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @api_app.route('/api/network/connection/activate', methods=['POST'])
+    def activate_connection():
+        """Activate a saved connection."""
+        try:
+            if not check_nmcli_available():
+                return jsonify({
+                    'success': False,
+                    'error': 'NetworkManager (nmcli) not available'
+                }), 500
+
+            data = request.json
+            if not data:
+                return jsonify({'success': False, 'error': 'No JSON data provided'}), 400
+
+            connection = data.get('connection')
+
+            if not connection:
+                return jsonify({'success': False, 'error': 'Connection name required'}), 400
+
+            logger.info(f"Activating connection: {connection}")
+
+            cmd = ['nmcli', 'connection', 'up', connection]
+            result = run_command(cmd, check=False, timeout=20)
+
+            if result['success']:
+                logger.info(f"Successfully activated {connection}")
+                return jsonify({
+                    'success': True,
+                    'message': f'Activated {connection}'
+                })
+            else:
+                return jsonify({
+                    'success': False,
+                    'error': result.get('stderr', result.get('error', 'Failed to activate connection'))
+                })
+
+        except Exception as e:
+            logger.error(f"Error activating connection: {e}", exc_info=True)
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @api_app.route('/api/network/connection/deactivate', methods=['POST'])
+    def deactivate_connection():
+        """Deactivate an active connection."""
+        try:
+            if not check_nmcli_available():
+                return jsonify({
+                    'success': False,
+                    'error': 'NetworkManager (nmcli) not available'
+                }), 500
+
+            data = request.json
+            if not data:
+                return jsonify({'success': False, 'error': 'No JSON data provided'}), 400
+
+            connection = data.get('connection')
+
+            if not connection:
+                return jsonify({'success': False, 'error': 'Connection name required'}), 400
+
+            logger.info(f"Deactivating connection: {connection}")
+
+            cmd = ['nmcli', 'connection', 'down', connection]
+            result = run_command(cmd, check=False, timeout=15)
+
+            if result['success']:
+                logger.info(f"Successfully deactivated {connection}")
+                return jsonify({
+                    'success': True,
+                    'message': f'Deactivated {connection}'
+                })
+            else:
+                return jsonify({
+                    'success': False,
+                    'error': result.get('stderr', result.get('error', 'Failed to deactivate connection'))
+                })
+
+        except Exception as e:
+            logger.error(f"Error deactivating connection: {e}", exc_info=True)
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @api_app.route('/api/network/connection/autoconnect', methods=['POST'])
+    def set_connection_autoconnect():
+        """Set autoconnect status for a connection."""
+        try:
+            if not check_nmcli_available():
+                return jsonify({
+                    'success': False,
+                    'error': 'NetworkManager (nmcli) not available'
+                }), 500
+
+            data = request.json
+            if not data:
+                return jsonify({'success': False, 'error': 'No JSON data provided'}), 400
+
+            connection = data.get('connection')
+            autoconnect = data.get('autoconnect', True)
+
+            if not connection:
+                return jsonify({'success': False, 'error': 'Connection name required'}), 400
+
+            logger.info(f"Setting autoconnect for {connection} to {autoconnect}")
+
+            cmd = [
+                'nmcli', 'connection', 'modify', connection,
+                'connection.autoconnect', 'yes' if autoconnect else 'no'
+            ]
+            result = run_command(cmd, check=False, timeout=15)
+
+            if result['success']:
+                logger.info(f"Successfully set autoconnect for {connection}")
+                return jsonify({
+                    'success': True,
+                    'message': f'Autoconnect {"enabled" if autoconnect else "disabled"}'
+                })
+            else:
+                return jsonify({
+                    'success': False,
+                    'error': result.get('stderr', result.get('error', 'Failed to set autoconnect'))
+                })
+
+        except Exception as e:
+            logger.error(f"Error setting autoconnect: {e}", exc_info=True)
+            return jsonify({'success': False, 'error': str(e)}), 500
+
     # Zigbee Serial Port Proxy Endpoints
 
     @api_app.route('/api/zigbee/ports', methods=['GET'])

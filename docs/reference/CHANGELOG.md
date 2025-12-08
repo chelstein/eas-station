@@ -6,6 +6,49 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.14.0] - 2025-12-08
+### Added - Phase 2: Core DASDEC3 Network Features
+- **Wired Ethernet Support**: Added detection and display of eth0/ethernet interfaces with connection status
+- **Static IP Configuration**: Full UI and backend for static IP settings (IP address, netmask, gateway) with toggle between DHCP and Static per interface
+- **DNS Server Configuration**: Added ability to view, add, remove, and apply DNS server settings via NetworkManager
+- **Network Diagnostics Tools**: Professional troubleshooting tools including:
+  - Ping test with customizable packet count
+  - Traceroute showing hop-by-hop network path
+  - DNS lookup (nslookup) for hostname resolution
+  - Default gateway information display
+  - Complete routing table viewer
+- **Saved Networks Management**: Display all saved WiFi profiles (not just in-range) with auto-connect status editing
+- **Connection Profiles**: Complete NetworkManager connection management with:
+  - List all saved connections with type and status
+  - Show connection details (interface, autoconnect state)
+  - Activate/deactivate connections
+  - Toggle auto-connect per connection
+  - Delete WiFi profiles
+- **Tabbed Interface**: Professional Bootstrap tabs UI organizing features:
+  - Status: Network overview and gateway info
+  - WiFi: Wireless network scanning and connection
+  - Wired: Ethernet interface configuration
+  - DNS: DNS server management
+  - Diagnostics: Network troubleshooting tools
+  - Connections: Saved profile management
+### Technical Details
+- Added 12 new API endpoints to hardware_service.py for Phase 2 features
+- Added corresponding proxy routes in webapp/admin/network.py
+- Complete UI rewrite with Bootstrap tabs and professional DASDEC3-style layout
+- All features use NetworkManager (nmcli) for consistency and reliability
+- Static IP configuration with CIDR prefix calculation
+- DNS configuration per connection with restart to apply changes
+- Diagnostics tools with real-time output display
+- Connection management with activate/deactivate and autoconnect toggle
+### Impact
+- ✅ Professional network management matching DASDEC3 standards
+- ✅ Static IP support for production deployments
+- ✅ DNS configuration for custom network environments
+- ✅ Comprehensive diagnostics for troubleshooting
+- ✅ Full control over saved network profiles
+- ✅ Wired and wireless interface support
+- ✅ DASDEC3-compatible feature set for professional EAS systems
+
 ## [2.13.5] - 2025-12-08
 ### Fixed
 - **CRITICAL WiFi BUG**: Fixed WiFi scanning returning no networks even when networks available

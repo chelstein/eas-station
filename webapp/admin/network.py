@@ -122,6 +122,107 @@ def forget_wifi():
     return jsonify(call_hardware_service('/api/network/forget', method='POST', data=data))
 
 
+# Phase 2: Core DASDEC3 Network Features
+
+@network_bp.route('/api/network/interfaces')
+@require_permission('system.configure')
+def get_interfaces():
+    """Get all network interfaces via hardware-service."""
+    return jsonify(call_hardware_service('/api/network/interfaces', method='GET'))
+
+
+@network_bp.route('/api/network/interface/configure', methods=['POST'])
+@require_permission('system.configure')
+def configure_interface():
+    """Configure network interface via hardware-service."""
+    data = request.get_json()
+    return jsonify(call_hardware_service('/api/network/interface/configure', method='POST', data=data))
+
+
+@network_bp.route('/api/network/dns')
+@require_permission('system.configure')
+def get_dns():
+    """Get DNS servers via hardware-service."""
+    return jsonify(call_hardware_service('/api/network/dns', method='GET'))
+
+
+@network_bp.route('/api/network/dns/configure', methods=['POST'])
+@require_permission('system.configure')
+def configure_dns():
+    """Configure DNS servers via hardware-service."""
+    data = request.get_json()
+    return jsonify(call_hardware_service('/api/network/dns/configure', method='POST', data=data))
+
+
+@network_bp.route('/api/network/diagnostics/ping', methods=['POST'])
+@require_permission('system.configure')
+def ping_host():
+    """Ping a host via hardware-service."""
+    data = request.get_json()
+    return jsonify(call_hardware_service('/api/network/diagnostics/ping', method='POST', data=data))
+
+
+@network_bp.route('/api/network/diagnostics/traceroute', methods=['POST'])
+@require_permission('system.configure')
+def traceroute_host():
+    """Traceroute to a host via hardware-service."""
+    data = request.get_json()
+    return jsonify(call_hardware_service('/api/network/diagnostics/traceroute', method='POST', data=data))
+
+
+@network_bp.route('/api/network/diagnostics/nslookup', methods=['POST'])
+@require_permission('system.configure')
+def nslookup_host():
+    """DNS lookup via hardware-service."""
+    data = request.get_json()
+    return jsonify(call_hardware_service('/api/network/diagnostics/nslookup', method='POST', data=data))
+
+
+@network_bp.route('/api/network/diagnostics/route')
+@require_permission('system.configure')
+def get_routing_table():
+    """Get routing table via hardware-service."""
+    return jsonify(call_hardware_service('/api/network/diagnostics/route', method='GET'))
+
+
+@network_bp.route('/api/network/diagnostics/gateway')
+@require_permission('system.configure')
+def get_gateway():
+    """Get default gateway via hardware-service."""
+    return jsonify(call_hardware_service('/api/network/diagnostics/gateway', method='GET'))
+
+
+@network_bp.route('/api/network/connections')
+@require_permission('system.configure')
+def get_connections():
+    """Get all saved connections via hardware-service."""
+    return jsonify(call_hardware_service('/api/network/connections', method='GET'))
+
+
+@network_bp.route('/api/network/connection/activate', methods=['POST'])
+@require_permission('system.configure')
+def activate_connection():
+    """Activate a connection via hardware-service."""
+    data = request.get_json()
+    return jsonify(call_hardware_service('/api/network/connection/activate', method='POST', data=data))
+
+
+@network_bp.route('/api/network/connection/deactivate', methods=['POST'])
+@require_permission('system.configure')
+def deactivate_connection():
+    """Deactivate a connection via hardware-service."""
+    data = request.get_json()
+    return jsonify(call_hardware_service('/api/network/connection/deactivate', method='POST', data=data))
+
+
+@network_bp.route('/api/network/connection/autoconnect', methods=['POST'])
+@require_permission('system.configure')
+def set_autoconnect():
+    """Set autoconnect status via hardware-service."""
+    data = request.get_json()
+    return jsonify(call_hardware_service('/api/network/connection/autoconnect', method='POST', data=data))
+
+
 def register_network_routes(app, logger):
     """Register network management routes with the Flask app."""
     app.register_blueprint(network_bp)

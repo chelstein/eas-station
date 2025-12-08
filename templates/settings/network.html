@@ -5,7 +5,7 @@
 {% block extra_css %}
 <style>
     .settings-container {
-        max-width: 1200px;
+        max-width: 1400px;
         margin: 0 auto;
         padding: 2rem;
     }
@@ -22,6 +22,32 @@
 
     .settings-header p {
         color: var(--text-secondary);
+    }
+
+    /* Tab styling */
+    .nav-tabs {
+        border-bottom: 2px solid var(--border-color);
+        margin-bottom: 2rem;
+    }
+
+    .nav-tabs .nav-link {
+        color: var(--text-color);
+        border: none;
+        border-bottom: 3px solid transparent;
+        padding: 0.75rem 1.5rem;
+        transition: all 0.2s;
+    }
+
+    .nav-tabs .nav-link:hover {
+        border-bottom-color: var(--primary-color);
+        background: transparent;
+    }
+
+    .nav-tabs .nav-link.active {
+        color: var(--primary-color);
+        background: transparent;
+        border-bottom-color: var(--primary-color);
+        font-weight: 600;
     }
 
     .network-section {
@@ -199,45 +225,262 @@
         margin-bottom: 1rem;
         opacity: 0.5;
     }
+
+    .diagnostics-output {
+        background: var(--bg-card);
+        border: 1px solid var(--border-color);
+        border-radius: 0.375rem;
+        padding: 1rem;
+        font-family: 'Courier New', monospace;
+        font-size: 0.875rem;
+        white-space: pre-wrap;
+        word-wrap: break-word;
+        max-height: 400px;
+        overflow-y: auto;
+    }
+
+    .interface-card {
+        background: var(--bg-card);
+        border: 1px solid var(--border-color);
+        border-radius: 0.375rem;
+        padding: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    .interface-card.active {
+        border-color: var(--success-color);
+        background: rgba(40, 167, 69, 0.05);
+    }
+
+    .interface-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.75rem;
+    }
+
+    .interface-name {
+        font-weight: 600;
+        font-size: 1.1rem;
+    }
+
+    .interface-type {
+        padding: 0.25rem 0.5rem;
+        border-radius: 0.25rem;
+        font-size: 0.75rem;
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+    }
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="settings-container">
     <div class="settings-header">
-        <h1><i class="fas fa-wifi"></i> Network Configuration</h1>
-        <p>Manage WiFi connections and network settings</p>
+        <h1><i class="fas fa-network-wired"></i> Network Configuration</h1>
+        <p>Professional network management - DASDEC3 compatible</p>
     </div>
 
-    <!-- Current Connection Status -->
-    <div class="network-section" id="current-status">
-        <h3><i class="fas fa-signal"></i> Current Status</h3>
-        <div id="status-loading">
-            <div class="spinner"></div> Loading network status...
-        </div>
-        <div id="status-content" style="display: none;">
-            <div id="connection-status"></div>
-            <div id="connection-info" class="connection-info"></div>
-        </div>
-    </div>
-
-    <!-- Available Networks -->
-    <div class="network-section">
-        <h3>
-            <i class="fas fa-broadcast-tower"></i> Available WiFi Networks
-            <button class="btn btn-sm btn-primary ms-auto" id="scan-btn">
-                <i class="fas fa-sync-alt"></i> Scan
+    <!-- Navigation Tabs -->
+    <ul class="nav nav-tabs" id="networkTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="status-tab" data-bs-toggle="tab" data-bs-target="#status" type="button">
+                <i class="fas fa-signal"></i> Status
             </button>
-        </h3>
-        <div id="scan-loading" style="display: none;">
-            <div class="spinner"></div> Scanning for networks...
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="wifi-tab" data-bs-toggle="tab" data-bs-target="#wifi" type="button">
+                <i class="fas fa-wifi"></i> WiFi
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="wired-tab" data-bs-toggle="tab" data-bs-target="#wired" type="button">
+                <i class="fas fa-ethernet"></i> Wired
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="dns-tab" data-bs-toggle="tab" data-bs-target="#dns" type="button">
+                <i class="fas fa-server"></i> DNS
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="diagnostics-tab" data-bs-toggle="tab" data-bs-target="#diagnostics" type="button">
+                <i class="fas fa-stethoscope"></i> Diagnostics
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="connections-tab" data-bs-toggle="tab" data-bs-target="#connections" type="button">
+                <i class="fas fa-list"></i> Connections
+            </button>
+        </li>
+    </ul>
+
+    <!-- Tab Content -->
+    <div class="tab-content" id="networkTabContent">
+        
+        <!-- Status Tab -->
+        <div class="tab-pane fade show active" id="status" role="tabpanel">
+            <div class="network-section">
+                <h3><i class="fas fa-info-circle"></i> Network Overview</h3>
+                <div id="status-loading">
+                    <div class="spinner"></div> Loading network status...
+                </div>
+                <div id="status-content" style="display: none;">
+                    <div id="connection-status"></div>
+                    <div id="connection-info" class="connection-info"></div>
+                </div>
+            </div>
+
+            <div class="network-section">
+                <h3><i class="fas fa-route"></i> Default Gateway</h3>
+                <div id="gateway-info"></div>
+            </div>
         </div>
-        <ul class="network-list" id="networks-list">
-            <li class="empty-state">
-                <i class="fas fa-wifi"></i>
-                <p>Click "Scan" to find available WiFi networks</p>
-            </li>
-        </ul>
+
+        <!-- WiFi Tab -->
+        <div class="tab-pane fade" id="wifi" role="tabpanel">
+            <div class="network-section">
+                <h3>
+                    <i class="fas fa-broadcast-tower"></i> Available WiFi Networks
+                    <button class="btn btn-sm btn-primary ms-auto" id="scan-btn">
+                        <i class="fas fa-sync-alt"></i> Scan
+                    </button>
+                </h3>
+                <div id="scan-loading" style="display: none;">
+                    <div class="spinner"></div> Scanning for networks...
+                </div>
+                <ul class="network-list" id="networks-list">
+                    <li class="empty-state">
+                        <i class="fas fa-wifi"></i>
+                        <p>Click "Scan" to find available WiFi networks</p>
+                    </li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Wired Tab -->
+        <div class="tab-pane fade" id="wired" role="tabpanel">
+            <div class="network-section">
+                <h3>
+                    <i class="fas fa-ethernet"></i> Ethernet Interfaces
+                    <button class="btn btn-sm btn-primary ms-auto" id="refresh-interfaces-btn">
+                        <i class="fas fa-sync-alt"></i> Refresh
+                    </button>
+                </h3>
+                <div id="interfaces-loading">
+                    <div class="spinner"></div> Loading interfaces...
+                </div>
+                <div id="interfaces-list"></div>
+            </div>
+        </div>
+
+        <!-- DNS Tab -->
+        <div class="tab-pane fade" id="dns" role="tabpanel">
+            <div class="network-section">
+                <h3><i class="fas fa-server"></i> DNS Configuration</h3>
+                <div id="dns-loading">
+                    <div class="spinner"></div> Loading DNS configuration...
+                </div>
+                <div id="dns-content" style="display: none;">
+                    <div class="mb-3">
+                        <label class="form-label">Active Connection</label>
+                        <select class="form-select" id="dns-connection">
+                            <option value="">Select a connection...</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">DNS Servers</label>
+                        <div id="dns-servers-display" class="mb-2"></div>
+                        <div class="input-group mb-2">
+                            <input type="text" class="form-control" id="dns-server-input" placeholder="8.8.8.8">
+                            <button class="btn btn-outline-primary" id="add-dns-btn">
+                                <i class="fas fa-plus"></i> Add
+                            </button>
+                        </div>
+                        <small class="text-muted">Enter DNS server IP address (e.g., 8.8.8.8, 1.1.1.1)</small>
+                    </div>
+                    <button class="btn btn-primary" id="apply-dns-btn">
+                        <i class="fas fa-save"></i> Apply DNS Configuration
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Diagnostics Tab -->
+        <div class="tab-pane fade" id="diagnostics" role="tabpanel">
+            <div class="network-section">
+                <h3><i class="fas fa-stethoscope"></i> Network Diagnostics</h3>
+                
+                <div class="row mb-4">
+                    <div class="col-md-4">
+                        <div class="card">
+                            <div class="card-body">
+                                <h6 class="card-title"><i class="fas fa-broadcast-tower"></i> Ping Test</h6>
+                                <div class="input-group mb-2">
+                                    <input type="text" class="form-control" id="ping-host" placeholder="google.com">
+                                    <button class="btn btn-primary" id="ping-btn">
+                                        <i class="fas fa-play"></i> Ping
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card">
+                            <div class="card-body">
+                                <h6 class="card-title"><i class="fas fa-route"></i> Traceroute</h6>
+                                <div class="input-group mb-2">
+                                    <input type="text" class="form-control" id="traceroute-host" placeholder="google.com">
+                                    <button class="btn btn-primary" id="traceroute-btn">
+                                        <i class="fas fa-play"></i> Trace
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card">
+                            <div class="card-body">
+                                <h6 class="card-title"><i class="fas fa-search"></i> DNS Lookup</h6>
+                                <div class="input-group mb-2">
+                                    <input type="text" class="form-control" id="nslookup-host" placeholder="google.com">
+                                    <button class="btn btn-primary" id="nslookup-btn">
+                                        <i class="fas fa-play"></i> Lookup
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <button class="btn btn-outline-secondary" id="routing-table-btn">
+                        <i class="fas fa-table"></i> Show Routing Table
+                    </button>
+                </div>
+
+                <div id="diagnostics-output-container" style="display: none;">
+                    <h6><i class="fas fa-terminal"></i> Output:</h6>
+                    <div class="diagnostics-output" id="diagnostics-output"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Connections Tab -->
+        <div class="tab-pane fade" id="connections" role="tabpanel">
+            <div class="network-section">
+                <h3>
+                    <i class="fas fa-list"></i> Saved Connection Profiles
+                    <button class="btn btn-sm btn-primary ms-auto" id="refresh-connections-btn">
+                        <i class="fas fa-sync-alt"></i> Refresh
+                    </button>
+                </h3>
+                <div id="connections-loading">
+                    <div class="spinner"></div> Loading connections...
+                </div>
+                <div id="connections-list"></div>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -267,6 +510,56 @@
         </div>
     </div>
 </div>
+
+<!-- Configure Interface Modal -->
+<div class="modal fade" id="configureInterfaceModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Configure Network Interface</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="config-connection-name">
+                <div class="mb-3">
+                    <label class="form-label">Connection</label>
+                    <input type="text" class="form-control" id="config-connection-display" readonly>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">IP Configuration</label>
+                    <select class="form-select" id="config-method">
+                        <option value="auto">DHCP (Automatic)</option>
+                        <option value="manual">Static IP (Manual)</option>
+                    </select>
+                </div>
+                <div id="static-ip-fields" style="display: none;">
+                    <div class="mb-3">
+                        <label class="form-label">IP Address</label>
+                        <input type="text" class="form-control" id="config-ip" placeholder="192.168.1.100">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Netmask</label>
+                        <select class="form-select" id="config-netmask">
+                            <option value="255.255.255.0">255.255.255.0 (/24)</option>
+                            <option value="255.255.0.0">255.255.0.0 (/16)</option>
+                            <option value="255.0.0.0">255.0.0.0 (/8)</option>
+                            <option value="255.255.255.128">255.255.255.128 (/25)</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Gateway (Optional)</label>
+                        <input type="text" class="form-control" id="config-gateway" placeholder="192.168.1.1">
+                    </div>
+                </div>
+                <div id="config-error" class="alert alert-danger" style="display: none;"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="config-submit">Apply</button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -275,16 +568,45 @@
 const NetworkConfig = {
     currentSsid: null,
     connectModal: null,
+    configureInterfaceModal: null,
+    dnsServers: [],
 
     init() {
         this.connectModal = new bootstrap.Modal(document.getElementById('connectModal'));
+        this.configureInterfaceModal = new bootstrap.Modal(document.getElementById('configureInterfaceModal'));
         this.attachEventListeners();
         this.loadNetworkStatus();
+        this.loadGatewayInfo();
+        this.loadInterfaces();
+        this.loadDNSConfig();
+        this.loadConnections();
     },
 
     attachEventListeners() {
+        // WiFi
         document.getElementById('scan-btn').addEventListener('click', () => this.scanNetworks());
         document.getElementById('connect-submit').addEventListener('click', () => this.connectToNetwork());
+        
+        // Wired
+        document.getElementById('refresh-interfaces-btn').addEventListener('click', () => this.loadInterfaces());
+        document.getElementById('config-method').addEventListener('change', (e) => {
+            document.getElementById('static-ip-fields').style.display = 
+                e.target.value === 'manual' ? 'block' : 'none';
+        });
+        document.getElementById('config-submit').addEventListener('click', () => this.configureInterface());
+        
+        // DNS
+        document.getElementById('add-dns-btn').addEventListener('click', () => this.addDNSServer());
+        document.getElementById('apply-dns-btn').addEventListener('click', () => this.applyDNSConfig());
+        
+        // Diagnostics
+        document.getElementById('ping-btn').addEventListener('click', () => this.runPing());
+        document.getElementById('traceroute-btn').addEventListener('click', () => this.runTraceroute());
+        document.getElementById('nslookup-btn').addEventListener('click', () => this.runNSLookup());
+        document.getElementById('routing-table-btn').addEventListener('click', () => this.showRoutingTable());
+        
+        // Connections
+        document.getElementById('refresh-connections-btn').addEventListener('click', () => this.loadConnections());
     },
 
     async loadNetworkStatus() {
@@ -294,8 +616,6 @@ const NetworkConfig = {
 
             if (data.success) {
                 this.displayNetworkStatus(data);
-            } else {
-                console.error('Network status API error:', data.error || 'Unknown error');
             }
         } catch (error) {
             console.error('Failed to load network status:', error);
@@ -309,7 +629,6 @@ const NetworkConfig = {
         const statusDiv = document.getElementById('connection-status');
         const infoDiv = document.getElementById('connection-info');
 
-        // Display connection status
         if (data.wifi && data.wifi.ssid) {
             statusDiv.innerHTML = `
                 <div class="status-badge connected">
@@ -317,7 +636,6 @@ const NetworkConfig = {
                 </div>
             `;
 
-            // Display connection details
             let infoCards = '';
             if (data.interfaces && Object.keys(data.interfaces).length > 0) {
                 for (const [iface, addrs] of Object.entries(data.interfaces)) {
@@ -332,7 +650,6 @@ const NetworkConfig = {
                 }
             }
             
-            // Add interface info even without IP addresses
             if (!infoCards && data.wifi.interface) {
                 infoCards = `
                     <div class="info-card">
@@ -353,6 +670,33 @@ const NetworkConfig = {
         }
     },
 
+    async loadGatewayInfo() {
+        try {
+            const response = await fetch('/api/network/diagnostics/gateway');
+            const data = await response.json();
+
+            const gatewayDiv = document.getElementById('gateway-info');
+            if (data.success && data.gateway) {
+                gatewayDiv.innerHTML = `
+                    <div class="connection-info">
+                        <div class="info-card">
+                            <div class="info-label">Gateway IP</div>
+                            <div class="info-value">${data.gateway}</div>
+                        </div>
+                        <div class="info-card">
+                            <div class="info-label">Interface</div>
+                            <div class="info-value">${data.interface || 'N/A'}</div>
+                        </div>
+                    </div>
+                `;
+            } else {
+                gatewayDiv.innerHTML = '<p class="text-muted">No default gateway configured</p>';
+            }
+        } catch (error) {
+            console.error('Failed to load gateway info:', error);
+        }
+    },
+
     async scanNetworks() {
         const btn = document.getElementById('scan-btn');
         const loadingDiv = document.getElementById('scan-loading');
@@ -365,9 +709,7 @@ const NetworkConfig = {
         try {
             const response = await fetch('/api/network/wifi/scan', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                }
+                headers: { 'Content-Type': 'application/json' }
             });
             const data = await response.json();
 
@@ -393,7 +735,7 @@ const NetworkConfig = {
             networksList.innerHTML = `
                 <li class="empty-state">
                     <i class="fas fa-exclamation-triangle"></i>
-                    <p>Error scanning networks: ${error.message}</p>
+                    <p>Error: ${error.message}</p>
                 </li>
             `;
         } finally {
@@ -455,13 +797,8 @@ const NetworkConfig = {
         try {
             const response = await fetch('/api/network/wifi/connect', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    ssid: ssid,
-                    password: password
-                })
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ssid, password })
             });
             const data = await response.json();
 
@@ -488,9 +825,7 @@ const NetworkConfig = {
         try {
             const response = await fetch('/api/network/wifi/disconnect', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({})
             });
             const data = await response.json();
@@ -504,6 +839,464 @@ const NetworkConfig = {
             }
         } catch (error) {
             showToast('Failed to disconnect: ' + error.message, 'error');
+        }
+    },
+
+    async loadInterfaces() {
+        const loadingDiv = document.getElementById('interfaces-loading');
+        const listDiv = document.getElementById('interfaces-list');
+
+        loadingDiv.style.display = 'block';
+        listDiv.innerHTML = '';
+
+        try {
+            const response = await fetch('/api/network/interfaces');
+            const data = await response.json();
+
+            if (data.success && data.interfaces) {
+                listDiv.innerHTML = data.interfaces.map(iface => this.renderInterface(iface)).join('');
+            } else {
+                listDiv.innerHTML = '<p class="text-muted">No network interfaces found</p>';
+            }
+        } catch (error) {
+            console.error('Failed to load interfaces:', error);
+            listDiv.innerHTML = `<p class="text-danger">Error: ${error.message}</p>`;
+        } finally {
+            loadingDiv.style.display = 'none';
+        }
+    },
+
+    renderInterface(iface) {
+        const isActive = iface.state === 'connected';
+        const isEthernet = iface.type === 'ethernet';
+        
+        let ipInfo = '';
+        if (iface.ipv4_addresses && iface.ipv4_addresses.length > 0) {
+            ipInfo = iface.ipv4_addresses.map(addr => 
+                `<div><strong>IPv4:</strong> ${addr.address}/${addr.prefixlen}</div>`
+            ).join('');
+        }
+        if (iface.ipv4_gateway) {
+            ipInfo += `<div><strong>Gateway:</strong> ${iface.ipv4_gateway}</div>`;
+        }
+
+        return `
+            <div class="interface-card ${isActive ? 'active' : ''}">
+                <div class="interface-header">
+                    <div>
+                        <span class="interface-name">${iface.device}</span>
+                        <span class="interface-type">${iface.type}</span>
+                    </div>
+                    <div>
+                        ${isActive ? 
+                            '<span class="status-badge connected"><i class="fas fa-check-circle"></i> Connected</span>' :
+                            '<span class="status-badge disconnected"><i class="fas fa-times-circle"></i> Disconnected</span>'
+                        }
+                    </div>
+                </div>
+                ${iface.connection ? `<div><strong>Connection:</strong> ${iface.connection}</div>` : ''}
+                ${ipInfo}
+                ${iface.connection && isEthernet ? `
+                    <div class="mt-2">
+                        <button class="btn btn-sm btn-primary" onclick="NetworkConfig.showConfigureInterface('${iface.connection}')">
+                            <i class="fas fa-cog"></i> Configure
+                        </button>
+                    </div>
+                ` : ''}
+            </div>
+        `;
+    },
+
+    showConfigureInterface(connectionName) {
+        document.getElementById('config-connection-name').value = connectionName;
+        document.getElementById('config-connection-display').value = connectionName;
+        document.getElementById('config-method').value = 'auto';
+        document.getElementById('static-ip-fields').style.display = 'none';
+        document.getElementById('config-error').style.display = 'none';
+        this.configureInterfaceModal.show();
+    },
+
+    async configureInterface() {
+        const connection = document.getElementById('config-connection-name').value;
+        const method = document.getElementById('config-method').value;
+        const ip = document.getElementById('config-ip').value;
+        const netmask = document.getElementById('config-netmask').value;
+        const gateway = document.getElementById('config-gateway').value;
+        const submitBtn = document.getElementById('config-submit');
+        const errorDiv = document.getElementById('config-error');
+
+        submitBtn.disabled = true;
+        errorDiv.style.display = 'none';
+
+        try {
+            const response = await fetch('/api/network/interface/configure', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    connection,
+                    method,
+                    ip_address: ip,
+                    netmask,
+                    gateway
+                })
+            });
+            const data = await response.json();
+
+            if (data.success) {
+                this.configureInterfaceModal.hide();
+                showToast('Interface configured successfully', 'success');
+                this.loadInterfaces();
+                this.loadNetworkStatus();
+            } else {
+                errorDiv.textContent = data.error || 'Configuration failed';
+                errorDiv.style.display = 'block';
+            }
+        } catch (error) {
+            errorDiv.textContent = 'Failed to configure: ' + error.message;
+            errorDiv.style.display = 'block';
+        } finally {
+            submitBtn.disabled = false;
+        }
+    },
+
+    async loadDNSConfig() {
+        try {
+            const [dnsResponse, connectionsResponse] = await Promise.all([
+                fetch('/api/network/dns'),
+                fetch('/api/network/connections')
+            ]);
+            
+            const dnsData = await dnsResponse.json();
+            const connectionsData = await connectionsResponse.json();
+
+            if (dnsData.success) {
+                this.dnsServers = dnsData.dns_servers || [];
+                this.displayDNSServers();
+            }
+
+            if (connectionsData.success) {
+                const select = document.getElementById('dns-connection');
+                select.innerHTML = '<option value="">Select a connection...</option>' +
+                    connectionsData.connections.map(conn => 
+                        `<option value="${conn.name}">${conn.name} (${conn.type})</option>`
+                    ).join('');
+            }
+        } catch (error) {
+            console.error('Failed to load DNS config:', error);
+        } finally {
+            document.getElementById('dns-loading').style.display = 'none';
+            document.getElementById('dns-content').style.display = 'block';
+        }
+    },
+
+    displayDNSServers() {
+        const display = document.getElementById('dns-servers-display');
+        if (this.dnsServers.length === 0) {
+            display.innerHTML = '<p class="text-muted">No DNS servers configured (using DHCP defaults)</p>';
+        } else {
+            display.innerHTML = this.dnsServers.map(server => `
+                <div class="d-flex align-items-center gap-2 mb-1">
+                    <span class="badge bg-primary">${server}</span>
+                    <button class="btn btn-sm btn-outline-danger" onclick="NetworkConfig.removeDNSServer('${server}')">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            `).join('');
+        }
+    },
+
+    addDNSServer() {
+        const input = document.getElementById('dns-server-input');
+        const server = input.value.trim();
+        
+        if (!server) {
+            showToast('Please enter a DNS server address', 'error');
+            return;
+        }
+
+        // Basic IP validation
+        const ipPattern = /^(\d{1,3}\.){3}\d{1,3}$/;
+        if (!ipPattern.test(server)) {
+            showToast('Invalid IP address format', 'error');
+            return;
+        }
+
+        if (!this.dnsServers.includes(server)) {
+            this.dnsServers.push(server);
+            this.displayDNSServers();
+            input.value = '';
+        } else {
+            showToast('DNS server already added', 'warning');
+        }
+    },
+
+    removeDNSServer(server) {
+        this.dnsServers = this.dnsServers.filter(s => s !== server);
+        this.displayDNSServers();
+    },
+
+    async applyDNSConfig() {
+        const connection = document.getElementById('dns-connection').value;
+        
+        if (!connection) {
+            showToast('Please select a connection', 'error');
+            return;
+        }
+
+        const btn = document.getElementById('apply-dns-btn');
+        btn.disabled = true;
+
+        try {
+            const response = await fetch('/api/network/dns/configure', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    connection,
+                    dns_servers: this.dnsServers
+                })
+            });
+            const data = await response.json();
+
+            if (data.success) {
+                showToast('DNS configuration applied', 'success');
+            } else {
+                showToast('Failed to apply DNS config: ' + (data.error || 'Unknown error'), 'error');
+            }
+        } catch (error) {
+            showToast('Failed to apply DNS config: ' + error.message, 'error');
+        } finally {
+            btn.disabled = false;
+        }
+    },
+
+    async runPing() {
+        const host = document.getElementById('ping-host').value.trim();
+        if (!host) {
+            showToast('Please enter a host to ping', 'error');
+            return;
+        }
+
+        this.runDiagnostic('ping', { host }, 'Pinging ' + host);
+    },
+
+    async runTraceroute() {
+        const host = document.getElementById('traceroute-host').value.trim();
+        if (!host) {
+            showToast('Please enter a host to trace', 'error');
+            return;
+        }
+
+        this.runDiagnostic('traceroute', { host }, 'Traceroute to ' + host);
+    },
+
+    async runNSLookup() {
+        const host = document.getElementById('nslookup-host').value.trim();
+        if (!host) {
+            showToast('Please enter a hostname to lookup', 'error');
+            return;
+        }
+
+        this.runDiagnostic('nslookup', { host }, 'DNS lookup for ' + host);
+    },
+
+    async showRoutingTable() {
+        try {
+            const response = await fetch('/api/network/diagnostics/route');
+            const data = await response.json();
+
+            const container = document.getElementById('diagnostics-output-container');
+            const output = document.getElementById('diagnostics-output');
+            
+            container.style.display = 'block';
+            
+            if (data.success) {
+                output.textContent = '=== Routing Table ===\n\n' + data.output;
+            } else {
+                output.textContent = 'Error: ' + (data.error || 'Failed to get routing table');
+            }
+        } catch (error) {
+            showToast('Failed to get routing table: ' + error.message, 'error');
+        }
+    },
+
+    async runDiagnostic(type, params, title) {
+        const container = document.getElementById('diagnostics-output-container');
+        const output = document.getElementById('diagnostics-output');
+        
+        container.style.display = 'block';
+        output.textContent = `Running ${title}...\n\nPlease wait...`;
+
+        try {
+            const response = await fetch(`/api/network/diagnostics/${type}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(params)
+            });
+            const data = await response.json();
+
+            if (data.success) {
+                output.textContent = `=== ${title} ===\n\n` + data.output;
+            } else {
+                output.textContent = `Error: ${data.error || 'Command failed'}\n\n${data.output || ''}`;
+            }
+        } catch (error) {
+            output.textContent = `Error: ${error.message}`;
+        }
+    },
+
+    async loadConnections() {
+        const loadingDiv = document.getElementById('connections-loading');
+        const listDiv = document.getElementById('connections-list');
+
+        loadingDiv.style.display = 'block';
+        listDiv.innerHTML = '';
+
+        try {
+            const response = await fetch('/api/network/connections');
+            const data = await response.json();
+
+            if (data.success && data.connections) {
+                listDiv.innerHTML = data.connections.map(conn => this.renderConnection(conn)).join('');
+            } else {
+                listDiv.innerHTML = '<p class="text-muted">No saved connections found</p>';
+            }
+        } catch (error) {
+            console.error('Failed to load connections:', error);
+            listDiv.innerHTML = `<p class="text-danger">Error: ${error.message}</p>`;
+        } finally {
+            loadingDiv.style.display = 'none';
+        }
+    },
+
+    renderConnection(conn) {
+        const isActive = conn.device !== null;
+        
+        return `
+            <div class="interface-card ${isActive ? 'active' : ''}">
+                <div class="interface-header">
+                    <div>
+                        <span class="interface-name">${conn.name}</span>
+                        <span class="interface-type">${conn.type}</span>
+                    </div>
+                    <div>
+                        ${isActive ? 
+                            '<span class="status-badge connected"><i class="fas fa-plug"></i> Active</span>' :
+                            '<span class="status-badge disconnected"><i class="fas fa-plug"></i> Inactive</span>'
+                        }
+                    </div>
+                </div>
+                <div class="mb-2">
+                    <strong>Device:</strong> ${conn.device || 'Not connected'}
+                </div>
+                <div class="mb-2">
+                    <strong>Auto-connect:</strong> ${conn.autoconnect ? 'Yes' : 'No'}
+                </div>
+                <div class="d-flex gap-2">
+                    ${!isActive ? `
+                        <button class="btn btn-sm btn-primary" onclick="NetworkConfig.activateConnection('${conn.name}')">
+                            <i class="fas fa-play"></i> Activate
+                        </button>
+                    ` : `
+                        <button class="btn btn-sm btn-outline-danger" onclick="NetworkConfig.deactivateConnection('${conn.name}')">
+                            <i class="fas fa-stop"></i> Deactivate
+                        </button>
+                    `}
+                    <button class="btn btn-sm btn-outline-secondary" onclick="NetworkConfig.toggleAutoconnect('${conn.name}', ${!conn.autoconnect})">
+                        <i class="fas fa-${conn.autoconnect ? 'toggle-on' : 'toggle-off'}"></i> Auto-connect ${conn.autoconnect ? 'On' : 'Off'}
+                    </button>
+                    ${conn.type === 'wifi' || conn.type === '802-11-wireless' ? `
+                        <button class="btn btn-sm btn-outline-danger" onclick="NetworkConfig.forgetConnection('${conn.name}')">
+                            <i class="fas fa-trash"></i> Forget
+                        </button>
+                    ` : ''}
+                </div>
+            </div>
+        `;
+    },
+
+    async activateConnection(name) {
+        try {
+            const response = await fetch('/api/network/connection/activate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ connection: name })
+            });
+            const data = await response.json();
+
+            if (data.success) {
+                showToast(`Activated ${name}`, 'success');
+                this.loadConnections();
+                this.loadNetworkStatus();
+            } else {
+                showToast('Failed to activate: ' + (data.error || 'Unknown error'), 'error');
+            }
+        } catch (error) {
+            showToast('Failed to activate: ' + error.message, 'error');
+        }
+    },
+
+    async deactivateConnection(name) {
+        if (!confirm(`Deactivate ${name}?`)) return;
+
+        try {
+            const response = await fetch('/api/network/connection/deactivate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ connection: name })
+            });
+            const data = await response.json();
+
+            if (data.success) {
+                showToast(`Deactivated ${name}`, 'success');
+                this.loadConnections();
+                this.loadNetworkStatus();
+            } else {
+                showToast('Failed to deactivate: ' + (data.error || 'Unknown error'), 'error');
+            }
+        } catch (error) {
+            showToast('Failed to deactivate: ' + error.message, 'error');
+        }
+    },
+
+    async toggleAutoconnect(name, enable) {
+        try {
+            const response = await fetch('/api/network/connection/autoconnect', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ connection: name, autoconnect: enable })
+            });
+            const data = await response.json();
+
+            if (data.success) {
+                showToast(`Auto-connect ${enable ? 'enabled' : 'disabled'} for ${name}`, 'success');
+                this.loadConnections();
+            } else {
+                showToast('Failed to change auto-connect: ' + (data.error || 'Unknown error'), 'error');
+            }
+        } catch (error) {
+            showToast('Failed to change auto-connect: ' + error.message, 'error');
+        }
+    },
+
+    async forgetConnection(name) {
+        if (!confirm(`Forget network ${name}? This will remove the saved password.`)) return;
+
+        try {
+            const response = await fetch('/api/network/wifi/forget', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ connection: name })
+            });
+            const data = await response.json();
+
+            if (data.success) {
+                showToast(`Forgot network ${name}`, 'success');
+                this.loadConnections();
+            } else {
+                showToast('Failed to forget network: ' + (data.error || 'Unknown error'), 'error');
+            }
+        } catch (error) {
+            showToast('Failed to forget network: ' + error.message, 'error');
         }
     }
 };
