@@ -521,18 +521,19 @@ def initialize_eas_monitor(app, audio_controller):
     global _eas_monitor
 
     with app.app_context():
-        from app_core.audio.eas_monitor import ContinuousEASMonitor, create_fips_filtering_callback
+        from app_core.audio.eas_monitor_simple import SimpleEASMonitor
+        from app_core.audio.eas_monitor import create_fips_filtering_callback
         from app_core.audio.broadcast_adapter import BroadcastAudioAdapter
         from app_core.audio.startup_integration import load_fips_codes_from_config
         from app_core.audio.ingest import AudioSourceStatus
 
-        logger.info("Initializing per-source EAS monitors...")
+        logger.info("Initializing simple per-source EAS monitors...")
 
         # Load FIPS codes
         configured_fips = load_fips_codes_from_config()
         logger.info(f"Loaded {len(configured_fips)} FIPS codes for alert filtering")
 
-        # Create alert callback with filtering (shared by all monitors)
+        # Create alert callback with filtering
         def forward_alert_handler(alert):
             """Forward matched alerts."""
             from app_core.audio.alert_forwarding import forward_alert_to_api
@@ -553,21 +554,21 @@ def initialize_eas_monitor(app, audio_controller):
 
         # Create dictionary to store all monitors
         monitors = {}
-        
+
         # Create a monitor for each RUNNING audio source
         for source_name, source_adapter in audio_controller._sources.items():
             if source_adapter.status != AudioSourceStatus.RUNNING:
-                logger.warning(
+                logger.info(
                     f"Skipping EAS monitor for '{source_name}' - "
                     f"source not running (status: {source_adapter.status.value})"
                 )
                 continue
-            
+
             try:
-                # Get source's individual broadcast queue (not the main controller queue!)
+                # Get source's individual broadcast queue
                 source_broadcast_queue = source_adapter.get_broadcast_queue()
                 source_sample_rate = source_adapter.config.sample_rate
-                
+
                 # Create broadcast adapter for this specific source
                 subscriber_id = f"eas-monitor-{source_name}"
                 audio_adapter = BroadcastAudioAdapter(
@@ -575,31 +576,28 @@ def initialize_eas_monitor(app, audio_controller):
                     subscriber_id=subscriber_id,
                     sample_rate=int(source_sample_rate)
                 )
-                
-                # Create EAS monitor for this source (16 kHz for optimal SAME decoding)
-                monitor = ContinuousEASMonitor(
-                    audio_manager=audio_adapter,
+
+                # Create simple EAS monitor
+                monitor = SimpleEASMonitor(
+                    audio_source=audio_adapter,
                     sample_rate=16000,
-                    alert_callback=alert_callback,
-                    save_audio_files=True,
-                    audio_archive_dir="/tmp/eas-audio"
+                    alert_callback=alert_callback
                 )
-                
+
                 # Start monitoring this source
                 if monitor.start():
                     monitors[source_name] = monitor
-                    logger.info(f"✅ EAS monitor started for source: {source_name}")
+                    logger.info(f"✅ Simple EAS monitor started for source: {source_name}")
                 else:
                     logger.error(f"❌ EAS monitor failed to start for source: {source_name}")
-                    
+
             except Exception as e:
                 logger.error(f"❌ Failed to create EAS monitor for '{source_name}': {e}", exc_info=True)
-        
+
         if not monitors:
-            logger.warning("⚠️ No EAS monitors started initially - no running sources yet")
-            logger.info("   EAS monitors will be created automatically when sources start")
+            logger.info("No EAS monitors started - no running sources yet")
         else:
-            logger.info(f"✅ Started {len(monitors)} EAS monitor(s) for sources: {list(monitors.keys())}")
+            logger.info(f"✅ Started {len(monitors)} simple EAS monitor(s) for sources: {list(monitors.keys())}")
 
         # Return a monitor manager object instead of attaching to first monitor
         # This avoids fragile coupling and provides cleaner API
@@ -652,19 +650,17 @@ def initialize_eas_monitor(app, audio_controller):
                         sample_rate=int(source_sample_rate)
                     )
 
-                    # Create EAS monitor for this source (16 kHz for optimal SAME decoding)
-                    monitor = ContinuousEASMonitor(
-                        audio_manager=audio_adapter,
+                    # Create simple EAS monitor
+                    monitor = SimpleEASMonitor(
+                        audio_source=audio_adapter,
                         sample_rate=16000,
-                        alert_callback=self._alert_callback,
-                        save_audio_files=True,
-                        audio_archive_dir="/tmp/eas-audio"
+                        alert_callback=self._alert_callback
                     )
 
                     # Start monitoring this source
                     if monitor.start():
                         self._all_monitors[source_name] = monitor
-                        logger.info(f"✅ EAS monitor dynamically started for source: {source_name}")
+                        logger.info(f"✅ Simple EAS monitor dynamically started for source: {source_name}")
                         return True
                     else:
                         logger.error(f"❌ EAS monitor failed to start for source: {source_name}")
