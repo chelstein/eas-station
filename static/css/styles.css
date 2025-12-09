@@ -1063,8 +1063,9 @@ small,
 
 /* Page Shell */
 .page-shell {
-    /* Use flex: 1 to fill available space - works with flexbox sticky footer */
-    flex: 1;
+    /* FIXED: Removed flex: 1 that was causing excessive white space at top of pages.
+       The footer's margin-top: auto handles sticky footer behavior, so flex: 1 is not needed.
+       Content height is now determined naturally by page content. */
     padding: var(--layout-padding-top) 0 var(--layout-padding-bottom);
     position: relative;
 }

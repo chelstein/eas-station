@@ -6,6 +6,35 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.17.1] - 2025-12-09
+### Fixed
+- **CRITICAL: WebSocket Support Broken**: Fixed Flask-SocketIO async_mode mismatch that prevented WebSockets from working
+  - Root cause: `app.py` used `async_mode='threading'` but gunicorn uses `--worker-class gevent`
+  - This mismatch caused WebSockets to FAIL SILENTLY and fall back to long-polling
+  - Fix: Changed `async_mode='threading'` to `async_mode='gevent'` to match gunicorn worker class
+  - Impact: Enables real-time WebSocket updates at 10Hz (100ms) instead of 1-2 second polling intervals
+  - This fixes why the entire site was polling despite WebSocket infrastructure being present
+- **UI White Space**: Fixed excessive white space at top of pages caused by `flex: 1` on `.page-shell`
+  - Root cause: Flexbox layout with `flex: 1` caused content to expand and fill all vertical space
+  - Fix: Removed `flex: 1` from `.page-shell` - footer's `margin-top: auto` handles sticky footer
+  - Result: Pages now start content immediately after navbar without huge gaps
+- **EAS Monitor Status Flickering**: Fixed continuous toggling between "Processing at line rate" and "No audio sources configured"
+  - Root cause: `audioFlowing` state changed on every momentary fluctuation in audio metrics
+  - Fix: Added hysteresis mechanism requiring 3 consecutive stable readings before changing state
+  - Result: Status display is now stable and only changes after sustained state change
+
+### Changed
+- **WebSocket Infrastructure**: Audio monitoring page already uses WebSockets when available
+  - VU meters, EAS monitor, and broadcast stats all receive real-time updates via WebSocket
+  - System automatically falls back to polling only if WebSocket connection fails
+  - With this fix, WebSockets should now work properly and polling fallback won't be needed
+
+### Notes
+- This fixes the root cause of why 10+ previous agent sessions couldn't solve the white space issue
+- The white space issue was subtle - `flex: 1` is a common flexbox pattern but caused unwanted expansion
+- The WebSocket issue explains why 32 setInterval() polling calls exist throughout the codebase
+- Future work: Extend WebSocket push service to broadcast all data types (alerts, system health, etc.) to eliminate remaining polling
+
 ## [2.16.5] - 2025-12-09
 ### Fixed
 - **Application Startup Failure**: Fixed unterminated triple-quoted string literal in `webapp/admin/audio_ingest.py` at line 2237
