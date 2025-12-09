@@ -1687,14 +1687,24 @@ function updateEASMonitorDisplay(status) {
     // Update status badge
     const statusBadge = document.getElementById('eas-monitor-status-badge');
     const running = status.running || false;
-    const audioFlowing = status.audio_flowing || false;
+    
+    // Better audio flowing detection - check multiple indicators
+    const samplesProcessed = status.samples_processed || 0;
+    const samplesPerSecond = status.samples_per_second || 0;
+    const audioFlowing = status.audio_flowing || samplesProcessed > 0 || samplesPerSecond > 0;
+    
+    // Get active sources count
+    const activeSources = status.active_sources || 0;
+    const monitorCount = status.monitor_count || 0;
 
     if (statusBadge) {
         if (status.error) {
             statusBadge.innerHTML = '<span class="badge bg-danger">Error</span>';
             showEASMonitorError(status.error);
         } else if (running && audioFlowing) {
-            statusBadge.innerHTML = '<span class="badge bg-success"><i class="fas fa-broadcast-tower"></i> Streaming</span>';
+            // Show number of active streams
+            const streamsText = activeSources > 0 ? ` (${activeSources} stream${activeSources !== 1 ? 's' : ''})` : '';
+            statusBadge.innerHTML = `<span class="badge bg-success"><i class="fas fa-broadcast-tower"></i> Streaming${streamsText}</span>`;
         } else if (running) {
             statusBadge.innerHTML = '<span class="badge bg-warning">Running (No Audio)</span>';
         } else {
@@ -1710,11 +1720,15 @@ function updateEASMonitorDisplay(status) {
         stopBtn.disabled = !running;   // Disable stop if not running
     }
 
-    // Update running status
+    // Update running status - show monitor count
     const runningStatus = document.getElementById('eas-running-status');
     if (runningStatus) {
-        runningStatus.textContent = running ? '✅ Active' : '⏸️ Stopped';
-        runningStatus.style.color = running ? '#28a745' : '#6c757d';
+        if (running) {
+            const sourceInfo = monitorCount > 0 ? ` (${monitorCount} source${monitorCount !== 1 ? 's' : ''})` : '';
+            runningStatus.innerHTML = `<span style="color: #28a745;">✅ Active${sourceInfo}</span>`;
+        } else {
+            runningStatus.innerHTML = '<span style="color: #6c757d;">⏸️ Stopped</span>';
+        }
     }
 
     // Update decoder health indicator
@@ -1758,7 +1772,16 @@ function updateEASMonitorDisplay(status) {
             bufferStatus.className = 'text-muted d-block mt-1';
             easMonitorStartTime = null; // Reset start time when stopped
         } else if (!audioFlowing) {
-            bufferStatus.innerHTML = '⚠️ No audio flowing';
+            // Show more helpful message about why no audio
+            const activeSources = status.active_sources || 0;
+            const monitorCount = status.monitor_count || 0;
+            if (monitorCount > 0 && activeSources === 0) {
+                bufferStatus.innerHTML = `⚠️ No audio flowing (${monitorCount} source${monitorCount !== 1 ? 's' : ''} configured but not streaming)`;
+            } else if (monitorCount === 0) {
+                bufferStatus.innerHTML = '⚠️ No audio sources configured - configure sources in Audio Settings';
+            } else {
+                bufferStatus.innerHTML = '⚠️ No audio flowing - check audio sources';
+            }
             bufferStatus.className = 'text-warning d-block mt-1';
             easMonitorStartTime = null; // Reset if no audio
         } else {
@@ -1957,25 +1980,30 @@ function updateEASMonitorDisplay(status) {
     // Update streaming performance status message
     const performanceStatus = document.getElementById('performance-status');
     if (performanceStatus) {
+        const activeSources = status.active_sources || 0;
+        const monitorCount = status.monitor_count || 0;
+        
         if (!running) {
             performanceStatus.textContent = 'Monitor stopped. Start monitoring to see real-time performance.';
             performanceStatus.style.color = 'var(--text-muted)';
         } else if (!audioFlowing) {
-            performanceStatus.textContent = 'Waiting for audio data from sources. Configure and start audio sources to begin processing.';
+            const sourceInfo = monitorCount > 0 ? ` (${monitorCount} source${monitorCount !== 1 ? 's' : ''} configured, ${activeSources} active)` : '';
+            performanceStatus.textContent = `Waiting for audio data from sources${sourceInfo}. Configure and start audio sources to begin processing.`;
             performanceStatus.style.color = 'var(--warning-color)';
         } else {
             // Audio is flowing - show processing rate
             const sps = status.samples_per_second || 0;
             const expectedRate = status.sample_rate || 16000;
             const percentage = expectedRate > 0 ? ((sps / expectedRate) * 100).toFixed(1) : 0;
+            const streamInfo = activeSources > 0 ? ` from ${activeSources} stream${activeSources !== 1 ? 's' : ''}` : '';
             
             if (status.health_percentage >= 0.95) {
-                performanceStatus.innerHTML = `<span style="color: var(--success-color);">✓ Processing at ${percentage}% of line rate (${(sps / 1000).toFixed(1)}k samples/sec). Real-time streaming active.</span>`;
+                performanceStatus.innerHTML = `<span style="color: var(--success-color);">✓ Processing at ${percentage}% of line rate (${(sps / 1000).toFixed(1)}k samples/sec${streamInfo}). Real-time streaming active.</span>`;
             } else if (status.health_percentage >= 0.8) {
-                performanceStatus.innerHTML = `<span style="color: var(--info-color);">Processing at ${percentage}% of line rate (${(sps / 1000).toFixed(1)}k samples/sec). Building up to full rate...</span>`;
+                performanceStatus.innerHTML = `<span style="color: var(--info-color);">Processing at ${percentage}% of line rate (${(sps / 1000).toFixed(1)}k samples/sec${streamInfo}). Building up to full rate...</span>`;
             } else {
                 // Below 80% health - show warning
-                performanceStatus.innerHTML = `<span style="color: var(--warning-color);">⚠️ Processing at ${percentage}% of expected rate (${(sps / 1000).toFixed(1)}k samples/sec). Check audio sources.</span>`;
+                performanceStatus.innerHTML = `<span style="color: var(--warning-color);">⚠️ Processing at ${percentage}% of expected rate (${(sps / 1000).toFixed(1)}k samples/sec${streamInfo}). Check audio sources.</span>`;
             }
         }
     }
