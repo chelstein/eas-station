@@ -1546,7 +1546,17 @@ footer a:hover {
         0 8px 32px color-mix(in srgb, var(--vibrant-orange) 30%, transparent),
         0 4px 12px rgba(0, 0, 0, 0.1),
         0 0 0 1px rgba(255, 255, 255, 0.15) inset;
-    color: #1a1a1a;
+    color: #1a1a1a !important;
+}
+
+/* Ensure warning gradient text is always dark for readability */
+.stat-card-warning *,
+.card.bg-warning-gradient *,
+.stat-card-warning.text-white,
+.card.bg-warning-gradient.text-white,
+.stat-card-warning .text-white,
+.card.bg-warning-gradient .text-white {
+    color: #1a1a1a !important;
 }
 
 .stat-card-danger,
@@ -4564,6 +4574,831 @@ a:not(.btn):not(.nav-link):not(.dropdown-item):hover {
     .gradient-mesh {
         animation: none !important;
     }
+}
+
+/* ============================================================================
+   THEME READABILITY FIXES
+   Ensures all elements are readable across all light and dark themes
+   ============================================================================ */
+
+/* === DARK THEME BUTTON FIXES === */
+
+/* Fix .btn-light on dark themes - must have dark text on light background */
+[data-theme="dark"] .btn-light,
+[data-theme="coffee"] .btn-light,
+[data-theme="aurora"] .btn-light,
+[data-theme="nebula"] .btn-light,
+[data-theme="midnight"] .btn-light,
+[data-theme="charcoal"] .btn-light,
+[data-theme="obsidian"] .btn-light,
+[data-theme="slate"] .btn-light {
+    background: linear-gradient(135deg,
+        rgba(255, 255, 255, 0.95) 0%,
+        rgba(248, 250, 252, 0.98) 100%);
+    color: #1a1a2e !important;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+[data-theme="dark"] .btn-light:hover,
+[data-theme="coffee"] .btn-light:hover,
+[data-theme="aurora"] .btn-light:hover,
+[data-theme="nebula"] .btn-light:hover,
+[data-theme="midnight"] .btn-light:hover,
+[data-theme="charcoal"] .btn-light:hover,
+[data-theme="obsidian"] .btn-light:hover,
+[data-theme="slate"] .btn-light:hover {
+    background: linear-gradient(135deg,
+        rgba(255, 255, 255, 1) 0%,
+        rgba(255, 255, 255, 0.98) 100%);
+    color: #0f0f1a !important;
+}
+
+/* Fix .btn-dark on light themes - ensure proper contrast */
+[data-theme="cosmo"] .btn-dark,
+[data-theme="spring"] .btn-dark,
+[data-theme="red"] .btn-dark,
+[data-theme="green"] .btn-dark,
+[data-theme="blue"] .btn-dark,
+[data-theme="purple"] .btn-dark,
+[data-theme="pink"] .btn-dark,
+[data-theme="orange"] .btn-dark,
+[data-theme="yellow"] .btn-dark,
+[data-theme="sunset"] .btn-dark,
+[data-theme="tide"] .btn-dark {
+    background: linear-gradient(135deg, #1a1a2e 0%, #2d2d44 100%);
+    color: #ffffff !important;
+}
+
+/* === OUTLINE BUTTON VARIANTS - All themes === */
+
+/* Outline Secondary */
+.btn-outline-secondary {
+    background: transparent;
+    border: 2px solid var(--secondary-color);
+    color: var(--secondary-color);
+    box-shadow: none;
+}
+
+.btn-outline-secondary:hover {
+    background: var(--secondary-color);
+    color: white;
+    box-shadow: 0 8px 25px color-mix(in srgb, var(--secondary-color) 40%, transparent);
+}
+
+/* Outline Success */
+.btn-outline-success {
+    background: transparent;
+    border: 2px solid var(--success-color);
+    color: var(--success-color);
+    box-shadow: none;
+}
+
+.btn-outline-success:hover {
+    background: var(--success-color);
+    color: white;
+    box-shadow: 0 8px 25px color-mix(in srgb, var(--success-color) 40%, transparent);
+}
+
+/* Outline Danger */
+.btn-outline-danger {
+    background: transparent;
+    border: 2px solid var(--danger-color);
+    color: var(--danger-color);
+    box-shadow: none;
+}
+
+.btn-outline-danger:hover {
+    background: var(--danger-color);
+    color: white;
+    box-shadow: 0 8px 25px color-mix(in srgb, var(--danger-color) 40%, transparent);
+}
+
+/* Outline Warning */
+.btn-outline-warning {
+    background: transparent;
+    border: 2px solid var(--warning-color);
+    color: var(--warning-color);
+    box-shadow: none;
+}
+
+.btn-outline-warning:hover {
+    background: var(--warning-color);
+    color: #1a1a1a;
+    box-shadow: 0 8px 25px color-mix(in srgb, var(--warning-color) 40%, transparent);
+}
+
+/* Outline Info */
+.btn-outline-info {
+    background: transparent;
+    border: 2px solid var(--info-color);
+    color: var(--info-color);
+    box-shadow: none;
+}
+
+.btn-outline-info:hover {
+    background: var(--info-color);
+    color: white;
+    box-shadow: 0 8px 25px color-mix(in srgb, var(--info-color) 40%, transparent);
+}
+
+/* Outline Light - needs special handling */
+.btn-outline-light {
+    background: transparent;
+    border: 2px solid var(--light-color);
+    color: var(--text-color);
+    box-shadow: none;
+}
+
+.btn-outline-light:hover {
+    background: var(--light-color);
+    color: #1a1a2e;
+    box-shadow: 0 8px 25px color-mix(in srgb, var(--light-color) 40%, transparent);
+}
+
+/* Outline Dark */
+.btn-outline-dark {
+    background: transparent;
+    border: 2px solid var(--dark-color);
+    color: var(--dark-color);
+    box-shadow: none;
+}
+
+.btn-outline-dark:hover {
+    background: var(--dark-color);
+    color: white;
+    box-shadow: 0 8px 25px color-mix(in srgb, var(--dark-color) 40%, transparent);
+}
+
+/* Dark theme outline button fixes */
+[data-theme="dark"] .btn-outline-light,
+[data-theme="coffee"] .btn-outline-light,
+[data-theme="aurora"] .btn-outline-light,
+[data-theme="nebula"] .btn-outline-light,
+[data-theme="midnight"] .btn-outline-light,
+[data-theme="charcoal"] .btn-outline-light,
+[data-theme="obsidian"] .btn-outline-light,
+[data-theme="slate"] .btn-outline-light {
+    border-color: rgba(255, 255, 255, 0.6);
+    color: rgba(255, 255, 255, 0.9);
+}
+
+[data-theme="dark"] .btn-outline-light:hover,
+[data-theme="coffee"] .btn-outline-light:hover,
+[data-theme="aurora"] .btn-outline-light:hover,
+[data-theme="nebula"] .btn-outline-light:hover,
+[data-theme="midnight"] .btn-outline-light:hover,
+[data-theme="charcoal"] .btn-outline-light:hover,
+[data-theme="obsidian"] .btn-outline-light:hover,
+[data-theme="slate"] .btn-outline-light:hover {
+    background: rgba(255, 255, 255, 0.95);
+    color: #1a1a2e !important;
+}
+
+[data-theme="dark"] .btn-outline-dark,
+[data-theme="coffee"] .btn-outline-dark,
+[data-theme="aurora"] .btn-outline-dark,
+[data-theme="nebula"] .btn-outline-dark,
+[data-theme="midnight"] .btn-outline-dark,
+[data-theme="charcoal"] .btn-outline-dark,
+[data-theme="obsidian"] .btn-outline-dark,
+[data-theme="slate"] .btn-outline-dark {
+    border-color: var(--border-color);
+    color: var(--text-color);
+}
+
+[data-theme="dark"] .btn-outline-dark:hover,
+[data-theme="coffee"] .btn-outline-dark:hover,
+[data-theme="aurora"] .btn-outline-dark:hover,
+[data-theme="nebula"] .btn-outline-dark:hover,
+[data-theme="midnight"] .btn-outline-dark:hover,
+[data-theme="charcoal"] .btn-outline-dark:hover,
+[data-theme="obsidian"] .btn-outline-dark:hover,
+[data-theme="slate"] .btn-outline-dark:hover {
+    background: var(--surface-color);
+    color: var(--text-color);
+}
+
+/* === BACKGROUND UTILITY CLASS FIXES === */
+
+/* .bg-light must always have dark text */
+.bg-light {
+    background-color: var(--light-color) !important;
+    color: #212121 !important;
+}
+
+.bg-light * {
+    color: inherit;
+}
+
+.bg-light .text-muted {
+    color: #6b7280 !important;
+}
+
+/* .bg-dark must always have light text */
+.bg-dark {
+    background-color: var(--dark-color) !important;
+    color: #ffffff !important;
+}
+
+.bg-dark * {
+    color: inherit;
+}
+
+.bg-dark .text-muted {
+    color: #9ca3af !important;
+}
+
+/* .bg-warning needs dark text for readability */
+.bg-warning {
+    background-color: var(--warning-color) !important;
+    color: #1a1a1a !important;
+}
+
+/* .bg-info may need white text depending on shade */
+.bg-info {
+    background-color: var(--info-color) !important;
+    color: white !important;
+}
+
+/* === TEXT CLASS FIXES FOR DARK THEMES === */
+
+/* .text-dark should be visible on dark themes */
+[data-theme="dark"] .text-dark,
+[data-theme="coffee"] .text-dark,
+[data-theme="aurora"] .text-dark,
+[data-theme="nebula"] .text-dark,
+[data-theme="midnight"] .text-dark,
+[data-theme="charcoal"] .text-dark,
+[data-theme="obsidian"] .text-dark,
+[data-theme="slate"] .text-dark {
+    color: var(--text-color) !important;
+}
+
+/* .text-light should be visible on light themes */
+[data-theme="cosmo"] .text-light,
+[data-theme="spring"] .text-light,
+[data-theme="red"] .text-light,
+[data-theme="green"] .text-light,
+[data-theme="blue"] .text-light,
+[data-theme="purple"] .text-light,
+[data-theme="pink"] .text-light,
+[data-theme="orange"] .text-light,
+[data-theme="yellow"] .text-light,
+[data-theme="sunset"] .text-light,
+[data-theme="tide"] .text-light {
+    color: var(--text-muted) !important;
+}
+
+/* === BADGE READABILITY FIXES === */
+
+/* Ensure all badges have proper text colors */
+.badge.bg-primary,
+.badge.bg-secondary,
+.badge.bg-success,
+.badge.bg-danger,
+.badge.bg-info,
+.badge.bg-dark {
+    color: white !important;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+.badge.bg-warning {
+    color: #1a1a1a !important;
+    text-shadow: none;
+}
+
+.badge.bg-light {
+    color: #1a1a1a !important;
+    text-shadow: none;
+    background-color: var(--light-color) !important;
+}
+
+/* Dark theme badge fixes */
+[data-theme="dark"] .badge.bg-light,
+[data-theme="coffee"] .badge.bg-light,
+[data-theme="aurora"] .badge.bg-light,
+[data-theme="nebula"] .badge.bg-light,
+[data-theme="midnight"] .badge.bg-light,
+[data-theme="charcoal"] .badge.bg-light,
+[data-theme="obsidian"] .badge.bg-light,
+[data-theme="slate"] .badge.bg-light {
+    background-color: rgba(255, 255, 255, 0.9) !important;
+    color: #1a1a2e !important;
+}
+
+/* === ALERT READABILITY FIXES === */
+
+/* Ensure alert text is always readable */
+.alert {
+    color: var(--text-color);
+}
+
+.alert-success {
+    color: #065f46;
+}
+
+.alert-danger {
+    color: #991b1b;
+}
+
+.alert-warning {
+    color: #92400e;
+}
+
+.alert-info {
+    color: #1e40af;
+}
+
+/* Dark theme alert text fixes */
+[data-theme="dark"] .alert-success,
+[data-theme="coffee"] .alert-success,
+[data-theme="aurora"] .alert-success,
+[data-theme="nebula"] .alert-success,
+[data-theme="midnight"] .alert-success,
+[data-theme="charcoal"] .alert-success,
+[data-theme="obsidian"] .alert-success,
+[data-theme="slate"] .alert-success {
+    color: #6ee7b7;
+    background-color: color-mix(in srgb, var(--success-color) 20%, var(--surface-color));
+}
+
+[data-theme="dark"] .alert-danger,
+[data-theme="coffee"] .alert-danger,
+[data-theme="aurora"] .alert-danger,
+[data-theme="nebula"] .alert-danger,
+[data-theme="midnight"] .alert-danger,
+[data-theme="charcoal"] .alert-danger,
+[data-theme="obsidian"] .alert-danger,
+[data-theme="slate"] .alert-danger {
+    color: #fca5a5;
+    background-color: color-mix(in srgb, var(--danger-color) 20%, var(--surface-color));
+}
+
+[data-theme="dark"] .alert-warning,
+[data-theme="coffee"] .alert-warning,
+[data-theme="aurora"] .alert-warning,
+[data-theme="nebula"] .alert-warning,
+[data-theme="midnight"] .alert-warning,
+[data-theme="charcoal"] .alert-warning,
+[data-theme="obsidian"] .alert-warning,
+[data-theme="slate"] .alert-warning {
+    color: #fcd34d;
+    background-color: color-mix(in srgb, var(--warning-color) 20%, var(--surface-color));
+}
+
+[data-theme="dark"] .alert-info,
+[data-theme="coffee"] .alert-info,
+[data-theme="aurora"] .alert-info,
+[data-theme="nebula"] .alert-info,
+[data-theme="midnight"] .alert-info,
+[data-theme="charcoal"] .alert-info,
+[data-theme="obsidian"] .alert-info,
+[data-theme="slate"] .alert-info {
+    color: #93c5fd;
+    background-color: color-mix(in srgb, var(--info-color) 20%, var(--surface-color));
+}
+
+/* === CARD HEADER FIXES === */
+
+/* Ensure card headers with bg-* classes have proper text contrast */
+.card-header.bg-primary,
+.card-header.bg-secondary,
+.card-header.bg-success,
+.card-header.bg-danger,
+.card-header.bg-info,
+.card-header.bg-dark {
+    color: white !important;
+}
+
+.card-header.bg-primary *,
+.card-header.bg-secondary *,
+.card-header.bg-success *,
+.card-header.bg-danger *,
+.card-header.bg-info *,
+.card-header.bg-dark * {
+    color: white !important;
+}
+
+.card-header.bg-warning {
+    color: #1a1a1a !important;
+}
+
+.card-header.bg-warning * {
+    color: #1a1a1a !important;
+}
+
+.card-header.bg-light {
+    color: #212121 !important;
+}
+
+.card-header.bg-light * {
+    color: #212121 !important;
+}
+
+.card-header.bg-light .text-muted {
+    color: #6b7280 !important;
+}
+
+/* === FORM CONTROL FIXES === */
+
+/* Ensure form controls are visible on all themes */
+.form-check-input {
+    background-color: var(--surface-color);
+    border: 2px solid var(--border-color);
+}
+
+.form-check-input:checked {
+    background-color: var(--primary-color);
+    border-color: var(--primary-color);
+}
+
+/* Form switch track visibility on dark themes */
+[data-theme="dark"] .form-check-input:not(:checked),
+[data-theme="coffee"] .form-check-input:not(:checked),
+[data-theme="aurora"] .form-check-input:not(:checked),
+[data-theme="nebula"] .form-check-input:not(:checked),
+[data-theme="midnight"] .form-check-input:not(:checked),
+[data-theme="charcoal"] .form-check-input:not(:checked),
+[data-theme="obsidian"] .form-check-input:not(:checked),
+[data-theme="slate"] .form-check-input:not(:checked) {
+    background-color: var(--surface-color);
+    border-color: var(--border-color);
+}
+
+/* Form switch styling - ensure toggle knob is visible */
+.form-switch .form-check-input {
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='-4 -4 8 8'%3e%3ccircle r='3' fill='%23ffffff'/%3e%3c/svg%3e");
+}
+
+.form-switch .form-check-input:not(:checked) {
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='-4 -4 8 8'%3e%3ccircle r='3' fill='%23999999'/%3e%3c/svg%3e");
+}
+
+[data-theme="dark"] .form-switch .form-check-input:not(:checked),
+[data-theme="coffee"] .form-switch .form-check-input:not(:checked),
+[data-theme="aurora"] .form-switch .form-check-input:not(:checked),
+[data-theme="nebula"] .form-switch .form-check-input:not(:checked),
+[data-theme="midnight"] .form-switch .form-check-input:not(:checked),
+[data-theme="charcoal"] .form-switch .form-check-input:not(:checked),
+[data-theme="obsidian"] .form-switch .form-check-input:not(:checked),
+[data-theme="slate"] .form-switch .form-check-input:not(:checked) {
+    background-color: var(--light-color);
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='-4 -4 8 8'%3e%3ccircle r='3' fill='%23555555'/%3e%3c/svg%3e");
+}
+
+/* Form labels always readable */
+.form-label,
+.form-check-label {
+    color: var(--text-color);
+}
+
+/* Select dropdown arrow visibility */
+.form-select {
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23343a40' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M2 5l6 6 6-6'/%3e%3c/svg%3e");
+}
+
+[data-theme="dark"] .form-select,
+[data-theme="coffee"] .form-select,
+[data-theme="aurora"] .form-select,
+[data-theme="nebula"] .form-select,
+[data-theme="midnight"] .form-select,
+[data-theme="charcoal"] .form-select,
+[data-theme="obsidian"] .form-select,
+[data-theme="slate"] .form-select {
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23ffffff' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M2 5l6 6 6-6'/%3e%3c/svg%3e");
+}
+
+/* === TABLE READABILITY FIXES === */
+
+/* Ensure table headers are readable */
+.table thead th {
+    color: var(--text-color);
+    background-color: color-mix(in srgb, var(--surface-color) 95%, var(--primary-color));
+    border-bottom-color: var(--border-color);
+}
+
+.table-dark {
+    color: #ffffff !important;
+    background-color: var(--dark-color) !important;
+}
+
+.table-dark th,
+.table-dark td {
+    color: #ffffff !important;
+    border-color: rgba(255, 255, 255, 0.2) !important;
+}
+
+.table-light {
+    color: #212121 !important;
+    background-color: var(--light-color) !important;
+}
+
+.table-light th,
+.table-light td {
+    color: #212121 !important;
+}
+
+/* === LIST GROUP FIXES === */
+
+.list-group-item {
+    background-color: var(--surface-color);
+    color: var(--text-color);
+    border-color: var(--border-color);
+}
+
+.list-group-item-action:hover,
+.list-group-item-action:focus {
+    background-color: color-mix(in srgb, var(--primary-color) 10%, var(--surface-color));
+    color: var(--text-color);
+}
+
+.list-group-item.active {
+    background-color: var(--primary-color);
+    border-color: var(--primary-color);
+    color: white;
+}
+
+/* Contextual list group items */
+.list-group-item-primary {
+    background-color: color-mix(in srgb, var(--primary-color) 20%, var(--surface-color));
+    color: var(--text-color);
+}
+
+.list-group-item-success {
+    background-color: color-mix(in srgb, var(--success-color) 20%, var(--surface-color));
+    color: var(--text-color);
+}
+
+.list-group-item-danger {
+    background-color: color-mix(in srgb, var(--danger-color) 20%, var(--surface-color));
+    color: var(--text-color);
+}
+
+.list-group-item-warning {
+    background-color: color-mix(in srgb, var(--warning-color) 20%, var(--surface-color));
+    color: var(--text-color);
+}
+
+.list-group-item-info {
+    background-color: color-mix(in srgb, var(--info-color) 20%, var(--surface-color));
+    color: var(--text-color);
+}
+
+/* === DROPDOWN FIXES === */
+
+.dropdown-menu {
+    background-color: var(--surface-color);
+    border-color: var(--border-color);
+    box-shadow: var(--shadow-lg);
+}
+
+.dropdown-item {
+    color: var(--text-color);
+}
+
+.dropdown-item:hover,
+.dropdown-item:focus {
+    background-color: color-mix(in srgb, var(--primary-color) 10%, var(--surface-color));
+    color: var(--text-color);
+}
+
+.dropdown-item.active,
+.dropdown-item:active {
+    background-color: var(--primary-color);
+    color: white;
+}
+
+.dropdown-divider {
+    border-top-color: var(--border-color);
+}
+
+/* === MODAL FIXES === */
+
+.modal-content {
+    background-color: var(--surface-color);
+    color: var(--text-color);
+    border-color: var(--border-color);
+}
+
+.modal-header {
+    border-bottom-color: var(--border-color);
+}
+
+.modal-footer {
+    border-top-color: var(--border-color);
+}
+
+.btn-close {
+    filter: var(--btn-close-filter, none);
+}
+
+[data-theme="dark"] .btn-close,
+[data-theme="coffee"] .btn-close,
+[data-theme="aurora"] .btn-close,
+[data-theme="nebula"] .btn-close,
+[data-theme="midnight"] .btn-close,
+[data-theme="charcoal"] .btn-close,
+[data-theme="obsidian"] .btn-close,
+[data-theme="slate"] .btn-close {
+    filter: invert(1) grayscale(100%) brightness(200%);
+}
+
+/* === PAGINATION FIXES === */
+
+.page-link {
+    background-color: var(--surface-color);
+    color: var(--primary-color);
+    border-color: var(--border-color);
+}
+
+.page-link:hover {
+    background-color: color-mix(in srgb, var(--primary-color) 10%, var(--surface-color));
+    color: var(--primary-color);
+    border-color: var(--border-color);
+}
+
+.page-item.active .page-link {
+    background-color: var(--primary-color);
+    border-color: var(--primary-color);
+    color: white;
+}
+
+.page-item.disabled .page-link {
+    background-color: var(--surface-color);
+    color: var(--text-muted);
+    border-color: var(--border-color);
+}
+
+/* === BREADCRUMB FIXES === */
+
+.breadcrumb {
+    background-color: transparent;
+}
+
+.breadcrumb-item {
+    color: var(--text-muted);
+}
+
+.breadcrumb-item a {
+    color: var(--primary-color);
+}
+
+.breadcrumb-item.active {
+    color: var(--text-color);
+}
+
+.breadcrumb-item + .breadcrumb-item::before {
+    color: var(--text-muted);
+}
+
+/* === NAV TABS/PILLS FIXES === */
+
+.nav-tabs .nav-link {
+    color: var(--text-color);
+    border-color: transparent;
+}
+
+.nav-tabs .nav-link:hover,
+.nav-tabs .nav-link:focus {
+    border-color: var(--border-color);
+    color: var(--primary-color);
+}
+
+.nav-tabs .nav-link.active {
+    background-color: var(--surface-color);
+    border-color: var(--border-color) var(--border-color) var(--surface-color);
+    color: var(--primary-color);
+}
+
+.nav-pills .nav-link {
+    color: var(--text-color);
+}
+
+.nav-pills .nav-link:hover {
+    background-color: color-mix(in srgb, var(--primary-color) 10%, var(--surface-color));
+}
+
+.nav-pills .nav-link.active {
+    background-color: var(--primary-color);
+    color: white;
+}
+
+/* === PROGRESS BAR FIXES === */
+
+.progress {
+    background-color: color-mix(in srgb, var(--text-color) 10%, var(--surface-color));
+}
+
+.progress-bar {
+    background-color: var(--primary-color);
+    color: white;
+}
+
+/* === TOOLTIP & POPOVER FIXES === */
+
+.tooltip-inner {
+    background-color: var(--dark-color);
+    color: white;
+}
+
+.popover {
+    background-color: var(--surface-color);
+    border-color: var(--border-color);
+}
+
+.popover-header {
+    background-color: color-mix(in srgb, var(--surface-color) 95%, var(--primary-color));
+    border-bottom-color: var(--border-color);
+    color: var(--text-color);
+}
+
+.popover-body {
+    color: var(--text-color);
+}
+
+/* === ACCORDION FIXES === */
+
+.accordion-item {
+    background-color: var(--surface-color);
+    border-color: var(--border-color);
+}
+
+.accordion-button {
+    background-color: var(--surface-color);
+    color: var(--text-color);
+}
+
+.accordion-button:not(.collapsed) {
+    background-color: color-mix(in srgb, var(--primary-color) 10%, var(--surface-color));
+    color: var(--primary-color);
+}
+
+.accordion-button:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 0.25rem color-mix(in srgb, var(--primary-color) 25%, transparent);
+}
+
+.accordion-button::after {
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='%23212529'%3e%3cpath fill-rule='evenodd' d='M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z'/%3e%3c/svg%3e");
+}
+
+[data-theme="dark"] .accordion-button::after,
+[data-theme="coffee"] .accordion-button::after,
+[data-theme="aurora"] .accordion-button::after,
+[data-theme="nebula"] .accordion-button::after,
+[data-theme="midnight"] .accordion-button::after,
+[data-theme="charcoal"] .accordion-button::after,
+[data-theme="obsidian"] .accordion-button::after,
+[data-theme="slate"] .accordion-button::after {
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='%23ffffff'%3e%3cpath fill-rule='evenodd' d='M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z'/%3e%3c/svg%3e");
+}
+
+.accordion-body {
+    background-color: var(--surface-color);
+    color: var(--text-color);
+}
+
+/* === SPINNER FIXES === */
+
+.spinner-border {
+    color: var(--primary-color);
+}
+
+.spinner-grow {
+    color: var(--primary-color);
+}
+
+/* === OFFCANVAS FIXES === */
+
+.offcanvas {
+    background-color: var(--surface-color);
+    color: var(--text-color);
+}
+
+.offcanvas-header {
+    border-bottom-color: var(--border-color);
+}
+
+/* === TOAST FIXES === */
+
+.toast {
+    background-color: var(--surface-color);
+    color: var(--text-color);
+    border-color: var(--border-color);
+}
+
+.toast-header {
+    background-color: color-mix(in srgb, var(--surface-color) 95%, var(--primary-color));
+    color: var(--text-color);
+    border-bottom-color: var(--border-color);
+}
+
+/* === INPUT GROUP FIXES === */
+
+.input-group-text {
+    background-color: color-mix(in srgb, var(--surface-color) 95%, var(--border-color));
+    color: var(--text-color);
+    border-color: var(--border-color);
 }
 
 /* End of Consolidated Styles */
