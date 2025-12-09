@@ -345,12 +345,12 @@ if __name__ == "__main__":
     import uvicorn
 
     logger.info("Starting FastAPI development server...")
-    logger.info("Documentation available at: http://localhost:8000/docs")
+    logger.info("Documentation available at: http://localhost:8080/docs")
 
     uvicorn.run(
         "fastapi_app_minimal:app",
         host="0.0.0.0",
-        port=8000,
+        port=8080,
         reload=True,
         log_level="info",
     )

@@ -47,7 +47,7 @@ This document tracks the migration of EAS Station from Flask to FastAPI. The mig
 
 ## Running the Applications
 
-### FastAPI (Port 8000)
+### FastAPI (Port 8080)
 
 ```bash
 # Development mode with auto-reload
@@ -57,15 +57,17 @@ This document tracks the migration of EAS Station from Flask to FastAPI. The mig
 ./run_fastapi.sh prod
 
 # Or directly with uvicorn
-uvicorn fastapi_app_minimal:app --reload --port 8000
+uvicorn fastapi_app_minimal:app --reload --port 8080
 ```
 
 **Endpoints:**
-- `http://localhost:8000/` - Landing page
-- `http://localhost:8000/health` - Health check
-- `http://localhost:8000/api/status` - System status
-- `http://localhost:8000/docs` - Interactive API documentation
-- `http://localhost:8000/redoc` - ReDoc documentation
+- `http://localhost:8080/` - Landing page
+- `http://localhost:8080/health` - Health check
+- `http://localhost:8080/api/status` - System status
+- `http://localhost:8080/docs` - Interactive API documentation
+- `http://localhost:8080/redoc` - ReDoc documentation
+
+**Note:** Port 8000 is reserved for Icecast (audio streaming)
 
 ### Flask (Port 5000) - Legacy
 

@@ -21,21 +21,21 @@ MODE="${1:-dev}"
 
 if [ "$MODE" = "dev" ]; then
     echo "Starting in DEVELOPMENT mode with auto-reload..."
-    echo "Server will be available at: http://localhost:8000"
-    echo "API Documentation at: http://localhost:8000/docs"
+    echo "Server will be available at: http://localhost:8080"
+    echo "API Documentation at: http://localhost:8080/docs"
     echo ""
     exec uvicorn fastapi_app_minimal:app \
         --host 0.0.0.0 \
-        --port 8000 \
+        --port 8080 \
         --reload \
         --log-level info
 elif [ "$MODE" = "prod" ]; then
     echo "Starting in PRODUCTION mode..."
-    echo "Server will be available at: http://localhost:8000"
+    echo "Server will be available at: http://localhost:8080"
     echo ""
     exec uvicorn fastapi_app_minimal:app \
         --host 0.0.0.0 \
-        --port 8000 \
+        --port 8080 \
         --workers 4 \
         --log-level warning \
         --no-access-log
