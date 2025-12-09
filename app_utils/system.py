@@ -448,7 +448,17 @@ def _collect_container_statuses(logger) -> Dict[str, Any]:
                 logger.warning("Failed to collect container status via %s", message)
 
     if attempt_errors:
-        result["error"] = "; ".join(attempt_errors)
+        # Check if running inside a container without socket access
+        is_containerized = os.path.exists("/.dockerenv") or os.path.exists("/run/.containerenv")
+        if is_containerized:
+            result["error"] = (
+                "Container status unavailable from inside a container. "
+                "To enable container monitoring, mount the Docker socket "
+                "(-v /var/run/docker.sock:/var/run/docker.sock) or set DOCKER_HOST "
+                "environment variable to point to a remote Docker API."
+            )
+        else:
+            result["error"] = "; ".join(attempt_errors)
     else:
         result["error"] = "Container engine not available"
 
