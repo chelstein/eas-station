@@ -1662,9 +1662,13 @@ function updateLevelMetersFromSnapshot(snapshot) {
 // ============================================================================
 
 let easMonitorStartTime = null; // Track when monitor actually started
-let lastAudioFlowingState = false; // Track previous state to prevent flickering
-let audioFlowingStableCount = 0; // Require consistent readings before changing state
-const AUDIO_FLOWING_STABILITY_THRESHOLD = 3; // Require 3 consistent readings (3 seconds at 1 sec polling)
+
+// Hysteresis variables to prevent status flickering due to momentary audio metric fluctuations
+// Initial state: false (no audio) - represents system startup before any audio is detected
+// This prevents false "audio flowing" indications before the monitor has actually started
+let lastAudioFlowingState = false; // The last confirmed stable state (not current raw reading)
+let audioFlowingStableCount = 0; // Counter: how many consecutive polls showed a DIFFERENT state
+const AUDIO_FLOWING_STABILITY_THRESHOLD = 3; // Require 3 consecutive readings (3+ seconds) before accepting state change
 
 async function loadEASMonitorStatus() {
     try {
@@ -1698,17 +1702,22 @@ function updateEASMonitorDisplay(status) {
     const currentAudioFlowing = status.audio_flowing || samplesProcessed > 0 || samplesPerSecond > 0;
     
     // Apply hysteresis: only change state after consistent readings
+    // This prevents brief fluctuations from causing status to flicker
     if (currentAudioFlowing === lastAudioFlowingState) {
-        // State is stable - reset counter
+        // Current reading matches last confirmed state - everything is stable
+        // Reset counter so next change starts fresh count
         audioFlowingStableCount = 0;
     } else {
-        // State changed - increment counter
+        // Current reading is DIFFERENT from last confirmed state
+        // Increment counter - if this persists for THRESHOLD polls, we'll accept the change
         audioFlowingStableCount++;
         if (audioFlowingStableCount >= AUDIO_FLOWING_STABILITY_THRESHOLD) {
-            // State has been different for enough cycles - accept the change
+            // The different state has persisted for enough consecutive polls
+            // Accept this as the new confirmed state
             lastAudioFlowingState = currentAudioFlowing;
-            audioFlowingStableCount = 0;
+            audioFlowingStableCount = 0; // Reset counter for next state change
         }
+        // else: state is different but hasn't persisted long enough yet - keep using old state
     }
     // Use the stable state, not the raw reading
     const audioFlowing = lastAudioFlowingState;
