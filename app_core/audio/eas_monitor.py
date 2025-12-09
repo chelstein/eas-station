@@ -754,8 +754,8 @@ class ContinuousEASMonitor:
         - health: float (0-100%)
         - in_message: bool
 
-        TODO: Actually track history over time
-        For now, returns current state only.
+        FUTURE ENHANCEMENT: Track history over time (see docs/FUTURE_ENHANCEMENTS.md).
+        Currently returns current state only.
         """
         status = self.get_status()
         return [{
