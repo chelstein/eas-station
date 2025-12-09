@@ -17,13 +17,22 @@ See NOTICE file for complete terms.
 Repository: https://github.com/KR8MER/eas-station
 """
 
-"""WebSocket push service for real-time updates."""
+"""WebSocket push service for real-time updates.
+
+This service pushes multiple event types at different intervals:
+- audio_monitoring_update: 10Hz (100ms) - VU meters, EAS monitor status
+- system_health_update: 0.0167Hz (60s) - system health, status indicators
+- audio_sources_update: 0.033Hz (30s) - audio source list
+- audio_health_update: 0.033Hz (30s) - audio health dashboard data
+- operation_status_update: 0.1Hz (10s) - admin operations status
+- ipaws_status_update: 0.033Hz (30s) - IPAWS connection status
+"""
 
 import json
 import logging
 import threading
 import time
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
 if TYPE_CHECKING:
     from flask import Flask
@@ -33,6 +42,19 @@ logger = logging.getLogger(__name__)
 
 _push_thread = None
 _stop_event = threading.Event()
+
+# Timing intervals in seconds
+AUDIO_MONITORING_INTERVAL = 0.1    # 10Hz - real-time VU meters
+SYSTEM_HEALTH_INTERVAL = 60.0      # System health updates
+AUDIO_SOURCES_INTERVAL = 30.0      # Audio source list
+AUDIO_HEALTH_INTERVAL = 30.0       # Audio health dashboard
+OPERATION_STATUS_INTERVAL = 10.0   # Admin operation status
+IPAWS_STATUS_INTERVAL = 30.0       # IPAWS connection status
+GPIO_STATUS_INTERVAL = 3.0         # GPIO pin states
+LED_STATUS_INTERVAL = 30.0         # LED status
+ANALYTICS_INTERVAL = 30.0          # Analytics dashboard
+SNOW_EMERGENCY_INTERVAL = 60.0     # Snow emergencies
+RADIO_STATUS_INTERVAL = 15.0       # Radio diagnostics
 
 
 def start_websocket_push(app: 'Flask', socketio: 'SocketIO') -> None:
@@ -68,108 +90,511 @@ def stop_websocket_push() -> None:
 
 
 def _push_worker(app: 'Flask', socketio: 'SocketIO') -> None:
-    """Background worker that pushes real-time updates via WebSocket."""
+    """Background worker that pushes real-time updates via WebSocket.
+
+    Uses a counter-based approach to emit different events at different intervals
+    while maintaining 100ms loop resolution for audio metrics.
+    """
     logger.info("WebSocket push worker started")
 
     # Cache audio source configs to avoid hammering the database every second
     config_cache = {}
     config_cache_loaded_at = 0.0
 
+    # Timers for different event types (last emit time)
+    last_system_health_emit = 0.0
+    last_audio_sources_emit = 0.0
+    last_audio_health_emit = 0.0
+    last_operation_status_emit = 0.0
+    last_ipaws_status_emit = 0.0
+    last_gpio_status_emit = 0.0
+    last_led_status_emit = 0.0
+    last_analytics_emit = 0.0
+    last_snow_emergency_emit = 0.0
+    last_radio_status_emit = 0.0
+
     with app.app_context():
         while not _stop_event.is_set():
+            now = time.time()
+
+            # ================================================================
+            # AUDIO MONITORING UPDATE (10Hz - every 100ms)
+            # Real-time VU meters and EAS monitor status
+            # ================================================================
             try:
-                # Get audio metrics and sources
-                from webapp.admin.audio_ingest import (
-                    _get_audio_controller,
-                    _read_audio_metrics_from_redis,
-                    AudioSourceConfigDB,
-                )
-
-                source_metrics = []
-                audio_sources = []
-                broadcast_stats = {}
-                eas_monitor_status = None
-                active_source = None
-
-                # Prefer Redis metrics (audio-service publishes them in separated architecture)
-                redis_metrics = _read_audio_metrics_from_redis()
-
-                if redis_metrics:
-                    # Refresh config cache periodically to keep type/priority info current
-                    now = time.time()
-                    if now - config_cache_loaded_at > 30:
-                        config_cache = {cfg.name: cfg for cfg in AudioSourceConfigDB.query.all()}
-                        config_cache_loaded_at = now
-
-                    audio_controller_data = redis_metrics.get('audio_controller')
-                    if isinstance(audio_controller_data, str):
-                        audio_controller_data = json.loads(audio_controller_data)
-
-                    if audio_controller_data:
-                        active_source = audio_controller_data.get('active_source')
-                        redis_sources = audio_controller_data.get('sources', {})
-                        for source_name, source_data in redis_sources.items():
-                            # In separated architecture, SDR sources are named redis-{original_name}
-                            # Strip prefix when looking up config from database
-                            config_lookup_name = source_name.replace("redis-", "", 1) if source_name.startswith("redis-") else source_name
-                            config = config_cache.get(config_lookup_name)
-                            source_metrics.append({
-                                'source_id': config_lookup_name,  # Use database name for consistency with frontend
-                                'source_name': config_lookup_name,
-                                'source_type': getattr(config.source_type, 'value', None) if config else 'unknown',
-                                'source_status': source_data.get('status', 'unknown'),
-                                'timestamp': source_data.get('timestamp', redis_metrics.get('timestamp', time.time())),
-                                'sample_rate': source_data.get('sample_rate'),
-                                'channels': source_data.get('channels', 2),
-                                'peak_level_db': float(source_data.get('peak_level_db', -120.0)),
-                                'rms_level_db': float(source_data.get('rms_level_db', -120.0)),
-                                'frames_captured': source_data.get('frames_captured', 0),
-                                'silence_detected': bool(source_data.get('silence_detected', False)),
-                                'buffer_utilization': float(source_data.get('buffer_utilization', 0.0)),
-                            })
-
-                        audio_sources = []
-                        for name, data in redis_sources.items():
-                            # In separated architecture, SDR sources are named redis-{original_name}
-                            # Strip prefix when looking up config from database
-                            config_lookup_name = name.replace("redis-", "", 1) if name.startswith("redis-") else name
-                            config = config_cache.get(config_lookup_name)
-                            audio_sources.append({
-                                'name': config_lookup_name,  # Use database name for consistency with frontend
-                                'type': getattr(getattr(config, 'source_type', None), 'value', None) if config else 'unknown',
-                                'status': data.get('status', 'unknown'),
-                                'enabled': getattr(config, 'enabled', None),
-                                'priority': getattr(config, 'priority', None),
-                            })
-
-                    broadcast_stats = redis_metrics.get('broadcast_queue') or {}
-                    if isinstance(broadcast_stats, str):
-                        broadcast_stats = json.loads(broadcast_stats)
-
-                    eas_monitor_status = redis_metrics.get('eas_monitor')
-
-                # SEPARATED ARCHITECTURE: All metrics come from Redis
-                # No fallback to local controller - audio processing is in audio-service container
-                # If Redis is unavailable, show empty metrics (audio-service may be down)
-
-                # Broadcast all data to connected clients
-                socketio.emit('audio_monitoring_update', {
-                    'audio_metrics': {
-                        'live_metrics': source_metrics,
-                        'total_sources': len(source_metrics),
-                        'active_source': active_source,
-                        'broadcast_stats': broadcast_stats,
-                    },
-                    'audio_sources': audio_sources,
-                    'eas_monitor': eas_monitor_status,
-                    'timestamp': time.time(),
-                })
-
+                _emit_audio_monitoring_update(app, socketio, config_cache)
             except Exception as e:
-                logger.warning(f"Error in WebSocket push worker: {e}")
+                logger.warning(f"Error emitting audio_monitoring_update: {e}")
 
-            # Sleep for 100ms (10Hz updates) - good balance between responsiveness and server load
-            # Client-side Web Audio API provides 60Hz for active audio players
-            _stop_event.wait(0.1)
+            # Refresh config cache periodically
+            if now - config_cache_loaded_at > 30:
+                try:
+                    from webapp.admin.audio_ingest import AudioSourceConfigDB
+                    config_cache = {cfg.name: cfg for cfg in AudioSourceConfigDB.query.all()}
+                    config_cache_loaded_at = now
+                except Exception as e:
+                    logger.debug(f"Error refreshing audio config cache: {e}")
+
+            # ================================================================
+            # SYSTEM HEALTH UPDATE (every 60s)
+            # System status indicator in header
+            # ================================================================
+            if now - last_system_health_emit >= SYSTEM_HEALTH_INTERVAL:
+                try:
+                    _emit_system_health_update(app, socketio)
+                    last_system_health_emit = now
+                except Exception as e:
+                    logger.warning(f"Error emitting system_health_update: {e}")
+
+            # ================================================================
+            # AUDIO SOURCES UPDATE (every 30s)
+            # Audio source list for monitoring page
+            # ================================================================
+            if now - last_audio_sources_emit >= AUDIO_SOURCES_INTERVAL:
+                try:
+                    _emit_audio_sources_update(app, socketio)
+                    last_audio_sources_emit = now
+                except Exception as e:
+                    logger.warning(f"Error emitting audio_sources_update: {e}")
+
+            # ================================================================
+            # AUDIO HEALTH UPDATE (every 30s)
+            # Audio health dashboard data
+            # ================================================================
+            if now - last_audio_health_emit >= AUDIO_HEALTH_INTERVAL:
+                try:
+                    _emit_audio_health_update(app, socketio)
+                    last_audio_health_emit = now
+                except Exception as e:
+                    logger.warning(f"Error emitting audio_health_update: {e}")
+
+            # ================================================================
+            # OPERATION STATUS UPDATE (every 10s)
+            # Admin operations status
+            # ================================================================
+            if now - last_operation_status_emit >= OPERATION_STATUS_INTERVAL:
+                try:
+                    _emit_operation_status_update(app, socketio)
+                    last_operation_status_emit = now
+                except Exception as e:
+                    logger.warning(f"Error emitting operation_status_update: {e}")
+
+            # ================================================================
+            # IPAWS STATUS UPDATE (every 30s)
+            # IPAWS connection status
+            # ================================================================
+            if now - last_ipaws_status_emit >= IPAWS_STATUS_INTERVAL:
+                try:
+                    _emit_ipaws_status_update(app, socketio)
+                    last_ipaws_status_emit = now
+                except Exception as e:
+                    logger.warning(f"Error emitting ipaws_status_update: {e}")
+
+            # ================================================================
+            # GPIO STATUS UPDATE (every 3s)
+            # GPIO pin states
+            # ================================================================
+            if now - last_gpio_status_emit >= GPIO_STATUS_INTERVAL:
+                try:
+                    _emit_gpio_status_update(app, socketio)
+                    last_gpio_status_emit = now
+                except Exception as e:
+                    logger.debug(f"Error emitting gpio_status_update: {e}")
+
+            # ================================================================
+            # LED STATUS UPDATE (every 30s)
+            # LED controller status
+            # ================================================================
+            if now - last_led_status_emit >= LED_STATUS_INTERVAL:
+                try:
+                    _emit_led_status_update(app, socketio)
+                    last_led_status_emit = now
+                except Exception as e:
+                    logger.debug(f"Error emitting led_status_update: {e}")
+
+            # ================================================================
+            # ANALYTICS UPDATE (every 30s)
+            # Analytics dashboard data
+            # ================================================================
+            if now - last_analytics_emit >= ANALYTICS_INTERVAL:
+                try:
+                    _emit_analytics_update(app, socketio)
+                    last_analytics_emit = now
+                except Exception as e:
+                    logger.debug(f"Error emitting analytics_update: {e}")
+
+            # ================================================================
+            # SNOW EMERGENCY UPDATE (every 60s)
+            # Snow emergency status
+            # ================================================================
+            if now - last_snow_emergency_emit >= SNOW_EMERGENCY_INTERVAL:
+                try:
+                    _emit_snow_emergency_update(app, socketio)
+                    last_snow_emergency_emit = now
+                except Exception as e:
+                    logger.debug(f"Error emitting snow_emergency_update: {e}")
+
+            # ================================================================
+            # RADIO STATUS UPDATE (every 15s)
+            # Radio diagnostics status
+            # ================================================================
+            if now - last_radio_status_emit >= RADIO_STATUS_INTERVAL:
+                try:
+                    _emit_radio_status_update(app, socketio)
+                    last_radio_status_emit = now
+                except Exception as e:
+                    logger.debug(f"Error emitting radio_status_update: {e}")
+
+            # Sleep for 100ms (10Hz base loop) - good balance between responsiveness and server load
+            _stop_event.wait(AUDIO_MONITORING_INTERVAL)
 
     logger.info("WebSocket push worker stopped")
+
+
+def _emit_audio_monitoring_update(app: 'Flask', socketio: 'SocketIO', config_cache: dict) -> None:
+    """Emit real-time audio monitoring metrics (VU meters, EAS monitor)."""
+    from webapp.admin.audio_ingest import _read_audio_metrics_from_redis
+
+    source_metrics = []
+    audio_sources = []
+    broadcast_stats = {}
+    eas_monitor_status = None
+    active_source = None
+
+    redis_metrics = _read_audio_metrics_from_redis()
+
+    if redis_metrics:
+        audio_controller_data = redis_metrics.get('audio_controller')
+        if isinstance(audio_controller_data, str):
+            audio_controller_data = json.loads(audio_controller_data)
+
+        if audio_controller_data:
+            active_source = audio_controller_data.get('active_source')
+            redis_sources = audio_controller_data.get('sources', {})
+            for source_name, source_data in redis_sources.items():
+                config_lookup_name = source_name.replace("redis-", "", 1) if source_name.startswith("redis-") else source_name
+                config = config_cache.get(config_lookup_name)
+                source_metrics.append({
+                    'source_id': config_lookup_name,
+                    'source_name': config_lookup_name,
+                    'source_type': getattr(config.source_type, 'value', None) if config else 'unknown',
+                    'source_status': source_data.get('status', 'unknown'),
+                    'timestamp': source_data.get('timestamp', redis_metrics.get('timestamp', time.time())),
+                    'sample_rate': source_data.get('sample_rate'),
+                    'channels': source_data.get('channels', 2),
+                    'peak_level_db': float(source_data.get('peak_level_db', -120.0)),
+                    'rms_level_db': float(source_data.get('rms_level_db', -120.0)),
+                    'frames_captured': source_data.get('frames_captured', 0),
+                    'silence_detected': bool(source_data.get('silence_detected', False)),
+                    'buffer_utilization': float(source_data.get('buffer_utilization', 0.0)),
+                })
+
+            for name, data in redis_sources.items():
+                config_lookup_name = name.replace("redis-", "", 1) if name.startswith("redis-") else name
+                config = config_cache.get(config_lookup_name)
+                audio_sources.append({
+                    'name': config_lookup_name,
+                    'type': getattr(getattr(config, 'source_type', None), 'value', None) if config else 'unknown',
+                    'status': data.get('status', 'unknown'),
+                    'enabled': getattr(config, 'enabled', None),
+                    'priority': getattr(config, 'priority', None),
+                })
+
+        broadcast_stats = redis_metrics.get('broadcast_queue') or {}
+        if isinstance(broadcast_stats, str):
+            broadcast_stats = json.loads(broadcast_stats)
+
+        eas_monitor_status = redis_metrics.get('eas_monitor')
+
+    socketio.emit('audio_monitoring_update', {
+        'audio_metrics': {
+            'live_metrics': source_metrics,
+            'total_sources': len(source_metrics),
+            'active_source': active_source,
+            'broadcast_stats': broadcast_stats,
+        },
+        'audio_sources': audio_sources,
+        'eas_monitor': eas_monitor_status,
+        'timestamp': time.time(),
+    })
+
+
+def _emit_system_health_update(app: 'Flask', socketio: 'SocketIO') -> None:
+    """Emit system health status for header indicator."""
+    from app_core.system_health import get_system_health
+
+    health_data = get_system_health(logger)
+
+    # Extract key fields for header display
+    status = health_data.get('status', 'unknown')
+    status_summary = health_data.get('status_summary', '')
+
+    socketio.emit('system_health_update', {
+        'status': status,
+        'status_summary': status_summary,
+        'timestamp': time.time(),
+        # Include full data for pages that need it
+        'full_data': health_data,
+    })
+
+
+def _emit_audio_sources_update(app: 'Flask', socketio: 'SocketIO') -> None:
+    """Emit audio source list update."""
+    from webapp.admin.audio_ingest import AudioSourceConfigDB
+
+    try:
+        sources = AudioSourceConfigDB.query.all()
+        source_list = []
+        for source in sources:
+            source_list.append({
+                'id': source.id,
+                'name': source.name,
+                'type': getattr(source.source_type, 'value', None) if source.source_type else 'unknown',
+                'enabled': source.enabled,
+                'priority': source.priority,
+                'auto_start': source.auto_start,
+            })
+
+        socketio.emit('audio_sources_update', {
+            'sources': source_list,
+            'total': len(source_list),
+            'active_count': sum(1 for s in source_list if s.get('enabled')),
+            'timestamp': time.time(),
+        })
+    except Exception as e:
+        logger.debug(f"Error fetching audio sources: {e}")
+
+
+def _emit_audio_health_update(app: 'Flask', socketio: 'SocketIO') -> None:
+    """Emit audio health dashboard data.
+
+    Reads from Redis to get actual audio-service health status.
+    """
+    try:
+        from webapp.admin.audio_ingest import _read_audio_metrics_from_redis
+
+        redis_metrics = _read_audio_metrics_from_redis()
+        health_data = {'overall_health_score': 0, 'sources': []}
+
+        if redis_metrics:
+            audio_controller = redis_metrics.get('audio_controller', {})
+            eas_monitor = redis_metrics.get('eas_monitor', {})
+            heartbeat = redis_metrics.get('_heartbeat', 0)
+            age = time.time() - heartbeat
+
+            # Calculate health score based on metrics freshness and status
+            sources = audio_controller.get('sources', {})
+            running_sources = sum(1 for s in sources.values() if s.get('status') == 'running')
+            total_sources = len(sources)
+
+            # Health score: 100 if fresh metrics and sources running, degrades with stale data
+            health_score = 100
+            if age > 5:
+                health_score -= min(30, age * 2)  # Degrade up to 30 for stale data
+            if total_sources > 0 and running_sources == 0:
+                health_score -= 40  # No running sources
+
+            health_data = {
+                'overall_health_score': max(0, health_score),
+                'metrics_age_seconds': age,
+                'total_sources': total_sources,
+                'running_sources': running_sources,
+                'eas_monitor_running': eas_monitor.get('running', False),
+            }
+
+        socketio.emit('audio_health_update', {
+            **health_data,
+            'timestamp': time.time(),
+        })
+    except Exception as e:
+        logger.debug(f"Error fetching audio health: {e}")
+
+
+def _emit_operation_status_update(app: 'Flask', socketio: 'SocketIO') -> None:
+    """Emit admin operation status."""
+    from webapp.admin.maintenance import get_operation_status
+
+    try:
+        status = get_operation_status()
+        socketio.emit('operation_status_update', {
+            **status,
+            'timestamp': time.time(),
+        })
+    except Exception as e:
+        logger.debug(f"Error fetching operation status: {e}")
+
+
+def _emit_ipaws_status_update(app: 'Flask', socketio: 'SocketIO') -> None:
+    """Emit IPAWS connection status."""
+    try:
+        from flask import current_app
+        from app_core.extensions import db
+        from app_core.models import PollHistory
+
+        # Build IPAWS status similar to the API endpoint
+        ipaws_enabled = bool(current_app.config.get('IPAWS_ENABLED', False))
+        status_data = {
+            'enabled': ipaws_enabled,
+            'connected': False,
+            'last_poll': None,
+            'alerts_count': 0,
+        }
+
+        if ipaws_enabled:
+            try:
+                last_poll = PollHistory.query.order_by(PollHistory.poll_time.desc()).first()
+                if last_poll:
+                    status_data['last_poll'] = last_poll.poll_time.isoformat() if last_poll.poll_time else None
+                    status_data['connected'] = last_poll.status == 'success'
+                    status_data['alerts_count'] = last_poll.alerts_count or 0
+            except Exception:
+                pass
+
+        socketio.emit('ipaws_status_update', {
+            **status_data,
+            'timestamp': time.time(),
+        })
+    except Exception as e:
+        logger.debug(f"Error fetching IPAWS status: {e}")
+
+
+def _emit_gpio_status_update(app: 'Flask', socketio: 'SocketIO') -> None:
+    """Emit GPIO pin states.
+
+    GPIO may not be available on all systems (e.g., non-Raspberry Pi).
+    """
+    try:
+        from app_core.models import GPIOConfig
+
+        pins = GPIOConfig.query.all()
+        pin_states = []
+        for pin in pins:
+            pin_states.append({
+                'id': pin.id,
+                'pin_number': pin.pin_number,
+                'name': pin.name,
+                'direction': pin.direction,
+                'current_state': pin.current_state,
+                'enabled': pin.enabled,
+            })
+
+        socketio.emit('gpio_status_update', {
+            'pins': pin_states,
+            'total': len(pin_states),
+            'timestamp': time.time(),
+        })
+    except Exception:
+        # GPIO may not be available on all systems - silently skip
+        pass
+
+
+def _emit_led_status_update(app: 'Flask', socketio: 'SocketIO') -> None:
+    """Emit LED controller status.
+
+    LED controller may not be available on all systems.
+    """
+    try:
+        from app_core.models import LEDConfig
+
+        configs = LEDConfig.query.all()
+        led_status = []
+        for config in configs:
+            led_status.append({
+                'id': config.id,
+                'name': config.name,
+                'enabled': config.enabled,
+                'brightness': getattr(config, 'brightness', 100),
+            })
+
+        socketio.emit('led_status_update', {
+            'leds': led_status,
+            'total': len(led_status),
+            'timestamp': time.time(),
+        })
+    except Exception:
+        # LED controller may not be available - silently skip
+        pass
+
+
+def _emit_analytics_update(app: 'Flask', socketio: 'SocketIO') -> None:
+    """Emit analytics dashboard data."""
+    try:
+        from sqlalchemy import func
+        from app_core.extensions import db
+        from app_core.models import CAPAlert, EASMessage
+
+        # Calculate basic analytics
+        total_alerts = db.session.query(func.count(CAPAlert.id)).scalar() or 0
+        total_messages = db.session.query(func.count(EASMessage.id)).scalar() or 0
+
+        # Get recent activity counts (last 24 hours)
+        from datetime import datetime, timedelta
+        yesterday = datetime.utcnow() - timedelta(days=1)
+        recent_alerts = db.session.query(func.count(CAPAlert.id)).filter(
+            CAPAlert.received_at >= yesterday
+        ).scalar() or 0
+
+        socketio.emit('analytics_update', {
+            'total_alerts': total_alerts,
+            'total_messages': total_messages,
+            'recent_alerts_24h': recent_alerts,
+            'timestamp': time.time(),
+        })
+    except Exception as e:
+        logger.debug(f"Error fetching analytics data: {e}")
+
+
+def _emit_snow_emergency_update(app: 'Flask', socketio: 'SocketIO') -> None:
+    """Emit snow emergency status update."""
+    try:
+        from app_core.models import SnowEmergency
+        from app_utils import utc_now
+
+        now = utc_now()
+        active_emergencies = SnowEmergency.query.filter(
+            SnowEmergency.active == True,
+            SnowEmergency.end_time > now
+        ).all()
+
+        emergencies = []
+        for emergency in active_emergencies:
+            emergencies.append({
+                'id': emergency.id,
+                'county': emergency.county,
+                'level': emergency.level,
+                'start_time': emergency.start_time.isoformat() if emergency.start_time else None,
+                'end_time': emergency.end_time.isoformat() if emergency.end_time else None,
+            })
+
+        socketio.emit('snow_emergency_update', {
+            'emergencies': emergencies,
+            'active_count': len(emergencies),
+            'timestamp': time.time(),
+        })
+    except Exception as e:
+        logger.debug(f"Error fetching snow emergency data: {e}")
+
+
+def _emit_radio_status_update(app: 'Flask', socketio: 'SocketIO') -> None:
+    """Emit radio diagnostics status."""
+    try:
+        from app_core.models import RadioReceiver
+
+        receivers = RadioReceiver.query.all()
+        receiver_list = []
+        for receiver in receivers:
+            receiver_list.append({
+                'id': receiver.id,
+                'identifier': receiver.identifier,
+                'display_name': receiver.display_name,
+                'driver': receiver.driver,
+                'enabled': receiver.enabled,
+            })
+
+        socketio.emit('radio_status_update', {
+            'receivers': receiver_list,
+            'total': len(receiver_list),
+            'timestamp': time.time(),
+        })
+    except Exception as e:
+        logger.debug(f"Error fetching radio status: {e}")

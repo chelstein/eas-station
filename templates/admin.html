@@ -2370,7 +2370,18 @@
             initializeEasPanel();
             initializeCustomTypeControls();
             refreshOperationStatus();
-            setInterval(refreshOperationStatus, 15000);
+
+            // Use WebSocket with polling fallback for operation status
+            if (window.EASWebSocket) {
+                window.EASWebSocket.subscribe('operation_status_update', function(data) {
+                    refreshOperationStatus();
+                }, {
+                    fallbackFn: refreshOperationStatus,
+                    fallbackInterval: 15000
+                });
+            } else {
+                setInterval(refreshOperationStatus, 15000);
+            }
         });
         // Keyboard shortcuts
         function setupKeyboardShortcuts() {

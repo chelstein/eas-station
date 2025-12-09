@@ -2314,6 +2314,17 @@ function escapeHtml(text) {
 
 // Load snow emergencies on page load and periodically
 loadSnowEmergencies();
-setInterval(loadSnowEmergencies, 60000); // Refresh every minute
+
+// Use WebSocket with polling fallback for snow emergencies
+if (window.EASWebSocket) {
+    window.EASWebSocket.subscribe('snow_emergency_update', function(data) {
+        loadSnowEmergencies();
+    }, {
+        fallbackFn: loadSnowEmergencies,
+        fallbackInterval: 60000  // 60s polling fallback
+    });
+} else {
+    setInterval(loadSnowEmergencies, 60000); // Refresh every minute
+}
 </script>
 {% endblock %}

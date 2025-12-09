@@ -264,25 +264,38 @@ document.addEventListener('DOMContentLoaded', function() {
     startStatusPolling();
 });
 
-// Start polling for operation status
+// Handle WebSocket operation status update
+function handleOperationStatusUpdate(data) {
+    if (data.operations) {
+        updateOperationStatus('backup', data.operations.backup);
+        updateOperationStatus('upgrade', data.operations.upgrade);
+    }
+}
+
+// Start polling for operation status (with WebSocket support)
 function startStatusPolling() {
     if (statusPollInterval) {
         clearInterval(statusPollInterval);
     }
-    // REDUCED: 10 seconds instead of 3 seconds - operation status is cached
-    statusPollInterval = setInterval(pollOperationStatus, 10000);
+
+    // Use WebSocket with polling fallback
+    if (window.EASWebSocket) {
+        window.EASWebSocket.subscribe('operation_status_update', handleOperationStatusUpdate, {
+            fallbackFn: pollOperationStatus,
+            fallbackInterval: 10000
+        });
+    } else {
+        // Fallback: 10 seconds polling
+        statusPollInterval = setInterval(pollOperationStatus, 10000);
+    }
 }
 
-// Poll operation status
+// Poll operation status (used as fallback and initial load)
 async function pollOperationStatus() {
     try {
         const response = await fetch('/admin/operations/status');
         const data = await response.json();
-
-        if (data.operations) {
-            updateOperationStatus('backup', data.operations.backup);
-            updateOperationStatus('upgrade', data.operations.upgrade);
-        }
+        handleOperationStatusUpdate(data);
     } catch (error) {
         console.error('Error polling operation status:', error);
     }
