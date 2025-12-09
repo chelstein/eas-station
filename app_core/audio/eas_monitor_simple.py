@@ -223,7 +223,7 @@ class SimpleEASMonitor:
         chunk_size = int(self.sample_rate * 0.1)
 
         consecutive_errors = 0
-        max_consecutive_errors = 10
+        max_consecutive_errors = 50  # Increased from 10 - don't stop on transient issues
 
         while self._running:
             try:
@@ -232,11 +232,12 @@ class SimpleEASMonitor:
 
                 if samples is None or len(samples) == 0:
                     # No audio available, wait briefly
-                    time.sleep(0.01)
+                    time.sleep(0.05)
                     consecutive_errors += 1
                     if consecutive_errors > max_consecutive_errors:
                         logger.warning(f"No audio for {consecutive_errors} consecutive reads")
                         time.sleep(0.5)  # Back off
+                        consecutive_errors = 0  # Reset to keep trying
                     continue
 
                 # Reset error counter on successful read
@@ -252,10 +253,7 @@ class SimpleEASMonitor:
             except Exception as e:
                 logger.error(f"Error in monitor loop: {e}", exc_info=True)
                 consecutive_errors += 1
-                if consecutive_errors > max_consecutive_errors:
-                    logger.error(f"Too many consecutive errors ({consecutive_errors}), stopping monitor")
-                    self._running = False
-                    break
+                # Never stop - keep trying
                 time.sleep(0.1)
 
         logger.info("Monitor loop exited")
