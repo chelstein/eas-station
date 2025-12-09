@@ -67,7 +67,8 @@ def load_fips_codes_from_config() -> list:
     """
     Load configured FIPS codes from application settings.
 
-    Returns list of FIPS codes to monitor, or empty list if none configured.
+    Returns list of FIPS codes to monitor. If empty list is returned (none configured
+    or error loading), the FIPS filtering callback will accept ALL alerts without filtering.
     """
     try:
         from app_core.location import get_location_settings
@@ -84,7 +85,7 @@ def load_fips_codes_from_config() -> list:
 
     except Exception as e:
         logger.warning(f"Could not load FIPS codes from config: {e}")
-        # Return empty list - will log all alerts but not forward any
+        # Return empty list - with no FIPS filtering, ALL alerts will be accepted
         return []
 
 

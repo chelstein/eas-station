@@ -30,7 +30,9 @@ RUN --mount=type=cache,target=/var/lib/apt \
         python3-soapysdr \
         soapysdr-tools \
         libairspy0 \
-        smartmontools; \
+        smartmontools \
+        network-manager \
+        dbus; \
     if [ -n "$SOAPYSDR_DRIVERS" ]; then \
         IFS=','; \
         for driver in $SOAPYSDR_DRIVERS; do \

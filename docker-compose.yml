@@ -291,8 +291,8 @@ services:
     command: ["python", "hardware_service.py"]
     volumes:
       - app-config:/app-config
-      - /run/dbus:/run/dbus:ro  # DBus for NetworkManager communication
-      - /var/run/dbus:/var/run/dbus:ro  # Alternative DBus location
+      - /run/dbus:/run/dbus  # DBus for NetworkManager communication (read-write for configuration)
+      - /var/run/dbus:/var/run/dbus  # Alternative DBus location
     tmpfs:
       - /tmp:size=${TMPFS_HARDWARE_SERVICE:-64M},mode=1777
     environment:
@@ -348,8 +348,7 @@ services:
     volumes:
       - app-config:/app-config  # Persistent volume for .env file
       - certbot-conf:/etc/letsencrypt:ro  # Allow SSL export routes to read certificates
-      # Docker socket removed to prevent /dev/pts permission errors
-      # Health checks can be done via HTTP endpoints instead
+      - /var/run/docker.sock:/var/run/docker.sock:ro  # Docker socket for container health monitoring
     tmpfs:
       - /tmp:size=${TMPFS_APP:-128M},mode=1777
     environment:
