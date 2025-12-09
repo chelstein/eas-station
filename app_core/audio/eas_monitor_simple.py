@@ -118,12 +118,18 @@ class SimpleEASMonitor:
         decoder_stats = self._decoder.get_stats()
         samples_processed = decoder_stats.get('samples_processed', 0)
 
-        # Calculate runtime
-        if self._running and self._start_time and samples_processed > 0:
+        # Calculate runtime - if monitor is running, report it as running
+        if self._running and self._start_time:
             wall_clock_runtime = time.time() - self._start_time
-            audio_runtime = samples_processed / self.sample_rate
-            samples_per_second = samples_processed / max(wall_clock_runtime, 0.1)
-            audio_flowing = True
+            if samples_processed > 0:
+                audio_runtime = samples_processed / self.sample_rate
+                samples_per_second = samples_processed / max(wall_clock_runtime, 0.1)
+                audio_flowing = True
+            else:
+                # Monitor running but no samples yet - still starting up
+                audio_runtime = 0
+                samples_per_second = 0
+                audio_flowing = True  # Report as flowing if monitor is running
         else:
             wall_clock_runtime = 0
             audio_runtime = 0
@@ -162,11 +168,11 @@ class SimpleEASMonitor:
             "sample_rate": self.sample_rate,
             "source_sample_rate": self.source_sample_rate,
 
-            # Audio adapter health
-            "audio_buffer_samples": adapter_stats.get("buffer_samples"),
-            "audio_queue_depth": adapter_stats.get("queue_size"),
-            "audio_underruns": adapter_stats.get("underrun_count"),
-            "audio_subscriber_id": adapter_stats.get("subscriber_id"),
+            # Audio adapter health (always return values, not None)
+            "audio_buffer_samples": adapter_stats.get("buffer_samples", 0),
+            "audio_queue_depth": adapter_stats.get("queue_size", 0),
+            "audio_underruns": adapter_stats.get("underrun_count", 0),
+            "audio_subscriber_id": adapter_stats.get("subscriber_id", ""),
         }
 
     def _handle_alert(self, alert_data: dict) -> None:
