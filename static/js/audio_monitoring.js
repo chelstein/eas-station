@@ -6,6 +6,7 @@
 // Global state
 let audioSources = [];
 let metricsUpdateInterval = null;
+let waveformUpdateInterval = null;
 let healthUpdateInterval = null;
 let deviceMonitorInterval = null;
 let lastDeviceList = [];
@@ -27,21 +28,19 @@ function initializeAudioMonitoring() {
     loadAudioHealth();
     loadAudioAlerts();
 
-    // Use faster metrics updates to keep VU meters responsive even when websockets drop
+    // Fast updates for VU meters (every 2 seconds)
     metricsUpdateInterval = setInterval(updateMetrics, 2000);
+    // Slower updates for waveforms (every 10 seconds)
+    waveformUpdateInterval = setInterval(updateWaveforms, 10000);
     // Health: 30s instead of 5s (health doesn't change that fast)
     healthUpdateInterval = setInterval(loadAudioHealth, 30000);
     // Device changes: 60s instead of 10s (hot-plug is rare)
     deviceMonitorInterval = setInterval(monitorDeviceChanges, 60000);
 
-    // Reload on user interaction (click anywhere refreshes data immediately via cache)
-    document.addEventListener('click', debounce(() => {
-        // Cache will serve if < TTL, otherwise fetches fresh
-        loadAudioSources();
-    }, 2000), { passive: true });
-
     // Perform an immediate metrics refresh so VU meters populate without delay
     updateMetrics();
+    // Initial waveform update
+    updateWaveforms();
 
     // Setup event listeners
     document.getElementById('sourceType')?.addEventListener('change', updateSourceTypeConfig);
@@ -480,16 +479,23 @@ async function updateMetrics() {
             updateMeterDisplay(metric.source_id, 'peak', metric.peak_level_db);
             updateMeterDisplay(metric.source_id, 'rms', metric.rms_level_db);
             renderMetricTimestamp(metric.source_id);
-            // Update waveform for running sources
-            if (audioSources.find(s => s.id === metric.source_id && s.status === 'running')) {
-                updateWaveform(metric.source_id);
-            }
         });
 
         refreshMetricTimestampIndicators();
     } catch (error) {
         console.error('Error updating metrics:', error);
     }
+}
+
+/**
+ * Update waveforms for all running sources (called less frequently than metrics)
+ */
+function updateWaveforms() {
+    audioSources.forEach(source => {
+        if (source.status === 'running') {
+            updateWaveform(source.id);
+        }
+    });
 }
 
 /**

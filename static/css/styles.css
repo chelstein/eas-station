@@ -1078,7 +1078,7 @@ small,
         var(--secondary-color) 100%);
     color: white;
     padding: 2rem 2.5rem;
-    margin-bottom: 2.5rem;
+    margin-bottom: 1.5rem;
     border-radius: var(--radius-2xl);
     box-shadow: var(--shadow-xl),
                 0 0 0 1px rgba(255, 255, 255, 0.1) inset;
