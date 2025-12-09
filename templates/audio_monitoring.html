@@ -1662,6 +1662,9 @@ function updateLevelMetersFromSnapshot(snapshot) {
 // ============================================================================
 
 let easMonitorStartTime = null; // Track when monitor actually started
+let lastAudioFlowingState = false; // Track previous state to prevent flickering
+let audioFlowingStableCount = 0; // Require consistent readings before changing state
+const AUDIO_FLOWING_STABILITY_THRESHOLD = 3; // Require 3 consistent readings (3 seconds at 1 sec polling)
 
 async function loadEASMonitorStatus() {
     try {
@@ -1688,10 +1691,27 @@ function updateEASMonitorDisplay(status) {
     const statusBadge = document.getElementById('eas-monitor-status-badge');
     const running = status.running || false;
     
-    // Better audio flowing detection - check multiple indicators
+    // Better audio flowing detection with hysteresis to prevent flickering
+    // Check multiple indicators to determine if audio is actually flowing
     const samplesProcessed = status.samples_processed || 0;
     const samplesPerSecond = status.samples_per_second || 0;
-    const audioFlowing = status.audio_flowing || samplesProcessed > 0 || samplesPerSecond > 0;
+    const currentAudioFlowing = status.audio_flowing || samplesProcessed > 0 || samplesPerSecond > 0;
+    
+    // Apply hysteresis: only change state after consistent readings
+    if (currentAudioFlowing === lastAudioFlowingState) {
+        // State is stable - reset counter
+        audioFlowingStableCount = 0;
+    } else {
+        // State changed - increment counter
+        audioFlowingStableCount++;
+        if (audioFlowingStableCount >= AUDIO_FLOWING_STABILITY_THRESHOLD) {
+            // State has been different for enough cycles - accept the change
+            lastAudioFlowingState = currentAudioFlowing;
+            audioFlowingStableCount = 0;
+        }
+    }
+    // Use the stable state, not the raw reading
+    const audioFlowing = lastAudioFlowingState;
     
     // Get active sources count
     const activeSources = status.active_sources || 0;
