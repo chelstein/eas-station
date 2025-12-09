@@ -704,6 +704,7 @@ def initialize_eas_monitor(app, audio_controller):
                 total_runtime = 0
                 total_alerts = 0
                 any_running = False
+                active_sources = 0  # Sources with audio flowing
 
                 for name, monitor in self._all_monitors.items():
                     try:
@@ -714,15 +715,21 @@ def initialize_eas_monitor(app, audio_controller):
                         total_alerts += stats.get('alerts_detected', 0)
                         if stats.get('running', False):
                             any_running = True
+                        if stats.get('audio_flowing', False):
+                            active_sources += 1
                     except Exception as e:
                         logger.debug(f"Error getting status for monitor '{name}': {e}")
 
                 return {
                     "running": any_running,
+                    "mode": "streaming",
                     "samples_processed": total_samples,
                     "wall_clock_runtime_seconds": total_runtime,
+                    "runtime_seconds": total_samples / 16000 if total_samples > 0 else 0,
                     "alerts_detected": total_alerts,
                     "monitor_count": len(self._all_monitors),
+                    "active_sources": active_sources,
+                    "source_names": list(self._all_monitors.keys()),
                     "monitors": all_stats
                 }
 

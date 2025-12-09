@@ -114,7 +114,7 @@ class SimpleEASMonitor:
         logger.info(f"EAS monitor stopped. Detected {self._alerts_detected} alerts")
 
     def get_status(self) -> dict:
-        """Get current status."""
+        """Get current status with all metrics."""
         decoder_stats = self._decoder.get_stats()
         samples_processed = decoder_stats.get('samples_processed', 0)
 
@@ -123,22 +123,50 @@ class SimpleEASMonitor:
             wall_clock_runtime = time.time() - self._start_time
             audio_runtime = samples_processed / self.sample_rate
             samples_per_second = samples_processed / max(wall_clock_runtime, 0.1)
+            audio_flowing = True
         else:
             wall_clock_runtime = 0
             audio_runtime = 0
             samples_per_second = 0
+            audio_flowing = False
+
+        # Get audio adapter stats if available
+        adapter_stats = {}
+        if hasattr(self.audio_source, 'get_stats'):
+            try:
+                adapter_stats = self.audio_source.get_stats()
+            except Exception:
+                pass
 
         return {
+            # Core status
             "running": self._running,
+            "mode": "streaming",
+            "audio_flowing": audio_flowing,
+
+            # Decoder metrics
             "samples_processed": samples_processed,
+            "samples_per_second": int(samples_per_second),
             "wall_clock_runtime_seconds": wall_clock_runtime,
             "runtime_seconds": audio_runtime,
-            "samples_per_second": int(samples_per_second),
-            "alerts_detected": self._alerts_detected,
+
+            # Decoder state
             "decoder_synced": decoder_stats.get('synced', False),
             "decoder_in_message": decoder_stats.get('in_message', False),
+            "decoder_bytes_decoded": decoder_stats.get('bytes_decoded', 0),
+
+            # Alert tracking
+            "alerts_detected": self._alerts_detected,
+
+            # Sample rate info
             "sample_rate": self.sample_rate,
             "source_sample_rate": self.source_sample_rate,
+
+            # Audio adapter health
+            "audio_buffer_samples": adapter_stats.get("buffer_samples"),
+            "audio_queue_depth": adapter_stats.get("queue_size"),
+            "audio_underruns": adapter_stats.get("underrun_count"),
+            "audio_subscriber_id": adapter_stats.get("subscriber_id"),
         }
 
     def _handle_alert(self, alert_data: dict) -> None:
