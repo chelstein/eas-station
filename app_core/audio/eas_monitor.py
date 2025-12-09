@@ -617,9 +617,10 @@ class ContinuousEASMonitor:
         # Get streaming decoder stats
         decoder_stats = self._streaming_decoder.get_stats()
         
-        # Audio is flowing if decoder has processed samples
-        audio_flowing = decoder_stats['samples_processed'] > 0
+        # Audio is flowing if decoder has processed samples AND monitor is running
+        # This prevents false "no audio" indications during the minimum sample period
         samples_processed = decoder_stats['samples_processed']
+        audio_flowing = is_running and samples_processed > 0
         
         # Calculate how long decoder has been running based on WALL CLOCK TIME
         # This gives us the true instantaneous processing rate
@@ -647,8 +648,10 @@ class ContinuousEASMonitor:
                         )
                     samples_per_second = self._smoothed_samples_per_second
             else:
-                # Not enough samples yet - report 0 to avoid misleading spikes
-                samples_per_second = 0.0
+                # During warmup period (first 2 seconds), report expected rate
+                # This prevents "0% processing" warnings and keeps display stable
+                # The health percentage will show this is warmup phase
+                samples_per_second = float(self.sample_rate)
             
             # Runtime in terms of audio content (how many seconds of audio we've processed)
             runtime_seconds = samples_processed / self.sample_rate
@@ -672,9 +675,18 @@ class ContinuousEASMonitor:
         # For streaming decoder, "health" = processing at line rate (configured sample_rate)
         expected_rate = self.sample_rate
         if audio_flowing and samples_per_second > 0:
-            # Clamp health to 0-100% range to prevent >100% display
-            # Even with smoothing, can still slightly exceed 100% due to timing variations
-            health_percentage = max(0.0, min(1.0, samples_per_second / expected_rate))
+            # During warmup period (first 2 seconds), report partial health
+            # This shows system is working but still stabilizing
+            if samples_processed < self._min_samples_for_rate:
+                # Warmup phase: health grows linearly from 0% to 95% over first 2 seconds
+                # This provides visual feedback without triggering "no audio" warnings
+                warmup_progress = min(1.0, samples_processed / float(self._min_samples_for_rate))
+                health_percentage = warmup_progress * 0.95
+            else:
+                # Normal operation: calculate actual health based on processing rate
+                # Clamp to 0-100% range to prevent >100% display
+                # Even with smoothing, can still slightly exceed 100% due to timing variations
+                health_percentage = max(0.0, min(1.0, samples_per_second / expected_rate))
         else:
             health_percentage = 0.0
 
