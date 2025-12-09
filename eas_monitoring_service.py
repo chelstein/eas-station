@@ -1200,20 +1200,19 @@ def main():
                 # Process pending commands from webapp (non-blocking)
                 process_commands()
 
-                # Periodically check for running sources without monitors and create them
-                if current_time - last_monitor_check >= monitor_check_interval:
-                    if eas_monitor and audio_controller:
-                        from app_core.audio.ingest import AudioSourceStatus
-                        for source_name, source_adapter in audio_controller._sources.items():
-                            if source_adapter.status == AudioSourceStatus.RUNNING:
-                                # Check if this source has a monitor
-                                if hasattr(eas_monitor, '_all_monitors') and source_name not in eas_monitor._all_monitors:
-                                    logger.info(f"Found running source '{source_name}' without EAS monitor - creating one")
-                                    try:
-                                        eas_monitor.add_monitor_for_source(source_name)
-                                    except Exception as e:
-                                        logger.error(f"Failed to create monitor for '{source_name}': {e}")
-                    last_monitor_check = current_time
+                # Check for missing monitors every 30s (disabled - causing issues)
+                # if current_time - last_monitor_check >= monitor_check_interval:
+                #     if eas_monitor and audio_controller:
+                #         from app_core.audio.ingest import AudioSourceStatus
+                #         for source_name, source_adapter in audio_controller._sources.items():
+                #             if source_adapter.status == AudioSourceStatus.RUNNING:
+                #                 if hasattr(eas_monitor, '_all_monitors') and source_name not in eas_monitor._all_monitors:
+                #                     logger.info(f"Found running source '{source_name}' without EAS monitor - creating one")
+                #                     try:
+                #                         eas_monitor.add_monitor_for_source(source_name)
+                #                     except Exception as e:
+                #                         logger.error(f"Failed to create monitor for '{source_name}': {e}")
+                #     last_monitor_check = current_time
 
                 # Publish metrics periodically
                 if current_time - last_metrics_time >= metrics_interval:
