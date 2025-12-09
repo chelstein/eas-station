@@ -1663,12 +1663,15 @@ function updateLevelMetersFromSnapshot(snapshot) {
 
 let easMonitorStartTime = null; // Track when monitor actually started
 
+// Cache last valid EAS monitor state to prevent bouncing when Redis data is temporarily unavailable
+let lastValidEASMonitorState = null;
+
 // Hysteresis variables to prevent status flickering due to momentary audio metric fluctuations
 // Initial state: false (no audio) - represents system startup before any audio is detected
 // This prevents false "audio flowing" indications before the monitor has actually started
 let lastAudioFlowingState = false; // The last confirmed stable state (not current raw reading)
 let audioFlowingStableCount = 0; // Counter: how many consecutive polls showed a DIFFERENT state
-const AUDIO_FLOWING_STABILITY_THRESHOLD = 3; // Require 3 consecutive readings (3+ seconds) before accepting state change
+const AUDIO_FLOWING_STABILITY_THRESHOLD = 2; // Require 2 consecutive readings before accepting state change (faster response with WebSocket)
 
 async function loadEASMonitorStatus() {
     try {
@@ -1685,10 +1688,31 @@ async function loadEASMonitorStatus() {
 }
 
 function updateEASMonitorDisplay(status) {
-    // Hide error if we got valid data
-    const errorDiv = document.getElementById('eas-monitor-error');
-    if (errorDiv) {
-        errorDiv.classList.add('d-none');
+    // If status is null/undefined or contains an error, use last valid state if available
+    // This prevents bouncing when Redis data is temporarily unavailable
+    if (!status || status.error) {
+        if (lastValidEASMonitorState) {
+            // Use cached state silently - don't show error for transient Redis issues
+            status = lastValidEASMonitorState;
+            console.debug('Using cached EAS monitor state (Redis data unavailable)');
+        } else {
+            // No cached state and no valid data - show error
+            const errorDiv = document.getElementById('eas-monitor-error');
+            if (errorDiv && status?.error) {
+                showEASMonitorError(status.error);
+            }
+            return;
+        }
+    } else {
+        // Valid status received - deep clone and cache it for future use
+        // Deep clone prevents mutations from affecting cached state
+        lastValidEASMonitorState = JSON.parse(JSON.stringify(status));
+        
+        // Hide error if we got valid data
+        const errorDiv = document.getElementById('eas-monitor-error');
+        if (errorDiv) {
+            errorDiv.classList.add('d-none');
+        }
     }
 
     // Update status badge
@@ -2142,7 +2166,7 @@ let levelIntervalHandle = null;
 let easMonitorIntervalHandle = null;
 
 function startLevelPolling() {
-    // Poll for audio level metrics every 2s when WebSocket unavailable
+    // Poll for audio level metrics every 5s when WebSocket unavailable (WebSocket is primary at 100ms intervals)
     if (levelIntervalHandle) {
         clearInterval(levelIntervalHandle);
     }
@@ -2162,11 +2186,11 @@ function startLevelPolling() {
         } catch (error) {
             console.error('Error polling audio levels:', error);
         }
-    }, 2000);
+    }, 5000);
 }
 
 function startEASMonitorPolling() {
-    // Poll for EAS monitor status every 2 seconds when WebSocket unavailable
+    // Poll for EAS monitor status every 5 seconds when WebSocket unavailable (WebSocket is primary at 100ms intervals)
     if (easMonitorIntervalHandle) {
         clearInterval(easMonitorIntervalHandle);
     }
@@ -2177,7 +2201,7 @@ function startEASMonitorPolling() {
         } catch (error) {
             console.error('Error polling EAS monitor status:', error);
         }
-    }, 2000);
+    }, 5000);
 }
 
 function initializeWebSocket() {
@@ -2191,22 +2215,24 @@ function initializeWebSocket() {
         });
 
         socket.on('connect', function() {
-            console.log('WebSocket connected - real-time updates active');
+            console.log('✓ WebSocket connected - real-time updates active (100ms intervals)');
             socketConnected = true;
 
             // Stop polling since we're using WebSocket now
             if (levelIntervalHandle) {
                 clearInterval(levelIntervalHandle);
                 levelIntervalHandle = null;
+                console.log('  Stopped audio level polling (using WebSocket)');
             }
             if (easMonitorIntervalHandle) {
                 clearInterval(easMonitorIntervalHandle);
                 easMonitorIntervalHandle = null;
+                console.log('  Stopped EAS monitor polling (using WebSocket)');
             }
         });
 
         socket.on('disconnect', function() {
-            console.log('WebSocket disconnected - falling back to polling');
+            console.log('⚠ WebSocket disconnected - falling back to polling (5s intervals)');
             socketConnected = false;
 
             // Fall back to polling if WebSocket disconnects
@@ -2215,7 +2241,7 @@ function initializeWebSocket() {
         });
 
         socket.on('connect_error', function(error) {
-            console.error('WebSocket connection error:', error);
+            console.error('⚠ WebSocket connection error:', error, '- falling back to polling');
 
             // Fall back to polling on connection error
             if (!levelIntervalHandle) {
@@ -2234,8 +2260,9 @@ function initializeWebSocket() {
                     updateLevelMetersFromSnapshot(data.audio_metrics);
                 }
 
-                // Update EAS monitor status
-                if (data.eas_monitor) {
+                // Update EAS monitor status - only if data is provided
+                // Don't update if eas_monitor is null/undefined to avoid clearing display
+                if (data.eas_monitor != null) {
                     updateEASMonitorDisplay(data.eas_monitor);
                 }
 

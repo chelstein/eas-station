@@ -831,7 +831,7 @@
     </div>
 
     <!-- Snow Emergency Banner - Shows active emergencies, hidden when none -->
-    <div id="snow-emergency-banner" class="snow-emergency-banner" style="display: none;">
+    <div id="snow-emergency-banner" class="snow-emergency-banner d-none">
         <div class="snow-emergency-header">
             <h6><i class="fas fa-snowflake"></i> Snow Emergencies</h6>
         </div>
@@ -839,7 +839,7 @@
     </div>
 
     <!-- Snow Emergency Level Definitions - Shows when there are active emergencies -->
-    <div id="snow-emergency-definitions" class="snow-emergency-info mt-3 p-3" style="display: none;">
+    <div id="snow-emergency-definitions" class="snow-emergency-info p-3 d-none">
         <h6 class="mb-2"><i class="fas fa-info-circle text-info me-2"></i>Ohio Snow Emergency Levels Explained</h6>
         <p class="text-muted small mb-3">Ohio sheriffs use a standardized three-level snow emergency system to communicate road conditions and travel advisories:</p>
         <div class="snow-level-description-grid">
@@ -2279,15 +2279,23 @@ function renderSnowEmergencyBanner(data) {
     );
 
     if (activeEmergencies.length === 0) {
-        banner.style.display = 'none';
+        // Use Bootstrap's d-none class for proper hiding without whitespace
+        banner.classList.add('d-none');
         banner.classList.remove('has-emergencies');
-        if (definitions) definitions.style.display = 'none';
+        if (definitions) {
+            definitions.classList.add('d-none');
+            definitions.classList.remove('mt-3');
+        }
         return;
     }
 
-    banner.style.display = 'block';
+    // Show sections and add proper spacing
+    banner.classList.remove('d-none');
     banner.classList.add('has-emergencies');
-    if (definitions) definitions.style.display = 'block';
+    if (definitions) {
+        definitions.classList.remove('d-none');
+        definitions.classList.add('mt-3');
+    }
 
     grid.innerHTML = activeEmergencies.map(e => `
         <div class="snow-county-card level-${e.level}">
