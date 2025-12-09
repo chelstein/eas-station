@@ -512,16 +512,16 @@ def initialize_auto_streaming(app, audio_controller):
 def initialize_eas_monitor(app, audio_controller):
     """Initialize EAS monitoring system with per-source monitors.
     
-    CRITICAL FIX: Create separate EAS monitor for each audio source to enable
-    simultaneous monitoring of multiple streams (LP1, LP2, SP1, etc).
+    COMPLETE REWRITE: Uses new EASMonitorV2 with robust health tracking,
+    consistent status reporting, and proper error recovery.
     
-    Previously, only ONE source was monitored at a time (highest priority).
-    Now ALL sources are monitored simultaneously for EAS alerts.
+    Creates separate monitors for each audio source to enable simultaneous
+    monitoring of multiple streams (LP1, LP2, SP1, etc).
     """
     global _eas_monitor
 
     with app.app_context():
-        from app_core.audio.eas_monitor_simple import SimpleEASMonitor
+        from app_core.audio.eas_monitor_v2 import EASMonitorV2
         from app_core.audio.eas_monitor import create_fips_filtering_callback
         from app_core.audio.broadcast_adapter import BroadcastAudioAdapter
         from app_core.audio.startup_integration import load_fips_codes_from_config
@@ -577,11 +577,12 @@ def initialize_eas_monitor(app, audio_controller):
                     sample_rate=int(source_sample_rate)
                 )
 
-                # Create simple EAS monitor
-                monitor = SimpleEASMonitor(
+                # Create v2 EAS monitor (complete rewrite with robust health tracking)
+                monitor = EASMonitorV2(
                     audio_source=audio_adapter,
                     sample_rate=16000,
-                    alert_callback=alert_callback
+                    alert_callback=alert_callback,
+                    source_name=source_name
                 )
 
                 # Start monitoring this source
@@ -650,11 +651,12 @@ def initialize_eas_monitor(app, audio_controller):
                         sample_rate=int(source_sample_rate)
                     )
 
-                    # Create simple EAS monitor
-                    monitor = SimpleEASMonitor(
+                    # Create v2 EAS monitor (complete rewrite with robust health tracking)
+                    monitor = EASMonitorV2(
                         audio_source=audio_adapter,
                         sample_rate=16000,
-                        alert_callback=self._alert_callback
+                        alert_callback=self._alert_callback,
+                        source_name=source_name
                     )
 
                     # Start monitoring this source
@@ -701,18 +703,23 @@ def initialize_eas_monitor(app, audio_controller):
                 """Get aggregated status from all monitors."""
                 all_stats = {}
                 total_samples = 0
-                total_runtime = 0
+                max_runtime = 0  # Use max runtime instead of sum - all monitors run concurrently
                 total_alerts = 0
                 any_running = False
                 active_sources = 0  # Sources with audio flowing
+                total_samples_per_second = 0
 
                 for name, monitor in self._all_monitors.items():
                     try:
                         stats = monitor.get_status()
                         all_stats[name] = stats
                         total_samples += stats.get('samples_processed', 0)
-                        total_runtime += stats.get('wall_clock_runtime_seconds', 0)
+                        # Take maximum runtime (all monitors run in parallel)
+                        monitor_runtime = stats.get('wall_clock_runtime_seconds', 0)
+                        if monitor_runtime > max_runtime:
+                            max_runtime = monitor_runtime
                         total_alerts += stats.get('alerts_detected', 0)
+                        total_samples_per_second += stats.get('samples_per_second', 0)
                         if stats.get('running', False):
                             any_running = True
                         if stats.get('audio_flowing', False):
@@ -724,11 +731,14 @@ def initialize_eas_monitor(app, audio_controller):
                     "running": any_running,
                     "mode": "streaming",
                     "samples_processed": total_samples,
-                    "wall_clock_runtime_seconds": total_runtime,
+                    "wall_clock_runtime_seconds": max_runtime,
                     "runtime_seconds": total_samples / 16000 if total_samples > 0 else 0,
+                    "samples_per_second": total_samples_per_second,
                     "alerts_detected": total_alerts,
                     "monitor_count": len(self._all_monitors),
                     "active_sources": active_sources,
+                    "audio_flowing": active_sources > 0,  # True if any source has audio flowing
+                    "health_percentage": (total_samples_per_second / 16000) if active_sources > 0 else 0,
                     "source_names": list(self._all_monitors.keys()),
                     "monitors": all_stats
                 }
