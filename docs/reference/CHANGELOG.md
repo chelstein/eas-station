@@ -6,6 +6,13 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.16.1] - 2025-12-09
+### Fixed
+- **Dashboard Layout**: Removed duplicate `page-shell` class from dashboard container that caused large gap at top of page
+  - Root cause: `page-shell` was applied to both `<main>` in base.html and inner container in index.html
+  - This resulted in double top padding (from both elements)
+  - Fix: Removed redundant `page-shell` class from inner `<div class="container-fluid">` in index.html
+
 ## [2.16.0] - 2025-12-08
 ### Changed
 - **BREAKING: Service Renaming - Clean Architecture**
