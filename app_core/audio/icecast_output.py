@@ -320,6 +320,7 @@ class IcecastStreamer:
             # FFmpeg command to encode and stream
             cmd = [
                 'ffmpeg',
+                '-re',  # CRITICAL: Read input at native frame rate (real-time streaming)
                 '-f', 's16le',  # Input: 16-bit PCM
                 '-ar', str(self.config.sample_rate),  # Sample rate
                 '-ac', str(max(1, int(self.config.channels))),
@@ -369,7 +370,7 @@ class IcecastStreamer:
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
-                bufsize=8192
+                bufsize=65536  # Increased from 8192 to 64KB for better network streaming stability
             )
 
             # Start stderr reader thread to prevent buffer blocking
@@ -571,13 +572,22 @@ class IcecastStreamer:
                             f"This indicates a serious issue with the audio source."
                         )
 
-                # Feed FFmpeg from buffer
+                # Feed FFmpeg from buffer with proper error handling
                 if buffer and self._ffmpeg_process and self._ffmpeg_process.stdin:
-                    chunk = buffer.popleft()
-                    self._ffmpeg_process.stdin.write(chunk)
-                    self._ffmpeg_process.stdin.flush()
-                    self._bytes_sent += len(chunk)
-                    wrote_chunk = True
+                    try:
+                        chunk = buffer.popleft()
+                        self._ffmpeg_process.stdin.write(chunk)
+                        # Only flush periodically, not every write (reduces pipe pressure)
+                        if self._bytes_sent % 32768 == 0:  # Flush every 32KB
+                            self._ffmpeg_process.stdin.flush()
+                        self._bytes_sent += len(chunk)
+                        wrote_chunk = True
+                    except (BrokenPipeError, OSError) as pipe_err:
+                        # Don't log as error here - will be caught below and trigger restart
+                        logger.debug(f"Pipe write failed for mount {self.config.mount}: {pipe_err}")
+                        # Put chunk back in buffer
+                        buffer.appendleft(chunk)
+                        raise  # Re-raise to trigger restart logic below
 
                     # Monitor buffer health
                     buffer_level = len(buffer)
