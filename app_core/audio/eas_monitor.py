@@ -496,6 +496,15 @@ class ContinuousEASMonitor:
         # Track actual start time for accurate rate calculation
         self._start_time: Optional[float] = None
         
+        # Rate smoothing to prevent display fluctuations
+        # Minimum samples before calculating rate (prevents early spikes)
+        self._min_samples_for_rate = sample_rate * 2  # 2 seconds of audio
+        # Exponential moving average for samples_per_second
+        self._smoothed_samples_per_second: float = 0.0
+        # Smoothing factor (0-1): lower = more smoothing, higher = more responsive
+        # 0.3 provides good balance: responsive to real changes, filters out noise
+        self._rate_smoothing_alpha: float = 0.3
+        
         logger.info(
             f"Initialized ContinuousEASMonitor: "
             f"source_sample_rate={self.source_sample_rate}Hz, "
@@ -616,14 +625,40 @@ class ContinuousEASMonitor:
         # This gives us the true instantaneous processing rate
         if audio_flowing and self._start_time is not None:
             actual_elapsed = time.time() - self._start_time
-            # Calculate actual samples per second based on wall clock time
-            samples_per_second = samples_processed / max(actual_elapsed, self.MIN_ELAPSED_SECONDS)
+            
+            # Only calculate rate if we have enough samples to avoid startup spikes
+            # This prevents showing 500%+ rates during the first few milliseconds
+            if samples_processed >= self._min_samples_for_rate:
+                # Calculate raw instantaneous rate
+                raw_samples_per_second = samples_processed / max(actual_elapsed, self.MIN_ELAPSED_SECONDS)
+                
+                # Apply exponential moving average for smooth, stable display
+                # EMA formula: smoothed = old * (1 - alpha) + new * alpha
+                # This filters out timing noise while staying responsive to real changes
+                with self._stats_lock:
+                    if self._smoothed_samples_per_second == 0.0:
+                        # First calculation - initialize with raw value
+                        self._smoothed_samples_per_second = raw_samples_per_second
+                    else:
+                        # Update smoothed value using EMA
+                        self._smoothed_samples_per_second = (
+                            self._smoothed_samples_per_second * (1.0 - self._rate_smoothing_alpha) +
+                            raw_samples_per_second * self._rate_smoothing_alpha
+                        )
+                    samples_per_second = self._smoothed_samples_per_second
+            else:
+                # Not enough samples yet - report 0 to avoid misleading spikes
+                samples_per_second = 0.0
+            
             # Runtime in terms of audio content (how many seconds of audio we've processed)
             runtime_seconds = samples_processed / self.sample_rate
         else:
             actual_elapsed = 0
             runtime_seconds = 0
             samples_per_second = 0
+            # Reset smoothed rate when not running
+            with self._stats_lock:
+                self._smoothed_samples_per_second = 0.0
         
         with self._stats_lock:
             alerts_detected = self._alerts_detected
@@ -636,7 +671,12 @@ class ContinuousEASMonitor:
         # Calculate health metrics
         # For streaming decoder, "health" = processing at line rate (configured sample_rate)
         expected_rate = self.sample_rate
-        health_percentage = min(1.0, samples_per_second / expected_rate) if audio_flowing else 0.0
+        if audio_flowing and samples_per_second > 0:
+            # Clamp health to 0-100% range to prevent >100% display
+            # Even with smoothing, can still slightly exceed 100% due to timing variations
+            health_percentage = max(0.0, min(1.0, samples_per_second / expected_rate))
+        else:
+            health_percentage = 0.0
 
         resample_ratio = None
         if self.source_sample_rate:
@@ -768,6 +808,10 @@ class ContinuousEASMonitor:
             # CRITICAL FIX: Reset the streaming decoder to clear samples_processed counter
             # This ensures runtime metrics stay consistent after restart
             self._streaming_decoder.reset()
+            
+            # Reset rate smoothing to prevent stale values after restart
+            with self._stats_lock:
+                self._smoothed_samples_per_second = 0.0
             
             # Start new monitoring thread
             self._monitor_thread = threading.Thread(
