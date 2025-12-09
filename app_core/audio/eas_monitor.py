@@ -419,6 +419,11 @@ class ContinuousEASMonitor:
     
     # Minimum elapsed time for rate calculation (prevents division by zero on startup)
     MIN_ELAPSED_SECONDS = 0.1
+    
+    # Rate smoothing and warmup configuration
+    WARMUP_DURATION_SECONDS = 2  # Duration of warmup period before accurate rate calculation
+    WARMUP_MAX_HEALTH_PERCENTAGE = 0.95  # Maximum health shown during warmup (95%)
+    RATE_SMOOTHING_ALPHA = 0.3  # EMA smoothing factor: lower=more smooth, higher=more responsive
 
     def __init__(
         self,
@@ -495,6 +500,12 @@ class ContinuousEASMonitor:
         
         # Track actual start time for accurate rate calculation
         self._start_time: Optional[float] = None
+        
+        # Rate smoothing to prevent display fluctuations
+        # Minimum samples before calculating rate (prevents early spikes)
+        self._min_samples_for_rate = sample_rate * self.WARMUP_DURATION_SECONDS
+        # Exponential moving average for samples_per_second
+        self._smoothed_samples_per_second: float = 0.0
         
         logger.info(
             f"Initialized ContinuousEASMonitor: "
@@ -608,22 +619,51 @@ class ContinuousEASMonitor:
         # Get streaming decoder stats
         decoder_stats = self._streaming_decoder.get_stats()
         
-        # Audio is flowing if decoder has processed samples
-        audio_flowing = decoder_stats['samples_processed'] > 0
+        # Audio is flowing if decoder has processed samples AND monitor is running
+        # This prevents false "no audio" indications during the minimum sample period
         samples_processed = decoder_stats['samples_processed']
+        audio_flowing = is_running and samples_processed > 0
         
         # Calculate how long decoder has been running based on WALL CLOCK TIME
         # This gives us the true instantaneous processing rate
         if audio_flowing and self._start_time is not None:
             actual_elapsed = time.time() - self._start_time
-            # Calculate actual samples per second based on wall clock time
-            samples_per_second = samples_processed / max(actual_elapsed, self.MIN_ELAPSED_SECONDS)
+            
+            # Only calculate rate if we have enough samples to avoid startup spikes
+            # This prevents showing 500%+ rates during the first few milliseconds
+            if samples_processed >= self._min_samples_for_rate:
+                # Calculate raw instantaneous rate
+                raw_samples_per_second = samples_processed / max(actual_elapsed, self.MIN_ELAPSED_SECONDS)
+                
+                # Apply exponential moving average for smooth, stable display
+                # EMA formula: smoothed = old * (1 - alpha) + new * alpha
+                # This filters out timing noise while staying responsive to real changes
+                with self._stats_lock:
+                    if self._smoothed_samples_per_second == 0.0:
+                        # First calculation - initialize with raw value
+                        self._smoothed_samples_per_second = raw_samples_per_second
+                    else:
+                        # Update smoothed value using EMA
+                        self._smoothed_samples_per_second = (
+                            self._smoothed_samples_per_second * (1.0 - self.RATE_SMOOTHING_ALPHA) +
+                            raw_samples_per_second * self.RATE_SMOOTHING_ALPHA
+                        )
+                    samples_per_second = self._smoothed_samples_per_second
+            else:
+                # During warmup period (first 2 seconds), report expected rate
+                # This prevents "0% processing" warnings and keeps display stable
+                # The health percentage will show this is warmup phase
+                samples_per_second = float(self.sample_rate)
+            
             # Runtime in terms of audio content (how many seconds of audio we've processed)
             runtime_seconds = samples_processed / self.sample_rate
         else:
             actual_elapsed = 0
             runtime_seconds = 0
             samples_per_second = 0
+            # Reset smoothed rate when not running
+            with self._stats_lock:
+                self._smoothed_samples_per_second = 0.0
         
         with self._stats_lock:
             alerts_detected = self._alerts_detected
@@ -636,7 +676,21 @@ class ContinuousEASMonitor:
         # Calculate health metrics
         # For streaming decoder, "health" = processing at line rate (configured sample_rate)
         expected_rate = self.sample_rate
-        health_percentage = min(1.0, samples_per_second / expected_rate) if audio_flowing else 0.0
+        if audio_flowing and samples_per_second > 0:
+            # During warmup period (first 2 seconds), report partial health
+            # This shows system is working but still stabilizing
+            if samples_processed < self._min_samples_for_rate:
+                # Warmup phase: health grows linearly from 0% to WARMUP_MAX_HEALTH_PERCENTAGE
+                # This provides visual feedback without triggering "no audio" warnings
+                warmup_progress = min(1.0, samples_processed / float(self._min_samples_for_rate))
+                health_percentage = warmup_progress * self.WARMUP_MAX_HEALTH_PERCENTAGE
+            else:
+                # Normal operation: calculate actual health based on processing rate
+                # Clamp to 0-100% range to prevent >100% display
+                # Even with smoothing, can still slightly exceed 100% due to timing variations
+                health_percentage = max(0.0, min(1.0, samples_per_second / expected_rate))
+        else:
+            health_percentage = 0.0
 
         resample_ratio = None
         if self.source_sample_rate:
@@ -768,6 +822,10 @@ class ContinuousEASMonitor:
             # CRITICAL FIX: Reset the streaming decoder to clear samples_processed counter
             # This ensures runtime metrics stay consistent after restart
             self._streaming_decoder.reset()
+            
+            # Reset rate smoothing to prevent stale values after restart
+            with self._stats_lock:
+                self._smoothed_samples_per_second = 0.0
             
             # Start new monitoring thread
             self._monitor_thread = threading.Thread(

@@ -353,6 +353,11 @@ const htmlEntityDecoder = document.createElement('textarea');
 // EAS Monitor warmup configuration
 const EAS_WARMUP_DURATION_SECONDS = 10; // Show "warming up" only during first 10 seconds
 
+// Stability threshold increased to prevent flickering during transient fluctuations
+// Requires 5 consecutive readings of a different state before accepting the change
+// At 100ms WebSocket intervals, this is 500ms of consistent state before updating display
+const AUDIO_FLOWING_STABILITY_THRESHOLD = 5;
+
 // VU meter state tracking for smoothing and peak hold
 const vuMeterState = new Map(); // sourceId -> { lastPeak, lastRms, peakHold, peakHoldTime }
 
@@ -1671,7 +1676,7 @@ let lastValidEASMonitorState = null;
 // This prevents false "audio flowing" indications before the monitor has actually started
 let lastAudioFlowingState = false; // The last confirmed stable state (not current raw reading)
 let audioFlowingStableCount = 0; // Counter: how many consecutive polls showed a DIFFERENT state
-const AUDIO_FLOWING_STABILITY_THRESHOLD = 2; // Require 2 consecutive readings before accepting state change (faster response with WebSocket)
+// Threshold is now defined at top of file for easier tuning
 
 async function loadEASMonitorStatus() {
     try {
