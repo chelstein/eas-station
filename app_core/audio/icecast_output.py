@@ -577,10 +577,16 @@ class IcecastStreamer:
                     try:
                         chunk = buffer.popleft()
                         self._ffmpeg_process.stdin.write(chunk)
-                        # Only flush periodically, not every write (reduces pipe pressure)
-                        if self._bytes_sent % 32768 == 0:  # Flush every 32KB
-                            self._ffmpeg_process.stdin.flush()
                         self._bytes_sent += len(chunk)
+                        
+                        # Only flush periodically, not every write (reduces pipe pressure)
+                        # Track chunks written instead of bytes for efficiency
+                        if not hasattr(self, '_chunks_written'):
+                            self._chunks_written = 0
+                        self._chunks_written += 1
+                        if self._chunks_written % 16 == 0:  # Flush every 16 chunks (~800ms of audio)
+                            self._ffmpeg_process.stdin.flush()
+                        
                         wrote_chunk = True
                     except (BrokenPipeError, OSError) as pipe_err:
                         # Don't log as error here - will be caught below and trigger restart

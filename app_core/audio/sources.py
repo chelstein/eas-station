@@ -892,7 +892,7 @@ class StreamSourceAdapter(AudioSourceAdapter):
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 stdin=subprocess.DEVNULL,
-                bufsize=0,
+                bufsize=65536,  # Use 64KB buffer instead of unbuffered (bufsize=0) for better performance
             )
         except FileNotFoundError as exc:
             raise RuntimeError("FFmpeg executable not found in PATH") from exc

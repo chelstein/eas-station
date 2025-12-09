@@ -118,18 +118,22 @@ def register_eas_monitor_routes(app: Flask, logger_instance) -> None:
                 monitors_dict = status["monitors"]
                 if monitors_dict:
                     # Get the first monitor's stats (usually there's only one or two)
-                    first_monitor_key = next(iter(monitors_dict.keys()))
-                    first_monitor_stats = monitors_dict[first_monitor_key]
-                    
-                    # Verify it's a dict before copying
-                    if isinstance(first_monitor_stats, dict):
-                        logger.debug(f"Using stats from monitor '{first_monitor_key}' for UI display")
-                        # Use the individual monitor's stats, but keep aggregated running status
-                        status = first_monitor_stats.copy()
-                        # Override with aggregated running status (any monitor running = system running)
-                        status["running"] = shared_metrics.get("eas_monitor", {}).get("running", False)
+                    # Use next() with a default to handle empty dict gracefully
+                    first_monitor_key = next(iter(monitors_dict.keys()), None)
+                    if first_monitor_key:
+                        first_monitor_stats = monitors_dict[first_monitor_key]
+                        
+                        # Verify it's a dict before copying
+                        if isinstance(first_monitor_stats, dict):
+                            logger.debug(f"Using stats from monitor '{first_monitor_key}' for UI display")
+                            # Use the individual monitor's stats, but keep aggregated running status
+                            status = first_monitor_stats.copy()
+                            # Override with aggregated running status (any monitor running = system running)
+                            status["running"] = shared_metrics.get("eas_monitor", {}).get("running", False)
+                        else:
+                            logger.warning(f"Monitor '{first_monitor_key}' stats is not a dict: {type(first_monitor_stats)}")
                     else:
-                        logger.warning(f"Monitor '{first_monitor_key}' stats is not a dict: {type(first_monitor_stats)}")
+                        logger.warning("Monitors dict is empty")
 
             # Build response from shared metrics
             response_data: Dict[str, Any] = {
