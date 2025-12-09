@@ -1698,14 +1698,15 @@ function updateEASMonitorDisplay(status) {
         } else {
             // No cached state and no valid data - show error
             const errorDiv = document.getElementById('eas-monitor-error');
-            if (errorDiv && status && status.error) {
+            if (errorDiv && status?.error) {
                 showEASMonitorError(status.error);
             }
             return;
         }
     } else {
-        // Valid status received - cache it for future use
-        lastValidEASMonitorState = status;
+        // Valid status received - deep clone and cache it for future use
+        // Deep clone prevents mutations from affecting cached state
+        lastValidEASMonitorState = JSON.parse(JSON.stringify(status));
         
         // Hide error if we got valid data
         const errorDiv = document.getElementById('eas-monitor-error');
@@ -2261,7 +2262,7 @@ function initializeWebSocket() {
 
                 // Update EAS monitor status - only if data is provided
                 // Don't update if eas_monitor is null/undefined to avoid clearing display
-                if (data.eas_monitor !== null && data.eas_monitor !== undefined) {
+                if (data.eas_monitor != null) {
                     updateEASMonitorDisplay(data.eas_monitor);
                 }
 
