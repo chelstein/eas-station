@@ -438,17 +438,17 @@ ENV_CATEGORIES = {
             },
             {
                 'key': 'DEFAULT_ZONE_CODES',
-                'label': 'Zone Codes',
-                'type': 'textarea',
-                'description': 'Comma-separated NWS zone codes (e.g., OHZ016,OHC137)',
+                'label': 'Zone Codes (Fallback)',
+                'type': 'text',
+                'description': 'Fallback zone codes used only if Admin → Location settings are empty. Use Admin → Location tab to configure.',
                 'placeholder': 'OHZ016,OHC137',
             },
             {
                 'key': 'DEFAULT_FIPS_CODES',
-                'label': 'FIPS Codes',
-                'type': 'fips_builder',
-                'description': 'Select counties using the state/county dropdowns, or type FIPS codes directly (format: SSCCC where SS=state, CCC=county). Example: 039137 = Ohio + Putnam County.',
-                'placeholder': '039137,039003',
+                'label': 'FIPS Codes (Fallback)',
+                'type': 'text',
+                'description': 'Fallback FIPS codes used only if Admin → Location settings are empty. Use Admin → Location tab to configure.',
+                'placeholder': '039137',
             },
             {
                 'key': 'DEFAULT_STORAGE_ZONE_CODES',
@@ -553,8 +553,8 @@ ENV_CATEGORIES = {
             {
                 'key': 'EAS_MANUAL_FIPS_CODES',
                 'label': 'Authorized FIPS Codes',
-                'type': 'fips_builder',
-                'description': 'FIPS codes authorized for manual EAS broadcasts',
+                'type': 'text',
+                'description': 'Comma-separated FIPS codes authorized for manual EAS broadcasts (format: PSSCCC)',
                 'placeholder': '039137,039003',
                 'category': 'eas_enabled',
             },
@@ -1599,17 +1599,10 @@ def environment_settings():
         logger.debug(f'Permission check failed (expected during setup mode): {exc}')
         can_configure = current_app.config.get('SETUP_MODE', False)
     
-    # Get FIPS tree data for FIPS builder widgets
-    from app_utils.fips_codes import get_us_state_county_tree, get_same_lookup
-    fips_tree = get_us_state_county_tree()
-    fips_lookup = get_same_lookup()
-
     return render_template(
         'settings/environment.html',
         location_settings=location_settings,
         can_configure=can_configure,
-        fips_tree=fips_tree,
-        fips_lookup=fips_lookup,
     )
 
 @environment_bp.route('/admin/environment/download-env')
