@@ -446,8 +446,8 @@ ENV_CATEGORIES = {
             {
                 'key': 'DEFAULT_FIPS_CODES',
                 'label': 'FIPS Codes',
-                'type': 'textarea',
-                'description': 'Federal Information Processing Standards county codes (5-digit: 2-digit state + 3-digit county). Example: 039137 = Ohio (039) + Putnam County (137).',
+                'type': 'fips_builder',
+                'description': 'Select counties using the state/county dropdowns, or type FIPS codes directly (format: SSCCC where SS=state, CCC=county). Example: 039137 = Ohio + Putnam County.',
                 'placeholder': '039137,039003',
             },
             {
@@ -553,8 +553,8 @@ ENV_CATEGORIES = {
             {
                 'key': 'EAS_MANUAL_FIPS_CODES',
                 'label': 'Authorized FIPS Codes',
-                'type': 'textarea',
-                'description': 'Comma-separated FIPS codes for manual broadcasts',
+                'type': 'fips_builder',
+                'description': 'FIPS codes authorized for manual EAS broadcasts',
                 'placeholder': '039137,039003',
                 'category': 'eas_enabled',
             },
@@ -1599,10 +1599,17 @@ def environment_settings():
         logger.debug(f'Permission check failed (expected during setup mode): {exc}')
         can_configure = current_app.config.get('SETUP_MODE', False)
     
+    # Get FIPS tree data for FIPS builder widgets
+    from app_utils.fips_codes import get_us_state_county_tree, get_same_lookup
+    fips_tree = get_us_state_county_tree()
+    fips_lookup = get_same_lookup()
+
     return render_template(
         'settings/environment.html',
         location_settings=location_settings,
         can_configure=can_configure,
+        fips_tree=fips_tree,
+        fips_lookup=fips_lookup,
     )
 
 @environment_bp.route('/admin/environment/download-env')
