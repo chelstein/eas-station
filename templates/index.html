@@ -806,7 +806,7 @@
 {% endblock %}
 
 {% block content %}
-<div class="container-fluid page-shell">
+<div class="container-fluid">
     {% set county_name = location_settings.county_name if location_settings is defined and location_settings and location_settings.county_name else 'your area' %}
     {% set state_code = location_settings.state_code if location_settings is defined and location_settings and location_settings.state_code else '' %}
     <div class="page-header">
