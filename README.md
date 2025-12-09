@@ -82,6 +82,47 @@ graph LR
 - ✅ **Fast** - Dedicated resources per service
 - ✅ **Debuggable** - Separate logs, independent restart
 
+### Project Structure
+
+```
+eas-station/
+├── app.py                      # Main Flask application
+├── *_service.py                # Service entry points (EAS, SDR, hardware, audio)
+├── wsgi.py                     # WSGI server entry point
+├── app_core/                   # Core business logic
+│   ├── audio/                  # Audio processing and EAS monitoring
+│   ├── radio/                  # SDR radio management
+│   ├── auth/                   # Authentication and RBAC
+│   └── models.py               # Database models
+├── app_utils/                  # Utility modules
+│   ├── eas.py                  # SAME encoding/generation
+│   ├── eas_decode.py           # SAME decoding
+│   └── eas_tts.py              # Text-to-speech synthesis
+├── webapp/                     # Web application routes and templates
+│   ├── admin/                  # Admin routes and API
+│   └── templates/              # Jinja2 HTML templates
+├── poller/                     # CAP feed polling service
+├── static/                     # Frontend assets (CSS, JS, images)
+├── scripts/                    # Utility and maintenance scripts
+│   ├── debug/                  # Debug and testing scripts
+│   ├── fixes/                  # One-time fix scripts
+│   ├── diagnostics/            # Diagnostic tools
+│   └── maintenance/            # Database and system maintenance
+├── tests/                      # Comprehensive test suite (80+ files)
+├── docs/                       # Documentation
+│   ├── guides/                 # Setup and user guides
+│   ├── architecture/           # Architecture documentation
+│   └── FUTURE_ENHANCEMENTS.md  # Planned enhancements
+└── legacy/                     # Archived code for reference
+
+**Key Files:**
+- `app.py` - Main web application and Flask initialization
+- `eas_service.py` - EAS monitoring service (subscribes to Redis audio)
+- `sdr_hardware_service.py` - SDR hardware USB access (publishes IQ samples)
+- `hardware_service.py` - GPIO, displays, and Zigbee hardware
+- `eas_monitoring_service.py` - Audio processing and EAS monitoring
+```
+
 ## 🚀 Quick Start
 
 ### Deployment Flow

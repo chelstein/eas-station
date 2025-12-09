@@ -68,12 +68,9 @@ def process_eas_alert(alert) -> Optional[Dict[str, Any]]:
             f"Originator={originator}, Source={alert.source_name}"
         )
 
-        # TODO: Implement full alert processing logic:
-        # 1. Generate EAS message (create EASMessage record)
-        # 2. Synthesize audio (SAME header + attention signal + message)
-        # 3. Queue for broadcast
-        # 4. Send notifications (LED, VFD, push notifications, etc.)
-        # 5. Update alert status
+        # FUTURE ENHANCEMENT: Implement full alert processing logic.
+        # See docs/FUTURE_ENHANCEMENTS.md for details.
+        # Planned: Generate EAS message, synthesize audio, queue broadcast, send notifications
 
         # For now, just log and return success
         result = {

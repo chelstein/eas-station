@@ -880,7 +880,8 @@ class CAPPoller:
         # directly control SDR hardware. The SDR hardware is managed by the sdr-service
         # container which has proper USB access and privileges.
         #
-        # TODO: Migrate radio capture coordination to use Redis command queue pattern:
+        # FUTURE ENHANCEMENT: Migrate radio capture coordination to use Redis command queue pattern.
+        #   See docs/FUTURE_ENHANCEMENTS.md for details.
         #   - Send capture requests to sdr-service via Redis (sdr:commands)
         #   - Receive capture results via Redis (sdr:command_result:{command_id})
         #   - See docs/troubleshooting/CONTAINERIZATION_FIXES.md for architecture
