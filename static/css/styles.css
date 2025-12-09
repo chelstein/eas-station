@@ -680,6 +680,9 @@ body {
     text-rendering: optimizeLegibility;
     overflow-x: hidden;
     min-height: 100vh;
+    /* Flexbox sticky footer pattern - ensures footer sticks to bottom */
+    display: flex;
+    flex-direction: column;
 }
 
 
@@ -1060,7 +1063,8 @@ small,
 
 /* Page Shell */
 .page-shell {
-    min-height: 100vh;
+    /* Use flex: 1 to fill available space - works with flexbox sticky footer */
+    flex: 1;
     padding: var(--layout-padding-top) 0 var(--layout-padding-bottom);
     position: relative;
 }
@@ -1186,7 +1190,7 @@ footer {
         var(--secondary-color) 100%);
     color: white;
     padding: 2.5rem 0;
-    margin-top: var(--footer-margin-top);
+    margin-top: auto; /* Flexbox sticky footer - pushes to bottom when content is short */
     text-align: center;
     box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.08);
     position: relative;

@@ -10,6 +10,14 @@
     <!-- Link to main app CSS for theme support -->
     <link rel="stylesheet" href="/static/css/styles.css">
     <style>
+        /* Define fallback values for variables that may not be in all themes */
+        :root {
+            --gradient-start: var(--primary-color, #667eea);
+            --gradient-end: var(--secondary-color, #764ba2);
+            --hover-color: var(--light-color, rgba(0, 0, 0, 0.05));
+            --chart-text-color: var(--text-color, #333);
+        }
+        
         /* Use theme-aware CSS variables */
         body {
             background: var(--bg-color);
@@ -18,6 +26,31 @@
             padding: 2rem 0;
             color: var(--text-color);
             transition: background-color 0.3s ease, color 0.3s ease;
+        }
+        
+        /* Fix table text colors for dark themes */
+        .stats-table tbody td {
+            color: var(--text-color);
+        }
+        
+        .stats-table tbody td strong {
+            color: var(--text-color);
+        }
+        
+        /* Make SVG icons in the table adapt to theme */
+        .stats-table svg {
+            transition: fill 0.3s ease;
+        }
+        
+        /* Ensure icon-text has good contrast - don't rely on fixed black/white SVG fills */
+        .lang-icon {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .lang-icon svg {
+            flex-shrink: 0;
         }
         
         .stats-container {
@@ -212,19 +245,25 @@
         }
         
         .architecture-card h3 {
-            color: var(--gradient-start);
+            color: var(--primary-color);
             margin-bottom: 1rem;
         }
         
         .architecture-card ul {
             list-style: none;
             padding-left: 0;
+            color: var(--text-color);
         }
         
         .architecture-card ul li {
             padding: 0.5rem 0;
             padding-left: 2rem;
             position: relative;
+            color: var(--text-color);
+        }
+        
+        .architecture-card ul li strong {
+            color: var(--text-color);
         }
         
         .architecture-card ul li:before {
@@ -236,11 +275,18 @@
         
         .footer-note {
             text-align: center;
-            color: white;
+            color: var(--text-color);
             margin-top: 2rem;
             padding: 1rem;
             font-size: 0.9rem;
-            opacity: 0.9;
+            opacity: 0.8;
+        }
+        
+        .footer-note code {
+            background: var(--surface-color, rgba(0,0,0,0.1));
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            color: var(--primary-color);
         }
         
         @media (max-width: 768px) {
@@ -370,7 +416,7 @@
                             <td class="text-end">57,415</td>
                             <td class="text-end">36%</td>
                             <td>
-                                <div style="background: #e9ecef; border-radius: 4px; height: 8px; overflow: hidden;">
+                                <div style="background: var(--light-color, #e9ecef); border-radius: 4px; height: 8px; overflow: hidden;">
                                     <div class="progress-bar-custom" style="width: 30.4%;"></div>
                                 </div>
                             </td>
@@ -382,19 +428,19 @@
                             <td class="text-end">507</td>
                             <td class="text-end">90%</td>
                             <td>
-                                <div style="background: #e9ecef; border-radius: 4px; height: 8px; overflow: hidden;">
+                                <div style="background: var(--light-color, #e9ecef); border-radius: 4px; height: 8px; overflow: hidden;">
                                     <div class="progress-bar-custom" style="width: 36.0%;"></div>
                                 </div>
                             </td>
                         </tr>
                         <tr>
-                            <td><strong><svg viewBox="0 0 24 24" width="20" height="20" fill="#000000" style="vertical-align: middle; margin-right: 6px;"><path d="M22.27 19.385H1.73A1.73 1.73 0 010 17.655V6.345a1.73 1.73 0 011.73-1.73h20.54A1.73 1.73 0 0124 6.345v11.308a1.73 1.73 0 01-1.73 1.731zM5.769 15.923v-4.5l2.308 2.885 2.307-2.885v4.5h2.308V8.078h-2.308l-2.307 2.885-2.308-2.885H3.46v7.847zM21.232 12h-2.309V8.077h-2.307V12h-2.308l3.461 4.039z"/></svg>Markdown</strong></td>
+                            <td><strong><svg viewBox="0 0 24 24" width="20" height="20" fill="#083fa1" style="vertical-align: middle; margin-right: 6px;"><path d="M22.27 19.385H1.73A1.73 1.73 0 010 17.655V6.345a1.73 1.73 0 011.73-1.73h20.54A1.73 1.73 0 0124 6.345v11.308a1.73 1.73 0 01-1.73 1.731zM5.769 15.923v-4.5l2.308 2.885 2.307-2.885v4.5h2.308V8.078h-2.308l-2.307 2.885-2.308-2.885H3.46v7.847zM21.232 12h-2.309V8.077h-2.307V12h-2.308l3.461 4.039z"/></svg>Markdown</strong></td>
                             <td class="text-end">42,928</td>
                             <td class="text-end">33,263</td>
                             <td class="text-end">0</td>
                             <td class="text-end">77%</td>
                             <td>
-                                <div style="background: #e9ecef; border-radius: 4px; height: 8px; overflow: hidden;">
+                                <div style="background: var(--light-color, #e9ecef); border-radius: 4px; height: 8px; overflow: hidden;">
                                     <div class="progress-bar-custom" style="width: 23.2%;"></div>
                                 </div>
                             </td>
@@ -406,7 +452,7 @@
                             <td class="text-end">769</td>
                             <td class="text-end">75%</td>
                             <td>
-                                <div style="background: #e9ecef; border-radius: 4px; height: 8px; overflow: hidden;">
+                                <div style="background: var(--light-color, #e9ecef); border-radius: 4px; height: 8px; overflow: hidden;">
                                     <div class="progress-bar-custom" style="width: 3.4%;"></div>
                                 </div>
                             </td>
@@ -418,7 +464,7 @@
                             <td class="text-end">5,068</td>
                             <td class="text-end">2%</td>
                             <td>
-                                <div style="background: #e9ecef; border-radius: 4px; height: 8px; overflow: hidden;">
+                                <div style="background: var(--light-color, #e9ecef); border-radius: 4px; height: 8px; overflow: hidden;">
                                     <div class="progress-bar-custom" style="width: 0.1%;"></div>
                                 </div>
                             </td>
@@ -430,7 +476,7 @@
                             <td class="text-end">433</td>
                             <td class="text-end">71%</td>
                             <td>
-                                <div style="background: #e9ecef; border-radius: 4px; height: 8px; overflow: hidden;">
+                                <div style="background: var(--light-color, #e9ecef); border-radius: 4px; height: 8px; overflow: hidden;">
                                     <div class="progress-bar-custom" style="width: 1.5%;"></div>
                                 </div>
                             </td>
@@ -442,7 +488,7 @@
                             <td class="text-end">509</td>
                             <td class="text-end">71%</td>
                             <td>
-                                <div style="background: #e9ecef; border-radius: 4px; height: 8px; overflow: hidden;">
+                                <div style="background: var(--light-color, #e9ecef); border-radius: 4px; height: 8px; overflow: hidden;">
                                     <div class="progress-bar-custom" style="width: 1.2%;"></div>
                                 </div>
                             </td>
@@ -454,19 +500,19 @@
                             <td class="text-end">223</td>
                             <td class="text-end">79%</td>
                             <td>
-                                <div style="background: #e9ecef; border-radius: 4px; height: 8px; overflow: hidden;">
+                                <div style="background: var(--light-color, #e9ecef); border-radius: 4px; height: 8px; overflow: hidden;">
                                     <div class="progress-bar-custom" style="width: 1.3%;"></div>
                                 </div>
                             </td>
                         </tr>
                         <tr>
-                            <td><strong><svg viewBox="0 0 24 24" width="20" height="20" fill="#333333" style="vertical-align: middle; margin-right: 6px;"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>Text</strong></td>
+                            <td><strong><svg viewBox="0 0 24 24" width="20" height="20" fill="#607D8B" style="vertical-align: middle; margin-right: 6px;"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>Text</strong></td>
                             <td class="text-end">2,073</td>
                             <td class="text-end">1,958</td>
                             <td class="text-end">0</td>
                             <td class="text-end">94%</td>
                             <td>
-                                <div style="background: #e9ecef; border-radius: 4px; height: 8px; overflow: hidden;">
+                                <div style="background: var(--light-color, #e9ecef); border-radius: 4px; height: 8px; overflow: hidden;">
                                     <div class="progress-bar-custom" style="width: 1.4%;"></div>
                                 </div>
                             </td>
@@ -478,7 +524,7 @@
                             <td class="text-end">0</td>
                             <td class="text-end">100%</td>
                             <td>
-                                <div style="background: #e9ecef; border-radius: 4px; height: 8px; overflow: hidden;">
+                                <div style="background: var(--light-color, #e9ecef); border-radius: 4px; height: 8px; overflow: hidden;">
                                     <div class="progress-bar-custom" style="width: 1.1%;"></div>
                                 </div>
                             </td>
@@ -490,19 +536,19 @@
                             <td class="text-end">0</td>
                             <td class="text-end">91%</td>
                             <td>
-                                <div style="background: #e9ecef; border-radius: 4px; height: 8px; overflow: hidden;">
+                                <div style="background: var(--light-color, #e9ecef); border-radius: 4px; height: 8px; overflow: hidden;">
                                     <div class="progress-bar-custom" style="width: 0.2%;"></div>
                                 </div>
                             </td>
                         </tr>
                         <tr>
-                            <td><strong><svg viewBox="0 0 24 24" width="20" height="20" fill="#777777" style="vertical-align: middle; margin-right: 6px;"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm4 18H6V4h7v5h5v11z"/></svg>Other</strong></td>
+                            <td><strong><svg viewBox="0 0 24 24" width="20" height="20" fill="#9E9E9E" style="vertical-align: middle; margin-right: 6px;"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm4 18H6V4h7v5h5v11z"/></svg>Other</strong></td>
                             <td class="text-end">132</td>
                             <td class="text-end">81</td>
                             <td class="text-end">27</td>
                             <td class="text-end">61%</td>
                             <td>
-                                <div style="background: #e9ecef; border-radius: 4px; height: 8px; overflow: hidden;">
+                                <div style="background: var(--light-color, #e9ecef); border-radius: 4px; height: 8px; overflow: hidden;">
                                     <div class="progress-bar-custom" style="width: 0.1%;"></div>
                                 </div>
                             </td>
@@ -545,9 +591,54 @@
     </div>
     
     <script>
-        // Chart.js default configuration
+        // Get theme-aware colors for Chart.js
+        function getChartTextColor() {
+            return getComputedStyle(document.documentElement).getPropertyValue('--text-color').trim() || '#333';
+        }
+        
+        function getChartGridColor() {
+            const isDark = document.documentElement.getAttribute('data-theme')?.includes('dark') || 
+                          document.documentElement.getAttribute('data-theme') === 'midnight' ||
+                          document.documentElement.getAttribute('data-theme') === 'cyberpunk' ||
+                          document.documentElement.getAttribute('data-theme') === 'dracula';
+            return isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)';
+        }
+        
+        // Chart.js default configuration - use theme colors
         Chart.defaults.font.family = "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif";
-        Chart.defaults.color = '#333';
+        Chart.defaults.color = getChartTextColor();
+        
+        // Update chart colors when theme changes
+        function updateChartColors() {
+            Chart.defaults.color = getChartTextColor();
+            // Trigger re-render of all charts
+            Chart.instances.forEach(chart => {
+                if (chart.options.scales) {
+                    if (chart.options.scales.x) {
+                        chart.options.scales.x.grid.color = getChartGridColor();
+                        chart.options.scales.x.ticks.color = getChartTextColor();
+                    }
+                    if (chart.options.scales.y) {
+                        chart.options.scales.y.grid.color = getChartGridColor();
+                        chart.options.scales.y.ticks.color = getChartTextColor();
+                    }
+                }
+                if (chart.options.plugins && chart.options.plugins.legend) {
+                    chart.options.plugins.legend.labels.color = getChartTextColor();
+                }
+                chart.update();
+            });
+        }
+        
+        // Listen for theme changes
+        const observer = new MutationObserver((mutations) => {
+            mutations.forEach((mutation) => {
+                if (mutation.attributeName === 'data-theme') {
+                    setTimeout(updateChartColors, 100);
+                }
+            });
+        });
+        observer.observe(document.documentElement, { attributes: true });
         
         // Code Composition Pie Chart
         const codeCompositionCtx = document.getElementById('codeCompositionChart').getContext('2d');
@@ -640,7 +731,7 @@
                             }
                         },
                         grid: {
-                            color: 'rgba(0, 0, 0, 0.05)'
+                            color: getChartGridColor()
                         }
                     },
                     x: {
@@ -700,7 +791,7 @@
                             }
                         },
                         grid: {
-                            color: 'rgba(0, 0, 0, 0.05)'
+                            color: getChartGridColor()
                         }
                     },
                     y: {
@@ -761,7 +852,7 @@
                             }
                         },
                         grid: {
-                            color: 'rgba(0, 0, 0, 0.05)'
+                            color: getChartGridColor()
                         }
                     },
                     y: {

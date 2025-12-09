@@ -150,7 +150,10 @@ def _read_git_head() -> Optional[str]:
         return None
 
     if head_content.startswith("ref:"):
-        ref = head_content.split(" ", 1)[1]
+        parts = head_content.split(" ", 1)
+        if len(parts) < 2:
+            return None
+        ref = parts[1]
         ref_path = git_dir / ref
         try:
             return ref_path.read_text(encoding="utf-8").strip() or None
@@ -187,7 +190,10 @@ def _read_git_branch() -> Optional[str]:
         return None
 
     if head_content.startswith("ref:"):
-        ref = head_content.split(" ", 1)[1].strip()
+        parts = head_content.split(" ", 1)
+        if len(parts) < 2:
+            return None
+        ref = parts[1].strip()
         return ref.split("/")[-1]
 
     return None

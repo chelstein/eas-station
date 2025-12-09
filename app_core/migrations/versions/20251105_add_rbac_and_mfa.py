@@ -141,7 +141,11 @@ def _initialize_default_roles_and_permissions(conn):
                     "created_at": datetime.now(timezone.utc)
                 }
             )
-            role_id = result.fetchone()[0]
+            row = result.fetchone()
+            if not row:
+                print(f"WARNING: Failed to create role '{role_name}'")
+                continue
+            role_id = row[0]
         else:
             role_id = role_row[0]
 
