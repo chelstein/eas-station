@@ -44,7 +44,7 @@ def register_eas_monitor_routes(app: Flask, logger_instance) -> None:
         logger = logger_instance
 
     @app.route("/api/eas-monitor/status")
-    @cache.cached(timeout=5, key_prefix='eas_monitor_status')
+    @cache.cached(timeout=2, key_prefix='eas_monitor_status')
     def api_eas_monitor_status() -> Any:
         """Get current EAS monitor status and metrics.
 
