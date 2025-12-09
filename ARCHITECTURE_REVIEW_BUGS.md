@@ -75,6 +75,44 @@ Added None check before accessing row index.
 
 ---
 
+### Bug #23: Unsafe Split in versioning.py
+**File:** `app_utils/versioning.py:153, 193`
+**Severity:** MEDIUM
+**Status:** ✅ FIXED
+
+```python
+# Before:
+if head_content.startswith("ref:"):
+    ref = head_content.split(" ", 1)[1]
+
+# After:
+if head_content.startswith("ref:"):
+    parts = head_content.split(" ", 1)
+    if len(parts) < 2:
+        return None
+    ref = parts[1]
+```
+
+**Problem:** The code assumed `ref: refs/heads/branch` format would always have a space after "ref:", but malformed HEAD files could cause IndexError.
+
+---
+
+### Bug #24: UI Whitespace Issue - Huge Gap Between Content and Footer
+**File:** `static/css/styles.css`
+**Severity:** HIGH (Visual)
+**Status:** ✅ FIXED
+
+**Problem:** The `.page-shell` element had `min-height: 100vh` which pushed the footer down even when page content was short, creating a large whitespace gap.
+
+**Fix:** Implemented flexbox sticky footer pattern:
+1. Added `display: flex; flex-direction: column` to `body`
+2. Changed `.page-shell` from `min-height: 100vh` to `flex: 1`
+3. Changed footer `margin-top` from fixed `60px` to `auto`
+
+This ensures the footer sticks to the bottom when content is short but naturally flows when content is longer.
+
+---
+
 ## Critical Bugs (Fix Immediately)
 
 ### Bug #1: Missing Module Import - `alert_forwarding.py`
@@ -405,6 +443,13 @@ for alert in alert_query:
 | 15 | Multiple | Multiple | Pool Config | MEDIUM | ⚠️ Known inconsistency |
 | 16 | eas_monitoring_service.py | 1018+ | Thread Join | MEDIUM | ⚠️ Daemon threads used |
 | 17 | sdr_hardware_service.py | 838+ | Thread Safety | MEDIUM | ⚠️ Lock defined, not used |
+| 18 | scripts/run_radio_manager.py | 133 | Bare except | LOW | ✅ FIXED |
+| 19 | debug_airspy.py | 112+ | Bare except | LOW | ✅ FIXED |
+| 20 | scripts/apply_source_type_migration.py | 88, 153 | Unsafe fetchone | MEDIUM | ✅ FIXED |
+| 21 | app_core/migrations/.../add_rbac_and_mfa.py | 144 | Unsafe fetchone | MEDIUM | ✅ FIXED |
+| 22 | app_core/migrations/.../populate_oled.py | 394 | Unsafe fetchone | MEDIUM | ✅ FIXED |
+| 23 | app_utils/versioning.py | 153, 193 | Unsafe Split | MEDIUM | ✅ FIXED |
+| 24 | static/css/styles.css | Multiple | UI Whitespace | HIGH | ✅ FIXED |
 
 ---
 
