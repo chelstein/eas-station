@@ -6,6 +6,27 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.17.2] - 2025-12-09
+### Fixed
+- **EAS Monitor Display Issues**: Fixed decoding rates showing >100% and display bouncing between states
+  - Root cause 1: Rate calculation `samples_per_second` was sensitive to timing variations and could spike >100%
+  - Root cause 2: During startup (first 2 seconds), rate calculation reported 0, triggering "no audio" warnings
+  - Root cause 3: Frontend hysteresis (2 consecutive readings) wasn't enough to prevent flicker at 100ms WebSocket rate
+  - Fix 1: Added exponential moving average (EMA) smoothing with alpha=0.3 to filter timing noise
+  - Fix 2: Implemented 2-second minimum sample threshold - report expected rate during warmup instead of 0
+  - Fix 3: Health percentage grows linearly 0-95% during warmup for smooth visual feedback
+  - Fix 4: Increased frontend hysteresis from 2 to 5 consecutive readings (500ms stability required)
+  - Fix 5: Properly clamp health_percentage to [0, 1] range in all code paths
+  - Result: Rates never exceed 100%, smooth warmup transition, no state bouncing
+
+### Changed
+- **Code Quality**: Extracted magic numbers to named class constants for easier configuration
+  - `WARMUP_DURATION_SECONDS = 2` - Duration of warmup period
+  - `WARMUP_MAX_HEALTH_PERCENTAGE = 0.95` - Maximum health shown during warmup
+  - `RATE_SMOOTHING_ALPHA = 0.3` - EMA smoothing factor (lower=smoother, higher=more responsive)
+  - `AUDIO_FLOWING_STABILITY_THRESHOLD = 5` - Frontend consecutive readings before state change
+  - Improves maintainability and makes performance tuning easier
+
 ## [2.17.1] - 2025-12-09
 ### Fixed
 - **CRITICAL: WebSocket Support Broken**: Fixed Flask-SocketIO async_mode mismatch that prevented WebSockets from working
