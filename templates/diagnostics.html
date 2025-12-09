@@ -55,46 +55,46 @@
         <div class="col-12">
             <div class="d-flex justify-content-between align-items-center mb-4">
                 <div>
-                    <h1><i class="fas fa-stethoscope"></i> System Diagnostics</h1>
+                    <h1 class="text-gradient"><i class="fas fa-stethoscope me-2"></i>System Diagnostics</h1>
                     <p class="text-muted">Validate your EAS Station installation and configuration</p>
                 </div>
                 <div>
-                    <button id="runDiagnosticsBtn" class="btn btn-primary btn-lg">
-                        <i class="fas fa-play"></i> Run Diagnostics
+                    <button id="runDiagnosticsBtn" class="btn btn-primary btn-lg hover-lift">
+                        <i class="fas fa-play me-2"></i>Run Diagnostics
                     </button>
                 </div>
             </div>
 
             <div id="summaryCards" class="row mb-4" style="display: none;">
                 <div class="col-md-3">
-                    <div class="card text-white bg-success">
-                        <div class="card-body">
-                            <h5 class="card-title">Passed</h5>
-                            <h2 id="passedCount">0</h2>
+                    <div class="card bg-success-gradient text-white">
+                        <div class="card-body text-center">
+                            <h5 class="card-title"><i class="fas fa-check-circle me-2"></i>Passed</h5>
+                            <h2 id="passedCount" class="display-5 fw-bold">0</h2>
                         </div>
                     </div>
                 </div>
                 <div class="col-md-3">
-                    <div class="card bg-warning">
-                        <div class="card-body">
-                            <h5 class="card-title">Warnings</h5>
-                            <h2 id="warningCount">0</h2>
+                    <div class="card bg-warning-gradient">
+                        <div class="card-body text-center">
+                            <h5 class="card-title"><i class="fas fa-exclamation-triangle me-2"></i>Warnings</h5>
+                            <h2 id="warningCount" class="display-5 fw-bold">0</h2>
                         </div>
                     </div>
                 </div>
                 <div class="col-md-3">
-                    <div class="card text-white bg-danger">
-                        <div class="card-body">
-                            <h5 class="card-title">Failed</h5>
-                            <h2 id="failedCount">0</h2>
+                    <div class="card bg-danger-gradient text-white">
+                        <div class="card-body text-center">
+                            <h5 class="card-title"><i class="fas fa-times-circle me-2"></i>Failed</h5>
+                            <h2 id="failedCount" class="display-5 fw-bold">0</h2>
                         </div>
                     </div>
                 </div>
                 <div class="col-md-3">
-                    <div class="card text-white bg-info">
-                        <div class="card-body">
-                            <h5 class="card-title">Information</h5>
-                            <h2 id="infoCount">0</h2>
+                    <div class="card bg-info-gradient text-white">
+                        <div class="card-body text-center">
+                            <h5 class="card-title"><i class="fas fa-info-circle me-2"></i>Information</h5>
+                            <h2 id="infoCount" class="display-5 fw-bold">0</h2>
                         </div>
                     </div>
                 </div>
