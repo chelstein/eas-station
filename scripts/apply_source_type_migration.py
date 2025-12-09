@@ -85,7 +85,8 @@ def check_column_exists(cursor, table_name, column_name):
             AND column_name = %s
         )
     """, (table_name, column_name))
-    return cursor.fetchone()[0]
+    result = cursor.fetchone()
+    return result[0] if result else False
 
 def check_migration_applied(cursor):
     """Check if the migration has already been applied."""
@@ -150,7 +151,8 @@ def update_alembic_version(cursor):
         )
     """)
 
-    if not cursor.fetchone()[0]:
+    result = cursor.fetchone()
+    if not result or not result[0]:
         print("WARNING: alembic_version table does not exist. Migration tracking will not be updated.")
         return
 

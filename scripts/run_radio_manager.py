@@ -130,8 +130,8 @@ def main():
     # Cleanup
     try:
         manager.stop_all()
-    except:
-        pass
+    except Exception as e:
+        logger.warning(f"Error during manager cleanup: {e}")
     
     db_session.close()
     logger.info("Radio/SDR Manager Service stopped")

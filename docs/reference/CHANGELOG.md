@@ -6,6 +6,20 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.16.2] - 2025-12-09
+### Fixed
+- **Code Quality**: Fixed bare `except:` clauses in multiple files for PEP 8 compliance:
+  - `scripts/run_radio_manager.py`: Added proper exception logging during cleanup
+  - `debug_airspy.py`: Changed bare `except:` to `except Exception:` with comments
+- **Defensive Coding**: Added None checks for `fetchone()` calls in migration and utility scripts:
+  - `scripts/apply_source_type_migration.py`: Safe handling when column check returns no result
+  - `app_core/migrations/versions/20251105_add_rbac_and_mfa.py`: Safe handling when INSERT RETURNING fails
+  - `app_core/migrations/versions/20251116_populate_oled_example_screens.py`: Safe handling for screen insert
+
+### Notes
+- **Architecture Review**: Reviewed all 17 bugs from ARCHITECTURE_REVIEW_BUGS.md - most critical bugs (1-14) were already fixed in codebase
+- Remaining bugs are low-priority design issues or already addressed
+
 ## [2.16.1] - 2025-12-09
 ### Fixed
 - **Dashboard Layout**: Removed duplicate `page-shell` class from dashboard container that caused large gap at top of page

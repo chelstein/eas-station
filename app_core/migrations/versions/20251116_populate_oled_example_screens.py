@@ -391,8 +391,10 @@ def upgrade() -> None:
         )
 
         # Get the new screen ID
-        new_id = result.fetchone()[0]
-        screen_ids.append({"screen_id": new_id, "duration": screen_data["duration"]})
+        row = result.fetchone()
+        if row:
+            new_id = row[0]
+            screen_ids.append({"screen_id": new_id, "duration": screen_data["duration"]})
 
     # Create or update OLED default rotation
     rotation_result = conn.execute(

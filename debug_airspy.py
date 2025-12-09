@@ -109,14 +109,14 @@ def test_airspy_connection(target_serial=None):
             try:
                 hw_key = device.getHardwareKey()
                 print(f"    Hardware Key: {hw_key}")
-            except:
-                pass
+            except Exception:
+                pass  # Hardware key may not be available on all devices
 
             try:
                 hw_info = device.getHardwareInfo()
                 print(f"    Hardware Info: {dict(hw_info)}")
-            except:
-                pass
+            except Exception:
+                pass  # Hardware info may not be available on all devices
 
             # Try to get sample rates
             try:
@@ -135,8 +135,8 @@ def test_airspy_connection(target_serial=None):
                     device.unmake()
                 else:
                     device.close()
-            except:
-                pass
+            except Exception:
+                pass  # Device cleanup may fail silently
 
         except Exception as e:
             print(f"  ✗ FAILED - {e}")
