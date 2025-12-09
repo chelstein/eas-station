@@ -222,7 +222,7 @@ def sync_radio_receiver_audio_sources(app):
     to subscribe to via RedisSDRSourceAdapter.
     """
     with app.app_context():
-        from app_core.models import RadioReceiver, AudioSourceConfigDB
+        from app_core.models import RadioReceiver, AudioSourceConfigDB, db
         from app_core.audio.ingest import AudioSourceType
         
         logger.info("Syncing audio sources for radio receivers...")

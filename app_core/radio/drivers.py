@@ -22,6 +22,7 @@ from __future__ import annotations
 """Receiver driver implementations for specific SDR front-ends."""
 
 import datetime
+import os
 import threading
 import time
 from pathlib import Path
