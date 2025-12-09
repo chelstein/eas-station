@@ -319,11 +319,29 @@ class AudioCommandSubscriber:
                     except Exception as e:
                         logger.warning(f"Error adding {source_name} to Icecast: {e}")
 
+                # Create EAS monitor for newly started source
+                if self.eas_monitor and hasattr(self.eas_monitor, 'add_monitor_for_source'):
+                    try:
+                        if self.eas_monitor.add_monitor_for_source(source_name):
+                            logger.info(f"✅ Created EAS monitor for {source_name}")
+                        else:
+                            logger.warning(f"⚠️ Failed to create EAS monitor for {source_name}")
+                    except Exception as e:
+                        logger.warning(f"Error creating EAS monitor for {source_name}: {e}")
+
                 return {'success': True, 'message': f'Started source {source_name}'}
 
             elif command == 'source_stop':
                 source_name = params['source_name']
-                
+
+                # Remove EAS monitor for this source
+                if self.eas_monitor and hasattr(self.eas_monitor, 'remove_monitor_for_source'):
+                    try:
+                        self.eas_monitor.remove_monitor_for_source(source_name)
+                        logger.info(f"Removed EAS monitor for {source_name}")
+                    except Exception as e:
+                        logger.debug(f"Error removing EAS monitor for {source_name}: {e}")
+
                 # Remove source from Icecast streaming if service is available
                 if self.auto_streaming_service:
                     try:
@@ -331,7 +349,7 @@ class AudioCommandSubscriber:
                         logger.info(f"Removed {source_name} from Icecast streaming")
                     except Exception as e:
                         logger.debug(f"Error removing {source_name} from Icecast: {e}")
-                
+
                 self.audio_controller.stop_source(source_name)
                 return {'success': True, 'message': f'Stopped source {source_name}'}
 
@@ -433,14 +451,21 @@ class AudioCommandSubscriber:
 
             elif command == 'source_delete':
                 source_name = params['source_name']
-                
+
+                # Remove EAS monitor for this source
+                if self.eas_monitor and hasattr(self.eas_monitor, 'remove_monitor_for_source'):
+                    try:
+                        self.eas_monitor.remove_monitor_for_source(source_name)
+                    except Exception as e:
+                        logger.debug(f"Error removing EAS monitor for {source_name}: {e}")
+
                 # Remove source from Icecast streaming if service is available
                 if self.auto_streaming_service:
                     try:
                         self.auto_streaming_service.remove_source(source_name)
                     except Exception as e:
                         logger.debug(f"Error removing {source_name} from Icecast: {e}")
-                
+
                 self.audio_controller.remove_source(source_name)
                 return {'success': True, 'message': f'Deleted source {source_name}'}
 

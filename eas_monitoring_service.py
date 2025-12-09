@@ -594,18 +594,103 @@ def initialize_eas_monitor(app, audio_controller):
                 logger.error(f"❌ Failed to create EAS monitor for '{source_name}': {e}", exc_info=True)
         
         if not monitors:
-            logger.error("❌ No EAS monitors started - no running sources")
-            return None
-        
-        logger.info(f"✅ Started {len(monitors)} EAS monitor(s) for sources: {list(monitors.keys())}")
-        
+            logger.warning("⚠️ No EAS monitors started initially - no running sources yet")
+            logger.info("   EAS monitors will be created automatically when sources start")
+        else:
+            logger.info(f"✅ Started {len(monitors)} EAS monitor(s) for sources: {list(monitors.keys())}")
+
         # Return a monitor manager object instead of attaching to first monitor
         # This avoids fragile coupling and provides cleaner API
         class MultiMonitorManager:
-            """Manager for multiple EAS monitor instances."""
-            def __init__(self, monitors_dict):
+            """Manager for multiple EAS monitor instances.
+
+            Supports dynamically adding monitors for sources started after initialization.
+            """
+            def __init__(self, monitors_dict, configured_fips, alert_callback, audio_controller):
                 self._all_monitors = monitors_dict
-            
+                self._configured_fips = configured_fips
+                self._alert_callback = alert_callback
+                self._audio_controller = audio_controller
+
+            def add_monitor_for_source(self, source_name):
+                """Create and start an EAS monitor for a newly started source.
+
+                Args:
+                    source_name: Name of the audio source to monitor
+
+                Returns:
+                    bool: True if monitor was created and started successfully
+                """
+                if source_name in self._all_monitors:
+                    logger.info(f"EAS monitor already exists for source '{source_name}'")
+                    return True
+
+                source_adapter = self._audio_controller._sources.get(source_name)
+                if not source_adapter:
+                    logger.warning(f"Cannot create EAS monitor - source '{source_name}' not found")
+                    return False
+
+                if source_adapter.status != AudioSourceStatus.RUNNING:
+                    logger.warning(
+                        f"Cannot create EAS monitor - source '{source_name}' not running "
+                        f"(status: {source_adapter.status.value})"
+                    )
+                    return False
+
+                try:
+                    # Get source's individual broadcast queue
+                    source_broadcast_queue = source_adapter.get_broadcast_queue()
+                    source_sample_rate = source_adapter.config.sample_rate
+
+                    # Create broadcast adapter for this specific source
+                    subscriber_id = f"eas-monitor-{source_name}"
+                    audio_adapter = BroadcastAudioAdapter(
+                        broadcast_queue=source_broadcast_queue,
+                        subscriber_id=subscriber_id,
+                        sample_rate=int(source_sample_rate)
+                    )
+
+                    # Create EAS monitor for this source (16 kHz for optimal SAME decoding)
+                    monitor = ContinuousEASMonitor(
+                        audio_manager=audio_adapter,
+                        sample_rate=16000,
+                        alert_callback=self._alert_callback,
+                        save_audio_files=True,
+                        audio_archive_dir="/tmp/eas-audio"
+                    )
+
+                    # Start monitoring this source
+                    if monitor.start():
+                        self._all_monitors[source_name] = monitor
+                        logger.info(f"✅ EAS monitor dynamically started for source: {source_name}")
+                        return True
+                    else:
+                        logger.error(f"❌ EAS monitor failed to start for source: {source_name}")
+                        return False
+
+                except Exception as e:
+                    logger.error(f"❌ Failed to create EAS monitor for '{source_name}': {e}", exc_info=True)
+                    return False
+
+            def remove_monitor_for_source(self, source_name):
+                """Stop and remove the EAS monitor for a source.
+
+                Args:
+                    source_name: Name of the source to stop monitoring
+
+                Returns:
+                    bool: True if monitor was stopped and removed
+                """
+                monitor = self._all_monitors.pop(source_name, None)
+                if monitor:
+                    try:
+                        monitor.stop()
+                        logger.info(f"✅ EAS monitor stopped for source: {source_name}")
+                        return True
+                    except Exception as e:
+                        logger.warning(f"Error stopping monitor '{source_name}': {e}")
+                return False
+
             def stop(self):
                 """Stop all monitors."""
                 for name, monitor in self._all_monitors.items():
@@ -613,13 +698,13 @@ def initialize_eas_monitor(app, audio_controller):
                         monitor.stop()
                     except Exception as e:
                         logger.warning(f"Error stopping monitor '{name}': {e}")
-            
+
             def get_status(self):
                 """Get aggregated status from all monitors."""
                 all_stats = {}
                 total_samples = 0
                 any_running = False
-                
+
                 for name, monitor in self._all_monitors.items():
                     try:
                         stats = monitor.get_status()
@@ -629,22 +714,18 @@ def initialize_eas_monitor(app, audio_controller):
                             any_running = True
                     except Exception as e:
                         logger.debug(f"Error getting status for monitor '{name}': {e}")
-                
+
                 return {
                     "running": any_running,
                     "samples_processed": total_samples,
                     "monitor_count": len(self._all_monitors),
                     "monitors": all_stats
                 }
-        
-        # Return manager object for multi-monitor or single monitor
-        if len(monitors) > 1:
-            _eas_monitor = MultiMonitorManager(monitors)
-            logger.info(f"✅ Created multi-monitor manager for {len(monitors)} sources")
-        else:
-            # Single monitor - return it directly for backward compatibility
-            _eas_monitor = list(monitors.values())[0] if monitors else None
-        
+
+        # Always use MultiMonitorManager for consistent API (even for single/zero monitors)
+        _eas_monitor = MultiMonitorManager(monitors, configured_fips, alert_callback, audio_controller)
+        logger.info(f"✅ Created EAS monitor manager for {len(monitors)} source(s)")
+
         return _eas_monitor
 
 
@@ -931,7 +1012,7 @@ def main():
             from app_core.audio.redis_commands import AudioCommandSubscriber
             import threading
 
-            command_subscriber = AudioCommandSubscriber(audio_controller, auto_streaming)
+            command_subscriber = AudioCommandSubscriber(audio_controller, auto_streaming, eas_monitor)
 
             # Start subscriber in background thread
             subscriber_thread = threading.Thread(
@@ -1107,14 +1188,16 @@ def main():
                     return jsonify({'error': str(exc)}), 500
             
             # Start Flask server in background thread
-            server = make_server('0.0.0.0', 5001, stream_app, threaded=True)
+            # Use AUDIO_STREAMING_PORT env var (default 5002 matches docker-compose.yml)
+            streaming_port = int(os.environ.get('AUDIO_STREAMING_PORT', '5002'))
+            server = make_server('0.0.0.0', streaming_port, stream_app, threaded=True)
             streaming_server_thread = threading.Thread(
                 target=server.serve_forever,
                 daemon=True,
                 name="StreamingHTTPServer"
             )
             streaming_server_thread.start()
-            logger.info("✅ HTTP streaming server started on port 5001")
+            logger.info(f"✅ HTTP streaming server started on port {streaming_port}")
         except Exception as e:
             logger.warning(f"Failed to start HTTP streaming server: {e}")
             logger.warning("   VU meter real-time streaming will not be available")
@@ -1141,7 +1224,8 @@ def main():
         
         logger.info("   - Metrics publishing: ACTIVE")
         logger.info(f"   - Command subscriber: {'ACTIVE' if command_subscriber else 'DISABLED'}")
-        logger.info(f"   - HTTP streaming: {'ACTIVE' if streaming_server_thread else 'DISABLED'} (port 5001)")
+        streaming_port = int(os.environ.get('AUDIO_STREAMING_PORT', '5002'))
+        logger.info(f"   - HTTP streaming: {'ACTIVE' if streaming_server_thread else 'DISABLED'} (port {streaming_port})")
         logger.info("=" * 80)
 
         # Main loop: publish metrics every 5 seconds
