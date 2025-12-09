@@ -6,11 +6,15 @@ This document tracks the migration of EAS Station from Flask to FastAPI. The mig
 
 ## Migration Status
 
+**IMPORTANT**: This is a **gradual migration**. Both Flask and FastAPI are installed and can run simultaneously. The Flask app (port 5000) remains the production app while FastAPI (port 8080) is being developed.
+
 ### ✅ Completed
 
 1. **Dependencies Updated** (`requirements.txt`)
-   - Added FastAPI, Uvicorn, Starlette, Slowapi
-   - Maintained compatibility with existing libraries (SQLAlchemy, psycopg2, etc.)
+   - ✅ **Flask kept** - Flask==3.0.3 + all extensions (WSGI, port 5000)
+   - ✅ **FastAPI added** - FastAPI + Uvicorn (ASGI, port 8080)
+   - ✅ **Shared libraries** - SQLAlchemy, Jinja2, Redis, python-socketio
+   - ✅ **Both servers** - Gunicorn (Flask) + Uvicorn (FastAPI)
 
 2. **Minimal Working FastAPI App** (`fastapi_app_minimal.py`)
    - ✅ Basic FastAPI application structure
