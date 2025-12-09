@@ -512,16 +512,16 @@ def initialize_auto_streaming(app, audio_controller):
 def initialize_eas_monitor(app, audio_controller):
     """Initialize EAS monitoring system with per-source monitors.
     
-    CRITICAL FIX: Create separate EAS monitor for each audio source to enable
-    simultaneous monitoring of multiple streams (LP1, LP2, SP1, etc).
+    COMPLETE REWRITE: Uses new EASMonitorV2 with robust health tracking,
+    consistent status reporting, and proper error recovery.
     
-    Previously, only ONE source was monitored at a time (highest priority).
-    Now ALL sources are monitored simultaneously for EAS alerts.
+    Creates separate monitors for each audio source to enable simultaneous
+    monitoring of multiple streams (LP1, LP2, SP1, etc).
     """
     global _eas_monitor
 
     with app.app_context():
-        from app_core.audio.eas_monitor_simple import SimpleEASMonitor
+        from app_core.audio.eas_monitor_v2 import EASMonitorV2
         from app_core.audio.eas_monitor import create_fips_filtering_callback
         from app_core.audio.broadcast_adapter import BroadcastAudioAdapter
         from app_core.audio.startup_integration import load_fips_codes_from_config
@@ -577,11 +577,12 @@ def initialize_eas_monitor(app, audio_controller):
                     sample_rate=int(source_sample_rate)
                 )
 
-                # Create simple EAS monitor
-                monitor = SimpleEASMonitor(
+                # Create v2 EAS monitor (complete rewrite with robust health tracking)
+                monitor = EASMonitorV2(
                     audio_source=audio_adapter,
                     sample_rate=16000,
-                    alert_callback=alert_callback
+                    alert_callback=alert_callback,
+                    source_name=source_name
                 )
 
                 # Start monitoring this source
@@ -650,11 +651,12 @@ def initialize_eas_monitor(app, audio_controller):
                         sample_rate=int(source_sample_rate)
                     )
 
-                    # Create simple EAS monitor
-                    monitor = SimpleEASMonitor(
+                    # Create v2 EAS monitor (complete rewrite with robust health tracking)
+                    monitor = EASMonitorV2(
                         audio_source=audio_adapter,
                         sample_rate=16000,
-                        alert_callback=self._alert_callback
+                        alert_callback=self._alert_callback,
+                        source_name=source_name
                     )
 
                     # Start monitoring this source
