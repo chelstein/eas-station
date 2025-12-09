@@ -290,6 +290,51 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  # ==========================================================================
+  # FastAPI Service - New ASGI app running alongside Flask during migration
+  # ==========================================================================
+  fastapi:
+    image: eas-station:latest
+    container_name: eas-fastapi
+    init: true
+    restart: unless-stopped
+    expose:
+      - "8080"
+    ports:
+      - "8080:8080"
+    networks:
+      - eas-network
+    command: ["uvicorn", "fastapi_app_minimal:app", "--host", "0.0.0.0", "--port", "8080", "--workers", "2"]
+    env_file:
+      - stack.env
+    volumes:
+      - app-config:/app-config
+    environment:
+      POSTGRES_HOST: ${POSTGRES_HOST:-alerts-db}
+      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+      POSTGRES_DB: ${POSTGRES_DB:-alerts}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      REDIS_HOST: ${REDIS_HOST:-redis}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_DB: ${REDIS_DB:-0}
+      SECRET_KEY: ${SECRET_KEY:-}
+      CONFIG_PATH: /app-config/.env
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-*}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    security_opt:
+      - no-new-privileges:true
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
   # NOAA CAP Alert Poller
   noaa-poller:
     image: eas-station:latest
