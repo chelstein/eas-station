@@ -83,7 +83,7 @@ class IcecastConfig:
     admin_user: Optional[str] = None
     admin_password: Optional[str] = None
     metadata_poll_interval: float = 1.0
-    source_timeout: float = 30.0  # Seconds without writes before forcing a restart
+    source_timeout: float = 300.0  # Seconds without writes before forcing a restart (increased from 30s to 5min to prevent unnecessary restarts)
 
 
 class IcecastStreamer:
@@ -320,6 +320,7 @@ class IcecastStreamer:
             # FFmpeg command to encode and stream
             cmd = [
                 'ffmpeg',
+                '-re',  # CRITICAL: Read input at native frame rate (real-time streaming)
                 '-f', 's16le',  # Input: 16-bit PCM
                 '-ar', str(self.config.sample_rate),  # Sample rate
                 '-ac', str(max(1, int(self.config.channels))),
@@ -369,7 +370,7 @@ class IcecastStreamer:
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
-                bufsize=8192
+                bufsize=65536  # Increased from 8192 to 64KB for better network streaming stability
             )
 
             # Start stderr reader thread to prevent buffer blocking
@@ -571,13 +572,28 @@ class IcecastStreamer:
                             f"This indicates a serious issue with the audio source."
                         )
 
-                # Feed FFmpeg from buffer
+                # Feed FFmpeg from buffer with proper error handling
                 if buffer and self._ffmpeg_process and self._ffmpeg_process.stdin:
-                    chunk = buffer.popleft()
-                    self._ffmpeg_process.stdin.write(chunk)
-                    self._ffmpeg_process.stdin.flush()
-                    self._bytes_sent += len(chunk)
-                    wrote_chunk = True
+                    try:
+                        chunk = buffer.popleft()
+                        self._ffmpeg_process.stdin.write(chunk)
+                        self._bytes_sent += len(chunk)
+                        
+                        # Only flush periodically, not every write (reduces pipe pressure)
+                        # Track chunks written instead of bytes for efficiency
+                        if not hasattr(self, '_chunks_written'):
+                            self._chunks_written = 0
+                        self._chunks_written += 1
+                        if self._chunks_written % 16 == 0:  # Flush every 16 chunks (~800ms of audio)
+                            self._ffmpeg_process.stdin.flush()
+                        
+                        wrote_chunk = True
+                    except (BrokenPipeError, OSError) as pipe_err:
+                        # Don't log as error here - will be caught below and trigger restart
+                        logger.debug(f"Pipe write failed for mount {self.config.mount}: {pipe_err}")
+                        # Put chunk back in buffer
+                        buffer.appendleft(chunk)
+                        raise  # Re-raise to trigger restart logic below
 
                     # Monitor buffer health
                     buffer_level = len(buffer)
@@ -609,6 +625,8 @@ class IcecastStreamer:
                     self._last_metadata_check = now
                     self._maybe_update_metadata()
 
+                # Check for write timeout - but only restart if it's been a LONG time
+                # Short gaps are normal during buffer fill, don't restart for those
                 if (
                     self._source_timeout
                     and buffer
@@ -617,9 +635,11 @@ class IcecastStreamer:
                 ):
                     idle_duration = now - self._last_write_time
                     logger.warning(
-                        "No audio written to Icecast for %.1f seconds; forcing encoder restart",
+                        "No audio written to Icecast for %.1f seconds; will restart if this persists",
                         idle_duration,
                     )
+                    # Only restart after source_timeout has been exceeded
+                    # This prevents restarts during normal buffer fluctuations
                     if not self._restart_ffmpeg(f"idle writer timeout ({idle_duration:.1f}s)"):
                         time.sleep(1.0)
                     continue

@@ -201,6 +201,8 @@ class FFmpegAudioSource:
             cmd = [
                 'ffmpeg',
                 '-re',  # Read input at native frame rate (for streams)
+                '-hide_banner',  # Reduce console output
+                '-nostdin',  # Don't expect keyboard input
                 '-i', self.source_url,
                 '-f', 's16le',  # 16-bit PCM little-endian
                 '-ar', str(self.sample_rate),
@@ -214,7 +216,7 @@ class FFmpegAudioSource:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.DEVNULL,  # Discard stderr to prevent pipe buffer filling
                 stdin=subprocess.DEVNULL,
-                bufsize=8192
+                bufsize=65536  # Increased from 8192 to 64KB for better streaming stability
             )
 
             self._last_data_time = time.time()
