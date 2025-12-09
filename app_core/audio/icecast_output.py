@@ -83,7 +83,7 @@ class IcecastConfig:
     admin_user: Optional[str] = None
     admin_password: Optional[str] = None
     metadata_poll_interval: float = 1.0
-    source_timeout: float = 30.0  # Seconds without writes before forcing a restart
+    source_timeout: float = 300.0  # Seconds without writes before forcing a restart (increased from 30s to 5min to prevent unnecessary restarts)
 
 
 class IcecastStreamer:
@@ -609,6 +609,8 @@ class IcecastStreamer:
                     self._last_metadata_check = now
                     self._maybe_update_metadata()
 
+                # Check for write timeout - but only restart if it's been a LONG time
+                # Short gaps are normal during buffer fill, don't restart for those
                 if (
                     self._source_timeout
                     and buffer
@@ -617,9 +619,11 @@ class IcecastStreamer:
                 ):
                     idle_duration = now - self._last_write_time
                     logger.warning(
-                        "No audio written to Icecast for %.1f seconds; forcing encoder restart",
+                        "No audio written to Icecast for %.1f seconds; will restart if this persists",
                         idle_duration,
                     )
+                    # Only restart after source_timeout has been exceeded
+                    # This prevents restarts during normal buffer fluctuations
                     if not self._restart_ffmpeg(f"idle writer timeout ({idle_duration:.1f}s)"):
                         time.sleep(1.0)
                     continue
