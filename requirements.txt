@@ -8,21 +8,23 @@
 # service. These packages only cover the Python client libraries that
 # communicate with the external database instance.
 #
-# Core Flask and web framework dependencies
-Flask==3.0.3
-Flask-SQLAlchemy==3.1.1
-Flask-Caching==2.3.0
-Flask-SocketIO==5.4.1
-Flask-WTF==1.2.2  # CSRF protection and form validation
-Flask-Limiter==3.8.0  # Rate limiting with Redis/memory backend
-python-socketio==5.11.4
-Werkzeug==3.0.6
+# Core FastAPI and web framework dependencies
+fastapi==0.115.5
+uvicorn[standard]==0.32.1  # ASGI server with WebSocket support
+python-socketio==5.11.4  # Socket.IO support for FastAPI
+python-multipart==0.0.12  # Form data and file upload parsing
+jinja2==3.1.4  # Template rendering (not included in FastAPI by default)
+itsdangerous==2.2.0  # Secure session cookies and CSRF tokens
+starlette==0.41.3  # Starlette (included with FastAPI, pinning for session support)
+slowapi==0.1.9  # Rate limiting for FastAPI (Flask-Limiter equivalent)
+aiofiles==24.1.0  # Async file operations
 
 # Database dependencies
 SQLAlchemy==2.0.44
-psycopg2-binary==2.9.10
+psycopg2-binary==2.9.10  # Sync PostgreSQL driver (can migrate to asyncpg later)
 GeoAlchemy2==0.15.2
 Alembic==1.14.0
+greenlet==3.1.1  # Required for SQLAlchemy 2.0 with FastAPI sync operations
 
 # HTTP client for API calls
 requests==2.32.3
@@ -57,13 +59,10 @@ lxml==5.3.0  # Fast C-based XML parser (5-10x faster than ElementTree)
 # Document and spreadsheet exports
 openpyxl==3.1.5
 
-# Production WSGI server
-gunicorn==23.0.0
-
-# Async worker for Gunicorn (CRITICAL for Flask-SocketIO WebSocket support)
-# Flask-SocketIO requires either gevent or eventlet when using Gunicorn
-# gevent is preferred for production use
-gevent==24.2.1
+# Production ASGI server (uvicorn already included above with [standard] extras)
+# uvicorn[standard] includes: websockets, httptools, uvloop, watchfiles
+# For production, can also use: uvicorn with gunicorn as process manager:
+# gunicorn -k uvicorn.workers.UvicornWorker app:app
 
 # Redis for state management and worker coordination
 # Replaces fragile file-based coordination with robust distributed state
