@@ -855,61 +855,9 @@ def publish_metrics_to_redis(metrics):
         pipe.hset("eas:metrics", mapping=flat_metrics)
         pipe.expire("eas:metrics", 60)  # Expire if service dies
         
-        # Publish waveform and spectrogram data for each source separately (to keep main metrics lightweight)
-        if _audio_controller:
-            for name, source in _audio_controller._sources.items():
-                try:
-                    # Only publish visualization data for running sources
-                    from app_core.audio.ingest import AudioSourceStatus
-                    if source.status == AudioSourceStatus.RUNNING:
-                        # Publish waveform data
-                        if hasattr(source, 'get_waveform_data'):
-                            waveform_data = source.get_waveform_data()
-                            if waveform_data is not None and len(waveform_data) > 0:
-                                # Convert numpy array to list for JSON serialization
-                                waveform_list = _sanitize_value(waveform_data.tolist())
-                                waveform_payload = {
-                                    'waveform': waveform_list,
-                                    'sample_count': len(waveform_list),
-                                    'timestamp': time.time() * 1000,  # Milliseconds for JS
-                                    'source_name': name,
-                                    'status': 'available'
-                                }
-                                # Store waveform data with short expiry (10 seconds)
-                                pipe.setex(
-                                    f"eas:waveform:{name}",
-                                    10,
-                                    json.dumps(waveform_payload)
-                                )
-                        
-                        # Publish spectrogram data
-                        if hasattr(source, 'get_spectrogram_data'):
-                            spectrogram_data = source.get_spectrogram_data()
-                            if spectrogram_data is not None and spectrogram_data.size > 0:
-                                # Convert numpy array to list for JSON serialization
-                                spectrogram_list = _sanitize_value(spectrogram_data.tolist())
-                                # Get source config for FFT info
-                                sample_rate = getattr(source, 'sample_rate', 44100)
-                                fft_size = getattr(source, '_fft_size', 2048)
-                                
-                                spectrogram_payload = {
-                                    'spectrogram': spectrogram_list,
-                                    'time_frames': len(spectrogram_list),
-                                    'frequency_bins': len(spectrogram_list[0]) if len(spectrogram_list) > 0 else 0,
-                                    'sample_rate': sample_rate,
-                                    'fft_size': fft_size,
-                                    'timestamp': time.time() * 1000,  # Milliseconds for JS
-                                    'source_name': name,
-                                    'status': 'available'
-                                }
-                                # Store spectrogram data with short expiry (10 seconds)
-                                pipe.setex(
-                                    f"eas:spectrogram:{name}",
-                                    10,
-                                    json.dumps(spectrogram_payload)
-                                )
-                except Exception as e:
-                    logger.debug(f"Error publishing visualization data for '{name}': {e}")
+        # NOTE: Waveform/spectrogram publishing removed - was causing audio stuttering
+        # due to blocking .tolist() conversions on large numpy arrays in main loop.
+        # Visualization data should be fetched on-demand via HTTP endpoints instead.
         
         # Spectrum data is now published by sdr-service.py
         # audio-service.py does NOT access SDR hardware or IQ samples
@@ -1232,7 +1180,9 @@ def main():
 
         # Main loop: publish metrics every 5 seconds
         last_metrics_time = 0
+        last_monitor_check = 0
         metrics_interval = 5.0
+        monitor_check_interval = 30.0  # Check for missing monitors every 30 seconds
 
         while _running:
             try:
@@ -1240,6 +1190,21 @@ def main():
 
                 # Process pending commands from webapp (non-blocking)
                 process_commands()
+
+                # Periodically check for running sources without monitors and create them
+                if current_time - last_monitor_check >= monitor_check_interval:
+                    if eas_monitor and audio_controller:
+                        from app_core.audio.ingest import AudioSourceStatus
+                        for source_name, source_adapter in audio_controller._sources.items():
+                            if source_adapter.status == AudioSourceStatus.RUNNING:
+                                # Check if this source has a monitor
+                                if hasattr(eas_monitor, '_all_monitors') and source_name not in eas_monitor._all_monitors:
+                                    logger.info(f"Found running source '{source_name}' without EAS monitor - creating one")
+                                    try:
+                                        eas_monitor.add_monitor_for_source(source_name)
+                                    except Exception as e:
+                                        logger.error(f"Failed to create monitor for '{source_name}': {e}")
+                    last_monitor_check = current_time
 
                 # Publish metrics periodically
                 if current_time - last_metrics_time >= metrics_interval:
