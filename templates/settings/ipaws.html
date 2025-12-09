@@ -533,18 +533,35 @@ async function disableIPAWS() {
     }
 }
 
-// Auto-refresh status every 30 seconds
-setInterval(async function() {
+// IPAWS status update handler
+function handleIpawsStatusUpdate(data) {
+    if (data.last_poll) {
+        const elem = document.getElementById('lastPollTime');
+        if (elem) {
+            elem.textContent = new Date(data.last_poll).toLocaleString();
+        }
+    }
+}
+
+// Polling fallback function
+async function refreshIpawsStatus() {
     try {
         const response = await fetch('/api/ipaws/status');
         const result = await response.json();
-
-        if (result.last_poll) {
-            document.getElementById('lastPollTime').textContent = new Date(result.last_poll).toLocaleString();
-        }
+        handleIpawsStatusUpdate(result);
     } catch (error) {
         console.error('Error refreshing status:', error);
     }
-}, 30000);
+}
+
+// Use WebSocket with polling fallback
+if (window.EASWebSocket) {
+    window.EASWebSocket.subscribe('ipaws_status_update', handleIpawsStatusUpdate, {
+        fallbackFn: refreshIpawsStatus,
+        fallbackInterval: 30000
+    });
+} else {
+    setInterval(refreshIpawsStatus, 30000);
+}
 </script>
 {% endblock %}

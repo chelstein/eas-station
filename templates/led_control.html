@@ -1348,6 +1348,18 @@ function initLineEditors() {
     });
 }
 
+// WebSocket subscription handle
+let wsLedUnsubscribe = null;
+
+// Handle WebSocket LED status update
+function handleLedStatusUpdate(data) {
+    // Update LED status display from WebSocket data
+    if (data.leds) {
+        // Refresh the LED status display
+        loadLEDStatus();
+    }
+}
+
 // Initialize LED control
 function initLEDControl() {
     loadLEDStatus();
@@ -1357,7 +1369,18 @@ function initLEDControl() {
     setupFormHandlers();
     initLineEditors();
     updateTimePreview();
-    setInterval(loadLEDStatus, 30000);
+
+    // Use WebSocket with polling fallback for LED status
+    if (window.EASWebSocket) {
+        wsLedUnsubscribe = window.EASWebSocket.subscribe('led_status_update', handleLedStatusUpdate, {
+            fallbackFn: loadLEDStatus,
+            fallbackInterval: 30000
+        });
+    } else {
+        setInterval(loadLEDStatus, 30000);
+    }
+
+    // Time preview is UI-only, keep as interval
     setInterval(updateTimePreview, 1000);
 
     // Initialize RGB preview

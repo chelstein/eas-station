@@ -549,15 +549,29 @@ sudo systemctl restart eas-station</code></pre>
         }
     }
 
+    // WebSocket subscription handle
+    let wsRadioUnsubscribe = null;
+
     function startAutoRefresh() {
-        if (autoRefreshHandle) {
-            clearInterval(autoRefreshHandle);
+        if (autoRefreshHandle || wsRadioUnsubscribe) {
+            stopAutoRefresh();
         }
 
         if (autoRefreshCheckbox.checked) {
             loadDiagnostics();
-            // REDUCED: 15 seconds instead of 5 seconds - diagnostics data is cached
-            autoRefreshHandle = setInterval(loadDiagnostics, 15000);
+
+            // Use WebSocket with polling fallback
+            if (window.EASWebSocket) {
+                wsRadioUnsubscribe = window.EASWebSocket.subscribe('radio_status_update', function(data) {
+                    loadDiagnostics();
+                }, {
+                    fallbackFn: loadDiagnostics,
+                    fallbackInterval: 15000
+                });
+            } else {
+                // Fallback: 15 seconds polling
+                autoRefreshHandle = setInterval(loadDiagnostics, 15000);
+            }
         }
     }
 
@@ -565,6 +579,10 @@ sudo systemctl restart eas-station</code></pre>
         if (autoRefreshHandle) {
             clearInterval(autoRefreshHandle);
             autoRefreshHandle = null;
+        }
+        if (wsRadioUnsubscribe) {
+            wsRadioUnsubscribe();
+            wsRadioUnsubscribe = null;
         }
     }
 

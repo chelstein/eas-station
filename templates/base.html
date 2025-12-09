@@ -218,9 +218,16 @@
     <!-- 1. Bootstrap first -->
     <script src="{{ url_for('static', filename='vendor/bootstrap/bootstrap.bundle.min.js') }}"></script>
 
-    <!-- 2. EAS Station Core JavaScript Modules -->
+    <!-- 2. Socket.IO for real-time WebSocket updates -->
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"
+            integrity="sha384-/KNQL8Nu5gCHLqwqfQjA689Hhoqgi2S84SNUxC3roTe4EhJ9AfLkp8QiQcU8AMzI"
+            crossorigin="anonymous"></script>
+
+    <!-- 3. EAS Station Core JavaScript Modules -->
     <!-- CRITICAL: Load cache.js FIRST to intercept all fetch calls and prevent server overload -->
     <script src="{{ url_for('static', filename='js/core/cache.js') }}"></script>
+    <!-- WebSocket module must load before other modules that depend on it -->
+    <script src="{{ url_for('static', filename='js/core/websocket.js') }}"></script>
     <script src="{{ url_for('static', filename='js/core/theme.js') }}"></script>
     <script src="{{ url_for('static', filename='js/core/notifications.js') }}"></script>
     <script src="{{ url_for('static', filename='js/core/api.js') }}"></script>

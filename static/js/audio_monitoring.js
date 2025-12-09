@@ -1,6 +1,8 @@
 /**
  * Audio Monitoring JavaScript
  * Handles real-time audio source monitoring, metrics display, and source management
+ *
+ * Uses WebSocket for real-time updates with automatic fallback to polling.
  */
 
 // Global state
@@ -14,6 +16,11 @@ const lastMetricTimestamps = {};
 let anonymousIdCounter = 0;
 const DEFAULT_LEVEL_DB = -120;
 
+// WebSocket subscription handles
+let wsMetricsUnsubscribe = null;
+let wsHealthUnsubscribe = null;
+let wsSourcesUnsubscribe = null;
+
 // Initialize when DOM is loaded
 document.addEventListener('DOMContentLoaded', function() {
     initializeAudioMonitoring();
@@ -21,21 +28,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
 /**
  * Initialize audio monitoring system
+ * Uses WebSocket with automatic fallback to polling
  */
 function initializeAudioMonitoring() {
     // Load initial data
     loadAudioSources();
     loadAudioHealth();
     loadAudioAlerts();
-
-    // Fast updates for VU meters (every 2 seconds)
-    metricsUpdateInterval = setInterval(updateMetrics, 2000);
-    // Slower updates for waveforms (every 10 seconds)
-    waveformUpdateInterval = setInterval(updateWaveforms, 10000);
-    // Health: 30s instead of 5s (health doesn't change that fast)
-    healthUpdateInterval = setInterval(loadAudioHealth, 30000);
-    // Device changes: 60s instead of 10s (hot-plug is rare)
-    deviceMonitorInterval = setInterval(monitorDeviceChanges, 60000);
 
     // Perform an immediate metrics refresh so VU meters populate without delay
     updateMetrics();
@@ -44,6 +43,139 @@ function initializeAudioMonitoring() {
 
     // Setup event listeners
     document.getElementById('sourceType')?.addEventListener('change', updateSourceTypeConfig);
+
+    // Subscribe to WebSocket updates if available
+    if (window.EASWebSocket) {
+        // Audio metrics (VU meters) - real-time via WebSocket
+        wsMetricsUnsubscribe = window.EASWebSocket.subscribe(
+            'audio_monitoring_update',
+            handleAudioMetricsUpdate,
+            {
+                fallbackFn: updateMetrics,
+                fallbackInterval: 2000  // 2s polling fallback
+            }
+        );
+
+        // Audio health - slower updates
+        wsHealthUnsubscribe = window.EASWebSocket.subscribe(
+            'audio_health_update',
+            handleAudioHealthUpdate,
+            {
+                fallbackFn: loadAudioHealth,
+                fallbackInterval: 30000  // 30s polling fallback
+            }
+        );
+
+        // Audio sources list
+        wsSourcesUnsubscribe = window.EASWebSocket.subscribe(
+            'audio_sources_update',
+            handleAudioSourcesUpdate,
+            {
+                fallbackFn: loadAudioSources,
+                fallbackInterval: 30000  // 30s polling fallback
+            }
+        );
+
+        // Waveforms still need polling (not included in WebSocket yet)
+        waveformUpdateInterval = setInterval(updateWaveforms, 10000);
+
+        // Device monitoring still needs polling
+        deviceMonitorInterval = setInterval(monitorDeviceChanges, 60000);
+    } else {
+        // Fallback to polling if WebSocket module not available
+        metricsUpdateInterval = setInterval(updateMetrics, 2000);
+        waveformUpdateInterval = setInterval(updateWaveforms, 10000);
+        healthUpdateInterval = setInterval(loadAudioHealth, 30000);
+        deviceMonitorInterval = setInterval(monitorDeviceChanges, 60000);
+    }
+}
+
+/**
+ * Handle WebSocket audio metrics update (VU meters)
+ */
+function handleAudioMetricsUpdate(data) {
+    try {
+        const snapshot = data?.audio_metrics || data;
+        const liveMetrics = snapshot?.live_metrics || [];
+
+        updateBackendStatusIndicator(snapshot?.broadcast_stats, snapshot?.active_source);
+
+        if (!Array.isArray(liveMetrics) || liveMetrics.length === 0) {
+            showMetricsWarning('No live audio metrics received — check audio service/Redis');
+            refreshMetricTimestampIndicators();
+            return;
+        }
+
+        const hasRealMetrics = liveMetrics.some(metric => hasMeaningfulLevels(metric));
+        if (!hasRealMetrics) {
+            showMetricsWarning('No live audio metrics received — check audio service/Redis');
+        } else {
+            hideMetricsWarning();
+        }
+
+        liveMetrics.forEach(metric => {
+            if (!hasUsableId(metric?.source_id)) return;
+
+            if (hasMeaningfulLevels(metric)) {
+                const parsedTimestamp = parseMetricTimestamp(metric.timestamp) || new Date();
+                lastMetricTimestamps[metric.source_id] = parsedTimestamp;
+            }
+
+            updateMeterDisplay(metric.source_id, 'peak', metric.peak_level_db);
+            updateMeterDisplay(metric.source_id, 'rms', metric.rms_level_db);
+            renderMetricTimestamp(metric.source_id);
+        });
+
+        refreshMetricTimestampIndicators();
+    } catch (error) {
+        console.error('Error processing WebSocket audio metrics:', error);
+    }
+}
+
+/**
+ * Handle WebSocket audio health update
+ */
+function handleAudioHealthUpdate(data) {
+    try {
+        const healthScore = Math.round(data.overall_health_score || 0);
+        const scoreElement = document.getElementById('overall-health-score');
+        if (scoreElement) {
+            scoreElement.textContent = healthScore;
+        }
+
+        // Update health circle
+        const circle = document.getElementById('overall-health-circle');
+        if (circle) {
+            circle.style.setProperty('--score', healthScore);
+
+            let color = '#28a745'; // green
+            if (healthScore < 50) color = '#dc3545'; // red
+            else if (healthScore < 80) color = '#ffc107'; // yellow
+
+            circle.style.background = `conic-gradient(${color} 0deg, ${color} ${healthScore * 3.6}deg, #e9ecef ${healthScore * 3.6}deg)`;
+        }
+    } catch (error) {
+        console.error('Error processing WebSocket audio health:', error);
+    }
+}
+
+/**
+ * Handle WebSocket audio sources update
+ */
+function handleAudioSourcesUpdate(data) {
+    try {
+        const sources = data.sources || [];
+        audioSources = sources.filter(source => hasUsableId(source?.id || source?.name));
+        renderAudioSources();
+
+        // Update counts
+        const activeCount = document.getElementById('active-sources-count');
+        const totalCount = document.getElementById('total-sources-count');
+        if (activeCount) activeCount.textContent = data.active_count || 0;
+        if (totalCount) totalCount.textContent = data.total || 0;
+    } catch (error) {
+        console.error('Error processing WebSocket audio sources:', error);
+    }
 }
 
 // Simple debounce helper
@@ -1580,7 +1712,14 @@ function formatTimestamp(timestamp) {
  * Cleanup on page unload
  */
 window.addEventListener('beforeunload', function() {
+    // Clear polling intervals
     if (metricsUpdateInterval) clearInterval(metricsUpdateInterval);
+    if (waveformUpdateInterval) clearInterval(waveformUpdateInterval);
     if (healthUpdateInterval) clearInterval(healthUpdateInterval);
     if (deviceMonitorInterval) clearInterval(deviceMonitorInterval);
+
+    // Unsubscribe from WebSocket events
+    if (wsMetricsUnsubscribe) wsMetricsUnsubscribe();
+    if (wsHealthUnsubscribe) wsHealthUnsubscribe();
+    if (wsSourcesUnsubscribe) wsSourcesUnsubscribe();
 });

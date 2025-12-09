@@ -1,6 +1,8 @@
 /**
  * EAS Station - System Health Monitoring Module
  * Monitors system health status and updates UI indicators
+ *
+ * Uses WebSocket for real-time updates with automatic fallback to polling.
  */
 
 (function() {
@@ -11,6 +13,9 @@
         severity: null,
         dismissed: false,
     };
+
+    // WebSocket subscription handle
+    let wsUnsubscribe = null;
 
     /**
      * Update system status banner
@@ -152,17 +157,78 @@
     }
 
     /**
+     * Handle WebSocket system health update
+     */
+    function handleWebSocketUpdate(data) {
+        const healthDot = document.getElementById('system-health-dot');
+        const healthText = document.getElementById('system-health-text');
+        const indicator = document.getElementById('system-health-indicator');
+
+        if (healthDot && healthText) {
+            const statusKey = (data.status || '').toString().toLowerCase();
+            const statusStyles = {
+                healthy: { className: 'health-dot health-good', label: 'Healthy' },
+                online: { className: 'health-dot health-good', label: 'Healthy' },
+                warning: { className: 'health-dot health-warning', label: 'Warning' },
+                critical: { className: 'health-dot health-critical', label: 'Critical' },
+            };
+
+            const fallback = { className: 'health-dot health-warning', label: 'Status' };
+            const style = statusStyles[statusKey] || fallback;
+            const summary = (data.status_summary || '').toString().trim();
+
+            healthDot.className = style.className;
+
+            const isHealthy = ['healthy', 'online'].includes(statusKey);
+            const displayText = isHealthy ? (summary || 'System OK') : style.label;
+
+            healthText.textContent = displayText;
+
+            if (indicator) {
+                const indicatorMessage = summary || displayText;
+                indicator.setAttribute('title', indicatorMessage);
+                indicator.setAttribute('aria-label', `System status: ${indicatorMessage}`);
+
+                indicator.classList.remove('status-healthy', 'status-warning', 'status-critical');
+                const indicatorState = statusKey === 'critical'
+                    ? 'status-critical'
+                    : statusKey === 'warning'
+                        ? 'status-warning'
+                        : ['healthy', 'online'].includes(statusKey)
+                            ? 'status-healthy'
+                            : 'status-warning';
+                indicator.classList.add(indicatorState);
+            }
+
+            updateSystemStatusBanner(statusKey, summary, style.label);
+        }
+    }
+
+    /**
      * Initialize health monitoring
+     * Uses WebSocket with automatic fallback to polling
      */
     function init() {
-        // Check immediately
+        // Check immediately via HTTP
         checkSystemHealth();
-
-        // REDUCED: Check every 60 seconds instead of 30 (cache serves intermediate requests)
-        setInterval(checkSystemHealth, 60000);
 
         // Setup banner close handler
         setupBannerCloseHandler();
+
+        // Subscribe to WebSocket updates if available
+        if (window.EASWebSocket) {
+            wsUnsubscribe = window.EASWebSocket.subscribe(
+                'system_health_update',
+                handleWebSocketUpdate,
+                {
+                    fallbackFn: checkSystemHealth,
+                    fallbackInterval: 60000  // 60s polling fallback
+                }
+            );
+        } else {
+            // Fallback: Check every 60 seconds if WebSocket module not available
+            setInterval(checkSystemHealth, 60000);
+        }
     }
 
     // Initialize when DOM is ready
