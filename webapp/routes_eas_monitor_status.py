@@ -126,6 +126,7 @@ def register_eas_monitor_routes(app: Flask, logger_instance) -> None:
                 "samples_processed": status.get("samples_processed", 0),
                 "samples_per_second": status.get("samples_per_second", 0),
                 "runtime_seconds": status.get("runtime_seconds", 0),
+                "wall_clock_runtime_seconds": status.get("wall_clock_runtime_seconds", 0),
                 "decoder_synced": status.get("decoder_synced", False),
                 "decoder_in_message": status.get("decoder_in_message", False),
                 "decoder_bytes_decoded": status.get("decoder_bytes_decoded", 0),

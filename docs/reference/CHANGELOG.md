@@ -6,6 +6,20 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.16.3] - 2025-12-09
+### Fixed
+- **EAS Monitor Runtime Display**: Fixed runtime timer showing "0s" and buffer bar not filling on Audio Monitoring page
+  - Root cause: API endpoint was not passing `wall_clock_runtime_seconds` from the audio-service metrics
+  - Fix: Added `wall_clock_runtime_seconds` to the API response in `routes_eas_monitor_status.py`
+- **Audio Detail Page Error**: Fixed "Unable to load audio detail at this time" error when viewing IPAWS-generated alerts
+  - Root cause: Template used `url_for('alert_detail', ...)` but the route is on the `api` blueprint
+  - Fix: Changed to `url_for('api.alert_detail', ...)` in `audio_detail.html`
+- **Layout Spacing**: Reduced global `--layout-padding-top` from `1.5rem` to `0.5rem` to minimize gap between navbar and content
+- **Audit Logs UI**: Fixed stat-card styling conflict where global vibrant gradient styles were overriding the audit logs page local styles
+  - Added more specific CSS selectors (`.stats-row .stat-card`) to ensure local styles take precedence
+  - Used `!important` flags to override global pseudo-elements that added shimmer/glow effects
+  - Stats row now displays with correct neutral background instead of colorful mesh gradient
+
 ## [2.16.2] - 2025-12-09
 ### Fixed
 - **Code Quality**: Fixed bare `except:` clauses in multiple files for PEP 8 compliance:

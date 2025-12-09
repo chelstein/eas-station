@@ -32,7 +32,7 @@
                     <i class="fas fa-list"></i> Back to Archive
                 </a>
                 {% if alert %}
-                <a class="btn btn-outline-primary" href="{{ url_for('alert_detail', alert_id=alert.id) }}">
+                <a class="btn btn-outline-primary" href="{{ url_for('api.alert_detail', alert_id=alert.id) }}">
                     <i class="fas fa-bullhorn"></i> View Alert
                 </a>
                 {% endif %}
