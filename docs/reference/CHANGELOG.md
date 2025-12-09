@@ -6,6 +6,13 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.16.3] - 2025-12-09
+### Fixed
+- **Audit Logs UI**: Fixed stat-card styling conflict where global vibrant gradient styles were overriding the audit logs page local styles
+  - Added more specific CSS selectors (`.stats-row .stat-card`) to ensure local styles take precedence
+  - Used `!important` flags to override global pseudo-elements that added shimmer/glow effects
+  - Stats row now displays with correct neutral background instead of colorful mesh gradient
+
 ## [2.16.2] - 2025-12-09
 ### Fixed
 - **Code Quality**: Fixed bare `except:` clauses in multiple files for PEP 8 compliance:
