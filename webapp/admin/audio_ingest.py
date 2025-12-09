@@ -2234,11 +2234,10 @@ def api_stream_audio(source_name: str):
 
     # LEGACY FALLBACK CODE - KEPT FOR REFERENCE BUT NOT USED
     def generate_wav_stream(active_adapter: Any):
-        """Generator that yields WAV-formatted audio chunks with resilient error handling.
-        
-        icecast_response = _proxy_icecast_stream()
-        if icecast_response:
-            return icecast_response
+        """Generator that yields WAV-formatted audio chunks with resilient error handling."""
+        # icecast_response = _proxy_icecast_stream()
+        # if icecast_response:
+        #     return icecast_response
 
         return _stream_silence_response()
 

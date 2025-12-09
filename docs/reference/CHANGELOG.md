@@ -6,6 +6,13 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.16.5] - 2025-12-09
+### Fixed
+- **Application Startup Failure**: Fixed unterminated triple-quoted string literal in `webapp/admin/audio_ingest.py` at line 2237
+  - Root cause: Docstring for legacy `generate_wav_stream()` function was never closed
+  - This prevented database migrations from running and caused gunicorn workers to crash on startup
+  - Fix: Properly closed the docstring and commented out the legacy code inside the function
+
 ## [2.16.3] - 2025-12-09
 ### Fixed
 - **EAS Monitor Runtime Display**: Fixed runtime timer showing "0s" and buffer bar not filling on Audio Monitoring page
