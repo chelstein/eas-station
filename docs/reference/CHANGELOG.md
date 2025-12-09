@@ -8,6 +8,9 @@ tracks releases under the 2.x series.
 
 ## [2.16.3] - 2025-12-09
 ### Fixed
+- **EAS Monitor Runtime Display**: Fixed runtime timer showing "0s" and buffer bar not filling on Audio Monitoring page
+  - Root cause: API endpoint was not passing `wall_clock_runtime_seconds` from the audio-service metrics
+  - Fix: Added `wall_clock_runtime_seconds` to the API response in `routes_eas_monitor_status.py`
 - **Audio Detail Page Error**: Fixed "Unable to load audio detail at this time" error when viewing IPAWS-generated alerts
   - Root cause: Template used `url_for('alert_detail', ...)` but the route is on the `api` blueprint
   - Fix: Changed to `url_for('api.alert_detail', ...)` in `audio_detail.html`
