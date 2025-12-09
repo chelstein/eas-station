@@ -419,6 +419,11 @@ class ContinuousEASMonitor:
     
     # Minimum elapsed time for rate calculation (prevents division by zero on startup)
     MIN_ELAPSED_SECONDS = 0.1
+    
+    # Rate smoothing and warmup configuration
+    WARMUP_DURATION_SECONDS = 2  # Duration of warmup period before accurate rate calculation
+    WARMUP_MAX_HEALTH_PERCENTAGE = 0.95  # Maximum health shown during warmup (95%)
+    RATE_SMOOTHING_ALPHA = 0.3  # EMA smoothing factor: lower=more smooth, higher=more responsive
 
     def __init__(
         self,
@@ -498,12 +503,9 @@ class ContinuousEASMonitor:
         
         # Rate smoothing to prevent display fluctuations
         # Minimum samples before calculating rate (prevents early spikes)
-        self._min_samples_for_rate = sample_rate * 2  # 2 seconds of audio
+        self._min_samples_for_rate = sample_rate * self.WARMUP_DURATION_SECONDS
         # Exponential moving average for samples_per_second
         self._smoothed_samples_per_second: float = 0.0
-        # Smoothing factor (0-1): lower = more smoothing, higher = more responsive
-        # 0.3 provides good balance: responsive to real changes, filters out noise
-        self._rate_smoothing_alpha: float = 0.3
         
         logger.info(
             f"Initialized ContinuousEASMonitor: "
@@ -643,8 +645,8 @@ class ContinuousEASMonitor:
                     else:
                         # Update smoothed value using EMA
                         self._smoothed_samples_per_second = (
-                            self._smoothed_samples_per_second * (1.0 - self._rate_smoothing_alpha) +
-                            raw_samples_per_second * self._rate_smoothing_alpha
+                            self._smoothed_samples_per_second * (1.0 - self.RATE_SMOOTHING_ALPHA) +
+                            raw_samples_per_second * self.RATE_SMOOTHING_ALPHA
                         )
                     samples_per_second = self._smoothed_samples_per_second
             else:
@@ -678,10 +680,10 @@ class ContinuousEASMonitor:
             # During warmup period (first 2 seconds), report partial health
             # This shows system is working but still stabilizing
             if samples_processed < self._min_samples_for_rate:
-                # Warmup phase: health grows linearly from 0% to 95% over first 2 seconds
+                # Warmup phase: health grows linearly from 0% to WARMUP_MAX_HEALTH_PERCENTAGE
                 # This provides visual feedback without triggering "no audio" warnings
                 warmup_progress = min(1.0, samples_processed / float(self._min_samples_for_rate))
-                health_percentage = warmup_progress * 0.95
+                health_percentage = warmup_progress * self.WARMUP_MAX_HEALTH_PERCENTAGE
             else:
                 # Normal operation: calculate actual health based on processing rate
                 # Clamp to 0-100% range to prevent >100% display
