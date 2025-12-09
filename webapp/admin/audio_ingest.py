@@ -2210,11 +2210,46 @@ def api_get_spectrogram(source_name: str):
 
 @audio_ingest_bp.route('/api/audio/stream/<source_name>')
 def api_stream_audio(source_name: str):
-    """Stream live audio from a specific source as WAV."""
-    import struct
-    import io
+    """Stream live audio from a specific source - SIMPLIFIED VERSION.
+    
+    Simply proxy to audio-service container which does the actual streaming.
+    No complex fallback logic - audio-service handles everything.
+    """
     from flask import Response, stream_with_context
+    
+    # SEPARATED ARCHITECTURE: Just proxy to audio-service (port 5002)
+    audio_service_host = os.environ.get('AUDIO_SERVICE_HOST', 'audio-service')
+    audio_service_port = os.environ.get('AUDIO_SERVICE_PORT', '5002')
+    audio_service_url = f'http://{audio_service_host}:{audio_service_port}/api/audio/stream/{source_name}'
+    
+    try:
+        logger.info(f'Proxying audio stream for {source_name} to {audio_service_url}')
+        resp = requests.get(audio_service_url, stream=True, timeout=10)
+        
+        if resp.status_code == 200:
+            def generate_proxy():
+                for chunk in resp.iter_content(chunk_size=8192):
+                    if chunk:
+                        yield chunk
+            
+            return Response(
+                stream_with_context(generate_proxy()),
+                mimetype='audio/wav',
+                headers={
+                    'Content-Type': 'audio/wav',
+                    'Cache-Control': 'no-cache',
+                    'Access-Control-Allow-Origin': '*'
+                }
+            )
+        else:
+            logger.error(f'Audio service returned {resp.status_code} for {source_name}')
+            return jsonify({'error': f'Audio service returned {resp.status_code}'}), resp.status_code
+            
+    except Exception as e:
+        logger.error(f'Error proxying audio stream for {source_name}: {e}')
+        return jsonify({'error': str(e)}), 500
 
+    # LEGACY FALLBACK CODE - KEPT FOR REFERENCE BUT NOT USED
     def generate_wav_stream(active_adapter: Any):
         """Generator that yields WAV-formatted audio chunks with resilient error handling.
         

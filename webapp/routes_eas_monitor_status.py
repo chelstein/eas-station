@@ -111,6 +111,22 @@ def register_eas_monitor_routes(app: Flask, logger_instance) -> None:
                     "initialization_attempted": False
                 })
 
+            # HANDLE MULTI-MONITOR AGGREGATED FORMAT
+            # If status has a "monitors" key, it's aggregated stats from MultiMonitorManager
+            # Extract the first monitor's detailed stats for UI display
+            if "monitors" in status and isinstance(status["monitors"], dict):
+                monitors_dict = status["monitors"]
+                if monitors_dict:
+                    # Get the first monitor's stats (usually there's only one or two)
+                    first_monitor_key = next(iter(monitors_dict.keys()))
+                    first_monitor_stats = monitors_dict[first_monitor_key]
+                    logger.debug(f"Using stats from monitor '{first_monitor_key}' for UI display")
+                    
+                    # Use the individual monitor's stats, but keep aggregated running status
+                    status = first_monitor_stats.copy()
+                    # Override with aggregated running status (any monitor running = system running)
+                    status["running"] = shared_metrics.get("eas_monitor", {}).get("running", False)
+
             # Build response from shared metrics
             response_data: Dict[str, Any] = {
                 # Basic status
