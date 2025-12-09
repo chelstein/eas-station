@@ -11,7 +11,7 @@
                         {% with logo_classes='img-fluid mb-3 mx-auto', logo_style='max-width: 500px;' %}
                             {% include 'partials/logo_wordmark.html' %}
                         {% endwith %}
-                        <h1 class="display-5 fw-bold mb-3">About EAS Station</h1>
+                        <h1 class="display-5 fw-bold mb-3 text-gradient">About EAS Station</h1>
                         <p class="lead text-muted">Software-defined drop-in replacement for commercial EAS encoder/decoders built on Raspberry Pi-class hardware</p>
                     </div>
                     
@@ -145,57 +145,57 @@
                     
                     <div class="row g-3">
                         <div class="col-md-6 col-lg-4">
-                            <div class="card h-100 border-0 shadow-sm bg-light">
-                                <div class="card-body text-center">
-                                    <i class="fas fa-globe fa-3x text-primary mb-3"></i>
-                                    <h5 class="h6">app</h5>
-                                    <p class="small text-muted mb-0">Flask web UI, REST API, dashboards. <em>No hardware access.</em> Reads metrics from Redis.</p>
+                            <div class="feature-card h-100">
+                                <div class="feature-card-icon">
+                                    <i class="fas fa-globe"></i>
                                 </div>
+                                <h5 class="feature-card-title">app</h5>
+                                <p class="feature-card-text">Flask web UI, REST API, dashboards. <em>No hardware access.</em> Reads metrics from Redis.</p>
                             </div>
                         </div>
                         <div class="col-md-6 col-lg-4">
-                            <div class="card h-100 border-0 shadow-sm bg-light">
-                                <div class="card-body text-center">
-                                    <i class="fas fa-microphone fa-3x text-success mb-3"></i>
-                                    <h5 class="h6">sdr-service</h5>
-                                    <p class="small text-muted mb-0">SDR capture, FM demodulation, SAME decoding, Icecast streaming. <em>USB access.</em></p>
+                            <div class="feature-card h-100">
+                                <div class="feature-card-icon">
+                                    <i class="fas fa-microphone"></i>
                                 </div>
+                                <h5 class="feature-card-title">sdr-service</h5>
+                                <p class="feature-card-text">SDR capture, FM demodulation, SAME decoding, Icecast streaming. <em>USB access.</em></p>
                             </div>
                         </div>
                         <div class="col-md-6 col-lg-4">
-                            <div class="card h-100 border-0 shadow-sm bg-light">
-                                <div class="card-body text-center">
-                                    <i class="fas fa-sliders-h fa-3x text-warning mb-3"></i>
-                                    <h5 class="h6">hardware-service</h5>
-                                    <p class="small text-muted mb-0">GPIO relay control, OLED/VFD displays, LED sign protocols. <em>I2C/GPIO access.</em></p>
+                            <div class="feature-card h-100">
+                                <div class="feature-card-icon">
+                                    <i class="fas fa-sliders-h"></i>
                                 </div>
+                                <h5 class="feature-card-title">hardware-service</h5>
+                                <p class="feature-card-text">GPIO relay control, OLED/VFD displays, LED sign protocols. <em>I2C/GPIO access.</em></p>
                             </div>
                         </div>
                         <div class="col-md-6 col-lg-4">
-                            <div class="card h-100 border-0 shadow-sm bg-light">
-                                <div class="card-body text-center">
-                                    <i class="fas fa-download fa-3x text-secondary mb-3"></i>
-                                    <h5 class="h6">noaa-poller / ipaws-poller</h5>
-                                    <p class="small text-muted mb-0">CAP feed polling, XML parsing, deduplication. Writes to PostgreSQL.</p>
+                            <div class="feature-card h-100">
+                                <div class="feature-card-icon">
+                                    <i class="fas fa-download"></i>
                                 </div>
+                                <h5 class="feature-card-title">noaa-poller / ipaws-poller</h5>
+                                <p class="feature-card-text">CAP feed polling, XML parsing, deduplication. Writes to PostgreSQL.</p>
                             </div>
                         </div>
                         <div class="col-md-6 col-lg-4">
-                            <div class="card h-100 border-0 shadow-sm bg-light">
-                                <div class="card-body text-center">
-                                    <i class="fas fa-bolt fa-3x text-danger mb-3"></i>
-                                    <h5 class="h6">Redis</h5>
-                                    <p class="small text-muted mb-0">Real-time metrics, waveforms, command pub/sub. 5s TTL for live data.</p>
+                            <div class="feature-card h-100">
+                                <div class="feature-card-icon">
+                                    <i class="fas fa-bolt"></i>
                                 </div>
+                                <h5 class="feature-card-title">Redis</h5>
+                                <p class="feature-card-text">Real-time metrics, waveforms, command pub/sub. 5s TTL for live data.</p>
                             </div>
                         </div>
                         <div class="col-md-6 col-lg-4">
-                            <div class="card h-100 border-0 shadow-sm bg-light">
-                                <div class="card-body text-center">
-                                    <i class="fas fa-database fa-3x text-purple mb-3"></i>
-                                    <h5 class="h6">PostgreSQL + PostGIS</h5>
-                                    <p class="small text-muted mb-0">Persistent storage: alerts, boundaries, configs, compliance logs.</p>
+                            <div class="feature-card h-100">
+                                <div class="feature-card-icon">
+                                    <i class="fas fa-database"></i>
                                 </div>
+                                <h5 class="feature-card-title">PostgreSQL + PostGIS</h5>
+                                <p class="feature-card-text">Persistent storage: alerts, boundaries, configs, compliance logs.</p>
                             </div>
                         </div>
                     </div>
@@ -217,39 +217,39 @@
                     
                     <div class="row g-3">
                         <div class="col-md-6 col-lg-3">
-                            <div class="card h-100 border-0 shadow-sm">
-                                <div class="card-body text-center">
-                                    <i class="fas fa-download fa-3x text-primary mb-3"></i>
-                                    <h5 class="h6">Ingestion</h5>
-                                    <p class="small text-muted mb-0">CAP feed polling, message parsing, and validation</p>
+                            <div class="feature-card h-100">
+                                <div class="feature-card-icon">
+                                    <i class="fas fa-download"></i>
                                 </div>
+                                <h5 class="feature-card-title">Ingestion</h5>
+                                <p class="feature-card-text">CAP feed polling, message parsing, and validation</p>
                             </div>
                         </div>
                         <div class="col-md-6 col-lg-3">
-                            <div class="card h-100 border-0 shadow-sm">
-                                <div class="card-body text-center">
-                                    <i class="fas fa-microphone fa-3x text-success mb-3"></i>
-                                    <h5 class="h6">Processing</h5>
-                                    <p class="small text-muted mb-0">SAME encoding, audio generation, and content creation</p>
+                            <div class="feature-card h-100">
+                                <div class="feature-card-icon">
+                                    <i class="fas fa-microphone"></i>
                                 </div>
+                                <h5 class="feature-card-title">Processing</h5>
+                                <p class="feature-card-text">SAME encoding, audio generation, and content creation</p>
                             </div>
                         </div>
                         <div class="col-md-6 col-lg-3">
-                            <div class="card h-100 border-0 shadow-sm">
-                                <div class="card-body text-center">
-                                    <i class="fas fa-broadcast-tower fa-3x text-warning mb-3"></i>
-                                    <h5 class="h6">Distribution</h5>
-                                    <p class="small text-muted mb-0">Multi-channel output, hardware control, and scheduling</p>
+                            <div class="feature-card h-100">
+                                <div class="feature-card-icon">
+                                    <i class="fas fa-broadcast-tower"></i>
                                 </div>
+                                <h5 class="feature-card-title">Distribution</h5>
+                                <p class="feature-card-text">Multi-channel output, hardware control, and scheduling</p>
                             </div>
                         </div>
                         <div class="col-md-6 col-lg-3">
-                            <div class="card h-100 border-0 shadow-sm">
-                                <div class="card-body text-center">
-                                    <i class="fas fa-chart-line fa-3x text-info mb-3"></i>
-                                    <h5 class="h6">Verification</h5>
-                                    <p class="small text-muted mb-0">SDR monitoring, compliance analytics, and audit trails</p>
+                            <div class="feature-card h-100">
+                                <div class="feature-card-icon">
+                                    <i class="fas fa-chart-line"></i>
                                 </div>
+                                <h5 class="feature-card-title">Verification</h5>
+                                <p class="feature-card-text">SDR monitoring, compliance analytics, and audit trails</p>
                             </div>
                         </div>
                     </div>
@@ -380,4 +380,3 @@
     </div>
 </div>
 {% endblock %}
-<script src="https://sites.super.myninja.ai/_assets/ninja-daytona-script.js"></script>

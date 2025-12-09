@@ -279,6 +279,47 @@ def create_fips_filtering_callback(
                             if code:
                                 alert_fips_codes.append(code)
 
+        # If no FIPS codes are configured, accept ALL alerts (no filtering)
+        if not configured_fips_codes:
+            log.warning(
+                f"✓ NO FIPS FILTERING CONFIGURED - ACCEPTING ALL ALERTS: "
+                f"Event={event_code} | "
+                f"Originator={originator} | "
+                f"Alert FIPS={','.join(alert_fips_codes) if alert_fips_codes else 'NONE'}"
+            )
+            try:
+                result = forward_callback(alert)
+                generated_message_id = None
+                if isinstance(result, dict):
+                    generated_message_id = result.get('message_id') or result.get('id')
+                elif hasattr(result, 'id'):
+                    generated_message_id = getattr(result, 'id')
+                elif isinstance(result, (int, float)):
+                    generated_message_id = int(result)
+
+                if generated_message_id is not None:
+                    try:
+                        generated_message_id = int(generated_message_id)
+                    except (TypeError, ValueError):
+                        generated_message_id = None
+
+                _store_received_alert(
+                    alert=alert,
+                    forwarding_decision='forwarded',
+                    forwarding_reason='No FIPS filtering configured - accepting all alerts',
+                    matched_fips=alert_fips_codes,  # Store alert's FIPS codes
+                    generated_message_id=generated_message_id
+                )
+            except Exception as e:
+                log.error(f"Error forwarding alert: {e}", exc_info=True)
+                _store_received_alert(
+                    alert=alert,
+                    forwarding_decision='error',
+                    forwarding_reason=f"Forwarding failed: {str(e)}",
+                    matched_fips=[]
+                )
+            return
+
         matched_fips_list = determine_fips_matches(alert_fips_codes, configured_fips_codes)
 
         if matched_fips_list:

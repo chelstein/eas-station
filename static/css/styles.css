@@ -1358,7 +1358,7 @@ footer a:hover {
 
 .card-header.bg-warning {
     background: linear-gradient(120deg, var(--warning-color), color-mix(in srgb, var(--warning-color) 80%, var(--secondary-color))) !important;
-    color: white !important;
+    color: #1a1a1a !important;
 }
 
 .card-header.bg-danger {
@@ -1378,7 +1378,7 @@ footer a:hover {
 
 .card-header.bg-light {
     background: linear-gradient(120deg, var(--light-color), color-mix(in srgb, var(--light-color) 90%, var(--surface-color))) !important;
-    color: var(--text-color) !important;
+    color: #1a1a1a !important;
 }
 
 .card-header.bg-dark {
@@ -1768,7 +1768,7 @@ footer a:hover {
     background: linear-gradient(135deg,
         rgba(255, 255, 255, 0.9) 0%,
         rgba(245, 245, 247, 0.95) 100%);
-    color: var(--text-color);
+    color: #1a1a1a;
     border: 1px solid rgba(0, 0, 0, 0.08);
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
@@ -1779,6 +1779,7 @@ footer a:hover {
     background: linear-gradient(135deg,
         rgba(255, 255, 255, 1) 0%,
         rgba(250, 250, 252, 1) 100%);
+    color: #1a1a1a;
 }
 
 .btn-dark {
@@ -1813,6 +1814,97 @@ footer a:hover {
     background: var(--vibrant-blue);
     color: white;
     box-shadow: 0 8px 25px color-mix(in srgb, var(--vibrant-blue) 40%, transparent);
+}
+
+.btn-outline-secondary {
+    background: transparent;
+    border: 2px solid var(--secondary-color);
+    color: var(--secondary-color);
+    box-shadow: none;
+}
+
+.btn-outline-secondary:hover {
+    background: var(--secondary-color);
+    color: white;
+    box-shadow: 0 8px 25px color-mix(in srgb, var(--secondary-color) 40%, transparent);
+}
+
+.btn-outline-success {
+    background: transparent;
+    border: 2px solid var(--success-color);
+    color: var(--success-color);
+    box-shadow: none;
+}
+
+.btn-outline-success:hover {
+    background: var(--success-color);
+    color: white;
+    box-shadow: 0 8px 25px color-mix(in srgb, var(--success-color) 40%, transparent);
+}
+
+.btn-outline-danger {
+    background: transparent;
+    border: 2px solid var(--danger-color);
+    color: var(--danger-color);
+    box-shadow: none;
+}
+
+.btn-outline-danger:hover {
+    background: var(--danger-color);
+    color: white;
+    box-shadow: 0 8px 25px color-mix(in srgb, var(--danger-color) 40%, transparent);
+}
+
+.btn-outline-warning {
+    background: transparent;
+    border: 2px solid var(--warning-color);
+    color: var(--warning-color);
+    box-shadow: none;
+}
+
+.btn-outline-warning:hover {
+    background: var(--warning-color);
+    color: #1a1a1a;
+    box-shadow: 0 8px 25px color-mix(in srgb, var(--warning-color) 40%, transparent);
+}
+
+.btn-outline-info {
+    background: transparent;
+    border: 2px solid var(--info-color);
+    color: var(--info-color);
+    box-shadow: none;
+}
+
+.btn-outline-info:hover {
+    background: var(--info-color);
+    color: white;
+    box-shadow: 0 8px 25px color-mix(in srgb, var(--info-color) 40%, transparent);
+}
+
+.btn-outline-light {
+    background: transparent;
+    border: 2px solid var(--light-color);
+    color: var(--text-color);
+    box-shadow: none;
+}
+
+.btn-outline-light:hover {
+    background: var(--light-color);
+    color: #1a1a1a;
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+}
+
+.btn-outline-dark {
+    background: transparent;
+    border: 2px solid var(--dark-color);
+    color: var(--text-color);
+    box-shadow: none;
+}
+
+.btn-outline-dark:hover {
+    background: var(--dark-color);
+    color: white;
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
 }
 
 /* Button Liquid Effect */
@@ -2009,7 +2101,7 @@ textarea:focus {
 
 .badge.bg-warning {
     background-color: var(--warning-color);
-    color: var(--text-color);
+    color: #1a1a1a;
     text-shadow: none;
 }
 
@@ -2226,10 +2318,20 @@ textarea:focus {
 .bg-secondary { background-color: var(--secondary-color) !important; color: white; }
 .bg-success { background-color: var(--success-color) !important; color: white; }
 .bg-danger { background-color: var(--danger-color) !important; color: white; }
-.bg-warning { background-color: var(--warning-color) !important; color: var(--text-color); }
+.bg-warning { background-color: var(--warning-color) !important; color: #1a1a1a !important; }
 .bg-info { background-color: var(--info-color) !important; color: white; }
-.bg-light { background-color: var(--light-color) !important; color: var(--text-color); }
+.bg-light { background-color: var(--light-color) !important; color: #1a1a1a !important; }
 .bg-dark { background-color: var(--dark-color) !important; color: white; }
+
+/* Bootstrap 5.3 text-bg-* utilities with proper contrast */
+.text-bg-primary { background-color: var(--primary-color) !important; color: white !important; }
+.text-bg-secondary { background-color: var(--secondary-color) !important; color: white !important; }
+.text-bg-success { background-color: var(--success-color) !important; color: white !important; }
+.text-bg-danger { background-color: var(--danger-color) !important; color: white !important; }
+.text-bg-warning { background-color: var(--warning-color) !important; color: #1a1a1a !important; }
+.text-bg-info { background-color: var(--info-color) !important; color: white !important; }
+.text-bg-light { background-color: var(--light-color) !important; color: #1a1a1a !important; }
+.text-bg-dark { background-color: var(--dark-color) !important; color: white !important; }
 
 /* Section Headers - Modern Unified Design */
 .section-header {
