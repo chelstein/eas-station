@@ -521,18 +521,19 @@ def initialize_eas_monitor(app, audio_controller):
     global _eas_monitor
 
     with app.app_context():
-        from app_core.audio.eas_monitor import ContinuousEASMonitor, create_fips_filtering_callback
+        from app_core.audio.eas_monitor_simple import SimpleEASMonitor
+        from app_core.audio.eas_monitor import create_fips_filtering_callback
         from app_core.audio.broadcast_adapter import BroadcastAudioAdapter
         from app_core.audio.startup_integration import load_fips_codes_from_config
         from app_core.audio.ingest import AudioSourceStatus
 
-        logger.info("Initializing per-source EAS monitors...")
+        logger.info("Initializing simple per-source EAS monitors...")
 
         # Load FIPS codes
         configured_fips = load_fips_codes_from_config()
         logger.info(f"Loaded {len(configured_fips)} FIPS codes for alert filtering")
 
-        # Create alert callback with filtering (shared by all monitors)
+        # Create alert callback with filtering
         def forward_alert_handler(alert):
             """Forward matched alerts."""
             from app_core.audio.alert_forwarding import forward_alert_to_api
@@ -553,21 +554,21 @@ def initialize_eas_monitor(app, audio_controller):
 
         # Create dictionary to store all monitors
         monitors = {}
-        
+
         # Create a monitor for each RUNNING audio source
         for source_name, source_adapter in audio_controller._sources.items():
             if source_adapter.status != AudioSourceStatus.RUNNING:
-                logger.warning(
+                logger.info(
                     f"Skipping EAS monitor for '{source_name}' - "
                     f"source not running (status: {source_adapter.status.value})"
                 )
                 continue
-            
+
             try:
-                # Get source's individual broadcast queue (not the main controller queue!)
+                # Get source's individual broadcast queue
                 source_broadcast_queue = source_adapter.get_broadcast_queue()
                 source_sample_rate = source_adapter.config.sample_rate
-                
+
                 # Create broadcast adapter for this specific source
                 subscriber_id = f"eas-monitor-{source_name}"
                 audio_adapter = BroadcastAudioAdapter(
@@ -575,31 +576,28 @@ def initialize_eas_monitor(app, audio_controller):
                     subscriber_id=subscriber_id,
                     sample_rate=int(source_sample_rate)
                 )
-                
-                # Create EAS monitor for this source (16 kHz for optimal SAME decoding)
-                monitor = ContinuousEASMonitor(
-                    audio_manager=audio_adapter,
+
+                # Create simple EAS monitor
+                monitor = SimpleEASMonitor(
+                    audio_source=audio_adapter,
                     sample_rate=16000,
-                    alert_callback=alert_callback,
-                    save_audio_files=True,
-                    audio_archive_dir="/tmp/eas-audio"
+                    alert_callback=alert_callback
                 )
-                
+
                 # Start monitoring this source
                 if monitor.start():
                     monitors[source_name] = monitor
-                    logger.info(f"✅ EAS monitor started for source: {source_name}")
+                    logger.info(f"✅ Simple EAS monitor started for source: {source_name}")
                 else:
                     logger.error(f"❌ EAS monitor failed to start for source: {source_name}")
-                    
+
             except Exception as e:
                 logger.error(f"❌ Failed to create EAS monitor for '{source_name}': {e}", exc_info=True)
-        
+
         if not monitors:
-            logger.warning("⚠️ No EAS monitors started initially - no running sources yet")
-            logger.info("   EAS monitors will be created automatically when sources start")
+            logger.info("No EAS monitors started - no running sources yet")
         else:
-            logger.info(f"✅ Started {len(monitors)} EAS monitor(s) for sources: {list(monitors.keys())}")
+            logger.info(f"✅ Started {len(monitors)} simple EAS monitor(s) for sources: {list(monitors.keys())}")
 
         # Return a monitor manager object instead of attaching to first monitor
         # This avoids fragile coupling and provides cleaner API
@@ -652,19 +650,17 @@ def initialize_eas_monitor(app, audio_controller):
                         sample_rate=int(source_sample_rate)
                     )
 
-                    # Create EAS monitor for this source (16 kHz for optimal SAME decoding)
-                    monitor = ContinuousEASMonitor(
-                        audio_manager=audio_adapter,
+                    # Create simple EAS monitor
+                    monitor = SimpleEASMonitor(
+                        audio_source=audio_adapter,
                         sample_rate=16000,
-                        alert_callback=self._alert_callback,
-                        save_audio_files=True,
-                        audio_archive_dir="/tmp/eas-audio"
+                        alert_callback=self._alert_callback
                     )
 
                     # Start monitoring this source
                     if monitor.start():
                         self._all_monitors[source_name] = monitor
-                        logger.info(f"✅ EAS monitor dynamically started for source: {source_name}")
+                        logger.info(f"✅ Simple EAS monitor dynamically started for source: {source_name}")
                         return True
                     else:
                         logger.error(f"❌ EAS monitor failed to start for source: {source_name}")
@@ -705,22 +701,35 @@ def initialize_eas_monitor(app, audio_controller):
                 """Get aggregated status from all monitors."""
                 all_stats = {}
                 total_samples = 0
+                total_runtime = 0
+                total_alerts = 0
                 any_running = False
+                active_sources = 0  # Sources with audio flowing
 
                 for name, monitor in self._all_monitors.items():
                     try:
                         stats = monitor.get_status()
                         all_stats[name] = stats
                         total_samples += stats.get('samples_processed', 0)
+                        total_runtime += stats.get('wall_clock_runtime_seconds', 0)
+                        total_alerts += stats.get('alerts_detected', 0)
                         if stats.get('running', False):
                             any_running = True
+                        if stats.get('audio_flowing', False):
+                            active_sources += 1
                     except Exception as e:
                         logger.debug(f"Error getting status for monitor '{name}': {e}")
 
                 return {
                     "running": any_running,
+                    "mode": "streaming",
                     "samples_processed": total_samples,
+                    "wall_clock_runtime_seconds": total_runtime,
+                    "runtime_seconds": total_samples / 16000 if total_samples > 0 else 0,
+                    "alerts_detected": total_alerts,
                     "monitor_count": len(self._all_monitors),
+                    "active_sources": active_sources,
+                    "source_names": list(self._all_monitors.keys()),
                     "monitors": all_stats
                 }
 
@@ -855,61 +864,9 @@ def publish_metrics_to_redis(metrics):
         pipe.hset("eas:metrics", mapping=flat_metrics)
         pipe.expire("eas:metrics", 60)  # Expire if service dies
         
-        # Publish waveform and spectrogram data for each source separately (to keep main metrics lightweight)
-        if _audio_controller:
-            for name, source in _audio_controller._sources.items():
-                try:
-                    # Only publish visualization data for running sources
-                    from app_core.audio.ingest import AudioSourceStatus
-                    if source.status == AudioSourceStatus.RUNNING:
-                        # Publish waveform data
-                        if hasattr(source, 'get_waveform_data'):
-                            waveform_data = source.get_waveform_data()
-                            if waveform_data is not None and len(waveform_data) > 0:
-                                # Convert numpy array to list for JSON serialization
-                                waveform_list = _sanitize_value(waveform_data.tolist())
-                                waveform_payload = {
-                                    'waveform': waveform_list,
-                                    'sample_count': len(waveform_list),
-                                    'timestamp': time.time() * 1000,  # Milliseconds for JS
-                                    'source_name': name,
-                                    'status': 'available'
-                                }
-                                # Store waveform data with short expiry (10 seconds)
-                                pipe.setex(
-                                    f"eas:waveform:{name}",
-                                    10,
-                                    json.dumps(waveform_payload)
-                                )
-                        
-                        # Publish spectrogram data
-                        if hasattr(source, 'get_spectrogram_data'):
-                            spectrogram_data = source.get_spectrogram_data()
-                            if spectrogram_data is not None and spectrogram_data.size > 0:
-                                # Convert numpy array to list for JSON serialization
-                                spectrogram_list = _sanitize_value(spectrogram_data.tolist())
-                                # Get source config for FFT info
-                                sample_rate = getattr(source, 'sample_rate', 44100)
-                                fft_size = getattr(source, '_fft_size', 2048)
-                                
-                                spectrogram_payload = {
-                                    'spectrogram': spectrogram_list,
-                                    'time_frames': len(spectrogram_list),
-                                    'frequency_bins': len(spectrogram_list[0]) if len(spectrogram_list) > 0 else 0,
-                                    'sample_rate': sample_rate,
-                                    'fft_size': fft_size,
-                                    'timestamp': time.time() * 1000,  # Milliseconds for JS
-                                    'source_name': name,
-                                    'status': 'available'
-                                }
-                                # Store spectrogram data with short expiry (10 seconds)
-                                pipe.setex(
-                                    f"eas:spectrogram:{name}",
-                                    10,
-                                    json.dumps(spectrogram_payload)
-                                )
-                except Exception as e:
-                    logger.debug(f"Error publishing visualization data for '{name}': {e}")
+        # NOTE: Waveform/spectrogram publishing removed - was causing audio stuttering
+        # due to blocking .tolist() conversions on large numpy arrays in main loop.
+        # Visualization data should be fetched on-demand via HTTP endpoints instead.
         
         # Spectrum data is now published by sdr-service.py
         # audio-service.py does NOT access SDR hardware or IQ samples
@@ -1232,7 +1189,9 @@ def main():
 
         # Main loop: publish metrics every 5 seconds
         last_metrics_time = 0
+        last_monitor_check = 0
         metrics_interval = 5.0
+        monitor_check_interval = 30.0  # Check for missing monitors every 30 seconds
 
         while _running:
             try:
@@ -1240,6 +1199,21 @@ def main():
 
                 # Process pending commands from webapp (non-blocking)
                 process_commands()
+
+                # Periodically check for running sources without monitors and create them
+                if current_time - last_monitor_check >= monitor_check_interval:
+                    if eas_monitor and audio_controller:
+                        from app_core.audio.ingest import AudioSourceStatus
+                        for source_name, source_adapter in audio_controller._sources.items():
+                            if source_adapter.status == AudioSourceStatus.RUNNING:
+                                # Check if this source has a monitor
+                                if hasattr(eas_monitor, '_all_monitors') and source_name not in eas_monitor._all_monitors:
+                                    logger.info(f"Found running source '{source_name}' without EAS monitor - creating one")
+                                    try:
+                                        eas_monitor.add_monitor_for_source(source_name)
+                                    except Exception as e:
+                                        logger.error(f"Failed to create monitor for '{source_name}': {e}")
+                    last_monitor_check = current_time
 
                 # Publish metrics periodically
                 if current_time - last_metrics_time >= metrics_interval:
