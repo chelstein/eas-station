@@ -129,7 +129,8 @@ class SimpleEASMonitor:
                 # Monitor running but no samples yet - still starting up
                 audio_runtime = 0
                 samples_per_second = 0
-                audio_flowing = True  # Report as flowing if monitor is running
+                # Only report audio flowing if we've actually received samples
+                audio_flowing = False
         else:
             wall_clock_runtime = 0
             audio_runtime = 0

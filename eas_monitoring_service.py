@@ -701,18 +701,23 @@ def initialize_eas_monitor(app, audio_controller):
                 """Get aggregated status from all monitors."""
                 all_stats = {}
                 total_samples = 0
-                total_runtime = 0
+                max_runtime = 0  # Use max runtime instead of sum - all monitors run concurrently
                 total_alerts = 0
                 any_running = False
                 active_sources = 0  # Sources with audio flowing
+                total_samples_per_second = 0
 
                 for name, monitor in self._all_monitors.items():
                     try:
                         stats = monitor.get_status()
                         all_stats[name] = stats
                         total_samples += stats.get('samples_processed', 0)
-                        total_runtime += stats.get('wall_clock_runtime_seconds', 0)
+                        # Take maximum runtime (all monitors run in parallel)
+                        monitor_runtime = stats.get('wall_clock_runtime_seconds', 0)
+                        if monitor_runtime > max_runtime:
+                            max_runtime = monitor_runtime
                         total_alerts += stats.get('alerts_detected', 0)
+                        total_samples_per_second += stats.get('samples_per_second', 0)
                         if stats.get('running', False):
                             any_running = True
                         if stats.get('audio_flowing', False):
@@ -724,11 +729,14 @@ def initialize_eas_monitor(app, audio_controller):
                     "running": any_running,
                     "mode": "streaming",
                     "samples_processed": total_samples,
-                    "wall_clock_runtime_seconds": total_runtime,
+                    "wall_clock_runtime_seconds": max_runtime,
                     "runtime_seconds": total_samples / 16000 if total_samples > 0 else 0,
+                    "samples_per_second": total_samples_per_second,
                     "alerts_detected": total_alerts,
                     "monitor_count": len(self._all_monitors),
                     "active_sources": active_sources,
+                    "audio_flowing": active_sources > 0,  # True if any source has audio flowing
+                    "health_percentage": (total_samples_per_second / 16000) if active_sources > 0 else 0,
                     "source_names": list(self._all_monitors.keys()),
                     "monitors": all_stats
                 }
