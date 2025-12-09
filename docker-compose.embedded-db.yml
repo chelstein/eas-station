@@ -351,8 +351,7 @@ services:
     volumes:
       - app-config:/app-config  # Persistent volume for .env file
       - certbot-conf:/etc/letsencrypt:ro  # Allow SSL export routes to read certificates
-      # Docker socket removed to prevent /dev/pts permission errors
-      # Health checks can be done via HTTP endpoints instead
+      - /var/run/docker.sock:/var/run/docker.sock:ro  # Docker socket for container health monitoring
     tmpfs:
       - /tmp:size=${TMPFS_APP:-128M},mode=1777
     environment:

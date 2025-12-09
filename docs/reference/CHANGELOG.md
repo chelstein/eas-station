@@ -6,6 +6,14 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.17.2] - 2025-12-09
+### Fixed
+- **System Health Container Monitoring**: Fixed container status not displaying in docker-compose.embedded-db.yml deployments
+  - Root cause: Docker socket mount was intentionally removed to fix /dev/pts permissions, but this broke container monitoring
+  - Fix: Re-added Docker socket mount with read-only flag to enable container health checks
+  - Impact: System Health page now displays container status in all deployment configurations
+  - Note: Only app container needs the socket mount for UI display; other services don't require it
+
 ## [2.17.1] - 2025-12-09
 ### Fixed
 - **CRITICAL: WebSocket Support Broken**: Fixed Flask-SocketIO async_mode mismatch that prevented WebSockets from working
