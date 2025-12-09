@@ -705,6 +705,8 @@ def initialize_eas_monitor(app, audio_controller):
                 """Get aggregated status from all monitors."""
                 all_stats = {}
                 total_samples = 0
+                total_runtime = 0
+                total_alerts = 0
                 any_running = False
 
                 for name, monitor in self._all_monitors.items():
@@ -712,6 +714,8 @@ def initialize_eas_monitor(app, audio_controller):
                         stats = monitor.get_status()
                         all_stats[name] = stats
                         total_samples += stats.get('samples_processed', 0)
+                        total_runtime += stats.get('wall_clock_runtime_seconds', 0)
+                        total_alerts += stats.get('alerts_detected', 0)
                         if stats.get('running', False):
                             any_running = True
                     except Exception as e:
@@ -720,6 +724,8 @@ def initialize_eas_monitor(app, audio_controller):
                 return {
                     "running": any_running,
                     "samples_processed": total_samples,
+                    "wall_clock_runtime_seconds": total_runtime,
+                    "alerts_detected": total_alerts,
                     "monitor_count": len(self._all_monitors),
                     "monitors": all_stats
                 }
