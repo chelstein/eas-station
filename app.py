@@ -443,8 +443,12 @@ db.init_app(app)
 init_cache(app)
 
 # Initialize WebSocket support
+# CRITICAL: async_mode must match gunicorn worker class
+# - gunicorn uses 'gevent' workers (see Dockerfile)
+# - Flask-SocketIO must use 'gevent' or None (auto-detect) to enable WebSocket transport
+# - Using 'threading' with gevent workers causes WebSockets to FAIL SILENTLY and fall back to polling
 from flask_socketio import SocketIO
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent')
 
 
 logger.info("Checking database connectivity at startup...")

@@ -33,7 +33,7 @@ if project_dir not in sys.path:
 
 os.chdir(project_dir)
 
-from app import app as application  # noqa: E402
+from app import app as application, socketio  # noqa: E402
 
 
-__all__ = ["application"]
+__all__ = ["application", "socketio"]
