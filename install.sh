@@ -459,22 +459,147 @@ sudo -u postgres psql -d alerts -c "CREATE EXTENSION IF NOT EXISTS postgis_topol
 
 echo_success "PostgreSQL configured"
 
-# Database Management Access
-echo_info "Database management options configured"
-echo ""
-echo -e "${BOLD}${CYAN}Database Access Methods:${NC}"
-echo -e "  ${BOLD}1. Command Line (psql):${NC}"
-echo -e "     ${DIM}sudo -u postgres psql -d alerts${NC}"
-echo ""
-echo -e "  ${BOLD}2. Docker pgAdmin (Optional):${NC}"
-echo -e "     ${DIM}If you need a web GUI, run pgAdmin in Docker to avoid conflicts with Nginx:${NC}"
-echo -e "     ${DIM}docker run -d -p 5050:80 --name pgadmin \\${NC}"
-echo -e "     ${DIM}  -e PGADMIN_DEFAULT_EMAIL=${ADMIN_EMAIL} \\${NC}"
-echo -e "     ${DIM}  -e PGADMIN_DEFAULT_PASSWORD=your_password \\${NC}"
-echo -e "     ${DIM}  dpage/pgadmin4${NC}"
-echo -e "     ${DIM}Then access at: http://localhost:5050${NC}"
-echo ""
-echo -e "${YELLOW}Note: pgadmin4-web package is NOT installed to avoid Apache2/Nginx port conflicts${NC}"
+# Install and configure pgAdmin 4 (without Apache2)
+echo_info "Installing pgAdmin 4 with Nginx integration..."
+
+# Add pgAdmin repository
+if [ ! -f /etc/apt/sources.list.d/pgadmin4.list ]; then
+    curl -fsS https://www.pgadmin.org/static/packages_pgadmin_org.pub | gpg --dearmor -o /usr/share/keyrings/pgadmin-archive-keyring.gpg
+    echo "deb [signed-by=/usr/share/keyrings/pgadmin-archive-keyring.gpg] https://ftp.postgresql.org/pub/pgadmin/pgadmin4/apt/$(lsb_release -cs) pgadmin4 main" > /etc/apt/sources.list.d/pgadmin4.list
+    apt-get update
+fi
+
+# Install ONLY pgadmin4 (not pgadmin4-web which pulls in Apache2)
+# This gives us the Python package without Apache2 dependency
+DEBIAN_FRONTEND=noninteractive apt-get install -y pgadmin4 --no-install-recommends || {
+    echo_warning "pgAdmin 4 core installation failed, trying alternative..."
+    # Fallback: install pgadmin4-web but remove apache2 immediately
+    DEBIAN_FRONTEND=noninteractive apt-get install -y pgadmin4-web || echo_warning "pgAdmin 4 installation failed (non-critical)"
+    # Remove Apache2 if it was installed
+    if systemctl is-active --quiet apache2; then
+        systemctl stop apache2
+        systemctl disable apache2
+        apt-get remove -y apache2 apache2-bin apache2-data || true
+        echo_info "Removed Apache2 to prevent port conflicts with Nginx"
+    fi
+}
+
+# Configure pgAdmin for WSGI mode (works with Nginx)
+if [ -f /usr/pgadmin4/web/config.py ] || [ -f /usr/pgadmin4/web/config_distro.py ]; then
+    echo_info "Configuring pgAdmin 4 for Nginx..."
+    
+    # Create pgAdmin configuration directory
+    mkdir -p /var/lib/pgadmin
+    chown -R www-data:www-data /var/lib/pgadmin
+    
+    # Create pgAdmin config_local.py for custom settings
+    cat > /usr/pgadmin4/web/config_local.py << 'PGADMIN_CONFIG'
+import os
+
+# Server mode settings
+SERVER_MODE = True
+LOG_FILE = '/var/log/pgadmin/pgadmin4.log'
+SQLITE_PATH = '/var/lib/pgadmin/pgadmin4.db'
+SESSION_DB_PATH = '/var/lib/pgadmin/sessions'
+STORAGE_DIR = '/var/lib/pgadmin/storage'
+
+# Security settings
+ENHANCED_COOKIE_PROTECTION = True
+WTF_CSRF_CHECK_DEFAULT = True
+WTF_CSRF_TIME_LIMIT = None
+SESSION_COOKIE_NAME = 'pgadmin4_session'
+
+# Flask settings
+FLASK_APP = 'pgadmin4'
+PGADMIN_CONFIG
+
+    # Create log directory
+    mkdir -p /var/log/pgadmin
+    chown -R www-data:www-data /var/log/pgadmin
+    
+    # Create storage directories
+    mkdir -p /var/lib/pgadmin/sessions /var/lib/pgadmin/storage
+    chown -R www-data:www-data /var/lib/pgadmin
+    
+    # Setup pgAdmin database
+    cd /usr/pgadmin4/web
+    sudo -u www-data python3 setup.py << SETUP_INPUT
+${ADMIN_EMAIL}
+${ADMIN_PASSWORD}
+${ADMIN_PASSWORD}
+SETUP_INPUT
+    
+    # Create systemd service for pgAdmin WSGI
+    cat > /etc/systemd/system/pgadmin4.service << 'PGADMIN_SERVICE'
+[Unit]
+Description=pgAdmin 4 WSGI Service
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/usr/pgadmin4/web
+Environment="PYTHONPATH=/usr/pgadmin4/web"
+ExecStart=/usr/bin/gunicorn \
+    --bind unix:/var/run/pgadmin4.sock \
+    --workers 2 \
+    --timeout 300 \
+    --access-logfile /var/log/pgadmin/access.log \
+    --error-logfile /var/log/pgadmin/error.log \
+    pgadmin4:app
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+PGADMIN_SERVICE
+    
+    # Install gunicorn if not already installed (needed for WSGI)
+    if ! command -v gunicorn &> /dev/null; then
+        apt-get install -y python3-gunicorn || pip3 install gunicorn
+    fi
+    
+    # Enable and start pgAdmin service
+    systemctl daemon-reload
+    systemctl enable pgadmin4
+    systemctl start pgadmin4
+    
+    # Add pgAdmin location to Nginx config
+    if [ -f /etc/nginx/sites-available/eas-station ]; then
+        # Check if pgAdmin block already exists
+        if ! grep -q "location /pgadmin4" /etc/nginx/sites-available/eas-station; then
+            # Add pgAdmin location block before the closing brace of the HTTPS server block
+            sed -i '/^    # Access and error logs/i \
+    # pgAdmin 4 proxy (WSGI via Gunicorn)\
+    location /pgadmin4/ {\
+        proxy_pass http://unix:/var/run/pgadmin4.sock:/;\
+        proxy_set_header Host $host;\
+        proxy_set_header X-Real-IP $remote_addr;\
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\
+        proxy_set_header X-Forwarded-Proto $scheme;\
+        proxy_set_header X-Script-Name /pgadmin4;\
+        proxy_buffering off;\
+        proxy_read_timeout 300s;\
+    }\
+\
+' /etc/nginx/sites-available/eas-station
+            
+            # Reload Nginx to apply changes
+            nginx -t && systemctl reload nginx
+            echo_success "pgAdmin 4 configured with Nginx proxy"
+        fi
+    fi
+    
+    echo_success "pgAdmin 4 installed and running via Nginx"
+    echo_info "Access at: https://localhost/pgadmin4"
+    echo_info "Login with: $ADMIN_EMAIL"
+else
+    echo_warning "pgAdmin 4 not available - using command-line access only"
+fi
+
+# Command-line access alternative
+echo_info "Direct database access: ${BOLD}sudo -u postgres psql -d alerts${NC}"
 echo ""
 
 
