@@ -77,7 +77,12 @@ sudo systemctl restart eas-station.target
 
 ### Files Modified
 
-1. **install.sh** - Added PostgreSQL 15+ compatible permission grants
+1. **install.sh** 
+   - Added PostgreSQL 15+ compatible permission grants
+   - Made installation interactive with minimal prompts
+   - Collects only database password and timezone upfront
+   - Creates admin account during installation
+   - Directs users to setup wizard for location/station configuration
 
 ### Files Added
 
@@ -109,11 +114,13 @@ You should see tables including:
 The install.sh script creates:
 - **Database**: `alerts`
 - **Username**: `eas_station`
-- **Password**: `changeme123` (should be changed in production)
+- **Password**: Set by user during installation (no default)
 - **Host**: `localhost`
 - **Port**: `5432`
 
 These credentials are automatically written to `/opt/eas-station/.env`
+
+**Security Note**: The installer never uses default passwords. Users must provide their own secure database password during installation.
 
 ### Why This Happened
 
