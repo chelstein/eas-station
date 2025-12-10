@@ -85,7 +85,6 @@ If you're new to EAS Station, start here:
 | [Firewall Requirements](troubleshooting/FIREWALL_REQUIREMENTS) | Network ports and firewall setup |
 | [IPv6 Connectivity](troubleshooting/FIX_IPV6_CONNECTIVITY) | IPv6 troubleshooting |
 | [Audio Squeal Fix](troubleshooting/AUDIO_SQUEAL_FIX) | Audio feedback/squeal issues |
-| [Containerization Fixes](troubleshooting/CONTAINERIZATION_FIXES) | Docker container issues |
 | [Audio Streaming Setup](troubleshooting/AUDIO_STREAMING_SETUP) | Audio streaming configuration |
 
 ## 🔐 Security & Legal
