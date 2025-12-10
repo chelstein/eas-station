@@ -125,57 +125,67 @@ eas-station/
 
 ## 🚀 Quick Start
 
-### Bare Metal Deployment
-
-
-#### Quick Installation
+### One-Command Installation
 
 ```bash
 git clone https://github.com/KR8MER/eas-station.git && \
-cd eas-station/bare-metal && \
-sudo bash scripts/install.sh
+cd eas-station && \
+sudo bash install.sh
 ```
 
-Then configure and start:
+**That's it!** The installer automatically:
+- ✅ Installs all dependencies (PostgreSQL, Redis, Python, nginx, etc.)
+- ✅ Generates a secure SECRET_KEY
+- ✅ Initializes the database schema
+- ✅ Starts all services
+- ✅ Configures HTTPS with self-signed certificate
 
-```bash
-sudo nano /opt/eas-station/.env  # Edit your configuration
-sudo systemctl start eas-station.target  # Start all services
-```
+### Access Your Station
 
-Open **https://localhost** in your browser (HTTPS enabled by default).
+Open your web browser and navigate to:
+- **https://localhost** (on the server)
+- **https://your-server-ip** (from network)
 
-> 💡 **Next Steps**:
-> - For production with Let's Encrypt: Install certbot and run `sudo certbot --nginx -d your-domain.com`
-> - For localhost: Accept the self-signed certificate warning (safe for testing)
-> - Edit `/opt/eas-station/.env` with your configuration, then restart: `sudo systemctl restart eas-station.target`
+Accept the self-signed certificate warning (safe for initial setup).
 
-#### Bootable ISO Option
+### Complete Setup
 
-Build a pre-configured bootable ISO for dedicated hardware:
+1. **Create Administrator Account** - Set username and password via web interface
+2. **Configure Station** - Use the setup wizard to configure:
+   - Location (county, state, zone codes)
+   - Callsign (EAS_STATION_ID)
+   - Enable/disable features (SDR, broadcast, etc.)
+3. **Done!** - Your station is ready to monitor alerts
 
-```bash
-cd eas-station/bare-metal
-sudo bash scripts/build-iso.sh
-# Burn to USB: sudo dd if=eas-station-*.iso of=/dev/sdX bs=4M status=progress
-```
+> 💡 **Production SSL**: `sudo certbot --nginx -d your-domain.com`
 
-#### Benefits
-
-- ✅ **Native Performance** - Runs directly on host OS without containerization overhead
-- ✅ **Direct Hardware Access** - SDR, GPIO, and audio devices work natively
-- ✅ **Standard Linux Management** - Familiar systemd service control
-- ✅ **Lower Resource Usage** - No container runtime overhead
-- ✅ **Bootable ISO** - Pre-configured system ready to deploy
-
-#### Prerequisites
+### System Requirements
 
 - **OS**: Debian 12 (Bookworm), Ubuntu 22.04+, or Raspberry Pi OS
+- **CPU**: 2+ cores (4+ recommended)
 - **RAM**: 2GB minimum (4GB+ recommended)
 - **Storage**: 20GB minimum (50GB+ recommended for alerts database)
 - **Network**: Internet connection for alert polling
 
-**📖 Full Guide:** See [bare-metal/README.md](bare-metal/README.md) for detailed installation, configuration, and troubleshooting.
+### Key Benefits
+
+- ✅ **Native Performance** - Runs directly on host OS
+- ✅ **Direct Hardware Access** - SDR, GPIO, and audio devices work natively
+- ✅ **Standard Linux Management** - Familiar systemd service control
+- ✅ **Out-of-the-Box** - No manual configuration required
+- ✅ **Web-Based Setup** - Configure everything through the UI
+
+### Alternative: Bootable ISO
+
+Build a pre-configured bootable ISO for dedicated hardware:
+
+```bash
+cd eas-station
+sudo bash scripts/build-iso.sh
+# Burn to USB: sudo dd if=eas-station-*.iso of=/dev/sdX bs=4M status=progress
+```
+
+**📖 Full Guide:** See [docs/installation/README.md](docs/installation/README.md) for detailed installation, upgrades, configuration, and troubleshooting.
 
 ## 📚 Documentation
 
@@ -203,7 +213,7 @@ graph TD
 | **First Time Setup** | [Setup Instructions](docs/guides/SETUP_INSTRUCTIONS) → [Quick Start](#quick-start) |
 | **Radio Configuration** | [SDR Setup Guide](docs/hardware/SDR_SETUP) |
 | **Daily Operations** | [User Guide](docs/guides/HELP) |
-| **Deployment** | [Bare Metal Guide](bare-metal/README.md) |
+| **Deployment** | [Installation Guide](docs/installation/README.md) |
 | **Development** | [Developer Guide](docs/development/AGENTS) |
 | **Debugging on Pi** | [PyCharm Remote Debugging Guide](docs/guides/PYCHARM_DEBUGGING) |
 
@@ -319,7 +329,7 @@ graph TB
 - `espeak` / `libespeak-ng1` - Text-to-speech synthesis
 - `libusb-1.0-0` - USB SDR hardware support
 
-> 📘 **Automated Installation**: The installation script (`bare-metal/scripts/install.sh`) installs all required and optional dependencies automatically.
+> 📘 **Automated Installation**: The installation script (`install.sh`) installs all required and optional dependencies automatically.
 >
 > 📘 **Manual Installation**: See [Setup Instructions](docs/guides/SETUP_INSTRUCTIONS.md) for step-by-step installation guide.
 

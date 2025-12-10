@@ -285,15 +285,15 @@ fi
 
 # Install systemd service files
 echo_info "Installing systemd service files..."
-cp "$INSTALL_DIR/bare-metal/systemd/"*.service /etc/systemd/system/
-cp "$INSTALL_DIR/bare-metal/systemd/"*.target /etc/systemd/system/
+cp "$INSTALL_DIR/systemd/"*.service /etc/systemd/system/
+cp "$INSTALL_DIR/systemd/"*.target /etc/systemd/system/
 systemctl daemon-reload
 echo_success "Systemd service files installed"
 
 # Configure nginx
 echo_info "Configuring nginx..."
 if [ ! -f /etc/nginx/sites-available/eas-station ]; then
-    cp "$INSTALL_DIR/bare-metal/config/nginx-eas-station.conf" /etc/nginx/sites-available/eas-station
+    cp "$INSTALL_DIR/config/nginx-eas-station.conf" /etc/nginx/sites-available/eas-station
     
     # Generate self-signed certificate for initial setup
     if [ ! -f /etc/ssl/private/eas-station-selfsigned.key ]; then
@@ -339,6 +339,97 @@ with app.app_context():
     db.create_all()
     print('Database schema created')
 " || echo_warning "Database initialization failed - may need manual setup"
+
+# Create administrator account
+echo ""
+echo_info "Creating administrator account..."
+echo ""
+echo "You need to create an administrator account to access the web interface."
+echo ""
+
+# Prompt for username
+while true; do
+    read -p "Enter administrator username (min 3 characters): " ADMIN_USERNAME
+    ADMIN_USERNAME=$(echo "$ADMIN_USERNAME" | xargs)  # Trim whitespace
+    
+    if [ -z "$ADMIN_USERNAME" ]; then
+        echo_error "Username cannot be empty"
+        continue
+    fi
+    
+    if [ ${#ADMIN_USERNAME} -lt 3 ]; then
+        echo_error "Username must be at least 3 characters long"
+        continue
+    fi
+    
+    if ! [[ "$ADMIN_USERNAME" =~ ^[A-Za-z0-9_.-]+$ ]]; then
+        echo_error "Username may only contain letters, numbers, dots, hyphens, or underscores"
+        continue
+    fi
+    
+    break
+done
+
+# Prompt for password
+while true; do
+    read -s -p "Enter administrator password (min 12 characters): " ADMIN_PASSWORD
+    echo
+    
+    if [ ${#ADMIN_PASSWORD} -lt 12 ]; then
+        echo_error "Password must be at least 12 characters long"
+        continue
+    fi
+    
+    read -s -p "Confirm administrator password: " ADMIN_PASSWORD_CONFIRM
+    echo
+    
+    if [ "$ADMIN_PASSWORD" != "$ADMIN_PASSWORD_CONFIRM" ]; then
+        echo_error "Passwords do not match"
+        continue
+    fi
+    
+    break
+done
+
+# Create the administrator account
+sudo -u "$SERVICE_USER" "$VENV_DIR/bin/python" << EOPY
+import sys
+from app import app, db
+from app_core.models import AdminUser
+from app_core.auth.roles import Role, RoleDefinition
+from sqlalchemy import func
+
+username = "${ADMIN_USERNAME}"
+password = """${ADMIN_PASSWORD}"""
+
+with app.app_context():
+    # Check if user already exists
+    existing = AdminUser.query.filter(func.lower(AdminUser.username) == username.lower()).first()
+    if existing:
+        print(f"ERROR: User '{username}' already exists", file=sys.stderr)
+        sys.exit(1)
+    
+    # Create new admin user
+    admin_user = AdminUser(username=username)
+    admin_user.set_password(password)
+    
+    # Assign admin role
+    admin_role = Role.query.filter(func.lower(Role.name) == RoleDefinition.ADMIN.value).first()
+    if admin_role:
+        admin_user.role = admin_role
+    
+    db.session.add(admin_user)
+    db.session.commit()
+    
+    print(f"Administrator account '{username}' created successfully")
+EOPY
+
+if [ $? -eq 0 ]; then
+    echo_success "Administrator account created"
+else
+    echo_error "Failed to create administrator account"
+    echo_warning "You can create an account later via the web interface at /setup/admin"
+fi
 
 # Create udev rules for USB devices
 echo_info "Creating udev rules for SDR devices..."
@@ -391,6 +482,7 @@ echo ""
 echo "✓ Services have been started automatically"
 echo "✓ SECRET_KEY has been auto-generated"
 echo "✓ Database schema initialized"
+echo "✓ Administrator account created: ${ADMIN_USERNAME}"
 echo ""
 echo "=========================================="
 echo "  🌐 ACCESS YOUR EAS STATION"
@@ -413,17 +505,22 @@ echo "⚠️  Accept the self-signed certificate warning"
 echo "    (This is safe - we generated it during installation)"
 echo ""
 echo "=========================================="
+echo "  🔐 LOGIN CREDENTIALS"
+echo "=========================================="
+echo ""
+echo "Username: ${ADMIN_USERNAME}"
+echo "Password: (the password you just entered)"
+echo ""
+echo "=========================================="
 echo "  📋 NEXT STEPS"
 echo "=========================================="
 echo ""
-echo "1. Create your administrator account"
-echo "   • Choose a username (min 3 characters)"
-echo "   • Set a strong password (min 12 characters)"
+echo "1. Log in to the web interface with your credentials"
 echo ""
-echo "2. Complete the setup wizard"
-echo "   • Configure your location (county, state, zone codes)"
-echo "   • Set your callsign (EAS_STATION_ID)"
-echo "   • Enable/disable features as needed"
+echo "2. Complete the setup wizard to configure:"
+echo "   • Your location (county, state, zone codes)"
+echo "   • Your callsign (EAS_STATION_ID)"
+echo "   • Enable/disable features (SDR, broadcast, etc.)"
 echo ""
 echo "3. You're done! Your station is ready to monitor alerts"
 echo ""

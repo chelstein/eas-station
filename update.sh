@@ -80,15 +80,15 @@ echo_success "Dependencies updated"
 
 # Update systemd service files
 echo_info "Updating systemd service files..."
-cp "$INSTALL_DIR/bare-metal/systemd/"*.service /etc/systemd/system/
-cp "$INSTALL_DIR/bare-metal/systemd/"*.target /etc/systemd/system/
+cp "$INSTALL_DIR/systemd/"*.service /etc/systemd/system/
+cp "$INSTALL_DIR/systemd/"*.target /etc/systemd/system/
 systemctl daemon-reload
 echo_success "Service files updated"
 
 # Update nginx configuration (only if changed)
-if ! diff -q "$INSTALL_DIR/bare-metal/config/nginx-eas-station.conf" /etc/nginx/sites-available/eas-station >/dev/null 2>&1; then
+if ! diff -q "$INSTALL_DIR/config/nginx-eas-station.conf" /etc/nginx/sites-available/eas-station >/dev/null 2>&1; then
     echo_info "Updating nginx configuration..."
-    cp "$INSTALL_DIR/bare-metal/config/nginx-eas-station.conf" /etc/nginx/sites-available/eas-station
+    cp "$INSTALL_DIR/config/nginx-eas-station.conf" /etc/nginx/sites-available/eas-station
     nginx -t && systemctl reload nginx
     echo_success "Nginx configuration updated"
 else
