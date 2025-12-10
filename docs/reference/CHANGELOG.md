@@ -6,6 +6,28 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.19.3] - 2025-12-10
+### Removed
+  - Removed `bugs/` directory (7.7MB) - Development-only bug tracking screenshots
+  - Removed `bare-metal/` directory (164KB) - Redundant transition documentation already in `docs/`
+  - Removed screenshots and logos from `samples/` (1.7MB saved) - Keep only EAS test audio files
+  - Moved one-off bug reproduction tests to `tests/bug_reproductions/` (excluded from ISO):
+    - `test_smoking_gun_proof.py` - OLED scrolling bug verification
+    - `test_nvme_samsung_990_pro.py` - NVMe performance testing
+    - `test_snow_emergency_public_access.py` - Snow emergency alert bug
+    - `test_oled_scroll_optimization.py` - OLED optimization tests
+    - `test_oled_render_bounds.py` - OLED boundary tests
+
+### Added
+  - Added `samples/README.md` documenting EAS test audio files and their purpose
+  - Added comprehensive `legacy/README.md` explaining Docker-era scripts and their bare-metal replacements
+  - Added `tests/bug_reproductions/README.md` explaining one-off test files
+
+### Changed
+  - Updated `install.sh` to exclude development directories: `bugs/`, `legacy/`, `bare-metal/`, `tests/bug_reproductions/`
+  - Updated `.gitignore` to exclude `bugs/` and `tests/bug_reproductions/` from version control
+  - Cleaned samples directory to ~6.2MB (only EAS audio test files remain)
+
 ## [2.19.2] - 2025-12-10
 ### Removed
   - Removed Docker daemon health check from `/health/dependencies` endpoint
