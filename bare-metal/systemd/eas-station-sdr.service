@@ -38,7 +38,7 @@ DeviceAllow=/dev/bus/usb rw
 # Resource limits - USB streaming requires locked memory for DMA
 LimitNOFILE=65536
 LimitMEMLOCK=infinity
-MemoryLimit=256M
+MemoryMax=256M
 
 [Install]
 WantedBy=multi-user.target

@@ -33,7 +33,7 @@ ReadWritePaths=/opt/eas-station /var/log/eas-station
 
 # Resource limits
 LimitNOFILE=65536
-MemoryLimit=256M
+MemoryMax=256M
 
 [Install]
 WantedBy=multi-user.target
