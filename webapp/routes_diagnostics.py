@@ -226,7 +226,6 @@ def check_audio_devices() -> Dict[str, List[str]]:
         
         # Try to list audio devices
         code, stdout, stderr = run_command([
-            "docker", "compose", "exec", "-T", "app",
             "aplay", "-l"
         ])
         

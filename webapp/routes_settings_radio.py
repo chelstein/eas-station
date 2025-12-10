@@ -832,7 +832,7 @@ def register(app: Flask, logger) -> None:
                 )
                 return jsonify({
                     "error": "Timeout waiting for sdr-service to process restart command",
-                    "hint": "Check if sdr-service container is running: docker-compose logs sdr-service"
+                    "hint": "Check if sdr-service is running: sudo systemctl status eas-station-sdr.service"
                 }), 504
 
             if not result.get("success"):
@@ -1430,7 +1430,7 @@ def register(app: Flask, logger) -> None:
                     )
                     return jsonify({
                         "error": "Timeout waiting for sdr-service",
-                        "hint": "Check if sdr-service container is running: docker-compose logs sdr-service"
+                        "hint": "Check if sdr-service is running: sudo systemctl status eas-station-sdr.service"
                     }), 504
 
                 if not result.get("success"):
@@ -1520,7 +1520,7 @@ def register(app: Flask, logger) -> None:
                 )
                 return jsonify({
                     "error": "Failed to get spectrum data",
-                    "hint": "Check sdr-service container logs: docker-compose logs sdr-service"
+                    "hint": "Check sdr-service logs: sudo journalctl -u eas-station-sdr.service -n 50"
                 }), 503
 
         except Exception as exc:

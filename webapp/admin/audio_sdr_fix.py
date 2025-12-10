@@ -257,9 +257,9 @@ def apply_audio_sdr_fixes():
 def restart_sdr_service():
     """Request to restart SDR service (requires external action)."""
     # This endpoint just acknowledges the request
-    # Actual restart needs to be done via docker compose from the host
+    # Actual restart needs to be done via systemctl from the host
     return jsonify({
         'success': True,
-        'message': 'Please restart the SDR service manually using: sudo docker compose restart sdr-service',
-        'command': 'sudo docker compose -f docker-compose.yml -f docker-compose.pi.yml restart sdr-service'
+        'message': 'Please restart the SDR service manually using: sudo systemctl restart eas-station-sdr.service',
+        'command': 'sudo systemctl restart eas-station-sdr.service'
     })
