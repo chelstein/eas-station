@@ -13,6 +13,7 @@ BLUE='\033[0;34m'
 CYAN='\033[0;36m'
 WHITE='\033[1;37m'
 BOLD='\033[1m'
+DIM='\033[2m'
 NC='\033[0m' # No Color
 
 echo_info() {
@@ -268,8 +269,13 @@ read -n 1 -r REMOVE_PYTHON
 echo
 if [[ $REMOVE_PYTHON =~ ^[Yy]$ ]]; then
     echo_info "Removing Python packages..."
-    pip3 uninstall -y -r /tmp/eas-requirements.txt 2>/dev/null || echo_warning "Some packages may not have been removed"
-    echo_success "Python packages removed (system packages were left intact)"
+    if [ -f "$INSTALL_DIR/requirements.txt" ]; then
+        pip3 uninstall -y -r "$INSTALL_DIR/requirements.txt" 2>/dev/null || echo_warning "Some packages may not have been removed"
+        echo_success "Python packages removed (system packages were left intact)"
+    else
+        echo_warning "Requirements file not found - skipping Python package removal"
+        echo_info "You can manually remove packages with: pip3 list | grep -E '(flask|sqlalchemy|redis|psutil)' | awk '{print \$1}' | xargs pip3 uninstall -y"
+    fi
 fi
 echo ""
 
