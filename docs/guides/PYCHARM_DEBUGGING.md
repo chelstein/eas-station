@@ -561,9 +561,11 @@ sudo systemctl edit eas-station-web.service
 ExecStart=
 
 # Replace with debugpy-enabled start command
-# ⚠️ SECURITY: Using 0.0.0.0 exposes debug port to all network interfaces
-# For local debugging only, use 127.0.0.1:5678 instead
-# For remote debugging, ensure firewall rules are properly configured
+# ⚠️ SECURITY WARNING: Using 0.0.0.0 exposes debug port to all network interfaces
+# - Debug ports allow ARBITRARY CODE EXECUTION - attackers can run any Python code
+# - Only use 0.0.0.0 on isolated/trusted networks (never public internet)
+# - For local debugging only, use 127.0.0.1:5678 instead
+# - For remote debugging, use SSH port forwarding (see below) to keep ports local
 ExecStart=/opt/eas-station/venv/bin/python -m debugpy \
     --listen 0.0.0.0:5678 \
     /opt/eas-station/venv/bin/gunicorn \
@@ -676,11 +678,16 @@ sudo ufw allow 5679/tcp comment 'debugpy - audio service'
 sudo ufw status
 ```
 
-**⚠️ SECURITY WARNING**: Debug ports expose your application internals. Only enable on trusted networks or use SSH port forwarding for remote access.
+**⚠️ CRITICAL SECURITY WARNING**: 
+- **Debug ports allow ARBITRARY CODE EXECUTION** - anyone who can connect can run any Python code on your server
+- **NEVER expose debug ports to the public internet**
+- Only enable on isolated/trusted networks (e.g., home LAN, private VPN)
+- **Preferred approach**: Use SSH port forwarding (see below) instead of opening firewall ports
+- If you must open firewall ports, restrict by source IP using ufw: `sudo ufw allow from 192.168.1.50 to any port 5678`
 
 ### SSH Port Forwarding (Secure Remote Debugging)
 
-Instead of opening firewall ports, use SSH tunneling:
+**RECOMMENDED**: Instead of opening firewall ports, use SSH tunneling:
 
 ```bash
 # From your local machine, forward debug port 5678 through SSH:
