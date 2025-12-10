@@ -127,7 +127,7 @@
                 <ol class="mb-0 mt-2">
                     <li>Select a behavior for each GPIO pin you want to use (or leave as "None" to disable)</li>
                     <li>Click <strong>"Save Behaviors"</strong> to write changes to your environment configuration</li>
-                    <li>Restart the service for changes to take effect: <code>docker compose restart</code></li>
+                    <li>Restart the service for changes to take effect: <code>sudo systemctl restart eas-station.target</code></li>
                 </ol>
                 <p class="mb-0 mt-2">
                     <small class="text-muted">
@@ -451,7 +451,7 @@
                 message += ` Variable saved: ${data.saved_variables.join(', ')}.`;
             }
             if (data.restart_required) {
-                message += ' Restart the service to apply changes: docker compose restart';
+                message += ' Restart the service to apply changes: sudo systemctl restart eas-station.target';
             }
             console.log('About to show success message:', message);
             showMessage(message, 'success');

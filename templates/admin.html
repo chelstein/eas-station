@@ -1371,8 +1371,8 @@
                             <div class="alert alert-warning d-flex align-items-start mb-3">
                                 <i class="fas fa-exclamation-triangle me-3 mt-1"></i>
                                 <div>
-                                    <strong>Docker/Container Limitation:</strong> Network configuration requires the <code>hardware-service</code> container
-                                    to have host network access and <code>NET_ADMIN</code> capability. When running in a standard Docker container,
+                                    <strong>Network Configuration:</strong> Network configuration requires the <code>hardware-service</code> systemd service
+                                    to have host network access and <code>NET_ADMIN</code> capability. For network configuration,
                                     network changes affect only the container's network namespace, not the host system. For full functionality,
                                     run the hardware-service with <code>--network=host</code> or configure your host network directly.
                                 </div>

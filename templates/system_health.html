@@ -940,7 +940,7 @@
                             <div class="alert alert-info mb-0 py-2">
                                 <strong>Container Monitoring Unavailable</strong>
                                 <p class="mb-2 mt-2">{{ containers_data.error or 'No container engine detected' }}</p>
-                                <p class="mb-0"><small><strong>Tip:</strong> Mount the Docker socket (<code>-v /var/run/docker.sock:/var/run/docker.sock</code>) or set <code>DOCKER_HOST</code> environment variable.</small></p>
+                                <p class="mb-0"><small><strong>Tip:</strong> Ensure systemd services are running with proper permissions.</small></p>
                             </div>
                         {% endif %}
                     </div>
