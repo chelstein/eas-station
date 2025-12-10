@@ -95,9 +95,9 @@ def get_systemd_logs(service: str, lines: int = 100, priority: str = None, since
         }
 
 
-@logs_bp.route('/logs')
-def logs_page():
-    """Render the logs viewer page."""
+@logs_bp.route('/system-logs')
+def system_logs_page():
+    """Render the systemd logs viewer page."""
     services = [
         'eas-station-web.service',
         'eas-station-sdr.service',
@@ -110,7 +110,7 @@ def logs_page():
         'postgresql.service',
         'redis-server.service'
     ]
-    return render_template('logs.html', services=services)
+    return render_template('system_logs.html', services=services)
 
 
 @logs_bp.route('/api/logs/<service>')

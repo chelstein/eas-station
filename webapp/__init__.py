@@ -92,6 +92,7 @@ def iter_route_modules() -> Iterable[RouteModule]:
     yield RouteModule("routes_backups", routes_backups.register)
     yield RouteModule("routes_debug", routes_debug.register)
     yield RouteModule("routes_diagnostics", routes_diagnostics.register)
+    yield RouteModule("routes_logs", routes_logs.register, requires_logger=False)
     yield RouteModule("routes_stream_profiles", routes_stream_profiles.register)
     yield RouteModule("routes_snow_emergencies", routes_snow_emergencies.register)
     yield RouteModule("routes_admin", routes_admin.register)
