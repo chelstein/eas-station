@@ -7,25 +7,27 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ## [2.19.8] - 2025-12-10
-### Fixed
-  - Fixed database initialization failure when NOAA zone catalog file is missing - zone catalog is now optional
-  - Updated nginx configuration to use new `http2 on;` directive instead of deprecated `listen ... http2` syntax
-  - Application can now start successfully without the z_05mr24.dbf zone catalog file
-
-### Added
-  - Added Zone Catalog management tab in admin panel for uploading and managing NOAA zone catalogs
-  - Zone catalog files can now be uploaded through the web UI
-  - Zone search functionality in admin panel
-  - Automatic zone reloading from .dbf files
-  - Zone catalog file information display (file size, zone counts, cache status)
-  - Documentation links to https://www.weather.gov/gis/publiczones for downloading zone files
-
 ### Changed
-  - Updated default zone catalog path to assets/z_18mr25.dbf (was assets/z_05mr24.dbf)
-  - Zone catalog path resolution now auto-detects uploaded .dbf files in assets/ directory
-  - Improved zone catalog path handling with priority: explicit parameter > config > auto-detect > default
-  - Removed hardcoded zone catalog path from configure.py - now uses auto-detection
-  - Zone management routes now use smart path resolution consistently
+  - Completely rewrote PyCharm/VS Code debugging guide for bare metal deployment
+  - Removed all Docker/container references, replaced with systemd service instructions
+  - Updated all file paths from /home/pi/eas-station to /opt/eas-station
+  - Added comprehensive section on debugging individual systemd services with debugpy
+  - Added detailed instructions for using AI coding agents (ZenCoder) with real-time code access
+  - Updated database configuration section for bare metal PostgreSQL (not containerized)
+  - Added multiple methods for enabling debugpy: temporary, persistent, and code modification
+  - Documented debug port assignments for all services (5678-5684)
+  - Added SSH port forwarding instructions for secure remote debugging
+  - Updated troubleshooting section with systemd-specific solutions
+  - Enhanced development workflow with systemd service management commands
+  - Added section on testing with real hardware (GPIO, SDR, audio devices)
+  - Updated quick reference with systemd commands instead of Docker commands
+  - Improved summary to highlight AI agent integration and bare metal advantages
+### Security
+  - Added security warnings for exposing debugpy ports on all network interfaces
+  - Documented SSH port forwarding as secure alternative to opening firewall ports
+  - Improved PostgreSQL remote access documentation with security best practices
+  - Restricted sudoers examples to specific services and journalctl units only
+  - Clarified user permissions for AI agent integration with minimal necessary access
 
 ## [2.19.7] - 2025-12-10
 ### Fixed
