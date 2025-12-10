@@ -1,0 +1,239 @@
+"""
+EAS Station - Emergency Alert System
+Copyright (c) 2025 Timothy Kramer (KR8MER)
+
+This file is part of EAS Station.
+
+EAS Station is dual-licensed software:
+- GNU Affero General Public License v3 (AGPL-3.0) for open-source use
+- Commercial License for proprietary use
+
+You should have received a copy of both licenses with this software.
+For more information, see LICENSE and LICENSE-COMMERCIAL files.
+
+IMPORTANT: This software cannot be rebranded or have attribution removed.
+See NOTICE file for complete terms.
+
+Repository: https://github.com/KR8MER/eas-station
+"""
+
+from __future__ import annotations
+
+"""NOAA zone catalog management routes."""
+
+import logging
+import os
+from pathlib import Path
+from typing import Dict, Any
+
+from flask import Blueprint, jsonify, render_template, request, current_app
+from werkzeug.utils import secure_filename
+
+from app_core.extensions import db
+from app_core.models import NWSZone
+from app_core.zones import ensure_zone_catalog, clear_zone_lookup_cache, get_zone_lookup
+from app_core.auth.roles import require_permission
+from app_utils.zone_catalog import iter_zone_records
+
+logger = logging.getLogger(__name__)
+
+# Create Blueprint for zone management routes
+zones_bp = Blueprint('zones_admin', __name__)
+
+
+@zones_bp.route('/zones')
+@require_permission('admin.settings')
+def zone_management():
+    """Display zone catalog management page."""
+    try:
+        # Get current zone catalog info
+        zone_path = Path(current_app.config.get('NWS_ZONE_DBF_PATH', 'assets/z_18mr25.dbf'))
+        zone_exists = zone_path.exists()
+        
+        # Get zone statistics
+        zone_count = NWSZone.query.count()
+        
+        # Get zone lookup cache status
+        zone_lookup = get_zone_lookup()
+        cached_count = len(zone_lookup)
+        
+        return render_template(
+            'admin/zones.html',
+            zone_path=str(zone_path),
+            zone_exists=zone_exists,
+            zone_count=zone_count,
+            cached_count=cached_count,
+        )
+    except Exception as e:
+        logger.error(f"Error loading zone management page: {e}")
+        return render_template(
+            'admin/zones.html',
+            zone_path='assets/z_18mr25.dbf',
+            zone_exists=False,
+            zone_count=0,
+            cached_count=0,
+            error=str(e)
+        )
+
+
+@zones_bp.route('/zones/info', methods=['GET'])
+@require_permission('admin.settings')
+def zone_info():
+    """Get zone catalog information."""
+    try:
+        zone_path = Path(current_app.config.get('NWS_ZONE_DBF_PATH', 'assets/z_18mr25.dbf'))
+        zone_exists = zone_path.exists()
+        
+        info = {
+            'path': str(zone_path),
+            'exists': zone_exists,
+            'db_count': NWSZone.query.count(),
+            'cache_count': len(get_zone_lookup()),
+        }
+        
+        if zone_exists:
+            info['file_size'] = zone_path.stat().st_size
+            info['file_size_mb'] = round(zone_path.stat().st_size / 1024 / 1024, 2)
+            
+            # Try to count records in DBF file
+            try:
+                records = list(iter_zone_records(zone_path))
+                info['dbf_record_count'] = len(records)
+            except Exception as e:
+                logger.warning(f"Could not read DBF file: {e}")
+                info['dbf_record_count'] = None
+        
+        return jsonify(info)
+    except Exception as e:
+        logger.error(f"Error getting zone info: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@zones_bp.route('/zones/reload', methods=['POST'])
+@require_permission('admin.settings')
+def reload_zones():
+    """Reload zone catalog from DBF file into database."""
+    try:
+        # Clear cache first
+        clear_zone_lookup_cache()
+        
+        # Reload from file
+        success = ensure_zone_catalog(logger)
+        
+        if success:
+            zone_count = NWSZone.query.count()
+            return jsonify({
+                'success': True,
+                'message': f'Zone catalog reloaded successfully. {zone_count} zones loaded.',
+                'zone_count': zone_count
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'Failed to reload zone catalog. Check logs for details.'
+            }), 500
+            
+    except Exception as e:
+        logger.error(f"Error reloading zone catalog: {e}")
+        db.session.rollback()
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@zones_bp.route('/zones/upload', methods=['POST'])
+@require_permission('admin.settings')
+def upload_zone_file():
+    """Upload a new zone catalog DBF file."""
+    try:
+        if 'file' not in request.files:
+            return jsonify({'error': 'No file provided'}), 400
+        
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({'error': 'No file selected'}), 400
+        
+        # Validate file extension
+        if not file.filename.lower().endswith('.dbf'):
+            return jsonify({'error': 'File must be a .dbf file'}), 400
+        
+        # Use secure filename
+        filename = secure_filename(file.filename)
+        
+        # Get upload directory (assets folder)
+        upload_dir = Path('assets')
+        upload_dir.mkdir(exist_ok=True)
+        
+        # Save the file
+        file_path = upload_dir / filename
+        file.save(str(file_path))
+        
+        logger.info(f"Zone catalog file uploaded: {file_path}")
+        
+        # Update the configuration to use the new file
+        current_app.config['NWS_ZONE_DBF_PATH'] = str(file_path)
+        
+        # Try to reload the zones
+        clear_zone_lookup_cache()
+        success = ensure_zone_catalog(logger, source_path=file_path)
+        
+        if success:
+            zone_count = NWSZone.query.count()
+            return jsonify({
+                'success': True,
+                'message': f'File uploaded and {zone_count} zones loaded successfully.',
+                'path': str(file_path),
+                'zone_count': zone_count
+            })
+        else:
+            return jsonify({
+                'success': True,
+                'message': 'File uploaded but failed to load zones. Check file format.',
+                'path': str(file_path),
+                'warning': 'Zone loading failed'
+            })
+            
+    except Exception as e:
+        logger.error(f"Error uploading zone file: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@zones_bp.route('/zones/search', methods=['GET'])
+@require_permission('admin.settings')
+def search_zones():
+    """Search zones by code or name."""
+    try:
+        query = request.args.get('q', '').strip().upper()
+        limit = int(request.args.get('limit', 50))
+        
+        if not query:
+            return jsonify({'zones': []})
+        
+        # Search by zone code or name
+        zones = NWSZone.query.filter(
+            db.or_(
+                NWSZone.zone_code.ilike(f'%{query}%'),
+                NWSZone.name.ilike(f'%{query}%'),
+                NWSZone.state_code.ilike(f'%{query}%')
+            )
+        ).limit(limit).all()
+        
+        result = [{
+            'zone_code': z.zone_code,
+            'name': z.name,
+            'state_code': z.state_code,
+            'cwa': z.cwa,
+            'time_zone': z.time_zone,
+            'latitude': z.latitude,
+            'longitude': z.longitude
+        } for z in zones]
+        
+        return jsonify({'zones': result})
+        
+    except Exception as e:
+        logger.error(f"Error searching zones: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+logger.info("Zone management routes registered")

@@ -594,6 +594,11 @@
                         </button>
                     </li>
                     <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="zones-tab" data-bs-toggle="tab" data-bs-target="#zone-catalog" type="button" role="tab">
+                            <i class="fas fa-map-marked-alt"></i> Zone Catalog
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
                         <button class="nav-link" id="manage-tab" data-bs-toggle="tab" data-bs-target="#manage" type="button" role="tab">
                             <i class="fas fa-tasks"></i> Manage Data
                         </button>
@@ -735,6 +740,128 @@
                                 </button>
                             </form>
                             <div id="shapefileUploadStatus" class="mt-3"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Zone Catalog Tab -->
+                <div class="tab-pane fade" id="zone-catalog" role="tabpanel">
+                    <!-- Page Header -->
+                    <div class="mb-4">
+                        <h4 class="mb-2"><i class="fas fa-map-marked-alt text-primary"></i> NOAA Zone Catalog Management</h4>
+                        <p class="text-muted">Manage the NOAA National Weather Service zone catalog database</p>
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle"></i> 
+                            <strong>Zone Catalog Files:</strong> Download the latest NOAA public zone shapefiles from 
+                            <a href="https://www.weather.gov/gis/publiczones" target="_blank" rel="noopener noreferrer" class="alert-link">
+                                https://www.weather.gov/gis/publiczones <i class="fas fa-external-link-alt"></i>
+                            </a>
+                            <br>
+                            Look for the <strong>.dbf</strong> file (dBase format) that accompanies the shapefile downloads.
+                        </div>
+                    </div>
+
+                    <!-- Status Cards -->
+                    <div class="row mb-4">
+                        <div class="col-md-3">
+                            <div class="card">
+                                <div class="card-body">
+                                    <h6 class="card-subtitle mb-2 text-muted">Zone File Status</h6>
+                                    <h3 class="card-title" id="zone-file-status">
+                                        <i class="fas fa-spinner fa-spin"></i>
+                                    </h3>
+                                    <p class="card-text"><small id="zone-file-path">Loading...</small></p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card">
+                                <div class="card-body">
+                                    <h6 class="card-subtitle mb-2 text-muted">Database Zones</h6>
+                                    <h3 class="card-title" id="zone-db-count">--</h3>
+                                    <p class="card-text"><small>Zones in database</small></p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card">
+                                <div class="card-body">
+                                    <h6 class="card-subtitle mb-2 text-muted">Cached Zones</h6>
+                                    <h3 class="card-title" id="zone-cache-count">--</h3>
+                                    <p class="card-text"><small>Zones in memory cache</small></p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card">
+                                <div class="card-body">
+                                    <h6 class="card-subtitle mb-2 text-muted">File Size</h6>
+                                    <h3 class="card-title" id="zone-file-size">--</h3>
+                                    <p class="card-text"><small>DBF file size</small></p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Actions -->
+                    <div class="row mb-4">
+                        <div class="col-12">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h5 class="mb-0"><i class="fas fa-tools"></i> Zone Catalog Actions</h5>
+                                </div>
+                                <div class="card-body">
+                                    <div class="row">
+                                        <div class="col-md-6 mb-3">
+                                            <h6>Upload New Zone Catalog File</h6>
+                                            <p class="text-muted">
+                                                Upload a .dbf file containing NOAA zone data. 
+                                                <a href="https://www.weather.gov/gis/publiczones" target="_blank" rel="noopener noreferrer">
+                                                    Download from NWS <i class="fas fa-external-link-alt fa-sm"></i>
+                                                </a>
+                                            </p>
+                                            <form id="zone-upload-form" enctype="multipart/form-data">
+                                                <div class="mb-3">
+                                                    <input type="file" class="form-control" id="zone-file-input" name="file" accept=".dbf" required>
+                                                    <div class="form-text">Only .dbf (dBase) files are accepted. Download from <a href="https://www.weather.gov/gis/publiczones" target="_blank">NWS Public Zones</a></div>
+                                                </div>
+                                                <button type="submit" class="btn btn-primary">
+                                                    <i class="fas fa-upload"></i> Upload and Load
+                                                </button>
+                                            </form>
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <h6>Reload Zone Catalog</h6>
+                                            <p class="text-muted">Reload zones from the current DBF file into the database</p>
+                                            <button id="zone-reload-btn" class="btn btn-success">
+                                                <i class="fas fa-sync"></i> Reload from File
+                                            </button>
+                                            <button id="zone-refresh-info-btn" class="btn btn-secondary">
+                                                <i class="fas fa-info-circle"></i> Refresh Info
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Zone Search -->
+                    <div class="row">
+                        <div class="col-12">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h5 class="mb-0"><i class="fas fa-search"></i> Search Zones</h5>
+                                </div>
+                                <div class="card-body">
+                                    <div class="mb-3">
+                                        <input type="text" class="form-control" id="zone-search-input" placeholder="Search by zone code, state, or name (e.g., OHZ, Ohio, Cuyahoga)">
+                                    </div>
+                                    <div id="zone-search-results">
+                                        <p class="text-muted">Enter search terms to find zones</p>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -6957,5 +7084,198 @@
                 });
             }
         });
+
+        // ==================== Zone Catalog Management ====================
+
+        // Load zone info when zone catalog tab is shown
+        const zoneTab = document.getElementById('zones-tab');
+        if (zoneTab) {
+            zoneTab.addEventListener('shown.bs.tab', function() {
+                refreshZoneInfo();
+            });
+        }
+
+        // Upload form handler
+        const zoneUploadForm = document.getElementById('zone-upload-form');
+        if (zoneUploadForm) {
+            zoneUploadForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                
+                const formData = new FormData(e.target);
+                const fileInput = document.getElementById('zone-file-input');
+                
+                if (!fileInput.files.length) {
+                    showToast('Please select a file', 'warning');
+                    return;
+                }
+                
+                try {
+                    const response = await fetch('/admin/zones/upload', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (response.ok && data.success) {
+                        showToast(data.message, 'success');
+                        e.target.reset();
+                        refreshZoneInfo();
+                    } else {
+                        showToast(data.error || 'Upload failed', 'danger');
+                    }
+                } catch (error) {
+                    showToast('Error uploading file: ' + error.message, 'danger');
+                }
+            });
+        }
+
+        // Reload button handler
+        const zoneReloadBtn = document.getElementById('zone-reload-btn');
+        if (zoneReloadBtn) {
+            zoneReloadBtn.addEventListener('click', async () => {
+                zoneReloadBtn.disabled = true;
+                zoneReloadBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Reloading...';
+                
+                try {
+                    const response = await fetch('/admin/zones/reload', {
+                        method: 'POST'
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (response.ok && data.success) {
+                        showToast(data.message, 'success');
+                        refreshZoneInfo();
+                    } else {
+                        showToast(data.error || 'Reload failed', 'danger');
+                    }
+                } catch (error) {
+                    showToast('Error reloading zones: ' + error.message, 'danger');
+                } finally {
+                    zoneReloadBtn.disabled = false;
+                    zoneReloadBtn.innerHTML = '<i class="fas fa-sync"></i> Reload from File';
+                }
+            });
+        }
+
+        // Refresh info button handler
+        const zoneRefreshBtn = document.getElementById('zone-refresh-info-btn');
+        if (zoneRefreshBtn) {
+            zoneRefreshBtn.addEventListener('click', refreshZoneInfo);
+        }
+
+        // Refresh zone info
+        async function refreshZoneInfo() {
+            try {
+                const response = await fetch('/admin/zones/info');
+                const data = await response.json();
+                
+                if (response.ok) {
+                    // Update status
+                    const statusEl = document.getElementById('zone-file-status');
+                    if (statusEl) {
+                        if (data.exists) {
+                            statusEl.innerHTML = '<i class="fas fa-check-circle text-success"></i> Exists';
+                        } else {
+                            statusEl.innerHTML = '<i class="fas fa-times-circle text-danger"></i> Missing';
+                        }
+                    }
+                    
+                    // Update path
+                    const pathEl = document.getElementById('zone-file-path');
+                    if (pathEl) {
+                        pathEl.textContent = data.path || 'assets/z_18mr25.dbf';
+                    }
+                    
+                    // Update counts
+                    const dbCountEl = document.getElementById('zone-db-count');
+                    if (dbCountEl) {
+                        dbCountEl.textContent = data.db_count || 0;
+                    }
+                    
+                    const cacheCountEl = document.getElementById('zone-cache-count');
+                    if (cacheCountEl) {
+                        cacheCountEl.textContent = data.cache_count || 0;
+                    }
+                    
+                    // Update file size
+                    const sizeEl = document.getElementById('zone-file-size');
+                    if (sizeEl) {
+                        if (data.file_size_mb) {
+                            sizeEl.textContent = data.file_size_mb + ' MB';
+                        } else {
+                            sizeEl.textContent = '--';
+                        }
+                    }
+                    
+                    // Enable/disable reload button
+                    if (zoneReloadBtn) {
+                        zoneReloadBtn.disabled = !data.exists;
+                    }
+                }
+            } catch (error) {
+                console.error('Error refreshing zone info:', error);
+            }
+        }
+
+        // Zone search with debouncing
+        let zoneSearchTimeout;
+        const zoneSearchInput = document.getElementById('zone-search-input');
+        if (zoneSearchInput) {
+            zoneSearchInput.addEventListener('input', (e) => {
+                clearTimeout(zoneSearchTimeout);
+                const query = e.target.value.trim();
+                
+                if (query.length < 2) {
+                    document.getElementById('zone-search-results').innerHTML = '<p class="text-muted">Enter at least 2 characters to search</p>';
+                    return;
+                }
+                
+                zoneSearchTimeout = setTimeout(() => searchZones(query), 300);
+            });
+        }
+
+        async function searchZones(query) {
+            const resultsDiv = document.getElementById('zone-search-results');
+            if (!resultsDiv) return;
+            
+            resultsDiv.innerHTML = '<p class="text-muted"><i class="fas fa-spinner fa-spin"></i> Searching...</p>';
+            
+            try {
+                const response = await fetch(`/admin/zones/search?q=${encodeURIComponent(query)}`);
+                const data = await response.json();
+                
+                if (response.ok && data.zones) {
+                    if (data.zones.length === 0) {
+                        resultsDiv.innerHTML = '<p class="text-muted">No zones found</p>';
+                    } else {
+                        let html = '<div class="list-group">';
+                        data.zones.forEach(zone => {
+                            html += `
+                                <div class="list-group-item">
+                                    <div class="d-flex w-100 justify-content-between">
+                                        <h6 class="mb-1"><span class="badge bg-primary">${zone.zone_code}</span> ${zone.name}, ${zone.state_code}</h6>
+                                    </div>
+                                    <small class="text-muted">
+                                        CWA: ${zone.cwa || 'N/A'} | 
+                                        Timezone: ${zone.time_zone || 'N/A'} | 
+                                        Coords: ${zone.latitude?.toFixed(4) || 'N/A'}, ${zone.longitude?.toFixed(4) || 'N/A'}
+                                    </small>
+                                </div>
+                            `;
+                        });
+                        html += '</div>';
+                        resultsDiv.innerHTML = html;
+                    }
+                } else {
+                    resultsDiv.innerHTML = '<p class="text-danger">Error loading results</p>';
+                }
+            } catch (error) {
+                resultsDiv.innerHTML = '<p class="text-danger">Error: ' + escapeHtmlAdmin(error.message) + '</p>';
+            }
+        }
+
+        // ==================== End Zone Catalog Management ====================
     </script>
 {% endblock %}
