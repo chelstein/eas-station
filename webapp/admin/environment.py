@@ -385,7 +385,8 @@ ENV_CATEGORIES = {
                 'label': 'NOAA User Agent',
                 'type': 'text',
                 'required': True,
-                'description': 'User agent string for NOAA API compliance',
+                'default': 'EAS Station/2.12 (+https://github.com/KR8MER/eas-station; support@easstation.com)',
+                'description': 'User agent string for NOAA API compliance (Format: "AppName/Version (contact info)")',
             },
             {
                 'key': 'CAP_ENDPOINTS',
@@ -1510,8 +1511,8 @@ def validate_environment():
             if key in env_vars:
                 value = env_vars[key]
             else:
-                # Key not in .env, check environment variable
-                value = os.environ.get(key, '')
+                # Key not in .env, check environment variable, then default
+                value = os.environ.get(key, var_config.get('default', ''))
 
             # Required field validation
             if var_config.get('required') and not value:

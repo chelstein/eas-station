@@ -6,6 +6,18 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.19.9] - 2025-12-10
+### Fixed
+  - Reduced excessive whitespace between navbar and page content by decreasing --layout-padding-top from 1.5rem to 0.5rem
+  - Fixed NOAA_USER_AGENT validation error by adding default value in environment.py configuration
+  - Fixed environment validation to check default values before reporting "required but not set" errors
+  - Updated setup wizard configuration persistence notice to remove Docker/container-specific references
+  - Changed setup wizard text to reflect bare metal deployment with /app-config/.env persistent volume
+
+### Changed
+  - Updated setup wizard to show accurate configuration persistence behavior for bare metal deployments
+  - Environment validation now respects default values defined in ENV_CATEGORIES when checking required fields
+
 ## [2.19.8] - 2025-12-10
 ### Fixed
   - Fixed database initialization failure when NOAA zone catalog file is missing - zone catalog is now optional
