@@ -6,6 +6,24 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.19.10] - 2025-12-10
+### Fixed
+  - Removed Docker/container monitoring from system health in favor of systemd service monitoring
+  - System health now queries systemd services directly using systemctl for accurate bare metal deployment status
+  - Updated system health template to display systemd services instead of Docker containers
+  
+### Added
+  - Systemd service monitoring for all EAS Station services (web, sdr, audio, eas, hardware, noaa-poller, ipaws-poller)
+  - Dependency service monitoring (nginx, postgresql, redis-server, icecast2)
+  - Service status categorization (active, inactive, failed) with visual indicators
+  - Separate display sections for EAS Station services vs. system dependencies
+
+### Changed
+  - Replaced _collect_container_statuses() with _collect_systemd_services() in system.py
+  - System health data structure now uses "systemd" key instead of "containers"
+  - Service monitoring now uses native systemctl commands instead of Docker API
+  - Health dashboard shows systemd service status with active/inactive/failed states
+
 ## [2.19.9] - 2025-12-10
 ### Fixed
   - Reduced excessive whitespace between navbar and page content by decreasing --layout-padding-top from 1.5rem to 0.5rem

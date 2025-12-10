@@ -824,17 +824,17 @@
                 </div>
             </div>
 
-            <!-- Stack Overview -->
-            <div class="col-lg-4 mb-3" id="containers-card">
-                {% set containers_data = containers or {} %}
-                {% set summary = containers_data.summary or {} %}
-                {% set total_containers = summary.get('total', 0) %}
-                {% set running_containers = summary.get('running', 0) %}
-                {% set unhealthy_containers = summary.get('unhealthy', 0) %}
-                {% set stopped_containers = summary.get('stopped', total_containers - running_containers) %}
+            <!-- System Services -->
+            <div class="col-lg-4 mb-3" id="services-card">
+                {% set systemd_data = systemd or {} %}
+                {% set summary = systemd_data.summary or {} %}
+                {% set total_services = summary.get('total', 0) %}
+                {% set active_services = summary.get('active', 0) %}
+                {% set inactive_services = summary.get('inactive', 0) %}
+                {% set failed_services = summary.get('failed', 0) %}
                 <div class="card health-card h-100">
                     <div class="card-body">
-                        <h5><i class="fas fa-layer-group section-icon"></i> Stack Services</h5>
+                        <h5><i class="fas fa-server section-icon"></i> System Services</h5>
 
 
                         <div class="d-flex justify-content-between align-items-center mb-2">
@@ -868,79 +868,88 @@
 
                         <div class="stack-summary mb-3">
                             <div>
-                                <span class="metric-label">Containers</span>
-                                <span class="metric-value">{{ total_containers }}</span>
+                                <span class="metric-label">Services</span>
+                                <span class="metric-value">{{ total_services }}</span>
                             </div>
                             <div>
-                                <span class="metric-label text-success">Running</span>
-                                <span class="metric-value text-success">{{ running_containers }}</span>
+                                <span class="metric-label text-success">Active</span>
+                                <span class="metric-value text-success">{{ active_services }}</span>
                             </div>
                             <div>
-                                <span class="metric-label text-warning">Stopped</span>
-                                <span class="metric-value text-warning">{{ stopped_containers if stopped_containers >= 0 else 0 }}</span>
+                                <span class="metric-label text-warning">Inactive</span>
+                                <span class="metric-value text-warning">{{ inactive_services }}</span>
                             </div>
                             <div>
-                                <span class="metric-label text-danger">Unhealthy</span>
-                                <span class="metric-value text-danger">{{ unhealthy_containers }}</span>
+                                <span class="metric-label text-danger">Failed</span>
+                                <span class="metric-value text-danger">{{ failed_services }}</span>
                             </div>
                         </div>
 
-                        {% if containers_data.available %}
-                            {% set preview = containers_data.containers[:4] if containers_data.containers else [] %}
-                            {% for container in preview %}
-                                {% set health = (container.health or '')|lower %}
-                                {% set state = (container.state or '')|lower %}
-                                {% if health == 'healthy' %}
-                                    {% set badge_class = 'success' %}
-                                    {% set status_label = 'Healthy' %}
-                                {% elif health == 'unhealthy' %}
-                                    {% set badge_class = 'danger' %}
-                                    {% set status_label = 'Unhealthy' %}
-                                {% elif health == 'starting' %}
-                                    {% set badge_class = 'warning' %}
-                                    {% set status_label = 'Starting' %}
-                                {% else %}
-                                    {% if state == 'running' %}
+                        {% if systemd_data.available %}
+                            {% set eas_services = systemd_data.services | selectattr('is_eas_service', 'equalto', True) | list %}
+                            {% set dep_services = systemd_data.services | selectattr('is_eas_service', 'equalto', False) | list %}
+                            
+                            {% if eas_services %}
+                                <h6 class="text-muted small mb-2">EAS Station Services</h6>
+                                {% for service in eas_services[:5] %}
+                                    {% set active_state = (service.active_state or '')|lower %}
+                                    {% if active_state == 'active' %}
                                         {% set badge_class = 'success' %}
-                                    {% elif state in ['restarting', 'created', 'paused'] %}
-                                        {% set badge_class = 'warning' %}
-                                    {% elif state in ['exited', 'dead'] %}
+                                        {% set status_label = 'Active' %}
+                                    {% elif active_state == 'failed' %}
+                                        {% set badge_class = 'danger' %}
+                                        {% set status_label = 'Failed' %}
+                                    {% elif active_state == 'inactive' %}
                                         {% set badge_class = 'secondary' %}
+                                        {% set status_label = 'Inactive' %}
+                                    {% elif active_state == 'activating' %}
+                                        {% set badge_class = 'warning' %}
+                                        {% set status_label = 'Starting' %}
                                     {% else %}
                                         {% set badge_class = 'secondary' %}
+                                        {% set status_label = active_state|capitalize %}
                                     {% endif %}
-                                    {% set status_label = container.status or (state|upper if state else 'Unknown') %}
-                                {% endif %}
-                                <div class="d-flex justify-content-between align-items-center mb-1">
-                                    <div>
-                                        <span class="metric-label">{{ container.display_name or container.name }}</span>
-                                        {% if container.service %}
-                                        <small class="text-muted d-block">{{ container.service }}</small>
-                                        {% endif %}
+                                    <div class="d-flex justify-content-between align-items-center mb-1">
+                                        <div>
+                                            <span class="metric-label">{{ service.display_name or service.name }}</span>
+                                            {% if service.sub_state and service.sub_state != 'running' %}
+                                            <small class="text-muted d-block">{{ service.sub_state }}</small>
+                                            {% endif %}
+                                        </div>
+                                        <span class="badge bg-{{ badge_class }} status-badge">{{ status_label }}</span>
                                     </div>
-                                    <span class="badge bg-{{ badge_class }} status-badge">{{ status_label }}</span>
-                                </div>
-                            {% endfor %}
-                            {% if containers_data.containers and containers_data.containers|length > 4 %}
-                                <small class="text-muted">… and {{ containers_data.containers|length - 4 }} more containers</small>
-                            {% elif not containers_data.containers %}
-                                <p class="text-muted mb-0">No containers detected for the current engine.</p>
+                                {% endfor %}
                             {% endif %}
-                            {% set has_engine = containers_data.engine %}
-                            {% set has_project = containers_data.compose_project %}
-                            {% set has_collector = containers_data.collector %}
-                            {% if has_engine or has_project or has_collector %}
-                                <small class="text-muted d-block mt-2">
-                                    {% if has_engine %}Engine: {{ containers_data.engine|upper }}{% endif %}
-                                    {% if has_project %}{% if has_engine %} • {% endif %}Project: {{ containers_data.compose_project }}{% endif %}
-                                    {% if has_collector %}{% if has_engine or has_project %} • {% endif %}Source: {{ containers_data.collector }}{% endif %}
-                                </small>
+                            
+                            {% if dep_services %}
+                                <h6 class="text-muted small mb-2 mt-3">Dependencies</h6>
+                                {% for service in dep_services[:3] %}
+                                    {% set active_state = (service.active_state or '')|lower %}
+                                    {% if active_state == 'active' %}
+                                        {% set badge_class = 'success' %}
+                                        {% set status_label = 'Active' %}
+                                    {% elif active_state == 'failed' %}
+                                        {% set badge_class = 'danger' %}
+                                        {% set status_label = 'Failed' %}
+                                    {% else %}
+                                        {% set badge_class = 'secondary' %}
+                                        {% set status_label = active_state|capitalize %}
+                                    {% endif %}
+                                    <div class="d-flex justify-content-between align-items-center mb-1">
+                                        <span class="metric-label">{{ service.display_name or service.name }}</span>
+                                        <span class="badge bg-{{ badge_class }} status-badge">{{ status_label }}</span>
+                                    </div>
+                                {% endfor %}
+                            {% endif %}
+                            
+                            {% if not eas_services and not dep_services %}
+                                <p class="text-muted mb-0">No systemd services detected.</p>
                             {% endif %}
                         {% else %}
                             <div class="alert alert-info mb-0 py-2">
-                                <strong>Container Monitoring Unavailable</strong>
-                                <p class="mb-2 mt-2">{{ containers_data.error or 'No container engine detected' }}</p>
-                                <p class="mb-0"><small><strong>Tip:</strong> Ensure systemd services are running with proper permissions.</small></p>
+                                <strong>Service Monitoring Unavailable</strong>
+                                <p class="mb-2 mt-2">{{ systemd_data.error or 'Unable to query systemd services' }}</p>
+                                <p class="mb-0"><small><strong>Tip:</strong> Ensure systemd is available and services are properly installed.</small></p>
                             </div>
                         {% endif %}
                     </div>
