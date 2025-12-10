@@ -2,7 +2,9 @@
 
 ## Overview
 
-This guide will help you install EAS Station on a bare metal Linux server. The installation takes about 10-15 minutes and will get you to a running system where you can complete configuration through the web-based setup wizard.
+This guide will help you install EAS Station on a bare metal Linux server. The installation is **fully automated** - you'll only need to create an administrator account, and the script handles everything else.
+
+**Installation Time**: 10-15 minutes
 
 ## Prerequisites
 
@@ -26,33 +28,9 @@ cd eas-station
 sudo ./install.sh
 ```
 
-### 3. Answer the Configuration Questions
+### 3. Create Administrator Account
 
-The installer will prompt you for minimal information needed to get the system running:
-
-#### Database Password
-```
-Enter database password for user 'eas_station' (min 8 characters): ********
-Confirm database password: ********
-```
-**Important**: Use a strong, unique password. This is stored locally and used for database access.
-
-#### Timezone
-```
-Common US timezones:
-  America/New_York (Eastern)
-  America/Chicago (Central)
-  America/Denver (Mountain)
-  America/Los_Angeles (Pacific)
-
-Enter your timezone [America/New_York]: America/Chicago
-```
-
-**That's it!** The installer will handle the rest.
-
-### 4. Create Administrator Account
-
-After the system is installed, you'll be prompted to create your administrator account:
+The installer will prompt you to create an administrator account:
 
 ```
 Enter administrator username (min 3 characters): admin
@@ -60,22 +38,32 @@ Enter administrator password (min 12 characters): ****************
 Confirm administrator password: ****************
 ```
 
-**Important**: This is your web interface login. Use a strong password!
+**This account is used for:**
+- EAS Station web interface login
+- pgAdmin 4 database manager login
 
-### 5. Wait for Installation to Complete
+**That's it!** The script automatically:
+- ✅ Generates a secure database password
+- ✅ Creates and configures PostgreSQL database
+- ✅ Installs and configures pgAdmin 4
+- ✅ Sets up all system dependencies
+- ✅ Runs database migrations
+- ✅ Configures Nginx with SSL
+- ✅ Starts all services
 
-The installer will:
-- ✅ Install system dependencies (PostgreSQL, Redis, Nginx, etc.)
-- ✅ Create database with your password
-- ✅ Set up Python virtual environment
-- ✅ Install Python dependencies
-- ✅ Run database migrations
-- ✅ Create administrator account
-- ✅ Start all services
+### 4. Wait for Installation to Complete
 
-This takes approximately **10-15 minutes** depending on your hardware and internet connection.
+The installer will display progress as it:
+- Installs system packages (PostgreSQL, Redis, Nginx, etc.)
+- Sets up Python environment
+- Configures database with auto-generated password
+- Installs and configures pgAdmin 4
+- Creates SSL certificate
+- Starts all services
 
-### 6. Access the Web Interface
+**Installation takes approximately 10-15 minutes.**
+
+### 5. Access the Web Interface and pgAdmin
 
 Once installation completes, you'll see:
 
@@ -91,27 +79,33 @@ Open your web browser and navigate to:
   https://192.168.1.100
 
 ⚠️  Accept the self-signed certificate warning
-    (This is safe - we generated it during installation)
 
 ========================================
   🔐 LOGIN CREDENTIALS
 ========================================
 
-Username: admin
-Password: (the password you just entered)
+EAS Station Web Interface:
+  Username: admin
+  Password: (the password you entered)
+
+pgAdmin 4 Database Manager:
+  URL: https://localhost/pgadmin4
+  Email: admin@localhost
+  Password: (same as above)
 ```
 
 **Log in with the credentials you created.**
 
-### 7. Complete the Setup Wizard
+### 6. Complete the Setup Wizard
 
-After logging in for the first time, you'll be guided through the **Setup Wizard** to configure:
+After logging into the EAS Station web interface, you'll see the **Setup Wizard** to configure:
 
 1. **Location Settings**
    - County name
    - State code
    - FIPS codes
    - SAME/NWS zone codes
+   - Timezone (default: America/New_York)
 
 2. **Station Identification**
    - Your callsign or station ID
@@ -134,6 +128,27 @@ After logging in for the first time, you'll be guided through the **Setup Wizard
    - GPIO relays
 
 The setup wizard provides helpful explanations and examples for each setting.
+
+**⚠️ Important**: You do NOT need to configure database settings, SECRET_KEY, or other technical options. These were automatically configured during installation.
+
+## Using pgAdmin 4
+
+pgAdmin 4 is automatically installed and configured for database management:
+
+1. **Access pgAdmin**: Navigate to `https://localhost/pgadmin4`
+2. **Login**: Use your administrator email and password
+3. **Add Server** (first time only):
+   - Right-click "Servers" → "Register" → "Server"
+   - **General tab**: Name = "EAS Station"
+   - **Connection tab**:
+     - Host: localhost
+     - Port: 5432
+     - Database: alerts
+     - Username: eas_station
+     - Password: (found in `/opt/eas-station/.env` as POSTGRES_PASSWORD)
+   - Save password: ✓ (optional)
+
+4. **Browse Data**: Explore tables, run queries, view alerts, etc.
 
 ## Post-Installation
 
