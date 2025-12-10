@@ -651,9 +651,19 @@ PGADMIN_CONFIG
     mkdir -p /var/lib/pgadmin/sessions /var/lib/pgadmin/storage
     chown -R www-data:www-data /var/lib/pgadmin
     
-    # Setup pgAdmin database
+    # Setup pgAdmin database using pgAdmin's virtual environment
     cd /usr/pgadmin4/web
-    sudo -u www-data python3 setup.py << SETUP_INPUT
+    
+    # Use pgAdmin's virtual environment Python which has Flask and all dependencies
+    PGADMIN_PYTHON="/usr/pgadmin4/venv/bin/python3"
+    
+    if [ ! -f "$PGADMIN_PYTHON" ]; then
+        echo_warning "pgAdmin virtual environment not found at $PGADMIN_PYTHON"
+        echo_warning "Attempting to use system python3 (may fail if Flask is not installed)"
+        PGADMIN_PYTHON="python3"
+    fi
+    
+    sudo -u www-data "$PGADMIN_PYTHON" setup.py << SETUP_INPUT
 ${ADMIN_EMAIL}
 ${ADMIN_PASSWORD}
 ${ADMIN_PASSWORD}
@@ -671,7 +681,8 @@ User=www-data
 Group=www-data
 WorkingDirectory=/usr/pgadmin4/web
 Environment="PYTHONPATH=/usr/pgadmin4/web"
-ExecStart=/usr/bin/gunicorn \
+# Use pgAdmin's virtual environment gunicorn which has all dependencies
+ExecStart=/usr/pgadmin4/venv/bin/gunicorn \
     --bind unix:/var/run/pgadmin4.sock \
     --workers 2 \
     --timeout 300 \
