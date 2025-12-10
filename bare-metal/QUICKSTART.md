@@ -117,6 +117,22 @@ sudo journalctl -u eas-station-web.service -n 100
 sudo journalctl -u eas-station-*.service -f
 ```
 
+### Upgrade to Latest Version
+
+```bash
+# Automatic update (recommended)
+cd /opt/eas-station
+sudo bash update.sh
+```
+
+The update script automatically:
+- Backs up your installation
+- Pulls latest code
+- Preserves your configuration
+- Updates dependencies
+- Runs database migrations
+- Restarts services
+
 ### Configure SSL (Production)
 
 ```bash

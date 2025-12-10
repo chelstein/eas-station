@@ -10,6 +10,7 @@
   - [Method 2: Build and Deploy ISO](#method-2-build-and-deploy-iso)
 - [Directory Structure](#directory-structure)
 - [Service Management](#service-management)
+- [Upgrading to Latest Version](#upgrading-to-latest-version)
 - [Configuration](#configuration)
 - [Troubleshooting](#troubleshooting)
 
@@ -293,6 +294,94 @@ sudo journalctl -u eas-station-web.service --since today
 # Log files (also available)
 sudo tail -f /var/log/eas-station/web-access.log
 sudo tail -f /var/log/eas-station/web-error.log
+```
+
+## Upgrading to Latest Version
+
+### Automatic Update Script
+
+The easiest way to upgrade to the latest version:
+
+```bash
+# Run the update script
+cd /opt/eas-station
+sudo bash update.sh
+```
+
+The update script will:
+- Create a backup of your installation
+- Stop all services
+- Pull the latest code from Git
+- Preserve your `.env` configuration
+- Update Python dependencies
+- Run database migrations
+- Update systemd service files
+- Restart all services
+
+### Manual Update Process
+
+If you prefer to update manually:
+
+```bash
+# Stop services
+sudo systemctl stop eas-station.target
+
+# Backup your configuration
+sudo cp /opt/eas-station/.env /tmp/eas-station.env.backup
+
+# Pull latest changes
+cd /opt/eas-station
+sudo -u eas-station git fetch origin
+sudo -u eas-station git pull origin main
+
+# Restore configuration
+sudo cp /tmp/eas-station.env.backup /opt/eas-station/.env
+
+# Update Python dependencies
+sudo -u eas-station /opt/eas-station/venv/bin/pip install --upgrade -r requirements.txt
+
+# Run database migrations
+sudo -u eas-station /opt/eas-station/venv/bin/alembic upgrade head
+
+# Update systemd services
+sudo cp /opt/eas-station/bare-metal/systemd/*.service /etc/systemd/system/
+sudo cp /opt/eas-station/bare-metal/systemd/*.target /etc/systemd/system/
+sudo systemctl daemon-reload
+
+# Start services
+sudo systemctl start eas-station.target
+```
+
+### Check Version After Update
+
+To verify your version after updating:
+
+```bash
+# Check via command line
+cd /opt/eas-station
+cat VERSION
+
+# Check git commit
+git log -1 --oneline
+
+# Or check via web interface
+# Navigate to https://your-server/help/version
+```
+
+### Rollback if Needed
+
+If an update causes issues, you can rollback:
+
+```bash
+# Stop services
+sudo systemctl stop eas-station.target
+
+# Restore from backup
+LATEST_BACKUP=$(ls -t /var/backups/eas-station/*.tar.gz | head -1)
+sudo tar -xzf "$LATEST_BACKUP" -C /opt/eas-station
+
+# Start services
+sudo systemctl start eas-station.target
 ```
 
 ## Configuration
