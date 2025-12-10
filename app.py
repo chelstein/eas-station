@@ -855,11 +855,9 @@ def initialize_database():
                     "Radio frequency_correction_ppm column could not be ensured"
                 )
                 return False
+            # Zone catalog is optional - app can start without it
             if not ensure_zone_catalog(logger):
-                _db_initialization_error = RuntimeError(
-                    "NWS zone catalog could not be ensured"
-                )
-                return False
+                logger.warning("NWS zone catalog could not be loaded - continuing without it")
             if not ensure_storage_zone_codes_column(logger):
                 _db_initialization_error = RuntimeError(
                     "Location settings storage_zone_codes column could not be ensured"
