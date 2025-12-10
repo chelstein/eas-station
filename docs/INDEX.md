@@ -110,7 +110,6 @@ If you're new to EAS Station, start here:
 |----------|-------------|
 | [About EAS Station](reference/ABOUT) | Project background |
 | [Changelog](reference/CHANGELOG) | Version history |
-| [Ohio EAS Documentation](reference/OHIO_EAS_DOCUMENTATION) | Ohio EAS system reference |
 | [Diagrams Index](reference/DIAGRAMS) | Visual documentation index |
 | [Release Notes v1.0.0](reference/RELEASE_NOTES_v1.0.0) | Version 1.0.0 release notes |
 | [Feature Roadmap](roadmap/dasdec3-feature-roadmap) | Planned features |
