@@ -10,13 +10,13 @@ This document provides coding standards and guidelines for AI agents (including 
 
 1. **Safety First**: Never commit secrets, API keys, or sensitive data
 2. **Preserve Existing Patterns**: Follow the established code style and architecture
-3. **Test Before Commit**: Always verify changes work in Docker before committing
+3. **Test Before Commit**: Always verify changes work on bare metal before committing
 4. **Focused Changes**: Keep fixes targeted to the specific issue
 5. **Document Changes**: Update relevant documentation when adding features
 6. **Check Bug Screenshots**: When discussing bugs, always check the `/bugs` directory first for screenshots
 7. **Follow Versioning**: Bug fixes increment by 0.0.+1, feature upgrades increment by 0.+1.0
 8. **File Naming Convention**: When superseding files, rename the old one with `_old` suffix, NEVER use `_new` suffix for replacement files
-9. **Repository Organization**: Every file must live in an appropriate directory unless necessary to be in the root (e.g., `requirements.txt`, `Dockerfile`, `README.md`, `LICENSE`, etc.). Documentation, summaries, and development artifacts belong in the `docs/` directory structure.
+9. **Repository Organization**: Every file must live in an appropriate directory unless necessary to be in the root (e.g., `requirements.txt`, `README.md`, `LICENSE`, etc.). Documentation, summaries, and development artifacts belong in the `docs/` directory structure.
 
 ## 🐛 Bug Tracking & Screenshots
 
@@ -560,20 +560,23 @@ except json.JSONDecodeError:
 
 ---
 
-## 🐳 Docker & Deployment
+## 🔧 Bare Metal Deployment & Testing
 
 ### Testing Changes
 
-Before committing, always test in Docker:
+Before committing, always test on bare metal (systemd services):
 
 ```bash
-# Rebuild and test
-sudo docker compose build
-sudo docker compose up -d
-sudo docker compose logs -f app
+# Restart services to apply changes
+sudo systemctl restart eas-station.target
 
-# Check for errors
-sudo docker compose ps
+# Check service status
+sudo systemctl status eas-station.target
+
+# View logs
+sudo journalctl -u eas-station-web.service -f
+
+# Check health
 curl http://localhost:5000/health
 ```
 
@@ -581,103 +584,58 @@ curl http://localhost:5000/health
 
 - **Use `.env.example` as template** - Never commit `.env`
 - **Document new variables** - Add to both `.env.example` and README
-- **Provide sensible defaults** - Make local development easy
+- **Configuration Location**: `/opt/eas-station/.env` (bare metal standard location)
+- **Provide sensible defaults** - Make deployment easy
 
-### Persistent Environment System
+### Configuration System
 
-**CRITICAL CONCEPT**: EAS Station uses a **persistent volume for configuration** that survives container rebuilds, Git pull & redeploy operations, and version upgrades.
+**CRITICAL CONCEPT**: EAS Station uses a **persistent configuration file** at `/opt/eas-station/.env` that survives Git updates and system reboots.
 
 #### How It Works
 
-1. **Persistent Volume**: Docker volume `app-config` is mounted at `/app-config/` inside the container
-2. **Persistent Config File**: Configuration is stored in `/app-config/.env` (not `/app/.env`)
-3. **Setup Wizard**: First-time deployments run the Setup Wizard at `http://localhost/setup` which creates and populates `/app-config/.env`
-4. **Web UI Management**: Users configure settings via the Settings → Environment page, which updates `/app-config/.env`
-5. **Container Startup**: `docker-entrypoint.sh` checks for `/app-config/.env` and loads it into the application environment
+1. **Persistent Config File**: Configuration is stored in `/opt/eas-station/.env`
+2. **Setup Wizard**: First-time installations run the Setup Wizard at `http://localhost/setup` which creates and populates `/opt/eas-station/.env`
+3. **Web UI Management**: Users configure settings via the Settings → Environment page, which updates `/opt/eas-station/.env`
+4. **Service Startup**: Systemd services load environment from `/opt/eas-station/.env` on startup
 
 #### Why This Matters
 
-**Without persistent environment:**
-- ❌ Portainer "Pull and redeploy" would wipe all configuration
-- ❌ Users would need to reconfigure after every Git update
-- ❌ Version upgrades would reset all settings to defaults
-- ❌ Manual editing of Docker Compose files required for config changes
-
-**With persistent environment:**
-- ✅ Configuration survives "Pull and redeploy" operations
-- ✅ Git updates don't affect user configuration
-- ✅ Settings persist across version upgrades
+**Benefits of persistent configuration:**
+- ✅ Configuration survives Git pull operations
+- ✅ Version upgrades don't affect user configuration
+- ✅ Settings persist across system reboots
 - ✅ Users configure via web UI (Settings → Environment)
-- ✅ Setup Wizard only runs once on first deployment
-
-#### Entrypoint Initialization Logic
-
-The `docker-entrypoint.sh` script handles initialization:
-
-```bash
-# If CONFIG_PATH is set (default: /app-config/.env)
-if [ -n "$CONFIG_PATH" ]; then
-    # Create persistent config directory if needed
-    mkdir -p "$(dirname "$CONFIG_PATH")"
-    
-    # If file doesn't exist or is empty, initialize it
-    if [ ! -f "$CONFIG_PATH" ] || [ file is empty ]; then
-        # Transfer environment variables from stack.env to persistent file
-        # This happens ONCE on first deploy
-        echo "SECRET_KEY=${SECRET_KEY:-}" >> "$CONFIG_PATH"
-        echo "POSTGRES_HOST=${POSTGRES_HOST:-alerts-db}" >> "$CONFIG_PATH"
-        # ... all other variables ...
-    fi
-    
-    # Load the persistent config into environment
-    export $(cat "$CONFIG_PATH" | grep -v '^#' | xargs)
-fi
-```
+- ✅ Setup Wizard only runs once on first installation
+- ✅ No container overhead - direct OS access
 
 #### Configuration Flow
 
-**First Deployment (Portainer Git Deploy):**
-1. Stack deployed with `stack.env` environment variables
-2. Container starts, `docker-entrypoint.sh` runs
-3. Creates `/app-config/.env` and copies values from `stack.env`
-4. User visits `http://localhost/setup` to complete configuration
-5. Setup Wizard writes final config to `/app-config/.env`
+**First Installation (Bare Metal):**
+1. Run `sudo bash bare-metal/scripts/install.sh`
+2. Installation creates `/opt/eas-station/.env` with defaults
+3. User visits `http://localhost/setup` to complete configuration
+4. Setup Wizard writes final config to `/opt/eas-station/.env`
+5. Services start: `sudo systemctl start eas-station.target`
 
-**Subsequent Deployments (Pull & Redeploy):**
-1. Portainer pulls latest code from Git
-2. Rebuilds containers with updated code
-3. `docker-entrypoint.sh` finds existing `/app-config/.env`
-4. Loads configuration from persistent file
-5. **User configuration is preserved automatically**
+**Subsequent Updates (Git Pull):**
+1. Stop services: `sudo systemctl stop eas-station.target`
+2. Pull latest code: `git pull origin main`
+3. Restart services: `sudo systemctl restart eas-station.target`
+4. **User configuration in `/opt/eas-station/.env` is preserved automatically**
 
 **Runtime Configuration Changes:**
 1. User navigates to Settings → Environment
 2. Changes a setting (e.g., poll interval from 180 to 300 seconds)
-3. Backend updates `/app-config/.env` file
-4. Restart container to apply: `docker compose restart app`
+3. Backend updates `/opt/eas-station/.env` file
+4. Restart services to apply: `sudo systemctl restart eas-station.target`
 
 #### Variable Precedence
 
 **Priority order (highest to lowest):**
-1. Environment variables set in `docker-compose.yml` `environment:` section
-2. Variables loaded from `/app-config/.env` (persistent config)
-3. Variables from `stack.env` file (only used on first deploy)
+1. Environment variables set in systemd service files (`/etc/systemd/system/eas-station-*.service`)
+2. Variables loaded from `/opt/eas-station/.env` (persistent config)
+3. Variables from `.env` in repository root (development/fallback only)
 4. Hardcoded defaults in Python code
-
-**Example: DATABASE_HOST**
-```yaml
-# docker-compose.yml environment section
-environment:
-  POSTGRES_HOST: ${POSTGRES_HOST:-host.docker.internal}  # From stack.env on first deploy
-
-# First deploy: POSTGRES_HOST=host.docker.internal is written to /app-config/.env
-
-# Pull & redeploy: /app-config/.env still has POSTGRES_HOST=host.docker.internal
-# Configuration is preserved!
-
-# User changes it via web UI to external-db.example.com
-# /app-config/.env now has: POSTGRES_HOST=external-db.example.com
-# Restart applies the change
 ```
 
 #### Auto-Detected vs User-Configured Variables
@@ -849,19 +807,27 @@ Variables are organized into categories in `webapp/admin/environment.py`:
 - **vfd** - VFD display configuration
 - **notifications** - Email and SMS alerts
 - **performance** - Caching and worker settings
-- **docker** - Container and infrastructure settings
+- **systemd** - Service and deployment settings
 - **icecast** - Icecast streaming server configuration
 
 Choose the most appropriate category for your variable, or create a new one if needed.
 
-### Docker Compose Files - CRITICAL
+### Systemd Service Files
 
-**IMPORTANT:** When editing Docker Compose files, you MUST update BOTH files:
+When adding new features that require service-level configuration:
 
-1. **`docker-compose.yml`** - Main compose file
-2. **`docker-compose.embedded-db.yml`** - Embedded database variant
+1. **Update service files** in `bare-metal/systemd/` - Modify environment variables or service settings
+2. **Document changes** in `bare-metal/README.md` - Explain new configuration options
+3. **Test restart behavior** - Ensure services restart correctly with new settings
 
-These files have parallel structure but different configurations (external vs embedded database). Any changes to service definitions, environment variables, ports, volumes, etc. must be applied to **BOTH** files to maintain consistency.
+The main service files are:
+- `eas-station-web.service` - Main web application
+- `eas-station-sdr.service` - SDR hardware service
+- `eas-station-audio.service` - Audio processing service
+- `eas-station-eas.service` - EAS monitoring service
+- `eas-station-hardware.service` - Hardware control (GPIO, displays)
+- `eas-station-noaa-poller.service` - NOAA alert poller
+- `eas-station-ipaws-poller.service` - IPAWS alert poller
 
 ---
 
@@ -1079,10 +1045,10 @@ def process_alerts(alert_ids=None):
 Before committing changes:
 
 - [ ] Code passes Python syntax check: `python3 -m py_compile app.py`
-- [ ] Docker build succeeds: `sudo docker compose build`
-- [ ] Application starts without errors: `sudo docker compose up -d`
+- [ ] Services restart successfully: `sudo systemctl restart eas-station.target`
+- [ ] All services running: `sudo systemctl status eas-station.target`
 - [ ] Health check passes: `curl http://localhost:5000/health`
-- [ ] Logs show no errors: `sudo docker compose logs -f app`
+- [ ] Logs show no errors: `sudo journalctl -u eas-station-web.service -n 50`
 - [ ] UI tested in browser (light and dark mode)
 - [ ] Database queries work as expected
 
@@ -1100,12 +1066,12 @@ Before committing changes:
 
 ### Adding New Dependencies
 
-**CRITICAL**: When adding ANY new dependency to the project (Python libraries, system packages, Docker images, or infrastructure programs), you MUST update the documentation.
+**CRITICAL**: When adding ANY new dependency to the project (Python libraries, system packages, or infrastructure programs), you MUST update the documentation.
 
 #### For Python Dependencies:
 
 1. **Add to `requirements.txt`** - Include version pin
-2. **Test in Docker** - Rebuild and verify
+2. **Test installation** - Verify with `pip install -r requirements.txt`
 3. **Update attribution** - Add to `docs/reference/dependency_attribution.md`
 4. **Document if needed** - Update README if it affects users
 5. **Keep minimal** - Only add if truly necessary
@@ -1128,13 +1094,14 @@ pyshp==2.3.1  # Shapefile reader for converting boundary files to GeoJSON
 
 #### For System Packages and Infrastructure Components:
 
-When adding system packages (apt/yum), Docker images, or infrastructure programs (nginx, certbot, redis, etc.):
+When adding system packages (apt/yum) or infrastructure programs (nginx, certbot, redis, etc.):
 
-1. **Update Dockerfile or docker-compose.yml** - Add the package/service
+1. **Update installation script** - Add to `bare-metal/scripts/install.sh`
 2. **Update `docs/reference/dependency_attribution.md`** - Add to "System Package Dependencies" section
    - Package name and version
    - Purpose and what it's used for
    - License information
+3. **Test on clean system** - Verify installation script works end-to-end
    - Whether it's required or optional
 3. **Update `docs/reference/SYSTEM_DEPENDENCIES.md`** if it exists
 4. **Create deployment documentation** - Explain how it works and why it's needed
@@ -1276,7 +1243,7 @@ For quick navigation and understanding of the codebase structure, refer to the c
 - Display Screens page issues
 - Environment Settings page issues
 - GPIO configuration parsing issues
-- Docker/Portainer deployment issues
+- Deployment and service management issues
 
 **Before starting any work:**
 1. Check [docs/reference/KNOWN_BUGS.md](../reference/KNOWN_BUGS) to see if your issue is already documented
@@ -1297,9 +1264,10 @@ For quick navigation and understanding of the codebase structure, refer to the c
 - [GeoJSON Specification](https://geojson.org/)
 - [GeoAlchemy2 Documentation](https://geoalchemy-2.readthedocs.io/)
 
-### Docker
-- [Docker Compose Documentation](https://docs.docker.com/compose/)
-- [Dockerfile Best Practices](https://docs.docker.com/develop/dev-best-practices/)
+### System Administration
+- [Systemd Service Management](https://www.freedesktop.org/software/systemd/man/systemd.service.html)
+- [Systemd Unit Files](https://www.freedesktop.org/software/systemd/man/systemd.unit.html)
+- [PostgreSQL Administration](https://www.postgresql.org/docs/current/admin.html)
 
 ---
 
@@ -1422,7 +1390,7 @@ Only suggest deployment/cache fixes if:
 
 1. **Code inspection confirms the fix is correct** - No overrides, no bugs found
 2. **User is on an older commit** - `git log` shows they haven't pulled latest
-3. **Container timestamp is old** - `docker images` shows stale build time
+3. **Services haven't been restarted** - Changes not applied to running services
 4. **First time suggesting it** - Don't repeat the same suggestion
 
 ### Documentation Standard
