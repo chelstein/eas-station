@@ -6,6 +6,12 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.19.8] - 2025-12-10
+### Fixed
+  - Fixed database initialization failure when NOAA zone catalog file is missing - zone catalog is now optional
+  - Updated nginx configuration to use new `http2 on;` directive instead of deprecated `listen ... http2` syntax
+  - Application can now start successfully without the z_05mr24.dbf zone catalog file
+
 ## [2.19.7] - 2025-12-10
 ### Fixed
   - Fixed pgAdmin4 installation to prevent apache2 from being installed as a dependency
