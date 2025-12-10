@@ -35,6 +35,33 @@ from app_core.zones import ensure_zone_catalog, clear_zone_lookup_cache, get_zon
 from app_core.auth.roles import require_permission
 from app_utils.zone_catalog import iter_zone_records
 
+
+def _get_zone_catalog_path() -> Path:
+    """Get the zone catalog path using smart resolution.
+    
+    Priority order:
+    1. NWS_ZONE_DBF_PATH from app config (if set and exists)
+    2. Auto-detect any .dbf file in assets/ directory
+    3. Fall back to default assets/z_18mr25.dbf (may not exist)
+    """
+    config_path = current_app.config.get('NWS_ZONE_DBF_PATH')
+    
+    if config_path:
+        config_path_obj = Path(config_path)
+        if config_path_obj.exists():
+            return config_path_obj
+    
+    # Auto-detect: look for any .dbf file in assets directory
+    assets_dir = Path("assets")
+    if assets_dir.exists() and assets_dir.is_dir():
+        dbf_files = sorted(assets_dir.glob("*.dbf"), reverse=True)
+        if dbf_files:
+            return dbf_files[0]
+    
+    # Fall back to default
+    return Path("assets/z_18mr25.dbf")
+
+
 logger = logging.getLogger(__name__)
 
 # Create Blueprint for zone management routes
@@ -46,8 +73,8 @@ zones_bp = Blueprint('zones_admin', __name__)
 def zone_management():
     """Display zone catalog management page."""
     try:
-        # Get current zone catalog info
-        zone_path = Path(current_app.config.get('NWS_ZONE_DBF_PATH', 'assets/z_18mr25.dbf'))
+        # Get current zone catalog info using smart path resolution
+        zone_path = _get_zone_catalog_path()
         zone_exists = zone_path.exists()
         
         # Get zone statistics
@@ -66,10 +93,12 @@ def zone_management():
         )
     except Exception as e:
         logger.error(f"Error loading zone management page: {e}")
+        # Use smart path resolution for error case too
+        fallback_path = _get_zone_catalog_path()
         return render_template(
             'admin/zones.html',
-            zone_path='assets/z_18mr25.dbf',
-            zone_exists=False,
+            zone_path=str(fallback_path),
+            zone_exists=fallback_path.exists(),
             zone_count=0,
             cached_count=0,
             error=str(e)
@@ -81,7 +110,7 @@ def zone_management():
 def zone_info():
     """Get zone catalog information."""
     try:
-        zone_path = Path(current_app.config.get('NWS_ZONE_DBF_PATH', 'assets/z_18mr25.dbf'))
+        zone_path = _get_zone_catalog_path()
         zone_exists = zone_path.exists()
         
         info = {

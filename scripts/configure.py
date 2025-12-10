@@ -80,8 +80,9 @@ class Config:
     NOAA_CAP_POLL_INTERVAL = int(os.environ.get('CAP_POLL_INTERVAL', 300))  # 5 minutes
     NOAA_CAP_TIMEOUT = int(os.environ.get('CAP_TIMEOUT', 30))  # 30 seconds
 
-    # NOAA zone catalog
-    NWS_ZONE_DBF_PATH = os.environ.get('NWS_ZONE_DBF_PATH', 'assets/z_18mr25.dbf')
+    # NOAA zone catalog - uses auto-detection if not explicitly set
+    # Path resolution: env var → auto-detect in assets/ → fallback to assets/z_18mr25.dbf
+    NWS_ZONE_DBF_PATH = os.environ.get('NWS_ZONE_DBF_PATH')
 
     # Logging settings
     LOG_LEVEL = os.environ.get('LOG_LEVEL', 'INFO')
