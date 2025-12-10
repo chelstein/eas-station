@@ -10,13 +10,14 @@ This document provides coding standards and guidelines for AI agents (including 
 
 1. **Safety First**: Never commit secrets, API keys, or sensitive data
 2. **Preserve Existing Patterns**: Follow the established code style and architecture
-3. **Test Before Commit**: Always verify changes work on bare metal before committing
-4. **Focused Changes**: Keep fixes targeted to the specific issue
-5. **Document Changes**: Update relevant documentation when adding features
-6. **Check Bug Screenshots**: When discussing bugs, always check the `/bugs` directory first for screenshots
-7. **Follow Versioning**: Bug fixes increment by 0.0.+1, feature upgrades increment by 0.+1.0
-8. **File Naming Convention**: When superseding files, rename the old one with `_old` suffix, NEVER use `_new` suffix for replacement files
-9. **Repository Organization**: Every file must live in an appropriate directory unless necessary to be in the root (e.g., `requirements.txt`, `README.md`, `LICENSE`, etc.). Documentation, summaries, and development artifacts belong in the `docs/` directory structure.
+3. **Frontend-First Philosophy**: ALL system management, configuration, and monitoring MUST be accessible through the web UI. Users should NEVER need CLI access. Any feature requiring CLI commands must have a web UI equivalent.
+4. **Test Before Commit**: Always verify changes work on bare metal before committing
+5. **Focused Changes**: Keep fixes targeted to the specific issue
+6. **Document Changes**: Update relevant documentation when adding features
+7. **Check Bug Screenshots**: When discussing bugs, always check the `/bugs` directory first for screenshots
+8. **Follow Versioning**: Bug fixes increment by 0.0.+1, feature upgrades increment by 0.+1.0
+9. **File Naming Convention**: When superseding files, rename the old one with `_old` suffix, NEVER use `_new` suffix for replacement files
+10. **Repository Organization**: Every file must live in an appropriate directory unless necessary to be in the root (e.g., `requirements.txt`, `README.md`, `LICENSE`, etc.). Documentation, summaries, and development artifacts belong in the `docs/` directory structure.
 
 ## 🐛 Bug Tracking & Screenshots
 
@@ -116,6 +117,68 @@ When implementing ANY new feature:
    - All CRUD operations (Create, Read, Update, Delete) have UI buttons/forms
 
 **Remember**: If a user cannot access a feature through the web interface, the feature doesn't exist for them. Backend-only work is wasted effort.
+
+### **💻 CLI-Free Operations: Everything Must Be Web Accessible**
+
+**GOAL**: Users should NEVER need to SSH into the server or use command-line tools. Everything must be manageable through the web UI.
+
+**Required Web UI Access For:**
+
+1. **System Management**
+   - ✅ View system logs (via `/system-logs` - uses journalctl backend)
+   - ✅ Restart services (via Admin → Services - uses systemd backend)
+   - ✅ View service status (via Dashboard/Monitoring)
+   - ✅ Update configuration (via Admin → Environment/Settings)
+   - ✅ Backup/Restore system (via Admin → Backup)
+
+2. **Log Viewing**
+   - ✅ **Already Implemented**: `webapp/routes_logs.py` provides systemd journal access
+   - ✅ Users can view logs for all services via web UI
+   - ✅ Filter by priority (error, warning, info, debug)
+   - ✅ Filter by time range
+   - ❌ **NEVER** require users to run `journalctl`, `tail -f`, or `docker logs`
+
+3. **Configuration Management**
+   - ✅ **Already Implemented**: Admin → Environment page edits `.env` file
+   - ✅ All environment variables editable through web form
+   - ❌ **NEVER** require users to edit files with `nano`, `vi`, or `vim`
+
+4. **Service Control**
+   - ✅ Start/stop/restart services through UI
+   - ✅ View service health and status
+   - ❌ **NEVER** require `systemctl` commands
+
+5. **Database Management**
+   - ✅ View database metrics through UI
+   - ✅ Backup/restore through UI
+   - ❌ **NEVER** require `psql` commands or SQL scripts
+
+6. **Troubleshooting**
+   - ✅ Diagnostics accessible through web UI
+   - ✅ Health checks visible on dashboard
+   - ❌ **NEVER** require diagnostic scripts to be run from CLI
+
+**When Adding New Features:**
+
+- ❓ "Does this require CLI access?" → Add a web UI for it
+- ❓ "Can users accomplish this task without SSH?" → If no, add web UI
+- ❓ "Would users need to read documentation to do this?" → Make it discoverable in the UI
+
+**Examples of Correct Implementation:**
+
+```python
+# ❌ WRONG: Telling users to run CLI commands
+flash("Please run: sudo systemctl restart eas-station-web.service")
+
+# ✅ CORRECT: Providing a button to restart
+<button onclick="restartService('eas-station-web')">Restart Service</button>
+```
+
+**Documentation Standards:**
+
+- Documentation can reference advanced CLI usage for power users
+- But PRIMARY instructions must always show web UI path
+- Example: "To restart services, go to Admin → Services and click 'Restart'"
 
 ### Modularity & File Size
 

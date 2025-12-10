@@ -40,7 +40,7 @@ sudo bash install.sh
 
 #### 4. **Application Installation** (30-60 seconds)
 - Copies entire repository to `/opt/eas-station`
-- Excludes: .git, Docker files, __pycache__, .pyc files
+- Excludes: .git, __pycache__, .pyc files
 - Preserves: All application code, scripts, templates, static files
 - Sets ownership to `eas-station:eas-station`
 
@@ -158,7 +158,7 @@ The application uses `.env` because:
 |---------|------|------|
 | Flask/Django support | ✅ Native | ❌ Custom parser needed |
 | Environment variables | ✅ Automatic | ❌ Manual loading |
-| Docker/Compose | ✅ Native | ❌ Not supported |
+| Systemd integration | ✅ Native | ⚠️ Requires conversion |
 | IDE support | ✅ Built-in | ⚠️ Generic |
 | Industry standard | ✅ Yes | ⚠️ For INI files |
 | Secret management | ✅ Common | ⚠️ Less common |

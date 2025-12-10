@@ -1,12 +1,15 @@
 # Audio Squeal Fix - Comprehensive Guide
 
+> **Note**: This guide is for legacy Docker-based deployments. Modern bare-metal installations do not have this issue.
+> See [legacy/](../../legacy/) directory for Docker-era troubleshooting scripts.
+
 ## Problem
 
 All Icecast streams producing high-pitched squeal instead of normal audio. This affects:
 - **SDR streams** (FM/AM radio from RTL-SDR, etc.)
 - **HTTP streams** (iHeart, other internet radio)
 
-Issue appeared after moving audio service to separate container.
+Issue appeared in Docker-based deployments after moving audio service to separate container.
 
 ## Root Cause
 
@@ -204,11 +207,11 @@ Should show:
 
 If you discover additional sample rate issues or have improvements to the detection logic, please submit a PR!
 
-## Related Files
+## Related Files (Legacy Docker Scripts)
 
-- `fix-audio-squeal.sh` - Main interactive fix script
-- `diagnose_all_streams.sql` - Diagnostic query
-- `fix_all_stream_sample_rates.sql` - SQL fix with safe defaults
-- `detect_stream_sample_rates.sh` - Auto-detect HTTP stream rates
-- `fix_audio_squeal.py` - Python diagnostic tool
-- `fix_sample_rates.sql` - Legacy SDR-only fix (deprecated)
+> **Note**: These files are for Docker-based deployments only and are located in the [legacy/](../../legacy/) directory.
+
+- `legacy/fix-audio-squeal.sh` - Main interactive fix script (Docker)
+- `legacy/detect_stream_sample_rates.sh` - Auto-detect HTTP stream rates (Docker)
+- `legacy/fix_all_audio_issues.sh` - Comprehensive fix script (Docker)
+- `legacy/fix_all_audio_issues_standalone.sh` - Standalone version (Docker)
