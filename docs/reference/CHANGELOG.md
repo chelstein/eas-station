@@ -6,6 +6,35 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.18.0] - 2025-12-10
+### Changed
+- **BREAKING: Removed Docker/Container Support** - EAS Station is now a bare metal-only application
+  - Removed all Dockerfile and docker-compose.yml files
+  - Removed docker-entrypoint.sh and container-specific scripts
+  - Removed stack.env and Docker environment configuration
+  - Archived Docker-specific documentation (Portainer, tmpfs guides) to `legacy/archived-docker-docs/`
+  - Updated README.md to focus on bare metal deployment via systemd services
+  - Updated agent instructions (AGENTS.md) to use systemd instead of Docker commands
+  - Configuration now uses `/opt/eas-station/.env` as standard location
+  - Services managed via systemd: `sudo systemctl [start|stop|restart] eas-station.target`
+
+### Removed
+- Docker Compose files: `docker-compose.yml`, `docker-compose.embedded-db.yml`, `docker-compose.pi.yml`, `docker-compose.separated.yml`, `docker-compose.icecast.yml`
+- Dockerfiles: `Dockerfile`, `Dockerfile.nginx`, `Dockerfile.icecast`, `.dockerignore`
+- Docker entrypoint scripts: `docker-entrypoint.sh`, `docker-entrypoint-icecast.sh`
+- Stack configuration: `stack.env`, `stack.env.example`
+- Docker examples: `examples/docker-compose/` directory
+
+### Fixed
+- Updated code references from Docker-specific patterns to bare metal equivalents
+- Backup/restore tools now target `/opt/eas-station/.env` instead of Docker volumes
+- Maintenance API uses standard filesystem paths instead of container paths
+
+### Migration
+- Existing Docker users should follow the migration guide in `bare-metal/MIGRATION_FROM_DOCKER.md`
+- Complete installation guide available in `bare-metal/README.md`
+- Quick start guide available in `bare-metal/QUICKSTART.md`
+
 ## [2.17.2] - 2025-12-09
 ### Fixed
 - **EAS Monitor Display Issues**: Fixed decoding rates showing >100% and display bouncing between states
