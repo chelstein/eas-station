@@ -6,6 +6,13 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.19.5] - 2025-12-10
+### Fixed
+  - Fixed PostgreSQL authentication configuration in `install.sh` to allow password-based connections
+  - Added `pg_hba.conf` configuration to enable `scram-sha-256` authentication for `eas_station` user
+  - Updated `scripts/database/fix_database_permissions.sh` to also configure PostgreSQL authentication
+  - Resolves "password authentication failed for user eas_station" errors during installation
+
 ## [2.19.4] - 2025-12-10
 ### Changed
   - Updated architecture documentation to reflect bare-metal systemd deployment

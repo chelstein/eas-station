@@ -278,6 +278,61 @@ echo_info "Configuring PostgreSQL..."
 systemctl enable postgresql
 systemctl start postgresql
 
+# Configure PostgreSQL authentication to allow password-based connections
+echo_info "Configuring PostgreSQL authentication (pg_hba.conf)..."
+
+# Detect PostgreSQL version to find the correct pg_hba.conf location
+PG_VERSION=$(sudo -u postgres psql -tAc "SELECT version();" | grep -oP 'PostgreSQL \K[0-9]+' | head -1)
+if [ -z "$PG_VERSION" ]; then
+    # Fallback: try common versions
+    for v in 17 16 15 14 13; do
+        if [ -d "/etc/postgresql/$v" ]; then
+            PG_VERSION=$v
+            break
+        fi
+    done
+fi
+
+if [ -n "$PG_VERSION" ]; then
+    PG_HBA_CONF="/etc/postgresql/$PG_VERSION/main/pg_hba.conf"
+    
+    if [ -f "$PG_HBA_CONF" ]; then
+        echo_info "Found pg_hba.conf at: $PG_HBA_CONF"
+        
+        # Backup the original pg_hba.conf
+        if [ ! -f "${PG_HBA_CONF}.backup" ]; then
+            cp "$PG_HBA_CONF" "${PG_HBA_CONF}.backup"
+            echo_info "Backed up pg_hba.conf to ${PG_HBA_CONF}.backup"
+        fi
+        
+        # Check if eas_station authentication rule already exists
+        if ! grep -q "^host.*alerts.*eas_station.*md5" "$PG_HBA_CONF" && \
+           ! grep -q "^host.*alerts.*eas_station.*scram-sha-256" "$PG_HBA_CONF"; then
+            
+            # Add authentication rule for eas_station user
+            # Insert before the first "local all" line to ensure it takes precedence
+            sed -i '/^# TYPE.*DATABASE.*USER.*ADDRESS.*METHOD/a\
+# EAS Station authentication (added by install.sh)\
+host    alerts          eas_station     127.0.0.1/32            scram-sha-256\
+host    alerts          eas_station     ::1/128                 scram-sha-256' "$PG_HBA_CONF"
+            
+            echo_info "Added authentication rules for eas_station user"
+            
+            # Reload PostgreSQL to apply changes
+            systemctl reload postgresql
+            echo_success "PostgreSQL authentication configured and reloaded"
+        else
+            echo_info "Authentication rule for eas_station already exists"
+        fi
+    else
+        echo_warning "pg_hba.conf not found at expected location: $PG_HBA_CONF"
+        echo_warning "You may need to configure PostgreSQL authentication manually"
+    fi
+else
+    echo_warning "Could not detect PostgreSQL version"
+    echo_warning "You may need to configure pg_hba.conf manually"
+fi
+
 # Create database and user with the password collected earlier
 sudo -u postgres psql -tc "SELECT 1 FROM pg_database WHERE datname = 'alerts'" | grep -q 1 || \
     sudo -u postgres psql -c "CREATE DATABASE alerts;"
