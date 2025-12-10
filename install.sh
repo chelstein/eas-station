@@ -188,6 +188,21 @@ sudo -u postgres psql -tc "SELECT 1 FROM pg_database WHERE datname = 'alerts'" |
 sudo -u postgres psql -tc "SELECT 1 FROM pg_user WHERE usename = 'eas_station'" | grep -q 1 || \
     sudo -u postgres psql -c "CREATE USER eas_station WITH PASSWORD 'changeme123';"
 sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE alerts TO eas_station;"
+
+# Grant schema privileges (required for PostgreSQL 15+)
+sudo -u postgres psql -d alerts -c "GRANT ALL ON SCHEMA public TO eas_station;"
+sudo -u postgres psql -d alerts -c "GRANT CREATE ON SCHEMA public TO eas_station;"
+sudo -u postgres psql -d alerts -c "ALTER SCHEMA public OWNER TO eas_station;"
+
+# Grant privileges on all existing tables and sequences (if any)
+sudo -u postgres psql -d alerts -c "GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO eas_station;"
+sudo -u postgres psql -d alerts -c "GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO eas_station;"
+
+# Grant default privileges for future tables and sequences
+sudo -u postgres psql -d alerts -c "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO eas_station;"
+sudo -u postgres psql -d alerts -c "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO eas_station;"
+
+# Create PostGIS extensions
 sudo -u postgres psql -d alerts -c "CREATE EXTENSION IF NOT EXISTS postgis;"
 sudo -u postgres psql -d alerts -c "CREATE EXTENSION IF NOT EXISTS postgis_topology;"
 
