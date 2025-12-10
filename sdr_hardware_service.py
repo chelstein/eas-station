@@ -814,7 +814,7 @@ def main():
             logger.error("  - NumPy (python3-numpy)")
             logger.error("  - USB device access (/dev/bus/usb)")
             logger.error("")
-            logger.error("Check Dockerfile to ensure dependencies are installed correctly.")
+            logger.error("Install dependencies: sudo apt install python3-soapysdr python3-numpy")
             logger.error("=" * 80)
             return 1
         logger.info("=" * 80)

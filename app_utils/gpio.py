@@ -261,15 +261,13 @@ def _explain_environment_issue(detail: str) -> Optional[str]:
     if "/dev/gpiomem" in lowered or "/dev/mem" in lowered:
         return (
             "Process cannot open /dev/gpiomem. Run the service as root or add the "
-            "container user to the gpio group and expose /dev/gpiomem when running "
-            "inside Docker."
+            "service user to the gpio group: sudo usermod -a -G gpio eas-station"
         )
 
     if "permission denied" in lowered and "/sys/class/gpio" in lowered:
         return (
             "Kernel sysfs GPIO interface is present but permission denied. Ensure "
-            "the process has write access to /sys/class/gpio or run the container "
-            "with --privileged."
+            "the service user has write access to /sys/class/gpio or run as root."
         )
 
     if "read-only file system" in lowered and "/sys/class/gpio" in lowered:

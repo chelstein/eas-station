@@ -125,8 +125,8 @@ def initialize_database():
     # Create minimal Flask app for database access
     app = Flask(__name__)
 
-    # Database configuration (container-aware defaults)
-    postgres_host = os.getenv("POSTGRES_HOST", "alerts-db")  # Default to Docker service name
+    # Database configuration (bare-metal defaults)
+    postgres_host = os.getenv("POSTGRES_HOST", "localhost")  # Default to localhost
     postgres_port = os.getenv("POSTGRES_PORT", "5432")
     postgres_db = os.getenv("POSTGRES_DB", "alerts")
     postgres_user = os.getenv("POSTGRES_USER", "postgres")

@@ -124,8 +124,8 @@ def main():
             elif len(radio_manager._receivers) == 0 and len(enabled_receivers) > 0:
                 # In separated architecture, RadioManager runs in audio-service process
                 print("   ℹ Status: Radio processing handled by audio-service process")
-                print("   → In Docker: SDR receivers run in the SDR hardware service process")
-                print("   → Check the audio-service/SDR hardware service process logs for status")
+                print("   → SDR receivers run in the SDR hardware service process")
+                print("   → Check service logs: journalctl -u eas-station-sdr-hardware.service -f")
             elif len(radio_manager._receivers) == 0:
                 print("   ℹ Status: No receivers configured or enabled")
                 print("   → Add receivers at /settings/radio to get started")

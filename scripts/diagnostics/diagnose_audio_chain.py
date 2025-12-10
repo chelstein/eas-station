@@ -289,14 +289,14 @@ To fix the audio chain for LP1, LP2, and SP1:
    - Audio sources should have `source_type='sdr'` and `managed_by='radio'` in config_params
    - Audio sources should have matching `receiver_id` in device_params
 
-3. **Verify sdr-service is Publishing:**
-   - Check if SDR hardware service process is running: `docker ps | grep sdr-service`
-   - Check sdr-service logs: `docker logs eas-sdr-service`
-   - Verify receivers are started in sdr-service
+3. **Verify SDR Hardware Service is Publishing:**
+   - Check if SDR hardware service is running: `systemctl status eas-station-sdr-hardware.service`
+   - Check service logs: `journalctl -u eas-station-sdr-hardware.service -n 100`
+   - Verify receivers are started in SDR hardware service
 
-4. **Verify audio-service is Receiving:**
-   - Check if audio-service process is running: `docker ps | grep audio-service`
-   - Check audio-service logs: `docker logs eas-audio-service`
+4. **Verify Audio Service is Receiving:**
+   - Check if audio service is running: `systemctl status eas-station-audio.service`
+   - Check service logs: `journalctl -u eas-station-audio.service -n 100`
    - Look for "✅ Loaded Redis SDR source" messages
 
 5. **Check EAS Monitor:**
