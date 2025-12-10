@@ -63,6 +63,55 @@ if ! sudo -u postgres psql -tc "SELECT 1 FROM pg_user WHERE usename = '$DB_USER'
     exit 1
 fi
 
+# Configure PostgreSQL authentication (pg_hba.conf) if needed
+echo_info "Checking PostgreSQL authentication configuration..."
+
+# Detect PostgreSQL version to find the correct pg_hba.conf location
+PG_VERSION=$(sudo -u postgres psql -tAc "SELECT version();" | grep -oP 'PostgreSQL \K[0-9]+' | head -1)
+if [ -z "$PG_VERSION" ]; then
+    # Fallback: try common versions
+    for v in 17 16 15 14 13; do
+        if [ -d "/etc/postgresql/$v" ]; then
+            PG_VERSION=$v
+            break
+        fi
+    done
+fi
+
+if [ -n "$PG_VERSION" ]; then
+    PG_HBA_CONF="/etc/postgresql/$PG_VERSION/main/pg_hba.conf"
+    
+    if [ -f "$PG_HBA_CONF" ]; then
+        # Backup the original pg_hba.conf
+        if [ ! -f "${PG_HBA_CONF}.backup" ]; then
+            cp "$PG_HBA_CONF" "${PG_HBA_CONF}.backup"
+            echo_info "Backed up pg_hba.conf to ${PG_HBA_CONF}.backup"
+        fi
+        
+        # Check if eas_station authentication rule already exists
+        if ! grep -q "^host.*alerts.*eas_station.*md5" "$PG_HBA_CONF" && \
+           ! grep -q "^host.*alerts.*eas_station.*scram-sha-256" "$PG_HBA_CONF"; then
+            
+            echo_info "Adding authentication rules for eas_station user..."
+            # Insert before the first "local all" line to ensure it takes precedence
+            sed -i '/^# TYPE.*DATABASE.*USER.*ADDRESS.*METHOD/a\
+# EAS Station authentication (added by fix_database_permissions.sh)\
+host    alerts          eas_station     127.0.0.1/32            scram-sha-256\
+host    alerts          eas_station     ::1/128                 scram-sha-256' "$PG_HBA_CONF"
+            
+            # Reload PostgreSQL to apply changes
+            systemctl reload postgresql
+            echo_success "PostgreSQL authentication configured and reloaded"
+        else
+            echo_info "Authentication rule for eas_station already exists"
+        fi
+    else
+        echo_warning "pg_hba.conf not found at expected location: $PG_HBA_CONF"
+    fi
+else
+    echo_warning "Could not detect PostgreSQL version"
+fi
+
 echo_info "Granting schema privileges (required for PostgreSQL 15+)..."
 sudo -u postgres psql -d "$DB_NAME" -c "GRANT ALL ON SCHEMA public TO $DB_USER;" || echo_warning "Failed to grant schema privileges"
 sudo -u postgres psql -d "$DB_NAME" -c "GRANT CREATE ON SCHEMA public TO $DB_USER;" || echo_warning "Failed to grant CREATE privilege"

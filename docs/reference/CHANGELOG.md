@@ -6,6 +6,24 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.19.6] - 2025-12-10
+### Changed
+  - Enhanced install.sh with improved visual design and user experience
+  - Added colorful banner, progress indicators, and step counters
+  - Enhanced completion message with detailed component access instructions
+  - Added comprehensive post-installation checklist with actionable items
+  - Improved readability with emoji icons, better spacing, and color-coded sections
+  - Added detailed connection instructions for all components (web UI, pgAdmin, PostgreSQL, Redis)
+  - Included useful commands for backup, restore, SSL setup, and troubleshooting
+  - Suppressed verbose output from package installations for cleaner display
+
+## [2.19.5] - 2025-12-10
+### Fixed
+  - Fixed PostgreSQL authentication configuration in `install.sh` to allow password-based connections
+  - Added `pg_hba.conf` configuration to enable `scram-sha-256` authentication for `eas_station` user
+  - Updated `scripts/database/fix_database_permissions.sh` to also configure PostgreSQL authentication
+  - Resolves "password authentication failed for user eas_station" errors during installation
+
 ## [2.19.4] - 2025-12-10
 ### Changed
   - Updated architecture documentation to reflect bare-metal systemd deployment

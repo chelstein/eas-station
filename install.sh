@@ -5,36 +5,89 @@
 
 set -e  # Exit on error
 
-# Color output
+# Color output (enhanced palette)
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
+MAGENTA='\033[0;35m'
+CYAN='\033[0;36m'
+WHITE='\033[1;37m'
+BOLD='\033[1m'
+DIM='\033[2m'
 NC='\033[0m' # No Color
 
+# Step counter for progress tracking
+STEP_NUM=0
+TOTAL_STEPS=15
+
+echo_step() {
+    STEP_NUM=$((STEP_NUM + 1))
+    echo ""
+    echo -e "${BOLD}${CYAN}════════════════════════════════════════════════════════════════${NC}"
+    echo -e "${BOLD}${WHITE}  Step ${STEP_NUM}/${TOTAL_STEPS}: $1${NC}"
+    echo -e "${BOLD}${CYAN}════════════════════════════════════════════════════════════════${NC}"
+    echo ""
+}
+
 echo_info() {
-    echo -e "${BLUE}[INFO]${NC} $1"
+    echo -e "${BLUE}ℹ️  [INFO]${NC} $1"
 }
 
 echo_success() {
-    echo -e "${GREEN}[SUCCESS]${NC} $1"
+    echo -e "${GREEN}✓  [SUCCESS]${NC} $1"
 }
 
 echo_warning() {
-    echo -e "${YELLOW}[WARNING]${NC} $1"
+    echo -e "${YELLOW}⚠️  [WARNING]${NC} $1"
 }
 
 echo_error() {
-    echo -e "${RED}[ERROR]${NC} $1"
+    echo -e "${RED}✗  [ERROR]${NC} $1"
 }
+
+echo_progress() {
+    echo -e "${MAGENTA}▶  ${NC}$1"
+}
+
+echo_header() {
+    echo ""
+    echo -e "${BOLD}${CYAN}╔════════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${BOLD}${CYAN}║${NC}${BOLD}${WHITE}  $1${NC}"
+    echo -e "${BOLD}${CYAN}╚════════════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+}
+
+# Display installation banner
+clear
+echo -e "${BOLD}${CYAN}"
+cat << "EOF"
+╔═══════════════════════════════════════════════════════════════════════╗
+║                                                                       ║
+║              📡  EAS STATION INSTALLATION WIZARD  📡                  ║
+║                                                                       ║
+║           Emergency Alert System Monitoring & Broadcasting           ║
+║                     Bare Metal Installation                           ║
+║                                                                       ║
+╚═══════════════════════════════════════════════════════════════════════╝
+EOF
+echo -e "${NC}"
+echo ""
+echo -e "${DIM}Copyright (c) 2025 Timothy Kramer (KR8MER)${NC}"
+echo -e "${DIM}Licensed under AGPL v3 or Commercial License${NC}"
+echo ""
 
 # Check if running as root
 if [ "$EUID" -ne 0 ]; then
     echo_error "This script must be run as root (use sudo)"
+    echo ""
+    echo -e "${YELLOW}Please run:${NC} ${BOLD}sudo ./install.sh${NC}"
+    echo ""
     exit 1
 fi
 
-echo_info "Starting EAS Station bare metal installation..."
+echo_success "Running with root privileges"
+echo ""
 
 # Configuration variables
 INSTALL_DIR="/opt/eas-station"
@@ -44,16 +97,18 @@ VENV_DIR="${INSTALL_DIR}/venv"
 LOG_DIR="/var/log/eas-station"
 CONFIG_FILE="${INSTALL_DIR}/.env"
 
+echo_step "System Detection"
+
 # Detect system architecture
 ARCH=$(uname -m)
-echo_info "Detected architecture: $ARCH"
+echo_info "Architecture: ${BOLD}$ARCH${NC}"
 
 # Detect OS
 if [ -f /etc/os-release ]; then
     . /etc/os-release
     OS=$ID
     OS_VERSION=$VERSION_ID
-    echo_info "Detected OS: $OS $OS_VERSION"
+    echo_info "Operating System: ${BOLD}$OS $OS_VERSION${NC}"
 else
     echo_error "Cannot detect OS. /etc/os-release not found."
     exit 1
@@ -61,29 +116,32 @@ fi
 
 # Check if Debian/Ubuntu based
 if [ "$OS" != "debian" ] && [ "$OS" != "ubuntu" ] && [ "$OS" != "raspbian" ]; then
-    echo_warning "This script is designed for Debian/Ubuntu. Your OS is: $OS"
-    read -p "Do you want to continue anyway? (y/N) " -n 1 -r
+    echo ""
+    echo_warning "This script is designed for Debian/Ubuntu. Your OS is: ${BOLD}$OS${NC}"
+    echo ""
+    read -p "$(echo -e ${YELLOW}Do you want to continue anyway? [y/N]:${NC} )" -n 1 -r
     echo
     if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        echo_info "Installation cancelled by user"
         exit 1
     fi
 fi
+
+echo_success "System detection complete"
 
 # ====================================================================
 # COLLECT MINIMAL CONFIGURATION
 # ====================================================================
 
-echo ""
-echo "=========================================="
-echo "  ⚙️  ADMINISTRATOR ACCOUNT SETUP"
-echo "=========================================="
-echo ""
-echo "You'll need an administrator account to access the web interface and pgAdmin."
+echo_step "Administrator Account Setup"
+
+echo -e "${WHITE}You'll need an administrator account to access the web interface and pgAdmin.${NC}"
 echo ""
 
 # Prompt for admin username
 while true; do
-    read -p "Enter administrator username (min 3 characters): " ADMIN_USERNAME
+    echo -ne "${CYAN}Administrator username${NC} (min 3 characters): "
+    read ADMIN_USERNAME
     ADMIN_USERNAME=$(echo "$ADMIN_USERNAME" | xargs)  # Trim whitespace
     
     if [ -z "$ADMIN_USERNAME" ]; then
@@ -101,33 +159,44 @@ while true; do
         continue
     fi
     
+    echo_success "Username accepted: ${BOLD}$ADMIN_USERNAME${NC}"
     break
 done
 
+echo ""
+
 # Prompt for admin password
 while true; do
-    read -s -p "Enter administrator password (min 12 characters): " ADMIN_PASSWORD
+    echo -ne "${CYAN}Administrator password${NC} (min 12 characters): "
+    read -s ADMIN_PASSWORD
     echo
     
     if [ ${#ADMIN_PASSWORD} -lt 12 ]; then
         echo_error "Password must be at least 12 characters long"
+        echo ""
         continue
     fi
     
-    read -s -p "Confirm administrator password: " ADMIN_PASSWORD_CONFIRM
+    echo -ne "${CYAN}Confirm password:${NC} "
+    read -s ADMIN_PASSWORD_CONFIRM
     echo
     
     if [ "$ADMIN_PASSWORD" != "$ADMIN_PASSWORD_CONFIRM" ]; then
         echo_error "Passwords do not match"
+        echo ""
         continue
     fi
     
+    echo_success "Password accepted (${#ADMIN_PASSWORD} characters)"
     break
 done
 
+echo ""
+
 # Prompt for admin email address (for pgAdmin and notifications)
 while true; do
-    read -p "Enter administrator email address: " ADMIN_EMAIL
+    echo -ne "${CYAN}Administrator email address:${NC} "
+    read ADMIN_EMAIL
     ADMIN_EMAIL=$(echo "$ADMIN_EMAIL" | xargs)  # Trim whitespace
     
     if [ -z "$ADMIN_EMAIL" ]; then
@@ -141,36 +210,42 @@ while true; do
         continue
     fi
     
+    echo_success "Email accepted: ${BOLD}$ADMIN_EMAIL${NC}"
     break
 done
 
+echo ""
 echo_success "Administrator account configured"
-echo ""
 
-# Auto-generate secure database password
-echo_info "Generating secure database password..."
+echo ""
+echo_progress "Generating secure database password..."
 DB_PASSWORD=$(python3 -c "import secrets; print(secrets.token_urlsafe(32))")
-echo_success "Database password generated"
-echo ""
+echo_success "Database password generated (${#DB_PASSWORD} characters)"
 
+echo ""
 # Set default timezone
 TIMEZONE="America/New_York"
-echo_info "Default timezone: $TIMEZONE"
-echo ""
+echo_info "Default timezone: ${BOLD}$TIMEZONE${NC} (can be changed in setup wizard)"
 
-echo_success "Configuration complete! Starting installation..."
 echo ""
+echo_success "✓ Configuration complete! Starting installation..."
 
 # ====================================================================
 # BEGIN INSTALLATION
 # ====================================================================
 
-# Update package lists
-echo_info "Updating package lists..."
-apt-get update
+echo_step "Update Package Lists"
 
-# Install system dependencies
-echo_info "Installing system dependencies..."
+echo_progress "Updating package lists..."
+apt-get update > /dev/null 2>&1
+echo_success "Package lists updated"
+
+echo_step "Install System Dependencies"
+
+echo_progress "Installing core build tools and libraries..."
+echo_info "This may take several minutes depending on your internet connection"
+echo ""
+
 apt-get install -y \
     python3 \
     python3-pip \
@@ -207,36 +282,40 @@ apt-get install -y \
     libairspy0 \
     git \
     curl \
-    wget
+    wget > /dev/null 2>&1
 
-echo_success "System dependencies installed"
+echo ""
+echo_success "✓ System dependencies installed successfully"
+
+echo_step "Create Service User & Directories"
 
 # Create service user and group
-echo_info "Creating service user: $SERVICE_USER"
+echo_progress "Creating service user: ${BOLD}$SERVICE_USER${NC}"
 if ! id "$SERVICE_USER" &>/dev/null; then
     useradd --system --shell /bin/bash --home-dir "$INSTALL_DIR" --create-home "$SERVICE_USER"
     echo_success "User $SERVICE_USER created"
 else
-    echo_info "User $SERVICE_USER already exists"
+    echo_info "User $SERVICE_USER already exists (skipping)"
 fi
 
 # Add service user to necessary groups for hardware access
-echo_info "Adding $SERVICE_USER to hardware access groups..."
-usermod -a -G dialout,plugdev,gpio,i2c,spi,audio "$SERVICE_USER" || true
+echo_progress "Adding $SERVICE_USER to hardware access groups..."
+usermod -a -G dialout,plugdev,gpio,i2c,spi,audio "$SERVICE_USER" 2>/dev/null || true
+echo_success "Hardware access groups configured"
 
 # Create installation directory
-echo_info "Setting up installation directory: $INSTALL_DIR"
+echo_progress "Setting up installation directory: ${BOLD}$INSTALL_DIR${NC}"
 if [ ! -d "$INSTALL_DIR" ]; then
     mkdir -p "$INSTALL_DIR"
 fi
 
 # Copy application files
-echo_info "Copying application files..."
+echo_progress "Copying application files from repository..."
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$SCRIPT_DIR"
 
 # Copy all files except Docker-related, development files, and git
-rsync -av --exclude='.git' \
+rsync -a --exclude='.git' \
     --exclude='Dockerfile*' \
     --exclude='docker-compose*.yml' \
     --exclude='.dockerignore' \
@@ -248,38 +327,103 @@ rsync -av --exclude='.git' \
     --exclude='legacy/' \
     --exclude='bare-metal/' \
     --exclude='tests/bug_reproductions/' \
-    "$REPO_ROOT/" "$INSTALL_DIR/"
+    "$REPO_ROOT/" "$INSTALL_DIR/" > /dev/null 2>&1
 
-echo_success "Application files copied"
+echo_success "Application files copied to $INSTALL_DIR"
 
 # Create log directory
-echo_info "Creating log directory: $LOG_DIR"
+echo_progress "Creating log directory: ${BOLD}$LOG_DIR${NC}"
 mkdir -p "$LOG_DIR"
 chown -R "$SERVICE_USER:$SERVICE_GROUP" "$LOG_DIR"
 
 # Set ownership
-echo_info "Setting file permissions..."
+echo_progress "Setting file permissions..."
 chown -R "$SERVICE_USER:$SERVICE_GROUP" "$INSTALL_DIR"
 chmod -R 755 "$INSTALL_DIR"
+echo_success "Permissions configured"
+
+echo_step "Python Environment Setup"
 
 # Create Python virtual environment
-echo_info "Creating Python virtual environment..."
-sudo -u "$SERVICE_USER" python3 -m venv "$VENV_DIR"
-echo_success "Virtual environment created"
+echo_progress "Creating Python virtual environment..."
+sudo -u "$SERVICE_USER" python3 -m venv "$VENV_DIR" > /dev/null 2>&1
+echo_success "Virtual environment created at $VENV_DIR"
 
 # Install Python dependencies
-echo_info "Installing Python dependencies (this may take several minutes)..."
-sudo -u "$SERVICE_USER" "$VENV_DIR/bin/pip" install --upgrade pip setuptools wheel
-sudo -u "$SERVICE_USER" "$VENV_DIR/bin/pip" install -r "$INSTALL_DIR/requirements.txt"
-echo_success "Python dependencies installed"
+echo_progress "Installing Python dependencies..."
+echo_info "This may take 5-10 minutes depending on your system"
+echo ""
+sudo -u "$SERVICE_USER" "$VENV_DIR/bin/pip" install --upgrade pip setuptools wheel > /dev/null 2>&1
+sudo -u "$SERVICE_USER" "$VENV_DIR/bin/pip" install -r "$INSTALL_DIR/requirements.txt" > /dev/null 2>&1
+echo ""
+echo_success "✓ Python dependencies installed successfully"
+
+echo_step "PostgreSQL Database Configuration"
 
 # Setup PostgreSQL
-echo_info "Configuring PostgreSQL..."
-systemctl enable postgresql
+echo_progress "Starting PostgreSQL service..."
+systemctl enable postgresql > /dev/null 2>&1
 systemctl start postgresql
+echo_success "PostgreSQL service started"
+
+# Configure PostgreSQL authentication to allow password-based connections
+echo_progress "Configuring PostgreSQL authentication (pg_hba.conf)..."
+
+# Detect PostgreSQL version to find the correct pg_hba.conf location
+PG_VERSION=$(sudo -u postgres psql -tAc "SELECT version();" 2>/dev/null | grep -oP 'PostgreSQL \K[0-9]+' | head -1)
+if [ -z "$PG_VERSION" ]; then
+    # Fallback: try common versions
+    for v in 17 16 15 14 13; do
+        if [ -d "/etc/postgresql/$v" ]; then
+            PG_VERSION=$v
+            break
+        fi
+    done
+fi
+
+if [ -n "$PG_VERSION" ]; then
+    PG_HBA_CONF="/etc/postgresql/$PG_VERSION/main/pg_hba.conf"
+    
+    if [ -f "$PG_HBA_CONF" ]; then
+        echo_info "Found pg_hba.conf for PostgreSQL ${BOLD}$PG_VERSION${NC}"
+        
+        # Backup the original pg_hba.conf
+        if [ ! -f "${PG_HBA_CONF}.backup" ]; then
+            cp "$PG_HBA_CONF" "${PG_HBA_CONF}.backup"
+            echo_info "Created backup: ${PG_HBA_CONF}.backup"
+        fi
+        
+        # Check if eas_station authentication rule already exists
+        if ! grep -q "^host.*alerts.*eas_station.*md5" "$PG_HBA_CONF" && \
+           ! grep -q "^host.*alerts.*eas_station.*scram-sha-256" "$PG_HBA_CONF"; then
+            
+            # Add authentication rule for eas_station user
+            # Insert before the first "local all" line to ensure it takes precedence
+            sed -i '/^# TYPE.*DATABASE.*USER.*ADDRESS.*METHOD/a\
+# EAS Station authentication (added by install.sh)\
+host    alerts          eas_station     127.0.0.1/32            scram-sha-256\
+host    alerts          eas_station     ::1/128                 scram-sha-256' "$PG_HBA_CONF"
+            
+            echo_success "Added authentication rules for eas_station user"
+            
+            # Reload PostgreSQL to apply changes
+            systemctl reload postgresql 2>/dev/null
+            echo_success "PostgreSQL authentication configured"
+        else
+            echo_info "Authentication rule already exists (skipping)"
+        fi
+    else
+        echo_warning "pg_hba.conf not found at expected location: $PG_HBA_CONF"
+        echo_warning "You may need to configure PostgreSQL authentication manually"
+    fi
+else
+    echo_warning "Could not detect PostgreSQL version"
+    echo_warning "You may need to configure pg_hba.conf manually"
+fi
 
 # Create database and user with the password collected earlier
-sudo -u postgres psql -tc "SELECT 1 FROM pg_database WHERE datname = 'alerts'" | grep -q 1 || \
+echo_progress "Creating database and user..."
+sudo -u postgres psql -tc "SELECT 1 FROM pg_database WHERE datname = 'alerts'" 2>/dev/null | grep -q 1 || \
     sudo -u postgres psql -c "CREATE DATABASE alerts;"
 
 # Create database user (use dollar-quoting to safely handle special characters in password)
@@ -409,14 +553,18 @@ else
 fi
 
 # Alternative: command-line access
-echo_info "You can also access the database directly with: sudo -u postgres psql -d alerts"
+echo_info "Command line access: ${BOLD}sudo -u postgres psql -d alerts${NC}"
 
+
+echo_step "Redis Configuration"
 
 # Setup Redis
-echo_info "Configuring Redis..."
-systemctl enable redis-server
+echo_progress "Enabling and starting Redis service..."
+systemctl enable redis-server > /dev/null 2>&1
 systemctl start redis-server
-echo_success "Redis configured"
+echo_success "Redis configured and running"
+
+echo_step "Create Configuration File"
 
 # Create .env file if it doesn't exist
 if [ ! -f "$CONFIG_FILE" ]; then
@@ -487,21 +635,25 @@ EOF
     echo_success "Configuration created with auto-generated SECRET_KEY"
 fi
 
+echo_step "Install Systemd Services"
+
 # Install systemd service files
-echo_info "Installing systemd service files..."
+echo_progress "Installing systemd service files..."
 cp "$INSTALL_DIR/systemd/"*.service /etc/systemd/system/
 cp "$INSTALL_DIR/systemd/"*.target /etc/systemd/system/
 systemctl daemon-reload
 echo_success "Systemd service files installed"
 
+echo_step "Nginx Web Server Configuration"
+
 # Configure nginx
-echo_info "Configuring nginx..."
+echo_progress "Setting up nginx reverse proxy..."
 if [ ! -f /etc/nginx/sites-available/eas-station ]; then
     cp "$INSTALL_DIR/config/nginx-eas-station.conf" /etc/nginx/sites-available/eas-station
     
     # Generate self-signed certificate for initial setup
     if [ ! -f /etc/ssl/private/eas-station-selfsigned.key ]; then
-        echo_info "Generating self-signed SSL certificate..."
+        echo_progress "Generating self-signed SSL certificate..."
         mkdir -p /etc/ssl/private
         openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
             -keyout /etc/ssl/private/eas-station-selfsigned.key \
@@ -519,17 +671,19 @@ if [ ! -f /etc/nginx/sites-available/eas-station ]; then
     nginx -t && systemctl reload nginx
     echo_success "Nginx configured"
 else
-    echo_info "Nginx configuration already exists, skipping"
+    echo_info "Nginx configuration already exists (skipping)"
 fi
 
+echo_step "Initialize Database Schema"
+
 # Initialize database
-echo_info "Initializing database schema..."
+echo_progress "Creating database tables and running migrations..."
 cd "$INSTALL_DIR"
 
 # Run alembic migrations first (if any exist)
 if [ -f "$INSTALL_DIR/alembic.ini" ]; then
-    echo_info "Running database migrations..."
-    sudo -u "$SERVICE_USER" "$VENV_DIR/bin/alembic" upgrade head || echo_warning "Alembic migrations failed (non-critical for new installs)"
+    echo_progress "Running Alembic migrations..."
+    sudo -u "$SERVICE_USER" "$VENV_DIR/bin/alembic" upgrade head 2>/dev/null || echo_warning "Alembic migrations failed (non-critical for new installs)"
 fi
 
 # Ensure all tables and schema are created
@@ -614,12 +768,16 @@ udevadm trigger
 echo_success "Udev rules created"
 
 # Enable and start services
-echo_info "Enabling and starting EAS Station services..."
-systemctl enable eas-station.target
-systemctl enable nginx
+echo_step "Start EAS Station Services"
+
+# Enable and start services
+echo_progress "Enabling services for automatic startup..."
+systemctl enable eas-station.target > /dev/null 2>&1
+systemctl enable nginx > /dev/null 2>&1
+echo_success "Services enabled"
 
 # Start the services automatically
-echo_info "Starting services..."
+echo_progress "Starting all EAS Station services..."
 systemctl start eas-station.target
 
 # Give services a moment to start
@@ -627,31 +785,49 @@ sleep 3
 
 # Check if services started successfully
 if systemctl is-active --quiet eas-station.target; then
-    echo_success "Services started successfully!"
+    echo_success "✓ All services started successfully!"
 else
-    echo_warning "Services may need attention. Check status with: sudo systemctl status eas-station.target"
+    echo_warning "Services may need attention"
+    echo_info "Check status: ${BOLD}sudo systemctl status eas-station.target${NC}"
 fi
 
+# ====================================================================
+# INSTALLATION COMPLETE - DISPLAY FINAL MESSAGE
+# ====================================================================
+
+clear
 echo ""
-echo_success "Installation complete!"
+echo -e "${BOLD}${GREEN}"
+cat << "EOF"
+╔═══════════════════════════════════════════════════════════════════════╗
+║                                                                       ║
+║                  🎉  INSTALLATION COMPLETE!  🎉                       ║
+║                                                                       ║
+║              Your EAS Station is now up and running!                  ║
+║                                                                       ║
+╚═══════════════════════════════════════════════════════════════════════╝
+EOF
+echo -e "${NC}"
 echo ""
-echo "=========================================="
-echo "  EAS Station Installation Complete!"
-echo "=========================================="
+
+echo -e "${BOLD}${CYAN}═══════════════════════════════════════════════════════════════════════${NC}"
+echo -e "${BOLD}${WHITE}  📂 INSTALLATION SUMMARY${NC}"
+echo -e "${BOLD}${CYAN}═══════════════════════════════════════════════════════════════════════${NC}"
 echo ""
-echo "Installation directory: $INSTALL_DIR"
-echo "Configuration file: $CONFIG_FILE"
-echo "Log directory: $LOG_DIR"
-echo "Service user: $SERVICE_USER"
+echo -e "  ${CYAN}Installation Directory:${NC} ${BOLD}$INSTALL_DIR${NC}"
+echo -e "  ${CYAN}Configuration File:${NC}     ${BOLD}$CONFIG_FILE${NC}"
+echo -e "  ${CYAN}Log Directory:${NC}          ${BOLD}$LOG_DIR${NC}"
+echo -e "  ${CYAN}Service User:${NC}           ${BOLD}$SERVICE_USER${NC}"
 echo ""
-echo "✓ Services have been started automatically"
-echo "✓ SECRET_KEY has been auto-generated"
-echo "✓ Database schema initialized"
-echo "✓ Administrator account created: ${ADMIN_USERNAME}"
+echo -e "  ${GREEN}✓${NC} Services started automatically"
+echo -e "  ${GREEN}✓${NC} SECRET_KEY auto-generated"
+echo -e "  ${GREEN}✓${NC} Database schema initialized"
+echo -e "  ${GREEN}✓${NC} Administrator account created: ${BOLD}${ADMIN_USERNAME}${NC}"
 echo ""
-echo "=========================================="
-echo "  🌐 ACCESS YOUR EAS STATION"
-echo "=========================================="
+
+echo -e "${BOLD}${CYAN}═══════════════════════════════════════════════════════════════════════${NC}"
+echo -e "${BOLD}${WHITE}  🌐 ACCESS YOUR EAS STATION${NC}"
+echo -e "${BOLD}${CYAN}═══════════════════════════════════════════════════════════════════════${NC}"
 echo ""
 
 # Get the primary IP address
@@ -660,79 +836,184 @@ if [ -z "$PRIMARY_IP" ]; then
     PRIMARY_IP="<your-server-ip>"
 fi
 
-echo "Open your web browser and navigate to:"
+echo -e "  Open your web browser and navigate to:"
 echo ""
-echo -e "${GREEN}  https://localhost${NC}"
-echo "  OR"
-echo -e "${GREEN}  https://${PRIMARY_IP}${NC}"
+echo -e "    ${BOLD}${GREEN}https://localhost${NC}"
+echo -e "    ${DIM}OR${NC}"
+echo -e "    ${BOLD}${GREEN}https://${PRIMARY_IP}${NC}"
 echo ""
-echo "⚠️  Accept the self-signed certificate warning"
-echo "    (This is safe - we generated it during installation)"
+echo -e "  ${YELLOW}⚠️${NC}  You'll see a certificate warning - this is ${BOLD}normal${NC}"
+echo -e "      Click 'Advanced' → 'Proceed' (certificate was generated during install)"
 echo ""
-echo "=========================================="
-echo "  🔐 LOGIN CREDENTIALS"
-echo "=========================================="
+
+echo -e "${BOLD}${CYAN}═══════════════════════════════════════════════════════════════════════${NC}"
+echo -e "${BOLD}${WHITE}  🔐 YOUR LOGIN CREDENTIALS${NC}"
+echo -e "${BOLD}${CYAN}═══════════════════════════════════════════════════════════════════════${NC}"
 echo ""
-echo "EAS Station Web Interface:"
-echo "  Username: ${ADMIN_USERNAME}"
-echo "  Password: (the password you entered)"
+echo -e "  ${BOLD}EAS Station Web Interface:${NC}"
+echo -e "    Username: ${BOLD}${GREEN}${ADMIN_USERNAME}${NC}"
+echo -e "    Password: ${BOLD}(the password you entered)${NC}"
 echo ""
 if command -v /usr/pgadmin4/bin/setup-web.sh &> /dev/null; then
-    echo "pgAdmin 4 Database Manager:"
-    echo "  URL: https://localhost/pgadmin4"
-    echo "  Email: $ADMIN_EMAIL"
-    echo "  Password: (same as above)"
+    echo -e "  ${BOLD}pgAdmin 4 Database Manager:${NC}"
+    echo -e "    URL:      ${BOLD}https://localhost/pgadmin4${NC}"
+    echo -e "    Email:    ${BOLD}${GREEN}$ADMIN_EMAIL${NC}"
+    echo -e "    Password: ${BOLD}(same as above)${NC}"
     echo ""
 fi
-echo "=========================================="
-echo "  📋 YOUR CONFIGURATION"
-echo "=========================================="
+
+echo -e "${BOLD}${CYAN}═══════════════════════════════════════════════════════════════════════${NC}"
+echo -e "${BOLD}${WHITE}  ⚙️  YOUR CONFIGURATION${NC}"
+echo -e "${BOLD}${CYAN}═══════════════════════════════════════════════════════════════════════${NC}"
 echo ""
-echo "Timezone: $TIMEZONE (can be changed in setup wizard)"
-echo "Database: alerts (PostgreSQL)"
-echo "Database User: eas_station"
-echo "Database Password: (auto-generated and stored in $CONFIG_FILE)"
+echo -e "  ${CYAN}Timezone:${NC}        ${BOLD}$TIMEZONE${NC} (change in setup wizard)"
+echo -e "  ${CYAN}Database:${NC}        ${BOLD}alerts${NC} (PostgreSQL)"
+echo -e "  ${CYAN}Database User:${NC}   ${BOLD}eas_station${NC}"
+echo -e "  ${CYAN}DB Password:${NC}     ${BOLD}Auto-generated${NC} (stored in .env file)"
 echo ""
-echo "⚠️  All technical settings have been configured automatically."
-echo "    Do NOT modify database settings unless you know what you're doing!"
+echo -e "  ${YELLOW}⚠️${NC}  Technical settings configured automatically"
+echo -e "      ${DIM}Don't modify database settings unless you know what you're doing!${NC}"
 echo ""
-echo "=========================================="
-echo "  📋 NEXT STEPS - IMPORTANT!"
-echo "=========================================="
+
+echo -e "${BOLD}${CYAN}═══════════════════════════════════════════════════════════════════════${NC}"
+echo -e "${BOLD}${WHITE}  📋 NEXT STEPS - IMPORTANT!${NC}"
+echo -e "${BOLD}${CYAN}═══════════════════════════════════════════════════════════════════════${NC}"
 echo ""
-echo "1. Log in to the web interface with your credentials above"
+echo -e "  ${BOLD}${YELLOW}1.${NC} ${BOLD}Log in${NC} to the web interface with your credentials above"
 echo ""
-echo "2. Complete the SETUP WIZARD to configure:"
-echo "   ✓ Your location (county, state, FIPS/zone codes)"
-echo "   ✓ Your EAS station callsign/ID"
-echo "   ✓ Alert sources (NOAA, IPAWS feeds)"
-echo "   ✓ EAS broadcast settings"
-echo "   ✓ Hardware integrations (LED, OLED, SDR, etc.)"
+echo -e "  ${BOLD}${YELLOW}2.${NC} ${BOLD}Complete the SETUP WIZARD${NC} to configure:"
+echo -e "      ${GREEN}✓${NC} Your location (county, state, FIPS/zone codes)"
+echo -e "      ${GREEN}✓${NC} Your EAS station callsign/ID"
+echo -e "      ${GREEN}✓${NC} Alert sources (NOAA, IPAWS feeds)"
+echo -e "      ${GREEN}✓${NC} EAS broadcast settings"
+echo -e "      ${GREEN}✓${NC} Hardware integrations (LED, OLED, SDR, etc.)"
 echo ""
-echo "3. The setup wizard will guide you through all configuration"
-echo "   options with helpful explanations and examples."
+echo -e "  ${BOLD}${YELLOW}3.${NC} The setup wizard provides helpful explanations for all options"
 echo ""
-echo "⚠️  Your station will not monitor alerts until you complete"
-echo "    the setup wizard and configure your location!"
+echo -e "  ${YELLOW}⚠️${NC}  ${BOLD}Your station won't monitor alerts until you complete the wizard!${NC}"
 echo ""
-echo "=========================================="
-echo "  🔧 USEFUL COMMANDS"
-echo "=========================================="
+
+echo -e "${BOLD}${CYAN}═══════════════════════════════════════════════════════════════════════${NC}"
+echo -e "${BOLD}${WHITE}  🔌 COMPONENT ACCESS DETAILS${NC}"
+echo -e "${BOLD}${CYAN}═══════════════════════════════════════════════════════════════════════${NC}"
 echo ""
-echo "• View service status:"
-echo "  sudo systemctl status eas-station.target"
+echo -e "  ${BOLD}${MAGENTA}Main Web Interface (Primary Dashboard):${NC}"
+echo -e "    URL:      ${BOLD}${GREEN}https://localhost${NC} or ${BOLD}${GREEN}https://${PRIMARY_IP}${NC}"
+echo -e "    Username: ${BOLD}$ADMIN_USERNAME${NC}"
+echo -e "    Password: ${BOLD}(your admin password)${NC}"
+echo -e "    Purpose:  Configure alerts, view status, manage settings"
 echo ""
-echo "• View web service logs:"
-echo "  sudo journalctl -u eas-station-web.service -f"
+if command -v /usr/pgadmin4/bin/setup-web.sh &> /dev/null; then
+echo -e "  ${BOLD}${MAGENTA}pgAdmin 4 (Database Management):${NC}"
+echo -e "    URL:      ${BOLD}${GREEN}https://localhost/pgadmin4${NC} or ${BOLD}${GREEN}https://${PRIMARY_IP}/pgadmin4${NC}"
+echo -e "    Email:    ${BOLD}$ADMIN_EMAIL${NC}"
+echo -e "    Password: ${BOLD}(your admin password)${NC}"
+echo -e "    Purpose:  Advanced database queries, backup/restore, monitoring"
+echo -e "    ${DIM}Note: On first login, add server with:${NC}"
+echo -e "          ${DIM}Host: localhost, Port: 5432, Database: alerts, User: eas_station${NC}"
 echo ""
-echo "• Restart services:"
-echo "  sudo systemctl restart eas-station.target"
+fi
+echo -e "  ${BOLD}${MAGENTA}PostgreSQL Database (Direct Command Line):${NC}"
+echo -e "    Command:  ${BOLD}sudo -u postgres psql -d alerts${NC}"
+echo -e "    Purpose:  Direct SQL queries, database administration"
 echo ""
-echo "• Edit configuration (advanced):"
-echo "  sudo nano $CONFIG_FILE"
+echo -e "  ${BOLD}${MAGENTA}Redis Cache (Command Line):${NC}"
+echo -e "    Command:  ${BOLD}redis-cli${NC}"
+echo -e "    Purpose:  Monitor cache, debug real-time data"
 echo ""
-echo "• Set up production SSL:"
-echo "  sudo certbot --nginx -d your-domain.com"
+echo -e "  ${BOLD}${MAGENTA}System Logs:${NC}"
+echo -e "    Web App:    ${BOLD}sudo journalctl -u eas-station-web.service -f${NC}"
+echo -e "    EAS Service: ${BOLD}sudo journalctl -u eas-station-eas.service -f${NC}"
+echo -e "    All Services: ${BOLD}sudo journalctl -u eas-station.target -f${NC}"
+echo -e "    Purpose:    Troubleshooting, monitoring, debugging"
 echo ""
-echo "=========================================="
+
+echo -e "${BOLD}${CYAN}═══════════════════════════════════════════════════════════════════════${NC}"
+echo -e "${BOLD}${WHITE}  ✅ POST-INSTALLATION CHECKLIST${NC}"
+echo -e "${BOLD}${CYAN}═══════════════════════════════════════════════════════════════════════${NC}"
+echo ""
+echo -e "  ${BOLD}Immediately After Install:${NC}"
+echo -e "    ${GREEN}☐${NC} Log in to web interface: ${BOLD}https://localhost${NC}"
+echo -e "    ${GREEN}☐${NC} Accept self-signed certificate warning"
+echo -e "    ${GREEN}☐${NC} Verify dashboard loads correctly"
+echo ""
+echo -e "  ${BOLD}Initial Configuration (via Setup Wizard):${NC}"
+echo -e "    ${GREEN}☐${NC} Set your timezone and location (county, state)"
+echo -e "    ${GREEN}☐${NC} Enter FIPS/zone codes for your area"
+echo -e "    ${GREEN}☐${NC} Configure EAS originator code and station ID"
+echo -e "    ${GREEN}☐${NC} Enable alert sources (NOAA Weather, IPAWS)"
+echo -e "    ${GREEN}☐${NC} Test alert reception with test mode"
+echo ""
+echo -e "  ${BOLD}Optional Hardware Setup:${NC}"
+echo -e "    ${GREEN}☐${NC} Connect SDR device (if using radio monitoring)"
+echo -e "    ${GREEN}☐${NC} Configure LED displays or OLED screens"
+echo -e "    ${GREEN}☐${NC} Set up GPIO pins (for Raspberry Pi)"
+echo -e "    ${GREEN}☐${NC} Enable Icecast streaming (if broadcasting)"
+echo ""
+echo -e "  ${BOLD}Security & Production Readiness:${NC}"
+echo -e "    ${GREEN}☐${NC} Replace self-signed cert with Let's Encrypt (see below)"
+echo -e "    ${GREEN}☐${NC} Review firewall rules (open port 443 for HTTPS)"
+echo -e "    ${GREEN}☐${NC} Set up automatic backups (see backup commands below)"
+echo -e "    ${GREEN}☐${NC} Configure email notifications (if desired)"
+echo ""
+echo -e "  ${BOLD}Testing & Verification:${NC}"
+echo -e "    ${GREEN}☐${NC} Test with a sample CAP alert"
+echo -e "    ${GREEN}☐${NC} Verify alert audio playback works"
+echo -e "    ${GREEN}☐${NC} Check all services are running: ${BOLD}systemctl status eas-station.target${NC}"
+echo -e "    ${GREEN}☐${NC} Monitor logs for errors: ${BOLD}journalctl -u eas-station.target -f${NC}"
+echo ""
+
+echo -e "${BOLD}${CYAN}═══════════════════════════════════════════════════════════════════════${NC}"
+echo -e "${BOLD}${WHITE}  🔧 USEFUL COMMANDS${NC}"
+echo -e "${BOLD}${CYAN}═══════════════════════════════════════════════════════════════════════${NC}"
+echo ""
+echo -e "  ${CYAN}View service status:${NC}"
+echo -e "    ${BOLD}sudo systemctl status eas-station.target${NC}"
+echo ""
+echo -e "  ${CYAN}View web service logs:${NC}"
+echo -e "    ${BOLD}sudo journalctl -u eas-station-web.service -f${NC}"
+echo ""
+echo -e "  ${CYAN}Restart all services:${NC}"
+echo -e "    ${BOLD}sudo systemctl restart eas-station.target${NC}"
+echo ""
+echo -e "  ${CYAN}Stop all services:${NC}"
+echo -e "    ${BOLD}sudo systemctl stop eas-station.target${NC}"
+echo ""
+echo -e "  ${CYAN}Edit configuration (advanced):${NC}"
+echo -e "    ${BOLD}sudo nano $CONFIG_FILE${NC}"
+echo -e "    ${DIM}(Restart services after changes)${NC}"
+echo ""
+echo -e "  ${CYAN}Database backup:${NC}"
+echo -e "    ${BOLD}sudo -u postgres pg_dump alerts > /tmp/eas_backup_\$(date +%Y%m%d).sql${NC}"
+echo ""
+echo -e "  ${CYAN}Database restore:${NC}"
+echo -e "    ${BOLD}sudo -u postgres psql alerts < /tmp/eas_backup_YYYYMMDD.sql${NC}"
+echo ""
+echo -e "  ${CYAN}Set up production SSL certificate (Let's Encrypt):${NC}"
+echo -e "    ${BOLD}sudo certbot --nginx -d your-domain.com${NC}"
+echo -e "    ${DIM}(Replace 'your-domain.com' with your actual domain)${NC}"
+echo ""
+
+echo -e "${BOLD}${CYAN}═══════════════════════════════════════════════════════════════════════${NC}"
+echo -e "${BOLD}${WHITE}  📚 GETTING HELP${NC}"
+echo -e "${BOLD}${CYAN}═══════════════════════════════════════════════════════════════════════${NC}"
+echo ""
+echo -e "  ${CYAN}Documentation:${NC}"
+echo -e "    Web: ${BOLD}https://localhost/help${NC} (after logging in)"
+echo -e "    Local: ${BOLD}$INSTALL_DIR/docs/${NC}"
+echo ""
+echo -e "  ${CYAN}Troubleshooting:${NC}"
+echo -e "    Check logs: ${BOLD}sudo journalctl -u eas-station.target -n 100${NC}"
+echo -e "    Service status: ${BOLD}sudo systemctl status eas-station.target${NC}"
+echo ""
+echo -e "  ${CYAN}Community Support:${NC}"
+echo -e "    GitHub: ${BOLD}https://github.com/KR8MER/eas-station${NC}"
+echo -e "    Issues: ${BOLD}https://github.com/KR8MER/eas-station/issues${NC}"
+echo ""
+echo -e "${BOLD}${CYAN}═══════════════════════════════════════════════════════════════════════${NC}"
+echo ""
+echo -e "${BOLD}${GREEN}  Thank you for installing EAS Station!${NC}"
+echo -e "${BOLD}${GREEN}  Your emergency alert monitoring system is ready to configure.${NC}"
+echo ""
+echo -e "${BOLD}${CYAN}═══════════════════════════════════════════════════════════════════════${NC}"
 echo ""
