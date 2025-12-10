@@ -6,6 +6,27 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.19.8] - 2025-12-10
+### Fixed
+  - Fixed database initialization failure when NOAA zone catalog file is missing - zone catalog is now optional
+  - Updated nginx configuration to use new `http2 on;` directive instead of deprecated `listen ... http2` syntax
+  - Application can now start successfully without the z_05mr24.dbf zone catalog file
+
+### Added
+  - Added Zone Catalog management tab in admin panel for uploading and managing NOAA zone catalogs
+  - Zone catalog files can now be uploaded through the web UI
+  - Zone search functionality in admin panel
+  - Automatic zone reloading from .dbf files
+  - Zone catalog file information display (file size, zone counts, cache status)
+  - Documentation links to https://www.weather.gov/gis/publiczones for downloading zone files
+
+### Changed
+  - Updated default zone catalog path to assets/z_18mr25.dbf (was assets/z_05mr24.dbf)
+  - Zone catalog path resolution now auto-detects uploaded .dbf files in assets/ directory
+  - Improved zone catalog path handling with priority: explicit parameter > config > auto-detect > default
+  - Removed hardcoded zone catalog path from configure.py - now uses auto-detection
+  - Zone management routes now use smart path resolution consistently
+
 ## [2.19.7] - 2025-12-10
 ### Fixed
   - Fixed pgAdmin4 installation to prevent apache2 from being installed as a dependency
