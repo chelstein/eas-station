@@ -6,6 +6,22 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.19.2] - 2025-12-10
+### Removed
+  - Removed Docker daemon health check from `/health/dependencies` endpoint
+  - Moved `scripts/diagnose_cpu_loop.sh` to `legacy/` (Docker-specific)
+  - Moved `scripts/diagnostics/diagnose_portainer.sh` to `legacy/` (Docker-specific)
+  - Moved `scripts/collect_sdr_diagnostics.sh` to `legacy/collect_sdr_diagnostics_docker.sh` (Docker-specific)
+
+### Added
+  - Added Redis server health check to `/health/dependencies` endpoint
+  - Created new bare-metal version of `scripts/collect_sdr_diagnostics.sh` using systemd and native tools
+
+### Changed
+  - Updated `webapp/routes_monitoring.py` to check Redis instead of Docker daemon
+  - Updated comment in `webapp/routes_settings_radio.py` to remove Docker architecture reference
+  - SDR diagnostics now use systemd service status and journalctl for logs instead of Docker commands
+
 ## [2.19.1] - 2025-12-10
 ### Removed
   - Removed unnecessary files from document root: `ipaws.env.example`, `noaa.env.example`, `pytest.ini`, `requirements-docs.txt`

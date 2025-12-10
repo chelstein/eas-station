@@ -17,10 +17,10 @@
 # Repository: https://github.com/KR8MER/eas-station
 
 #
-# SDR Diagnostic Information Collection Script
+# SDR Diagnostic Information Collection Script - Bare Metal Edition
 #
 # This script collects comprehensive diagnostic information about SDR hardware,
-# software configuration, and system status for troubleshooting.
+# software configuration, and system status for troubleshooting bare-metal deployments.
 #
 # Usage:
 #   bash scripts/collect_sdr_diagnostics.sh
@@ -28,6 +28,10 @@
 #
 
 set -e
+
+# Installation directory
+INSTALL_DIR="/opt/eas-station"
+VENV_DIR="${INSTALL_DIR}/venv"
 
 # Determine output file
 if [ -n "$1" ]; then
@@ -38,6 +42,7 @@ fi
 
 echo "============================================"
 echo "EAS Station SDR Diagnostics Collection"
+echo "Bare Metal Deployment Edition"
 echo "============================================"
 echo ""
 echo "Collecting diagnostic information..."
@@ -56,6 +61,7 @@ run_command() {
 {
   echo "============================================"
   echo "EAS Station SDR Diagnostics Report"
+  echo "Bare Metal Deployment"
   echo "Generated: $(date)"
   echo "============================================"
   echo ""
@@ -66,9 +72,9 @@ run_command() {
   echo ""
   run_command "Operating System" uname -a
   echo ""
-  run_command "Docker Version" docker --version
+  run_command "OS Release Info" cat /etc/os-release
   echo ""
-  run_command "Docker Compose Version" docker compose version
+  run_command "Systemd Version" systemctl --version | head -1
   echo ""
   
   echo ""
@@ -78,106 +84,151 @@ run_command() {
   echo ""
   run_command "SDR-Related USB Devices" lsusb | grep -E "RTL|Airspy|Realtek" || echo "  No SDR devices found via lsusb"
   echo ""
+  run_command "USB Device Details" lsusb -v 2>/dev/null | grep -A 20 -E "RTL|Airspy" || echo "  No detailed USB info available"
+  echo ""
   
   echo ""
   echo "### SOAPYSDR DEVICE DETECTION ###"
   echo ""
-  run_command "SoapySDR Device Enumeration (App Container)" docker compose exec -T app SoapySDRUtil --find
-  echo ""
-  run_command "SoapySDR Info (App Container)" docker compose exec -T app SoapySDRUtil --info
-  echo ""
-  
-  # Check if sdr-service exists
-  if docker compose ps sdr-service >/dev/null 2>&1; then
-    run_command "SoapySDR Device Enumeration (SDR Service)" docker compose exec -T sdr-service SoapySDRUtil --find
+  if [ -f "$VENV_DIR/bin/python" ]; then
+    run_command "SoapySDR Device Enumeration (venv)" "$VENV_DIR/bin/python" -c "import SoapySDR; devs = SoapySDR.Device.enumerate(); print('\\n'.join([str(d) for d in devs]) if devs else 'No devices found')"
     echo ""
   fi
   
+  run_command "SoapySDR Util - Find Devices" SoapySDRUtil --find
   echo ""
-  echo "### CONTAINER STATUS ###"
-  echo ""
-  run_command "All Containers" docker compose ps
-  echo ""
-  run_command "Container Resource Usage" docker stats --no-stream --format "table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}" || docker stats --no-stream
+  run_command "SoapySDR Util - Device Info" SoapySDRUtil --info || echo "  No devices to show info for"
   echo ""
   
   echo ""
-  echo "### SERVICE LOGS ###"
+  echo "### SYSTEMD SERVICE STATUS ###"
   echo ""
-  echo "--- SDR Service (last 100 lines) ---"
-  run_command "SDR Service Logs" docker compose logs --tail=100 sdr-service
+  run_command "EAS Station Target Status" systemctl status eas-station.target --no-pager
+  echo ""
+  run_command "Web Service Status" systemctl status eas-station-web.service --no-pager
+  echo ""
+  run_command "Poller Service Status" systemctl status eas-station-poller.service --no-pager
+  echo ""
+  run_command "SDR Hardware Service Status" systemctl status eas-station-sdr-hardware.service --no-pager
+  echo ""
+  run_command "Audio Service Status" systemctl status eas-station-audio.service --no-pager
   echo ""
   
-  echo "--- Audio Service (last 100 lines) ---"
-  run_command "Audio Service Logs" docker compose logs --tail=100 audio-service
+  echo ""
+  echo "### SERVICE LOGS (last 50 lines each) ###"
+  echo ""
+  echo "--- Web Service ---"
+  run_command "Web Service Logs" journalctl -u eas-station-web.service -n 50 --no-pager
   echo ""
   
-  echo "--- App Service (last 50 lines, SDR-related) ---"
-  run_command "App SDR Logs" docker compose logs --tail=200 app | grep -i "sdr\|radio\|receiver" || echo "  No SDR-related logs in app service"
+  echo "--- SDR Hardware Service ---"
+  run_command "SDR Hardware Service Logs" journalctl -u eas-station-sdr-hardware.service -n 50 --no-pager
+  echo ""
+  
+  echo "--- Audio Service ---"
+  run_command "Audio Service Logs" journalctl -u eas-station-audio.service -n 50 --no-pager
+  echo ""
+  
+  echo "--- Poller Service (SDR-related) ---"
+  run_command "Poller SDR Logs" journalctl -u eas-station-poller.service -n 100 --no-pager | grep -i "sdr\|radio\|receiver" || echo "  No SDR-related logs in poller service"
   echo ""
   
   echo ""
   echo "### DATABASE CONFIGURATION ###"
   echo ""
   echo "--- Radio Receivers ---"
-  run_command "Radio Receivers Table" docker compose exec -T app psql -U postgres -d alerts -c "
-    SELECT 
-      id,
-      identifier,
-      display_name,
-      driver,
-      frequency_hz,
-      ROUND(frequency_hz::numeric / 1000000, 3) AS frequency_mhz,
-      sample_rate,
-      gain,
-      modulation_type,
-      audio_output,
-      enabled,
-      auto_start
-    FROM radio_receivers
-    ORDER BY id;
-  "
+  if [ -f "$VENV_DIR/bin/python" ]; then
+    run_command "Radio Receivers Table" sudo -u eas-station "$VENV_DIR/bin/python" -c "
+import sys
+sys.path.insert(0, '$INSTALL_DIR')
+from app import app, db
+from app_core.models import RadioReceiver
+with app.app_context():
+    receivers = RadioReceiver.query.all()
+    if receivers:
+        print('ID | Identifier | Name | Driver | Frequency (MHz) | Sample Rate | Gain | Enabled | Auto-Start')
+        print('-' * 100)
+        for r in receivers:
+            freq_mhz = round(r.frequency_hz / 1000000, 3) if r.frequency_hz else 0
+            print(f'{r.id} | {r.identifier} | {r.display_name} | {r.driver} | {freq_mhz} | {r.sample_rate} | {r.gain} | {r.enabled} | {r.auto_start}')
+    else:
+        print('No radio receivers configured')
+" || echo "  Cannot query radio receivers"
+  else
+    run_command "Radio Receivers Table (psql)" sudo -u postgres psql -d alerts -c "
+      SELECT 
+        id,
+        identifier,
+        display_name,
+        driver,
+        frequency_hz,
+        ROUND(frequency_hz::numeric / 1000000, 3) AS frequency_mhz,
+        sample_rate,
+        gain,
+        modulation_type,
+        audio_output,
+        enabled,
+        auto_start
+      FROM radio_receivers
+      ORDER BY id;
+    " || echo "  Cannot connect to database"
+  fi
   echo ""
   
   echo "--- Audio Source Configs ---"
-  run_command "Audio Source Configs" docker compose exec -T app psql -U postgres -d alerts -c "
-    SELECT 
-      id,
-      name,
-      source_type,
-      config_params,
-      enabled,
-      auto_start
-    FROM audio_source_configs
-    WHERE source_type = 'redis_sdr' OR config_params::text LIKE '%receiver%'
-    ORDER BY id;
-  "
+  if [ -f "$VENV_DIR/bin/python" ]; then
+    run_command "Audio Source Configs" sudo -u eas-station "$VENV_DIR/bin/python" -c "
+import sys
+sys.path.insert(0, '$INSTALL_DIR')
+from app import app, db
+from app_core.models import AudioSourceConfig
+with app.app_context():
+    configs = AudioSourceConfig.query.all()
+    if configs:
+        print('ID | Name | Type | Enabled | Auto-Start')
+        print('-' * 80)
+        for c in configs:
+            print(f'{c.id} | {c.name} | {c.source_type} | {c.enabled} | {c.auto_start}')
+    else:
+        print('No audio source configs')
+" || echo "  Cannot query audio source configs"
+  fi
   echo ""
   
   echo ""
   echo "### REDIS STATUS ###"
   echo ""
-  run_command "Redis Ping" docker compose exec -T redis redis-cli ping
+  run_command "Redis Server Status" systemctl status redis-server.service --no-pager || systemctl status redis.service --no-pager
   echo ""
-  run_command "Redis Info" docker compose exec -T redis redis-cli info server
+  run_command "Redis Ping" redis-cli ping
   echo ""
-  run_command "Redis Pub/Sub Channels" docker compose exec -T redis redis-cli pubsub channels 'sdr:*'
+  run_command "Redis Info" redis-cli info server
   echo ""
-  run_command "Redis SDR Metrics" docker compose exec -T redis redis-cli get sdr:metrics
+  run_command "Redis Pub/Sub Channels" redis-cli pubsub channels 'sdr:*'
+  echo ""
+  run_command "Redis SDR Metrics" redis-cli get sdr:metrics
+  echo ""
+  run_command "Redis Keys (SDR-related)" redis-cli keys 'sdr:*' || echo "  No SDR keys in Redis"
   echo ""
   
   echo ""
   echo "### SDR DIAGNOSTICS SCRIPT ###"
   echo ""
-  run_command "Python SDR Diagnostics" docker compose exec -T app python3 scripts/sdr_diagnostics.py
+  if [ -f "$INSTALL_DIR/scripts/sdr_diagnostics.py" ]; then
+    run_command "Python SDR Diagnostics" sudo -u eas-station "$VENV_DIR/bin/python" "$INSTALL_DIR/scripts/sdr_diagnostics.py"
+  else
+    echo "  SDR diagnostics script not found"
+  fi
   echo ""
   
   echo ""
   echo "### NETWORK CONNECTIVITY ###"
   echo ""
-  run_command "Container Network" docker compose exec -T app ip addr show
+  run_command "Network Interfaces" ip addr show
   echo ""
-  run_command "DNS Resolution" docker compose exec -T app nslookup google.com || docker compose exec -T app ping -c 1 8.8.8.8
+  run_command "DNS Resolution" nslookup google.com || ping -c 1 8.8.8.8
+  echo ""
+  run_command "Localhost Web Service" curl -I http://localhost:5000 2>&1 | head -10 || echo "  Web service not responding on localhost:5000"
   echo ""
   
   echo ""
@@ -185,7 +236,11 @@ run_command() {
   echo ""
   echo "Note: Passwords and secrets are redacted"
   echo ""
-  run_command "App Environment" docker compose exec -T app printenv | grep -E "SDR|RADIO|AUDIO|REDIS" | sed 's/PASSWORD=.*/PASSWORD=***REDACTED***/' | sed 's/SECRET=.*/SECRET=***REDACTED***/' | sort
+  if [ -f "$INSTALL_DIR/.env" ]; then
+    run_command "EAS Station Config" cat "$INSTALL_DIR/.env" | grep -E "SDR|RADIO|AUDIO|REDIS" | sed 's/PASSWORD=.*/PASSWORD=***REDACTED***/' | sed 's/SECRET=.*/SECRET=***REDACTED***/' | sort || echo "  No SDR/Radio/Audio vars in .env"
+  else
+    echo "  .env file not found at $INSTALL_DIR/.env"
+  fi
   echo ""
   
   echo ""
@@ -193,7 +248,7 @@ run_command() {
   echo ""
   run_command "Disk Usage" df -h
   echo ""
-  run_command "Docker Disk Usage" docker system df
+  run_command "Installation Directory Size" du -sh "$INSTALL_DIR" 2>/dev/null || echo "  Cannot check install dir size"
   echo ""
   
   echo ""
@@ -205,11 +260,21 @@ run_command() {
   echo ""
   run_command "Load Average" uptime
   echo ""
+  run_command "Top Processes (CPU)" ps aux --sort=-%cpu | head -15
+  echo ""
   
   echo ""
   echo "### USB DEVICE MESSAGES (Recent) ###"
   echo ""
   run_command "USB Kernel Messages" dmesg | grep -i usb | tail -50
+  echo ""
+  run_command "USB Device Permissions" ls -la /dev/bus/usb/*/* 2>/dev/null | grep -E "0bda|1d50" || echo "  No RTL-SDR or Airspy USB devices found in /dev"
+  echo ""
+  
+  echo ""
+  echo "### UDEV RULES ###"
+  echo ""
+  run_command "EAS Station SDR udev Rules" cat /etc/udev/rules.d/99-eas-station-sdr.rules 2>/dev/null || echo "  No EAS Station udev rules found"
   echo ""
   
   echo ""
@@ -222,11 +287,11 @@ run_command() {
   echo "Quick Status:"
   echo ""
   
-  # Check if containers are running
-  if docker compose ps | grep -q "Up"; then
-    echo "✓ Docker containers are running"
+  # Check if services are running
+  if systemctl is-active --quiet eas-station.target; then
+    echo "✓ EAS Station services are running"
   else
-    echo "✗ Some Docker containers are not running"
+    echo "✗ EAS Station services are not fully running"
   fi
   
   # Check if SDR devices detected
@@ -237,39 +302,56 @@ run_command() {
   fi
   
   # Check if SoapySDR can see devices
-  if docker compose exec -T app SoapySDRUtil --find 2>/dev/null | grep -q "driver"; then
+  if SoapySDRUtil --find 2>/dev/null | grep -q "driver"; then
     echo "✓ SoapySDR can enumerate devices"
   else
     echo "✗ SoapySDR cannot find devices"
   fi
   
-  # Check database has receivers configured
-  if docker compose exec -T app psql -U postgres -d alerts -c "SELECT COUNT(*) FROM radio_receivers;" 2>/dev/null | grep -q "[1-9]"; then
-    echo "✓ Radio receivers configured in database"
+  # Check if Redis is running
+  if systemctl is-active --quiet redis-server.service || systemctl is-active --quiet redis.service; then
+    echo "✓ Redis server is running"
   else
-    echo "⚠ No radio receivers configured in database"
+    echo "✗ Redis server is not running"
+  fi
+  
+  # Check database has receivers configured
+  if [ -f "$VENV_DIR/bin/python" ]; then
+    RECEIVER_COUNT=$(sudo -u eas-station "$VENV_DIR/bin/python" -c "
+import sys
+sys.path.insert(0, '$INSTALL_DIR')
+from app import app, db
+from app_core.models import RadioReceiver
+with app.app_context():
+    print(RadioReceiver.query.count())
+" 2>/dev/null || echo "0")
+    
+    if [ "$RECEIVER_COUNT" -gt 0 ]; then
+      echo "✓ Radio receivers configured in database ($RECEIVER_COUNT found)"
+    else
+      echo "⚠ No radio receivers configured in database"
+    fi
   fi
   
   echo ""
   echo "============================================"
-  echo "Diagnostic collection complete"
+  echo "End of Diagnostic Report"
   echo "============================================"
   echo ""
-  echo "Next Steps:"
-  echo "1. Review the diagnostic output above"
-  echo "2. Check the troubleshooting guide: docs/troubleshooting/SDR_MASTER_TROUBLESHOOTING_GUIDE.md"
-  echo "3. If reporting an issue, attach this file: $OUTPUT_FILE"
+  echo "Report saved to: $OUTPUT_FILE"
+  echo ""
+  echo "If you need help interpreting these results:"
+  echo "- Share this file with support or the community"
+  echo "- Check documentation: /opt/eas-station/docs/"
+  echo "- View logs: journalctl -u eas-station.target -f"
   echo ""
   
-} 2>&1 | tee "$OUTPUT_FILE"
+} > "$OUTPUT_FILE" 2>&1
 
+echo "✓ Diagnostic collection complete!"
+echo "Report saved to: $OUTPUT_FILE"
 echo ""
-echo "✓ Diagnostics saved to: $OUTPUT_FILE"
-echo ""
-echo "File size: $(du -h "$OUTPUT_FILE" | cut -f1)"
-echo ""
-echo "You can now:"
-echo "  - Review the file: less $OUTPUT_FILE"
-echo "  - Search for errors: grep -i error $OUTPUT_FILE"
-echo "  - Attach to GitHub issue when asking for help"
+echo "You can view the report with:"
+echo "  cat $OUTPUT_FILE"
+echo "  less $OUTPUT_FILE"
 echo ""

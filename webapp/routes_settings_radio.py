@@ -1301,8 +1301,8 @@ def register(app: Flask, logger) -> None:
         - /api/radio/spectrum/1
         - /api/radio/spectrum/by-identifier/wxj93
 
-        In the separated Docker architecture, spectrum data is published to Redis
-        by the sdr-service container and read here.
+        Spectrum data is published to Redis by the SDR hardware service
+        and consumed by the web application for display.
         """
         try:
             # Look up receiver by ID or identifier
