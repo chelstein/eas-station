@@ -385,7 +385,7 @@ ENV_CATEGORIES = {
                 'label': 'NOAA User Agent',
                 'type': 'text',
                 'required': True,
-                'default': 'EAS Station/2.12 (+https://github.com/KR8MER/eas-station; support@easstation.com)',
+                'default': 'EAS Station (+https://github.com/KR8MER/eas-station; support@easstation.com)',
                 'description': 'User agent string for NOAA API compliance (Format: "AppName/Version (contact info)")',
             },
             {
