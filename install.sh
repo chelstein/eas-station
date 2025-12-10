@@ -573,7 +573,7 @@ EOF
             # Try to get error details from apt logs
             if [ -f /var/log/apt/term.log ]; then
                 echo_info "Error details from apt log:"
-                tail -n $APT_LOG_TAIL_LINES /var/log/apt/term.log | grep -E "E:|Err:" | head -$APT_ERROR_DISPLAY_LINES || echo "No specific errors found in log"
+                tail -n $APT_LOG_TAIL_LINES /var/log/apt/term.log | grep -E "E:|Err:" | head -n $APT_ERROR_DISPLAY_LINES || echo "No specific errors found in log"
             fi
         fi
         
