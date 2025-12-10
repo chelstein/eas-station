@@ -21,7 +21,11 @@ from __future__ import annotations
 
 """Text-to-speech helpers used by the EAS audio generator."""
 
-import audioop
+try:
+    import audioop  # Python 3.12 and earlier
+except ModuleNotFoundError:
+    import audioop_lts as audioop  # Python 3.13+ replacement
+
 import ctypes.util
 import io
 import os
