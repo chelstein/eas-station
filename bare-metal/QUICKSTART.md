@@ -11,8 +11,8 @@ Already have Debian/Ubuntu/Raspberry Pi OS? Start here!
 ```bash
 # 1. Clone and install (takes 10-15 minutes)
 git clone https://github.com/KR8MER/eas-station.git && \
-cd eas-station/bare-metal && \
-sudo bash scripts/install.sh
+cd eas-station && \
+sudo bash install.sh
 
 # 2. Access the web interface
 # Open browser to https://localhost (accept self-signed cert)

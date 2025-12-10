@@ -56,8 +56,8 @@ sudo apt-get install git
 ```bash
 # One-command installation (takes 10-15 minutes)
 git clone https://github.com/KR8MER/eas-station.git && \
-cd eas-station/bare-metal && \
-sudo bash scripts/install.sh
+cd eas-station && \
+sudo bash install.sh
 ```
 
 **That's it!** The installer automatically:
@@ -82,8 +82,8 @@ Best for: Existing Debian/Ubuntu/Raspberry Pi OS installations
 #### Step 1: Run Installation Script
 
 ```bash
-cd eas-station/bare-metal
-sudo bash scripts/install.sh
+cd eas-station
+sudo bash install.sh
 ```
 
 The script will automatically:
