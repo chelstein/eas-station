@@ -75,7 +75,7 @@
                                         </div>
                                         <div>
                                             <h6 class="mb-1">Reference Commands</h6>
-                                            <p class="text-muted mb-0 small">Docker, Postgres, and analytics utilities.</p>
+                                            <p class="text-muted mb-0 small">System management, Postgres, and analytics utilities.</p>
                                         </div>
                                     </a>
                                 </div>
@@ -192,7 +192,7 @@
                     <div class="alert alert-info d-flex align-items-start mb-4" role="alert">
                         <i class="fas fa-info-circle fa-lg me-3"></i>
                         <div>
-                            <strong>Prerequisites:</strong> Ensure you have Docker Engine 24+ with Docker Compose V2 and a dedicated PostgreSQL 15 + PostGIS database before starting.
+                            <strong>Prerequisites:</strong> Debian/Ubuntu system with PostgreSQL 17 + PostGIS, Redis, and Python 3.11+ installed before starting.
                         </div>
                     </div>
 
@@ -208,22 +208,22 @@
                                 </li>
                                 <li class="list-group-item d-flex justify-content-between align-items-start">
                                     <div class="ms-2 me-auto">
-                                        <div class="fw-bold">Provision Infrastructure</div>
-                                        Deploy Docker Engine 24+ with Docker Compose V2 and ensure a dedicated PostgreSQL 15 + PostGIS database container is available.
+                                        <div class="fw-bold">Run Installation Script</div>
+                                        Run <code>cd bare-metal && sudo bash scripts/install.sh</code> to install all dependencies and set up systemd services.
                                     </div>
                                     <i class="fas fa-server text-muted"></i>
                                 </li>
                                 <li class="list-group-item d-flex justify-content-between align-items-start">
                                     <div class="ms-2 me-auto">
                                         <div class="fw-bold">Configure Environment</div>
-                                        Copy <code>.env.example</code> to <code>.env</code>, set secure secrets, and update database connection details.
+                                        Edit <code>/opt/eas-station/.env</code>, set secure secrets, and update database connection details.
                                     </div>
                                     <i class="fas fa-cog text-muted"></i>
                                 </li>
                                 <li class="list-group-item d-flex justify-content-between align-items-start">
                                     <div class="ms-2 me-auto">
-                                        <div class="fw-bold">Launch the Stack</div>
-                                        Run <code>docker compose up -d --build</code> after <code>.env</code> points at your PostgreSQL/PostGIS deployment.
+                                        <div class="fw-bold">Start Services</div>
+                                        Run <code>sudo systemctl start eas-station.target</code> to launch all EAS Station services.
                                     </div>
                                     <i class="fas fa-rocket text-muted"></i>
                                 </li>
@@ -436,7 +436,7 @@
                                     </div>
                                     <div class="alert alert-light">
                                         <i class="fas fa-terminal me-2"></i>
-                                        <strong>Command Line:</strong> For automation, use: <code>docker compose exec app python tools/generate_sample_audio.py</code>
+                                        <strong>Command Line:</strong> For automation, use: <code>python tools/generate_sample_audio.py</code>
                                     </div>
                                 </div>
                             </div>
@@ -519,8 +519,8 @@
                                     <div class="row">
                                         <div class="col-md-8">
                                             <ol>
-                                                <li><strong>Check Logs:</strong> Run <code>docker compose logs -f</code> to see container startup messages.</li>
-                                                <li><strong>Database Connection:</strong> Verify <code>POSTGRES_*</code> settings in <code>.env</code> match your database deployment.</li>
+                                                <li><strong>Check Logs:</strong> Run <code>sudo journalctl -u eas-station-web.service -f</code> to see service startup messages.</li>
+                                                <li><strong>Database Connection:</strong> Verify <code>POSTGRES_*</code> settings in <code>/opt/eas-station/.env</code> match your database deployment.</li>
                                                 <li><strong>Secret Key:</strong> Ensure <code>SECRET_KEY</code> is set to a non-empty value.</li>
                                                 <li><strong>Port Conflicts:</strong> Confirm port 5000 isn't already in use.</li>
                                             </ol>
@@ -600,15 +600,15 @@
                     
                     <div class="row">
                         <div class="col-md-6">
-                            <h5 class="h6 mb-3 text-primary">Docker Operations</h5>
+                            <h5 class="h6 mb-3 text-primary">Service Management</h5>
                             <div class="bg-dark text-light p-3 rounded mb-3">
                                 <code>
                                     # View logs<br>
-                                    docker compose logs -f<br><br>
+                                    sudo journalctl -u eas-station-web.service -f<br><br>
                                     # Restart services<br>
-                                    docker compose restart<br><br>
-                                    # Update stack<br>
-                                    docker compose pull && docker compose up -d
+                                    sudo systemctl restart eas-station.target<br><br>
+                                    # Check service status<br>
+                                    sudo systemctl status eas-station.target
                                 </code>
                             </div>
                         </div>
@@ -617,9 +617,9 @@
                             <div class="bg-dark text-light p-3 rounded mb-3">
                                 <code>
                                     # Reset database<br>
-                                    docker compose exec app python tools/reset_database.py<br><br>
+                                    python tools/reset_database.py<br><br>
                                     # Check health<br>
-                                    docker compose exec app python tools/check_db_health.py
+                                    python tools/check_db_health.py
                                 </code>
                             </div>
                         </div>
@@ -631,9 +631,9 @@
                             <div class="bg-dark text-light p-3 rounded mb-3">
                                 <code>
                                     # Generate test audio<br>
-                                    docker compose exec app python tools/generate_sample_audio.py<br><br>
+                                    python tools/generate_sample_audio.py<br><br>
                                     # Test receivers<br>
-                                    docker compose exec app python tools/test_receivers.py
+                                    python tools/test_receivers.py
                                 </code>
                             </div>
                         </div>
@@ -672,7 +672,7 @@
                                     <div class="d-flex align-items-start">
                                         <span class="badge bg-primary me-3 mt-1">2</span>
                                         <div>
-                                            <strong>Review Logs:</strong> Run <code>docker compose logs -f</code> to identify error messages.
+                                            <strong>Review Logs:</strong> Run <code>sudo journalctl -u eas-station.target -f</code> to identify error messages.
                                         </div>
                                     </div>
                                 </li>

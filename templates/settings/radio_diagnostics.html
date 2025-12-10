@@ -160,7 +160,7 @@
                         <div class="accordion-body">
                             <p><strong>Cause:</strong> Receivers are configured in the database but not loaded into RadioManager.</p>
                             <p><strong>Solution:</strong> Restart the web application:</p>
-                            <pre class="bg-light p-2"><code>docker-compose restart webapp
+                            <pre class="bg-light p-2"><code>sudo systemctl restart eas-station.target webapp
 # or
 sudo systemctl restart eas-station</code></pre>
                         </div>
@@ -382,9 +382,9 @@ sudo systemctl restart eas-station</code></pre>
                         <i class="fas fa-info-circle me-2"></i>
                         <strong>Radio processing runs in the sdr-service container.</strong>
                         <p class="mb-0 mt-2">
-                            In the Docker architecture, SDR receivers run in a separate container for hardware isolation.
+                            In the bare metal architecture, SDR receivers run as a separate systemd service for hardware isolation.
                             Check the <code>sdr-service</code> container logs for receiver status:
-                            <br><code class="user-select-all">docker-compose logs -f sdr-service</code>
+                            <br><code class="user-select-all">sudo journalctl -u eas-station.target -f sdr-service</code>
                         </p>
                     </div>
                 `;
@@ -394,7 +394,7 @@ sudo systemctl restart eas-station</code></pre>
                         <i class="fas fa-exclamation-triangle me-2"></i>
                         <strong>No receivers loaded in RadioManager.</strong>
                         Restart the sdr-service container to load configured receivers.
-                        <br><code class="user-select-all">docker-compose restart sdr-service</code>
+                        <br><code class="user-select-all">sudo systemctl restart eas-station.target sdr-service</code>
                     </div>
                 `;
             } else {

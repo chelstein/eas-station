@@ -53,47 +53,43 @@ def run_command(cmd: List[str]) -> Tuple[int, str, str]:
 
 
 def check_services_running() -> Dict[str, List[str]]:
-    """Check if Docker services are running."""
+    """Check if systemd services are running."""
     passed = []
     warnings = []
     failed = []
     info = []
     
     try:
-        code, stdout, stderr = run_command(["docker", "compose", "ps", "--format", "json"])
-        if code != 0:
-            failed.append("Unable to check Docker Compose services")
+        # Check if main target is active
+        code, stdout, stderr = run_command(["systemctl", "is-active", "eas-station.target"])
+        if code == 0:
+            passed.append("EAS Station systemd target is active")
+        else:
+            failed.append("EAS Station systemd target is not active")
+            info.append("Start with: sudo systemctl start eas-station.target")
             return {"passed": passed, "warnings": warnings, "failed": failed, "info": info}
         
-        import json
-        services = []
-        for line in stdout.strip().split('\n'):
-            if line:
-                try:
-                    services.append(json.loads(line))
-                except json.JSONDecodeError:
-                    pass
+        # Check individual services
+        expected_services = [
+            "eas-station-web",
+            "eas-station-sdr",
+            "eas-station-audio",
+            "eas-station-eas",
+            "eas-station-hardware",
+            "eas-station-noaa-poller",
+            "eas-station-ipaws-poller"
+        ]
         
-        if not services:
-            failed.append("No Docker Compose services found")
-            return {"passed": passed, "warnings": warnings, "failed": failed, "info": info}
-        
-        expected_services = ["app", "nginx", "alerts-db"]
-        
-        for service in services:
-            name = service.get("Service", "unknown")
-            state = service.get("State", "unknown")
+        for service_name in expected_services:
+            service = f"{service_name}.service"
+            code, stdout, stderr = run_command(["systemctl", "is-active", service])
+            state = stdout.strip()
             
-            if state == "running":
-                passed.append(f"Service '{name}' is running")
+            if code == 0 and state == "active":
+                passed.append(f"Service '{service_name}' is running")
             else:
-                failed.append(f"Service '{name}' is not running (state: {state})")
-        
-        # Check for expected services
-        running_names = [s.get("Service") for s in services if s.get("State") == "running"]
-        for expected in expected_services:
-            if expected not in running_names:
-                warnings.append(f"Expected service '{expected}' not found")
+                failed.append(f"Service '{service_name}' is not running (state: {state})")
+                info.append(f"Check status: sudo systemctl status {service}")
     
     except Exception as e:
         logger.error(f"Error checking services: {e}")
@@ -182,19 +178,9 @@ def check_health_endpoint() -> Dict[str, List[str]]:
         import requests
 
         # Check health endpoint
-        # In containerized environment, access via nginx container or direct app container
-        # If running in app container, nginx is at 'nginx' hostname
-        # If running elsewhere, use localhost
-        health_url = os.getenv("HEALTH_CHECK_URL", "http://nginx/health/dependencies")
-        if health_url.startswith("http://localhost"):
-            # Also try nginx container name for Docker deployments
-            try:
-                response = requests.get("http://nginx/health/dependencies", timeout=10)
-            except Exception:
-                # Fall back to localhost if nginx container not accessible
-                response = requests.get("http://localhost/health/dependencies", timeout=10)
-        else:
-            response = requests.get(health_url, timeout=10)
+        # In bare metal environment, access via nginx reverse proxy on localhost
+        health_url = os.getenv("HEALTH_CHECK_URL", "http://localhost/health/dependencies")
+        response = requests.get(health_url, timeout=10)
         
         if response.status_code == 200:
             data = response.json()
@@ -240,7 +226,6 @@ def check_audio_devices() -> Dict[str, List[str]]:
         
         # Try to list audio devices
         code, stdout, stderr = run_command([
-            "docker", "compose", "exec", "-T", "app",
             "aplay", "-l"
         ])
         
@@ -263,15 +248,16 @@ def check_audio_devices() -> Dict[str, List[str]]:
 
 
 def check_recent_logs() -> Dict[str, List[str]]:
-    """Check for recent errors in logs."""
+    """Check for recent errors in systemd logs."""
     passed = []
     warnings = []
     failed = []
     info = []
     
     try:
+        # Check main web service logs
         code, stdout, stderr = run_command([
-            "docker", "compose", "logs", "--tail=100"
+            "journalctl", "-u", "eas-station-web.service", "-n", "100", "--no-pager"
         ])
         
         if code == 0:
@@ -293,12 +279,12 @@ def check_recent_logs() -> Dict[str, List[str]]:
                 passed.append("No obvious errors in recent logs")
             elif total_errors < 5:
                 warnings.append(f"Found {total_errors} error pattern(s) in recent logs")
-                info.append("Review logs with: docker compose logs --tail=100")
+                info.append("Review logs with: sudo journalctl -u eas-station-web.service -n 100")
             else:
                 warnings.append(f"Found {total_errors} error pattern(s) in recent logs - review recommended")
-                info.append("Review logs with: docker compose logs --tail=100")
+                info.append("Review logs with: sudo journalctl -u eas-station-web.service -n 100")
         else:
-            warnings.append("Could not retrieve Docker Compose logs")
+            warnings.append("Could not retrieve systemd logs")
     
     except Exception as e:
         logger.error(f"Error checking logs: {e}")

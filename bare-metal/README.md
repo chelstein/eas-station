@@ -93,7 +93,8 @@ sudo bash scripts/install.sh
 The script will:
 - Install all system dependencies
 - Create service user and groups
-- Set up PostgreSQL database
+- Set up PostgreSQL database with PostGIS extensions
+- Install pgAdmin 4 for database management (web UI at http://localhost/pgadmin4)
 - Configure Redis
 - Install Python dependencies in virtual environment
 - Create systemd service files

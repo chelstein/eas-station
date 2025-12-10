@@ -121,18 +121,13 @@ def run_pg_dump(env: Dict[str, str], output_path: Path) -> str:
     db_name = env.get("POSTGRES_DB", "alerts")
     password = env.get("POSTGRES_PASSWORD", "")
 
-    compose_cmd = detect_compose_command()
-    use_compose = host in {"alerts-db", "postgres", "postgresql"} and compose_service_running(compose_cmd, "alerts-db")
-
-    if use_compose:
-        dump_cmd: List[str] = [*compose_cmd, "exec", "-T", "alerts-db", "pg_dump", "-U", user, "-d", db_name]
-    else:
-        dump_cmd = [
-            "pg_dump",
-            "-h",
-            host,
-            "-p",
-            port,
+    # Use standard pg_dump command for bare metal deployment
+    dump_cmd = [
+        "pg_dump",
+        "-h",
+        host,
+        "-p",
+        port,
             "-U",
             user,
             "-d",
@@ -341,10 +336,11 @@ Examples:
 
     # 1. Copy configuration artifacts
     print("Backing up configuration files...")
-    env_path = Path(".env")
+    # Check both standard locations for .env
+    env_path = Path("/opt/eas-station/.env") if Path("/opt/eas-station/.env").exists() else Path(".env")
     env_values = read_env(env_path)
     copy_files(
-        [env_path, Path("docker-compose.yml"), Path("docker-compose.embedded-db.yml"), Path("stack.env")],
+        [env_path],
         output_dir
     )
     backup_summary["config"] = True
@@ -388,35 +384,7 @@ Examples:
                     print(f"  ✗ Failed to backup {source_path}: {exc}")
         print()
 
-    # 4. Backup Docker volumes
-    if not args.no_volumes:
-        print("Backing up Docker volumes...")
-        compose_cmd = detect_compose_command()
-
-        if compose_cmd:
-            volumes = [
-                "app-config",
-                "certbot-conf",
-                "alerts-db-data",
-            ]
-
-            for volume in volumes:
-                try:
-                    size = backup_docker_volume(compose_cmd, volume, output_dir)
-                    if size:
-                        size_mb = size / (1024 * 1024)
-                        backup_summary["volumes"].append(volume)
-                        backup_summary["total_size_mb"] += size_mb
-                        print(f"  ✓ Volume '{volume}' backed up ({size_mb:.1f} MB)")
-                    else:
-                        print(f"  - Volume '{volume}' not found or empty")
-                except Exception as exc:
-                    print(f"  ✗ Failed to backup volume '{volume}': {exc}")
-        else:
-            print("  - Docker not available, skipping volume backups")
-        print()
-
-    # 5. Persist metadata
+    # 4. Persist metadata
     git_cmd = detect_git_command()
     git_commit = "unknown"
     git_branch = "unknown"
@@ -465,7 +433,7 @@ Label: {metadata.get('label') or 'N/A'}
 
 Contents:
 ---------
-- Configuration files (.env, docker-compose.yml)
+- Configuration files (.env)
 - PostgreSQL database dump (alerts_database.sql)
 """
         + (f"- Media archives ({len(backup_summary['media'])} directories)\n" if backup_summary['media'] else "")

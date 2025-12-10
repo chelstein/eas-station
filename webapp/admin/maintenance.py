@@ -670,17 +670,17 @@ def optimize_database():
 
 @maintenance_bp.route("/admin/env_config", methods=["GET", "POST"])
 def env_config():
-    """Read or update the environment configuration file (.env or stack.env)."""
+    """Read or update the environment configuration file (.env)."""
 
-    # Support both .env (CLI deployments) and stack.env (Portainer deployments)
-    env_file_path = repo_root / ".env"
+    # Check standard .env locations
+    env_file_path = Path("/opt/eas-station/.env")
     if not env_file_path.exists():
-        env_file_path = repo_root / "stack.env"
+        env_file_path = repo_root / ".env"
 
     if request.method == "GET":
         try:
             if not env_file_path.exists():
-                return jsonify({"error": f"Environment file not found (checked .env and stack.env)"}), 404
+                return jsonify({"error": f"Environment file not found at {env_file_path}"}), 404
 
             with open(env_file_path, "r") as f:
                 content = f.read()

@@ -81,7 +81,14 @@ apt-get install -y \
     python3-venv \
     python3-dev \
     build-essential \
+    gcc \
+    g++ \
+    make \
     libpq-dev \
+    libev-dev \
+    libevent-dev \
+    libffi-dev \
+    libssl-dev \
     postgresql \
     postgresql-contrib \
     postgis \
@@ -181,6 +188,26 @@ sudo -u postgres psql -d alerts -c "CREATE EXTENSION IF NOT EXISTS postgis;"
 sudo -u postgres psql -d alerts -c "CREATE EXTENSION IF NOT EXISTS postgis_topology;"
 
 echo_success "PostgreSQL configured"
+
+# Install pgAdmin 4 (optional but recommended)
+echo_info "Installing pgAdmin 4 for database management..."
+if ! command -v pgadmin4 &> /dev/null; then
+    # Add pgAdmin repository
+    curl -fsS https://www.pgadmin.org/static/packages_pgadmin_org.pub | sudo gpg --dearmor -o /usr/share/keyrings/packages-pgadmin-org.gpg
+    echo "deb [signed-by=/usr/share/keyrings/packages-pgadmin-org.gpg] https://ftp.postgresql.org/pub/pgadmin/pgadmin4/apt/$(lsb_release -cs) pgadmin4 main" | sudo tee /etc/apt/sources.list.d/pgadmin4.list
+    
+    # Update and install
+    apt-get update
+    apt-get install -y pgadmin4-web
+    
+    # Configure pgAdmin in server mode
+    /usr/pgadmin4/bin/setup-web.sh --yes
+    
+    echo_success "pgAdmin 4 installed (access at http://localhost/pgadmin4)"
+    echo_info "Default pgAdmin setup will prompt for email and password"
+else
+    echo_info "pgAdmin 4 already installed"
+fi
 
 # Setup Redis
 echo_info "Configuring Redis..."

@@ -7,11 +7,11 @@
 [![Flask](https://img.shields.io/badge/Flask-3.0.3-000000?style=flat-square&logo=flask&logoColor=white)](https://flask.palletsprojects.com/)
 [![SQLAlchemy](https://img.shields.io/badge/SQLAlchemy-2.0-CA2C39?style=flat-square&logo=sqlalchemy&logoColor=white)](https://www.sqlalchemy.org/)
 [![PostgreSQL + PostGIS](https://img.shields.io/badge/PostgreSQL%20%2B%20PostGIS-17%20%2F%203.4-0093D0?style=flat-square&logo=postgresql&logoColor=white)](https://www.postgresql.org/)
-[![Redis](https://img.shields.io/badge/Redis-7%20Alpine-DC382D?style=flat-square&logo=redis&logoColor=white)](https://redis.io/)
+[![Redis](https://img.shields.io/badge/Redis-7-DC382D?style=flat-square&logo=redis&logoColor=white)](https://redis.io/)
 
-[![Docker Compose](https://img.shields.io/badge/Docker%20Compose-v2-2496ED?style=flat-square&logo=docker&logoColor=white)](https://docs.docker.com/compose/)
+[![Systemd](https://img.shields.io/badge/Systemd-Services-33A9DC?style=flat-square&logo=linux&logoColor=white)](https://systemd.io/)
 [![Gunicorn](https://img.shields.io/badge/Gunicorn-23.0-499848?style=flat-square&logo=gunicorn&logoColor=white)](https://gunicorn.org/)
-[![Nginx](https://img.shields.io/badge/Nginx-Alpine-009639?style=flat-square&logo=nginx&logoColor=white)](https://nginx.org/)
+[![Nginx](https://img.shields.io/badge/Nginx-Latest-009639?style=flat-square&logo=nginx&logoColor=white)](https://nginx.org/)
 [![Bootstrap](https://img.shields.io/badge/Bootstrap-5.3-7952B3?style=flat-square&logo=bootstrap&logoColor=white)](https://getbootstrap.com/)
 [![Leaflet](https://img.shields.io/badge/Leaflet-1.9.4-199900?style=flat-square&logo=leaflet&logoColor=white)](https://leafletjs.com/)
 
@@ -125,43 +125,9 @@ eas-station/
 
 ## 🚀 Quick Start
 
-### Choose Your Deployment Method
+### Bare Metal Deployment
 
-EAS Station supports two deployment methods:
-
-| Method | Best For | Setup Time |
-|--------|----------|------------|
-| **🐋 Docker** | Quick testing, development, easy updates | 5 minutes |
-| **🔧 Bare Metal** | Production, dedicated hardware, lower overhead | 15 minutes |
-
-### Docker Deployment (Recommended for Testing)
-
-#### One-Command Installation
-
-```bash
-git clone https://github.com/KR8MER/eas-station.git && \
-cd eas-station && \
-cp .env.example .env && \
-sudo docker compose up -d --build
-```
-
-Then open **https://localhost** in your browser (HTTPS enabled by default).
-
-> 💡 **Next Steps**:
-> - For production with Let's Encrypt: Set `DOMAIN_NAME` in `.env` and restart
-> - For localhost: Accept the self-signed certificate warning (safe for testing)
-> - Edit `.env` with your configuration, then restart: `sudo docker compose restart`
-
-#### Prerequisites
-
-- Docker Engine 24+ with Compose V2
-- PostgreSQL 14+ with PostGIS (can use embedded container)
-- 4GB RAM (8GB recommended)
-- Internet connection for alert polling
-
-> **Note**: Most Docker commands require root privileges. If you're running as a non-root user, prefix commands with `sudo`. Alternatively, add your user to the `docker` group (see [Docker Post-Installation Steps](https://docs.docker.com/engine/install/linux-postinstall/)).
-
-### Bare Metal Deployment (Recommended for Production)
+EAS Station runs as native Linux services managed by systemd - no containers, no Docker required.
 
 #### Quick Installation
 
@@ -171,29 +137,46 @@ cd eas-station/bare-metal && \
 sudo bash scripts/install.sh
 ```
 
-Or build a **bootable ISO image**:
+Then configure and start:
+
+```bash
+sudo nano /opt/eas-station/.env  # Edit your configuration
+sudo systemctl start eas-station.target  # Start all services
+```
+
+Open **https://localhost** in your browser (HTTPS enabled by default).
+
+> 💡 **Next Steps**:
+> - For production with Let's Encrypt: Install certbot and run `sudo certbot --nginx -d your-domain.com`
+> - For localhost: Accept the self-signed certificate warning (safe for testing)
+> - Edit `/opt/eas-station/.env` with your configuration, then restart: `sudo systemctl restart eas-station.target`
+
+#### Bootable ISO Option
+
+Build a pre-configured bootable ISO for dedicated hardware:
 
 ```bash
 cd eas-station/bare-metal
 sudo bash scripts/build-iso.sh
-# Burn to USB: sudo dd if=eas-station-*.iso of=/dev/sdX bs=4M
+# Burn to USB: sudo dd if=eas-station-*.iso of=/dev/sdX bs=4M status=progress
 ```
 
-#### Benefits of Bare Metal
+#### Benefits
 
-- ✅ **No Docker dependency** - Runs directly on host OS
-- ✅ **Lower overhead** - Direct hardware access
-- ✅ **Native systemd** - Standard Linux service management
+- ✅ **Native Performance** - Runs directly on host OS without containerization overhead
+- ✅ **Direct Hardware Access** - SDR, GPIO, and audio devices work natively
+- ✅ **Standard Linux Management** - Familiar systemd service control
+- ✅ **Lower Resource Usage** - No container runtime overhead
 - ✅ **Bootable ISO** - Pre-configured system ready to deploy
 
 #### Prerequisites
 
-- Debian 12, Ubuntu 22.04+, or Raspberry Pi OS
-- 2GB RAM minimum (4GB+ recommended)
-- 20GB storage (50GB+ recommended)
-- Internet connection for alert polling
+- **OS**: Debian 12 (Bookworm), Ubuntu 22.04+, or Raspberry Pi OS
+- **RAM**: 2GB minimum (4GB+ recommended)
+- **Storage**: 20GB minimum (50GB+ recommended for alerts database)
+- **Network**: Internet connection for alert polling
 
-**📖 Full Guide:** See [bare-metal/README.md](bare-metal/README.md) for detailed installation and configuration.
+**📖 Full Guide:** See [bare-metal/README.md](bare-metal/README.md) for detailed installation, configuration, and troubleshooting.
 
 ## 📚 Documentation
 
@@ -221,7 +204,7 @@ graph TD
 | **First Time Setup** | [Setup Instructions](docs/guides/SETUP_INSTRUCTIONS) → [Quick Start](#quick-start) |
 | **Radio Configuration** | [SDR Setup Guide](docs/hardware/SDR_SETUP) |
 | **Daily Operations** | [User Guide](docs/guides/HELP) |
-| **Deployment** | [Portainer Guide](docs/deployment/PORTAINER_DEPLOYMENT.md) |
+| **Deployment** | [Bare Metal Guide](bare-metal/README.md) |
 | **Development** | [Developer Guide](docs/development/AGENTS) |
 | **Debugging on Pi** | [PyCharm Remote Debugging Guide](docs/guides/PYCHARM_DEBUGGING) |
 
@@ -315,18 +298,19 @@ graph TB
 
 ### Software Requirements
 
-**For Docker deployment (recommended)**:
-- Docker Engine 24+ with Compose V2
-- PostgreSQL 14+ with PostGIS 3+ (provided in docker-compose.yml)
-
-**For source installation**:
+**Operating System**:
+- Debian 12 (Bookworm), Ubuntu 22.04+, or Raspberry Pi OS
 - Python 3.11+
 - PostgreSQL 14+ with PostGIS 3+
-- System packages (see below)
+- Redis 7+
 
 ### System Package Dependencies
 
-**Required for audio streaming**:
+**Required for core functionality**:
+- `python3.11` - Python runtime
+- `postgresql` + `postgresql-contrib` + `postgis` - Database with spatial extensions
+- `redis-server` - In-memory data store for real-time metrics
+- `nginx` - Web server and reverse proxy
 - `ffmpeg` - Audio codec library for MP3/AAC/OGG stream decoding
 - `libpq-dev` - PostgreSQL client library headers
 
@@ -336,9 +320,9 @@ graph TB
 - `espeak` / `libespeak-ng1` - Text-to-speech synthesis
 - `libusb-1.0-0` - USB SDR hardware support
 
-> 📘 **Docker users**: All system packages are pre-installed in the container.
+> 📘 **Automated Installation**: The installation script (`bare-metal/scripts/install.sh`) installs all required and optional dependencies automatically.
 >
-> 📘 **Source installation**: See [Setup Instructions](docs/guides/SETUP_INSTRUCTIONS.md) for complete installation guide.
+> 📘 **Manual Installation**: See [Setup Instructions](docs/guides/SETUP_INSTRUCTIONS.md) for step-by-step installation guide.
 
 ## 🛠️ Configuration
 
@@ -347,7 +331,7 @@ Edit `.env` with your settings:
 ```bash
 # Core settings
 SECRET_KEY=generate-with-python-secrets-module
-POSTGRES_HOST=alerts-db
+POSTGRES_HOST=localhost
 POSTGRES_PASSWORD=your-secure-password
 
 # Your location
@@ -359,16 +343,16 @@ DEFAULT_ZONE_CODES=XXZ001,XXC001
 EAS_BROADCAST_ENABLED=false
 EAS_ORIGINATOR=WXR
 EAS_STATION_ID=YOURCALL
-
-# Resource allocation (adjust for your RAM)
-# For 16GB RAM systems, quadruple these values
-TMPFS_SDR_SERVICE=64M
-TMPFS_AUDIO_SERVICE=128M
-TMPFS_APP=128M
 ```
 
-See [Configuration Guide](docs/guides/HELP) for complete reference.  
-See [tmpfs Configuration](docs/deployment/TMPFS_CONFIGURATION.md) for RAM optimization.
+Configuration file location: `/opt/eas-station/.env`
+
+After editing, restart services:
+```bash
+sudo systemctl restart eas-station.target
+```
+
+See [Configuration Guide](docs/guides/HELP) for complete reference.
 
 ## 📊 System Diagrams
 

@@ -10,7 +10,7 @@ EAS Station’s reference build centers on a Raspberry Pi 5 (4 GB RAM baseli
 
 - **Upstream status:** Python 3.13.0 is the newest general-availability CPython release.
 - **Current runtime:** The stack uses Python 3.11 to maintain compatibility with Debian bookworm's pre-compiled SoapySDR bindings (`python3-soapysdr`). All key dependencies including `scipy==1.14.1` and `pyttsx3==2.90` provide Linux/ARM64 wheels for Python 3.11, avoiding from-source builds that would pull heavy Fortran and speech synthesis toolchains and exhaust Raspberry Pi 5 hosts.
-- **Mitigation:** The Docker base image is rebuilt whenever Python 3.11 patch releases land, and pinned dependencies are updated alongside security advisories so we keep receiving CVE fixes without destabilizing the hardware-specific build pipeline or SDR functionality.
+- **Mitigation:** The system is updated regularly with Python 3.11 patch releases, and pinned dependencies are updated alongside security advisories to ensure CVE fixes without destabilizing the hardware-specific build pipeline or SDR functionality.
 
 ## Safety Notice
 - **Development status:** The project remains experimental and has only been cross-checked against community tools like [multimon-ng](https://github.com/EliasOenal/multimon-ng) for decoding parity. All other implementations, workflows, and documentation are original and subject to change.
@@ -60,7 +60,7 @@ The application combines open-source tooling and optional cloud integrations. Ve
 
 ### Optional Integrations
 - Azure Cognitive Services Speech SDK 1.38.0 (optional AI narration)
-- Docker Engine 24+ and Docker Compose V2 for container orchestration
+- Systemd for service orchestration and management
 
 ## Data Sources & Attribution
 

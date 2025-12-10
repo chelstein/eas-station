@@ -93,7 +93,7 @@
                                 <div class="form-check">
                                     <input class="form-check-input" type="checkbox" id="include-volumes" checked>
                                     <label class="form-check-label" for="include-volumes">
-                                        Include Docker volumes
+                                        Include system directories
                                     </label>
                                 </div>
                             </div>
@@ -348,7 +348,7 @@
                         <div class="form-check">
                             <input class="form-check-input" type="checkbox" id="skip-volumes">
                             <label class="form-check-label" for="skip-volumes">
-                                Skip Docker volumes restore
+                                Skip system directories restore
                             </label>
                         </div>
                     </div>
@@ -684,10 +684,10 @@ async function runSystemValidation() {
                     </div>
                     <div class="card-body">
                         <ul class="mb-0">
-                            <li>Check application logs: <code>docker compose logs --tail=100 app</code></li>
-                            <li>Verify database status: <code>docker compose exec app python -m alembic current</code></li>
+                            <li>Check application logs: <code>sudo journalctl -u eas-station-web.service -n 100</code></li>
+                            <li>Verify database status: <code>sudo -u eas-station /opt/eas-station/venv/bin/python -m alembic current</code></li>
                             <li>Review system health at <a href="/health/dependencies" target="_blank">/health/dependencies</a></li>
-                            <li>Restart services if needed: <code>docker compose restart</code></li>
+                            <li>Restart services if needed: <code>sudo systemctl restart eas-station.target</code></li>
                         </ul>
                     </div>
                 </div>

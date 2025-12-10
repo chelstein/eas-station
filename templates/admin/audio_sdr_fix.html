@@ -73,7 +73,7 @@
                     <p>Configuration has been updated! Now restart the SDR service to apply the changes.</p>
                     <p><strong>Run this command on your Raspberry Pi:</strong></p>
                     <div class="alert alert-dark">
-                        <code id="restartCommand">sudo docker compose -f docker-compose.yml -f docker-compose.pi.yml restart sdr-service</code>
+                        <code id="restartCommand">sudo systemctl restart eas-station-sdr.service</code>
                         <button class="btn btn-sm btn-outline-secondary ml-2" onclick="copyToClipboard()">
                             <i class="fas fa-copy"></i> Copy
                         </button>

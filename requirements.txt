@@ -98,7 +98,7 @@ pydub==0.25.1  # Audio stream decoding (MP3, AAC, OGG) for HTTP/Icecast streams
 
 # SDR support for radio receivers
 numpy==2.2.1  # Required for SoapySDR sample processing
-# Note: SoapySDR Python bindings are installed via system packages in Dockerfile
+# Note: SoapySDR Python bindings are installed via system packages (python3-soapysdr)
 
 # VFD Display support (Noritake GU140x32F-7000B)
 pyserial==3.5  # Serial communication for VFD display

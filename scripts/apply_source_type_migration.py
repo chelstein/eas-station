@@ -25,7 +25,7 @@ This fixes the error: column radio_receivers.source_type does not exist
 Usage:
     python3 apply_source_type_migration.py
 
-Environment variables (reads from stack.env or can be set manually):
+Environment variables (reads from .env or can be set manually):
     POSTGRES_HOST (default: localhost)
     POSTGRES_PORT (default: 5432)
     POSTGRES_DB (default: alerts)
@@ -41,9 +41,9 @@ import sys
 import psycopg2
 from dotenv import load_dotenv
 
-# Try to load from stack.env or .env
-if os.path.exists('stack.env'):
-    load_dotenv('stack.env')
+# Try to load from standard .env locations
+if os.path.exists('/opt/eas-station/.env'):
+    load_dotenv('/opt/eas-station/.env')
 elif os.path.exists('.env'):
     load_dotenv('.env')
 
