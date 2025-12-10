@@ -498,19 +498,7 @@ if [ ! -f /etc/apt/sources.list.d/pgadmin4.list ]; then
     apt-get update > /dev/null 2>&1
 fi
 
-# Prevent Apache2 from being installed as a dependency
-echo_progress "Blocking apache2 packages to prevent conflicts with nginx..."
-
-# Create apt preferences to block apache2 installation
-cat > /etc/apt/preferences.d/block-apache2 << 'APT_PREFS'
-Package: apache2 apache2-bin apache2-data apache2-utils libapache2-mod-wsgi-py3
-Pin: version *
-Pin-Priority: -1
-APT_PREFS
-
-echo_success "Apache2 packages blocked"
-
-# Stop and mask apache2 if it's already installed
+# Stop and mask apache2 if it's already installed (before pgAdmin installation)
 if systemctl list-unit-files | grep -q apache2.service; then
     echo_progress "Removing existing Apache2 installation..."
     systemctl stop apache2 2>/dev/null || true
@@ -529,32 +517,102 @@ DEBIAN_FRONTEND=noninteractive apt-get install -y python3-typer python3-gunicorn
 }
 echo_success "pgAdmin dependencies installed"
 
+# Temporarily remove Apache2 block to allow pgAdmin installation
+# (pgadmin4-web has apache2 as a dependency, but we won't actually use it)
+echo_progress "Preparing for pgAdmin installation..."
+rm -f /etc/apt/preferences.d/block-apache2
+
 # Install pgadmin4-desktop (no Apache2 dependency) and pgadmin4-web (Python files only, apache2 blocked)
 echo_progress "Installing pgAdmin 4 packages (this may take a few minutes)..."
-# Capture stderr separately to avoid masking legitimate errors while suppressing apache2 messages
-# Use --allow-downgrades to handle dependency issues
-PGADMIN_INSTALL_OUTPUT=$(DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-downgrades --no-install-recommends pgadmin4-desktop pgadmin4-web 2>&1)
-PGADMIN_EXIT_CODE=$?
 
-if [ $PGADMIN_EXIT_CODE -eq 0 ]; then
-    echo_success "pgAdmin 4 installed successfully"
-elif echo "$PGADMIN_INSTALL_OUTPUT" | grep -q "E:"; then
-    # Real error occurred
-    echo_warning "pgAdmin 4 installation encountered errors"
-    echo_info "Error details:"
-    echo "$PGADMIN_INSTALL_OUTPUT" | grep "E:" | head -5
-    echo_warning "pgAdmin 4 will not be available - you can install it manually later"
-    echo_info "Continuing installation without pgAdmin..."
-    # Skip pgAdmin configuration
+# Validate that admin credentials are set (should be set earlier in the script)
+if [ -z "$ADMIN_EMAIL" ] || [ -z "$ADMIN_PASSWORD" ]; then
+    echo_error "Administrator credentials not configured during Step 2 - skipping pgAdmin installation"
+    echo_info "pgAdmin can be installed manually later if needed"
     SKIP_PGADMIN=true
 else
-    # Installation succeeded with warnings
-    echo_success "pgAdmin 4 installed (with warnings - non-critical)"
+    # Preconfigure debconf to avoid any interactive prompts
+    echo_progress "Preconfiguring debconf for non-interactive installation..."
+    
+    # Save current DEBIAN_FRONTEND value to restore later
+    OLD_DEBIAN_FRONTEND="${DEBIAN_FRONTEND:-}"
+    
+    export DEBIAN_FRONTEND=noninteractive
+    export DEBCONF_NONINTERACTIVE_SEEN=true
+    export UCF_FORCE_CONFFOLD=1
+    
+    # Create a temporary file with restricted permissions for debconf configuration
+    # This prevents credentials from appearing in process lists
+    DEBCONF_TEMP=$(mktemp) || {
+        echo_error "Failed to create temporary file for pgAdmin configuration"
+        SKIP_PGADMIN=true
+    }
+    
+    if [ "$SKIP_PGADMIN" != "true" ]; then
+        chmod 600 "$DEBCONF_TEMP"
+        cat > "$DEBCONF_TEMP" <<EOF
+pgadmin4 pgadmin4/email string ${ADMIN_EMAIL}
+pgadmin4 pgadmin4/password password ${ADMIN_PASSWORD}
+pgadmin4 pgadmin4/password-again password ${ADMIN_PASSWORD}
+EOF
+        debconf-set-selections < "$DEBCONF_TEMP"
+        rm -f "$DEBCONF_TEMP"
+
+        # Configuration for installation timeout
+        PGADMIN_INSTALL_TIMEOUT=300  # 5 minutes
+        APT_LOG_TAIL_LINES=20
+        APT_ERROR_DISPLAY_LINES=5
+        
+        # Use timeout to prevent infinite hangs
+        # Redirect stdin from /dev/null to prevent any input blocking
+        if timeout $PGADMIN_INSTALL_TIMEOUT apt-get install -y --allow-downgrades --no-install-recommends pgadmin4-desktop pgadmin4-web < /dev/null > /dev/null 2>&1; then
+            echo_success "pgAdmin 4 installed successfully"
+        else
+            PGADMIN_EXIT_CODE=$?
+            if [ $PGADMIN_EXIT_CODE -eq 124 ]; then
+                # Timeout occurred
+                echo_warning "pgAdmin 4 installation timed out after $PGADMIN_INSTALL_TIMEOUT seconds"
+                echo_info "This may indicate a hung postinstall script or dependency issue"
+            else
+                echo_warning "pgAdmin 4 installation encountered errors (exit code: $PGADMIN_EXIT_CODE)"
+                
+                # Try to get error details from apt logs
+                if [ -f /var/log/apt/term.log ]; then
+                    echo_info "Error details from apt log:"
+                    tail -n $APT_LOG_TAIL_LINES /var/log/apt/term.log | grep -E "E:|Err:" | head -n $APT_ERROR_DISPLAY_LINES || echo "No specific errors found in log"
+                fi
+            fi
+            
+            echo_warning "pgAdmin 4 will not be available - you can install it manually later"
+            echo_info "Continuing installation without pgAdmin..."
+            # Skip pgAdmin configuration
+            SKIP_PGADMIN=true
+        fi
+    fi
+
+    # Cleanup environment variables (only if we tried to install)
+    if [ "$SKIP_PGADMIN" != "true" ] || [ -n "$OLD_DEBIAN_FRONTEND" ]; then
+        unset DEBCONF_NONINTERACTIVE_SEEN
+        unset UCF_FORCE_CONFFOLD
+        
+        # Restore original DEBIAN_FRONTEND value
+        if [ -n "$OLD_DEBIAN_FRONTEND" ]; then
+            export DEBIAN_FRONTEND="$OLD_DEBIAN_FRONTEND"
+        else
+            unset DEBIAN_FRONTEND
+        fi
+    fi
 fi
 
-# Remove apt preferences block after installation (allow future apache2 installs if needed)
-rm -f /etc/apt/preferences.d/block-apache2
-echo_info "Apache2 block removed (can be installed manually if needed)"
+# Stop and disable Apache2 if it was installed as a pgAdmin dependency
+# We'll use Nginx as the reverse proxy instead
+if systemctl list-unit-files | grep -q apache2.service; then
+    echo_progress "Stopping and disabling Apache2 (using Nginx instead)..."
+    systemctl stop apache2 2>/dev/null || true
+    systemctl disable apache2 2>/dev/null || true
+    systemctl mask apache2 2>/dev/null || true
+    echo_success "Apache2 disabled (Nginx will be used)"
+fi
 
 # Configure pgAdmin for WSGI mode (works with Nginx)
 if [ "$SKIP_PGADMIN" != "true" ] && [ -f /usr/pgadmin4/web/config.py ] || [ -f /usr/pgadmin4/web/config_distro.py ]; then
