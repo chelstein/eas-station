@@ -13,10 +13,15 @@ tracks releases under the 2.x series.
   - Fixed environment validation to check default values before reporting "required but not set" errors
   - Updated setup wizard configuration persistence notice to remove Docker/container-specific references
   - Changed setup wizard text to reflect bare metal deployment with /app-config/.env persistent volume
+  - Removed Docker-specific terminology from about.html (changed "containers" to "services")
+  - Removed Docker-specific terminology from admin.html (container references, --network=host flag)
+  - Updated admin panel text to be deployment-agnostic (removed "inside the app container" references)
 
 ### Changed
   - Updated setup wizard to show accurate configuration persistence behavior for bare metal deployments
   - Environment validation now respects default values defined in ENV_CATEGORIES when checking required fields
+  - About page now uses deployment-agnostic terminology for service architecture
+  - Admin panel now uses terminology appropriate for both Docker and bare metal deployments
 
 ## [2.19.8] - 2025-12-10
 ### Fixed

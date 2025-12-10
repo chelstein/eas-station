@@ -536,7 +536,7 @@
                             <p class="mb-0 small">
                                 Prefer the command line? Run
                                 <code>flask create-admin-user</code>
-                                inside the app container to provision an account manually.
+                                in the application directory to provision an account manually.
                             </p>
                         </div>
                         <ul class="list-unstyled text-muted small mb-4">
@@ -1103,7 +1103,7 @@
                                 <div class="card-body text-center">
                                     <i class="fas fa-level-up-alt fa-2x text-primary mb-3"></i>
                                     <h6>One-Button Upgrade</h6>
-                                    <p class="text-muted small">Fetch updates, rebuild containers, and restart services in place.</p>
+                                    <p class="text-muted small">Fetch updates, rebuild services, and restart in place.</p>
                             <div class="mb-2">
                                         <label class="form-label small fw-semibold" for="upgradeCheckout">Checkout ref (optional)</label>
                                         <input type="text" class="form-control" id="upgradeCheckout" placeholder="e.g. v2.3.1">
@@ -1499,9 +1499,8 @@
                                 <i class="fas fa-exclamation-triangle me-3 mt-1"></i>
                                 <div>
                                     <strong>Network Configuration:</strong> Network configuration requires the <code>hardware-service</code> systemd service
-                                    to have host network access and <code>NET_ADMIN</code> capability. For network configuration,
-                                    network changes affect only the container's network namespace, not the host system. For full functionality,
-                                    run the hardware-service with <code>--network=host</code> or configure your host network directly.
+                                    to have appropriate network permissions. Network changes are applied directly to the system.
+                                    Ensure the hardware-service has the necessary capabilities to modify network configuration.
                                 </div>
                             </div>
 
