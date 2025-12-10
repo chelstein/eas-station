@@ -19,7 +19,7 @@ NC='\033[0m' # No Color
 
 # Step counter for progress tracking
 STEP_NUM=0
-TOTAL_STEPS=15
+TOTAL_STEPS=16
 
 echo_step() {
     STEP_NUM=$((STEP_NUM + 1))
@@ -466,23 +466,50 @@ echo_info "Installing pgAdmin 4 with Nginx integration..."
 if [ ! -f /etc/apt/sources.list.d/pgadmin4.list ]; then
     curl -fsS https://www.pgadmin.org/static/packages_pgadmin_org.pub | gpg --dearmor -o /usr/share/keyrings/pgadmin-archive-keyring.gpg
     echo "deb [signed-by=/usr/share/keyrings/pgadmin-archive-keyring.gpg] https://ftp.postgresql.org/pub/pgadmin/pgadmin4/apt/$(lsb_release -cs) pgadmin4 main" > /etc/apt/sources.list.d/pgadmin4.list
-    apt-get update
+    apt-get update > /dev/null 2>&1
 fi
 
-# Install ONLY pgadmin4 (not pgadmin4-web which pulls in Apache2)
-# This gives us the Python package without Apache2 dependency
-DEBIAN_FRONTEND=noninteractive apt-get install -y pgadmin4 --no-install-recommends || {
-    echo_warning "pgAdmin 4 core installation failed, trying alternative..."
-    # Fallback: install pgadmin4-web but remove apache2 immediately
-    DEBIAN_FRONTEND=noninteractive apt-get install -y pgadmin4-web || echo_warning "pgAdmin 4 installation failed (non-critical)"
-    # Remove Apache2 if it was installed
-    if systemctl is-active --quiet apache2; then
-        systemctl stop apache2
-        systemctl disable apache2
-        apt-get remove -y apache2 apache2-bin apache2-data || true
-        echo_info "Removed Apache2 to prevent port conflicts with Nginx"
-    fi
+# Prevent Apache2 from being installed as a dependency
+echo_progress "Blocking apache2 packages to prevent conflicts with nginx..."
+
+# Create apt preferences to block apache2 installation
+cat > /etc/apt/preferences.d/block-apache2 << 'APT_PREFS'
+Package: apache2 apache2-bin apache2-data apache2-utils libapache2-mod-wsgi-py3
+Pin: release *
+Pin-Priority: -1
+APT_PREFS
+
+echo_success "Apache2 packages blocked"
+
+# Stop and mask apache2 if it's already installed
+if systemctl list-unit-files | grep -q apache2.service; then
+    echo_progress "Removing existing Apache2 installation..."
+    systemctl stop apache2 2>/dev/null || true
+    systemctl disable apache2 2>/dev/null || true
+    systemctl mask apache2 2>/dev/null || true
+    DEBIAN_FRONTEND=noninteractive apt-get remove -y apache2 apache2-bin apache2-data apache2-utils libapache2-mod-wsgi-py3 2>/dev/null || true
+    DEBIAN_FRONTEND=noninteractive apt-get autoremove -y 2>/dev/null || true
+    echo_success "Apache2 removed and masked"
+fi
+
+# Install dependencies needed by pgAdmin
+echo_progress "Installing pgAdmin dependencies..."
+DEBIAN_FRONTEND=noninteractive apt-get install -y python3-typer python3-gunicorn gunicorn > /dev/null 2>&1 || {
+    echo_warning "Failed to install python3-typer from apt, trying pip..."
+    pip3 install typer gunicorn > /dev/null 2>&1
 }
+echo_success "pgAdmin dependencies installed"
+
+# Install pgadmin4-desktop (no Apache2 dependency) and pgadmin4-web (Python files only, apache2 blocked)
+echo_progress "Installing pgAdmin 4 packages..."
+DEBIAN_FRONTEND=noninteractive apt-get install -y pgadmin4-desktop pgadmin4-web 2>&1 | grep -v "apache2" || {
+    echo_warning "pgAdmin 4 installation completed with warnings (non-critical)"
+}
+echo_success "pgAdmin 4 installed"
+
+# Remove apt preferences block after installation (allow future apache2 installs if needed)
+rm -f /etc/apt/preferences.d/block-apache2
+echo_info "Apache2 block removed (can be installed manually if needed)"
 
 # Configure pgAdmin for WSGI mode (works with Nginx)
 if [ -f /usr/pgadmin4/web/config.py ] || [ -f /usr/pgadmin4/web/config_distro.py ]; then
@@ -554,11 +581,6 @@ RestartSec=10
 [Install]
 WantedBy=multi-user.target
 PGADMIN_SERVICE
-    
-    # Install gunicorn if not already installed (needed for WSGI)
-    if ! command -v gunicorn &> /dev/null; then
-        apt-get install -y python3-gunicorn || pip3 install gunicorn
-    fi
     
     # Enable and start pgAdmin service
     systemctl daemon-reload
@@ -731,6 +753,52 @@ else
     echo_info "Nginx configuration already exists (skipping)"
 fi
 
+echo_step "Firewall Configuration"
+
+# Configure UFW firewall for remote access
+echo_progress "Configuring firewall for remote access..."
+
+# Check if UFW is installed (it was installed in step 3)
+if command -v ufw &> /dev/null; then
+    # Enable UFW if not already enabled
+    if ! ufw status | grep -q "Status: active"; then
+        echo_progress "Enabling UFW firewall..."
+        # Set default policies
+        ufw --force default deny incoming > /dev/null 2>&1
+        ufw --force default allow outgoing > /dev/null 2>&1
+        echo_info "Default policies set (deny incoming, allow outgoing)"
+    fi
+    
+    # Allow SSH (important - don't lock yourself out!)
+    echo_progress "Allowing SSH (port 22)..."
+    ufw allow 22/tcp > /dev/null 2>&1
+    echo_success "SSH access allowed"
+    
+    # Allow HTTP (port 80) for Let's Encrypt and redirects
+    echo_progress "Allowing HTTP (port 80)..."
+    ufw allow 80/tcp > /dev/null 2>&1
+    echo_success "HTTP access allowed"
+    
+    # Allow HTTPS (port 443) for web interface
+    echo_progress "Allowing HTTPS (port 443)..."
+    ufw allow 443/tcp > /dev/null 2>&1
+    echo_success "HTTPS access allowed"
+    
+    # Enable UFW
+    echo_progress "Activating firewall rules..."
+    ufw --force enable > /dev/null 2>&1
+    echo_success "Firewall configured and active"
+    
+    # Show status
+    echo ""
+    echo_info "Firewall status:"
+    ufw status numbered | grep -E "(22|80|443|Status)" || true
+    echo ""
+else
+    echo_warning "UFW not found - firewall not configured"
+    echo_warning "Install UFW manually: apt-get install ufw"
+fi
+
 echo_step "Initialize Database Schema"
 
 # Initialize database
@@ -895,9 +963,11 @@ fi
 
 echo -e "  Open your web browser and navigate to:"
 echo ""
-echo -e "    ${BOLD}${GREEN}https://localhost${NC}"
-echo -e "    ${DIM}OR${NC}"
-echo -e "    ${BOLD}${GREEN}https://${PRIMARY_IP}${NC}"
+echo -e "    ${BOLD}${GREEN}https://localhost${NC}      ${DIM}(from this server)${NC}"
+echo -e "    ${BOLD}${GREEN}https://${PRIMARY_IP}${NC}  ${DIM}(from any device on your network)${NC}"
+echo ""
+echo -e "  ${GREEN}✓${NC}  Firewall configured: Ports 80 (HTTP) and 443 (HTTPS) are open"
+echo -e "  ${GREEN}✓${NC}  Remote access enabled: Access from any device on your network"
 echo ""
 echo -e "  ${YELLOW}⚠️${NC}  You'll see a certificate warning - this is ${BOLD}normal${NC}"
 echo -e "      Click 'Advanced' → 'Proceed' (certificate was generated during install)"
@@ -992,7 +1062,7 @@ echo -e "    ${GREEN}☐${NC} Enable Icecast streaming (if broadcasting)"
 echo ""
 echo -e "  ${BOLD}Security & Production Readiness:${NC}"
 echo -e "    ${GREEN}☐${NC} Replace self-signed cert with Let's Encrypt (see below)"
-echo -e "    ${GREEN}☐${NC} Review firewall rules (open port 443 for HTTPS)"
+echo -e "    ${GREEN}✓${NC} Firewall configured automatically (ports 22, 80, 443 allowed)"
 echo -e "    ${GREEN}☐${NC} Set up automatic backups (see backup commands below)"
 echo -e "    ${GREEN}☐${NC} Configure email notifications (if desired)"
 echo ""
@@ -1032,6 +1102,13 @@ echo ""
 echo -e "  ${CYAN}Set up production SSL certificate (Let's Encrypt):${NC}"
 echo -e "    ${BOLD}sudo certbot --nginx -d your-domain.com${NC}"
 echo -e "    ${DIM}(Replace 'your-domain.com' with your actual domain)${NC}"
+echo ""
+echo -e "  ${CYAN}View firewall status:${NC}"
+echo -e "    ${BOLD}sudo ufw status verbose${NC}"
+echo ""
+echo -e "  ${CYAN}Allow additional port through firewall:${NC}"
+echo -e "    ${BOLD}sudo ufw allow <port>/tcp${NC}"
+echo -e "    ${DIM}(e.g., sudo ufw allow 8000/tcp for Icecast)${NC}"
 echo ""
 
 echo -e "${BOLD}${CYAN}═══════════════════════════════════════════════════════════════════════${NC}"

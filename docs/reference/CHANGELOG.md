@@ -6,6 +6,16 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.19.7] - 2025-12-10
+### Fixed
+  - Fixed pgAdmin4 installation to prevent apache2 from being installed as a dependency
+  - Added python3-typer package installation to resolve "ModuleNotFoundError: No module named 'typer'" in pgAdmin setup
+  - Added apt preferences to block apache2 packages during pgadmin4 installation
+  - Added automatic apache2 masking and removal if already installed
+  - Fixed remote access by configuring UFW firewall to allow ports 80 (HTTP) and 443 (HTTPS)
+  - Added firewall configuration section in install.sh with proper UFW setup
+  - Improved installation reliability with better dependency management
+
 ## [2.19.6] - 2025-12-10
 ### Changed
   - Enhanced install.sh with improved visual design and user experience
