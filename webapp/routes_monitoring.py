@@ -226,7 +226,7 @@ def register(app: Flask, logger) -> None:
             }
 
         # 5. Critical Configuration Files
-        config_files = [".env", "docker-compose.yml"]
+        config_files = [".env"]
         config_status = []
         for config_file in config_files:
             config_path = Path(config_file)

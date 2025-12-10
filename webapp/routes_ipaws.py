@@ -232,10 +232,10 @@ def _update_env_file(key: str, value: str) -> None:
 
 
 def _restart_ipaws_poller() -> bool:
-    """Restart the ipaws-poller Docker container."""
+    """Restart the ipaws-poller systemd service."""
     try:
         result = subprocess.run(
-            ['docker', 'compose', 'restart', 'ipaws-poller'],
+            ['sudo', 'systemctl', 'restart', 'eas-station-ipaws-poller.service'],
             capture_output=True,
             text=True,
             timeout=30
@@ -434,7 +434,7 @@ def api_noaa_configure():
         # Restart noaa-poller
         try:
             result = subprocess.run(
-                ['docker', 'compose', 'restart', 'noaa-poller'],
+                ['sudo', 'systemctl', 'restart', 'eas-station-noaa-poller.service'],
                 capture_output=True,
                 text=True,
                 timeout=30
