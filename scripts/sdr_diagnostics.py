@@ -105,7 +105,7 @@ def enumerate_devices() -> list:
             print("  4. Install device-specific SoapySDR modules:")
             print("     - RTL-SDR: sudo apt install soapysdr-module-rtlsdr")
             print("     - Airspy: sudo apt install soapysdr-module-airspy")
-            print("  5. In Docker: ensure /dev/bus/usb is mapped to the container")
+            print("  5. Check udev rules: /etc/udev/rules.d/99-eas-station-sdr.rules")
             return []
 
         print(f"✓ Found {len(devices)} SDR device(s):\n")

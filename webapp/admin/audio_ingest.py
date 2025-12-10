@@ -55,9 +55,9 @@ logger = logging.getLogger(__name__)
 
 def _read_audio_metrics_from_redis() -> Optional[Dict[str, Any]]:
     """
-    Read audio metrics from Redis (published by audio-service container).
+    Read audio metrics from Redis (published by audio-service process).
 
-    In separated architecture, the audio-service container publishes metrics to Redis.
+    In separated architecture, the audio-service process publishes metrics to Redis.
     This function reads those metrics if available.
 
     Returns:
@@ -214,16 +214,16 @@ def _start_audio_sources_background(app: Flask) -> None:
     """
     Start audio sources and streaming in background (slow, async).
 
-    SEPARATED ARCHITECTURE: This function should NOT run in the app container.
-    Audio processing is handled entirely by the dedicated audio-service container.
-    The app container only serves the UI and reads metrics from Redis.
+    SEPARATED ARCHITECTURE: This function should NOT run in the web application process.
+    Audio processing is handled entirely by the dedicated audio-service process.
+    The web application process only serves the UI and reads metrics from Redis.
     """
     global _audio_controller, _streaming_lock_file, _audio_initialization_lock_file
 
-    # Separated architecture: Audio processing handled by dedicated audio-service container
-    # Skip ALL audio initialization in app container
-    logger.info("🌐 App container in separated architecture - skipping audio source startup")
-    logger.info("   Audio processing handled by dedicated audio-service container")
+    # Separated architecture: Audio processing handled by dedicated audio-service process
+    # Skip ALL audio initialization in web application process
+    logger.info("🌐 Web application in separated architecture - skipping audio source startup")
+    logger.info("   Audio processing handled by dedicated audio-service process")
     return
 
 
@@ -353,7 +353,7 @@ def _safe_auto_stream_status(service) -> Optional[Dict[str, Any]]:
         except Exception as exc:  # pylint: disable=broad-except
             logger.debug("Unable to read auto-streaming status: %s", exc)
 
-    # Separated deployments run the streaming service in the audio-service container.
+    # Separated deployments run the streaming service in the audio-service process.
     # When the UI worker doesn't host the service locally, fall back to Redis metrics
     # so the UI still shows accurate active stream counts.
     if not status:
@@ -713,7 +713,7 @@ def ensure_sdr_audio_monitor_source(
             db.session.rollback()
             raise
 
-    # In separated architecture, audio processing happens in sdr-service container.
+    # In separated architecture, audio processing happens in SDR hardware service process.
     # We need to notify the sdr-service via Redis to reload/start the source.
     # The local controller in webapp is only used for metrics display, not audio processing.
     started = False
@@ -1358,7 +1358,7 @@ def api_get_audio_sources():
                     },
                     'metrics': metrics_payload,
                     'error_message': None,
-                    'in_memory': True,  # Running in audio-service container
+                    'in_memory': True,  # Running in audio-service process
                     'icecast_url': icecast_url,
                     'streaming': {
                         'icecast': _sanitize_streaming_stats(icecast_stats, icecast_url)
@@ -1724,7 +1724,7 @@ def api_start_audio_source(source_name: str):
             logger.error('Redis Pub/Sub unavailable, cannot send start command: %s', e)
             return jsonify({
                 'error': 'Audio service communication unavailable',
-                'hint': 'Check Redis connection and audio-service container status'
+                'hint': 'Check Redis connection and audio-service process status'
             }), 503
 
     except Exception as exc:
@@ -1766,7 +1766,7 @@ def api_stop_audio_source(source_name: str):
             logger.error('Redis Pub/Sub unavailable, cannot send stop command: %s', e)
             return jsonify({
                 'error': 'Audio service communication unavailable',
-                'hint': 'Check Redis connection and audio-service container status'
+                'hint': 'Check Redis connection and audio-service process status'
             }), 503
 
     except Exception as exc:
@@ -1831,7 +1831,7 @@ def api_get_audio_metrics():
                 redis_metrics = None
 
         # SEPARATED ARCHITECTURE: No fallback to local controller
-        # In separated architecture, app container doesn't run audio processing.
+        # In separated architecture, web application process doesn't run audio processing.
         # Audio-service publishes metrics to Redis. If Redis has no metrics,
         # return empty arrays (audio-service not running or not publishing).
         if not redis_metrics:
@@ -2243,7 +2243,7 @@ def api_stream_audio(source_name: str):
 
 # NOTE: Legacy audio streaming code removed (lines 2094-2350)
 # In separated architecture, audio streaming requires direct adapter access
-# which only exists in audio-service container. Use Icecast instead.
+# which only exists in audio-service process. Use Icecast instead.
 
 @audio_ingest_bp.route('/api/audio/health/dashboard', methods=['GET'])
 def api_get_health_dashboard():

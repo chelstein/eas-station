@@ -59,8 +59,8 @@ def register(app, logger):
     register_zigbee_routes(app, logger)  # Zigbee monitoring and status
 
     # Note: Audio controller initialization removed for separated architecture.
-    # In separated architecture, audio processing runs in dedicated audio-service container.
-    # The app container only serves the web UI and reads metrics from Redis.
+    # In separated architecture, audio processing runs in dedicated audio-service process.
+    # The web application process only serves the web UI and reads metrics from Redis.
 
 
 __all__ = ['register', 'calculate_coverage_percentages']

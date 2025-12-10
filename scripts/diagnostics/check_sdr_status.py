@@ -122,10 +122,10 @@ def main():
                 print("   → Receivers are locked and should be producing data")
                 print("   → Check /settings/radio for waterfall display")
             elif len(radio_manager._receivers) == 0 and len(enabled_receivers) > 0:
-                # In separated architecture, RadioManager runs in audio-service container
-                print("   ℹ Status: Radio processing handled by audio-service container")
-                print("   → In Docker: SDR receivers run in the sdr-service container")
-                print("   → Check the audio-service/sdr-service container logs for status")
+                # In separated architecture, RadioManager runs in audio-service process
+                print("   ℹ Status: Radio processing handled by audio-service process")
+                print("   → SDR receivers run in the SDR hardware service process")
+                print("   → Check service logs: journalctl -u eas-station-sdr-hardware.service -f")
             elif len(radio_manager._receivers) == 0:
                 print("   ℹ Status: No receivers configured or enabled")
                 print("   → Add receivers at /settings/radio to get started")

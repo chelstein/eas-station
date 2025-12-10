@@ -69,7 +69,7 @@ def register_eas_monitor_routes(app: Flask, logger_instance) -> None:
             # Import here to avoid circular dependencies
             from app_core.audio.worker_coordinator import read_shared_metrics
 
-            logger.debug("Reading EAS monitor status from Redis (published by audio-service container)")
+            logger.debug("Reading EAS monitor status from Redis (published by audio-service process)")
             shared_metrics = read_shared_metrics()
 
             # Debug: Log what we actually got from Redis
@@ -220,7 +220,7 @@ def register_eas_monitor_routes(app: Flask, logger_instance) -> None:
         Returns last 60 data points (typically 5 minutes at 5s intervals).
 
         In separated architecture, buffer history is published by audio-service
-        to Redis. The app container reads it from there.
+        to Redis. The web application process reads it from there.
         """
         try:
             # Separated architecture: Read buffer history from Redis
@@ -320,7 +320,7 @@ def register_eas_monitor_routes(app: Flask, logger_instance) -> None:
                 return jsonify({
                     "success": False,
                     "error": f"Cannot communicate with audio-service: {str(redis_error)}",
-                    "hint": "Check that Redis and audio-service containers are running"
+                    "hint": "Check that Redis and audio-service processes are running"
                 }), 503
 
         except Exception as e:

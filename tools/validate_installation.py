@@ -196,7 +196,7 @@ def check_database_connection(results: ValidationResult, verbose: bool = False):
     """Check database connectivity."""
     print("Checking database connection...")
     
-    # Try to connect to database via app container
+    # Try to connect to database via web application process
     code, stdout, stderr = run_command([
         "docker", "compose", "exec", "-T", "app",
         "python", "-c",

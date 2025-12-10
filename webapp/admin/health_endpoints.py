@@ -21,7 +21,7 @@ Repository: https://github.com/KR8MER/eas-station
 Health check endpoints for separated architecture.
 
 These endpoints properly read from Redis to show actual audio-service status,
-not the empty local controller in the app container.
+not the empty local controller in the web application process.
 """
 
 import logging
@@ -38,7 +38,7 @@ health_bp = Blueprint('health', __name__)
 
 def _read_audio_metrics_from_redis() -> Optional[Dict[str, Any]]:
     """
-    Read audio metrics from Redis (published by audio-service container).
+    Read audio metrics from Redis (published by audio-service process).
 
     Returns:
         Dict with audio metrics or None if unavailable
@@ -54,7 +54,7 @@ def _read_audio_metrics_from_redis() -> Optional[Dict[str, Any]]:
 @health_bp.route('/api/health/audio-service', methods=['GET'])
 def api_audio_service_health():
     """
-    Check if audio-service container is alive and publishing metrics.
+    Check if audio-service process is alive and publishing metrics.
 
     This is the primary health check for separated architecture.
 

@@ -768,7 +768,7 @@ def collect_metrics():
         "audio_controller": None,
         "eas_monitor": None,
         "broadcast_queue": None,
-        "radio_manager": None,  # Add radio manager metrics for app container
+        "radio_manager": None,  # Add radio manager metrics for web application process
         "timestamp": time.time()
     }
 
@@ -856,7 +856,7 @@ def publish_metrics_to_redis(metrics):
     try:
         r = get_redis_client()
 
-        # Add heartbeat timestamp and process ID (required by app container)
+        # Add heartbeat timestamp and process ID (required by web application process)
         metrics["_heartbeat"] = time.time()
         metrics["_master_pid"] = os.getpid()
 
@@ -917,7 +917,7 @@ def main():
         # The sync_radio_receiver_audio_sources() function will create AudioSourceConfigDB
         # entries that trigger RedisSDRSourceAdapter creation (which subscribes to Redis).
         logger.info("Skipping RadioManager initialization - using separated architecture")
-        logger.info("SDR hardware is managed by sdr-service container")
+        logger.info("SDR hardware is managed by SDR hardware service process")
         logger.info("This service will subscribe to Redis channels for IQ samples")
 
         # Initialize audio controller

@@ -2,8 +2,8 @@
 """
 Direct SoapySDR test - minimal code to diagnose device detection issues.
 
-Run inside the sdr-service container:
-    docker exec -it eas-sdr-service python test_sdr_direct.py
+Run on the system with SDR hardware:
+    sudo -u eas-station /opt/eas-station/venv/bin/python /opt/eas-station/scripts/debug/test_sdr_direct.py
 """
 
 import sys

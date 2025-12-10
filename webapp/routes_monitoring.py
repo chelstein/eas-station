@@ -101,8 +101,8 @@ def register(app: Flask, logger) -> None:
 
         Checks the health of all critical services and dependencies:
         - PostgreSQL database
+        - Redis server
         - Icecast streaming service
-        - Docker daemon
         - Disk space
         - Configuration files
         """
@@ -164,38 +164,28 @@ def register(app: Flask, logger) -> None:
                 "message": "Icecast streaming not enabled",
             }
 
-        # 3. Docker Daemon
-        docker_cmd = shutil.which("docker")
-        if docker_cmd:
-            try:
-                result = subprocess.run(
-                    [docker_cmd, "info"],
-                    capture_output=True,
-                    text=True,
-                    timeout=5,
-                )
-                if result.returncode == 0:
-                    dependencies["docker"] = {
-                        "status": "healthy",
-                        "message": "Docker daemon accessible",
-                    }
-                else:
-                    dependencies["docker"] = {
-                        "status": "degraded",
-                        "message": "Docker daemon not responding",
-                    }
-                    overall_status = "degraded" if overall_status == "healthy" else overall_status
-            except Exception as exc:
-                dependencies["docker"] = {
+        # 3. Redis Server
+        redis_host = app.config.get("REDIS_HOST", "localhost")
+        redis_port = app.config.get("REDIS_PORT", 6379)
+        try:
+            redis_client = get_redis_client()
+            if redis_client and redis_client.ping():
+                dependencies["redis"] = {
+                    "status": "healthy",
+                    "message": f"Redis connected at {redis_host}:{redis_port}",
+                }
+            else:
+                dependencies["redis"] = {
                     "status": "degraded",
-                    "message": f"Cannot check Docker: {exc}",
+                    "message": f"Redis not responding at {redis_host}:{redis_port}",
                 }
                 overall_status = "degraded" if overall_status == "healthy" else overall_status
-        else:
-            dependencies["docker"] = {
-                "status": "unknown",
-                "message": "Docker command not found",
+        except Exception as exc:
+            dependencies["redis"] = {
+                "status": "degraded",
+                "message": f"Cannot connect to Redis: {exc}",
             }
+            overall_status = "degraded" if overall_status == "healthy" else overall_status
 
         # 4. Disk Space
         try:

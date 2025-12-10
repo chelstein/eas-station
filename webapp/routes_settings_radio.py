@@ -785,7 +785,7 @@ def register(app: Flask, logger) -> None:
     def api_restart_receiver(receiver_id: int) -> Any:
         """Restart a receiver to recover from errors.
 
-        This sends a restart command via Redis to sdr-service container,
+        This sends a restart command via Redis to SDR hardware service process,
         which has direct access to RadioManager and SDR hardware.
         """
         ensure_radio_tables(route_logger)
@@ -1301,8 +1301,8 @@ def register(app: Flask, logger) -> None:
         - /api/radio/spectrum/1
         - /api/radio/spectrum/by-identifier/wxj93
 
-        In the separated Docker architecture, spectrum data is published to Redis
-        by the sdr-service container and read here.
+        Spectrum data is published to Redis by the SDR hardware service
+        and consumed by the web application for display.
         """
         try:
             # Look up receiver by ID or identifier
@@ -1318,7 +1318,7 @@ def register(app: Flask, logger) -> None:
 
             receiver_identifier = receiver.identifier
 
-            # First, try to get spectrum data from Redis (published by sdr-service container)
+            # First, try to get spectrum data from Redis (published by SDR hardware service process)
             try:
                 from app_core.redis_client import get_redis_client
                 redis_client = get_redis_client()
@@ -1506,7 +1506,7 @@ def register(app: Flask, logger) -> None:
                     "fft_size": fft_size,
                     "spectrum": spectrum_data,
                     "timestamp": time.time(),
-                    "source": "sdr-service",  # Indicate data came from sdr-service container
+                    "source": "sdr-service",  # Indicate data came from SDR hardware service process
                     "modulation_type": receiver.modulation_type,
                     "audio_output": receiver.audio_output,
                     "demod_frequency": receiver.frequency_hz  # Frequency being demodulated
@@ -1656,7 +1656,7 @@ def register(app: Flask, logger) -> None:
             enabled_receivers = [r for r in receivers_db if r.enabled]
             auto_start_receivers = [r for r in enabled_receivers if r.auto_start]
 
-            # In separated architecture, RadioManager runs in sdr-service container
+            # In separated architecture, RadioManager runs in SDR hardware service process
             # Read metrics from Redis (published by audio_service.py every 5 seconds)
             available_drivers = []
             loaded_receivers = {}
@@ -1755,7 +1755,7 @@ def register(app: Flask, logger) -> None:
                 else:
                     # No Redis data at all - separated architecture, check sdr-service
                     health_status = "info"
-                    health_message = "Radio processing handled by sdr-service container - check container logs"
+                    health_message = "Radio processing handled by SDR hardware service process - check service logs with journalctl"
             else:
                 health_status = "info"
                 health_message = "No receivers configured"

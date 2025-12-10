@@ -783,7 +783,7 @@ def after_request(response):
 # present we fall back to running the initialization immediately within an
 # application context.
 
-# NOTE: Radio receiver initialization is now handled by the sdr-service container.
+# NOTE: Radio receiver initialization is now handled by the SDR hardware service process.
 # The sdr_service.py script initializes and starts receivers on container startup.
 # This separation ensures proper USB device access isolation.
 

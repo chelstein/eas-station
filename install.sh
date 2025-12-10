@@ -139,7 +139,7 @@ echo_info "Copying application files..."
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$SCRIPT_DIR"
 
-# Copy all files except Docker-related and git
+# Copy all files except Docker-related, development files, and git
 rsync -av --exclude='.git' \
     --exclude='Dockerfile*' \
     --exclude='docker-compose*.yml' \
@@ -148,6 +148,10 @@ rsync -av --exclude='.git' \
     --exclude='.env' \
     --exclude='__pycache__' \
     --exclude='*.pyc' \
+    --exclude='bugs/' \
+    --exclude='legacy/' \
+    --exclude='bare-metal/' \
+    --exclude='tests/bug_reproductions/' \
     "$REPO_ROOT/" "$INSTALL_DIR/"
 
 echo_success "Application files copied"

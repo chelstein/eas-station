@@ -21,12 +21,12 @@ from __future__ import annotations
 
 """Zigbee monitoring and status routes.
 
-This module proxies Zigbee serial port operations to hardware-service container,
+This module proxies Zigbee serial port operations to hardware service process,
 which has direct access to serial devices (/dev/ttyUSB*, /dev/ttyACM*, etc).
 
-In the separated container architecture:
-- App container: Runs Flask web UI (no serial port access)
-- Hardware-service container: Has device access for serial ports and Zigbee coordinator
+In the separated service architecture:
+- Web application: Runs Flask web UI (no serial port access)
+- Hardware service: Has device access for serial ports and Zigbee coordinator
 """
 
 import requests
@@ -69,7 +69,7 @@ def call_hardware_service(endpoint, method='GET', data=None):
     except requests.ConnectionError:
         return {
             'success': False,
-            'error': 'Cannot connect to hardware service. Check if hardware-service container is running.'
+            'error': 'Cannot connect to hardware service. Check if hardware service process is running.'
         }
     except Exception as e:
         return {

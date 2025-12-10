@@ -436,8 +436,8 @@ def register(app: Flask, logger) -> None:
         if wait_seconds > 0:
             args.extend(["--wait", str(wait_seconds)])
         
-        # Run validation - use localhost:5000 since validation runs in app container
-        # App container exposes Flask on port 5000, nginx is reverse proxy
+        # Run validation - use localhost:5000 since validation runs in web application process
+        # Web application exposes Flask on port 5000, nginx is reverse proxy
         args.extend(["--host", "localhost", "--port", "5000"])
         
         success, stdout, stderr = run_script("validate_restore.py", args)

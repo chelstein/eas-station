@@ -36,3 +36,7 @@ htmlcov/
 /tmp/eas-station-iso-build/
 bare-metal/scripts/*.iso
 *.iso
+
+# Development-only directories (not for ISO)
+bugs/
+tests/bug_reproductions/
