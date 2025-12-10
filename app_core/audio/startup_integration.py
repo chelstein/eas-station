@@ -55,10 +55,10 @@ def initialize_eas_monitoring_system() -> bool:
 
     Should be called during Flask app startup (in initialize_database or similar).
     """
-    # Separated architecture: Audio processing handled by dedicated audio-service container
-    # This app container only serves the web UI and reads metrics from Redis
-    logger.info("🌐 App container running in UI-only mode")
-    logger.info("   Audio processing handled by dedicated audio-service container")
+    # Separated architecture: Audio processing handled by dedicated audio-service process
+    # This web application process only serves the web UI and reads metrics from Redis
+    logger.info("🌐 Web application running in UI-only mode")
+    logger.info("   Audio processing handled by dedicated audio-service process")
     logger.info("   Metrics read from Redis (published by audio-service)")
     return True  # Success - separated architecture
 

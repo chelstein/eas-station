@@ -21,12 +21,12 @@ from __future__ import annotations
 
 """Network configuration routes for WiFi management.
 
-This module proxies all network management requests to hardware-service container,
+This module proxies all network management requests to hardware service process,
 which has the necessary privileges and DBus access for NetworkManager (nmcli).
 
-In the separated container architecture:
-- App container: Runs Flask web UI (no network privileges)
-- Hardware-service container: Has NET_ADMIN cap and DBus access for nmcli
+In the separated service architecture:
+- Web application: Runs Flask web UI (no network privileges)
+- Hardware service: Has NET_ADMIN cap and DBus access for nmcli
 """
 
 import requests
@@ -68,7 +68,7 @@ def call_hardware_service(endpoint, method='GET', data=None):
     except requests.ConnectionError:
         return {
             'success': False,
-            'error': 'Cannot connect to hardware service. Check if hardware-service container is running.'
+            'error': 'Cannot connect to hardware service. Check if hardware service process is running.'
         }
     except Exception as e:
         return {

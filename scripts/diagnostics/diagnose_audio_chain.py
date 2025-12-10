@@ -258,7 +258,7 @@ def check_sdr_service_health():
                 print(f"    ✅ {receiver_id}: Received {count} IQ sample message(s)")
         else:
             print(f"    ❌ ISSUE: No IQ samples received from any receiver!")
-            print(f"       - Check if sdr-service container is running")
+            print(f"       - Check if SDR hardware service process is running")
             print(f"       - Check if receivers are started in sdr-service")
             print(f"       - Check sdr-service logs for errors")
         
@@ -290,12 +290,12 @@ To fix the audio chain for LP1, LP2, and SP1:
    - Audio sources should have matching `receiver_id` in device_params
 
 3. **Verify sdr-service is Publishing:**
-   - Check if sdr-service container is running: `docker ps | grep sdr-service`
+   - Check if SDR hardware service process is running: `docker ps | grep sdr-service`
    - Check sdr-service logs: `docker logs eas-sdr-service`
    - Verify receivers are started in sdr-service
 
 4. **Verify audio-service is Receiving:**
-   - Check if audio-service container is running: `docker ps | grep audio-service`
+   - Check if audio-service process is running: `docker ps | grep audio-service`
    - Check audio-service logs: `docker logs eas-audio-service`
    - Look for "✅ Loaded Redis SDR source" messages
 

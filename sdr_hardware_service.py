@@ -302,7 +302,7 @@ def initialize_radio_receivers(app):
                 logger.error("  1. Go to the web interface: Settings → Radio Receivers")
                 logger.error("  2. Add at least one receiver configuration")
                 logger.error("  3. Enable the receiver and set auto_start=true")
-                logger.error("  4. Restart the sdr-service container")
+                logger.error("  4. Restart the SDR hardware service process")
                 logger.error("")
                 logger.error("The service will continue running and wait for configuration via")
                 logger.error("the 'reload_receivers' command through Redis.")

@@ -20,11 +20,11 @@ Repository: https://github.com/KR8MER/eas-station
 """
 Redis Pub/Sub command channel for audio service communication.
 
-This module provides inter-container communication between the app container
-and audio-service container using Redis Pub/Sub.
+This module provides inter-container communication between the web application process
+and audio-service process using Redis Pub/Sub.
 
 Architecture:
-    app container → Redis Pub/Sub → audio-service container
+    web application process → Redis Pub/Sub → audio-service process
 
 Commands:
     - source_start: Start an audio source
@@ -65,7 +65,7 @@ class AudioCommandPublisher:
     """
     Publishes audio control commands to Redis for audio-service to execute.
 
-    Used by app container to send commands to audio-service container.
+    Used by web application process to send commands to audio-service process.
     """
 
     def __init__(self):
@@ -209,7 +209,7 @@ class AudioCommandSubscriber:
     """
     Subscribes to audio control commands and executes them.
 
-    Used by audio-service container to receive and execute commands from app.
+    Used by audio-service process to receive and execute commands from app.
     """
 
     def __init__(self, audio_controller, auto_streaming_service=None, eas_monitor=None):
@@ -525,7 +525,7 @@ class AudioCommandSubscriber:
         logger.info("AudioCommandSubscriber stopped")
 
 
-# Global publisher instance for app container
+# Global publisher instance for web application process
 _publisher: Optional[AudioCommandPublisher] = None
 
 
