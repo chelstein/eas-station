@@ -52,22 +52,16 @@ See [diagnostics/README.md](diagnostics/README.md) for detailed documentation.
 
 | Script | Purpose | Usage |
 |--------|---------|-------|
-| `detect-sdr-devices.sh` | Detect SDR devices in containers | `bash scripts/detect-sdr-devices.sh` |
-| `detect_stream_sample_rates.sh` | Analyze audio stream sample rates | `bash scripts/detect_stream_sample_rates.sh` |
+| `sdr_diagnostics.py` | SDR hardware & driver testing | `python3 scripts/sdr_diagnostics.py` |
+| `collect_sdr_diagnostics.sh` | Comprehensive SDR diagnostics | `bash scripts/collect_sdr_diagnostics.sh` |
 
-### Database Scripts
 
-| Script | Purpose | Usage |
-|--------|---------|-------|
-| `diagnose_all_streams.sql` | SQL diagnostics for audio streams | `psql -f scripts/diagnose_all_streams.sql` |
-| `fix_all_stream_sample_rates.sql` | Fix stream sample rate issues | `psql -f scripts/fix_all_stream_sample_rates.sql` |
 
 ### Performance Scripts
 
 | Script | Purpose | Usage |
 |--------|---------|-------|
 | `diagnose_cpu_loop.sh` | Diagnose CPU usage loops | `bash scripts/diagnose_cpu_loop.sh` |
-| `diagnose_poller_cpu.sh` | Analyze poller CPU usage | `bash scripts/diagnose_poller_cpu.sh` |
 
 ### Build & Development
 
@@ -243,16 +237,11 @@ See [Contributing Guide](../docs/process/CONTRIBUTING.md) for more details.
 
 - `build_diagram_svgs.sh` - Generate diagram SVGs from source
 - `collect_sdr_diagnostics.sh` - **Comprehensive SDR diagnostics collector**
-- `detect-sdr-devices.sh` - Detect SDR devices in containers
-- `detect_stream_sample_rates.sh` - Analyze audio stream sample rates
-- `diagnose_all_streams.sql` - SQL diagnostics for audio streams
 - `diagnose_cpu_loop.sh` - Diagnose CPU usage loops
-- `diagnose_poller_cpu.sh` - Analyze poller CPU usage
 - `diagnostics/check_sdr_status.py` - Check SDR receiver status
 - `diagnostics/diagnose_icecast.sh` - Icecast streaming diagnostics
 - `diagnostics/diagnose_portainer.sh` - Portainer deployment diagnostics
 - `diagnostics/troubleshoot_connection.sh` - Web interface diagnostics
-- `fix_all_stream_sample_rates.sql` - Fix stream sample rate issues
 - `sdr_diagnostics.py` - **SDR hardware & driver testing**
 
 ---

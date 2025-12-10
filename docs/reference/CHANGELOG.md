@@ -6,6 +6,18 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.19.1] - 2025-12-10
+### Removed
+  - Removed unnecessary files from document root: `ipaws.env.example`, `noaa.env.example`, `pytest.ini`, `requirements-docs.txt`
+  - Removed legacy SQL diagnostic files from root: `fix_all_stream_sample_rates.sql`, `fix_sample_rates.sql`, `diagnose_all_streams.sql`, `check_db_config.sql`
+  - Moved Docker-era troubleshooting scripts to `legacy/` directory
+  - Removed Docker references from documentation
+
+### Changed
+  - Updated `docs/installation/INSTALLATION_DETAILS.md` to remove Docker references
+  - Updated `docs/troubleshooting/AUDIO_SQUEAL_FIX.md` to note it's for legacy Docker deployments
+  - Updated `scripts/README.md` to remove references to deleted SQL files
+
 ## [2.19.0] - 2025-12-10
 ### Changed
   - Updated troubleshooting guides to use systemd commands exclusively
