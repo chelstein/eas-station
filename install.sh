@@ -651,16 +651,33 @@ PGADMIN_CONFIG
     mkdir -p /var/lib/pgadmin/sessions /var/lib/pgadmin/storage
     chown -R www-data:www-data /var/lib/pgadmin
     
-    # Setup pgAdmin database
+    # Setup pgAdmin database using pgAdmin's virtual environment
     cd /usr/pgadmin4/web
-    sudo -u www-data python3 setup.py << SETUP_INPUT
+    
+    # Use pgAdmin's virtual environment Python which has Flask and all dependencies
+    PGADMIN_PYTHON="/usr/pgadmin4/venv/bin/python3"
+    PGADMIN_GUNICORN="/usr/pgadmin4/venv/bin/gunicorn"
+    
+    if [ ! -f "$PGADMIN_PYTHON" ]; then
+        echo_warning "pgAdmin virtual environment not found at $PGADMIN_PYTHON"
+        echo_warning "Attempting to use system python3 (may fail if Flask is not installed)"
+        PGADMIN_PYTHON="python3"
+    fi
+    
+    sudo -u www-data "$PGADMIN_PYTHON" setup.py << SETUP_INPUT
 ${ADMIN_EMAIL}
 ${ADMIN_PASSWORD}
 ${ADMIN_PASSWORD}
 SETUP_INPUT
     
-    # Create systemd service for pgAdmin WSGI
-    cat > /etc/systemd/system/pgadmin4.service << 'PGADMIN_SERVICE'
+    # Only create systemd service if we have the venv gunicorn
+    if [ ! -f "$PGADMIN_GUNICORN" ]; then
+        echo_warning "pgAdmin gunicorn not found at $PGADMIN_GUNICORN"
+        echo_warning "Skipping pgAdmin systemd service creation"
+        echo_info "pgAdmin can be configured manually later if needed"
+    else
+        # Create systemd service for pgAdmin WSGI
+        cat > /etc/systemd/system/pgadmin4.service << 'PGADMIN_SERVICE'
 [Unit]
 Description=pgAdmin 4 WSGI Service
 After=network.target
@@ -671,7 +688,8 @@ User=www-data
 Group=www-data
 WorkingDirectory=/usr/pgadmin4/web
 Environment="PYTHONPATH=/usr/pgadmin4/web"
-ExecStart=/usr/bin/gunicorn \
+# Use pgAdmin's virtual environment gunicorn which has all dependencies
+ExecStart=/usr/pgadmin4/venv/bin/gunicorn \
     --bind unix:/var/run/pgadmin4.sock \
     --workers 2 \
     --timeout 300 \
@@ -684,14 +702,17 @@ RestartSec=10
 [Install]
 WantedBy=multi-user.target
 PGADMIN_SERVICE
+        
+        # Enable and start pgAdmin service
+        systemctl daemon-reload
+        systemctl enable pgadmin4
+        systemctl start pgadmin4
+        
+        echo_success "pgAdmin systemd service created and started"
+    fi
     
-    # Enable and start pgAdmin service
-    systemctl daemon-reload
-    systemctl enable pgadmin4
-    systemctl start pgadmin4
-    
-    # Add pgAdmin location to Nginx config
-    if [ -f /etc/nginx/sites-available/eas-station ]; then
+    # Add pgAdmin location to Nginx config (only if service was created)
+    if [ -f "$PGADMIN_GUNICORN" ] && [ -f /etc/nginx/sites-available/eas-station ]; then
         # Check if pgAdmin block already exists
         if ! grep -q "location /pgadmin4" /etc/nginx/sites-available/eas-station; then
             # Add pgAdmin location block before the closing brace of the HTTPS server block
@@ -716,9 +737,13 @@ PGADMIN_SERVICE
         fi
     fi
     
-    echo_success "pgAdmin 4 installed and running via Nginx"
-    echo_info "Access at: https://localhost/pgadmin4"
-    echo_info "Login with: $ADMIN_EMAIL"
+    if [ -f "$PGADMIN_GUNICORN" ]; then
+        echo_success "pgAdmin 4 installed and running via Nginx"
+        echo_info "Access at: https://localhost/pgadmin4"
+        echo_info "Login with: $ADMIN_EMAIL"
+    else
+        echo_warning "pgAdmin 4 service not available - gunicorn not found in venv"
+    fi
 else
     echo_warning "pgAdmin 4 not available - using command-line access only"
 fi
