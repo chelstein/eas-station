@@ -125,6 +125,25 @@ while true; do
     break
 done
 
+# Prompt for admin email address (for pgAdmin and notifications)
+while true; do
+    read -p "Enter administrator email address: " ADMIN_EMAIL
+    ADMIN_EMAIL=$(echo "$ADMIN_EMAIL" | xargs)  # Trim whitespace
+    
+    if [ -z "$ADMIN_EMAIL" ]; then
+        echo_error "Email address cannot be empty"
+        continue
+    fi
+    
+    # Basic email validation (must have @ and . after @)
+    if ! [[ "$ADMIN_EMAIL" =~ ^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]]; then
+        echo_error "Invalid email format. Email must be in format: user@domain.com"
+        continue
+    fi
+    
+    break
+done
+
 echo_success "Administrator account configured"
 echo ""
 
@@ -366,23 +385,14 @@ PGADMIN_EXPECT
         apt-get install -y expect
     fi
     
-    # Run pgAdmin setup with admin credentials
-    # Use a proper email format with a domain that has a period (pgAdmin validates this)
-    if [[ "$ADMIN_USERNAME" == *"@"* ]]; then
-        # User provided a full email address
-        PGADMIN_EMAIL="$ADMIN_USERNAME"
-    else
-        # Create a valid email with proper domain format (pgAdmin requires period in domain)
-        PGADMIN_EMAIL="$ADMIN_USERNAME@eas-station.local"
-    fi
-    
-    /tmp/pgadmin-setup.exp "$PGADMIN_EMAIL" "$ADMIN_PASSWORD" || echo_warning "pgAdmin setup failed (non-critical)"
+    # Run pgAdmin setup with the email address provided by the user
+    /tmp/pgadmin-setup.exp "$ADMIN_EMAIL" "$ADMIN_PASSWORD" || echo_warning "pgAdmin setup failed (non-critical)"
     rm -f /tmp/pgadmin-setup.exp
     
     # Add database server connection for the admin user
     echo_info "pgAdmin 4 installed and configured"
     echo_info "Access pgAdmin at: https://localhost/pgadmin4"
-    echo_info "Login with: $PGADMIN_EMAIL / (your admin password)"
+    echo_info "Login with: $ADMIN_EMAIL / (your admin password)"
 else
     echo_warning "pgAdmin 4 not available - skipping"
 fi
@@ -657,15 +667,9 @@ echo "  Username: ${ADMIN_USERNAME}"
 echo "  Password: (the password you entered)"
 echo ""
 if command -v /usr/pgadmin4/bin/setup-web.sh &> /dev/null; then
-    # Use proper email format with domain containing a period (pgAdmin validates this)
-    if [[ "$ADMIN_USERNAME" == *"@"* ]]; then
-        PGADMIN_EMAIL="$ADMIN_USERNAME"
-    else
-        PGADMIN_EMAIL="$ADMIN_USERNAME@eas-station.local"
-    fi
     echo "pgAdmin 4 Database Manager:"
     echo "  URL: https://localhost/pgadmin4"
-    echo "  Email: $PGADMIN_EMAIL"
+    echo "  Email: $ADMIN_EMAIL"
     echo "  Password: (same as above)"
     echo ""
 fi
