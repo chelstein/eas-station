@@ -1755,7 +1755,7 @@ def register(app: Flask, logger) -> None:
                 else:
                     # No Redis data at all - separated architecture, check sdr-service
                     health_status = "info"
-                    health_message = "Radio processing handled by SDR hardware service process - check container logs"
+                    health_message = "Radio processing handled by SDR hardware service process - check service logs with journalctl"
             else:
                 health_status = "info"
                 health_message = "No receivers configured"

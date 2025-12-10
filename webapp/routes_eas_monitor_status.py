@@ -320,7 +320,7 @@ def register_eas_monitor_routes(app: Flask, logger_instance) -> None:
                 return jsonify({
                     "success": False,
                     "error": f"Cannot communicate with audio-service: {str(redis_error)}",
-                    "hint": "Check that Redis and audio-service processs are running"
+                    "hint": "Check that Redis and audio-service processes are running"
                 }), 503
 
         except Exception as e:
