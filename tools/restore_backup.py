@@ -503,12 +503,13 @@ CAUTION: This tool will OVERWRITE existing data. Always create a backup before r
                 shutil.copy2(env_path, backup_env)
                 print(f"  Current .env backed up to {backup_env}")
 
-            # Restore configuration files
-            for config_file in [".env", "docker-compose.yml", "stack.env"]:
-                source = backup_dir / config_file
-                if source.exists():
-                    shutil.copy2(source, Path(config_file))
-                    print(f"  ✓ Restored {config_file}")
+            # Restore configuration file
+            source = backup_dir / ".env"
+            if source.exists():
+                # Restore to standard location for bare metal
+                dest = Path("/opt/eas-station/.env") if Path("/opt/eas-station").exists() else Path(".env")
+                shutil.copy2(source, dest)
+                print(f"  ✓ Restored .env to {dest}")
 
             results["config"] = True
             print()

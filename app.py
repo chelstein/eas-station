@@ -215,11 +215,11 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Load environment variables early for local CLI usage
-# Use CONFIG_PATH if set (for persistent volume), otherwise use default .env location
-# CRITICAL: override=True to override env vars set by docker-compose from empty .env
-# BUT: Preserve Icecast auto-config from docker-compose (don't let persistent .env override it)
-_docker_icecast_password = os.environ.get('ICECAST_SOURCE_PASSWORD')
-_docker_icecast_enabled = os.environ.get('ICECAST_ENABLED')
+# Use CONFIG_PATH if set (for alternate location), otherwise use default .env location
+# CRITICAL: override=True to override env vars from empty .env
+# BUT: Preserve Icecast auto-config from environment (don't let persistent .env override it)
+_env_icecast_password = os.environ.get('ICECAST_SOURCE_PASSWORD')
+_env_icecast_enabled = os.environ.get('ICECAST_ENABLED')
 
 _config_path = os.environ.get('CONFIG_PATH')
 if _config_path:
@@ -228,13 +228,13 @@ if _config_path:
 else:
     load_dotenv(override=True)
 
-# Restore Icecast auto-config from docker environment if auto-streaming is enabled
+# Restore Icecast auto-config from environment if auto-streaming is enabled
 # This prevents persistent .env from breaking auto-streaming with mismatched passwords
-if _docker_icecast_enabled and _docker_icecast_enabled.lower() in ('true', '1', 'yes', 'enabled'):
-    if _docker_icecast_password:
-        # Preserve docker-compose Icecast password for auto-streaming
-        os.environ['ICECAST_SOURCE_PASSWORD'] = _docker_icecast_password
-        logger.debug("Preserved Icecast auto-config from docker environment")
+if _env_icecast_enabled and _env_icecast_enabled.lower() in ('true', '1', 'yes', 'enabled'):
+    if _env_icecast_password:
+        # Preserve Icecast password for auto-streaming
+        os.environ['ICECAST_SOURCE_PASSWORD'] = _env_icecast_password
+        logger.debug("Preserved Icecast auto-config from environment")
 
 # Create Flask app
 app = Flask(__name__)
@@ -444,7 +444,7 @@ init_cache(app)
 
 # Initialize WebSocket support
 # CRITICAL: async_mode must match gunicorn worker class
-# - gunicorn uses 'gevent' workers (see Dockerfile)
+# - gunicorn uses 'gevent' workers (see systemd service or gunicorn config)
 # - Flask-SocketIO must use 'gevent' or None (auto-detect) to enable WebSocket transport
 # - Using 'threading' with gevent workers causes WebSockets to FAIL SILENTLY and fall back to polling
 from flask_socketio import SocketIO
