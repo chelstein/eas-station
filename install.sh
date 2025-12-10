@@ -190,24 +190,10 @@ sudo -u postgres psql -d alerts -c "CREATE EXTENSION IF NOT EXISTS postgis_topol
 echo_success "PostgreSQL configured"
 
 # Install pgAdmin 4 (optional but recommended)
-echo_info "Installing pgAdmin 4 for database management..."
-if ! command -v pgadmin4 &> /dev/null; then
-    # Add pgAdmin repository
-    curl -fsS https://www.pgadmin.org/static/packages_pgadmin_org.pub | sudo gpg --dearmor -o /usr/share/keyrings/packages-pgadmin-org.gpg
-    echo "deb [signed-by=/usr/share/keyrings/packages-pgadmin-org.gpg] https://ftp.postgresql.org/pub/pgadmin/pgadmin4/apt/$(lsb_release -cs) pgadmin4 main" | sudo tee /etc/apt/sources.list.d/pgadmin4.list
-    
-    # Update and install
-    apt-get update
-    apt-get install -y pgadmin4-web
-    
-    # Configure pgAdmin in server mode
-    /usr/pgadmin4/bin/setup-web.sh --yes
-    
-    echo_success "pgAdmin 4 installed (access at http://localhost/pgadmin4)"
-    echo_info "Default pgAdmin setup will prompt for email and password"
-else
-    echo_info "pgAdmin 4 already installed"
-fi
+# Note: Skipped by default for security. Users can install manually if needed.
+# To install: https://www.pgadmin.org/download/pgadmin-4-apt/
+echo_info "Skipping pgAdmin 4 installation (optional database management tool)"
+echo_info "You can access your database with: sudo -u postgres psql -d alerts"
 
 # Setup Redis
 echo_info "Configuring Redis..."
@@ -303,10 +289,6 @@ if [ ! -f /etc/nginx/sites-available/eas-station ]; then
             -keyout /etc/ssl/private/eas-station-selfsigned.key \
             -out /etc/ssl/certs/eas-station-selfsigned.crt \
             -subj "/C=US/ST=State/L=City/O=EAS Station/CN=localhost"
-        
-        # Update nginx config to use self-signed cert
-        sed -i 's|ssl_certificate /etc/letsencrypt|#ssl_certificate /etc/letsencrypt|g' /etc/nginx/sites-available/eas-station
-        sed -i 's|#ssl_certificate /etc/ssl|ssl_certificate /etc/ssl|g' /etc/nginx/sites-available/eas-station
     fi
     
     # Enable site
@@ -391,16 +373,24 @@ while true; do
     break
 done
 
-# Create the administrator account
-sudo -u "$SERVICE_USER" "$VENV_DIR/bin/python" << EOPY
+# Create the administrator account using environment variables to avoid injection
+export EAS_ADMIN_USERNAME="$ADMIN_USERNAME"
+export EAS_ADMIN_PASSWORD="$ADMIN_PASSWORD"
+
+sudo -u "$SERVICE_USER" -E "$VENV_DIR/bin/python" << 'EOPY'
 import sys
+import os
 from app import app, db
 from app_core.models import AdminUser
 from app_core.auth.roles import Role, RoleDefinition
 from sqlalchemy import func
 
-username = "${ADMIN_USERNAME}"
-password = """${ADMIN_PASSWORD}"""
+username = os.environ.get('EAS_ADMIN_USERNAME')
+password = os.environ.get('EAS_ADMIN_PASSWORD')
+
+if not username or not password:
+    print("ERROR: Username or password not provided", file=sys.stderr)
+    sys.exit(1)
 
 with app.app_context():
     # Check if user already exists
@@ -423,6 +413,10 @@ with app.app_context():
     
     print(f"Administrator account '{username}' created successfully")
 EOPY
+
+# Unset the environment variables
+unset EAS_ADMIN_USERNAME
+unset EAS_ADMIN_PASSWORD
 
 if [ $? -eq 0 ]; then
     echo_success "Administrator account created"

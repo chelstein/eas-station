@@ -17,7 +17,7 @@ Environment="PATH=/opt/eas-station/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/
 Environment="PYTHONPATH=/opt/eas-station"
 EnvironmentFile=/opt/eas-station/.env
 
-ExecStart=/opt/eas-station/venv/bin/python3 eas_monitoring_service.py
+ExecStart=/opt/eas-station/venv/bin/python eas_monitoring_service.py
 
 # Service management
 Restart=always
