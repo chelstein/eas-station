@@ -426,7 +426,7 @@ def _collect_container_statuses(logger) -> Dict[str, Any]:
             message = f"{target['engine']} API ({target['description']}): {exc}"
             attempt_errors.append(message)
             if logger:
-                logger.warning("Failed to collect container status via %s", message)
+                logger.debug("Failed to collect container status via %s", message)
 
     # Fallback to CLI lookups when API access is unavailable.
     for engine in ("docker", "podman"):
@@ -445,7 +445,7 @@ def _collect_container_statuses(logger) -> Dict[str, Any]:
             message = f"{engine} CLI: {exc}"
             attempt_errors.append(message)
             if logger:
-                logger.warning("Failed to collect container status via %s", message)
+                logger.debug("Failed to collect container status via %s", message)
 
     if attempt_errors:
         # Check if running inside a container without socket access

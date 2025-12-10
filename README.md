@@ -124,6 +124,21 @@ sudo bash install.sh
 
 > 💡 **Debian Trixie (Testing)**: Fully supported! The installer auto-detects your OS version and installs compatible packages. Python 3.13 is fully supported with the latest dependency updates.
 
+### Uninstallation
+
+To completely remove EAS Station from your system:
+
+```bash
+cd eas-station
+sudo bash uninstall.sh
+```
+
+The uninstall script will:
+- ✅ Stop and remove all EAS Station services
+- ✅ Remove application files and logs
+- ✅ Optionally remove PostgreSQL database
+- ✅ Optionally remove dependencies (PostgreSQL, Redis, Nginx, etc.)
+
 ### Access Your Station
 
 Open your web browser and navigate to:

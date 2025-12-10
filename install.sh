@@ -135,7 +135,7 @@ echo_success "System detection complete"
 
 echo_step "Administrator Account Setup"
 
-echo -e "${WHITE}You'll need an administrator account to access the web interface and pgAdmin.${NC}"
+echo -e "${WHITE}You'll need an administrator account to access the web interface.${NC}"
 echo ""
 
 # Prompt for admin username
@@ -193,7 +193,7 @@ done
 
 echo ""
 
-# Prompt for admin email address (for pgAdmin and notifications)
+# Prompt for admin email address (for notifications)
 while true; do
     echo -ne "${CYAN}Administrator email address:${NC} "
     read ADMIN_EMAIL
@@ -459,8 +459,8 @@ sudo -u postgres psql -d alerts -c "CREATE EXTENSION IF NOT EXISTS postgis_topol
 
 echo_success "PostgreSQL configured"
 
-# Install and configure pgAdmin 4
-echo_info "Installing pgAdmin 4..."
+# Install and configure pgAdmin 4 (without Apache2)
+echo_info "Installing pgAdmin 4 with Nginx integration..."
 
 # Add pgAdmin repository
 if [ ! -f /etc/apt/sources.list.d/pgadmin4.list ]; then
@@ -469,91 +469,138 @@ if [ ! -f /etc/apt/sources.list.d/pgadmin4.list ]; then
     apt-get update
 fi
 
-# Install pgAdmin in web mode (no desktop mode)
-DEBIAN_FRONTEND=noninteractive apt-get install -y pgadmin4-web || echo_warning "pgAdmin 4 installation failed (non-critical)"
-
-# Configure pgAdmin with admin credentials
-if command -v /usr/pgadmin4/bin/setup-web.sh &> /dev/null; then
-    echo_info "Configuring pgAdmin 4 with your administrator credentials..."
-    
-    # Create a temporary expect script to automate the setup
-    cat > /tmp/pgadmin-setup.exp << 'PGADMIN_EXPECT'
-#!/usr/bin/expect -f
-set timeout 30
-set email [lindex $argv 0]
-set password [lindex $argv 1]
-set max_email_attempts 10
-
-spawn /usr/pgadmin4/bin/setup-web.sh
-
-# Keep trying to send email until we get to password prompt
-# pgAdmin validates email format and will keep asking if invalid
-set email_attempts 0
-while {$email_attempts < $max_email_attempts} {
-    expect {
-        "Email address:" {
-            send "$email\r"
-            incr email_attempts
-        }
-        "Password:" {
-            # Email was finally accepted
-            send "$password\r"
-            break
-        }
-        "Invalid email address" {
-            # Continue to next iteration
-        }
-        "The part after the @-sign is not valid" {
-            # Continue to next iteration
-        }
-        timeout {
-            puts "\nError: Timeout waiting for pgAdmin setup prompts."
-            puts "This may indicate pgAdmin is not responding properly."
-            puts "Check if the pgAdmin service is installed and functioning."
-            exit 1
-        }
-        eof {
-            puts "\nError: pgAdmin setup script ended unexpectedly."
-            puts "This may indicate a problem with the pgAdmin installation."
-            exit 1
-        }
-    }
+# Install ONLY pgadmin4 (not pgadmin4-web which pulls in Apache2)
+# This gives us the Python package without Apache2 dependency
+DEBIAN_FRONTEND=noninteractive apt-get install -y pgadmin4 --no-install-recommends || {
+    echo_warning "pgAdmin 4 core installation failed, trying alternative..."
+    # Fallback: install pgadmin4-web but remove apache2 immediately
+    DEBIAN_FRONTEND=noninteractive apt-get install -y pgadmin4-web || echo_warning "pgAdmin 4 installation failed (non-critical)"
+    # Remove Apache2 if it was installed
+    if systemctl is-active --quiet apache2; then
+        systemctl stop apache2
+        systemctl disable apache2
+        apt-get remove -y apache2 apache2-bin apache2-data || true
+        echo_info "Removed Apache2 to prevent port conflicts with Nginx"
+    fi
 }
 
-# Check if we exceeded maximum attempts
-if {$email_attempts >= $max_email_attempts} {
-    puts "\nError: Failed to set pgAdmin email after $max_email_attempts attempts."
-    puts "The email validation should have been handled upfront."
-    exit 1
-}
-
-expect "Retype password:"
-send "$password\r"
-
-expect eof
-PGADMIN_EXPECT
-
-    chmod +x /tmp/pgadmin-setup.exp
+# Configure pgAdmin for WSGI mode (works with Nginx)
+if [ -f /usr/pgadmin4/web/config.py ] || [ -f /usr/pgadmin4/web/config_distro.py ]; then
+    echo_info "Configuring pgAdmin 4 for Nginx..."
     
-    # Install expect if not available
-    if ! command -v expect &> /dev/null; then
-        apt-get install -y expect
+    # Create pgAdmin configuration directory
+    mkdir -p /var/lib/pgadmin
+    chown -R www-data:www-data /var/lib/pgadmin
+    
+    # Create pgAdmin config_local.py for custom settings
+    cat > /usr/pgadmin4/web/config_local.py << 'PGADMIN_CONFIG'
+import os
+
+# Server mode settings
+SERVER_MODE = True
+LOG_FILE = '/var/log/pgadmin/pgadmin4.log'
+SQLITE_PATH = '/var/lib/pgadmin/pgadmin4.db'
+SESSION_DB_PATH = '/var/lib/pgadmin/sessions'
+STORAGE_DIR = '/var/lib/pgadmin/storage'
+
+# Security settings
+ENHANCED_COOKIE_PROTECTION = True
+WTF_CSRF_CHECK_DEFAULT = True
+WTF_CSRF_TIME_LIMIT = None
+SESSION_COOKIE_NAME = 'pgadmin4_session'
+
+# Flask settings
+FLASK_APP = 'pgadmin4'
+PGADMIN_CONFIG
+
+    # Create log directory
+    mkdir -p /var/log/pgadmin
+    chown -R www-data:www-data /var/log/pgadmin
+    
+    # Create storage directories
+    mkdir -p /var/lib/pgadmin/sessions /var/lib/pgadmin/storage
+    chown -R www-data:www-data /var/lib/pgadmin
+    
+    # Setup pgAdmin database
+    cd /usr/pgadmin4/web
+    sudo -u www-data python3 setup.py << SETUP_INPUT
+${ADMIN_EMAIL}
+${ADMIN_PASSWORD}
+${ADMIN_PASSWORD}
+SETUP_INPUT
+    
+    # Create systemd service for pgAdmin WSGI
+    cat > /etc/systemd/system/pgadmin4.service << 'PGADMIN_SERVICE'
+[Unit]
+Description=pgAdmin 4 WSGI Service
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/usr/pgadmin4/web
+Environment="PYTHONPATH=/usr/pgadmin4/web"
+ExecStart=/usr/bin/gunicorn \
+    --bind unix:/var/run/pgadmin4.sock \
+    --workers 2 \
+    --timeout 300 \
+    --access-logfile /var/log/pgadmin/access.log \
+    --error-logfile /var/log/pgadmin/error.log \
+    pgadmin4:app
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+PGADMIN_SERVICE
+    
+    # Install gunicorn if not already installed (needed for WSGI)
+    if ! command -v gunicorn &> /dev/null; then
+        apt-get install -y python3-gunicorn || pip3 install gunicorn
     fi
     
-    # Run pgAdmin setup with the email address provided by the user
-    /tmp/pgadmin-setup.exp "$ADMIN_EMAIL" "$ADMIN_PASSWORD" || echo_warning "pgAdmin setup failed (non-critical)"
-    rm -f /tmp/pgadmin-setup.exp
+    # Enable and start pgAdmin service
+    systemctl daemon-reload
+    systemctl enable pgadmin4
+    systemctl start pgadmin4
     
-    # Add database server connection for the admin user
-    echo_info "pgAdmin 4 installed and configured"
-    echo_info "Access pgAdmin at: https://localhost/pgadmin4"
-    echo_info "Login with: $ADMIN_EMAIL / (your admin password)"
+    # Add pgAdmin location to Nginx config
+    if [ -f /etc/nginx/sites-available/eas-station ]; then
+        # Check if pgAdmin block already exists
+        if ! grep -q "location /pgadmin4" /etc/nginx/sites-available/eas-station; then
+            # Add pgAdmin location block before the closing brace of the HTTPS server block
+            sed -i '/^    # Access and error logs/i \
+    # pgAdmin 4 proxy (WSGI via Gunicorn)\
+    location /pgadmin4/ {\
+        proxy_pass http://unix:/var/run/pgadmin4.sock:/;\
+        proxy_set_header Host $host;\
+        proxy_set_header X-Real-IP $remote_addr;\
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\
+        proxy_set_header X-Forwarded-Proto $scheme;\
+        proxy_set_header X-Script-Name /pgadmin4;\
+        proxy_buffering off;\
+        proxy_read_timeout 300s;\
+    }\
+\
+' /etc/nginx/sites-available/eas-station
+            
+            # Reload Nginx to apply changes
+            nginx -t && systemctl reload nginx
+            echo_success "pgAdmin 4 configured with Nginx proxy"
+        fi
+    fi
+    
+    echo_success "pgAdmin 4 installed and running via Nginx"
+    echo_info "Access at: https://localhost/pgadmin4"
+    echo_info "Login with: $ADMIN_EMAIL"
 else
-    echo_warning "pgAdmin 4 not available - skipping"
+    echo_warning "pgAdmin 4 not available - using command-line access only"
 fi
 
-# Alternative: command-line access
-echo_info "Command line access: ${BOLD}sudo -u postgres psql -d alerts${NC}"
+# Command-line access alternative
+echo_info "Direct database access: ${BOLD}sudo -u postgres psql -d alerts${NC}"
+echo ""
 
 
 echo_step "Redis Configuration"
@@ -864,13 +911,6 @@ echo -e "  ${BOLD}EAS Station Web Interface:${NC}"
 echo -e "    Username: ${BOLD}${GREEN}${ADMIN_USERNAME}${NC}"
 echo -e "    Password: ${BOLD}(the password you entered)${NC}"
 echo ""
-if command -v /usr/pgadmin4/bin/setup-web.sh &> /dev/null; then
-    echo -e "  ${BOLD}pgAdmin 4 Database Manager:${NC}"
-    echo -e "    URL:      ${BOLD}https://localhost/pgadmin4${NC}"
-    echo -e "    Email:    ${BOLD}${GREEN}$ADMIN_EMAIL${NC}"
-    echo -e "    Password: ${BOLD}(same as above)${NC}"
-    echo ""
-fi
 
 echo -e "${BOLD}${CYAN}═══════════════════════════════════════════════════════════════════════${NC}"
 echo -e "${BOLD}${WHITE}  ⚙️  YOUR CONFIGURATION${NC}"
@@ -913,16 +953,6 @@ echo -e "    Username: ${BOLD}$ADMIN_USERNAME${NC}"
 echo -e "    Password: ${BOLD}(your admin password)${NC}"
 echo -e "    Purpose:  Configure alerts, view status, manage settings"
 echo ""
-if command -v /usr/pgadmin4/bin/setup-web.sh &> /dev/null; then
-echo -e "  ${BOLD}${MAGENTA}pgAdmin 4 (Database Management):${NC}"
-echo -e "    URL:      ${BOLD}${GREEN}https://localhost/pgadmin4${NC} or ${BOLD}${GREEN}https://${PRIMARY_IP}/pgadmin4${NC}"
-echo -e "    Email:    ${BOLD}$ADMIN_EMAIL${NC}"
-echo -e "    Password: ${BOLD}(your admin password)${NC}"
-echo -e "    Purpose:  Advanced database queries, backup/restore, monitoring"
-echo -e "    ${DIM}Note: On first login, add server with:${NC}"
-echo -e "          ${DIM}Host: localhost, Port: 5432, Database: alerts, User: eas_station${NC}"
-echo ""
-fi
 echo -e "  ${BOLD}${MAGENTA}PostgreSQL Database (Direct Command Line):${NC}"
 echo -e "    Command:  ${BOLD}sudo -u postgres psql -d alerts${NC}"
 echo -e "    Purpose:  Direct SQL queries, database administration"
