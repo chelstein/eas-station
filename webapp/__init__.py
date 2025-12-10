@@ -36,6 +36,7 @@ from . import (
     routes_eas_monitor_status,
     routes_exports,
     routes_ipaws,
+    routes_logs,
     routes_settings_radio,
     routes_settings_audio,
     routes_led,

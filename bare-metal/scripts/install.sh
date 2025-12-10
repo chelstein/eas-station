@@ -81,7 +81,14 @@ apt-get install -y \
     python3-venv \
     python3-dev \
     build-essential \
+    gcc \
+    g++ \
+    make \
     libpq-dev \
+    libev-dev \
+    libevent-dev \
+    libffi-dev \
+    libssl-dev \
     postgresql \
     postgresql-contrib \
     postgis \

@@ -274,6 +274,31 @@ sudo lsof -i :80
 sudo lsof -i :443
 ```
 
+### Build Failures (gevent)
+
+If you encounter "failed to build gevent" during installation:
+
+```bash
+# Install build dependencies
+sudo apt-get update
+sudo apt-get install -y \
+    build-essential \
+    gcc \
+    g++ \
+    make \
+    python3-dev \
+    libev-dev \
+    libevent-dev \
+    libffi-dev \
+    libssl-dev
+
+# Retry Python package installation
+sudo -u eas-station /opt/eas-station/venv/bin/pip install --upgrade pip
+sudo -u eas-station /opt/eas-station/venv/bin/pip install -r /opt/eas-station/requirements.txt
+```
+
+**Note**: The installation script automatically installs these dependencies, but if you're doing a manual installation, ensure these packages are present.
+
 ## Benefits of Bare Metal
 
 ### vs Docker
