@@ -254,7 +254,7 @@ def _resolve_zone_catalog_path(source_path: str | Path | None) -> Path:
     if config_path:
         return Path(config_path)
 
-    return Path("assets/z_05mr24.dbf")
+    return Path("assets/z_18mr25.dbf")
 
 
 def _log_info(message: str) -> None:

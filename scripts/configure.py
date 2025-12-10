@@ -81,7 +81,7 @@ class Config:
     NOAA_CAP_TIMEOUT = int(os.environ.get('CAP_TIMEOUT', 30))  # 30 seconds
 
     # NOAA zone catalog
-    NWS_ZONE_DBF_PATH = os.environ.get('NWS_ZONE_DBF_PATH', 'assets/z_05mr24.dbf')
+    NWS_ZONE_DBF_PATH = os.environ.get('NWS_ZONE_DBF_PATH', 'assets/z_18mr25.dbf')
 
     # Logging settings
     LOG_LEVEL = os.environ.get('LOG_LEVEL', 'INFO')
