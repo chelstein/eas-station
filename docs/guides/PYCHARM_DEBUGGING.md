@@ -18,6 +18,11 @@
 - [Development Workflow](#development-workflow)
 - [Troubleshooting](#troubleshooting)
 - [Best Practices](#best-practices)
+- [Debugging Specific Services](#debugging-specific-services)
+- [Keeping Your Git History Clean](#keeping-your-git-history-clean)
+- [Quick Reference](#quick-reference)
+- [Summary](#summary)
+- [Getting Help](#getting-help)
 
 ---
 
