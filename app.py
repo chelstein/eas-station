@@ -886,9 +886,9 @@ def initialize_database():
             except Exception as rbac_error:
                 logger.warning("Failed to initialize RBAC roles: %s", rbac_error)
 
-            # Radio receivers are handled by the dedicated audio-service container
-            # The app container only serves the web UI and reads metrics from Redis
-            logger.info("Radio receiver initialization handled by audio-service container")
+            # Radio receivers are handled by the dedicated audio service
+            # The web application serves the UI and reads metrics from Redis
+            logger.info("Radio receiver initialization handled by audio service")
 
             # Initialize EAS continuous monitoring system
             try:

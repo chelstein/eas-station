@@ -33,13 +33,9 @@ The bare metal deployment provides:
 
 ### Architecture Comparison
 
-**bare metal deployment:**
+**Native Linux Deployment:**
 ```
-```
-
-**Bare Metal Deployment:**
-```
-Linux Host → systemd → Services
+Linux Host → systemd → Services (web, audio, sdr, pollers)
 ```
 
 ## Quick Start
