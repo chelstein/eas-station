@@ -1,0 +1,39 @@
+[Unit]
+Description=EAS Station NOAA Alert Poller
+Documentation=https://github.com/KR8MER/eas-station
+After=network-online.target postgresql.service
+Wants=network-online.target
+Requires=postgresql.service
+
+[Service]
+Type=simple
+User=eas-station
+Group=eas-station
+
+WorkingDirectory=/opt/eas-station
+Environment="PATH=/opt/eas-station/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+Environment="PYTHONPATH=/opt/eas-station"
+Environment="CAP_POLLER_MODE=NOAA"
+EnvironmentFile=/opt/eas-station/.env
+
+ExecStart=/opt/eas-station/venv/bin/python poller/cap_poller.py --continuous --interval 120
+
+# Service management
+Restart=always
+RestartSec=30s
+KillMode=mixed
+TimeoutStopSec=30
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/eas-station /var/log/eas-station
+
+# Resource limits
+LimitNOFILE=65536
+MemoryLimit=256M
+
+[Install]
+WantedBy=multi-user.target

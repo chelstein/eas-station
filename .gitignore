@@ -31,3 +31,8 @@ tests/test_data/*
 !tests/logs/README.md
 htmlcov/
 .coverage
+
+# Bare metal ISO build artifacts
+/tmp/eas-station-iso-build/
+bare-metal/scripts/*.iso
+*.iso

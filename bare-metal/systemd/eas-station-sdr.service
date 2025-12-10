@@ -1,0 +1,44 @@
+[Unit]
+Description=EAS Station SDR Hardware Service
+Documentation=https://github.com/KR8MER/eas-station
+After=network.target redis.service
+Requires=redis.service
+
+[Service]
+Type=simple
+User=eas-station
+Group=eas-station
+# Additional groups for USB/hardware access
+SupplementaryGroups=plugdev dialout
+
+WorkingDirectory=/opt/eas-station
+Environment="PATH=/opt/eas-station/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+Environment="PYTHONPATH=/opt/eas-station"
+Environment="SOAPY_SDR_PLUGIN_PATH=/usr/lib/aarch64-linux-gnu/SoapySDR/modules0.8:/usr/lib/arm-linux-gnueabihf/SoapySDR/modules0.8:/usr/lib/x86_64-linux-gnu/SoapySDR/modules0.8:/usr/lib/SoapySDR/modules0.8"
+EnvironmentFile=/opt/eas-station/.env
+
+ExecStart=/opt/eas-station/venv/bin/python sdr_hardware_service.py
+
+# Service management
+Restart=always
+RestartSec=10s
+KillMode=mixed
+TimeoutStopSec=30
+
+# Security settings (needs USB device access)
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/eas-station /var/log/eas-station /dev/bus/usb
+
+# USB device access via udev rules
+DeviceAllow=/dev/bus/usb rw
+
+# Resource limits - USB streaming requires locked memory for DMA
+LimitNOFILE=65536
+LimitMEMLOCK=infinity
+MemoryLimit=256M
+
+[Install]
+WantedBy=multi-user.target
