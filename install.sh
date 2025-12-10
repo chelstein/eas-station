@@ -241,11 +241,17 @@ systemctl start postgresql
 sudo -u postgres psql -tc "SELECT 1 FROM pg_database WHERE datname = 'alerts'" | grep -q 1 || \
     sudo -u postgres psql -c "CREATE DATABASE alerts;"
 
-sudo -u postgres psql -tc "SELECT 1 FROM pg_user WHERE usename = 'eas_station'" | grep -q 1 || \
-    sudo -u postgres psql -c "CREATE USER eas_station WITH PASSWORD '$DB_PASSWORD';"
+# Create database user (use dollar-quoting to safely handle special characters in password)
+if ! sudo -u postgres psql -tc "SELECT 1 FROM pg_user WHERE usename = 'eas_station'" | grep -q 1; then
+    sudo -u postgres psql <<EOF
+CREATE USER eas_station WITH PASSWORD \$\$${DB_PASSWORD}\$\$;
+EOF
+fi
 
 # Update password if user already exists (in case of re-running script)
-sudo -u postgres psql -c "ALTER USER eas_station WITH PASSWORD '$DB_PASSWORD';"
+sudo -u postgres psql <<EOF
+ALTER USER eas_station WITH PASSWORD \$\$${DB_PASSWORD}\$\$;
+EOF
 
 sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE alerts TO eas_station;"
 

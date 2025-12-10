@@ -52,6 +52,10 @@ sudo ./install.sh
 If you've already run `install.sh` and are experiencing permission errors, use the database fix script:
 
 ```bash
+# Make scripts executable (if needed)
+chmod +x scripts/database/fix_database_permissions.sh
+chmod +x scripts/database/init_database.sh
+
 # Fix permissions
 sudo ./scripts/database/fix_database_permissions.sh
 

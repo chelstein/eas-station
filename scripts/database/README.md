@@ -13,6 +13,9 @@ Comprehensive database initialization script that:
 
 **Usage:**
 ```bash
+# Make the script executable
+chmod +x scripts/database/init_database.sh
+
 # As root (recommended for first-time setup)
 sudo ./scripts/database/init_database.sh
 
@@ -34,6 +37,10 @@ Standalone script to fix PostgreSQL permission issues without running migrations
 
 **Usage:**
 ```bash
+# Make the script executable
+chmod +x scripts/database/fix_database_permissions.sh
+
+# Run the script as root
 sudo ./scripts/database/fix_database_permissions.sh
 ```
 
