@@ -6,6 +6,31 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.19.11] - 2025-12-10
+### Fixed
+  - Fixed pgAdmin 4 installation failures by adding better error handling and --allow-downgrades flag
+  - Fixed pgAdmin installation to gracefully skip if it fails, allowing installation to continue
+  - Added error detection and informative messages for pgAdmin installation issues
+
+### Added
+  - **PostgreSQL password now displayed during installation** for easy IDE/pgAdmin access
+  - Added comprehensive database credentials section in installation completion message
+  - Shows full PostgreSQL connection details (host, port, database, username, password)
+  - Added instructions for viewing password later: `sudo grep POSTGRES_PASSWORD /opt/eas-station/.env`
+  - Enhanced installation progress messages with detailed package lists
+  - Added informative descriptions of what each installation step does
+  - More aesthetic progress indicators showing estimated time and package counts
+  - pgAdmin access instructions (if successfully installed) in completion message
+  - Separate database credentials section with security warnings
+
+### Changed
+  - Installation completion message now includes full database credentials for IDE access
+  - Made install.sh significantly more informative and user-friendly
+  - Enhanced progress messages to show what packages are being installed
+  - Improved visual hierarchy in completion message sections
+  - pgAdmin configuration skips gracefully if installation failed
+  - Database password warning emphasizes saving credentials (only shown once)
+
 ## [2.19.10] - 2025-12-10
 ### Fixed
   - Removed Docker/container monitoring from system health in favor of systemd service monitoring
