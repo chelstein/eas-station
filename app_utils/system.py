@@ -327,12 +327,12 @@ def build_system_health_snapshot(db, logger) -> SystemHealth:
         except Exception as exc:
             db_status = f"error: {exc}"
 
-        containers_info = _collect_container_statuses(logger)
+        systemd_services = _collect_systemd_services(logger)
         services_status: Dict[str, Any] = {
-            container.get("display_name")
-            or container.get("name")
-            or f"container-{index}": container.get("status")
-            for index, container in enumerate(containers_info.get("containers", []), start=1)
+            service.get("display_name")
+            or service.get("name")
+            or f"service-{index}": service.get("status")
+            for index, service in enumerate(systemd_services.get("services", []), start=1)
         }
 
         hardware_info = _collect_hardware_inventory(logger)
@@ -364,7 +364,7 @@ def build_system_health_snapshot(db, logger) -> SystemHealth:
             "load_averages": load_averages,
             "database": {"status": db_status, "info": db_info},
             "services": services_status,
-            "containers": containers_info,
+            "systemd": systemd_services,
             "temperature": temperature_info,
             "hardware": hardware_info,
             "smart": smart_info,
@@ -389,80 +389,135 @@ def build_system_health_snapshot(db, logger) -> SystemHealth:
         }
 
 
-def _collect_container_statuses(logger) -> Dict[str, Any]:
-    """Collect information about running containers using Docker or Podman."""
-
+def _collect_systemd_services(logger) -> Dict[str, Any]:
+    """Collect status information for EAS Station systemd services."""
+    
     result: Dict[str, Any] = {
         "available": False,
         "status": "unavailable",
-        "engine": None,
-        "containers": [],
-        "summary": {"total": 0, "running": 0, "healthy": 0, "unhealthy": 0, "stopped": 0},
+        "services": [],
+        "summary": {"total": 0, "active": 0, "inactive": 0, "failed": 0},
         "issues": [],
         "error": None,
-        "compose_project": None,
-        "collector": None,
     }
-
-    compose_project = os.getenv("COMPOSE_PROJECT_NAME") or os.getenv("STACK_PROJECT_NAME") or os.getenv(
-        "STACK_NAME"
-    )
-
-    attempt_errors: List[str] = []
-
-    # Prefer direct API access (Docker/Podman sockets or remote hosts) to avoid CLI dependencies.
-    for target in _candidate_container_api_targets():
-        try:
-            containers = _fetch_containers_via_api(target, compose_project)
-            if containers is None:
-                continue
-            return _build_container_result(
-                containers,
-                engine=target["engine"],
-                compose_project=compose_project,
-                collector=f"{target['engine']}-api",
-            )
-        except Exception as exc:  # pragma: no cover - host specific behaviour
-            message = f"{target['engine']} API ({target['description']}): {exc}"
-            attempt_errors.append(message)
-            if logger:
-                logger.debug("Failed to collect container status via %s", message)
-
-    # Fallback to CLI lookups when API access is unavailable.
-    for engine in ("docker", "podman"):
-        try:
-            containers = _fetch_containers_via_cli(engine, compose_project)
-            if containers is None:
-                attempt_errors.append(f"{engine} CLI not available")
-                continue
-            return _build_container_result(
-                containers,
-                engine=engine,
-                compose_project=compose_project,
-                collector=f"{engine}-cli",
-            )
-        except Exception as exc:  # pragma: no cover - depends on host configuration
-            message = f"{engine} CLI: {exc}"
-            attempt_errors.append(message)
-            if logger:
-                logger.debug("Failed to collect container status via %s", message)
-
-    if attempt_errors:
-        # Check if running inside a container without socket access
-        is_containerized = os.path.exists("/.dockerenv") or os.path.exists("/run/.containerenv")
-        if is_containerized:
-            result["error"] = (
-                "Container status unavailable from inside a container. "
-                "To enable container monitoring, mount the Docker socket "
-                "(-v /var/run/docker.sock:/var/run/docker.sock) or set DOCKER_HOST "
-                "environment variable to point to a remote Docker API."
-            )
+    
+    # List of EAS Station services to monitor
+    eas_services = [
+        "eas-station-web.service",
+        "eas-station-sdr.service",
+        "eas-station-audio.service",
+        "eas-station-eas.service",
+        "eas-station-hardware.service",
+        "eas-station-noaa-poller.service",
+        "eas-station-ipaws-poller.service",
+    ]
+    
+    # Additional system services that EAS Station depends on
+    dependency_services = [
+        "nginx.service",
+        "postgresql.service",
+        "redis-server.service",
+        "icecast2.service",
+    ]
+    
+    try:
+        all_services = eas_services + dependency_services
+        services_data = []
+        
+        for service_name in all_services:
+            try:
+                # Check if service exists first
+                check_cmd = ["systemctl", "list-unit-files", service_name]
+                check_result = subprocess.run(
+                    check_cmd,
+                    capture_output=True,
+                    text=True,
+                    timeout=2
+                )
+                
+                if service_name not in check_result.stdout:
+                    # Service doesn't exist, skip it
+                    continue
+                
+                # Get service status
+                status_cmd = ["systemctl", "show", service_name, 
+                             "--property=ActiveState,SubState,LoadState,UnitFileState,Description"]
+                status_result = subprocess.run(
+                    status_cmd,
+                    capture_output=True,
+                    text=True,
+                    timeout=2
+                )
+                
+                if status_result.returncode == 0:
+                    # Parse systemctl output
+                    props = {}
+                    for line in status_result.stdout.strip().split('\n'):
+                        if '=' in line:
+                            key, value = line.split('=', 1)
+                            props[key] = value
+                    
+                    active_state = props.get('ActiveState', 'unknown')
+                    sub_state = props.get('SubState', 'unknown')
+                    description = props.get('Description', service_name)
+                    
+                    # Determine if this is an EAS service or dependency
+                    is_eas_service = service_name in eas_services
+                    
+                    service_info = {
+                        "name": service_name,
+                        "display_name": description,
+                        "active_state": active_state,
+                        "sub_state": sub_state,
+                        "status": active_state,
+                        "is_running": active_state == "active",
+                        "is_eas_service": is_eas_service,
+                        "category": "EAS Station" if is_eas_service else "Dependencies"
+                    }
+                    
+                    services_data.append(service_info)
+                    
+                    # Track issues
+                    if active_state == "failed":
+                        result["issues"].append({
+                            "service": service_name,
+                            "issue": f"{description} has failed",
+                            "severity": "error"
+                        })
+                    elif active_state != "active" and is_eas_service:
+                        result["issues"].append({
+                            "service": service_name,
+                            "issue": f"{description} is not running",
+                            "severity": "warning"
+                        })
+                        
+            except subprocess.TimeoutExpired:
+                if logger:
+                    logger.debug(f"Timeout checking service {service_name}")
+            except Exception as exc:
+                if logger:
+                    logger.debug(f"Error checking service {service_name}: {exc}")
+        
+        if services_data:
+            result["available"] = True
+            result["status"] = "available"
+            result["services"] = services_data
+            
+            # Calculate summary
+            result["summary"]["total"] = len(services_data)
+            result["summary"]["active"] = len([s for s in services_data if s["active_state"] == "active"])
+            result["summary"]["inactive"] = len([s for s in services_data if s["active_state"] == "inactive"])
+            result["summary"]["failed"] = len([s for s in services_data if s["active_state"] == "failed"])
         else:
-            result["error"] = "; ".join(attempt_errors)
-    else:
-        result["error"] = "Container engine not available"
-
-    result["compose_project"] = compose_project
+            result["error"] = "No systemd services found"
+            
+    except FileNotFoundError:
+        result["error"] = "systemctl command not found - systemd not available"
+    except Exception as exc:
+        if logger:
+            logger.error(f"Error collecting systemd service status: {exc}")
+        result["error"] = str(exc)
+    
     return result
 
 

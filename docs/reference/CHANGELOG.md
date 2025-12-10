@@ -6,6 +6,69 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.19.11] - 2025-12-10
+### Fixed
+  - Fixed pgAdmin 4 installation failures by adding better error handling and --allow-downgrades flag
+  - Fixed pgAdmin installation to gracefully skip if it fails, allowing installation to continue
+  - Added error detection and informative messages for pgAdmin installation issues
+
+### Added
+  - **PostgreSQL password now displayed during installation** for easy IDE/pgAdmin access
+  - Added comprehensive database credentials section in installation completion message
+  - Shows full PostgreSQL connection details (host, port, database, username, password)
+  - Added instructions for viewing password later: `sudo grep POSTGRES_PASSWORD /opt/eas-station/.env`
+  - Enhanced installation progress messages with detailed package lists
+  - Added informative descriptions of what each installation step does
+  - More aesthetic progress indicators showing estimated time and package counts
+  - pgAdmin access instructions (if successfully installed) in completion message
+  - Separate database credentials section with security warnings
+
+### Changed
+  - Installation completion message now includes full database credentials for IDE access
+  - Made install.sh significantly more informative and user-friendly
+  - Enhanced progress messages to show what packages are being installed
+  - Improved visual hierarchy in completion message sections
+  - pgAdmin configuration skips gracefully if installation failed
+  - Database password warning emphasizes saving credentials (only shown once)
+
+## [2.19.10] - 2025-12-10
+### Fixed
+  - Removed Docker/container monitoring from system health in favor of systemd service monitoring
+  - System health now queries systemd services directly using systemctl for accurate bare metal deployment status
+  - Updated system health template to display systemd services instead of Docker containers
+  
+### Added
+  - Systemd service monitoring for all EAS Station services (web, sdr, audio, eas, hardware, noaa-poller, ipaws-poller)
+  - Dependency service monitoring (nginx, postgresql, redis-server, icecast2)
+  - Service status categorization (active, inactive, failed) with visual indicators
+  - Separate display sections for EAS Station services vs. system dependencies
+
+### Changed
+  - Replaced _collect_container_statuses() with _collect_systemd_services() in system.py
+  - System health data structure now uses "systemd" key instead of "containers"
+  - Service monitoring now uses native systemctl commands instead of Docker API
+  - Health dashboard shows systemd service status with active/inactive/failed states
+
+## [2.19.9] - 2025-12-10
+### Fixed
+  - Reduced excessive whitespace between navbar and page content by decreasing --layout-padding-top from 1.5rem to 0.5rem
+  - Fixed NOAA_USER_AGENT validation error by adding default value in environment.py configuration
+  - Fixed environment validation to check default values before reporting "required but not set" errors
+  - Updated setup wizard configuration persistence notice to remove Docker/container-specific references
+  - Changed setup wizard text to reflect bare metal deployment with /app-config/.env persistent volume
+  - Removed Docker-specific terminology from about.html (changed "containers" to "services")
+  - Removed Docker-specific terminology from admin.html (container references, --network=host flag)
+  - Updated admin panel text to be deployment-agnostic (removed "inside the app container" references)
+  - Removed hardcoded version number from NOAA_USER_AGENT default value to prevent version drift
+  - Changed "System Reinstall" to "Fresh Installation" in setup wizard for clarity
+
+### Changed
+  - Updated setup wizard to show accurate configuration persistence behavior for bare metal deployments
+  - Environment validation now respects default values defined in ENV_CATEGORIES when checking required fields
+  - About page now uses deployment-agnostic terminology for service architecture
+  - Admin panel now uses terminology appropriate for both Docker and bare metal deployments
+  - NOAA_USER_AGENT default value no longer includes version number (simplified to "EAS Station")
+
 ## [2.19.8] - 2025-12-10
 ### Changed
   - Completely rewrote PyCharm/VS Code debugging guide for bare metal deployment

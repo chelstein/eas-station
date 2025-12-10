@@ -242,9 +242,18 @@ echo_success "Package lists updated"
 
 echo_step "Install System Dependencies"
 
-echo_progress "Installing core build tools and libraries..."
-echo_info "This may take several minutes depending on your internet connection"
+echo_info "Installing essential packages - this will take 3-5 minutes..."
 echo ""
+echo -e "${CYAN}Packages being installed:${NC}"
+echo -e "  ${DIM}• Python 3 & development tools${NC}"
+echo -e "  ${DIM}• PostgreSQL 17 with PostGIS (geographic data support)${NC}"
+echo -e "  ${DIM}• Redis (in-memory caching)${NC}"
+echo -e "  ${DIM}• Nginx (web server)${NC}"
+echo -e "  ${DIM}• FFmpeg (audio processing)${NC}"
+echo -e "  ${DIM}• SDR libraries (RTL-SDR, Airspy, SoapySDR)${NC}"
+echo -e "  ${DIM}• SSL certificate tools (Certbot)${NC}"
+echo ""
+echo_progress "Downloading and installing packages (please wait)..."
 
 apt-get install -y \
     python3 \
@@ -350,7 +359,18 @@ sudo -u "$SERVICE_USER" python3 -m venv "$VENV_DIR" > /dev/null 2>&1
 echo_success "Virtual environment created at $VENV_DIR"
 
 # Install Python dependencies
-echo_progress "Installing Python dependencies..."
+echo_info "Installing Python packages for EAS Station..."
+echo ""
+echo -e "${CYAN}Key Python libraries:${NC}"
+echo -e "  ${DIM}• Flask (web framework) & extensions${NC}"
+echo -e "  ${DIM}• SQLAlchemy & Alembic (database ORM & migrations)${NC}"
+echo -e "  ${DIM}• GeoAlchemy2 (PostGIS geographic queries)${NC}"
+echo -e "  ${DIM}• PyRTLSDR & SoapySDR (software-defined radio)${NC}"
+echo -e "  ${DIM}• NumPy & SciPy (signal processing & audio analysis)${NC}"
+echo -e "  ${DIM}• Requests & lxml (CAP alert parsing)${NC}"
+echo -e "  ${DIM}• And 50+ other dependencies...${NC}"
+echo ""
+echo_progress "Installing via pip (this takes 2-4 minutes)..."
 echo_info "This may take 5-10 minutes depending on your system"
 echo ""
 sudo -u "$SERVICE_USER" "$VENV_DIR/bin/pip" install --upgrade pip setuptools wheel > /dev/null 2>&1
@@ -359,6 +379,15 @@ echo ""
 echo_success "✓ Python dependencies installed successfully"
 
 echo_step "PostgreSQL Database Configuration"
+
+echo_info "Configuring PostgreSQL database for EAS Station..."
+echo ""
+echo -e "${CYAN}Database setup tasks:${NC}"
+echo -e "  ${DIM}• Create 'alerts' database with PostGIS extensions${NC}"
+echo -e "  ${DIM}• Create 'eas_station' database user${NC}"
+echo -e "  ${DIM}• Configure authentication (password-based)${NC}"
+echo -e "  ${DIM}• Grant necessary permissions${NC}"
+echo ""
 
 # Setup PostgreSQL
 echo_progress "Starting PostgreSQL service..."
@@ -501,20 +530,34 @@ DEBIAN_FRONTEND=noninteractive apt-get install -y python3-typer python3-gunicorn
 echo_success "pgAdmin dependencies installed"
 
 # Install pgadmin4-desktop (no Apache2 dependency) and pgadmin4-web (Python files only, apache2 blocked)
-echo_progress "Installing pgAdmin 4 packages..."
+echo_progress "Installing pgAdmin 4 packages (this may take a few minutes)..."
 # Capture stderr separately to avoid masking legitimate errors while suppressing apache2 messages
-DEBIAN_FRONTEND=noninteractive apt-get install -y pgadmin4-desktop pgadmin4-web 2>&1 | \
-    { grep -v "apache2" || true; } || {
-    echo_warning "pgAdmin 4 installation completed with warnings (non-critical)"
-}
-echo_success "pgAdmin 4 installed"
+# Use --allow-downgrades to handle dependency issues
+PGADMIN_INSTALL_OUTPUT=$(DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-downgrades --no-install-recommends pgadmin4-desktop pgadmin4-web 2>&1)
+PGADMIN_EXIT_CODE=$?
+
+if [ $PGADMIN_EXIT_CODE -eq 0 ]; then
+    echo_success "pgAdmin 4 installed successfully"
+elif echo "$PGADMIN_INSTALL_OUTPUT" | grep -q "E:"; then
+    # Real error occurred
+    echo_warning "pgAdmin 4 installation encountered errors"
+    echo_info "Error details:"
+    echo "$PGADMIN_INSTALL_OUTPUT" | grep "E:" | head -5
+    echo_warning "pgAdmin 4 will not be available - you can install it manually later"
+    echo_info "Continuing installation without pgAdmin..."
+    # Skip pgAdmin configuration
+    SKIP_PGADMIN=true
+else
+    # Installation succeeded with warnings
+    echo_success "pgAdmin 4 installed (with warnings - non-critical)"
+fi
 
 # Remove apt preferences block after installation (allow future apache2 installs if needed)
 rm -f /etc/apt/preferences.d/block-apache2
 echo_info "Apache2 block removed (can be installed manually if needed)"
 
 # Configure pgAdmin for WSGI mode (works with Nginx)
-if [ -f /usr/pgadmin4/web/config.py ] || [ -f /usr/pgadmin4/web/config_distro.py ]; then
+if [ "$SKIP_PGADMIN" != "true" ] && [ -f /usr/pgadmin4/web/config.py ] || [ -f /usr/pgadmin4/web/config_distro.py ]; then
     echo_info "Configuring pgAdmin 4 for Nginx..."
     
     # Create pgAdmin configuration directory
@@ -985,16 +1028,42 @@ echo -e "    Password: ${BOLD}(the password you entered)${NC}"
 echo ""
 
 echo -e "${BOLD}${CYAN}═══════════════════════════════════════════════════════════════════════${NC}"
+echo -e "${BOLD}${WHITE}  🔑 DATABASE CREDENTIALS (For IDE/pgAdmin)${NC}"
+echo -e "${BOLD}${CYAN}═══════════════════════════════════════════════════════════════════════${NC}"
+echo ""
+echo -e "  ${BOLD}${MAGENTA}PostgreSQL Connection Details:${NC}"
+echo -e "    ${CYAN}Host:${NC}         ${BOLD}localhost${NC}"
+echo -e "    ${CYAN}Port:${NC}         ${BOLD}5432${NC}"
+echo -e "    ${CYAN}Database:${NC}     ${BOLD}alerts${NC}"
+echo -e "    ${CYAN}Username:${NC}     ${BOLD}eas_station${NC}"
+echo -e "    ${CYAN}Password:${NC}     ${BOLD}${DB_PASSWORD}${NC}"
+echo ""
+echo -e "  ${YELLOW}⚠️${NC}  ${BOLD}IMPORTANT - Save these credentials!${NC}"
+echo -e "      These credentials are ${BOLD}only shown once during installation${NC}"
+echo -e "      The password is ${BOLD}also saved${NC} in: ${BOLD}$CONFIG_FILE${NC}"
+echo ""
+echo -e "  ${GREEN}💡${NC} ${BOLD}Use these credentials in:${NC}"
+echo -e "      • pgAdmin 4 (if installed): ${BOLD}https://${PRIMARY_IP}/pgadmin${NC}"
+echo -e "      • Database IDE tools (DataGrip, DBeaver, etc.)"
+echo -e "      • psql command line: ${BOLD}psql -h localhost -U eas_station -d alerts${NC}"
+echo ""
+echo -e "  ${DIM}To view your password later, run:${NC}"
+echo -e "    ${BOLD}sudo grep POSTGRES_PASSWORD $CONFIG_FILE${NC}"
+echo ""
+
+echo -e "${BOLD}${CYAN}═══════════════════════════════════════════════════════════════════════${NC}"
 echo -e "${BOLD}${WHITE}  ⚙️  YOUR CONFIGURATION${NC}"
 echo -e "${BOLD}${CYAN}═══════════════════════════════════════════════════════════════════════${NC}"
 echo ""
 echo -e "  ${CYAN}Timezone:${NC}        ${BOLD}$TIMEZONE${NC} (change in setup wizard)"
-echo -e "  ${CYAN}Database:${NC}        ${BOLD}alerts${NC} (PostgreSQL)"
-echo -e "  ${CYAN}Database User:${NC}   ${BOLD}eas_station${NC}"
-echo -e "  ${CYAN}DB Password:${NC}     ${BOLD}Auto-generated${NC} (stored in .env file)"
+echo -e "  ${CYAN}Config File:${NC}     ${BOLD}$CONFIG_FILE${NC}"
+echo -e "  ${CYAN}Log Directory:${NC}   ${BOLD}$LOG_DIR${NC}"
+echo ""
+echo -e "  ${GREEN}✓${NC}  SECRET_KEY: ${BOLD}Auto-generated${NC} (64-character secure key)"
+echo -e "  ${GREEN}✓${NC}  DB Password: ${BOLD}Auto-generated${NC} (43-character secure password)"
 echo ""
 echo -e "  ${YELLOW}⚠️${NC}  Technical settings configured automatically"
-echo -e "      ${DIM}Don't modify database settings unless you know what you're doing!${NC}"
+echo -e "      ${DIM}Database password shown above - save it for IDE access!${NC}"
 echo ""
 
 echo -e "${BOLD}${CYAN}═══════════════════════════════════════════════════════════════════════${NC}"
@@ -1025,8 +1094,19 @@ echo -e "    Username: ${BOLD}$ADMIN_USERNAME${NC}"
 echo -e "    Password: ${BOLD}(your admin password)${NC}"
 echo -e "    Purpose:  Configure alerts, view status, manage settings"
 echo ""
+if [ "$SKIP_PGADMIN" != "true" ]; then
+echo -e "  ${BOLD}${MAGENTA}pgAdmin 4 (Database Management GUI):${NC}"
+echo -e "    URL:      ${BOLD}${GREEN}https://${PRIMARY_IP}/pgadmin${NC}"
+echo -e "    Username: ${BOLD}$ADMIN_EMAIL${NC}"
+echo -e "    Password: ${BOLD}(your admin password)${NC}"
+echo -e "    Purpose:  Visual database management, query builder, schema editor"
+echo -e "    ${GREEN}💡${NC} Add server: Use PostgreSQL credentials shown above"
+echo ""
+fi
 echo -e "  ${BOLD}${MAGENTA}PostgreSQL Database (Direct Command Line):${NC}"
 echo -e "    Command:  ${BOLD}sudo -u postgres psql -d alerts${NC}"
+echo -e "    Or:       ${BOLD}psql -h localhost -U eas_station -d alerts${NC}"
+echo -e "              ${DIM}(Enter password when prompted: see above)${NC}"
 echo -e "    Purpose:  Direct SQL queries, database administration"
 echo ""
 echo -e "  ${BOLD}${MAGENTA}Redis Cache (Command Line):${NC}"

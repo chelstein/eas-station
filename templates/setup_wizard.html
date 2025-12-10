@@ -67,17 +67,18 @@
                     {% endif %}
 
                     <!-- Configuration Persistence Notice -->
-                    <div class="alert alert-warning border-warning" role="alert">
-                        <h6 class="alert-heading mb-2"><i class="fas fa-info-circle me-2"></i>Important: Configuration Persistence</h6>
-                        <p class="mb-2 small">Your configuration is saved to <code>/app/.env</code> inside the container:</p>
+                    <div class="alert alert-info border-info" role="alert">
+                        <h6 class="alert-heading mb-2"><i class="fas fa-info-circle me-2"></i>Configuration Persistence</h6>
+                        <p class="mb-2 small">Your configuration is saved to <code>/app-config/.env</code> on a persistent volume:</p>
                         <ul class="small mb-2">
-                            <li><strong>Container Restart</strong> (Stop/Start): ✅ Config persists</li>
-                            <li><strong>Container Redeploy</strong> (Git pull/recreate): ❌ Config resets</li>
+                            <li><strong>Service Restart</strong>: ✅ Config persists</li>
+                            <li><strong>System Updates</strong> (Git pull/upgrade): ✅ Config persists</li>
+                            <li><strong>Fresh Installation</strong>: ❌ Config must be backed up and restored</li>
                         </ul>
                         <div class="bg-light border rounded p-2 small">
-                            <strong>💡 For Permanent Configuration (Portainer):</strong>
-                            <p class="mb-1">After completing this wizard, you'll get a page with ready-to-paste environment variables.</p>
-                            <p class="mb-0">Copy them into <strong>Portainer → Stack Editor → Environment Variables</strong> to make your config permanent across all redeployments.</p>
+                            <strong>💡 Backup Your Configuration:</strong>
+                            <p class="mb-1">After completing this wizard, download a backup of your environment variables from the settings page.</p>
+                            <p class="mb-0">Keep this backup safe for disaster recovery or migration to a new system.</p>
                         </div>
                     </div>
 
@@ -214,7 +215,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     statusDiv.innerHTML = `
                         <div class="alert alert-success">
                             <strong>Success!</strong> ${result.message || 'Configuration restored successfully!'}
-                            <br><strong>Next step:</strong> Restart your container for changes to take effect.
+                            <br><strong>Next step:</strong> Restart the services for changes to take effect.
                         </div>
                     `;
                     fileInput.value = '';
