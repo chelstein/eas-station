@@ -569,12 +569,13 @@ echo_step "Create Configuration File"
 # Backup existing .env file if it exists and is not empty
 if [ -f "$CONFIG_FILE" ]; then
     # Check if file has meaningful content (more than just comments/whitespace)
-    if grep -qE '^[^#].*=' "$CONFIG_FILE" 2>/dev/null; then
+    # Pattern matches lines that start with non-comment, non-whitespace characters followed by '='
+    if grep -qE '^\s*[^#\s].*=' "$CONFIG_FILE" 2>/dev/null; then
         BACKUP_FILE="${CONFIG_FILE}.backup.$(date +%Y%m%d_%H%M%S)"
         cp "$CONFIG_FILE" "$BACKUP_FILE"
         echo_info "Backed up existing configuration to: $BACKUP_FILE"
     else
-        echo_info "Removing empty template .env file from repository"
+        echo_info "Overwriting empty template .env file"
     fi
 fi
 
