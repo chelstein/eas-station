@@ -69,6 +69,99 @@ if [ "$OS" != "debian" ] && [ "$OS" != "ubuntu" ] && [ "$OS" != "raspbian" ]; th
     fi
 fi
 
+# ====================================================================
+# COLLECT CONFIGURATION BEFORE INSTALLATION
+# ====================================================================
+
+echo ""
+echo "=========================================="
+echo "  ⚙️  CONFIGURATION"
+echo "=========================================="
+echo ""
+echo "Before installing, please provide some basic information."
+echo "This will configure your EAS Station with proper settings."
+echo ""
+
+# Database password
+while true; do
+    read -s -p "Enter database password for user 'eas_station' (min 8 characters): " DB_PASSWORD
+    echo
+    if [ ${#DB_PASSWORD} -lt 8 ]; then
+        echo_error "Password must be at least 8 characters long"
+        continue
+    fi
+    read -s -p "Confirm database password: " DB_PASSWORD_CONFIRM
+    echo
+    if [ "$DB_PASSWORD" != "$DB_PASSWORD_CONFIRM" ]; then
+        echo_error "Passwords do not match"
+        continue
+    fi
+    break
+done
+echo_success "Database password set"
+echo ""
+
+# Location settings
+echo "--- Location Settings ---"
+echo ""
+read -p "Enter your county name (e.g., 'Putnam County'): " COUNTY_NAME
+COUNTY_NAME=$(echo "$COUNTY_NAME" | xargs)  # Trim whitespace
+
+read -p "Enter your state code (e.g., 'OH'): " STATE_CODE
+STATE_CODE=$(echo "$STATE_CODE" | xargs | tr '[:lower:]' '[:upper:]')  # Trim and uppercase
+
+read -p "Enter your SAME/NWS zone codes (comma-separated, e.g., 'OHZ016,OHC137'): " ZONE_CODES
+ZONE_CODES=$(echo "$ZONE_CODES" | xargs | tr '[:lower:]' '[:upper:]')  # Trim and uppercase
+echo ""
+
+# Timezone
+echo "--- Timezone ---"
+echo ""
+echo "Common US timezones:"
+echo "  America/New_York (Eastern)"
+echo "  America/Chicago (Central)"
+echo "  America/Denver (Mountain)"
+echo "  America/Los_Angeles (Pacific)"
+echo ""
+read -p "Enter your timezone [America/New_York]: " TIMEZONE
+TIMEZONE=$(echo "$TIMEZONE" | xargs)  # Trim whitespace
+if [ -z "$TIMEZONE" ]; then
+    TIMEZONE="America/New_York"
+fi
+echo_info "Timezone: $TIMEZONE"
+echo ""
+
+# EAS Station ID (callsign)
+echo "--- EAS Station Identification ---"
+echo ""
+read -p "Enter your EAS Station ID/Callsign (e.g., 'KR8MER', max 8 characters) [NOCALL]: " STATION_ID
+STATION_ID=$(echo "$STATION_ID" | xargs | tr '[:lower:]' '[:upper:]')  # Trim and uppercase
+if [ -z "$STATION_ID" ]; then
+    STATION_ID="NOCALL"
+fi
+echo_info "Station ID: $STATION_ID"
+echo ""
+
+# EAS Broadcast
+echo "--- EAS Broadcast ---"
+echo ""
+read -p "Enable EAS audio generation and broadcast? (y/N): " ENABLE_BROADCAST
+if [[ "$ENABLE_BROADCAST" =~ ^[Yy]$ ]]; then
+    EAS_BROADCAST_ENABLED="true"
+    echo_success "EAS broadcast enabled"
+else
+    EAS_BROADCAST_ENABLED="false"
+    echo_info "EAS broadcast disabled (can be enabled later)"
+fi
+echo ""
+
+echo_success "Configuration collected!"
+echo ""
+
+# ====================================================================
+# BEGIN INSTALLATION
+# ====================================================================
+
 # Update package lists
 echo_info "Updating package lists..."
 apt-get update
@@ -185,8 +278,20 @@ systemctl start postgresql
 # Create database and user
 sudo -u postgres psql -tc "SELECT 1 FROM pg_database WHERE datname = 'alerts'" | grep -q 1 || \
     sudo -u postgres psql -c "CREATE DATABASE alerts;"
+
+# Get database password from .env if it exists, otherwise use default
+if [ -f "$CONFIG_FILE" ]; then
+    DB_PASSWORD=$(grep "^POSTGRES_PASSWORD=" "$CONFIG_FILE" | cut -d '=' -f2)
+else
+    DB_PASSWORD="changeme123"
+fi
+
 sudo -u postgres psql -tc "SELECT 1 FROM pg_user WHERE usename = 'eas_station'" | grep -q 1 || \
-    sudo -u postgres psql -c "CREATE USER eas_station WITH PASSWORD 'changeme123';"
+    sudo -u postgres psql -c "CREATE USER eas_station WITH PASSWORD '$DB_PASSWORD';"
+
+# Update password if user already exists
+sudo -u postgres psql -c "ALTER USER eas_station WITH PASSWORD '$DB_PASSWORD';"
+
 sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE alerts TO eas_station;"
 
 # Grant schema privileges (required for PostgreSQL 15+)
@@ -222,15 +327,16 @@ echo_success "Redis configured"
 
 # Create .env file if it doesn't exist
 if [ ! -f "$CONFIG_FILE" ]; then
-    echo_info "Creating default configuration file..."
+    echo_info "Creating configuration file..."
     
     # Generate a secure SECRET_KEY automatically
     echo_info "Generating secure SECRET_KEY..."
     GENERATED_SECRET_KEY=$(python3 -c "import secrets; print(secrets.token_hex(32))")
     
+    # Create the .env file with collected configuration
     cat > "$CONFIG_FILE" << EOF
 # EAS Station Configuration - Bare Metal Deployment
-# This file was auto-generated during installation
+# This file was auto-generated during installation on $(date)
 
 # Flask Secret Key (auto-generated - keep this secure!)
 SECRET_KEY=$GENERATED_SECRET_KEY
@@ -240,7 +346,7 @@ POSTGRES_HOST=localhost
 POSTGRES_PORT=5432
 POSTGRES_DB=alerts
 POSTGRES_USER=eas_station
-POSTGRES_PASSWORD=changeme123
+POSTGRES_PASSWORD=$DB_PASSWORD
 
 # Redis Configuration
 REDIS_HOST=localhost
@@ -250,17 +356,17 @@ REDIS_DB=0
 # Application Settings
 FLASK_ENV=production
 FLASK_DEBUG=false
-DEFAULT_TIMEZONE=America/New_York
+DEFAULT_TIMEZONE=$TIMEZONE
 
-# Location Settings (Configure via web interface)
-DEFAULT_COUNTY_NAME=
-DEFAULT_STATE_CODE=
-DEFAULT_ZONE_CODES=
+# Location Settings
+DEFAULT_COUNTY_NAME=$COUNTY_NAME
+DEFAULT_STATE_CODE=$STATE_CODE
+DEFAULT_ZONE_CODES=$ZONE_CODES
 
 # EAS Broadcast Settings
-EAS_BROADCAST_ENABLED=false
+EAS_BROADCAST_ENABLED=$EAS_BROADCAST_ENABLED
 EAS_ORIGINATOR=WXR
-EAS_STATION_ID=NOCALL
+EAS_STATION_ID=$STATION_ID
 
 # SDR Settings
 SDR_ENABLED=false
@@ -525,17 +631,30 @@ echo "Username: ${ADMIN_USERNAME}"
 echo "Password: (the password you just entered)"
 echo ""
 echo "=========================================="
+echo "  📋 YOUR CONFIGURATION"
+echo "=========================================="
+echo ""
+echo "Location: $COUNTY_NAME, $STATE_CODE"
+echo "Zone Codes: $ZONE_CODES"
+echo "Timezone: $TIMEZONE"
+echo "Station ID: $STATION_ID"
+echo "EAS Broadcast: $([ "$EAS_BROADCAST_ENABLED" = "true" ] && echo "Enabled" || echo "Disabled")"
+echo ""
+echo "=========================================="
 echo "  📋 NEXT STEPS"
 echo "=========================================="
 echo ""
 echo "1. Log in to the web interface with your credentials"
 echo ""
-echo "2. Complete the setup wizard to configure:"
-echo "   • Your location (county, state, zone codes)"
-echo "   • Your callsign (EAS_STATION_ID)"
-echo "   • Enable/disable features (SDR, broadcast, etc.)"
+echo "2. Your location and station settings have been configured!"
+echo "   You can review or modify them in the web interface."
 echo ""
-echo "3. You're done! Your station is ready to monitor alerts"
+echo "3. Optional: Configure additional features:"
+echo "   • SDR monitoring for EAS alert verification"
+echo "   • LED/OLED/VFD display integration"
+echo "   • Email/SMS notifications"
+echo ""
+echo "4. You're done! Your station is ready to monitor alerts"
 echo ""
 echo "=========================================="
 echo "  🔧 USEFUL COMMANDS"
