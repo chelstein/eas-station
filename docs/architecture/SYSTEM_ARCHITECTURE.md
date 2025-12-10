@@ -31,7 +31,7 @@ This document provides comprehensive architectural diagrams and flowcharts for t
 
 ### High-Level Architecture
 
-EAS Station uses a **separated service architecture** where hardware access is isolated into dedicated containers for reliability and security:
+EAS Station uses a **separated service architecture** where hardware access is isolated into dedicated systemd services for reliability and security:
 
 ```mermaid
 graph TB
@@ -319,11 +319,11 @@ flowchart TD
 
 ### Audio Ingest Architecture
 
-> **Note:** Audio metrics are stored in **Redis** for real-time access, not PostgreSQL. The sdr-service publishes metrics to Redis keys (e.g., `eas:audio:metrics`), and the app container reads from Redis for UI display.
+> **Note:** Audio metrics are stored in **Redis** for real-time access, not PostgreSQL. The sdr-service publishes metrics to Redis keys (e.g., `eas:audio:metrics`), and the app service reads from Redis for UI display.
 
 ```mermaid
 graph TB
-    subgraph "sdr-service Container"
+    subgraph "sdr-service (systemd)"
         subgraph "Audio Sources"
             SDR_SRC[SDR Receiver<br>RadioManager]
             ALSA_SRC[ALSA Device<br>hw:X,Y]
@@ -350,7 +350,7 @@ graph TB
         COMMANDS[(eas:commands<br>Pub/Sub)]
     end
 
-    subgraph "app Container"
+    subgraph "app service"
         UI[Audio Sources Page<br>/audio/sources]
         API[REST API<br>/api/audio/*]
         JS[JavaScript Monitor<br>Real-time Updates]
@@ -435,7 +435,7 @@ sequenceDiagram
     participant Health as Health Monitor
     participant Redis as Redis Cache
     participant DB as PostgreSQL
-    participant App as app Container
+    participant App as app service
     participant UI as Web UI
 
     loop Every Audio Chunk (in sdr-service)
@@ -909,6 +909,7 @@ flowchart TD
 
 ```mermaid
 graph TB
+    subgraph "Systemd Services"
         APP[app<br>Flask Web + API]
         NOAA_POLL[noaa-poller<br>CAP Polling]
         IPAWS_POLL[ipaws-poller<br>FEMA Polling]
@@ -920,14 +921,15 @@ graph TB
         NGINX[nginx<br>HTTPS Proxy]
     end
 
-    subgraph "Shared Volumes"
-        VOL_CONFIG[app-config<br>/app-config/.env]
-        VOL_DATA[alerts-db-data]
-        VOL_REDIS[redis-data]
-        VOL_CERTS[certbot-conf]
+    subgraph "Shared Storage"
+        VOL_CONFIG[/app-config/.env<br>Configuration]
+        VOL_DATA[PostgreSQL Data]
+        VOL_REDIS[Redis Data]
+        VOL_CERTS[SSL Certificates]
     end
 
-        NET[eas-network<br>Bridge + IPv6]
+    subgraph "Network"
+        NET[Localhost + Unix Sockets]
     end
 
     subgraph "External"
@@ -949,7 +951,7 @@ graph TB
     ICECAST --> NET
     NGINX --> NET
 
-    %% Volume mounts
+    %% Storage access
     APP --> VOL_CONFIG
     NOAA_POLL --> VOL_CONFIG
     IPAWS_POLL --> VOL_CONFIG
@@ -1021,7 +1023,7 @@ sequenceDiagram
 graph TB
     subgraph "Raspberry Pi 5 Hardware"
         subgraph "Software Stack"
-            subgraph "Containers"
+            subgraph "Systemd Services"
                 APP_C[Web Application<br>Python 3.12 + Flask]
                 POLL_C[CAP Poller<br>Background Service]
                 IPAWS_C[IPAWS Poller<br>Background Service]

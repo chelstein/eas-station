@@ -2,10 +2,10 @@
 
 ## Problem
 
-Previously, hardware access was scattered across multiple containers, causing:
-- **USB contention** - Multiple containers trying to access the same SDR device
+Previously, hardware access was scattered across multiple services, causing:
+- **USB contention** - Multiple processes trying to access the same SDR device
 - **Fault propagation** - SDR crashes affecting displays, GPIO crashes affecting audio
-- **Unclear ownership** - Multiple containers with overlapping hardware access
+- **Unclear ownership** - Multiple services with overlapping hardware access
 - **Difficult debugging** - Hardware failures cascading across services
 
 ## Solution: Complete Hardware Isolation
@@ -64,14 +64,14 @@ graph TB
 
 ---
 
-## Container Responsibilities
+## Service Responsibilities
 
 ### **sdr-service** (SDR + Audio)
 **Hardware**: `/dev/bus/usb` only
 
 **Purpose**: SDR hardware management and real-time audio processing
 
-**Runs**: `audio_service.py`
+**Runs**: `audio_service.py` (systemd service)
 
 **Handles**:
 - SDR device initialization (AirSpy, RTL-SDR)
@@ -82,9 +82,9 @@ graph TB
 - Icecast streaming
 - Audio metrics publishing
 
-**Why together**: Audio processing requires microsecond-latency access to SDR samples. Splitting them would add inter-container overhead and increase latency.
+**Why together**: Audio processing requires microsecond-latency access to SDR samples. Splitting them would add inter-process overhead and increase latency.
 
-**Privileges**: `privileged: true`, `CAP_SYS_RAWIO`, `CAP_SYS_ADMIN` (USB only)
+**Privileges**: Root access for USB device management
 
 ---
 
@@ -93,7 +93,7 @@ graph TB
 
 **Purpose**: Local hardware control (non-SDR)
 
-**Runs**: `hardware_service.py`
+**Runs**: `hardware_service.py` (systemd service)
 
 **Handles**:
 - GPIO pin control (relays, transmitter PTT)
@@ -108,16 +108,16 @@ graph TB
 - `GPIO_ENABLED` - Enable/disable GPIO (default: false)
 - `SCREENS_AUTO_START` - Auto-start screen rotation (default: true)
 
-**Privileges**: `privileged: true` (GPIO/I2C access on Pi 5)
+**Privileges**: Root access for GPIO/I2C device access on Pi 5
 
 ---
 
 ### **app** (Web UI)
-**Hardware**: `/dev:ro` (read-only for SMART only)
+**Hardware**: Read-only `/dev` access for SMART monitoring only
 
 **Purpose**: User interface and configuration
 
-**Runs**: Flask application (`app.py`)
+**Runs**: Flask application (`app.py`) via systemd
 
 **Handles**:
 - Web routes and API endpoints
@@ -127,9 +127,9 @@ graph TB
 - SMART disk monitoring (read-only)
 - Metrics aggregation from Redis
 
-**NO direct hardware access** (except read-only `/dev` for SMART)
+**NO direct hardware write access**
 
-**Privileges**: None (unprivileged container)
+**Privileges**: Unprivileged service, runs as dedicated user
 
 ---
 
@@ -144,43 +144,35 @@ graph TB
 - Alert database storage
 - NO hardware access needed
 
-**Privileges**: None (unprivileged container)
+**Privileges**: Unprivileged services
 
 ---
 
-## Hardware Device Mapping
+## Hardware Device Access
 
 Works on all platforms (x86, ARM, Pi, etc.):
 
-```yaml
-sdr-service:
-  devices:
-    - /dev/bus/usb:/dev/bus/usb  # USB SDR devices
+**sdr-service** - Configured via systemd unit file:
+- Device access: `/dev/bus/usb` (USB SDR devices)
+- Udev rules ensure proper permissions
 
-hardware-service:
-  # No devices in base config - added via Pi override
-  # Works on all platforms with hardware features disabled
+**hardware-service** - Configured via systemd unit file:
+- No hardware access in base config
+- Works on all platforms with hardware features disabled
 
-app:
-  # No devices in base config
-```
+**app** - Configured via systemd unit file:
+- No device access in base config
 
-Adds Pi-specific hardware:
+On Raspberry Pi, additional hardware is enabled:
 
-```yaml
-app:
-  devices:
-    - /dev:/dev:ro  # Read-only for SMART monitoring
+**app**:
+- Read-only `/dev` access for SMART monitoring
 
-hardware-service:
-  devices:
-    - /dev/gpiomem:/dev/gpiomem
-    - /dev/gpiochip0:/dev/gpiochip0
-    - /dev/i2c-1:/dev/i2c-1
-  environment:
-    GPIO_ENABLED: "true"
-    SCREENS_AUTO_START: "true"
-```
+**hardware-service**:
+- `/dev/gpiomem` - GPIO memory access
+- `/dev/gpiochip0` - GPIO chip interface
+- `/dev/i2c-1` - I2C bus for displays
+- Environment: `GPIO_ENABLED=true`, `SCREENS_AUTO_START=true`
 
 ---
 
@@ -192,7 +184,7 @@ If `sdr-service` crashes or SDR device disconnects:
 - ✅ OLED displays continue updating
 - ✅ Web UI remains accessible
 - ✅ Alert polling continues
-- 🔄 SDR automatically retries connection with exponential backoff
+- 🔄 Systemd automatically restarts the service
 
 ### **Display Failure Scenarios**
 If `hardware-service` crashes or display fails:
@@ -200,15 +192,15 @@ If `hardware-service` crashes or display fails:
 - ✅ Audio continues streaming
 - ✅ EAS decoding continues
 - ✅ Web UI remains accessible
-- 🔄 Hardware service restarts independently
+- 🔄 Systemd automatically restarts the service
 
 ### **Web UI Failure Scenarios**
-If `app` container crashes:
+If `app` service crashes:
 - ✅ SDR continues monitoring
 - ✅ Displays continue updating
 - ✅ GPIO continues functioning
 - ✅ Alert polling continues
-- 🔄 Web UI restarts without affecting hardware
+- 🔄 Systemd automatically restarts the service
 
 ---
 
@@ -311,8 +303,8 @@ graph LR
     style NEW fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
 ```
 
-**Before**: Multiple containers fighting over USB and GPIO → **Device contention**
-**After**: Each container has exclusive hardware access → **Zero contention**
+**Before**: Multiple services fighting over USB and GPIO → **Device contention**
+**After**: Each service has exclusive hardware access → **Zero contention**
 
 ### Deployment Steps
 
@@ -321,21 +313,27 @@ graph LR
 git pull origin main
 ```
 
-2. **Stop all containers**:
+2. **Stop all services**:
+```bash
+sudo systemctl stop eas-station.target
+```
+
 3. **Deploy with new architecture**:
 ```bash
-# Standard deployment
-
-# Raspberry Pi deployment
+# Run the installation script
+sudo ./install.sh
 ```
 
 4. **Verify isolation**:
 ```bash
-# Check sdr-service has USB
+# Check sdr-service has USB access
+sudo systemctl status sdr-service
 
 # Check hardware-service has GPIO (Pi only)
+sudo systemctl status hardware-service
 
-# Check app has no GPIO
+# Check app service status
+sudo systemctl status eas-app
 ```
 
 ---
@@ -343,28 +341,36 @@ git pull origin main
 ## Troubleshooting
 
 ### SDR Not Working
-**Check**: Only `sdr-service` should have `/dev/bus/usb`
+**Check**: Only `sdr-service` should have `/dev/bus/usb` access
 
 ```bash
-# Should show USB devices
+# Check service status
+sudo systemctl status sdr-service
 
-# Should NOT show USB
+# View service logs
+sudo journalctl -u sdr-service -n 50
 ```
 
-**Logs**:
 ### GPIO/Displays Not Working
-**Check**: Only `hardware-service` should have GPIO
+**Check**: Only `hardware-service` should have GPIO access
 
 ```bash
-# Should show GPIO devices (Pi only)
+# Check service status (Pi only)
+sudo systemctl status hardware-service
+
+# View service logs
+sudo journalctl -u hardware-service -n 50
 ```
 
-**Logs**:
 ### SMART Monitoring Not Working
-**Check**: `app` container needs read-only `/dev`
+**Check**: `app` service needs read-only `/dev` access
 
 ```bash
-# Should show read-only device access
+# Check service status
+sudo systemctl status eas-app
+
+# View service logs
+sudo journalctl -u eas-app -n 50
 ```
 
 ---
@@ -374,19 +380,21 @@ git pull origin main
 ### Principle of Least Privilege
 - **sdr-service**: Only USB access, no GPIO
 - **hardware-service**: Only GPIO/I2C, no USB
-- **app**: Read-only devices, no write access
+- **app**: Read-only device access, no write access
 - **pollers**: Zero hardware access
 
 ### Attack Surface Reduction
 - USB exploits contained to `sdr-service`
 - GPIO exploits contained to `hardware-service`
 - Web vulnerabilities can't access hardware directly
-- Each service can be restarted without affecting others
+- Each service runs independently with systemd isolation
+- Services can be restarted without affecting others
 
 ### Audit Trail
-- Clear hardware ownership
-- Isolated logs per service
+- Clear hardware ownership per service
+- Isolated logs per service via journalctl
 - Easy to trace hardware operations
+- Systemd provides process tracking and resource limits
 
 ---
 
@@ -410,7 +418,7 @@ git pull origin main
 
 ## Summary
 
-**Complete hardware isolation achieved:**
+**Complete hardware isolation achieved via systemd services:**
 - ✅ SDR isolated to `sdr-service`
 - ✅ GPIO/displays isolated to `hardware-service`
 - ✅ Web UI has zero hardware write access
@@ -418,4 +426,5 @@ git pull origin main
 - ✅ Each service can fail independently
 - ✅ Clear fault boundaries
 - ✅ Better security posture
-- ✅ Easier debugging
+- ✅ Easier debugging with journalctl
+- ✅ Systemd provides automatic restart and resource management
