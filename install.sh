@@ -69,6 +69,83 @@ if [ "$OS" != "debian" ] && [ "$OS" != "ubuntu" ] && [ "$OS" != "raspbian" ]; th
     fi
 fi
 
+# ====================================================================
+# COLLECT MINIMAL CONFIGURATION
+# ====================================================================
+
+echo ""
+echo "=========================================="
+echo "  ⚙️  ADMINISTRATOR ACCOUNT SETUP"
+echo "=========================================="
+echo ""
+echo "You'll need an administrator account to access the web interface and pgAdmin."
+echo ""
+
+# Prompt for admin username
+while true; do
+    read -p "Enter administrator username (min 3 characters): " ADMIN_USERNAME
+    ADMIN_USERNAME=$(echo "$ADMIN_USERNAME" | xargs)  # Trim whitespace
+    
+    if [ -z "$ADMIN_USERNAME" ]; then
+        echo_error "Username cannot be empty"
+        continue
+    fi
+    
+    if [ ${#ADMIN_USERNAME} -lt 3 ]; then
+        echo_error "Username must be at least 3 characters long"
+        continue
+    fi
+    
+    if ! [[ "$ADMIN_USERNAME" =~ ^[A-Za-z0-9_.-]+$ ]]; then
+        echo_error "Username may only contain letters, numbers, dots, hyphens, or underscores"
+        continue
+    fi
+    
+    break
+done
+
+# Prompt for admin password
+while true; do
+    read -s -p "Enter administrator password (min 12 characters): " ADMIN_PASSWORD
+    echo
+    
+    if [ ${#ADMIN_PASSWORD} -lt 12 ]; then
+        echo_error "Password must be at least 12 characters long"
+        continue
+    fi
+    
+    read -s -p "Confirm administrator password: " ADMIN_PASSWORD_CONFIRM
+    echo
+    
+    if [ "$ADMIN_PASSWORD" != "$ADMIN_PASSWORD_CONFIRM" ]; then
+        echo_error "Passwords do not match"
+        continue
+    fi
+    
+    break
+done
+
+echo_success "Administrator account configured"
+echo ""
+
+# Auto-generate secure database password
+echo_info "Generating secure database password..."
+DB_PASSWORD=$(python3 -c "import secrets; print(secrets.token_urlsafe(32))")
+echo_success "Database password generated"
+echo ""
+
+# Set default timezone
+TIMEZONE="America/New_York"
+echo_info "Default timezone: $TIMEZONE"
+echo ""
+
+echo_success "Configuration complete! Starting installation..."
+echo ""
+
+# ====================================================================
+# BEGIN INSTALLATION
+# ====================================================================
+
 # Update package lists
 echo_info "Updating package lists..."
 apt-get update
@@ -182,22 +259,108 @@ echo_info "Configuring PostgreSQL..."
 systemctl enable postgresql
 systemctl start postgresql
 
-# Create database and user
+# Create database and user with the password collected earlier
 sudo -u postgres psql -tc "SELECT 1 FROM pg_database WHERE datname = 'alerts'" | grep -q 1 || \
     sudo -u postgres psql -c "CREATE DATABASE alerts;"
-sudo -u postgres psql -tc "SELECT 1 FROM pg_user WHERE usename = 'eas_station'" | grep -q 1 || \
-    sudo -u postgres psql -c "CREATE USER eas_station WITH PASSWORD 'changeme123';"
+
+# Create database user (use dollar-quoting to safely handle special characters in password)
+if ! sudo -u postgres psql -tc "SELECT 1 FROM pg_user WHERE usename = 'eas_station'" | grep -q 1; then
+    sudo -u postgres psql <<EOF
+CREATE USER eas_station WITH PASSWORD \$\$${DB_PASSWORD}\$\$;
+EOF
+fi
+
+# Update password if user already exists (in case of re-running script)
+sudo -u postgres psql <<EOF
+ALTER USER eas_station WITH PASSWORD \$\$${DB_PASSWORD}\$\$;
+EOF
+
 sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE alerts TO eas_station;"
+
+# Grant schema privileges (required for PostgreSQL 15+)
+sudo -u postgres psql -d alerts -c "GRANT ALL ON SCHEMA public TO eas_station;"
+sudo -u postgres psql -d alerts -c "GRANT CREATE ON SCHEMA public TO eas_station;"
+sudo -u postgres psql -d alerts -c "ALTER SCHEMA public OWNER TO eas_station;"
+
+# Grant privileges on all existing tables and sequences (if any)
+sudo -u postgres psql -d alerts -c "GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO eas_station;"
+sudo -u postgres psql -d alerts -c "GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO eas_station;"
+
+# Grant default privileges for future tables and sequences
+sudo -u postgres psql -d alerts -c "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO eas_station;"
+sudo -u postgres psql -d alerts -c "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO eas_station;"
+
+# Create PostGIS extensions
 sudo -u postgres psql -d alerts -c "CREATE EXTENSION IF NOT EXISTS postgis;"
 sudo -u postgres psql -d alerts -c "CREATE EXTENSION IF NOT EXISTS postgis_topology;"
 
 echo_success "PostgreSQL configured"
 
-# Install pgAdmin 4 (optional but recommended)
-# Note: Skipped by default for security. Users can install manually if needed.
-# To install: https://www.pgadmin.org/download/pgadmin-4-apt/
-echo_info "Skipping pgAdmin 4 installation (optional database management tool)"
-echo_info "You can access your database with: sudo -u postgres psql -d alerts"
+# Install and configure pgAdmin 4
+echo_info "Installing pgAdmin 4..."
+
+# Add pgAdmin repository
+if [ ! -f /etc/apt/sources.list.d/pgadmin4.list ]; then
+    curl -fsS https://www.pgadmin.org/static/packages_pgadmin_org.pub | gpg --dearmor -o /usr/share/keyrings/pgadmin-archive-keyring.gpg
+    echo "deb [signed-by=/usr/share/keyrings/pgadmin-archive-keyring.gpg] https://ftp.postgresql.org/pub/pgadmin/pgadmin4/apt/$(lsb_release -cs) pgadmin4 main" > /etc/apt/sources.list.d/pgadmin4.list
+    apt-get update
+fi
+
+# Install pgAdmin in web mode (no desktop mode)
+DEBIAN_FRONTEND=noninteractive apt-get install -y pgadmin4-web || echo_warning "pgAdmin 4 installation failed (non-critical)"
+
+# Configure pgAdmin with admin credentials
+if command -v /usr/pgadmin4/bin/setup-web.sh &> /dev/null; then
+    echo_info "Configuring pgAdmin 4 with your administrator credentials..."
+    
+    # Create a temporary expect script to automate the setup
+    cat > /tmp/pgadmin-setup.exp << 'PGADMIN_EXPECT'
+#!/usr/bin/expect -f
+set timeout -1
+set email [lindex $argv 0]
+set password [lindex $argv 1]
+
+spawn /usr/pgadmin4/bin/setup-web.sh
+
+expect "Email address:"
+send "$email\r"
+
+expect "Password:"
+send "$password\r"
+
+expect "Retype password:"
+send "$password\r"
+
+expect eof
+PGADMIN_EXPECT
+
+    chmod +x /tmp/pgadmin-setup.exp
+    
+    # Install expect if not available
+    if ! command -v expect &> /dev/null; then
+        apt-get install -y expect
+    fi
+    
+    # Run pgAdmin setup with admin credentials (use username as email if no @ symbol)
+    PGADMIN_EMAIL="$ADMIN_USERNAME@localhost"
+    if [[ "$ADMIN_USERNAME" == *"@"* ]]; then
+        PGADMIN_EMAIL="$ADMIN_USERNAME"
+    fi
+    
+    /tmp/pgadmin-setup.exp "$PGADMIN_EMAIL" "$ADMIN_PASSWORD" || echo_warning "pgAdmin setup failed (non-critical)"
+    rm -f /tmp/pgadmin-setup.exp
+    
+    # Add database server connection for the admin user
+    echo_info "pgAdmin 4 installed and configured"
+    echo_info "Access pgAdmin at: https://localhost/pgadmin4"
+    echo_info "Login with: $PGADMIN_EMAIL / (your admin password)"
+else
+    echo_warning "pgAdmin 4 not available - skipping"
+fi
+
+# Alternative: command-line access
+echo_info "You can also access the database directly with: sudo -u postgres psql -d alerts"
+
 
 # Setup Redis
 echo_info "Configuring Redis..."
@@ -207,15 +370,16 @@ echo_success "Redis configured"
 
 # Create .env file if it doesn't exist
 if [ ! -f "$CONFIG_FILE" ]; then
-    echo_info "Creating default configuration file..."
+    echo_info "Creating configuration file..."
     
     # Generate a secure SECRET_KEY automatically
     echo_info "Generating secure SECRET_KEY..."
     GENERATED_SECRET_KEY=$(python3 -c "import secrets; print(secrets.token_hex(32))")
     
+    # Create the .env file with collected configuration
     cat > "$CONFIG_FILE" << EOF
 # EAS Station Configuration - Bare Metal Deployment
-# This file was auto-generated during installation
+# This file was auto-generated during installation on $(date)
 
 # Flask Secret Key (auto-generated - keep this secure!)
 SECRET_KEY=$GENERATED_SECRET_KEY
@@ -225,7 +389,7 @@ POSTGRES_HOST=localhost
 POSTGRES_PORT=5432
 POSTGRES_DB=alerts
 POSTGRES_USER=eas_station
-POSTGRES_PASSWORD=changeme123
+POSTGRES_PASSWORD=$DB_PASSWORD
 
 # Redis Configuration
 REDIS_HOST=localhost
@@ -235,14 +399,14 @@ REDIS_DB=0
 # Application Settings
 FLASK_ENV=production
 FLASK_DEBUG=false
-DEFAULT_TIMEZONE=America/New_York
+DEFAULT_TIMEZONE=$TIMEZONE
 
-# Location Settings (Configure via web interface)
+# Location Settings (Configure via web setup wizard)
 DEFAULT_COUNTY_NAME=
 DEFAULT_STATE_CODE=
 DEFAULT_ZONE_CODES=
 
-# EAS Broadcast Settings
+# EAS Broadcast Settings (Configure via web setup wizard)
 EAS_BROADCAST_ENABLED=false
 EAS_ORIGINATOR=WXR
 EAS_STATION_ID=NOCALL
@@ -326,56 +490,9 @@ with app.app_context():
     print('Database schema created')
 " || echo_warning "Database initialization failed - may need manual setup"
 
-# Create administrator account
+# Create administrator account in database
 echo ""
-echo_info "Creating administrator account..."
-echo ""
-echo "You need to create an administrator account to access the web interface."
-echo ""
-
-# Prompt for username
-while true; do
-    read -p "Enter administrator username (min 3 characters): " ADMIN_USERNAME
-    ADMIN_USERNAME=$(echo "$ADMIN_USERNAME" | xargs)  # Trim whitespace
-    
-    if [ -z "$ADMIN_USERNAME" ]; then
-        echo_error "Username cannot be empty"
-        continue
-    fi
-    
-    if [ ${#ADMIN_USERNAME} -lt 3 ]; then
-        echo_error "Username must be at least 3 characters long"
-        continue
-    fi
-    
-    if ! [[ "$ADMIN_USERNAME" =~ ^[A-Za-z0-9_.-]+$ ]]; then
-        echo_error "Username may only contain letters, numbers, dots, hyphens, or underscores"
-        continue
-    fi
-    
-    break
-done
-
-# Prompt for password
-while true; do
-    read -s -p "Enter administrator password (min 12 characters): " ADMIN_PASSWORD
-    echo
-    
-    if [ ${#ADMIN_PASSWORD} -lt 12 ]; then
-        echo_error "Password must be at least 12 characters long"
-        continue
-    fi
-    
-    read -s -p "Confirm administrator password: " ADMIN_PASSWORD_CONFIRM
-    echo
-    
-    if [ "$ADMIN_PASSWORD" != "$ADMIN_PASSWORD_CONFIRM" ]; then
-        echo_error "Passwords do not match"
-        continue
-    fi
-    
-    break
-done
+echo_info "Creating administrator account in database..."
 
 # Create the administrator account using environment variables to avoid injection
 export EAS_ADMIN_USERNAME="$ADMIN_USERNAME"
@@ -506,21 +623,51 @@ echo "=========================================="
 echo "  🔐 LOGIN CREDENTIALS"
 echo "=========================================="
 echo ""
-echo "Username: ${ADMIN_USERNAME}"
-echo "Password: (the password you just entered)"
+echo "EAS Station Web Interface:"
+echo "  Username: ${ADMIN_USERNAME}"
+echo "  Password: (the password you entered)"
+echo ""
+if command -v /usr/pgadmin4/bin/setup-web.sh &> /dev/null; then
+    PGADMIN_EMAIL="$ADMIN_USERNAME@localhost"
+    if [[ "$ADMIN_USERNAME" == *"@"* ]]; then
+        PGADMIN_EMAIL="$ADMIN_USERNAME"
+    fi
+    echo "pgAdmin 4 Database Manager:"
+    echo "  URL: https://localhost/pgadmin4"
+    echo "  Email: $PGADMIN_EMAIL"
+    echo "  Password: (same as above)"
+    echo ""
+fi
+echo "=========================================="
+echo "  📋 YOUR CONFIGURATION"
+echo "=========================================="
+echo ""
+echo "Timezone: $TIMEZONE (can be changed in setup wizard)"
+echo "Database: alerts (PostgreSQL)"
+echo "Database User: eas_station"
+echo "Database Password: (auto-generated and stored in $CONFIG_FILE)"
+echo ""
+echo "⚠️  All technical settings have been configured automatically."
+echo "    Do NOT modify database settings unless you know what you're doing!"
 echo ""
 echo "=========================================="
-echo "  📋 NEXT STEPS"
+echo "  📋 NEXT STEPS - IMPORTANT!"
 echo "=========================================="
 echo ""
-echo "1. Log in to the web interface with your credentials"
+echo "1. Log in to the web interface with your credentials above"
 echo ""
-echo "2. Complete the setup wizard to configure:"
-echo "   • Your location (county, state, zone codes)"
-echo "   • Your callsign (EAS_STATION_ID)"
-echo "   • Enable/disable features (SDR, broadcast, etc.)"
+echo "2. Complete the SETUP WIZARD to configure:"
+echo "   ✓ Your location (county, state, FIPS/zone codes)"
+echo "   ✓ Your EAS station callsign/ID"
+echo "   ✓ Alert sources (NOAA, IPAWS feeds)"
+echo "   ✓ EAS broadcast settings"
+echo "   ✓ Hardware integrations (LED, OLED, SDR, etc.)"
 echo ""
-echo "3. You're done! Your station is ready to monitor alerts"
+echo "3. The setup wizard will guide you through all configuration"
+echo "   options with helpful explanations and examples."
+echo ""
+echo "⚠️  Your station will not monitor alerts until you complete"
+echo "    the setup wizard and configure your location!"
 echo ""
 echo "=========================================="
 echo "  🔧 USEFUL COMMANDS"

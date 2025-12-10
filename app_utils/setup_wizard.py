@@ -405,39 +405,40 @@ def _validate_icecast_password(value: str) -> str:
     return value
 
 
-# Core section - Required settings
-CORE_FIELDS = [
+# Core section - System-managed settings (NOT shown in wizard, managed by install.sh)
+# These are set during installation and should not be exposed to users
+SYSTEM_MANAGED_FIELDS = [
     WizardField(
         key="SECRET_KEY",
         label="Flask Secret Key",
-        description="Required for session security. Generate a unique 64 character token.",
+        description="Auto-generated during installation for session security.",
         validator=_validate_secret_key,
     ),
     WizardField(
         key="POSTGRES_HOST",
         label="PostgreSQL Host",
-        description="Hostname or IP address of the PostGIS database server.",
+        description="Configured during installation.",
     ),
     WizardField(
         key="POSTGRES_PORT",
         label="PostgreSQL Port",
-        description="Default PostgreSQL port is 5432.",
+        description="Configured during installation.",
         validator=_validate_port,
     ),
     WizardField(
         key="POSTGRES_DB",
         label="Database Name",
-        description="Database schema that stores CAP alerts and station data.",
+        description="Configured during installation.",
     ),
     WizardField(
         key="POSTGRES_USER",
         label="Database Username",
-        description="Account used by the application to connect to the database.",
+        description="Configured during installation.",
     ),
     WizardField(
         key="POSTGRES_PASSWORD",
         label="Database Password",
-        description="Password for the configured database user.",
+        description="Configured during installation.",
         input_type="password",
     ),
 ]
@@ -738,17 +739,13 @@ HARDWARE_FIELDS = [
 ]
 
 # Organize all fields into sections
+# NOTE: System-managed fields (SECRET_KEY, database credentials, etc.) are NOT included
+# in wizard sections. They are set by install.sh and should not be user-editable.
 WIZARD_SECTIONS = [
-    WizardSection(
-        name="core",
-        title="Core Settings",
-        description="Essential database and security configuration",
-        fields=CORE_FIELDS,
-    ),
     WizardSection(
         name="location",
         title="Location Settings",
-        description="Geographic and timezone information",
+        description="Geographic and timezone information for alert filtering",
         fields=LOCATION_FIELDS,
     ),
     WizardSection(
