@@ -421,8 +421,6 @@ def _collect_systemd_services(logger) -> Dict[str, Any]:
     ]
     
     try:
-        import subprocess
-        
         all_services = eas_services + dependency_services
         services_data = []
         
