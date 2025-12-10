@@ -532,14 +532,25 @@ if [ -z "$ADMIN_EMAIL" ] || [ -z "$ADMIN_PASSWORD" ]; then
 else
     # Preconfigure debconf to avoid any interactive prompts
     echo_progress "Preconfiguring debconf for non-interactive installation..."
+    
+    # Save current DEBIAN_FRONTEND value to restore later
+    OLD_DEBIAN_FRONTEND="${DEBIAN_FRONTEND:-}"
+    
     export DEBIAN_FRONTEND=noninteractive
     export DEBCONF_NONINTERACTIVE_SEEN=true
     export UCF_FORCE_CONFFOLD=1
-    debconf-set-selections <<EOF
+    
+    # Create a temporary file with restricted permissions for debconf configuration
+    # This prevents credentials from appearing in process lists
+    DEBCONF_TEMP=$(mktemp)
+    chmod 600 "$DEBCONF_TEMP"
+    cat > "$DEBCONF_TEMP" <<EOF
 pgadmin4 pgadmin4/email string ${ADMIN_EMAIL}
 pgadmin4 pgadmin4/password password ${ADMIN_PASSWORD}
 pgadmin4 pgadmin4/password-again password ${ADMIN_PASSWORD}
 EOF
+    debconf-set-selections < "$DEBCONF_TEMP"
+    rm -f "$DEBCONF_TEMP"
 
     # Configuration for installation timeout
     PGADMIN_INSTALL_TIMEOUT=300  # 5 minutes
@@ -572,9 +583,16 @@ EOF
         SKIP_PGADMIN=true
     fi
 
-    # Cleanup debconf settings
+    # Cleanup environment variables
     unset DEBCONF_NONINTERACTIVE_SEEN
     unset UCF_FORCE_CONFFOLD
+    
+    # Restore original DEBIAN_FRONTEND value
+    if [ -n "$OLD_DEBIAN_FRONTEND" ]; then
+        export DEBIAN_FRONTEND="$OLD_DEBIAN_FRONTEND"
+    else
+        unset DEBIAN_FRONTEND
+    fi
 fi
 
 # Stop and disable Apache2 if it was installed as a pgAdmin dependency
