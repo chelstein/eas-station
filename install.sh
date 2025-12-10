@@ -527,7 +527,8 @@ echo_progress "Installing pgAdmin 4 packages (this may take a few minutes)..."
 
 # Validate that admin credentials are set (should be set earlier in the script)
 if [ -z "$ADMIN_EMAIL" ] || [ -z "$ADMIN_PASSWORD" ]; then
-    echo_error "Administrator credentials not set - skipping pgAdmin installation"
+    echo_error "Administrator credentials not configured during Step 2 - skipping pgAdmin installation"
+    echo_info "pgAdmin can be installed manually later if needed"
     SKIP_PGADMIN=true
 else
     # Preconfigure debconf to avoid any interactive prompts
@@ -542,56 +543,64 @@ else
     
     # Create a temporary file with restricted permissions for debconf configuration
     # This prevents credentials from appearing in process lists
-    DEBCONF_TEMP=$(mktemp)
-    chmod 600 "$DEBCONF_TEMP"
-    cat > "$DEBCONF_TEMP" <<EOF
+    DEBCONF_TEMP=$(mktemp) || {
+        echo_error "Failed to create temporary file for pgAdmin configuration"
+        SKIP_PGADMIN=true
+    }
+    
+    if [ "$SKIP_PGADMIN" != "true" ]; then
+        chmod 600 "$DEBCONF_TEMP"
+        cat > "$DEBCONF_TEMP" <<EOF
 pgadmin4 pgadmin4/email string ${ADMIN_EMAIL}
 pgadmin4 pgadmin4/password password ${ADMIN_PASSWORD}
 pgadmin4 pgadmin4/password-again password ${ADMIN_PASSWORD}
 EOF
-    debconf-set-selections < "$DEBCONF_TEMP"
-    rm -f "$DEBCONF_TEMP"
+        debconf-set-selections < "$DEBCONF_TEMP"
+        rm -f "$DEBCONF_TEMP"
 
-    # Configuration for installation timeout
-    PGADMIN_INSTALL_TIMEOUT=300  # 5 minutes
-    APT_LOG_TAIL_LINES=20
-    APT_ERROR_DISPLAY_LINES=5
-    
-    # Use timeout to prevent infinite hangs
-    # Redirect stdin from /dev/null to prevent any input blocking
-    if timeout $PGADMIN_INSTALL_TIMEOUT apt-get install -y --allow-downgrades --no-install-recommends pgadmin4-desktop pgadmin4-web < /dev/null > /dev/null 2>&1; then
-        echo_success "pgAdmin 4 installed successfully"
-    else
-        PGADMIN_EXIT_CODE=$?
-        if [ $PGADMIN_EXIT_CODE -eq 124 ]; then
-            # Timeout occurred
-            echo_warning "pgAdmin 4 installation timed out after $PGADMIN_INSTALL_TIMEOUT seconds"
-            echo_info "This may indicate a hung postinstall script or dependency issue"
-        else
-            echo_warning "pgAdmin 4 installation encountered errors (exit code: $PGADMIN_EXIT_CODE)"
-            
-            # Try to get error details from apt logs
-            if [ -f /var/log/apt/term.log ]; then
-                echo_info "Error details from apt log:"
-                tail -n $APT_LOG_TAIL_LINES /var/log/apt/term.log | grep -E "E:|Err:" | head -n $APT_ERROR_DISPLAY_LINES || echo "No specific errors found in log"
-            fi
-        fi
+        # Configuration for installation timeout
+        PGADMIN_INSTALL_TIMEOUT=300  # 5 minutes
+        APT_LOG_TAIL_LINES=20
+        APT_ERROR_DISPLAY_LINES=5
         
-        echo_warning "pgAdmin 4 will not be available - you can install it manually later"
-        echo_info "Continuing installation without pgAdmin..."
-        # Skip pgAdmin configuration
-        SKIP_PGADMIN=true
+        # Use timeout to prevent infinite hangs
+        # Redirect stdin from /dev/null to prevent any input blocking
+        if timeout $PGADMIN_INSTALL_TIMEOUT apt-get install -y --allow-downgrades --no-install-recommends pgadmin4-desktop pgadmin4-web < /dev/null > /dev/null 2>&1; then
+            echo_success "pgAdmin 4 installed successfully"
+        else
+            PGADMIN_EXIT_CODE=$?
+            if [ $PGADMIN_EXIT_CODE -eq 124 ]; then
+                # Timeout occurred
+                echo_warning "pgAdmin 4 installation timed out after $PGADMIN_INSTALL_TIMEOUT seconds"
+                echo_info "This may indicate a hung postinstall script or dependency issue"
+            else
+                echo_warning "pgAdmin 4 installation encountered errors (exit code: $PGADMIN_EXIT_CODE)"
+                
+                # Try to get error details from apt logs
+                if [ -f /var/log/apt/term.log ]; then
+                    echo_info "Error details from apt log:"
+                    tail -n $APT_LOG_TAIL_LINES /var/log/apt/term.log | grep -E "E:|Err:" | head -n $APT_ERROR_DISPLAY_LINES || echo "No specific errors found in log"
+                fi
+            fi
+            
+            echo_warning "pgAdmin 4 will not be available - you can install it manually later"
+            echo_info "Continuing installation without pgAdmin..."
+            # Skip pgAdmin configuration
+            SKIP_PGADMIN=true
+        fi
     fi
 
-    # Cleanup environment variables
-    unset DEBCONF_NONINTERACTIVE_SEEN
-    unset UCF_FORCE_CONFFOLD
-    
-    # Restore original DEBIAN_FRONTEND value
-    if [ -n "$OLD_DEBIAN_FRONTEND" ]; then
-        export DEBIAN_FRONTEND="$OLD_DEBIAN_FRONTEND"
-    else
-        unset DEBIAN_FRONTEND
+    # Cleanup environment variables (only if we tried to install)
+    if [ "$SKIP_PGADMIN" != "true" ] || [ -n "$OLD_DEBIAN_FRONTEND" ]; then
+        unset DEBCONF_NONINTERACTIVE_SEEN
+        unset UCF_FORCE_CONFFOLD
+        
+        # Restore original DEBIAN_FRONTEND value
+        if [ -n "$OLD_DEBIAN_FRONTEND" ]; then
+            export DEBIAN_FRONTEND="$OLD_DEBIAN_FRONTEND"
+        else
+            unset DEBIAN_FRONTEND
+        fi
     fi
 fi
 
