@@ -338,13 +338,14 @@ if command -v /usr/pgadmin4/bin/setup-web.sh &> /dev/null; then
 set timeout 30
 set email [lindex $argv 0]
 set password [lindex $argv 1]
+set max_email_attempts 10
 
 spawn /usr/pgadmin4/bin/setup-web.sh
 
 # Keep trying to send email until we get to password prompt
 # pgAdmin validates email format and will keep asking if invalid
 set email_attempts 0
-while {$email_attempts < 10} {
+while {$email_attempts < $max_email_attempts} {
     expect {
         "Email address:" {
             send "$email\r"
@@ -362,14 +363,24 @@ while {$email_attempts < 10} {
             # Continue to next iteration
         }
         timeout {
-            puts "\nError: Timeout during email/password prompt"
+            puts "\nError: Timeout waiting for pgAdmin setup prompts."
+            puts "This may indicate pgAdmin is not responding properly."
+            puts "Check if the pgAdmin service is installed and functioning."
             exit 1
         }
         eof {
-            puts "\nError: Unexpected end of file"
+            puts "\nError: pgAdmin setup script ended unexpectedly."
+            puts "This may indicate a problem with the pgAdmin installation."
             exit 1
         }
     }
+}
+
+# Check if we exceeded maximum attempts
+if {$email_attempts >= $max_email_attempts} {
+    puts "\nError: Failed to set pgAdmin email after $max_email_attempts attempts."
+    puts "The email validation should have been handled upfront."
+    exit 1
 }
 
 expect "Retype password:"
