@@ -475,7 +475,7 @@ echo_progress "Blocking apache2 packages to prevent conflicts with nginx..."
 # Create apt preferences to block apache2 installation
 cat > /etc/apt/preferences.d/block-apache2 << 'APT_PREFS'
 Package: apache2 apache2-bin apache2-data apache2-utils libapache2-mod-wsgi-py3
-Pin: release *
+Pin: version *
 Pin-Priority: -1
 APT_PREFS
 
@@ -502,7 +502,9 @@ echo_success "pgAdmin dependencies installed"
 
 # Install pgadmin4-desktop (no Apache2 dependency) and pgadmin4-web (Python files only, apache2 blocked)
 echo_progress "Installing pgAdmin 4 packages..."
-DEBIAN_FRONTEND=noninteractive apt-get install -y pgadmin4-desktop pgadmin4-web 2>&1 | grep -v "apache2" || {
+# Capture stderr separately to avoid masking legitimate errors while suppressing apache2 messages
+DEBIAN_FRONTEND=noninteractive apt-get install -y pgadmin4-desktop pgadmin4-web 2>&1 | \
+    { grep -v "apache2" || true; } || {
     echo_warning "pgAdmin 4 installation completed with warnings (non-critical)"
 }
 echo_success "pgAdmin 4 installed"
@@ -761,7 +763,7 @@ echo_progress "Configuring firewall for remote access..."
 # Check if UFW is installed (it was installed in step 3)
 if command -v ufw &> /dev/null; then
     # Enable UFW if not already enabled
-    if ! ufw status | grep -q "Status: active"; then
+    if ! ufw status verbose | grep -q "Status: active"; then
         echo_progress "Enabling UFW firewall..."
         # Set default policies
         ufw --force default deny incoming > /dev/null 2>&1
@@ -792,7 +794,7 @@ if command -v ufw &> /dev/null; then
     # Show status
     echo ""
     echo_info "Firewall status:"
-    ufw status numbered | grep -E "(22|80|443|Status)" || true
+    ufw status numbered | grep -E '\b(22|80|443)/(tcp|udp)\b|Status:' || true
     echo ""
 else
     echo_warning "UFW not found - firewall not configured"
