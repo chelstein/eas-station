@@ -128,7 +128,7 @@ Each node references an actual module, package, or service in the repository so 
 
 ### 1. Ingestion & Validation
 
-The CAP polling system runs as two separate containers for fault isolation:
+The CAP polling system runs as two separate systemd services for fault isolation:
 
 ```mermaid
 sequenceDiagram
@@ -250,15 +250,15 @@ flowchart TD
 
 - **Workflow UI (`webapp/eas/`)** guides operators through alert selection and SAME header preview
 - **SAME Generator (`app_utils/eas.py`, `app_utils/eas_fsk.py`)** creates FCC-compliant 520⅔ baud FSK audio
-- **Hardware Integration** via isolated `hardware-service` container for GPIO relay control
+- **Hardware Integration** via isolated `hardware-service` systemd service for GPIO relay control
 
 ### 5. Audio Processing & SDR Monitoring
 
-The `sdr-service` container handles all SDR hardware and audio processing:
+The `sdr-service` systemd service handles all SDR hardware and audio processing:
 
 ```mermaid
 flowchart LR
-    subgraph sdr-service["sdr-service Container"]
+    subgraph sdr-service["sdr-service (systemd)"]
         SDR[SoapySDR<br/>Drivers]
         DEMOD[FM Demodulator<br/>demodulation.py]
         DECODE[Streaming SAME<br/>Decoder]

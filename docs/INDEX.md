@@ -10,7 +10,7 @@ If you're new to EAS Station, start here:
 |----------|-------------|
 | [Main README](https://github.com/KR8MER/eas-station/blob/main/README.md) | Installation and overview |
 | [Setup Instructions](guides/SETUP_INSTRUCTIONS) | First-run configuration |
-| [Portainer Deployment](deployment/PORTAINER_DEPLOYMENT) | Container-based setup |
+| [Portainer Deployment](deployment/PORTAINER_DEPLOYMENT) | Legacy Docker setup (see legacy/) |
 | [tmpfs Configuration](deployment/TMPFS_CONFIGURATION) | RAM optimization for different system sizes |
 | [Quick tmpfs Guide](deployment/QUICK_TMPFS_GUIDE) | Copy-paste configurations for 4GB/8GB/16GB/32GB+ systems |
 
@@ -50,7 +50,7 @@ If you're new to EAS Station, start here:
 | [Data Flow Sequences](architecture/DATA_FLOW_SEQUENCES) | Detailed mermaid diagrams |
 | [Display System Architecture](architecture/DISPLAY_SYSTEM_ARCHITECTURE) | Display subsystem diagrams |
 | [EAS Decoding Summary](architecture/EAS_DECODING_SUMMARY) | Architecture analysis |
-| [Hardware Isolation](architecture/HARDWARE_ISOLATION) | Container hardware isolation |
+| [Hardware Isolation](architecture/HARDWARE_ISOLATION) | Service hardware isolation |
 | [SDR Service Isolation](architecture/SDR_SERVICE_ISOLATION) | SDR service architecture |
 | [SDR Service Architecture](architecture/SDR_SERVICE_ARCHITECTURE) | SDR dual-service design |
 | [SDR Architecture Refactoring](architecture/SDR_ARCHITECTURE_REFACTORING) | Future refactoring plan |
@@ -75,7 +75,7 @@ If you're new to EAS Station, start here:
 | [SDR Audio Tuning Issues](troubleshooting/SDR_AUDIO_TUNING_ISSUES) | Audio-specific SDR troubleshooting |
 | [SDR Waterfall Issues](troubleshooting/SDR_WATERFALL_TROUBLESHOOTING) | Waterfall display troubleshooting |
 | [SDR Streaming Issues](troubleshooting/SDR_STREAMING_ISSUES_ANALYSIS) | SDR streaming analysis |
-| [Airspy Container Fix](troubleshooting/AIRSPY_CONTAINER_FIX) | Airspy SDR container issues |
+| [Airspy Container Fix](troubleshooting/AIRSPY_CONTAINER_FIX) | Legacy Docker SDR issues |
 | [Audio SDR Issues](troubleshooting/AUDIO_SDR_ISSUES_EXPLAINED) | SDR audio problems explained |
 
 ### General Troubleshooting
@@ -93,7 +93,7 @@ If you're new to EAS Station, start here:
 |----------|-------------|
 | [Security Guide](security/SECURITY) | Security best practices |
 | [Password Guide](security/SECURITY_PASSWORD_GUIDE) | Password management |
-| [Container Permissions](security/CONTAINER_PERMISSIONS) | Container security audit |
+| [Container Permissions](security/CONTAINER_PERMISSIONS) | Legacy Docker security audit |
 | [Security & Bug Fixes](security/SECURITY_AND_BUG_FIXES) | Security fixes and patches |
 | [Terms of Use](policies/TERMS_OF_USE) | Usage terms |
 | [Privacy Policy](policies/PRIVACY_POLICY) | Privacy information |
@@ -110,7 +110,6 @@ If you're new to EAS Station, start here:
 |----------|-------------|
 | [About EAS Station](reference/ABOUT) | Project background |
 | [Changelog](reference/CHANGELOG) | Version history |
-| [Ohio EAS Documentation](reference/OHIO_EAS_DOCUMENTATION) | Ohio EAS system reference |
 | [Diagrams Index](reference/DIAGRAMS) | Visual documentation index |
 | [Release Notes v1.0.0](reference/RELEASE_NOTES_v1.0.0) | Version 1.0.0 release notes |
 | [Feature Roadmap](roadmap/dasdec3-feature-roadmap) | Planned features |

@@ -221,8 +221,8 @@ sequenceDiagram
 This sequence shows how audio data from multiple sources flows through adapters in the **separated architecture** where SDR hardware is isolated.
 
 **Key Components:**
-- `sdr_hardware_service.py` - Exclusive SDR hardware access (separate container)
-- `eas_monitoring_service.py` - Audio processing + EAS monitoring (separate container)
+- `sdr_hardware_service.py` - Exclusive SDR hardware access (separate systemd service)
+- `eas_monitoring_service.py` - Audio processing + EAS monitoring (separate systemd service)
 - `app_core/audio/redis_sdr_adapter.py` - Redis SDR subscriber
 - `app_core/audio/sources.py` - Other source adapters
 - `app_core/audio/ingest.py` - AudioIngestController
@@ -240,7 +240,7 @@ sequenceDiagram
 
     Note over SDR_HW,EAS_Mon: Separated Architecture - NO shared hardware access
 
-    par SDR Hardware Service (separate container)
+    par SDR Hardware Service (separate systemd service)
         SDR_HW->>SDR_HW: RadioManager.start_all()
         loop For each receiver (LP1, LP2, SP1)
             SDR_HW->>SDR_HW: Receiver.get_samples() → IQ samples
@@ -249,7 +249,7 @@ sequenceDiagram
             SDR_HW->>Redis: PUBLISH sdr:samples:LP2 {iq_data}
             SDR_HW->>Redis: PUBLISH sdr:samples:SP1 {iq_data}
         end
-    and EAS Monitoring Service (separate container)
+    and EAS Monitoring Service (separate systemd service)
         Note over RedisAdapter: Subscribes to Redis channels
         RedisAdapter->>Redis: SUBSCRIBE sdr:samples:LP1
         RedisAdapter->>Redis: SUBSCRIBE sdr:samples:LP2
@@ -283,7 +283,7 @@ sequenceDiagram
 **Critical Architecture Changes (v2.16.0):**
 
 1. **SDR Hardware Separation**: 
-   - SDR hardware access ONLY in `sdr-hardware-service.py` (separate container with USB access)
+   - SDR hardware access ONLY in `sdr-hardware-service.py` (separate systemd service with USB access)
    - No RadioManager in `eas-monitoring-service.py`
    - Communication via Redis pub/sub: `sdr:samples:{receiver_id}`
 

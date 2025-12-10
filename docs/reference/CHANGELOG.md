@@ -6,6 +6,16 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.19.4] - 2025-12-10
+### Changed
+  - Updated architecture documentation to reflect bare-metal systemd deployment
+  - Replaced "container" terminology with "service" or "process" in architecture docs
+  - Replaced "Docker" references with "systemd service" or "bare-metal" as appropriate
+  - Updated mermaid chart labels in `SYSTEM_ARCHITECTURE.md` from container to service
+  - Updated `HARDWARE_ISOLATION.md` with systemd service terminology and journalctl commands
+  - Updated `DATA_FLOW_SEQUENCES.md` to reflect systemd service architecture
+  - Aligned all documentation with ISO_BUILD_READY.md bare-metal migration status
+
 ## [2.19.3] - 2025-12-10
 ### Removed
   - Removed `bugs/` directory (7.7MB) - Development-only bug tracking screenshots
