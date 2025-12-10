@@ -117,6 +117,5 @@ qrcode==8.2  # QR code generation for MFA enrollment
 # Geospatial data processing
 pyshp==3.0.3  # Shapefile reader for converting boundary files to GeoJSON
 
-# Audio processing compatibility for Python 3.13+
-# audioop was removed in Python 3.13; audioop-lts is the maintained replacement
-audioop-lts==0.2.1; python_version >= '3.13'  # Maintained fork of deprecated audioop module
+# Audio processing - audioop replacement for Python 3.13+
+audioop-lts==0.2.2  # Drop-in replacement for audioop (removed in Python 3.13)
