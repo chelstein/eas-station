@@ -22,10 +22,6 @@ EAS Station implements comprehensive security controls including Role-Based Acce
 
 After pulling the latest changes, apply the security migration:
 
-```bash
-docker-compose exec app flask db upgrade
-```
-
 ### 2. Initialize Default Roles
 
 Initialize the three default roles (admin, operator, viewer) and their permissions:
@@ -578,8 +574,6 @@ db.session.commit()
 
 ```bash
 pip install pyotp==2.9.0 qrcode==8.0
-# Or rebuild Docker container
-docker-compose build app
 ```
 
 ### QR Code Not Displaying
@@ -670,7 +664,6 @@ When deploying security features to existing EAS Station:
 
 For security issues or questions:
 - Review audit logs for suspicious activity
-- Check system logs: `docker-compose logs app`
 - Contact: security@eas-station.example.com (update with your contact)
 - File GitHub issue: https://github.com/your-repo/eas-station/issues
 

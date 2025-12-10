@@ -107,7 +107,6 @@ This document provides a complete plan to **rewrite the EAS Station codebase wit
    - Refactor audio service
    - Refactor SDR service
    - Refactor EAS service
-   - Update docker-compose
 
 7. **Phase 6: Web UI** (Weeks 13-14)
    - Update frontend to new API

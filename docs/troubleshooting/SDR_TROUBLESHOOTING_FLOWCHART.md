@@ -15,12 +15,10 @@ flowchart TD
     
     CHECK1 -->|Yes| CHECK2{SoapySDR<br/>finds device?}
     
-    CHECK2 -->|No| FIX2[Rebuild containers:<br/>docker compose build<br/>docker compose up -d]
     FIX2 --> CHECK2
     
     CHECK2 -->|Yes| CHECK3{Services<br/>running?}
     
-    CHECK3 -->|No| FIX3[Check logs:<br/>docker compose logs<br/>sdr-service]
     FIX3 --> CHECK3
     
     CHECK3 -->|Yes| CHECK4{Receiver<br/>configured?}
@@ -43,7 +41,6 @@ flowchart TD
     CHECK7 -->|No| FIX7[Enable in database:<br/>enabled=true<br/>auto_start=true]
     FIX7 --> RESTART
     
-    CHECK7 -->|Yes| RESTART[Restart services:<br/>docker compose restart<br/>sdr-service audio-service]
     
     RESTART --> CHECK8{Receiving<br/>signal?}
     
@@ -122,8 +119,6 @@ flowchart TD
     │
     ▼
 ┌─────────────────────────────────────┐
-│ Are Docker services running?        │
-│ Command: docker compose ps          │
 └─────────────────────────────────────┘
 ```
 
@@ -131,7 +126,6 @@ flowchart TD
 
 ```
 ┌─────────────────────────────────────┐
-│ Are Docker services running?        │
 └───────────┬─────────────────────────┘
             │
     ┌───────┴───────┐
@@ -266,7 +260,6 @@ lsusb | grep -E "RTL|Airspy|Realtek"
 ### Stage 2: Driver Check
 ```bash
 # Check SoapySDR can see device
-docker compose exec app SoapySDRUtil --find
 
 # Expected: JSON with driver, label, serial
 ```
@@ -274,18 +267,15 @@ docker compose exec app SoapySDRUtil --find
 ### Stage 3: Service Check
 ```bash
 # Check all services
-docker compose ps
 
 # Expected: All show "Up" status
 
 # Check logs if problems
-docker compose logs sdr-service --tail=50
 ```
 
 ### Stage 4: Configuration Check
 ```bash
 # View configuration
-docker compose exec app psql -U postgres -d alerts -c "
   SELECT identifier, frequency_hz, frequency_hz/1e6 as mhz, 
          gain, enabled, auto_start 
   FROM radio_receivers;
@@ -301,16 +291,13 @@ docker compose exec app psql -U postgres -d alerts -c "
 ### Stage 5: Fix and Restart
 ```bash
 # After making configuration changes
-docker compose restart sdr-service audio-service
 
 # Wait 10 seconds, then check
-docker compose logs sdr-service | grep -i "started\|error"
 ```
 
 ### Stage 6: Verify Audio
 ```bash
 # Check audio processing
-docker compose logs audio-service | grep "audio chunk"
 
 # Expected: Periodic "audio chunk decoded" messages
 ```
@@ -330,7 +317,6 @@ Fix: Run device discovery in Web UI
 ```
 Problem: Changes not taking effect
 Cause: Services not restarted
-Fix: docker compose restart sdr-service audio-service
 ```
 
 ### Pattern C: Frequency Issues
@@ -375,12 +361,9 @@ Fix: Use only 2500000 or 10000000 Hz
 ### 1-Minute Fix Attempt
 ```bash
 # Try the most common fixes
-docker compose restart sdr-service audio-service
-docker compose exec app psql -U postgres -d alerts -c "
   UPDATE radio_receivers 
   SET gain = 40.0, enabled = true, auto_start = true;
 "
-docker compose restart sdr-service audio-service
 ```
 
 ### 5-Minute Full Diagnostic

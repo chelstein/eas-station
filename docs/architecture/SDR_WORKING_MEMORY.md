@@ -296,7 +296,6 @@ The EAS Station uses a **separated architecture** where SDR hardware operations 
 **How to Test**:
 ```bash
 # Check logs for verification output
-docker logs eas-sdr-service | grep "SoapySDR"
 # Should see: "✅ SoapySDR Python bindings installed"
 ```
 
@@ -311,9 +310,6 @@ docker logs eas-sdr-service | grep "SoapySDR"
 **How to Test**:
 ```bash
 # Stop database, start sdr-service, watch logs
-docker stop eas-postgres
-docker restart eas-sdr-service
-docker logs -f eas-sdr-service
 # Should see retry attempts, then success when DB starts
 ```
 
@@ -328,9 +324,6 @@ docker logs -f eas-sdr-service
 **How to Test**:
 ```bash
 # Disable all receivers in database
-docker exec eas-postgres psql -U postgres -d alerts -c "UPDATE radio_receivers SET enabled=false"
-docker restart eas-sdr-service
-docker logs eas-sdr-service | grep "NO SDR RECEIVERS"
 # Should see prominent warning banner
 ```
 
@@ -359,8 +352,6 @@ docker logs eas-sdr-service | grep "NO SDR RECEIVERS"
 **How to Test**:
 ```bash
 # Restart Redis while sdr-service running
-docker restart eas-redis
-docker logs -f eas-sdr-service
 # Should see "Redis connection lost, reconnecting..." then success
 ```
 
@@ -375,7 +366,6 @@ docker logs -f eas-sdr-service
 ```bash
 # Overflow occurs when processing can't keep up with USB data rate
 # Check logs for increasing intervals between overflow messages
-docker logs eas-sdr-service | grep "Ring buffer overflow"
 ```
 
 #### ✅ Issue #8: Pre-create Demodulator
@@ -388,7 +378,6 @@ docker logs eas-sdr-service | grep "Ring buffer overflow"
 **How to Test**:
 ```bash
 # Check logs for "Pre-created demodulator" message
-docker logs eas-audio-service | grep "Pre-created demodulator"
 ```
 
 #### ✅ Issue #9: Normalize Modulation Type
@@ -421,7 +410,6 @@ docker logs eas-audio-service | grep "Pre-created demodulator"
 **How to Test**:
 ```bash
 # Check logs for device enumeration messages
-docker logs eas-sdr-service | grep "enumeration"
 ```
 
 #### ✅ Issue #12: Configurable Timeout Threshold
@@ -431,7 +419,6 @@ docker logs eas-sdr-service | grep "enumeration"
 
 **How to Test**:
 ```bash
-# Set in docker-compose.yml or .env
 SDR_MAX_CONSECUTIVE_TIMEOUTS=50
 ```
 
@@ -443,8 +430,6 @@ SDR_MAX_CONSECUTIVE_TIMEOUTS=50
 **How to Test**:
 ```bash
 # Trigger reload via Redis command
-docker exec eas-redis redis-cli PUBLISH sdr:commands '{"command_id":"123","action":"reload_receivers"}'
-docker logs eas-sdr-service | grep "Reloaded.*receivers"
 ```
 
 ### Web Audio Playback Fixes
@@ -477,37 +462,31 @@ docker logs eas-sdr-service | grep "Reloaded.*receivers"
 **Checklist**:
 1. ✅ Check SoapySDR verification logs:
    ```bash
-   docker logs eas-sdr-service | grep "SoapySDR"
    ```
    Expected: "✅ SoapySDR Python bindings installed"
 
 2. ✅ Check if receivers are configured:
    ```bash
-   docker logs eas-sdr-service | grep "NO SDR RECEIVERS"
    ```
    If present: Add receiver in web UI
 
 3. ✅ Check USB device access:
    ```bash
-   docker logs eas-sdr-service | grep "USB device enumeration"
    ```
    Expected: "✅ USB device enumeration working (N device(s) found)"
 
 4. ✅ Check receiver started:
    ```bash
-   docker logs eas-sdr-service | grep "Started.*receiver"
    ```
    Expected: "✅ Started N receiver(s) with auto_start"
 
 5. ✅ Check Redis samples being published:
    ```bash
-   docker exec eas-redis redis-cli SUBSCRIBE "sdr:samples:*"
    ```
    Should see messages flowing
 
 6. ✅ Check audio-service receiving samples:
    ```bash
-   docker logs eas-audio-service | grep "First audio chunk decoded"
    ```
    Expected: "✅ First audio chunk decoded for {receiver_id}"
 
@@ -527,7 +506,6 @@ docker logs eas-sdr-service | grep "Reloaded.*receivers"
    - Fix: Change sample rate to 2500000 or 10000000
 
 2. **USB permissions**: Container needs privileged mode
-   - File: `docker-compose.yml:132`
    - Check: `privileged: true` and `devices: /dev/bus/usb`
 
 3. **Device busy**: Another process using the SDR
@@ -575,13 +553,11 @@ docker logs eas-sdr-service | grep "Reloaded.*receivers"
 **Checklist**:
 1. Check overflow log interval (should increase):
    ```bash
-   docker logs eas-sdr-service | grep "Ring buffer overflow"
    ```
    Expected: Intervals increase: 5s → 10s → 20s → 40s → etc.
 
 2. Check CPU usage:
    ```bash
-   docker stats eas-sdr-service
    ```
    If >80%: Processing too slow
 
@@ -602,12 +578,10 @@ docker logs eas-sdr-service | grep "Reloaded.*receivers"
 **If Still Failing After 10 Attempts**:
 1. Check database is running:
    ```bash
-   docker ps | grep postgres
    ```
 
 2. Check connection string:
    ```bash
-   docker logs eas-sdr-service | grep "postgresql://"
    ```
 
 3. Check database credentials in .env:
@@ -620,7 +594,6 @@ docker logs eas-sdr-service | grep "Reloaded.*receivers"
 
 **Files to Check**:
 - `sdr_hardware_service.py:228` - initialize_database
-- `docker-compose.yml:474` - alerts-db service
 
 ---
 
@@ -633,15 +606,10 @@ docker logs eas-sdr-service | grep "Reloaded.*receivers"
 
 ```bash
 # Simulate missing SoapySDR (rename the module temporarily)
-docker exec eas-sdr-service mv /usr/lib/python3/dist-packages/SoapySDR.py /tmp/
-docker restart eas-sdr-service
-docker logs eas-sdr-service | grep "SoapySDR"
 # Should see: "❌ SoapySDR Python bindings NOT installed"
 # Service should exit with code 1
 
 # Restore
-docker exec eas-sdr-service mv /tmp/SoapySDR.py /usr/lib/python3/dist-packages/
-docker restart eas-sdr-service
 ```
 
 #### Test 2: Database Not Available
@@ -649,13 +617,9 @@ docker restart eas-sdr-service
 
 ```bash
 # Stop database before starting sdr-service
-docker stop eas-postgres
-docker restart eas-sdr-service
-docker logs -f eas-sdr-service
 # Should see retry attempts: "Database connection failed (attempt 1/10)"
 
 # Start database - service should connect
-docker start eas-postgres
 # Should see: "✅ Database connection established"
 ```
 
@@ -664,9 +628,6 @@ docker start eas-postgres
 
 ```bash
 # Disable all receivers
-docker exec eas-postgres psql -U postgres -d alerts -c "UPDATE radio_receivers SET enabled=false"
-docker restart eas-sdr-service
-docker logs eas-sdr-service | head -50
 # Should see 80-character banner: "❌ NO SDR RECEIVERS CONFIGURED IN DATABASE"
 ```
 
@@ -705,18 +666,14 @@ docker logs eas-sdr-service | head -50
 #    - Auto-start: Yes
 
 # 2. Check logs
-docker logs eas-sdr-service | grep "Configured.*receiver"
 # Should see: "Configured 1 radio receiver(s) from database"
 
-docker logs eas-sdr-service | grep "Started.*receiver"
 # Should see: "✅ Started 1 receiver(s) with auto_start"
 
 # 3. Check Redis samples
-docker exec eas-redis redis-cli SUBSCRIBE "sdr:samples:*"
 # Should see messages flowing
 
 # 4. Check audio-service
-docker logs eas-audio-service | grep "First audio chunk"
 # Should see: "✅ First audio chunk decoded"
 
 # 5. Listen via web UI
@@ -731,7 +688,6 @@ docker logs eas-audio-service | grep "First audio chunk"
 # 1. Start receiver with 2.5 MHz
 # 2. Via web UI, change to 10 MHz
 # 3. Check logs
-docker logs eas-audio-service | grep "IQ sample rate changed"
 # Should see: "IQ sample rate changed: 2500000Hz -> 10000000Hz"
 # Should see: "✅ Demodulator updated for rate 10000000Hz"
 ```
@@ -740,15 +696,12 @@ docker logs eas-audio-service | grep "IQ sample rate changed"
 **Test**: Verify timeout threshold is configurable
 
 ```bash
-# 1. Set in docker-compose.yml:
 #    SDR_MAX_CONSECUTIVE_TIMEOUTS: 50
 
 # 2. Restart sdr-service
-docker-compose up -d sdr-service
 
 # 3. Tune to weak/no signal frequency
 # 4. Check logs for timeout behavior
-docker logs eas-sdr-service | grep "consecutive timeouts"
 # Should tolerate 50 timeouts before reconnecting
 ```
 
@@ -758,10 +711,8 @@ docker logs eas-sdr-service | grep "consecutive timeouts"
 ```bash
 # 1. Start sdr-service with receiver running
 # 2. Restart Redis
-docker restart eas-redis
 
 # 3. Check sdr-service logs
-docker logs eas-sdr-service | grep "Redis"
 # Should see: "Redis connection lost, reconnecting..."
 # Should see: "✅ Connected to Redis at redis:6379"
 ```
@@ -772,7 +723,6 @@ docker logs eas-sdr-service | grep "Redis"
 ```bash
 # 1. Cause overflow (simulate slow processing)
 # 2. Check logs
-docker logs eas-sdr-service | grep "Ring buffer overflow"
 
 # Should see increasing intervals:
 # "Ring buffer overflow... Next log in 5s"
@@ -835,10 +785,9 @@ Enabled: Yes
 - ✅ Web playback works
 - ✅ RDS/RBDS data extracted (if enable_rbds=True)
 
-### Configuration 3: Separated Architecture (Docker Compose)
+### Configuration 3: Separated Architecture (systemd)
 
 ```yaml
-# docker-compose.yml - Key Services
 
 sdr-service:
   image: eas-station:latest
@@ -908,35 +857,6 @@ redis:
 | `REDIS_HOST` | redis | Redis server hostname |
 | `POSTGRES_HOST` | alerts-db | PostgreSQL hostname |
 | `CONFIG_PATH` | /app-config/.env | Persistent config file |
-
-### Docker Commands
-
-```bash
-# View SDR service logs
-docker logs -f eas-sdr-service
-
-# View audio service logs
-docker logs -f eas-audio-service
-
-# Check Redis samples
-docker exec eas-redis redis-cli SUBSCRIBE "sdr:samples:*"
-
-# Check SDR metrics
-docker exec eas-redis redis-cli GET sdr:metrics
-
-# Restart SDR service
-docker restart eas-sdr-service
-
-# Check USB devices
-docker exec eas-sdr-service SoapySDRUtil --find
-
-# Trigger receiver reload
-docker exec eas-redis redis-cli PUBLISH sdr:commands '{"command_id":"123","action":"reload_receivers"}'
-```
-
----
-
-## 🎯 Summary
 
 ### What Was Fixed
 - ✅ **13 critical and high-priority issues resolved**

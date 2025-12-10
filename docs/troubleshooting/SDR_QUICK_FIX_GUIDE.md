@@ -13,7 +13,6 @@ Run this **first** if SDR is not working:
 bash scripts/collect_sdr_diagnostics.sh
 
 # Or quick check:
-docker compose exec app python3 scripts/sdr_diagnostics.py
 ```
 
 ---
@@ -30,22 +29,13 @@ lsusb | grep -E "RTL|Airspy|Realtek"
 - ❌ **Nothing appears** → Replug USB, try different port, check cable
 
 ### 2. Software Check (30 seconds)
-```bash
-docker compose exec app SoapySDRUtil --find
-```
 - ✅ **Device listed** → Go to step 3
-- ❌ **Empty list** → Rebuild containers: `docker compose build && docker compose up -d`
 
 ### 3. Service Check (30 seconds)
-```bash
-docker compose ps
-```
 - ✅ **All "Up"** → Go to step 4
-- ❌ **sdr-service restarting** → Check logs: `docker compose logs sdr-service`
 
 ### 4. Configuration Check (2 minutes)
 ```bash
-docker compose exec app psql -U postgres -d alerts -c "
   SELECT identifier, frequency_hz, frequency_hz/1e6 as freq_mhz, 
          gain, enabled, auto_start 
   FROM radio_receivers;
@@ -74,14 +64,7 @@ UPDATE radio_receivers SET enabled = true, auto_start = true WHERE identifier = 
 ```
 
 Then restart:
-```bash
-docker compose restart sdr-service audio-service
-```
-
 ### 5. Audio Check (1 minute)
-```bash
-docker compose logs audio-service | grep -E "audio chunk|demod" | tail -10
-```
 - ✅ **Seeing "audio chunk" messages** → Audio is working!
 - ❌ **No messages** → Check audio output setting:
   ```sql
@@ -97,11 +80,6 @@ docker compose logs audio-service | grep -E "audio chunk|demod" | tail -10
 **One-line fix (USB permissions):**
 ```bash
 sudo usermod -aG plugdev $USER && echo "Log out and back in for this to take effect"
-```
-
-**One-line fix (Docker):**
-```bash
-docker compose down && docker compose up -d --build
 ```
 
 ---
@@ -127,7 +105,6 @@ docker compose down && docker compose up -d --build
 
 4. **Restart services:**
    ```bash
-   docker compose restart sdr-service audio-service
    ```
 
 ---
@@ -179,7 +156,6 @@ UPDATE radio_receivers SET sample_rate = 10000000 WHERE driver = 'airspy';
 killall gqrx SDRangel sdr++ 2>/dev/null || true
 
 # Restart services
-docker compose restart sdr-service
 ```
 
 ---
@@ -233,25 +209,18 @@ Copy and paste these to check specific things:
 lsusb | grep -E "RTL|Airspy|Realtek"
 
 # Can SoapySDR see it?
-docker compose exec app SoapySDRUtil --find
 
 # Are services running?
-docker compose ps | grep -E "sdr|audio"
 
 # Any errors in logs?
-docker compose logs sdr-service --tail=20 | grep -i error
 
 # What's configured?
-docker compose exec app psql -U postgres -d alerts -c "SELECT identifier, frequency_hz/1e6, gain, enabled FROM radio_receivers;"
 
 # Test capture
-docker compose exec app python3 scripts/sdr_diagnostics.py --test-capture --frequency 162550000
 
 # Is audio flowing?
-docker compose logs audio-service | grep "audio chunk" | tail -5
 
 # Redis working?
-docker compose exec redis redis-cli ping
 ```
 
 ---

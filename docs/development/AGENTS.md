@@ -10,13 +10,12 @@ This document provides coding standards and guidelines for AI agents (including 
 
 1. **Safety First**: Never commit secrets, API keys, or sensitive data
 2. **Preserve Existing Patterns**: Follow the established code style and architecture
-3. **Test Before Commit**: Always verify changes work in Docker before committing
+3. **Test Before Commit**: Always verify changes work on bare metal before committing
 4. **Focused Changes**: Keep fixes targeted to the specific issue
 5. **Document Changes**: Update relevant documentation when adding features
 6. **Check Bug Screenshots**: When discussing bugs, always check the `/bugs` directory first for screenshots
 7. **Follow Versioning**: Bug fixes increment by 0.0.+1, feature upgrades increment by 0.+1.0
 8. **File Naming Convention**: When superseding files, rename the old one with `_old` suffix, NEVER use `_new` suffix for replacement files
-9. **Repository Organization**: Every file must live in an appropriate directory unless necessary to be in the root (e.g., `requirements.txt`, `Dockerfile`, `README.md`, `LICENSE`, etc.). Documentation, summaries, and development artifacts belong in the `docs/` directory structure.
 
 ## 🐛 Bug Tracking & Screenshots
 
@@ -560,20 +559,14 @@ except json.JSONDecodeError:
 
 ---
 
-## 🐳 Docker & Deployment
 
 ### Testing Changes
 
-Before committing, always test in Docker:
 
 ```bash
 # Rebuild and test
-sudo docker compose build
-sudo docker compose up -d
-sudo docker compose logs -f app
 
 # Check for errors
-sudo docker compose ps
 curl http://localhost:5000/health
 ```
 
@@ -589,11 +582,10 @@ curl http://localhost:5000/health
 
 #### How It Works
 
-1. **Persistent Volume**: Docker volume `app-config` is mounted at `/app-config/` inside the container
+1. **Persistent Volume**: directory `app-config` is mounted at `/app-config/` inside the container
 2. **Persistent Config File**: Configuration is stored in `/app-config/.env` (not `/app/.env`)
 3. **Setup Wizard**: First-time deployments run the Setup Wizard at `http://localhost/setup` which creates and populates `/app-config/.env`
 4. **Web UI Management**: Users configure settings via the Settings → Environment page, which updates `/app-config/.env`
-5. **Container Startup**: `docker-entrypoint.sh` checks for `/app-config/.env` and loads it into the application environment
 
 #### Why This Matters
 
@@ -601,7 +593,6 @@ curl http://localhost:5000/health
 - ❌ Portainer "Pull and redeploy" would wipe all configuration
 - ❌ Users would need to reconfigure after every Git update
 - ❌ Version upgrades would reset all settings to defaults
-- ❌ Manual editing of Docker Compose files required for config changes
 
 **With persistent environment:**
 - ✅ Configuration survives "Pull and redeploy" operations
@@ -611,8 +602,6 @@ curl http://localhost:5000/health
 - ✅ Setup Wizard only runs once on first deployment
 
 #### Entrypoint Initialization Logic
-
-The `docker-entrypoint.sh` script handles initialization:
 
 ```bash
 # If CONFIG_PATH is set (default: /app-config/.env)
@@ -638,7 +627,6 @@ fi
 
 **First Deployment (Portainer Git Deploy):**
 1. Stack deployed with `stack.env` environment variables
-2. Container starts, `docker-entrypoint.sh` runs
 3. Creates `/app-config/.env` and copies values from `stack.env`
 4. User visits `http://localhost/setup` to complete configuration
 5. Setup Wizard writes final config to `/app-config/.env`
@@ -646,7 +634,6 @@ fi
 **Subsequent Deployments (Pull & Redeploy):**
 1. Portainer pulls latest code from Git
 2. Rebuilds containers with updated code
-3. `docker-entrypoint.sh` finds existing `/app-config/.env`
 4. Loads configuration from persistent file
 5. **User configuration is preserved automatically**
 
@@ -654,25 +641,18 @@ fi
 1. User navigates to Settings → Environment
 2. Changes a setting (e.g., poll interval from 180 to 300 seconds)
 3. Backend updates `/app-config/.env` file
-4. Restart container to apply: `docker compose restart app`
 
 #### Variable Precedence
 
 **Priority order (highest to lowest):**
-1. Environment variables set in `docker-compose.yml` `environment:` section
 2. Variables loaded from `/app-config/.env` (persistent config)
 3. Variables from `stack.env` file (only used on first deploy)
 4. Hardcoded defaults in Python code
 
 **Example: DATABASE_HOST**
 ```yaml
-# docker-compose.yml environment section
 environment:
-  POSTGRES_HOST: ${POSTGRES_HOST:-host.docker.internal}  # From stack.env on first deploy
 
-# First deploy: POSTGRES_HOST=host.docker.internal is written to /app-config/.env
-
-# Pull & redeploy: /app-config/.env still has POSTGRES_HOST=host.docker.internal
 # Configuration is preserved!
 
 # User changes it via web UI to external-db.example.com
@@ -695,7 +675,6 @@ Some variables are **auto-detected at runtime** and should NOT be written to the
 - `EAS_BROADCAST_ENABLED` - User's feature preferences
 - All settings in Settings → Environment page
 
-**Implementation Pattern in docker-entrypoint.sh:**
 ```bash
 # ✅ CORRECT - Only write if explicitly set
 $([ -n "${GIT_COMMIT:-}" ] && echo "GIT_COMMIT=${GIT_COMMIT}" || echo "# GIT_COMMIT not set - will auto-detect")
@@ -709,12 +688,10 @@ GIT_COMMIT=${GIT_COMMIT:-unknown}
 When adding a new environment variable to the system, you MUST update these files:
 
 1. **`.env.example`** - Add the variable with documentation and a default value
-2. **`stack.env`** - Add the variable with the default value for Docker deployments
-3. **`docker-entrypoint.sh`** - Add the variable to the initialization section if it needs to be available during container startup
 4. **`webapp/admin/environment.py`** - **REQUIRED**: Add the variable to the appropriate category in `ENV_CATEGORIES` to make it accessible in the web UI settings page. This is how users configure the system!
 5. **`app_utils/setup_wizard.py`** - If the variable is part of initial setup, add it to the appropriate wizard section with matching validation
 
-**CRITICAL**: EAS Station uses persistent configuration stored in `/app-config/.env` and managed through the web UI. **ALL** user-configurable environment variables MUST be added to `webapp/admin/environment.py`, otherwise users cannot change them without editing Docker Compose files.
+**CRITICAL**: EAS Station uses persistent configuration stored in `/app-config/.env` and managed through the web UI. **ALL** user-configurable environment variables MUST be added to `webapp/admin/environment.py`, otherwise users cannot change them without editing systemd files.
 
 ### Environment Variable Validation
 
@@ -849,17 +826,13 @@ Variables are organized into categories in `webapp/admin/environment.py`:
 - **vfd** - VFD display configuration
 - **notifications** - Email and SMS alerts
 - **performance** - Caching and worker settings
-- **docker** - Container and infrastructure settings
 - **icecast** - Icecast streaming server configuration
 
 Choose the most appropriate category for your variable, or create a new one if needed.
 
-### Docker Compose Files - CRITICAL
+### systemd Files - CRITICAL
 
-**IMPORTANT:** When editing Docker Compose files, you MUST update BOTH files:
-
-1. **`docker-compose.yml`** - Main compose file
-2. **`docker-compose.embedded-db.yml`** - Embedded database variant
+**IMPORTANT:** When editing systemd files, you MUST update BOTH files:
 
 These files have parallel structure but different configurations (external vs embedded database). Any changes to service definitions, environment variables, ports, volumes, etc. must be applied to **BOTH** files to maintain consistency.
 
@@ -911,14 +884,12 @@ def calculate_coverage_percentages(alert_id, intersections):
 - `/docs/hardware/` - Hardware integration, GPIO, SDR setup
 - `/docs/audio/` - Audio system documentation
 - `/docs/compliance/` - FCC compliance, regulatory documentation
-- `/docs/deployment/` - Deployment guides, Docker, infrastructure
 - `/docs/roadmap/` - Project roadmap, feature planning
 - `/docs/runbooks/` - Operational procedures, troubleshooting
 
 **Files That Stay in Root:**
 - `README.md` - Project overview and quick start (GitHub standard)
 - `.env.example` - Environment variable template
-- `docker-compose.yml` - Docker composition files
 - `LICENSE` - License file
 
 **When Creating New Documentation:**
@@ -1079,10 +1050,7 @@ def process_alerts(alert_ids=None):
 Before committing changes:
 
 - [ ] Code passes Python syntax check: `python3 -m py_compile app.py`
-- [ ] Docker build succeeds: `sudo docker compose build`
-- [ ] Application starts without errors: `sudo docker compose up -d`
 - [ ] Health check passes: `curl http://localhost:5000/health`
-- [ ] Logs show no errors: `sudo docker compose logs -f app`
 - [ ] UI tested in browser (light and dark mode)
 - [ ] Database queries work as expected
 
@@ -1100,12 +1068,10 @@ Before committing changes:
 
 ### Adding New Dependencies
 
-**CRITICAL**: When adding ANY new dependency to the project (Python libraries, system packages, Docker images, or infrastructure programs), you MUST update the documentation.
 
 #### For Python Dependencies:
 
 1. **Add to `requirements.txt`** - Include version pin
-2. **Test in Docker** - Rebuild and verify
 3. **Update attribution** - Add to `docs/reference/dependency_attribution.md`
 4. **Document if needed** - Update README if it affects users
 5. **Keep minimal** - Only add if truly necessary
@@ -1128,9 +1094,7 @@ pyshp==2.3.1  # Shapefile reader for converting boundary files to GeoJSON
 
 #### For System Packages and Infrastructure Components:
 
-When adding system packages (apt/yum), Docker images, or infrastructure programs (nginx, certbot, redis, etc.):
 
-1. **Update Dockerfile or docker-compose.yml** - Add the package/service
 2. **Update `docs/reference/dependency_attribution.md`** - Add to "System Package Dependencies" section
    - Package name and version
    - Purpose and what it's used for
@@ -1276,7 +1240,6 @@ For quick navigation and understanding of the codebase structure, refer to the c
 - Display Screens page issues
 - Environment Settings page issues
 - GPIO configuration parsing issues
-- Docker/Portainer deployment issues
 
 **Before starting any work:**
 1. Check [docs/reference/KNOWN_BUGS.md](../reference/KNOWN_BUGS) to see if your issue is already documented
@@ -1296,52 +1259,6 @@ For quick navigation and understanding of the codebase structure, refer to the c
 - [PostGIS Documentation](https://postgis.net/documentation/)
 - [GeoJSON Specification](https://geojson.org/)
 - [GeoAlchemy2 Documentation](https://geoalchemy-2.readthedocs.io/)
-
-### Docker
-- [Docker Compose Documentation](https://docs.docker.com/compose/)
-- [Dockerfile Best Practices](https://docs.docker.com/develop/dev-best-practices/)
-
----
-
-## 🤝 Getting Help
-
-If you're unsure about something:
-
-1. **Check existing code** - Look for similar patterns
-2. **Review this document** - Follow established guidelines
-3. **Check documentation** - README, code comments, docstrings
-4. **Ask questions** - Better to ask than break things
-
----
-
-## ✅ Pre-Commit Checklist
-
-Before committing code, verify:
-
-- [ ] **Version incremented properly** – Bug fix (+0.0.1) or feature (+0.1.0) in `/VERSION` file
-- [ ] **Documentation updated** – If features changed, update `templates/help.html` and `templates/about.html`
-- [ ] **Bug screenshots checked** – If fixing a bug, verified screenshot in `/bugs` directory
-- [ ] Follows Python PEP 8 style (4-space indentation)
-- [ ] Uses existing logger, not new logger instance
-- [ ] Includes proper error handling with specific exceptions
-- [ ] Bump `VERSION`, mirror `.env.example`, and update `[Unreleased]` in `docs/reference/CHANGELOG.md` for any behavioural change (see `tests/test_release_metadata.py`)
-- [ ] Touched files remain within recommended size guidelines or were refactored into smaller units
-- [ ] No secrets or credentials in code
-- [ ] No `.env` file committed (check git status)
-- [ ] Templates extend `base.html` with theme support
-- [ ] Database transactions properly handled (commit/rollback)
-- [ ] Tested in Docker locally
-- [ ] Documentation updated if needed
-- [ ] Cross-check docs and UI links (README, Theory of Operation, `/about`, `/help`) for accuracy and live references
-- [ ] Commit message follows format guidelines
-
----
-
-**Remember:** When in doubt, look at existing code patterns and follow them. Consistency is more important than perfection.
-
----
-
-## 🔍 Debugging Patterns & User Interaction
 
 ### CRITICAL: Trust User Bug Reports
 
@@ -1422,7 +1339,6 @@ Only suggest deployment/cache fixes if:
 
 1. **Code inspection confirms the fix is correct** - No overrides, no bugs found
 2. **User is on an older commit** - `git log` shows they haven't pulled latest
-3. **Container timestamp is old** - `docker images` shows stale build time
 4. **First time suggesting it** - Don't repeat the same suggestion
 
 ### Documentation Standard

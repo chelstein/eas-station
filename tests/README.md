@@ -95,7 +95,6 @@ pytest -m "integration and not slow"
 - `radio` - Tests involving radio receivers
 - `database` - Tests requiring database connection
 - `network` - Tests requiring network access
-- `docker` - Tests requiring Docker environment
 
 ## Test Organization
 
@@ -133,7 +132,6 @@ Example: `test_audio_pipeline_integration.py`
 #### Functional Tests
 - End-to-end workflow testing
 - Test complete user scenarios
-- May require Docker environment
 - Focus on system behavior
 
 ## Continuous Integration
@@ -144,20 +142,6 @@ The test suite is designed to run in CI/CD environments:
 # In CI pipeline
 pytest --tb=short --strict-markers -ra
 ```
-
-### Docker-based Testing
-
-Run tests in Docker environment:
-```bash
-docker compose exec app pytest
-```
-
-Run specific test file in Docker:
-```bash
-docker compose exec app pytest tests/test_gpio_controller.py -v
-```
-
-## Writing Tests
 
 ### Test Naming Convention
 

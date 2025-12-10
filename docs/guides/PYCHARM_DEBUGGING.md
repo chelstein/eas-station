@@ -38,7 +38,6 @@
 ```
 Your Windows Computer                    Raspberry Pi
 ┌─────────────────────┐                 ┌──────────────────────┐
-│  PyCharm/VS Code    │                 │   Docker Containers   │
 │  ┌───────────────┐  │   SSH + Code   │  ┌────────────────┐  │
 │  │ Edit Code     │──┼────────────────>│  │ Python App     │  │
 │  │ Set Breakpoint│  │                 │  │ (your code)    │  │
@@ -112,7 +111,6 @@ While waiting for approval, use the [30-day free trial](https://www.jetbrains.co
 
 - **Raspberry Pi** with:
   - SSH enabled
-  - Docker and Docker Compose installed
   - Git installed
   - The `eas-station` repository cloned
 - **Local development machine** running Windows, macOS, or Linux
@@ -125,7 +123,6 @@ This guide assumes you know:
 - Basic Python programming
 - How to use SSH
 - Basic Git commands
-- Basic Docker concepts
 
 ---
 
@@ -148,34 +145,6 @@ hostname -I
 
 ---
 
-### Step 2: Install Docker (if not installed)
-
-```bash
-# Install Docker
-curl -fsSL https://get.docker.com -o get-docker.sh
-sudo sh get-docker.sh
-
-# Add your user to the docker group
-sudo usermod -aG docker $USER
-
-# Install Docker Compose
-sudo apt-get update
-sudo apt-get install -y libffi-dev libssl-dev python3-dev python3-pip
-sudo pip3 install docker-compose
-
-# Log out and back in for group changes to take effect
-exit
-```
-
-After logging back in, verify:
-
-```bash
-docker --version
-docker-compose --version
-```
-
----
-
 ### Step 3: Set Up Development Environment on Pi
 
 ```bash
@@ -186,22 +155,17 @@ cd ~/eas-station
 # git clone https://github.com/KR8MER/eas-station.git
 # cd eas-station
 
-# Copy the development Docker configuration
-cp examples/docker-compose/docker-compose.development.yml docker-compose.override.yml
-
 # Copy the example environment file if needed
 if [ ! -f .env ]; then
     cp .env.example .env
 fi
 
 # Start everything with the embedded database and pgAdmin
-docker-compose --profile embedded-db --profile development up -d
 
 # Wait for containers to start
 sleep 10
 
 # Check status
-docker-compose ps
 ```
 
 If you see services running (including pgAdmin), the Pi setup is complete!
@@ -300,7 +264,6 @@ The development configuration includes an embedded PostgreSQL database for isola
 
 | Running Mode | Where Code Runs | POSTGRES_HOST Value | Why |
 |--------------|-----------------|-------------------|-----|
-| **In Docker container** | Inside Docker on Pi | `alerts-db` | Docker service name |
 | **PyCharm SSH Remote Interpreter** | On Pi via SSH | `localhost` | Port exposed to Pi's localhost |
 | **PyCharm Local Debugging** | On your Windows/Mac | `192.168.1.100` | Pi's actual IP address |
 
@@ -340,7 +303,6 @@ POSTGRES_PORT=5432
 
 The embedded database starts automatically with `--profile embedded-db`:
 
-**Default settings** (in `docker-compose.development.yml`):
 - Database: `alerts_dev`
 - Username: `postgres`
 - Password: `devpassword`
@@ -376,15 +338,10 @@ CREATE EXTENSION IF NOT EXISTS postgis;
 ```
 
 3. Restart containers:
-```bash
-docker-compose restart app
-```
-
 ### Verifying Database Connection
 
 ```bash
 # Check app logs for connection status
-docker-compose logs app | grep -i "database\|postgres"
 
 # You should see: "Connected to PostgreSQL" or similar
 ```
@@ -407,7 +364,6 @@ pgAdmin runs on the Pi but you access it from your Windows web browser:
    - **General** tab:
      - Name: `EAS Station Dev`
    - **Connection** tab:
-     - **Host**: `alerts-db` (this is correct - pgAdmin runs on Pi in Docker network)
      - **Port**: `5432`
      - **Database**: `alerts_dev`
      - **Username**: `postgres`
@@ -470,10 +426,8 @@ Test-NetConnection -ComputerName 192.168.1.100 -Port 5432
 ```bash
 ssh pi@192.168.1.100
 cd ~/eas-station
-docker-compose ps  # Verify containers are running
 
 # If not running, start them:
-# docker-compose --profile embedded-db --profile development up -d
 ```
 
 2. **Edit code**:
@@ -500,8 +454,6 @@ git push origin <branch-name>
 
 ### Understanding the Development Configuration
 
-The `docker-compose.development.yml` file configures your environment for debugging:
-
 **Key Features**:
 - Debug port 5678 exposed for remote debugging
 - Live code reloading (volumes mounted)
@@ -525,13 +477,10 @@ The `docker-compose.development.yml` file configures your environment for debugg
 **Solution**:
 ```bash
 # Check container status
-docker-compose ps
 
 # Check logs
-docker-compose logs app
 
 # Restart app container
-docker-compose restart app
 ```
 
 ---
@@ -564,7 +513,6 @@ ssh pi@192.168.1.100
 # For PyCharm SSH Remote Interpreter (code runs ON Pi):
 POSTGRES_HOST=localhost
 
-# For running in Docker container:
 POSTGRES_HOST=alerts-db
 
 # For local debugging on Windows (code runs ON Windows):
@@ -589,11 +537,6 @@ sudo netstat -tlnp | grep 5432
 ```
 
 3. **Restart containers** after changing `.env`:
-```bash
-docker-compose restart app
-docker-compose logs app
-```
-
 ---
 
 ### Problem: "Can't connect to database from Windows tools"
@@ -602,7 +545,6 @@ docker-compose logs app
 
 **Solution**:
 
-1. **Verify the database port is exposed** in `docker-compose.override.yml`:
 ```yaml
 alerts-db:
   ports:
@@ -626,7 +568,6 @@ Test-NetConnection -ComputerName 192.168.1.100 -Port 5432
 # Should show: TcpTestSucceeded : True
 ```
 
-4. **Verify Docker is listening on all interfaces** (not just localhost):
 ```bash
 # On the Pi:
 sudo netstat -tlnp | grep 5432
@@ -643,11 +584,6 @@ sudo netstat -tlnp | grep 5432
 1. Check IDE sync status (bottom of window)
 2. Manually trigger sync: **Tools** → **Deployment** → **Sync with Deployed to...**
 3. Restart containers:
-```bash
-docker-compose down
-docker-compose up -d
-```
-
 ---
 
 ### Problem: "Permission Denied" on /dev/snd or GPIO
@@ -655,7 +591,6 @@ docker-compose up -d
 **Solution**:
 ```bash
 # Add your user to necessary groups
-sudo usermod -aG audio,gpio,docker $USER
 
 # Log out and back in
 exit
@@ -675,7 +610,6 @@ groups
 - **Use breakpoints**: Don't just add print statements - use real debugging
 - **Commit often**: When something works, commit it immediately
 - **Write descriptive commits**: "Fix: Describe what you fixed" not "fixed stuff"
-- **Keep override file local**: Don't commit `docker-compose.override.yml` to Git
 
 ### DON'T ❌
 
@@ -693,20 +627,16 @@ groups
 
 ```bash
 # View logs in real-time
-docker-compose logs -f audio_service
 
 # Restart just the audio service
-docker-compose restart audio_service
 ```
 
 ### Poller Service
 
 ```bash
 # Check poller logs
-docker-compose logs poller
 
 # Run poller manually with debug output
-docker-compose run --rm poller python poller/cap_poller.py --debug
 ```
 
 ---
@@ -718,7 +648,6 @@ docker-compose run --rm poller python poller/cap_poller.py --debug
 These files should NOT be committed (already in `.gitignore`):
 
 ```gitignore
-docker-compose.override.yml
 *.log
 __pycache__/
 .env
@@ -764,14 +693,10 @@ git commit -m "Improve: Alert deduplication performance"
 # Start debugging session
 ssh pi@192.168.1.100
 cd ~/eas-station
-docker-compose --profile embedded-db --profile development up -d
 
 # Check status
-docker-compose ps
-docker-compose logs -f app
 
 # Stop debugging session
-docker-compose down
 ```
 
 ### IDE Shortcuts
@@ -816,7 +741,6 @@ You now have a complete development environment where you can:
 
 - **PyCharm Documentation**: [Remote Debugging with PyCharm](https://www.jetbrains.com/help/pycharm/remote-debugging-with-product.html)
 - **VS Code Remote SSH**: [VS Code Remote Development](https://code.visualstudio.com/docs/remote/ssh)
-- **Docker Compose Docs**: [Docker Compose Overview](https://docs.docker.com/compose/)
 - **EAS Station Issues**: [GitHub Issues](https://github.com/KR8MER/eas-station/issues)
 
 ---

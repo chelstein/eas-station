@@ -31,9 +31,7 @@ Both the application and Icecast containers read from this shared configuration 
 
 ### How It Works
 
-1. **Initial Deployment**: Docker-compose provides default passwords via environment variables
 2. **First Run**: These defaults are written to `/app-config/.env` by the app
-3. **Subsequent Runs**: Both containers read from `/app-config/.env` (overriding docker-compose defaults)
 4. **Password Changes**: Made via the web UI, automatically sync to both containers on next restart
 
 ## Changing Passwords Securely
@@ -62,7 +60,6 @@ If you need to edit the file directly:
 
 ```bash
 # Access the app container
-docker exec -it <container-name> sh
 
 # Edit the persistent .env file
 vi /app-config/.env
@@ -143,7 +140,6 @@ The `/app-config` volume contains all your passwords. **Back it up securely:**
 
 ```bash
 # Create encrypted backup
-docker run --rm -v eas-station_app-config:/data \
   -v $(pwd):/backup alpine tar czf /backup/app-config-backup.tar.gz /data
 
 # Encrypt the backup
@@ -175,7 +171,6 @@ This should not happen with the new architecture, but if it does:
 1. **Stop all containers**
 2. **Delete** the old `.env` file:
    ```bash
-   docker run --rm -v eas-station_app-config:/data alpine rm /data/.env
    ```
 3. **Restart stack** - it will regenerate with defaults
 4. **Change passwords** via web UI

@@ -127,7 +127,6 @@ eas-station/
 
 ### Bare Metal Deployment
 
-EAS Station runs as native Linux services managed by systemd - no containers, no Docker required.
 
 #### Quick Installation
 
@@ -484,7 +483,6 @@ See [Feature Roadmap](docs/roadmap/dasdec3-feature-roadmap.md) for complete deta
 
 ### Recent Additions (November 2025)
 
-- **System Diagnostics Tool** (`/diagnostics`) - Web-based installation validation with Docker, database, and configuration checks
 - **Stream Profile Manager** (`/settings/stream-profiles`) - Configure multiple Icecast streams with different bitrates and formats
 - **Quick Start Guide** - 15-minute deployment guide with common scenarios and troubleshooting
 

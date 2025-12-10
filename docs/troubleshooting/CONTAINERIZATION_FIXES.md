@@ -1,12 +1,11 @@
-# Docker Container Architecture Fixes
+# services Architecture Fixes
 
 **Date**: 2025-11-27
-**Branch**: `claude/build-docker-images-014dspqQiJgNVVY7kH7zTbXt`
 **Context**: Raspberry Pi 5 (ARM64) - Separated container deployment
 
 ## Problem Statement
 
-The EAS Station codebase was originally designed for monolithic deployment where all services run in a single process. When separated into Docker containers (app, sdr-service, hardware-service, redis, postgres), many features broke because code assumed direct access to resources that now exist in separate containers.
+The EAS Station codebase was originally designed for monolithic deployment where all services run in a single process. When separated into services (app, sdr-service, hardware-service, redis, postgres), many features broke because code assumed direct access to resources that now exist in separate containers.
 
 ## Architecture Overview
 
@@ -81,7 +80,6 @@ The EAS Station codebase was originally designed for monolithic deployment where
 - `GET /api/zigbee/ports` - List /dev/ttyUSB*, /dev/ttyACM*, /dev/ttyAMA*
 - `POST /api/zigbee/test_port` - Test port accessibility via pyserial
 
-**docker-compose.yml Changes:**
 ```yaml
 hardware-service:
   expose:
@@ -123,7 +121,6 @@ hardware-service:
 
 ### Additional Fixes
 9. ✅ RSSI signal bars - Now fill left-to-right correctly
-10. ✅ Docker permissions - `/dev/pts/0` and init process (fixed in earlier session)
 11. ✅ Import errors - `require_permission`, `get_redis_client` (fixed in earlier session)
 
 ### Total: All 8 critical issues + 3 additional fixes = 11 issues resolved
@@ -148,7 +145,6 @@ After comprehensive review of all 47 items in ARCHITECTURE_ISSUES.md:
 
 **Subprocess Commands** (maintenance.py:184, routes_diagnostics.py:41)
 - ✅ **maintenance.py**: Calls Python scripts (`create_backup.py`, `inplace_upgrade.py`) which work fine in containers
-- ✅ **routes_diagnostics.py**: Docker compose commands are informational only, failure does not break core functionality
 - **Status**: No fix required - appropriate for container environment
 
 **Direct Filesystem Paths** (environment.py:684, 795)
@@ -174,8 +170,6 @@ After comprehensive review of all 47 items in ARCHITECTURE_ISSUES.md:
 - ✅ Fixed in commit 2 - removed localhost default, added warning
 - **Status**: Complete
 
-**Diagnostics Docker Commands**
-- Docker socket not available in container (by design)
 - Diagnostics are informational only, not critical for operation
 - **Status**: Acceptable limitation, documented
 
@@ -189,15 +183,12 @@ The original audit identified concerns that fall into these categories:
 1. **Real bugs causing breakage** → ✅ All fixed (8 critical issues)
 2. **Code working correctly** → ✅ Verified (error handling, placeholders)
 3. **False positives** → ✅ Clarified (filesystem paths are UI placeholders)
-4. **Acceptable limitations** → ✅ Documented (Docker diagnostics informational)
 
 The codebase is now **fully compatible with separated container deployment**.
 
 ---
 
 ## Testing Checklist
-
-**After rebuilding containers (`docker compose build app hardware-service && docker compose up -d`):**
 
 1. **Receiver Management**
    - [ ] Visit `/settings/radio/diagnostics` - should load without 500 error
@@ -258,27 +249,20 @@ The codebase is now **fully compatible with separated container deployment**.
 
 ---
 
-## Docker Commands
 
 ```bash
 # Rebuild containers with new code
-docker compose build app hardware-service
 
 # Restart all services
-docker compose up -d
 
 # Watch logs for errors
-docker compose logs -f app sdr-service hardware-service
 
 # Check individual service
-docker compose logs hardware-service | tail -50
 
 # Verify services are healthy
-docker compose ps
 
 # Test hardware-service API
 curl http://localhost:5001/health  # From host (if port exposed)
-docker compose exec app curl http://hardware-service:5001/health  # From app container
 ```
 
 ---
@@ -321,7 +305,6 @@ ZIGBEE_BAUDRATE=115200
 | webapp/routes_backups.py | Fixed validation port | +3 |
 | app_core/audio/icecast_auto_config.py | Remove localhost hardcoding | +7 |
 | templates/settings/radio_diagnostics.html | Fix RSSI bars | +2 |
-| docker-compose.yml | Hardware-service API config | +7 |
 
 **Total**: 10 files modified, ~1000 lines changed
 
@@ -329,6 +312,6 @@ ZIGBEE_BAUDRATE=115200
 
 ## Conclusion
 
-The EAS Station codebase now properly supports separated Docker container deployment. All critical architectural issues preventing operation in containerized environments have been resolved. The system maintains clean separation of concerns while enabling cross-container communication through well-defined interfaces (Redis command queue, HTTP APIs, shared state store).
+The EAS Station codebase now properly supports separated services deployment. All critical architectural issues preventing operation in containerized environments have been resolved. The system maintains clean separation of concerns while enabling cross-container communication through well-defined interfaces (Redis command queue, HTTP APIs, shared state store).
 
 **Next deployment**: Rebuild containers and test all features per checklist above.

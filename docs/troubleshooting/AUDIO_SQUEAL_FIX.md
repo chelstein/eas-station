@@ -39,17 +39,9 @@ Interactive script that:
 ### Individual Tools
 
 #### 1. `diagnose_all_streams.sql` - Diagnostic Only
-```bash
-docker-compose exec -T alerts-db psql -U postgres -d alerts < diagnose_all_streams.sql
-```
-
 Shows current configuration with ❌ markers for issues. No changes made.
 
 #### 2. `fix_all_stream_sample_rates.sql` - Apply Basic Fixes
-```bash
-docker-compose exec -T alerts-db psql -U postgres -d alerts < fix_all_stream_sample_rates.sql
-```
-
 Fixes:
 - SDR IQ rates: < 100 kHz → 2.4 MHz
 - HTTP audio rates: < 32 kHz → **48 kHz (safe default)**
@@ -88,22 +80,18 @@ Comprehensive Python-based diagnostic with detailed recommendations.
 ### Scenario 2: Manual Step-by-Step
 ```bash
 # 1. Diagnose
-docker-compose exec -T alerts-db psql -U postgres -d alerts < diagnose_all_streams.sql
 
 # 2. Apply basic fixes
-docker-compose exec -T alerts-db psql -U postgres -d alerts < fix_all_stream_sample_rates.sql
 
 # 3. Auto-detect HTTP stream rates (optional but recommended)
 ./detect_stream_sample_rates.sh
 
 # 4. Restart
-docker-compose restart sdr-service
 ```
 
 ### Scenario 3: Only Fix HTTP Streams
 ```bash
 ./detect_stream_sample_rates.sh
-docker-compose restart sdr-service
 ```
 
 ## Technical Details
@@ -157,13 +145,11 @@ After running the fix:
 
 2. **Check Logs**
    ```bash
-   docker-compose logs -f sdr-service
    ```
    Look for sample rate info in startup logs
 
 3. **Verify Database**
    ```bash
-   docker-compose exec -T alerts-db psql -U postgres -d alerts < diagnose_all_streams.sql
    ```
    Should show ✅ for all entries
 
@@ -173,23 +159,19 @@ After running the fix:
 
 1. **Verify fix was applied**:
    ```bash
-   docker-compose exec -T alerts-db psql -U postgres -d alerts < diagnose_all_streams.sql
    ```
 
 2. **Check if service restarted**:
    ```bash
-   docker-compose ps sdr-service
    # Should show recent restart time
    ```
 
 3. **Force restart**:
    ```bash
-   docker-compose restart sdr-service
    ```
 
 4. **Check logs for errors**:
    ```bash
-   docker-compose logs sdr-service | grep -i error
    ```
 
 ### Auto-Detection Fails for HTTP Stream

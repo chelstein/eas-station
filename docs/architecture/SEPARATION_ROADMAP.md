@@ -185,7 +185,6 @@ logger.info("⚠️  Audio service does NOT start receivers")
 
 **Problem**: Services in different containers, `localhost` doesn't work
 
-**Fix**: Use Docker service names
 ```python
 # WRONG
 url = "http://localhost:5000/health"
@@ -209,7 +208,6 @@ url = "http://app:5000/health"
 subprocess.run(["apt-get", "update"])  # Updates container, not host!
 
 # webapp/routes_diagnostics.py
-subprocess.run(["systemctl", "status", "docker"])  # No systemd in container!
 ```
 
 **Impact**: System maintenance features don't work as expected
@@ -245,7 +243,6 @@ status = redis.get("sdr:receiver:wxj93:status")
 # 2. Use HTTP APIs between services
 response = requests.post("http://hardware-service:5001/api/gpio/relay/1/on")
 
-# 3. Use Docker service names
 DATABASE_HOST = os.getenv("POSTGRES_HOST", "alerts-db")
 
 # 4. Graceful degradation

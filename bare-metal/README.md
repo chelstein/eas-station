@@ -1,6 +1,5 @@
 # EAS Station Bare Metal Deployment
 
-This directory contains everything needed to run EAS Station on bare metal (without Docker) and to build a bootable ISO image.
 
 ## Table of Contents
 
@@ -13,13 +12,11 @@ This directory contains everything needed to run EAS Station on bare metal (with
 - [Service Management](#service-management)
 - [Configuration](#configuration)
 - [Troubleshooting](#troubleshooting)
-- [Migration from Docker](#migration-from-docker)
 
 ## Overview
 
 The bare metal deployment provides:
 
-- **No Docker dependency** - Runs directly on the host OS
 - **Native systemd services** - Standard Linux service management
 - **Lower overhead** - Direct hardware access without containerization
 - **Bootable ISO** - Pre-configured system ready to burn and boot
@@ -35,9 +32,8 @@ The bare metal deployment provides:
 
 ### Architecture Comparison
 
-**Docker Deployment:**
+**bare metal deployment:**
 ```
-Docker Host → Docker Engine → Containers → Services
 ```
 
 **Bare Metal Deployment:**
@@ -493,18 +489,13 @@ sudo systemctl daemon-reload
 sudo systemctl restart eas-station-web.service
 ```
 
-## Migration from Docker
-
 ### Export Configuration
 
-From Docker installation:
 
 ```bash
 # Export .env file
-docker cp eas-app:/app/.env ./eas-station-config.env
 
 # Export database (if using embedded database)
-docker exec eas-alerts-db pg_dump -U postgres alerts > alerts-backup.sql
 ```
 
 ### Import to Bare Metal
@@ -520,22 +511,6 @@ sudo -u postgres psql alerts < alerts-backup.sql
 # Restart services
 sudo systemctl restart eas-station.target
 ```
-
-### Uninstall Docker Version
-
-```bash
-# Stop Docker containers
-cd /path/to/docker/installation
-docker-compose down
-
-# Remove containers and volumes
-docker-compose down -v
-
-# Optionally remove Docker
-sudo apt-get remove docker-ce docker-ce-cli containerd.io
-```
-
-## Performance Tuning
 
 ### For Raspberry Pi
 

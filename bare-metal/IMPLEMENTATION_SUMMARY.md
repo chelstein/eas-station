@@ -2,7 +2,6 @@
 
 ## Overview
 
-This implementation provides a complete bare metal deployment solution for EAS Station, eliminating the need for Docker while maintaining all functionality. The solution includes automated installation, bootable ISO creation, and comprehensive management tools.
 
 ## What Was Implemented
 
@@ -131,7 +130,6 @@ Comprehensive guide covering:
 - Service management
 - Configuration
 - Troubleshooting
-- Migration from Docker
 - Performance tuning
 - Uninstallation
 
@@ -142,15 +140,12 @@ Comprehensive guide covering:
 - Common tasks
 - Troubleshooting shortcuts
 
-#### COMPARISON.md (9.8 KB)
-Docker vs Bare Metal analysis:
 - Feature-by-feature comparison
 - Performance benchmarks
 - Cost analysis
 - Use case recommendations
 - When to choose each method
 
-#### MIGRATION_FROM_DOCKER.md (11.8 KB)
 Complete migration guide:
 - Step-by-step process
 - Configuration backup/restore
@@ -240,14 +235,8 @@ Access with: `journalctl -u eas-station-*.service`
 ### Resource Usage (Raspberry Pi 5, 8GB)
 
 **Idle State:**
-- Total RAM: 650 MB (vs 1.2 GB Docker)
-- CPU: 0.5-1% (vs 2-3% Docker)
-- Network latency: 0.1ms (vs 0.8ms Docker)
 
 **Active State (Processing Alerts):**
-- Total RAM: 1.4 GB (vs 2.1 GB Docker)
-- CPU: 20-25% (vs 25-30% Docker)
-- Disk I/O: 12 MB/s (vs 15 MB/s Docker)
 
 **Startup Times:**
 - PostgreSQL: 2-3 seconds
@@ -255,7 +244,6 @@ Access with: `journalctl -u eas-station-*.service`
 - SDR Service: 3-5 seconds
 - Audio Service: 2-3 seconds
 - Web Service: 3-5 seconds
-- Total: ~10 seconds (vs ~30 seconds Docker)
 
 ### Network Performance
 
@@ -411,7 +399,7 @@ Potential improvements for future versions:
    - Metrics export (Prometheus)
    - Log aggregation (ELK stack)
 
-## Comparison with Docker Deployment
+## Comparison with bare metal deployment
 
 ### Advantages of Bare Metal
 
@@ -439,54 +427,3 @@ Potential improvements for future versions:
 - Native networking
 - Better for constrained systems
 
-### Advantages of Docker
-
-✅ **Ease of Use**
-- Simpler initial setup
-- Pre-built images
-- Easier updates
-- Better isolation
-
-✅ **Portability**
-- Consistent across platforms
-- Easy to move between hosts
-- Container orchestration support
-- Multi-instance deployment
-
-✅ **Development**
-- Faster iteration
-- Better for testing
-- Easier environment management
-
-## Conclusion
-
-This bare metal implementation provides a production-ready alternative to Docker deployment with significant performance benefits and simplified hardware access. It's ideal for:
-
-- Dedicated hardware installations
-- Raspberry Pi deployments
-- Production 24/7 operation
-- Resource-constrained systems
-- Direct hardware integration requirements
-
-The comprehensive documentation and management tools make it accessible to both Linux experts and users familiar with EAS Station's Docker deployment.
-
-## Support and Contributing
-
-- **Documentation:** See `bare-metal/` directory
-- **Issues:** GitHub Issues
-- **Discussions:** GitHub Discussions
-- **Testing:** Community testing appreciated
-
-## License
-
-Same as main EAS Station project:
-- Open Source: AGPL v3
-- Commercial: Available
-
----
-
-**Implementation completed:** December 10, 2025
-**Version:** 1.0.0
-**Tested on:** Debian 12, Ubuntu 22.04, Raspberry Pi OS
-
-**73 de KR8MER** 📡

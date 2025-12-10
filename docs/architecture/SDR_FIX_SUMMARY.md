@@ -33,12 +33,6 @@ The code bugs are **now fixed**, but your "can't hear audio" and "wrong frequenc
 
 ### Step 1: Check Services Are Running
 
-```bash
-docker compose ps
-docker compose logs -f sdr-service
-docker compose logs -f audio-service
-```
-
 Look for:
 - ✅ "✅ SDR Service started successfully"
 - ✅ "Configured X radio receiver(s) from database"
@@ -52,13 +46,11 @@ Look for:
 lsusb
 
 # Test SDR detection
-docker compose exec sdr-service python3 -c "import SoapySDR; print(SoapySDR.Device.enumerate())"
 ```
 
 ### Step 3: Check Receiver Configuration
 
 ```bash
-docker compose exec app psql -U postgres -d alerts -c "
 SELECT 
   identifier, 
   driver, 
@@ -187,10 +179,6 @@ INSERT INTO radio_receivers (
 
 1. **Rebuild containers** to get the fixes:
    ```bash
-   docker compose down
-   docker compose pull  # If using pre-built images
-   docker compose build # If building from source
-   docker compose up -d
    ```
 
 2. **Check your configuration** using the examples above
@@ -199,8 +187,6 @@ INSERT INTO radio_receivers (
 
 4. **Check logs** for error messages:
    ```bash
-   docker compose logs -f sdr-service
-   docker compose logs -f audio-service
    ```
 
 ## Need More Help?
@@ -211,8 +197,6 @@ If issues persist after:
 - Following the troubleshooting guide
 
 Then collect:
-1. Output of `docker compose logs sdr-service`
-2. Output of `docker compose logs audio-service`
 3. Your receiver configuration from database
 4. SDR hardware model (RTL-SDR v3, Airspy R2, etc.)
 5. Frequency you're trying to receive

@@ -10,8 +10,6 @@ If your SDR is not working, start here:
 # Run the automated diagnostic script
 python3 scripts/sdr_diagnostics.py
 
-# Or in Docker:
-docker compose exec app python3 scripts/sdr_diagnostics.py
 ```
 
 This will check:
@@ -50,7 +48,6 @@ Run through this checklist before proceeding with detailed troubleshooting:
 
 - [ ] SoapySDR is installed (`python3 -c "import SoapySDR"`)
 - [ ] Device drivers are installed (rtlsdr/airspy modules)
-- [ ] Services are running (`docker compose ps`)
 - [ ] No permission errors in logs
 - [ ] Configuration is correct (frequency in Hz, not MHz)
 
@@ -83,12 +80,8 @@ Run through this checklist before proceeding with detailed troubleshooting:
    - If nothing appears, try a different USB port or cable
    - Avoid unpowered USB hubs
 
-2. **Check driver installation (Docker):**
    ```bash
-   docker compose exec app SoapySDRUtil --find
    ```
-   - Drivers should be pre-installed in Docker image
-   - If not working, rebuild containers: `docker compose build`
 
 3. **Check driver installation (Native):**
    ```bash
@@ -155,7 +148,6 @@ Run through this checklist before proceeding with detailed troubleshooting:
 
 5. **Check audio service logs:**
    ```bash
-   docker compose logs -f audio-service | grep -E "audio chunk|demod"
    ```
 
 ---
@@ -198,7 +190,6 @@ Run through this checklist before proceeding with detailed troubleshooting:
 ### Issue: "SDR Service Crashes or Restarts"
 
 **Symptoms:**
-- `docker compose ps` shows sdr-service restarting
 - "Device or resource busy" errors
 - "Permission denied" errors
 
@@ -212,9 +203,7 @@ Run through this checklist before proceeding with detailed troubleshooting:
    # Stop other SDR software (SDR++, GQRX, etc.)
    ```
 
-2. **Check USB permissions (Docker):**
    ```yaml
-   # Verify in docker-compose.yml
    services:
      sdr-service:
        devices:
@@ -224,7 +213,6 @@ Run through this checklist before proceeding with detailed troubleshooting:
 
 3. **Check for sample rate overflow:**
    ```bash
-   docker compose logs sdr-service | grep -i overflow
    ```
    - If present, try lower sample rate (e.g., 2.0 MHz instead of 2.4 MHz)
 
@@ -263,7 +251,6 @@ Run through this checklist before proceeding with detailed troubleshooting:
 3. **Check firmware version:**
    ```bash
    # Check Airspy firmware
-   docker compose exec sdr-service airspy_info
    ```
 
 ---
@@ -279,18 +266,14 @@ Run through this checklist before proceeding with detailed troubleshooting:
 
 1. **Restart services after configuration changes:**
    ```bash
-   docker compose restart sdr-service
-   docker compose restart audio-service
    ```
 
 2. **Check database connection:**
    ```bash
-   docker compose exec app psql -U postgres -d alerts -c "\conninfo"
    ```
 
 3. **Verify changes were saved:**
    ```bash
-   docker compose exec app psql -U postgres -d alerts -c "SELECT * FROM radio_receivers;"
    ```
 
 ---
@@ -321,8 +304,6 @@ lsusb | grep -E "RTL|Airspy|Realtek"
 ### Step 2: Verify SoapySDR Detection
 
 ```bash
-# In Docker
-docker compose exec app SoapySDRUtil --find
 
 # Expected output for RTL-SDR:
 # [
@@ -337,13 +318,11 @@ docker compose exec app SoapySDRUtil --find
 **If no devices found:**
 - Check driver installation
 - Check USB permissions
-- Rebuild Docker containers
 
 ### Step 3: Test Basic Capture
 
 ```bash
 # Test with diagnostic script
-docker compose exec app python3 scripts/sdr_diagnostics.py --test-capture --driver rtlsdr --frequency 162550000
 
 # Should show:
 # ✓ Successfully captured X samples!
@@ -359,17 +338,14 @@ docker compose exec app python3 scripts/sdr_diagnostics.py --test-capture --driv
 
 ```bash
 # Check all services
-docker compose ps
 
 # All should show "Up" status
 # If sdr-service is restarting, check logs:
-docker compose logs sdr-service --tail 100
 ```
 
 ### Step 5: Verify Database Configuration
 
 ```bash
-docker compose exec app psql -U postgres -d alerts << 'EOF'
 \x on
 SELECT 
   id,
@@ -400,7 +376,6 @@ EOF
 
 ```bash
 # Monitor Redis pub/sub channel
-docker compose exec redis redis-cli
 
 # In Redis CLI:
 SUBSCRIBE sdr:samples:*
@@ -418,7 +393,6 @@ SUBSCRIBE sdr:samples:*
 
 ```bash
 # Check audio service is processing
-docker compose logs audio-service | grep -E "Creating|demod|audio chunk"
 
 # Expected:
 # Creating NFM demodulator: 2400000Hz IQ → 44100Hz audio
@@ -455,7 +429,6 @@ echo ""
   echo "### HOST SYSTEM INFO ###"
   echo "Hostname: $(hostname)"
   echo "OS: $(uname -a)"
-  echo "Docker version: $(docker --version)"
   echo ""
   
   echo "### USB DEVICES ###"
@@ -463,23 +436,18 @@ echo ""
   echo ""
   
   echo "### SDR DEVICE ENUMERATION ###"
-  docker compose exec -T app SoapySDRUtil --find 2>&1 || echo "Failed to enumerate devices"
   echo ""
   
   echo "### CONTAINER STATUS ###"
-  docker compose ps
   echo ""
   
   echo "### SDR SERVICE LOGS (last 50 lines) ###"
-  docker compose logs --tail=50 sdr-service 2>&1
   echo ""
   
   echo "### AUDIO SERVICE LOGS (last 50 lines) ###"
-  docker compose logs --tail=50 audio-service 2>&1
   echo ""
   
   echo "### DATABASE: RADIO RECEIVERS ###"
-  docker compose exec -T app psql -U postgres -d alerts -c "
     SELECT 
       id, identifier, driver, frequency_hz, 
       sample_rate, gain, modulation_type, 
@@ -489,18 +457,15 @@ echo ""
   echo ""
   
   echo "### DATABASE: AUDIO SOURCES ###"
-  docker compose exec -T app psql -U postgres -d alerts -c "
     SELECT id, name, source_type, config_params, enabled, auto_start 
     FROM audio_source_configs;
   " 2>&1 || echo "Failed to query database"
   echo ""
   
   echo "### REDIS CONNECTION TEST ###"
-  docker compose exec -T redis redis-cli ping 2>&1 || echo "Redis not responding"
   echo ""
   
   echo "### SDR DIAGNOSTICS SCRIPT ###"
-  docker compose exec -T app python3 scripts/sdr_diagnostics.py 2>&1 || echo "Diagnostic script failed"
   echo ""
   
   echo "============================================"
@@ -533,28 +498,22 @@ If you can't run the script, collect this information manually:
 
 2. **SoapySDR Device Detection:**
    ```bash
-   docker compose exec app SoapySDRUtil --find
    ```
 
 3. **Container Status:**
    ```bash
-   docker compose ps
    ```
 
 4. **Service Logs:**
    ```bash
-   docker compose logs sdr-service > sdr-service.log
-   docker compose logs audio-service > audio-service.log
    ```
 
 5. **Database Configuration:**
    ```bash
-   docker compose exec app psql -U postgres -d alerts -c "SELECT * FROM radio_receivers;"
    ```
 
 6. **Diagnostic Script Output:**
    ```bash
-   docker compose exec app python3 scripts/sdr_diagnostics.py > diagnostics.log
    ```
 
 ---
@@ -629,7 +588,6 @@ INSERT INTO radio_receivers (
 1. **Install SDRplay API:**
    - Download from SDRplay website
    - Install API on host system
-   - May not work in Docker without special setup
 
 2. **SoapySDR Module:**
    - Install `soapysdr-module-sdrplay`
@@ -645,10 +603,8 @@ Test SDR at the lowest level:
 
 ```bash
 # For RTL-SDR
-docker compose exec app rtl_test -t
 
 # For Airspy
-docker compose exec app airspy_info
 ```
 
 ### Stream Performance Test
@@ -657,7 +613,6 @@ Check if system can handle sample rate:
 
 ```bash
 # Capture samples to /dev/null (discard)
-docker compose exec app timeout 10s rtl_sdr -f 162550000 -s 2400000 - > /dev/null
 
 # Check for overruns in dmesg
 dmesg | grep -i usb | tail -20
@@ -668,7 +623,6 @@ dmesg | grep -i usb | tail -20
 Measure actual signal strength:
 
 ```bash
-docker compose exec app python3 << 'EOF'
 import SoapySDR
 import numpy as np
 import time
@@ -715,13 +669,10 @@ For Redis-based IQ sample streaming:
 
 ```bash
 # Monitor Redis performance
-docker compose exec redis redis-cli --latency
 
 # Monitor Redis memory usage
-docker compose exec redis redis-cli info memory
 
 # Monitor Redis pub/sub
-docker compose exec redis redis-cli --csv pubsub channels 'sdr:*'
 ```
 
 ---
@@ -749,9 +700,6 @@ When asking for help, include:
    - Operating system and version
 
 2. **Software:**
-   - Docker version: `docker --version`
-   - Container versions: `docker compose images`
-   - Deployment method (Docker, native, etc.)
 
 3. **Configuration:**
    - Receiver configuration from database
@@ -807,7 +755,6 @@ When asking for help, include:
 
 4. **Service not restarted after config change:**
    ```bash
-   docker compose restart sdr-service audio-service
    ```
 
 5. **Device permissions:**
@@ -820,24 +767,17 @@ When asking for help, include:
 
 ```bash
 # Quick status check
-docker compose ps
 
 # Device detection
 lsusb | grep -E "RTL|Airspy|Realtek"
-docker compose exec app SoapySDRUtil --find
 
 # Full diagnostics
-docker compose exec app python3 scripts/sdr_diagnostics.py
 
 # Check logs
-docker compose logs sdr-service --tail=50
-docker compose logs audio-service --tail=50
 
 # Database check
-docker compose exec app psql -U postgres -d alerts -c "SELECT * FROM radio_receivers;"
 
 # Test capture
-docker compose exec app python3 scripts/sdr_diagnostics.py --test-capture
 ```
 
 ---

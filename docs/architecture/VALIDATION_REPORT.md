@@ -17,7 +17,6 @@
 
 ### Files Modified (3)
 - ✅ `audio_service.py` - Uses Redis publisher, skips SDR sources
-- ✅ `docker-compose.yml` - Added eas-service container
 - ✅ `app_core/audio/startup_integration.py` - Fixed FIPS code loading (Issue #1)
 
 ---
@@ -127,7 +126,6 @@ eas-service (RedisAudioAdapter)
 
 ---
 
-## ✅ Docker Configuration
 
 ### eas-service Container
 ```yaml
@@ -217,19 +215,12 @@ All critical components have been:
 git pull origin claude/fix-eas-alert-trigger-01DorL8A6dKxQgGPXcHXmLiC
 
 # 2. Build containers
-docker compose build
 
 # 3. Stop services
-docker compose down
 
 # 4. Start 3-tier architecture
-docker compose up -d
 
 # 5. Verify
-docker ps | grep eas
-docker logs eas-sdr-service
-docker logs eas-audio-service
-docker logs eas-eas-service
 ```
 
 ---

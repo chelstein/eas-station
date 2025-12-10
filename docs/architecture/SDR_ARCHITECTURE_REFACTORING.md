@@ -7,7 +7,6 @@
 The current containerized architecture has a **design inconsistency** that creates confusion and maintenance issues:
 
 **Current State:**
-- The `sdr-service` container runs `audio_service.py` (line 73 in docker-compose.yml)
 - `audio_service.py` is a **monolithic service** that handles:
   1. SDR/Radio hardware (SoapySDR receiver initialization)
   2. Audio ingestion from all sources (SDR, streams, files)
@@ -43,7 +42,6 @@ After moving to separate containers, several integrations broke:
 #### 1. **NVMe Health Monitoring** ❌ BROKEN
 - **Problem**: `app` container has no access to `/dev/nvme*` devices
 - **Impact**: System health page cannot display NVMe SMART data
-- **Fix Applied**: Added `/dev:/dev:ro` mount to app container in `docker-compose.pi.yml`
 
 #### 2. **VFD Display** ❌ POTENTIALLY BROKEN
 - **Problem**: `hardware-service` missing `/dev/ttyUSB0` mount
@@ -137,11 +135,9 @@ After moving to separate containers, several integrations broke:
 
 **Tasks**:
 1. ✅ Keep `sdr-service` running `audio_service.py` (current state)
-2. Create new `audio-service` container in docker-compose
 3. Have both services running in parallel
 4. Update documentation to reflect intended vs actual state
 
-**docker-compose.yml additions**:
 ```yaml
 audio-service:
   image: eas-station:latest
@@ -321,8 +317,6 @@ Do you want to proceed with the SDR/audio separation refactoring now, or keep it
 ## Current Status
 
 **Completed**:
-- ✅ NVMe health fix (docker-compose.pi.yml)
-- ✅ VFD/Zigbee serial port mounts (docker-compose.pi.yml)
 - ✅ WiFi configuration API and UI
 - ✅ Zigbee monitoring API and UI
 - ✅ Documentation of SDR architecture issues
@@ -340,8 +334,6 @@ Do you want to proceed with the SDR/audio separation refactoring now, or keep it
 ## References
 
 ### Key Files
-- `/home/user/eas-station/docker-compose.yml` - Container definitions
-- `/home/user/eas-station/docker-compose.pi.yml` - Pi-specific hardware mounts
 - `/home/user/eas-station/audio_service.py` - Current monolithic service
 - `/home/user/eas-station/sdr_service.py` - Unused SDR-only service
 - `/home/user/eas-station/hardware_service.py` - GPIO/Display/Zigbee service

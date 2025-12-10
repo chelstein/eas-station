@@ -150,7 +150,6 @@ graph TB
 
 ## Hardware Device Mapping
 
-### Base Configuration (`docker-compose.yml`)
 Works on all platforms (x86, ARM, Pi, etc.):
 
 ```yaml
@@ -166,7 +165,6 @@ app:
   # No devices in base config
 ```
 
-### Raspberry Pi Override (`docker-compose.pi.yml`)
 Adds Pi-specific hardware:
 
 ```yaml
@@ -324,29 +322,20 @@ git pull origin main
 ```
 
 2. **Stop all containers**:
-```bash
-docker-compose down
-```
-
 3. **Deploy with new architecture**:
 ```bash
 # Standard deployment
-docker-compose up -d
 
 # Raspberry Pi deployment
-docker-compose -f docker-compose.yml -f docker-compose.pi.yml up -d
 ```
 
 4. **Verify isolation**:
 ```bash
 # Check sdr-service has USB
-docker exec eas-sdr-service ls -l /dev/bus/usb
 
 # Check hardware-service has GPIO (Pi only)
-docker exec eas-hardware-service ls -l /dev/gpiomem
 
 # Check app has no GPIO
-docker exec eas-station-app-1 ls -l /dev/gpiomem 2>&1 | grep "No such file"
 ```
 
 ---
@@ -358,36 +347,24 @@ docker exec eas-station-app-1 ls -l /dev/gpiomem 2>&1 | grep "No such file"
 
 ```bash
 # Should show USB devices
-docker inspect eas-sdr-service | grep -A5 Devices
 
 # Should NOT show USB
-docker inspect eas-hardware-service | grep -A5 Devices
 ```
 
 **Logs**:
-```bash
-docker logs -f eas-sdr-service
-```
-
 ### GPIO/Displays Not Working
 **Check**: Only `hardware-service` should have GPIO
 
 ```bash
 # Should show GPIO devices (Pi only)
-docker inspect eas-hardware-service | grep -A10 Devices
 ```
 
 **Logs**:
-```bash
-docker logs -f eas-hardware-service
-```
-
 ### SMART Monitoring Not Working
 **Check**: `app` container needs read-only `/dev`
 
 ```bash
 # Should show read-only device access
-docker inspect eas-station-app-1 | grep -A5 Devices
 ```
 
 ---
@@ -415,8 +392,6 @@ docker inspect eas-station-app-1 | grep -A5 Devices
 
 ## Files Changed
 
-- `docker-compose.yml` - Added hardware-service, updated device mappings
-- `docker-compose.pi.yml` - Moved GPIO from app to hardware-service
 - `hardware_service.py` - New dedicated hardware service
 - `sdr_service.py` - Optional standalone SDR entrypoint
 - `docs/architecture/SDR_SERVICE_ISOLATION.md` - SDR-specific documentation

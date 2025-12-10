@@ -17,8 +17,6 @@ The container configuration is missing USB buffer memory limits (memlock) needed
 
 ### Option 1: Add USB Memory Lock Limits (Recommended)
 
-Add the following to your `docker-compose.yml` under the `sdr-service` section:
-
 ```yaml
 sdr-service:
   # ... existing configuration ...
@@ -112,13 +110,10 @@ After applying container configuration changes:
 
 1. Restart the containers:
    ```bash
-   docker-compose down
-   docker-compose up -d sdr-service
    ```
 
 2. Monitor logs:
    ```bash
-   docker-compose logs -f sdr-service
    ```
 
 3. Look for:
@@ -135,4 +130,3 @@ After applying container configuration changes:
 
 - [SoapySDR GitHub](https://github.com/pothosware/SoapySDR)
 - [SoapyAirspy GitHub](https://github.com/pothosware/SoapyAirspy)
-- [Docker USB Device Best Practices](https://docs.docker.com/engine/reference/run/#runtime-privilege-and-linux-capabilities)

@@ -101,15 +101,12 @@ security_opt:
 ### 4. app (Web UI)
 **Purpose**: Flask web application serving the user interface
 
-**Current Permissions (docker-compose.yml)**:
 ```yaml
 security_opt:
   - no-new-privileges:true
 volumes:
-  - /var/run/docker.sock:/var/run/docker.sock:ro
 ```
 
-**Current Permissions (docker-compose.pi.yml)**:
 ```yaml
 devices:
   - /dev/bus/usb:/dev/bus/usb
@@ -119,7 +116,6 @@ devices:
 **Functions**:
 - Web UI rendering
 - API endpoints
-- Docker container health checks (via docker.sock)
 - NVMe health monitoring (smartctl)
 - Disk health monitoring
 
@@ -127,7 +123,6 @@ devices:
 - ✅ `no-new-privileges:true` - Prevents escalation
 - ✅ `/dev:/dev:ro` - **ADDED IN THIS PR** for smartctl/NVMe access
 - ✅ `/dev/bus/usb` - SDR device discovery (read-only queries)
-- ✅ `/var/run/docker.sock:ro` - Container health checks (read-only)
 - ❌ Does NOT need write access to devices
 - ❌ Does NOT need privileged mode
 
@@ -135,7 +130,6 @@ devices:
 
 **Security Notes**:
 - Read-only device access prevents tampering
-- Read-only docker socket prevents container manipulation
 - No privileged mode = principle of least privilege
 
 ---
@@ -195,14 +189,12 @@ If SDR and audio are separated:
 ### 6. hardware-service (GPIO/Displays/Zigbee)
 **Purpose**: Hardware control for GPIO, displays, and Zigbee coordinator
 
-**Current Permissions (docker-compose.yml)**:
 ```yaml
 security_opt:
   - no-new-privileges:true
 # NOTE: No device access in base config
 ```
 
-**Current Permissions (docker-compose.pi.yml)**:
 ```yaml
 devices:
   - /dev/gpiomem:/dev/gpiomem
@@ -291,7 +283,6 @@ security_opt:
 **Purpose**: PostGIS database for alert and location storage
 
 **Current Permissions**:
-- No `security_opt` specified (uses Docker defaults)
 
 **Functions**:
 - SQL database storage
@@ -319,7 +310,6 @@ alerts-db:
 **Purpose**: HTTP audio streaming server
 
 **Current Permissions**:
-- No `security_opt` specified (uses Docker defaults)
 
 **Functions**:
 - HTTP audio streaming
@@ -410,7 +400,6 @@ When SDR and audio services are separated (see ../architecture/SDR_ARCHITECTURE_
 
 ### Defense in Depth
 - `no-new-privileges:true` on all containers prevents escalation
-- Read-only mounts where possible (`/dev:/dev:ro`, `docker.sock:ro`)
 - Specific device mounts instead of `--privileged` where possible
 
 ### Isolation

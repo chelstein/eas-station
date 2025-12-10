@@ -45,7 +45,6 @@ cp audio_service.py eas_monitoring_service.py
 cp sdr_service.py sdr_hardware_service.py
 ```
 
-### 2. Update docker-compose.yml
 ```yaml
 # Before
 sdr-service:
@@ -94,7 +93,6 @@ if __name__ == "__main__":
 ## Timeline
 
 - **Phase 1** (Immediate): Update documentation to clarify current names
-- **Phase 2** (v2.16.0): Create new filenames, update docker-compose
 - **Phase 3** (v2.17.0): Deprecate old names with warnings
 - **Phase 4** (v3.0.0): Remove old names entirely
 
@@ -109,5 +107,4 @@ if __name__ == "__main__":
 - [x] Implemented rename in v2.16.0
   - [x] Created `eas_monitoring_service.py`
   - [x] Created `sdr_hardware_service.py`
-  - [x] Updated all docker-compose files
   - [x] Removed old service files (no backward compatibility)

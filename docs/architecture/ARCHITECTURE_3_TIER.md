@@ -36,8 +36,6 @@ This document describes the complete 3-tier separated architecture for EAS Stati
 3. **app_core/audio/redis_audio_publisher.py** - Publishes audio to Redis
 4. **eas_service.py** - Standalone EAS service
 5. **audio_service.py** - EAS monitor initialization removed (EAS handled by eas-service)
-6. **docker-compose.yml** - Includes eas-service container
-7. **docker-compose.embedded-db.yml** - Includes eas-service container
 
 ## ⚠️ Important: Single EAS Monitor Architecture
 
@@ -96,9 +94,7 @@ Replace with:
 _redis_audio_publisher = initialize_redis_audio_publisher(_flask_app, _audio_controller)
 ```
 
-## eas-service Docker Container
-
-Add to docker-compose.yml after audio-service:
+## eas-service services
 
 ```yaml
   eas-service:
@@ -129,7 +125,6 @@ Add to docker-compose.yml after audio-service:
       # Application settings
       CONFIG_PATH: /app-config/.env
     extra_hosts:
-      - "host.docker.internal:host-gateway"
     security_opt:
       - no-new-privileges:true
     depends_on:
@@ -161,18 +156,12 @@ python3 -c "from app_core.audio.redis_audio_publisher import RedisAudioPublisher
 ### 3. Integration Test
 ```bash
 # 1. Build containers
-docker compose build
 
 # 2. Start services
-docker compose up -d
 
 # 3. Check logs
-docker logs eas-sdr-service | grep "Started"
-docker logs eas-audio-service | grep "Redis audio publisher started"
-docker logs eas-eas-service | grep "EAS monitor started"
 
 # 4. Verify Redis channels
-docker exec eas-redis redis-cli PUBSUB CHANNELS
 
 # Expected output:
 # sdr:samples:*

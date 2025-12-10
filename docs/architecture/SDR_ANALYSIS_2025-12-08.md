@@ -15,7 +15,6 @@ Conducted comprehensive in-depth analysis of the EAS Station SDR implementation 
 - `app_core/radio/ring_buffer.py` (345 lines) - Thread-safe buffering
 - `app_core/audio/redis_sdr_adapter.py` (322 lines) - Redis IQ bridge
 - `app_core/radio/demodulation.py` (642 lines) - FM/AM demodulation
-- Plus configuration, database models, and Docker setup
 
 **Overall Assessment**: The codebase is well-architected with robust error handling, but contains **5 critical issues** and **12 medium/low priority issues** that could prevent the SDR from working correctly.
 
@@ -25,10 +24,8 @@ Conducted comprehensive in-depth analysis of the EAS Station SDR implementation 
 
 ### Issue #1: SoapySDR Python Bindings Missing or Not Installed
 **Severity**: CRITICAL
-**Location**: Dockerfile, requirements.txt
 **Impact**: Complete SDR failure
 
-**Problem**: `requirements.txt` has only a comment stating "SoapySDR Python bindings are installed via system packages in Dockerfile" but no actual verification. If the Dockerfile doesn't properly install SoapySDR, all SDR operations will fail with ImportError.
 
 **Code Reference**: `app_core/radio/drivers.py:583-587`
 ```python
@@ -39,7 +36,6 @@ except ImportError as exc:
 ```
 
 **Recommendation**:
-- Add installation verification step in Dockerfile
 - Add startup check in sdr_hardware_service.py before initializing receivers
 - Document exact SoapySDR version and module requirements
 
@@ -60,7 +56,6 @@ app = initialize_database()  # Can raise exception, no retry
 
 **Recommendation**:
 - Add retry loop with exponential backoff (10 attempts, 30 second max wait)
-- Add dependency health check in docker-compose.yml
 - Improve error message to indicate database connection failure
 
 ---
@@ -119,10 +114,8 @@ if self.config.sample_rate not in self.AIRSPY_R2_SAMPLE_RATES:
 
 ### Issue #5: USB Permission and Privileged Mode Required
 **Severity**: CRITICAL
-**Location**: `docker-compose.yml:127-142`
 **Impact**: Cannot access SDR hardware
 
-**Problem**: SDR requires Docker privileged mode and USB device passthrough. If user doesn't have proper permissions or runs in restricted environment, SDR will fail silently.
 
 **Configuration**:
 ```yaml
@@ -236,7 +229,6 @@ ulimits:
 ---
 
 ### Issue #17: SDR Service Health Check Only Checks Redis
-**Location**: `docker-compose.yml:149-154`
 **Impact**: Service marked healthy even if SDR is failing
 **Recommendation**: Add check that verifies samples are being published to Redis
 
@@ -262,7 +254,6 @@ The codebase demonstrates excellent engineering practices:
 1. Validate Airspy sample rates and FAIL if invalid (not warn)
 2. Add database connection retry loop to sdr_hardware_service.py
 3. Add prominent alert if no receivers configured
-4. Verify SoapySDR installation in Dockerfile
 5. Add USB device access check at startup
 
 ### ⚡ Fix Soon (High Impact):
@@ -340,7 +331,6 @@ The codebase demonstrates excellent engineering practices:
 ### Configuration (4 files):
 - `app_core/models.py` (RadioReceiver, RadioReceiverStatus models)
 - `requirements.txt` (110 lines)
-- `docker-compose.yml` (562 lines)
 - `.env` / `stack.env` (referenced)
 
 **Total**: 17+ files, ~5500+ lines of SDR-specific code analyzed

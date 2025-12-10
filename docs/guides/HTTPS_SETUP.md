@@ -63,7 +63,6 @@ Internet (HTTPS) → nginx (ports 80/443) → Flask App (internal port 5000)
 
 ### For Development/Testing:
 
-- ✅ Just Docker and Docker Compose
 - ⚠️ Will use self-signed certificates (browser warnings expected)
 
 ---
@@ -75,11 +74,8 @@ Internet (HTTPS) → nginx (ports 80/443) → Flask App (internal port 5000)
 **No configuration needed!** Just deploy:
 
 ```bash
-# Using main docker-compose.yml
-docker compose up -d
 
 # Or using embedded database
-docker compose -f docker-compose.embedded-db.yml up -d
 ```
 
 Access your application at:
@@ -123,18 +119,9 @@ nslookup eas.example.com
 
 #### Step 3: Deploy
 
-```bash
-docker compose up -d
-```
-
 #### Step 4: Verify Certificate
 
 Check the logs:
-
-```bash
-docker compose logs nginx
-docker compose logs certbot
-```
 
 Look for:
 ```
@@ -215,7 +202,6 @@ Let's Encrypt production limits:
 3. **Firewall Rules**
    ```bash
    # Check if port 80 is listening
-   docker compose ps
 
    # Test from external host
    curl -I http://your-ip-address
@@ -223,8 +209,6 @@ Let's Encrypt production limits:
 
 4. **Check Logs**
    ```bash
-   docker compose logs nginx
-   docker compose logs certbot
    ```
 
 **Common causes:**
@@ -241,7 +225,6 @@ Let's Encrypt production limits:
    - Solution: Use a real domain name with Let's Encrypt
 
 2. **Certificate not installed yet**
-   - Check: `docker compose logs nginx`
    - Solution: Wait for initialization to complete
 
 3. **Mixed content** (HTTPS page loading HTTP resources)
@@ -252,10 +235,6 @@ Let's Encrypt production limits:
 
 **Check:**
 
-```bash
-docker compose logs certbot
-```
-
 **Common causes:**
 - Port 80 blocked
 - Domain DNS changed
@@ -265,10 +244,8 @@ docker compose logs certbot
 
 ```bash
 # Test renewal (dry run)
-docker compose exec certbot certbot renew --dry-run
 
 # Force renewal
-docker compose exec certbot certbot renew --force-renewal
 ```
 
 ### Problem: Port 80 Already in Use
@@ -295,7 +272,6 @@ sudo netstat -tlnp | grep :80
    ```
 
 2. **Use different port mapping:**
-   Edit `docker-compose.yml`:
    ```yaml
    ports:
      - "0.0.0.0:8080:80"  # Use port 8080 for IPv4 clients
@@ -317,7 +293,6 @@ The default nginx configuration is in `nginx.conf`. To customize:
 1. Edit `nginx.conf`
 2. Rebuild and restart:
    ```bash
-   docker compose restart nginx
    ```
 
 **Common customizations:**
@@ -358,7 +333,6 @@ To serve multiple domains:
 
 2. **Obtain certificates for all domains**:
    ```bash
-   DOMAIN_NAME="eas1.example.com eas2.example.com" docker compose up -d
    ```
 
 ### Using Existing Certificates
@@ -377,7 +351,6 @@ If you already have SSL certificates:
    cp chain.pem certs/live/yourdomain.com/
    ```
 
-3. **Mount certificates in docker-compose.yml:**
    ```yaml
    volumes:
      - ./certs:/etc/letsencrypt:ro
@@ -389,7 +362,6 @@ Check certificate expiration:
 
 ```bash
 # View certificate details
-docker compose exec nginx openssl s_client -connect localhost:443 -servername $DOMAIN_NAME < /dev/null 2>/dev/null | openssl x509 -noout -dates
 
 # Output shows:
 # notBefore=...
@@ -406,7 +378,6 @@ docker compose exec nginx openssl s_client -connect localhost:443 -servername $D
 To completely disable HTTP (port 80):
 
 1. **Edit nginx.conf** - Remove HTTP server block
-2. **Edit docker-compose.yml**:
    ```yaml
    nginx:
      ports:
@@ -444,7 +415,6 @@ ssl_ciphers 'HIGH:!aNULL:!MD5';  # Different cipher suite
 4. **Protect private keys** - Never commit certificate files to git
 5. **Use strong ciphers** - Default configuration uses Mozilla Intermediate
 6. **Enable HSTS** - Already enabled in default config
-7. **Regular updates** - Update Docker images monthly
 
 ---
 

@@ -1121,7 +1121,6 @@ Phase 5: Remove old columns
 - [ ] README updated
 
 ### Deployment
-- [ ] Docker builds successfully
 - [ ] Services start properly
 - [ ] Health checks pass
 - [ ] Monitoring configured

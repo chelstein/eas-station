@@ -14,9 +14,8 @@ These ports need to be accessible from outside the host for normal operation:
 | **8888** | TCP | HTTP (nginx) | Redirects to HTTPS. Also allows local API access for hardware displays. |
 | **8001** | TCP | Icecast | Audio streaming server for public stream access (configurable via `ICECAST_PORT`). |
 
-## Internal Ports (Docker Network Only)
 
-These ports are used internally between Docker containers and should **not** be exposed to the internet:
+These ports are used internally between services and should **not** be exposed to the internet:
 
 | Port | Protocol | Service | Description |
 |------|----------|---------|-------------|
@@ -109,18 +108,13 @@ This error indicates nginx cannot connect to the Flask backend (port 5000). Comm
 
 1. **Flask app not running** - Check if the app container is healthy:
    ```bash
-   docker compose ps
-   docker compose logs app
    ```
 
 2. **Database migration errors** - The app may fail to start due to database issues:
    ```bash
-   docker compose logs app | grep -i "error\|migration"
    ```
 
-3. **Docker network issues** - Verify containers are on the same network:
    ```bash
-   docker network inspect eas-station_eas-network
    ```
 
 ### Symptom: Cannot access web interface externally
@@ -137,12 +131,10 @@ This error indicates nginx cannot connect to the Flask backend (port 5000). Comm
 
 1. **Verify Icecast is running**:
    ```bash
-   docker compose logs icecast
    ```
 
 2. **Check port mapping**:
    ```bash
-   docker compose ps icecast
    ```
 
 3. **Test local access**:
@@ -152,6 +144,5 @@ This error indicates nginx cannot connect to the Flask backend (port 5000). Comm
 
 ## Related Documentation
 
-- [Docker Compose Configuration](../../docker-compose.yml) - Full port mapping details
 - [Setup Instructions](../guides/SETUP_INSTRUCTIONS.md) - Initial deployment guide
 - [Database Troubleshooting](DATABASE_CONSISTENCY_FIXES.md) - Database connection issues
