@@ -125,6 +125,25 @@ while true; do
     break
 done
 
+# Prompt for admin email address (for pgAdmin and notifications)
+while true; do
+    read -p "Enter administrator email address: " ADMIN_EMAIL
+    ADMIN_EMAIL=$(echo "$ADMIN_EMAIL" | xargs)  # Trim whitespace
+    
+    if [ -z "$ADMIN_EMAIL" ]; then
+        echo_error "Email address cannot be empty"
+        continue
+    fi
+    
+    # Basic email validation (must have @ and . after @)
+    if ! [[ "$ADMIN_EMAIL" =~ ^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]]; then
+        echo_error "Invalid email format. Email must be in format: user@domain.com"
+        continue
+    fi
+    
+    break
+done
+
 echo_success "Administrator account configured"
 echo ""
 
@@ -316,17 +335,53 @@ if command -v /usr/pgadmin4/bin/setup-web.sh &> /dev/null; then
     # Create a temporary expect script to automate the setup
     cat > /tmp/pgadmin-setup.exp << 'PGADMIN_EXPECT'
 #!/usr/bin/expect -f
-set timeout -1
+set timeout 30
 set email [lindex $argv 0]
 set password [lindex $argv 1]
+set max_email_attempts 10
 
 spawn /usr/pgadmin4/bin/setup-web.sh
 
-expect "Email address:"
-send "$email\r"
+# Keep trying to send email until we get to password prompt
+# pgAdmin validates email format and will keep asking if invalid
+set email_attempts 0
+while {$email_attempts < $max_email_attempts} {
+    expect {
+        "Email address:" {
+            send "$email\r"
+            incr email_attempts
+        }
+        "Password:" {
+            # Email was finally accepted
+            send "$password\r"
+            break
+        }
+        "Invalid email address" {
+            # Continue to next iteration
+        }
+        "The part after the @-sign is not valid" {
+            # Continue to next iteration
+        }
+        timeout {
+            puts "\nError: Timeout waiting for pgAdmin setup prompts."
+            puts "This may indicate pgAdmin is not responding properly."
+            puts "Check if the pgAdmin service is installed and functioning."
+            exit 1
+        }
+        eof {
+            puts "\nError: pgAdmin setup script ended unexpectedly."
+            puts "This may indicate a problem with the pgAdmin installation."
+            exit 1
+        }
+    }
+}
 
-expect "Password:"
-send "$password\r"
+# Check if we exceeded maximum attempts
+if {$email_attempts >= $max_email_attempts} {
+    puts "\nError: Failed to set pgAdmin email after $max_email_attempts attempts."
+    puts "The email validation should have been handled upfront."
+    exit 1
+}
 
 expect "Retype password:"
 send "$password\r"
@@ -341,19 +396,14 @@ PGADMIN_EXPECT
         apt-get install -y expect
     fi
     
-    # Run pgAdmin setup with admin credentials (use username as email if no @ symbol)
-    PGADMIN_EMAIL="$ADMIN_USERNAME@localhost"
-    if [[ "$ADMIN_USERNAME" == *"@"* ]]; then
-        PGADMIN_EMAIL="$ADMIN_USERNAME"
-    fi
-    
-    /tmp/pgadmin-setup.exp "$PGADMIN_EMAIL" "$ADMIN_PASSWORD" || echo_warning "pgAdmin setup failed (non-critical)"
+    # Run pgAdmin setup with the email address provided by the user
+    /tmp/pgadmin-setup.exp "$ADMIN_EMAIL" "$ADMIN_PASSWORD" || echo_warning "pgAdmin setup failed (non-critical)"
     rm -f /tmp/pgadmin-setup.exp
     
     # Add database server connection for the admin user
     echo_info "pgAdmin 4 installed and configured"
     echo_info "Access pgAdmin at: https://localhost/pgadmin4"
-    echo_info "Login with: $PGADMIN_EMAIL / (your admin password)"
+    echo_info "Login with: $ADMIN_EMAIL / (your admin password)"
 else
     echo_warning "pgAdmin 4 not available - skipping"
 fi
@@ -628,13 +678,9 @@ echo "  Username: ${ADMIN_USERNAME}"
 echo "  Password: (the password you entered)"
 echo ""
 if command -v /usr/pgadmin4/bin/setup-web.sh &> /dev/null; then
-    PGADMIN_EMAIL="$ADMIN_USERNAME@localhost"
-    if [[ "$ADMIN_USERNAME" == *"@"* ]]; then
-        PGADMIN_EMAIL="$ADMIN_USERNAME"
-    fi
     echo "pgAdmin 4 Database Manager:"
     echo "  URL: https://localhost/pgadmin4"
-    echo "  Email: $PGADMIN_EMAIL"
+    echo "  Email: $ADMIN_EMAIL"
     echo "  Password: (same as above)"
     echo ""
 fi
