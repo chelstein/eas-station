@@ -6,6 +6,23 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.19.8] - 2025-12-10
+### Changed
+  - Completely rewrote PyCharm/VS Code debugging guide for bare metal deployment
+  - Removed all Docker/container references, replaced with systemd service instructions
+  - Updated all file paths from /home/pi/eas-station to /opt/eas-station
+  - Added comprehensive section on debugging individual systemd services with debugpy
+  - Added detailed instructions for using AI coding agents (ZenCoder) with real-time code access
+  - Updated database configuration section for bare metal PostgreSQL (not containerized)
+  - Added multiple methods for enabling debugpy: temporary, persistent, and code modification
+  - Documented debug port assignments for all services (5678-5684)
+  - Added SSH port forwarding instructions for secure remote debugging
+  - Updated troubleshooting section with systemd-specific solutions
+  - Enhanced development workflow with systemd service management commands
+  - Added section on testing with real hardware (GPIO, SDR, audio devices)
+  - Updated quick reference with systemd commands instead of Docker commands
+  - Improved summary to highlight AI agent integration and bare metal advantages
+
 ## [2.19.7] - 2025-12-10
 ### Fixed
   - Fixed pgAdmin4 installation to prevent apache2 from being installed as a dependency
