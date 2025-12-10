@@ -3,7 +3,7 @@
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue?style=flat-square&logo=gnu&logoColor=white)](https://www.gnu.org/licenses/agpl-3.0)
 [![Commercial License](https://img.shields.io/badge/License-Commercial-green?style=flat-square)](LICENSE-COMMERCIAL)
 
-[![Python](https://img.shields.io/badge/Python-3.11-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
+[![Python](https://img.shields.io/badge/Python-3.11%20|%203.12%20|%203.13-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
 [![Flask](https://img.shields.io/badge/Flask-3.1.2-000000?style=flat-square&logo=flask&logoColor=white)](https://flask.palletsprojects.com/)
 [![SQLAlchemy](https://img.shields.io/badge/SQLAlchemy-2.0.45-CA2C39?style=flat-square&logo=sqlalchemy&logoColor=white)](https://www.sqlalchemy.org/)
 [![PostgreSQL + PostGIS](https://img.shields.io/badge/PostgreSQL%20%2B%20PostGIS-17%20%2F%203.4-0093D0?style=flat-square&logo=postgresql&logoColor=white)](https://www.postgresql.org/)
@@ -122,6 +122,8 @@ sudo bash install.sh
 - ✅ Starts all services
 - ✅ Configures HTTPS with self-signed certificate
 
+> 💡 **Debian Trixie (Testing)**: Fully supported! The installer auto-detects your OS version and installs compatible packages. Python 3.13 is fully supported with the latest dependency updates.
+
 ### Access Your Station
 
 Open your web browser and navigate to:
@@ -143,7 +145,7 @@ Accept the self-signed certificate warning (safe for initial setup).
 
 ### System Requirements
 
-- **OS**: Debian 12 (Bookworm), Ubuntu 22.04+, or Raspberry Pi OS
+- **OS**: Debian 12 (Bookworm), Debian 13 (Trixie), Ubuntu 22.04+, or Raspberry Pi OS
 - **CPU**: 2+ cores (4+ recommended)
 - **RAM**: 2GB minimum (4GB+ recommended)
 - **Storage**: 20GB minimum (50GB+ recommended for alerts database)
@@ -168,6 +170,17 @@ sudo bash scripts/build-iso.sh
 ```
 
 **📖 Full Guide:** See [docs/installation/README.md](docs/installation/README.md) for detailed installation, upgrades, configuration, and troubleshooting.
+
+### Installation Notes for Debian Trixie
+
+**Debian 13 (Trixie)** is the current testing distribution and is fully supported:
+
+- **Python 3.13**: All dependencies updated to support Python 3.13 (gevent 25.9.1+, pytest 9.0+, etc.)
+- **PostgreSQL**: Works with PostgreSQL 15, 16, or 17 with PostGIS 3.3 or 3.4
+- **Package availability**: All required packages are available in Trixie repositories
+- **Testing status**: While Trixie is "testing", it's stable enough for development and lab use
+
+If you encounter any package availability issues on Trixie, the installer will attempt to install from Debian Backports or skip optional packages gracefully.
 
 ## 📚 Documentation
 
@@ -236,7 +249,7 @@ graph TB
 
 | Component | Technology | Purpose |
 |-----------|-----------|---------|
-| **Web Application** | Flask 3.0 + Bootstrap 5 | User interface and API |
+| **Web Application** | Flask 3.1 + FastAPI 0.124 + Bootstrap 5 | User interface and REST API |
 | **Alert Poller** | Python async | CAP feed monitoring |
 | **Database** | PostgreSQL 17 + PostGIS 3.4 | Spatial data storage |
 | **Broadcast Engine** | Python + ALSA | SAME encoding and audio |
@@ -290,26 +303,64 @@ graph TB
 ### Software Requirements
 
 **Operating System**:
-- Debian 12 (Bookworm), Ubuntu 22.04+, or Raspberry Pi OS
-- Python 3.11+
+- Debian 12 (Bookworm) or Debian 13 (Trixie)
+- Ubuntu 22.04 LTS or newer
+- Raspberry Pi OS (based on Debian Bookworm/Trixie)
+- Python 3.11, 3.12, or 3.13
 - PostgreSQL 14+ with PostGIS 3+
 - Redis 7+
 
 ### System Package Dependencies
 
-**Required for core functionality**:
-- `python3.11` - Python runtime
-- `postgresql` + `postgresql-contrib` + `postgis` - Database with spatial extensions
-- `redis-server` - In-memory data store for real-time metrics
-- `nginx` - Web server and reverse proxy
-- `ffmpeg` - Audio codec library for MP3/AAC/OGG stream decoding
-- `libpq-dev` - PostgreSQL client library headers
+**Core System Packages** (all Debian/Ubuntu versions including Trixie):
+```bash
+# Build tools and Python development
+python3 python3-pip python3-venv python3-dev
+build-essential gcc g++ make
 
-**Optional (for specific features)**:
-- `icecast2` - Audio streaming server (recommended for production)
-- `python3-soapysdr` + `soapysdr-module-rtlsdr` - SDR receiver support
-- `espeak` / `libespeak-ng1` - Text-to-speech synthesis
-- `libusb-1.0-0` - USB SDR hardware support
+# Database and spatial extensions
+postgresql postgresql-contrib postgis
+postgresql-17-postgis-3  # or postgresql-16-postgis-3 on older systems
+
+# Networking and web services
+redis-server nginx certbot python3-certbot-nginx
+
+# Audio processing
+ffmpeg espeak libespeak-ng1
+
+# Development libraries
+libpq-dev libev-dev libevent-dev libffi-dev libssl-dev
+
+# USB and hardware support
+libusb-1.0-0 libusb-1.0-0-dev usbutils ca-certificates
+
+# Version control and utilities
+git curl wget
+```
+
+**Optional Packages** (for SDR and hardware features):
+```bash
+# SDR receiver support (RTL-SDR, Airspy)
+python3-soapysdr soapysdr-tools
+soapysdr-module-rtlsdr soapysdr-module-airspy
+libairspy0 librtlsdr0
+
+# Raspberry Pi GPIO support (Pi only)
+python3-lgpio  # Preferred on Pi 5
+```
+
+**Python Package Requirements** (installed via pip in virtual environment):
+- Flask 3.1.2 - Web framework
+- FastAPI 0.124.2 - Async API framework
+- SQLAlchemy 2.0.45 - Database ORM
+- gevent 25.9.1+ - WSGI async support (Python 3.13 compatible)
+- redis 7.1.0 - Redis client
+- psutil 7.1.3 - System monitoring
+- numpy 2.3.5 - Numerical processing for SDR
+- Pillow 12.0.0 - Image processing for displays
+- pytest 9.0.2 - Testing framework
+
+> 📘 **Complete dependency list**: See [requirements.txt](requirements.txt) for all 50+ Python packages
 
 > 📘 **Automated Installation**: The installation script (`install.sh`) installs all required and optional dependencies automatically.
 >
