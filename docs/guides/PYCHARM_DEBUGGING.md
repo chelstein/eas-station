@@ -232,7 +232,8 @@ sudo -u eas-station /opt/eas-station/venv/bin/python -c "import debugpy; print('
 2. **Connect to server**:
    - Press `F1` (or `Ctrl+Shift+P` / `Cmd+Shift+P`)
    - Type: `Remote-SSH: Connect to Host`
-   - Enter: `eas-station@YOUR.SERVER.IP.ADDRESS` (or `pi@YOUR.PI.IP` for Pi)
+   - Enter: `eas-station@YOUR.SERVER.IP.ADDRESS` (default user for bare metal installation)
+     - Note: If you installed on Raspberry Pi OS manually, you might use `pi@YOUR.PI.IP` instead
    - Enter your password
    - Choose **File** → **Open Folder** → `/opt/eas-station`
 
@@ -560,6 +561,9 @@ sudo systemctl edit eas-station-web.service
 ExecStart=
 
 # Replace with debugpy-enabled start command
+# ⚠️ SECURITY: Using 0.0.0.0 exposes debug port to all network interfaces
+# For local debugging only, use 127.0.0.1:5678 instead
+# For remote debugging, ensure firewall rules are properly configured
 ExecStart=/opt/eas-station/venv/bin/python -m debugpy \
     --listen 0.0.0.0:5678 \
     /opt/eas-station/venv/bin/gunicorn \
@@ -790,15 +794,20 @@ ZenCoder runs as your user via PyCharm. For system commands (like `systemctl`), 
 # On the server, edit sudoers for the eas-station user (if needed):
 sudo visudo
 
-# Add (adjust as needed for security):
+# Add (adjust as needed for security - these are minimal permissions):
 eas-station ALL=(ALL) NOPASSWD: /bin/systemctl restart eas-station-*
 eas-station ALL=(ALL) NOPASSWD: /bin/systemctl stop eas-station-*
 eas-station ALL=(ALL) NOPASSWD: /bin/systemctl start eas-station-*
 eas-station ALL=(ALL) NOPASSWD: /bin/systemctl status eas-station-*
-eas-station ALL=(ALL) NOPASSWD: /bin/journalctl
+# Restrict journalctl to EAS Station services only
+eas-station ALL=(ALL) NOPASSWD: /bin/journalctl -u eas-station-*
 ```
 
-**⚠️ Security**: Only grant minimal necessary permissions. Consider using `sudo -v` to cache credentials instead.
+**⚠️ Security Notes**: 
+- Only grant minimal necessary permissions
+- The above restricts systemctl to eas-station-* services only
+- journalctl is restricted to eas-station-* units to prevent reading sensitive system logs
+- Consider using `sudo -v` to cache credentials instead for even tighter security
 
 ---
 
@@ -1079,20 +1088,36 @@ sudo systemctl restart eas-station-web.service
 
 1. **Configure PostgreSQL to accept remote connections**:
 ```bash
+# ⚠️ SECURITY WARNING: The following configuration allows remote database access
+# Only do this on trusted networks or use SSH tunneling instead (see below)
+
 # Edit postgresql.conf
 sudo nano /etc/postgresql/*/main/postgresql.conf
 
-# Find and change:
-listen_addresses = '*'  # Or specific IP like '192.168.1.100'
+# Find and change (for all IPs - less secure):
+listen_addresses = '*'
+# OR for specific IP only (more secure):
+listen_addresses = 'localhost,192.168.1.100'
 
 # Edit pg_hba.conf to allow your machine
 sudo nano /etc/postgresql/*/main/pg_hba.conf
 
-# Add this line (replace with your network):
+# Add this line (replace with your specific network/IP for better security):
 host    alerts    eas_station    192.168.1.0/24    scram-sha-256
+# OR for a single IP (more secure):
+# host    alerts    eas_station    192.168.1.50/32    scram-sha-256
 
 # Restart PostgreSQL
 sudo systemctl restart postgresql
+```
+
+**Security Best Practice**: Instead of exposing PostgreSQL to the network, use SSH port forwarding:
+```bash
+# From your local machine, create SSH tunnel:
+ssh -L 5432:localhost:5432 eas-station@YOUR_SERVER_IP
+
+# Now connect your database tools to localhost:5432 on your machine
+# The connection is encrypted through SSH and no firewall changes needed
 ```
 
 2. **Check server's firewall**:

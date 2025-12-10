@@ -22,6 +22,12 @@ tracks releases under the 2.x series.
   - Added section on testing with real hardware (GPIO, SDR, audio devices)
   - Updated quick reference with systemd commands instead of Docker commands
   - Improved summary to highlight AI agent integration and bare metal advantages
+### Security
+  - Added security warnings for exposing debugpy ports on all network interfaces
+  - Documented SSH port forwarding as secure alternative to opening firewall ports
+  - Improved PostgreSQL remote access documentation with security best practices
+  - Restricted sudoers examples to specific services and journalctl units only
+  - Clarified user permissions for AI agent integration with minimal necessary access
 
 ## [2.19.7] - 2025-12-10
 ### Fixed
