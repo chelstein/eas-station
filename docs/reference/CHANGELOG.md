@@ -17,6 +17,8 @@ tracks releases under the 2.x series.
   - Updated `docs/installation/INSTALLATION_DETAILS.md` to remove Docker references
   - Updated `docs/troubleshooting/AUDIO_SQUEAL_FIX.md` to note it's for legacy Docker deployments
   - Updated `scripts/README.md` to remove references to deleted SQL files
+  - Updated `webapp/routes_ipaws.py` to use systemd commands for service restarts instead of Docker
+  - Updated `webapp/routes_monitoring.py` to remove docker-compose.yml from configuration checks
 
 ## [2.19.0] - 2025-12-10
 ### Changed
