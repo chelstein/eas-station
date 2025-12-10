@@ -242,7 +242,14 @@ def build_county_forecast_zone_map(
 
 
 def _resolve_zone_catalog_path(source_path: str | Path | None) -> Path:
-    """Return the path to the zone catalog, respecting config defaults."""
+    """Return the path to the zone catalog, respecting config defaults.
+    
+    Priority order:
+    1. Explicitly provided source_path parameter
+    2. NWS_ZONE_DBF_PATH from app config (if set)
+    3. Auto-detect any .dbf file in assets/ directory
+    4. Fall back to default assets/z_18mr25.dbf (may not exist)
+    """
 
     if source_path:
         return Path(source_path)
@@ -252,8 +259,23 @@ def _resolve_zone_catalog_path(source_path: str | Path | None) -> Path:
         config_path = current_app.config.get("NWS_ZONE_DBF_PATH")
 
     if config_path:
-        return Path(config_path)
-
+        config_path_obj = Path(config_path)
+        # If configured path exists, use it
+        if config_path_obj.exists():
+            return config_path_obj
+        # Otherwise, log warning and continue to auto-detection
+        _log_warning(f"Configured zone catalog path does not exist: {config_path}")
+    
+    # Auto-detect: look for any .dbf file in assets directory
+    assets_dir = Path("assets")
+    if assets_dir.exists() and assets_dir.is_dir():
+        dbf_files = sorted(assets_dir.glob("*.dbf"), reverse=True)  # Sort newest first
+        if dbf_files:
+            detected_path = dbf_files[0]
+            _log_info(f"Auto-detected zone catalog: {detected_path}")
+            return detected_path
+    
+    # Fall back to default (may not exist, caller should check)
     return Path("assets/z_18mr25.dbf")
 
 

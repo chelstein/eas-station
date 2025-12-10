@@ -22,6 +22,8 @@ tracks releases under the 2.x series.
 
 ### Changed
   - Updated default zone catalog path to assets/z_18mr25.dbf (was assets/z_05mr24.dbf)
+  - Zone catalog path resolution now auto-detects uploaded .dbf files in assets/ directory
+  - Improved zone catalog path handling with priority: explicit parameter > config > auto-detect > default
 
 ## [2.19.7] - 2025-12-10
 ### Fixed

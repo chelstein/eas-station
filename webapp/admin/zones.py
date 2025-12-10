@@ -15,11 +15,11 @@ IMPORTANT: This software cannot be rebranded or have attribution removed.
 See NOTICE file for complete terms.
 
 Repository: https://github.com/KR8MER/eas-station
+
+NOAA zone catalog management routes.
 """
 
 from __future__ import annotations
-
-"""NOAA zone catalog management routes."""
 
 import logging
 import os
@@ -171,7 +171,9 @@ def upload_zone_file():
         
         logger.info(f"Zone catalog file uploaded: {file_path}")
         
-        # Update the configuration to use the new file
+        # Update the configuration to use the new file (session only, not persistent)
+        # Note: This change only affects the current application instance.
+        # To make it permanent, update the NWS_ZONE_DBF_PATH environment variable.
         current_app.config['NWS_ZONE_DBF_PATH'] = str(file_path)
         
         # Try to reload the zones

@@ -305,7 +305,7 @@ async function searchZones(query) {
                         <small class="text-muted">
                             CWA: ${zone.cwa || 'N/A'} | 
                             Timezone: ${zone.time_zone || 'N/A'} | 
-                            Coords: ${zone.latitude?.toFixed(4) || 'N/A'}, ${zone.longitude?.toFixed(4) || 'N/A'}
+                            Coords: ${zone.latitude ? zone.latitude.toFixed(4) : 'N/A'}, ${zone.longitude ? zone.longitude.toFixed(4) : 'N/A'}
                         </small>
                     </div>
                 `).join('');
