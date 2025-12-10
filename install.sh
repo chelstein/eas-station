@@ -525,46 +525,57 @@ rm -f /etc/apt/preferences.d/block-apache2
 # Install pgadmin4-desktop (no Apache2 dependency) and pgadmin4-web (Python files only, apache2 blocked)
 echo_progress "Installing pgAdmin 4 packages (this may take a few minutes)..."
 
-# Preconfigure debconf to avoid any interactive prompts
-echo "Preconfiguring debconf for non-interactive installation..."
-export DEBIAN_FRONTEND=noninteractive
-export DEBCONF_NONINTERACTIVE_SEEN=true
-export UCF_FORCE_CONFFOLD=1
-debconf-set-selections <<EOF
+# Validate that admin credentials are set (should be set earlier in the script)
+if [ -z "$ADMIN_EMAIL" ] || [ -z "$ADMIN_PASSWORD" ]; then
+    echo_error "Administrator credentials not set - skipping pgAdmin installation"
+    SKIP_PGADMIN=true
+else
+    # Preconfigure debconf to avoid any interactive prompts
+    echo_progress "Preconfiguring debconf for non-interactive installation..."
+    export DEBIAN_FRONTEND=noninteractive
+    export DEBCONF_NONINTERACTIVE_SEEN=true
+    export UCF_FORCE_CONFFOLD=1
+    debconf-set-selections <<EOF
 pgadmin4 pgadmin4/email string ${ADMIN_EMAIL}
 pgadmin4 pgadmin4/password password ${ADMIN_PASSWORD}
 pgadmin4 pgadmin4/password-again password ${ADMIN_PASSWORD}
 EOF
 
-# Use timeout to prevent infinite hangs - kill after 5 minutes
-# Redirect stdin from /dev/null to prevent any input blocking
-if timeout 300 apt-get install -y --allow-downgrades --no-install-recommends pgadmin4-desktop pgadmin4-web < /dev/null > /dev/null 2>&1; then
-    echo_success "pgAdmin 4 installed successfully"
-else
-    PGADMIN_EXIT_CODE=$?
-    if [ $PGADMIN_EXIT_CODE -eq 124 ]; then
-        # Timeout occurred
-        echo_warning "pgAdmin 4 installation timed out after 5 minutes"
-        echo_info "This may indicate a hung postinstall script or dependency issue"
-    else
-        echo_warning "pgAdmin 4 installation encountered errors (exit code: $PGADMIN_EXIT_CODE)"
-        
-        # Try to get error details from apt logs
-        if [ -f /var/log/apt/term.log ]; then
-            echo_info "Error details from apt log:"
-            tail -n 20 /var/log/apt/term.log | grep -E "E:|Err:" | head -5 || echo "No specific errors found in log"
-        fi
-    fi
+    # Configuration for installation timeout
+    PGADMIN_INSTALL_TIMEOUT=300  # 5 minutes
+    APT_LOG_TAIL_LINES=20
+    APT_ERROR_DISPLAY_LINES=5
     
-    echo_warning "pgAdmin 4 will not be available - you can install it manually later"
-    echo_info "Continuing installation without pgAdmin..."
-    # Skip pgAdmin configuration
-    SKIP_PGADMIN=true
-fi
+    # Use timeout to prevent infinite hangs
+    # Redirect stdin from /dev/null to prevent any input blocking
+    if timeout $PGADMIN_INSTALL_TIMEOUT apt-get install -y --allow-downgrades --no-install-recommends pgadmin4-desktop pgadmin4-web < /dev/null > /dev/null 2>&1; then
+        echo_success "pgAdmin 4 installed successfully"
+    else
+        PGADMIN_EXIT_CODE=$?
+        if [ $PGADMIN_EXIT_CODE -eq 124 ]; then
+            # Timeout occurred
+            echo_warning "pgAdmin 4 installation timed out after $PGADMIN_INSTALL_TIMEOUT seconds"
+            echo_info "This may indicate a hung postinstall script or dependency issue"
+        else
+            echo_warning "pgAdmin 4 installation encountered errors (exit code: $PGADMIN_EXIT_CODE)"
+            
+            # Try to get error details from apt logs
+            if [ -f /var/log/apt/term.log ]; then
+                echo_info "Error details from apt log:"
+                tail -n $APT_LOG_TAIL_LINES /var/log/apt/term.log | grep -E "E:|Err:" | head -$APT_ERROR_DISPLAY_LINES || echo "No specific errors found in log"
+            fi
+        fi
+        
+        echo_warning "pgAdmin 4 will not be available - you can install it manually later"
+        echo_info "Continuing installation without pgAdmin..."
+        # Skip pgAdmin configuration
+        SKIP_PGADMIN=true
+    fi
 
-# Cleanup debconf settings
-unset DEBCONF_NONINTERACTIVE_SEEN
-unset UCF_FORCE_CONFFOLD
+    # Cleanup debconf settings
+    unset DEBCONF_NONINTERACTIVE_SEEN
+    unset UCF_FORCE_CONFFOLD
+fi
 
 # Stop and disable Apache2 if it was installed as a pgAdmin dependency
 # We'll use Nginx as the reverse proxy instead
