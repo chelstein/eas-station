@@ -20,6 +20,11 @@ tracks releases under the 2.x series.
   - Updated `webapp/routes_ipaws.py` to use systemd commands for service restarts instead of Docker
   - Updated `webapp/routes_monitoring.py` to remove docker-compose.yml from configuration checks
 
+### Added
+  - Added **Frontend-First Philosophy** to AI agent guidelines: All system management must be web-accessible
+  - Added **CLI-Free Operations** requirement: Users should never need SSH or command-line access
+  - Documented existing web UI features for logs, configuration, services, and troubleshooting
+
 ## [2.19.0] - 2025-12-10
 ### Changed
   - Updated troubleshooting guides to use systemd commands exclusively

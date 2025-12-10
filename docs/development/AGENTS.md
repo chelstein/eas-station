@@ -10,12 +10,14 @@ This document provides coding standards and guidelines for AI agents (including 
 
 1. **Safety First**: Never commit secrets, API keys, or sensitive data
 2. **Preserve Existing Patterns**: Follow the established code style and architecture
-3. **Test Before Commit**: Always verify changes work on bare metal before committing
-4. **Focused Changes**: Keep fixes targeted to the specific issue
-5. **Document Changes**: Update relevant documentation when adding features
-6. **Check Bug Screenshots**: When discussing bugs, always check the `/bugs` directory first for screenshots
-7. **Follow Versioning**: Bug fixes increment by 0.0.+1, feature upgrades increment by 0.+1.0
-8. **File Naming Convention**: When superseding files, rename the old one with `_old` suffix, NEVER use `_new` suffix for replacement files
+3. **Frontend-First Philosophy**: ALL system management, configuration, and monitoring MUST be accessible through the web UI. Users should NEVER need CLI access. Any feature requiring CLI commands must have a web UI equivalent.
+4. **Test Before Commit**: Always verify changes work on bare metal before committing
+5. **Focused Changes**: Keep fixes targeted to the specific issue
+6. **Document Changes**: Update relevant documentation when adding features
+7. **Check Bug Screenshots**: When discussing bugs, always check the `/bugs` directory first for screenshots
+8. **Follow Versioning**: Bug fixes increment by 0.0.+1, feature upgrades increment by 0.+1.0
+9. **File Naming Convention**: When superseding files, rename the old one with `_old` suffix, NEVER use `_new` suffix for replacement files
+10. **Repository Organization**: Every file must live in an appropriate directory unless necessary to be in the root (e.g., `requirements.txt`, `README.md`, `LICENSE`, etc.). Documentation, summaries, and development artifacts belong in the `docs/` directory structure.
 
 ## 🐛 Bug Tracking & Screenshots
 
@@ -115,6 +117,68 @@ When implementing ANY new feature:
    - All CRUD operations (Create, Read, Update, Delete) have UI buttons/forms
 
 **Remember**: If a user cannot access a feature through the web interface, the feature doesn't exist for them. Backend-only work is wasted effort.
+
+### **💻 CLI-Free Operations: Everything Must Be Web Accessible**
+
+**GOAL**: Users should NEVER need to SSH into the server or use command-line tools. Everything must be manageable through the web UI.
+
+**Required Web UI Access For:**
+
+1. **System Management**
+   - ✅ View system logs (via `/system-logs` - uses journalctl backend)
+   - ✅ Restart services (via Admin → Services - uses systemd backend)
+   - ✅ View service status (via Dashboard/Monitoring)
+   - ✅ Update configuration (via Admin → Environment/Settings)
+   - ✅ Backup/Restore system (via Admin → Backup)
+
+2. **Log Viewing**
+   - ✅ **Already Implemented**: `webapp/routes_logs.py` provides systemd journal access
+   - ✅ Users can view logs for all services via web UI
+   - ✅ Filter by priority (error, warning, info, debug)
+   - ✅ Filter by time range
+   - ❌ **NEVER** require users to run `journalctl`, `tail -f`, or `docker logs`
+
+3. **Configuration Management**
+   - ✅ **Already Implemented**: Admin → Environment page edits `.env` file
+   - ✅ All environment variables editable through web form
+   - ❌ **NEVER** require users to edit files with `nano`, `vi`, or `vim`
+
+4. **Service Control**
+   - ✅ Start/stop/restart services through UI
+   - ✅ View service health and status
+   - ❌ **NEVER** require `systemctl` commands
+
+5. **Database Management**
+   - ✅ View database metrics through UI
+   - ✅ Backup/restore through UI
+   - ❌ **NEVER** require `psql` commands or SQL scripts
+
+6. **Troubleshooting**
+   - ✅ Diagnostics accessible through web UI
+   - ✅ Health checks visible on dashboard
+   - ❌ **NEVER** require diagnostic scripts to be run from CLI
+
+**When Adding New Features:**
+
+- ❓ "Does this require CLI access?" → Add a web UI for it
+- ❓ "Can users accomplish this task without SSH?" → If no, add web UI
+- ❓ "Would users need to read documentation to do this?" → Make it discoverable in the UI
+
+**Examples of Correct Implementation:**
+
+```python
+# ❌ WRONG: Telling users to run CLI commands
+flash("Please run: sudo systemctl restart eas-station-web.service")
+
+# ✅ CORRECT: Providing a button to restart
+<button onclick="restartService('eas-station-web')">Restart Service</button>
+```
+
+**Documentation Standards:**
+
+- Documentation can reference advanced CLI usage for power users
+- But PRIMARY instructions must always show web UI path
+- Example: "To restart services, go to Admin → Services and click 'Restart'"
 
 ### Modularity & File Size
 
@@ -559,14 +623,23 @@ except json.JSONDecodeError:
 
 ---
 
+## 🔧 Bare Metal Deployment & Testing
 
 ### Testing Changes
 
+Before committing, always test on bare metal (systemd services):
 
 ```bash
-# Rebuild and test
+# Restart services to apply changes
+sudo systemctl restart eas-station.target
 
-# Check for errors
+# Check service status
+sudo systemctl status eas-station.target
+
+# View logs
+sudo journalctl -u eas-station-web.service -f
+
+# Check health
 curl http://localhost:5000/health
 ```
 
@@ -574,90 +647,58 @@ curl http://localhost:5000/health
 
 - **Use `.env.example` as template** - Never commit `.env`
 - **Document new variables** - Add to both `.env.example` and README
-- **Provide sensible defaults** - Make local development easy
+- **Configuration Location**: `/opt/eas-station/.env` (bare metal standard location)
+- **Provide sensible defaults** - Make deployment easy
 
-### Persistent Environment System
+### Configuration System
 
-**CRITICAL CONCEPT**: EAS Station uses a **persistent volume for configuration** that survives container rebuilds, Git pull & redeploy operations, and version upgrades.
+**CRITICAL CONCEPT**: EAS Station uses a **persistent configuration file** at `/opt/eas-station/.env` that survives Git updates and system reboots.
 
 #### How It Works
 
-1. **Persistent Volume**: directory `app-config` is mounted at `/app-config/` inside the container
-2. **Persistent Config File**: Configuration is stored in `/app-config/.env` (not `/app/.env`)
-3. **Setup Wizard**: First-time deployments run the Setup Wizard at `http://localhost/setup` which creates and populates `/app-config/.env`
-4. **Web UI Management**: Users configure settings via the Settings → Environment page, which updates `/app-config/.env`
+1. **Persistent Config File**: Configuration is stored in `/opt/eas-station/.env`
+2. **Setup Wizard**: First-time installations run the Setup Wizard at `http://localhost/setup` which creates and populates `/opt/eas-station/.env`
+3. **Web UI Management**: Users configure settings via the Settings → Environment page, which updates `/opt/eas-station/.env`
+4. **Service Startup**: Systemd services load environment from `/opt/eas-station/.env` on startup
 
 #### Why This Matters
 
-**Without persistent environment:**
-- ❌ Portainer "Pull and redeploy" would wipe all configuration
-- ❌ Users would need to reconfigure after every Git update
-- ❌ Version upgrades would reset all settings to defaults
-
-**With persistent environment:**
-- ✅ Configuration survives "Pull and redeploy" operations
-- ✅ Git updates don't affect user configuration
-- ✅ Settings persist across version upgrades
+**Benefits of persistent configuration:**
+- ✅ Configuration survives Git pull operations
+- ✅ Version upgrades don't affect user configuration
+- ✅ Settings persist across system reboots
 - ✅ Users configure via web UI (Settings → Environment)
-- ✅ Setup Wizard only runs once on first deployment
-
-#### Entrypoint Initialization Logic
-
-```bash
-# If CONFIG_PATH is set (default: /app-config/.env)
-if [ -n "$CONFIG_PATH" ]; then
-    # Create persistent config directory if needed
-    mkdir -p "$(dirname "$CONFIG_PATH")"
-    
-    # If file doesn't exist or is empty, initialize it
-    if [ ! -f "$CONFIG_PATH" ] || [ file is empty ]; then
-        # Transfer environment variables from stack.env to persistent file
-        # This happens ONCE on first deploy
-        echo "SECRET_KEY=${SECRET_KEY:-}" >> "$CONFIG_PATH"
-        echo "POSTGRES_HOST=${POSTGRES_HOST:-alerts-db}" >> "$CONFIG_PATH"
-        # ... all other variables ...
-    fi
-    
-    # Load the persistent config into environment
-    export $(cat "$CONFIG_PATH" | grep -v '^#' | xargs)
-fi
-```
+- ✅ Setup Wizard only runs once on first installation
+- ✅ No container overhead - direct OS access
 
 #### Configuration Flow
 
-**First Deployment (Portainer Git Deploy):**
-1. Stack deployed with `stack.env` environment variables
-3. Creates `/app-config/.env` and copies values from `stack.env`
-4. User visits `http://localhost/setup` to complete configuration
-5. Setup Wizard writes final config to `/app-config/.env`
+**First Installation (Bare Metal):**
+1. Run `sudo bash bare-metal/scripts/install.sh`
+2. Installation creates `/opt/eas-station/.env` with defaults
+3. User visits `http://localhost/setup` to complete configuration
+4. Setup Wizard writes final config to `/opt/eas-station/.env`
+5. Services start: `sudo systemctl start eas-station.target`
 
-**Subsequent Deployments (Pull & Redeploy):**
-1. Portainer pulls latest code from Git
-2. Rebuilds containers with updated code
-4. Loads configuration from persistent file
-5. **User configuration is preserved automatically**
+**Subsequent Updates (Git Pull):**
+1. Stop services: `sudo systemctl stop eas-station.target`
+2. Pull latest code: `git pull origin main`
+3. Restart services: `sudo systemctl restart eas-station.target`
+4. **User configuration in `/opt/eas-station/.env` is preserved automatically**
 
 **Runtime Configuration Changes:**
 1. User navigates to Settings → Environment
 2. Changes a setting (e.g., poll interval from 180 to 300 seconds)
-3. Backend updates `/app-config/.env` file
+3. Backend updates `/opt/eas-station/.env` file
+4. Restart services to apply: `sudo systemctl restart eas-station.target`
 
 #### Variable Precedence
 
 **Priority order (highest to lowest):**
-2. Variables loaded from `/app-config/.env` (persistent config)
-3. Variables from `stack.env` file (only used on first deploy)
+1. Environment variables set in systemd service files (`/etc/systemd/system/eas-station-*.service`)
+2. Variables loaded from `/opt/eas-station/.env` (persistent config)
+3. Variables from `.env` in repository root (development/fallback only)
 4. Hardcoded defaults in Python code
-
-**Example: DATABASE_HOST**
-```yaml
-environment:
-
-# Configuration is preserved!
-
-# User changes it via web UI to external-db.example.com
-# /app-config/.env now has: POSTGRES_HOST=external-db.example.com
-# Restart applies the change
 ```
 
 #### Auto-Detected vs User-Configured Variables
@@ -690,8 +731,6 @@ When adding a new environment variable to the system, you MUST update these file
 1. **`.env.example`** - Add the variable with documentation and a default value
 4. **`webapp/admin/environment.py`** - **REQUIRED**: Add the variable to the appropriate category in `ENV_CATEGORIES` to make it accessible in the web UI settings page. This is how users configure the system!
 5. **`app_utils/setup_wizard.py`** - If the variable is part of initial setup, add it to the appropriate wizard section with matching validation
-
-**CRITICAL**: EAS Station uses persistent configuration stored in `/app-config/.env` and managed through the web UI. **ALL** user-configurable environment variables MUST be added to `webapp/admin/environment.py`, otherwise users cannot change them without editing systemd files.
 
 ### Environment Variable Validation
 
@@ -826,15 +865,27 @@ Variables are organized into categories in `webapp/admin/environment.py`:
 - **vfd** - VFD display configuration
 - **notifications** - Email and SMS alerts
 - **performance** - Caching and worker settings
+- **systemd** - Service and deployment settings
 - **icecast** - Icecast streaming server configuration
 
 Choose the most appropriate category for your variable, or create a new one if needed.
 
-### systemd Files - CRITICAL
+### Systemd Service Files
 
-**IMPORTANT:** When editing systemd files, you MUST update BOTH files:
+When adding new features that require service-level configuration:
 
-These files have parallel structure but different configurations (external vs embedded database). Any changes to service definitions, environment variables, ports, volumes, etc. must be applied to **BOTH** files to maintain consistency.
+1. **Update service files** in `bare-metal/systemd/` - Modify environment variables or service settings
+2. **Document changes** in `bare-metal/README.md` - Explain new configuration options
+3. **Test restart behavior** - Ensure services restart correctly with new settings
+
+The main service files are:
+- `eas-station-web.service` - Main web application
+- `eas-station-sdr.service` - SDR hardware service
+- `eas-station-audio.service` - Audio processing service
+- `eas-station-eas.service` - EAS monitoring service
+- `eas-station-hardware.service` - Hardware control (GPIO, displays)
+- `eas-station-noaa-poller.service` - NOAA alert poller
+- `eas-station-ipaws-poller.service` - IPAWS alert poller
 
 ---
 
@@ -1050,7 +1101,10 @@ def process_alerts(alert_ids=None):
 Before committing changes:
 
 - [ ] Code passes Python syntax check: `python3 -m py_compile app.py`
+- [ ] Services restart successfully: `sudo systemctl restart eas-station.target`
+- [ ] All services running: `sudo systemctl status eas-station.target`
 - [ ] Health check passes: `curl http://localhost:5000/health`
+- [ ] Logs show no errors: `sudo journalctl -u eas-station-web.service -n 50`
 - [ ] UI tested in browser (light and dark mode)
 - [ ] Database queries work as expected
 
@@ -1068,10 +1122,12 @@ Before committing changes:
 
 ### Adding New Dependencies
 
+**CRITICAL**: When adding ANY new dependency to the project (Python libraries, system packages, or infrastructure programs), you MUST update the documentation.
 
 #### For Python Dependencies:
 
 1. **Add to `requirements.txt`** - Include version pin
+2. **Test installation** - Verify with `pip install -r requirements.txt`
 3. **Update attribution** - Add to `docs/reference/dependency_attribution.md`
 4. **Document if needed** - Update README if it affects users
 5. **Keep minimal** - Only add if truly necessary
@@ -1094,11 +1150,14 @@ pyshp==2.3.1  # Shapefile reader for converting boundary files to GeoJSON
 
 #### For System Packages and Infrastructure Components:
 
+When adding system packages (apt/yum) or infrastructure programs (nginx, certbot, redis, etc.):
 
+1. **Update installation script** - Add to `bare-metal/scripts/install.sh`
 2. **Update `docs/reference/dependency_attribution.md`** - Add to "System Package Dependencies" section
    - Package name and version
    - Purpose and what it's used for
    - License information
+3. **Test on clean system** - Verify installation script works end-to-end
    - Whether it's required or optional
 3. **Update `docs/reference/SYSTEM_DEPENDENCIES.md`** if it exists
 4. **Create deployment documentation** - Explain how it works and why it's needed
@@ -1240,6 +1299,7 @@ For quick navigation and understanding of the codebase structure, refer to the c
 - Display Screens page issues
 - Environment Settings page issues
 - GPIO configuration parsing issues
+- Deployment and service management issues
 
 **Before starting any work:**
 1. Check [docs/reference/KNOWN_BUGS.md](../reference/KNOWN_BUGS) to see if your issue is already documented
@@ -1259,6 +1319,52 @@ For quick navigation and understanding of the codebase structure, refer to the c
 - [PostGIS Documentation](https://postgis.net/documentation/)
 - [GeoJSON Specification](https://geojson.org/)
 - [GeoAlchemy2 Documentation](https://geoalchemy-2.readthedocs.io/)
+
+### System Administration
+- [Systemd Service Management](https://www.freedesktop.org/software/systemd/man/systemd.service.html)
+- [Systemd Unit Files](https://www.freedesktop.org/software/systemd/man/systemd.unit.html)
+- [PostgreSQL Administration](https://www.postgresql.org/docs/current/admin.html)
+
+---
+
+## 🤝 Getting Help
+
+If you're unsure about something:
+
+1. **Check existing code** - Look for similar patterns
+2. **Review this document** - Follow established guidelines
+3. **Check documentation** - README, code comments, docstrings
+4. **Ask questions** - Better to ask than break things
+
+---
+
+## ✅ Pre-Commit Checklist
+
+Before committing code, verify:
+
+- [ ] **Version incremented properly** – Bug fix (+0.0.1) or feature (+0.1.0) in `/VERSION` file
+- [ ] **Documentation updated** – If features changed, update `templates/help.html` and `templates/about.html`
+- [ ] **Bug screenshots checked** – If fixing a bug, verified screenshot in `/bugs` directory
+- [ ] Follows Python PEP 8 style (4-space indentation)
+- [ ] Uses existing logger, not new logger instance
+- [ ] Includes proper error handling with specific exceptions
+- [ ] Bump `VERSION`, mirror `.env.example`, and update `[Unreleased]` in `docs/reference/CHANGELOG.md` for any behavioural change (see `tests/test_release_metadata.py`)
+- [ ] Touched files remain within recommended size guidelines or were refactored into smaller units
+- [ ] No secrets or credentials in code
+- [ ] No `.env` file committed (check git status)
+- [ ] Templates extend `base.html` with theme support
+- [ ] Database transactions properly handled (commit/rollback)
+- [ ] Documentation updated if needed
+- [ ] Cross-check docs and UI links (README, Theory of Operation, `/about`, `/help`) for accuracy and live references
+- [ ] Commit message follows format guidelines
+
+---
+
+**Remember:** When in doubt, look at existing code patterns and follow them. Consistency is more important than perfection.
+
+---
+
+## 🔍 Debugging Patterns & User Interaction
 
 ### CRITICAL: Trust User Bug Reports
 
@@ -1339,6 +1445,7 @@ Only suggest deployment/cache fixes if:
 
 1. **Code inspection confirms the fix is correct** - No overrides, no bugs found
 2. **User is on an older commit** - `git log` shows they haven't pulled latest
+3. **Services haven't been restarted** - Changes not applied to running services
 4. **First time suggesting it** - Don't repeat the same suggestion
 
 ### Documentation Standard
