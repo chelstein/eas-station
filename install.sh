@@ -566,16 +566,27 @@ echo_success "Redis configured and running"
 
 echo_step "Create Configuration File"
 
-# Create .env file if it doesn't exist
-if [ ! -f "$CONFIG_FILE" ]; then
-    echo_info "Creating configuration file..."
-    
-    # Generate a secure SECRET_KEY automatically
-    echo_info "Generating secure SECRET_KEY..."
-    GENERATED_SECRET_KEY=$(python3 -c "import secrets; print(secrets.token_hex(32))")
-    
-    # Create the .env file with collected configuration
-    cat > "$CONFIG_FILE" << EOF
+# Backup existing .env file if it exists and is not empty
+if [ -f "$CONFIG_FILE" ]; then
+    # Check if file has meaningful content (more than just comments/whitespace)
+    # Pattern matches lines that start with non-comment, non-whitespace characters followed by '='
+    if grep -qE '^\s*[^#\s].*=' "$CONFIG_FILE" 2>/dev/null; then
+        BACKUP_FILE="${CONFIG_FILE}.backup.$(date +%Y%m%d_%H%M%S)"
+        cp "$CONFIG_FILE" "$BACKUP_FILE"
+        echo_info "Backed up existing configuration to: $BACKUP_FILE"
+    else
+        echo_info "Overwriting empty template .env file"
+    fi
+fi
+
+echo_info "Creating configuration file..."
+
+# Generate a secure SECRET_KEY automatically
+echo_info "Generating secure SECRET_KEY..."
+GENERATED_SECRET_KEY=$(python3 -c "import secrets; print(secrets.token_hex(32))")
+
+# Create the .env file with collected configuration
+cat > "$CONFIG_FILE" << EOF
 # EAS Station Configuration - Bare Metal Deployment
 # This file was auto-generated during installation on $(date)
 
@@ -630,10 +641,9 @@ GPIO_ENABLED=false
 LED_SIGN_ENABLED=false
 VFD_DISPLAY_ENABLED=false
 EOF
-    chown "$SERVICE_USER:$SERVICE_GROUP" "$CONFIG_FILE"
-    chmod 600 "$CONFIG_FILE"
-    echo_success "Configuration created with auto-generated SECRET_KEY"
-fi
+chown "$SERVICE_USER:$SERVICE_GROUP" "$CONFIG_FILE"
+chmod 600 "$CONFIG_FILE"
+echo_success "Configuration created with auto-generated SECRET_KEY"
 
 echo_step "Install Systemd Services"
 
