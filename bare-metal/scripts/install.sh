@@ -218,12 +218,17 @@ echo_success "Redis configured"
 # Create .env file if it doesn't exist
 if [ ! -f "$CONFIG_FILE" ]; then
     echo_info "Creating default configuration file..."
-    cat > "$CONFIG_FILE" << 'EOF'
+    
+    # Generate a secure SECRET_KEY automatically
+    echo_info "Generating secure SECRET_KEY..."
+    GENERATED_SECRET_KEY=$(python3 -c "import secrets; print(secrets.token_hex(32))")
+    
+    cat > "$CONFIG_FILE" << EOF
 # EAS Station Configuration - Bare Metal Deployment
-# Edit this file with your settings
+# This file was auto-generated during installation
 
-# Flask Secret Key (generate with: python3 -c "import secrets; print(secrets.token_hex(32))")
-SECRET_KEY=change_me_to_a_random_64_character_string
+# Flask Secret Key (auto-generated - keep this secure!)
+SECRET_KEY=$GENERATED_SECRET_KEY
 
 # Database Configuration
 POSTGRES_HOST=localhost
@@ -242,7 +247,7 @@ FLASK_ENV=production
 FLASK_DEBUG=false
 DEFAULT_TIMEZONE=America/New_York
 
-# Location Settings (Configure for your area)
+# Location Settings (Configure via web interface)
 DEFAULT_COUNTY_NAME=
 DEFAULT_STATE_CODE=
 DEFAULT_ZONE_CODES=
@@ -275,8 +280,7 @@ VFD_DISPLAY_ENABLED=false
 EOF
     chown "$SERVICE_USER:$SERVICE_GROUP" "$CONFIG_FILE"
     chmod 600 "$CONFIG_FILE"
-    echo_success "Default configuration created"
-    echo_warning "Please edit $CONFIG_FILE with your settings"
+    echo_success "Configuration created with auto-generated SECRET_KEY"
 fi
 
 # Install systemd service files
@@ -346,9 +350,23 @@ udevadm trigger
 echo_success "Udev rules created"
 
 # Enable and start services
-echo_info "Enabling EAS Station services..."
+echo_info "Enabling and starting EAS Station services..."
 systemctl enable eas-station.target
 systemctl enable nginx
+
+# Start the services automatically
+echo_info "Starting services..."
+systemctl start eas-station.target
+
+# Give services a moment to start
+sleep 3
+
+# Check if services started successfully
+if systemctl is-active --quiet eas-station.target; then
+    echo_success "Services started successfully!"
+else
+    echo_warning "Services may need attention. Check status with: sudo systemctl status eas-station.target"
+fi
 
 echo_success "Installation complete!"
 echo ""
@@ -360,20 +378,21 @@ echo "Configuration file: $CONFIG_FILE"
 echo "Log directory: $LOG_DIR"
 echo "Service user: $SERVICE_USER"
 echo ""
+echo "✓ Services have been started automatically"
+echo "✓ SECRET_KEY has been auto-generated"
+echo ""
 echo "Next steps:"
-echo "1. Edit configuration: sudo nano $CONFIG_FILE"
-echo "2. Generate a secure SECRET_KEY:"
-echo "   python3 -c \"import secrets; print(secrets.token_hex(32))\""
-echo "3. Configure your location and EAS settings"
-echo "4. Start services: sudo systemctl start eas-station.target"
-echo "5. Check status: sudo systemctl status eas-station.target"
-echo "6. Access web interface: https://localhost (accept self-signed cert)"
+echo "1. Open your web browser and navigate to:"
+echo "   https://localhost (accept self-signed cert)"
 echo ""
-echo "For production SSL with Let's Encrypt:"
-echo "  sudo certbot --nginx -d your-domain.com"
+echo "2. Create your administrator account through the web interface"
 echo ""
-echo "To view logs:"
-echo "  sudo journalctl -u eas-station-web.service -f"
-echo "  sudo tail -f /var/log/eas-station/*.log"
+echo "3. Configure your location, EAS settings, and other options via the setup wizard"
+echo ""
+echo "Additional options:"
+echo "• View service status: sudo systemctl status eas-station.target"
+echo "• View logs: sudo journalctl -u eas-station-web.service -f"
+echo "• Advanced configuration: sudo nano $CONFIG_FILE"
+echo "• Production SSL: sudo certbot --nginx -d your-domain.com"
 echo ""
 echo "=========================================="

@@ -54,24 +54,24 @@ sudo apt-get install git
 ### Installation
 
 ```bash
-# Clone repository
-git clone https://github.com/KR8MER/eas-station.git
-cd eas-station/bare-metal
-
-# Run installation script
+# One-command installation (takes 10-15 minutes)
+git clone https://github.com/KR8MER/eas-station.git && \
+cd eas-station/bare-metal && \
 sudo bash scripts/install.sh
-
-# Edit configuration
-sudo nano /opt/eas-station/.env
-
-# Start services
-sudo systemctl start eas-station.target
-
-# Check status
-sudo systemctl status eas-station.target
 ```
 
+**That's it!** The installer automatically:
+- Installs all dependencies
+- Creates and configures the database
+- Generates a secure SECRET_KEY
+- Starts all services
+
 Access the web interface at: **https://localhost** (accept self-signed certificate)
+
+Then:
+1. Create your administrator account via the web interface
+2. Configure your station settings through the setup wizard
+3. You're ready to monitor alerts!
 
 ## Installation Methods
 
@@ -86,7 +86,7 @@ cd eas-station/bare-metal
 sudo bash scripts/install.sh
 ```
 
-The script will:
+The script will automatically:
 - Install all system dependencies
 - Create service user and groups
 - Set up PostgreSQL database with PostGIS extensions
@@ -96,50 +96,10 @@ The script will:
 - Create systemd service files
 - Configure nginx with SSL
 - Generate self-signed certificate
+- **Auto-generate a secure SECRET_KEY**
+- **Start all services automatically**
 
-#### Step 2: Configure
-
-Edit the configuration file:
-
-```bash
-sudo nano /opt/eas-station/.env
-```
-
-Key settings to configure:
-
-```bash
-# Generate a secure secret key
-SECRET_KEY=<run: python3 -c "import secrets; print(secrets.token_hex(32))">
-
-# Database (default uses local PostgreSQL)
-POSTGRES_HOST=localhost
-POSTGRES_PASSWORD=changeme123
-
-# Your location
-DEFAULT_COUNTY_NAME=Your County
-DEFAULT_STATE_CODE=OH
-DEFAULT_ZONE_CODES=OHZ001,OHC001
-
-# EAS settings
-EAS_BROADCAST_ENABLED=false
-EAS_ORIGINATOR=WXR
-EAS_STATION_ID=YOURCALL
-```
-
-#### Step 3: Start Services
-
-```bash
-# Start all services
-sudo systemctl start eas-station.target
-
-# Enable auto-start on boot
-sudo systemctl enable eas-station.target
-
-# Check status
-sudo systemctl status eas-station.target
-```
-
-#### Step 4: Access Web Interface
+#### Step 2: Access Web Interface and Complete Setup
 
 Open your browser to:
 - **Local:** https://localhost
@@ -147,7 +107,26 @@ Open your browser to:
 
 Accept the self-signed certificate warning (safe for testing).
 
-#### Step 5: (Optional) Configure Let's Encrypt SSL
+**First-Time Setup:**
+1. Create your administrator account (username + password)
+2. Configure your station via the web-based setup wizard:
+   - Location settings (county, state, zone codes)
+   - Your callsign (EAS_STATION_ID)
+   - Enable/disable features (SDR, broadcast, etc.)
+
+**No command-line editing required!** All configuration is done through the web interface.
+
+#### Step 3: (Optional) Advanced Configuration
+
+For advanced users who want to edit configuration directly:
+
+```bash
+sudo nano /opt/eas-station/.env
+# After editing, restart services:
+sudo systemctl restart eas-station.target
+```
+
+#### Step 4: (Optional) Configure Let's Encrypt SSL
 
 For production with a domain name:
 

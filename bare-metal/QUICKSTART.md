@@ -9,22 +9,24 @@ Get EAS Station running on bare metal in 15 minutes!
 Already have Debian/Ubuntu/Raspberry Pi OS? Start here!
 
 ```bash
-# 1. Clone repository
-git clone https://github.com/KR8MER/eas-station.git
-cd eas-station/bare-metal
-
-# 2. Run installer (takes 10-15 minutes)
+# 1. Clone and install (takes 10-15 minutes)
+git clone https://github.com/KR8MER/eas-station.git && \
+cd eas-station/bare-metal && \
 sudo bash scripts/install.sh
 
-# 3. Configure
-sudo nano /opt/eas-station/.env
+# 2. Access the web interface
+# Open browser to https://localhost (accept self-signed cert)
 
-# 4. Start
-sudo systemctl start eas-station.target
-
-# 5. Access
-# Open browser to https://localhost
+# 3. Complete setup via web interface
+# - Create your administrator account
+# - Configure location and EAS settings
+# - Done! No nano required!
 ```
+
+**That's it!** The installer automatically:
+- ✓ Generates a secure SECRET_KEY
+- ✓ Starts all services
+- ✓ Makes the web interface immediately accessible
 
 ### 💿 Clean: Bootable ISO Image
 
@@ -43,27 +45,23 @@ sudo dd if=eas-station-*.iso of=/dev/sdX bs=4M status=progress
 
 ## Post-Installation
 
-### Essential Configuration
+### First-Time Setup (via Web Interface)
 
-Edit `/opt/eas-station/.env`:
+After installation completes, open your browser and:
 
-```bash
-# Generate secure key
-SECRET_KEY=$(python3 -c "import secrets; print(secrets.token_hex(32))")
+1. **Navigate to** https://localhost
+   - Accept the self-signed certificate warning
+   
+2. **Create Administrator Account**
+   - Enter a username (min 3 characters)
+   - Set a strong password (min 12 characters)
+   
+3. **Configure Your Station** (via setup wizard)
+   - Location settings (county, state, zone codes)
+   - Your callsign (EAS_STATION_ID)
+   - Enable/disable features (SDR, broadcast, etc.)
 
-# Your location
-DEFAULT_COUNTY_NAME="Your County"
-DEFAULT_STATE_CODE="OH"
-DEFAULT_ZONE_CODES="OHZ001,OHC001"
-
-# Your callsign
-EAS_STATION_ID="YOURCALL"
-```
-
-Restart services:
-```bash
-sudo systemctl restart eas-station.target
-```
+All configuration is done through the intuitive web interface - no command-line editing required!
 
 ### Check Status
 
