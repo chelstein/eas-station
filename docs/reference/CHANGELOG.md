@@ -6,6 +6,17 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.19.6] - 2025-12-10
+### Changed
+  - Enhanced install.sh with improved visual design and user experience
+  - Added colorful banner, progress indicators, and step counters
+  - Enhanced completion message with detailed component access instructions
+  - Added comprehensive post-installation checklist with actionable items
+  - Improved readability with emoji icons, better spacing, and color-coded sections
+  - Added detailed connection instructions for all components (web UI, pgAdmin, PostgreSQL, Redis)
+  - Included useful commands for backup, restore, SSL setup, and troubleshooting
+  - Suppressed verbose output from package installations for cleaner display
+
 ## [2.19.5] - 2025-12-10
 ### Fixed
   - Fixed PostgreSQL authentication configuration in `install.sh` to allow password-based connections
