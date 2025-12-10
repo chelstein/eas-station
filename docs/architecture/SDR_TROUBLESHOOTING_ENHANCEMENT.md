@@ -107,7 +107,6 @@ A comprehensive three-tier troubleshooting system:
 
 The `collect_sdr_diagnostics.sh` script automatically collects:
 
-- ✅ System information (OS, Docker versions)
 - ✅ USB hardware detection
 - ✅ SoapySDR device enumeration
 - ✅ Container status and resource usage
@@ -148,10 +147,8 @@ One-line diagnostic commands:
 lsusb | grep -E "RTL|Airspy|Realtek"
 
 # Software check
-docker compose exec app SoapySDRUtil --find
 
 # Configuration check
-docker compose exec app psql -U postgres -d alerts -c "SELECT identifier, frequency_hz/1e6, gain, enabled FROM radio_receivers;"
 ```
 
 ## Common Issues Addressed
@@ -162,7 +159,6 @@ The guides specifically address these frequent problems:
    - USB connection issues
    - Driver installation
    - USB permissions
-   - Docker device mapping
 
 2. **No Audio from SDR**
    - Gain settings

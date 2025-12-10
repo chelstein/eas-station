@@ -111,14 +111,9 @@ Previously, multiple containers had USB device passthrough and SDR access:
 
 ## Migration Guide
 
-### For Docker Compose Deployments
+### For systemd Deployments
 
 **No action required** - the service rename is automatic:
-```bash
-docker-compose pull
-docker-compose up -d
-```
-
 Old `audio-service` → New `sdr-service` (same functionality)
 
 ### For Portainer Stacks
@@ -132,20 +127,15 @@ Old `audio-service` → New `sdr-service` (same functionality)
 Check that only `sdr-service` has USB access:
 ```bash
 # Should show one container
-docker ps --filter "name=sdr-service"
 
 # Should show USB passthrough
-docker inspect eas-sdr-service | grep -A5 Devices
 
 # Should NOT show USB passthrough
-docker inspect eas-station-noaa-poller-1 | grep -A5 Devices
-docker inspect eas-station-ipaws-poller-1 | grep -A5 Devices
 ```
 
 Verify SDR is working:
 ```bash
 # Check sdr-service logs
-docker logs -f eas-sdr-service
 
 # Should see:
 # ✅ Started SDR receiver: wxj93 (Weather Radio)
@@ -159,11 +149,6 @@ docker logs -f eas-sdr-service
 **Cause**: Service renamed to `sdr-service`
 
 **Solution**:
-```bash
-docker-compose down
-docker-compose up -d
-```
-
 ### Problem: SDR still not connecting
 
 **Cause**: May need to restart to release USB lock
@@ -171,13 +156,11 @@ docker-compose up -d
 **Solution**:
 ```bash
 # Stop all containers
-docker-compose down
 
 # Unplug and replug USB device
 # Or reboot host
 
 # Start services
-docker-compose up -d
 ```
 
 ### Problem: Pollers complaining about missing SDR
@@ -189,7 +172,6 @@ docker-compose up -d
 ## Files Changed
 
 ### Infrastructure Changes
-- `docker-compose.yml` - Service rename and USB removal from pollers
 
 ### Code Refactoring (2025-12-04)
 - `app_core/radio/drivers.py` - Removed unused `DualThreadSDRMixin` inheritance (416 lines of orphaned code)

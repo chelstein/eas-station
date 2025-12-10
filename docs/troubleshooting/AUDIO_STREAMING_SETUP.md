@@ -8,7 +8,6 @@ If you're seeing "Buffer Utilization 0.0% ⚠️ No data flowing" and audio won'
 
 ```sql
 -- Connect to database
-docker exec eas-alerts-db psql -U postgres -d alerts
 
 -- Check for configured sources
 SELECT name, source_type, enabled, auto_start, priority 
@@ -23,10 +22,8 @@ FROM audio_source_configs;
 
 ```bash
 # Check container status
-docker ps | grep audio-service
 
 # Check logs
-docker logs eas-audio-service --tail 100
 ```
 
 **Expected Logs**:
@@ -39,18 +36,12 @@ Auto-starting source: 'your-source-name'
 ```
 
 **If not running**: Start the audio-service container:
-```bash
-docker-compose up -d audio-service
-```
-
 ### 3. Check if SDR Service is Running (for SDR sources only)
 
 ```bash
 # Check container status
-docker ps | grep sdr-service
 
 # Check logs
-docker logs eas-sdr-service --tail 100
 ```
 
 **Expected Logs for SDR sources**:
@@ -63,10 +54,6 @@ Subscribed to Redis channel: sdr:samples:rtlsdr-00000001
 ```
 
 **If not running**:
-```bash
-docker-compose up -d sdr-service
-```
-
 ### 4. Check if Source is Started
 
 In the web UI at Audio Monitoring page:
@@ -78,7 +65,6 @@ In the web UI at Audio Monitoring page:
 
 ```bash
 # Check if Redis is running
-docker ps | grep redis
 
 # Check if metrics are being published
 redis-cli HGETALL eas:metrics
@@ -153,10 +139,6 @@ INSERT INTO audio_source_configs (
 ```
 
 **Step 3**: Restart audio-service to pick up new configuration
-```bash
-docker-compose restart audio-service
-```
-
 ### Issue: SDR Hardware Not Detected
 
 **Symptom**: sdr-service logs show "No SDR devices found"
@@ -164,7 +146,6 @@ docker-compose restart audio-service
 **Solution**:
 1. Verify USB device is connected: `lsusb | grep RTL`
 2. Check device permissions: `ls -la /dev/bus/usb`
-3. Verify sdr-service has USB access in docker-compose.yml:
    ```yaml
    devices:
      - /dev/bus/usb:/dev/bus/usb
@@ -197,12 +178,10 @@ Then restart audio-service.
 
 1. Check if Icecast is running:
    ```bash
-   docker ps | grep icecast
    ```
 
 2. If not running, start it:
    ```bash
-   docker-compose up -d icecast
    ```
 
 3. Verify Icecast configuration in `.env`:
@@ -290,21 +269,13 @@ If you've followed all troubleshooting steps and audio still doesn't work:
 1. Collect diagnostic information:
    ```bash
    # Container status
-   docker ps
    
    # Logs from all audio-related containers
-   docker logs eas-sdr-service > sdr.log 2>&1
-   docker logs eas-audio-service > audio.log 2>&1
-   docker logs eas-app > app.log 2>&1
    
    # Database configuration
-   docker exec eas-alerts-db psql -U postgres -d alerts -c "SELECT * FROM audio_source_configs;" > sources.txt
-   docker exec eas-alerts-db psql -U postgres -d alerts -c "SELECT * FROM radio_receivers;" > receivers.txt
    ```
 
 2. Open an issue on GitHub with:
    - Description of the problem
    - Logs (sdr.log, audio.log, app.log)
    - Database configuration (sources.txt, receivers.txt)
-   - Output of `docker ps`
-   - Your docker-compose.yml file (redact passwords)

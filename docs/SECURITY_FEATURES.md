@@ -213,11 +213,6 @@ cd /home/runner/work/eas-station/eas-station
 alembic upgrade head
 ```
 
-Or if using Docker:
-
-```bash
-docker-compose exec eas-station alembic upgrade head
-```
 
 ## Configuration
 

@@ -391,7 +391,7 @@ This document provides a comprehensive inventory of the EAS Station codebase as 
 
 ## 7. Configuration & Deployment
 
-### Docker Compose Services:
+### systemd Services:
 1. **nginx** - HTTPS reverse proxy
 2. **certbot** - SSL certificate management
 3. **redis** - State and caching
@@ -404,7 +404,6 @@ This document provides a comprehensive inventory of the EAS Station codebase as 
 
 ### Environment Configuration:
 - `.env` - Primary configuration
-- `stack.env` - Docker compose variables
 - `ipaws.env` - IPAWS credentials
 - `noaa.env` - NOAA feed configuration
 
@@ -456,7 +455,6 @@ This document provides a comprehensive inventory of the EAS Station codebase as 
 **Reference:** Changelog, API docs, FCC compliance  
 **Hardware:** SDR setup, GPIO configuration, display systems  
 **Development:** Contributing, agents, testing  
-**Deployment:** Docker, Portainer, cloud hosting  
 
 ## 10. Key System Capabilities
 
@@ -554,7 +552,6 @@ This document provides a comprehensive inventory of the EAS Station codebase as 
 - Pydantic for validation (data contracts)
 - MQTT for event bus (service decoupling)
 - OpenTelemetry for observability (distributed tracing)
-- Docker Swarm/K8s for orchestration (production scaling)
 
 ## Summary Statistics
 
@@ -563,7 +560,6 @@ Total Lines of Code: ~50,000+ (estimated)
 Python Files: 199
 Test Files: 80+
 Documentation Files: 30+
-Docker Services: 9
 Database Tables: 20+
 API Endpoints: 100+
 Supported Event Codes: 67

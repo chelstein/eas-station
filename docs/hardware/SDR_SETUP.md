@@ -4,7 +4,6 @@
 
 ## Quick Navigation
 
-- [5-Minute Quick Start](#quick-start) - Get running fast with Docker
 - [Hardware Guide](#hardware-requirements) - Choosing the right SDR
 - [Setup Flowchart](#visual-setup-guide) - Visual overview
 - [Web UI Setup](#web-ui-configuration) - Easiest configuration method
@@ -25,11 +24,10 @@ For a complete visual overview of the SDR setup process:
 
 ## Quick Start
 
-**For Docker users - 5 minutes to working SDR**
 
 ### What's Included
 
-SoapySDR, RTL-SDR, and Airspy drivers are **pre-installed** in the Docker image:
+SoapySDR, RTL-SDR, and Airspy drivers are **pre-installed** in the installation:
 
 - ✅ SoapySDR core libraries
 - ✅ RTL-SDR drivers (default)
@@ -48,16 +46,13 @@ SoapySDR, RTL-SDR, and Airspy drivers are **pre-installed** in the Docker image:
 
 2. **Start the containers**
    ```bash
-   sudo docker compose up -d
    ```
 
 3. **Verify SDR detection**
    ```bash
    # Check SoapySDR can see the device
-   sudo docker compose exec app SoapySDRUtil --find
 
    # Run diagnostic script
-   sudo docker compose exec app python scripts/sdr_diagnostics.py
    ```
 
 4. **Configure in Web UI**
@@ -69,8 +64,6 @@ SoapySDR, RTL-SDR, and Airspy drivers are **pre-installed** in the Docker image:
    - Save and enable
 
 **Done!** Your SDR should now show "Locked" status.
-
-> **Non-root users**: Add yourself to the `docker` group to avoid `sudo`: `sudo usermod -aG docker $USER` (log out and back in)
 
 ---
 
@@ -107,9 +100,9 @@ SoapySDR, RTL-SDR, and Airspy drivers are **pre-installed** in the Docker image:
 
 ## Software Installation
 
-### Docker Deployment (Recommended)
+### bare metal deployment (Recommended)
 
-**No installation needed!** SoapySDR and all drivers are built into the Docker image.
+**No installation needed!** SoapySDR and all drivers are built into the installation.
 
 The image includes:
 - SoapySDR core libraries and Python bindings
@@ -117,7 +110,6 @@ The image includes:
 - USB device support (`libusb`)
 - NumPy for signal processing
 
-USB device access is pre-configured in `docker-compose.yml`:
 ```yaml
 devices:
   - /dev/bus/usb:/dev/bus/usb
@@ -135,24 +127,6 @@ SOAPYSDR_DRIVERS=rtlsdr
 SOAPYSDR_DRIVERS=rtlsdr,airspy
 ```
 
-### Host Installation (Without Docker)
-
-If running EAS Station directly on the host:
-
-```bash
-# Ubuntu/Debian
-sudo apt update
-sudo apt install python3-soapysdr soapysdr-module-rtlsdr soapysdr-module-airspy python3-numpy
-
-# Verify installation
-SoapySDRUtil --info
-SoapySDRUtil --find
-```
-
----
-
-## Docker USB Passthrough
-
 ### Verify USB Access
 
 ```bash
@@ -163,10 +137,8 @@ lsusb | grep -i rtl  # Or grep -i airspy
 # Bus 001 Device 005: ID 0bda:2838 Realtek Semiconductor Corp. RTL2838 DVB-T
 
 # 2. Verify container can access USB devices
-sudo docker compose exec app ls -la /dev/bus/usb
 
 # 3. Test SoapySDR inside container
-sudo docker compose exec app SoapySDRUtil --find
 ```
 
 ### Troubleshooting USB Issues
@@ -193,7 +165,6 @@ sudo docker compose exec app SoapySDRUtil --find
 
 2. **Container needs restart**
    ```bash
-   sudo docker compose restart
    ```
 
 3. **USB device path changed**
@@ -471,20 +442,15 @@ In the Web UI, you can use the built-in preset:
 
 ```bash
 # Full diagnostic check
-sudo docker compose exec app python scripts/sdr_diagnostics.py
 
 # Enumerate all devices
-sudo docker compose exec app python scripts/sdr_diagnostics.py --enumerate
 
 # Check driver capabilities
-sudo docker compose exec app python scripts/sdr_diagnostics.py --capabilities rtlsdr
 
 # Test sample capture (5 seconds at 162.55 MHz)
-sudo docker compose exec app python scripts/sdr_diagnostics.py \
   --test-capture --driver rtlsdr --frequency 162550000 --duration 5
 
 # Show available presets
-sudo docker compose exec app python scripts/sdr_diagnostics.py --presets
 ```
 
 ### Web UI Status Check
@@ -518,18 +484,14 @@ sudo docker compose exec app python scripts/sdr_diagnostics.py --presets
    - Verify with `lsusb` on host
 
 2. **Kernel driver conflict (RTL-SDR)**
-   - See [Docker USB Passthrough](#docker-usb-passthrough) section
    - Blacklist DVB-T drivers
 
 3. **Container needs rebuild**
    ```bash
-   sudo docker compose build app
-   sudo docker compose up -d
    ```
 
 4. **Restart containers after plugging in device**
    ```bash
-   sudo docker compose restart
    ```
 
 ### "Receiver shows 'No lock' status"
@@ -558,23 +520,8 @@ sudo docker compose exec app python scripts/sdr_diagnostics.py --presets
 3. **Increase gain** - Try 49.6 dB for RTL-SDR, 21 dB for Airspy
 4. **Test with FM radio** - Tune to 88-108 MHz to verify hardware works
 
-### "SoapySDR not installed" (Shouldn't happen with Docker)
-
-**For Docker:**
-```bash
-# Rebuild image
-sudo docker compose build app
-sudo docker compose up -d
-```
-
-**For host installation:**
-```bash
-sudo apt install python3-soapysdr soapysdr-module-rtlsdr python3-numpy
-```
-
 ### "Permission denied" errors
 
-**Already configured** in docker-compose.yml:
 ```yaml
 devices:
   - /dev/bus/usb:/dev/bus/usb
@@ -664,7 +611,7 @@ Analyze captured IQ files with:
 
 If you're still having issues:
 
-1. **Check logs**: `sudo docker compose logs app`
+1. **Check logs**: `sudo systemd logs app`
 2. **Run diagnostics**: Web UI or `python scripts/sdr_diagnostics.py`
 3. **GitHub Issues**: https://github.com/KR8MER/eas-station/issues
 
@@ -689,4 +636,3 @@ If you're still having issues:
 ---
 
 **Last Updated**: 2025-11-30
-**Tested With**: Docker 24+, RTL-SDR V3, Airspy Mini, SDR++ Server

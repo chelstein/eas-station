@@ -8,7 +8,6 @@ As of this update, the NOAA and IPAWS pollers now use **separate configuration f
 
 - **Configuration Conflicts**: Both pollers were reading the same config file, causing NOAA to inherit IPAWS settings and vice versa
 - **Independent Control**: Each poller can now be configured independently without affecting the other
-- **Cleaner Architecture**: Service-specific configs follow Docker best practices
 
 ## New Configuration Structure
 
@@ -25,10 +24,6 @@ As of this update, the NOAA and IPAWS pollers now use **separate configuration f
 
 Run the initialization script to create separate poller configs:
 
-```bash
-docker exec eas-station-app bash /app/init_poller_configs.sh
-```
-
 This script will:
 - Create `/app-config/noaa.env` with NOAA defaults
 - Create `/app-config/ipaws.env` and migrate existing IPAWS settings from `/app-config/.env`
@@ -38,24 +33,11 @@ This script will:
 
 If your location has empty FIPS codes (logs show `🔢 SAME/FIPS codes: []`):
 
-```bash
-cat fix_fips_codes.sql | docker-compose exec -T alerts-db psql -U postgres -d alerts
-```
-
 ### Step 3: Rebuild Containers
-
-```bash
-docker-compose down
-docker-compose up -d --build
-```
 
 ### Step 4: Verify Configuration
 
 Check the logs to confirm proper configuration:
-
-```bash
-docker-compose logs -f noaa-poller ipaws-poller
-```
 
 **Expected NOAA poller logs:**
 ```
@@ -73,10 +55,7 @@ INFO:__main__:🔢 SAME/FIPS codes: ['039137']
 
 ## Database Configuration
 
-**IMPORTANT**: Database connection settings (`POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`) are **NOT** stored in any of the config files. They are passed via environment variables in `docker-compose.yml` to ensure all containers (app, noaa-poller, ipaws-poller) use identical database settings.
-
 If you need to change database settings:
-1. Edit `docker-compose.yml` or set environment variables in your deployment tool (Portainer, etc.)
 2. Restart all containers to apply changes
 
 Do **NOT** add `POSTGRES_*` variables to the poller config files - they will be ignored in favor of environment variables.
@@ -126,12 +105,10 @@ If NOAA poller is still fetching from `apps.fema.gov`:
 
 1. Check `/app-config/noaa.env` exists:
    ```bash
-   docker exec eas-station-noaa-poller cat /app-config/noaa.env
    ```
 
 2. Verify CAP_POLLER_MODE is set:
    ```bash
-   docker exec eas-station-noaa-poller env | grep CAP_POLLER_MODE
    ```
 
 3. Re-run init script and rebuild containers
@@ -143,7 +120,6 @@ If logs show `🔢 SAME/FIPS codes: []`:
 1. Run the FIPS code fix script (Step 2 above)
 2. Restart pollers:
    ```bash
-   docker-compose restart noaa-poller ipaws-poller
    ```
 
 ### Redis Connection Errors
@@ -157,30 +133,23 @@ If seeing "Error 111 connecting to localhost:6379":
 
 If pollers are connecting to a different database than the app:
 
-1. Check that `POSTGRES_*` environment variables are set in `docker-compose.yml`:
    ```bash
-   docker exec eas-station-noaa-poller env | grep POSTGRES
-   docker exec eas-station-ipaws-poller env | grep POSTGRES
-   docker exec eas-station-app env | grep POSTGRES
    ```
 
 2. Ensure the values match across all containers
 
 3. If your poller config files (`/app-config/noaa.env`, `/app-config/ipaws.env`) contain `POSTGRES_*` entries from a previous version, remove them:
    ```bash
-   docker exec eas-station-app sh -c "sed -i '/^POSTGRES_/d' /app-config/noaa.env /app-config/ipaws.env 2>/dev/null || true"
    ```
 
 4. Restart pollers:
    ```bash
-   docker-compose restart noaa-poller ipaws-poller
    ```
 
 ## Rolling Back
 
 If you need to revert to the old single-config behavior:
 
-1. Edit `docker-compose.yml`:
    ```yaml
    # Change both pollers back to:
    CONFIG_PATH: /app-config/.env
@@ -188,8 +157,6 @@ If you need to revert to the old single-config behavior:
 
 2. Rebuild containers:
    ```bash
-   docker-compose down
-   docker-compose up -d --build
    ```
 
 Note: This will bring back the configuration conflicts!

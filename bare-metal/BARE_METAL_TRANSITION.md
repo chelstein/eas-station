@@ -1,35 +1,12 @@
-# EAS Station - Bare Metal Transition Complete
+# EAS Station - Bare Metal Deployment
 
 ## Summary
 
-EAS Station has been successfully transitioned from a Docker-based application to a **bare metal-only deployment**. All Docker/container infrastructure has been removed.
-
-## What Changed
-
-### Removed
-- ❌ All Dockerfile and docker-compose files
-- ❌ Docker entrypoint scripts
-- ❌ Stack.env configuration files
-- ❌ Container-specific code and references
-- ❌ Docker deployment documentation
-
-### Added
-- ✅ Systemd service files for all components
-- ✅ Bare metal installation script with full automation
-- ✅ pgAdmin 4 for database management
-- ✅ Comprehensive testing guide
-- ✅ Migration guide from Docker
-
-### Updated
-- ✅ All code references to use `/opt/eas-station/.env`
-- ✅ Diagnostics to use systemctl and journalctl
-- ✅ Error messages to reference systemd commands
-- ✅ Default configuration values (localhost vs container names)
-- ✅ Documentation to focus on bare metal deployment
+EAS Station is a bare metal-only application deployed using systemd services for optimal performance and direct hardware access.
 
 ## Version
 
-**2.18.0** - Major feature release with breaking changes
+**2.19.0** - Documentation cleanup release
 
 ## Installation
 
@@ -198,43 +175,6 @@ SELECT PostGIS_version();
 \q
 ```
 
-## Migration from Docker
-
-If you have an existing Docker installation:
-
-1. **Backup Configuration**:
-   ```bash
-   docker cp eas-app:/app/.env ./backup.env
-   ```
-
-2. **Backup Database**:
-   ```bash
-   docker exec eas-alerts-db pg_dump -U postgres alerts > backup.sql
-   ```
-
-3. **Install Bare Metal**:
-   ```bash
-   cd eas-station/bare-metal
-   sudo bash scripts/install.sh
-   ```
-
-4. **Restore Configuration**:
-   ```bash
-   sudo cp backup.env /opt/eas-station/.env
-   ```
-
-5. **Restore Database**:
-   ```bash
-   sudo -u postgres psql alerts < backup.sql
-   ```
-
-6. **Start Services**:
-   ```bash
-   sudo systemctl start eas-station.target
-   ```
-
-See `bare-metal/MIGRATION_FROM_DOCKER.md` for details.
-
 ## Troubleshooting
 
 ### Service Won't Start
@@ -301,7 +241,6 @@ sudo -u eas-station /opt/eas-station/venv/bin/pip install -r /opt/eas-station/re
 
 ## Benefits of Bare Metal
 
-### vs Docker
 - ✅ **Lower Overhead** - No container runtime
 - ✅ **Direct Hardware Access** - Native SDR, GPIO, audio
 - ✅ **Simpler Management** - Standard systemd commands
@@ -310,8 +249,7 @@ sudo -u eas-station /opt/eas-station/venv/bin/pip install -r /opt/eas-station/re
 - ✅ **Standard Linux Patterns** - Familiar to sysadmins
 
 ### Resource Usage
-- No Docker daemon overhead
-- Direct memory allocation (no container limits)
+- Direct memory allocation
 - Native filesystem performance
 - Full CPU access without scheduling overhead
 
@@ -321,7 +259,6 @@ sudo -u eas-station /opt/eas-station/venv/bin/pip install -r /opt/eas-station/re
 - **Installation**: `bare-metal/README.md`
 - **Quick Start**: `bare-metal/QUICKSTART.md`
 - **Testing**: `bare-metal/TESTING.md`
-- **Migration**: `bare-metal/MIGRATION_FROM_DOCKER.md`
 
 ### Full Documentation
 - **Main README**: `README.md`
@@ -334,30 +271,6 @@ sudo -u eas-station /opt/eas-station/venv/bin/pip install -r /opt/eas-station/re
 - **Documentation**: https://github.com/KR8MER/eas-station/tree/main/docs
 - **Issues**: https://github.com/KR8MER/eas-station/issues
 - **Discussions**: https://github.com/KR8MER/eas-station/discussions
-
-## Future Enhancements
-
-### Planned Features
-1. **Frontend Log Viewer** - View systemd logs through web UI
-2. **Database User Management** - Change PostgreSQL passwords from app
-3. **Frontend Overhaul** - Improved configuration interface
-4. **Security Hardening** - Force default password changes
-
-### Contributing
-
-Contributions welcome! See:
-- `docs/process/CONTRIBUTING.md`
-- `docs/development/AGENTS.md`
-
-## License
-
-EAS Station is dual-licensed:
-- **Open Source**: GNU AGPL v3
-- **Commercial**: Commercial license available
-
-See `LICENSE` and `LICENSE-COMMERCIAL` for details.
-
----
 
 ## Quick Commands Cheat Sheet
 
@@ -394,6 +307,5 @@ curl http://localhost:5000/health
 
 **73 de KR8MER** 📡
 
-**Version**: 2.18.0  
-**Date**: December 10, 2025  
-**Breaking Change**: Docker support removed - bare metal only
+**Version**: 2.19.0  
+**Date**: December 10, 2025

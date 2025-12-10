@@ -28,7 +28,6 @@
 | **SDR** | SoapySDR (RTL-SDR v3, Airspy R2) |
 | **Hardware** | gpiozero (GPIO), luma.oled (OLED), pyserial (VFD) |
 | **TTS** | pyttsx3 (offline), Azure OpenAI/Speech (optional) |
-| **Deployment** | Docker + Docker Compose, nginx, Let's Encrypt |
 
 ---
 
@@ -210,19 +209,10 @@ pytest -m "not slow"
 
 ---
 
-## Docker Deployment
+## bare metal deployment
 
 **Standard:**
-```bash
-docker compose up -d --build
-```
-
 **Variants:**
-- `docker-compose.yml` - Main deployment
-- `docker-compose.separated.yml` - Service separation
-- `docker-compose.embedded-db.yml` - Embedded PostgreSQL
-- `docker-compose.pi.yml` - Raspberry Pi optimized
-- `docker-compose.icecast.yml` - Icecast streaming
 
 ---
 
@@ -262,24 +252,16 @@ TMPFS_AUDIO_SERVICE=128M
 3. Airspy R2: ONLY 2.5MHz or 10MHz sample rates
 
 ### Check SDR Status
-```bash
-docker logs eas-sdr-service | grep "Started.*receiver"
-docker exec eas-redis redis-cli SUBSCRIBE "sdr:samples:*"
-```
-
 ### Check Audio
 ```bash
-docker logs eas-audio-service | grep "First audio chunk"
 curl http://localhost:5000/api/audio/sources
 ```
 
 ### Database Operations
 ```bash
 # Check receivers
-docker exec eas-postgres psql -U postgres -d alerts -c "SELECT * FROM radio_receivers"
 
 # Run migrations
-docker exec eas-app flask db upgrade
 ```
 
 ---
@@ -299,11 +281,8 @@ docker exec eas-app flask db upgrade
 
 | Problem | Check |
 |---------|-------|
-| No audio | `docker logs eas-sdr-service | grep "SoapySDR"` |
 | Airspy won't start | Sample rate must be 2500000 or 10000000 |
 | Web player silent | Browser console (F12), check `/api/audio/stream` |
-| Database errors | `docker logs eas-postgres` |
-| Redis issues | `docker exec eas-redis redis-cli PING` |
 
 ---
 

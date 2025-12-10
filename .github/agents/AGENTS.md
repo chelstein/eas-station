@@ -653,7 +653,6 @@ Some variables are **auto-detected at runtime** and should NOT be written to the
 - `EAS_BROADCAST_ENABLED` - User's feature preferences
 - All settings in Settings → Environment page
 
-**Implementation Pattern in docker-entrypoint.sh:**
 ```bash
 # ✅ CORRECT - Only write if explicitly set
 $([ -n "${GIT_COMMIT:-}" ] && echo "GIT_COMMIT=${GIT_COMMIT}" || echo "# GIT_COMMIT not set - will auto-detect")
@@ -667,12 +666,8 @@ GIT_COMMIT=${GIT_COMMIT:-unknown}
 When adding a new environment variable to the system, you MUST update these files:
 
 1. **`.env.example`** - Add the variable with documentation and a default value
-2. **`stack.env`** - Add the variable with the default value for Docker deployments
-3. **`docker-entrypoint.sh`** - Add the variable to the initialization section if it needs to be available during container startup
 4. **`webapp/admin/environment.py`** - **REQUIRED**: Add the variable to the appropriate category in `ENV_CATEGORIES` to make it accessible in the web UI settings page. This is how users configure the system!
 5. **`app_utils/setup_wizard.py`** - If the variable is part of initial setup, add it to the appropriate wizard section with matching validation
-
-**CRITICAL**: EAS Station uses persistent configuration stored in `/app-config/.env` and managed through the web UI. **ALL** user-configurable environment variables MUST be added to `webapp/admin/environment.py`, otherwise users cannot change them without editing Docker Compose files.
 
 ### Environment Variable Validation
 
@@ -877,14 +872,12 @@ def calculate_coverage_percentages(alert_id, intersections):
 - `/docs/hardware/` - Hardware integration, GPIO, SDR setup
 - `/docs/audio/` - Audio system documentation
 - `/docs/compliance/` - FCC compliance, regulatory documentation
-- `/docs/deployment/` - Deployment guides, Docker, infrastructure
 - `/docs/roadmap/` - Project roadmap, feature planning
 - `/docs/runbooks/` - Operational procedures, troubleshooting
 
 **Files That Stay in Root:**
 - `README.md` - Project overview and quick start (GitHub standard)
 - `.env.example` - Environment variable template
-- `docker-compose.yml` - Docker composition files
 - `LICENSE` - License file
 
 **When Creating New Documentation:**
@@ -1298,7 +1291,6 @@ Before committing code, verify:
 - [ ] No `.env` file committed (check git status)
 - [ ] Templates extend `base.html` with theme support
 - [ ] Database transactions properly handled (commit/rollback)
-- [ ] Tested in Docker locally
 - [ ] Documentation updated if needed
 - [ ] Cross-check docs and UI links (README, Theory of Operation, `/about`, `/help`) for accuracy and live references
 - [ ] Commit message follows format guidelines

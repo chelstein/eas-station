@@ -93,7 +93,6 @@ Set up the primary node normally:
 ```bash
 # On primary node
 cd /opt/eas-station
-docker compose up -d
 
 # Enable automated backups
 sudo cp examples/systemd/eas-backup.service /etc/systemd/system/
@@ -183,7 +182,6 @@ echo "DEPLOYMENT_MODE=standby" >> .env
 echo "EAS_BROADCAST_ENABLED=false" >> .env
 
 # Deploy with standby configuration
-docker compose -f docker-compose.yml -f examples/docker-compose.standby.yml up -d
 ```
 
 ### Step 4: Configure Health Monitoring
@@ -225,7 +223,6 @@ When primary node fails, activate standby:
 # On standby node
 
 # 1. Stop standby mode services
-docker compose down
 
 # 2. Restore latest backup
 cd /opt/eas-station
@@ -239,10 +236,8 @@ sed -i 's/EAS_BROADCAST_ENABLED=false/EAS_BROADCAST_ENABLED=true/' .env
 sed -i 's/STANDBY_MODE=true/STANDBY_MODE=false/' .env
 
 # 4. Start in active mode
-docker compose up -d
 
 # 5. Verify services
-docker compose ps
 curl http://localhost/health/dependencies
 
 # 6. Update DNS/load balancer to point to standby
@@ -304,10 +299,8 @@ After primary node is restored:
 curl http://localhost/health/dependencies
 
 # 3. On standby, switch back to standby mode
-docker compose down
 sed -i 's/DEPLOYMENT_MODE=primary/DEPLOYMENT_MODE=standby/' .env
 sed -i 's/EAS_BROADCAST_ENABLED=true/EAS_BROADCAST_ENABLED=false/' .env
-docker compose -f docker-compose.yml -f examples/docker-compose.standby.yml up -d
 
 # 4. Update DNS/load balancer back to primary
 ```
@@ -366,13 +359,10 @@ journalctl -u eas-backup-sync -f
 
 ```bash
 # Check service status
-docker compose ps
 
 # Check application logs
-docker compose logs app
 
 # Verify database connectivity
-docker compose exec app python -c "from app_core.extensions import db; db.session.execute('SELECT 1')"
 ```
 
 ### Data inconsistency after failback
@@ -405,4 +395,3 @@ python3 tools/restore_backup.py --backup-dir /path/to/backup
 - [Backup Strategy Documentation](../docs/runbooks/backup_strategy)
 - [Outage Response Runbook](../docs/runbooks/outage_response)
 - [PostgreSQL Replication](https://www.postgresql.org/docs/current/high-availability.html)
-- [Docker Swarm for HA](https://docs.docker.com/engine/swarm/)

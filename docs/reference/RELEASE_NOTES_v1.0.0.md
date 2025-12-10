@@ -130,8 +130,6 @@
 - `docs/security/CONTAINER_PERMISSIONS.md` - Security audit
 
 ### Modified Files
-- `docker-compose.pi.yml` - Device access fixes
-- `docker-compose.yml` - Security hardening
 - `webapp/admin/__init__.py` - Route registration
 - `templates/admin.html` - Navigation sections
 - `templates/components/navbar.html` - Menu reorganization
@@ -142,7 +140,6 @@
 **For containerized deployment:**
 ```bash
 git checkout claude/add-network-config-ui-016mioaM7jN93aPA8BRh1vSy
-docker-compose -f docker-compose.yml -f docker-compose.pi.yml up --build -d
 ```
 
 **For bare metal deployment:**

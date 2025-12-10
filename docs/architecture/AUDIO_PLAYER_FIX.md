@@ -149,12 +149,10 @@ The JavaScript uses this data to:
 
 1. **Verify Icecast is Running**:
    ```bash
-   docker-compose ps icecast
    ```
 
 2. **Check Audio Service Logs**:
    ```bash
-   docker-compose logs audio-service | grep -i icecast
    ```
 
 3. **Verify Mountpoints**:

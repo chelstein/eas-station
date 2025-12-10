@@ -12,13 +12,10 @@ First, verify that SDR and audio services are running:
 
 ```bash
 # Check all services
-docker compose ps
 
 # Check SDR service specifically
-docker compose logs -f sdr-service
 
 # Check audio service
-docker compose logs -f audio-service
 ```
 
 **Look for**:
@@ -37,7 +34,6 @@ Check if your SDR device is detected by the system:
 lsusb
 
 # Check SoapySDR device enumeration
-docker compose exec sdr-service python3 -c "import SoapySDR; print(SoapySDR.Device.enumerate())"
 ```
 
 **Expected output for RTL-SDR**:
@@ -53,10 +49,6 @@ docker compose exec sdr-service python3 -c "import SoapySDR; print(SoapySDR.Devi
 ### 3. Check Receiver Configuration
 
 Connect to the database and check receiver settings:
-
-```bash
-docker compose exec app psql -U postgres -d alerts -c "SELECT id, identifier, driver, frequency_hz, sample_rate, gain, modulation_type, audio_output, enabled, auto_start FROM radio_receivers;"
-```
 
 **Verify**:
 - `enabled` = true
@@ -77,7 +69,6 @@ Verify that IQ samples are being published to Redis:
 
 ```bash
 # Monitor Redis pub/sub channel
-docker compose exec redis redis-cli
 
 # In Redis CLI:
 SUBSCRIBE sdr:samples:*
@@ -95,10 +86,6 @@ SUBSCRIBE sdr:samples:*
 
 Verify audio source is configured for SDR:
 
-```bash
-docker compose exec app psql -U postgres -d alerts -c "SELECT id, name, source_type, config_params, enabled, auto_start FROM audio_source_configs WHERE source_type='redis_sdr';"
-```
-
 **Required config_params**:
 ```json
 {
@@ -111,10 +98,6 @@ docker compose exec app psql -U postgres -d alerts -c "SELECT id, name, source_t
 ### 6. Check Audio Service Logs
 
 Look for demodulation and audio processing:
-
-```bash
-docker compose logs audio-service | grep -E "Creating|demodulator|IQ sample|audio chunk"
-```
 
 **Expected messages**:
 - "Creating NFM demodulator: 2400000Hz IQ → 44100Hz audio"
@@ -164,7 +147,6 @@ docker compose logs audio-service | grep -E "Creating|demodulator|IQ sample|audi
 
 1. **USB permissions**
    - Symptom: "Permission denied" or "Unable to open device"
-   - Solution: Ensure Docker has USB device access (`--device=/dev/bus/usb`)
    
 2. **Device in use**
    - Symptom: "Device or resource busy"
@@ -195,7 +177,6 @@ VALUES ('fm-wkqx', 'WKQX 101.1 FM', 'airspy', 101100000, 2500000, 21.0, 'WFM', t
 ### View SDR Metrics in Redis
 
 ```bash
-docker compose exec redis redis-cli
 
 # In Redis CLI:
 GET sdr:metrics
@@ -208,16 +189,13 @@ GET sdr:metrics
 Test SDR hardware directly:
 
 ```bash
-docker compose exec sdr-service python3 /app/scripts/sdr_diagnostics.py
 
 # Test capture from specific device:
-docker compose exec sdr-service python3 /app/scripts/sdr_diagnostics.py --test-capture --driver rtlsdr --frequency 162550000
 ```
 
 ### Check Demodulator Configuration
 
 ```bash
-docker compose exec app python3 -c "
 from app_core.radio.demodulation import FMDemodulator, DemodulatorConfig
 config = DemodulatorConfig(modulation_type='NFM', sample_rate=2400000, audio_sample_rate=44100)
 demod = FMDemodulator(config)
@@ -232,19 +210,15 @@ If issues persist after following this guide:
 
 1. **Collect logs**:
    ```bash
-   docker compose logs sdr-service > sdr-service.log
-   docker compose logs audio-service > audio-service.log
    ```
 
 2. **Check receiver config**:
    ```bash
-   docker compose exec app psql -U postgres -d alerts -c "\x" -c "SELECT * FROM radio_receivers;"
    ```
 
 3. **Check hardware**:
    ```bash
    lsusb > hardware.log
-   docker compose exec sdr-service python3 /app/scripts/sdr_diagnostics.py > diagnostics.log
    ```
 
 4. **Provide information**:

@@ -20,7 +20,6 @@ Quick reference guide for AI agents working on the NOAA CAP Emergency Alert Syst
 
 1. **Safety First**: Never commit secrets, API keys, or sensitive data
 2. **Preserve Existing Patterns**: Follow established code style and architecture
-3. **Test Before Commit**: Always verify changes work in Docker before committing
 4. **Focused Changes**: Keep fixes targeted to the specific issue
 5. **Document Changes**: Update relevant documentation when adding features
 6. **Follow Versioning**: Bug fixes increment by 0.0.+1, features by 0.+1.0
@@ -92,8 +91,6 @@ except OperationalError as e:
 
 **See**: [Theme System](../../docs/development/AGENTS.md#theme-system-architecture) | [UI Guide](../../docs/frontend/USER_INTERFACE_GUIDE.md)
 
-
-
 ## 🔒 Security
 
 **Critical Rules**:
@@ -104,29 +101,17 @@ except OperationalError as e:
 
 **See**: [Security Guidelines](../../docs/development/AGENTS.md#security-guidelines) | [Security Docs](../../docs/security/SECURITY.md)
 
-## 🐳 Docker & Deployment
-
-**Testing**: Always test in Docker before committing
-```bash
-sudo docker compose build
-sudo docker compose up -d
-sudo docker compose logs -f app
-```
 
 **Persistent Environment**: Config stored in `/app-config/.env` volume, survives container rebuilds and Git pulls
 
 **Adding Environment Variables** - Update ALL these files:
 1. `.env.example` - Documentation and defaults
-2. `stack.env` - Docker deployment defaults
-3. `docker-entrypoint.sh` - Container startup initialization
+2. `stack.env` - bare metal deployment defaults
 4. `webapp/admin/environment.py` - **REQUIRED** for web UI access
 5. `app_utils/setup_wizard.py` - If part of initial setup
 
 **Variable Types**: Use `select` with `['false', 'true']` for boolean values, NOT text inputs. This prevents user input errors.
 
-**Docker Compose**: Always update BOTH `docker-compose.yml` AND `docker-compose.embedded-db.yml`
-
-**See**: [Docker Guidelines](../../docs/development/AGENTS.md#docker-deployment) | [Deployment Guide](../../docs/deployment/PORTAINER_DEPLOYMENT.md)
 
 ## 📚 Documentation
 
@@ -157,7 +142,6 @@ sudo docker compose logs -f app
 ## 🧪 Testing
 
 **Pre-Commit Checklist**:
-- Syntax check, Docker build, health check
 - UI tested in light & dark modes
 - Consider edge cases: null data, invalid input, DB failures
 
@@ -165,7 +149,6 @@ sudo docker compose logs -f app
 
 **Adding Dependencies**:
 1. Add to `requirements.txt` with version pin
-2. Test in Docker
 3. Update documentation (required for legal compliance)
 4. Document if affects users
 
@@ -192,8 +175,6 @@ sudo docker compose logs -f app
 
 **Reference**: [CHANGELOG](../../docs/reference/CHANGELOG.md) | [About](../../docs/reference/ABOUT.md) | [Diagrams](../../docs/reference/DIAGRAMS.md)
 
-
-
 ## ✅ Pre-Commit Checklist
 
 - [ ] **Version incremented** – `/VERSION` file updated (+0.0.1 for bugs, +0.1.0 for features)
@@ -205,7 +186,6 @@ sudo docker compose logs -f app
 - [ ] Specific exception handling with rollback
 - [ ] No secrets or `.env` file committed
 - [ ] Templates extend `base.html` with theme support
-- [ ] Tested in Docker locally
 - [ ] Commit message follows format
 
 **Remember**: Check existing patterns first. Consistency > perfection.

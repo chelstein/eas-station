@@ -1,6 +1,6 @@
 # Container Architecture Issues - Audit Report
 
-This document identifies code that assumes monolithic deployment but breaks in separated Docker containers.
+This document identifies code that assumes monolithic deployment but breaks in separated services.
 
 ## Executive Summary
 
@@ -74,7 +74,6 @@ response = requests.get(f"http://sdr-service:5001/api/receiver/{identifier}/stat
 **Current State**:
 App container has NO network_mode: host, so nmcli can't control host networking.
 
-**Fix**: Move to hardware-service container OR use host.docker.internal API
 
 ---
 
@@ -136,7 +135,6 @@ Serial devices are mapped to `hardware-service`, not `app`.
 subprocess.run(["apt-get", "update"])  # Updates container, not host!
 
 # Line 41 in routes_diagnostics.py
-subprocess.run(["systemctl", "status", "docker"])  # No systemd in container!
 ```
 
 ---
@@ -158,7 +156,6 @@ subprocess.run(["systemctl", "status", "docker"])  # No systemd in container!
 **Files**: Multiple files use `get_redis_client()` assuming Redis is on default host.
 
 **Current Status**: ✅ MOSTLY FIXED
-- Redis host defaults to "redis" (Docker service name)
 - But error handling may be incomplete
 
 **Potential Issue**: If Redis fails, some pages crash instead of degrading gracefully.
@@ -230,7 +227,6 @@ status = redis.get("sdr:receiver:status")
 import requests
 resp = requests.get("http://hardware-service:5002/api/gpio/status")
 
-# Use Docker service names, not localhost
 DATABASE_HOST = os.getenv("POSTGRES_HOST", "alerts-db")
 REDIS_HOST = os.getenv("REDIS_HOST", "redis")
 ```
@@ -259,5 +255,4 @@ subprocess.run(["nmcli", "dev", "wifi"])  # Container can't control host
 ---
 
 **Generated**: 2025-11-27
-**Branch**: claude/build-docker-images-014dspqQiJgNVVY7kH7zTbXt
 **Auditor**: Claude (Automated Architecture Analysis)

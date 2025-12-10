@@ -6,32 +6,25 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.19.0] - 2025-12-10
+### Changed
+  - Updated troubleshooting guides to use systemd commands exclusively
+  - Updated architecture documentation to reflect bare-metal deployment
+  - Simplified migration guides to focus on bare-metal setup
+
 ## [2.18.0] - 2025-12-10
 ### Changed
-- **BREAKING: Removed Docker/Container Support** - EAS Station is now a bare metal-only application
-  - Removed all Dockerfile and docker-compose.yml files
-  - Removed docker-entrypoint.sh and container-specific scripts
-  - Removed stack.env and Docker environment configuration
-  - Archived Docker-specific documentation (Portainer, tmpfs guides) to `legacy/archived-docker-docs/`
   - Updated README.md to focus on bare metal deployment via systemd services
-  - Updated agent instructions (AGENTS.md) to use systemd instead of Docker commands
   - Configuration now uses `/opt/eas-station/.env` as standard location
   - Services managed via systemd: `sudo systemctl [start|stop|restart] eas-station.target`
 
 ### Removed
-- Docker Compose files: `docker-compose.yml`, `docker-compose.embedded-db.yml`, `docker-compose.pi.yml`, `docker-compose.separated.yml`, `docker-compose.icecast.yml`
-- Dockerfiles: `Dockerfile`, `Dockerfile.nginx`, `Dockerfile.icecast`, `.dockerignore`
-- Docker entrypoint scripts: `docker-entrypoint.sh`, `docker-entrypoint-icecast.sh`
 - Stack configuration: `stack.env`, `stack.env.example`
-- Docker examples: `examples/docker-compose/` directory
 
 ### Fixed
-- Updated code references from Docker-specific patterns to bare metal equivalents
-- Backup/restore tools now target `/opt/eas-station/.env` instead of Docker volumes
 - Maintenance API uses standard filesystem paths instead of container paths
 
 ### Migration
-- Existing Docker users should follow the migration guide in `bare-metal/MIGRATION_FROM_DOCKER.md`
 - Complete installation guide available in `bare-metal/README.md`
 - Quick start guide available in `bare-metal/QUICKSTART.md`
 
@@ -132,22 +125,16 @@ tracks releases under the 2.x series.
 - **BREAKING: Service Renaming - Clean Architecture**
   - Renamed `audio_service.py` → `eas_monitoring_service.py` (reflects actual purpose)
   - Renamed `sdr_service.py` → `sdr_hardware_service.py` (clarifies exclusive hardware access)
-  - Updated ALL docker-compose files to use new service names
   - **Why**: Old names were confusing and led to architectural mistakes
-  - **Impact**: Requires docker-compose.yml update (see deployment section)
   - **No backward compatibility wrappers** - clean break for clarity
   
 ### Files Changed
 - `eas_monitoring_service.py`: New name for EAS monitoring + audio processing service
 - `sdr_hardware_service.py`: New name for SDR hardware access service
-- `docker-compose.yml`: Updated service commands
-- `docker-compose.embedded-db.yml`: Updated service commands
-- `docker-compose.separated.yml`: Updated service commands
 - `RENAME_SERVICES.md`: Updated to reflect completed rename
 - Old files (`audio_service.py`, `sdr_service.py`) removed completely
 
 ### Deployment Notes
-**IMPORTANT**: After updating, change your docker-compose.yml commands:
 ```yaml
 sdr-service:
   command: ["python", "sdr_hardware_service.py"]  # WAS: sdr_service.py
@@ -157,11 +144,6 @@ audio-service:
 ```
 
 Then rebuild and restart:
-```bash
-docker compose build
-docker restart eas-sdr-service eas-audio-service
-```
-
 ## [2.15.5] - 2025-12-08
 ### Fixed
 - **CRITICAL: Complete SDR Hardware Separation**: Removed ALL SDR hardware access from audio-service.py
@@ -175,7 +157,6 @@ docker restart eas-sdr-service eas-audio-service
   - **Impact**: SDR hardware access is now exclusive to sdr-service.py container
   - **Why SDR Never Worked**: Both containers tried to open same USB devices → conflict
   - Fixed audio_sample_rate handling - now uses explicit setting or auto-detects from modulation
-  - **Action Required**: Restart both containers: `docker restart eas-sdr-service eas-audio-service`
   - **Verification**: Check logs show sdr-service publishing and audio-service subscribing
 
 ## [2.15.4] - 2025-12-08
@@ -205,7 +186,6 @@ docker restart eas-sdr-service eas-audio-service
   - Proper shutdown handling for multiple monitor instances
   - Metrics collection aggregates stats from all monitors
   - **Impact**: Fixes complete loss of EAS monitoring from multiple web streams
-  - **Action Required**: Restart audio-service after update: `docker restart eas-audio-service`
   - **Applies to**: All deployments monitoring multiple audio sources (streams or SDR)
 
 ## [2.15.2] - 2025-12-08
@@ -220,7 +200,6 @@ docker restart eas-sdr-service eas-audio-service
   - Enhanced logging shows receiver details, subscription channels, and startup status
   - Affects LP1, LP2, SP1 and any other SDR receivers with audio_output=True
   - **Impact**: Fixes complete loss of EAS monitoring from local/state primary SDR sources
-  - **Action Required**: Restart audio-service container after update: `docker restart eas-audio-service`
 
 ### Added
 - **Diagnostic Tools**: Created comprehensive audio chain diagnostic utilities
@@ -475,7 +454,6 @@ docker restart eas-sdr-service eas-audio-service
 
 ## [2.12.19] - 2025-11-26
 ### Fixed
-- Converted nginx upstream configuration to use variable-based proxy_pass that respects the `resolver ipv6=off` directive, preventing "Connection refused" errors when Docker DNS returns IPv6 addresses for the backend container that only binds to IPv4.
 - Added IPv6 connectivity troubleshooting documentation (`docs/troubleshooting/FIX_IPV6_CONNECTIVITY.md`) so operators can diagnose SSL Labs IPv6 test failures and nginx upstream connection errors.
 
 ## [2.12.18] - 2025-11-26
@@ -734,7 +712,6 @@ docker restart eas-sdr-service eas-audio-service
   /dev/gpiomem access and read-only sysfs mounts so deployments can correct permissions.
 - Replaced the deprecated `RPi.GPIO` backend with `gpiozero` output devices and ensured typing imports
   are available so Raspberry Pi deployments boot cleanly on Pi 5 hardware.
-- Ensured Docker Compose publishes nginx ports on both IPv4 and IPv6 addresses so external scanners can reach the HTTPS endpoint over IPv6.
 - Reduced nginx static asset cache lifetime from 24 hours to five minutes so freshly deployed frontend changes appear without manual cache purges.
 - Prevented alert verification page timeouts by offloading audio decoding to a background worker and persisting progress/results for UI polling.
 - Added Raspberry Pi 5-compatible `lgpio` fallback for GPIO control so BCM pins configured as active-high no longer enter an error state when `RPi.GPIO` is unavailable.
@@ -794,7 +771,6 @@ docker restart eas-sdr-service eas-audio-service
   - Applied to all boolean fields: silence_detected, clipping_detected, enabled, auto_start, acknowledged, resolved, is_active, is_healthy, error_detected
   - Fixes "Object of type bool is not JSON serializable" errors on `/api/audio/metrics`, `/api/audio/health`, and `/api/audio/alerts`
 - **Added pydub dependency** for MP3/AAC/OGG stream decoding from HTTP/Icecast sources
-  - Added `pydub==0.25.1` to requirements.txt (requires ffmpeg system package already in Dockerfile)
 - Fixed module import paths in scripts/manual_eas_event.py and scripts/manual_alert_fetch.py by adding repository root to sys.path
 - Fixed CSRF token protection in password change form (security settings)
 - Fixed audit log pagination to cap per_page parameter at 1000 to prevent DoS attacks
@@ -870,7 +846,6 @@ docker restart eas-sdr-service eas-audio-service
   external network services when the engine is installed locally.
 - Authored dedicated `docs/reference/ABOUT.md` and `docs/guides/HELP.md` documentation describing the system mission, software stack, and operational playbooks, with cross-links from the README for quick discovery.
 - Exposed in-app About and Help pages so operators can read the mission overview and operations guide directly from the dashboard navigation.
-- Distributed a `docker-compose.embedded-db.yml` overlay so application services
   can either rely on the bundled `alerts-db` PostGIS container or connect to an
   existing deployment without editing the primary compose file.
 - Documented open-source dependency attributions in the docs and surfaced
@@ -882,7 +857,6 @@ docker restart eas-sdr-service eas-audio-service
 - Documented the release governance workflow across the README, ABOUT page, Terms of Use, master roadmap, and site footer so version numbering, changelog discipline, and regression verification remain mandatory for every contribution.
 - Suppressed automatic EAS generation for Special Weather Statements and Dense Fog Advisories to align with standard activation practices.
 - Clarified in the README and dependency notes that PostgreSQL with PostGIS must run in a dedicated container separate from the application services.
-- Documented a single-line command for cloning the Experimental branch and launching the Docker Compose stack so operators can bootstrap quickly.
 - Clarified the update instructions to explicitly pull the Experimental branch when refreshing deployments.
 - Documented the expectation that deployments supply their own PostgreSQL/PostGIS host and simplified Compose instructions to run only the application services.
 - Reworked the EAS Output tab with an interactive Manual Broadcast Builder and refreshed the README/HELP documentation to cover the browser-based workflow.
@@ -891,7 +865,6 @@ docker restart eas-sdr-service eas-audio-service
 - Updated the Quick Weekly Test preset to omit the attention signal by default and added a
   “No attention signal (omit)” option so manual packages can exclude the dual-tone or 1050 Hz
   alert when regulations allow.
-- Bundled `ffmpeg`, `espeak`, and `libespeak-ng1` system packages in the Docker image so offline narration dependencies work out of the box during container builds.
 ### Fixed
 - Inserted the mandatory display-position byte in LED sign mode fields so M-Protocol
   frames comply with Alpha controller requirements.
@@ -952,7 +925,7 @@ docker restart eas-sdr-service eas-audio-service
 - Fixed the Manual Broadcast Builder narration preview so newline escaping no longer triggers a
   browser-side "Invalid regular expression" error when rendering generated messages.
 - Restored the `.env.example` template and documented the startup error shown when the
-  file is missing so Docker Compose deployments no longer fail with "env file not found".
+  file is missing so systemd deployments no longer fail with "env file not found".
 - Skip PostGIS-specific geometry checks when running against SQLite and store geometry
   fields as plain text on non-PostgreSQL databases so local development can initialize
   without spatial extensions.
@@ -1020,7 +993,6 @@ docker restart eas-sdr-service eas-audio-service
 ## [2.4.1] - 2025-11-09
 ### Fixed
 - **Resolved production nginx image regressions** - Ensured HTTPS container bundles required tooling and static assets
-  - Added `certbot` to nginx Docker image so Let's Encrypt provisioning no longer fails with `certbot: not found`
   - Copied repository `static/` directory into the image to stop 404 errors for CSS, JS, and image assets
   - Updated nginx configuration to use the modern `http2 on;` directive and silence deprecation warnings during startup
 
@@ -1070,7 +1042,6 @@ docker restart eas-sdr-service eas-audio-service
 
 ## [2.3.3] - 2025-11-13
 ### Changed
-- Rebased the container on the `python:3.12-slim-bookworm` image, added security upgrades during build, and refreshed pinned Python dependencies (including SciPy 1.14.1) to address Docker Hub vulnerability scans.
 - Documented Raspberry Pi 5 (4 GB RAM) as the reference platform across the README, policy documents, and in-app help/about pages while noting continued Raspberry Pi 4 compatibility.
 
 ## [2.3.2] - 2025-11-02
@@ -1147,7 +1118,6 @@ docker restart eas-sdr-service eas-audio-service
 ### Changed
 - Hardened manual import queries to enforce supported NOAA parameters and improved error
   handling for administrative workflows.
-- Updated Docker Compose defaults and boundary ingestion utilities to better support
   mixed geometry types.
 
 ## [2.1.0] - 2025-10-25
@@ -1158,7 +1128,6 @@ docker restart eas-sdr-service eas-audio-service
   health monitoring, and boundary management tools.
 - Integrated optional LED sign controls with configurable presets, message scheduling,
   and hardware diagnostics.
-- Added containerized deployment assets (Dockerfile, docker-compose) and operational
   scripts for managing services.
 
 ## [2.2.0] - 2025-10-29

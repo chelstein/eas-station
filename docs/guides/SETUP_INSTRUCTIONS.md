@@ -8,7 +8,6 @@ The repository includes an empty `.env` file that the setup wizard can write to:
 
 1. **Deploy the stack in Portainer**
    - Add the Git repository
-   - Deploy using `docker-compose.yml` or `docker-compose.embedded-db.yml`
    - No pre-configuration needed!
 
 2. **Access the setup wizard**
@@ -24,11 +23,9 @@ The repository includes an empty `.env` file that the setup wizard can write to:
   - Scroll to "Environment variables"
   - Add: `SECRET_KEY=your-generated-key`, `POSTGRES_PASSWORD=your-password`, etc.
 
-- **Option 2:** Edit the stack's docker-compose file in Portainer to include your environment values directly
-
 This approach ensures your configuration persists across Git redeployments.
 
-### Docker Compose (Command Line)
+### systemd (Command Line)
 
 For command-line deployments:
 
@@ -37,14 +34,10 @@ For command-line deployments:
 git clone https://github.com/KR8MER/eas-station.git
 cd eas-station
 
-# 2. Start the Docker stack
-docker-compose up -d
-
 # 3. Access the setup wizard
 # Navigate to: http://localhost/setup
 
 # 4. After configuration, restart
-docker-compose restart
 ```
 
 The `.env` file is already included in the repository, so no initialization script is needed.
@@ -75,26 +68,6 @@ The web-based setup wizard provides:
 
 ## Troubleshooting
 
-### Error: ".env was created as a directory by Docker"
-
-**This issue is fixed in the latest version** by removing the volume mount.
-
-If you see this error, you're on an older commit. To fix:
-
-**Portainer:**
-1. Stop and remove the stack completely
-2. Update the Git reference to the latest commit on your branch
-3. Redeploy from the latest Git repository
-
-**Docker Compose:**
-```bash
-docker-compose down
-git pull
-docker-compose up -d
-```
-
-The `.env` file now lives in the container (from the Git repo) instead of being mounted from the host.
-
 ### Configuration Not Persisting
 
 If changes in the setup wizard don't persist after restarting:
@@ -107,13 +80,11 @@ If changes in the setup wizard don't persist after restarting:
 
 2. Check that the volume mount is working:
    ```bash
-   docker-compose exec app ls -la /app/.env
    # Should show a file, not a directory
    ```
 
 3. After saving configuration, restart the stack:
    ```bash
-   docker-compose restart
    ```
 
 ## Manual Configuration (Advanced)
@@ -131,7 +102,6 @@ python3 -c "import secrets; print(secrets.token_hex(32))"
 nano .env
 
 # 4. Start the stack
-docker-compose up -d
 ```
 
 ## After Configuration
@@ -142,11 +112,9 @@ Once configured, the `.env` file will contain your settings. To modify:
    - Navigate to: http://localhost/setup
    - Make changes
    - Click "Save configuration"
-   - Restart: `docker-compose restart`
 
 2. **Manually Editing .env**:
    - Edit the file: `nano .env`
-   - Restart: `docker-compose restart`
 
 ## Auto-Derive Zone Codes
 

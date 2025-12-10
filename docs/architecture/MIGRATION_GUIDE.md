@@ -21,14 +21,12 @@ This guide provides detailed instructions for migrating from the current EAS Sta
 - Understanding of current codebase
 - Familiarity with proposed architecture
 - Python 3.11+ experience
-- Docker and docker-compose knowledge
 - PostgreSQL and Redis experience
 - Git and version control
 
 ### Tools Needed
 - Python 3.11+
 - Poetry 1.7+
-- Docker 24+
 - PostgreSQL 17+
 - Redis 7+
 - Git 2.40+
@@ -1024,49 +1022,15 @@ jobs:
 
 ## Deployment
 
-### Docker Build
-
-```dockerfile
-# Dockerfile.new
-FROM python:3.11-slim
-
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    postgresql-client \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install Poetry
-RUN pip install poetry==1.7.1
-
-# Set working directory
-WORKDIR /app
-
-# Copy dependency files
-COPY pyproject.toml poetry.lock ./
-
-# Install dependencies
-RUN poetry config virtualenvs.create false \
-    && poetry install --no-dev --no-root
-
-# Copy source code
-COPY src ./src
-COPY alembic.ini ./
-
-# Run migrations and start app
-CMD ["sh", "-c", "poetry run alembic upgrade head && poetry run uvicorn src.api.main:app --host 0.0.0.0 --port 8000"]
-```
-
-### Docker Compose Update
+### systemd Update
 
 ```yaml
-# docker-compose.new.yml
 version: '3.8'
 
 services:
   api:
     build:
       context: .
-      dockerfile: Dockerfile.new
     ports:
       - "8000:8000"
     environment:
@@ -1089,10 +1053,8 @@ services:
 **1. Immediate Rollback:**
 ```bash
 # Stop new services
-docker-compose -f docker-compose.new.yml down
 
 # Restart old services
-docker-compose up -d
 ```
 
 **2. Database Rollback:**
@@ -1107,8 +1069,6 @@ psql -U postgres alerts < backup.sql
 **3. Redis Rollback:**
 ```bash
 # Clear Redis and restart
-docker exec eas-redis redis-cli FLUSHDB
-docker-compose restart redis
 ```
 
 ---

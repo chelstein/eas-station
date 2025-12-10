@@ -40,7 +40,7 @@ EAS Station is a software-defined drop-in replacement for commercial EAS encoder
 | **docs/** | Complete documentation (architecture, guides, API reference) |
 | **templates/** | Jinja2 HTML templates for web UI |
 | **static/** | CSS, JavaScript, images, and vendor libraries |
-| **examples/** | Docker Compose examples and deployment configurations |
+| **examples/** | systemd examples and deployment configurations |
 | **samples/** | Sample audio files for testing EAS detection |
 
 ---
@@ -146,17 +146,8 @@ Comprehensive test coverage:
 
 ## 🚀 Deployment & Configuration
 
-### Docker Support
-- Multi-container architecture (web, audio, database)
-- Multiple docker-compose configurations:
-  - `docker-compose.yml` - Standard deployment
-  - `docker-compose.separated.yml` - Service separation
-  - `docker-compose.pi.yml` - Raspberry Pi optimization
-  - `docker-compose.icecast.yml` - Icecast streaming
-
 ### Environment Configuration
 - `.env.example` - Template with all configuration options (15.24 KB)
-- `stack.env.example` - Docker stack configuration
 - Automated Let's Encrypt SSL certificate provisioning
 
 ### Database
@@ -251,7 +242,6 @@ Comprehensive documentation available in `docs/` directory:
 | **Python Version** | 3.11+ |
 | **Database** | PostgreSQL 17 + PostGIS 3.4 |
 | **Main Framework** | Flask 3.0.3 |
-| **Docker Compose** | V2 (Docker Engine 24+) |
 | **Supported Hardware** | Raspberry Pi 5, RTL-SDR, Airspy, GPIO HATs |
 | **Event Codes Supported** | 67 FCC codes |
 | **License** | AGPL v3 / Commercial |
@@ -272,9 +262,7 @@ Comprehensive documentation available in `docs/` directory:
    # Edit .env with your settings
    ```
 
-3. **Deploy with Docker**
    ```bash
-   sudo docker compose up -d --build
    ```
 
 4. **Access Web Interface**

@@ -15,10 +15,9 @@ This guide helps troubleshoot and fix IPv6 connectivity problems that can affect
 
 ## Overview
 
-EAS Station uses Docker Compose with an IPv6-enabled network (`fd00:ea:1::/64`). While this enables modern dual-stack networking, it can cause issues when:
+EAS Station uses systemd with an IPv6-enabled network (`fd00:ea:1::/64`). While this enables modern dual-stack networking, it can cause issues when:
 
 1. **SSL Labs cannot reach your IPv6 site** - The AAAA DNS record points to an IPv6 address, but the server isn't responding on that address
-2. **nginx fails to connect to the backend** - Docker DNS returns IPv6 addresses that the Flask backend doesn't bind to
 3. **Intermittent connection failures** - nginx tries IPv6 first, fails, then retries on IPv4
 
 ---
@@ -29,7 +28,6 @@ EAS Station uses Docker Compose with an IPv6-enabled network (`fd00:ea:1::/64`).
 
 SSL Labs reports "Unable to connect to the server" for IPv6 but IPv4 works fine.
 
-**Cause:** Your DNS has an AAAA record, but nginx isn't properly publishing on IPv6, OR external IPv6 traffic isn't reaching Docker.
 
 ### Symptom 2: nginx Upstream Connection Refused
 
@@ -52,7 +50,7 @@ Requests randomly fail with 499 (client closed connection) or 502 (bad gateway).
 
 ### The Technical Issue
 
-Docker Compose creates an IPv6-enabled network with both IPv4 and IPv6 subnets:
+systemd creates an IPv6-enabled network with both IPv4 and IPv6 subnets:
 
 ```yaml
 networks:
@@ -64,7 +62,6 @@ networks:
         - subnet: fd00:ea:1::/64     # IPv6
 ```
 
-When nginx resolves `app:5000` using Docker's embedded DNS (127.0.0.11), it gets **both** IPv4 and IPv6 addresses. The `resolver 127.0.0.11 ipv6=off;` directive only affects runtime variable resolution—**not** statically configured `upstream` blocks.
 
 Since Gunicorn binds to `0.0.0.0:5000` (IPv4 only), connections to the IPv6 address fail with "Connection refused."
 
@@ -100,23 +97,14 @@ This script checks:
 - IPv6 system status
 - IPv6 addresses on interfaces
 - IPv6 routes
-- Docker IPv6 configuration
 - Firewall rules
 - Listening ports
 
 ### Step 2: Check nginx Logs for IPv6 Errors
 
-```bash
-docker compose logs nginx | grep -i "connect() failed"
-```
-
 Look for errors mentioning IPv6 addresses like `[fd00:ea:1::X]`.
 
 ### Step 3: Verify Backend Binding
-
-```bash
-docker compose exec app netstat -tlnp | grep 5000
-```
 
 Should show:
 ```
@@ -126,10 +114,6 @@ tcp    0    0 0.0.0.0:5000    0.0.0.0:*    LISTEN
 If it shows `:::5000`, the backend is listening on IPv6 (good). If only `0.0.0.0:5000`, it's IPv4 only.
 
 ### Step 4: Test DNS Resolution Inside nginx
-
-```bash
-docker compose exec nginx nslookup app
-```
 
 Check if it returns both IPv4 and IPv6 addresses.
 
@@ -156,29 +140,9 @@ location / {
 
 **Why it works:** Using a variable in `proxy_pass` forces nginx to resolve the hostname at request time using the configured resolver, which has `ipv6=off`.
 
-### Solution 2: Disable IPv6 on the Docker Network
-
-If you don't need IPv6 at all, disable it in docker-compose.yml:
-
-```yaml
-networks:
-  eas-network:
-    enable_ipv6: false  # Changed from true
-    driver: bridge
-    ipam:
-      config:
-        - subnet: 172.20.0.0/16
-        # Remove IPv6 subnet
-```
-
-**Pros:** Simplest solution
-**Cons:** Breaks IPv6 connectivity for external clients
-
 ### Solution 3: Make Gunicorn Listen on IPv6
 
-Modify the Dockerfile CMD to bind to both IPv4 and IPv6:
 
-```dockerfile
 CMD ["sh", "-c", "gunicorn --bind [::]:5000 --workers ${MAX_WORKERS:-2} ..."]
 ```
 
@@ -211,8 +175,6 @@ If SSL Labs can't reach your IPv6 address:
    curl -6 -v https://yourdomain.com/
    ```
 
-5. **Ensure Docker publishes ports on IPv6:**
-   The docker-compose.yml should have ports that bind to both protocols:
    ```yaml
    ports:
      - "80:80"    # Binds to both IPv4 and IPv6 by default
@@ -224,10 +186,6 @@ If SSL Labs can't reach your IPv6 address:
 ## Verification
 
 ### Test 1: Internal Backend Connectivity
-
-```bash
-docker compose exec nginx curl -v http://app:5000/health
-```
 
 Should connect without IPv6 errors.
 

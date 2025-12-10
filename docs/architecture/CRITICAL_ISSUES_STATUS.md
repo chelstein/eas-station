@@ -72,7 +72,6 @@ App container running `nmcli` commands without host network access.
    - Uses `call_hardware_service()` helper function
    - Proper error handling and timeouts
 
-3. **Hardware Service Container** (docker-compose.yml:209-257)
    - Has `NET_ADMIN` capability
    - Has DBus access for NetworkManager
    - Port 5001 exposed for API
@@ -106,7 +105,6 @@ App container trying to access `/dev/ttyAMA0` serial ports not mapped to it.
    - Uses same `call_hardware_service()` pattern
    - Reads coordinator status from Redis
 
-3. **Hardware Service Container** (docker-compose.yml)
    - Has serial device mappings
    - Can access `/dev/ttyUSB*`, `/dev/ttyAMA0`, etc.
 
@@ -161,7 +159,6 @@ def initialize_radio_receivers(app):
    response = requests.get("http://hardware-service:5001/api/network/status")
    ```
 
-3. **Docker Service Names**
    ```python
    HARDWARE_SERVICE_URL = "http://hardware-service:5001"
    REDIS_HOST = os.getenv("REDIS_HOST", "redis")
@@ -236,7 +233,6 @@ def initialize_radio_receivers(app):
    curl -X POST http://localhost:8888/api/radio/receivers/1/restart
 
    # Verify command reaches sdr-service
-   docker logs eas-sdr-service | grep "Processing command: restart"
    ```
 
 2. **Network Management**
@@ -245,7 +241,6 @@ def initialize_radio_receivers(app):
    curl -X POST http://localhost:8888/api/network/wifi/scan
 
    # Verify hardware-service executes nmcli
-   docker logs eas-hardware-service | grep "nmcli"
    ```
 
 3. **Zigbee Control**
@@ -254,7 +249,6 @@ def initialize_radio_receivers(app):
    curl http://localhost:8888/api/zigbee/status
 
    # Verify hardware-service lists serial ports
-   docker logs eas-hardware-service | grep "zigbee"
    ```
 
 ### Performance Tests

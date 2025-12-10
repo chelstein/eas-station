@@ -288,14 +288,10 @@ SDR_ARGS=driver=airspy
 CONFIG_PATH=/app-config/.env
 ```
 
-### Docker Compose Files
+### systemd Files
 
 | File | Description |
 |------|-------------|
-| `docker-compose.yml` | Standard deployment with external database |
-| `docker-compose.embedded-db.yml` | Standalone with embedded PostgreSQL |
-| `docker-compose.separated.yml` | Documentation of separated architecture |
-| `docker-compose.pi.yml` | Raspberry Pi hardware overlay |
 
 ## Troubleshooting
 
@@ -303,17 +299,14 @@ CONFIG_PATH=/app-config/.env
 
 1. Check USB device access:
    ```bash
-   docker exec eas-sdr-service lsusb
    ```
 
 2. Check SoapySDR detection:
    ```bash
-   docker exec eas-sdr-service SoapySDRUtil --find
    ```
 
 3. Check container logs:
    ```bash
-   docker logs eas-sdr-service
    ```
 
 ### Buffer Overflows
@@ -335,17 +328,14 @@ Solutions:
 
 1. Check Redis connectivity:
    ```bash
-   docker exec eas-sdr-service python -c "import redis; r=redis.Redis(host='redis'); print(r.ping())"
    ```
 
 2. Check spectrum key:
    ```bash
-   docker exec eas-redis redis-cli GET sdr:spectrum:noaa-1
    ```
 
 3. Verify receiver is locked:
    ```bash
-   docker exec eas-redis redis-cli HGETALL sdr:metrics
    ```
 
 ## Monitoring
@@ -356,7 +346,6 @@ The SDR service publishes a heartbeat to Redis:
 
 ```bash
 # Check heartbeat
-docker exec eas-redis redis-cli GET sdr:heartbeat
 
 # Expected output:
 {"timestamp": 1701532800.123, "pid": 12345, "receiver_count": 1}
@@ -366,7 +355,6 @@ docker exec eas-redis redis-cli GET sdr:heartbeat
 
 ```bash
 # Check ring buffer health
-docker exec eas-redis redis-cli HGETALL sdr:ring_buffer:noaa-1
 
 # Expected fields:
 # fill_percentage: 25.5
@@ -379,10 +367,8 @@ docker exec eas-redis redis-cli HGETALL sdr:ring_buffer:noaa-1
 
 ```bash
 # Check all containers
-docker-compose ps
 
 # Check SDR service specifically
-docker inspect eas-sdr-service --format='{{.State.Health.Status}}'
 ```
 
 ## Performance Tuning
@@ -402,7 +388,6 @@ ring_buffer = int(2_500_000 * 1.0)    # 2,500,000 samples
 
 For multi-core systems, consider pinning threads:
 ```yaml
-# docker-compose.yml
 sdr-service:
   cpuset: "0,1"  # Use cores 0 and 1
 ```
@@ -410,7 +395,6 @@ sdr-service:
 ### Memory
 
 ```yaml
-# docker-compose.yml
 sdr-service:
   shm_size: '512mb'  # Increase for higher sample rates
   mem_limit: 1g       # Limit total memory

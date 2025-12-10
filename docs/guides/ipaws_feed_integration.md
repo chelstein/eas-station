@@ -122,17 +122,9 @@ POLL_INTERVAL_SEC=120  # 2 minutes (FEMA recommended)
 
 ### 2. Restart the IPAWS Poller
 
-```bash
-docker compose restart ipaws-poller
-```
-
 ### 3. Monitor Alert Ingestion
 
 Check the logs to verify alerts are being received:
-
-```bash
-docker compose logs -f ipaws-poller
-```
 
 You should see logs like:
 ```

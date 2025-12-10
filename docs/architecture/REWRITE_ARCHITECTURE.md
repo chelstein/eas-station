@@ -252,11 +252,6 @@ eas-station/
 │   ├── deployment/
 │   └── development/
 │
-├── docker/                      # Docker files
-│   ├── Dockerfile.web
-│   ├── Dockerfile.audio
-│   ├── Dockerfile.sdr
-│   └── docker-compose.yml
 │
 ├── scripts/                     # Utility scripts
 │   ├── migrate.sh
@@ -609,7 +604,6 @@ async def handle_alert_received(event: AlertReceived):
 - Refactor audio service
 - Refactor SDR service
 - Refactor EAS service
-- Update docker-compose
 
 **Phase 6: Web UI** (Week 13-14)
 - Update templates

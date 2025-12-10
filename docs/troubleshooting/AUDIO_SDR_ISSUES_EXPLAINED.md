@@ -330,19 +330,15 @@ If you prefer to fix manually:
 
 ```bash
 # 1. Diagnose
-docker compose exec -T alerts-db psql -U postgres -d alerts < diagnose_all_streams.sql
 
 # 2. Apply fixes
-docker compose exec -T alerts-db psql -U postgres -d alerts < fix_all_stream_sample_rates.sql
 
 # 3. Auto-detect HTTP stream rates (optional but recommended)
 ./detect_stream_sample_rates.sh
 
 # 4. Restart services
-docker compose restart sdr-service
 
 # 5. Verify
-docker compose exec -T alerts-db psql -U postgres -d alerts < diagnose_all_streams.sql
 ```
 
 ---
@@ -392,7 +388,6 @@ http://localhost:8001/WNCI.mp3
 ### 4. Check Logs
 
 ```bash
-docker compose logs -f sdr-service | grep -i "sample.*rate\|demod\|icecast"
 
 # Should see lines like:
 # "Created WFM demodulator for receiver: rtlsdr0"

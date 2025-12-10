@@ -116,7 +116,6 @@ This page provides an index of all professional diagrams and flowcharts availabl
 ![Hardware Deployment](../assets/diagrams/system-deployment-hardware.svg)
 
 **Key Features:**
-- **Raspberry Pi 5 Core:** 8GB RAM, Docker containers
 - **USB Peripherals:** RTL-SDR, Airspy, USB audio DAC
 - **GPIO Connections:** Relay HAT for transmitter control
 - **Storage:** NVMe SSD via PCIe Gen 2

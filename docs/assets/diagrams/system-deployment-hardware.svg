@@ -64,13 +64,13 @@
     BCM2712 • Cortex-A76 @ 2.4GHz • 8GB LPDDR4X
   </text>
 
-  <!-- Docker Engine -->
+  <!-- systemd Services -->
   <rect x="370" y="230" width="460" height="48" rx="6" fill="#dbeafe" stroke="#3b82f6" stroke-width="2"/>
   <text x="600" y="260" font-family="Arial, sans-serif" font-size="14" font-weight="bold" text-anchor="middle" fill="#1e40af">
-    Docker Engine 24+ (Compose V2)
+    systemd Service Management
   </text>
 
-  <!-- Docker Containers -->
+  <!-- systemd Services -->
   <g id="containers">
     <!-- Web App Container -->
     <rect x="380" y="300" width="220" height="116" rx="6" fill="url(#dep-grad-container)" filter="url(#dep-shadow)"/>

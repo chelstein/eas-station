@@ -27,8 +27,6 @@ The RadioManager was not being initialized in the web application, so even thoug
 The fixes have been committed, but you need to restart the web app for them to take effect:
 
 ```bash
-# If running via docker-compose
-docker-compose restart webapp
 
 # If running directly
 # Stop the current process (Ctrl+C) and restart:
@@ -190,13 +188,10 @@ If the waterfall still doesn't appear after restart:
    console.log(document.getElementById('waveformAutoRefresh').checked);  // Should be true
    ```
 
-## Docker-Specific Notes
 
-If running in Docker:
 
 1. **Check container logs:**
    ```bash
-   docker-compose logs -f webapp
    ```
    Look for:
    ```
@@ -206,12 +201,10 @@ If running in Docker:
 
 2. **Restart container:**
    ```bash
-   docker-compose restart webapp
    ```
 
 3. **Check if SDR device is passed through:**
    ```bash
-   docker-compose exec webapp ls -la /dev/bus/usb/*/*
    ```
 
 ## Still Not Working?

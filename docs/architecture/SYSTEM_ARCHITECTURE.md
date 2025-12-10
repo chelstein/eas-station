@@ -909,7 +909,6 @@ flowchart TD
 
 ```mermaid
 graph TB
-    subgraph "Docker Compose Services"
         APP[app<br>Flask Web + API]
         NOAA_POLL[noaa-poller<br>CAP Polling]
         IPAWS_POLL[ipaws-poller<br>FEMA Polling]
@@ -928,7 +927,6 @@ graph TB
         VOL_CERTS[certbot-conf]
     end
 
-    subgraph "Docker Network"
         NET[eas-network<br>Bridge + IPv6]
     end
 
@@ -1023,7 +1021,6 @@ sequenceDiagram
 graph TB
     subgraph "Raspberry Pi 5 Hardware"
         subgraph "Software Stack"
-            HOST[Docker Engine 24+]
             subgraph "Containers"
                 APP_C[Web Application<br>Python 3.12 + Flask]
                 POLL_C[CAP Poller<br>Background Service]
@@ -1084,8 +1081,6 @@ graph TB
 ```mermaid
 graph TB
     subgraph "Application Server"
-        APP[EAS Station Application<br>Docker Compose]
-        POLL[CAP Pollers<br>Docker Containers]
     end
 
     subgraph "Database Server"
