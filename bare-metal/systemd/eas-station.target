@@ -1,0 +1,17 @@
+[Unit]
+Description=EAS Station Services
+Documentation=https://github.com/KR8MER/eas-station
+Requires=postgresql.service redis.service nginx.service
+After=postgresql.service redis.service nginx.service
+
+# This target starts all EAS Station services together
+Wants=eas-station-web.service \
+      eas-station-sdr.service \
+      eas-station-audio.service \
+      eas-station-eas.service \
+      eas-station-hardware.service \
+      eas-station-noaa-poller.service \
+      eas-station-ipaws-poller.service
+
+[Install]
+WantedBy=multi-user.target

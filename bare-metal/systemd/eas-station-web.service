@@ -1,0 +1,48 @@
+[Unit]
+Description=EAS Station Web Application
+Documentation=https://github.com/KR8MER/eas-station
+After=network.target postgresql.service redis.service
+Wants=postgresql.service redis.service
+
+[Service]
+Type=notify
+User=eas-station
+Group=eas-station
+WorkingDirectory=/opt/eas-station
+Environment="PATH=/opt/eas-station/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+Environment="PYTHONPATH=/opt/eas-station"
+EnvironmentFile=/opt/eas-station/.env
+
+# Run Gunicorn with gevent workers for Flask-SocketIO support
+ExecStart=/opt/eas-station/venv/bin/gunicorn \
+    --bind 0.0.0.0:5000 \
+    --workers 2 \
+    --timeout 300 \
+    --worker-class gevent \
+    --worker-connections 1000 \
+    --log-level info \
+    --access-logfile /var/log/eas-station/web-access.log \
+    --error-logfile /var/log/eas-station/web-error.log \
+    app:app
+
+# Service management
+Restart=always
+RestartSec=10s
+KillMode=mixed
+KillSignal=SIGQUIT
+TimeoutStopSec=30
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/eas-station /var/log/eas-station
+CapabilityBoundingSet=
+
+# Resource limits
+LimitNOFILE=65536
+MemoryMax=512M
+
+[Install]
+WantedBy=multi-user.target

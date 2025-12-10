@@ -125,29 +125,18 @@ eas-station/
 
 ## 🚀 Quick Start
 
-### Deployment Flow
+### Choose Your Deployment Method
 
-```mermaid
-flowchart TD
-    START[Clone Repository] --> ENV[Copy .env.example to .env]
-    ENV --> CONFIG{Configure<br/>Settings?}
-    CONFIG -->|Later| BUILD[docker compose up -d]
-    CONFIG -->|Now| EDIT[Edit .env file]
-    EDIT --> BUILD
-    BUILD --> HTTPS{Production<br/>or Local?}
-    HTTPS -->|Production| DOMAIN[Set DOMAIN_NAME in .env]
-    HTTPS -->|Local| ACCEPT[Accept self-signed cert]
-    DOMAIN --> RESTART[docker compose restart]
-    ACCEPT --> WEB[Open https://localhost]
-    RESTART --> WEB
-    WEB --> DONE[✓ Running!]
+EAS Station supports two deployment methods:
 
-    style START fill:#3b82f6,color:#fff
-    style BUILD fill:#8b5cf6,color:#fff
-    style DONE fill:#10b981,color:#fff
-```
+| Method | Best For | Setup Time |
+|--------|----------|------------|
+| **🐋 Docker** | Quick testing, development, easy updates | 5 minutes |
+| **🔧 Bare Metal** | Production, dedicated hardware, lower overhead | 15 minutes |
 
-### One-Command Installation
+### Docker Deployment (Recommended for Testing)
+
+#### One-Command Installation
 
 ```bash
 git clone https://github.com/KR8MER/eas-station.git && \
@@ -163,7 +152,7 @@ Then open **https://localhost** in your browser (HTTPS enabled by default).
 > - For localhost: Accept the self-signed certificate warning (safe for testing)
 > - Edit `.env` with your configuration, then restart: `sudo docker compose restart`
 
-### Prerequisites
+#### Prerequisites
 
 - Docker Engine 24+ with Compose V2
 - PostgreSQL 14+ with PostGIS (can use embedded container)
@@ -171,6 +160,40 @@ Then open **https://localhost** in your browser (HTTPS enabled by default).
 - Internet connection for alert polling
 
 > **Note**: Most Docker commands require root privileges. If you're running as a non-root user, prefix commands with `sudo`. Alternatively, add your user to the `docker` group (see [Docker Post-Installation Steps](https://docs.docker.com/engine/install/linux-postinstall/)).
+
+### Bare Metal Deployment (Recommended for Production)
+
+#### Quick Installation
+
+```bash
+git clone https://github.com/KR8MER/eas-station.git && \
+cd eas-station/bare-metal && \
+sudo bash scripts/install.sh
+```
+
+Or build a **bootable ISO image**:
+
+```bash
+cd eas-station/bare-metal
+sudo bash scripts/build-iso.sh
+# Burn to USB: sudo dd if=eas-station-*.iso of=/dev/sdX bs=4M
+```
+
+#### Benefits of Bare Metal
+
+- ✅ **No Docker dependency** - Runs directly on host OS
+- ✅ **Lower overhead** - Direct hardware access
+- ✅ **Native systemd** - Standard Linux service management
+- ✅ **Bootable ISO** - Pre-configured system ready to deploy
+
+#### Prerequisites
+
+- Debian 12, Ubuntu 22.04+, or Raspberry Pi OS
+- 2GB RAM minimum (4GB+ recommended)
+- 20GB storage (50GB+ recommended)
+- Internet connection for alert polling
+
+**📖 Full Guide:** See [bare-metal/README.md](bare-metal/README.md) for detailed installation and configuration.
 
 ## 📚 Documentation
 
