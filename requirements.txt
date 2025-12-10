@@ -70,7 +70,7 @@ openpyxl==3.1.5
 
 # Production servers (BOTH during migration)
 gunicorn==23.0.0  # WSGI server for Flask (port 5000)
-gevent==24.2.1    # Async worker for Flask-SocketIO with Gunicorn
+gevent>=25.9.1    # Async worker for Flask-SocketIO with Gunicorn (Python 3.13+ compatible)
 # uvicorn (ASGI server for FastAPI on port 8080) already included above with [standard] extras
 # uvicorn[standard] includes: websockets, httptools, uvloop, watchfiles
 
