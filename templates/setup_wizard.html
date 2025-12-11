@@ -396,7 +396,7 @@ const FIPSSelector = {
     async loadStates() {
         const dropdown = document.getElementById('fips-state-dropdown');
         try {
-            const response = await fetch('{{ url_for("setup_get_states") }}');
+            const response = await fetch('/setup/get-states');
             if (!response.ok) throw new Error('Failed to load states');
 
             const data = await response.json();
@@ -461,7 +461,7 @@ const FIPSSelector = {
         `;
 
         try {
-            const response = await fetch(`{{ url_for("setup_get_counties", state_code="__STATE__") }}`.replace('__STATE__', stateCode));
+            const response = await fetch(`/setup/get-counties/${stateCode}`);
             if (!response.ok) throw new Error('Failed to load counties');
 
             const data = await response.json();
