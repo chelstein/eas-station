@@ -266,9 +266,28 @@ while true; do
     DOMAIN_NAME=$(echo "$DOMAIN_NAME" | xargs)
     
     # Validate domain format (allow localhost, IP addresses, and domain names)
-    if [[ "$DOMAIN_NAME" == "localhost" ]] || \
-       [[ "$DOMAIN_NAME" =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]] || \
-       [[ "$DOMAIN_NAME" =~ ^[a-zA-Z0-9]([a-zA-Z0-9.-]*[a-zA-Z0-9])?$ ]]; then
+    if [[ "$DOMAIN_NAME" == "localhost" ]]; then
+        echo_success "Domain: ${BOLD}$DOMAIN_NAME${NC}"
+        break
+    # Validate IP address with proper octet range (0-255)
+    elif [[ "$DOMAIN_NAME" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        IFS='.' read -ra OCTETS <<< "$DOMAIN_NAME"
+        VALID_IP=true
+        for octet in "${OCTETS[@]}"; do
+            if [ "$octet" -lt 0 ] || [ "$octet" -gt 255 ]; then
+                VALID_IP=false
+                break
+            fi
+        done
+        if [ "$VALID_IP" = true ]; then
+            echo_success "Domain: ${BOLD}$DOMAIN_NAME${NC}"
+            break
+        else
+            echo_error "Invalid IP address. Each octet must be 0-255"
+            continue
+        fi
+    # Validate domain name format
+    elif [[ "$DOMAIN_NAME" =~ ^[a-zA-Z0-9]([a-zA-Z0-9.-]*[a-zA-Z0-9])?$ ]]; then
         echo_success "Domain: ${BOLD}$DOMAIN_NAME${NC}"
         break
     else
@@ -1163,7 +1182,12 @@ cd "$INSTALL_DIR"
 
 # Check if this is a fresh install or an upgrade
 echo_progress "Checking database state..."
-DB_HAS_TABLES=$(sudo -u postgres psql -d alerts -tAc "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE';" 2>/dev/null || echo "0")
+
+# Query to count existing tables in the public schema
+TABLE_COUNT_QUERY="SELECT COUNT(*) FROM information_schema.tables 
+                   WHERE table_schema = 'public' AND table_type = 'BASE TABLE';"
+
+DB_HAS_TABLES=$(sudo -u postgres psql -d alerts -tAc "$TABLE_COUNT_QUERY" 2>/dev/null || echo "0")
 
 if [ "$DB_HAS_TABLES" -eq "0" ]; then
     # Fresh install - use db.create_all() which creates the complete schema
@@ -1422,7 +1446,7 @@ echo -e "  ${BOLD}${YELLOW}1.${NC} ${BOLD}Log in${NC} to the web interface with 
 echo ""
 echo -e "  ${BOLD}${YELLOW}2.${NC} ${BOLD}Complete the SETUP WIZARD${NC} to configure:"
 echo -e "      ${GREEN}✓${NC} Your location (county, state, FIPS/zone codes)"
-echo -e "      ${DIM}Note: EAS station callsign/ID already configured: ${BOLD}$EAS_STATION_ID${NC}${DIM}${NC}"
+echo -e "      ${DIM}Note: EAS station callsign/ID already configured: ${BOLD}$EAS_STATION_ID${NC}"
 echo -e "      ${GREEN}✓${NC} Alert sources (NOAA, IPAWS feeds)"
 echo -e "      ${GREEN}✓${NC} EAS broadcast settings"
 echo -e "      ${GREEN}✓${NC} Hardware integrations (LED, OLED, SDR, etc.)"
