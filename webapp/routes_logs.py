@@ -116,6 +116,7 @@ def get_systemd_logs(service: str, lines: int = 100, priority: str = None, since
         }
 
 
+@logs_bp.route('/logs')
 @logs_bp.route('/system-logs')
 def system_logs_page():
     """Render the systemd logs viewer page."""
