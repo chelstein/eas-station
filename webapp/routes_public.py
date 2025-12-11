@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import json
 from collections import defaultdict
+from datetime import datetime
 from html import escape
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -53,6 +54,9 @@ from app_core.system_health import get_system_health
 from app_utils import format_bytes, format_uptime, utc_now
 from webapp import documentation
 from app_utils.pdf_generator import generate_pdf_document
+
+# Constants
+MIN_LOGS_PER_CATEGORY = 10  # Minimum logs to show per category in "All Logs" view
 
 
 def register(app: Flask, logger) -> None:
@@ -1176,7 +1180,7 @@ def register(app: Flask, logger) -> None:
             log_type_name = "All Logs"
             # For 'all' type, return logs organized by category
             # Each category gets a portion of the limit
-            logs_per_category = max(10, limit // 10)  # At least 10 per category
+            logs_per_category = max(MIN_LOGS_PER_CATEGORY, limit // 10)
             all_logs = []
             
             # System logs
@@ -1262,7 +1266,6 @@ def register(app: Flask, logger) -> None:
                 })
             
             # Sort all logs by timestamp
-            from datetime import datetime
             all_logs.sort(key=lambda x: x['timestamp'] if x['timestamp'] else datetime.min, reverse=True)
             logs_data = all_logs[:limit]
 
