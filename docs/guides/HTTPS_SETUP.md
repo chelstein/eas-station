@@ -288,11 +288,15 @@ sudo netstat -tlnp | grep :80
 
 ### Custom nginx Configuration
 
-The default nginx configuration is in `nginx.conf`. To customize:
+The nginx configuration for bare-metal deployments is located at `/etc/nginx/sites-available/eas-station` (symlinked from `config/nginx-eas-station.conf`). To customize:
 
-1. Edit `nginx.conf`
-2. Rebuild and restart:
+1. Edit the configuration file:
    ```bash
+   sudo nano /etc/nginx/sites-available/eas-station
+   ```
+2. Test and reload nginx:
+   ```bash
+   sudo nginx -t && sudo systemctl reload nginx
    ```
 
 **Common customizations:**
@@ -300,29 +304,46 @@ The default nginx configuration is in `nginx.conf`. To customize:
 #### Increase Upload Size Limit
 
 ```nginx
-# In nginx.conf server block
+# In /etc/nginx/sites-available/eas-station server block
 client_max_body_size 500M;  # Default is 100M
 ```
 
 #### Add Custom Headers
 
 ```nginx
-# In nginx.conf server block
+# In /etc/nginx/sites-available/eas-station server block
 add_header X-Custom-Header "value" always;
 ```
 
 #### Adjust Rate Limiting
 
+Rate limiting zones are defined in the main nginx configuration at `/etc/nginx/nginx.conf` within the http block. To adjust:
+
+```bash
+sudo nano /etc/nginx/nginx.conf
+```
+
+Find and modify:
 ```nginx
-# At top of nginx.conf
+# Inside the http block
 limit_req_zone $binary_remote_addr zone=api_limit:10m rate=100r/s;  # More permissive
+```
+
+Then reload nginx:
+```bash
+sudo systemctl reload nginx
 ```
 
 ### Multiple Domains
 
 To serve multiple domains:
 
-1. **Edit nginx.conf**:
+1. **Edit the nginx configuration**:
+   ```bash
+   sudo nano /etc/nginx/sites-available/eas-station
+   ```
+   
+   Update the server_name directive:
    ```nginx
    server {
        listen 443 ssl http2;
@@ -333,27 +354,36 @@ To serve multiple domains:
 
 2. **Obtain certificates for all domains**:
    ```bash
+   sudo certbot --nginx -d eas1.example.com -d eas2.example.com
    ```
 
 ### Using Existing Certificates
 
 If you already have SSL certificates:
 
-1. **Create certificate directories:**
+1. **Copy your certificates to the system directory:**
    ```bash
-   mkdir -p certs/live/yourdomain.com
+   sudo mkdir -p /etc/letsencrypt/live/yourdomain.com
+   sudo cp fullchain.pem /etc/letsencrypt/live/yourdomain.com/
+   sudo cp privkey.pem /etc/letsencrypt/live/yourdomain.com/
+   sudo cp chain.pem /etc/letsencrypt/live/yourdomain.com/
+   sudo chmod 600 /etc/letsencrypt/live/yourdomain.com/*.pem
    ```
 
-2. **Copy your certificates:**
+2. **Update nginx configuration** to point to your certificates:
    ```bash
-   cp fullchain.pem certs/live/yourdomain.com/
-   cp privkey.pem certs/live/yourdomain.com/
-   cp chain.pem certs/live/yourdomain.com/
+   sudo nano /etc/nginx/sites-available/eas-station
+   ```
+   
+   Ensure the SSL certificate paths are correct:
+   ```nginx
+   ssl_certificate /etc/letsencrypt/live/yourdomain.com/fullchain.pem;
+   ssl_certificate_key /etc/letsencrypt/live/yourdomain.com/privkey.pem;
    ```
 
-   ```yaml
-   volumes:
-     - ./certs:/etc/letsencrypt:ro
+3. **Reload nginx:**
+   ```bash
+   sudo systemctl reload nginx
    ```
 
 ### Monitoring Certificate Expiration
@@ -377,14 +407,19 @@ Check certificate expiration:
 
 To completely disable HTTP (port 80):
 
-1. **Edit nginx.conf** - Remove HTTP server block
-   ```yaml
-   nginx:
-     ports:
-       - "443:443"  # Remove port 80 mapping
+1. **Edit the nginx configuration:**
+   ```bash
+   sudo nano /etc/nginx/sites-available/eas-station
+   ```
+   
+2. **Comment out or remove the HTTP server block** (the one listening on port 80)
+
+3. **Reload nginx:**
+   ```bash
+   sudo nginx -t && sudo systemctl reload nginx
    ```
 
-⚠️ **Warning:** This breaks Let's Encrypt ACME challenges. Only use if you have other certificate management.
+⚠️ **Warning:** This breaks Let's Encrypt ACME challenges. Only use if you have other certificate management or already have valid certificates.
 
 ### SSL/TLS Configuration
 
@@ -394,11 +429,16 @@ Current configuration:
 - **HSTS:** Enabled (63072000 seconds = 2 years)
 - **OCSP Stapling:** Enabled
 
-To modify, edit `nginx.conf`:
+To modify, edit `/etc/nginx/sites-available/eas-station`:
 
 ```nginx
 ssl_protocols TLSv1.3;  # TLS 1.3 only (more restrictive)
 ssl_ciphers 'HIGH:!aNULL:!MD5';  # Different cipher suite
+```
+
+After changes, test and reload:
+```bash
+sudo nginx -t && sudo systemctl reload nginx
 ```
 
 **Test your configuration:**

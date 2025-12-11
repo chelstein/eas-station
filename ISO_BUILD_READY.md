@@ -1,14 +1,14 @@
 # ISO Build Ready - Repository Cleanup Summary
 
-**Date**: December 10, 2025  
-**Version**: 2.19.3  
-**Status**: ✅ Ready for ISO Build
+**Date**: December 11, 2025  
+**Version**: 2.19.4  
+**Status**: ✅ Ready for ISO Build - Docker Remnants Removed
 
 ## Changes Summary
 
 This document confirms that the EAS Station repository has been cleaned and prepared for ISO image creation.
 
-### 1. Docker References Removed
+### 1. Docker References Removed (Updated December 11, 2025)
 
 All Docker-specific code and dependencies have been removed or moved to legacy:
 
@@ -18,17 +18,25 @@ All Docker-specific code and dependencies have been removed or moved to legacy:
 - ✅ Created bare-metal SDR diagnostics using systemd/journalctl
 - ✅ Fixed database host default from Docker service name to localhost
 - ✅ Updated all error messages and hints for bare-metal deployment
+- ✅ **Removed 407 lines of dead Docker/Podman container detection code from `app_utils/system.py`**
+- ✅ **Moved `tools/validate_installation.py` to `legacy/validate_installation_docker.py` (Docker-only)**
+- ✅ **Moved `nginx.conf` to `legacy/nginx.conf.docker` (Docker-specific config)**
+- ✅ **Moved `docs/troubleshooting/FIX_IPV6_CONNECTIVITY.md` to `legacy/FIX_IPV6_CONNECTIVITY_DOCKER.md`**
+- ✅ **Updated all documentation references to use bare-metal nginx config paths**
 
 ### 2. Repository Size Reduction
 
-**Total Reduction: ~9.5MB**
+**Total Reduction: ~10.7MB** (updated December 11, 2025)
 
-| Directory | Size Removed | Reason |
-|-----------|--------------|--------|
+| Directory/File | Size Removed | Reason |
+|----------------|--------------|--------|
 | `bugs/` | 7.7 MB | Development screenshots (moved to .gitignore) |
 | `samples/` images | 1.7 MB | Logo/screenshot files (kept only EAS test audio) |
 | `bare-metal/` | 164 KB | Redundant transition docs (already in `docs/`) |
 | Bug tests | ~150 KB | One-off reproduction tests (moved to excluded dir) |
+| Dead code in `app_utils/system.py` | ~16 KB | 407 lines of unused Docker/Podman container code |
+| `nginx.conf` (to legacy) | ~8 KB | Docker-specific nginx configuration |
+| `tools/validate_installation.py` (to legacy) | ~17 KB | Docker-only validation script |
 
 ### 3. Excluded from Installation
 

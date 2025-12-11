@@ -20,7 +20,16 @@ Repository: https://github.com/KR8MER/eas-station
 
 from __future__ import annotations
 
-"""Create a comprehensive snapshot of configuration, database, media, and Docker volumes."""
+"""Create a comprehensive snapshot of configuration, database, media, and optional container volumes.
+
+This backup script supports both bare-metal and containerized deployments:
+- Bare-metal: Backs up .env, database dumps, and media files
+- Containers (optional): Additionally backs up Docker/Podman volumes if available
+
+Usage:
+    python tools/create_backup.py                                    # Full backup (default: ./backups)
+    python tools/create_backup.py --output-dir ~/eas-backups         # Custom output directory
+"""
 
 import argparse
 import json

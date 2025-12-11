@@ -1157,7 +1157,7 @@ def main():
                     return jsonify({'error': str(exc)}), 500
             
             # Start Flask server in background thread
-            # Use AUDIO_STREAMING_PORT env var (default 5002 matches docker-compose.yml)
+            # Use AUDIO_STREAMING_PORT env var (default 5002)
             streaming_port = int(os.environ.get('AUDIO_STREAMING_PORT', '5002'))
             server = make_server('0.0.0.0', streaming_port, stream_app, threaded=True)
             streaming_server_thread = threading.Thread(
