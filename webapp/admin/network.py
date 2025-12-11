@@ -29,6 +29,7 @@ In the separated service architecture:
 - Hardware service: Has NET_ADMIN cap and DBus access for nmcli
 """
 
+import os
 import requests
 from flask import Blueprint, jsonify, request, render_template
 from app_core.auth.decorators import require_permission
@@ -36,7 +37,8 @@ from app_core.auth.decorators import require_permission
 network_bp = Blueprint('network', __name__)
 
 # Hardware service API endpoint (runs on port 5001)
-HARDWARE_SERVICE_URL = "http://hardware-service:5001"
+# Default to localhost for bare-metal installations
+HARDWARE_SERVICE_URL = os.environ.get("HARDWARE_SERVICE_URL", "http://localhost:5001")
 
 
 def call_hardware_service(endpoint, method='GET', data=None):

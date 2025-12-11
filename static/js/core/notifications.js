@@ -6,6 +6,19 @@
 (function() {
     'use strict';
 
+    // Local escapeHtml helper to prevent XSS
+    function _escapeHtml(text) {
+        if (window.EASUtils && window.EASUtils.escapeHtml) {
+            return window.EASUtils.escapeHtml(text);
+        }
+        if (text === null || text === undefined) {
+            return '';
+        }
+        const div = document.createElement('div');
+        div.textContent = String(text);
+        return div.innerHTML;
+    }
+
     /**
      * Show a toast notification
      * @param {string} message - The message to display
@@ -42,7 +55,7 @@
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast" aria-label="Close"></button>
                 </div>
                 <div class="toast-body">
-                    ${message}
+                    ${_escapeHtml(message)}
                 </div>
             </div>
         `;
