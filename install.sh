@@ -1184,8 +1184,7 @@ cd "$INSTALL_DIR"
 echo_progress "Checking database state..."
 
 # Query to count existing tables in the public schema
-TABLE_COUNT_QUERY="SELECT COUNT(*) FROM information_schema.tables 
-                   WHERE table_schema = 'public' AND table_type = 'BASE TABLE';"
+TABLE_COUNT_QUERY="SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE';"
 
 DB_HAS_TABLES=$(sudo -u postgres psql -d alerts -tAc "$TABLE_COUNT_QUERY" 2>/dev/null || echo "0")
 
@@ -1211,10 +1210,12 @@ else
     
     if [ -f "$INSTALL_DIR/alembic.ini" ]; then
         echo_progress "Running Alembic migrations..."
-        if sudo -u "$SERVICE_USER" "$VENV_DIR/bin/alembic" upgrade head 2>&1; then
+        ALEMBIC_OUTPUT=$(sudo -u "$SERVICE_USER" "$VENV_DIR/bin/alembic" upgrade head 2>&1)
+        if [ $? -eq 0 ]; then
             echo_success "Database migrations completed"
         else
             echo_warning "Alembic migrations encountered errors"
+            echo_info "Migration output: $ALEMBIC_OUTPUT"
             echo_info "Attempting to create any missing tables..."
             sudo -u "$SERVICE_USER" "$VENV_DIR/bin/python" -c "
 from app import app, db
