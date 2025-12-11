@@ -19,6 +19,7 @@ NC='\033[0m' # No Color
 
 # Step counter for progress tracking
 STEP_NUM=0
+# NOTE: Update TOTAL_STEPS when adding/removing installation steps
 TOTAL_STEPS=17
 
 echo_step() {
@@ -342,7 +343,8 @@ while true; do
         IFS='.' read -ra OCTETS <<< "$DOMAIN_NAME"
         VALID_IP=true
         for octet in "${OCTETS[@]}"; do
-            if [ "$octet" -lt 0 ] || [ "$octet" -gt 255 ]; then
+            # Verify octet is numeric and in valid range
+            if ! [[ "$octet" =~ ^[0-9]+$ ]] || [ "$octet" -lt 0 ] || [ "$octet" -gt 255 ]; then
                 VALID_IP=false
                 break
             fi
@@ -938,10 +940,11 @@ else
     if [ -f "$INSTALL_DIR/alembic.ini" ]; then
         echo_progress "Running Alembic migrations..."
         ALEMBIC_OUTPUT=$(sudo -u "$SERVICE_USER" "$VENV_DIR/bin/alembic" upgrade head 2>&1)
-        if [ $? -eq 0 ]; then
+        ALEMBIC_EXIT_CODE=$?
+        if [ $ALEMBIC_EXIT_CODE -eq 0 ]; then
             echo_success "Database migrations completed"
         else
-            echo_warning "Alembic migrations encountered errors"
+            echo_warning "Alembic migrations encountered errors (exit code: $ALEMBIC_EXIT_CODE)"
             echo_info "Migration output: $ALEMBIC_OUTPUT"
             echo_info "Attempting to create any missing tables..."
             sudo -u "$SERVICE_USER" "$VENV_DIR/bin/python" -c "
