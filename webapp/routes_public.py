@@ -1228,7 +1228,9 @@ def register(app: Flask, logger) -> None:
                 })
             
             # Sort all logs by timestamp and limit
-            all_logs.sort(key=lambda x: x['timestamp'] if x['timestamp'] else utc_now(), reverse=True)
+            # Use datetime.min for None timestamps to push them to the end when sorting descending
+            from datetime import datetime
+            all_logs.sort(key=lambda x: x['timestamp'] if x['timestamp'] else datetime.min, reverse=True)
             logs_data = all_logs[:limit]
 
         elif log_type == 'system':

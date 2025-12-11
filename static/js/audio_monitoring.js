@@ -21,6 +21,22 @@ let wsMetricsUnsubscribe = null;
 let wsHealthUnsubscribe = null;
 let wsSourcesUnsubscribe = null;
 
+/**
+ * Utility: Safely close a Bootstrap modal by removing focus first
+ * Prevents aria-hidden accessibility warnings
+ */
+function safeCloseModal(modalId) {
+    // Remove focus from any active element to prevent aria-hidden issues
+    if (document.activeElement) {
+        document.activeElement.blur();
+    }
+    const modalElement = document.getElementById(modalId);
+    const modalInstance = bootstrap.Modal.getInstance(modalElement);
+    if (modalInstance) {
+        modalInstance.hide();
+    }
+}
+
 // Initialize when DOM is loaded
 document.addEventListener('DOMContentLoaded', function() {
     initializeAudioMonitoring();
@@ -1202,15 +1218,7 @@ async function addAudioSource() {
         console.log('Response status:', response.status, response.statusText);
 
         if (response.ok) {
-            // Remove focus from any active element to prevent aria-hidden issues
-            if (document.activeElement) {
-                document.activeElement.blur();
-            }
-            const modalElement = document.getElementById('addSourceModal');
-            const modalInstance = bootstrap.Modal.getInstance(modalElement);
-            if (modalInstance) {
-                modalInstance.hide();
-            }
+            safeCloseModal('addSourceModal');
             showSuccess('Audio source added successfully');
             loadAudioSources();
         } else {
@@ -1515,15 +1523,7 @@ async function saveEditedSource() {
         });
 
         if (response.ok) {
-            // Remove focus from any active element to prevent aria-hidden issues
-            if (document.activeElement) {
-                document.activeElement.blur();
-            }
-            const modalElement = document.getElementById('editSourceModal');
-            const modalInstance = bootstrap.Modal.getInstance(modalElement);
-            if (modalInstance) {
-                modalInstance.hide();
-            }
+            safeCloseModal('editSourceModal');
             showSuccess('Audio source updated successfully');
             loadAudioSources();
         } else {
@@ -1594,15 +1594,7 @@ async function discoverDevices() {
  */
 function quickAddDevice(type, deviceId, deviceName) {
     // Close discovery modal
-    // Remove focus from any active element to prevent aria-hidden issues
-    if (document.activeElement) {
-        document.activeElement.blur();
-    }
-    const modalElement = document.getElementById('deviceDiscoveryModal');
-    const modalInstance = bootstrap.Modal.getInstance(modalElement);
-    if (modalInstance) {
-        modalInstance.hide();
-    }
+    safeCloseModal('deviceDiscoveryModal');
 
     // Open add source modal with pre-filled values
     showAddSourceModal();
