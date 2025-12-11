@@ -19,7 +19,7 @@ NC='\033[0m' # No Color
 
 # Step counter for progress tracking
 STEP_NUM=0
-TOTAL_STEPS=16
+TOTAL_STEPS=17
 
 echo_step() {
     STEP_NUM=$((STEP_NUM + 1))
@@ -216,6 +216,136 @@ done
 
 echo ""
 echo_success "Administrator account configured"
+
+# ====================================================================
+# SYSTEM AND EAS STATION CONFIGURATION
+# ====================================================================
+
+echo_step "System and EAS Station Configuration"
+
+echo -e "${WHITE}Configure your system hostname, domain, and EAS station identification.${NC}"
+echo ""
+
+# Prompt for system hostname
+CURRENT_HOSTNAME=$(hostname 2>/dev/null || echo "eas-station")
+while true; do
+    echo -ne "${CYAN}System hostname${NC} [${BOLD}$CURRENT_HOSTNAME${NC}]: "
+    read SYSTEM_HOSTNAME
+    
+    # Use current hostname if user presses enter without input
+    if [ -z "$SYSTEM_HOSTNAME" ]; then
+        SYSTEM_HOSTNAME="$CURRENT_HOSTNAME"
+    fi
+    
+    # Trim whitespace
+    SYSTEM_HOSTNAME=$(echo "$SYSTEM_HOSTNAME" | xargs)
+    
+    # Validate hostname format (alphanumeric, hyphens, dots)
+    if ! [[ "$SYSTEM_HOSTNAME" =~ ^[a-zA-Z0-9]([a-zA-Z0-9.-]*[a-zA-Z0-9])?$ ]]; then
+        echo_error "Invalid hostname format. Use only letters, numbers, hyphens, and dots"
+        continue
+    fi
+    
+    echo_success "Hostname: ${BOLD}$SYSTEM_HOSTNAME${NC}"
+    break
+done
+
+echo ""
+
+# Prompt for domain name (for SSL/nginx)
+while true; do
+    echo -ne "${CYAN}Domain name for SSL/web access${NC} [${BOLD}localhost${NC}]: "
+    read DOMAIN_NAME
+    
+    # Default to localhost if user presses enter
+    if [ -z "$DOMAIN_NAME" ]; then
+        DOMAIN_NAME="localhost"
+    fi
+    
+    # Trim whitespace
+    DOMAIN_NAME=$(echo "$DOMAIN_NAME" | xargs)
+    
+    # Validate domain format (allow localhost, IP addresses, and domain names)
+    if [[ "$DOMAIN_NAME" == "localhost" ]] || \
+       [[ "$DOMAIN_NAME" =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]] || \
+       [[ "$DOMAIN_NAME" =~ ^[a-zA-Z0-9]([a-zA-Z0-9.-]*[a-zA-Z0-9])?$ ]]; then
+        echo_success "Domain: ${BOLD}$DOMAIN_NAME${NC}"
+        break
+    else
+        echo_error "Invalid domain format. Use localhost, an IP address, or a valid domain name"
+        continue
+    fi
+done
+
+echo ""
+
+# Prompt for EAS originator code
+echo -e "${CYAN}EAS Originator Code${NC} (3-letter code identifying who originates alerts)"
+echo -e "${DIM}Common codes: WXR (NOAA Weather Radio), EAS (EAS Participant), PEP (Primary Entry Point)${NC}"
+while true; do
+    echo -ne "${CYAN}EAS Originator${NC} [${BOLD}WXR${NC}]: "
+    read EAS_ORIGINATOR
+    
+    # Default to WXR if user presses enter
+    if [ -z "$EAS_ORIGINATOR" ]; then
+        EAS_ORIGINATOR="WXR"
+    fi
+    
+    # Convert to uppercase and trim whitespace
+    EAS_ORIGINATOR=$(echo "$EAS_ORIGINATOR" | tr '[:lower:]' '[:upper:]' | xargs)
+    
+    # Validate format (exactly 3 uppercase letters)
+    if ! [[ "$EAS_ORIGINATOR" =~ ^[A-Z]{3}$ ]]; then
+        echo_error "EAS Originator must be exactly 3 letters (e.g., WXR, EAS, PEP)"
+        continue
+    fi
+    
+    echo_success "Originator: ${BOLD}$EAS_ORIGINATOR${NC}"
+    break
+done
+
+echo ""
+
+# Prompt for station callsign/ID
+echo -e "${CYAN}Station Callsign/ID${NC} (identifies your EAS station)"
+echo -e "${DIM}Use your FCC callsign if you have one, or a unique identifier (max 8 characters)${NC}"
+echo -e "${DIM}Examples: WKRP, KR8MER, EASNODE1, NOCALL (if testing/no callsign)${NC}"
+while true; do
+    echo -ne "${CYAN}Station Callsign${NC} [${BOLD}NOCALL${NC}]: "
+    read EAS_STATION_ID
+    
+    # Default to NOCALL if user presses enter
+    if [ -z "$EAS_STATION_ID" ]; then
+        EAS_STATION_ID="NOCALL"
+    fi
+    
+    # Convert to uppercase and trim whitespace
+    EAS_STATION_ID=$(echo "$EAS_STATION_ID" | tr '[:lower:]' '[:upper:]' | xargs)
+    
+    # Validate format (1-8 alphanumeric characters)
+    if ! [[ "$EAS_STATION_ID" =~ ^[A-Z0-9]{1,8}$ ]]; then
+        echo_error "Station ID must be 1-8 alphanumeric characters (e.g., WKRP, KR8MER, NOCALL)"
+        continue
+    fi
+    
+    echo_success "Station ID: ${BOLD}$EAS_STATION_ID${NC}"
+    break
+done
+
+echo ""
+echo_success "System and EAS station configuration complete"
+
+# Set system hostname if it changed
+if [ "$SYSTEM_HOSTNAME" != "$CURRENT_HOSTNAME" ]; then
+    echo ""
+    echo_progress "Setting system hostname to: ${BOLD}$SYSTEM_HOSTNAME${NC}"
+    hostnamectl set-hostname "$SYSTEM_HOSTNAME" 2>/dev/null || {
+        echo_warning "Could not set hostname using hostnamectl, trying fallback methods..."
+        echo "$SYSTEM_HOSTNAME" > /etc/hostname
+        hostname "$SYSTEM_HOSTNAME"
+    }
+    echo_success "Hostname set to: ${BOLD}$SYSTEM_HOSTNAME${NC}"
+fi
 
 echo ""
 echo_progress "Generating secure database password..."
@@ -872,6 +1002,9 @@ cat > "$CONFIG_FILE" << EOF
 # Flask Secret Key (auto-generated - keep this secure!)
 SECRET_KEY=$GENERATED_SECRET_KEY
 
+# System Configuration
+DOMAIN_NAME=$DOMAIN_NAME
+
 # Database Configuration
 POSTGRES_HOST=localhost
 POSTGRES_PORT=5432
@@ -894,10 +1027,10 @@ DEFAULT_COUNTY_NAME=
 DEFAULT_STATE_CODE=
 DEFAULT_ZONE_CODES=
 
-# EAS Broadcast Settings (Configure via web setup wizard)
+# EAS Broadcast Settings
 EAS_BROADCAST_ENABLED=false
-EAS_ORIGINATOR=WXR
-EAS_STATION_ID=NOCALL
+EAS_ORIGINATOR=$EAS_ORIGINATOR
+EAS_STATION_ID=$EAS_STATION_ID
 
 # SDR Settings
 SDR_ENABLED=false
@@ -1025,22 +1158,51 @@ fi
 echo_step "Initialize Database Schema"
 
 # Initialize database
-echo_progress "Creating database tables and running migrations..."
+echo_progress "Initializing database schema..."
 cd "$INSTALL_DIR"
 
-# Run alembic migrations first (if any exist)
-if [ -f "$INSTALL_DIR/alembic.ini" ]; then
-    echo_progress "Running Alembic migrations..."
-    sudo -u "$SERVICE_USER" "$VENV_DIR/bin/alembic" upgrade head 2>/dev/null || echo_warning "Alembic migrations failed (non-critical for new installs)"
-fi
+# Check if this is a fresh install or an upgrade
+echo_progress "Checking database state..."
+DB_HAS_TABLES=$(sudo -u postgres psql -d alerts -tAc "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE';" 2>/dev/null || echo "0")
 
-# Ensure all tables and schema are created
-sudo -u "$SERVICE_USER" "$VENV_DIR/bin/python" -c "
+if [ "$DB_HAS_TABLES" -eq "0" ]; then
+    # Fresh install - use db.create_all() which creates the complete schema
+    echo_info "Fresh installation detected - creating database schema..."
+    
+    sudo -u "$SERVICE_USER" "$VENV_DIR/bin/python" -c "
 from app import app, db
 with app.app_context():
     db.create_all()
-    print('Database schema created')
-" || echo_warning "Database initialization failed - may need manual setup"
+    print('Database schema created successfully')
+" || {
+    echo_error "Database initialization failed"
+    echo_warning "You may need to manually initialize the database"
+    exit 1
+}
+    
+    echo_success "Database schema created for fresh install"
+else
+    # Existing database - run migrations to upgrade schema
+    echo_info "Existing database detected - running migrations..."
+    
+    if [ -f "$INSTALL_DIR/alembic.ini" ]; then
+        echo_progress "Running Alembic migrations..."
+        if sudo -u "$SERVICE_USER" "$VENV_DIR/bin/alembic" upgrade head 2>&1; then
+            echo_success "Database migrations completed"
+        else
+            echo_warning "Alembic migrations encountered errors"
+            echo_info "Attempting to create any missing tables..."
+            sudo -u "$SERVICE_USER" "$VENV_DIR/bin/python" -c "
+from app import app, db
+with app.app_context():
+    db.create_all()
+    print('Missing tables created')
+" || echo_warning "Database initialization may be incomplete"
+        fi
+    else
+        echo_warning "alembic.ini not found - skipping migrations"
+    fi
+fi
 
 # Create administrator account in database
 echo ""
@@ -1171,6 +1333,10 @@ echo -e "  ${GREEN}✓${NC} Services started automatically"
 echo -e "  ${GREEN}✓${NC} SECRET_KEY auto-generated"
 echo -e "  ${GREEN}✓${NC} Database schema initialized"
 echo -e "  ${GREEN}✓${NC} Administrator account created: ${BOLD}${ADMIN_USERNAME}${NC}"
+echo -e "  ${GREEN}✓${NC} System hostname: ${BOLD}${SYSTEM_HOSTNAME}${NC}"
+echo -e "  ${GREEN}✓${NC} Domain name: ${BOLD}${DOMAIN_NAME}${NC}"
+echo -e "  ${GREEN}✓${NC} EAS Originator: ${BOLD}${EAS_ORIGINATOR}${NC}"
+echo -e "  ${GREEN}✓${NC} Station Callsign: ${BOLD}${EAS_STATION_ID}${NC}"
 echo ""
 
 echo -e "${BOLD}${CYAN}═══════════════════════════════════════════════════════════════════════${NC}"
@@ -1234,6 +1400,10 @@ echo -e "${BOLD}${WHITE}  ⚙️  YOUR CONFIGURATION${NC}"
 echo -e "${BOLD}${CYAN}═══════════════════════════════════════════════════════════════════════${NC}"
 echo ""
 echo -e "  ${CYAN}Timezone:${NC}        ${BOLD}$TIMEZONE${NC} (change in setup wizard)"
+echo -e "  ${CYAN}Hostname:${NC}        ${BOLD}$SYSTEM_HOSTNAME${NC}"
+echo -e "  ${CYAN}Domain:${NC}          ${BOLD}$DOMAIN_NAME${NC}"
+echo -e "  ${CYAN}EAS Originator:${NC}  ${BOLD}$EAS_ORIGINATOR${NC}"
+echo -e "  ${CYAN}Station ID:${NC}      ${BOLD}$EAS_STATION_ID${NC}"
 echo -e "  ${CYAN}Config File:${NC}     ${BOLD}$CONFIG_FILE${NC}"
 echo -e "  ${CYAN}Log Directory:${NC}   ${BOLD}$LOG_DIR${NC}"
 echo ""
@@ -1252,7 +1422,7 @@ echo -e "  ${BOLD}${YELLOW}1.${NC} ${BOLD}Log in${NC} to the web interface with 
 echo ""
 echo -e "  ${BOLD}${YELLOW}2.${NC} ${BOLD}Complete the SETUP WIZARD${NC} to configure:"
 echo -e "      ${GREEN}✓${NC} Your location (county, state, FIPS/zone codes)"
-echo -e "      ${GREEN}✓${NC} Your EAS station callsign/ID"
+echo -e "      ${DIM}Note: EAS station callsign/ID already configured: ${BOLD}$EAS_STATION_ID${NC}${DIM}${NC}"
 echo -e "      ${GREEN}✓${NC} Alert sources (NOAA, IPAWS feeds)"
 echo -e "      ${GREEN}✓${NC} EAS broadcast settings"
 echo -e "      ${GREEN}✓${NC} Hardware integrations (LED, OLED, SDR, etc.)"
