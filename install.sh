@@ -128,16 +128,16 @@ echo -e "${BOLD}${CYAN}"
 cat << "EOF"
 ╔═══════════════════════════════════════════════════════════════════════╗
 ║                                                                       ║
-║   ███████╗ █████╗ ███████╗    ███████╗████████╗ █████╗ ████████╗   ║
-║   ██╔════╝██╔══██╗██╔════╝    ██╔════╝╚══██╔══╝██╔══██╗╚══██╔══╝   ║
-║   █████╗  ███████║███████╗    ███████╗   ██║   ███████║   ██║      ║
-║   ██╔══╝  ██╔══██║╚════██║    ╚════██║   ██║   ██╔══██║   ██║      ║
-║   ███████╗██║  ██║███████║    ███████║   ██║   ██║  ██║   ██║      ║
-║   ╚══════╝╚═╝  ╚═╝╚══════╝    ╚══════╝   ╚═╝   ╚═╝  ╚═╝   ╚═╝      ║
+║   ███████╗ █████╗ ███████╗    ███████╗████████╗ █████╗ ████████╗    ║
+║   ██╔════╝██╔══██╗██╔════╝    ██╔════╝╚══██╔══╝██╔══██╗╚══██╔══╝    ║
+║   █████╗  ███████║███████╗    ███████╗   ██║   ███████║   ██║       ║
+║   ██╔══╝  ██╔══██║╚════██║    ╚════██║   ██║   ██╔══██║   ██║       ║
+║   ███████╗██║  ██║███████║    ███████║   ██║   ██║  ██║   ██║       ║
+║   ╚══════╝╚═╝  ╚═╝╚══════╝    ╚══════╝   ╚═╝   ╚═╝  ╚═╝   ╚═╝       ║
 ║                                                                       ║
-║             📡  Emergency Alert System Installation  📡              ║
+║             📡  Emergency Alert System Installation  📡               ║
 ║                                                                       ║
-║           Monitoring & Broadcasting • Bare Metal Setup               ║
+║           Monitoring & Broadcasting • Bare Metal Setup                ║
 ║                                                                       ║
 ╚═══════════════════════════════════════════════════════════════════════╝
 EOF
@@ -918,21 +918,26 @@ TABLE_COUNT_QUERY="SELECT COUNT(*) FROM information_schema.tables WHERE table_sc
 DB_HAS_TABLES=$(sudo -u postgres psql -d alerts -tAc "$TABLE_COUNT_QUERY" 2>/dev/null || echo "0")
 
 if [ "$DB_HAS_TABLES" -eq "0" ]; then
-    # Fresh install - use db.create_all() which creates the complete schema
-    echo_info "Fresh installation detected - creating database schema..."
+    # Fresh install - use db.create_all() which creates the complete schema all at once
+    echo_info "Fresh installation detected - creating complete database schema..."
+    echo_info "Using SQLAlchemy db.create_all() for fresh install (not migrations)"
+    echo ""
     
     sudo -u "$SERVICE_USER" "$VENV_DIR/bin/python" -c "
 from app import app, db
 with app.app_context():
     db.create_all()
-    print('Database schema created successfully')
+    print('✓ Database schema created successfully')
+    print('✓ All tables, indexes, and constraints created')
 " || {
     echo_error "Database initialization failed"
     echo_warning "You may need to manually initialize the database"
     exit 1
 }
     
-    echo_success "Database schema created for fresh install"
+    echo ""
+    echo_success "✓ Complete database schema created for fresh install"
+    echo_info "Schema created all at once (not patched together from migrations)"
 else
     # Existing database - run migrations to upgrade schema
     echo_info "Existing database detected - running migrations..."
@@ -1066,12 +1071,12 @@ echo -e "${BOLD}${GREEN}"
 cat << "EOF"
 ╔═══════════════════════════════════════════════════════════════════════╗
 ║                                                                       ║
-║   ██████╗ ██████╗ ███╗   ███╗██████╗ ██╗     ███████╗████████╗███████╗
-║  ██╔════╝██╔═══██╗████╗ ████║██╔══██╗██║     ██╔════╝╚══██╔══╝██╔════╝
-║  ██║     ██║   ██║██╔████╔██║██████╔╝██║     █████╗     ██║   █████╗  
-║  ██║     ██║   ██║██║╚██╔╝██║██╔═══╝ ██║     ██╔══╝     ██║   ██╔══╝  
-║  ╚██████╗╚██████╔╝██║ ╚═╝ ██║██║     ███████╗███████╗   ██║   ███████╗
-║   ╚═════╝ ╚═════╝ ╚═╝     ╚═╝╚═╝     ╚══════╝╚══════╝   ╚═╝   ╚══════╝
+║   ██████╗ ██████╗ ███╗   ███╗██████╗ ██╗     ███████╗████████╗███████║
+║  ██╔════╝██╔═══██╗████╗ ████║██╔══██╗██║     ██╔════╝╚══██╔══╝██╔════║
+║  ██║     ██║   ██║██╔████╔██║██████╔╝██║     █████╗     ██║   █████╗ ║
+║  ██║     ██║   ██║██║╚██╔╝██║██╔═══╝ ██║     ██╔══╝     ██║   ██╔══╝ ║
+║  ╚██████╗╚██████╔╝██║ ╚═╝ ██║██║     ███████╗███████╗   ██║   ███████║
+║   ╚═════╝ ╚═════╝ ╚═╝     ╚═╝╚═╝     ╚══════╝╚══════╝   ╚═╝   ╚══════║
 ║                                                                       ║
 ║                  🎉  Installation Successful!  🎉                     ║
 ║                                                                       ║
