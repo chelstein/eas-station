@@ -1881,6 +1881,96 @@ def api_get_audio_metrics():
         logger.error('Error getting audio metrics: %s', exc)
         return jsonify({'error': str(exc)}), 500
 
+
+@audio_ingest_bp.route('/api/audio/metrics/latest', methods=['GET'])
+def api_get_audio_metrics_latest():
+    """Get latest audio metrics snapshot for display screens.
+
+    Returns a simplified view of current audio state, optimized for
+    LED/VFD/OLED displays that need quick access to current values.
+
+    Response format:
+    {
+        "peak_level_db": -12.5,
+        "rms_level_db": -18.2,
+        "peak_level_linear": 0.75,
+        "rms_level_linear": 0.45,
+        "silence_detected": false,
+        "active_source": "noaa_radio",
+        "source_status": "capturing",
+        "timestamp": "2025-01-15T12:00:00Z"
+    }
+    """
+    try:
+        # Read metrics from Redis (published by audio-service)
+        redis_metrics = _read_audio_metrics_from_redis()
+
+        if redis_metrics:
+            audio_controller_data = redis_metrics.get('audio_controller')
+            if isinstance(audio_controller_data, str):
+                import json
+                audio_controller_data = json.loads(audio_controller_data)
+
+            if audio_controller_data:
+                active_source = audio_controller_data.get('active_source')
+                sources = audio_controller_data.get('sources', {})
+
+                # Get metrics from active source, or first available source
+                source_data = None
+                if active_source and active_source in sources:
+                    source_data = sources[active_source]
+                elif sources:
+                    # Use first available source
+                    first_source = next(iter(sources.keys()))
+                    source_data = sources[first_source]
+                    active_source = first_source
+
+                if source_data:
+                    response = jsonify({
+                        'peak_level_db': source_data.get('peak_level_db', -120.0),
+                        'rms_level_db': source_data.get('rms_level_db', -120.0),
+                        'peak_level_linear': _db_to_linear(source_data.get('peak_level_db', -120.0)),
+                        'rms_level_linear': _db_to_linear(source_data.get('rms_level_db', -120.0)),
+                        'silence_detected': source_data.get('silence_detected', False),
+                        'active_source': active_source,
+                        'source_status': source_data.get('status', 'unknown'),
+                        'timestamp': source_data.get('timestamp', time.time()),
+                    })
+                    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+                    return response
+
+        # No metrics available - return defaults
+        response = jsonify({
+            'peak_level_db': -120.0,
+            'rms_level_db': -120.0,
+            'peak_level_linear': 0.0,
+            'rms_level_linear': 0.0,
+            'silence_detected': True,
+            'active_source': None,
+            'source_status': 'no_data',
+            'timestamp': time.time(),
+            'error': 'No audio metrics available from audio-service',
+        })
+        response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+        return response
+
+    except Exception as exc:
+        logger.error('Error getting latest audio metrics: %s', exc)
+        return jsonify({'error': str(exc)}), 500
+
+
+def _db_to_linear(db_value: float) -> float:
+    """Convert dB value to linear (0.0 to 1.0 range)."""
+    if db_value <= -120.0:
+        return 0.0
+    if db_value >= 0.0:
+        return 1.0
+    # dB to linear: 10^(dB/20), normalized to 0-1 range assuming -60dB floor
+    import math
+    linear = math.pow(10, db_value / 20.0)
+    return min(1.0, max(0.0, linear))
+
+
 @audio_ingest_bp.route('/api/audio/health', methods=['GET'])
 @cache.cached(timeout=20, key_prefix='audio_health')
 def api_get_audio_health():
