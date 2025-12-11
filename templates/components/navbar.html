@@ -335,7 +335,12 @@
                             {% if is_authenticated and can_view_logs %}
                             <li>
                                 <a class="dropdown-item" href="/logs">
-                                    <i class="fas fa-file-alt"></i> System Logs
+                                    <i class="fas fa-file-alt"></i> Application Logs
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item" href="/system-logs">
+                                    <i class="fas fa-server"></i> Service Logs (systemd)
                                 </a>
                             </li>
                             {% endif %}

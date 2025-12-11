@@ -825,7 +825,8 @@ class StreamSourceAdapter(AudioSourceAdapter):
                 raise RuntimeError("Requests library not available to resolve playlist URLs")
 
             try:
-                response = requests.get(url, timeout=10)
+                # Disable proxy to allow direct connections to external streams
+                response = requests.get(url, timeout=10, proxies={'http': None, 'https': None})
                 response.raise_for_status()
             except Exception as exc:
                 raise RuntimeError(f"Failed to fetch playlist {url}: {exc}") from exc
@@ -886,6 +887,15 @@ class StreamSourceAdapter(AudioSourceAdapter):
         command = self._build_ffmpeg_command(self._resolved_stream_url)
         logger.info(f"{self.config.name}: launching FFmpeg decoder")
 
+        # CRITICAL: Create clean environment for FFmpeg without proxy settings
+        # Bare metal deployments may inherit HTTP_PROXY from environment (e.g., Claude Code)
+        # which prevents FFmpeg from connecting to actual radio station streams
+        ffmpeg_env = os.environ.copy()
+        ffmpeg_env['http_proxy'] = ''
+        ffmpeg_env['https_proxy'] = ''
+        ffmpeg_env['HTTP_PROXY'] = ''
+        ffmpeg_env['HTTPS_PROXY'] = ''
+
         try:
             process = subprocess.Popen(
                 command,
@@ -893,6 +903,7 @@ class StreamSourceAdapter(AudioSourceAdapter):
                 stderr=subprocess.PIPE,
                 stdin=subprocess.DEVNULL,
                 bufsize=65536,  # Use 64KB buffer instead of unbuffered (bufsize=0) for better performance
+                env=ffmpeg_env,
             )
         except FileNotFoundError as exc:
             raise RuntimeError("FFmpeg executable not found in PATH") from exc
@@ -1113,6 +1124,10 @@ class StreamSourceAdapter(AudioSourceAdapter):
             'User-Agent': 'EAS-Station/1.0',
             'Icy-MetaData': '1',
         })
+        # CRITICAL: Disable proxy to allow direct connections to external streams
+        # Bare metal deployments may inherit HTTP_PROXY from environment (e.g., Claude Code)
+        # which prevents connection to actual radio station streams
+        session.proxies = {'http': None, 'https': None}
 
         try:
             while not self._metadata_stop_event.is_set():

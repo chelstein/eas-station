@@ -562,6 +562,9 @@ class CAPPoller:
             # Accept multiple formats: geo+json (NOAA), atom+xml (IPAWS), cap+xml (generic CAP)
             'Accept': 'application/geo+json, application/atom+xml, application/cap+xml, application/xml, application/json;q=0.9',
         })
+        # CRITICAL: Disable proxy to allow direct connections to external CAP feeds
+        # Only nginx should act as reverse proxy; outbound HTTP must bypass HTTP_PROXY env vars
+        self.session.proxies = {'http': None, 'https': None}
         # Configure SSL certificate verification
         ssl_verify_disable = os.getenv('SSL_VERIFY_DISABLE', '').strip().lower() in ('1', 'true', 'yes')
         ca_bundle_override = os.getenv('REQUESTS_CA_BUNDLE') or os.getenv('CAP_POLLER_CA_BUNDLE')
