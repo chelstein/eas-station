@@ -517,10 +517,15 @@ DEBIAN_FRONTEND=noninteractive apt-get install -y python3-typer python3-gunicorn
 }
 echo_success "pgAdmin dependencies installed"
 
-# Temporarily remove Apache2 block to allow pgAdmin installation
+# Block Apache2 packages to prevent them from being installed as dependencies
 # (pgadmin4-web has apache2 as a dependency, but we won't actually use it)
 echo_progress "Preparing for pgAdmin installation..."
-rm -f /etc/apt/preferences.d/block-apache2
+cat > /etc/apt/preferences.d/block-apache2 << 'APT_PREFS'
+Package: apache2 apache2-bin apache2-data apache2-utils libapache2-mod-wsgi-py3
+Pin: version *
+Pin-Priority: -1
+APT_PREFS
+echo_success "Apache2 packages blocked during installation"
 
 # Install pgadmin4-desktop (no Apache2 dependency) and pgadmin4-web (Python files only, apache2 blocked)
 echo_progress "Installing pgAdmin 4 packages (this may take a few minutes)..."
