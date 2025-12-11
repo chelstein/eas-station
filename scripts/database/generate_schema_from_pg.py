@@ -62,6 +62,12 @@ def main():
         # Initialize schema using db.create_all()
         print("Step 3: Initializing schema from SQLAlchemy models...")
         
+        # Validate database name (only alphanumeric and underscores)
+        import re
+        if not re.match(r'^[a-z0-9_]+$', temp_db):
+            print("ERROR: Invalid database name")
+            sys.exit(1)
+        
         # Set environment variables for the temporary database
         env = os.environ.copy()
         env['POSTGRES_DB'] = temp_db
@@ -89,15 +95,17 @@ from app import app, db
 with app.app_context():
     db.create_all()
     print('Schema initialized')
-""".format(db=temp_db)
+""".format(db=temp_db)  # Database name already validated above
         
         with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
             f.write(init_script)
             init_script_path = f.name
         
         try:
+            # Use sys.executable to ensure we use the same Python interpreter
+            python_executable = sys.executable or 'python3'
             result = subprocess.run(
-                ['python3', init_script_path],
+                [python_executable, init_script_path],
                 cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                 env=env,
                 capture_output=True,
