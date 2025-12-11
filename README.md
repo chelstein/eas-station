@@ -107,7 +107,7 @@ eas-station/
 
 ## 🚀 Quick Start
 
-### One-Command Installation
+### Interactive Installation
 
 ```bash
 git clone https://github.com/KR8MER/eas-station.git && \
@@ -115,12 +115,23 @@ cd eas-station && \
 sudo bash install.sh
 ```
 
-**That's it!** The installer automatically:
+**The installer uses an interactive TUI (raspi-config style) to collect all configuration:**
+- 👤 Administrator account (username, password, email)
+- 🖥️ System settings (hostname, domain, EAS originator, station callsign)
+- 📍 Location & timezone (state, county, optional FIPS codes)
+- 📡 Alert sources (NOAA, IPAWS with poll intervals)
+- 🎵 Audio/streaming (Icecast with auto-generated passwords)
+- 🔌 Hardware (GPIO, LED signs, VFD displays)
+
+**Then automatically:**
 - ✅ Installs all dependencies (PostgreSQL, Redis, Python, nginx, etc.)
-- ✅ Generates a secure SECRET_KEY
+- ✅ Generates secure SECRET_KEY and passwords
+- ✅ Creates configuration file with your settings
 - ✅ Initializes the database schema
 - ✅ Starts all services
 - ✅ Configures HTTPS with self-signed certificate
+
+**All configuration is done during installation - no post-install wizard needed!**
 
 > 💡 **Debian Trixie (Testing)**: Fully supported! The installer auto-detects your OS version and installs compatible packages. Python 3.13 is fully supported with the latest dependency updates.
 
@@ -147,14 +158,20 @@ Open your web browser and navigate to:
 
 Accept the self-signed certificate warning (safe for initial setup).
 
-### Complete Setup
+**Log in** with the administrator account you created during installation - your station is ready!
 
-1. **Create Administrator Account** - Set username and password via web interface
-2. **Configure Station** - Use the setup wizard to configure:
-   - Location (county, state, zone codes)
-   - Callsign (EAS_STATION_ID)
-   - Enable/disable features (SDR, broadcast, etc.)
-3. **Done!** - Your station is ready to monitor alerts
+### Optional: Fine-Tune Configuration
+
+All essential settings are configured during installation, but you can:
+
+1. **Advanced Features** - Use the web-based setup wizard at `/setup` for:
+   - FIPS code lookup from county names
+   - Auto-derive zone codes from FIPS codes
+   - Interactive builders with validation
+   
+2. **Reconfigure Anytime** - Use `sudo eas-config` for raspi-config style TUI
+   
+3. **Manual Editing** - Edit `/opt/eas-station/.env` for advanced settings
 
 > 💡 **Production SSL**: `sudo certbot --nginx -d your-domain.com`
 
@@ -171,8 +188,9 @@ Accept the self-signed certificate warning (safe for initial setup).
 - ✅ **Native Performance** - Runs directly on host OS
 - ✅ **Direct Hardware Access** - SDR, GPIO, and audio devices work natively
 - ✅ **Standard Linux Management** - Familiar systemd service control
-- ✅ **Out-of-the-Box** - No manual configuration required
-- ✅ **Web-Based Setup** - Configure everything through the UI
+- ✅ **Interactive Setup** - raspi-config style TUI for easy configuration
+- ✅ **All-in-One Install** - Complete configuration during installation
+- ✅ **Reconfigurable** - Change settings anytime with `sudo eas-config`
 
 ### Alternative: Bootable ISO
 
