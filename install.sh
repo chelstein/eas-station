@@ -736,13 +736,9 @@ PGADMIN_CONFIG
 d /run/pgadmin4 0755 www-data www-data -
 TMPFILES
 
-        # Determine WSGI app name based on installation source
-        # pip uses lowercase 'pgadmin4:create_app()', apt uses 'pgAdmin4:app'
-        if [ "$PGADMIN_SOURCE" = "pip" ]; then
-            PGADMIN_WSGI_APP="pgadmin4:create_app()"
-        else
-            PGADMIN_WSGI_APP="pgAdmin4:app"
-        fi
+        # WSGI app name is pgAdmin4:app for both pip and apt installations
+        # (the module is pgAdmin4.py with mixed case in both cases)
+        PGADMIN_WSGI_APP="pgAdmin4:app"
 
         # Create systemd service for pgAdmin WSGI
         cat > /etc/systemd/system/pgadmin4.service << PGADMIN_SERVICE
