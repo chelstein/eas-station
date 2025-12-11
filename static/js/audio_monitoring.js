@@ -333,7 +333,7 @@ function sanitizeId(id) {
  * Create HTML for a source card
  */
 function createSourceCard(source) {
-    const statusClass = `status-${source.status}`;
+    const statusClass = `status-${source.status || 'unknown'}`;
     const statusBadge = getStatusBadge(source.status);
     const metrics = source.metrics || {};
     const config = source.config || {};
@@ -348,14 +348,18 @@ function createSourceCard(source) {
     const sampleRate = config.sample_rate || metrics.sample_rate || '?';
     const channels = config.channels || metrics.channels || '?';
 
+    // Get source type with fallback
+    const sourceType = (source.type || 'unknown').toUpperCase();
+    const sourceName = source.name || 'Unnamed Source';
+
     return `
         <div class="source-card card mb-3 ${statusClass}" id="source-${safeId}">
             <div class="card-body">
                 <div class="row align-items-center">
                     <div class="col-md-4">
-                        <h5 class="mb-1">${escapeHtml(source.name)}</h5>
+                        <h5 class="mb-1">${escapeHtml(sourceName)}</h5>
                         <p class="mb-1">
-                            <span class="badge bg-secondary">${escapeHtml(source.type.toUpperCase())}</span>
+                            <span class="badge bg-secondary">${escapeHtml(sourceType)}</span>
                             ${statusBadge}
                         </p>
                         <small class="text-muted">
