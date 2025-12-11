@@ -50,7 +50,7 @@ from app_core.redis_client import get_redis_client
 logger = logging.getLogger(__name__)
 
 # Redis connection settings (for logging purposes)
-REDIS_HOST = os.getenv("REDIS_HOST", "redis")
+REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
 REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
 
 # Channel names
