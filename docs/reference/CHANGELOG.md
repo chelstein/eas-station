@@ -12,9 +12,15 @@ tracks releases under the 2.x series.
   - Added detailed tables for every configuration dialog with all fields explained
   - Added example values for each field with explanations
   - Added step-by-step Database Tools (DataGrip) configuration
-  - Added step-by-step Debug Configuration setup for zencoder.ai
+  - Added step-by-step Debug Configuration setup for AI coding assistants
   - Added validation checklist for complete PyCharm setup
   - Added "Quick Start" section with essential settings table for rapid configuration
+  - **Added comprehensive GitHub Copilot integration section** - Detailed comparison with zencoder.ai
+  - Added GitHub Copilot setup instructions for PyCharm and VS Code
+  - Added capability comparison table (Copilot vs zencoder.ai)
+  - Added workflow examples showing how to use GitHub Copilot Chat effectively
+  - Added recommendations for when to use each AI assistant
+  - Updated document title to cover all AI coding assistants, not just zencoder.ai
   - Added comprehensive zencoder.ai integration section with API setup and testing steps
   - Added scenario-based examples showing zencoder.ai workflow (bug fixing, features, optimization)
   - Added verification tests for each capability (files, Python, database, services, logs)
