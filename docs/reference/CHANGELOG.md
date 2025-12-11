@@ -6,6 +6,17 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.20.1] - 2025-12-11
+### Changed
+  - **Enhanced PyCharm integration documentation** - Added comprehensive field-by-field setup instructions in `docs/guides/PYCHARM_DEBUGGING.md`
+  - Added detailed tables for every configuration dialog with all fields explained
+  - Added example values for each field with explanations
+  - Added step-by-step Database Tools (DataGrip) configuration
+  - Added step-by-step Debug Configuration setup for zencoder.ai
+  - Added validation checklist for complete PyCharm setup
+  - Improved clarity on which fields are required vs optional
+  - Added troubleshooting references for each configuration step
+
 ## [2.20.0] - 2025-12-11
 ### Added
   - **Complete whiptail-based setup** - All installation inputs now use professional TUI interface

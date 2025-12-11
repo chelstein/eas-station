@@ -214,42 +214,320 @@ While waiting for approval, use the [30-day free trial](https://www.jetbrains.co
 
 **Follow these steps if you chose PyCharm:**
 
-#### Set Up SSH Deployment
+#### Set Up SSH Deployment (Step-by-Step with Every Field)
+
+**Step 1: Open PyCharm Settings**
 
 1. **Open PyCharm** and create a new project or open an existing one
+   - You can create an empty project locally - we'll sync it to the server
 2. Go to: **File** → **Settings** (Windows/Linux) or **PyCharm** → **Preferences** (Mac)
-3. Navigate to: **Build, Execution, Deployment** → **Deployment**
-4. Click the **+** button and select **SFTP**
-5. Name it: `EAS Station Server`
-6. Configure the **Connection** tab:
-   - **Type**: SFTP
-   - **Host**: Your server's IP address (e.g., `192.168.1.100`)
-   - **Port**: `22`
-   - **Username**: `eas-station` (or `pi` if on Raspberry Pi)
-   - **Auth type**: Password
-   - **Password**: Your server password (save it)
-   - Click **Test Connection** - you should see "Successfully connected"
-7. Configure the **Mappings** tab:
-   - **Local path**: Your local project folder (can be empty for now)
-   - **Deployment path**: `/opt/eas-station`
-   - **Web path**: (leave empty)
-8. Click **OK**
+   - Or press `Ctrl+Alt+S` (Windows/Linux) or `Cmd+,` (Mac)
 
-#### Set Up SSH Interpreter
+**Step 2: Navigate to Deployment Settings**
 
-1. Go to: **File** → **Settings** → **Project** → **Python Interpreter**
-2. Click the **gear icon** ⚙️ → **Add...**
-3. Select **SSH Interpreter**
-4. Choose **Existing server configuration** and select the server you just created
-5. Click **Next**
-6. Set the interpreter path: `/opt/eas-station/venv/bin/python`
-7. Configure sync folders:
-   - **Local**: Your project folder
-   - **Remote**: `/opt/eas-station`
-8. Click **Finish**
-9. Wait for PyCharm to sync files and index the project (this can take 2-5 minutes)
+3. In the left sidebar, navigate to: **Build, Execution, Deployment** → **Deployment**
+   - This is where we configure the SSH connection to your server
 
-**✅ PyCharm is now configured!** Continue to Part 2.
+**Step 3: Create New SFTP Server Configuration**
+
+4. Click the **+** (plus) button at the top of the Deployment window
+5. Select **SFTP** from the dropdown menu
+6. A dialog "Add Server" appears:
+   - **Name**: Enter `EAS Station Server` (or any name you prefer)
+   - Click **OK**
+
+**Step 4: Configure Connection Tab (All Fields Explained)**
+
+You should now see a configuration dialog with multiple tabs. Start with the **Connection** tab:
+
+| Field | What to Enter | Example | Required? |
+|-------|--------------|---------|-----------|
+| **Type** | Select `SFTP` from dropdown | `SFTP` | ✅ Yes |
+| **Host** | Your server's IP address | `192.168.1.100` | ✅ Yes |
+| **Port** | Leave as default | `22` | ✅ Yes |
+| **Root path** | Leave blank (auto-detected) | (empty) | ❌ No |
+| **Username** | Enter `eas-station` | `eas-station` | ✅ Yes |
+| **Auth type** | Select `Password` from dropdown | `Password` | ✅ Yes |
+| **Password** | Your server password | `your_password` | ✅ Yes |
+| **☑️ Save password** | Check this box | ☑️ Checked | ⚠️ Recommended |
+| **Private key file** | Leave empty (we're using password) | (empty) | ❌ No |
+| **Key passphrase** | Leave empty | (empty) | ❌ No |
+| **Proxy** | Leave as `No proxy` | `No proxy` | ❌ No |
+
+**Important Notes:**
+- **Host**: This is the IP address from [Finding Your Server IP](#finding-your-server-ip)
+- **Username**: Use `eas-station` (NOT `pi` or `root`) - this is the service account
+- **Save password**: Checking this saves the password securely in PyCharm's credential store
+
+7. **Click "Test Connection"** button
+   - You should see: ✅ **"Successfully connected to [IP address]"**
+   - If it fails, see [Troubleshooting SSH Connection](#problem-pycharmvs-code-cant-connect-via-ssh)
+
+**Step 5: Configure Mappings Tab**
+
+Click the **Mappings** tab at the top:
+
+| Field | What to Enter | Example | Required? | Explanation |
+|-------|--------------|---------|-----------|-------------|
+| **Local path** | Your local project directory | `C:\Users\YourName\PyCharmProjects\eas-station` | ✅ Yes | Where files are on YOUR computer |
+| **Deployment path** | Enter exactly `/opt/eas-station` | `/opt/eas-station` | ✅ Yes | Where files are on the SERVER |
+| **Web path** | Leave empty | (empty) | ❌ No | Not used for this project |
+
+**What these paths mean:**
+- **Local path**: When you edit a file in PyCharm, it's stored here on your computer
+- **Deployment path**: PyCharm will sync that file to this location on the server
+- The mapping tells PyCharm: "When I edit `MyProject/app.py` locally, sync it to `/opt/eas-station/app.py` on the server"
+
+8. **Click "OK"** to save the deployment configuration
+
+**Step 6: Set Default Deployment Server**
+
+Back in the Deployment settings window:
+1. **Select** your newly created `EAS Station Server` from the list
+2. **Click** the checkmark button (✓) at the top to make it the **default server**
+   - This tells PyCharm to automatically upload changes to this server
+
+**Step 7: Configure Automatic Upload (Optional but Recommended)**
+
+Still in the Deployment settings:
+1. Click the **Options** sub-menu (under **Build, Execution, Deployment** → **Deployment**)
+2. Set **Upload changed files automatically to the default server**:
+   - **Always**: Upload every save (recommended for active development)
+   - **On explicit save action**: Upload when you press Ctrl+S
+   - **Never**: Manual upload only
+
+3. **Recommended setting**: Select `Always`
+
+**✅ SSH Deployment is now configured!**
+
+---
+
+#### Set Up Python Remote Interpreter (Step-by-Step with Every Field)
+
+Now we'll tell PyCharm to use Python on the server (not your local Python).
+
+**Step 1: Open Python Interpreter Settings**
+
+1. Go to: **File** → **Settings** → **Project: [Your Project Name]** → **Python Interpreter**
+   - Or press `Ctrl+Alt+S` → type "python interpreter" in search
+
+**Step 2: Add New Interpreter**
+
+2. Click the **gear icon** (⚙️) next to the Python Interpreter dropdown
+3. Click **Add...** or **Add Interpreter**
+4. A dialog "Add Python Interpreter" appears
+
+**Step 3: Choose SSH Interpreter Type**
+
+5. In the left sidebar, select **SSH Interpreter**
+6. You'll see two options:
+   - **New server configuration** - for setting up a new SSH connection
+   - **Existing server configuration** - use the SFTP server we just created
+
+7. **Select**: ⚪ **Existing server configuration**
+8. **Choose**: `EAS Station Server` from the dropdown (the deployment server we created)
+9. Click **Next**
+
+**Step 4: Configure Interpreter Path**
+
+You'll see a screen titled "Configure Remote Python Interpreter":
+
+| Field | What to Enter | Example | Required? | Explanation |
+|-------|--------------|---------|-----------|-------------|
+| **Interpreter** | Python executable path on server | `/opt/eas-station/venv/bin/python` | ✅ Yes | The Python in the EAS Station virtualenv |
+| **Sync folders** | Mappings (auto-filled from deployment) | ↓ See below | ✅ Yes | Which folders to sync |
+| **Automatically upload project files to the server** | Check this box | ☑️ Checked | ⚠️ Recommended | Auto-sync on save |
+
+**Interpreter Path - IMPORTANT:**
+- **Enter exactly**: `/opt/eas-station/venv/bin/python`
+- This is the Python interpreter inside the EAS Station virtual environment
+- **NOT** `/usr/bin/python` (system Python)
+- **NOT** `/opt/eas-station/python` (doesn't exist)
+
+**Sync Folders Section:**
+
+This should be auto-filled from your deployment configuration:
+
+| Local Path | Remote Path | Note |
+|------------|-------------|------|
+| `C:\Users\YourName\PyCharmProjects\eas-station` | `/opt/eas-station` | Auto-filled from deployment config |
+
+If it's empty, click **Add** and manually enter:
+- **Local path**: Your local project folder
+- **Remote path**: `/opt/eas-station`
+
+10. Click **Finish**
+
+**Step 5: Wait for PyCharm to Index**
+
+PyCharm will now:
+1. Connect to the server via SSH ✓
+2. Download the list of Python packages installed in the virtualenv
+3. Index the remote project files
+4. Build a cache of code structure
+
+**This takes 2-5 minutes.** You'll see a progress bar at the bottom:
+```
+Scanning files to index...
+Updating indices...
+```
+
+☕ Grab a coffee - this is normal!
+
+**Step 6: Verify Interpreter is Set**
+
+Once indexing completes:
+1. Go back to: **Settings** → **Project** → **Python Interpreter**
+2. You should see:
+   - **Interpreter**: `Remote Python 3.11.x (/opt/eas-station/venv/bin/python)`
+   - A list of installed packages (Flask, SQLAlchemy, psycopg2, etc.)
+
+**✅ Python Remote Interpreter is now configured!**
+
+**What you can do now:**
+- Edit Python files in PyCharm
+- Changes automatically sync to the server
+- Run Python scripts on the server
+- Debug Python code on the server
+- View database with DataGrip (built into PyCharm Professional)
+
+---
+
+#### Set Up Database Tools (Built-in DataGrip - Step-by-Step)
+
+PyCharm Professional includes DataGrip for database management. Let's connect it to the EAS Station database.
+
+**Step 1: Open Database Tool Window**
+
+1. Go to: **View** → **Tool Windows** → **Database**
+   - Or click the **Database** tab on the right side of the window
+   - Or press `Alt+1` (Windows/Linux) or `Cmd+1` (Mac), then select Database
+
+**Step 2: Add PostgreSQL Data Source**
+
+2. In the Database tool window, click the **+** button
+3. Select **Data Source** → **PostgreSQL**
+
+**Step 3: Configure Database Connection (All Fields)**
+
+A "Data Sources and Drivers" dialog appears with the **General** tab selected:
+
+| Field | What to Enter | Example | Required? | Explanation |
+|-------|--------------|---------|-----------|-------------|
+| **Name** | Give it a descriptive name | `EAS Station - alerts` | ⚠️ Recommended | What you'll see in the database list |
+| **Comment** | Optional description | `EAS Station PostgreSQL database` | ❌ No | Additional notes |
+| **Host** | Server IP address | `192.168.1.100` | ✅ Yes | Database server location |
+| **Port** | PostgreSQL port | `5432` | ✅ Yes | Standard PostgreSQL port |
+| **Authentication** | Select `User & Password` | `User & Password` | ✅ Yes | How to authenticate |
+| **User** | Database username | `eas_station` | ✅ Yes | Database user account |
+| **Password** | Database password from .env file | `[from .env file]` | ✅ Yes | Get from Step 3.2 |
+| **☑️ Save password** | Check this box | ☑️ Checked | ⚠️ Recommended | Store securely in PyCharm |
+| **Database** | Database name | `alerts` | ✅ Yes | The database containing alert data |
+| **URL** | Auto-generated | `jdbc:postgresql://192.168.1.100:5432/alerts` | ℹ️ Auto-filled | JDBC connection string |
+
+**Getting the Database Password:**
+1. In PyCharm's built-in terminal: **View** → **Tool Windows** → **Terminal**
+2. Run: `grep POSTGRES_PASSWORD /opt/eas-station/.env`
+3. Copy the password (everything after `POSTGRES_PASSWORD=`)
+
+**Step 4: Test Connection**
+
+4. Click **Test Connection** at the bottom of the dialog
+   - First time: PyCharm will download PostgreSQL JDBC drivers (takes 10-30 seconds)
+   - You should see: ✅ **"Succeeded"** in green
+
+**If connection fails**, see possible issues:
+- ❌ "Connection refused" - Server firewall blocking port 5432, see [Database Connection Troubleshooting](#problem-cant-connect-to-database-from-remote-tools)
+- ❌ "Password authentication failed" - Wrong password, check `.env` file
+- ❌ "Unknown host" - Wrong IP address
+
+**Step 5: Configure Advanced Options (Optional)**
+
+Click the **Advanced** tab (optional optimizations):
+
+| Field | Recommended Value | Explanation |
+|-------|------------------|-------------|
+| **useSSL** | `false` | Not needed for local network |
+| **serverTimezone** | `UTC` | Match server timezone |
+
+5. Click **OK** to save
+
+**Step 6: Explore the Database**
+
+In the Database tool window, you should now see:
+```
+📁 EAS Station - alerts
+  └─ 📁 alerts
+      └─ 📁 schemas
+          └─ 📁 public
+              ├─ 📁 tables
+              │   ├─ cap_alerts (142 rows)
+              │   ├─ counties (3234 rows)
+              │   ├─ alert_history
+              │   └─ ...
+              └─ 📁 views
+```
+
+**Double-click any table** to view its data!
+
+**✅ Database Tools is now configured!**
+
+---
+
+#### Set Up Debug Configurations (Step-by-Step for zencoder.ai)
+
+Create debug configurations so zencoder.ai can attach debuggers to running services.
+
+**Step 1: Create Web Service Debug Configuration**
+
+1. Click **Run** → **Edit Configurations...** (or click the dropdown next to the Run button)
+2. Click the **+** button
+3. Select **Python Debug Server**
+4. Configure the debug server:
+
+| Field | What to Enter | Example | Explanation |
+|-------|--------------|---------|-------------|
+| **Name** | `Attach to Web Service` | `Attach to Web Service` | Configuration name |
+| **IDE host name** | Your computer's IP or `localhost` | `192.168.1.50` | Where PyCharm is running |
+| **Port** | `5678` | `5678` | Debug port for web service |
+| **Path mappings** | Local ↔ Remote | `C:\...\eas-station` ↔ `/opt/eas-station` | Code location mapping |
+
+**For Path Mappings:**
+- Click the folder icon
+- Add mapping: **Local**: `C:\Users\YourName\PyCharmProjects\eas-station` → **Remote**: `/opt/eas-station`
+
+5. Click **OK**
+
+**Step 2: Create Additional Debug Configurations (Optional)**
+
+Repeat for other services:
+
+| Service | Configuration Name | Port |
+|---------|-------------------|------|
+| Web | `Attach to Web Service` | `5678` |
+| Audio | `Attach to Audio Service` | `5679` |
+| NOAA Poller | `Attach to NOAA Poller` | `5680` |
+
+**✅ Debug configurations are ready!**
+
+---
+
+#### Complete PyCharm Setup Checklist
+
+Verify everything is configured:
+
+- [ ] **SSH Deployment configured**
+  - Test: Settings → Deployment → Test Connection shows "Successfully connected"
+- [ ] **Python Remote Interpreter configured**
+  - Test: Settings → Python Interpreter shows "Remote Python 3.11.x"
+- [ ] **Files sync automatically**
+  - Test: Edit a file, save it, check server with `ls -la /opt/eas-station/` in terminal
+- [ ] **Database connection works**
+  - Test: Database tool window → Right-click table → View Data
+- [ ] **Debug configuration created**
+  - Test: Run → Edit Configurations shows your debug configs
+
+**✅ PyCharm Professional is fully configured for zencoder.ai development!** Continue to Part 2.
 
 ---
 
