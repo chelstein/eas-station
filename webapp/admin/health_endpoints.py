@@ -133,7 +133,7 @@ def api_redis_health():
         import redis
         import os
 
-        redis_host = os.getenv('REDIS_HOST', 'redis')
+        redis_host = os.getenv('REDIS_HOST', 'localhost')
         redis_port = int(os.getenv('REDIS_PORT', '6379'))
         redis_db = int(os.getenv('REDIS_DB', '0'))
 

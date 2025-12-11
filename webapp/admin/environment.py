@@ -351,7 +351,7 @@ ENV_CATEGORIES = {
                 'key': 'CACHE_REDIS_URL',
                 'label': 'Redis URL',
                 'type': 'text',
-                'default': 'redis://redis:6379/0',
+                'default': 'redis://localhost:6379/0',
                 'description': 'Full Redis connection URL. When set, takes precedence over individual REDIS_* settings above.',
                 'placeholder': 'redis://[password@]host:port/db',
             },

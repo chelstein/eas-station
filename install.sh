@@ -517,18 +517,18 @@ DEBIAN_FRONTEND=noninteractive apt-get install -y python3-typer python3-gunicorn
 }
 echo_success "pgAdmin dependencies installed"
 
-# Block Apache2 packages to prevent them from being installed as dependencies
-# (pgadmin4-web has apache2 as a dependency, but we won't actually use it)
+# pgAdmin installation strategy:
+# 1. Primary: pip install (no Apache2, clean Python environment)
+# 2. Fallback: apt pgadmin4-desktop (no Apache2 dependency)
+# 3. Last resort: apt pgadmin4-web (Apache2 disabled afterward)
 echo_progress "Preparing for pgAdmin installation..."
-cat > /etc/apt/preferences.d/block-apache2 << 'APT_PREFS'
-Package: apache2 apache2-bin apache2-data apache2-utils libapache2-mod-wsgi-py3
-Pin: version *
-Pin-Priority: -1
-APT_PREFS
-echo_success "Apache2 packages blocked during installation"
 
-# Install pgadmin4-desktop (no Apache2 dependency) and pgadmin4-web (Python files only, apache2 blocked)
-echo_progress "Installing pgAdmin 4 packages (this may take a few minutes)..."
+# Remove any existing Apache2 blocking preferences that might interfere
+if [ -f /etc/apt/preferences.d/block-apache2 ]; then
+    rm -f /etc/apt/preferences.d/block-apache2
+fi
+
+echo_progress "Installing pgAdmin 4 (this may take a few minutes)..."
 
 # Validate that admin credentials are set (should be set earlier in the script)
 if [ -z "$ADMIN_EMAIL" ] || [ -z "$ADMIN_PASSWORD" ]; then
@@ -536,24 +536,61 @@ if [ -z "$ADMIN_EMAIL" ] || [ -z "$ADMIN_PASSWORD" ]; then
     echo_info "pgAdmin can be installed manually later if needed"
     SKIP_PGADMIN=true
 else
-    # Preconfigure debconf to avoid any interactive prompts
-    echo_progress "Preconfiguring debconf for non-interactive installation..."
-    
-    # Save current DEBIAN_FRONTEND value to restore later
-    OLD_DEBIAN_FRONTEND="${DEBIAN_FRONTEND:-}"
-    
-    export DEBIAN_FRONTEND=noninteractive
-    export DEBCONF_NONINTERACTIVE_SEEN=true
-    export UCF_FORCE_CONFFOLD=1
-    
-    # Create a temporary file with restricted permissions for debconf configuration
-    # This prevents credentials from appearing in process lists
-    DEBCONF_TEMP=$(mktemp) || {
-        echo_error "Failed to create temporary file for pgAdmin configuration"
-        SKIP_PGADMIN=true
-    }
-    
-    if [ "$SKIP_PGADMIN" != "true" ]; then
+    PGADMIN_INSTALLED=false
+    PGADMIN_INSTALL_DIR="/opt/pgadmin4"
+    PGADMIN_VENV="$PGADMIN_INSTALL_DIR/venv"
+    PGADMIN_LOG=$(mktemp)
+
+    # Strategy 1: Install via pip in dedicated virtual environment (NO Apache2!)
+    echo_progress "Attempting pgAdmin 4 installation via pip (no Apache2)..."
+
+    # Install build dependencies for pip installation
+    apt-get install -y -qq python3-venv python3-dev libpq-dev > /dev/null 2>&1 || true
+
+    # Create dedicated directory and virtual environment
+    mkdir -p "$PGADMIN_INSTALL_DIR"
+
+    if python3 -m venv "$PGADMIN_VENV" 2>/dev/null; then
+        # Upgrade pip and install pgadmin4
+        if "$PGADMIN_VENV/bin/pip" install --upgrade pip > /dev/null 2>&1 && \
+           "$PGADMIN_VENV/bin/pip" install pgadmin4 gunicorn > "$PGADMIN_LOG" 2>&1; then
+
+            # Find where pgadmin4 was installed
+            PGADMIN_WEB_DIR=$("$PGADMIN_VENV/bin/python3" -c "import pgadmin4; import os; print(os.path.dirname(pgadmin4.__file__))" 2>/dev/null)
+
+            if [ -n "$PGADMIN_WEB_DIR" ] && [ -d "$PGADMIN_WEB_DIR" ]; then
+                echo_success "pgAdmin 4 installed via pip (no Apache2)"
+                PGADMIN_INSTALLED=true
+                PGADMIN_SOURCE="pip"
+
+                # Create symlinks for compatibility with rest of script
+                mkdir -p /usr/pgadmin4
+                ln -sf "$PGADMIN_WEB_DIR" /usr/pgadmin4/web 2>/dev/null || true
+                ln -sf "$PGADMIN_VENV" /usr/pgadmin4/venv 2>/dev/null || true
+            else
+                echo_info "pip installation completed but pgadmin4 module not found"
+            fi
+        else
+            echo_info "pip installation failed, trying apt packages..."
+            if [ -f "$PGADMIN_LOG" ]; then
+                cat "$PGADMIN_LOG" | tail -n 5
+            fi
+        fi
+    else
+        echo_info "Failed to create virtual environment, trying apt packages..."
+    fi
+
+    # Strategy 2: apt pgadmin4-desktop only (no Apache2 dependency)
+    if [ "$PGADMIN_INSTALLED" != "true" ]; then
+        echo_progress "Attempting pgAdmin 4 apt installation without Apache2..."
+
+        # Save current DEBIAN_FRONTEND value to restore later
+        OLD_DEBIAN_FRONTEND="${DEBIAN_FRONTEND:-}"
+        export DEBIAN_FRONTEND=noninteractive
+        export DEBCONF_NONINTERACTIVE_SEEN=true
+
+        # Preconfigure debconf for non-interactive installation
+        DEBCONF_TEMP=$(mktemp)
         chmod 600 "$DEBCONF_TEMP"
         cat > "$DEBCONF_TEMP" <<EOF
 pgadmin4 pgadmin4/email string ${ADMIN_EMAIL}
@@ -563,49 +600,46 @@ EOF
         debconf-set-selections < "$DEBCONF_TEMP"
         rm -f "$DEBCONF_TEMP"
 
-        # Configuration for installation timeout
-        PGADMIN_INSTALL_TIMEOUT=300  # 5 minutes
-        APT_LOG_TAIL_LINES=20
-        APT_ERROR_DISPLAY_LINES=5
-        
-        # Use timeout to prevent infinite hangs
-        # Redirect stdin from /dev/null to prevent any input blocking
-        if timeout $PGADMIN_INSTALL_TIMEOUT apt-get install -y --allow-downgrades --no-install-recommends pgadmin4-desktop pgadmin4-web < /dev/null > /dev/null 2>&1; then
-            echo_success "pgAdmin 4 installed successfully"
-        else
-            PGADMIN_EXIT_CODE=$?
-            if [ $PGADMIN_EXIT_CODE -eq 124 ]; then
-                # Timeout occurred
-                echo_warning "pgAdmin 4 installation timed out after $PGADMIN_INSTALL_TIMEOUT seconds"
-                echo_info "This may indicate a hung postinstall script or dependency issue"
+        if timeout 300 apt-get install -y pgadmin4-desktop < /dev/null > "$PGADMIN_LOG" 2>&1; then
+            if [ -d /usr/pgadmin4/web ] && [ -f /usr/pgadmin4/web/pgAdmin4.py ]; then
+                echo_success "pgAdmin 4 installed via apt (without Apache2)"
+                PGADMIN_INSTALLED=true
+                PGADMIN_SOURCE="apt-desktop"
+            fi
+        fi
+
+        # Strategy 3: Last resort - apt pgadmin4-web (Apache2 will be disabled)
+        if [ "$PGADMIN_INSTALLED" != "true" ]; then
+            echo_progress "Installing pgAdmin 4 with web package (Apache2 will be disabled)..."
+            if timeout 300 apt-get install -y --allow-downgrades pgadmin4-desktop pgadmin4-web < /dev/null > "$PGADMIN_LOG" 2>&1; then
+                echo_success "pgAdmin 4 installed via apt (Apache2 will be disabled)"
+                PGADMIN_INSTALLED=true
+                PGADMIN_SOURCE="apt-web"
             else
-                echo_warning "pgAdmin 4 installation encountered errors (exit code: $PGADMIN_EXIT_CODE)"
-                
-                # Try to get error details from apt logs
-                if [ -f /var/log/apt/term.log ]; then
-                    echo_info "Error details from apt log:"
-                    tail -n $APT_LOG_TAIL_LINES /var/log/apt/term.log | grep -E "E:|Err:" | head -n $APT_ERROR_DISPLAY_LINES || echo "No specific errors found in log"
+                PGADMIN_EXIT_CODE=$?
+                echo_warning "pgAdmin 4 installation failed (exit code: $PGADMIN_EXIT_CODE)"
+                if [ -f "$PGADMIN_LOG" ] && [ -s "$PGADMIN_LOG" ]; then
+                    echo_info "Error details:"
+                    grep -E "^E:|error:|failed|Unable to|dpkg:" "$PGADMIN_LOG" | head -n 10 || tail -n 15 "$PGADMIN_LOG"
                 fi
             fi
-            
-            echo_warning "pgAdmin 4 will not be available - you can install it manually later"
-            echo_info "Continuing installation without pgAdmin..."
-            # Skip pgAdmin configuration
-            SKIP_PGADMIN=true
         fi
-    fi
 
-    # Cleanup environment variables (only if we tried to install)
-    if [ "$SKIP_PGADMIN" != "true" ] || [ -n "$OLD_DEBIAN_FRONTEND" ]; then
-        unset DEBCONF_NONINTERACTIVE_SEEN
-        unset UCF_FORCE_CONFFOLD
-        
-        # Restore original DEBIAN_FRONTEND value
+        # Restore environment
         if [ -n "$OLD_DEBIAN_FRONTEND" ]; then
             export DEBIAN_FRONTEND="$OLD_DEBIAN_FRONTEND"
         else
             unset DEBIAN_FRONTEND
         fi
+        unset DEBCONF_NONINTERACTIVE_SEEN
+    fi
+
+    rm -f "$PGADMIN_LOG"
+
+    if [ "$PGADMIN_INSTALLED" != "true" ]; then
+        echo_warning "pgAdmin 4 will not be available - you can install it manually later"
+        echo_info "Continuing installation without pgAdmin..."
+        SKIP_PGADMIN=true
     fi
 fi
 
@@ -624,15 +658,33 @@ fi
 rm -f /etc/apt/preferences.d/block-apache2
 
 # Configure pgAdmin for WSGI mode (works with Nginx)
-if [ "$SKIP_PGADMIN" != "true" ] && { [ -f /usr/pgadmin4/web/config.py ] || [ -f /usr/pgadmin4/web/config_distro.py ]; }; then
-    echo_info "Configuring pgAdmin 4 for Nginx..."
-    
+# Check for either pip installation (symlinked) or apt installation
+PGADMIN_WEB_DIR=""
+if [ "$SKIP_PGADMIN" != "true" ]; then
+    if [ -d /usr/pgadmin4/web ]; then
+        # Check for pgAdmin app file (different names in different versions)
+        if [ -f /usr/pgadmin4/web/pgAdmin4.py ] || [ -f /usr/pgadmin4/web/config.py ] || [ -f /usr/pgadmin4/web/config_distro.py ]; then
+            PGADMIN_WEB_DIR="/usr/pgadmin4/web"
+        fi
+    fi
+    # Also check pip venv installation directly
+    if [ -z "$PGADMIN_WEB_DIR" ] && [ -d "$PGADMIN_VENV" ]; then
+        PIP_PGADMIN_DIR=$("$PGADMIN_VENV/bin/python3" -c "import pgadmin4; import os; print(os.path.dirname(pgadmin4.__file__))" 2>/dev/null || true)
+        if [ -n "$PIP_PGADMIN_DIR" ] && [ -d "$PIP_PGADMIN_DIR" ]; then
+            PGADMIN_WEB_DIR="$PIP_PGADMIN_DIR"
+        fi
+    fi
+fi
+
+if [ -n "$PGADMIN_WEB_DIR" ]; then
+    echo_info "Configuring pgAdmin 4 for Nginx (source: $PGADMIN_WEB_DIR)..."
+
     # Create pgAdmin configuration directory
     mkdir -p /var/lib/pgadmin
     chown -R www-data:www-data /var/lib/pgadmin
-    
+
     # Create pgAdmin config_local.py for custom settings
-    cat > /usr/pgadmin4/web/config_local.py << 'PGADMIN_CONFIG'
+    cat > "$PGADMIN_WEB_DIR/config_local.py" << 'PGADMIN_CONFIG'
 import os
 
 # Server mode settings
@@ -659,24 +711,33 @@ PGADMIN_CONFIG
     # Create log directory
     mkdir -p /var/log/pgadmin
     chown -R www-data:www-data /var/log/pgadmin
-    
+
     # Create storage directories
     mkdir -p /var/lib/pgadmin/sessions /var/lib/pgadmin/storage
     chown -R www-data:www-data /var/lib/pgadmin
-    
-    # Setup pgAdmin database using pgAdmin's virtual environment
-    cd /usr/pgadmin4/web
-    
-    # Use pgAdmin's virtual environment Python which has Flask and all dependencies
-    PGADMIN_PYTHON="/usr/pgadmin4/venv/bin/python3"
-    PGADMIN_GUNICORN="/usr/pgadmin4/venv/bin/gunicorn"
-    
-    if [ ! -f "$PGADMIN_PYTHON" ]; then
-        echo_warning "pgAdmin virtual environment not found at $PGADMIN_PYTHON"
+
+    # Determine the venv path (pip install uses /opt/pgadmin4/venv, apt uses /usr/pgadmin4/venv)
+    if [ -f "/opt/pgadmin4/venv/bin/python3" ]; then
+        PGADMIN_VENV_PATH="/opt/pgadmin4/venv"
+    elif [ -f "/usr/pgadmin4/venv/bin/python3" ]; then
+        PGADMIN_VENV_PATH="/usr/pgadmin4/venv"
+    else
+        PGADMIN_VENV_PATH=""
+    fi
+
+    PGADMIN_PYTHON="${PGADMIN_VENV_PATH}/bin/python3"
+    PGADMIN_GUNICORN="${PGADMIN_VENV_PATH}/bin/gunicorn"
+
+    if [ -z "$PGADMIN_VENV_PATH" ] || [ ! -f "$PGADMIN_PYTHON" ]; then
+        echo_warning "pgAdmin virtual environment not found"
         echo_warning "Attempting to use system python3 (may fail if Flask is not installed)"
         PGADMIN_PYTHON="python3"
+        PGADMIN_GUNICORN="gunicorn"
     fi
-    
+
+    # Setup pgAdmin database
+    cd "$PGADMIN_WEB_DIR"
+
     # Modern pgAdmin 4 uses Click-based CLI requiring the setup-db command
     # Use environment variables for non-interactive setup
     echo_progress "Setting up pgAdmin database..."
@@ -687,17 +748,18 @@ PGADMIN_CONFIG
         echo_success "pgAdmin database initialized successfully"
     else
         echo_warning "pgAdmin database setup failed - pgAdmin may not work correctly"
-        echo_info "You can try running manually: cd /usr/pgadmin4/web && sudo -u www-data python3 setup.py setup-db"
+        echo_info "You can try running manually: cd $PGADMIN_WEB_DIR && sudo -u www-data $PGADMIN_PYTHON setup.py setup-db"
     fi
 
-    # Only create systemd service if we have the venv gunicorn
-    if [ ! -f "$PGADMIN_GUNICORN" ]; then
-        echo_warning "pgAdmin gunicorn not found at $PGADMIN_GUNICORN"
+    # Only create systemd service if we have gunicorn available
+    if ! command -v "$PGADMIN_GUNICORN" > /dev/null 2>&1 && [ ! -f "$PGADMIN_GUNICORN" ]; then
+        echo_warning "pgAdmin gunicorn not found"
         echo_warning "Skipping pgAdmin systemd service creation"
         echo_info "pgAdmin can be configured manually later if needed"
     else
         # Create systemd service for pgAdmin WSGI
-        cat > /etc/systemd/system/pgadmin4.service << 'PGADMIN_SERVICE'
+        # Use heredoc with variable expansion for dynamic paths
+        cat > /etc/systemd/system/pgadmin4.service << PGADMIN_SERVICE
 [Unit]
 Description=pgAdmin 4 WSGI Service
 After=network.target
@@ -706,17 +768,16 @@ After=network.target
 Type=simple
 User=www-data
 Group=www-data
-WorkingDirectory=/usr/pgadmin4/web
-Environment="PYTHONPATH=/usr/pgadmin4/web"
-# Use pgAdmin's virtual environment gunicorn which has all dependencies
+WorkingDirectory=$PGADMIN_WEB_DIR
+Environment="PYTHONPATH=$PGADMIN_WEB_DIR"
 # NOTE: Must use --workers=1 per pgAdmin documentation to maintain connection affinity
-ExecStart=/usr/pgadmin4/venv/bin/gunicorn \
-    --bind unix:/var/run/pgadmin4.sock \
-    --workers=1 \
-    --threads=25 \
-    --timeout 300 \
-    --access-logfile /var/log/pgadmin/access.log \
-    --error-logfile /var/log/pgadmin/error.log \
+ExecStart=$PGADMIN_GUNICORN \\
+    --bind unix:/var/run/pgadmin4.sock \\
+    --workers=1 \\
+    --threads=25 \\
+    --timeout 300 \\
+    --access-logfile /var/log/pgadmin/access.log \\
+    --error-logfile /var/log/pgadmin/error.log \\
     pgadmin4:app
 Restart=always
 RestartSec=10
@@ -724,17 +785,22 @@ RestartSec=10
 [Install]
 WantedBy=multi-user.target
 PGADMIN_SERVICE
-        
+
         # Enable and start pgAdmin service
         systemctl daemon-reload
         systemctl enable pgadmin4
         systemctl start pgadmin4
-        
+
         echo_success "pgAdmin systemd service created and started"
     fi
-    
-    # Add pgAdmin location to Nginx config (only if service was created)
-    if [ -f "$PGADMIN_GUNICORN" ] && [ -f /etc/nginx/sites-available/eas-station ]; then
+
+    # Add pgAdmin location to Nginx config (only if gunicorn is available)
+    GUNICORN_AVAILABLE=false
+    if command -v "$PGADMIN_GUNICORN" > /dev/null 2>&1 || [ -f "$PGADMIN_GUNICORN" ]; then
+        GUNICORN_AVAILABLE=true
+    fi
+
+    if [ "$GUNICORN_AVAILABLE" = "true" ] && [ -f /etc/nginx/sites-available/eas-station ]; then
         # Check if pgAdmin block already exists
         if ! grep -q "location /pgadmin4" /etc/nginx/sites-available/eas-station; then
             # Add pgAdmin location block before the closing brace of the HTTPS server block
@@ -752,22 +818,24 @@ PGADMIN_SERVICE
     }\
 \
 ' /etc/nginx/sites-available/eas-station
-            
+
             # Reload Nginx to apply changes
             nginx -t && systemctl reload nginx
             echo_success "pgAdmin 4 configured with Nginx proxy"
         fi
     fi
-    
-    if [ -f "$PGADMIN_GUNICORN" ]; then
+
+    if [ "$GUNICORN_AVAILABLE" = "true" ]; then
         echo_success "pgAdmin 4 installed and running via Nginx"
         echo_info "Access at: https://localhost/pgadmin4"
         echo_info "Login with: $ADMIN_EMAIL"
     else
-        echo_warning "pgAdmin 4 service not available - gunicorn not found in venv"
+        echo_warning "pgAdmin 4 service not available - gunicorn not found"
     fi
 else
-    echo_warning "pgAdmin 4 not available - using command-line access only"
+    if [ "$SKIP_PGADMIN" != "true" ]; then
+        echo_warning "pgAdmin 4 web directory not found - using command-line access only"
+    fi
 fi
 
 # Command-line access alternative
