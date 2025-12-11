@@ -163,7 +163,7 @@ def get_logs(service: str):
 def get_all_logs():
     """
     Fetch logs from all EAS Station services.
-    
+
     Query parameters:
         - lines: Number of lines per service (default: 50, max: 500)
         - priority: Log priority filter
@@ -180,8 +180,107 @@ def get_all_logs():
     results = {}
     for service in get_eas_services():
         results[service] = get_systemd_logs(service, lines, priority, since)
-    
+
     return jsonify(results)
+
+
+@logs_bp.route('/api/logs/recent')
+def get_recent_logs():
+    """
+    Fetch recent logs from all sources for real-time display.
+    Used by WebSocket fallback polling and real-time log viewer.
+
+    Query parameters:
+        - limit: Maximum number of logs to return (default: 50, max: 200)
+        - since_id: Return only logs newer than this ID (for incremental updates)
+    """
+    from datetime import datetime, timedelta, timezone
+    from app_core.models import SystemLog, AudioAlert, GPIOActivationLog, EASMessage
+
+    limit = min(int(request.args.get('limit', 50)), 200)
+
+    try:
+        logs = []
+
+        # Get recent system logs (most common source)
+        for log in SystemLog.query.order_by(SystemLog.timestamp.desc()).limit(limit).all():
+            logs.append({
+                'id': f'sys_{log.id}',
+                'timestamp': log.timestamp.isoformat() if log.timestamp else None,
+                'level': log.level or 'INFO',
+                'module': log.module or 'system',
+                'message': log.message,
+                'category': 'system',
+                'details': log.details,
+            })
+
+        # Get recent audio alerts
+        for log in AudioAlert.query.order_by(AudioAlert.created_at.desc()).limit(limit // 4).all():
+            logs.append({
+                'id': f'audio_{log.id}',
+                'timestamp': log.created_at.isoformat() if log.created_at else None,
+                'level': (log.alert_level or 'INFO').upper(),
+                'module': f'audio:{log.source_name}' if log.source_name else 'audio',
+                'message': log.message,
+                'category': 'audio',
+                'details': {
+                    'alert_type': log.alert_type,
+                    'acknowledged': log.acknowledged,
+                },
+            })
+
+        # Get recent GPIO activations
+        for log in GPIOActivationLog.query.order_by(GPIOActivationLog.activated_at.desc()).limit(limit // 4).all():
+            logs.append({
+                'id': f'gpio_{log.id}',
+                'timestamp': log.activated_at.isoformat() if log.activated_at else None,
+                'level': 'INFO',
+                'module': f'gpio:pin{log.pin}',
+                'message': f"{log.activation_type} - Duration: {log.duration_seconds or 'active'}s",
+                'category': 'gpio',
+                'details': {
+                    'pin': log.pin,
+                    'activation_type': log.activation_type,
+                    'operator': log.operator,
+                },
+            })
+
+        # Get recent EAS messages
+        for log in EASMessage.query.order_by(EASMessage.created_at.desc()).limit(limit // 4).all():
+            logs.append({
+                'id': f'eas_{log.id}',
+                'timestamp': log.created_at.isoformat() if log.created_at else None,
+                'level': 'INFO',
+                'module': 'eas_generator',
+                'message': f"SAME: {log.same_header}" if log.same_header else "EAS message generated",
+                'category': 'eas',
+                'details': {
+                    'same_header': log.same_header,
+                    'audio_filename': log.audio_filename,
+                },
+            })
+
+        # Sort all logs by timestamp (most recent first)
+        logs.sort(key=lambda x: x['timestamp'] or '', reverse=True)
+
+        # Trim to limit
+        logs = logs[:limit]
+
+        return jsonify({
+            'success': True,
+            'logs': logs,
+            'count': len(logs),
+            'timestamp': datetime.now(timezone.utc).isoformat(),
+        })
+
+    except Exception as e:
+        logger.error(f"Error fetching recent logs: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'logs': [],
+            'count': 0,
+        }), 500
 
 
 def register(app):

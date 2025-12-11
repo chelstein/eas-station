@@ -26,6 +26,7 @@ This service pushes multiple event types at different intervals:
 - audio_health_update: 0.033Hz (30s) - audio health dashboard data
 - operation_status_update: 0.1Hz (10s) - admin operations status
 - ipaws_status_update: 0.033Hz (30s) - IPAWS connection status
+- logs_update: 0.1Hz (10s) - recent log entries for real-time log viewer
 """
 
 import json
@@ -55,6 +56,7 @@ LED_STATUS_INTERVAL = 30.0         # LED status
 ANALYTICS_INTERVAL = 30.0          # Analytics dashboard
 SNOW_EMERGENCY_INTERVAL = 60.0     # Snow emergencies
 RADIO_STATUS_INTERVAL = 15.0       # Radio diagnostics
+LOGS_UPDATE_INTERVAL = 10.0        # Log viewer updates
 
 
 def start_websocket_push(app: 'Flask', socketio: 'SocketIO') -> None:
@@ -112,6 +114,7 @@ def _push_worker(app: 'Flask', socketio: 'SocketIO') -> None:
     last_analytics_emit = 0.0
     last_snow_emergency_emit = 0.0
     last_radio_status_emit = 0.0
+    last_logs_emit = 0.0
 
     with app.app_context():
         while not _stop_event.is_set():
@@ -244,6 +247,17 @@ def _push_worker(app: 'Flask', socketio: 'SocketIO') -> None:
                     last_radio_status_emit = now
                 except Exception as e:
                     logger.debug(f"Error emitting radio_status_update: {e}")
+
+            # ================================================================
+            # LOGS UPDATE (every 10s)
+            # Recent log entries for real-time log viewer
+            # ================================================================
+            if now - last_logs_emit >= LOGS_UPDATE_INTERVAL:
+                try:
+                    _emit_logs_update(app, socketio)
+                    last_logs_emit = now
+                except Exception as e:
+                    logger.debug(f"Error emitting logs_update: {e}")
 
             # Sleep for 100ms (10Hz base loop) - good balance between responsiveness and server load
             _stop_event.wait(AUDIO_MONITORING_INTERVAL)
@@ -598,3 +612,45 @@ def _emit_radio_status_update(app: 'Flask', socketio: 'SocketIO') -> None:
         })
     except Exception as e:
         logger.debug(f"Error fetching radio status: {e}")
+
+
+def _emit_logs_update(app: 'Flask', socketio: 'SocketIO') -> None:
+    """Emit recent log entries for real-time log viewer."""
+    try:
+        from app_core.models import SystemLog, AudioAlert
+
+        logs = []
+
+        # Get recent system logs (last 20)
+        for log in SystemLog.query.order_by(SystemLog.timestamp.desc()).limit(20).all():
+            logs.append({
+                'id': f'sys_{log.id}',
+                'timestamp': log.timestamp.isoformat() if log.timestamp else None,
+                'level': log.level or 'INFO',
+                'module': log.module or 'system',
+                'message': log.message,
+                'category': 'system',
+            })
+
+        # Get recent audio alerts (last 5)
+        for log in AudioAlert.query.order_by(AudioAlert.created_at.desc()).limit(5).all():
+            logs.append({
+                'id': f'audio_{log.id}',
+                'timestamp': log.created_at.isoformat() if log.created_at else None,
+                'level': (log.alert_level or 'INFO').upper(),
+                'module': f'audio:{log.source_name}' if log.source_name else 'audio',
+                'message': log.message,
+                'category': 'audio',
+            })
+
+        # Sort by timestamp and limit
+        logs.sort(key=lambda x: x['timestamp'] or '', reverse=True)
+        logs = logs[:25]
+
+        socketio.emit('logs_update', {
+            'logs': logs,
+            'count': len(logs),
+            'timestamp': time.time(),
+        })
+    except Exception as e:
+        logger.debug(f"Error fetching logs data: {e}")
