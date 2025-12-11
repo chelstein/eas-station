@@ -617,19 +617,16 @@ if whiptail --title "FIPS Codes Configuration" --backtitle "$(whiptail_footer)" 
     # Disable exit on error temporarily
     set +e
     
-    # Try to use the helper script if Python environment is available
-    if [ -f "$INSTALL_DIR/venv/bin/python" ] && [ -f "$INSTALL_DIR/scripts/fips_lookup_helper.py" ]; then
-        LOOKUP_RESULT=$("$INSTALL_DIR/venv/bin/python" "$INSTALL_DIR/scripts/fips_lookup_helper.py" list "$STATE_CODE" 2>&1)
-        LOOKUP_EXIT=$?
-    elif [ -f "$VENV_DIR/bin/python" ] && [ -f "$INSTALL_DIR/scripts/fips_lookup_helper.py" ]; then
-        LOOKUP_RESULT=$("$VENV_DIR/bin/python" "$INSTALL_DIR/scripts/fips_lookup_helper.py" list "$STATE_CODE" 2>&1)
+    # Try to use the helper script with system Python (no dependencies needed)
+    if [ -f "$INSTALL_DIR/scripts/fips_lookup_helper.py" ] && command -v python3 &> /dev/null; then
+        LOOKUP_RESULT=$(python3 "$INSTALL_DIR/scripts/fips_lookup_helper.py" list "$STATE_CODE" 2>&1)
         LOOKUP_EXIT=$?
     else
         LOOKUP_EXIT=1
         if [ ! -f "$INSTALL_DIR/scripts/fips_lookup_helper.py" ]; then
             LOOKUP_ERROR="FIPS lookup helper script not found"
         else
-            LOOKUP_ERROR="Python environment not yet available"
+            LOOKUP_ERROR="Python 3 not available"
         fi
     fi
     
