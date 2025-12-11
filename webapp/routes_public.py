@@ -1174,21 +1174,24 @@ def register(app: Flask, logger) -> None:
 
         if log_type == 'all':
             log_type_name = "All Logs"
-            # Combine all log types - fetch each type and merge them
+            # For 'all' type, return logs organized by category
+            # Each category gets a portion of the limit
+            logs_per_category = max(10, limit // 10)  # At least 10 per category
             all_logs = []
             
             # System logs
-            for log in SystemLog.query.order_by(SystemLog.timestamp.desc()).limit(limit).all():
+            for log in SystemLog.query.order_by(SystemLog.timestamp.desc()).limit(logs_per_category).all():
                 all_logs.append({
                     'timestamp': log.timestamp,
                     'level': log.level,
                     'module': log.module or 'system',
                     'message': log.message,
                     'details': log.details,
+                    'category': 'System'
                 })
             
             # Polling logs
-            for log in PollHistory.query.order_by(PollHistory.timestamp.desc()).limit(limit).all():
+            for log in PollHistory.query.order_by(PollHistory.timestamp.desc()).limit(logs_per_category).all():
                 all_logs.append({
                     'timestamp': log.timestamp,
                     'level': 'ERROR' if log.error_message else 'SUCCESS' if (log.status or '').lower() == 'success' else 'INFO',
@@ -1199,10 +1202,11 @@ def register(app: Flask, logger) -> None:
                         'error': log.error_message,
                         'data_source': log.data_source,
                     },
+                    'category': 'Polling'
                 })
             
             # Audio alerts
-            for log in AudioAlert.query.order_by(AudioAlert.created_at.desc()).limit(limit).all():
+            for log in AudioAlert.query.order_by(AudioAlert.created_at.desc()).limit(logs_per_category).all():
                 all_logs.append({
                     'timestamp': log.created_at,
                     'level': log.alert_level.upper(),
@@ -1212,10 +1216,11 @@ def register(app: Flask, logger) -> None:
                         'alert_type': log.alert_type,
                         'acknowledged': log.acknowledged,
                     },
+                    'category': 'Audio'
                 })
             
             # GPIO logs
-            for log in GPIOActivationLog.query.order_by(GPIOActivationLog.activated_at.desc()).limit(limit).all():
+            for log in GPIOActivationLog.query.order_by(GPIOActivationLog.activated_at.desc()).limit(logs_per_category).all():
                 all_logs.append({
                     'timestamp': log.activated_at,
                     'level': 'INFO',
@@ -1225,10 +1230,38 @@ def register(app: Flask, logger) -> None:
                         'pin': log.pin,
                         'activation_type': log.activation_type,
                     },
+                    'category': 'GPIO'
                 })
             
-            # Sort all logs by timestamp and limit
-            # Use datetime.min for None timestamps to push them to the end when sorting descending
+            # EAS Messages
+            for log in EASMessage.query.order_by(EASMessage.created_at.desc()).limit(logs_per_category).all():
+                all_logs.append({
+                    'timestamp': log.created_at,
+                    'level': 'INFO',
+                    'module': 'EAS Message Generator',
+                    'message': f"SAME: {log.same_header} | TTS: {log.tts_provider or 'None'}",
+                    'details': {
+                        'same_header': log.same_header,
+                        'audio_filename': log.audio_filename,
+                    },
+                    'category': 'EAS Messages'
+                })
+            
+            # Manual Activations
+            for log in ManualEASActivation.query.order_by(ManualEASActivation.created_at.desc()).limit(logs_per_category).all():
+                all_logs.append({
+                    'timestamp': log.created_at,
+                    'level': 'WARNING' if log.status == 'ALERT' else 'INFO',
+                    'module': 'Manual EAS Activation',
+                    'message': f"Event: {log.event_name} ({log.event_code}) | Status: {log.status}",
+                    'details': {
+                        'event_code': log.event_code,
+                        'status': log.status,
+                    },
+                    'category': 'Manual Activations'
+                })
+            
+            # Sort all logs by timestamp
             from datetime import datetime
             all_logs.sort(key=lambda x: x['timestamp'] if x['timestamp'] else datetime.min, reverse=True)
             logs_data = all_logs[:limit]

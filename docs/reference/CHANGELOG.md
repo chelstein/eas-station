@@ -9,16 +9,20 @@ tracks releases under the 2.x series.
 ## [2.19.12] - 2025-12-11
 ### Fixed
   - Fixed logs page to display ALL logs instead of only categorized logs
-  - Added "All Logs" tab as the default view showing combined logs from all categories
-  - Logs no longer ignored if they don't fit specific categories
-  - All log types now visible in frontend regardless of category
   - Fixed Bootstrap modal aria-hidden accessibility warnings when adding/editing audio sources
   - Fixed potential focus trap issues preventing interaction with audio source modals
 
+### Added
+  - Added "All Logs" tab as the default view with organized category sections
+  - Added collapsible accordion sections for each log category (System, Polling, Audio, GPIO, EAS Messages, etc.)
+  - Added category badges showing log count per category
+  - Logs now organized by category instead of mixed together chronologically
+
 ### Changed
   - Default logs view changed from "System" to "All Logs" for better visibility
-  - All logs tab shows combined view sorted by timestamp
+  - "All Logs" view now uses accordion with category grouping for better organization
   - Modal elements now properly blur focus before hiding to prevent accessibility issues
+  - Improved log readability by separating logs into logical categories
 
 ## [2.19.11] - 2025-12-10
 ### Fixed
