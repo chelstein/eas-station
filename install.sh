@@ -798,12 +798,20 @@ if [ -n "$FIPS_CODES" ]; then
         if [ $ZONE_EXIT -eq 0 ] && [ -n "$ZONE_RESULT" ] && echo "$ZONE_RESULT" | grep -q "zone_codes"; then
             # Safely parse zone codes
             set +e
-            ZONE_CODES=$(echo "$ZONE_RESULT" | python3 -c "import sys, json; data=json.load(sys.stdin); print(','.join(data.get('zone_codes', [])))" 2>/dev/null)
-            ZONE_COUNT=$(echo "$ZONE_RESULT" | python3 -c "import sys, json; data=json.load(sys.stdin); print(data.get('count', 0))" 2>/dev/null)
+            # Parse both values in one Python call to avoid redundancy
+            ZONE_DATA=$(echo "$ZONE_RESULT" | python3 -c "import sys, json; data=json.load(sys.stdin); print(','.join(data.get('zone_codes', [])) + '|' + str(data.get('count', 0)))" 2>/dev/null)
             PARSE_EXIT=$?
+            
+            if [ $PARSE_EXIT -eq 0 ] && [ -n "$ZONE_DATA" ]; then
+                ZONE_CODES=$(echo "$ZONE_DATA" | cut -d'|' -f1)
+                ZONE_COUNT=$(echo "$ZONE_DATA" | cut -d'|' -f2)
+            else
+                ZONE_CODES=""
+                ZONE_COUNT=0
+            fi
             set -e
             
-            if [ $PARSE_EXIT -eq 0 ] && [ -n "$ZONE_CODES" ] && [ "$ZONE_COUNT" -gt 0 ]; then
+            if [ -n "$ZONE_CODES" ] && [ "$ZONE_COUNT" -gt 0 ]; then
                 echo_success "Derived ${BOLD}$ZONE_COUNT${NC} zone code(s): ${BOLD}$ZONE_CODES${NC}"
                 whiptail --title "Zone Codes Derived" --msgbox "Successfully derived $ZONE_COUNT NWS zone code(s):\n\n$ZONE_CODES\n\nThese will be saved to your configuration." 14 75
             else
