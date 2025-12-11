@@ -12,10 +12,13 @@ tracks releases under the 2.x series.
   - Added "All Logs" tab as the default view showing combined logs from all categories
   - Logs no longer ignored if they don't fit specific categories
   - All log types now visible in frontend regardless of category
+  - Fixed Bootstrap modal aria-hidden accessibility warnings when adding/editing audio sources
+  - Fixed potential focus trap issues preventing interaction with audio source modals
 
 ### Changed
   - Default logs view changed from "System" to "All Logs" for better visibility
   - All logs tab shows combined view sorted by timestamp
+  - Modal elements now properly blur focus before hiding to prevent accessibility issues
 
 ## [2.19.11] - 2025-12-10
 ### Fixed

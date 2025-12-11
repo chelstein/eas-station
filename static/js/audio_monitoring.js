@@ -1202,7 +1202,15 @@ async function addAudioSource() {
         console.log('Response status:', response.status, response.statusText);
 
         if (response.ok) {
-            bootstrap.Modal.getInstance(document.getElementById('addSourceModal')).hide();
+            // Remove focus from any active element to prevent aria-hidden issues
+            if (document.activeElement) {
+                document.activeElement.blur();
+            }
+            const modalElement = document.getElementById('addSourceModal');
+            const modalInstance = bootstrap.Modal.getInstance(modalElement);
+            if (modalInstance) {
+                modalInstance.hide();
+            }
             showSuccess('Audio source added successfully');
             loadAudioSources();
         } else {
@@ -1507,7 +1515,15 @@ async function saveEditedSource() {
         });
 
         if (response.ok) {
-            bootstrap.Modal.getInstance(document.getElementById('editSourceModal')).hide();
+            // Remove focus from any active element to prevent aria-hidden issues
+            if (document.activeElement) {
+                document.activeElement.blur();
+            }
+            const modalElement = document.getElementById('editSourceModal');
+            const modalInstance = bootstrap.Modal.getInstance(modalElement);
+            if (modalInstance) {
+                modalInstance.hide();
+            }
             showSuccess('Audio source updated successfully');
             loadAudioSources();
         } else {
@@ -1578,7 +1594,15 @@ async function discoverDevices() {
  */
 function quickAddDevice(type, deviceId, deviceName) {
     // Close discovery modal
-    bootstrap.Modal.getInstance(document.getElementById('deviceDiscoveryModal')).hide();
+    // Remove focus from any active element to prevent aria-hidden issues
+    if (document.activeElement) {
+        document.activeElement.blur();
+    }
+    const modalElement = document.getElementById('deviceDiscoveryModal');
+    const modalInstance = bootstrap.Modal.getInstance(modalElement);
+    if (modalInstance) {
+        modalInstance.hide();
+    }
 
     // Open add source modal with pre-filled values
     showAddSourceModal();
