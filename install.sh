@@ -592,15 +592,19 @@ if whiptail --title "FIPS Codes Configuration" --backtitle "$(whiptail_footer)" 
     set +e
     
     # Try to use the helper script if Python environment is available
-    if [ -f "$INSTALL_DIR/venv/bin/python" ]; then
+    if [ -f "$INSTALL_DIR/venv/bin/python" ] && [ -f "$INSTALL_DIR/scripts/fips_lookup_helper.py" ]; then
         LOOKUP_RESULT=$("$INSTALL_DIR/venv/bin/python" "$INSTALL_DIR/scripts/fips_lookup_helper.py" list "$STATE_CODE" 2>&1)
         LOOKUP_EXIT=$?
-    elif [ -f "$VENV_DIR/bin/python" ]; then
+    elif [ -f "$VENV_DIR/bin/python" ] && [ -f "$INSTALL_DIR/scripts/fips_lookup_helper.py" ]; then
         LOOKUP_RESULT=$("$VENV_DIR/bin/python" "$INSTALL_DIR/scripts/fips_lookup_helper.py" list "$STATE_CODE" 2>&1)
         LOOKUP_EXIT=$?
     else
         LOOKUP_EXIT=1
-        LOOKUP_ERROR="Python environment not yet available"
+        if [ ! -f "$INSTALL_DIR/scripts/fips_lookup_helper.py" ]; then
+            LOOKUP_ERROR="FIPS lookup helper script not found"
+        else
+            LOOKUP_ERROR="Python environment not yet available"
+        fi
     fi
     
     # Re-enable exit on error
@@ -632,7 +636,10 @@ if whiptail --title "FIPS Codes Configuration" --backtitle "$(whiptail_footer)" 
             while IFS='|' read -r fips_code county_name; do
                 if [ -n "$fips_code" ] && [ -n "$county_name" ]; then
                     # Check if this county matches the user's entered county name (for pre-selection)
-                    if echo "$county_name" | grep -qi "$COUNTY_NAME"; then
+                    # Use case-insensitive substring match with fgrep to avoid regex issues
+                    COUNTY_NAME_LOWER=$(echo "$COUNTY_NAME" | tr '[:upper:]' '[:lower:]')
+                    COUNTY_CHECK_LOWER=$(echo "$county_name" | tr '[:upper:]' '[:lower:]')
+                    if echo "$COUNTY_CHECK_LOWER" | fgrep -q "$COUNTY_NAME_LOWER"; then
                         CHECKLIST_ITEMS+=("$fips_code" "$county_name" "ON")
                     else
                         CHECKLIST_ITEMS+=("$fips_code" "$county_name" "OFF")
@@ -648,9 +655,13 @@ if whiptail --title "FIPS Codes Configuration" --backtitle "$(whiptail_footer)" 
                     25 78 15 "${CHECKLIST_ITEMS[@]}" 3>&1 1>&2 2>&3)
                 
                 if [ $? = 0 ] && [ -n "$SELECTED_FIPS" ]; then
-                    # Remove quotes and convert space-separated to comma-separated
-                    FIPS_CODES=$(echo "$SELECTED_FIPS" | tr -d '"' | tr ' ' ',')
-                    FIPS_COUNT=$(echo "$FIPS_CODES" | tr ',' '\n' | wc -l)
+                    # Parse selected FIPS codes more robustly
+                    # Whiptail returns quoted space-separated values like: "039001" "039003" "039005"
+                    # Remove all quotes and convert spaces to commas
+                    FIPS_CODES=$(echo "$SELECTED_FIPS" | sed 's/"//g' | tr ' ' ',')
+                    # Remove any leading/trailing commas that might have been introduced
+                    FIPS_CODES=$(echo "$FIPS_CODES" | sed 's/^,//;s/,$//')
+                    FIPS_COUNT=$(echo "$FIPS_CODES" | tr ',' '\n' | grep -c '^[0-9]' || echo 0)
                     echo_success "Selected ${BOLD}$FIPS_COUNT${NC} FIPS code(s): ${BOLD}$FIPS_CODES${NC}"
                 else
                     FIPS_CODES=""
