@@ -25,21 +25,20 @@ and EAS monitoring, while all workers can serve UI requests by reading shared st
 
 Architecture:
     Master Worker: Runs audio controller, broadcast pump, EAS monitor
-    Slave Workers: Serve UI requests by reading shared metrics
+    Slave Workers: Serve UI requests by reading shared metrics from Redis
 
-Coordination Strategy (with automatic fallback):
-    1. Try Redis-based coordination (preferred, robust, fast)
-    2. Fall back to file-based if Redis unavailable
-
-Redis Mode:
+Coordination Strategy:
+    Redis-based coordination (required in separated architecture):
     - Distributed locks with TTL (automatic failover)
     - In-memory state (100x faster than files)
     - Pub/Sub for real-time updates
     - Atomic operations (no race conditions)
+
+Note: File-based fallbacks were removed as they don't work reliably
+in containerized environments where /tmp is ephemeral per container.
 """
 
 import os
-import json
 import time
 import logging
 import threading
@@ -112,6 +111,7 @@ def release_master_lock():
     global _is_master_worker
 
     if not _USE_REDIS or not _redis_coordinator:
+        logger.warning("Redis not available for releasing master lock")
         _is_master_worker = False
         return
 
@@ -119,7 +119,7 @@ def release_master_lock():
         _redis_coordinator.release_master_lock()
         _is_master_worker = False
     except Exception as e:
-        logger.error(f"Failed to release master lock via Redis: {e}")
+        logger.error(f"Redis coordinator failed during release: {e}")
         _is_master_worker = False
 
 
@@ -130,42 +130,33 @@ def is_master_worker() -> bool:
 
 def write_shared_metrics(metrics: Dict[str, Any]):
     """
-    Write metrics to shared storage for all workers to read.
+    Write metrics to Redis for all workers to read.
 
-    Uses Redis if available, otherwise writes to file.
+    Redis is required in separated architecture - file-based fallbacks
+    don't work in containerized environments where /tmp is ephemeral.
+
     Should only be called by master worker.
 
     Args:
         metrics: Dictionary of metrics to write
+
+    Raises:
+        RuntimeError: If Redis is not available
     """
     if not _is_master_worker:
         logger.warning("write_shared_metrics() called by non-master worker, ignoring")
         return
 
-    # Try Redis first
-    if _USE_REDIS and _redis_coordinator:
-        try:
-            _redis_coordinator.write_shared_metrics(metrics)
-            return
-        except Exception as e:
-            logger.error(f"Redis write failed, falling back to file: {e}")
-            # Fall through to file-based
+    if not _USE_REDIS or not _redis_coordinator:
+        raise RuntimeError(
+            "Redis is required for metrics storage. "
+            "Set REDIS_HOST and REDIS_PORT environment variables."
+        )
 
     try:
-        # Add heartbeat timestamp
-        metrics["_heartbeat"] = time.time()
-        metrics["_master_pid"] = os.getpid()
-
-        # Write atomically using temp file + rename
-        temp_file = f"{METRICS_FILE}.tmp.{os.getpid()}"
-        with open(temp_file, 'w') as f:
-            json.dump(metrics, f, indent=2)
-
-        # Atomic rename (overwrites old file)
-        os.rename(temp_file, METRICS_FILE)
-
+        _redis_coordinator.write_shared_metrics(metrics)
     except Exception as e:
-        logger.error(f"Failed to write shared metrics: {e}")
+        logger.error(f"Failed to write shared metrics to Redis: {e}")
 
 
 def read_shared_metrics() -> Optional[Dict[str, Any]]:

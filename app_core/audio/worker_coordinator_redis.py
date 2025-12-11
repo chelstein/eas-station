@@ -38,7 +38,6 @@ Benefits over file-based approach:
     - Industry standard, battle-tested
 """
 
-import os
 import json
 import time
 import logging
@@ -47,28 +46,23 @@ from typing import Optional, Dict, Any
 import redis
 from redis.exceptions import RedisError, ConnectionError as RedisConnectionError
 
+from app_core.redis_client import get_redis_client as _get_central_redis_client
+from app_core.config.redis_config import RedisChannels, RedisTimeouts
+
 logger = logging.getLogger(__name__)
 
-# Redis connection settings
-# Default to 'localhost' for bare metal deployment
-REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
-REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
-REDIS_DB = int(os.getenv("REDIS_DB", "0"))
-REDIS_PASSWORD = os.getenv("REDIS_PASSWORD", None)
+# Redis keys (from centralized config)
+MASTER_LOCK_KEY = RedisChannels.MASTER_LOCK_KEY
+METRICS_KEY = RedisChannels.METRICS_KEY
+HEARTBEAT_CHANNEL = RedisChannels.HEARTBEAT_CHANNEL
+METRICS_UPDATE_CHANNEL = RedisChannels.METRICS_UPDATE_CHANNEL
 
-# Redis keys
-MASTER_LOCK_KEY = "eas:master:lock"
-METRICS_KEY = "eas:metrics"
-HEARTBEAT_CHANNEL = "eas:heartbeat"
-METRICS_UPDATE_CHANNEL = "eas:metrics:update"
-
-# Timing configuration
-MASTER_LOCK_TTL = 30  # Master lock expires after 30 seconds (auto-failover)
-HEARTBEAT_INTERVAL = 5.0  # Master updates heartbeat every 5 seconds
-METRICS_TTL = 60  # Metrics expire after 60 seconds if master dies
+# Timing configuration (from centralized config)
+MASTER_LOCK_TTL = RedisTimeouts.MASTER_LOCK_TTL
+HEARTBEAT_INTERVAL = RedisTimeouts.HEARTBEAT_INTERVAL
+METRICS_TTL = RedisTimeouts.METRICS_TTL
 
 # Global state
-_redis_client: Optional[redis.Redis] = None
 _is_master_worker: bool = False
 _heartbeat_thread: Optional[threading.Thread] = None
 _heartbeat_stop_flag: threading.Event = threading.Event()
@@ -82,7 +76,12 @@ class WorkerRole:
 
 def get_redis_client() -> redis.Redis:
     """
-    Get or create Redis client with connection pooling.
+    Get Redis client from centralized pool.
+
+    Uses the centralized redis_client module which provides:
+    - Connection pooling
+    - Circuit breaker pattern
+    - Automatic retry with exponential backoff
 
     Returns:
         Redis client instance
@@ -90,31 +89,7 @@ def get_redis_client() -> redis.Redis:
     Raises:
         RedisConnectionError: If Redis is not available
     """
-    global _redis_client
-
-    if _redis_client is None:
-        try:
-            _redis_client = redis.Redis(
-                host=REDIS_HOST,
-                port=REDIS_PORT,
-                db=REDIS_DB,
-                password=REDIS_PASSWORD,
-                decode_responses=True,  # Return strings instead of bytes
-                socket_connect_timeout=5,
-                socket_keepalive=True,
-                health_check_interval=30,
-                max_connections=10,
-            )
-
-            # Test connection
-            _redis_client.ping()
-            logger.info(f"✅ Connected to Redis at {REDIS_HOST}:{REDIS_PORT} (db={REDIS_DB})")
-
-        except RedisConnectionError as e:
-            logger.error(f"❌ Failed to connect to Redis at {REDIS_HOST}:{REDIS_PORT}: {e}")
-            raise
-
-    return _redis_client
+    return _get_central_redis_client()
 
 
 def try_acquire_master_lock() -> bool:

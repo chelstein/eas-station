@@ -40,25 +40,26 @@ Commands:
 
 import json
 import logging
-import os
 import time
 from typing import Any, Callable, Dict, Optional
 
 import redis
 from app_core.redis_client import get_redis_client
+from app_core.config.redis_config import (
+    get_redis_host,
+    get_redis_port,
+    RedisChannels,
+    RedisTimeouts,
+)
 
 logger = logging.getLogger(__name__)
 
-# Redis connection settings (for logging purposes)
-REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
-REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
+# Channel names (from centralized config)
+AUDIO_COMMAND_CHANNEL = RedisChannels.AUDIO_COMMAND_CHANNEL
+AUDIO_RESPONSE_PREFIX = RedisChannels.AUDIO_RESPONSE_PREFIX
 
-# Channel names
-AUDIO_COMMAND_CHANNEL = 'eas:audio:commands'
-AUDIO_RESPONSE_CHANNEL = 'eas:audio:responses'
-
-# Command timeout (seconds)
-COMMAND_TIMEOUT = 30
+# Command timeout (from centralized config)
+COMMAND_TIMEOUT = RedisTimeouts.COMMAND_TIMEOUT
 
 
 class AudioCommandPublisher:
@@ -81,7 +82,7 @@ class AudioCommandPublisher:
         """Check Redis connection is working."""
         try:
             self.redis_client.ping()
-            logger.info(f"AudioCommandPublisher connected to Redis at {REDIS_HOST}:{REDIS_PORT}")
+            logger.info(f"AudioCommandPublisher connected to Redis at {get_redis_host()}:{get_redis_port()}")
         except redis.ConnectionError as e:
             logger.error(f"Failed to connect to Redis: {e}")
             raise
@@ -238,7 +239,7 @@ class AudioCommandSubscriber:
         """Check Redis connection is working."""
         try:
             self.redis_client.ping()
-            logger.info(f"AudioCommandSubscriber connected to Redis at {REDIS_HOST}:{REDIS_PORT}")
+            logger.info(f"AudioCommandSubscriber connected to Redis at {get_redis_host()}:{get_redis_port()}")
         except redis.ConnectionError as e:
             logger.error(f"Failed to connect to Redis: {e}")
             raise

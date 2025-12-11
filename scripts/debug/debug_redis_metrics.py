@@ -1,16 +1,40 @@
+#!/usr/bin/env python3
+"""Debug script to inspect Redis metrics for EAS Station."""
+
+import sys
+import os
+
+# Add project root to path for imports
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+
 import redis
 import json
 import datetime
 
-# Configuration
-REDIS_HOST = "omv.local"
-REDIS_PORT = 6379
-REDIS_DB = 0
+from app_core.config.redis_config import (
+    get_redis_host,
+    get_redis_port,
+    get_redis_db,
+    get_redis_password,
+    RedisTimeouts,
+)
+
 
 def inspect_metrics():
-    print(f"Connecting to Redis at {REDIS_HOST}:{REDIS_PORT}...")
+    host = get_redis_host()
+    port = get_redis_port()
+    db = get_redis_db()
+    password = get_redis_password()
+
+    print(f"Connecting to Redis at {host}:{port}...")
     try:
-        r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB, socket_connect_timeout=5)
+        r = redis.Redis(
+            host=host,
+            port=port,
+            db=db,
+            password=password,
+            socket_connect_timeout=RedisTimeouts.CONNECT_TIMEOUT,
+        )
         r.ping()
         print("✅ Connected to Redis!")
         

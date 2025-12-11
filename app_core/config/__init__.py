@@ -27,6 +27,16 @@ from .services import (
     SDR_SERVICE_URL,
     REDIS_URL,
 )
+from .redis_config import (
+    get_redis_host,
+    get_redis_port,
+    get_redis_db,
+    get_redis_password,
+    get_redis_url,
+    get_cache_redis_url,
+    RedisChannels,
+    RedisTimeouts,
+)
 
 __all__ = [
     'parse_env_list',
@@ -46,4 +56,13 @@ __all__ = [
     'AUDIO_SERVICE_URL',
     'SDR_SERVICE_URL',
     'REDIS_URL',
+    # Redis config
+    'get_redis_host',
+    'get_redis_port',
+    'get_redis_db',
+    'get_redis_password',
+    'get_redis_url',
+    'get_cache_redis_url',
+    'RedisChannels',
+    'RedisTimeouts',
 ]

@@ -1,0 +1,162 @@
+"""
+EAS Station - Emergency Alert System
+Copyright (c) 2025 Timothy Kramer (KR8MER)
+
+This file is part of EAS Station.
+
+EAS Station is dual-licensed software:
+- GNU Affero General Public License v3 (AGPL-3.0) for open-source use
+- Commercial License for proprietary use
+
+You should have received a copy of both licenses with this software.
+For more information, see LICENSE and LICENSE-COMMERCIAL files.
+
+IMPORTANT: This software cannot be rebranded or have attribution removed.
+See NOTICE file for complete terms.
+
+Repository: https://github.com/KR8MER/eas-station
+"""
+
+"""
+Centralized Redis Configuration for EAS Station.
+
+All Redis connection settings are defined here to avoid configuration sprawl.
+Import from this module instead of reading environment variables directly.
+
+Usage:
+    from app_core.config.redis_config import (
+        get_redis_host,
+        get_redis_port,
+        get_redis_url,
+    )
+"""
+
+import os
+from typing import Optional
+
+
+def get_redis_host() -> str:
+    """Get Redis host from environment.
+
+    Returns:
+        Redis host (default: 'localhost')
+    """
+    return os.getenv("REDIS_HOST", "localhost")
+
+
+def get_redis_port() -> int:
+    """Get Redis port from environment.
+
+    Returns:
+        Redis port (default: 6379)
+    """
+    return int(os.getenv("REDIS_PORT", "6379"))
+
+
+def get_redis_db() -> int:
+    """Get Redis database number from environment.
+
+    Returns:
+        Redis database number (default: 0)
+    """
+    return int(os.getenv("REDIS_DB", "0"))
+
+
+def get_redis_password() -> Optional[str]:
+    """Get Redis password from environment (if authentication required).
+
+    Returns:
+        Redis password or None if not set
+    """
+    password = os.getenv("REDIS_PASSWORD")
+    # Treat empty string as None
+    return password if password else None
+
+
+def get_redis_url() -> str:
+    """Get full Redis connection URL.
+
+    Constructs URL from individual settings. Use this for libraries
+    that require a Redis URL (e.g., Flask-Caching, Celery).
+
+    Returns:
+        Redis URL in format: redis://[password@]host:port/db
+    """
+    host = get_redis_host()
+    port = get_redis_port()
+    db = get_redis_db()
+    password = get_redis_password()
+
+    if password:
+        return f"redis://:{password}@{host}:{port}/{db}"
+    return f"redis://{host}:{port}/{db}"
+
+
+def get_cache_redis_url() -> str:
+    """Get Redis URL for Flask-Caching.
+
+    Checks CACHE_REDIS_URL first for explicit override,
+    falls back to standard Redis URL.
+
+    Returns:
+        Redis URL for caching
+    """
+    # Allow explicit override for cache-specific Redis instance
+    cache_url = os.getenv("CACHE_REDIS_URL")
+    if cache_url:
+        return cache_url
+    return get_redis_url()
+
+
+# Redis pub/sub channel names (centralized registry)
+class RedisChannels:
+    """Centralized registry of Redis pub/sub channels and keys."""
+
+    # Worker coordination
+    MASTER_LOCK_KEY = "eas:master:lock"
+    METRICS_KEY = "eas:metrics"
+    HEARTBEAT_CHANNEL = "eas:heartbeat"
+    METRICS_UPDATE_CHANNEL = "eas:metrics:update"
+
+    # Audio service
+    AUDIO_COMMAND_CHANNEL = "eas:audio:commands"
+    AUDIO_RESPONSE_PREFIX = "eas:audio:response:"  # + command_id
+
+    # SDR service
+    SDR_COMMANDS_QUEUE = "sdr:commands"
+    SDR_COMMAND_RESULT_PREFIX = "sdr:command_result:"  # + command_id
+    SDR_METRICS_KEY = "sdr:metrics"
+    SDR_SAMPLES_PREFIX = "sdr:samples:"  # + receiver_id
+
+    # Audio streaming
+    AUDIO_SAMPLES_PREFIX = "audio:samples:"  # + source_name
+
+    # Spectrum data
+    SPECTRUM_PREFIX = "eas:spectrum:"  # + receiver_identifier
+
+    # Alert forwarding
+    ALERT_CHANNEL = "eas:alerts:received"
+
+
+# Timing constants for Redis operations
+class RedisTimeouts:
+    """Timeout and TTL constants for Redis operations."""
+
+    # Master lock
+    MASTER_LOCK_TTL = 30  # seconds - auto-expire if master dies
+
+    # Metrics
+    METRICS_TTL = 60  # seconds - auto-expire if not refreshed
+
+    # Heartbeat
+    HEARTBEAT_INTERVAL = 5.0  # seconds - how often to update
+    STALE_THRESHOLD = 15.0  # seconds - consider stale after this
+
+    # Command timeouts
+    COMMAND_TIMEOUT = 30  # seconds - wait for response
+    SDR_COMMAND_TIMEOUT = 5  # seconds - SDR command response wait
+
+    # Connection
+    CONNECT_TIMEOUT = 5  # seconds - initial connection
+    SOCKET_TIMEOUT = 5  # seconds - socket operations
+    HEALTH_CHECK_INTERVAL = 30  # seconds - connection health check

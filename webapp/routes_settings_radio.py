@@ -175,9 +175,9 @@ def _receiver_to_dict(receiver: RadioReceiver) -> Dict[str, Any]:
                     "sample_count": redis_receiver.get("sample_count", 0),
                     "running": redis_receiver.get("running", False),
                 }
-    except Exception:
+    except Exception as redis_exc:
         # Redis not available or error parsing - fall back to database status
-        pass
+        _module_logger.debug("Could not read receiver status from Redis: %s", redis_exc)
 
     # Use Redis status if available (it's more current), otherwise use database status
     if redis_status is not None:
@@ -1391,9 +1391,8 @@ def register(app: Flask, logger) -> None:
                 # Generate unique command ID
                 command_id = str(uuid.uuid4())
 
-                # Get Redis client (reuse if already retrieved)
-                if 'redis_client' not in locals():
-                    redis_client = get_redis_client()
+                # Get Redis client for command queue
+                redis_client = get_redis_client()
 
                 # Send get_spectrum command to sdr-service
                 command = {
