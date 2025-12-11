@@ -48,10 +48,21 @@ echo_progress() {
 }
 
 echo_header() {
+    local text="$1"
+    local box_width=64
+    local content_width=$((box_width - 4))  # Account for "║  " and "  ║"
+    
+    # Calculate visual length (accounting for emojis and multi-byte chars)
+    local text_len=$(echo -n "$text" | wc -m)
+    local padding=$((content_width - text_len))
+    if [ $padding -lt 0 ]; then
+        padding=0
+    fi
+    
     echo ""
-    echo -e "${BOLD}${CYAN}╔════════════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${BOLD}${CYAN}║${NC}${BOLD}${WHITE}  $1${NC}$(printf ' %.0s' $(seq 1 $((64 - 2 - ${#1}))))${BOLD}${CYAN}║${NC}"
-    echo -e "${BOLD}${CYAN}╚════════════════════════════════════════════════════════════════╝${NC}"
+    echo -e "${BOLD}${CYAN}╔$(printf '═%.0s' $(seq 1 $box_width))╗${NC}"
+    echo -e "${BOLD}${CYAN}║${NC}${BOLD}${WHITE}  $text$(printf ' %.0s' $(seq 1 $padding))  ${BOLD}${CYAN}║${NC}"
+    echo -e "${BOLD}${CYAN}╚$(printf '═%.0s' $(seq 1 $box_width))╝${NC}"
     echo ""
 }
 
@@ -92,11 +103,15 @@ show_spinner() {
 # Box drawing for important information
 draw_box() {
     local text="$1"
-    local width=66
+    local box_width=68
+    local text_len=$(echo -n "$text" | wc -m)
+    local padding=$((box_width - text_len - 2))
+    if [ $padding -lt 0 ]; then padding=0; fi
+    
     echo ""
-    echo -e "${BOLD}${GREEN}┌$(printf '─%.0s' $(seq 1 $width))┐${NC}"
-    echo -e "${BOLD}${GREEN}│${NC} ${BOLD}${WHITE}${text}$(printf ' %.0s' $(seq 1 $((width - ${#text}))))${NC}${BOLD}${GREEN}│${NC}"
-    echo -e "${BOLD}${GREEN}└$(printf '─%.0s' $(seq 1 $width))┘${NC}"
+    echo -e "${BOLD}${GREEN}┌$(printf '─%.0s' $(seq 1 $box_width))┐${NC}"
+    echo -e "${BOLD}${GREEN}│${NC} ${BOLD}${WHITE}${text}$(printf ' %.0s' $(seq 1 $padding))${NC} ${BOLD}${GREEN}│${NC}"
+    echo -e "${BOLD}${GREEN}└$(printf '─%.0s' $(seq 1 $box_width))┘${NC}"
     echo ""
 }
 
@@ -105,13 +120,24 @@ show_step_progress() {
     local step=$1
     local total=$2
     local desc="$3"
-    local width=60
+    local box_width=63
+    
+    # Step line
+    local step_text="Step $step of $total"
+    local step_len=$(echo -n "$step_text" | wc -m)
+    local step_padding=$((box_width - step_len - 2))
+    if [ $step_padding -lt 0 ]; then step_padding=0; fi
+    
+    # Description line
+    local desc_len=$(echo -n "$desc" | wc -m)
+    local desc_padding=$((box_width - desc_len - 2))
+    if [ $desc_padding -lt 0 ]; then desc_padding=0; fi
     
     echo ""
-    echo -e "${BOLD}${CYAN}╔═══════════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${BOLD}${CYAN}║${NC} ${BOLD}${WHITE}Step $step of $total${NC}$(printf ' %.0s' $(seq 1 $((width - 13 - ${#step} - ${#total}))))${BOLD}${CYAN}║${NC}"
-    echo -e "${BOLD}${CYAN}║${NC} ${CYAN}$desc${NC}$(printf ' %.0s' $(seq 1 $((width - ${#desc}))))${BOLD}${CYAN}║${NC}"
-    echo -e "${BOLD}${CYAN}╚═══════════════════════════════════════════════════════════════╝${NC}"
+    echo -e "${BOLD}${CYAN}╔$(printf '═%.0s' $(seq 1 $box_width))╗${NC}"
+    echo -e "${BOLD}${CYAN}║${NC} ${BOLD}${WHITE}$step_text${NC}$(printf ' %.0s' $(seq 1 $step_padding)) ${BOLD}${CYAN}║${NC}"
+    echo -e "${BOLD}${CYAN}║${NC} ${CYAN}$desc${NC}$(printf ' %.0s' $(seq 1 $desc_padding)) ${BOLD}${CYAN}║${NC}"
+    echo -e "${BOLD}${CYAN}╚$(printf '═%.0s' $(seq 1 $box_width))╝${NC}"
     
     # Show mini progress bar
     local filled=$((step * 50 / total))
@@ -133,16 +159,22 @@ echo -e "${BOLD}${CYAN}"
 cat << "EOF"
 ╔═══════════════════════════════════════════════════════════════════════╗
 ║                                                                       ║
-║   ███████╗ █████╗ ███████╗    ███████╗████████╗ █████╗ ████████╗      ║
-║   ██╔════╝██╔══██╗██╔════╝    ██╔════╝╚══██╔══╝██╔══██╗╚══██╔══╝      ║
-║   █████╗  ███████║███████╗    ███████╗   ██║   ███████║   ██║         ║
-║   ██╔══╝  ██╔══██║╚════██║    ╚════██║   ██║   ██╔══██║   ██║         ║
-║   ███████╗██║  ██║███████║    ███████║   ██║   ██║  ██║   ██║         ║
-║   ╚══════╝╚═╝  ╚═╝╚══════╝    ╚══════╝   ╚═╝   ╚═╝  ╚═╝   ╚═╝         ║
+║                 ███████╗ █████╗ ███████╗                              ║
+║                 ██╔════╝██╔══██╗██╔════╝                              ║
+║                 █████╗  ███████║███████╗                              ║
+║                 ██╔══╝  ██╔══██║╚════██║                              ║
+║                 ███████╗██║  ██║███████║                              ║
+║                 ╚══════╝╚═╝  ╚═╝╚══════╝                              ║
 ║                                                                       ║
-║             📡  Emergency Alert System Installation  📡                 ║
+║            ███████╗████████╗ █████╗ ████████╗██╗ ██████╗ ███╗   ██╗  ║
+║            ██╔════╝╚══██╔══╝██╔══██╗╚══██╔══╝██║██╔═══██╗████╗  ██║  ║
+║            ███████╗   ██║   ███████║   ██║   ██║██║   ██║██╔██╗ ██║  ║
+║            ╚════██║   ██║   ██╔══██║   ██║   ██║██║   ██║██║╚██╗██║  ║
+║            ███████║   ██║   ██║  ██║   ██║   ██║╚██████╔╝██║ ╚████║  ║
+║            ╚══════╝   ╚═╝   ╚═╝  ╚═╝   ╚═╝   ╚═╝ ╚═════╝ ╚═╝  ╚═══╝  ║
 ║                                                                       ║
-║          Monitoring & Broadcasting • Bare Metal Setup                 ║
+║              Emergency Alert System Installation                      ║
+║              Monitoring & Broadcasting • Bare Metal Setup             ║
 ║                                                                       ║
 ╚═══════════════════════════════════════════════════════════════════════╝
 EOF
@@ -591,19 +623,16 @@ if whiptail --title "FIPS Codes Configuration" --backtitle "$(whiptail_footer)" 
     # Disable exit on error temporarily
     set +e
     
-    # Try to use the helper script if Python environment is available
-    if [ -f "$INSTALL_DIR/venv/bin/python" ] && [ -f "$INSTALL_DIR/scripts/fips_lookup_helper.py" ]; then
-        LOOKUP_RESULT=$("$INSTALL_DIR/venv/bin/python" "$INSTALL_DIR/scripts/fips_lookup_helper.py" list "$STATE_CODE" 2>&1)
-        LOOKUP_EXIT=$?
-    elif [ -f "$VENV_DIR/bin/python" ] && [ -f "$INSTALL_DIR/scripts/fips_lookup_helper.py" ]; then
-        LOOKUP_RESULT=$("$VENV_DIR/bin/python" "$INSTALL_DIR/scripts/fips_lookup_helper.py" list "$STATE_CODE" 2>&1)
+    # Try to use the helper script with system Python (no dependencies needed)
+    if [ -f "$INSTALL_DIR/scripts/fips_lookup_helper.py" ] && command -v python3 &> /dev/null; then
+        LOOKUP_RESULT=$(python3 "$INSTALL_DIR/scripts/fips_lookup_helper.py" list "$STATE_CODE" 2>&1)
         LOOKUP_EXIT=$?
     else
         LOOKUP_EXIT=1
         if [ ! -f "$INSTALL_DIR/scripts/fips_lookup_helper.py" ]; then
             LOOKUP_ERROR="FIPS lookup helper script not found"
         else
-            LOOKUP_ERROR="Python environment not yet available"
+            LOOKUP_ERROR="Python 3 not available"
         fi
     fi
     

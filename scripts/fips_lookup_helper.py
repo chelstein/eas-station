@@ -2,24 +2,28 @@
 """
 Helper script for FIPS code lookup during installation.
 Can be called from bash to look up FIPS codes by state and county name.
+Works without requiring full app dependencies - uses only standard library.
 """
 
 import sys
 import json
 from pathlib import Path
+import importlib.util
 
-# Add parent directory to path
-sys.path.insert(0, str(Path(__file__).parent.parent))
+# Import fips_codes module directly to avoid triggering app_utils/__init__.py
+# which would require psutil and other dependencies not yet installed
+parent_dir = Path(__file__).parent.parent
+fips_module_path = parent_dir / 'app_utils' / 'fips_codes.py'
 
 try:
-    from app_utils.fips_codes import get_us_state_county_tree
-except ImportError as e:
+    spec = importlib.util.spec_from_file_location('fips_codes', fips_module_path)
+    fips_codes = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(fips_codes)
+    get_us_state_county_tree = fips_codes.get_us_state_county_tree
+except Exception as e:
     # Graceful error handling - return JSON error
     print(json.dumps({"error": f"Module import failed: {e}. Python dependencies may not be installed yet."}))
     sys.exit(0)  # Exit 0 so bash can handle it gracefully
-except Exception as e:
-    print(json.dumps({"error": f"Unexpected error during import: {e}"}))
-    sys.exit(0)
 
 
 def list_counties_for_state(state_code: str):
@@ -34,7 +38,7 @@ def list_counties_for_state(state_code: str):
                 for county in state.get('counties', []):
                     counties.append({
                         'name': county.get('name', ''),
-                        'fips': county.get('same', ''),
+                        'fips': county.get('code', ''),  # Field is 'code' not 'same'
                     })
                 return {'state': state.get('name', ''), 'counties': counties}
         
@@ -58,7 +62,7 @@ def search_counties(state_code: str, county_query: str):
                     if county_query in county_name:
                         matching.append({
                             'name': county.get('name', ''),
-                            'fips': county.get('same', ''),
+                            'fips': county.get('code', ''),  # Field is 'code' not 'same'
                         })
                 return {
                     'state': state.get('name', ''),
