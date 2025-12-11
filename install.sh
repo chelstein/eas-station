@@ -205,8 +205,17 @@ echo_success "System detection complete"
 # Check if whiptail is available
 if ! command -v whiptail &> /dev/null; then
     echo_error "whiptail is required for interactive installation"
-    echo_info "Installing whiptail..."
+    echo_info "whiptail provides the blue/gray dialog boxes for interactive configuration"
+    echo_info "Installing whiptail package..."
+    apt-get update > /dev/null 2>&1
     apt-get install -y whiptail > /dev/null 2>&1
+    
+    if ! command -v whiptail &> /dev/null; then
+        echo_error "Failed to install whiptail. Please install manually:"
+        echo_error "  sudo apt-get install whiptail"
+        exit 1
+    fi
+    echo_success "whiptail installed successfully"
 fi
 
 echo_step "Administrator Account Setup"
@@ -987,15 +996,24 @@ echo_progress "Creating database and user..."
 if sudo -u postgres psql -tc "SELECT 1 FROM pg_database WHERE datname = 'alerts'" 2>/dev/null | grep -q 1; then
     echo_info "Database 'alerts' already exists (skipping creation)"
 else
-    sudo -u postgres psql -c "CREATE DATABASE alerts;" 2>/dev/null || echo_warning "Database creation attempted but may already exist"
+    if sudo -u postgres psql -c "CREATE DATABASE alerts;" 2>/dev/null; then
+        echo_success "Database 'alerts' created successfully"
+    else
+        echo_warning "Database creation failed - it may already exist or there may be permission issues"
+    fi
 fi
 
 # Create database user (use dollar-quoting to safely handle special characters in password)
 if ! sudo -u postgres psql -tc "SELECT 1 FROM pg_user WHERE usename = 'eas_station'" 2>/dev/null | grep -q 1; then
     echo_progress "Creating database user 'eas_station'..."
-    sudo -u postgres psql <<EOF 2>/dev/null || echo_warning "User creation attempted but may already exist"
+    if sudo -u postgres psql <<EOF 2>/dev/null
 CREATE USER eas_station WITH PASSWORD \$\$${DB_PASSWORD}\$\$;
 EOF
+    then
+        echo_success "Database user 'eas_station' created successfully"
+    else
+        echo_warning "User creation failed - it may already exist"
+    fi
 else
     echo_info "Database user 'eas_station' already exists (updating password)"
 fi

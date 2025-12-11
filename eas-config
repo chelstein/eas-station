@@ -37,7 +37,15 @@ get_config_value() {
     local key="$1"
     local default="$2"
     if [ -f "$CONFIG_FILE" ]; then
-        grep "^${key}=" "$CONFIG_FILE" 2>/dev/null | cut -d'=' -f2- | sed 's/^["'\'']//' | sed 's/["'\'']$//' || echo "$default"
+        # Get value and remove quotes if present
+        local value=$(grep "^${key}=" "$CONFIG_FILE" 2>/dev/null | cut -d'=' -f2-)
+        # Remove leading/trailing quotes (both single and double)
+        value=$(echo "$value" | sed 's/^["'\'']//' | sed 's/["'\'']$//')
+        if [ -n "$value" ]; then
+            echo "$value"
+        else
+            echo "$default"
+        fi
     else
         echo "$default"
     fi
@@ -49,13 +57,18 @@ set_config_value() {
     local value="$2"
     
     if [ -f "$CONFIG_FILE" ]; then
-        # Escape special characters for sed
-        local escaped_value=$(echo "$value" | sed 's/[\/&]/\\&/g')
+        # Create a temporary file for safer editing
+        local temp_file=$(mktemp)
         
         # Check if key exists
         if grep -q "^${key}=" "$CONFIG_FILE" 2>/dev/null; then
-            # Update existing key
-            sed -i "s/^${key}=.*/${key}=${escaped_value}/" "$CONFIG_FILE"
+            # Update existing key - use awk for safer replacement
+            awk -v key="$key" -v val="$value" '
+                BEGIN { FS=OFS="=" }
+                $1 == key { $2=val; found=1 }
+                { print }
+            ' "$CONFIG_FILE" > "$temp_file"
+            mv "$temp_file" "$CONFIG_FILE"
         else
             # Add new key
             echo "${key}=${value}" >> "$CONFIG_FILE"
