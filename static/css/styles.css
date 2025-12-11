@@ -1063,9 +1063,10 @@ small,
 
 /* Page Shell */
 .page-shell {
-    /* FIXED: Removed flex: 1 that was causing excessive white space at top of pages.
-       The footer's margin-top: auto handles sticky footer behavior, so flex: 1 is not needed.
-       Content height is now determined naturally by page content. */
+    /* Flex fill keeps the footer anchored without leaving large empty gaps */
+    flex: 1 0 auto;
+    display: flex;
+    flex-direction: column;
     padding: var(--layout-padding-top) 0 var(--layout-padding-bottom);
     position: relative;
 }
@@ -1191,7 +1192,7 @@ footer {
         var(--secondary-color) 100%);
     color: white;
     padding: 2.5rem 0;
-    margin-top: auto; /* Flexbox sticky footer - pushes to bottom when content is short */
+    margin-top: var(--footer-margin-top);
     text-align: center;
     box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.08);
     position: relative;
@@ -2684,8 +2685,7 @@ textarea:focus {
 
 /* Floating Orbs Background Effect - Subtle Ambient Accents */
 .page-header .orb,
-.hero-section .orb,
-.page-shell .orb {
+.hero-section .orb {
     position: absolute;
     border-radius: 50%;
     width: 100px;
@@ -2727,57 +2727,6 @@ textarea:focus {
     width: 100px;
     height: 100px;
     animation-delay: -16s;
-    opacity: 0.2;
-}
-
-.page-shell .orb:nth-child(1) {
-    top: 5%;
-    left: 8%;
-    width: 140px;
-    height: 140px;
-    animation-delay: 0s;
-    animation-duration: 30s;
-    opacity: 0.2;
-}
-
-.page-shell .orb:nth-child(2) {
-    top: 15%;
-    right: 10%;
-    width: 110px;
-    height: 110px;
-    animation-delay: -10s;
-    animation-duration: 28s;
-    opacity: 0.18;
-}
-
-.page-shell .orb:nth-child(3) {
-    top: 45%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: 160px;
-    height: 160px;
-    animation-delay: -6s;
-    animation-duration: 35s;
-    opacity: 0.15;
-}
-
-.page-shell .orb:nth-child(4) {
-    bottom: 20%;
-    left: 12%;
-    width: 100px;
-    height: 100px;
-    animation-delay: -15s;
-    animation-duration: 32s;
-    opacity: 0.18;
-}
-
-.page-shell .orb:nth-child(5) {
-    bottom: 8%;
-    right: 15%;
-    width: 130px;
-    height: 130px;
-    animation-delay: -20s;
-    animation-duration: 30s;
     opacity: 0.2;
 }
 
