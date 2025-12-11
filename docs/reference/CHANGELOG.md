@@ -11,18 +11,24 @@ tracks releases under the 2.x series.
   - Fixed logs page to display ALL logs instead of only categorized logs
   - Fixed Bootstrap modal aria-hidden accessibility warnings when adding/editing audio sources
   - Fixed potential focus trap issues preventing interaction with audio source modals
+  - Fixed missing firewall rules for Icecast streaming (port 8000)
 
 ### Added
   - Added "All Logs" tab as the default view with organized category sections
   - Added collapsible accordion sections for each log category (System, Polling, Audio, GPIO, EAS Messages, etc.)
   - Added category badges showing log count per category
   - Logs now organized by category instead of mixed together chronologically
+  - Added automatic firewall configuration for Icecast port 8000 during installation
+  - Added firewall configuration summary in installation completion message
+  - Added instructions for optionally opening PostgreSQL port with security warnings
 
 ### Changed
   - Default logs view changed from "System" to "All Logs" for better visibility
   - "All Logs" view now uses accordion with category grouping for better organization
   - Modal elements now properly blur focus before hiding to prevent accessibility issues
   - Improved log readability by separating logs into logical categories
+  - Installation now automatically opens port 8000 for Icecast if enabled
+  - Firewall status display now shows configured ports
 
 ## [2.19.11] - 2025-12-10
 ### Fixed
