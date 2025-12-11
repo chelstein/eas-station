@@ -333,7 +333,7 @@ function sanitizeId(id) {
  * Create HTML for a source card
  */
 function createSourceCard(source) {
-    const statusClass = `status-${source.status}`;
+    const statusClass = `status-${source.status || 'unknown'}`;
     const statusBadge = getStatusBadge(source.status);
     const metrics = source.metrics || {};
     const config = source.config || {};
@@ -348,14 +348,18 @@ function createSourceCard(source) {
     const sampleRate = config.sample_rate || metrics.sample_rate || '?';
     const channels = config.channels || metrics.channels || '?';
 
+    // Get source type with fallback
+    const sourceType = (source.type || 'unknown').toUpperCase();
+    const sourceName = source.name || 'Unnamed Source';
+
     return `
         <div class="source-card card mb-3 ${statusClass}" id="source-${safeId}">
             <div class="card-body">
                 <div class="row align-items-center">
                     <div class="col-md-4">
-                        <h5 class="mb-1">${escapeHtml(source.name)}</h5>
+                        <h5 class="mb-1">${escapeHtml(sourceName)}</h5>
                         <p class="mb-1">
-                            <span class="badge bg-secondary">${escapeHtml(source.type.toUpperCase())}</span>
+                            <span class="badge bg-secondary">${escapeHtml(sourceType)}</span>
                             ${statusBadge}
                         </p>
                         <small class="text-muted">
@@ -1030,9 +1034,19 @@ function getAlertClass(level) {
  * Show add source modal
  */
 function showAddSourceModal() {
-    const modal = new bootstrap.Modal(document.getElementById('addSourceModal'));
-    document.getElementById('addSourceForm').reset();
-    document.getElementById('sourceTypeConfig').innerHTML = '';
+    const modalEl = document.getElementById('addSourceModal');
+    const formEl = document.getElementById('addSourceForm');
+    const configEl = document.getElementById('sourceTypeConfig');
+
+    if (!modalEl || !formEl || !configEl) {
+        console.error('Required modal elements not found in DOM');
+        showError('Modal configuration error - please refresh the page');
+        return;
+    }
+
+    const modal = new bootstrap.Modal(modalEl);
+    formEl.reset();
+    configEl.innerHTML = '';
 
     // Set up the sourceType change listener (ensure it's set up every time modal opens)
     const sourceTypeSelect = document.getElementById('sourceType');
@@ -1051,8 +1065,15 @@ function showAddSourceModal() {
  * Update source type specific configuration
  */
 function updateSourceTypeConfig() {
-    const sourceType = document.getElementById('sourceType').value;
+    const sourceTypeEl = document.getElementById('sourceType');
     const container = document.getElementById('sourceTypeConfig');
+
+    if (!sourceTypeEl || !container) {
+        console.error('Required form elements not found');
+        return;
+    }
+
+    const sourceType = sourceTypeEl.value;
 
     let html = '';
 
@@ -1419,27 +1440,45 @@ async function editSource(sourceId) {
 
         const source = await response.json();
 
-        // Populate the edit modal
-        document.getElementById('editSourceId').value = source.id;
-        document.getElementById('editSourceName').value = source.name;
-        document.getElementById('editSourceType').value = source.type.toUpperCase();
-        document.getElementById('editPriority').value = source.priority || 100;
-        document.getElementById('editEnabled').checked = source.enabled !== false;
+        // Check for required modal elements
+        const modalEl = document.getElementById('editSourceModal');
+        if (!modalEl) {
+            console.error('Edit modal element not found');
+            showError('Modal configuration error - please refresh the page');
+            return;
+        }
+
+        // Populate the edit modal (with null checks)
+        const idEl = document.getElementById('editSourceId');
+        const nameEl = document.getElementById('editSourceName');
+        const typeEl = document.getElementById('editSourceType');
+        const priorityEl = document.getElementById('editPriority');
+        const enabledEl = document.getElementById('editEnabled');
+
+        if (idEl) idEl.value = source.id;
+        if (nameEl) nameEl.value = source.name;
+        if (typeEl) typeEl.value = (source.type || 'unknown').toUpperCase();
+        if (priorityEl) priorityEl.value = source.priority || 100;
+        if (enabledEl) enabledEl.checked = source.enabled !== false;
 
         // Set silence detection values from config
         const config = source.config || {};
-        document.getElementById('editSilenceThreshold').value = config.silence_threshold_db || -60;
-        document.getElementById('editSilenceDuration').value = config.silence_duration_seconds || 5;
+        const thresholdEl = document.getElementById('editSilenceThreshold');
+        const durationEl = document.getElementById('editSilenceDuration');
+        if (thresholdEl) thresholdEl.value = config.silence_threshold_db || -60;
+        if (durationEl) durationEl.value = config.silence_duration_seconds || 5;
 
         // Set database-only fields
-        document.getElementById('editAutoStart').checked = source.auto_start || false;
-        document.getElementById('editDescription').value = source.description || '';
+        const autoStartEl = document.getElementById('editAutoStart');
+        const descEl = document.getElementById('editDescription');
+        if (autoStartEl) autoStartEl.checked = source.auto_start || false;
+        if (descEl) descEl.value = source.description || '';
 
         // Populate type-specific configuration
         updateEditSourceTypeConfig(source.type, config.device_params || {});
 
         // Show the modal
-        const modal = new bootstrap.Modal(document.getElementById('editSourceModal'));
+        const modal = new bootstrap.Modal(modalEl);
         modal.show();
     } catch (error) {
         console.error('Error loading source for edit:', error);
@@ -1540,7 +1579,13 @@ async function saveEditedSource() {
  * Discover audio devices
  */
 async function discoverDevices() {
-    const modal = new bootstrap.Modal(document.getElementById('deviceDiscoveryModal'));
+    const modalEl = document.getElementById('deviceDiscoveryModal');
+    if (!modalEl) {
+        console.error('Device discovery modal element not found');
+        showError('Modal configuration error - please refresh the page');
+        return;
+    }
+    const modal = new bootstrap.Modal(modalEl);
     modal.show();
 
     try {

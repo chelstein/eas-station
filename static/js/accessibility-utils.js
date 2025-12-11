@@ -8,6 +8,7 @@ class AccessibilityUtils {
         this.focusableElements = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
         this.lastFocusedElement = null;
         this.keyboardUser = false;
+        this._formObserver = null;
         this.init();
     }
 
@@ -157,7 +158,7 @@ class AccessibilityUtils {
         });
 
         // Watch for dynamically added forms
-        const observer = new MutationObserver((mutations) => {
+        this._formObserver = new MutationObserver((mutations) => {
             mutations.forEach((mutation) => {
                 mutation.addedNodes.forEach((node) => {
                     if (node.nodeType === Node.ELEMENT_NODE) {
@@ -173,10 +174,18 @@ class AccessibilityUtils {
             });
         });
 
-        observer.observe(document.body, {
+        this._formObserver.observe(document.body, {
             childList: true,
             subtree: true
         });
+    }
+
+    // Cleanup method to prevent memory leaks
+    destroy() {
+        if (this._formObserver) {
+            this._formObserver.disconnect();
+            this._formObserver = null;
+        }
     }
 
     enhanceFormAccessibility(form) {

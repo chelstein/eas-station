@@ -32,6 +32,7 @@ import subprocess
 from typing import Any, Dict, List, Tuple
 
 from flask import Flask, jsonify, render_template
+from app_core.config import get_web_service
 
 logger = logging.getLogger(__name__)
 
@@ -256,8 +257,9 @@ def check_recent_logs() -> Dict[str, List[str]]:
     
     try:
         # Check main web service logs
+        web_service = get_web_service()
         code, stdout, stderr = run_command([
-            "journalctl", "-u", "eas-station-web.service", "-n", "100", "--no-pager"
+            "journalctl", "-u", web_service, "-n", "100", "--no-pager"
         ])
         
         if code == 0:
@@ -279,10 +281,10 @@ def check_recent_logs() -> Dict[str, List[str]]:
                 passed.append("No obvious errors in recent logs")
             elif total_errors < 5:
                 warnings.append(f"Found {total_errors} error pattern(s) in recent logs")
-                info.append("Review logs with: sudo journalctl -u eas-station-web.service -n 100")
+                info.append(f"Review logs with: sudo journalctl -u {web_service} -n 100")
             else:
                 warnings.append(f"Found {total_errors} error pattern(s) in recent logs - review recommended")
-                info.append("Review logs with: sudo journalctl -u eas-station-web.service -n 100")
+                info.append(f"Review logs with: sudo journalctl -u {web_service} -n 100")
         else:
             warnings.append("Could not retrieve systemd logs")
     

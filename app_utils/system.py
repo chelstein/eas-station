@@ -39,6 +39,7 @@ from sqlalchemy import text
 
 from .formatting import format_uptime
 from .time import UTC_TZ, local_now, utc_now
+from app_core.config import get_eas_services, INFRASTRUCTURE_SERVICES
 
 
 DEVICE_TREE_CANDIDATES = [
@@ -378,6 +379,56 @@ def build_system_health_snapshot(db, logger) -> SystemHealth:
         if isinstance(uptime_seconds, (int, float)):
             health_data["system"]["uptime_human"] = format_uptime(uptime_seconds)
 
+        # Compute overall status and summary for the header indicator
+        status = "healthy"
+        status_reasons = []
+
+        # Check CPU usage
+        if cpu_usage_percent >= 90:
+            status = "critical"
+            status_reasons.append(f"CPU usage is {cpu_usage_percent:.1f}%")
+        elif cpu_usage_percent >= 75:
+            if status != "critical":
+                status = "warning"
+            status_reasons.append(f"CPU usage is {cpu_usage_percent:.1f}%")
+
+        # Check memory usage
+        if memory.percent >= 92:
+            status = "critical"
+            status_reasons.append(f"Memory usage is {memory.percent:.1f}%")
+        elif memory.percent >= 80:
+            if status != "critical":
+                status = "warning"
+            status_reasons.append(f"Memory usage is {memory.percent:.1f}%")
+
+        # Check database status
+        if db_status != "connected":
+            status = "critical"
+            status_reasons.append(f"Database: {db_status}")
+
+        # Check systemd services
+        systemd_status = systemd_services.get("status", "unknown")
+        if systemd_status == "degraded":
+            if status != "critical":
+                status = "warning"
+            failed_count = systemd_services.get("summary", {}).get("failed", 0)
+            status_reasons.append(f"{failed_count} service(s) failed")
+        elif systemd_status == "stopped":
+            status = "critical"
+            status_reasons.append("All services stopped")
+
+        # Build status summary
+        if status == "healthy":
+            status_summary = "All systems operational"
+        elif status_reasons:
+            status_summary = "; ".join(status_reasons[:2])  # Show up to 2 reasons
+        else:
+            status_summary = "System status unknown"
+
+        health_data["status"] = status
+        health_data["status_summary"] = status_summary
+        health_data["status_reasons"] = status_reasons
+
         return health_data
 
     except Exception as exc:  # pragma: no cover - defensive logging only
@@ -401,24 +452,11 @@ def _collect_systemd_services(logger) -> Dict[str, Any]:
         "error": None,
     }
     
-    # List of EAS Station services to monitor
-    eas_services = [
-        "eas-station-web.service",
-        "eas-station-sdr.service",
-        "eas-station-audio.service",
-        "eas-station-eas.service",
-        "eas-station-hardware.service",
-        "eas-station-noaa-poller.service",
-        "eas-station-ipaws-poller.service",
-    ]
-    
+    # List of EAS Station services to monitor (from centralized config)
+    eas_services = get_eas_services()
+
     # Additional system services that EAS Station depends on
-    dependency_services = [
-        "nginx.service",
-        "postgresql.service",
-        "redis-server.service",
-        "icecast2.service",
-    ]
+    dependency_services = INFRASTRUCTURE_SERVICES + ["icecast2.service"]
     
     try:
         all_services = eas_services + dependency_services

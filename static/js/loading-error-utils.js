@@ -3,6 +3,19 @@
  * Provides consistent loading states, error handling, and user feedback
  */
 
+// Local escapeHtml helper to prevent XSS (uses EASUtils if available, fallback otherwise)
+function _escapeHtml(text) {
+    if (window.EASUtils && window.EASUtils.escapeHtml) {
+        return window.EASUtils.escapeHtml(text);
+    }
+    if (text === null || text === undefined) {
+        return '';
+    }
+    const div = document.createElement('div');
+    div.textContent = String(text);
+    return div.innerHTML;
+}
+
 class LoadingErrorUtils {
     constructor() {
         this.activeLoadingStates = new Set();
@@ -87,8 +100,8 @@ class LoadingErrorUtils {
         overlay.className = `spinner-overlay ${dark ? 'dark' : ''}`;
         overlay.innerHTML = `
             <div class="text-center">
-                <div class="spinner-custom ${size} mb-2"></div>
-                <div class="text-muted">${text}</div>
+                <div class="spinner-custom ${_escapeHtml(size)} mb-2"></div>
+                <div class="text-muted">${_escapeHtml(text)}</div>
             </div>
         `;
         element.style.position = 'relative';
@@ -201,8 +214,8 @@ class LoadingErrorUtils {
             <div class="error-icon">
                 <i class="fas fa-exclamation-triangle"></i>
             </div>
-            <div class="error-title">${title}</div>
-            <div class="error-message">${message}</div>
+            <div class="error-title">${_escapeHtml(title)}</div>
+            <div class="error-message">${_escapeHtml(message)}</div>
             ${actions ? `<div class="error-actions">${actions}</div>` : ''}
         `;
 
@@ -226,8 +239,8 @@ class LoadingErrorUtils {
             <div class="warning-icon">
                 <i class="fas fa-exclamation-triangle"></i>
             </div>
-            <div class="warning-title">${title}</div>
-            <div class="warning-message">${message}</div>
+            <div class="warning-title">${_escapeHtml(title)}</div>
+            <div class="warning-message">${_escapeHtml(message)}</div>
             ${actions ? `<div class="warning-actions">${actions}</div>` : ''}
         `;
 
@@ -251,8 +264,8 @@ class LoadingErrorUtils {
             <div class="success-icon">
                 <i class="fas fa-check-circle"></i>
             </div>
-            <div class="success-title">${title}</div>
-            <div class="success-message">${message}</div>
+            <div class="success-title">${_escapeHtml(title)}</div>
+            <div class="success-message">${_escapeHtml(message)}</div>
             ${actions ? `<div class="success-actions">${actions}</div>` : ''}
         `;
 
@@ -273,8 +286,8 @@ class LoadingErrorUtils {
             <div class="empty-state-icon">
                 <i class="fas fa-inbox"></i>
             </div>
-            <div class="empty-state-title">${title}</div>
-            <div class="empty-state-message">${message}</div>
+            <div class="empty-state-title">${_escapeHtml(title)}</div>
+            <div class="empty-state-message">${_escapeHtml(message)}</div>
             ${actions ? `<div class="empty-state-actions">${actions}</div>` : ''}
         `;
 
@@ -291,7 +304,7 @@ class LoadingErrorUtils {
                 <i class="fas fa-wifi"></i>
                 Connection Error
             </div>
-            <div class="network-error-message">${message}</div>
+            <div class="network-error-message">${_escapeHtml(message)}</div>
         `;
 
         // Insert at the top of the main content area
@@ -317,8 +330,8 @@ class LoadingErrorUtils {
         toast.innerHTML = `
             <div class="toast-body d-flex align-items-center">
                 <div class="flex-grow-1">
-                    ${title ? `<strong class="d-block">${title}</strong>` : ''}
-                    ${message}
+                    ${title ? `<strong class="d-block">${_escapeHtml(title)}</strong>` : ''}
+                    ${_escapeHtml(message)}
                 </div>
                 <button type="button" class="btn-close btn-close-white ms-2" onclick="this.closest('.toast').remove()"></button>
             </div>
@@ -497,7 +510,7 @@ class LoadingErrorUtils {
                 <div class="progress-loading mb-3">
                     <div class="progress-loading-bar"></div>
                 </div>
-                <div class="text-muted">${message}</div>
+                <div class="text-muted">${_escapeHtml(message)}</div>
                 <div class="loading-dots mt-2">
                     <span></span>
                     <span></span>

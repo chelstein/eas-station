@@ -25,6 +25,7 @@ Bridges the gap between production audio system and EAS monitoring.
 """
 
 import logging
+import threading
 import numpy as np
 from typing import Optional
 from .ingest import AudioIngestController
@@ -59,7 +60,7 @@ class AudioControllerAdapter:
         self.controller = controller
         self.sample_rate = sample_rate
         self._buffer = np.array([], dtype=np.float32)
-        self._buffer_lock = __import__('threading').Lock()
+        self._buffer_lock = threading.Lock()
 
     def read_audio(self, num_samples: int) -> Optional[np.ndarray]:
         """

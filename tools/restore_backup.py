@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -225,8 +226,6 @@ def restore_database(backup_dir: Path, env_values: Dict[str, str], force: bool =
             "psql", "-h", host, "-p", port, "-U", user, "-d", db_name
         ]
 
-    env_vars = dict(os.environ) if 'os' in dir() else {}
-    import os
     env_vars = os.environ.copy()
     if password:
         env_vars["PGPASSWORD"] = password

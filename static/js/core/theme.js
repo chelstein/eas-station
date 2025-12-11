@@ -410,22 +410,44 @@
         
         document.getElementById('current-theme-display').textContent = THEMES[currentTheme]?.name || currentTheme;
 
+        // Helper to escape theme keys for safe use in HTML attributes
+        const escapeAttr = (str) => String(str).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+        const escapeHtml = (str) => String(str).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
         themeList.innerHTML = Object.entries(THEMES).map(([key, theme]) => `
             <div class="col-md-4">
-                <div class="card theme-card ${key === currentTheme ? 'border-primary' : ''}" style="cursor: pointer;" onclick="window.setTheme('${key}'); window.updateThemeList();">
+                <div class="card theme-card ${key === currentTheme ? 'border-primary' : ''}" style="cursor: pointer;" data-theme-key="${escapeAttr(key)}">
                     <div class="card-body">
                         <h6 class="card-title">
-                            ${theme.name}
+                            ${escapeHtml(theme.name)}
                             ${key === currentTheme ? '<i class="fas fa-check text-primary float-end"></i>' : ''}
                             ${!theme.builtin ? '<i class="fas fa-user text-muted float-end me-2"></i>' : ''}
                         </h6>
-                        <p class="card-text small text-muted">${theme.description}</p>
-                        <span class="badge bg-${theme.mode === 'dark' ? 'dark' : 'light'} text-${theme.mode === 'dark' ? 'light' : 'dark'}">${theme.mode}</span>
-                        ${!theme.builtin ? `<button class="btn btn-sm btn-danger float-end" onclick="event.stopPropagation(); window.deleteTheme('${key}'); window.updateThemeList();"><i class="fas fa-trash"></i></button>` : ''}
+                        <p class="card-text small text-muted">${escapeHtml(theme.description)}</p>
+                        <span class="badge bg-${theme.mode === 'dark' ? 'dark' : 'light'} text-${theme.mode === 'dark' ? 'light' : 'dark'}">${escapeHtml(theme.mode)}</span>
+                        ${!theme.builtin ? `<button class="btn btn-sm btn-danger float-end theme-delete-btn" data-theme-key="${escapeAttr(key)}"><i class="fas fa-trash"></i></button>` : ''}
                     </div>
                 </div>
             </div>
         `).join('');
+
+        // Use event delegation for theme selection and deletion (safe from XSS)
+        themeList.onclick = function(e) {
+            const deleteBtn = e.target.closest('.theme-delete-btn');
+            if (deleteBtn) {
+                e.stopPropagation();
+                const themeKey = deleteBtn.dataset.themeKey;
+                window.deleteTheme(themeKey);
+                window.updateThemeList();
+                return;
+            }
+            const card = e.target.closest('.theme-card');
+            if (card) {
+                const themeKey = card.dataset.themeKey;
+                window.setTheme(themeKey);
+                window.updateThemeList();
+            }
+        };
     }
 
     /**

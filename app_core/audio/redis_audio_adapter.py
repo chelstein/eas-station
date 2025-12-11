@@ -124,7 +124,8 @@ class RedisAudioAdapter:
                 if not self._running.is_set():
                     break
 
-                if message['type'] not in ('pmessage', 'message'):
+                msg_type = message.get('type')
+                if msg_type not in ('pmessage', 'message'):
                     continue
 
                 try:

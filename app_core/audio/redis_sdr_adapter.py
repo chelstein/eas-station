@@ -194,7 +194,7 @@ class RedisSDRSourceAdapter(AudioSourceAdapter):
                         last_log_time = current_time
                     continue
 
-                if message['type'] != 'message':
+                if message.get('type') != 'message':
                     continue
 
                 try:

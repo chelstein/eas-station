@@ -334,8 +334,10 @@
     // REINITIALIZE ON DYNAMIC CONTENT
     // ============================================
 
+    let _contentObserver = null;
+
     function observeNewContent() {
-        const observer = new MutationObserver((mutations) => {
+        _contentObserver = new MutationObserver((mutations) => {
             let shouldReinit = false;
 
             mutations.forEach((mutation) => {
@@ -362,9 +364,17 @@
             }
         });
 
-        observer.observe(document.body, {
+        _contentObserver.observe(document.body, {
             childList: true,
             subtree: true
+        });
+
+        // Cleanup observer on page unload to prevent memory leaks
+        window.addEventListener('pagehide', function() {
+            if (_contentObserver) {
+                _contentObserver.disconnect();
+                _contentObserver = null;
+            }
         });
     }
 

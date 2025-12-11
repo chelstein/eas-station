@@ -350,19 +350,40 @@ def register(app: Flask, logger) -> None:
         # Create a tarball of the backup
         import tarfile
         import tempfile
+        from flask import after_this_request
 
+        temp_file_path = None
         try:
             temp_file = tempfile.NamedTemporaryFile(suffix=".tar.gz", delete=False)
-            with tarfile.open(temp_file.name, "w:gz") as tar:
+            temp_file_path = temp_file.name
+            temp_file.close()  # Close so tarfile can write to it
+
+            with tarfile.open(temp_file_path, "w:gz") as tar:
                 tar.add(backup_path, arcname=backup_name)
 
+            # Schedule cleanup after response is sent
+            @after_this_request
+            def cleanup_temp_file(response):
+                try:
+                    if temp_file_path and os.path.exists(temp_file_path):
+                        os.unlink(temp_file_path)
+                except Exception as cleanup_exc:
+                    route_logger.warning(f"Failed to cleanup temp file: {cleanup_exc}")
+                return response
+
             return send_file(
-                temp_file.name,
+                temp_file_path,
                 as_attachment=True,
                 download_name=f"{backup_name}.tar.gz",
                 mimetype="application/gzip",
             )
         except Exception as exc:
+            # Clean up temp file on error
+            if temp_file_path and os.path.exists(temp_file_path):
+                try:
+                    os.unlink(temp_file_path)
+                except Exception:
+                    pass
             route_logger.error(f"Failed to create backup download: {exc}")
             return error_response(
                 HTTPStatus.INTERNAL_SERVER_ERROR,

@@ -32,11 +32,9 @@ In the separated service architecture:
 import requests
 from flask import Blueprint, jsonify, request, render_template
 from app_core.auth.decorators import require_permission
+from app_core.config import HARDWARE_SERVICE_URL
 
 network_bp = Blueprint('network', __name__)
-
-# Hardware service API endpoint (runs on port 5001)
-HARDWARE_SERVICE_URL = "http://hardware-service:5001"
 
 
 def call_hardware_service(endpoint, method='GET', data=None):
@@ -71,9 +69,11 @@ def call_hardware_service(endpoint, method='GET', data=None):
             'error': 'Cannot connect to hardware service. Check if hardware service process is running.'
         }
     except Exception as e:
+        import logging
+        logging.getLogger(__name__).error(f"Hardware service request failed: {e}")
         return {
             'success': False,
-            'error': str(e)
+            'error': 'Hardware service request failed'
         }
 
 

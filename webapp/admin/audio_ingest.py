@@ -2415,7 +2415,7 @@ def api_get_icecast_config():
 
         config = {
             'enabled': _get_bool('ICECAST_ENABLED', True),
-            'server': _get('ICECAST_SERVER', 'icecast'),
+            'server': _get('ICECAST_SERVER', 'localhost'),
             'port': _get_int('ICECAST_PORT', 8000),
             'external_port': _get_int('ICECAST_EXTERNAL_PORT', 8001),
             'password': _get('ICECAST_SOURCE_PASSWORD', ''),

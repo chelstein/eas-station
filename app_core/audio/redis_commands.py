@@ -252,9 +252,14 @@ class AudioCommandSubscriber:
         """
         try:
             message = json.loads(message_data)
-            command = message['command']
-            params = message['params']
-            command_id = message['command_id']
+            command = message.get('command')
+            params = message.get('params', {})
+            command_id = message.get('command_id')
+
+            if not command or not command_id:
+                logger.warning(f"Invalid command message - missing required fields: {message_data[:100]}")
+                return
+
             wait_for_response = message.get('wait_for_response', False)
 
             logger.info(f"Received command: {command} (id: {command_id}, wait_response: {wait_for_response})")

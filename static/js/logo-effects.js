@@ -78,15 +78,18 @@
         });
     }
 
+    let _themeObserver = null;
+    let _logoObserver = null;
+
     function watchThemeChanges() {
-        const observer = new MutationObserver((mutations) => {
+        _themeObserver = new MutationObserver((mutations) => {
             mutations.forEach((mutation) => {
                 if (mutation.attributeName === 'data-theme') {
                     setTimeout(() => updateGradientColors(), 100);
                 }
             });
         });
-        observer.observe(document.documentElement, {
+        _themeObserver.observe(document.documentElement, {
             attributes: true,
             attributeFilter: ['data-theme']
         });
@@ -219,7 +222,7 @@
     }
 
     function observeNewLogos() {
-        const observer = new MutationObserver((mutations) => {
+        _logoObserver = new MutationObserver((mutations) => {
             mutations.forEach((mutation) => {
                 if (mutation.addedNodes.length > 0) {
                     mutation.addedNodes.forEach((node) => {
@@ -234,7 +237,19 @@
                 }
             });
         });
-        observer.observe(document.body, { childList: true, subtree: true });
+        _logoObserver.observe(document.body, { childList: true, subtree: true });
+
+        // Cleanup observers on page unload to prevent memory leaks
+        window.addEventListener('pagehide', function() {
+            if (_themeObserver) {
+                _themeObserver.disconnect();
+                _themeObserver = null;
+            }
+            if (_logoObserver) {
+                _logoObserver.disconnect();
+                _logoObserver = null;
+            }
+        });
     }
 
     if (document.readyState === 'loading') {

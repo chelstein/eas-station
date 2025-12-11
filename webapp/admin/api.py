@@ -640,11 +640,17 @@ def get_historical_alerts():
             query = get_expired_alerts_query()
 
         if start_date:
-            start_dt = datetime.fromisoformat(start_date).replace(tzinfo=UTC_TZ)
+            try:
+                start_dt = datetime.fromisoformat(start_date).replace(tzinfo=UTC_TZ)
+            except ValueError:
+                return jsonify({'error': 'Invalid start_date format. Use ISO 8601 format (e.g., 2024-01-15 or 2024-01-15T10:30:00).'}), 400
             query = query.filter(CAPAlert.sent >= start_dt)
 
         if end_date:
-            end_dt = datetime.fromisoformat(end_date).replace(tzinfo=UTC_TZ)
+            try:
+                end_dt = datetime.fromisoformat(end_date).replace(tzinfo=UTC_TZ)
+            except ValueError:
+                return jsonify({'error': 'Invalid end_date format. Use ISO 8601 format (e.g., 2024-01-15 or 2024-01-15T10:30:00).'}), 400
             query = query.filter(CAPAlert.sent <= end_dt)
 
         matching_ids = query.with_entities(CAPAlert.id).scalar_subquery()

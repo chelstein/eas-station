@@ -255,11 +255,16 @@ class IcecastStreamer:
         # Wait for stderr reader thread
         if self._stderr_reader_thread:
             self._stderr_reader_thread.join(timeout=2.0)
+            if self._stderr_reader_thread.is_alive():
+                logger.warning(f"Stderr reader thread for mount {self.config.mount} did not terminate in time")
             self._stderr_reader_thread = None
 
         # Wait for feeder thread
         if self._feeder_thread:
             self._feeder_thread.join(timeout=5.0)
+            if self._feeder_thread.is_alive():
+                logger.warning(f"Feeder thread for mount {self.config.mount} did not terminate in time")
+            self._feeder_thread = None
 
         # Wait for any in-flight metadata updates
         with self._metadata_update_lock:
