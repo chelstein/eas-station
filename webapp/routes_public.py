@@ -54,6 +54,8 @@ from app_core.system_health import get_system_health
 from app_utils import format_bytes, format_uptime, utc_now
 from webapp import documentation
 from app_utils.pdf_generator import generate_pdf_document
+from webapp.routes_logs import get_systemd_logs
+from app_core.config import get_all_log_services
 
 # Constants
 MIN_LOGS_PER_CATEGORY = 10  # Minimum logs to show per category in "All Logs" view
@@ -1264,7 +1266,21 @@ def register(app: Flask, logger) -> None:
                     },
                     'category': 'Manual Activations'
                 })
-            
+
+            # Service Logs (systemd)
+            for service in get_all_log_services():
+                result = get_systemd_logs(service, lines=max(3, logs_per_category // len(get_all_log_services())), priority=None, since='today')
+                if result.get('success') and result.get('logs'):
+                    for log_entry in result['logs']:
+                        all_logs.append({
+                            'timestamp': datetime.fromtimestamp(int(log_entry['timestamp']) / 1000000) if log_entry.get('timestamp') else None,
+                            'level': 'ERROR' if log_entry.get('priority', '6') in ['0', '1', '2', '3'] else 'WARNING' if log_entry.get('priority') == '4' else 'INFO',
+                            'module': log_entry.get('unit', service),
+                            'message': log_entry.get('message', ''),
+                            'details': {'service': service},
+                            'category': 'Services'
+                        })
+
             # Sort all logs by timestamp
             all_logs.sort(key=lambda x: x['timestamp'] if x['timestamp'] else datetime.min, reverse=True)
             logs_data = all_logs[:limit]
@@ -1623,6 +1639,25 @@ def register(app: Flask, logger) -> None:
                 }
                 for log in logs_result
             ]
+
+        elif log_type == 'services':
+            log_type_name = "Service Logs (systemd)"
+            # Fetch systemd journal logs for all EAS Station services
+            logs_data = []
+            for service in get_all_log_services():
+                result = get_systemd_logs(service, lines=max(5, limit // len(get_all_log_services())), priority=None, since='today')
+                if result.get('success') and result.get('logs'):
+                    for log_entry in result['logs']:
+                        logs_data.append({
+                            'timestamp': datetime.fromtimestamp(int(log_entry['timestamp']) / 1000000) if log_entry.get('timestamp') else None,
+                            'level': 'ERROR' if log_entry.get('priority', '6') in ['0', '1', '2', '3'] else 'WARNING' if log_entry.get('priority') == '4' else 'INFO',
+                            'module': log_entry.get('unit', service),
+                            'message': log_entry.get('message', ''),
+                            'details': {'service': service, 'priority': log_entry.get('priority')},
+                        })
+            # Sort by timestamp
+            logs_data.sort(key=lambda x: x['timestamp'] if x.get('timestamp') else datetime.min, reverse=True)
+            logs_data = logs_data[:limit]
 
         return log_type_name, logs_data
 

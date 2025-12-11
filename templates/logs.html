@@ -105,6 +105,12 @@
                             <i class="fas fa-hand-paper"></i> Manual
                         </a>
                     </li>
+                    <li class="nav-item" role="presentation">
+                        <a class="nav-link {% if log_type == 'services' %}active{% endif %}"
+                           href="?type=services&limit={{ limit }}">
+                            <i class="fas fa-server"></i> Services
+                        </a>
+                    </li>
                 </ul>
 
                 <!-- Advanced Filters -->
@@ -218,6 +224,8 @@
                         <strong><i class="fas fa-info-circle"></i> Decoded EAS Audio:</strong> Decoded audio from incoming EAS signals with SAME headers and quality metrics.
                     {% elif log_type == 'manual_activations' %}
                         <strong><i class="fas fa-info-circle"></i> Manual EAS Activations:</strong> Manually triggered EAS activations with event details and audio components.
+                    {% elif log_type == 'services' %}
+                        <strong><i class="fas fa-info-circle"></i> Service Logs (systemd):</strong> System service logs from journalctl showing EAS Station service activities, errors, and status messages.
                     {% endif %}
                 </div>
 
