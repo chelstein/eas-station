@@ -755,6 +755,19 @@ else
     echo_info "Skipping FIPS code configuration"
 fi
 
+# Always ensure 000000 (nationwide) is included in FIPS codes
+if [ -n "$FIPS_CODES" ]; then
+    # Check if 000000 is already in the list
+    if ! echo ",$FIPS_CODES," | grep -q ",000000,"; then
+        FIPS_CODES="000000,$FIPS_CODES"
+        echo_info "Added nationwide code (000000) - required for EAS compliance"
+    fi
+else
+    # Even if no counties selected, set nationwide code as minimum
+    FIPS_CODES="000000"
+    echo_info "Using nationwide code (000000) as default"
+fi
+
 # Optional: Derive zone codes from FIPS codes
 ZONE_CODES=""
 if [ -n "$FIPS_CODES" ]; then
