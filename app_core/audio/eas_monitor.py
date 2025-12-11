@@ -441,7 +441,7 @@ class ContinuousEASMonitor:
             sample_rate: Audio sample rate in Hz (default: 16000)
             alert_callback: Optional callback function called when alert detected
             save_audio_files: Whether to save audio files of detected alerts
-            audio_archive_dir: Directory to save alert audio files (uses tmpfs in Docker)
+            audio_archive_dir: Directory to save alert audio files (typically /tmp)
             
         How it works:
             Audio samples are processed immediately as they arrive using a
@@ -449,8 +449,8 @@ class ContinuousEASMonitor:
             Detection latency is <200ms, matching commercial EAS decoders.
             
         Note:
-            When running in Docker, /tmp is mounted as tmpfs (RAM disk) which
-            automatically clears on container restart. No manual cleanup needed.
+            /tmp is typically used for temporary audio files, which are
+            automatically cleared on system restart. No manual cleanup needed.
         """
         self.audio_manager = audio_manager
         self.sample_rate = sample_rate

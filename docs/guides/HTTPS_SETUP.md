@@ -317,9 +317,21 @@ add_header X-Custom-Header "value" always;
 
 #### Adjust Rate Limiting
 
+Rate limiting zones are defined in the main nginx configuration at `/etc/nginx/nginx.conf` within the http block. To adjust:
+
+```bash
+sudo nano /etc/nginx/nginx.conf
+```
+
+Find and modify:
 ```nginx
-# At top of /etc/nginx/sites-available/eas-station http block
+# Inside the http block
 limit_req_zone $binary_remote_addr zone=api_limit:10m rate=100r/s;  # More permissive
+```
+
+Then reload nginx:
+```bash
+sudo systemctl reload nginx
 ```
 
 ### Multiple Domains

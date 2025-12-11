@@ -27,9 +27,8 @@ This backup script supports both bare-metal and containerized deployments:
 - Containers (optional): Additionally backs up Docker/Podman volumes if available
 
 Usage:
-    python tools/create_backup.py                    # Full backup including volumes
-    python tools/create_backup.py --skip-volumes     # Bare-metal backup only
-    python tools/create_backup.py --output /backup   # Custom output directory
+    python tools/create_backup.py                           # Full backup
+    python tools/create_backup.py --output-dir /backup      # Custom output directory
 """
 
 import argparse
