@@ -836,8 +836,22 @@ if [ -n "$FIPS_CODES" ]; then
                 echo_success "Derived ${BOLD}$ZONE_COUNT${NC} zone code(s): ${BOLD}$ZONE_CODES${NC}"
                 whiptail --title "Zone Codes Derived" --backtitle "$(whiptail_footer)" --msgbox "Successfully derived $ZONE_COUNT NWS zone code(s):\n\n$ZONE_CODES\n\nThese will be saved to your configuration." 14 78
             else
-                echo_warning "No zone codes could be derived from the provided FIPS codes"
-                whiptail --title "No Zone Codes" --backtitle "$(whiptail_footer)" --msgbox "No zone codes could be derived from your FIPS codes.\n\nThis is normal for some counties. You can configure zone codes manually after installation via the web interface at /setup." 13 78
+                # Check if user only selected statewide/nationwide codes (ending in 000)
+                HAS_COUNTY_CODES=false
+                for code in $(echo "$FIPS_CODES" | tr ',' ' '); do
+                    if ! echo "$code" | grep -qE '000$'; then
+                        HAS_COUNTY_CODES=true
+                        break
+                    fi
+                done
+
+                if [ "$HAS_COUNTY_CODES" = false ]; then
+                    echo_info "Statewide/nationwide FIPS codes don't require zone codes"
+                    whiptail --title "No Zone Codes Needed" --backtitle "$(whiptail_footer)" --msgbox "Your FIPS codes are statewide or nationwide codes.\n\nThese are used for state/national level alerts (like Required Weekly Tests) and don't require specific zone codes.\n\nZone codes can be added later via /setup if needed." 14 78
+                else
+                    echo_warning "No zone codes could be derived from the provided FIPS codes"
+                    whiptail --title "No Zone Codes" --backtitle "$(whiptail_footer)" --msgbox "No zone codes could be derived from your FIPS codes.\n\nYou can configure zone codes manually after installation via the web interface at /setup." 12 78
+                fi
                 ZONE_CODES=""
             fi
         else
