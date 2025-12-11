@@ -934,6 +934,19 @@ if command -v ufw &> /dev/null; then
     ufw allow 443/tcp > /dev/null 2>&1
     echo_success "HTTPS access allowed"
     
+    # Allow Icecast streaming (port 8000) if enabled
+    if [ "${ICECAST_ENABLED:-true}" = "true" ]; then
+        echo_progress "Allowing Icecast streaming (port 8000)..."
+        ufw allow 8000/tcp > /dev/null 2>&1
+        echo_success "Icecast streaming access allowed"
+    fi
+    
+    # Allow PostgreSQL (port 5432) for remote database access (optional, commented by default)
+    # Uncomment if you need remote database access for IDE/pgAdmin
+    # echo_progress "Allowing PostgreSQL (port 5432)..."
+    # ufw allow 5432/tcp > /dev/null 2>&1
+    # echo_success "PostgreSQL access allowed"
+    
     # Enable UFW
     echo_progress "Activating firewall rules..."
     ufw --force enable > /dev/null 2>&1
@@ -942,7 +955,7 @@ if command -v ufw &> /dev/null; then
     # Show status
     echo ""
     echo_info "Firewall status:"
-    ufw status numbered | grep -E '\b(22|80|443)/(tcp|udp)\b|Status:' || true
+    ufw status numbered | grep -E '\b(22|80|443|8000|5432)/(tcp|udp)\b|Status:' || true
     echo ""
 else
     echo_warning "UFW not found - firewall not configured"
@@ -1293,9 +1306,17 @@ echo ""
 echo -e "  ${CYAN}View firewall status:${NC}"
 echo -e "    ${BOLD}sudo ufw status verbose${NC}"
 echo ""
-echo -e "  ${CYAN}Allow additional port through firewall:${NC}"
-echo -e "    ${BOLD}sudo ufw allow <port>/tcp${NC}"
-echo -e "    ${DIM}(e.g., sudo ufw allow 8000/tcp for Icecast)${NC}"
+echo -e "  ${CYAN}Firewall - Configured Ports:${NC}"
+echo -e "    ${GREEN}✓${NC} 22/tcp (SSH), 80/tcp (HTTP), 443/tcp (HTTPS)"
+if [ "${ICECAST_ENABLED:-true}" = "true" ]; then
+    echo -e "    ${GREEN}✓${NC} 8000/tcp (Icecast streaming)"
+fi
+echo ""
+echo -e "  ${CYAN}Firewall - Optional Ports:${NC}"
+echo -e "    ${DIM}5432/tcp (PostgreSQL) - For remote database/IDE access${NC}"
+echo -e "    ${DIM}Command: sudo ufw allow 5432/tcp${NC}"
+echo -e "    ${DIM}⚠️  Use SSH tunneling for better security:${NC}"
+echo -e "    ${DIM}   ssh -L 5432:localhost:5432 user@server${NC}"
 echo ""
 
 echo -e "${BOLD}${CYAN}═══════════════════════════════════════════════════════════════════════${NC}"

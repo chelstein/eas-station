@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import json
 from collections import defaultdict
+from datetime import datetime
 from html import escape
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -53,6 +54,9 @@ from app_core.system_health import get_system_health
 from app_utils import format_bytes, format_uptime, utc_now
 from webapp import documentation
 from app_utils.pdf_generator import generate_pdf_document
+
+# Constants
+MIN_LOGS_PER_CATEGORY = 10  # Minimum logs to show per category in "All Logs" view
 
 
 def register(app: Flask, logger) -> None:
@@ -1172,7 +1176,100 @@ def register(app: Flask, logger) -> None:
         log_type_name = "System Logs"
         logs_data: List[Dict[str, Any]] = []
 
-        if log_type == 'system':
+        if log_type == 'all':
+            log_type_name = "All Logs"
+            # For 'all' type, return logs organized by category
+            # Each category gets a portion of the limit
+            logs_per_category = max(MIN_LOGS_PER_CATEGORY, limit // 10)
+            all_logs = []
+            
+            # System logs
+            for log in SystemLog.query.order_by(SystemLog.timestamp.desc()).limit(logs_per_category).all():
+                all_logs.append({
+                    'timestamp': log.timestamp,
+                    'level': log.level,
+                    'module': log.module or 'system',
+                    'message': log.message,
+                    'details': log.details,
+                    'category': 'System'
+                })
+            
+            # Polling logs
+            for log in PollHistory.query.order_by(PollHistory.timestamp.desc()).limit(logs_per_category).all():
+                all_logs.append({
+                    'timestamp': log.timestamp,
+                    'level': 'ERROR' if log.error_message else 'SUCCESS' if (log.status or '').lower() == 'success' else 'INFO',
+                    'module': 'CAP Polling',
+                    'message': f"Status: {log.status} | Fetched: {log.alerts_fetched} | New: {log.alerts_new} | Updated: {log.alerts_updated}",
+                    'details': {
+                        'execution_time_ms': log.execution_time_ms,
+                        'error': log.error_message,
+                        'data_source': log.data_source,
+                    },
+                    'category': 'Polling'
+                })
+            
+            # Audio alerts
+            for log in AudioAlert.query.order_by(AudioAlert.created_at.desc()).limit(logs_per_category).all():
+                all_logs.append({
+                    'timestamp': log.created_at,
+                    'level': log.alert_level.upper(),
+                    'module': f'Audio Alert: {log.source_name}',
+                    'message': log.message,
+                    'details': {
+                        'alert_type': log.alert_type,
+                        'acknowledged': log.acknowledged,
+                    },
+                    'category': 'Audio'
+                })
+            
+            # GPIO logs
+            for log in GPIOActivationLog.query.order_by(GPIOActivationLog.activated_at.desc()).limit(logs_per_category).all():
+                all_logs.append({
+                    'timestamp': log.activated_at,
+                    'level': 'INFO',
+                    'module': f'GPIO Pin {log.pin}',
+                    'message': f"Type: {log.activation_type} | Operator: {log.operator or 'System'} | Duration: {log.duration_seconds or 'Active'}s",
+                    'details': {
+                        'pin': log.pin,
+                        'activation_type': log.activation_type,
+                    },
+                    'category': 'GPIO'
+                })
+            
+            # EAS Messages
+            for log in EASMessage.query.order_by(EASMessage.created_at.desc()).limit(logs_per_category).all():
+                all_logs.append({
+                    'timestamp': log.created_at,
+                    'level': 'INFO',
+                    'module': 'EAS Message Generator',
+                    'message': f"SAME: {log.same_header} | TTS: {log.tts_provider or 'None'}",
+                    'details': {
+                        'same_header': log.same_header,
+                        'audio_filename': log.audio_filename,
+                    },
+                    'category': 'EAS Messages'
+                })
+            
+            # Manual Activations
+            for log in ManualEASActivation.query.order_by(ManualEASActivation.created_at.desc()).limit(logs_per_category).all():
+                all_logs.append({
+                    'timestamp': log.created_at,
+                    'level': 'WARNING' if log.status == 'ALERT' else 'INFO',
+                    'module': 'Manual EAS Activation',
+                    'message': f"Event: {log.event_name} ({log.event_code}) | Status: {log.status}",
+                    'details': {
+                        'event_code': log.event_code,
+                        'status': log.status,
+                    },
+                    'category': 'Manual Activations'
+                })
+            
+            # Sort all logs by timestamp
+            all_logs.sort(key=lambda x: x['timestamp'] if x['timestamp'] else datetime.min, reverse=True)
+            logs_data = all_logs[:limit]
+
+        elif log_type == 'system':
             log_type_name = "System Logs"
             logs_result = (
                 SystemLog.query
@@ -1533,7 +1630,7 @@ def register(app: Flask, logger) -> None:
     def logs():
         """Comprehensive log viewer with filtering by log type."""
         try:
-            log_type = request.args.get('type', 'system')
+            log_type = request.args.get('type', 'all')  # Default to 'all' to show everything
             limit = min(int(request.args.get('limit', 100)), 500)  # Max 500 records
 
             # Get filter parameters
