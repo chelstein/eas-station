@@ -1256,7 +1256,6 @@ class EASBroadcaster:
         config: Dict[str, object],
         logger,
         location_settings: Optional[Dict[str, object]] = None,
-        playout_queue: Optional[object] = None,
     ) -> None:
         self.db_session = db_session
         self.model_cls = model_cls
@@ -1268,15 +1267,12 @@ class EASBroadcaster:
         self.gpio_controller: Optional[GPIOController] = None
         self.gpio_pin_configs: List[GPIOPinConfig] = []
         self.gpio_behavior_manager: Optional[GPIOBehaviorManager] = None
-        self.playout_queue = playout_queue  # Optional AudioPlayoutQueue for queued playback
 
         if not self.enabled:
             self.logger.info('EAS broadcasting is disabled via configuration.')
         else:
-            mode = 'with queue' if self.playout_queue else 'immediate'
             self.logger.info(
-                'EAS broadcasting enabled (%s mode) with output directory %s',
-                mode,
+                'EAS broadcasting enabled with output directory %s',
                 self.audio_generator.output_dir,
             )
 
@@ -1378,69 +1374,6 @@ class EASBroadcaster:
                 _extract_from_parameters(props.get('parameters', {}))
         
         return blocked
-
-    def _enqueue_alert(
-        self,
-        alert: object,
-        eas_message: object,
-        broadcast_result: Dict[str, object],
-    ) -> Dict[str, object]:
-        """
-        Enqueue an alert for priority-based playback via AudioPlayoutQueue.
-
-        This method is called when playout_queue is configured. It creates a
-        PlayoutItem from the alert and EAS message record, then adds it to the
-        queue with FCC-compliant precedence.
-
-        Args:
-            alert: CAPAlert database model instance
-            eas_message: EASMessage database record (already persisted)
-            broadcast_result: Result dictionary from audio generation
-
-        Returns:
-            Updated broadcast_result with queue information
-        """
-        try:
-            # Import here to avoid circular dependency
-            from app_core.audio import PlayoutItem
-
-            # Get next queue ID
-            queue_id = self.playout_queue.get_next_queue_id()
-
-            # Create playout item using the real database record
-            item = PlayoutItem.from_alert(
-                alert=alert,
-                eas_message=eas_message,
-                broadcast_result=broadcast_result,
-                queue_id=queue_id,
-            )
-
-            # Enqueue the item
-            should_interrupt = self.playout_queue.enqueue(item, check_preemption=True)
-
-            # Update result with queue information
-            broadcast_result['queued'] = True
-            broadcast_result['queue_id'] = queue_id
-            broadcast_result['should_interrupt'] = should_interrupt
-
-            self.logger.info(
-                'Enqueued alert %s (event=%s, precedence=%s) with queue_id=%s',
-                getattr(alert, 'id', None),
-                broadcast_result.get('event_code'),
-                item.precedence_level,
-                queue_id,
-            )
-
-            if should_interrupt:
-                self.logger.warning(
-                    'High-priority alert should interrupt current playback'
-                )
-
-        except Exception as exc:
-            self.logger.error(f'Failed to enqueue alert: {exc}', exc_info=True)
-            broadcast_result['queue_error'] = str(exc)
-
-        return broadcast_result
 
     def handle_alert(self, alert: object, payload: Dict[str, object]) -> Dict[str, object]:
         result: Dict[str, object] = {"same_triggered": False}
@@ -1594,11 +1527,7 @@ class EASBroadcaster:
             # If database persistence fails, we can't continue
             return result
 
-        # Queue mode: enqueue for later playback by AudioOutputService
-        if self.playout_queue:
-            return self._enqueue_alert(alert, record, result)
-
-        # Immediate mode: play synchronously (legacy behavior)
+        # Play audio synchronously
         controller = self.gpio_controller
         behavior_manager = self.gpio_behavior_manager
         activated_any = False

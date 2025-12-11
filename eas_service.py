@@ -152,12 +152,9 @@ def initialize_eas_monitor(app):
     global _eas_monitor
 
     with app.app_context():
-        from app_core.audio.eas_monitor import ContinuousEASMonitor
+        from app_core.audio.eas_monitor import EASMonitor, create_fips_filtering_callback
         from app_core.audio.redis_audio_adapter import RedisAudioAdapter
-        from app_core.audio.startup_integration import (
-            load_fips_codes_from_config,
-            create_fips_filtering_callback
-        )
+        from app_core.audio.startup_integration import load_fips_codes_from_config
 
         logger.info("Initializing EAS monitor...")
 
@@ -180,7 +177,7 @@ def initialize_eas_monitor(app):
         )
 
         # Create EAS monitor
-        _eas_monitor = ContinuousEASMonitor(
+        _eas_monitor = EASMonitor(
             audio_manager=audio_adapter,
             sample_rate=16000,
             alert_callback=fips_callback,

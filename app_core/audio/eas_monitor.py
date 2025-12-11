@@ -17,47 +17,92 @@ See NOTICE file for complete terms.
 Repository: https://github.com/KR8MER/eas-station
 """
 
-from __future__ import annotations
-
 """
-Continuous EAS Monitoring Service
+EAS Continuous Monitor - Simplified Single Implementation
 
-Integrates professional audio subsystem with EAS decoder for 24/7 alert monitoring.
-Continuously buffers audio from AudioSourceManager and runs SAME decoder to detect alerts.
-
-This is the bridge between the audio subsystem and the alert detection logic.
+Provides continuous EAS/SAME alert monitoring with:
+- Robust audio reading with timeout detection
+- Consistent status reporting
+- Clear health metrics
+- Proper error recovery
+- FIPS code filtering utilities
 """
 
 import hashlib
-import io
 import logging
-import os
-import queue
-import tempfile
 import threading
 import time
-import wave
-import math
-from dataclasses import dataclass
 from datetime import datetime, timedelta
-from collections import OrderedDict
-from typing import Optional, Callable, List
+from typing import Optional, Callable, Dict, Any, List
+from dataclasses import dataclass
 
 import numpy as np
-# Note: scipy.signal.resample_poly was replaced with numpy.interp (linear interpolation)
-# for optimal Raspberry Pi performance - 10-20x faster with equivalent quality for SAME decoding
 
-from app_utils.eas_decode import decode_same_audio, SAMEAudioDecodeResult
 from app_utils import utc_now
 from app_utils.eas_codes import get_event_name, get_originator_name
-from .source_manager import AudioSourceManager
 from .fips_utils import determine_fips_matches
 
 logger = logging.getLogger(__name__)
 
 
+# =============================================================================
+# Alert Types
+# =============================================================================
+
+@dataclass
+class EASAlert:
+    """
+    Detected EAS alert with metadata.
+
+    Used by self_test.py and other utilities that need structured alert data.
+    The core EASMonitor uses dict alerts for simplicity.
+    """
+    timestamp: Any  # datetime
+    raw_text: str
+    headers: List[Dict[str, Any]]
+    confidence: float
+    duration_seconds: float
+    source_name: str
+    audio_file_path: Optional[str] = None
+
+
+# =============================================================================
+# Alert Utilities
+# =============================================================================
+
+def compute_alert_signature(alert: Dict[str, Any]) -> str:
+    """
+    Create a deterministic hash of alert data for deduplication.
+
+    Args:
+        alert: Alert dictionary with keys like 'raw_header', 'event_code', etc.
+
+    Returns:
+        SHA256 hash string
+    """
+    # Try to use raw header text first
+    raw_header = alert.get('raw_header') or alert.get('raw_text', '')
+
+    if raw_header:
+        base_text = raw_header.strip()
+    else:
+        # Fall back to event code + location codes + timestamp
+        event_code = alert.get('event_code', 'UNKNOWN')
+        location_codes = alert.get('location_codes', [])
+        source_name = alert.get('source_name', 'unknown')
+
+        parts = [event_code, ','.join(location_codes), source_name]
+        base_text = '|'.join(parts)
+
+    if not base_text:
+        # Last resort: use timestamp
+        base_text = str(time.time())
+
+    return hashlib.sha256(base_text.encode('utf-8', 'ignore')).hexdigest()
+
+
 def _store_received_alert(
-    alert: EASAlert,
+    alert: Dict[str, Any],
     forwarding_decision: str,
     forwarding_reason: str,
     matched_fips: List[str],
@@ -67,66 +112,42 @@ def _store_received_alert(
     Store received EAS alert in database with forwarding decision.
 
     Args:
-        alert: The received EAS alert
+        alert: Alert dictionary
         forwarding_decision: 'forwarded', 'ignored', or 'error'
         forwarding_reason: Human-readable reason for the decision
         matched_fips: List of FIPS codes that matched (if any)
         generated_message_id: FK to eas_messages table if forwarded
     """
     try:
-        # Import here to avoid circular dependencies
         from app_core.models import ReceivedEASAlert
         from app_core.extensions import db
-        from flask import current_app, has_app_context
+        from flask import has_app_context
 
-        # Skip if not in Flask app context
         if not has_app_context():
             logger.debug("Not in Flask app context, skipping database storage")
             return
 
-        # Extract data from alert
-        event_code = "UNKNOWN"
-        event_name = None
-        originator_code = "UNKNOWN"
-        originator_name = None
-        fips_codes = []
+        # Extract data from alert dict
+        event_code = alert.get('event_code', 'UNKNOWN')
+        event_name = get_event_name(event_code) if event_code != 'UNKNOWN' else None
+        originator_code = alert.get('originator', 'UNKNOWN')
+        originator_name = get_originator_name(originator_code) if originator_code != 'UNKNOWN' else None
+        fips_codes = alert.get('location_codes', [])
+        callsign = alert.get('callsign')
+        raw_same_header = alert.get('raw_header') or alert.get('raw_text')
+        source_name = alert.get('source_name', 'unknown')
+
+        # Parse timestamps if present
         issue_datetime = None
         purge_datetime = None
-        callsign = None
-        raw_same_header = None
+        issue_time = alert.get('issue_time')
+        purge_time = alert.get('purge_time')
+        if issue_time:
+            issue_datetime = datetime.fromisoformat(issue_time) if isinstance(issue_time, str) else issue_time
+        if purge_time:
+            purge_datetime = datetime.fromisoformat(purge_time) if isinstance(purge_time, str) else purge_time
 
-        if alert.headers and len(alert.headers) > 0:
-            first_header = alert.headers[0]
-            raw_same_header = first_header.get('raw_text')
-
-            if 'fields' in first_header:
-                fields = first_header['fields']
-                event_code = fields.get('event_code', 'UNKNOWN')
-                event_name = get_event_name(event_code)
-                originator_code = fields.get('originator', 'UNKNOWN')
-                originator_name = get_originator_name(originator_code)
-                callsign = fields.get('callsign')
-
-                # Extract FIPS codes
-                locations = fields.get('locations', [])
-                if isinstance(locations, list):
-                    for loc in locations:
-                        if isinstance(loc, dict):
-                            code = loc.get('code', '')
-                            if code:
-                                fips_codes.append(code)
-
-                # Extract timestamps
-                issue_time = fields.get('issue_time')
-                purge_time = fields.get('purge_time')
-                if issue_time:
-                    issue_datetime = datetime.fromisoformat(issue_time) if isinstance(issue_time, str) else issue_time
-                if purge_time:
-                    purge_datetime = datetime.fromisoformat(purge_time) if isinstance(purge_time, str) else purge_time
-
-        # Suppress duplicate alerts that arrive within a short window
-        # Duplicates can occur when multiple receivers hear the same alert
-        # or when the SAME header is decoded repeatedly from the same message.
+        # Check for duplicates within 10 minute window
         dedup_cutoff = utc_now() - timedelta(minutes=10)
         duplicate_filters = [ReceivedEASAlert.received_at >= dedup_cutoff]
         if raw_same_header:
@@ -147,8 +168,8 @@ def _store_received_alert(
 
         # Create database record
         received_alert = ReceivedEASAlert(
-            received_at=alert.timestamp,
-            source_name=alert.source_name,
+            received_at=utc_now(),
+            source_name=source_name,
             raw_same_header=raw_same_header,
             event_code=event_code,
             event_name=event_name,
@@ -163,151 +184,62 @@ def _store_received_alert(
             matched_fips_codes=matched_fips,
             generated_message_id=generated_message_id,
             forwarded_at=utc_now() if forwarding_decision == 'forwarded' else None,
-            decode_confidence=alert.confidence,
-            full_alert_data={
-                'raw_text': alert.raw_text,
-                'headers': alert.headers,
-                'duration_seconds': alert.duration_seconds,
-                'audio_file_path': alert.audio_file_path,
-            }
+            decode_confidence=alert.get('confidence', 0.0),
+            full_alert_data=alert
         )
 
         db.session.add(received_alert)
         db.session.commit()
-        logger.info(f"Stored received alert in database: {event_code} from {alert.source_name}")
+        logger.info(f"Stored received alert in database: {event_code} from {source_name}")
 
     except Exception as e:
         logger.error(f"Failed to store received alert in database: {e}", exc_info=True)
-        # Don't let database errors break alert processing
         try:
             from app_core.extensions import db
             db.session.rollback()
-        except Exception as rollback_error:
-            logger.debug(f"Failed to rollback database session: {rollback_error}")
-
-
-@dataclass
-class EASAlert:
-    """Detected EAS alert with metadata."""
-    timestamp: datetime
-    raw_text: str
-    headers: List[dict]
-    confidence: float
-    duration_seconds: float
-    source_name: str
-    audio_file_path: Optional[str] = None
-
-
-def compute_alert_signature(alert: EASAlert) -> str:
-    """Create a deterministic hash of decoded SAME headers for deduplication."""
-    header_texts: List[str] = []
-    for header in alert.headers or []:
-        if not isinstance(header, dict):
-            continue
-        raw_value = header.get('raw_text') or header.get('header')
-        if isinstance(raw_value, str) and raw_value.strip():
-            header_texts.append(raw_value.strip())
-
-    base_text = "||".join(header_texts).strip()
-    if not base_text:
-        base_text = (alert.raw_text or "").strip()
-
-    if not base_text:
-        base_text = f"{alert.source_name}|{alert.timestamp.isoformat()}"
-
-    return hashlib.sha256(base_text.encode('utf-8', 'ignore')).hexdigest()
+        except Exception:
+            pass
 
 
 def create_fips_filtering_callback(
     configured_fips_codes: List[str],
-    forward_callback: Callable[[EASAlert], None],
+    forward_callback: Callable[[Dict[str, Any]], Any],
     logger_instance: Optional[logging.Logger] = None
-) -> Callable[[EASAlert], None]:
+) -> Callable[[Dict[str, Any]], None]:
     """
-    Create an alert callback wrapper that filters by FIPS codes and logs results.
-
-    This helper function creates a callback that:
-    1. Extracts FIPS codes from the alert
-    2. Compares them against configured FIPS codes
-    3. Logs the matching result
-    4. Only forwards alerts that match configured FIPS codes
+    Create an alert callback that filters by FIPS codes.
 
     Args:
-        configured_fips_codes: List of FIPS codes to match (e.g., ['039137', '039051'])
+        configured_fips_codes: List of FIPS codes to match
         forward_callback: Function to call when alert matches FIPS codes
         logger_instance: Optional logger (defaults to module logger)
 
     Returns:
-        Callback function that can be passed to ContinuousEASMonitor
-
-    Example:
-        >>> configured_fips = ['039137', '039051']  # Putnam County, OH + Others
-        >>> def my_forward_handler(alert):
-        ...     print(f"Forwarding alert: {alert.raw_text}")
-        >>>
-        >>> callback = create_fips_filtering_callback(
-        ...     configured_fips,
-        ...     my_forward_handler,
-        ...     logger
-        ... )
-        >>> monitor = ContinuousEASMonitor(
-        ...     audio_manager=manager,
-        ...     alert_callback=callback
-        ... )
+        Callback function for EASMonitor
     """
     log = logger_instance or logger
 
-    def fips_filtering_callback(alert: EASAlert) -> None:
-        """Callback that filters alerts by FIPS codes with logging."""
-        # Extract FIPS codes from alert
-        alert_fips_codes = []
-        event_code = "UNKNOWN"
-        originator = "UNKNOWN"
+    def fips_filtering_callback(alert: Dict[str, Any]) -> None:
+        """Filter alerts by FIPS codes."""
+        # Extract alert info
+        alert_fips_codes = alert.get('location_codes', [])
+        event_code = alert.get('event_code', 'UNKNOWN')
+        originator = alert.get('originator', 'UNKNOWN')
 
-        if alert.headers and len(alert.headers) > 0:
-            first_header = alert.headers[0]
-            if 'fields' in first_header:
-                fields = first_header['fields']
-                event_code = fields.get('event_code', 'UNKNOWN')
-                originator = fields.get('originator', 'UNKNOWN')
-
-                locations = fields.get('locations', [])
-                if isinstance(locations, list):
-                    for loc in locations:
-                        if isinstance(loc, dict):
-                            code = loc.get('code', '')
-                            if code:
-                                alert_fips_codes.append(code)
-
-        # If no FIPS codes are configured, accept ALL alerts (no filtering)
+        # If no FIPS codes configured, accept ALL alerts
         if not configured_fips_codes:
             log.warning(
-                f"✓ NO FIPS FILTERING CONFIGURED - ACCEPTING ALL ALERTS: "
-                f"Event={event_code} | "
-                f"Originator={originator} | "
-                f"Alert FIPS={','.join(alert_fips_codes) if alert_fips_codes else 'NONE'}"
+                f"NO FIPS FILTERING - ACCEPTING ALL: Event={event_code} | "
+                f"Originator={originator} | FIPS={','.join(alert_fips_codes) or 'NONE'}"
             )
             try:
                 result = forward_callback(alert)
-                generated_message_id = None
-                if isinstance(result, dict):
-                    generated_message_id = result.get('message_id') or result.get('id')
-                elif hasattr(result, 'id'):
-                    generated_message_id = getattr(result, 'id')
-                elif isinstance(result, (int, float)):
-                    generated_message_id = int(result)
-
-                if generated_message_id is not None:
-                    try:
-                        generated_message_id = int(generated_message_id)
-                    except (TypeError, ValueError):
-                        generated_message_id = None
-
+                generated_message_id = _extract_message_id(result)
                 _store_received_alert(
                     alert=alert,
                     forwarding_decision='forwarded',
                     forwarding_reason='No FIPS filtering configured - accepting all alerts',
-                    matched_fips=alert_fips_codes,  # Store alert's FIPS codes
+                    matched_fips=alert_fips_codes,
                     generated_message_id=generated_message_id
                 )
             except Exception as e:
@@ -320,50 +252,19 @@ def create_fips_filtering_callback(
                 )
             return
 
+        # Check for FIPS match
         matched_fips_list = determine_fips_matches(alert_fips_codes, configured_fips_codes)
 
         if matched_fips_list:
-            # Alert matches configured FIPS codes - FORWARD IT
+            # FIPS match - forward alert
             forwarding_reason = f"FIPS match: {', '.join(matched_fips_list)}"
-
             log.warning(
-                f"✓ FIPS MATCH - FORWARDING ALERT: "
-                f"Event={event_code} | "
-                f"Originator={originator} | "
-                f"Alert FIPS={','.join(alert_fips_codes)} | "
-                f"Configured FIPS={','.join(configured_fips_codes)} | "
-                f"Matched={','.join(matched_fips_list)}"
+                f"FIPS MATCH - FORWARDING: Event={event_code} | "
+                f"Originator={originator} | Matched={','.join(matched_fips_list)}"
             )
-
             try:
                 result = forward_callback(alert)
-                generated_message_id = None
-                if isinstance(result, dict):
-                    generated_message_id = result.get('message_id') or result.get('id')
-                elif hasattr(result, 'id'):
-                    generated_message_id = getattr(result, 'id')
-                elif isinstance(result, (int, float)):
-                    generated_message_id = int(result)
-                elif isinstance(result, (list, tuple)) and result:
-                    first = result[0]
-                    if isinstance(first, dict):
-                        generated_message_id = first.get('message_id') or first.get('id')
-                    elif hasattr(first, 'id'):
-                        generated_message_id = getattr(first, 'id')
-
-                if generated_message_id is not None:
-                    try:
-                        generated_message_id = int(generated_message_id)
-                    except (TypeError, ValueError):
-                        logger.debug(
-                            "Forward callback returned non-integer message id %r; ignoring",
-                            generated_message_id,
-                        )
-                        generated_message_id = None
-
-                log.info(f"Alert forwarding completed successfully")
-
-                # Store as forwarded
+                generated_message_id = _extract_message_id(result)
                 _store_received_alert(
                     alert=alert,
                     forwarding_decision='forwarded',
@@ -373,31 +274,22 @@ def create_fips_filtering_callback(
                 )
             except Exception as e:
                 log.error(f"Error forwarding alert: {e}", exc_info=True)
-
-                # Store as error
                 _store_received_alert(
                     alert=alert,
                     forwarding_decision='error',
                     forwarding_reason=f"Forwarding failed: {str(e)}",
                     matched_fips=matched_fips_list
                 )
-
         else:
-            # Alert does NOT match configured FIPS codes - IGNORE IT
+            # No FIPS match - ignore
             log.info(
-                f"✗ NO FIPS MATCH - IGNORING ALERT: "
-                f"Event={event_code} | "
-                f"Originator={originator} | "
-                f"Alert FIPS={','.join(alert_fips_codes) if alert_fips_codes else 'NONE'} | "
-                f"Configured FIPS={','.join(configured_fips_codes)}"
+                f"NO FIPS MATCH - IGNORING: Event={event_code} | "
+                f"Alert FIPS={','.join(alert_fips_codes) or 'NONE'}"
             )
-
-            # Store as ignored
             if alert_fips_codes:
-                forwarding_reason = f"No FIPS match. Alert FIPS: {', '.join(alert_fips_codes)}. Configured: {', '.join(configured_fips_codes)}"
+                forwarding_reason = f"No FIPS match. Alert: {', '.join(alert_fips_codes)}"
             else:
                 forwarding_reason = "No FIPS codes in alert"
-
             _store_received_alert(
                 alert=alert,
                 forwarding_decision='ignored',
@@ -408,1081 +300,332 @@ def create_fips_filtering_callback(
     return fips_filtering_callback
 
 
-class ContinuousEASMonitor:
-    """
-    Continuously monitors audio sources for EAS/SAME alerts.
+def _extract_message_id(result: Any) -> Optional[int]:
+    """Extract message ID from various callback return types."""
+    if result is None:
+        return None
+    if isinstance(result, int):
+        return result
+    if isinstance(result, dict):
+        return result.get('message_id') or result.get('id')
+    if hasattr(result, 'id'):
+        return getattr(result, 'id')
+    return None
 
-    Buffers audio from AudioSourceManager and periodically analyzes it
-    for SAME headers. When alerts are detected, triggers callbacks and
-    stores to database.
+
+# =============================================================================
+# Health Tracking
+# =============================================================================
+
+@dataclass
+class MonitorHealth:
+    """Health tracking for EAS monitor."""
+    last_audio_time: float = 0.0
+    consecutive_empty_reads: int = 0
+    consecutive_errors: int = 0
+    total_errors: int = 0
+    audio_flowing: bool = False
+    health_score: float = 1.0
+
+
+# =============================================================================
+# EAS Monitor
+# =============================================================================
+
+class EASMonitor:
     """
-    
-    # Minimum elapsed time for rate calculation (prevents division by zero on startup)
-    MIN_ELAPSED_SECONDS = 0.1
-    
-    # Rate smoothing and warmup configuration
-    WARMUP_DURATION_SECONDS = 2  # Duration of warmup period before accurate rate calculation
-    WARMUP_MAX_HEALTH_PERCENTAGE = 0.95  # Maximum health shown during warmup (95%)
-    RATE_SMOOTHING_ALPHA = 0.3  # EMA smoothing factor: lower=more smooth, higher=more responsive
+    Continuous EAS/SAME alert monitor.
+
+    Features:
+    - Robust audio pipeline with health tracking
+    - Clear, consistent status reporting
+    - Proper timeout detection
+    - Graceful error recovery
+    - Real-time health metrics
+    """
 
     def __init__(
         self,
-        audio_manager: AudioSourceManager,
+        audio_source,
         sample_rate: int = 16000,
-        alert_callback: Optional[Callable[[EASAlert], None]] = None,
-        save_audio_files: bool = True,
-        audio_archive_dir: str = "/tmp/eas-audio"
+        alert_callback: Optional[Callable] = None,
+        source_name: str = "unknown"
     ):
         """
-        Initialize continuous EAS monitor with real-time streaming decoder.
+        Initialize monitor.
 
         Args:
-            audio_manager: AudioSourceManager instance providing audio
-            sample_rate: Audio sample rate in Hz (default: 16000)
-            alert_callback: Optional callback function called when alert detected
-            save_audio_files: Whether to save audio files of detected alerts
-            audio_archive_dir: Directory to save alert audio files (default: /tmp)
-            
-        How it works:
-            Audio samples are processed immediately as they arrive using a
-            streaming SAME decoder. No buffering, no batching, no delays.
-            Detection latency is <200ms, matching commercial EAS decoders.
-            
-        Note:
-            Audio files are saved to /tmp by default, which is automatically
-            cleared on system restart. No manual cleanup needed.
+            audio_source: Object with read_audio(num_samples) method
+            sample_rate: Target sample rate for decoder (16kHz for SAME)
+            alert_callback: Function to call when alert detected
+            source_name: Human-readable name for this source
         """
-        self.audio_manager = audio_manager
+        self.audio_source = audio_source
         self.sample_rate = sample_rate
-        self.source_sample_rate = getattr(audio_manager, "sample_rate", sample_rate)
         self.alert_callback = alert_callback
-        self.save_audio_files = save_audio_files
-        self.audio_archive_dir = audio_archive_dir
+        self.source_name = source_name
 
-        # Create audio archive directory
-        if save_audio_files:
-            os.makedirs(audio_archive_dir, exist_ok=True)
+        # Get source sample rate if available
+        self.source_sample_rate = getattr(audio_source, 'sample_rate', sample_rate)
 
-        # STREAMING DECODER: Process samples in real-time as they arrive
-        # NO BUFFERING. NO BATCHING. NO INTERVALS. NO TEMP FILES.
-        # Every sample is processed immediately by the decoder.
-        # This is how commercial EAS decoders work (DASDEC, multimon-ng).
+        # Initialize streaming decoder
         from .streaming_same_decoder import StreamingSAMEDecoder
-        
-        self._streaming_decoder = StreamingSAMEDecoder(
+        self._decoder = StreamingSAMEDecoder(
             sample_rate=sample_rate,
-            alert_callback=self._handle_streaming_alert
+            alert_callback=self._handle_alert
         )
-        
-        logger.warning(
-            "⚠️ BATCH PROCESSING DISABLED - Using real-time streaming decoder. "
-            "No buffering, no intervals, no temp files. "
-            f"Audio archiving: {'ENABLED' if save_audio_files else 'DISABLED'}. "
-            "This is commercial-grade EAS decoder operation."
-        )
-        
-        # Monitoring state
-        self._monitor_thread: Optional[threading.Thread] = None
-        self._watchdog_thread: Optional[threading.Thread] = None
-        self._stop_event = threading.Event()
-        self._stop_event.set()  # Initialize in "stopped" state
-        self._alerts_detected = 0
-        self._last_alert_time: Optional[float] = None
-        self._duplicate_cooldown_seconds = 30.0
-        self._recent_alert_signatures: OrderedDict[str, float] = OrderedDict()
-        self._stats_lock = threading.Lock()  # Protect statistics
-        
-        # Watchdog/heartbeat tracking
-        self._last_activity: float = time.time()
-        self._activity_lock = threading.Lock()
-        self._watchdog_timeout: float = 60.0  # Seconds before considering thread stalled
-        self._restart_count: int = 0
-        
-        # Track actual start time for accurate rate calculation
+
+        # State management
+        self._running = False
+        self._thread: Optional[threading.Thread] = None
         self._start_time: Optional[float] = None
-        
-        # Rate smoothing to prevent display fluctuations
-        # Minimum samples before calculating rate (prevents early spikes)
-        self._min_samples_for_rate = sample_rate * self.WARMUP_DURATION_SECONDS
-        # Exponential moving average for samples_per_second
-        self._smoothed_samples_per_second: float = 0.0
-        
+        self._alerts_detected = 0
+        self._samples_processed = 0
+
+        # Health tracking
+        self._health = MonitorHealth()
+        self._health_lock = threading.Lock()
+
+        # Configuration
+        self._chunk_duration_ms = 100
+        self._chunk_size = int(self.sample_rate * self._chunk_duration_ms / 1000)
+        self._audio_timeout_seconds = 5.0
+        self._max_empty_reads = 50
+        self._max_errors = 100
+
         logger.info(
-            f"Initialized ContinuousEASMonitor: "
-            f"source_sample_rate={self.source_sample_rate}Hz, "
-            f"decoder_sample_rate={sample_rate}Hz, "
-            f"streaming_mode=True, "
-            f"watchdog_timeout={self._watchdog_timeout}s, "
-            f"save_audio_files={save_audio_files}"
+            f"EASMonitor initialized for '{source_name}': "
+            f"{self.source_sample_rate}Hz -> {sample_rate}Hz, "
+            f"chunk={self._chunk_duration_ms}ms ({self._chunk_size} samples)"
         )
 
     def start(self) -> bool:
-        """
-        Start continuous monitoring with dedicated worker pool.
-
-        Returns:
-            True if started successfully
-        """
-        if not self._stop_event.is_set():
-            logger.warning("ContinuousEASMonitor already running")
+        """Start monitoring."""
+        if self._running:
+            logger.warning(f"Monitor '{self.source_name}' already running")
             return False
 
-        self._stop_event.clear()
-        self._update_activity()  # Initialize activity timestamp
-        self._start_time = time.time()  # Record actual start time
+        self._running = True
+        self._start_time = time.time()
+        self._samples_processed = 0
+        self._alerts_detected = 0
 
-        # Start streaming monitor thread
-        self._monitor_thread = threading.Thread(
-            target=self._monitor_loop_wrapper,
-            name="eas-monitor",
+        with self._health_lock:
+            self._health = MonitorHealth()
+
+        self._thread = threading.Thread(
+            target=self._monitor_loop,
+            name=f"eas-monitor-{self.source_name}",
             daemon=True
         )
-        self._monitor_thread.start()
+        self._thread.start()
 
-        # Start watchdog thread
-        self._watchdog_thread = threading.Thread(
-            target=self._watchdog_loop,
-            name="eas-watchdog",
-            daemon=True
-        )
-        self._watchdog_thread.start()
-
-        logger.info(
-            "✅ Started real-time EAS monitoring with streaming decoder. "
-            "Samples processed immediately with <200ms detection latency."
-        )
+        logger.info(f"EAS monitor '{self.source_name}' started")
         return True
 
-    def _monitor_loop_wrapper(self) -> None:
-        """Wrapper to catch and log any uncaught exceptions in monitor loop."""
-        try:
-            logger.info("🔴 EAS monitor thread starting...")
+    def stop(self) -> None:
+        """Stop monitoring."""
+        if not self._running:
+            return
 
-            # Verify audio manager is available
-            if not self.audio_manager:
-                logger.error("❌ FATAL: No audio manager configured!")
-                return
+        logger.info(f"Stopping EAS monitor '{self.source_name}'...")
+        self._running = False
 
-            logger.info(f"✅ Audio manager OK: {type(self.audio_manager).__name__}")
+        if self._thread and self._thread.is_alive():
+            self._thread.join(timeout=5.0)
+            if self._thread.is_alive():
+                logger.warning(f"Monitor thread '{self.source_name}' did not stop cleanly")
 
-            # Log adapter stats to verify subscription
-            if hasattr(self.audio_manager, "get_stats"):
-                try:
-                    stats = self.audio_manager.get_stats()
-                    logger.info(
-                        f"📊 Broadcast subscription: "
-                        f"subscriber_id={stats.get('subscriber_id')}, "
-                        f"queue_size={stats.get('queue_size')}, "
-                        f"sample_rate={stats.get('sample_rate')}Hz"
-                    )
-                except Exception as e:
-                    logger.warning(f"Could not get initial adapter stats: {e}")
+        logger.info(
+            f"EAS monitor '{self.source_name}' stopped. "
+            f"Processed {self._samples_processed:,} samples, "
+            f"detected {self._alerts_detected} alerts"
+        )
 
-            # Run the actual monitor loop
-            self._monitor_loop()
+    def get_status(self) -> Dict[str, Any]:
+        """Get comprehensive status."""
+        decoder_stats = self._decoder.get_stats()
 
-        except Exception as e:
-            logger.error(f"❌ FATAL: EAS monitor thread crashed: {e}", exc_info=True)
-            # Try to set status to error state
+        with self._health_lock:
+            health = self._health
+
+        if self._running and self._start_time:
+            wall_clock_runtime = time.time() - self._start_time
+            if self._samples_processed > 0:
+                audio_runtime = self._samples_processed / self.sample_rate
+                samples_per_second = self._samples_processed / max(wall_clock_runtime, 0.1)
+                health_percentage = min(1.0, samples_per_second / self.sample_rate)
+            else:
+                audio_runtime = 0
+                samples_per_second = 0
+                health_percentage = 0.0
+        else:
+            wall_clock_runtime = 0
+            audio_runtime = 0
+            samples_per_second = 0
+            health_percentage = 0.0
+
+        time_since_audio = time.time() - health.last_audio_time if health.last_audio_time > 0 else 999999
+        audio_flowing = (
+            self._running and
+            self._samples_processed > 0 and
+            time_since_audio < self._audio_timeout_seconds
+        )
+
+        adapter_stats = {}
+        if hasattr(self.audio_source, 'get_stats'):
             try:
-                self._stop_event.set()
+                adapter_stats = self.audio_source.get_stats()
             except Exception:
                 pass
 
-    def stop(self) -> None:
-        """Stop continuous monitoring."""
-        logger.info("Stopping continuous EAS monitoring")
-        self._stop_event.set()
-        self._start_time = None  # Clear start time
-
-        # Wait for monitor thread
-        if self._monitor_thread:
-            self._monitor_thread.join(timeout=10.0)
-        
-        # Wait for watchdog
-        if self._watchdog_thread:
-            self._watchdog_thread.join(timeout=5.0)
-
-        logger.info(
-            f"Stopped EAS monitoring. Stats: {self._alerts_detected} alerts detected, "
-            f"{self._restart_count} restarts"
-        )
-
-    def get_status(self) -> dict:
-        """
-        Get current monitor status and metrics for UI display.
-        
-        STREAMING MODE: Reports real-time decoder status, not batch scan metrics.
-        """
-        is_running = not self._stop_event.is_set()
-
-        # Get streaming decoder stats
-        decoder_stats = self._streaming_decoder.get_stats()
-        
-        # Audio is flowing if decoder has processed samples AND monitor is running
-        # This prevents false "no audio" indications during the minimum sample period
-        samples_processed = decoder_stats['samples_processed']
-        audio_flowing = is_running and samples_processed > 0
-        
-        # Calculate how long decoder has been running based on WALL CLOCK TIME
-        # This gives us the true instantaneous processing rate
-        if audio_flowing and self._start_time is not None:
-            actual_elapsed = time.time() - self._start_time
-            
-            # Only calculate rate if we have enough samples to avoid startup spikes
-            # This prevents showing 500%+ rates during the first few milliseconds
-            if samples_processed >= self._min_samples_for_rate:
-                # Calculate raw instantaneous rate
-                raw_samples_per_second = samples_processed / max(actual_elapsed, self.MIN_ELAPSED_SECONDS)
-                
-                # Apply exponential moving average for smooth, stable display
-                # EMA formula: smoothed = old * (1 - alpha) + new * alpha
-                # This filters out timing noise while staying responsive to real changes
-                with self._stats_lock:
-                    if self._smoothed_samples_per_second == 0.0:
-                        # First calculation - initialize with raw value
-                        self._smoothed_samples_per_second = raw_samples_per_second
-                    else:
-                        # Update smoothed value using EMA
-                        self._smoothed_samples_per_second = (
-                            self._smoothed_samples_per_second * (1.0 - self.RATE_SMOOTHING_ALPHA) +
-                            raw_samples_per_second * self.RATE_SMOOTHING_ALPHA
-                        )
-                    samples_per_second = self._smoothed_samples_per_second
-            else:
-                # During warmup period (first 2 seconds), report expected rate
-                # This prevents "0% processing" warnings and keeps display stable
-                # The health percentage will show this is warmup phase
-                samples_per_second = float(self.sample_rate)
-            
-            # Runtime in terms of audio content (how many seconds of audio we've processed)
-            runtime_seconds = samples_processed / self.sample_rate
-        else:
-            actual_elapsed = 0
-            runtime_seconds = 0
-            samples_per_second = 0
-            # Reset smoothed rate when not running
-            with self._stats_lock:
-                self._smoothed_samples_per_second = 0.0
-        
-        with self._stats_lock:
-            alerts_detected = self._alerts_detected
-            last_alert_time = self._last_alert_time
-        
-        with self._activity_lock:
-            last_activity = self._last_activity
-            time_since_activity = time.time() - last_activity
-        
-        # Calculate health metrics
-        # For streaming decoder, "health" = processing at line rate (configured sample_rate)
-        expected_rate = self.sample_rate
-        if audio_flowing and samples_per_second > 0:
-            # During warmup period (first 2 seconds), report partial health
-            # This shows system is working but still stabilizing
-            if samples_processed < self._min_samples_for_rate:
-                # Warmup phase: health grows linearly from 0% to WARMUP_MAX_HEALTH_PERCENTAGE
-                # This provides visual feedback without triggering "no audio" warnings
-                warmup_progress = min(1.0, samples_processed / float(self._min_samples_for_rate))
-                health_percentage = warmup_progress * self.WARMUP_MAX_HEALTH_PERCENTAGE
-            else:
-                # Normal operation: calculate actual health based on processing rate
-                # Clamp to 0-100% range to prevent >100% display
-                # Even with smoothing, can still slightly exceed 100% due to timing variations
-                health_percentage = max(0.0, min(1.0, samples_per_second / expected_rate))
-        else:
-            health_percentage = 0.0
-
-        resample_ratio = None
-        if self.source_sample_rate:
-            try:
-                resample_ratio = self.sample_rate / float(self.source_sample_rate)
-            except Exception:
-                resample_ratio = None
-        
-        adapter_stats = {}
-        if hasattr(self.audio_manager, "get_stats"):
-            try:
-                adapter_stats = self.audio_manager.get_stats()
-            except Exception:
-                adapter_stats = {}
-
         return {
-            # System state
-            "running": is_running,
+            "running": self._running,
             "mode": "streaming",
+            "source_name": self.source_name,
             "audio_flowing": audio_flowing,
+            "samples_processed": self._samples_processed,
+            "samples_per_second": int(samples_per_second),
+            "wall_clock_runtime_seconds": wall_clock_runtime,
+            "runtime_seconds": audio_runtime,
+            "health_percentage": health_percentage,
+            "time_since_last_audio": time_since_audio,
+            "consecutive_empty_reads": health.consecutive_empty_reads,
+            "consecutive_errors": health.consecutive_errors,
+            "total_errors": health.total_errors,
+            "decoder_synced": decoder_stats.get('synced', False),
+            "decoder_in_message": decoder_stats.get('in_message', False),
+            "decoder_bytes_decoded": decoder_stats.get('bytes_decoded', 0),
+            "alerts_detected": self._alerts_detected,
             "sample_rate": self.sample_rate,
             "source_sample_rate": self.source_sample_rate,
-            "resample_ratio": resample_ratio,
-            
-            # Streaming decoder metrics
-            "samples_processed": samples_processed,
-            "samples_per_second": int(samples_per_second),
-            "runtime_seconds": runtime_seconds,
-            "wall_clock_runtime_seconds": actual_elapsed,  # Real elapsed time for UI display
-            "decoder_synced": decoder_stats['synced'],
-            "decoder_in_message": decoder_stats['in_message'],
-            "decoder_bytes_decoded": decoder_stats['bytes_decoded'],
-            "health_percentage": health_percentage,
-            
-            # Alert metrics
-            "alerts_detected": alerts_detected,
-            "last_alert_time": last_alert_time,
-            
-            # Health metrics
-            "last_activity": last_activity,
-            "time_since_activity": time_since_activity,
-            "restart_count": self._restart_count,
-            "watchdog_timeout": self._watchdog_timeout,
-
-            # Audio adapter stats (broadcast subscription health)
-            "audio_buffer_samples": adapter_stats.get("buffer_samples"),
-            "audio_buffer_seconds": adapter_stats.get("buffer_seconds"),
-            "audio_queue_depth": adapter_stats.get("queue_size"),
-            "audio_underruns": adapter_stats.get("underrun_count"),
-            "audio_underrun_rate_percent": adapter_stats.get("underrun_rate_percent"),
-            "audio_last_audio_time": adapter_stats.get("last_audio_time"),
-            "audio_health": adapter_stats.get("health"),
-            "audio_subscriber_id": adapter_stats.get("subscriber_id"),
+            "audio_buffer_samples": adapter_stats.get("buffer_samples", 0),
+            "audio_queue_depth": adapter_stats.get("queue_size", 0),
+            "audio_underruns": adapter_stats.get("underrun_count", 0),
         }
 
-    def get_buffer_history(self, max_points: int = 60) -> list:
-        """Get decoder health history for graphing.
+    def _handle_alert(self, alert_data: dict) -> None:
+        """Handle detected alert."""
+        self._alerts_detected += 1
+        alert_data['source_name'] = self.source_name
 
-        Returns list of dicts with:
-        - timestamp: float (unix time)
-        - health: float (0-100%)
-        - in_message: bool
+        logger.info(
+            f"EAS Alert detected on '{self.source_name}': "
+            f"{alert_data.get('event_code', 'UNKNOWN')}"
+        )
 
-        FUTURE ENHANCEMENT: Track history over time (see docs/FUTURE_ENHANCEMENTS.md).
-        Currently returns current state only.
-        """
-        status = self.get_status()
-        return [{
-            "timestamp": time.time(),
-            "health": status.get("health_percentage", 0),  # 0-1 range
-            "in_message": status.get("decoder_in_message", False)
-        }]
-
-    def _update_activity(self) -> None:
-        """Update the last activity timestamp (heartbeat)."""
-        with self._activity_lock:
-            self._last_activity = time.time()
-
-    def _watchdog_loop(self) -> None:
-        """Watchdog thread that monitors decoder thread health and restarts if stalled."""
-        logger.debug("EAS watchdog loop started")
-        check_interval = 10.0  # Check every 10 seconds
-        
-        while not self._stop_event.is_set():
+        if self.alert_callback:
             try:
-                time.sleep(check_interval)
-                
-                if self._stop_event.is_set():
-                    break
-                
-                # Check if decoder thread is still alive and active
-                with self._activity_lock:
-                    time_since_activity = time.time() - self._last_activity
-                
-                if time_since_activity > self._watchdog_timeout:
-                    logger.error(
-                        f"EAS decoder thread appears stalled (no activity for {time_since_activity:.1f}s, "
-                        f"timeout={self._watchdog_timeout}s). Attempting restart..."
-                    )
-                    
-                    # Attempt to restart the monitor thread
-                    self._restart_monitor_thread()
-                    
+                self.alert_callback(alert_data)
             except Exception as e:
-                logger.error(f"Error in EAS watchdog loop: {e}", exc_info=True)
-                time.sleep(5.0)  # Back off on error
-        
-        logger.debug("EAS watchdog loop stopped")
+                logger.error(f"Error in alert callback: {e}", exc_info=True)
 
-    def _restart_monitor_thread(self) -> None:
-        """Attempt to safely restart the monitor thread."""
-        try:
-            self._restart_count += 1
-            logger.warning(f"Restarting EAS monitor thread (restart #{self._restart_count})")
-            
-            # Stop old thread if still running
-            if self._monitor_thread and self._monitor_thread.is_alive():
-                logger.debug("Old monitor thread still alive, giving it 3 seconds to stop")
-                # Note: We don't have a separate stop event for the monitor thread,
-                # so we can't force it to stop without stopping the entire service.
-                # Instead, just start a new one - the old one will eventually exit
-            
-            # CRITICAL FIX: Reset start time to maintain consistency between wall clock
-            # and samples-based runtime calculations. Without this, wall_clock_runtime_seconds
-            # continues from the original start time while samples_processed resets to 0,
-            # causing the runtime display to jump between values (e.g., 6 min -> 2 sec -> 6 min)
-            self._start_time = time.time()
-            
-            # CRITICAL FIX: Reset the streaming decoder to clear samples_processed counter
-            # This ensures runtime metrics stay consistent after restart
-            self._streaming_decoder.reset()
-            
-            # Reset rate smoothing to prevent stale values after restart
-            with self._stats_lock:
-                self._smoothed_samples_per_second = 0.0
-            
-            # Start new monitoring thread
-            self._monitor_thread = threading.Thread(
-                target=self._monitor_loop,
-                name=f"eas-monitor-r{self._restart_count}",
-                daemon=True
-            )
-            self._monitor_thread.start()
-            self._update_activity()  # Reset activity timestamp
-            
-            logger.info(f"EAS monitor thread restarted successfully (restart #{self._restart_count})")
-            
-        except Exception as e:
-            logger.error(f"Failed to restart EAS monitor thread: {e}", exc_info=True)
-
-    def _resample_if_needed(self, samples: np.ndarray) -> np.ndarray:
-        """
-        Resample incoming audio to the decoder's target rate (16 kHz) if needed.
-        
-        CRITICAL: This properly RESAMPLES the audio using linear interpolation,
-        not just changing the sample rate metadata. Audio sources can be at any
-        sample rate (44.1k, 48k, 32k, etc.) but the EAS decoder MUST receive 16 kHz.
-        
-        PERFORMANCE: Uses linear interpolation (np.interp) instead of polyphase filtering
-        for optimal Raspberry Pi performance. This is 10-20x faster while maintaining
-        perfect quality for SAME tone detection. See docs/archive/root-docs/RESAMPLING_PERFORMANCE_ANALYSIS.md
-        
-        Args:
-            samples: Input audio samples at source_sample_rate
-            
-        Returns:
-            Resampled audio at self.sample_rate (16 kHz), or original if no conversion needed
-        """
-        if samples is None or len(samples) == 0:
-            return samples
-
-        # STEREO TO MONO CONVERSION: EAS decoder requires mono audio
-        # If audio is stereo (2D array with shape (n, 2)), convert to mono by averaging channels
-        if samples.ndim == 2:
-            if samples.shape[1] == 2:
-                # Stereo audio - average both channels to create mono
-                samples = samples.mean(axis=1)
-            elif samples.shape[1] == 1:
-                # Mono audio in 2D format - flatten to 1D
-                samples = samples.flatten()
-            else:
-                # Unexpected number of channels - take first channel only
-                # EAS monitoring requires mono audio for accurate SAME tone detection
-                logger.warning(
-                    f"Unexpected audio shape {samples.shape} with {samples.shape[1]} channels - "
-                    f"EAS monitoring requires mono audio, using first channel only"
-                )
-                samples = samples[:, 0]
-        
-        # Ensure samples is 1D array (mono audio)
-        if samples.ndim > 1:
-            samples = samples.flatten()
-
+    def _resample_linear(self, samples: np.ndarray) -> np.ndarray:
+        """Fast linear resampling."""
         if self.source_sample_rate == self.sample_rate:
-            # No resampling needed - already at target rate
             return samples
 
         try:
-            # Calculate resampling ratio
-            ratio = self.sample_rate / float(self.source_sample_rate)
-            if ratio <= 0:
-                return samples
+            if samples.ndim == 2:
+                samples = samples.mean(axis=1)
+            elif samples.ndim > 2:
+                samples = samples.flatten()
 
-            # Linear interpolation - fast and sufficient for SAME decoding
-            # This is 10-20x faster than polyphase filtering and uses minimal CPU
-            # on Raspberry Pi while preserving tone frequencies perfectly
-            new_length = int(len(samples) * ratio)
-            if new_length < 1:
-                return samples
-                
+            if samples.dtype != np.float32:
+                samples = samples.astype(np.float32)
+
+            ratio = self.sample_rate / float(self.source_sample_rate)
+            new_length = max(1, int(len(samples) * ratio))
+
             old_indices = np.arange(len(samples))
             new_indices = np.linspace(0, len(samples) - 1, new_length)
             resampled = np.interp(new_indices, old_indices, samples)
-            
-            return resampled.astype(np.float32, copy=False)
-        except Exception as resample_error:
-            logger.error(
-                f"Failed to resample audio from {self.source_sample_rate}Hz to {self.sample_rate}Hz: {resample_error}",
-                exc_info=True,
-            )
+
+            return resampled.astype(np.float32)
+
+        except Exception as e:
+            logger.error(f"Resampling error on '{self.source_name}': {e}")
+            with self._health_lock:
+                self._health.total_errors += 1
             return samples
 
-    def _monitor_loop(self) -> None:
-        """
-        Main monitoring loop - STREAMING REAL-TIME PROCESSING.
-
-        NO BATCHING. NO INTERVALS. NO TEMP FILES.
-
-        This is how commercial EAS decoders (DASDEC, multimon-ng) work:
-        - Read audio samples as they arrive
-        - Feed directly to streaming decoder
-        - Decoder maintains state and emits alerts
-        - Zero latency, zero dropouts
-        """
-        logger.info("🔴 EAS monitor loop entered - processing samples in real-time")
-
-        # Buffer for reading audio chunks (~100ms at decoder rate)
-        chunk_samples = int(self.sample_rate * 0.1)
-        logger.info(f"📏 Requesting {chunk_samples} samples per chunk ({self.sample_rate}Hz decoder rate)")
-        
-        last_heartbeat_time = time.time()
-        heartbeat_interval = 5.0  # Update activity every 5 seconds
-
-        read_error_count = 0
-        last_error_log_time = 0
-        error_log_interval = 10.0
-
-        samples_processed = 0
-        last_diagnostics_log = 0
-        diagnostics_interval = 10.0  # Log diagnostics every 10 seconds
-
-        successful_reads = 0
-        failed_reads = 0
-
-        while not self._stop_event.is_set():
-            try:
-                # Update activity heartbeat periodically
-                current_time = time.time()
-                if current_time - last_heartbeat_time >= heartbeat_interval:
-                    self._update_activity()
-                    last_heartbeat_time = current_time
-                    # Log progress
-                    stats = self._streaming_decoder.get_stats()
-                    logger.debug(
-                        f"Streaming decoder stats: {stats['samples_processed']:,} samples processed, "
-                        f"{stats['alerts_detected']} alerts detected, "
-                        f"synced={stats['synced']}, in_message={stats['in_message']}"
-                    )
-
-                # Periodic diagnostics logging
-                if current_time - last_diagnostics_log >= diagnostics_interval:
-                    # Get audio adapter stats for diagnostics
-                    adapter_stats = {}
-                    if hasattr(self.audio_manager, "get_stats"):
-                        try:
-                            adapter_stats = self.audio_manager.get_stats()
-                        except Exception:
-                            pass
-
-                    decoder_stats = self._streaming_decoder.get_stats()
-
-                    logger.info(
-                        f"🔍 EAS Monitor diagnostics: "
-                        f"samples_processed={decoder_stats['samples_processed']:,}, "
-                        f"successful_reads={successful_reads}, "
-                        f"failed_reads={failed_reads}, "
-                        f"queue_depth={adapter_stats.get('queue_size', 'N/A')}, "
-                        f"buffer_samples={adapter_stats.get('buffer_samples', 'N/A')}, "
-                        f"underruns={adapter_stats.get('underrun_count', 'N/A')}/{adapter_stats.get('total_reads', 'N/A')} "
-                        f"({adapter_stats.get('underrun_rate_percent', 0):.1f}%), "
-                        f"health={adapter_stats.get('health', 'N/A')}"
-                    )
-
-                    last_diagnostics_log = current_time
-                    successful_reads = 0
-                    failed_reads = 0
-
-                # Read audio from manager
-                samples = None
-                try:
-                    samples = self.audio_manager.read_audio(chunk_samples)
-                    if samples is not None and len(samples) > 0:
-                        successful_reads += 1
-                    else:
-                        failed_reads += 1
-                    read_error_count = 0  # Reset error count on success
-                except Exception as read_error:
-                    failed_reads += 1
-                    read_error_count += 1
-                    if current_time - last_error_log_time > error_log_interval:
-                        logger.error(
-                            f"❌ Error reading audio from manager (error #{read_error_count}): {read_error}",
-                            exc_info=True
-                        )
-                        last_error_log_time = current_time
-                    samples = None
-
-                if samples is not None and len(samples) > 0:
-                    # RESAMPLE TO 16 kHz: Audio sources can be at any sample rate (44.1k, 48k, etc.)
-                    # but the EAS decoder MUST receive 16 kHz audio for optimal SAME decoding.
-                    # This resampling uses linear interpolation (numpy.interp) optimized for
-                    # Raspberry Pi performance - 10-20x faster than polyphase filtering.
-                    decoded_samples = self._resample_if_needed(samples)
-
-                    # REAL-TIME PROCESSING: Feed samples directly to decoder
-                    # ZERO buffering, ZERO batching, ZERO delays
-                    # Every sample is processed immediately
-                    try:
-                        self._streaming_decoder.process_samples(decoded_samples)
-                        samples_processed += len(decoded_samples)
-                    except Exception as decode_error:
-                        logger.error(f"Error in streaming decoder: {decode_error}", exc_info=True)
-                
-                # Brief sleep only if we didn't get audio samples
-                if samples is None:
-                    time.sleep(0.02)  # 20ms sleep when no audio available
-
-            except Exception as e:
-                logger.error(f"Unexpected error in EAS monitor loop: {e}", exc_info=True)
-                self._update_activity()
-                time.sleep(1.0)  # Back off on error
-
-        logger.info("🔴 STREAMING EAS monitor stopped")
-
-    def _handle_streaming_alert(self, alert) -> None:
-        """
-        Handle alert from streaming decoder.
-        
-        This is called by StreamingSAMEDecoder when an alert is detected.
-        
-        CRITICAL: For alert verification, we need to save audio.
-        In streaming mode, we capture audio AFTER detection by reading from audio manager.
-        """
-        from .streaming_same_decoder import StreamingSAMEAlert
-        
-        logger.info(f"🔔 Streaming alert received: {alert.message[:80]}... (confidence: {alert.confidence:.1%})")
-        
-        # Get active source name
-        source_name = self.audio_manager.get_active_source() or "unknown"
-        
-        # Parse the SAME message to extract fields
-        from app_utils.eas import describe_same_header
-        from app_utils.fips_codes import get_same_lookup
-        
-        # Extract just the header part (ZCZC-ORG-EEE-PSSCCC...)
-        message_text = alert.message.strip()
-        if "ZCZC" in message_text:
-            zczc_idx = message_text.find("ZCZC")
-            header_text = message_text[zczc_idx:]
-            # Remove trailing dash if present
-            if header_text.endswith('-'):
-                header_text = header_text[:-1]
-        else:
-            header_text = message_text
-        
-        # Parse SAME header fields
-        fips_lookup = get_same_lookup()
-        header_fields = describe_same_header(header_text, lookup=fips_lookup)
-        
-        # AUDIO ARCHIVING: Save audio for verification/archival
-        # In streaming mode, the audio manager maintains a buffer
-        # We can capture recent audio when alert is detected
-        audio_file_path = None
-        if self.save_audio_files:
-            try:
-                # Get approximately 12 seconds of audio from audio manager
-                # This should contain the full SAME sequence
-                archive_duration = 12.0
-                archive_samples = int(self.sample_rate * archive_duration)
-                
-                # Try to get recent audio from audio manager's buffer
-                # Note: This depends on AudioSourceManager having a get_recent_audio() method
-                # If not available, we'll need to add a small buffer here
-                try:
-                    audio_samples = self.audio_manager.get_recent_audio(archive_samples)
-                except AttributeError:
-                    logger.warning(
-                        "AudioSourceManager doesn't support get_recent_audio(). "
-                        "Audio archiving disabled for streaming mode. "
-                        "Alert will be logged but audio won't be saved."
-                    )
-                    audio_samples = None
-                
-                if audio_samples is not None and len(audio_samples) > 0:
-                    # Save to file in RAM disk
-                    audio_file_path = self._save_alert_audio(audio_samples, alert)
-                    logger.info(f"Saved alert audio to {audio_file_path}")
-            except Exception as e:
-                logger.error(f"Failed to save alert audio: {e}", exc_info=True)
-        
-        # Create EASAlert object compatible with existing callback
-        eas_alert = EASAlert(
-            timestamp=alert.timestamp,
-            raw_text=message_text,
-            headers=[{
-                'header': header_text,
-                'fields': header_fields,
-                'confidence': alert.confidence,
-                'raw_text': header_text
-            }],
-            confidence=alert.confidence,
-            duration_seconds=0.0,  # Streaming doesn't track duration
-            source_name=source_name,
-            audio_file_path=audio_file_path
-        )
-        
-        # Check for duplicates
-        alert_signature = compute_alert_signature(eas_alert)
-        current_time = time.time()
-        
-        if self._is_duplicate_alert(alert_signature, current_time):
-            logger.info(
-                f"Duplicate alert detected within {self._duplicate_cooldown_seconds}s window - ignoring"
-            )
-            return
-        
-        self._recent_alert_signatures[alert_signature] = current_time
-        self._last_alert_time = current_time
-        
-        with self._stats_lock:
-            self._alerts_detected += 1
-        
-        # Log comprehensive alert info
-        event_code = header_fields.get('event_code', 'UNKNOWN')
-        originator = header_fields.get('originator', 'UNKNOWN')
-        location_codes = []
-        locations = header_fields.get('locations', [])
-        if isinstance(locations, list):
-            for loc in locations:
-                if isinstance(loc, dict):
-                    code = loc.get('code', '')
-                    if code:
-                        location_codes.append(code)
-        
-        logger.warning(
-            f"🚨 EAS ALERT DETECTED (STREAMING): "
-            f"Event={event_code} | "
-            f"Originator={originator} | "
-            f"FIPS={','.join(location_codes) if location_codes else 'NONE'} | "
-            f"Source={source_name} | "
-            f"Confidence={alert.confidence:.1%}"
-        )
-        
-        # Invoke callback (FIPS filtering happens here)
-        if self.alert_callback:
-            try:
-                self.alert_callback(eas_alert)
-            except Exception as e:
-                logger.error(f"Error in alert callback: {e}", exc_info=True)
-    
-    def _save_alert_audio(self, samples: np.ndarray, alert) -> str:
-        """
-        Save alert audio to WAV file for archiving and verification.
-        
-        Uses /dev/shm (RAM disk) for zero disk I/O.
-        
-        Args:
-            samples: Audio samples to save
-            alert: StreamingSAMEAlert object
-            
-        Returns:
-            Path to saved audio file
-        """
-        import wave
-        
-        # Create archive directory in RAM disk
-        ram_disk_dir = "/dev/shm/eas-audio"
-        os.makedirs(ram_disk_dir, exist_ok=True)
-        
-        # Create filename: YYYYMMDD_HHMMSS_message.wav
-        timestamp_str = alert.timestamp.strftime("%Y%m%d_%H%M%S")
-        
-        # Extract event code from message for filename
-        message_text = alert.message
-        event_code = "UNK"
-        originator = "UNK"
-        if "ZCZC" in message_text:
-            try:
-                parts = message_text.split('-')
-                if len(parts) >= 3:
-                    originator = parts[1]
-                    event_code = parts[2]
-            except (IndexError, AttributeError) as e:
-                logger.debug(f"Failed to parse SAME header parts for filename: {e}")
-        
-        filename = f"{timestamp_str}_{originator}-{event_code}.wav"
-        filepath = os.path.join(ram_disk_dir, filename)
-        
-        try:
-            with wave.open(filepath, 'wb') as wf:
-                wf.setnchannels(1)  # Mono
-                wf.setsampwidth(2)  # 16-bit
-                wf.setframerate(self.sample_rate)
-                
-                # Convert float32 [-1, 1] to int16 PCM
-                pcm_data = (samples * 32767).astype(np.int16)
-                wf.writeframes(pcm_data.tobytes())
-            
-            return filepath
-        except Exception as e:
-            logger.error(f"Failed to save alert audio to {filepath}: {e}", exc_info=True)
-            raise
-    
-    def _has_same_signature(self, audio_samples: np.ndarray) -> bool:
-        """Fast pre-check to detect if audio contains SAME tone signatures.
-        
-        This is a lightweight filter that checks for the presence of the characteristic
-        SAME tones (853 Hz and 960 Hz) without doing full decoding. This allows us to
-        skip expensive decoding on audio that clearly doesn't contain alerts.
-        
-        Returns True if SAME tones might be present (run full decode).
-        Returns False if definitely no SAME tones (skip decode to save CPU).
-        """
-        try:
-            # Only analyze a small window to keep this fast (first 2 seconds)
-            window_samples = min(len(audio_samples), int(self.sample_rate * 2.0))
-            window = audio_samples[:window_samples]
-            
-            # Calculate power spectrum using FFT
-            # Use smaller FFT size for speed (2048 samples = ~93ms at 22050 Hz)
-            fft_size = 2048
-            hop_size = fft_size // 2
-            
-            # SAME uses 853 Hz (mark) and 960 Hz (space)
-            # Allow some tolerance for frequency drift
-            mark_freq = 853
-            space_freq = 960
-            freq_tolerance = 50  # Hz
-            
-            # Calculate frequency bins
-            freq_resolution = self.sample_rate / fft_size
-            mark_bin_low = int((mark_freq - freq_tolerance) / freq_resolution)
-            mark_bin_high = int((mark_freq + freq_tolerance) / freq_resolution)
-            space_bin_low = int((space_freq - freq_tolerance) / freq_resolution)
-            space_bin_high = int((space_freq + freq_tolerance) / freq_resolution)
-            
-            # Analyze multiple windows
-            max_mark_energy = 0.0
-            max_space_energy = 0.0
-            
-            for i in range(0, window_samples - fft_size, hop_size):
-                segment = window[i:i + fft_size]
-                
-                # Apply window function to reduce spectral leakage
-                segment = segment * np.hanning(fft_size)
-                
-                # Calculate power spectrum
-                spectrum = np.abs(np.fft.rfft(segment))
-                
-                # Check energy in SAME frequency bands
-                mark_energy = np.sum(spectrum[mark_bin_low:mark_bin_high])
-                space_energy = np.sum(spectrum[space_bin_low:space_bin_high])
-                
-                max_mark_energy = max(max_mark_energy, mark_energy)
-                max_space_energy = max(max_space_energy, space_energy)
-            
-            # If both SAME tones have significant energy, likely contains SAME
-            # Use a threshold relative to total signal energy
-            total_energy = np.sum(np.abs(window) ** 2)
-            
-            # Require at least some energy in both tone bands
-            # and reasonable signal-to-noise ratio
-            has_mark = max_mark_energy > (total_energy * 0.001)
-            has_space = max_space_energy > (total_energy * 0.001)
-            
-            if has_mark and has_space:
-                logger.debug("SAME signature detected - running full decode")
-                return True
+    def _update_health(self, got_audio: bool, error: bool = False) -> None:
+        """Update health tracking."""
+        with self._health_lock:
+            if error:
+                self._health.consecutive_errors += 1
+                self._health.total_errors += 1
+                self._health.consecutive_empty_reads = 0
+            elif got_audio:
+                self._health.last_audio_time = time.time()
+                self._health.consecutive_empty_reads = 0
+                self._health.consecutive_errors = 0
+                self._health.audio_flowing = True
             else:
-                # No SAME signature - skip expensive decode
-                return False
-                
-        except Exception as e:
-            logger.debug(f"Error in SAME signature pre-check: {e}")
-            # On error, assume signature present to ensure we don't miss alerts
-            return True
+                self._health.consecutive_empty_reads += 1
+                self._health.consecutive_errors = 0
+                time_since_audio = time.time() - self._health.last_audio_time if self._health.last_audio_time > 0 else 999999
+                if time_since_audio > self._audio_timeout_seconds:
+                    self._health.audio_flowing = False
 
-    def _handle_alert_detected(
-        self,
-        result: SAMEAudioDecodeResult,
-        audio_samples: np.ndarray,
-        temp_wav_path: str
-    ) -> None:
-        """Handle detected EAS alert."""
-        current_time = time.time()
+            health_factors = [
+                1.0 - min(1.0, self._health.consecutive_errors / 100),
+                1.0 - min(1.0, self._health.consecutive_empty_reads / 100),
+                1.0 if self._health.audio_flowing else 0.5,
+            ]
+            self._health.health_score = sum(health_factors) / len(health_factors)
 
-        # Get active source name
-        source_name = self.audio_manager.get_active_source() or "unknown"
+    def _monitor_loop(self) -> None:
+        """Main monitoring loop."""
+        logger.info(f"Monitor loop starting for '{self.source_name}'...")
 
-        # Create alert object for logging
-        alert = EASAlert(
-            timestamp=utc_now(),
-            raw_text=result.raw_text,
-            headers=[h.to_dict() for h in result.headers],
-            confidence=result.bit_confidence,
-            duration_seconds=result.duration_seconds,
-            source_name=source_name
-        )
-
-        # === COMPREHENSIVE LOGGING FOR ALL ALERTS (BEFORE FILTERING) ===
-        # This logs EVERY alert detected, regardless of FIPS codes or forwarding criteria
-        # Useful for auditing and troubleshooting
-        try:
-            # Extract key alert details
-            event_code = "UNKNOWN"
-            originator = "UNKNOWN"
-            location_codes = []
-
-            if alert.headers and len(alert.headers) > 0:
-                first_header = alert.headers[0]
-                if 'fields' in first_header:
-                    fields = first_header['fields']
-                    event_code = fields.get('event_code', 'UNKNOWN')
-                    originator = fields.get('originator', 'UNKNOWN')
-
-                    # Extract location codes (FIPS codes)
-                    locations = fields.get('locations', [])
-                    if isinstance(locations, list):
-                        for loc in locations:
-                            if isinstance(loc, dict):
-                                code = loc.get('code', '')
-                                if code:
-                                    location_codes.append(code)
-
-            # Log comprehensive alert information (always logged for auditing)
-            logger.warning(
-                f"🔔 AUDIO ALERT RECEIVED: "
-                f"Event={event_code} | "
-                f"Originator={originator} | "
-                f"FIPS Codes={','.join(location_codes) if location_codes else 'NONE'} | "
-                f"Source={source_name} | "
-                f"Confidence={alert.confidence:.1%} | "
-                f"Raw={alert.raw_text}"
-            )
-
-            # Also log as structured data for easier parsing
-            logger.info(
-                f"Audio alert details: event_code={event_code}, "
-                f"originator={originator}, "
-                f"location_codes={location_codes}, "
-                f"source={source_name}, "
-                f"confidence={alert.confidence}, "
-                f"timestamp={alert.timestamp.isoformat()}"
-            )
-
-        except Exception as e:
-            logger.error(f"Error logging alert details: {e}", exc_info=True)
-        # === END COMPREHENSIVE LOGGING ===
-
-        # === SAVE AUDIO FOR ALL ALERTS (BEFORE COOLDOWN CHECK) ===
-        # This ensures complete audit trail - every alert gets audio saved
-        if self.save_audio_files:
-            alert_filename = self._create_alert_filename(alert)
-            alert_file_path = os.path.join(self.audio_archive_dir, alert_filename)
-
+        while self._running:
             try:
-                # Move temp file to permanent location
-                os.rename(temp_wav_path, alert_file_path)
-                alert.audio_file_path = alert_file_path
-                logger.info(f"Saved alert audio to {alert_file_path}")
-            except Exception as e:
-                logger.error(f"Failed to save alert audio: {e}")
-        # === END AUDIO SAVING ===
+                samples = self.audio_source.read_audio(self._chunk_size)
 
-        alert_signature = compute_alert_signature(alert)
-        if self._is_duplicate_alert(alert_signature, current_time):
-            logger.info(
-                "Alert duplicate detected within %.1fs window - "
-                "logged/audio archived but not activating", 
-                self._duplicate_cooldown_seconds,
-            )
-            return
+                if samples is None or len(samples) == 0:
+                    self._update_health(got_audio=False)
 
-        self._recent_alert_signatures[alert_signature] = current_time
-        self._last_alert_time = current_time
-        self._alerts_detected += 1
+                    with self._health_lock:
+                        empty_reads = self._health.consecutive_empty_reads
 
-        # Log alert activation (this means the alert passed cooldown and will be processed/forwarded)
-        logger.warning(
-            f"🚨 EAS ALERT ACTIVATING: {alert.raw_text} "
-            f"(source: {source_name}, confidence: {alert.confidence:.1%})"
-        )
+                    if empty_reads == self._max_empty_reads:
+                        logger.warning(
+                            f"'{self.source_name}': No audio for {empty_reads} reads"
+                        )
+                    elif empty_reads > self._max_empty_reads and empty_reads % 100 == 0:
+                        logger.warning(
+                            f"'{self.source_name}': Still no audio after {empty_reads} reads"
+                        )
 
-        # Trigger callback (this will apply FIPS filtering and forward if matching)
-        if self.alert_callback:
-            try:
-                # Extract location codes for logging
-                callback_location_codes = []
-                if alert.headers and len(alert.headers) > 0:
-                    first_header = alert.headers[0]
-                    if 'fields' in first_header:
-                        fields = first_header['fields']
-                        locations = fields.get('locations', [])
-                        if isinstance(locations, list):
-                            for loc in locations:
-                                if isinstance(loc, dict):
-                                    code = loc.get('code', '')
-                                    if code:
-                                        callback_location_codes.append(code)
+                    time.sleep(0.05)
+                    continue
 
-                logger.info(
-                    f"Invoking alert callback for processing/FIPS filtering: "
-                    f"alert_fips_codes={callback_location_codes}"
-                )
+                self._update_health(got_audio=True)
 
-                self.alert_callback(alert)
+                if self.source_sample_rate != self.sample_rate:
+                    samples = self._resample_linear(samples)
 
-                # Log successful callback completion
-                logger.info(
-                    f"✓ Alert callback completed successfully for {alert.raw_text[:50]}... "
-                    f"(Note: Check callback implementation for FIPS filtering results)"
-                )
+                self._decoder.process_samples(samples)
+                self._samples_processed += len(samples)
 
             except Exception as e:
-                logger.error(
-                    f"✗ Error in alert callback: {e} "
-                    f"(Alert may not have been forwarded/broadcast)",
-                    exc_info=True
-                )
+                logger.error(f"Error in monitor loop for '{self.source_name}': {e}", exc_info=True)
+                self._update_health(got_audio=False, error=True)
 
-    def _create_alert_filename(self, alert: EASAlert) -> str:
-        """Create filename for alert audio file."""
-        # Format: YYYYMMDD_HHMMSS_ORIGINATOR-EVENT.wav
-        timestamp_str = alert.timestamp.strftime("%Y%m%d_%H%M%S")
+                with self._health_lock:
+                    if self._health.consecutive_errors >= self._max_errors:
+                        logger.error(
+                            f"'{self.source_name}': Too many errors, stopping monitor"
+                        )
+                        self._running = False
+                        break
 
-        # Extract originator and event code from first header
-        originator = "UNK"
-        event_code = "UNK"
+                time.sleep(0.1)
 
-        if alert.headers and len(alert.headers) > 0:
-            first_header = alert.headers[0]
-            if 'fields' in first_header:
-                fields = first_header['fields']
-                originator = fields.get('originator', 'UNK')
-                event_code = fields.get('event_code', 'UNK')
-
-        return f"{timestamp_str}_{originator}-{event_code}.wav"
-
-    def _purge_expired_alert_signatures(self, cutoff_timestamp: float) -> None:
-        """Drop stored alert signatures that are older than the provided cutoff."""
-        while self._recent_alert_signatures:
-            oldest_signature, timestamp = next(iter(self._recent_alert_signatures.items()))
-            if timestamp >= cutoff_timestamp:
-                break
-            self._recent_alert_signatures.popitem(last=False)
-
-    def _is_duplicate_alert(self, signature: str, current_time: float) -> bool:
-        """Return True if the provided signature was seen recently."""
-        cutoff = current_time - self._duplicate_cooldown_seconds
-        self._purge_expired_alert_signatures(cutoff)
-        return signature in self._recent_alert_signatures
-
-    def get_stats(self) -> dict:
-        """Get monitoring statistics for streaming mode."""
-        decoder_stats = self._streaming_decoder.get_stats()
-
-        # Determine if audio is flowing based on whether we've processed samples recently
-        audio_flowing = decoder_stats['samples_processed'] > 0
-
-        return {
-            'running': not self._stop_event.is_set(),
-            'audio_flowing': audio_flowing,
-            'samples_processed': decoder_stats['samples_processed'],
-            'alerts_detected': self._alerts_detected,
-            'active_source': self.audio_manager.get_active_source(),
-            'last_alert_time': self._last_alert_time,
-            # Pass through decoder stats
-            'sample_rate': decoder_stats.get('sample_rate', 16000),
-            'decoder_synced': decoder_stats.get('synced', False),
-            'decoder_in_message': decoder_stats.get('in_message', False),
-            'decoder_bytes_decoded': decoder_stats.get('bytes_decoded', 0),
-        }
+        logger.info(f"Monitor loop exited for '{self.source_name}'")
 
 
-__all__ = ['ContinuousEASMonitor', 'EASAlert', 'create_fips_filtering_callback', 'compute_alert_signature']
+# Backwards compatibility aliases
+EASMonitorV2 = EASMonitor
+ContinuousEASMonitor = EASMonitor

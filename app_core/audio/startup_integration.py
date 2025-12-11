@@ -91,85 +91,28 @@ def load_fips_codes_from_config() -> list:
 
 def create_fips_filtering_callback(
     configured_fips_codes: list,
-    flask_app,
+    forward_callback,
     logger_instance: Optional[logging.Logger] = None
 ):
     """
-    Create a FIPS-filtering callback for EAS monitor integration with Flask app.
+    Create a FIPS-filtering callback for EAS monitor.
 
-    This is a convenience wrapper around the core create_fips_filtering_callback
-    from eas_monitor.py. It creates a forward callback that stores alerts in the
-    database and then delegates to the actual FIPS filtering logic.
+    This is a thin wrapper that delegates to the core implementation.
 
     Args:
         configured_fips_codes: List of FIPS codes to monitor
-        flask_app: Flask application instance for database access
+        forward_callback: Function to call when alert matches FIPS codes
         logger_instance: Optional logger instance
 
     Returns:
-        Callback function suitable for ContinuousEASMonitor
+        Callback function suitable for EASMonitor
     """
     from app_core.audio.eas_monitor import (
-        create_fips_filtering_callback as _create_fips_filtering_callback,
-        EASAlert
+        create_fips_filtering_callback as _create_fips_filtering_callback
     )
 
-    log = logger_instance or logger
-
-    def forward_to_database(alert: EASAlert) -> Optional[int]:
-        """
-        Forward callback that stores alert in database.
-
-        This function is called when an alert matches configured FIPS codes.
-        It stores the alert in the database for broadcasting/forwarding.
-
-        Returns:
-            Message ID if successfully stored, None otherwise
-        """
-        try:
-            # Import here to avoid circular dependencies
-            from app_core.models import EASMessage, db
-            from flask import has_app_context
-
-            # Ensure we're in Flask app context
-            if not has_app_context():
-                with flask_app.app_context():
-                    return _store_alert_in_context(alert, log)
-            else:
-                return _store_alert_in_context(alert, log)
-
-        except Exception as e:
-            log.error(f"Failed to store alert in database: {e}", exc_info=True)
-            return None
-
-    def _store_alert_in_context(alert: EASAlert, log):
-        """Helper to store alert within Flask app context."""
-        from app_core.models import EASMessage, db
-
-        # Extract SAME header from first header
-        same_header = "UNKNOWN"
-        if alert.headers and len(alert.headers) > 0:
-            first_header = alert.headers[0]
-            same_header = first_header.get('raw_text', 'UNKNOWN')
-
-        # Create EAS message record
-        # Note: This creates a minimal record. The actual audio generation
-        # and broadcasting should be handled by dedicated EAS broadcast logic.
-        eas_message = EASMessage(
-            same_header=same_header,
-            audio_filename=f"auto_{int(time.time())}.wav",
-            text_filename=f"auto_{int(time.time())}.txt"
-        )
-
-        db.session.add(eas_message)
-        db.session.commit()
-
-        log.info(f"Stored EAS alert in database: ID={eas_message.id}, SAME={same_header[:50]}...")
-        return eas_message.id
-
-    # Now create the actual FIPS filtering callback using the core function
     return _create_fips_filtering_callback(
         configured_fips_codes=configured_fips_codes,
-        forward_callback=forward_to_database,
-        logger_instance=log
+        forward_callback=forward_callback,
+        logger_instance=logger_instance or logger
     )
