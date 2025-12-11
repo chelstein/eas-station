@@ -619,6 +619,10 @@ if systemctl list-unit-files | grep -q apache2.service; then
     echo_success "Apache2 disabled (Nginx will be used)"
 fi
 
+# Remove Apache2 block now that installation is complete
+# This allows future manual Apache2 installation if needed
+rm -f /etc/apt/preferences.d/block-apache2
+
 # Configure pgAdmin for WSGI mode (works with Nginx)
 if [ "$SKIP_PGADMIN" != "true" ] && [ -f /usr/pgadmin4/web/config.py ] || [ -f /usr/pgadmin4/web/config_distro.py ]; then
     echo_info "Configuring pgAdmin 4 for Nginx..."
