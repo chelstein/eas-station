@@ -581,19 +581,253 @@ fi
 
 echo_success "County: ${BOLD}$COUNTY_NAME${NC}"
 
-# Optional: FIPS codes
-if whiptail --title "FIPS Codes" --yesno "Do you want to specify FIPS codes for authorized alert areas?\n\n(This is optional and can be configured later)" 10 70; then
-    FIPS_CODES=$(whiptail --title "FIPS Codes" --inputbox "Enter FIPS codes (comma-separated):\n\nExample: 039001,039003,039005" 12 70 3>&1 1>&2 2>&3)
+# Optional: FIPS codes with lookup functionality
+if whiptail --title "FIPS Codes Configuration" --yesno "Do you want to configure FIPS codes for authorized alert areas?\n\nFIPS codes define which geographic areas can trigger alerts.\n\nYou can:\n• Look up FIPS codes from your county name\n• Enter FIPS codes manually\n• Skip and configure later" 16 75; then
     
-    if [ $? = 0 ] && [ -n "$FIPS_CODES" ]; then
-        echo_success "FIPS codes: ${BOLD}$FIPS_CODES${NC}"
-    else
+    # Offer lookup or manual entry
+    FIPS_METHOD=$(whiptail --title "FIPS Code Entry Method" --menu "How would you like to enter FIPS codes?" 16 75 3 \
+        "1" "Look up FIPS codes from county name (recommended)" \
+        "2" "Enter FIPS codes manually" \
+        "3" "Skip for now" \
+        3>&1 1>&2 2>&3)
+    
+    exitstatus=$?
+    if [ $exitstatus != 0 ] || [ "$FIPS_METHOD" = "3" ]; then
         FIPS_CODES=""
-        echo_info "No FIPS codes specified"
+        echo_info "Skipping FIPS code configuration"
+    elif [ "$FIPS_METHOD" = "1" ]; then
+        # FIPS code lookup
+        echo_progress "Looking up FIPS codes for ${BOLD}$COUNTY_NAME${NC} in ${BOLD}$STATE_CODE${NC}..."
+        
+        # Try to use the helper script if Python environment is available
+        LOOKUP_RESULT=""
+        LOOKUP_ERROR=""
+        
+        # Disable exit on error temporarily
+        set +e
+        
+        if [ -f "$INSTALL_DIR/venv/bin/python" ]; then
+            LOOKUP_RESULT=$("$INSTALL_DIR/venv/bin/python" "$INSTALL_DIR/scripts/fips_lookup_helper.py" search "$STATE_CODE" "$COUNTY_NAME" 2>&1)
+            LOOKUP_EXIT=$?
+        elif [ -f "$VENV_DIR/bin/python" ]; then
+            LOOKUP_RESULT=$("$VENV_DIR/bin/python" "$INSTALL_DIR/scripts/fips_lookup_helper.py" search "$STATE_CODE" "$COUNTY_NAME" 2>&1)
+            LOOKUP_EXIT=$?
+        else
+            LOOKUP_EXIT=1
+            LOOKUP_ERROR="Python environment not yet available"
+        fi
+        
+        # Re-enable exit on error
+        set -e
+        
+        # Check if lookup was successful
+        if [ $LOOKUP_EXIT -eq 0 ] && [ -n "$LOOKUP_RESULT" ] && echo "$LOOKUP_RESULT" | grep -q "matches"; then
+            # Parse JSON and create selection menu
+            MATCH_COUNT=0
+            
+            # Safely parse match count
+            set +e
+            MATCH_COUNT=$(echo "$LOOKUP_RESULT" | python3 -c "import sys, json; data=json.load(sys.stdin); print(len(data.get('matches', [])))" 2>/dev/null)
+            PARSE_EXIT=$?
+            set -e
+            
+            if [ $PARSE_EXIT -ne 0 ] || [ -z "$MATCH_COUNT" ]; then
+                MATCH_COUNT=0
+            fi
+            
+            if [ "$MATCH_COUNT" -gt 0 ]; then
+                # Build whiptail menu from matches
+                MENU_ITEMS=()
+                MATCH_INDEX=0
+                
+                # Safely parse matches
+                set +e
+                while IFS= read -r line; do
+                    if [ -n "$line" ]; then
+                        COUNTY_NAME_MATCH=$(echo "$line" | cut -d'|' -f1)
+                        COUNTY_FIPS=$(echo "$line" | cut -d'|' -f2)
+                        if [ -n "$COUNTY_NAME_MATCH" ] && [ -n "$COUNTY_FIPS" ]; then
+                            MENU_ITEMS+=("$MATCH_INDEX" "$COUNTY_NAME_MATCH - $COUNTY_FIPS")
+                            MATCH_INDEX=$((MATCH_INDEX + 1))
+                        fi
+                    fi
+                done < <(echo "$LOOKUP_RESULT" | python3 -c "import sys, json; data=json.load(sys.stdin); [print(f\"{m['name']}|{m['fips']}\") for m in data.get('matches', [])]" 2>/dev/null)
+                set -e
+                
+                if [ ${#MENU_ITEMS[@]} -gt 0 ]; then
+                    SELECTED_INDEX=$(whiptail --title "Select County" --menu "Found ${MATCH_COUNT} matching counties. Select one:" 20 75 10 "${MENU_ITEMS[@]}" 3>&1 1>&2 2>&3)
+                    
+                    if [ $? = 0 ] && [ -n "$SELECTED_INDEX" ]; then
+                        # Get the FIPS code for the selected county
+                        set +e
+                        FIPS_CODES=$(echo "$LOOKUP_RESULT" | python3 -c "import sys, json; data=json.load(sys.stdin); matches=data.get('matches', []); print(matches[int('$SELECTED_INDEX')]['fips'] if int('$SELECTED_INDEX') < len(matches) else '')" 2>/dev/null)
+                        PARSE_EXIT=$?
+                        set -e
+                        
+                        if [ $PARSE_EXIT -eq 0 ] && [ -n "$FIPS_CODES" ]; then
+                            echo_success "FIPS code selected: ${BOLD}$FIPS_CODES${NC}"
+                            
+                            # Ask if they want to add more
+                            if whiptail --title "Add More FIPS Codes?" --yesno "FIPS code $FIPS_CODES selected.\n\nDo you want to add additional FIPS codes for neighboring counties?" 12 70; then
+                                ADDITIONAL=$(whiptail --title "Additional FIPS Codes" --inputbox "Enter additional FIPS codes (comma-separated):\n\nCurrent: $FIPS_CODES" 12 70 3>&1 1>&2 2>&3)
+                                if [ $? = 0 ] && [ -n "$ADDITIONAL" ]; then
+                                    FIPS_CODES="$FIPS_CODES,$ADDITIONAL"
+                                    echo_success "Added additional FIPS codes"
+                                fi
+                            fi
+                        else
+                            echo_warning "Failed to extract FIPS code from selection"
+                            # Fallback to manual entry
+                            if whiptail --title "Manual Entry" --yesno "FIPS lookup had an issue. Would you like to enter FIPS codes manually instead?" 10 70; then
+                                FIPS_CODES=$(whiptail --title "FIPS Codes" --inputbox "Enter FIPS codes (comma-separated):\n\nExample: 039001,039003,039005" 12 70 3>&1 1>&2 2>&3)
+                                if [ $? = 0 ] && [ -n "$FIPS_CODES" ]; then
+                                    echo_success "FIPS codes: ${BOLD}$FIPS_CODES${NC}"
+                                else
+                                    FIPS_CODES=""
+                                    echo_info "No FIPS codes specified"
+                                fi
+                            else
+                                FIPS_CODES=""
+                                echo_info "No FIPS codes specified"
+                            fi
+                        fi
+                    else
+                        FIPS_CODES=""
+                        echo_info "No county selected"
+                    fi
+                else
+                    echo_warning "No valid matches found for '$COUNTY_NAME' in $STATE_CODE"
+                    # Offer manual entry
+                    if whiptail --title "No Matches" --yesno "No matching counties found.\n\nWould you like to enter FIPS codes manually?" 10 70; then
+                        FIPS_CODES=$(whiptail --title "FIPS Codes" --inputbox "Enter FIPS codes (comma-separated):\n\nExample: 039001,039003,039005" 12 70 3>&1 1>&2 2>&3)
+                        if [ $? = 0 ] && [ -n "$FIPS_CODES" ]; then
+                            echo_success "FIPS codes: ${BOLD}$FIPS_CODES${NC}"
+                        else
+                            FIPS_CODES=""
+                            echo_info "No FIPS codes specified"
+                        fi
+                    else
+                        FIPS_CODES=""
+                        echo_info "No FIPS codes specified"
+                    fi
+                fi
+            else
+                echo_warning "No matches found for '$COUNTY_NAME' in $STATE_CODE"
+                # Offer manual entry
+                if whiptail --title "No Matches" --yesno "No matching counties found.\n\nWould you like to enter FIPS codes manually?" 10 70; then
+                    FIPS_CODES=$(whiptail --title "FIPS Codes" --inputbox "Enter FIPS codes (comma-separated):\n\nExample: 039001,039003,039005" 12 70 3>&1 1>&2 2>&3)
+                    if [ $? = 0 ] && [ -n "$FIPS_CODES" ]; then
+                        echo_success "FIPS codes: ${BOLD}$FIPS_CODES${NC}"
+                    else
+                        FIPS_CODES=""
+                        echo_info "No FIPS codes specified"
+                    fi
+                else
+                    FIPS_CODES=""
+                    echo_info "No FIPS codes specified"
+                fi
+            fi
+        else
+            # Lookup failed or not available yet, fall back to manual entry
+            if [ -n "$LOOKUP_ERROR" ]; then
+                echo_warning "FIPS lookup not available: $LOOKUP_ERROR"
+            else
+                echo_warning "FIPS lookup encountered an error"
+            fi
+            
+            if whiptail --title "FIPS Lookup Unavailable" --yesno "FIPS code lookup is not yet available (Python environment is being set up during installation).\n\nWould you like to:\n• Enter FIPS codes manually now\n• Skip and use the web interface after installation" 14 75 --yes-button "Manual Entry" --no-button "Skip"; then
+                FIPS_CODES=$(whiptail --title "FIPS Codes" --inputbox "Enter FIPS codes manually (comma-separated):\n\nExample: 039001,039003,039005\n\nNote: Full FIPS lookup will be available in the web interface at /setup after installation." 14 70 3>&1 1>&2 2>&3)
+                
+                if [ $? = 0 ] && [ -n "$FIPS_CODES" ]; then
+                    echo_success "FIPS codes: ${BOLD}$FIPS_CODES${NC}"
+                else
+                    FIPS_CODES=""
+                    echo_info "No FIPS codes specified"
+                fi
+            else
+                FIPS_CODES=""
+                echo_info "FIPS codes skipped - configure via web interface after installation"
+            fi
+        fi
+    else
+        # Manual entry
+        FIPS_CODES=$(whiptail --title "FIPS Codes" --inputbox "Enter FIPS codes (comma-separated):\n\nExample: 039001,039003,039005\n\nYou can look up FIPS codes at:\nhttps://transition.fcc.gov/pshs/services/eas/" 14 70 3>&1 1>&2 2>&3)
+        
+        if [ $? = 0 ] && [ -n "$FIPS_CODES" ]; then
+            echo_success "FIPS codes: ${BOLD}$FIPS_CODES${NC}"
+        else
+            FIPS_CODES=""
+            echo_info "No FIPS codes specified"
+        fi
     fi
 else
     FIPS_CODES=""
     echo_info "Skipping FIPS code configuration"
+fi
+
+# Optional: Derive zone codes from FIPS codes
+ZONE_CODES=""
+if [ -n "$FIPS_CODES" ]; then
+    if whiptail --title "NWS Zone Codes" --yesno "Would you like to automatically derive NWS zone codes from your FIPS codes?\n\nZone codes are used for weather alert filtering.\n\nFIPS codes: $FIPS_CODES" 13 75; then
+        echo_progress "Deriving NWS zone codes from FIPS codes..."
+        
+        # Try to derive zone codes using helper script
+        ZONE_RESULT=""
+        ZONE_ERROR=""
+        
+        # Disable exit on error temporarily
+        set +e
+        
+        if [ -f "$INSTALL_DIR/venv/bin/python" ]; then
+            # Convert comma-separated FIPS to space-separated for script args
+            FIPS_ARGS=$(echo "$FIPS_CODES" | tr ',' ' ')
+            ZONE_RESULT=$("$INSTALL_DIR/venv/bin/python" "$INSTALL_DIR/scripts/zone_derive_helper.py" $FIPS_ARGS 2>&1)
+            ZONE_EXIT=$?
+        elif [ -f "$VENV_DIR/bin/python" ]; then
+            FIPS_ARGS=$(echo "$FIPS_CODES" | tr ',' ' ')
+            ZONE_RESULT=$("$VENV_DIR/bin/python" "$INSTALL_DIR/scripts/zone_derive_helper.py" $FIPS_ARGS 2>&1)
+            ZONE_EXIT=$?
+        else
+            ZONE_EXIT=1
+            ZONE_ERROR="Python environment not yet available"
+        fi
+        
+        # Re-enable exit on error
+        set -e
+        
+        if [ $ZONE_EXIT -eq 0 ] && [ -n "$ZONE_RESULT" ] && echo "$ZONE_RESULT" | grep -q "zone_codes"; then
+            # Safely parse zone codes
+            set +e
+            ZONE_CODES=$(echo "$ZONE_RESULT" | python3 -c "import sys, json; data=json.load(sys.stdin); print(','.join(data.get('zone_codes', [])))" 2>/dev/null)
+            ZONE_COUNT=$(echo "$ZONE_RESULT" | python3 -c "import sys, json; data=json.load(sys.stdin); print(data.get('count', 0))" 2>/dev/null)
+            PARSE_EXIT=$?
+            set -e
+            
+            if [ $PARSE_EXIT -eq 0 ] && [ -n "$ZONE_CODES" ] && [ "$ZONE_COUNT" -gt 0 ]; then
+                echo_success "Derived ${BOLD}$ZONE_COUNT${NC} zone code(s): ${BOLD}$ZONE_CODES${NC}"
+                whiptail --title "Zone Codes Derived" --msgbox "Successfully derived $ZONE_COUNT NWS zone code(s):\n\n$ZONE_CODES\n\nThese will be saved to your configuration." 14 75
+            else
+                echo_warning "No zone codes could be derived from the provided FIPS codes"
+                whiptail --title "No Zone Codes" --msgbox "No zone codes could be derived from your FIPS codes.\n\nThis is normal for some counties. You can configure zone codes manually after installation via the web interface at /setup." 13 75
+                ZONE_CODES=""
+            fi
+        else
+            # Zone derivation failed
+            if [ -n "$ZONE_ERROR" ]; then
+                echo_warning "Zone code derivation not available: $ZONE_ERROR"
+            else
+                echo_warning "Zone code derivation encountered an error"
+            fi
+            
+            whiptail --title "Zone Derivation Unavailable" --msgbox "Zone code derivation is not yet available during installation.\n\nDon't worry - you can easily derive zone codes from your FIPS codes after installation using the web interface at /setup.\n\nThe web interface provides an interactive \"Derive Zone Codes\" button." 15 75
+            ZONE_CODES=""
+        fi
+    else
+        echo_info "Skipping zone code derivation"
+        ZONE_CODES=""
+    fi
+else
+    ZONE_CODES=""
 fi
 
 # ====================================================================
@@ -1112,7 +1346,7 @@ DEFAULT_TIMEZONE=$TIMEZONE
 DEFAULT_COUNTY_NAME=$COUNTY_NAME
 DEFAULT_STATE_CODE=$STATE_CODE
 EAS_MANUAL_FIPS_CODES=$FIPS_CODES
-DEFAULT_ZONE_CODES=
+DEFAULT_ZONE_CODES=$ZONE_CODES
 
 # EAS Broadcast Settings
 EAS_BROADCAST_ENABLED=false
