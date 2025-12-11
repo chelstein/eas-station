@@ -23,6 +23,7 @@ This directory preserves Docker-era scripts and tools for:
 - `validate_architecture.sh` - Docker compose validation
 - `validate_installation_docker.py` - Docker Compose deployment validation (use `systemctl status eas-station.target` for bare-metal)
 - `nginx.conf.docker` - Docker-specific nginx configuration (use `config/nginx-eas-station.conf` for bare-metal)
+- `nginx-init-docker.sh` - Docker nginx initialization with Alpine Linux (bare-metal uses native systemd/certbot)
 
 ### Audio Issue Fixes (Docker-era)
 - `fix-audio-squeal.sh` - Audio squeal fix for Docker deployments
