@@ -450,15 +450,12 @@ done
 
 # Prompt for EAS originator code using radio button menu
 EAS_ORIGINATOR=$(whiptail --title "EAS Originator Code" --backtitle "$(whiptail_footer)" --radiolist \
-"Select your EAS Originator Code:\n\nThis identifies the type of EAS station." 20 78 8 \
+"Select your EAS Originator Code:\n\nThis identifies the type of EAS station." 16 78 5 \
     "WXR" "NOAA Weather Radio (recommended)" ON \
     "EAS" "EAS Participant Station" OFF \
     "PEP" "Primary Entry Point Station" OFF \
     "CIV" "Civil Authorities" OFF \
     "WXS" "National Weather Service" OFF \
-    "EAN" "Emergency Action Notification" OFF \
-    "ADM" "Administrative Message" OFF \
-    "RWT" "Required Weekly Test" OFF \
     3>&1 1>&2 2>&3)
 
 exitstatus=$?
@@ -663,7 +660,18 @@ if whiptail --title "FIPS Codes Configuration" --backtitle "$(whiptail_footer)" 
             
             # Build whiptail checklist from counties
             CHECKLIST_ITEMS=()
-            
+
+            # Parse statewide code and add it as first option
+            set +e
+            STATEWIDE_CODE=$(echo "$LOOKUP_RESULT" | python3 -c "import sys, json; data=json.load(sys.stdin); print(data.get('statewide_code', ''))" 2>/dev/null)
+            STATE_NAME=$(echo "$LOOKUP_RESULT" | python3 -c "import sys, json; data=json.load(sys.stdin); print(data.get('state', ''))" 2>/dev/null)
+            set -e
+
+            # Add statewide option first if available
+            if [ -n "$STATEWIDE_CODE" ] && [ "$STATEWIDE_CODE" != "000000" ]; then
+                CHECKLIST_ITEMS+=("$STATEWIDE_CODE" "★ Entire ${STATE_NAME:-$STATE_CODE} (statewide)" "OFF")
+            fi
+
             # Parse counties and build checklist array
             set +e
             while IFS='|' read -r fips_code county_name; do
@@ -781,28 +789,30 @@ ZONE_CODES=""
 if [ -n "$FIPS_CODES" ]; then
     if whiptail --title "NWS Zone Codes" --backtitle "$(whiptail_footer)" --yesno "Would you like to automatically derive NWS zone codes from your FIPS codes?\n\nZone codes are used for weather alert filtering.\n\nFIPS codes: $FIPS_CODES" 13 78; then
         echo_progress "Deriving NWS zone codes from FIPS codes..."
-        
+
         # Try to derive zone codes using helper script
         ZONE_RESULT=""
         ZONE_ERROR=""
-        
+
         # Disable exit on error temporarily
         set +e
-        
-        if [ -f "$INSTALL_DIR/venv/bin/python" ]; then
+
+        # Use system Python with SCRIPT_DIR since files aren't copied to INSTALL_DIR yet
+        # The helper script is designed to work without Flask/SQLAlchemy dependencies
+        if [ -f "$SCRIPT_DIR/scripts/zone_derive_helper.py" ] && command -v python3 &> /dev/null; then
             # Convert comma-separated FIPS to space-separated for script args
             FIPS_ARGS=$(echo "$FIPS_CODES" | tr ',' ' ')
-            ZONE_RESULT=$("$INSTALL_DIR/venv/bin/python" "$INSTALL_DIR/scripts/zone_derive_helper.py" $FIPS_ARGS 2>&1)
-            ZONE_EXIT=$?
-        elif [ -f "$VENV_DIR/bin/python" ]; then
-            FIPS_ARGS=$(echo "$FIPS_CODES" | tr ',' ' ')
-            ZONE_RESULT=$("$VENV_DIR/bin/python" "$INSTALL_DIR/scripts/zone_derive_helper.py" $FIPS_ARGS 2>&1)
+            ZONE_RESULT=$(python3 "$SCRIPT_DIR/scripts/zone_derive_helper.py" $FIPS_ARGS 2>&1)
             ZONE_EXIT=$?
         else
             ZONE_EXIT=1
-            ZONE_ERROR="Python environment not yet available"
+            if [ ! -f "$SCRIPT_DIR/scripts/zone_derive_helper.py" ]; then
+                ZONE_ERROR="Zone derivation helper script not found at $SCRIPT_DIR/scripts/"
+            else
+                ZONE_ERROR="Python 3 not available"
+            fi
         fi
-        
+
         # Re-enable exit on error
         set -e
         
