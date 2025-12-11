@@ -127,8 +127,9 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Load environment variables early
-_docker_icecast_password = os.environ.get('ICECAST_SOURCE_PASSWORD')
-_docker_icecast_enabled = os.environ.get('ICECAST_ENABLED')
+# Preserve Icecast config from environment before loading .env file
+_icecast_password = os.environ.get('ICECAST_SOURCE_PASSWORD')
+_icecast_enabled = os.environ.get('ICECAST_ENABLED')
 
 _config_path = os.environ.get('CONFIG_PATH')
 if _config_path:
@@ -137,11 +138,11 @@ if _config_path:
 else:
     load_dotenv(override=True)
 
-# Restore Icecast auto-config from docker environment if auto-streaming is enabled
-if _docker_icecast_enabled and _docker_icecast_enabled.lower() in ('true', '1', 'yes', 'enabled'):
-    if _docker_icecast_password:
-        os.environ['ICECAST_SOURCE_PASSWORD'] = _docker_icecast_password
-        logger.debug("Preserved Icecast auto-config from docker environment")
+# Restore Icecast auto-config from environment if auto-streaming is enabled
+if _icecast_enabled and _icecast_enabled.lower() in ('true', '1', 'yes', 'enabled'):
+    if _icecast_password:
+        os.environ['ICECAST_SOURCE_PASSWORD'] = _icecast_password
+        logger.debug("Preserved Icecast auto-config from environment")
 
 # =============================================================================
 # APP CONFIGURATION

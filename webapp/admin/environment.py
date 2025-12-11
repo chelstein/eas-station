@@ -232,7 +232,7 @@ ENV_CATEGORIES = {
                 'default': 'admin@example.com',
                 'description': 'Email address for Let\'s Encrypt certificate expiration notifications',
                 'placeholder': 'admin@example.com',
-                'pattern': r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$',
+                'pattern': r'^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$',
                 'title': 'Must be a valid email address',
             },
             {
@@ -255,8 +255,8 @@ ENV_CATEGORIES = {
                 'label': 'Host',
                 'type': 'text',
                 'required': True,
-                'default': 'alerts-db',
-                'description': 'Database server hostname or IP',
+                'default': 'localhost',
+                'description': 'Database server hostname or IP (use localhost for bare metal, alerts-db for Docker)',
             },
             {
                 'key': 'POSTGRES_PORT',
