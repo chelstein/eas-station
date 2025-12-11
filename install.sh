@@ -637,350 +637,9 @@ sudo -u postgres psql -d alerts -c "CREATE EXTENSION IF NOT EXISTS postgis_topol
 
 echo_success "PostgreSQL configured"
 
-# Install and configure pgAdmin 4 (without Apache2)
-echo_info "Installing pgAdmin 4 with Nginx integration..."
-
-# Add pgAdmin repository
-if [ ! -f /etc/apt/sources.list.d/pgadmin4.list ]; then
-    curl -fsS https://www.pgadmin.org/static/packages_pgadmin_org.pub | gpg --dearmor -o /usr/share/keyrings/pgadmin-archive-keyring.gpg
-    echo "deb [signed-by=/usr/share/keyrings/pgadmin-archive-keyring.gpg] https://ftp.postgresql.org/pub/pgadmin/pgadmin4/apt/$(lsb_release -cs) pgadmin4 main" > /etc/apt/sources.list.d/pgadmin4.list
-    apt-get update > /dev/null 2>&1
-fi
-
-# Stop and mask apache2 if it's already installed (before pgAdmin installation)
-if systemctl list-unit-files | grep -q apache2.service; then
-    echo_progress "Removing existing Apache2 installation..."
-    systemctl stop apache2 2>/dev/null || true
-    systemctl disable apache2 2>/dev/null || true
-    systemctl mask apache2 2>/dev/null || true
-    DEBIAN_FRONTEND=noninteractive apt-get remove -y apache2 apache2-bin apache2-data apache2-utils libapache2-mod-wsgi-py3 2>/dev/null || true
-    DEBIAN_FRONTEND=noninteractive apt-get autoremove -y 2>/dev/null || true
-    echo_success "Apache2 removed and masked"
-fi
-
-# Install dependencies needed by pgAdmin
-echo_progress "Installing pgAdmin dependencies..."
-DEBIAN_FRONTEND=noninteractive apt-get install -y python3-typer python3-gunicorn gunicorn > /dev/null 2>&1 || {
-    echo_warning "Failed to install python3-typer from apt, trying pip..."
-    pip3 install typer gunicorn > /dev/null 2>&1
-}
-echo_success "pgAdmin dependencies installed"
-
-# pgAdmin installation strategy:
-# 1. Primary: pip install (no Apache2, clean Python environment)
-# 2. Fallback: apt pgadmin4-desktop (no Apache2 dependency)
-# 3. Last resort: apt pgadmin4-web (Apache2 disabled afterward)
-echo_progress "Preparing for pgAdmin installation..."
-
-# Remove any existing Apache2 blocking preferences that might interfere
-if [ -f /etc/apt/preferences.d/block-apache2 ]; then
-    rm -f /etc/apt/preferences.d/block-apache2
-fi
-
-echo_progress "Installing pgAdmin 4 (this may take a few minutes)..."
-
-# Validate that admin credentials are set (should be set earlier in the script)
-if [ -z "$ADMIN_EMAIL" ] || [ -z "$ADMIN_PASSWORD" ]; then
-    echo_error "Administrator credentials not configured during Step 2 - skipping pgAdmin installation"
-    echo_info "pgAdmin can be installed manually later if needed"
-    SKIP_PGADMIN=true
-else
-    PGADMIN_INSTALLED=false
-    PGADMIN_LOG=$(mktemp)
-    PGADMIN_VENV="/opt/pgadmin4/venv"
-
-    # Strategy 1: pip install (no Apache2, clean install)
-    echo_progress "Installing pgAdmin 4 via pip (no Apache2 dependency)..."
-    echo_info "This may take several minutes..."
-
-    # Install build dependencies
-    apt-get install -y -qq python3-venv python3-dev libpq-dev libffi-dev > /dev/null 2>&1
-
-    # Create venv and install pgadmin4
-    mkdir -p /opt/pgadmin4
-    if python3 -m venv "$PGADMIN_VENV" 2>/dev/null; then
-        # Show progress by not hiding output completely
-        echo_info "Upgrading pip..."
-        "$PGADMIN_VENV/bin/pip" install --upgrade pip > /dev/null 2>&1
-
-        echo_info "Installing pgAdmin4 package (this takes 2-5 minutes)..."
-        if "$PGADMIN_VENV/bin/pip" install pgadmin4 gunicorn 2>&1 | tail -n 5; then
-            # Verify installation - use pip show to find location
-            PGADMIN_LOCATION=$("$PGADMIN_VENV/bin/pip" show pgadmin4 2>/dev/null | grep "Location:" | cut -d' ' -f2)
-            if [ -n "$PGADMIN_LOCATION" ]; then
-                PGADMIN_WEB_DIR="$PGADMIN_LOCATION/pgadmin4"
-                if [ -d "$PGADMIN_WEB_DIR" ]; then
-                    echo_success "pgAdmin 4 installed via pip at $PGADMIN_WEB_DIR"
-                    PGADMIN_INSTALLED=true
-                    PGADMIN_SOURCE="pip"
-                fi
-            fi
-        fi
-    fi
-
-    # Strategy 2: apt fallback
-    if [ "$PGADMIN_INSTALLED" != "true" ]; then
-        echo_info "pip installation failed, trying apt packages..."
-
-        OLD_DEBIAN_FRONTEND="${DEBIAN_FRONTEND:-}"
-        export DEBIAN_FRONTEND=noninteractive
-
-        DEBCONF_TEMP=$(mktemp)
-        chmod 600 "$DEBCONF_TEMP"
-        cat > "$DEBCONF_TEMP" <<EOF
-pgadmin4 pgadmin4/email string ${ADMIN_EMAIL}
-pgadmin4 pgadmin4/password password ${ADMIN_PASSWORD}
-pgadmin4 pgadmin4/password-again password ${ADMIN_PASSWORD}
-EOF
-        debconf-set-selections < "$DEBCONF_TEMP"
-        rm -f "$DEBCONF_TEMP"
-
-        echo_progress "Installing pgAdmin 4 via apt..."
-        if timeout 300 apt-get install -y pgadmin4-web < /dev/null > "$PGADMIN_LOG" 2>&1; then
-            if [ -d /usr/pgadmin4/web ]; then
-                echo_success "pgAdmin 4 installed via apt"
-                PGADMIN_INSTALLED=true
-                PGADMIN_SOURCE="apt"
-                PGADMIN_WEB_DIR="/usr/pgadmin4/web"
-                PGADMIN_VENV="/usr/pgadmin4/venv"
-            fi
-        fi
-
-        if [ -n "$OLD_DEBIAN_FRONTEND" ]; then
-            export DEBIAN_FRONTEND="$OLD_DEBIAN_FRONTEND"
-        else
-            unset DEBIAN_FRONTEND
-        fi
-    fi
-
-    rm -f "$PGADMIN_LOG"
-
-    if [ "$PGADMIN_INSTALLED" != "true" ]; then
-        echo_warning "pgAdmin 4 installation failed"
-        echo_info "You can access PostgreSQL via: sudo -u postgres psql -d alerts"
-        SKIP_PGADMIN=true
-    fi
-fi
-
-# Stop and disable Apache2 if it was installed as a pgAdmin dependency
-# We'll use Nginx as the reverse proxy instead
-if systemctl list-unit-files | grep -q apache2.service; then
-    echo_progress "Stopping and disabling Apache2 (using Nginx instead)..."
-    systemctl stop apache2 2>/dev/null || true
-    systemctl disable apache2 2>/dev/null || true
-    systemctl mask apache2 2>/dev/null || true
-    echo_success "Apache2 disabled (Nginx will be used)"
-fi
-
-# Remove Apache2 block now that installation is complete
-# This allows future manual Apache2 installation if needed
-rm -f /etc/apt/preferences.d/block-apache2
-
-# Configure pgAdmin for WSGI mode (works with Nginx)
-# PGADMIN_WEB_DIR, PGADMIN_VENV, PGADMIN_SOURCE may already be set from installation above
-if [ "$SKIP_PGADMIN" != "true" ] && [ -z "$PGADMIN_WEB_DIR" ]; then
-    # Try to detect pgAdmin location if not set
-    if [ -f "/opt/pgadmin4/venv/bin/pip" ]; then
-        PGADMIN_LOCATION=$("/opt/pgadmin4/venv/bin/pip" show pgadmin4 2>/dev/null | grep "Location:" | cut -d' ' -f2)
-        if [ -n "$PGADMIN_LOCATION" ] && [ -d "$PGADMIN_LOCATION/pgadmin4" ]; then
-            PGADMIN_WEB_DIR="$PGADMIN_LOCATION/pgadmin4"
-            PGADMIN_VENV="/opt/pgadmin4/venv"
-            PGADMIN_SOURCE="pip"
-        fi
-    elif [ -d /usr/pgadmin4/web ]; then
-        PGADMIN_WEB_DIR="/usr/pgadmin4/web"
-        PGADMIN_VENV="/usr/pgadmin4/venv"
-        PGADMIN_SOURCE="apt"
-    fi
-fi
-
-if [ -n "$PGADMIN_WEB_DIR" ]; then
-    echo_info "Configuring pgAdmin 4 for Nginx (source: $PGADMIN_WEB_DIR)..."
-
-    # Create pgAdmin configuration directory
-    mkdir -p /var/lib/pgadmin
-    chown -R www-data:www-data /var/lib/pgadmin
-
-    # Create pgAdmin config_local.py for custom settings
-    cat > "$PGADMIN_WEB_DIR/config_local.py" << 'PGADMIN_CONFIG'
-import os
-
-# Server mode settings
-SERVER_MODE = True
-LOG_FILE = '/var/log/pgadmin/pgadmin4.log'
-SQLITE_PATH = '/var/lib/pgadmin/pgadmin4.db'
-SESSION_DB_PATH = '/var/lib/pgadmin/sessions'
-STORAGE_DIR = '/var/lib/pgadmin/storage'
-
-# Reverse proxy configuration - required when running behind nginx at /pgadmin4/
-# This ensures URLs, redirects, and static assets use the correct path prefix
-APPLICATION_ROOT = '/pgadmin4'
-
-# Security settings
-ENHANCED_COOKIE_PROTECTION = True
-WTF_CSRF_CHECK_DEFAULT = True
-WTF_CSRF_TIME_LIMIT = None
-SESSION_COOKIE_NAME = 'pgadmin4_session'
-
-# Flask settings
-FLASK_APP = 'pgadmin4'
-PGADMIN_CONFIG
-
-    # Create log directory
-    mkdir -p /var/log/pgadmin
-    chown -R www-data:www-data /var/log/pgadmin
-
-    # Create storage directories
-    mkdir -p /var/lib/pgadmin/sessions /var/lib/pgadmin/storage
-    chown -R www-data:www-data /var/lib/pgadmin
-
-    # Use PGADMIN_VENV from installation or detect it
-    if [ -z "$PGADMIN_VENV" ]; then
-        if [ -f "/opt/pgadmin4/venv/bin/python3" ]; then
-            PGADMIN_VENV="/opt/pgadmin4/venv"
-        elif [ -f "/usr/pgadmin4/venv/bin/python3" ]; then
-            PGADMIN_VENV="/usr/pgadmin4/venv"
-        fi
-    fi
-
-    PGADMIN_PYTHON="${PGADMIN_VENV}/bin/python3"
-    PGADMIN_GUNICORN="${PGADMIN_VENV}/bin/gunicorn"
-
-    if [ -z "$PGADMIN_VENV" ] || [ ! -f "$PGADMIN_PYTHON" ]; then
-        echo_warning "pgAdmin virtual environment not found"
-        echo_warning "Attempting to use system python3 (may fail if Flask is not installed)"
-        PGADMIN_PYTHON="python3"
-        PGADMIN_GUNICORN="gunicorn"
-    fi
-
-    # Setup pgAdmin database
-    cd "$PGADMIN_WEB_DIR"
-
-    # Modern pgAdmin 4 uses Click-based CLI requiring the setup-db command
-    # Use environment variables for non-interactive setup
-    echo_progress "Setting up pgAdmin database..."
-    if sudo -u www-data \
-        PGADMIN_SETUP_EMAIL="${ADMIN_EMAIL}" \
-        PGADMIN_SETUP_PASSWORD="${ADMIN_PASSWORD}" \
-        "$PGADMIN_PYTHON" setup.py setup-db 2>/dev/null; then
-        echo_success "pgAdmin database initialized successfully"
-    else
-        echo_warning "pgAdmin database setup failed - pgAdmin may not work correctly"
-        echo_info "You can try running manually: cd $PGADMIN_WEB_DIR && sudo -u www-data $PGADMIN_PYTHON setup.py setup-db"
-    fi
-
-    # Only create systemd service if we have gunicorn available
-    if ! command -v "$PGADMIN_GUNICORN" > /dev/null 2>&1 && [ ! -f "$PGADMIN_GUNICORN" ]; then
-        echo_warning "pgAdmin gunicorn not found"
-        echo_warning "Skipping pgAdmin systemd service creation"
-        echo_info "pgAdmin can be configured manually later if needed"
-    else
-        # Create runtime directory for socket (with tmpfiles.d for persistence across reboots)
-        mkdir -p /run/pgadmin4
-        chown www-data:www-data /run/pgadmin4
-        chmod 755 /run/pgadmin4
-
-        # Create tmpfiles.d config for runtime directory persistence
-        cat > /etc/tmpfiles.d/pgadmin4.conf << 'TMPFILES'
-d /run/pgadmin4 0755 www-data www-data -
-TMPFILES
-
-        # WSGI app name is pgAdmin4:app for both pip and apt installations
-        # (the module is pgAdmin4.py with mixed case in both cases)
-        PGADMIN_WSGI_APP="pgAdmin4:app"
-
-        # Create systemd service for pgAdmin WSGI
-        cat > /etc/systemd/system/pgadmin4.service << PGADMIN_SERVICE
-[Unit]
-Description=pgAdmin 4 WSGI Service
-After=network.target
-
-[Service]
-Type=simple
-User=www-data
-Group=www-data
-RuntimeDirectory=pgadmin4
-RuntimeDirectoryMode=0755
-WorkingDirectory=$PGADMIN_WEB_DIR
-Environment="PYTHONPATH=$PGADMIN_WEB_DIR"
-# NOTE: Must use --workers=1 per pgAdmin documentation to maintain connection affinity
-ExecStart=$PGADMIN_GUNICORN \\
-    --bind unix:/run/pgadmin4/pgadmin4.sock \\
-    --workers=1 \\
-    --threads=25 \\
-    --timeout 300 \\
-    --chdir $PGADMIN_WEB_DIR \\
-    --access-logfile /var/log/pgadmin/access.log \\
-    --error-logfile /var/log/pgadmin/error.log \\
-    $PGADMIN_WSGI_APP
-Restart=always
-RestartSec=10
-
-[Install]
-WantedBy=multi-user.target
-PGADMIN_SERVICE
-
-        # Enable and start pgAdmin service
-        systemctl daemon-reload
-        systemctl enable pgadmin4
-        systemctl start pgadmin4
-
-        echo_success "pgAdmin systemd service created and started"
-    fi
-
-    # Add pgAdmin location to Nginx config (only if gunicorn is available)
-    GUNICORN_AVAILABLE=false
-    if command -v "$PGADMIN_GUNICORN" > /dev/null 2>&1 || [ -f "$PGADMIN_GUNICORN" ]; then
-        GUNICORN_AVAILABLE=true
-    fi
-
-    if [ "$GUNICORN_AVAILABLE" = "true" ] && [ -f /etc/nginx/sites-available/eas-station ]; then
-        # Check if pgAdmin block already exists
-        if ! grep -q "location /pgadmin4" /etc/nginx/sites-available/eas-station; then
-            # Add pgAdmin location block before the closing brace of the HTTPS server block
-            sed -i '/^    # Access and error logs/i \
-    # pgAdmin 4 proxy (WSGI via Gunicorn)\
-    location /pgadmin4/ {\
-        proxy_pass http://unix:/run/pgadmin4/pgadmin4.sock:/;\
-        proxy_set_header Host $host;\
-        proxy_set_header X-Real-IP $remote_addr;\
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\
-        proxy_set_header X-Forwarded-Proto $scheme;\
-        proxy_set_header X-Script-Name /pgadmin4;\
-        proxy_buffering off;\
-        proxy_read_timeout 300s;\
-    }\
-\
-' /etc/nginx/sites-available/eas-station
-
-            # Reload Nginx to apply changes
-            nginx -t && systemctl reload nginx
-            echo_success "pgAdmin 4 configured with Nginx proxy"
-        else
-            # Update existing config if it has the old socket path
-            if grep -q "/var/run/pgadmin4.sock" /etc/nginx/sites-available/eas-station; then
-                sed -i 's|/var/run/pgadmin4.sock|/run/pgadmin4/pgadmin4.sock|g' /etc/nginx/sites-available/eas-station
-                nginx -t && systemctl reload nginx
-                echo_info "Updated pgAdmin nginx socket path"
-            fi
-        fi
-    fi
-
-    if [ "$GUNICORN_AVAILABLE" = "true" ]; then
-        echo_success "pgAdmin 4 installed and running via Nginx"
-        echo_info "Access at: https://localhost/pgadmin4"
-        echo_info "Login with: $ADMIN_EMAIL"
-    else
-        echo_warning "pgAdmin 4 service not available - gunicorn not found"
-    fi
-else
-    if [ "$SKIP_PGADMIN" != "true" ]; then
-        echo_warning "pgAdmin 4 web directory not found - using command-line access only"
-    fi
-fi
-
-# Command-line access alternative
-echo_info "Direct database access: ${BOLD}sudo -u postgres psql -d alerts${NC}"
+# Command-line database access
+echo ""
+echo_info "Database access available via: ${BOLD}sudo -u postgres psql -d alerts${NC}"
 echo ""
 
 
@@ -1154,7 +813,7 @@ if command -v ufw &> /dev/null; then
     fi
     
     # Allow PostgreSQL (port 5432) for remote database access (optional, commented by default)
-    # Uncomment if you need remote database access for IDE/pgAdmin
+    # Uncomment if you need remote database access for IDE tools like DataGrip, DBeaver, etc.
     # echo_progress "Allowing PostgreSQL (port 5432)..."
     # ufw allow 5432/tcp > /dev/null 2>&1
     # echo_success "PostgreSQL access allowed"
@@ -1397,7 +1056,7 @@ echo -e "    Password: ${BOLD}(the password you entered)${NC}"
 echo ""
 
 echo -e "${BOLD}${CYAN}═══════════════════════════════════════════════════════════════════════${NC}"
-echo -e "${BOLD}${WHITE}  🔑 DATABASE CREDENTIALS (For IDE/pgAdmin)${NC}"
+echo -e "${BOLD}${WHITE}  🔑 DATABASE CREDENTIALS (For IDE Tools)${NC}"
 echo -e "${BOLD}${CYAN}═══════════════════════════════════════════════════════════════════════${NC}"
 echo ""
 echo -e "  ${BOLD}${MAGENTA}PostgreSQL Connection Details:${NC}"
@@ -1412,8 +1071,7 @@ echo -e "      These credentials are ${BOLD}only shown once during installation$
 echo -e "      The password is ${BOLD}also saved${NC} in: ${BOLD}$CONFIG_FILE${NC}"
 echo ""
 echo -e "  ${GREEN}💡${NC} ${BOLD}Use these credentials in:${NC}"
-echo -e "      • pgAdmin 4 (if installed): ${BOLD}https://${PRIMARY_IP}/pgadmin${NC}"
-echo -e "      • Database IDE tools (DataGrip, DBeaver, etc.)"
+echo -e "      • Database IDE tools (DataGrip, DBeaver, Postico, etc.)"
 echo -e "      • psql command line: ${BOLD}psql -h localhost -U eas_station -d alerts${NC}"
 echo ""
 echo -e "  ${DIM}To view your password later, run:${NC}"
@@ -1467,19 +1125,10 @@ echo -e "    Username: ${BOLD}$ADMIN_USERNAME${NC}"
 echo -e "    Password: ${BOLD}(your admin password)${NC}"
 echo -e "    Purpose:  Configure alerts, view status, manage settings"
 echo ""
-if [ "$SKIP_PGADMIN" != "true" ]; then
-echo -e "  ${BOLD}${MAGENTA}pgAdmin 4 (Database Management GUI):${NC}"
-echo -e "    URL:      ${BOLD}${GREEN}https://${PRIMARY_IP}/pgadmin${NC}"
-echo -e "    Username: ${BOLD}$ADMIN_EMAIL${NC}"
-echo -e "    Password: ${BOLD}(your admin password)${NC}"
-echo -e "    Purpose:  Visual database management, query builder, schema editor"
-echo -e "    ${GREEN}💡${NC} Add server: Use PostgreSQL credentials shown above"
-echo ""
-fi
-echo -e "  ${BOLD}${MAGENTA}PostgreSQL Database (Direct Command Line):${NC}"
+echo -e "  ${BOLD}${MAGENTA}PostgreSQL Database (Command Line Access):${NC}"
 echo -e "    Command:  ${BOLD}sudo -u postgres psql -d alerts${NC}"
 echo -e "    Or:       ${BOLD}psql -h localhost -U eas_station -d alerts${NC}"
-echo -e "              ${DIM}(Enter password when prompted: see above)${NC}"
+echo -e "              ${DIM}(Enter password when prompted: see credentials above)${NC}"
 echo -e "    Purpose:  Direct SQL queries, database administration"
 echo ""
 echo -e "  ${BOLD}${MAGENTA}Redis Cache (Command Line):${NC}"
