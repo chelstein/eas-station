@@ -73,9 +73,11 @@ def call_hardware_service(endpoint, method='GET', data=None):
             'error': 'Cannot connect to hardware service. Check if hardware service process is running.'
         }
     except Exception as e:
+        import logging
+        logging.getLogger(__name__).error(f"Hardware service request failed: {e}")
         return {
             'success': False,
-            'error': str(e)
+            'error': 'Hardware service request failed'
         }
 
 

@@ -173,29 +173,31 @@ class BroadcastQueue:
             Returns 0.0 if no subscribers or max_queue_size is 0.
         """
         with self._lock:
-            if not self._subscribers or self.max_queue_size == 0:
+            if not self._subscribers or self.max_queue_size <= 0:
                 return 0.0
-            
+
             total_utilization = 0.0
             for subscriber_queue in self._subscribers.values():
                 # Calculate utilization for this subscriber's queue
                 utilization = subscriber_queue.qsize() / self.max_queue_size
                 total_utilization += utilization
-            
-            return total_utilization / len(self._subscribers)
+
+            subscriber_count = len(self._subscribers)
+            return total_utilization / subscriber_count if subscriber_count > 0 else 0.0
     
     def get_stats(self) -> dict:
         """Get broadcast queue statistics."""
         with self._lock:
             # Calculate average utilization inline to avoid lock re-entry
-            if not self._subscribers or self.max_queue_size == 0:
+            if not self._subscribers or self.max_queue_size <= 0:
                 avg_utilization = 0.0
             else:
                 total_utilization = 0.0
                 for subscriber_queue in self._subscribers.values():
                     utilization = subscriber_queue.qsize() / self.max_queue_size
                     total_utilization += utilization
-                avg_utilization = total_utilization / len(self._subscribers)
+                subscriber_count = len(self._subscribers)
+                avg_utilization = total_utilization / subscriber_count if subscriber_count > 0 else 0.0
 
             return {
                 "name": self.name,

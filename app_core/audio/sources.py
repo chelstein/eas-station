@@ -937,6 +937,7 @@ class StreamSourceAdapter(AudioSourceAdapter):
                     process.wait(timeout=2)
                 except subprocess.TimeoutExpired:
                     process.kill()
+                    process.wait()  # Reap the zombie process after kill
         finally:
             if process.stdout is not None:
                 try:
