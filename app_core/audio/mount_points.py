@@ -28,13 +28,8 @@ generation and URL construction. ALL mount point logic must go through here.
 
 import re
 from typing import Optional
-from enum import Enum
 
-
-class StreamFormat(Enum):
-    """Supported streaming formats."""
-    MP3 = "mp3"
-    OGG = "ogg"
+from .stream_profiles import StreamFormat
 
 
 def sanitize_mount_name(source_name: str) -> str:

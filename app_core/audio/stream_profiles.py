@@ -74,6 +74,7 @@ class StreamFormat(Enum):
     """Supported streaming formats."""
     MP3 = "mp3"
     OGG_VORBIS = "ogg"
+    OGG = "ogg"  # Alias for OGG_VORBIS
     OPUS = "opus"
     AAC = "aac"
 

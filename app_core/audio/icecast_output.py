@@ -41,13 +41,14 @@ import threading
 import time
 import traceback
 from dataclasses import dataclass
-from enum import Enum
 from typing import Any, Dict, Optional, Tuple
 from urllib.parse import quote, unquote
 
 import numpy as np
 import requests
 from requests import exceptions as requests_exceptions
+
+from .stream_profiles import StreamFormat
 
 logger = logging.getLogger(__name__)
 
@@ -57,12 +58,6 @@ ICECAST_RESTART_DELAY = 5.0
 # Metadata update retry configuration
 METADATA_UPDATE_MAX_RETRIES = 3  # Maximum number of retry attempts for metadata updates
 METADATA_UPDATE_RETRY_DELAY = 2.0  # Initial delay between retries in seconds (with exponential backoff)
-
-
-class StreamFormat(Enum):
-    """Supported streaming formats."""
-    MP3 = "mp3"
-    OGG = "ogg"
 
 
 @dataclass
