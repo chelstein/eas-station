@@ -715,6 +715,16 @@ PGADMIN_CONFIG
         echo_warning "Skipping pgAdmin systemd service creation"
         echo_info "pgAdmin can be configured manually later if needed"
     else
+        # Create runtime directory for socket (with tmpfiles.d for persistence across reboots)
+        mkdir -p /run/pgadmin4
+        chown www-data:www-data /run/pgadmin4
+        chmod 755 /run/pgadmin4
+
+        # Create tmpfiles.d config for runtime directory persistence
+        cat > /etc/tmpfiles.d/pgadmin4.conf << 'TMPFILES'
+d /run/pgadmin4 0755 www-data www-data -
+TMPFILES
+
         # Create systemd service for pgAdmin WSGI
         # Use heredoc with variable expansion for dynamic paths
         cat > /etc/systemd/system/pgadmin4.service << PGADMIN_SERVICE
@@ -726,17 +736,20 @@ After=network.target
 Type=simple
 User=www-data
 Group=www-data
+RuntimeDirectory=pgadmin4
+RuntimeDirectoryMode=0755
 WorkingDirectory=$PGADMIN_WEB_DIR
 Environment="PYTHONPATH=$PGADMIN_WEB_DIR"
 # NOTE: Must use --workers=1 per pgAdmin documentation to maintain connection affinity
 ExecStart=$PGADMIN_GUNICORN \\
-    --bind unix:/var/run/pgadmin4.sock \\
+    --bind unix:/run/pgadmin4/pgadmin4.sock \\
     --workers=1 \\
     --threads=25 \\
     --timeout 300 \\
+    --chdir $PGADMIN_WEB_DIR \\
     --access-logfile /var/log/pgadmin/access.log \\
     --error-logfile /var/log/pgadmin/error.log \\
-    pgadmin4:app
+    'pgAdmin4:app'
 Restart=always
 RestartSec=10
 
@@ -765,7 +778,7 @@ PGADMIN_SERVICE
             sed -i '/^    # Access and error logs/i \
     # pgAdmin 4 proxy (WSGI via Gunicorn)\
     location /pgadmin4/ {\
-        proxy_pass http://unix:/var/run/pgadmin4.sock:/;\
+        proxy_pass http://unix:/run/pgadmin4/pgadmin4.sock:/;\
         proxy_set_header Host $host;\
         proxy_set_header X-Real-IP $remote_addr;\
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\
@@ -780,6 +793,13 @@ PGADMIN_SERVICE
             # Reload Nginx to apply changes
             nginx -t && systemctl reload nginx
             echo_success "pgAdmin 4 configured with Nginx proxy"
+        else
+            # Update existing config if it has the old socket path
+            if grep -q "/var/run/pgadmin4.sock" /etc/nginx/sites-available/eas-station; then
+                sed -i 's|/var/run/pgadmin4.sock|/run/pgadmin4/pgadmin4.sock|g' /etc/nginx/sites-available/eas-station
+                nginx -t && systemctl reload nginx
+                echo_info "Updated pgAdmin nginx socket path"
+            fi
         fi
     fi
 
