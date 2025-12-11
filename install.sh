@@ -517,10 +517,15 @@ DEBIAN_FRONTEND=noninteractive apt-get install -y python3-typer python3-gunicorn
 }
 echo_success "pgAdmin dependencies installed"
 
-# Temporarily remove Apache2 block to allow pgAdmin installation
+# Block Apache2 packages to prevent them from being installed as dependencies
 # (pgadmin4-web has apache2 as a dependency, but we won't actually use it)
 echo_progress "Preparing for pgAdmin installation..."
-rm -f /etc/apt/preferences.d/block-apache2
+cat > /etc/apt/preferences.d/block-apache2 << 'APT_PREFS'
+Package: apache2 apache2-bin apache2-data apache2-utils libapache2-mod-wsgi-py3
+Pin: version *
+Pin-Priority: -1
+APT_PREFS
+echo_success "Apache2 packages blocked during installation"
 
 # Install pgadmin4-desktop (no Apache2 dependency) and pgadmin4-web (Python files only, apache2 blocked)
 echo_progress "Installing pgAdmin 4 packages (this may take a few minutes)..."
@@ -614,8 +619,12 @@ if systemctl list-unit-files | grep -q apache2.service; then
     echo_success "Apache2 disabled (Nginx will be used)"
 fi
 
+# Remove Apache2 block now that installation is complete
+# This allows future manual Apache2 installation if needed
+rm -f /etc/apt/preferences.d/block-apache2
+
 # Configure pgAdmin for WSGI mode (works with Nginx)
-if [ "$SKIP_PGADMIN" != "true" ] && [ -f /usr/pgadmin4/web/config.py ] || [ -f /usr/pgadmin4/web/config_distro.py ]; then
+if [ "$SKIP_PGADMIN" != "true" ] && { [ -f /usr/pgadmin4/web/config.py ] || [ -f /usr/pgadmin4/web/config_distro.py ]; }; then
     echo_info "Configuring pgAdmin 4 for Nginx..."
     
     # Create pgAdmin configuration directory
@@ -690,9 +699,11 @@ Group=www-data
 WorkingDirectory=/usr/pgadmin4/web
 Environment="PYTHONPATH=/usr/pgadmin4/web"
 # Use pgAdmin's virtual environment gunicorn which has all dependencies
+# NOTE: Must use --workers=1 per pgAdmin documentation to maintain connection affinity
 ExecStart=/usr/pgadmin4/venv/bin/gunicorn \
     --bind unix:/var/run/pgadmin4.sock \
-    --workers 2 \
+    --workers=1 \
+    --threads=25 \
     --timeout 300 \
     --access-logfile /var/log/pgadmin/access.log \
     --error-logfile /var/log/pgadmin/error.log \
