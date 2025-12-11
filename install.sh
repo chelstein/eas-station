@@ -19,15 +19,12 @@ NC='\033[0m' # No Color
 
 # Step counter for progress tracking
 STEP_NUM=0
-TOTAL_STEPS=16
+# NOTE: Update TOTAL_STEPS when adding/removing installation steps
+TOTAL_STEPS=17
 
 echo_step() {
     STEP_NUM=$((STEP_NUM + 1))
-    echo ""
-    echo -e "${BOLD}${CYAN}════════════════════════════════════════════════════════════════${NC}"
-    echo -e "${BOLD}${WHITE}  Step ${STEP_NUM}/${TOTAL_STEPS}: $1${NC}"
-    echo -e "${BOLD}${CYAN}════════════════════════════════════════════════════════════════${NC}"
-    echo ""
+    show_step_progress "$STEP_NUM" "$TOTAL_STEPS" "$1"
 }
 
 echo_info() {
@@ -58,16 +55,89 @@ echo_header() {
     echo ""
 }
 
+# Progress bar function
+show_progress_bar() {
+    local current=$1
+    local total=$2
+    local width=50
+    local percentage=$((current * 100 / total))
+    local filled=$((current * width / total))
+    local empty=$((width - filled))
+    
+    printf "\r${CYAN}["
+    printf "%${filled}s" | tr ' ' '█'
+    printf "%${empty}s" | tr ' ' '░'
+    printf "]${NC} ${BOLD}${percentage}%%${NC} ${WHITE}($current/$total)${NC}"
+    
+    if [ "$current" -eq "$total" ]; then
+        echo ""
+    fi
+}
+
+# Animated spinner for long operations
+show_spinner() {
+    local pid=$1
+    local delay=0.1
+    local spinstr='⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏'
+    while ps -p $pid > /dev/null 2>&1; do
+        local temp=${spinstr#?}
+        printf " ${CYAN}[%c]${NC}  " "$spinstr"
+        local spinstr=$temp${spinstr%"$temp"}
+        sleep $delay
+        printf "\b\b\b\b\b\b"
+    done
+    printf "    \b\b\b\b"
+}
+
+# Box drawing for important information
+draw_box() {
+    local text="$1"
+    local width=66
+    echo ""
+    echo -e "${BOLD}${GREEN}┌$(printf '─%.0s' $(seq 1 $width))┐${NC}"
+    echo -e "${BOLD}${GREEN}│${NC} ${BOLD}${WHITE}${text}$(printf ' %.0s' $(seq 1 $((width - ${#text}))))${NC}${BOLD}${GREEN}│${NC}"
+    echo -e "${BOLD}${GREEN}└$(printf '─%.0s' $(seq 1 $width))┘${NC}"
+    echo ""
+}
+
+# Display a visual step indicator with progress
+show_step_progress() {
+    local step=$1
+    local total=$2
+    local desc="$3"
+    local width=60
+    
+    echo ""
+    echo -e "${BOLD}${CYAN}╔═══════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${BOLD}${CYAN}║${NC} ${BOLD}${WHITE}Step $step of $total${NC}$(printf ' %.0s' $(seq 1 $((width - 13 - ${#step} - ${#total}))))${BOLD}${CYAN}║${NC}"
+    echo -e "${BOLD}${CYAN}║${NC} ${CYAN}$desc${NC}$(printf ' %.0s' $(seq 1 $((width - ${#desc}))))${BOLD}${CYAN}║${NC}"
+    echo -e "${BOLD}${CYAN}╚═══════════════════════════════════════════════════════════════╝${NC}"
+    
+    # Show mini progress bar
+    local filled=$((step * 50 / total))
+    local empty=$((50 - filled))
+    printf "  ${CYAN}["
+    printf "%${filled}s" | tr ' ' '█'
+    printf "%${empty}s" | tr ' ' '░'
+    printf "]${NC}\n\n"
+}
+
 # Display installation banner
 clear
 echo -e "${BOLD}${CYAN}"
 cat << "EOF"
 ╔═══════════════════════════════════════════════════════════════════════╗
 ║                                                                       ║
-║              📡  EAS STATION INSTALLATION WIZARD  📡                  ║
+║   ███████╗ █████╗ ███████╗    ███████╗████████╗ █████╗ ████████╗   ║
+║   ██╔════╝██╔══██╗██╔════╝    ██╔════╝╚══██╔══╝██╔══██╗╚══██╔══╝   ║
+║   █████╗  ███████║███████╗    ███████╗   ██║   ███████║   ██║      ║
+║   ██╔══╝  ██╔══██║╚════██║    ╚════██║   ██║   ██╔══██║   ██║      ║
+║   ███████╗██║  ██║███████║    ███████║   ██║   ██║  ██║   ██║      ║
+║   ╚══════╝╚═╝  ╚═╝╚══════╝    ╚══════╝   ╚═╝   ╚═╝  ╚═╝   ╚═╝      ║
 ║                                                                       ║
-║           Emergency Alert System Monitoring & Broadcasting           ║
-║                     Bare Metal Installation                           ║
+║             📡  Emergency Alert System Installation  📡              ║
+║                                                                       ║
+║           Monitoring & Broadcasting • Bare Metal Setup               ║
 ║                                                                       ║
 ╚═══════════════════════════════════════════════════════════════════════╝
 EOF
@@ -86,8 +156,7 @@ if [ "$EUID" -ne 0 ]; then
     exit 1
 fi
 
-echo_success "Running with root privileges"
-echo ""
+draw_box "✓  Root privileges confirmed - Installation ready to begin"
 
 # Configuration variables
 INSTALL_DIR="/opt/eas-station"
@@ -216,6 +285,156 @@ done
 
 echo ""
 echo_success "Administrator account configured"
+
+# ====================================================================
+# SYSTEM AND EAS STATION CONFIGURATION
+# ====================================================================
+
+echo_step "System and EAS Station Configuration"
+
+echo -e "${WHITE}Configure your system hostname, domain, and EAS station identification.${NC}"
+echo ""
+
+# Prompt for system hostname
+CURRENT_HOSTNAME=$(hostname 2>/dev/null || echo "eas-station")
+while true; do
+    echo -ne "${CYAN}System hostname${NC} [${BOLD}$CURRENT_HOSTNAME${NC}]: "
+    read SYSTEM_HOSTNAME
+    
+    # Use current hostname if user presses enter without input
+    if [ -z "$SYSTEM_HOSTNAME" ]; then
+        SYSTEM_HOSTNAME="$CURRENT_HOSTNAME"
+    fi
+    
+    # Trim whitespace
+    SYSTEM_HOSTNAME=$(echo "$SYSTEM_HOSTNAME" | xargs)
+    
+    # Validate hostname format (alphanumeric, hyphens, dots)
+    if ! [[ "$SYSTEM_HOSTNAME" =~ ^[a-zA-Z0-9]([a-zA-Z0-9.-]*[a-zA-Z0-9])?$ ]]; then
+        echo_error "Invalid hostname format. Use only letters, numbers, hyphens, and dots"
+        continue
+    fi
+    
+    echo_success "Hostname: ${BOLD}$SYSTEM_HOSTNAME${NC}"
+    break
+done
+
+echo ""
+
+# Prompt for domain name (for SSL/nginx)
+while true; do
+    echo -ne "${CYAN}Domain name for SSL/web access${NC} [${BOLD}localhost${NC}]: "
+    read DOMAIN_NAME
+    
+    # Default to localhost if user presses enter
+    if [ -z "$DOMAIN_NAME" ]; then
+        DOMAIN_NAME="localhost"
+    fi
+    
+    # Trim whitespace
+    DOMAIN_NAME=$(echo "$DOMAIN_NAME" | xargs)
+    
+    # Validate domain format (allow localhost, IP addresses, and domain names)
+    if [[ "$DOMAIN_NAME" == "localhost" ]]; then
+        echo_success "Domain: ${BOLD}$DOMAIN_NAME${NC}"
+        break
+    # Validate IP address with proper octet range (0-255)
+    elif [[ "$DOMAIN_NAME" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        IFS='.' read -ra OCTETS <<< "$DOMAIN_NAME"
+        VALID_IP=true
+        for octet in "${OCTETS[@]}"; do
+            # Verify octet is numeric and in valid range
+            if ! [[ "$octet" =~ ^[0-9]+$ ]] || [ "$octet" -lt 0 ] || [ "$octet" -gt 255 ]; then
+                VALID_IP=false
+                break
+            fi
+        done
+        if [ "$VALID_IP" = true ]; then
+            echo_success "Domain: ${BOLD}$DOMAIN_NAME${NC}"
+            break
+        else
+            echo_error "Invalid IP address. Each octet must be 0-255"
+            continue
+        fi
+    # Validate domain name format
+    elif [[ "$DOMAIN_NAME" =~ ^[a-zA-Z0-9]([a-zA-Z0-9.-]*[a-zA-Z0-9])?$ ]]; then
+        echo_success "Domain: ${BOLD}$DOMAIN_NAME${NC}"
+        break
+    else
+        echo_error "Invalid domain format. Use localhost, an IP address, or a valid domain name"
+        continue
+    fi
+done
+
+echo ""
+
+# Prompt for EAS originator code
+echo -e "${CYAN}EAS Originator Code${NC} (3-letter code identifying who originates alerts)"
+echo -e "${DIM}Common codes: WXR (NOAA Weather Radio), EAS (EAS Participant), PEP (Primary Entry Point)${NC}"
+while true; do
+    echo -ne "${CYAN}EAS Originator${NC} [${BOLD}WXR${NC}]: "
+    read EAS_ORIGINATOR
+    
+    # Default to WXR if user presses enter
+    if [ -z "$EAS_ORIGINATOR" ]; then
+        EAS_ORIGINATOR="WXR"
+    fi
+    
+    # Convert to uppercase and trim whitespace
+    EAS_ORIGINATOR=$(echo "$EAS_ORIGINATOR" | tr '[:lower:]' '[:upper:]' | xargs)
+    
+    # Validate format (exactly 3 uppercase letters)
+    if ! [[ "$EAS_ORIGINATOR" =~ ^[A-Z]{3}$ ]]; then
+        echo_error "EAS Originator must be exactly 3 letters (e.g., WXR, EAS, PEP)"
+        continue
+    fi
+    
+    echo_success "Originator: ${BOLD}$EAS_ORIGINATOR${NC}"
+    break
+done
+
+echo ""
+
+# Prompt for station callsign/ID
+echo -e "${CYAN}Station Callsign/ID${NC} (identifies your EAS station)"
+echo -e "${DIM}Use your FCC callsign if you have one, or a unique identifier (max 8 characters)${NC}"
+echo -e "${DIM}Examples: WKRP, KR8MER, EASNODE1, NOCALL (if testing/no callsign)${NC}"
+while true; do
+    echo -ne "${CYAN}Station Callsign${NC} [${BOLD}NOCALL${NC}]: "
+    read EAS_STATION_ID
+    
+    # Default to NOCALL if user presses enter
+    if [ -z "$EAS_STATION_ID" ]; then
+        EAS_STATION_ID="NOCALL"
+    fi
+    
+    # Convert to uppercase and trim whitespace
+    EAS_STATION_ID=$(echo "$EAS_STATION_ID" | tr '[:lower:]' '[:upper:]' | xargs)
+    
+    # Validate format (1-8 alphanumeric characters)
+    if ! [[ "$EAS_STATION_ID" =~ ^[A-Z0-9]{1,8}$ ]]; then
+        echo_error "Station ID must be 1-8 alphanumeric characters (e.g., WKRP, KR8MER, NOCALL)"
+        continue
+    fi
+    
+    echo_success "Station ID: ${BOLD}$EAS_STATION_ID${NC}"
+    break
+done
+
+echo ""
+echo_success "System and EAS station configuration complete"
+
+# Set system hostname if it changed
+if [ "$SYSTEM_HOSTNAME" != "$CURRENT_HOSTNAME" ]; then
+    echo ""
+    echo_progress "Setting system hostname to: ${BOLD}$SYSTEM_HOSTNAME${NC}"
+    hostnamectl set-hostname "$SYSTEM_HOSTNAME" 2>/dev/null || {
+        echo_warning "Could not set hostname using hostnamectl, trying fallback methods..."
+        echo "$SYSTEM_HOSTNAME" > /etc/hostname
+        hostname "$SYSTEM_HOSTNAME"
+    }
+    echo_success "Hostname set to: ${BOLD}$SYSTEM_HOSTNAME${NC}"
+fi
 
 echo ""
 echo_progress "Generating secure database password..."
@@ -488,350 +707,9 @@ sudo -u postgres psql -d alerts -c "CREATE EXTENSION IF NOT EXISTS postgis_topol
 
 echo_success "PostgreSQL configured"
 
-# Install and configure pgAdmin 4 (without Apache2)
-echo_info "Installing pgAdmin 4 with Nginx integration..."
-
-# Add pgAdmin repository
-if [ ! -f /etc/apt/sources.list.d/pgadmin4.list ]; then
-    curl -fsS https://www.pgadmin.org/static/packages_pgadmin_org.pub | gpg --dearmor -o /usr/share/keyrings/pgadmin-archive-keyring.gpg
-    echo "deb [signed-by=/usr/share/keyrings/pgadmin-archive-keyring.gpg] https://ftp.postgresql.org/pub/pgadmin/pgadmin4/apt/$(lsb_release -cs) pgadmin4 main" > /etc/apt/sources.list.d/pgadmin4.list
-    apt-get update > /dev/null 2>&1
-fi
-
-# Stop and mask apache2 if it's already installed (before pgAdmin installation)
-if systemctl list-unit-files | grep -q apache2.service; then
-    echo_progress "Removing existing Apache2 installation..."
-    systemctl stop apache2 2>/dev/null || true
-    systemctl disable apache2 2>/dev/null || true
-    systemctl mask apache2 2>/dev/null || true
-    DEBIAN_FRONTEND=noninteractive apt-get remove -y apache2 apache2-bin apache2-data apache2-utils libapache2-mod-wsgi-py3 2>/dev/null || true
-    DEBIAN_FRONTEND=noninteractive apt-get autoremove -y 2>/dev/null || true
-    echo_success "Apache2 removed and masked"
-fi
-
-# Install dependencies needed by pgAdmin
-echo_progress "Installing pgAdmin dependencies..."
-DEBIAN_FRONTEND=noninteractive apt-get install -y python3-typer python3-gunicorn gunicorn > /dev/null 2>&1 || {
-    echo_warning "Failed to install python3-typer from apt, trying pip..."
-    pip3 install typer gunicorn > /dev/null 2>&1
-}
-echo_success "pgAdmin dependencies installed"
-
-# pgAdmin installation strategy:
-# 1. Primary: pip install (no Apache2, clean Python environment)
-# 2. Fallback: apt pgadmin4-desktop (no Apache2 dependency)
-# 3. Last resort: apt pgadmin4-web (Apache2 disabled afterward)
-echo_progress "Preparing for pgAdmin installation..."
-
-# Remove any existing Apache2 blocking preferences that might interfere
-if [ -f /etc/apt/preferences.d/block-apache2 ]; then
-    rm -f /etc/apt/preferences.d/block-apache2
-fi
-
-echo_progress "Installing pgAdmin 4 (this may take a few minutes)..."
-
-# Validate that admin credentials are set (should be set earlier in the script)
-if [ -z "$ADMIN_EMAIL" ] || [ -z "$ADMIN_PASSWORD" ]; then
-    echo_error "Administrator credentials not configured during Step 2 - skipping pgAdmin installation"
-    echo_info "pgAdmin can be installed manually later if needed"
-    SKIP_PGADMIN=true
-else
-    PGADMIN_INSTALLED=false
-    PGADMIN_LOG=$(mktemp)
-    PGADMIN_VENV="/opt/pgadmin4/venv"
-
-    # Strategy 1: pip install (no Apache2, clean install)
-    echo_progress "Installing pgAdmin 4 via pip (no Apache2 dependency)..."
-    echo_info "This may take several minutes..."
-
-    # Install build dependencies
-    apt-get install -y -qq python3-venv python3-dev libpq-dev libffi-dev > /dev/null 2>&1
-
-    # Create venv and install pgadmin4
-    mkdir -p /opt/pgadmin4
-    if python3 -m venv "$PGADMIN_VENV" 2>/dev/null; then
-        # Show progress by not hiding output completely
-        echo_info "Upgrading pip..."
-        "$PGADMIN_VENV/bin/pip" install --upgrade pip > /dev/null 2>&1
-
-        echo_info "Installing pgAdmin4 package (this takes 2-5 minutes)..."
-        if "$PGADMIN_VENV/bin/pip" install pgadmin4 gunicorn 2>&1 | tail -n 5; then
-            # Verify installation - use pip show to find location
-            PGADMIN_LOCATION=$("$PGADMIN_VENV/bin/pip" show pgadmin4 2>/dev/null | grep "Location:" | cut -d' ' -f2)
-            if [ -n "$PGADMIN_LOCATION" ]; then
-                PGADMIN_WEB_DIR="$PGADMIN_LOCATION/pgadmin4"
-                if [ -d "$PGADMIN_WEB_DIR" ]; then
-                    echo_success "pgAdmin 4 installed via pip at $PGADMIN_WEB_DIR"
-                    PGADMIN_INSTALLED=true
-                    PGADMIN_SOURCE="pip"
-                fi
-            fi
-        fi
-    fi
-
-    # Strategy 2: apt fallback
-    if [ "$PGADMIN_INSTALLED" != "true" ]; then
-        echo_info "pip installation failed, trying apt packages..."
-
-        OLD_DEBIAN_FRONTEND="${DEBIAN_FRONTEND:-}"
-        export DEBIAN_FRONTEND=noninteractive
-
-        DEBCONF_TEMP=$(mktemp)
-        chmod 600 "$DEBCONF_TEMP"
-        cat > "$DEBCONF_TEMP" <<EOF
-pgadmin4 pgadmin4/email string ${ADMIN_EMAIL}
-pgadmin4 pgadmin4/password password ${ADMIN_PASSWORD}
-pgadmin4 pgadmin4/password-again password ${ADMIN_PASSWORD}
-EOF
-        debconf-set-selections < "$DEBCONF_TEMP"
-        rm -f "$DEBCONF_TEMP"
-
-        echo_progress "Installing pgAdmin 4 via apt..."
-        if timeout 300 apt-get install -y pgadmin4-web < /dev/null > "$PGADMIN_LOG" 2>&1; then
-            if [ -d /usr/pgadmin4/web ]; then
-                echo_success "pgAdmin 4 installed via apt"
-                PGADMIN_INSTALLED=true
-                PGADMIN_SOURCE="apt"
-                PGADMIN_WEB_DIR="/usr/pgadmin4/web"
-                PGADMIN_VENV="/usr/pgadmin4/venv"
-            fi
-        fi
-
-        if [ -n "$OLD_DEBIAN_FRONTEND" ]; then
-            export DEBIAN_FRONTEND="$OLD_DEBIAN_FRONTEND"
-        else
-            unset DEBIAN_FRONTEND
-        fi
-    fi
-
-    rm -f "$PGADMIN_LOG"
-
-    if [ "$PGADMIN_INSTALLED" != "true" ]; then
-        echo_warning "pgAdmin 4 installation failed"
-        echo_info "You can access PostgreSQL via: sudo -u postgres psql -d alerts"
-        SKIP_PGADMIN=true
-    fi
-fi
-
-# Stop and disable Apache2 if it was installed as a pgAdmin dependency
-# We'll use Nginx as the reverse proxy instead
-if systemctl list-unit-files | grep -q apache2.service; then
-    echo_progress "Stopping and disabling Apache2 (using Nginx instead)..."
-    systemctl stop apache2 2>/dev/null || true
-    systemctl disable apache2 2>/dev/null || true
-    systemctl mask apache2 2>/dev/null || true
-    echo_success "Apache2 disabled (Nginx will be used)"
-fi
-
-# Remove Apache2 block now that installation is complete
-# This allows future manual Apache2 installation if needed
-rm -f /etc/apt/preferences.d/block-apache2
-
-# Configure pgAdmin for WSGI mode (works with Nginx)
-# PGADMIN_WEB_DIR, PGADMIN_VENV, PGADMIN_SOURCE may already be set from installation above
-if [ "$SKIP_PGADMIN" != "true" ] && [ -z "$PGADMIN_WEB_DIR" ]; then
-    # Try to detect pgAdmin location if not set
-    if [ -f "/opt/pgadmin4/venv/bin/pip" ]; then
-        PGADMIN_LOCATION=$("/opt/pgadmin4/venv/bin/pip" show pgadmin4 2>/dev/null | grep "Location:" | cut -d' ' -f2)
-        if [ -n "$PGADMIN_LOCATION" ] && [ -d "$PGADMIN_LOCATION/pgadmin4" ]; then
-            PGADMIN_WEB_DIR="$PGADMIN_LOCATION/pgadmin4"
-            PGADMIN_VENV="/opt/pgadmin4/venv"
-            PGADMIN_SOURCE="pip"
-        fi
-    elif [ -d /usr/pgadmin4/web ]; then
-        PGADMIN_WEB_DIR="/usr/pgadmin4/web"
-        PGADMIN_VENV="/usr/pgadmin4/venv"
-        PGADMIN_SOURCE="apt"
-    fi
-fi
-
-if [ -n "$PGADMIN_WEB_DIR" ]; then
-    echo_info "Configuring pgAdmin 4 for Nginx (source: $PGADMIN_WEB_DIR)..."
-
-    # Create pgAdmin configuration directory
-    mkdir -p /var/lib/pgadmin
-    chown -R www-data:www-data /var/lib/pgadmin
-
-    # Create pgAdmin config_local.py for custom settings
-    cat > "$PGADMIN_WEB_DIR/config_local.py" << 'PGADMIN_CONFIG'
-import os
-
-# Server mode settings
-SERVER_MODE = True
-LOG_FILE = '/var/log/pgadmin/pgadmin4.log'
-SQLITE_PATH = '/var/lib/pgadmin/pgadmin4.db'
-SESSION_DB_PATH = '/var/lib/pgadmin/sessions'
-STORAGE_DIR = '/var/lib/pgadmin/storage'
-
-# Reverse proxy configuration - required when running behind nginx at /pgadmin4/
-# This ensures URLs, redirects, and static assets use the correct path prefix
-APPLICATION_ROOT = '/pgadmin4'
-
-# Security settings
-ENHANCED_COOKIE_PROTECTION = True
-WTF_CSRF_CHECK_DEFAULT = True
-WTF_CSRF_TIME_LIMIT = None
-SESSION_COOKIE_NAME = 'pgadmin4_session'
-
-# Flask settings
-FLASK_APP = 'pgadmin4'
-PGADMIN_CONFIG
-
-    # Create log directory
-    mkdir -p /var/log/pgadmin
-    chown -R www-data:www-data /var/log/pgadmin
-
-    # Create storage directories
-    mkdir -p /var/lib/pgadmin/sessions /var/lib/pgadmin/storage
-    chown -R www-data:www-data /var/lib/pgadmin
-
-    # Use PGADMIN_VENV from installation or detect it
-    if [ -z "$PGADMIN_VENV" ]; then
-        if [ -f "/opt/pgadmin4/venv/bin/python3" ]; then
-            PGADMIN_VENV="/opt/pgadmin4/venv"
-        elif [ -f "/usr/pgadmin4/venv/bin/python3" ]; then
-            PGADMIN_VENV="/usr/pgadmin4/venv"
-        fi
-    fi
-
-    PGADMIN_PYTHON="${PGADMIN_VENV}/bin/python3"
-    PGADMIN_GUNICORN="${PGADMIN_VENV}/bin/gunicorn"
-
-    if [ -z "$PGADMIN_VENV" ] || [ ! -f "$PGADMIN_PYTHON" ]; then
-        echo_warning "pgAdmin virtual environment not found"
-        echo_warning "Attempting to use system python3 (may fail if Flask is not installed)"
-        PGADMIN_PYTHON="python3"
-        PGADMIN_GUNICORN="gunicorn"
-    fi
-
-    # Setup pgAdmin database
-    cd "$PGADMIN_WEB_DIR"
-
-    # Modern pgAdmin 4 uses Click-based CLI requiring the setup-db command
-    # Use environment variables for non-interactive setup
-    echo_progress "Setting up pgAdmin database..."
-    if sudo -u www-data \
-        PGADMIN_SETUP_EMAIL="${ADMIN_EMAIL}" \
-        PGADMIN_SETUP_PASSWORD="${ADMIN_PASSWORD}" \
-        "$PGADMIN_PYTHON" setup.py setup-db 2>/dev/null; then
-        echo_success "pgAdmin database initialized successfully"
-    else
-        echo_warning "pgAdmin database setup failed - pgAdmin may not work correctly"
-        echo_info "You can try running manually: cd $PGADMIN_WEB_DIR && sudo -u www-data $PGADMIN_PYTHON setup.py setup-db"
-    fi
-
-    # Only create systemd service if we have gunicorn available
-    if ! command -v "$PGADMIN_GUNICORN" > /dev/null 2>&1 && [ ! -f "$PGADMIN_GUNICORN" ]; then
-        echo_warning "pgAdmin gunicorn not found"
-        echo_warning "Skipping pgAdmin systemd service creation"
-        echo_info "pgAdmin can be configured manually later if needed"
-    else
-        # Create runtime directory for socket (with tmpfiles.d for persistence across reboots)
-        mkdir -p /run/pgadmin4
-        chown www-data:www-data /run/pgadmin4
-        chmod 755 /run/pgadmin4
-
-        # Create tmpfiles.d config for runtime directory persistence
-        cat > /etc/tmpfiles.d/pgadmin4.conf << 'TMPFILES'
-d /run/pgadmin4 0755 www-data www-data -
-TMPFILES
-
-        # WSGI app name is pgAdmin4:app for both pip and apt installations
-        # (the module is pgAdmin4.py with mixed case in both cases)
-        PGADMIN_WSGI_APP="pgAdmin4:app"
-
-        # Create systemd service for pgAdmin WSGI
-        cat > /etc/systemd/system/pgadmin4.service << PGADMIN_SERVICE
-[Unit]
-Description=pgAdmin 4 WSGI Service
-After=network.target
-
-[Service]
-Type=simple
-User=www-data
-Group=www-data
-RuntimeDirectory=pgadmin4
-RuntimeDirectoryMode=0755
-WorkingDirectory=$PGADMIN_WEB_DIR
-Environment="PYTHONPATH=$PGADMIN_WEB_DIR"
-# NOTE: Must use --workers=1 per pgAdmin documentation to maintain connection affinity
-ExecStart=$PGADMIN_GUNICORN \\
-    --bind unix:/run/pgadmin4/pgadmin4.sock \\
-    --workers=1 \\
-    --threads=25 \\
-    --timeout 300 \\
-    --chdir $PGADMIN_WEB_DIR \\
-    --access-logfile /var/log/pgadmin/access.log \\
-    --error-logfile /var/log/pgadmin/error.log \\
-    $PGADMIN_WSGI_APP
-Restart=always
-RestartSec=10
-
-[Install]
-WantedBy=multi-user.target
-PGADMIN_SERVICE
-
-        # Enable and start pgAdmin service
-        systemctl daemon-reload
-        systemctl enable pgadmin4
-        systemctl start pgadmin4
-
-        echo_success "pgAdmin systemd service created and started"
-    fi
-
-    # Add pgAdmin location to Nginx config (only if gunicorn is available)
-    GUNICORN_AVAILABLE=false
-    if command -v "$PGADMIN_GUNICORN" > /dev/null 2>&1 || [ -f "$PGADMIN_GUNICORN" ]; then
-        GUNICORN_AVAILABLE=true
-    fi
-
-    if [ "$GUNICORN_AVAILABLE" = "true" ] && [ -f /etc/nginx/sites-available/eas-station ]; then
-        # Check if pgAdmin block already exists
-        if ! grep -q "location /pgadmin4" /etc/nginx/sites-available/eas-station; then
-            # Add pgAdmin location block before the closing brace of the HTTPS server block
-            sed -i '/^    # Access and error logs/i \
-    # pgAdmin 4 proxy (WSGI via Gunicorn)\
-    location /pgadmin4/ {\
-        proxy_pass http://unix:/run/pgadmin4/pgadmin4.sock:/;\
-        proxy_set_header Host $host;\
-        proxy_set_header X-Real-IP $remote_addr;\
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\
-        proxy_set_header X-Forwarded-Proto $scheme;\
-        proxy_set_header X-Script-Name /pgadmin4;\
-        proxy_buffering off;\
-        proxy_read_timeout 300s;\
-    }\
-\
-' /etc/nginx/sites-available/eas-station
-
-            # Reload Nginx to apply changes
-            nginx -t && systemctl reload nginx
-            echo_success "pgAdmin 4 configured with Nginx proxy"
-        else
-            # Update existing config if it has the old socket path
-            if grep -q "/var/run/pgadmin4.sock" /etc/nginx/sites-available/eas-station; then
-                sed -i 's|/var/run/pgadmin4.sock|/run/pgadmin4/pgadmin4.sock|g' /etc/nginx/sites-available/eas-station
-                nginx -t && systemctl reload nginx
-                echo_info "Updated pgAdmin nginx socket path"
-            fi
-        fi
-    fi
-
-    if [ "$GUNICORN_AVAILABLE" = "true" ]; then
-        echo_success "pgAdmin 4 installed and running via Nginx"
-        echo_info "Access at: https://localhost/pgadmin4"
-        echo_info "Login with: $ADMIN_EMAIL"
-    else
-        echo_warning "pgAdmin 4 service not available - gunicorn not found"
-    fi
-else
-    if [ "$SKIP_PGADMIN" != "true" ]; then
-        echo_warning "pgAdmin 4 web directory not found - using command-line access only"
-    fi
-fi
-
-# Command-line access alternative
-echo_info "Direct database access: ${BOLD}sudo -u postgres psql -d alerts${NC}"
+# Command-line database access
+echo ""
+echo_info "Database access available via: ${BOLD}sudo -u postgres psql -d alerts${NC}"
 echo ""
 
 
@@ -872,6 +750,9 @@ cat > "$CONFIG_FILE" << EOF
 # Flask Secret Key (auto-generated - keep this secure!)
 SECRET_KEY=$GENERATED_SECRET_KEY
 
+# System Configuration
+DOMAIN_NAME=$DOMAIN_NAME
+
 # Database Configuration
 POSTGRES_HOST=localhost
 POSTGRES_PORT=5432
@@ -894,10 +775,10 @@ DEFAULT_COUNTY_NAME=
 DEFAULT_STATE_CODE=
 DEFAULT_ZONE_CODES=
 
-# EAS Broadcast Settings (Configure via web setup wizard)
+# EAS Broadcast Settings
 EAS_BROADCAST_ENABLED=false
-EAS_ORIGINATOR=WXR
-EAS_STATION_ID=NOCALL
+EAS_ORIGINATOR=$EAS_ORIGINATOR
+EAS_STATION_ID=$EAS_STATION_ID
 
 # SDR Settings
 SDR_ENABLED=false
@@ -1002,7 +883,7 @@ if command -v ufw &> /dev/null; then
     fi
     
     # Allow PostgreSQL (port 5432) for remote database access (optional, commented by default)
-    # Uncomment if you need remote database access for IDE/pgAdmin
+    # Uncomment if you need remote database access for IDE tools like DataGrip, DBeaver, etc.
     # echo_progress "Allowing PostgreSQL (port 5432)..."
     # ufw allow 5432/tcp > /dev/null 2>&1
     # echo_success "PostgreSQL access allowed"
@@ -1025,22 +906,58 @@ fi
 echo_step "Initialize Database Schema"
 
 # Initialize database
-echo_progress "Creating database tables and running migrations..."
+echo_progress "Initializing database schema..."
 cd "$INSTALL_DIR"
 
-# Run alembic migrations first (if any exist)
-if [ -f "$INSTALL_DIR/alembic.ini" ]; then
-    echo_progress "Running Alembic migrations..."
-    sudo -u "$SERVICE_USER" "$VENV_DIR/bin/alembic" upgrade head 2>/dev/null || echo_warning "Alembic migrations failed (non-critical for new installs)"
-fi
+# Check if this is a fresh install or an upgrade
+echo_progress "Checking database state..."
 
-# Ensure all tables and schema are created
-sudo -u "$SERVICE_USER" "$VENV_DIR/bin/python" -c "
+# Query to count existing tables in the public schema
+TABLE_COUNT_QUERY="SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE';"
+
+DB_HAS_TABLES=$(sudo -u postgres psql -d alerts -tAc "$TABLE_COUNT_QUERY" 2>/dev/null || echo "0")
+
+if [ "$DB_HAS_TABLES" -eq "0" ]; then
+    # Fresh install - use db.create_all() which creates the complete schema
+    echo_info "Fresh installation detected - creating database schema..."
+    
+    sudo -u "$SERVICE_USER" "$VENV_DIR/bin/python" -c "
 from app import app, db
 with app.app_context():
     db.create_all()
-    print('Database schema created')
-" || echo_warning "Database initialization failed - may need manual setup"
+    print('Database schema created successfully')
+" || {
+    echo_error "Database initialization failed"
+    echo_warning "You may need to manually initialize the database"
+    exit 1
+}
+    
+    echo_success "Database schema created for fresh install"
+else
+    # Existing database - run migrations to upgrade schema
+    echo_info "Existing database detected - running migrations..."
+    
+    if [ -f "$INSTALL_DIR/alembic.ini" ]; then
+        echo_progress "Running Alembic migrations..."
+        ALEMBIC_OUTPUT=$(sudo -u "$SERVICE_USER" "$VENV_DIR/bin/alembic" upgrade head 2>&1)
+        ALEMBIC_EXIT_CODE=$?
+        if [ $ALEMBIC_EXIT_CODE -eq 0 ]; then
+            echo_success "Database migrations completed"
+        else
+            echo_warning "Alembic migrations encountered errors (exit code: $ALEMBIC_EXIT_CODE)"
+            echo_info "Migration output: $ALEMBIC_OUTPUT"
+            echo_info "Attempting to create any missing tables..."
+            sudo -u "$SERVICE_USER" "$VENV_DIR/bin/python" -c "
+from app import app, db
+with app.app_context():
+    db.create_all()
+    print('Missing tables created')
+" || echo_warning "Database initialization may be incomplete"
+        fi
+    else
+        echo_warning "alembic.ini not found - skipping migrations"
+    fi
+fi
 
 # Create administrator account in database
 echo ""
@@ -1149,7 +1066,14 @@ echo -e "${BOLD}${GREEN}"
 cat << "EOF"
 ╔═══════════════════════════════════════════════════════════════════════╗
 ║                                                                       ║
-║                  🎉  INSTALLATION COMPLETE!  🎉                       ║
+║   ██████╗ ██████╗ ███╗   ███╗██████╗ ██╗     ███████╗████████╗███████╗
+║  ██╔════╝██╔═══██╗████╗ ████║██╔══██╗██║     ██╔════╝╚══██╔══╝██╔════╝
+║  ██║     ██║   ██║██╔████╔██║██████╔╝██║     █████╗     ██║   █████╗  
+║  ██║     ██║   ██║██║╚██╔╝██║██╔═══╝ ██║     ██╔══╝     ██║   ██╔══╝  
+║  ╚██████╗╚██████╔╝██║ ╚═╝ ██║██║     ███████╗███████╗   ██║   ███████╗
+║   ╚═════╝ ╚═════╝ ╚═╝     ╚═╝╚═╝     ╚══════╝╚══════╝   ╚═╝   ╚══════╝
+║                                                                       ║
+║                  🎉  Installation Successful!  🎉                     ║
 ║                                                                       ║
 ║              Your EAS Station is now up and running!                  ║
 ║                                                                       ║
@@ -1171,6 +1095,10 @@ echo -e "  ${GREEN}✓${NC} Services started automatically"
 echo -e "  ${GREEN}✓${NC} SECRET_KEY auto-generated"
 echo -e "  ${GREEN}✓${NC} Database schema initialized"
 echo -e "  ${GREEN}✓${NC} Administrator account created: ${BOLD}${ADMIN_USERNAME}${NC}"
+echo -e "  ${GREEN}✓${NC} System hostname: ${BOLD}${SYSTEM_HOSTNAME}${NC}"
+echo -e "  ${GREEN}✓${NC} Domain name: ${BOLD}${DOMAIN_NAME}${NC}"
+echo -e "  ${GREEN}✓${NC} EAS Originator: ${BOLD}${EAS_ORIGINATOR}${NC}"
+echo -e "  ${GREEN}✓${NC} Station Callsign: ${BOLD}${EAS_STATION_ID}${NC}"
 echo ""
 
 echo -e "${BOLD}${CYAN}═══════════════════════════════════════════════════════════════════════${NC}"
@@ -1206,7 +1134,7 @@ echo -e "    Password: ${BOLD}(the password you entered)${NC}"
 echo ""
 
 echo -e "${BOLD}${CYAN}═══════════════════════════════════════════════════════════════════════${NC}"
-echo -e "${BOLD}${WHITE}  🔑 DATABASE CREDENTIALS (For IDE/pgAdmin)${NC}"
+echo -e "${BOLD}${WHITE}  🔑 DATABASE CREDENTIALS (For IDE Tools)${NC}"
 echo -e "${BOLD}${CYAN}═══════════════════════════════════════════════════════════════════════${NC}"
 echo ""
 echo -e "  ${BOLD}${MAGENTA}PostgreSQL Connection Details:${NC}"
@@ -1221,8 +1149,7 @@ echo -e "      These credentials are ${BOLD}only shown once during installation$
 echo -e "      The password is ${BOLD}also saved${NC} in: ${BOLD}$CONFIG_FILE${NC}"
 echo ""
 echo -e "  ${GREEN}💡${NC} ${BOLD}Use these credentials in:${NC}"
-echo -e "      • pgAdmin 4 (if installed): ${BOLD}https://${PRIMARY_IP}/pgadmin${NC}"
-echo -e "      • Database IDE tools (DataGrip, DBeaver, etc.)"
+echo -e "      • Database IDE tools (DataGrip, DBeaver, Postico, etc.)"
 echo -e "      • psql command line: ${BOLD}psql -h localhost -U eas_station -d alerts${NC}"
 echo ""
 echo -e "  ${DIM}To view your password later, run:${NC}"
@@ -1234,6 +1161,10 @@ echo -e "${BOLD}${WHITE}  ⚙️  YOUR CONFIGURATION${NC}"
 echo -e "${BOLD}${CYAN}═══════════════════════════════════════════════════════════════════════${NC}"
 echo ""
 echo -e "  ${CYAN}Timezone:${NC}        ${BOLD}$TIMEZONE${NC} (change in setup wizard)"
+echo -e "  ${CYAN}Hostname:${NC}        ${BOLD}$SYSTEM_HOSTNAME${NC}"
+echo -e "  ${CYAN}Domain:${NC}          ${BOLD}$DOMAIN_NAME${NC}"
+echo -e "  ${CYAN}EAS Originator:${NC}  ${BOLD}$EAS_ORIGINATOR${NC}"
+echo -e "  ${CYAN}Station ID:${NC}      ${BOLD}$EAS_STATION_ID${NC}"
 echo -e "  ${CYAN}Config File:${NC}     ${BOLD}$CONFIG_FILE${NC}"
 echo -e "  ${CYAN}Log Directory:${NC}   ${BOLD}$LOG_DIR${NC}"
 echo ""
@@ -1252,7 +1183,7 @@ echo -e "  ${BOLD}${YELLOW}1.${NC} ${BOLD}Log in${NC} to the web interface with 
 echo ""
 echo -e "  ${BOLD}${YELLOW}2.${NC} ${BOLD}Complete the SETUP WIZARD${NC} to configure:"
 echo -e "      ${GREEN}✓${NC} Your location (county, state, FIPS/zone codes)"
-echo -e "      ${GREEN}✓${NC} Your EAS station callsign/ID"
+echo -e "      ${DIM}Note: EAS station callsign/ID already configured: ${BOLD}$EAS_STATION_ID${NC}"
 echo -e "      ${GREEN}✓${NC} Alert sources (NOAA, IPAWS feeds)"
 echo -e "      ${GREEN}✓${NC} EAS broadcast settings"
 echo -e "      ${GREEN}✓${NC} Hardware integrations (LED, OLED, SDR, etc.)"
@@ -1272,19 +1203,10 @@ echo -e "    Username: ${BOLD}$ADMIN_USERNAME${NC}"
 echo -e "    Password: ${BOLD}(your admin password)${NC}"
 echo -e "    Purpose:  Configure alerts, view status, manage settings"
 echo ""
-if [ "$SKIP_PGADMIN" != "true" ]; then
-echo -e "  ${BOLD}${MAGENTA}pgAdmin 4 (Database Management GUI):${NC}"
-echo -e "    URL:      ${BOLD}${GREEN}https://${PRIMARY_IP}/pgadmin${NC}"
-echo -e "    Username: ${BOLD}$ADMIN_EMAIL${NC}"
-echo -e "    Password: ${BOLD}(your admin password)${NC}"
-echo -e "    Purpose:  Visual database management, query builder, schema editor"
-echo -e "    ${GREEN}💡${NC} Add server: Use PostgreSQL credentials shown above"
-echo ""
-fi
-echo -e "  ${BOLD}${MAGENTA}PostgreSQL Database (Direct Command Line):${NC}"
+echo -e "  ${BOLD}${MAGENTA}PostgreSQL Database (Command Line Access):${NC}"
 echo -e "    Command:  ${BOLD}sudo -u postgres psql -d alerts${NC}"
 echo -e "    Or:       ${BOLD}psql -h localhost -U eas_station -d alerts${NC}"
-echo -e "              ${DIM}(Enter password when prompted: see above)${NC}"
+echo -e "              ${DIM}(Enter password when prompted: see credentials above)${NC}"
 echo -e "    Purpose:  Direct SQL queries, database administration"
 echo ""
 echo -e "  ${BOLD}${MAGENTA}Redis Cache (Command Line):${NC}"
