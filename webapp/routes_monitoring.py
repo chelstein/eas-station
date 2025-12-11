@@ -132,7 +132,7 @@ def register(app: Flask, logger) -> None:
         # 2. Icecast Service
         icecast_enabled = app.config.get("ICECAST_ENABLED", False)
         if icecast_enabled:
-            icecast_host = app.config.get("ICECAST_SERVER", "icecast")
+            icecast_host = app.config.get("ICECAST_SERVER", "localhost")
             icecast_port = app.config.get("ICECAST_PORT", 8000)
             try:
                 import socket

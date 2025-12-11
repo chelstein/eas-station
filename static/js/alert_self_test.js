@@ -137,19 +137,21 @@
         }
 
         feedbackSection.hidden = false;
-        resultsSection.hidden = false;
+        if (resultsSection) resultsSection.hidden = false;
 
         const duplicates = (data.results || []).filter((item) => item.status === 'duplicate_suppressed').length;
-        forwardedEl.textContent = data.forwarded_count ?? 0;
-        duplicateEl.textContent = duplicates;
-        errorEl.textContent = data.decode_error_count ?? 0;
+        if (forwardedEl) forwardedEl.textContent = data.forwarded_count ?? 0;
+        if (duplicateEl) duplicateEl.textContent = duplicates;
+        if (errorEl) errorEl.textContent = data.decode_error_count ?? 0;
 
         const total = data.results?.length || 0;
         const summaryText = data.error || `Forwarded ${data.forwarded_count} of ${total} sample(s).`;
-        statusEl.textContent = data.success ? 'PASS' : 'ATTENTION REQUIRED';
-        statusEl.classList.toggle('text-success', Boolean(data.success));
-        statusEl.classList.toggle('text-danger', !data.success);
-        summaryEl.textContent = summaryText;
+        if (statusEl) {
+            statusEl.textContent = data.success ? 'PASS' : 'ATTENTION REQUIRED';
+            statusEl.classList.toggle('text-success', Boolean(data.success));
+            statusEl.classList.toggle('text-danger', !data.success);
+        }
+        if (summaryEl) summaryEl.textContent = summaryText;
 
         if (timestampEl) {
             const when = data.timestamp ? new Date(data.timestamp) : new Date();

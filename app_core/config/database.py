@@ -20,7 +20,7 @@ def build_database_url() -> str:
     
     Environment Variables:
         DATABASE_URL: Complete database URL (takes precedence if set)
-        POSTGRES_HOST: Database host (default: 'alerts-db')
+        POSTGRES_HOST: Database host (default: 'localhost')
         POSTGRES_PORT: Database port (default: '5432')
         POSTGRES_DB: Database name (default: 'alerts')
         POSTGRES_USER: Database user (default: 'postgres')

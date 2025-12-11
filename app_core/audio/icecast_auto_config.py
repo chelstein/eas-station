@@ -39,7 +39,7 @@ class IcecastAutoConfig:
     def __init__(self):
         """Initialize and detect Icecast configuration."""
         self.enabled = False
-        self.server = "icecast"
+        self.server = "localhost"
         self.port = 8000
         self.source_password = ""
         self.external_port = 8001  # For generating URLs accessible from browser
@@ -71,7 +71,7 @@ class IcecastAutoConfig:
                 return
 
             # Get server and port
-            self.server = os.environ.get('ICECAST_SERVER', 'icecast')
+            self.server = os.environ.get('ICECAST_SERVER', 'localhost')
             self.port = int(os.environ.get('ICECAST_PORT', '8000'))
 
             # Admin credentials (optional, but required for metadata updates)
@@ -89,9 +89,8 @@ class IcecastAutoConfig:
             if external_port_str:
                 self.external_port = int(external_port_str)
             else:
-                # Default: if server is 'icecast' (container), external is 8001
-                # If server is 'localhost', it's probably already the external mapping
-                self.external_port = 8001 if self.server == 'icecast' else self.port
+                # Default: use same port for external access on bare-metal installations
+                self.external_port = self.port
 
             # Get public hostname for browser access (required for remote servers)
             # This should be the public IP or hostname of the server
@@ -137,22 +136,13 @@ class IcecastAutoConfig:
             # Browser/external access - use public hostname if configured
             if self.public_hostname:
                 hostname = self.public_hostname
-            elif self.server == 'icecast':
-                # In containerized deployment without public hostname
-                # Use 'localhost' as fallback since browser access won't work with 
-                # container name 'icecast'. This allows local development and testing.
-                # For production remote access, users should set ICECAST_PUBLIC_HOSTNAME.
-                logger.debug(
-                    "No ICECAST_PUBLIC_HOSTNAME configured. Using 'localhost' as fallback "
-                    "for browser access. For remote access, set ICECAST_PUBLIC_HOSTNAME "
-                    "to your server's public IP or hostname."
-                )
-                hostname = 'localhost'
             else:
+                # Use configured server (defaults to localhost for bare-metal installations)
+                # For production remote access, users should set ICECAST_PUBLIC_HOSTNAME
                 hostname = self.server
             port = self.external_port
         else:
-            # Internal app access - use container name and internal port
+            # Internal app access - use server hostname and internal port
             hostname = self.server
             port = self.port
 

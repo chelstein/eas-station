@@ -123,12 +123,17 @@ const ScreenEditor = (function() {
 
         // Data source modal
         const dataSourceModal = document.getElementById('dataSourceModal');
-        document.getElementById('btn-add-data-source').addEventListener('click', () => {
-            new bootstrap.Modal(dataSourceModal).show();
-        });
+        const addDataSourceBtn = document.getElementById('btn-add-data-source');
+        if (dataSourceModal && addDataSourceBtn) {
+            addDataSourceBtn.addEventListener('click', () => {
+                new bootstrap.Modal(dataSourceModal).show();
+            });
+        }
 
-        document.getElementById('btn-test-data-source').addEventListener('click', testDataSource);
-        document.getElementById('btn-add-data-source-confirm').addEventListener('click', confirmAddDataSource);
+        const testDataSourceBtn = document.getElementById('btn-test-data-source');
+        if (testDataSourceBtn) testDataSourceBtn.addEventListener('click', testDataSource);
+        const addDataSourceConfirmBtn = document.getElementById('btn-add-data-source-confirm');
+        if (addDataSourceConfirmBtn) addDataSourceConfirmBtn.addEventListener('click', confirmAddDataSource);
 
         // Preview
         document.getElementById('btn-preview').addEventListener('click', showPreview);
@@ -625,7 +630,12 @@ const ScreenEditor = (function() {
         previewCtx.drawImage(canvas, 0, 0);
 
         // Show modal
-        new bootstrap.Modal(document.getElementById('previewModal')).show();
+        const previewModal = document.getElementById('previewModal');
+        if (previewModal) {
+            new bootstrap.Modal(previewModal).show();
+        } else {
+            console.error('Preview modal element not found');
+        }
     }
 
     // Save screen

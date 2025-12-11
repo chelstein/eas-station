@@ -21,9 +21,13 @@ Repository: https://github.com/KR8MER/eas-station
 from __future__ import annotations
 
 """
-Post-Installation Validation Script
+Post-Installation Validation Script (Docker Only)
 
-Validates EAS Station installation and configuration, checking:
+NOTE: This validation script is designed for Docker Compose deployments only.
+For bare-metal installations, use systemctl commands to check service status:
+    sudo systemctl status eas-station.target
+
+Validates EAS Station Docker installation and configuration, checking:
 - Docker services status
 - Database connectivity and schema
 - Environment configuration
