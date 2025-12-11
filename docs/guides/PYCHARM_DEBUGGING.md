@@ -1,117 +1,156 @@
-# Remote Debugging Guide for Bare Metal Installation
+# Complete Development Setup Guide for zencoder.ai Integration
 
-**Stop pushing broken code to GitHub!** This guide shows you how to develop and debug the `eas-station` project directly on your Raspberry Pi or Linux server using PyCharm Professional or VS Code with SSH remote development. This is perfect for using AI coding agents like ZenCoder that need real-time access to your running application.
+**Transform your development workflow!** This comprehensive guide shows you how to set up your Raspberry Pi or Linux server so that **zencoder.ai** (https://zencoder.ai) can work alongside you like a pair programmer sitting at your desk. Zencoder will be able to:
 
-> **💡 Don't have PyCharm Professional?** Both VS Code (free) and PyCharm Professional (free for open source) work great for this project. See [Getting the Right IDE](#getting-the-right-ide) below.
+- ✅ **Run your code** and see the output in real-time
+- ✅ **Debug issues** by setting breakpoints and inspecting variables
+- ✅ **View database transactions** and query data directly
+- ✅ **Access the web interface** to test UI changes
+- ✅ **Monitor system logs** and service status
+- ✅ **Execute tests** and verify fixes immediately
+
+This guide will hold your hand through every step of the setup process, from SSH configuration to database access to debugging tools. By the end, zencoder.ai will have complete visibility into your EAS Station development environment.
+
+> **💡 New to this setup?** Don't worry! This guide assumes no prior experience with remote development. We'll explain everything step-by-step.
 
 ---
 
 ## Table of Contents
 
-- [Why Use This Approach?](#why-use-this-approach)
-- [Getting the Right IDE](#getting-the-right-ide)
+- [Why This Setup is Perfect for zencoder.ai](#why-this-setup-is-perfect-for-zenco derai)
+- [What You'll Learn](#what-youll-learn)
 - [Prerequisites](#prerequisites)
-- [Quick Start](#quick-start)
-- [Database Configuration](#database-configuration)
-- [Debugging Individual Services](#debugging-individual-services)
-- [Using with AI Coding Agents (ZenCoder, etc.)](#using-with-ai-coding-agents-zencoder-etc)
-- [Development Workflow](#development-workflow)
-- [Troubleshooting](#troubleshooting)
+- [Part 1: Setting Up Your IDE (PyCharm or VS Code)](#part-1-setting-up-your-ide-pycharm-or-vs-code)
+- [Part 2: Enabling zencoder.ai to Run Code](#part-2-enabling-zenco derai-to-run-code)
+- [Part 3: Database Access for zencoder.ai](#part-3-database-access-for-zenco derai)
+- [Part 4: Viewing the Web Interface](#part-4-viewing-the-web-interface)
+- [Part 5: Debugging with zencoder.ai](#part-5-debugging-with-zenco derai)
+- [Part 6: Advanced Features](#part-6-advanced-features)
+- [Complete zencoder.ai Workflow Examples](#complete-zenco derai-workflow-examples)
+- [Troubleshooting Common Issues](#troubleshooting-common-issues)
 - [Best Practices](#best-practices)
-- [Debugging Specific Services](#debugging-specific-services)
-- [Keeping Your Git History Clean](#keeping-your-git-history-clean)
-- [Quick Reference](#quick-reference)
-- [Summary](#summary)
-- [Getting Help](#getting-help)
+- [Quick Reference Commands](#quick-reference-commands)
+- [Summary and Next Steps](#summary-and-next-steps)
 
 ---
 
-## Why Use This Approach?
+## Why This Setup is Perfect for zencoder.ai
 
-**The Problem**: Making a PR every time you want to test code changes is:
-- ⚠️ Slow and frustrating
-- ⚠️ Clutters your Git history with broken code
-- ⚠️ Makes debugging nearly impossible
-- ⚠️ Prevents real-time code analysis by AI agents
+**zencoder.ai** (https://zencoder.ai) is an AI coding assistant that needs full access to your development environment to be truly effective. Think of it as having an expert developer sitting next to you who can:
 
-**The Solution**: Develop and debug live on the bare metal installation with:
-- ✅ **Real hardware testing** - Test on actual Pi hardware, not simulations
-- ✅ **Instant feedback** - See changes immediately without pushing to GitHub
-- ✅ **Proper debugging** - Set breakpoints, inspect variables, step through code
-- ✅ **Clean Git history** - Only commit working, tested code
-- ✅ **AI Agent Integration** - Let ZenCoder and other coding agents see changes and bugs in real-time
-- ✅ **Full System Access** - Debug all systemd services, database, and hardware integrations
+### What Makes This Special
 
-### How It Works (Windows/Mac → Linux Server)
+Traditional development workflows have limitations:
+- ❌ Code runs in isolated environments
+- ❌ AI can't see real-time errors
+- ❌ No access to live databases
+- ❌ Can't test on actual hardware
+- ❌ Limited to suggesting code, not testing it
+
+**With this setup, zencoder.ai becomes a true pair programmer:**
+- ✅ **Executes code directly** on your Raspberry Pi/server
+- ✅ **Sees actual output** - errors, logs, database queries
+- ✅ **Tests in real environment** - real hardware, real services
+- ✅ **Debugs with breakpoints** - inspect variables, step through code
+- ✅ **Views the web UI** - test frontend changes immediately
+- ✅ **Monitors services** - systemd status, log files, resource usage
+- ✅ **Queries database** - see actual alert data, verify changes
+- ✅ **Iterates instantly** - make changes, test, fix, repeat
+
+### How It Works
 
 ```
-Your Development Computer               Linux Server (Pi/Debian)
-┌─────────────────────┐                 ┌──────────────────────────┐
-│  ┌───────────────┐  │   SSH + Code   │  ┌──────────────────────┐│
-│  │ PyCharm/VSCode│──┼────────────────>│  │ /opt/eas-station/    ││
-│  │ Edit Code     │  │                 │  │ ├── app.py           ││
-│  │ Set Breakpoint│  │                 │  │ ├── app_core/        ││
-│  │ AI Agents     │  │                 │  │ └── venv/            ││
-│  └───────────────┘  │                 │  └──────────────────────┘│
-│                     │                 │           │               │
-│  ┌───────────────┐  │   Port 5678    │  ┌────────▼──────────┐   │
-│  │ Debugger      │──┼────────────────>│  │ Python Debugpy    │   │
-│  │ (debugpy)     │  │                 │  │ (port 5678)       │   │
-│  └───────────────┘  │                 │  └───────────────────┘   │
-│                     │                 │                          │
-│  ┌───────────────┐  │   Port 5432    │  ┌────────────────────┐  │
-│  │ Database Tools│──┼────────────────>│  │ PostgreSQL         │  │
-│  │ (DataGrip)    │  │                 │  │ (alerts database)  │  │
-│  └───────────────┘  │                 │  └────────────────────┘  │
-│                     │                 │                          │
-│  ┌───────────────┐  │   HTTPS (443)  │  ┌────────────────────┐  │
-│  │ Web Browser   │──┼────────────────>│  │ Nginx → Gunicorn   │  │
-│  │               │  │                 │  │ (Web Interface)    │  │
-│  └───────────────┘  │                 │  └────────────────────┘  │
-└─────────────────────┘                 └──────────────────────────┘
-
-                                        Systemd Services:
-                                        ├── eas-station-web.service
-                                        ├── eas-station-audio.service
-                                        ├── eas-station-noaa-poller.service
-                                        ├── eas-station-ipaws-poller.service
-                                        ├── eas-station-eas.service
-                                        ├── eas-station-sdr.service
-                                        └── eas-station-hardware.service
+┌─────────────────────────────────────────────────────────┐
+│  Your Computer (Windows/Mac/Linux)                     │
+│  ┌──────────────────────────────────────────────────┐  │
+│  │  IDE (PyCharm / VS Code)                         │  │
+│  │  • You edit code                                 │  │
+│  │  • zencoder.ai suggests changes                  │  │
+│  │  • Changes sync to server instantly              │  │
+│  └──────────────────┬───────────────────────────────┘  │
+│                     │ SSH Connection                    │
+│                     │ (encrypted tunnel)                │
+└─────────────────────┼───────────────────────────────────┘
+                      │
+                      ▼
+┌─────────────────────────────────────────────────────────┐
+│  Linux Server / Raspberry Pi                            │
+│  ┌──────────────────────────────────────────────────┐  │
+│  │  /opt/eas-station/                               │  │
+│  │  • Code runs HERE                                │  │
+│  │  • zencoder.ai executes commands HERE            │  │
+│  │  • Debugger attaches HERE                        │  │
+│  └──────────────────────────────────────────────────┘  │
+│  ┌──────────────────────────────────────────────────┐  │
+│  │  PostgreSQL Database                             │  │
+│  │  • zencoder.ai queries HERE                      │  │
+│  │  • See real alert data                           │  │
+│  └──────────────────────────────────────────────────┘  │
+│  ┌──────────────────────────────────────────────────┐  │
+│  │  Web Server (Nginx → Gunicorn → Flask)          │  │
+│  │  • Access at https://your-server-ip              │  │
+│  │  • zencoder.ai can test UI changes               │  │
+│  └──────────────────────────────────────────────────┘  │
+│  ┌──────────────────────────────────────────────────┐  │
+│  │  Systemd Services                                │  │
+│  │  • eas-station-web, audio, pollers, etc.        │  │
+│  │  • zencoder.ai can restart and monitor          │  │
+│  └──────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────┘
 ```
 
-**Key Insight**: Your code runs ON the Linux server via systemd services, but you edit and debug from your local machine via SSH!
+**Key Insight**: Your code doesn't run on your local machine - it runs on the Linux server via SSH. This means zencoder.ai can access everything: real hardware, live database, running services, log files, and more!
 
 ---
 
-## Getting the Right IDE
+## What You'll Learn
 
-### Option 1: VS Code (Recommended - Free)
+By the end of this guide, you'll have configured:
 
-**Best for**: Getting started immediately without waiting for license approval.
+1. **SSH Remote Development** - Edit code locally, run it on the server
+2. **Python Remote Interpreter** - Execute Python code on the server from your IDE
+3. **Database Access** - Connect to PostgreSQL from multiple tools
+4. **Web UI Testing** - Access the EAS Station web interface
+5. **Remote Debugging** - Set breakpoints, inspect variables, step through code
+6. **Service Management** - Start/stop/restart systemd services
+7. **Log Monitoring** - View real-time service logs
+8. **zencoder.ai Integration** - Enable AI assistant to do all of the above
 
-**Pros**:
-- Free forever, no license needed
-- Fast and lightweight
-- Excellent remote SSH support
-- Great Python support with extensions
-- Works on Windows, Mac, Linux
+This is a **production-grade development setup** used by professional developers. You'll learn skills that apply to any remote development project, not just EAS Station.
 
-**Get it**: [https://code.visualstudio.com/](https://code.visualstudio.com/)
+---
 
-### Option 2: PyCharm Professional (Free for Open Source)
+---
 
-**Best for**: Python-focused development with advanced refactoring tools.
+## Part 1: Setting Up Your IDE (PyCharm or VS Code)
 
-**Pros**:
-- Best-in-class Python IDE
-- Powerful debugging and refactoring
-- Database tools built-in
-- Free with open source license
+This section will help you choose and configure your IDE for remote development. Both PyCharm Professional and VS Code work excellently - choose based on your preference.
 
-**Get it free**:
+### Step 1.1: Choose Your IDE
 
-Since `eas-station` is an open source project under AGPL-3.0, you can get a free PyCharm Professional license:
+#### Option A: VS Code (Recommended for Beginners - FREE)
+
+**Why VS Code?**
+- ✅ Completely free, no license needed
+- ✅ Fast and lightweight
+- ✅ Excellent remote SSH support
+- ✅ Great Python support with extensions
+- ✅ Works on Windows, Mac, Linux
+- ✅ Perfect for zencoder.ai integration
+
+**Get it**: Download from [https://code.visualstudio.com/](https://code.visualstudio.com/)
+
+#### Option B: PyCharm Professional (Best for Python - FREE for Open Source)
+
+**Why PyCharm Professional?**
+- ✅ Best-in-class Python IDE
+- ✅ Powerful debugging and refactoring
+- ✅ Database tools built-in (DataGrip)
+- ✅ **Free with open source license**
+
+**Get it free for open source**:
+
+Since `eas-station` is an open source project under AGPL-3.0, you qualify for a free license:
 
 1. Go to: [JetBrains Open Source License Application](https://www.jetbrains.com/community/opensource/#support)
 2. Click **Apply Now**
@@ -124,28 +163,132 @@ Since `eas-station` is an open source project under AGPL-3.0, you can get a free
 
 While waiting for approval, use the [30-day free trial](https://www.jetbrains.com/pycharm/download/) or start with VS Code.
 
-### Don't Use: PyCharm Community Edition
+**⚠️ Don't Use PyCharm Community Edition** - It lacks remote SSH development features required for this workflow.
 
-❌ PyCharm Community lacks remote SSH development and remote debugging features required for this workflow.
+---
+
+### Step 1.2: Configure VS Code for Remote Development
+
+**Follow these steps if you chose VS Code:**
+
+#### Install Required Extensions
+
+1. **Open VS Code**
+2. Click the **Extensions** icon in the left sidebar (or press `Ctrl+Shift+X` / `Cmd+Shift+X`)
+3. Search for and install these extensions:
+   - **Remote - SSH** (by Microsoft) - Essential for remote development
+   - **Python** (by Microsoft) - Python language support
+   - **PostgreSQL** (by Chris Kolkman) - Database management (optional but helpful)
+
+#### Connect to Your Server
+
+1. **Press `F1`** (or `Ctrl+Shift+P` / `Cmd+Shift+P`) to open the command palette
+2. Type: `Remote-SSH: Connect to Host` and press Enter
+3. Type: `eas-station@YOUR_SERVER_IP` 
+   - Replace `YOUR_SERVER_IP` with your server's IP address (e.g., `192.168.1.100`)
+   - If you don't know your server's IP, see [Finding Your Server IP](#finding-your-server-ip) below
+4. Press Enter
+5. Select the platform: **Linux**
+6. Enter your password when prompted
+7. Wait for VS Code to connect (this may take 30-60 seconds the first time)
+
+#### Open the EAS Station Directory
+
+1. Once connected, click **File** → **Open Folder**
+2. Type or navigate to: `/opt/eas-station`
+3. Click **OK**
+4. Enter your password again if prompted
+
+#### Configure Python Interpreter
+
+1. **Press `Ctrl+Shift+P` / `Cmd+Shift+P`** to open command palette
+2. Type: `Python: Select Interpreter`
+3. Choose: `/opt/eas-station/venv/bin/python` (the virtual environment Python)
+   - If you don't see it, click **Enter interpreter path** and type it manually
+
+**✅ VS Code is now configured!** Skip to [Part 2](#part-2-enabling-zenco derai-to-run-code).
+
+---
+
+### Step 1.3: Configure PyCharm Professional for Remote Development
+
+**Follow these steps if you chose PyCharm:**
+
+#### Set Up SSH Deployment
+
+1. **Open PyCharm** and create a new project or open an existing one
+2. Go to: **File** → **Settings** (Windows/Linux) or **PyCharm** → **Preferences** (Mac)
+3. Navigate to: **Build, Execution, Deployment** → **Deployment**
+4. Click the **+** button and select **SFTP**
+5. Name it: `EAS Station Server`
+6. Configure the **Connection** tab:
+   - **Type**: SFTP
+   - **Host**: Your server's IP address (e.g., `192.168.1.100`)
+   - **Port**: `22`
+   - **Username**: `eas-station` (or `pi` if on Raspberry Pi)
+   - **Auth type**: Password
+   - **Password**: Your server password (save it)
+   - Click **Test Connection** - you should see "Successfully connected"
+7. Configure the **Mappings** tab:
+   - **Local path**: Your local project folder (can be empty for now)
+   - **Deployment path**: `/opt/eas-station`
+   - **Web path**: (leave empty)
+8. Click **OK**
+
+#### Set Up SSH Interpreter
+
+1. Go to: **File** → **Settings** → **Project** → **Python Interpreter**
+2. Click the **gear icon** ⚙️ → **Add...**
+3. Select **SSH Interpreter**
+4. Choose **Existing server configuration** and select the server you just created
+5. Click **Next**
+6. Set the interpreter path: `/opt/eas-station/venv/bin/python`
+7. Configure sync folders:
+   - **Local**: Your project folder
+   - **Remote**: `/opt/eas-station`
+8. Click **Finish**
+9. Wait for PyCharm to sync files and index the project (this can take 2-5 minutes)
+
+**✅ PyCharm is now configured!** Continue to Part 2.
+
+---
+
+### Finding Your Server IP
+
+**If you don't know your server's IP address:**
+
+Connect to the server directly (keyboard + monitor, or existing SSH) and run:
+
+```bash
+hostname -I
+```
+
+You'll see output like: `192.168.1.100 172.17.0.1`
+
+The first IP address (e.g., `192.168.1.100`) is your server's local network IP.
+
+**Write this down** - you'll need it throughout this guide!
 
 ---
 
 ## Prerequisites
 
-### Required
+### What You Need Before Starting
 
-- **Linux Server** (Raspberry Pi 4/5, Debian, Ubuntu) with:
-  - EAS Station installed via bare metal installation (`install.sh`)
-  - SSH enabled
-  - Installation directory: `/opt/eas-station`
-  - Services running via systemd
-- **Local development machine** running Windows, macOS, or Linux
-- **Network connection** between your computer and the server
-- **IDE**: PyCharm Professional or VS Code (see above)
+**On the Linux Server (Raspberry Pi or Debian/Ubuntu):**
+- EAS Station installed via bare metal installation (`install.sh`)
+- SSH server enabled
+- Installation directory: `/opt/eas-station`
+- Services running via systemd
+- Network connection (same network as your computer, or internet-accessible)
 
-### Assumed Installation
+**On Your Development Computer (Windows/Mac/Linux):**
+- PyCharm Professional OR VS Code (we'll help you choose)
+- Network access to the Linux server
+- SSH client (built into modern Windows, Mac, and Linux)
+- Web browser (for accessing the UI)
 
-This guide assumes you've already completed the bare metal installation:
+**If You Haven't Installed EAS Station Yet:**
 
 ```bash
 # On the Linux server:
@@ -155,230 +298,696 @@ cd eas-station
 sudo ./install.sh
 ```
 
-If not installed yet, see [QUICKSTART-BARE-METAL.md](../QUICKSTART-BARE-METAL.md) first.
+See [QUICKSTART-BARE-METAL.md](../QUICKSTART-BARE-METAL.md) for detailed installation instructions.
 
 ### Skill Level
 
-This guide assumes you know:
-- Basic Python programming
-- How to use SSH
-- Basic Git commands
-- Basic systemd service management (systemctl)
+**Don't worry if you're new to this!** This guide is designed for beginners and will explain:
+- How SSH works and how to use it
+- How to connect to a remote server
+- How to use an IDE with remote development
+- How to access databases remotely
+- How to configure debugging tools
+
+If you can follow step-by-step instructions, you can do this!
 
 ---
 
-## Quick Start
+## Part 2: Enabling zencoder.ai to Run Code
 
-### Step 1: Enable SSH on Linux Server
+Now that your IDE is connected to the server, let's configure zencoder.ai to have **complete access** to execute commands, run Python code, and manage the system.
 
-Connect to your server (keyboard + monitor, or existing SSH):
+### Step 2.1: Understanding How zencoder.ai Works with Your IDE
 
-```bash
-# Enable and start SSH
-sudo systemctl enable ssh
-sudo systemctl start ssh
+**Let me explain what's happening:**
 
-# Find your server's IP address (write this down!)
-hostname -I
+When you installed VS Code or PyCharm and connected it to your server via SSH:
+- Your IDE is now a "remote control" for the server
+- When you open a file in the IDE, you're editing a file **on the server**, not your local computer
+- When you run code, it runs **on the server**
+- When zencoder.ai suggests code changes, those changes happen **on the server**
+
+Think of it like this:
+```
+Your Computer                    The Server (Raspberry Pi)
+┌─────────────┐                 ┌──────────────────────┐
+│   Your IDE  │  SSH Connection │  EAS Station Files   │
+│  (VSCode or │────────────────>│  /opt/eas-station/   │
+│  PyCharm)   │    (encrypted)  │                      │
+│             │                 │  Python runs HERE    │
+│ zencoder.ai │────────────────>│  Database is HERE    │
+│ sends       │                 │  Redis is HERE       │
+│ commands    │                 │  Services run HERE   │
+└─────────────┘                 └──────────────────────┘
 ```
 
-**Write down the IP address** (example: `192.168.1.100`).
+**Why this matters:**
+- zencoder.ai can see everything on the server (files, databases, logs, services)
+- zencoder.ai can run commands as if it's logged into the server directly
+- Changes happen instantly - no "upload" or "deploy" step needed
 
----
+Now let's give zencoder.ai permission to do everything!
 
-### Step 2: Verify EAS Station Installation
+### Step 2.2: Grant sudo Permissions for Service Management
+
+**What are we doing here?**
+
+The EAS Station runs as several "services" (background programs) managed by systemd. To let zencoder.ai restart services, view logs, and manage the system, we need to give special permissions.
+
+Normally, when you want to do system administration tasks, Linux asks for your password (that's what `sudo` does - it means "run this as the administrator"). But we want zencoder.ai to do these things automatically without stopping to ask for a password every time.
+
+**Let's set this up step by step:**
+
+#### Step A: Connect to Your Server
+
+Open a terminal on your computer:
+- **Windows**: Press `Win+R`, type `cmd`, press Enter
+- **Mac**: Press `Cmd+Space`, type `terminal`, press Enter  
+- **Linux**: Press `Ctrl+Alt+T`
+
+Then connect to your server:
 
 ```bash
-# Check that services are installed
-sudo systemctl status eas-station.target
-
-# You should see all services listed:
-# ● eas-station-web.service
-# ● eas-station-audio.service
-# ● eas-station-noaa-poller.service
-# ● eas-station-ipaws-poller.service
-# ● eas-station-eas.service
-# ● eas-station-sdr.service
-# ● eas-station-hardware.service
+ssh eas-station@YOUR_SERVER_IP
 ```
 
-If not installed, run the bare metal installer first (see [Prerequisites](#prerequisites)).
+Replace `YOUR_SERVER_IP` with the actual IP (like `192.168.1.100`).
 
----
+**What you'll see:**
+```
+eas-station@192.168.1.100's password:
+```
 
-### Step 3: Install debugpy on the Server
+Type your password (you won't see it as you type - that's normal for security) and press Enter.
 
-The Python debugging protocol needs to be installed in the virtual environment:
+**You're now connected!** You'll see something like:
+```
+eas-station@raspberrypi:~$
+```
+
+This is the server's command prompt. Any commands you type now run on the server.
+
+#### Step B: Edit the Permissions File
+
+Now we'll edit the "sudoers" file - this controls who can do what on the system.
+
+Type this command:
 
 ```bash
-# Activate the virtual environment
+sudo visudo
+```
+
+Press Enter. You'll see a text file open up in a text editor called `nano`.
+
+**Understanding what you see:**
+
+You'll see a file with lots of comments (lines starting with `#`). Don't worry about those - we're just adding to the end.
+
+#### Step C: Add the New Permissions
+
+**Use your arrow keys** to scroll to the very bottom of the file.
+
+**Copy and paste these lines** at the end (or type them carefully):
+
+```bash
+# ==============================================================================
+# EAS STATION PERMISSIONS FOR ZENCODER.AI
+# ==============================================================================
+# These permissions allow the eas-station user (and zencoder.ai working
+# through your IDE) to manage services, view logs, and access system resources
+# WITHOUT needing to type a password every time.
+#
+# This is safe because:
+# - Only the eas-station user has these permissions
+# - Commands are restricted to specific programs
+# - Access requires SSH authentication first
+# ==============================================================================
+
+# -------------------- Service Management --------------------
+# Start, stop, restart EAS Station services
+eas-station ALL=(ALL) NOPASSWD: /bin/systemctl start eas-station*
+eas-station ALL=(ALL) NOPASSWD: /bin/systemctl stop eas-station*
+eas-station ALL=(ALL) NOPASSWD: /bin/systemctl restart eas-station*
+eas-station ALL=(ALL) NOPASSWD: /bin/systemctl reload eas-station*
+eas-station ALL=(ALL) NOPASSWD: /bin/systemctl status eas-station*
+eas-station ALL=(ALL) NOPASSWD: /bin/systemctl daemon-reload
+eas-station ALL=(ALL) NOPASSWD: /bin/systemctl edit eas-station*
+eas-station ALL=(ALL) NOPASSWD: /bin/systemctl revert eas-station*
+eas-station ALL=(ALL) NOPASSWD: /bin/systemctl list-units eas-station*
+eas-station ALL=(ALL) NOPASSWD: /bin/systemctl list-dependencies eas-station*
+
+# -------------------- Log Viewing --------------------
+# View service logs (essential for debugging)
+eas-station ALL=(ALL) NOPASSWD: /bin/journalctl -u eas-station*
+eas-station ALL=(ALL) NOPASSWD: /bin/journalctl *
+eas-station ALL=(ALL) NOPASSWD: /usr/bin/tail /var/log/*
+eas-station ALL=(ALL) NOPASSWD: /usr/bin/less /var/log/*
+eas-station ALL=(ALL) NOPASSWD: /usr/bin/cat /var/log/*
+
+# -------------------- System Monitoring --------------------
+# Check what's running, network connections, resource usage
+eas-station ALL=(ALL) NOPASSWD: /bin/netstat
+eas-station ALL=(ALL) NOPASSWD: /bin/ss
+eas-station ALL=(ALL) NOPASSWD: /usr/bin/lsof
+eas-station ALL=(ALL) NOPASSWD: /usr/bin/ps
+eas-station ALL=(ALL) NOPASSWD: /usr/bin/top
+eas-station ALL=(ALL) NOPASSWD: /usr/bin/htop
+
+# -------------------- Database Access --------------------
+# Connect to PostgreSQL database
+eas-station ALL=(ALL) NOPASSWD: /usr/bin/psql
+eas-station ALL=(ALL) NOPASSWD: /bin/su - postgres
+
+# -------------------- Redis Access --------------------
+# Access Redis (used for real-time communication between services)
+eas-station ALL=(ALL) NOPASSWD: /usr/bin/redis-cli
+
+# -------------------- File Management --------------------
+# Fix file ownership and permissions if needed
+eas-station ALL=(ALL) NOPASSWD: /bin/chown -R eas-station\:eas-station /opt/eas-station/*
+eas-station ALL=(ALL) NOPASSWD: /bin/chmod * /opt/eas-station/*
+eas-station ALL=(ALL) NOPASSWD: /bin/ls -la /opt/eas-station/*
+eas-station ALL=(ALL) NOPASSWD: /usr/bin/find /opt/eas-station/*
+
+# -------------------- Network Testing --------------------
+# Test network connectivity
+eas-station ALL=(ALL) NOPASSWD: /bin/ping
+eas-station ALL=(ALL) NOPASSWD: /usr/bin/curl
+eas-station ALL=(ALL) NOPASSWD: /usr/bin/wget
+eas-station ALL=(ALL) NOPASSWD: /usr/bin/nc
+
+# -------------------- Package Management --------------------
+# Install Python packages (for dependencies)
+eas-station ALL=(ALL) NOPASSWD: /opt/eas-station/venv/bin/pip install *
+eas-station ALL=(ALL) NOPASSWD: /opt/eas-station/venv/bin/pip3 install *
+eas-station ALL=(ALL) NOPASSWD: /usr/bin/apt-get update
+eas-station ALL=(ALL) NOPASSWD: /usr/bin/apt-get install *
+
+# -------------------- Text Editors --------------------
+# Edit files (useful for quick config changes)
+eas-station ALL=(ALL) NOPASSWD: /usr/bin/nano /opt/eas-station/*
+eas-station ALL=(ALL) NOPASSWD: /usr/bin/vim /opt/eas-station/*
+```
+
+#### Step D: Save the File
+
+**To save and exit:**
+
+1. Press `Ctrl+X` (this means "exit")
+2. You'll see: `Save modified buffer?` - Press `Y` for "yes"
+3. You'll see the filename - just press `Enter` to confirm
+
+**What you should see:**
+```
+[ Wrote 50 lines ]
+```
+
+That means it saved successfully!
+
+#### Step E: Test the Permissions
+
+Let's make sure it worked. Try these commands (they should NOT ask for a password):
+
+```bash
+# Check web service status
+sudo systemctl status eas-station-web.service
+```
+
+Press `q` to exit when you're done reading.
+
+```bash
+# View last 10 log lines
+sudo journalctl -u eas-station-web.service -n 10
+```
+
+```bash
+# Test Redis connection
+sudo redis-cli ping
+```
+
+You should see: `PONG`
+
+**If any command asks for a password**, something went wrong. Double-check the sudoers file by running `sudo visudo` again.
+
+**✅ If no passwords were requested, you're done with this step!**
+
+### Step 2.3: Install Python Debugging Support (debugpy)
+
+**What is debugpy?**
+
+`debugpy` is a tool that lets you pause your running code at specific lines (called "breakpoints") and look inside to see:
+- What values variables have
+- What the program is doing at that exact moment
+- Where errors are happening
+
+Think of it like pausing a video to examine a single frame - except you're pausing your code!
+
+**Let's install it:**
+
+In your SSH session (or in your IDE's terminal), run:
+
+```bash
+# Install debugpy into the EAS Station virtual environment
 sudo -u eas-station /opt/eas-station/venv/bin/pip install debugpy
-
-# Verify installation
-sudo -u eas-station /opt/eas-station/venv/bin/python -c "import debugpy; print('debugpy installed successfully')"
 ```
+
+**What this command does:**
+- `sudo -u eas-station` = Run as the eas-station user
+- `/opt/eas-station/venv/bin/pip` = Use the Python package installer from the virtual environment
+- `install debugpy` = Install the debugpy package
+
+You'll see output like:
+```
+Collecting debugpy
+  Downloading debugpy-1.8.0-cp311-cp311-linux_armv7l.whl (3.4 MB)
+Installing collected packages: debugpy
+Successfully installed debugpy-1.8.0
+```
+
+**Verify it installed correctly:**
+
+```bash
+sudo -u eas-station /opt/eas-station/venv/bin/python -c "import debugpy; print('✅ debugpy installed successfully')"
+```
+
+You should see: `✅ debugpy installed successfully`
+
+**✅ Great! Now your server can support debugging.**
 
 ---
 
-### Step 4: Set Up Your IDE
+### Step 2.4: Understanding Breakpoints (What They Are and How to Use Them)
 
-#### Option A: VS Code (Recommended for Most Users)
+**What is a breakpoint?**
 
-1. **Install extensions**:
-   - Open VS Code
-   - Install **Remote - SSH** extension (by Microsoft)
-   - Install **Python** extension (by Microsoft)
+Imagine you're reading a recipe while cooking, but you want to pause after step 3 to check if the sauce looks right. A breakpoint is like putting a bookmark at step 3 - the program will run normally until it hits that line, then it **stops and waits** for you to look around.
 
-2. **Connect to server**:
-   - Press `F1` (or `Ctrl+Shift+P` / `Cmd+Shift+P`)
-   - Type: `Remote-SSH: Connect to Host`
-   - Enter: `eas-station@YOUR.SERVER.IP.ADDRESS` (default user for bare metal installation)
-     - Note: If you installed on Raspberry Pi OS manually, you might use `pi@YOUR.PI.IP` instead
-   - Enter your password
-   - Choose **File** → **Open Folder** → `/opt/eas-station`
+**Why are breakpoints useful?**
 
-3. **Set up Python interpreter**:
-   - Press `Ctrl+Shift+P` / `Cmd+Shift+P`
-   - Type: `Python: Select Interpreter`
-   - Choose: `/opt/eas-station/venv/bin/python`
+Instead of adding `print()` statements everywhere to see what's happening, you can:
+1. Set a breakpoint on the line you're curious about
+2. Run the program
+3. When it hits that line, everything pauses
+4. You can examine all variables, see the call stack, and step through code line by line
 
-4. **Set up debugging** (for the web service):
-   - Click **Run and Debug** icon (left sidebar)
-   - Click **create a launch.json file** → **Python**
-   - Replace contents with:
+**Real example:**
 
+Let's say you have this code:
+```python
+def calculate_alert_priority(alert):
+    severity = alert.get('severity')  # ← Set breakpoint here
+    urgency = alert.get('urgency')
+    priority = severity * urgency
+    return priority
+```
+
+If you set a breakpoint on line 2 (where the arrow is), when the function runs:
+1. The program will run normally until it reaches that line
+2. **Everything stops** - the function hasn't finished yet
+3. You can now inspect:
+   - What is `alert`? (maybe it's `{'severity': 3, 'urgency': 2}`)
+   - What is `severity`? (maybe it's `3`)
+   - You can even change the values and see what happens!
+4. Then you can "step" to the next line and watch `urgency` get set
+5. Continue stepping to see `priority` calculated
+
+**How to set a breakpoint:**
+
+**In VS Code:**
+- Click in the left margin (the gray area left of the line numbers) next to any line
+- A red dot appears = breakpoint is set
+- Click again to remove it
+
+**In PyCharm:**
+- Click in the left margin next to any line
+- A red dot appears = breakpoint is set  
+- Click again to remove it
+
+**What happens when code hits a breakpoint:**
+
+Your IDE will highlight the current line in yellow and show you:
+- **Variables panel** - see all current variable values
+- **Call stack** - how did we get to this line? What functions called what?
+- **Debug console** - type Python commands to explore
+
+**Debugger controls (buttons you'll see):**
+
+- **Continue (▶️)** - Resume running until next breakpoint
+- **Step Over (⤵️)** - Execute this line and go to the next line in this function
+- **Step Into (⬇️)** - If this line calls a function, go inside that function
+- **Step Out (⬆️)** - Finish this function and return to the caller
+- **Stop (⏹️)** - Stop debugging completely
+
+**A simple analogy:**
+
+Think of debugging like watching a movie:
+- **Normal running** = Watching the movie at normal speed
+- **Breakpoint** = Pausing at a specific scene
+- **Step Over** = Advance one frame (but don't go into flashbacks)
+- **Step Into** = Jump into a flashback scene to see details
+- **Step Out** = Exit the flashback and return to main story
+- **Continue** = Resume playing until next pause point
+
+**We'll set up actual debugging in Part 5**, but now you understand what it means!
+
+### Step 2.4: Configure Redis Access
+
+**What is Redis?**
+
+Redis is like a super-fast sticky note board that the EAS Station services use to talk to each other in real-time. For example:
+- The audio service writes: "I'm processing an alert right now"
+- The web service reads: "Oh, there's an alert being processed - show that on the dashboard"
+
+For zencoder.ai to see what services are doing, it needs to read these "sticky notes."
+
+**Let's set it up:**
+
+#### Step A: Check Redis is Running
+
+```bash
+sudo systemctl status redis-server
+```
+
+You should see `Active: active (running)` in green. If not, start it:
+
+```bash
+sudo systemctl start redis-server
+```
+
+#### Step B: Test the Connection
+
+```bash
+redis-cli ping
+```
+
+You should see: `PONG`
+
+This is like knocking on a door and hearing someone answer - Redis is alive and responding!
+
+#### Step C: Explore What's in Redis
+
+**See all the "keys" (sticky notes) currently stored:**
+
+```bash
+redis-cli --scan
+```
+
+You might see output like:
+```
+eas-audio-metrics
+eas-sdr-status
+eas-current-alert
+eas-service-health
+```
+
+These are the different pieces of information services are sharing.
+
+**View a specific piece of information:**
+
+```bash
+# See audio service metrics
+redis-cli GET eas-audio-metrics
+```
+
+You might see JSON data like:
 ```json
-{
-    "version": "0.2.0",
-    "configurations": [
-        {
-            "name": "Attach to Web Service",
-            "type": "debugpy",
-            "request": "attach",
-            "connect": {
-                "host": "localhost",
-                "port": 5678
-            },
-            "pathMappings": [
-                {
-                    "localRoot": "${workspaceFolder}",
-                    "remoteRoot": "/opt/eas-station"
-                }
-            ],
-            "justMyCode": false
-        },
-        {
-            "name": "Debug Audio Service",
-            "type": "debugpy",
-            "request": "attach",
-            "connect": {
-                "host": "localhost",
-                "port": 5679
-            },
-            "pathMappings": [
-                {
-                    "localRoot": "${workspaceFolder}",
-                    "remoteRoot": "/opt/eas-station"
-                }
-            ],
-            "justMyCode": false
-        }
-    ]
-}
+{"service":"audio","status":"running","last_check":"2025-01-15T10:30:00Z"}
 ```
 
-5. **Enable debugging for a service**:
+**Monitor Redis in real-time (see all commands as they happen):**
 
-To debug the web service, you need to modify the systemd service to include debugpy. See [Debugging Individual Services](#debugging-individual-services) below.
+```bash
+redis-cli monitor
+```
 
-6. **Test debugging**:
-   - After enabling debugpy in a service (see below)
-   - Open any Python file (like `app.py`)
-   - Click in the left margin to set a breakpoint (red dot appears)
-   - Press `F5` to start debugging
-   - If it connects, you're done! 🎉
+Now Redis will show you every command as services communicate:
+```
+1642234567.890123 [0 127.0.0.1:45678] "SET" "eas-audio-metrics" "{...}"
+1642234568.123456 [0 127.0.0.1:45679] "GET" "eas-audio-metrics"
+```
 
-#### Option B: PyCharm Professional
+This is incredibly useful for debugging! You can see exactly what services are saying to each other.
 
-1. **Set up SSH Deployment**:
-   - Go to: **File** → **Settings** → **Build, Execution, Deployment** → **Deployment**
-   - Click **+** → **SFTP**
-   - Name: `EAS Station Server`
-   - **Connection** tab:
-     - Type: **SFTP**
-     - Host: Your server's IP address
-     - Port: `22`
-     - Username: `eas-station` (or `pi` for Raspberry Pi)
-     - Auth type: Password
-     - Password: Your server password
-   - **Mappings** tab:
-     - Local path: Your project folder
-     - Deployment path: `/opt/eas-station`
-     - Web path: (leave empty)
-   - Click **Test Connection** → **OK**
+Press `Ctrl+C` to stop monitoring.
 
-2. **Set up SSH Interpreter**:
-   - Go to: **File** → **Settings** → **Project** → **Python Interpreter**
-   - Click **gear icon** ⚙️ → **Add...** → **On SSH**
-   - **Existing server configuration**: Select the server you just created
-   - Click **Next**
-   - Set interpreter: `/opt/eas-station/venv/bin/python`
-   - Sync folders:
-     - Local: Your project folder
-     - Remote: `/opt/eas-station`
-   - Click **Finish** and wait for sync
+#### Step D: Useful Redis Commands for Debugging
 
-3. **Create Debug Configuration**:
-   - Go to: **Run** → **Edit Configurations...**
-   - Click **+** → **Python Debug Server**
-   - Name: `EAS Station Web Service`
-   - IDE host name: `localhost`
-   - Port: `5678`
-   - Path mappings:
-     - Local: Your project folder
-     - Remote: `/opt/eas-station`
-   - Click **OK**
+```bash
+# List all keys
+redis-cli KEYS '*'
 
-4. **Enable debugging for a service**:
+# Get a value
+redis-cli GET key-name
 
-To debug the web service, you need to modify the systemd service to include debugpy. See [Debugging Individual Services](#debugging-individual-services) below.
+# Delete a key (if testing)
+redis-cli DEL key-name
 
-5. **Test debugging**:
-   - After enabling debugpy in a service (see below)
-   - Set a breakpoint (click in left margin)
-   - Click debug icon (green bug) or press `Shift+F9`
-   - You're done! 🎉
+# See how long until a key expires
+redis-cli TTL key-name
+
+# Get info about Redis itself
+redis-cli INFO
+
+# See how many keys exist
+redis-cli DBSIZE
+```
+
+**✅ Now zencoder.ai can monitor Redis to understand service communication!**
+
+### Step 2.5: Test Code Execution with zencoder.ai
+
+Now let's verify zencoder.ai can execute code. This is where everything comes together!
+
+#### Step A: Open Your IDE's Terminal
+
+**In VS Code:**
+- Press `` Ctrl+` `` (that's Ctrl and the backtick key, usually above Tab)
+- OR click **Terminal** → **New Terminal** from the menu
+
+**In PyCharm:**
+- Click **View** → **Tool Windows** → **Terminal**
+- OR click the **Terminal** tab at the bottom of the window
+
+**Important:** The terminal should show you're connected to the **server**, not your local computer.
+
+You should see:
+```bash
+eas-station@raspberrypi:/opt/eas-station$
+```
+
+NOT:
+```bash
+C:\Users\YourName>           # ← This would be Windows local
+yourname@yourlaptop:~$       # ← This would be Linux/Mac local
+```
+
+If you see your local computer's prompt, you need to reconnect to the server in your IDE.
+
+#### Step B: Verify Python Environment
+
+Let's check that Python is set up correctly:
+
+```bash
+# 1. Check which Python we're using
+which python
+```
+
+**Expected output:** `/opt/eas-station/venv/bin/python`
+
+If you see `/usr/bin/python` or something else, the virtual environment isn't activated. Run:
+```bash
+source /opt/eas-station/venv/bin/activate
+```
+
+You should now see `(venv)` at the start of your prompt:
+```bash
+(venv) eas-station@raspberrypi:/opt/eas-station$
+```
+
+#### Step C: Test Basic Python Execution
+
+```bash
+# 2. Run a simple Hello World
+python -c "print('✅ Hello from EAS Station!')"
+```
+
+**What this does:**
+- `python` = Run the Python interpreter
+- `-c` = Execute the following code as a command
+- The text in quotes is Python code
+
+**Expected output:** `✅ Hello from EAS Station!`
+
+#### Step D: Test Flask (The Web Framework)
+
+```bash
+# 3. Verify Flask is available
+python -c "from flask import Flask; print('✅ Flask is ready')"
+```
+
+**Expected output:** `✅ Flask is ready`
+
+If you see an error like `ModuleNotFoundError: No module named 'flask'`, the virtual environment isn't activated properly.
+
+#### Step E: Test Database Connection Library
+
+```bash
+# 4. Verify database library
+python -c "import psycopg2; print('✅ Database library available')"
+```
+
+**Expected output:** `✅ Database library available`
+
+#### Step F: Test Service Status
+
+```bash
+# 5. Check all EAS Station services
+sudo systemctl status eas-station.target
+```
+
+**What you should see:**
+```
+● eas-station.target - EAS Station Services
+     Loaded: loaded
+     Active: active
+```
+
+And a list of services:
+```
+● eas-station-web.service          - EAS Station Web Service
+● eas-station-audio.service        - EAS Station Audio Service
+● eas-station-noaa-poller.service  - NOAA Weather Alert Poller
+...
+```
+
+Press `q` to quit.
+
+#### Step G: View Recent Logs
+
+```bash
+# 6. See what the web service has been doing
+sudo journalctl -u eas-station-web.service -n 20
+```
+
+**What this does:**
+- `journalctl` = View system logs
+- `-u eas-station-web.service` = Filter to just this service
+- `-n 20` = Show the last 20 lines
+
+You'll see log entries like:
+```
+Jan 15 10:30:00 raspberrypi gunicorn[1234]: [INFO] Starting gunicorn 21.2.0
+Jan 15 10:30:01 raspberrypi gunicorn[1234]: [INFO] Listening at: http://0.0.0.0:5000
+```
+
+#### Step H: Test Redis
+
+```bash
+# 7. Verify Redis responds
+redis-cli ping
+```
+
+**Expected output:** `PONG`
+
+#### Step I: List Running Python Processes
+
+```bash
+# 8. See all Python programs currently running
+ps aux | grep python
+```
+
+You'll see output like:
+```
+eas-station  1234  0.5  2.1  123456  54321 ?  Ss  10:30  0:02 /opt/eas-station/venv/bin/python /opt/eas-station/app.py
+eas-station  1235  0.3  1.8  111222  33444 ?  Ss  10:30  0:01 /opt/eas-station/venv/bin/python /opt/eas-station/eas_monitoring_service.py
+```
+
+This shows you which Python programs are running and using how much CPU and memory.
+
+#### Step J: Test zencoder.ai Can Run These Commands
+
+Now, the moment of truth! Ask zencoder.ai to run one of these commands. For example, in your IDE, you might say:
+
+> "zencoder.ai, can you check the status of the web service?"
+
+zencoder.ai should be able to run:
+```bash
+sudo systemctl status eas-station-web.service
+```
+
+And report back what it found!
+
+**✅ If all these commands worked, zencoder.ai now has full code execution access!**
+
+#### What Just Happened?
+
+You've proven that:
+1. ✅ Your IDE's terminal connects to the server
+2. ✅ Python works in the virtual environment
+3. ✅ Flask and database libraries are available
+4. ✅ Services can be checked without passwords
+5. ✅ Logs can be viewed
+6. ✅ Redis responds
+7. ✅ System processes can be inspected
+
+This means zencoder.ai can now:
+- Run Python code
+- Check if services are working
+- Read logs to diagnose problems
+- Query Redis
+- Monitor system resources
+
+**Next, we'll set up database access so zencoder.ai can query actual alert data!**
 
 ---
 
-## Database Configuration
+## Part 3: Database Access for zencoder.ai
 
-The bare metal installation uses a **local PostgreSQL database** running directly on the Linux server (not in a container).
+The EAS Station stores all alert data in a PostgreSQL database with PostGIS spatial extensions. This section will show you how to let zencoder.ai query the database, view alert data, check geographic data, and understand database transactions.
 
-### Database Connection Details
+### Step 3.1: Understanding the Database Setup
 
-**Default configuration** (already set during installation in `/opt/eas-station/.env`):
+**What is the database storing?**
+
+The EAS Station database contains:
+- **Alert data** - Every emergency alert received (weather warnings, AMBER alerts, etc.)
+- **Geographic boundaries** - County and state boundaries for targeting alerts
+- **System configuration** - Settings, user accounts, API keys
+- **Historical logs** - Past alerts, broadcast history, verification data
+
+**Database Details:**
+- **Database Name**: `alerts`
+- **Database User**: `eas_station`
+- **Database Location**: Running on the server at `localhost:5432`
+- **Type**: PostgreSQL 17 with PostGIS 3.4 (spatial/geographic features)
+
+### Step 3.2: Find Your Database Password
+
+The database password was auto-generated during installation and stored in the `.env` file.
+
+**In your IDE terminal, run:**
 
 ```bash
-POSTGRES_HOST=localhost
-POSTGRES_PORT=5432
-POSTGRES_DB=alerts
-POSTGRES_USER=eas_station
-POSTGRES_PASSWORD=<auto-generated during install>
+# View the database password
+grep POSTGRES_PASSWORD /opt/eas-station/.env
 ```
 
-**For remote debugging from your IDE**:
-- When using SSH Remote Interpreter: Use `POSTGRES_HOST=localhost` (code runs on server)
-- The database password is auto-generated during installation and stored in `/opt/eas-station/.env`
-
-### Finding Your Database Password
-
-```bash
-# On the server:
-sudo grep POSTGRES_PASSWORD /opt/eas-station/.env
+**Expected output:**
+```
+POSTGRES_PASSWORD=a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6
 ```
 
-**Example output**: `POSTGRES_PASSWORD=abc123xyz789`
+**Copy this password** - you'll need it multiple times. Save it somewhere safe (like a password manager or secure note).
+
+**Understanding the .env file:**
+
+The `.env` file contains all sensitive configuration:
+- Database passwords
+- Secret keys for encryption
+- API keys
+- Domain names
+
+**⚠️ Important:** Never commit the `.env` file to Git - it contains secrets!
 
 ### Accessing the Database from Your Development Machine
 
