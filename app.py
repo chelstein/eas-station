@@ -347,6 +347,9 @@ PUBLIC_API_GET_PATHS = {
     '/api/monitoring/radio',
     # Snow emergency status (public safety information)
     '/api/snow_emergencies',
+    # Monitoring endpoints (for health checks and version tracking)
+    '/api/health',
+    '/api/release-manifest',
 }
 # CSRF constants are now imported from app_core.flask.csrf
 app.config['CSRF_SESSION_KEY'] = CSRF_SESSION_KEY

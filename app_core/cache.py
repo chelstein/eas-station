@@ -27,6 +27,8 @@ for reducing database load and improving API response times.
 import os
 from flask_caching import Cache
 
+from app_core.config.redis_config import get_cache_redis_url
+
 # Initialize cache instance (will be configured by init_cache)
 cache = Cache()
 
@@ -38,7 +40,6 @@ def init_cache(app):
     - CACHE_TYPE: Backend type (simple, redis, filesystem, etc.)
     - CACHE_DEFAULT_TIMEOUT: Default cache timeout in seconds
     - CACHE_DIR: Directory for filesystem cache
-    - CACHE_REDIS_URL: Redis connection URL
 
     Args:
         app: Flask application instance
@@ -48,25 +49,24 @@ def init_cache(app):
     """
     cache_type = os.environ.get('CACHE_TYPE', 'redis')
     cache_default_timeout = int(os.environ.get('CACHE_DEFAULT_TIMEOUT', '300'))
-    
+
     config = {
         'CACHE_TYPE': cache_type,
         'CACHE_DEFAULT_TIMEOUT': cache_default_timeout,
     }
-    
+
     # Configure based on cache type
     if cache_type == 'filesystem':
         cache_dir = os.environ.get('CACHE_DIR', '/tmp/eas-station-cache')
         config['CACHE_DIR'] = cache_dir
         os.makedirs(cache_dir, exist_ok=True)
     elif cache_type == 'redis':
-        # Default to localhost for bare metal deployment
-        redis_url = os.environ.get('CACHE_REDIS_URL', 'redis://localhost:6379/0')
-        config['CACHE_REDIS_URL'] = redis_url
-    
+        # Use centralized Redis config
+        config['CACHE_REDIS_URL'] = get_cache_redis_url()
+
     app.config.update(config)
     cache.init_app(app)
-    
+
     return cache
 
 

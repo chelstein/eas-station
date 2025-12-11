@@ -38,7 +38,6 @@ Benefits over file-based approach:
     - Industry standard, battle-tested
 """
 
-import os
 import json
 import time
 import logging
@@ -48,19 +47,20 @@ import redis
 from redis.exceptions import RedisError, ConnectionError as RedisConnectionError
 
 from app_core.redis_client import get_redis_client as _get_central_redis_client
+from app_core.config.redis_config import RedisChannels, RedisTimeouts
 
 logger = logging.getLogger(__name__)
 
-# Redis keys
-MASTER_LOCK_KEY = "eas:master:lock"
-METRICS_KEY = "eas:metrics"
-HEARTBEAT_CHANNEL = "eas:heartbeat"
-METRICS_UPDATE_CHANNEL = "eas:metrics:update"
+# Redis keys (from centralized config)
+MASTER_LOCK_KEY = RedisChannels.MASTER_LOCK_KEY
+METRICS_KEY = RedisChannels.METRICS_KEY
+HEARTBEAT_CHANNEL = RedisChannels.HEARTBEAT_CHANNEL
+METRICS_UPDATE_CHANNEL = RedisChannels.METRICS_UPDATE_CHANNEL
 
-# Timing configuration
-MASTER_LOCK_TTL = 30  # Master lock expires after 30 seconds (auto-failover)
-HEARTBEAT_INTERVAL = 5.0  # Master updates heartbeat every 5 seconds
-METRICS_TTL = 60  # Metrics expire after 60 seconds if master dies
+# Timing configuration (from centralized config)
+MASTER_LOCK_TTL = RedisTimeouts.MASTER_LOCK_TTL
+HEARTBEAT_INTERVAL = RedisTimeouts.HEARTBEAT_INTERVAL
+METRICS_TTL = RedisTimeouts.METRICS_TTL
 
 # Global state
 _is_master_worker: bool = False

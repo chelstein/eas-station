@@ -39,7 +39,6 @@ Usage:
         return client.get('my_key')
 """
 
-import os
 import time
 import logging
 import functools
@@ -49,6 +48,14 @@ from enum import Enum
 
 import redis
 from redis import ConnectionError, TimeoutError, RedisError
+
+from app_core.config.redis_config import (
+    get_redis_host,
+    get_redis_port,
+    get_redis_db,
+    get_redis_password,
+    RedisTimeouts,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -204,12 +211,11 @@ def get_redis_client(
                 logger.warning("Existing Redis client unhealthy, reconnecting...")
                 _redis_client = None
 
-        # Get connection parameters
-        # Default to 'localhost' for bare metal deployment
-        redis_host = os.getenv("REDIS_HOST", "localhost")
-        redis_port = int(os.getenv("REDIS_PORT", "6379"))
-        redis_db = int(os.getenv("REDIS_DB", "0"))
-        redis_password = os.getenv("REDIS_PASSWORD")
+        # Get connection parameters from centralized config
+        redis_host = get_redis_host()
+        redis_port = get_redis_port()
+        redis_db = get_redis_db()
+        redis_password = get_redis_password()
 
         # Retry with exponential backoff
         attempt = 0
@@ -237,10 +243,10 @@ def get_redis_client(
                     db=redis_db,
                     password=redis_password,
                     decode_responses=True,
-                    socket_connect_timeout=5,
-                    socket_timeout=5,
+                    socket_connect_timeout=RedisTimeouts.CONNECT_TIMEOUT,
+                    socket_timeout=RedisTimeouts.SOCKET_TIMEOUT,
                     socket_keepalive=True,
-                    health_check_interval=30,
+                    health_check_interval=RedisTimeouts.HEALTH_CHECK_INTERVAL,
                     retry_on_timeout=True,
                     max_connections=50,
                 )
