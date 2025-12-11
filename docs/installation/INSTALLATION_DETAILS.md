@@ -4,7 +4,7 @@
 
 ### How install.sh Works
 
-The `install.sh` script is **fully automated** and non-interactive (except for one optional OS warning). Here's what happens when you run it:
+The `install.sh` script uses an **interactive TUI (Text User Interface)** similar to raspi-config. Here's what happens when you run it:
 
 ```bash
 git clone https://github.com/KR8MER/eas-station.git && \
@@ -12,13 +12,40 @@ cd eas-station && \
 sudo bash install.sh
 ```
 
+### Interactive Configuration (New!)
+
+The installer now collects **all configuration during installation** using blue/gray dialog boxes (whiptail):
+
+**You'll be asked to configure:**
+1. **Administrator Account** - Username, password, email
+2. **System Settings** - Hostname, domain, EAS originator, station callsign
+3. **Location & Timezone** - Timezone, state, county, optional FIPS codes
+4. **Alert Sources** - Enable/disable NOAA and IPAWS, set poll intervals
+5. **Audio & Streaming** - Icecast streaming with auto-generated passwords
+6. **Hardware Integration** - GPIO, LED signs, VFD displays
+
+**Benefits:**
+- ✅ All configuration done upfront - no post-install wizard needed
+- ✅ Input validation with helpful error messages
+- ✅ Default values provided for quick setup
+- ✅ Can cancel and restart anytime
+- ✅ Settings saved to `/opt/eas-station/.env`
+
 ### Installation Flow
 
-#### 1. **Pre-Installation Checks** (0-10 seconds)
+#### 1. **Pre-Installation Checks & Welcome** (10-30 seconds)
 - ✓ Verifies script is run as root (sudo)
 - ✓ Detects system architecture (x86_64, ARM, etc.)
 - ✓ Detects OS (Debian, Ubuntu, Raspberry Pi OS)
-- ⚠️ Only interactive prompt: If OS is not Debian/Ubuntu, asks for confirmation to continue
+- ⚠️ If OS is not Debian/Ubuntu, asks for confirmation to continue
+- 🎨 **Displays welcome screen** with installation overview
+- 📝 **Collects administrator account** - username, password, email (TUI dialogs)
+- ⚙️ **Collects system configuration** - hostname, domain, originator, callsign (TUI dialogs)
+- 📍 **Collects location settings** - timezone, state, county, FIPS codes (TUI dialogs)
+- 📡 **Collects alert sources** - NOAA, IPAWS settings (TUI dialogs)
+- 🎵 **Collects audio settings** - Icecast configuration (TUI dialogs)
+- 🔌 **Collects hardware settings** - GPIO, LED, VFD (TUI dialogs)
+- ✅ **Shows configuration summary** for confirmation
 
 #### 2. **System Dependencies** (2-5 minutes)
 - Updates package lists (`apt-get update`)
@@ -62,9 +89,18 @@ sudo bash install.sh
 - Default configuration on localhost:6379
 
 #### 8. **Configuration File Generation** (1 second)
-- **Automatically generates** `/opt/eas-station/.env` if it doesn't exist
+- **Automatically generates** `/opt/eas-station/.env` with all settings collected during TUI
 - **Auto-generates secure SECRET_KEY** using Python's secrets module (64 character hex)
-- Creates complete configuration with sensible defaults
+- **Auto-generates secure database password** (43 character urlsafe)
+- **Auto-generates Icecast passwords** if streaming enabled (16 characters each)
+- **Includes all user-provided configuration:**
+  - Administrator email
+  - Hostname and domain
+  - EAS originator and station callsign
+  - Timezone, state, county, FIPS codes
+  - Alert source settings (NOAA, IPAWS)
+  - Icecast streaming configuration
+  - Hardware integration settings (GPIO, LED, VFD)
 - Sets file permissions to 600 (owner read/write only)
 
 #### 9. **Database Initialization** (10-30 seconds)
@@ -112,11 +148,21 @@ sudo bash install.sh
 - Shows useful commands
 
 ### Total Installation Time
-- **Minimal**: 5-7 minutes (fast hardware, good internet)
-- **Typical**: 10-15 minutes
-- **Maximum**: 20-30 minutes (slower hardware/internet)
+- **Configuration**: 2-5 minutes (TUI dialogs)
+- **Package Installation**: 5-7 minutes (fast hardware, good internet)
+- **Total Minimal**: 7-12 minutes
+- **Total Typical**: 12-20 minutes
+- **Total Maximum**: 25-35 minutes (slower hardware/internet)
 
-### What's Automated vs Manual
+### What's Interactive vs Automated
+
+**Interactive Configuration (TUI Dialogs):**
+- ✅ Administrator account (username, password, email)
+- ✅ System settings (hostname, domain, originator, callsign)
+- ✅ Location & timezone (state, county, FIPS codes)
+- ✅ Alert sources (NOAA, IPAWS, poll intervals)
+- ✅ Audio settings (Icecast streaming)
+- ✅ Hardware integration (GPIO, LED signs, VFD)
 
 **Fully Automated (No User Input):**
 - ✅ All package installation
@@ -125,20 +171,22 @@ sudo bash install.sh
 - ✅ Python dependency installation
 - ✅ Database creation and configuration
 - ✅ SECRET_KEY generation
-- ✅ Configuration file creation
+- ✅ Database password generation
+- ✅ Icecast password generation
+- ✅ Configuration file creation with collected settings
 - ✅ SSL certificate generation
 - ✅ Service installation and startup
 
-**User Does After Installation:**
-1. Open web browser to https://localhost or https://server-ip
-2. Accept self-signed SSL certificate warning
-3. Create administrator account (username + password)
-4. Complete setup wizard:
-   - Set location (county, state, zone codes)
-   - Set callsign
-   - Enable/disable features
+**Optional Post-Installation:**
+1. **Fine-tune settings** via web interface at `/setup`
+   - Advanced features like FIPS code lookup/builder
+   - Zone code derivation from FIPS codes
+2. **Reconfigure anytime** using `sudo eas-config` command
+   - Provides same raspi-config style TUI
+   - Update any setting without reinstalling
+3. **Manual editing** of `/opt/eas-station/.env` for advanced users
 
-**No Command-Line Configuration Required!**
+**No Post-Install Wizard Required!** All essential configuration is collected during installation.
 
 ## Configuration File: Why .env?
 

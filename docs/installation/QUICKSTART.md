@@ -4,29 +4,37 @@ Get EAS Station running on bare metal in 15 minutes!
 
 ## Choose Your Installation Method
 
-### 🚀 Fast: Install on Existing System
+### 🚀 Fast: Interactive Install on Existing System
 
 Already have Debian/Ubuntu/Raspberry Pi OS? Start here!
 
 ```bash
-# 1. Clone and install (takes 10-15 minutes)
+# 1. Clone and run interactive installer (takes 10-15 minutes)
 git clone https://github.com/KR8MER/eas-station.git && \
 cd eas-station && \
 sudo bash install.sh
 
+# The installer will guide you through:
+# - Administrator account creation
+# - System configuration (hostname, domain, callsign)
+# - Location setup (timezone, state, county)
+# - Alert sources (NOAA, IPAWS)
+# - Audio/streaming settings
+# - Hardware integration (GPIO, LED signs)
+
 # 2. Access the web interface
 # Open browser to https://localhost (accept self-signed cert)
 
-# 3. Complete setup via web interface
-# - Create your administrator account
-# - Configure location and EAS settings
-# - Done! No nano required!
+# 3. Start monitoring alerts!
+# All configuration is done during installation - no post-install setup needed!
 ```
 
-**That's it!** The installer automatically:
-- ✓ Generates a secure SECRET_KEY
-- ✓ Starts all services
-- ✓ Makes the web interface immediately accessible
+**What's Interactive:** The installer uses a raspi-config style TUI (text user interface) to collect all configuration during installation:
+- ✓ **All settings configured upfront** - no post-install wizard needed
+- ✓ **Blue/gray dialog boxes** - familiar raspi-config interface
+- ✓ **Input validation** - helpful error messages and defaults
+- ✓ **Secure by default** - auto-generates passwords and keys
+- ✓ **Optional reconfiguration** - use `sudo eas-config` anytime
 
 ### 💿 Clean: Bootable ISO Image
 
@@ -45,23 +53,31 @@ sudo dd if=eas-station-*.iso of=/dev/sdX bs=4M status=progress
 
 ## Post-Installation
 
-### First-Time Setup (via Web Interface)
+### Accessing Your Station
 
-After installation completes, open your browser and:
+After installation completes, your EAS Station is **fully configured and ready to use**!
 
-1. **Navigate to** https://localhost
-   - Accept the self-signed certificate warning
+1. **Navigate to** https://localhost (or your configured domain)
+   - Accept the self-signed certificate warning (normal for self-signed certs)
    
-2. **Create Administrator Account**
-   - Enter a username (min 3 characters)
-   - Set a strong password (min 12 characters)
-   
-3. **Configure Your Station** (via setup wizard)
-   - Location settings (county, state, zone codes)
-   - Your callsign (EAS_STATION_ID)
-   - Enable/disable features (SDR, broadcast, etc.)
+2. **Log in** with the administrator account you created during installation
 
-All configuration is done through the intuitive web interface - no command-line editing required!
+3. **Start monitoring!** Your station is already configured with:
+   - ✓ Administrator account
+   - ✓ System settings (hostname, domain, callsign)
+   - ✓ Location (timezone, state, county)
+   - ✓ Alert sources (NOAA, IPAWS as configured)
+   - ✓ Hardware integration (as configured)
+
+### Optional: Additional Configuration
+
+While all essential configuration is done during installation, you can:
+
+- **Fine-tune settings** via the web interface at `/setup`
+- **Reconfigure anytime** using `sudo eas-config` (raspi-config style TUI)
+- **Advanced settings** can be edited in `/opt/eas-station/.env`
+
+**Note:** For advanced features like FIPS code lookup and zone code derivation, use the web-based setup wizard at `/setup` which provides interactive builders.
 
 ### Check Status
 
