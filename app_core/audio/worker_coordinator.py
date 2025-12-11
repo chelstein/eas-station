@@ -31,27 +31,19 @@ Coordination Strategy (with automatic fallback):
     1. Try Redis-based coordination (preferred, robust, fast)
     2. Fall back to file-based if Redis unavailable
 
-Redis Mode (default):
+Redis Mode:
     - Distributed locks with TTL (automatic failover)
     - In-memory state (100x faster than files)
     - Pub/Sub for real-time updates
     - Atomic operations (no race conditions)
-
-File Mode (fallback):
-    - File-based locking with fcntl
-    - JSON file for shared state
-    - Periodic polling for updates
-    - Used when Redis unavailable
 """
 
 import os
 import json
 import time
 import logging
-import fcntl
 import threading
 from typing import Optional, Dict, Any
-from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -76,16 +68,10 @@ except ImportError as e:
 HEARTBEAT_INTERVAL = 5.0  # Master updates heartbeat every 5 seconds
 STALE_HEARTBEAT_THRESHOLD = 15.0  # Consider master dead after 15 seconds
 
-# File-based fallback paths (used when Redis is unavailable)
-METRICS_FILE = "/tmp/eas_station_shared_metrics.json"
-
 # Global state
 _is_master_worker: bool = False
 _heartbeat_thread: Optional[threading.Thread] = None
 _heartbeat_stop_flag: threading.Event = threading.Event()
-
-# Note: File-based fallbacks (METRICS_FILE, MASTER_LOCK_FILE, _master_lock_fd) removed.
-# These don't work reliably in containerized environments.
 
 
 class WorkerRole:
@@ -123,28 +109,18 @@ def try_acquire_master_lock() -> bool:
 
 def release_master_lock():
     """Release the master worker lock."""
-    global _master_lock_fd, _is_master_worker
+    global _is_master_worker
 
-    # Try Redis first
-    if _USE_REDIS and _redis_coordinator:
-        try:
-            _redis_coordinator.release_master_lock()
-            _is_master_worker = False
-            return
-        except Exception as e:
-            logger.error(f"Redis coordinator failed during release: {e}")
-            # Fall through to file-based
+    if not _USE_REDIS or not _redis_coordinator:
+        _is_master_worker = False
+        return
 
-    if _master_lock_fd is not None:
-        try:
-            fcntl.flock(_master_lock_fd, fcntl.LOCK_UN)
-            os.close(_master_lock_fd)
-            logger.info(f"Worker PID {os.getpid()} released master lock")
-        except Exception as e:
-            logger.error(f"Error releasing master lock: {e}")
-        finally:
-            _master_lock_fd = None
-            _is_master_worker = False
+    try:
+        _redis_coordinator.release_master_lock()
+        _is_master_worker = False
+    except Exception as e:
+        logger.error(f"Failed to release master lock via Redis: {e}")
+        _is_master_worker = False
 
 
 def is_master_worker() -> bool:
