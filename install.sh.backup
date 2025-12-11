@@ -202,46 +202,29 @@ echo_success "System detection complete"
 # COLLECT MINIMAL CONFIGURATION
 # ====================================================================
 
-# Check if whiptail is available
-if ! command -v whiptail &> /dev/null; then
-    echo_error "whiptail is required for interactive installation"
-    echo_info "Installing whiptail..."
-    apt-get install -y whiptail > /dev/null 2>&1
-fi
-
 echo_step "Administrator Account Setup"
 
-# Welcome screen
-whiptail --title "EAS Station Installation" --msgbox "Welcome to the EAS Station Interactive Installer!\n\nThis wizard will guide you through configuring your Emergency Alert System station.\n\nYou'll be asked to configure:\n• Administrator account\n• System identification\n• Station callsign and location\n\nPress OK to begin." 18 70
+echo -e "${WHITE}You'll need an administrator account to access the web interface.${NC}"
+echo ""
 
 # Prompt for admin username
 while true; do
-    ADMIN_USERNAME=$(whiptail --title "Administrator Account" --inputbox "Enter administrator username (min 3 characters):\n\nThis account will be used to access the web interface." 12 70 3>&1 1>&2 2>&3)
-    
-    exitstatus=$?
-    if [ $exitstatus != 0 ]; then
-        if whiptail --title "Cancel Installation?" --yesno "Are you sure you want to cancel the installation?" 8 60; then
-            echo_error "Installation cancelled by user"
-            exit 1
-        else
-            continue
-        fi
-    fi
-    
+    echo -ne "${CYAN}Administrator username${NC} (min 3 characters): "
+    read ADMIN_USERNAME
     ADMIN_USERNAME=$(echo "$ADMIN_USERNAME" | xargs)  # Trim whitespace
     
     if [ -z "$ADMIN_USERNAME" ]; then
-        whiptail --title "Error" --msgbox "Username cannot be empty. Please try again." 8 60
+        echo_error "Username cannot be empty"
         continue
     fi
     
     if [ ${#ADMIN_USERNAME} -lt 3 ]; then
-        whiptail --title "Error" --msgbox "Username must be at least 3 characters long." 8 60
+        echo_error "Username must be at least 3 characters long"
         continue
     fi
     
     if ! [[ "$ADMIN_USERNAME" =~ ^[A-Za-z0-9_.-]+$ ]]; then
-        whiptail --title "Error" --msgbox "Username may only contain letters, numbers, dots, hyphens, or underscores." 9 60
+        echo_error "Username may only contain letters, numbers, dots, hyphens, or underscores"
         continue
     fi
     
@@ -249,29 +232,27 @@ while true; do
     break
 done
 
+echo ""
+
 # Prompt for admin password
 while true; do
-    ADMIN_PASSWORD=$(whiptail --title "Administrator Password" --passwordbox "Enter administrator password (min 12 characters):" 10 70 3>&1 1>&2 2>&3)
-    
-    exitstatus=$?
-    if [ $exitstatus != 0 ]; then
-        if whiptail --title "Cancel Installation?" --yesno "Are you sure you want to cancel the installation?" 8 60; then
-            echo_error "Installation cancelled by user"
-            exit 1
-        else
-            continue
-        fi
-    fi
+    echo -ne "${CYAN}Administrator password${NC} (min 12 characters): "
+    read -s ADMIN_PASSWORD
+    echo
     
     if [ ${#ADMIN_PASSWORD} -lt 12 ]; then
-        whiptail --title "Error" --msgbox "Password must be at least 12 characters long." 8 60
+        echo_error "Password must be at least 12 characters long"
+        echo ""
         continue
     fi
     
-    ADMIN_PASSWORD_CONFIRM=$(whiptail --title "Confirm Password" --passwordbox "Confirm administrator password:" 10 70 3>&1 1>&2 2>&3)
+    echo -ne "${CYAN}Confirm password:${NC} "
+    read -s ADMIN_PASSWORD_CONFIRM
+    echo
     
     if [ "$ADMIN_PASSWORD" != "$ADMIN_PASSWORD_CONFIRM" ]; then
-        whiptail --title "Error" --msgbox "Passwords do not match. Please try again." 8 60
+        echo_error "Passwords do not match"
+        echo ""
         continue
     fi
     
@@ -279,30 +260,22 @@ while true; do
     break
 done
 
+echo ""
+
 # Prompt for admin email address (for notifications)
 while true; do
-    ADMIN_EMAIL=$(whiptail --title "Administrator Email" --inputbox "Enter administrator email address:\n\nThis will be used for system notifications and alerts." 12 70 3>&1 1>&2 2>&3)
-    
-    exitstatus=$?
-    if [ $exitstatus != 0 ]; then
-        if whiptail --title "Cancel Installation?" --yesno "Are you sure you want to cancel the installation?" 8 60; then
-            echo_error "Installation cancelled by user"
-            exit 1
-        else
-            continue
-        fi
-    fi
-    
+    echo -ne "${CYAN}Administrator email address:${NC} "
+    read ADMIN_EMAIL
     ADMIN_EMAIL=$(echo "$ADMIN_EMAIL" | xargs)  # Trim whitespace
     
     if [ -z "$ADMIN_EMAIL" ]; then
-        whiptail --title "Error" --msgbox "Email address cannot be empty." 8 60
+        echo_error "Email address cannot be empty"
         continue
     fi
     
     # Basic email validation (must have @ and . after @)
     if ! [[ "$ADMIN_EMAIL" =~ ^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]]; then
-        whiptail --title "Error" --msgbox "Invalid email format.\n\nEmail must be in format: user@domain.com" 9 60
+        echo_error "Invalid email format. Email must be in format: user@domain.com"
         continue
     fi
     
@@ -310,6 +283,7 @@ while true; do
     break
 done
 
+echo ""
 echo_success "Administrator account configured"
 
 # ====================================================================
@@ -318,29 +292,26 @@ echo_success "Administrator account configured"
 
 echo_step "System and EAS Station Configuration"
 
+echo -e "${WHITE}Configure your system hostname, domain, and EAS station identification.${NC}"
+echo ""
+
 # Prompt for system hostname
 CURRENT_HOSTNAME=$(hostname 2>/dev/null || echo "eas-station")
 while true; do
-    SYSTEM_HOSTNAME=$(whiptail --title "System Hostname" --inputbox "Enter system hostname:\n\nThis will be the network name of your EAS station." 12 70 "$CURRENT_HOSTNAME" 3>&1 1>&2 2>&3)
+    echo -ne "${CYAN}System hostname${NC} [${BOLD}$CURRENT_HOSTNAME${NC}]: "
+    read SYSTEM_HOSTNAME
     
-    exitstatus=$?
-    if [ $exitstatus != 0 ]; then
+    # Use current hostname if user presses enter without input
+    if [ -z "$SYSTEM_HOSTNAME" ]; then
         SYSTEM_HOSTNAME="$CURRENT_HOSTNAME"
-        echo_info "Using current hostname: $SYSTEM_HOSTNAME"
-        break
     fi
     
     # Trim whitespace
     SYSTEM_HOSTNAME=$(echo "$SYSTEM_HOSTNAME" | xargs)
     
-    # Use current hostname if empty
-    if [ -z "$SYSTEM_HOSTNAME" ]; then
-        SYSTEM_HOSTNAME="$CURRENT_HOSTNAME"
-    fi
-    
     # Validate hostname format (alphanumeric, hyphens, dots)
     if ! [[ "$SYSTEM_HOSTNAME" =~ ^[a-zA-Z0-9]([a-zA-Z0-9.-]*[a-zA-Z0-9])?$ ]]; then
-        whiptail --title "Error" --msgbox "Invalid hostname format.\n\nUse only letters, numbers, hyphens, and dots." 9 60
+        echo_error "Invalid hostname format. Use only letters, numbers, hyphens, and dots"
         continue
     fi
     
@@ -348,24 +319,20 @@ while true; do
     break
 done
 
+echo ""
+
 # Prompt for domain name (for SSL/nginx)
 while true; do
-    DOMAIN_NAME=$(whiptail --title "Domain Name" --inputbox "Enter domain name for SSL/web access:\n\nUse 'localhost' for local-only access, an IP address, or your domain name." 13 70 "localhost" 3>&1 1>&2 2>&3)
+    echo -ne "${CYAN}Domain name for SSL/web access${NC} [${BOLD}localhost${NC}]: "
+    read DOMAIN_NAME
     
-    exitstatus=$?
-    if [ $exitstatus != 0 ]; then
+    # Default to localhost if user presses enter
+    if [ -z "$DOMAIN_NAME" ]; then
         DOMAIN_NAME="localhost"
-        echo_info "Using default: $DOMAIN_NAME"
-        break
     fi
     
     # Trim whitespace
     DOMAIN_NAME=$(echo "$DOMAIN_NAME" | xargs)
-    
-    # Default to localhost if empty
-    if [ -z "$DOMAIN_NAME" ]; then
-        DOMAIN_NAME="localhost"
-    fi
     
     # Validate domain format (allow localhost, IP addresses, and domain names)
     if [[ "$DOMAIN_NAME" == "localhost" ]]; then
@@ -386,7 +353,7 @@ while true; do
             echo_success "Domain: ${BOLD}$DOMAIN_NAME${NC}"
             break
         else
-            whiptail --title "Error" --msgbox "Invalid IP address.\n\nEach octet must be 0-255." 9 60
+            echo_error "Invalid IP address. Each octet must be 0-255"
             continue
         fi
     # Validate domain name format
@@ -394,33 +361,31 @@ while true; do
         echo_success "Domain: ${BOLD}$DOMAIN_NAME${NC}"
         break
     else
-        whiptail --title "Error" --msgbox "Invalid domain format.\n\nUse localhost, an IP address, or a valid domain name." 10 60
+        echo_error "Invalid domain format. Use localhost, an IP address, or a valid domain name"
         continue
     fi
 done
 
+echo ""
+
 # Prompt for EAS originator code
+echo -e "${CYAN}EAS Originator Code${NC} (3-letter code identifying who originates alerts)"
+echo -e "${DIM}Common codes: WXR (NOAA Weather Radio), EAS (EAS Participant), PEP (Primary Entry Point)${NC}"
 while true; do
-    EAS_ORIGINATOR=$(whiptail --title "EAS Originator Code" --inputbox "Enter EAS Originator Code (3-letter code):\n\nCommon codes:\n• WXR - NOAA Weather Radio\n• EAS - EAS Participant\n• PEP - Primary Entry Point" 14 70 "WXR" 3>&1 1>&2 2>&3)
+    echo -ne "${CYAN}EAS Originator${NC} [${BOLD}WXR${NC}]: "
+    read EAS_ORIGINATOR
     
-    exitstatus=$?
-    if [ $exitstatus != 0 ]; then
+    # Default to WXR if user presses enter
+    if [ -z "$EAS_ORIGINATOR" ]; then
         EAS_ORIGINATOR="WXR"
-        echo_info "Using default: $EAS_ORIGINATOR"
-        break
     fi
     
     # Convert to uppercase and trim whitespace
     EAS_ORIGINATOR=$(echo "$EAS_ORIGINATOR" | tr '[:lower:]' '[:upper:]' | xargs)
     
-    # Default to WXR if empty
-    if [ -z "$EAS_ORIGINATOR" ]; then
-        EAS_ORIGINATOR="WXR"
-    fi
-    
     # Validate format (exactly 3 uppercase letters)
     if ! [[ "$EAS_ORIGINATOR" =~ ^[A-Z]{3}$ ]]; then
-        whiptail --title "Error" --msgbox "EAS Originator must be exactly 3 letters.\n\nExamples: WXR, EAS, PEP" 9 60
+        echo_error "EAS Originator must be exactly 3 letters (e.g., WXR, EAS, PEP)"
         continue
     fi
     
@@ -428,28 +393,27 @@ while true; do
     break
 done
 
+echo ""
+
 # Prompt for station callsign/ID
+echo -e "${CYAN}Station Callsign/ID${NC} (identifies your EAS station)"
+echo -e "${DIM}Use your FCC callsign if you have one, or a unique identifier (max 8 characters)${NC}"
+echo -e "${DIM}Examples: WKRP, KR8MER, EASNODE1, NOCALL (if testing/no callsign)${NC}"
 while true; do
-    EAS_STATION_ID=$(whiptail --title "Station Callsign/ID" --inputbox "Enter your station callsign or ID (max 8 characters):\n\nUse your FCC callsign if you have one, or a unique identifier.\n\nExamples: WKRP, KR8MER, EASNODE1, NOCALL" 14 70 "NOCALL" 3>&1 1>&2 2>&3)
+    echo -ne "${CYAN}Station Callsign${NC} [${BOLD}NOCALL${NC}]: "
+    read EAS_STATION_ID
     
-    exitstatus=$?
-    if [ $exitstatus != 0 ]; then
+    # Default to NOCALL if user presses enter
+    if [ -z "$EAS_STATION_ID" ]; then
         EAS_STATION_ID="NOCALL"
-        echo_info "Using default: $EAS_STATION_ID"
-        break
     fi
     
     # Convert to uppercase and trim whitespace
     EAS_STATION_ID=$(echo "$EAS_STATION_ID" | tr '[:lower:]' '[:upper:]' | xargs)
     
-    # Default to NOCALL if empty
-    if [ -z "$EAS_STATION_ID" ]; then
-        EAS_STATION_ID="NOCALL"
-    fi
-    
     # Validate format (1-8 alphanumeric characters)
     if ! [[ "$EAS_STATION_ID" =~ ^[A-Z0-9]{1,8}$ ]]; then
-        whiptail --title "Error" --msgbox "Station ID must be 1-8 alphanumeric characters.\n\nExamples: WKRP, KR8MER, NOCALL" 10 60
+        echo_error "Station ID must be 1-8 alphanumeric characters (e.g., WKRP, KR8MER, NOCALL)"
         continue
     fi
     
@@ -457,20 +421,7 @@ while true; do
     break
 done
 
-# Configuration summary and confirmation
-if whiptail --title "Confirm Configuration" --yesno "Please confirm your configuration:\n\nAdministrator: $ADMIN_USERNAME\nEmail: $ADMIN_EMAIL\nHostname: $SYSTEM_HOSTNAME\nDomain: $DOMAIN_NAME\nOriginator: $EAS_ORIGINATOR\nStation ID: $EAS_STATION_ID\n\nProceed with installation?" 18 70; then
-    echo_success "Configuration confirmed"
-else
-    if whiptail --title "Cancel Installation?" --yesno "Are you sure you want to cancel the installation?" 8 60; then
-        echo_error "Installation cancelled by user"
-        exit 1
-    else
-        whiptail --title "Restart Configuration" --msgbox "Please restart the installer to reconfigure." 8 60
-        echo_error "Installation cancelled - please restart"
-        exit 1
-    fi
-fi
-
+echo ""
 echo_success "System and EAS station configuration complete"
 
 # Set system hostname if it changed
