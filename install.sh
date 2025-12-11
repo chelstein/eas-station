@@ -50,7 +50,7 @@ echo_progress() {
 echo_header() {
     echo ""
     echo -e "${BOLD}${CYAN}╔════════════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${BOLD}${CYAN}║${NC}${BOLD}${WHITE}  $1${NC}"
+    echo -e "${BOLD}${CYAN}║${NC}${BOLD}${WHITE}  $1${NC}$(printf ' %.0s' $(seq 1 $((64 - 2 - ${#1}))))${BOLD}${CYAN}║${NC}"
     echo -e "${BOLD}${CYAN}╚════════════════════════════════════════════════════════════════╝${NC}"
     echo ""
 }
@@ -671,39 +671,45 @@ fi
 
 # Create database and user with the password collected earlier
 echo_progress "Creating database and user..."
-sudo -u postgres psql -tc "SELECT 1 FROM pg_database WHERE datname = 'alerts'" 2>/dev/null | grep -q 1 || \
-    sudo -u postgres psql -c "CREATE DATABASE alerts;"
+if sudo -u postgres psql -tc "SELECT 1 FROM pg_database WHERE datname = 'alerts'" 2>/dev/null | grep -q 1; then
+    echo_info "Database 'alerts' already exists (skipping creation)"
+else
+    sudo -u postgres psql -c "CREATE DATABASE alerts;" 2>/dev/null || echo_warning "Database creation attempted but may already exist"
+fi
 
 # Create database user (use dollar-quoting to safely handle special characters in password)
-if ! sudo -u postgres psql -tc "SELECT 1 FROM pg_user WHERE usename = 'eas_station'" | grep -q 1; then
-    sudo -u postgres psql <<EOF
+if ! sudo -u postgres psql -tc "SELECT 1 FROM pg_user WHERE usename = 'eas_station'" 2>/dev/null | grep -q 1; then
+    echo_progress "Creating database user 'eas_station'..."
+    sudo -u postgres psql <<EOF 2>/dev/null || echo_warning "User creation attempted but may already exist"
 CREATE USER eas_station WITH PASSWORD \$\$${DB_PASSWORD}\$\$;
 EOF
+else
+    echo_info "Database user 'eas_station' already exists (updating password)"
 fi
 
 # Update password if user already exists (in case of re-running script)
-sudo -u postgres psql <<EOF
+sudo -u postgres psql <<EOF 2>/dev/null
 ALTER USER eas_station WITH PASSWORD \$\$${DB_PASSWORD}\$\$;
 EOF
 
-sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE alerts TO eas_station;"
+sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE alerts TO eas_station;" 2>/dev/null
 
 # Grant schema privileges (required for PostgreSQL 15+)
-sudo -u postgres psql -d alerts -c "GRANT ALL ON SCHEMA public TO eas_station;"
-sudo -u postgres psql -d alerts -c "GRANT CREATE ON SCHEMA public TO eas_station;"
-sudo -u postgres psql -d alerts -c "ALTER SCHEMA public OWNER TO eas_station;"
+sudo -u postgres psql -d alerts -c "GRANT ALL ON SCHEMA public TO eas_station;" 2>/dev/null
+sudo -u postgres psql -d alerts -c "GRANT CREATE ON SCHEMA public TO eas_station;" 2>/dev/null
+sudo -u postgres psql -d alerts -c "ALTER SCHEMA public OWNER TO eas_station;" 2>/dev/null
 
 # Grant privileges on all existing tables and sequences (if any)
-sudo -u postgres psql -d alerts -c "GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO eas_station;"
-sudo -u postgres psql -d alerts -c "GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO eas_station;"
+sudo -u postgres psql -d alerts -c "GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO eas_station;" 2>/dev/null
+sudo -u postgres psql -d alerts -c "GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO eas_station;" 2>/dev/null
 
 # Grant default privileges for future tables and sequences
-sudo -u postgres psql -d alerts -c "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO eas_station;"
-sudo -u postgres psql -d alerts -c "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO eas_station;"
+sudo -u postgres psql -d alerts -c "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO eas_station;" 2>/dev/null
+sudo -u postgres psql -d alerts -c "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO eas_station;" 2>/dev/null
 
 # Create PostGIS extensions
-sudo -u postgres psql -d alerts -c "CREATE EXTENSION IF NOT EXISTS postgis;"
-sudo -u postgres psql -d alerts -c "CREATE EXTENSION IF NOT EXISTS postgis_topology;"
+sudo -u postgres psql -d alerts -c "CREATE EXTENSION IF NOT EXISTS postgis;" 2>/dev/null
+sudo -u postgres psql -d alerts -c "CREATE EXTENSION IF NOT EXISTS postgis_topology;" 2>/dev/null
 
 echo_success "PostgreSQL configured"
 
