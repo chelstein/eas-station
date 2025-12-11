@@ -450,15 +450,12 @@ done
 
 # Prompt for EAS originator code using radio button menu
 EAS_ORIGINATOR=$(whiptail --title "EAS Originator Code" --backtitle "$(whiptail_footer)" --radiolist \
-"Select your EAS Originator Code:\n\nThis identifies the type of EAS station." 20 78 8 \
+"Select your EAS Originator Code:\n\nThis identifies the type of EAS station." 16 78 5 \
     "WXR" "NOAA Weather Radio (recommended)" ON \
     "EAS" "EAS Participant Station" OFF \
     "PEP" "Primary Entry Point Station" OFF \
     "CIV" "Civil Authorities" OFF \
     "WXS" "National Weather Service" OFF \
-    "EAN" "Emergency Action Notification" OFF \
-    "ADM" "Administrative Message" OFF \
-    "RWT" "Required Weekly Test" OFF \
     3>&1 1>&2 2>&3)
 
 exitstatus=$?
@@ -540,8 +537,8 @@ fi
 
 echo_success "Timezone: ${BOLD}$TIMEZONE${NC}"
 
-# State selection
-STATE_CODE=$(whiptail --title "State Selection" --backtitle "$(whiptail_footer)" --menu "Select your state:" 22 70 12 \
+# State selection (includes DC and territories for EAS coverage)
+STATE_CODE=$(whiptail --title "State Selection" --backtitle "$(whiptail_footer)" --menu "Select your state or territory:" 22 70 12 \
     "AL" "Alabama" \
     "AK" "Alaska" \
     "AZ" "Arizona" \
@@ -549,6 +546,7 @@ STATE_CODE=$(whiptail --title "State Selection" --backtitle "$(whiptail_footer)"
     "CA" "California" \
     "CO" "Colorado" \
     "CT" "Connecticut" \
+    "DC" "District of Columbia" \
     "DE" "Delaware" \
     "FL" "Florida" \
     "GA" "Georgia" \
@@ -663,7 +661,18 @@ if whiptail --title "FIPS Codes Configuration" --backtitle "$(whiptail_footer)" 
             
             # Build whiptail checklist from counties
             CHECKLIST_ITEMS=()
-            
+
+            # Parse statewide code and add it as first option
+            set +e
+            STATEWIDE_CODE=$(echo "$LOOKUP_RESULT" | python3 -c "import sys, json; data=json.load(sys.stdin); print(data.get('statewide_code', ''))" 2>/dev/null)
+            STATE_NAME=$(echo "$LOOKUP_RESULT" | python3 -c "import sys, json; data=json.load(sys.stdin); print(data.get('state', ''))" 2>/dev/null)
+            set -e
+
+            # Add statewide option first if available
+            if [ -n "$STATEWIDE_CODE" ] && [ "$STATEWIDE_CODE" != "000000" ]; then
+                CHECKLIST_ITEMS+=("$STATEWIDE_CODE" "★ Entire ${STATE_NAME:-$STATE_CODE} (statewide)" "OFF")
+            fi
+
             # Parse counties and build checklist array
             set +e
             while IFS='|' read -r fips_code county_name; do
@@ -683,8 +692,8 @@ if whiptail --title "FIPS Codes Configuration" --backtitle "$(whiptail_footer)" 
             
             if [ ${#CHECKLIST_ITEMS[@]} -gt 0 ]; then
                 # Show checklist dialog (allow multiple selection)
-                SELECTED_FIPS=$(whiptail --title "Select Counties for FIPS Codes" --backtitle "$(whiptail_footer)" \
-                    --checklist "Select one or more counties to monitor for alerts:\n\nUse SPACE to select, ENTER to confirm\n\n${COUNTY_COUNT} counties available in ${STATE_CODE}:" \
+                SELECTED_FIPS=$(whiptail --title "Select FIPS Codes" --backtitle "$(whiptail_footer)" \
+                    --checklist "Select areas to monitor for alerts:\n\n★ = Entire state (for statewide alerts like RWT)\n\nUse SPACE to select, ENTER to confirm:" \
                     25 78 15 "${CHECKLIST_ITEMS[@]}" 3>&1 1>&2 2>&3)
                 
                 if [ $? = 0 ] && [ -n "$SELECTED_FIPS" ]; then
@@ -781,28 +790,30 @@ ZONE_CODES=""
 if [ -n "$FIPS_CODES" ]; then
     if whiptail --title "NWS Zone Codes" --backtitle "$(whiptail_footer)" --yesno "Would you like to automatically derive NWS zone codes from your FIPS codes?\n\nZone codes are used for weather alert filtering.\n\nFIPS codes: $FIPS_CODES" 13 78; then
         echo_progress "Deriving NWS zone codes from FIPS codes..."
-        
+
         # Try to derive zone codes using helper script
         ZONE_RESULT=""
         ZONE_ERROR=""
-        
+
         # Disable exit on error temporarily
         set +e
-        
-        if [ -f "$INSTALL_DIR/venv/bin/python" ]; then
+
+        # Use system Python with SCRIPT_DIR since files aren't copied to INSTALL_DIR yet
+        # The helper script is designed to work without Flask/SQLAlchemy dependencies
+        if [ -f "$SCRIPT_DIR/scripts/zone_derive_helper.py" ] && command -v python3 &> /dev/null; then
             # Convert comma-separated FIPS to space-separated for script args
             FIPS_ARGS=$(echo "$FIPS_CODES" | tr ',' ' ')
-            ZONE_RESULT=$("$INSTALL_DIR/venv/bin/python" "$INSTALL_DIR/scripts/zone_derive_helper.py" $FIPS_ARGS 2>&1)
-            ZONE_EXIT=$?
-        elif [ -f "$VENV_DIR/bin/python" ]; then
-            FIPS_ARGS=$(echo "$FIPS_CODES" | tr ',' ' ')
-            ZONE_RESULT=$("$VENV_DIR/bin/python" "$INSTALL_DIR/scripts/zone_derive_helper.py" $FIPS_ARGS 2>&1)
+            ZONE_RESULT=$(python3 "$SCRIPT_DIR/scripts/zone_derive_helper.py" $FIPS_ARGS 2>&1)
             ZONE_EXIT=$?
         else
             ZONE_EXIT=1
-            ZONE_ERROR="Python environment not yet available"
+            if [ ! -f "$SCRIPT_DIR/scripts/zone_derive_helper.py" ]; then
+                ZONE_ERROR="Zone derivation helper script not found at $SCRIPT_DIR/scripts/"
+            else
+                ZONE_ERROR="Python 3 not available"
+            fi
         fi
-        
+
         # Re-enable exit on error
         set -e
         
@@ -826,8 +837,22 @@ if [ -n "$FIPS_CODES" ]; then
                 echo_success "Derived ${BOLD}$ZONE_COUNT${NC} zone code(s): ${BOLD}$ZONE_CODES${NC}"
                 whiptail --title "Zone Codes Derived" --backtitle "$(whiptail_footer)" --msgbox "Successfully derived $ZONE_COUNT NWS zone code(s):\n\n$ZONE_CODES\n\nThese will be saved to your configuration." 14 78
             else
-                echo_warning "No zone codes could be derived from the provided FIPS codes"
-                whiptail --title "No Zone Codes" --backtitle "$(whiptail_footer)" --msgbox "No zone codes could be derived from your FIPS codes.\n\nThis is normal for some counties. You can configure zone codes manually after installation via the web interface at /setup." 13 78
+                # Check if user only selected statewide/nationwide codes (ending in 000)
+                HAS_COUNTY_CODES=false
+                for code in $(echo "$FIPS_CODES" | tr ',' ' '); do
+                    if ! echo "$code" | grep -qE '000$'; then
+                        HAS_COUNTY_CODES=true
+                        break
+                    fi
+                done
+
+                if [ "$HAS_COUNTY_CODES" = false ]; then
+                    echo_info "Statewide/nationwide FIPS codes don't require zone codes"
+                    whiptail --title "No Zone Codes Needed" --backtitle "$(whiptail_footer)" --msgbox "Your FIPS codes are statewide or nationwide codes.\n\nThese are used for state/national level alerts (like Required Weekly Tests) and don't require specific zone codes.\n\nZone codes can be added later via /setup if needed." 14 78
+                else
+                    echo_warning "No zone codes could be derived from the provided FIPS codes"
+                    whiptail --title "No Zone Codes" --backtitle "$(whiptail_footer)" --msgbox "No zone codes could be derived from your FIPS codes.\n\nYou can configure zone codes manually after installation via the web interface at /setup." 12 78
+                fi
                 ZONE_CODES=""
             fi
         else
@@ -847,6 +872,27 @@ if [ -n "$FIPS_CODES" ]; then
     fi
 else
     ZONE_CODES=""
+fi
+
+# Check if user is in a coastal/marine state and mention marine zones
+COASTAL_STATES="AL AK CA CT DE FL GA HI IL IN LA MA MD ME MI MN MS NC NH NJ NY OH OR PA RI SC TX VA WA WI"
+if echo "$COASTAL_STATES" | grep -qw "$STATE_CODE"; then
+    # Determine what marine area applies
+    MARINE_AREA=""
+    case "$STATE_CODE" in
+        MI|WI|MN|IL|IN|OH|PA|NY) MARINE_AREA="Great Lakes" ;;
+        TX|LA|MS|AL) MARINE_AREA="Gulf of America" ;;
+        FL) MARINE_AREA="Gulf of America and Atlantic coast" ;;
+        ME|NH|MA|RI|CT|NJ|DE|MD|VA|NC|SC|GA) MARINE_AREA="Atlantic coast" ;;
+        WA|OR|CA) MARINE_AREA="Pacific coast" ;;
+        HI) MARINE_AREA="Pacific Ocean" ;;
+        AK) MARINE_AREA="Pacific and Arctic waters" ;;
+    esac
+
+    if [ -n "$MARINE_AREA" ]; then
+        whiptail --title "Marine Zones Available" --backtitle "$(whiptail_footer)" --msgbox "Your state (${STATE_CODE}) borders the ${MARINE_AREA}.\n\nMarine weather zones (for coastal/offshore alerts) can be configured after installation via the web interface at /setup.\n\nLook for zone codes starting with:\n• GMZ - Gulf of America\n• AMZ - Atlantic Marine\n• PMZ - Pacific Marine\n• LMZ/LEZ/LHZ/LSZ/LOZ - Great Lakes" 17 78
+        echo_info "Marine zones for ${MARINE_AREA} can be added via /setup"
+    fi
 fi
 
 # ====================================================================

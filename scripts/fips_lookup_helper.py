@@ -31,7 +31,7 @@ def list_counties_for_state(state_code: str):
     try:
         state_code = state_code.strip().upper()
         tree = get_us_state_county_tree()
-        
+
         for state in tree:
             if state.get('abbr', '').upper() == state_code:
                 counties = []
@@ -40,8 +40,12 @@ def list_counties_for_state(state_code: str):
                         'name': county.get('name', ''),
                         'fips': county.get('code', ''),  # Field is 'code' not 'same'
                     })
-                return {'state': state.get('name', ''), 'counties': counties}
-        
+                return {
+                    'state': state.get('name', ''),
+                    'statewide_code': state.get('statewide_code', ''),
+                    'counties': counties
+                }
+
         return {'error': f'State {state_code} not found'}
     except Exception as e:
         return {'error': f'Error listing counties: {e}'}
