@@ -46,13 +46,22 @@ import json
 import redis
 import subprocess
 import threading
-import glob
 import ipaddress
-import re
 from typing import Optional
 from datetime import datetime, timezone
 from dotenv import load_dotenv
 from flask import Flask, jsonify, request
+
+# Network utilities (extracted for reuse)
+from app_utils.network import (
+    run_command,
+    check_nmcli_available,
+    get_wifi_interface,
+    enhance_error_message,
+    get_hostname,
+    set_hostname,
+    HOSTNAME_PATTERN,
+)
 
 # Configure logging early
 logging.basicConfig(
@@ -83,13 +92,6 @@ _running = True
 _redis_client: Optional[redis.Redis] = None
 _screen_manager = None
 _gpio_controller = None
-_nmcli_available: Optional[bool] = None  # Cached nmcli availability check
-
-# Hostname validation pattern (RFC 1123) - compiled once at module level
-# - 1-63 characters
-# - Only letters, numbers, hyphens
-# - Cannot start or end with hyphen
-HOSTNAME_PATTERN = re.compile(r'^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$')
 
 
 def signal_handler(signum, frame):
@@ -441,293 +443,6 @@ def publish_display_state():
 
     except Exception as e:
         logger.debug(f"Failed to publish display state: {e}")
-
-
-def run_command(cmd, check=True, timeout=30):
-    """Execute a shell command safely and return the result.
-
-    Args:
-        cmd: Either a string (for simple commands with no user input) or a list (for commands with arguments)
-        check: If True, raise CalledProcessError for non-zero exit codes
-        timeout: Command timeout in seconds
-
-    Returns:
-        dict with success, stdout, stderr, returncode, and optional error
-    """
-    try:
-        # If cmd is a string, split it for safe execution (NO user input should use this path)
-        # If cmd is a list, use it directly (REQUIRED for user input)
-        if isinstance(cmd, str):
-            # Only allow string commands for hardcoded commands with no user input
-            # This path should NOT be used with any user-supplied data
-            cmd_list = cmd.split()
-        else:
-            cmd_list = cmd
-
-        result = subprocess.run(
-            cmd_list,
-            shell=False,  # SECURITY: Never use shell=True with user input
-            capture_output=True,
-            text=True,
-            check=check,
-            timeout=timeout
-        )
-        return {
-            'success': True,
-            'stdout': result.stdout.strip(),
-            'stderr': result.stderr.strip(),
-            'returncode': result.returncode
-        }
-    except subprocess.TimeoutExpired:
-        return {
-            'success': False,
-            'error': 'Command timeout',
-            'returncode': -1
-        }
-    except subprocess.CalledProcessError as e:
-        return {
-            'success': False,
-            'stdout': e.stdout.strip() if e.stdout else '',
-            'stderr': e.stderr.strip() if e.stderr else '',
-            'returncode': e.returncode,
-            'error': str(e)
-        }
-    except Exception as e:
-        return {
-            'success': False,
-            'error': str(e),
-            'returncode': -1
-        }
-
-
-def check_nmcli_available():
-    """Check if nmcli (NetworkManager CLI) is available.
-    
-    Uses cached result after first check for performance.
-    
-    Returns:
-        bool: True if nmcli is available, False otherwise
-    """
-    global _nmcli_available
-    
-    # Return cached result if available
-    if _nmcli_available is not None:
-        return _nmcli_available
-    
-    # Check using shutil.which (more efficient than subprocess)
-    import shutil
-    _nmcli_available = shutil.which('nmcli') is not None
-    return _nmcli_available
-
-
-def get_wifi_interface():
-    """Detect the WiFi interface name (e.g., wlan0, wlp3s0).
-    
-    Returns:
-        str or None: WiFi interface name if found, None otherwise
-    """
-    try:
-        # Try to get WiFi device from nmcli
-        result = run_command(['nmcli', '-t', '-f', 'DEVICE,TYPE', 'device'], check=False, timeout=10)
-        if result['success'] and result['stdout']:
-            for line in result['stdout'].split('\n'):
-                if line.strip():
-                    parts = line.split(':')
-                    if len(parts) >= 2 and parts[1] == 'wifi':
-                        return parts[0]
-        
-        # Fallback: Check common WiFi interface names
-        for pattern in ['/sys/class/net/wlan*', '/sys/class/net/wlp*']:
-            interfaces = glob.glob(pattern)
-            if interfaces:
-                return os.path.basename(interfaces[0])
-        
-        return None
-    except Exception as e:
-        logger.warning(f"Error detecting WiFi interface: {e}")
-        return None
-
-
-def enhance_error_message(error_msg, context=''):
-    """Enhance error messages with helpful troubleshooting hints.
-    
-    Parses nmcli and common network error messages and adds context-aware
-    troubleshooting suggestions for users.
-    
-    Args:
-        error_msg: Raw error message from nmcli or system
-        context: Context of the operation (e.g., 'scan', 'connect', 'configure')
-    
-    Returns:
-        dict: Enhanced error with 'message' and 'hint' keys
-    """
-    error_lower = str(error_msg).lower()
-    
-    # Common error patterns and their user-friendly messages
-    error_patterns = {
-        'not found': {
-            'message': 'Interface or network not found',
-            'hint': 'Check that your WiFi/Ethernet adapter is properly connected and enabled.'
-        },
-        'no such device': {
-            'message': 'Network device not available',
-            'hint': 'Ensure your network hardware is connected and drivers are installed.'
-        },
-        'no wifi interface': {
-            'message': 'No WiFi adapter detected',
-            'hint': 'Check if your WiFi adapter is connected, powered on, and recognized by the system.'
-        },
-        'connection activation failed': {
-            'message': 'Failed to connect to network',
-            'hint': 'Verify the password is correct and the network is in range. Try forgetting and reconnecting.'
-        },
-        'secrets were required': {
-            'message': 'Password required',
-            'hint': 'This network requires a password. Please enter the correct WiFi password.'
-        },
-        'timeout': {
-            'message': 'Operation timed out',
-            'hint': 'The network operation took too long. Check network signal strength and try again.'
-        },
-        'no networks in range': {
-            'message': 'No networks detected',
-            'hint': 'Move closer to a WiFi access point or check if WiFi is enabled on the router.'
-        },
-        'already exists': {
-            'message': 'Connection already configured',
-            'hint': 'This network is already saved. Try activating the existing connection instead.'
-        },
-        'permission denied': {
-            'message': 'Permission denied',
-            'hint': 'Network configuration requires administrator privileges. Contact your system administrator.'
-        },
-        'invalid ip': {
-            'message': 'Invalid IP address',
-            'hint': 'Enter a valid IP address in format: 192.168.1.100'
-        },
-        'invalid gateway': {
-            'message': 'Invalid gateway address',
-            'hint': 'Gateway must be in the same subnet as the IP address.'
-        },
-    }
-    
-    # Find matching error pattern
-    for pattern, enhanced in error_patterns.items():
-        if pattern in error_lower:
-            return {
-                'message': enhanced['message'],
-                'hint': enhanced['hint'],
-                'technical': error_msg
-            }
-    
-    # Context-specific hints if no pattern matched
-    context_hints = {
-        'scan': 'Make sure WiFi is enabled and your adapter is working properly.',
-        'connect': 'Check the network password and signal strength.',
-        'configure': 'Verify the IP settings are valid for your network.',
-        'dns': 'Enter valid DNS server IP addresses (e.g., 8.8.8.8).',
-        'hostname': 'Hostname must contain only letters, numbers, and hyphens.',
-    }
-    
-    return {
-        'message': str(error_msg),
-        'hint': context_hints.get(context, 'Try refreshing and attempting the operation again.'),
-        'technical': error_msg
-    }
-
-
-def get_hostname():
-    """Get the current system hostname.
-    
-    Returns:
-        dict: Success status and hostname or error message
-    """
-    try:
-        result = run_command(['hostname'], check=False, timeout=5)
-        if result['success'] and result['stdout']:
-            hostname = result['stdout'].strip()
-            return {
-                'success': True,
-                'hostname': hostname
-            }
-        else:
-            return {
-                'success': False,
-                'error': 'Failed to get hostname'
-            }
-    except Exception as e:
-        logger.error(f"Error getting hostname: {e}")
-        return {
-            'success': False,
-            'error': str(e)
-        }
-
-
-def set_hostname(new_hostname):
-    """Set the system hostname using hostnamectl.
-    
-    Validates hostname format according to RFC 1123 before setting.
-    
-    Args:
-        new_hostname: New hostname to set
-    
-    Returns:
-        dict: Success status and message or error
-    """
-    try:
-        if not new_hostname:
-            enhanced = enhance_error_message('Hostname cannot be empty', 'hostname')
-            return {
-                'success': False,
-                'error': enhanced['message'],
-                'hint': enhanced['hint']
-            }
-        
-        if len(new_hostname) > 63:
-            enhanced = enhance_error_message('Hostname too long (max 63 characters)', 'hostname')
-            return {
-                'success': False,
-                'error': enhanced['message'],
-                'hint': enhanced['hint']
-            }
-        
-        if not HOSTNAME_PATTERN.match(new_hostname):
-            enhanced = enhance_error_message('Invalid hostname format', 'hostname')
-            return {
-                'success': False,
-                'error': enhanced['message'],
-                'hint': 'Hostname must contain only letters, numbers, and hyphens. Cannot start or end with hyphen.'
-            }
-        
-        # Use hostnamectl to set hostname (persistent across reboots)
-        result = run_command(['hostnamectl', 'set-hostname', new_hostname], check=False, timeout=10)
-        
-        if result['success']:
-            logger.info(f"Hostname changed to: {new_hostname}")
-            return {
-                'success': True,
-                'message': f'Hostname set to {new_hostname}',
-                'hostname': new_hostname
-            }
-        else:
-            error_msg = result.get('stderr', result.get('error', 'Failed to set hostname'))
-            enhanced = enhance_error_message(error_msg, 'hostname')
-            logger.error(f"Failed to set hostname: {error_msg}")
-            return {
-                'success': False,
-                'error': enhanced['message'],
-                'hint': enhanced.get('hint', ''),
-                'technical': error_msg
-            }
-    
-    except Exception as e:
-        logger.error(f"Error setting hostname: {e}", exc_info=True)
-        enhanced = enhance_error_message(str(e), 'hostname')
-        return {
-            'success': False,
-            'error': enhanced['message'],
-            'hint': enhanced.get('hint', '')
-        }
 
 
 def create_api_app():
