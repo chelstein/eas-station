@@ -15,6 +15,7 @@
     let reconnectAttempts = 0;
     const MAX_RECONNECT_ATTEMPTS = 5;
     const RECONNECT_DELAY_MS = 1000;
+    let hasLoggedFallback = false; // Track if we've already logged the fallback message
 
     // Event subscribers: { eventName: [{ callback, fallbackFn, fallbackInterval, intervalHandle }] }
     const subscribers = {};
@@ -102,7 +103,7 @@
                 reconnection: true,
                 reconnectionDelay: RECONNECT_DELAY_MS,
                 reconnectionAttempts: MAX_RECONNECT_ATTEMPTS,
-                timeout: 5000,
+                timeout: 10000, // Increased from 5s to 10s for better reliability
             });
 
             socket.on('connect', onConnect);
@@ -126,6 +127,7 @@
         console.info('[EASWebSocket] Connected - real-time updates active');
         isConnected = true;
         reconnectAttempts = 0;
+        hasLoggedFallback = false; // Reset flag on successful connection
 
         // Stop all polling since WebSocket is now active
         stopAllFallbackPolling();
@@ -152,11 +154,16 @@
      * Handle connection error
      */
     function onConnectError(error) {
-        console.error('[EASWebSocket] Connection error:', error.message || error);
         reconnectAttempts++;
 
-        if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
-            console.warn('[EASWebSocket] Max reconnection attempts reached - using polling mode');
+        // Only log errors as debug during retry attempts to reduce console spam
+        // This is expected behavior when WebSocket is unavailable
+        if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+            console.debug(`[EASWebSocket] Connection attempt ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS} failed:`, error.message || error);
+        } else if (!hasLoggedFallback) {
+            // Log final fallback message once
+            console.info('[EASWebSocket] WebSocket unavailable - using HTTP polling for real-time updates');
+            hasLoggedFallback = true;
             startAllFallbackPolling();
         }
     }
