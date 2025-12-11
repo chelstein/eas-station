@@ -624,7 +624,7 @@ fi
 rm -f /etc/apt/preferences.d/block-apache2
 
 # Configure pgAdmin for WSGI mode (works with Nginx)
-if [ "$SKIP_PGADMIN" != "true" ] && [ -f /usr/pgadmin4/web/config.py ] || [ -f /usr/pgadmin4/web/config_distro.py ]; then
+if [ "$SKIP_PGADMIN" != "true" ] && { [ -f /usr/pgadmin4/web/config.py ] || [ -f /usr/pgadmin4/web/config_distro.py ]; }; then
     echo_info "Configuring pgAdmin 4 for Nginx..."
     
     # Create pgAdmin configuration directory
