@@ -473,6 +473,262 @@ fi
 
 echo_success "System and EAS station configuration complete"
 
+# ====================================================================
+# LOCATION AND TIMEZONE CONFIGURATION
+# ====================================================================
+
+echo_step "Location and Timezone Setup"
+
+# Timezone selection
+TIMEZONE=$(whiptail --title "Timezone Selection" --menu "Select your timezone:" 20 70 10 \
+    "America/New_York" "Eastern Time" \
+    "America/Chicago" "Central Time" \
+    "America/Denver" "Mountain Time" \
+    "America/Phoenix" "Arizona (no DST)" \
+    "America/Los_Angeles" "Pacific Time" \
+    "America/Anchorage" "Alaska Time" \
+    "Pacific/Honolulu" "Hawaii Time" \
+    "America/Puerto_Rico" "Atlantic Time" \
+    3>&1 1>&2 2>&3)
+
+exitstatus=$?
+if [ $exitstatus != 0 ]; then
+    TIMEZONE="America/New_York"
+    echo_info "Using default timezone: $TIMEZONE"
+fi
+
+echo_success "Timezone: ${BOLD}$TIMEZONE${NC}"
+
+# State selection
+STATE_CODE=$(whiptail --title "State Selection" --menu "Select your state:" 22 70 12 \
+    "AL" "Alabama" \
+    "AK" "Alaska" \
+    "AZ" "Arizona" \
+    "AR" "Arkansas" \
+    "CA" "California" \
+    "CO" "Colorado" \
+    "CT" "Connecticut" \
+    "DE" "Delaware" \
+    "FL" "Florida" \
+    "GA" "Georgia" \
+    "HI" "Hawaii" \
+    "ID" "Idaho" \
+    "IL" "Illinois" \
+    "IN" "Indiana" \
+    "IA" "Iowa" \
+    "KS" "Kansas" \
+    "KY" "Kentucky" \
+    "LA" "Louisiana" \
+    "ME" "Maine" \
+    "MD" "Maryland" \
+    "MA" "Massachusetts" \
+    "MI" "Michigan" \
+    "MN" "Minnesota" \
+    "MS" "Mississippi" \
+    "MO" "Missouri" \
+    "MT" "Montana" \
+    "NE" "Nebraska" \
+    "NV" "Nevada" \
+    "NH" "New Hampshire" \
+    "NJ" "New Jersey" \
+    "NM" "New Mexico" \
+    "NY" "New York" \
+    "NC" "North Carolina" \
+    "ND" "North Dakota" \
+    "OH" "Ohio" \
+    "OK" "Oklahoma" \
+    "OR" "Oregon" \
+    "PA" "Pennsylvania" \
+    "RI" "Rhode Island" \
+    "SC" "South Carolina" \
+    "SD" "South Dakota" \
+    "TN" "Tennessee" \
+    "TX" "Texas" \
+    "UT" "Utah" \
+    "VT" "Vermont" \
+    "VA" "Virginia" \
+    "WA" "Washington" \
+    "WV" "West Virginia" \
+    "WI" "Wisconsin" \
+    "WY" "Wyoming" \
+    3>&1 1>&2 2>&3)
+
+exitstatus=$?
+if [ $exitstatus != 0 ]; then
+    STATE_CODE="OH"
+    echo_info "Using default state: $STATE_CODE"
+fi
+
+echo_success "State: ${BOLD}$STATE_CODE${NC}"
+
+# County name
+COUNTY_NAME=$(whiptail --title "County/Region" --inputbox "Enter your county or region name:\n\n(e.g., Putnam County, Cook County)" 12 70 3>&1 1>&2 2>&3)
+
+exitstatus=$?
+if [ $exitstatus != 0 ] || [ -z "$COUNTY_NAME" ]; then
+    COUNTY_NAME="Unknown County"
+    echo_info "Using default: $COUNTY_NAME"
+fi
+
+echo_success "County: ${BOLD}$COUNTY_NAME${NC}"
+
+# Optional: FIPS codes
+if whiptail --title "FIPS Codes" --yesno "Do you want to specify FIPS codes for authorized alert areas?\n\n(This is optional and can be configured later)" 10 70; then
+    FIPS_CODES=$(whiptail --title "FIPS Codes" --inputbox "Enter FIPS codes (comma-separated):\n\nExample: 039001,039003,039005" 12 70 3>&1 1>&2 2>&3)
+    
+    if [ $? = 0 ] && [ -n "$FIPS_CODES" ]; then
+        echo_success "FIPS codes: ${BOLD}$FIPS_CODES${NC}"
+    else
+        FIPS_CODES=""
+        echo_info "No FIPS codes specified"
+    fi
+else
+    FIPS_CODES=""
+    echo_info "Skipping FIPS code configuration"
+fi
+
+# ====================================================================
+# ALERT SOURCES CONFIGURATION
+# ====================================================================
+
+echo_step "Alert Sources Setup"
+
+# NOAA Weather Alerts
+if whiptail --title "NOAA Weather Alerts" --yesno "Enable NOAA Weather Radio alerts?\n\nRecommended: Yes" 10 60 --defaultno; then
+    NOAA_ENABLED="true"
+    echo_success "NOAA alerts: ${BOLD}enabled${NC}"
+    
+    # Poll interval
+    POLL_INTERVAL=$(whiptail --title "NOAA Poll Interval" --inputbox "Enter poll interval in seconds:\n\n(Recommended: 300 seconds / 5 minutes)" 12 70 "300" 3>&1 1>&2 2>&3)
+    
+    if [ $? != 0 ] || [ -z "$POLL_INTERVAL" ]; then
+        POLL_INTERVAL="300"
+    fi
+    
+    echo_success "Poll interval: ${BOLD}$POLL_INTERVAL${NC} seconds"
+else
+    NOAA_ENABLED="false"
+    POLL_INTERVAL="300"
+    echo_info "NOAA alerts: ${BOLD}disabled${NC}"
+fi
+
+# IPAWS Integration
+if whiptail --title "IPAWS Integration" --yesno "Enable IPAWS (Integrated Public Alert & Warning System)?\n\nNote: Requires additional configuration" 10 70 --defaultno; then
+    IPAWS_ENABLED="true"
+    echo_success "IPAWS: ${BOLD}enabled${NC}"
+else
+    IPAWS_ENABLED="false"
+    echo_info "IPAWS: ${BOLD}disabled${NC}"
+fi
+
+# ====================================================================
+# AUDIO AND STREAMING CONFIGURATION
+# ====================================================================
+
+echo_step "Audio and Streaming Setup"
+
+# Icecast streaming
+if whiptail --title "Icecast Streaming" --yesno "Enable Icecast audio streaming?\n\nAllows remote listening to monitored audio sources." 10 70; then
+    ICECAST_ENABLED="true"
+    echo_success "Icecast: ${BOLD}enabled${NC}"
+    
+    # Icecast passwords
+    whiptail --title "Icecast Configuration" --msgbox "You'll need to set passwords for Icecast.\n\nThese will be generated automatically if left blank." 10 70
+    
+    # Generate Icecast passwords
+    ICECAST_SOURCE_PASSWORD=$(python3 -c "import secrets; print(secrets.token_urlsafe(16))")
+    ICECAST_RELAY_PASSWORD=$(python3 -c "import secrets; print(secrets.token_urlsafe(16))")
+    ICECAST_ADMIN_PASSWORD=$(python3 -c "import secrets; print(secrets.token_urlsafe(16))")
+    
+    echo_success "Icecast passwords generated"
+else
+    ICECAST_ENABLED="false"
+    ICECAST_SOURCE_PASSWORD=""
+    ICECAST_RELAY_PASSWORD=""
+    ICECAST_ADMIN_PASSWORD=""
+    echo_info "Icecast: ${BOLD}disabled${NC}"
+fi
+
+# ====================================================================
+# HARDWARE INTEGRATION
+# ====================================================================
+
+echo_step "Hardware Integration Setup"
+
+# GPIO Integration
+if whiptail --title "GPIO Integration" --yesno "Enable GPIO (General Purpose Input/Output) integration?\n\nAllows control of relays, LEDs, and other hardware." 11 70 --defaultno; then
+    GPIO_ENABLED="true"
+    echo_success "GPIO: ${BOLD}enabled${NC}"
+    
+    # GPIO Pin for relay
+    GPIO_PIN=$(whiptail --title "GPIO Relay Pin" --inputbox "Enter GPIO pin number for relay control (2-27):\n\nLeave blank to disable.\nPins 2, 3, 4, 14 are reserved for Argon OLED." 13 70 3>&1 1>&2 2>&3)
+    
+    if [ $? = 0 ] && [ -n "$GPIO_PIN" ]; then
+        echo_success "GPIO relay pin: ${BOLD}$GPIO_PIN${NC}"
+    else
+        GPIO_PIN=""
+        echo_info "GPIO relay pin not configured"
+    fi
+else
+    GPIO_ENABLED="false"
+    GPIO_PIN=""
+    echo_info "GPIO: ${BOLD}disabled${NC}"
+fi
+
+# LED Sign
+if whiptail --title "LED Sign Support" --yesno "Do you have an LED sign for displaying alerts?" 8 60 --defaultno; then
+    LED_SIGN_ENABLED="true"
+    echo_success "LED sign: ${BOLD}enabled${NC}"
+else
+    LED_SIGN_ENABLED="false"
+    echo_info "LED sign: ${BOLD}disabled${NC}"
+fi
+
+# VFD Display
+if whiptail --title "VFD Display Support" --yesno "Do you have a VFD (Vacuum Fluorescent Display)?" 8 60 --defaultno; then
+    VFD_DISPLAY_ENABLED="true"
+    echo_success "VFD display: ${BOLD}enabled${NC}"
+else
+    VFD_DISPLAY_ENABLED="false"
+    echo_info "VFD display: ${BOLD}disabled${NC}"
+fi
+
+# ====================================================================
+# FINAL CONFIGURATION SUMMARY
+# ====================================================================
+
+# Show complete configuration summary
+whiptail --title "Complete Configuration Summary" --msgbox "Installation will proceed with these settings:
+
+ADMINISTRATOR:
+• Username: $ADMIN_USERNAME
+• Email: $ADMIN_EMAIL
+
+SYSTEM:
+• Hostname: $SYSTEM_HOSTNAME
+• Domain: $DOMAIN_NAME
+• Timezone: $TIMEZONE
+
+EAS STATION:
+• Originator: $EAS_ORIGINATOR
+• Station ID: $EAS_STATION_ID
+• State: $STATE_CODE
+• County: $COUNTY_NAME
+
+ALERT SOURCES:
+• NOAA Alerts: $NOAA_ENABLED
+• IPAWS: $IPAWS_ENABLED
+
+FEATURES:
+• Icecast Streaming: $ICECAST_ENABLED
+• GPIO Integration: $GPIO_ENABLED
+• LED Sign: $LED_SIGN_ENABLED
+• VFD Display: $VFD_DISPLAY_ENABLED
+
+Press OK to begin installation..." 28 70
+
+echo_success "✓ Complete configuration collected! Starting installation..."
+
 # Set system hostname if it changed
 if [ "$SYSTEM_HOSTNAME" != "$CURRENT_HOSTNAME" ]; then
     echo ""
@@ -617,6 +873,14 @@ chown -R "$SERVICE_USER:$SERVICE_GROUP" "$LOG_DIR"
 echo_progress "Setting file permissions..."
 chown -R "$SERVICE_USER:$SERVICE_GROUP" "$INSTALL_DIR"
 chmod -R 755 "$INSTALL_DIR"
+
+# Install eas-config tool for post-installation configuration
+if [ -f "$INSTALL_DIR/eas-config" ]; then
+    chmod +x "$INSTALL_DIR/eas-config"
+    ln -sf "$INSTALL_DIR/eas-config" /usr/local/bin/eas-config
+    echo_success "eas-config tool installed (run: sudo eas-config)"
+fi
+
 echo_success "Permissions configured"
 
 echo_step "Python Environment Setup"
@@ -806,6 +1070,7 @@ cat > "$CONFIG_FILE" << EOF
 SECRET_KEY=$GENERATED_SECRET_KEY
 
 # System Configuration
+HOSTNAME=$SYSTEM_HOSTNAME
 DOMAIN_NAME=$DOMAIN_NAME
 
 # Database Configuration
@@ -825,9 +1090,10 @@ FLASK_ENV=production
 FLASK_DEBUG=false
 DEFAULT_TIMEZONE=$TIMEZONE
 
-# Location Settings (Configure via web setup wizard)
-DEFAULT_COUNTY_NAME=
-DEFAULT_STATE_CODE=
+# Location Settings
+DEFAULT_COUNTY_NAME=$COUNTY_NAME
+DEFAULT_STATE_CODE=$STATE_CODE
+EAS_MANUAL_FIPS_CODES=$FIPS_CODES
 DEFAULT_ZONE_CODES=
 
 # EAS Broadcast Settings
@@ -835,26 +1101,45 @@ EAS_BROADCAST_ENABLED=false
 EAS_ORIGINATOR=$EAS_ORIGINATOR
 EAS_STATION_ID=$EAS_STATION_ID
 
-# SDR Settings
+# Alert Source Configuration
+NOAA_ALERTS_ENABLED=$NOAA_ENABLED
+CAP_POLL_INTERVAL=$POLL_INTERVAL
+IPAWS_ENABLED=$IPAWS_ENABLED
+
+# SDR Settings (Configure via web interface)
 SDR_ENABLED=false
 SDR_ARGS=driver=rtlsdr
 
 # Audio Settings
 AUDIO_STREAMING_PORT=5002
+AUDIO_INGEST_ENABLED=false
 
 # Icecast Settings
-ICECAST_ENABLED=false
+ICECAST_ENABLED=$ICECAST_ENABLED
 ICECAST_SERVER=localhost
 ICECAST_PORT=8000
-ICECAST_SOURCE_PASSWORD=changeme_source
-ICECAST_ADMIN_PASSWORD=changeme_admin
+ICECAST_EXTERNAL_PORT=8001
+ICECAST_PUBLIC_HOSTNAME=$DOMAIN_NAME
+ICECAST_LOCATION=$COUNTY_NAME
+ICECAST_ADMIN=$ADMIN_EMAIL
+ICECAST_MAX_CLIENTS=100
+ICECAST_SOURCE_PASSWORD=$ICECAST_SOURCE_PASSWORD
+ICECAST_RELAY_PASSWORD=$ICECAST_RELAY_PASSWORD
+ICECAST_ADMIN_PASSWORD=$ICECAST_ADMIN_PASSWORD
 
 # GPIO Settings
-GPIO_ENABLED=false
+GPIO_ENABLED=$GPIO_ENABLED
+EAS_GPIO_PIN=$GPIO_PIN
 
 # Hardware Integration
-LED_SIGN_ENABLED=false
-VFD_DISPLAY_ENABLED=false
+LED_SIGN_ENABLED=$LED_SIGN_ENABLED
+VFD_DISPLAY_ENABLED=$VFD_DISPLAY_ENABLED
+
+# Text-to-Speech Settings (Configure via web interface)
+EAS_TTS_PROVIDER=pyttsx3
+
+# Administrator Account (configured during install)
+# Login at https://$DOMAIN_NAME/ with username: $ADMIN_USERNAME
 EOF
 chown "$SERVICE_USER:$SERVICE_GROUP" "$CONFIG_FILE"
 chmod 600 "$CONFIG_FILE"
@@ -1291,16 +1576,18 @@ echo -e "${BOLD}${CYAN}═══════════════════
 echo ""
 echo -e "  ${BOLD}${YELLOW}1.${NC} ${BOLD}Log in${NC} to the web interface with your credentials above"
 echo ""
-echo -e "  ${BOLD}${YELLOW}2.${NC} ${BOLD}Complete the SETUP WIZARD${NC} to configure:"
-echo -e "      ${GREEN}✓${NC} Your location (county, state, FIPS/zone codes)"
-echo -e "      ${DIM}Note: EAS station callsign/ID already configured: ${BOLD}$EAS_STATION_ID${NC}"
-echo -e "      ${GREEN}✓${NC} Alert sources (NOAA, IPAWS feeds)"
-echo -e "      ${GREEN}✓${NC} EAS broadcast settings"
-echo -e "      ${GREEN}✓${NC} Hardware integrations (LED, OLED, SDR, etc.)"
+echo -e "  ${BOLD}${YELLOW}2.${NC} ${BOLD}Configuration Summary:${NC}"
+echo -e "      ${GREEN}✓${NC} Location configured: ${BOLD}$COUNTY_NAME, $STATE_CODE${NC}"
+echo -e "      ${GREEN}✓${NC} Station callsign: ${BOLD}$EAS_STATION_ID${NC}"
+echo -e "      ${GREEN}✓${NC} Alert sources: NOAA=${BOLD}$NOAA_ENABLED${NC}, IPAWS=${BOLD}$IPAWS_ENABLED${NC}"
+echo -e "      ${GREEN}✓${NC} Icecast streaming: ${BOLD}$ICECAST_ENABLED${NC}"
+echo -e "      ${GREEN}✓${NC} Hardware: GPIO=${BOLD}$GPIO_ENABLED${NC}, LED=${BOLD}$LED_SIGN_ENABLED${NC}, VFD=${BOLD}$VFD_DISPLAY_ENABLED${NC}"
 echo ""
-echo -e "  ${BOLD}${YELLOW}3.${NC} The setup wizard provides helpful explanations for all options"
+echo -e "  ${BOLD}${YELLOW}3.${NC} ${BOLD}Fine-tune settings${NC} in the web interface or use ${BOLD}sudo eas-config${NC}"
+echo -e "      ${DIM}The eas-config tool provides a raspi-config style interface${NC}"
+echo -e "      ${DIM}to reconfigure your EAS station after installation${NC}"
 echo ""
-echo -e "  ${YELLOW}⚠️${NC}  ${BOLD}Your station won't monitor alerts until you complete the wizard!${NC}"
+echo -e "  ${YELLOW}⚠️${NC}  ${BOLD}Your station is ready to monitor alerts!${NC}"
 echo ""
 
 echo -e "${BOLD}${CYAN}═══════════════════════════════════════════════════════════════════════${NC}"
@@ -1368,6 +1655,10 @@ echo ""
 echo -e "${BOLD}${CYAN}═══════════════════════════════════════════════════════════════════════${NC}"
 echo -e "${BOLD}${WHITE}  🔧 USEFUL COMMANDS${NC}"
 echo -e "${BOLD}${CYAN}═══════════════════════════════════════════════════════════════════════${NC}"
+echo ""
+echo -e "  ${CYAN}Reconfigure EAS Station (raspi-config style):${NC}"
+echo -e "    ${BOLD}${GREEN}sudo eas-config${NC}"
+echo -e "    ${DIM}Interactive TUI for changing all settings${NC}"
 echo ""
 echo -e "  ${CYAN}View service status:${NC}"
 echo -e "    ${BOLD}sudo systemctl status eas-station.target${NC}"
