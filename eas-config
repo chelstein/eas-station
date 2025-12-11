@@ -32,6 +32,11 @@ if ! command -v whiptail &> /dev/null; then
     exit 1
 fi
 
+# Add branding footer for whiptail dialogs
+whiptail_footer() {
+    echo "Copyright (c) 2025 Timothy Kramer (KR8MER) | AGPL v3 / Commercial License"
+}
+
 # Helper function to read current config value
 get_config_value() {
     local key="$1"
@@ -129,17 +134,19 @@ system_settings_menu() {
         CURRENT_HOSTNAME=$(get_config_value "HOSTNAME" "eas-station")
         CURRENT_CALLSIGN=$(get_config_value "EAS_CALLSIGN" "UNKNOWN")
         CURRENT_LOCATION=$(get_config_value "EAS_LOCATION" "Unknown Location")
+        CURRENT_FIPS=$(get_config_value "FIPS_CODES" "Not configured")
         
-        CHOICE=$(whiptail --title "System Settings" --menu "\nCurrent Settings:\nHostname: $CURRENT_HOSTNAME\nCallsign: $CURRENT_CALLSIGN\nLocation: $CURRENT_LOCATION\n\nSelect option to configure:" 20 78 6 \
+        CHOICE=$(whiptail --title "System Settings" --backtitle "$(whiptail_footer)" --menu "\nCurrent Settings:\nHostname: $CURRENT_HOSTNAME\nCallsign: $CURRENT_CALLSIGN\nLocation: $CURRENT_LOCATION\nFIPS Codes: $CURRENT_FIPS\n\nSelect option to configure:" 20 78 7 \
             "1" "Change Hostname" \
             "2" "Set EAS Callsign/Identifier" \
             "3" "Set Station Location" \
             "4" "Set County/Region" \
-            "5" "Back to Main Menu" \
+            "5" "Configure FIPS Codes" \
+            "6" "Back to Main Menu" \
             3>&1 1>&2 2>&3)
         
         exitstatus=$?
-        if [ $exitstatus != 0 ] || [ "$CHOICE" = "5" ]; then
+        if [ $exitstatus != 0 ] || [ "$CHOICE" = "6" ]; then
             return
         fi
         
@@ -173,8 +180,149 @@ system_settings_menu() {
                     whiptail --msgbox "County name updated to: $NEW_VALUE" 8 60
                 fi
                 ;;
+            5)
+                configure_fips_codes
+                ;;
         esac
     done
+}
+
+# Configure FIPS codes with checklist
+configure_fips_codes() {
+    # Get current state code
+    STATE_CODE=$(get_config_value "STATE_CODE" "OH")
+    
+    # Ask which state to configure for
+    NEW_STATE=$(whiptail --title "Select State" --backtitle "$(whiptail_footer)" --menu "Select state for FIPS codes:" 22 70 12 \
+        "AL" "Alabama" \
+        "AK" "Alaska" \
+        "AZ" "Arizona" \
+        "AR" "Arkansas" \
+        "CA" "California" \
+        "CO" "Colorado" \
+        "CT" "Connecticut" \
+        "DE" "Delaware" \
+        "FL" "Florida" \
+        "GA" "Georgia" \
+        "HI" "Hawaii" \
+        "ID" "Idaho" \
+        "IL" "Illinois" \
+        "IN" "Indiana" \
+        "IA" "Iowa" \
+        "KS" "Kansas" \
+        "KY" "Kentucky" \
+        "LA" "Louisiana" \
+        "ME" "Maine" \
+        "MD" "Maryland" \
+        "MA" "Massachusetts" \
+        "MI" "Michigan" \
+        "MN" "Minnesota" \
+        "MS" "Mississippi" \
+        "MO" "Missouri" \
+        "MT" "Montana" \
+        "NE" "Nebraska" \
+        "NV" "Nevada" \
+        "NH" "New Hampshire" \
+        "NJ" "New Jersey" \
+        "NM" "New Mexico" \
+        "NY" "New York" \
+        "NC" "North Carolina" \
+        "ND" "North Dakota" \
+        "OH" "Ohio" \
+        "OK" "Oklahoma" \
+        "OR" "Oregon" \
+        "PA" "Pennsylvania" \
+        "RI" "Rhode Island" \
+        "SC" "South Carolina" \
+        "SD" "South Dakota" \
+        "TN" "Tennessee" \
+        "TX" "Texas" \
+        "UT" "Utah" \
+        "VT" "Vermont" \
+        "VA" "Virginia" \
+        "WA" "Washington" \
+        "WV" "West Virginia" \
+        "WI" "Wisconsin" \
+        "WY" "Wyoming" \
+        3>&1 1>&2 2>&3)
+    
+    if [ $? != 0 ] || [ -z "$NEW_STATE" ]; then
+        return
+    fi
+    
+    STATE_CODE="$NEW_STATE"
+    
+    # Try to get county list from Python helper
+    LOOKUP_RESULT=""
+    
+    # Try to use the helper script
+    if [ -f "$INSTALL_DIR/venv/bin/python" ]; then
+        LOOKUP_RESULT=$("$INSTALL_DIR/venv/bin/python" "$INSTALL_DIR/scripts/fips_lookup_helper.py" list "$STATE_CODE" 2>&1)
+        LOOKUP_EXIT=$?
+    else
+        LOOKUP_EXIT=1
+    fi
+    
+    # Check if lookup was successful
+    if [ $LOOKUP_EXIT -eq 0 ] && [ -n "$LOOKUP_RESULT" ] && echo "$LOOKUP_RESULT" | grep -q "counties"; then
+        # Parse JSON and create checklist menu
+        COUNTY_COUNT=$(echo "$LOOKUP_RESULT" | python3 -c "import sys, json; data=json.load(sys.stdin); print(len(data.get('counties', [])))" 2>/dev/null)
+        
+        if [ -n "$COUNTY_COUNT" ] && [ "$COUNTY_COUNT" -gt 0 ]; then
+            # Build whiptail checklist from counties
+            CHECKLIST_ITEMS=()
+            
+            # Get currently configured FIPS codes
+            CURRENT_FIPS=$(get_config_value "FIPS_CODES" "")
+            
+            # Parse counties and build checklist array
+            while IFS='|' read -r fips_code county_name; do
+                if [ -n "$fips_code" ] && [ -n "$county_name" ]; then
+                    # Check if this FIPS code is currently configured
+                    if echo ",$CURRENT_FIPS," | grep -q ",$fips_code,"; then
+                        CHECKLIST_ITEMS+=("$fips_code" "$county_name" "ON")
+                    else
+                        CHECKLIST_ITEMS+=("$fips_code" "$county_name" "OFF")
+                    fi
+                fi
+            done < <(echo "$LOOKUP_RESULT" | python3 -c "import sys, json; data=json.load(sys.stdin); [print(f\"{c['fips']}|{c['name']}\") for c in data.get('counties', [])]" 2>/dev/null)
+            
+            if [ ${#CHECKLIST_ITEMS[@]} -gt 0 ]; then
+                # Show checklist dialog
+                SELECTED_FIPS=$(whiptail --title "Select Counties for FIPS Codes" --backtitle "$(whiptail_footer)" \
+                    --checklist "Select one or more counties to monitor:\n\nUse SPACE to select, ENTER to confirm" \
+                    25 78 15 "${CHECKLIST_ITEMS[@]}" 3>&1 1>&2 2>&3)
+                
+                if [ $? = 0 ]; then
+                    if [ -n "$SELECTED_FIPS" ]; then
+                        # Remove quotes and convert space-separated to comma-separated
+                        FIPS_CODES=$(echo "$SELECTED_FIPS" | tr -d '"' | tr ' ' ',')
+                        set_config_value "FIPS_CODES" "$FIPS_CODES"
+                        set_config_value "STATE_CODE" "$STATE_CODE"
+                        FIPS_COUNT=$(echo "$FIPS_CODES" | tr ',' '\n' | wc -l)
+                        whiptail --msgbox "Updated FIPS codes: $FIPS_CODES\n\nSelected $FIPS_COUNT county/counties.\n\nServices may need to be restarted." 12 70
+                    else
+                        # Empty selection - clear FIPS codes
+                        set_config_value "FIPS_CODES" ""
+                        whiptail --msgbox "FIPS codes cleared." 8 60
+                    fi
+                fi
+            else
+                whiptail --msgbox "Failed to parse county list." 8 60
+            fi
+        else
+            whiptail --msgbox "No counties found for state $STATE_CODE" 8 60
+        fi
+    else
+        # Fallback to manual entry
+        whiptail --msgbox "County list could not be loaded.\n\nYou can enter FIPS codes manually in the next screen." 10 70
+        NEW_VALUE=$(whiptail --inputbox "Enter FIPS codes (comma-separated):\n\nExample: 039001,039003,039005" 12 70 "$(get_config_value 'FIPS_CODES' '')" 3>&1 1>&2 2>&3)
+        if [ $? = 0 ]; then
+            set_config_value "FIPS_CODES" "$NEW_VALUE"
+            set_config_value "STATE_CODE" "$STATE_CODE"
+            whiptail --msgbox "FIPS codes updated.\n\nServices may need to be restarted." 10 60
+        fi
+    fi
 }
 
 # Database Configuration Menu
