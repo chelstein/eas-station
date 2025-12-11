@@ -19,7 +19,7 @@ from sqlalchemy import inspect, text
 
 
 revision = "20251205_audio_sample_rate"
-down_revision = "20240229_radio"
+down_revision = "20251203_add_mfa_last_totp_timestamp"
 branch_labels = None
 depends_on = None
 

@@ -1,7 +1,7 @@
 """Add mfa_last_totp_at to track last used TOTP timestamp
 
 Revision ID: 20251203_add_mfa_last_totp_timestamp
-Revises: 20251111_add_received_eas_alerts
+Revises: 20251203_add_ip_filters
 Create Date: 2025-12-03
 
 This migration adds the mfa_last_totp_at field to admin_users table to
@@ -16,7 +16,7 @@ from sqlalchemy import inspect
 
 # revision identifiers, used by Alembic.
 revision = '20251203_add_mfa_last_totp_timestamp'
-down_revision = '20251111_add_received_eas_alerts'
+down_revision = '20251203_add_ip_filters'
 branch_labels = None
 depends_on = None
 
