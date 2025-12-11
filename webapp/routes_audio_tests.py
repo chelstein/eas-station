@@ -262,23 +262,11 @@ def register(app: Flask, logger) -> None:
     @app.route("/api/audio/tests/queue/status")
     def audio_queue_status():
         """Get current audio playout queue status for testing."""
-        try:
-            # Import queue module to get status
-            from app_core.audio.playout_queue import AudioPlayoutQueue
-            
-            # This would ideally get the actual queue instance from the app
-            # For now, we'll return a placeholder
-            return jsonify({
-                "success": True,
-                "message": "Queue status endpoint - to be implemented with actual queue instance",
-                "timestamp": utc_now().isoformat(),
-            })
-            
-        except Exception as exc:
-            route_logger.error(f"Error getting queue status: {exc}")
-            return jsonify({
-                "success": False,
-                "error": str(exc),
-            }), 500
+        # Priority queue system has been removed - audio plays immediately
+        return jsonify({
+            "success": True,
+            "message": "Priority queue removed - audio plays immediately",
+            "timestamp": utc_now().isoformat(),
+        })
 
     route_logger.info("Audio pipeline test routes registered")

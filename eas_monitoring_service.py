@@ -521,8 +521,7 @@ def initialize_eas_monitor(app, audio_controller):
     global _eas_monitor
 
     with app.app_context():
-        from app_core.audio.eas_monitor_v2 import EASMonitorV2
-        from app_core.audio.eas_monitor import create_fips_filtering_callback
+        from app_core.audio.eas_monitor import EASMonitor, create_fips_filtering_callback
         from app_core.audio.broadcast_adapter import BroadcastAudioAdapter
         from app_core.audio.startup_integration import load_fips_codes_from_config
         from app_core.audio.ingest import AudioSourceStatus
@@ -578,7 +577,7 @@ def initialize_eas_monitor(app, audio_controller):
                 )
 
                 # Create v2 EAS monitor (complete rewrite with robust health tracking)
-                monitor = EASMonitorV2(
+                monitor = EASMonitor(
                     audio_source=audio_adapter,
                     sample_rate=16000,
                     alert_callback=alert_callback,
@@ -652,7 +651,7 @@ def initialize_eas_monitor(app, audio_controller):
                     )
 
                     # Create v2 EAS monitor (complete rewrite with robust health tracking)
-                    monitor = EASMonitorV2(
+                    monitor = EASMonitor(
                         audio_source=audio_adapter,
                         sample_rate=16000,
                         alert_callback=self._alert_callback,
