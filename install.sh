@@ -122,6 +122,11 @@ show_step_progress() {
     printf "]${NC}\n\n"
 }
 
+# Add branding footer for whiptail dialogs
+whiptail_footer() {
+    echo "Copyright (c) 2025 Timothy Kramer (KR8MER) | AGPL v3 / Commercial License"
+}
+
 # Display installation banner
 clear
 echo -e "${BOLD}${CYAN}"
@@ -221,15 +226,15 @@ fi
 echo_step "Administrator Account Setup"
 
 # Welcome screen
-whiptail --title "EAS Station Installation" --msgbox "Welcome to the EAS Station Interactive Installer!\n\nThis wizard will guide you through configuring your Emergency Alert System station.\n\nYou'll be asked to configure:\n• Administrator account\n• System identification\n• Station callsign and location\n\nPress OK to begin." 18 70
+whiptail --title "EAS Station Installation" --backtitle "$(whiptail_footer)" --msgbox "Welcome to the EAS Station Interactive Installer!\n\nThis wizard will guide you through configuring your Emergency Alert System station.\n\nYou'll be asked to configure:\n• Administrator account\n• System identification\n• Station callsign and location\n\nPress OK to begin." 18 70
 
 # Prompt for admin username
 while true; do
-    ADMIN_USERNAME=$(whiptail --title "Administrator Account" --inputbox "Enter administrator username (min 3 characters):\n\nThis account will be used to access the web interface." 12 70 3>&1 1>&2 2>&3)
+    ADMIN_USERNAME=$(whiptail --title "Administrator Account" --backtitle "$(whiptail_footer)" --inputbox "Enter administrator username (min 3 characters):\n\nThis account will be used to access the web interface." 12 70 3>&1 1>&2 2>&3)
     
     exitstatus=$?
     if [ $exitstatus != 0 ]; then
-        if whiptail --title "Cancel Installation?" --yesno "Are you sure you want to cancel the installation?" 8 60; then
+        if whiptail --title "Cancel Installation?" --backtitle "$(whiptail_footer)" --yesno "Are you sure you want to cancel the installation?" 8 60; then
             echo_error "Installation cancelled by user"
             exit 1
         else
@@ -240,17 +245,17 @@ while true; do
     ADMIN_USERNAME=$(echo "$ADMIN_USERNAME" | xargs)  # Trim whitespace
     
     if [ -z "$ADMIN_USERNAME" ]; then
-        whiptail --title "Error" --msgbox "Username cannot be empty. Please try again." 8 60
+        whiptail --title "Error" --backtitle "$(whiptail_footer)" --msgbox "Username cannot be empty. Please try again." 8 60
         continue
     fi
     
     if [ ${#ADMIN_USERNAME} -lt 3 ]; then
-        whiptail --title "Error" --msgbox "Username must be at least 3 characters long." 8 60
+        whiptail --title "Error" --backtitle "$(whiptail_footer)" --msgbox "Username must be at least 3 characters long." 8 60
         continue
     fi
     
     if ! [[ "$ADMIN_USERNAME" =~ ^[A-Za-z0-9_.-]+$ ]]; then
-        whiptail --title "Error" --msgbox "Username may only contain letters, numbers, dots, hyphens, or underscores." 9 60
+        whiptail --title "Error" --backtitle "$(whiptail_footer)" --msgbox "Username may only contain letters, numbers, dots, hyphens, or underscores." 9 60
         continue
     fi
     
@@ -260,11 +265,11 @@ done
 
 # Prompt for admin password
 while true; do
-    ADMIN_PASSWORD=$(whiptail --title "Administrator Password" --passwordbox "Enter administrator password (min 12 characters):" 10 70 3>&1 1>&2 2>&3)
+    ADMIN_PASSWORD=$(whiptail --title "Administrator Password" --backtitle "$(whiptail_footer)" --passwordbox "Enter administrator password (min 12 characters):" 10 70 3>&1 1>&2 2>&3)
     
     exitstatus=$?
     if [ $exitstatus != 0 ]; then
-        if whiptail --title "Cancel Installation?" --yesno "Are you sure you want to cancel the installation?" 8 60; then
+        if whiptail --title "Cancel Installation?" --backtitle "$(whiptail_footer)" --yesno "Are you sure you want to cancel the installation?" 8 60; then
             echo_error "Installation cancelled by user"
             exit 1
         else
@@ -273,14 +278,14 @@ while true; do
     fi
     
     if [ ${#ADMIN_PASSWORD} -lt 12 ]; then
-        whiptail --title "Error" --msgbox "Password must be at least 12 characters long." 8 60
+        whiptail --title "Error" --backtitle "$(whiptail_footer)" --msgbox "Password must be at least 12 characters long." 8 60
         continue
     fi
     
-    ADMIN_PASSWORD_CONFIRM=$(whiptail --title "Confirm Password" --passwordbox "Confirm administrator password:" 10 70 3>&1 1>&2 2>&3)
+    ADMIN_PASSWORD_CONFIRM=$(whiptail --title "Confirm Password" --backtitle "$(whiptail_footer)" --passwordbox "Confirm administrator password:" 10 70 3>&1 1>&2 2>&3)
     
     if [ "$ADMIN_PASSWORD" != "$ADMIN_PASSWORD_CONFIRM" ]; then
-        whiptail --title "Error" --msgbox "Passwords do not match. Please try again." 8 60
+        whiptail --title "Error" --backtitle "$(whiptail_footer)" --msgbox "Passwords do not match. Please try again." 8 60
         continue
     fi
     
@@ -290,11 +295,11 @@ done
 
 # Prompt for admin email address (for notifications)
 while true; do
-    ADMIN_EMAIL=$(whiptail --title "Administrator Email" --inputbox "Enter administrator email address:\n\nThis will be used for system notifications and alerts." 12 70 3>&1 1>&2 2>&3)
+    ADMIN_EMAIL=$(whiptail --title "Administrator Email" --backtitle "$(whiptail_footer)" --inputbox "Enter administrator email address:\n\nThis will be used for system notifications and alerts." 12 70 3>&1 1>&2 2>&3)
     
     exitstatus=$?
     if [ $exitstatus != 0 ]; then
-        if whiptail --title "Cancel Installation?" --yesno "Are you sure you want to cancel the installation?" 8 60; then
+        if whiptail --title "Cancel Installation?" --backtitle "$(whiptail_footer)" --yesno "Are you sure you want to cancel the installation?" 8 60; then
             echo_error "Installation cancelled by user"
             exit 1
         else
@@ -305,13 +310,13 @@ while true; do
     ADMIN_EMAIL=$(echo "$ADMIN_EMAIL" | xargs)  # Trim whitespace
     
     if [ -z "$ADMIN_EMAIL" ]; then
-        whiptail --title "Error" --msgbox "Email address cannot be empty." 8 60
+        whiptail --title "Error" --backtitle "$(whiptail_footer)" --msgbox "Email address cannot be empty." 8 60
         continue
     fi
     
     # Basic email validation (must have @ and . after @)
     if ! [[ "$ADMIN_EMAIL" =~ ^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]]; then
-        whiptail --title "Error" --msgbox "Invalid email format.\n\nEmail must be in format: user@domain.com" 9 60
+        whiptail --title "Error" --backtitle "$(whiptail_footer)" --msgbox "Invalid email format.\n\nEmail must be in format: user@domain.com" 9 60
         continue
     fi
     
@@ -330,7 +335,7 @@ echo_step "System and EAS Station Configuration"
 # Prompt for system hostname
 CURRENT_HOSTNAME=$(hostname 2>/dev/null || echo "eas-station")
 while true; do
-    SYSTEM_HOSTNAME=$(whiptail --title "System Hostname" --inputbox "Enter system hostname:\n\nThis will be the network name of your EAS station." 12 70 "$CURRENT_HOSTNAME" 3>&1 1>&2 2>&3)
+    SYSTEM_HOSTNAME=$(whiptail --title "System Hostname" --backtitle "$(whiptail_footer)" --inputbox "Enter system hostname:\n\nThis will be the network name of your EAS station." 12 70 "$CURRENT_HOSTNAME" 3>&1 1>&2 2>&3)
     
     exitstatus=$?
     if [ $exitstatus != 0 ]; then
@@ -349,7 +354,7 @@ while true; do
     
     # Validate hostname format (alphanumeric, hyphens, dots)
     if ! [[ "$SYSTEM_HOSTNAME" =~ ^[a-zA-Z0-9]([a-zA-Z0-9.-]*[a-zA-Z0-9])?$ ]]; then
-        whiptail --title "Error" --msgbox "Invalid hostname format.\n\nUse only letters, numbers, hyphens, and dots." 9 60
+        whiptail --title "Error" --backtitle "$(whiptail_footer)" --msgbox "Invalid hostname format.\n\nUse only letters, numbers, hyphens, and dots." 9 60
         continue
     fi
     
@@ -359,7 +364,7 @@ done
 
 # Prompt for domain name (for SSL/nginx)
 while true; do
-    DOMAIN_NAME=$(whiptail --title "Domain Name" --inputbox "Enter domain name for SSL/web access:\n\nUse 'localhost' for local-only access, an IP address, or your domain name." 13 70 "localhost" 3>&1 1>&2 2>&3)
+    DOMAIN_NAME=$(whiptail --title "Domain Name" --backtitle "$(whiptail_footer)" --inputbox "Enter domain name for SSL/web access:\n\nUse 'localhost' for local-only access, an IP address, or your domain name." 13 70 "localhost" 3>&1 1>&2 2>&3)
     
     exitstatus=$?
     if [ $exitstatus != 0 ]; then
@@ -395,7 +400,7 @@ while true; do
             echo_success "Domain: ${BOLD}$DOMAIN_NAME${NC}"
             break
         else
-            whiptail --title "Error" --msgbox "Invalid IP address.\n\nEach octet must be 0-255." 9 60
+            whiptail --title "Error" --backtitle "$(whiptail_footer)" --msgbox "Invalid IP address.\n\nEach octet must be 0-255." 9 60
             continue
         fi
     # Validate domain name format
@@ -403,43 +408,35 @@ while true; do
         echo_success "Domain: ${BOLD}$DOMAIN_NAME${NC}"
         break
     else
-        whiptail --title "Error" --msgbox "Invalid domain format.\n\nUse localhost, an IP address, or a valid domain name." 10 60
+        whiptail --title "Error" --backtitle "$(whiptail_footer)" --msgbox "Invalid domain format.\n\nUse localhost, an IP address, or a valid domain name." 10 60
         continue
     fi
 done
 
-# Prompt for EAS originator code
-while true; do
-    EAS_ORIGINATOR=$(whiptail --title "EAS Originator Code" --inputbox "Enter EAS Originator Code (3-letter code):\n\nCommon codes:\n• WXR - NOAA Weather Radio\n• EAS - EAS Participant\n• PEP - Primary Entry Point" 14 70 "WXR" 3>&1 1>&2 2>&3)
-    
-    exitstatus=$?
-    if [ $exitstatus != 0 ]; then
-        EAS_ORIGINATOR="WXR"
-        echo_info "Using default: $EAS_ORIGINATOR"
-        break
-    fi
-    
-    # Convert to uppercase and trim whitespace
-    EAS_ORIGINATOR=$(echo "$EAS_ORIGINATOR" | tr '[:lower:]' '[:upper:]' | xargs)
-    
-    # Default to WXR if empty
-    if [ -z "$EAS_ORIGINATOR" ]; then
-        EAS_ORIGINATOR="WXR"
-    fi
-    
-    # Validate format (exactly 3 uppercase letters)
-    if ! [[ "$EAS_ORIGINATOR" =~ ^[A-Z]{3}$ ]]; then
-        whiptail --title "Error" --msgbox "EAS Originator must be exactly 3 letters.\n\nExamples: WXR, EAS, PEP" 9 60
-        continue
-    fi
-    
+# Prompt for EAS originator code using radio button menu
+EAS_ORIGINATOR=$(whiptail --title "EAS Originator Code" --backtitle "$(whiptail_footer)" --radiolist \
+"Select your EAS Originator Code:\n\nThis identifies the type of EAS station." 20 78 8 \
+    "WXR" "NOAA Weather Radio (recommended)" ON \
+    "EAS" "EAS Participant Station" OFF \
+    "PEP" "Primary Entry Point Station" OFF \
+    "CIV" "Civil Authorities" OFF \
+    "WXS" "National Weather Service" OFF \
+    "EAN" "Emergency Action Notification" OFF \
+    "ADM" "Administrative Message" OFF \
+    "RWT" "Required Weekly Test" OFF \
+    3>&1 1>&2 2>&3)
+
+exitstatus=$?
+if [ $exitstatus != 0 ] || [ -z "$EAS_ORIGINATOR" ]; then
+    EAS_ORIGINATOR="WXR"
+    echo_info "Using default: $EAS_ORIGINATOR"
+else
     echo_success "Originator: ${BOLD}$EAS_ORIGINATOR${NC}"
-    break
-done
+fi
 
 # Prompt for station callsign/ID
 while true; do
-    EAS_STATION_ID=$(whiptail --title "Station Callsign/ID" --inputbox "Enter your station callsign or ID (max 8 characters):\n\nUse your FCC callsign if you have one, or a unique identifier.\n\nExamples: WKRP, KR8MER, EASNODE1, NOCALL" 14 70 "NOCALL" 3>&1 1>&2 2>&3)
+    EAS_STATION_ID=$(whiptail --title "Station Callsign/ID" --backtitle "$(whiptail_footer)" --inputbox "Enter your station callsign or ID (max 8 characters):\n\nUse your FCC callsign if you have one, or a unique identifier.\n\nExamples: WKRP, KR8MER, EASNODE1, NOCALL" 14 70 "NOCALL" 3>&1 1>&2 2>&3)
     
     exitstatus=$?
     if [ $exitstatus != 0 ]; then
@@ -458,7 +455,7 @@ while true; do
     
     # Validate format (1-8 alphanumeric characters)
     if ! [[ "$EAS_STATION_ID" =~ ^[A-Z0-9]{1,8}$ ]]; then
-        whiptail --title "Error" --msgbox "Station ID must be 1-8 alphanumeric characters.\n\nExamples: WKRP, KR8MER, NOCALL" 10 60
+        whiptail --title "Error" --backtitle "$(whiptail_footer)" --msgbox "Station ID must be 1-8 alphanumeric characters.\n\nExamples: WKRP, KR8MER, NOCALL" 10 60
         continue
     fi
     
@@ -467,14 +464,14 @@ while true; do
 done
 
 # Configuration summary and confirmation
-if whiptail --title "Confirm Configuration" --yesno "Please confirm your configuration:\n\nAdministrator: $ADMIN_USERNAME\nEmail: $ADMIN_EMAIL\nHostname: $SYSTEM_HOSTNAME\nDomain: $DOMAIN_NAME\nOriginator: $EAS_ORIGINATOR\nStation ID: $EAS_STATION_ID\n\nProceed with installation?" 18 70; then
+if whiptail --title "Confirm Configuration" --backtitle "$(whiptail_footer)" --yesno "Please confirm your configuration:\n\nAdministrator: $ADMIN_USERNAME\nEmail: $ADMIN_EMAIL\nHostname: $SYSTEM_HOSTNAME\nDomain: $DOMAIN_NAME\nOriginator: $EAS_ORIGINATOR\nStation ID: $EAS_STATION_ID\n\nProceed with installation?" 18 70; then
     echo_success "Configuration confirmed"
 else
-    if whiptail --title "Cancel Installation?" --yesno "Are you sure you want to cancel the installation?" 8 60; then
+    if whiptail --title "Cancel Installation?" --backtitle "$(whiptail_footer)" --yesno "Are you sure you want to cancel the installation?" 8 60; then
         echo_error "Installation cancelled by user"
         exit 1
     else
-        whiptail --title "Restart Configuration" --msgbox "Please restart the installer to reconfigure." 8 60
+        whiptail --title "Restart Configuration" --backtitle "$(whiptail_footer)" --msgbox "Please restart the installer to reconfigure." 8 60
         echo_error "Installation cancelled - please restart"
         exit 1
     fi
@@ -489,7 +486,7 @@ echo_success "System and EAS station configuration complete"
 echo_step "Location and Timezone Setup"
 
 # Timezone selection
-TIMEZONE=$(whiptail --title "Timezone Selection" --menu "Select your timezone:" 20 70 10 \
+TIMEZONE=$(whiptail --title "Timezone Selection" --backtitle "$(whiptail_footer)" --menu "Select your timezone:" 20 70 10 \
     "America/New_York" "Eastern Time" \
     "America/Chicago" "Central Time" \
     "America/Denver" "Mountain Time" \
@@ -509,7 +506,7 @@ fi
 echo_success "Timezone: ${BOLD}$TIMEZONE${NC}"
 
 # State selection
-STATE_CODE=$(whiptail --title "State Selection" --menu "Select your state:" 22 70 12 \
+STATE_CODE=$(whiptail --title "State Selection" --backtitle "$(whiptail_footer)" --menu "Select your state:" 22 70 12 \
     "AL" "Alabama" \
     "AK" "Alaska" \
     "AZ" "Arizona" \
@@ -571,7 +568,7 @@ fi
 echo_success "State: ${BOLD}$STATE_CODE${NC}"
 
 # County name
-COUNTY_NAME=$(whiptail --title "County/Region" --inputbox "Enter your county or region name:\n\n(e.g., Putnam County, Cook County)" 12 70 3>&1 1>&2 2>&3)
+COUNTY_NAME=$(whiptail --title "County/Region" --backtitle "$(whiptail_footer)" --inputbox "Enter your county or region name:\n\n(e.g., Putnam County, Cook County)" 12 70 3>&1 1>&2 2>&3)
 
 exitstatus=$?
 if [ $exitstatus != 0 ] || [ -z "$COUNTY_NAME" ]; then
@@ -581,141 +578,100 @@ fi
 
 echo_success "County: ${BOLD}$COUNTY_NAME${NC}"
 
-# Optional: FIPS codes with lookup functionality
-if whiptail --title "FIPS Codes Configuration" --yesno "Do you want to configure FIPS codes for authorized alert areas?\n\nFIPS codes define which geographic areas can trigger alerts.\n\nYou can:\n• Look up FIPS codes from your county name\n• Enter FIPS codes manually\n• Skip and configure later" 16 75; then
+# Optional: FIPS codes with improved checklist functionality
+if whiptail --title "FIPS Codes Configuration" --backtitle "$(whiptail_footer)" --yesno "Do you want to configure FIPS codes for authorized alert areas?\n\nFIPS codes define which geographic areas can trigger alerts.\n\nYou can select multiple counties from a checklist or enter manually.\n\nConfigure FIPS codes now?" 15 78; then
     
-    # Offer lookup or manual entry
-    FIPS_METHOD=$(whiptail --title "FIPS Code Entry Method" --menu "How would you like to enter FIPS codes?" 16 75 3 \
-        "1" "Look up FIPS codes from county name (recommended)" \
-        "2" "Enter FIPS codes manually" \
-        "3" "Skip for now" \
-        3>&1 1>&2 2>&3)
+    # Try to get county list from Python helper
+    FIPS_CODES=""
+    LOOKUP_RESULT=""
+    LOOKUP_ERROR=""
     
-    exitstatus=$?
-    if [ $exitstatus != 0 ] || [ "$FIPS_METHOD" = "3" ]; then
-        FIPS_CODES=""
-        echo_info "Skipping FIPS code configuration"
-    elif [ "$FIPS_METHOD" = "1" ]; then
-        # FIPS code lookup
-        echo_progress "Looking up FIPS codes for ${BOLD}$COUNTY_NAME${NC} in ${BOLD}$STATE_CODE${NC}..."
-        
-        # Try to use the helper script if Python environment is available
-        LOOKUP_RESULT=""
-        LOOKUP_ERROR=""
-        
-        # Disable exit on error temporarily
-        set +e
-        
-        if [ -f "$INSTALL_DIR/venv/bin/python" ]; then
-            LOOKUP_RESULT=$("$INSTALL_DIR/venv/bin/python" "$INSTALL_DIR/scripts/fips_lookup_helper.py" search "$STATE_CODE" "$COUNTY_NAME" 2>&1)
-            LOOKUP_EXIT=$?
-        elif [ -f "$VENV_DIR/bin/python" ]; then
-            LOOKUP_RESULT=$("$VENV_DIR/bin/python" "$INSTALL_DIR/scripts/fips_lookup_helper.py" search "$STATE_CODE" "$COUNTY_NAME" 2>&1)
-            LOOKUP_EXIT=$?
+    echo_progress "Attempting to load county list for ${BOLD}$STATE_CODE${NC}..."
+    
+    # Disable exit on error temporarily
+    set +e
+    
+    # Try to use the helper script if Python environment is available
+    if [ -f "$INSTALL_DIR/venv/bin/python" ] && [ -f "$INSTALL_DIR/scripts/fips_lookup_helper.py" ]; then
+        LOOKUP_RESULT=$("$INSTALL_DIR/venv/bin/python" "$INSTALL_DIR/scripts/fips_lookup_helper.py" list "$STATE_CODE" 2>&1)
+        LOOKUP_EXIT=$?
+    elif [ -f "$VENV_DIR/bin/python" ] && [ -f "$INSTALL_DIR/scripts/fips_lookup_helper.py" ]; then
+        LOOKUP_RESULT=$("$VENV_DIR/bin/python" "$INSTALL_DIR/scripts/fips_lookup_helper.py" list "$STATE_CODE" 2>&1)
+        LOOKUP_EXIT=$?
+    else
+        LOOKUP_EXIT=1
+        if [ ! -f "$INSTALL_DIR/scripts/fips_lookup_helper.py" ]; then
+            LOOKUP_ERROR="FIPS lookup helper script not found"
         else
-            LOOKUP_EXIT=1
             LOOKUP_ERROR="Python environment not yet available"
         fi
+    fi
+    
+    # Re-enable exit on error
+    set -e
+    
+    # Check if lookup was successful
+    if [ $LOOKUP_EXIT -eq 0 ] && [ -n "$LOOKUP_RESULT" ] && echo "$LOOKUP_RESULT" | grep -q "counties"; then
+        # Parse JSON and create checklist menu
+        COUNTY_COUNT=0
         
-        # Re-enable exit on error
+        # Safely parse county count
+        set +e
+        COUNTY_COUNT=$(echo "$LOOKUP_RESULT" | python3 -c "import sys, json; data=json.load(sys.stdin); print(len(data.get('counties', [])))" 2>/dev/null)
+        PARSE_EXIT=$?
         set -e
         
-        # Check if lookup was successful
-        if [ $LOOKUP_EXIT -eq 0 ] && [ -n "$LOOKUP_RESULT" ] && echo "$LOOKUP_RESULT" | grep -q "matches"; then
-            # Parse JSON and create selection menu
-            MATCH_COUNT=0
+        if [ $PARSE_EXIT -ne 0 ] || [ -z "$COUNTY_COUNT" ]; then
+            COUNTY_COUNT=0
+        fi
+        
+        if [ "$COUNTY_COUNT" -gt 0 ]; then
+            echo_success "Loaded ${BOLD}$COUNTY_COUNT${NC} counties for selection"
             
-            # Safely parse match count
+            # Build whiptail checklist from counties
+            CHECKLIST_ITEMS=()
+            
+            # Parse counties and build checklist array
             set +e
-            MATCH_COUNT=$(echo "$LOOKUP_RESULT" | python3 -c "import sys, json; data=json.load(sys.stdin); print(len(data.get('matches', [])))" 2>/dev/null)
-            PARSE_EXIT=$?
-            set -e
-            
-            if [ $PARSE_EXIT -ne 0 ] || [ -z "$MATCH_COUNT" ]; then
-                MATCH_COUNT=0
-            fi
-            
-            if [ "$MATCH_COUNT" -gt 0 ]; then
-                # Build whiptail menu from matches
-                MENU_ITEMS=()
-                MATCH_INDEX=0
-                
-                # Safely parse matches
-                set +e
-                while IFS= read -r line; do
-                    if [ -n "$line" ]; then
-                        COUNTY_NAME_MATCH=$(echo "$line" | cut -d'|' -f1)
-                        COUNTY_FIPS=$(echo "$line" | cut -d'|' -f2)
-                        if [ -n "$COUNTY_NAME_MATCH" ] && [ -n "$COUNTY_FIPS" ]; then
-                            MENU_ITEMS+=("$MATCH_INDEX" "$COUNTY_NAME_MATCH - $COUNTY_FIPS")
-                            MATCH_INDEX=$((MATCH_INDEX + 1))
-                        fi
-                    fi
-                done < <(echo "$LOOKUP_RESULT" | python3 -c "import sys, json; data=json.load(sys.stdin); [print(f\"{m['name']}|{m['fips']}\") for m in data.get('matches', [])]" 2>/dev/null)
-                set -e
-                
-                if [ ${#MENU_ITEMS[@]} -gt 0 ]; then
-                    SELECTED_INDEX=$(whiptail --title "Select County" --menu "Found ${MATCH_COUNT} matching counties. Select one:" 20 75 10 "${MENU_ITEMS[@]}" 3>&1 1>&2 2>&3)
-                    
-                    if [ $? = 0 ] && [ -n "$SELECTED_INDEX" ]; then
-                        # Get the FIPS code for the selected county
-                        set +e
-                        FIPS_CODES=$(echo "$LOOKUP_RESULT" | python3 -c "import sys, json; data=json.load(sys.stdin); matches=data.get('matches', []); print(matches[int('$SELECTED_INDEX')]['fips'] if int('$SELECTED_INDEX') < len(matches) else '')" 2>/dev/null)
-                        PARSE_EXIT=$?
-                        set -e
-                        
-                        if [ $PARSE_EXIT -eq 0 ] && [ -n "$FIPS_CODES" ]; then
-                            echo_success "FIPS code selected: ${BOLD}$FIPS_CODES${NC}"
-                            
-                            # Ask if they want to add more
-                            if whiptail --title "Add More FIPS Codes?" --yesno "FIPS code $FIPS_CODES selected.\n\nDo you want to add additional FIPS codes for neighboring counties?" 12 70; then
-                                ADDITIONAL=$(whiptail --title "Additional FIPS Codes" --inputbox "Enter additional FIPS codes (comma-separated):\n\nCurrent: $FIPS_CODES" 12 70 3>&1 1>&2 2>&3)
-                                if [ $? = 0 ] && [ -n "$ADDITIONAL" ]; then
-                                    FIPS_CODES="$FIPS_CODES,$ADDITIONAL"
-                                    echo_success "Added additional FIPS codes"
-                                fi
-                            fi
-                        else
-                            echo_warning "Failed to extract FIPS code from selection"
-                            # Fallback to manual entry
-                            if whiptail --title "Manual Entry" --yesno "FIPS lookup had an issue. Would you like to enter FIPS codes manually instead?" 10 70; then
-                                FIPS_CODES=$(whiptail --title "FIPS Codes" --inputbox "Enter FIPS codes (comma-separated):\n\nExample: 039001,039003,039005" 12 70 3>&1 1>&2 2>&3)
-                                if [ $? = 0 ] && [ -n "$FIPS_CODES" ]; then
-                                    echo_success "FIPS codes: ${BOLD}$FIPS_CODES${NC}"
-                                else
-                                    FIPS_CODES=""
-                                    echo_info "No FIPS codes specified"
-                                fi
-                            else
-                                FIPS_CODES=""
-                                echo_info "No FIPS codes specified"
-                            fi
-                        fi
+            while IFS='|' read -r fips_code county_name; do
+                if [ -n "$fips_code" ] && [ -n "$county_name" ]; then
+                    # Check if this county matches the user's entered county name (for pre-selection)
+                    # Use case-insensitive substring match with fgrep to avoid regex issues
+                    COUNTY_NAME_LOWER=$(echo "$COUNTY_NAME" | tr '[:upper:]' '[:lower:]')
+                    COUNTY_CHECK_LOWER=$(echo "$county_name" | tr '[:upper:]' '[:lower:]')
+                    if echo "$COUNTY_CHECK_LOWER" | fgrep -q "$COUNTY_NAME_LOWER"; then
+                        CHECKLIST_ITEMS+=("$fips_code" "$county_name" "ON")
                     else
-                        FIPS_CODES=""
-                        echo_info "No county selected"
-                    fi
-                else
-                    echo_warning "No valid matches found for '$COUNTY_NAME' in $STATE_CODE"
-                    # Offer manual entry
-                    if whiptail --title "No Matches" --yesno "No matching counties found.\n\nWould you like to enter FIPS codes manually?" 10 70; then
-                        FIPS_CODES=$(whiptail --title "FIPS Codes" --inputbox "Enter FIPS codes (comma-separated):\n\nExample: 039001,039003,039005" 12 70 3>&1 1>&2 2>&3)
-                        if [ $? = 0 ] && [ -n "$FIPS_CODES" ]; then
-                            echo_success "FIPS codes: ${BOLD}$FIPS_CODES${NC}"
-                        else
-                            FIPS_CODES=""
-                            echo_info "No FIPS codes specified"
-                        fi
-                    else
-                        FIPS_CODES=""
-                        echo_info "No FIPS codes specified"
+                        CHECKLIST_ITEMS+=("$fips_code" "$county_name" "OFF")
                     fi
                 fi
+            done < <(echo "$LOOKUP_RESULT" | python3 -c "import sys, json; data=json.load(sys.stdin); [print(f\"{c['fips']}|{c['name']}\") for c in data.get('counties', [])]" 2>/dev/null)
+            set -e
+            
+            if [ ${#CHECKLIST_ITEMS[@]} -gt 0 ]; then
+                # Show checklist dialog (allow multiple selection)
+                SELECTED_FIPS=$(whiptail --title "Select Counties for FIPS Codes" --backtitle "$(whiptail_footer)" \
+                    --checklist "Select one or more counties to monitor for alerts:\n\nUse SPACE to select, ENTER to confirm\n\n${COUNTY_COUNT} counties available in ${STATE_CODE}:" \
+                    25 78 15 "${CHECKLIST_ITEMS[@]}" 3>&1 1>&2 2>&3)
+                
+                if [ $? = 0 ] && [ -n "$SELECTED_FIPS" ]; then
+                    # Parse selected FIPS codes more robustly
+                    # Whiptail returns quoted space-separated values like: "039001" "039003" "039005"
+                    # Remove all quotes and convert spaces to commas
+                    FIPS_CODES=$(echo "$SELECTED_FIPS" | sed 's/"//g' | tr ' ' ',')
+                    # Remove any leading/trailing commas that might have been introduced
+                    FIPS_CODES=$(echo "$FIPS_CODES" | sed 's/^,//;s/,$//')
+                    FIPS_COUNT=$(echo "$FIPS_CODES" | tr ',' '\n' | grep -c '^[0-9]' || echo 0)
+                    echo_success "Selected ${BOLD}$FIPS_COUNT${NC} FIPS code(s): ${BOLD}$FIPS_CODES${NC}"
+                else
+                    FIPS_CODES=""
+                    echo_info "No counties selected"
+                fi
             else
-                echo_warning "No matches found for '$COUNTY_NAME' in $STATE_CODE"
-                # Offer manual entry
-                if whiptail --title "No Matches" --yesno "No matching counties found.\n\nWould you like to enter FIPS codes manually?" 10 70; then
-                    FIPS_CODES=$(whiptail --title "FIPS Codes" --inputbox "Enter FIPS codes (comma-separated):\n\nExample: 039001,039003,039005" 12 70 3>&1 1>&2 2>&3)
+                echo_warning "Failed to parse county list"
+                # Fallback to manual entry
+                if whiptail --title "Manual Entry" --backtitle "$(whiptail_footer)" --yesno "County list could not be loaded.\n\nWould you like to enter FIPS codes manually instead?" 10 70; then
+                    FIPS_CODES=$(whiptail --title "FIPS Codes" --backtitle "$(whiptail_footer)" --inputbox "Enter FIPS codes (comma-separated):\n\nExample: 039001,039003,039005" 12 70 3>&1 1>&2 2>&3)
                     if [ $? = 0 ] && [ -n "$FIPS_CODES" ]; then
                         echo_success "FIPS codes: ${BOLD}$FIPS_CODES${NC}"
                     else
@@ -728,16 +684,10 @@ if whiptail --title "FIPS Codes Configuration" --yesno "Do you want to configure
                 fi
             fi
         else
-            # Lookup failed or not available yet, fall back to manual entry
-            if [ -n "$LOOKUP_ERROR" ]; then
-                echo_warning "FIPS lookup not available: $LOOKUP_ERROR"
-            else
-                echo_warning "FIPS lookup encountered an error"
-            fi
-            
-            if whiptail --title "FIPS Lookup Unavailable" --yesno "FIPS code lookup is not yet available (Python environment is being set up during installation).\n\nWould you like to:\n• Enter FIPS codes manually now\n• Skip and use the web interface after installation" 14 75 --yes-button "Manual Entry" --no-button "Skip"; then
-                FIPS_CODES=$(whiptail --title "FIPS Codes" --inputbox "Enter FIPS codes manually (comma-separated):\n\nExample: 039001,039003,039005\n\nNote: Full FIPS lookup will be available in the web interface at /setup after installation." 14 70 3>&1 1>&2 2>&3)
-                
+            echo_warning "No counties found for state $STATE_CODE"
+            # Offer manual entry
+            if whiptail --title "No Counties" --backtitle "$(whiptail_footer)" --yesno "No counties found.\n\nWould you like to enter FIPS codes manually?" 10 70; then
+                FIPS_CODES=$(whiptail --title "FIPS Codes" --backtitle "$(whiptail_footer)" --inputbox "Enter FIPS codes (comma-separated):\n\nExample: 039001,039003,039005" 12 70 3>&1 1>&2 2>&3)
                 if [ $? = 0 ] && [ -n "$FIPS_CODES" ]; then
                     echo_success "FIPS codes: ${BOLD}$FIPS_CODES${NC}"
                 else
@@ -746,18 +696,29 @@ if whiptail --title "FIPS Codes Configuration" --yesno "Do you want to configure
                 fi
             else
                 FIPS_CODES=""
-                echo_info "FIPS codes skipped - configure via web interface after installation"
+                echo_info "No FIPS codes specified"
             fi
         fi
     else
-        # Manual entry
-        FIPS_CODES=$(whiptail --title "FIPS Codes" --inputbox "Enter FIPS codes (comma-separated):\n\nExample: 039001,039003,039005\n\nYou can look up FIPS codes at:\nhttps://transition.fcc.gov/pshs/services/eas/" 14 70 3>&1 1>&2 2>&3)
+        # Lookup failed or not available yet, fall back to manual entry
+        if [ -n "$LOOKUP_ERROR" ]; then
+            echo_warning "FIPS lookup not available: $LOOKUP_ERROR"
+        else
+            echo_warning "FIPS lookup encountered an error"
+        fi
         
-        if [ $? = 0 ] && [ -n "$FIPS_CODES" ]; then
-            echo_success "FIPS codes: ${BOLD}$FIPS_CODES${NC}"
+        if whiptail --title "FIPS Lookup Unavailable" --backtitle "$(whiptail_footer)" --yesno "FIPS code lookup is not yet available (Python environment is being set up during installation).\n\nWould you like to:\n• Enter FIPS codes manually now\n• Skip and use the web interface after installation" 14 78 --yes-button "Manual Entry" --no-button "Skip"; then
+            FIPS_CODES=$(whiptail --title "FIPS Codes" --backtitle "$(whiptail_footer)" --inputbox "Enter FIPS codes manually (comma-separated):\n\nExample: 039001,039003,039005\n\nNote: Full FIPS lookup will be available in the web interface at /setup after installation." 14 78 3>&1 1>&2 2>&3)
+            
+            if [ $? = 0 ] && [ -n "$FIPS_CODES" ]; then
+                echo_success "FIPS codes: ${BOLD}$FIPS_CODES${NC}"
+            else
+                FIPS_CODES=""
+                echo_info "No FIPS codes specified"
+            fi
         else
             FIPS_CODES=""
-            echo_info "No FIPS codes specified"
+            echo_info "FIPS codes skipped - configure via web interface after installation"
         fi
     fi
 else
@@ -768,7 +729,7 @@ fi
 # Optional: Derive zone codes from FIPS codes
 ZONE_CODES=""
 if [ -n "$FIPS_CODES" ]; then
-    if whiptail --title "NWS Zone Codes" --yesno "Would you like to automatically derive NWS zone codes from your FIPS codes?\n\nZone codes are used for weather alert filtering.\n\nFIPS codes: $FIPS_CODES" 13 75; then
+    if whiptail --title "NWS Zone Codes" --backtitle "$(whiptail_footer)" --yesno "Would you like to automatically derive NWS zone codes from your FIPS codes?\n\nZone codes are used for weather alert filtering.\n\nFIPS codes: $FIPS_CODES" 13 78; then
         echo_progress "Deriving NWS zone codes from FIPS codes..."
         
         # Try to derive zone codes using helper script
@@ -813,10 +774,10 @@ if [ -n "$FIPS_CODES" ]; then
             
             if [ -n "$ZONE_CODES" ] && [ "$ZONE_COUNT" -gt 0 ]; then
                 echo_success "Derived ${BOLD}$ZONE_COUNT${NC} zone code(s): ${BOLD}$ZONE_CODES${NC}"
-                whiptail --title "Zone Codes Derived" --msgbox "Successfully derived $ZONE_COUNT NWS zone code(s):\n\n$ZONE_CODES\n\nThese will be saved to your configuration." 14 75
+                whiptail --title "Zone Codes Derived" --backtitle "$(whiptail_footer)" --msgbox "Successfully derived $ZONE_COUNT NWS zone code(s):\n\n$ZONE_CODES\n\nThese will be saved to your configuration." 14 78
             else
                 echo_warning "No zone codes could be derived from the provided FIPS codes"
-                whiptail --title "No Zone Codes" --msgbox "No zone codes could be derived from your FIPS codes.\n\nThis is normal for some counties. You can configure zone codes manually after installation via the web interface at /setup." 13 75
+                whiptail --title "No Zone Codes" --backtitle "$(whiptail_footer)" --msgbox "No zone codes could be derived from your FIPS codes.\n\nThis is normal for some counties. You can configure zone codes manually after installation via the web interface at /setup." 13 78
                 ZONE_CODES=""
             fi
         else
@@ -827,7 +788,7 @@ if [ -n "$FIPS_CODES" ]; then
                 echo_warning "Zone code derivation encountered an error"
             fi
             
-            whiptail --title "Zone Derivation Unavailable" --msgbox "Zone code derivation is not yet available during installation.\n\nDon't worry - you can easily derive zone codes from your FIPS codes after installation using the web interface at /setup.\n\nThe web interface provides an interactive \"Derive Zone Codes\" button." 15 75
+            whiptail --title "Zone Derivation Unavailable" --backtitle "$(whiptail_footer)" --msgbox "Zone code derivation is not yet available during installation.\n\nDon't worry - you can easily derive zone codes from your FIPS codes after installation using the web interface at /setup.\n\nThe web interface provides an interactive \"Derive Zone Codes\" button." 15 78
             ZONE_CODES=""
         fi
     else
@@ -845,12 +806,12 @@ fi
 echo_step "Alert Sources Setup"
 
 # NOAA Weather Alerts
-if whiptail --title "NOAA Weather Alerts" --yesno "Enable NOAA Weather Radio alerts?\n\nRecommended: Yes" 10 60 --defaultno; then
+if whiptail --title "NOAA Weather Alerts" --backtitle "$(whiptail_footer)" --yesno "Enable NOAA Weather Radio alerts?\n\nRecommended: Yes" 10 60 --defaultno; then
     NOAA_ENABLED="true"
     echo_success "NOAA alerts: ${BOLD}enabled${NC}"
     
     # Poll interval
-    POLL_INTERVAL=$(whiptail --title "NOAA Poll Interval" --inputbox "Enter poll interval in seconds:\n\n(Recommended: 300 seconds / 5 minutes)" 12 70 "300" 3>&1 1>&2 2>&3)
+    POLL_INTERVAL=$(whiptail --title "NOAA Poll Interval" --backtitle "$(whiptail_footer)" --inputbox "Enter poll interval in seconds:\n\n(Recommended: 300 seconds / 5 minutes)" 12 70 "300" 3>&1 1>&2 2>&3)
     
     if [ $? != 0 ] || [ -z "$POLL_INTERVAL" ]; then
         POLL_INTERVAL="300"
@@ -864,7 +825,7 @@ else
 fi
 
 # IPAWS Integration
-if whiptail --title "IPAWS Integration" --yesno "Enable IPAWS (Integrated Public Alert & Warning System)?\n\nNote: Requires additional configuration" 10 70 --defaultno; then
+if whiptail --title "IPAWS Integration" --backtitle "$(whiptail_footer)" --yesno "Enable IPAWS (Integrated Public Alert & Warning System)?\n\nNote: Requires additional configuration" 10 70 --defaultno; then
     IPAWS_ENABLED="true"
     echo_success "IPAWS: ${BOLD}enabled${NC}"
 else
@@ -879,12 +840,12 @@ fi
 echo_step "Audio and Streaming Setup"
 
 # Icecast streaming
-if whiptail --title "Icecast Streaming" --yesno "Enable Icecast audio streaming?\n\nAllows remote listening to monitored audio sources." 10 70; then
+if whiptail --title "Icecast Streaming" --backtitle "$(whiptail_footer)" --yesno "Enable Icecast audio streaming?\n\nAllows remote listening to monitored audio sources." 10 70; then
     ICECAST_ENABLED="true"
     echo_success "Icecast: ${BOLD}enabled${NC}"
     
     # Icecast passwords
-    whiptail --title "Icecast Configuration" --msgbox "You'll need to set passwords for Icecast.\n\nThese will be generated automatically if left blank." 10 70
+    whiptail --title "Icecast Configuration" --backtitle "$(whiptail_footer)" --msgbox "You'll need to set passwords for Icecast.\n\nThese will be generated automatically if left blank." 10 70
     
     # Generate Icecast passwords
     ICECAST_SOURCE_PASSWORD=$(python3 -c "import secrets; print(secrets.token_urlsafe(16))")
@@ -907,12 +868,12 @@ fi
 echo_step "Hardware Integration Setup"
 
 # GPIO Integration
-if whiptail --title "GPIO Integration" --yesno "Enable GPIO (General Purpose Input/Output) integration?\n\nAllows control of relays, LEDs, and other hardware." 11 70 --defaultno; then
+if whiptail --title "GPIO Integration" --backtitle "$(whiptail_footer)" --yesno "Enable GPIO (General Purpose Input/Output) integration?\n\nAllows control of relays, LEDs, and other hardware." 11 70 --defaultno; then
     GPIO_ENABLED="true"
     echo_success "GPIO: ${BOLD}enabled${NC}"
     
     # GPIO Pin for relay
-    GPIO_PIN=$(whiptail --title "GPIO Relay Pin" --inputbox "Enter GPIO pin number for relay control (2-27):\n\nLeave blank to disable.\nPins 2, 3, 4, 14 are reserved for Argon OLED." 13 70 3>&1 1>&2 2>&3)
+    GPIO_PIN=$(whiptail --title "GPIO Relay Pin" --backtitle "$(whiptail_footer)" --inputbox "Enter GPIO pin number for relay control (2-27):\n\nLeave blank to disable.\nPins 2, 3, 4, 14 are reserved for Argon OLED." 13 70 3>&1 1>&2 2>&3)
     
     if [ $? = 0 ] && [ -n "$GPIO_PIN" ]; then
         echo_success "GPIO relay pin: ${BOLD}$GPIO_PIN${NC}"
@@ -927,7 +888,7 @@ else
 fi
 
 # LED Sign
-if whiptail --title "LED Sign Support" --yesno "Do you have an LED sign for displaying alerts?" 8 60 --defaultno; then
+if whiptail --title "LED Sign Support" --backtitle "$(whiptail_footer)" --yesno "Do you have an LED sign for displaying alerts?" 8 60 --defaultno; then
     LED_SIGN_ENABLED="true"
     echo_success "LED sign: ${BOLD}enabled${NC}"
 else
@@ -936,7 +897,7 @@ else
 fi
 
 # VFD Display
-if whiptail --title "VFD Display Support" --yesno "Do you have a VFD (Vacuum Fluorescent Display)?" 8 60 --defaultno; then
+if whiptail --title "VFD Display Support" --backtitle "$(whiptail_footer)" --yesno "Do you have a VFD (Vacuum Fluorescent Display)?" 8 60 --defaultno; then
     VFD_DISPLAY_ENABLED="true"
     echo_success "VFD display: ${BOLD}enabled${NC}"
 else
@@ -949,7 +910,7 @@ fi
 # ====================================================================
 
 # Show complete configuration summary
-whiptail --title "Complete Configuration Summary" --msgbox "Installation will proceed with these settings:
+whiptail --title "Complete Configuration Summary" --backtitle "$(whiptail_footer)" --msgbox "Installation will proceed with these settings:
 
 ADMINISTRATOR:
 • Username: $ADMIN_USERNAME

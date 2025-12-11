@@ -6,6 +6,28 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.20.0] - 2025-12-11
+### Added
+  - **Complete whiptail-based setup** - All installation inputs now use professional TUI interface
+  - **FIPS code checklist interface** - Select multiple counties at once instead of typing
+  - **Radio button menus** - EAS Originator code selection with predefined options (WXR, EAS, PEP, etc.)
+  - **Consistent branding** - Copyright and license info on all whiptail dialogs throughout install.sh
+  - **FIPS management in eas-config** - Configure FIPS codes post-installation with same checklist UI
+  - Branding footer function for consistent copyright/license display
+  - Improved Python environment detection for FIPS lookup during installation
+
+### Changed
+  - **FIPS lookup workflow** - Now shows full county list with checkboxes instead of search-based approach
+  - EAS Originator input changed from text entry to radio button selection for better validation
+  - All whiptail dialogs now include branding footer with copyright and license information
+  - Improved error messaging when Python environment isn't available during installation
+  - Enhanced user experience with clearer instructions and better dialog sizing
+
+### Fixed
+  - FIPS lookup now gracefully handles case where Python dependencies aren't installed yet
+  - Better validation for all user inputs with helpful error messages
+  - Consistent dialog widths and heights for better readability
+
 ## [2.19.12] - 2025-12-11
 ### Fixed
   - Fixed logs page to display ALL logs instead of only categorized logs
