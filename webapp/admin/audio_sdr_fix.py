@@ -30,6 +30,7 @@ from sqlalchemy import text
 
 from app_core.extensions import db
 from app_core.models import RadioReceiver
+from app_core.config import get_sdr_service
 
 logger = logging.getLogger(__name__)
 
@@ -258,8 +259,9 @@ def restart_sdr_service():
     """Request to restart SDR service (requires external action)."""
     # This endpoint just acknowledges the request
     # Actual restart needs to be done via systemctl from the host
+    sdr_service = get_sdr_service()
     return jsonify({
         'success': True,
-        'message': 'Please restart the SDR service manually using: sudo systemctl restart eas-station-sdr.service',
-        'command': 'sudo systemctl restart eas-station-sdr.service'
+        'message': f'Please restart the SDR service manually using: sudo systemctl restart {sdr_service}',
+        'command': f'sudo systemctl restart {sdr_service}'
     })

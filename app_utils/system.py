@@ -39,6 +39,7 @@ from sqlalchemy import text
 
 from .formatting import format_uptime
 from .time import UTC_TZ, local_now, utc_now
+from app_core.config import get_eas_services, INFRASTRUCTURE_SERVICES
 
 
 DEVICE_TREE_CANDIDATES = [
@@ -451,24 +452,11 @@ def _collect_systemd_services(logger) -> Dict[str, Any]:
         "error": None,
     }
     
-    # List of EAS Station services to monitor
-    eas_services = [
-        "eas-station-web.service",
-        "eas-station-sdr.service",
-        "eas-station-audio.service",
-        "eas-station-eas.service",
-        "eas-station-hardware.service",
-        "eas-station-noaa-poller.service",
-        "eas-station-ipaws-poller.service",
-    ]
-    
+    # List of EAS Station services to monitor (from centralized config)
+    eas_services = get_eas_services()
+
     # Additional system services that EAS Station depends on
-    dependency_services = [
-        "nginx.service",
-        "postgresql.service",
-        "redis-server.service",
-        "icecast2.service",
-    ]
+    dependency_services = INFRASTRUCTURE_SERVICES + ["icecast2.service"]
     
     try:
         all_services = eas_services + dependency_services

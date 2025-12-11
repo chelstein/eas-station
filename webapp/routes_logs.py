@@ -22,6 +22,7 @@ import subprocess
 import logging
 import re
 from typing import Dict, List, Any
+from app_core.config import get_all_log_services, get_eas_services
 
 logger = logging.getLogger(__name__)
 
@@ -118,19 +119,7 @@ def get_systemd_logs(service: str, lines: int = 100, priority: str = None, since
 @logs_bp.route('/system-logs')
 def system_logs_page():
     """Render the systemd logs viewer page."""
-    services = [
-        'eas-station-web.service',
-        'eas-station-sdr.service',
-        'eas-station-audio.service',
-        'eas-station-eas.service',
-        'eas-station-hardware.service',
-        'eas-station-noaa-poller.service',
-        'eas-station-ipaws-poller.service',
-        'nginx.service',
-        'postgresql.service',
-        'redis-server.service'
-    ]
-    return render_template('system_logs.html', services=services)
+    return render_template('system_logs.html', services=get_all_log_services())
 
 
 @logs_bp.route('/api/logs/<service>')
@@ -144,19 +133,8 @@ def get_logs(service: str):
         - since: Time filter (today, 1 hour ago, etc.)
     """
     # Validate service name to prevent command injection
-    allowed_services = [
-        'eas-station-web.service',
-        'eas-station-sdr.service',
-        'eas-station-audio.service',
-        'eas-station-eas.service',
-        'eas-station-hardware.service',
-        'eas-station-noaa-poller.service',
-        'eas-station-ipaws-poller.service',
-        'nginx.service',
-        'postgresql.service',
-        'redis-server.service'
-    ]
-    
+    allowed_services = get_all_log_services()
+
     if service not in allowed_services:
         return jsonify({'error': 'Invalid service name'}), 400
     
@@ -198,18 +176,8 @@ def get_all_logs():
     if since and not is_valid_since_param(since):
         return jsonify({'error': 'Invalid since format. Use: today, yesterday, "N hours ago", or YYYY-MM-DD'}), 400
 
-    services = [
-        'eas-station-web.service',
-        'eas-station-sdr.service',
-        'eas-station-audio.service',
-        'eas-station-eas.service',
-        'eas-station-hardware.service',
-        'eas-station-noaa-poller.service',
-        'eas-station-ipaws-poller.service'
-    ]
-    
     results = {}
-    for service in services:
+    for service in get_eas_services():
         results[service] = get_systemd_logs(service, lines, priority, since)
     
     return jsonify(results)
