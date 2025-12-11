@@ -40,6 +40,12 @@
                 <!-- Filter Tabs -->
                 <ul class="nav nav-pills mb-3" id="logTypeTabs" role="tablist">
                     <li class="nav-item" role="presentation">
+                        <a class="nav-link {% if log_type == 'all' %}active{% endif %}"
+                           href="?type=all&limit={{ limit }}">
+                            <i class="fas fa-list"></i> All Logs
+                        </a>
+                    </li>
+                    <li class="nav-item" role="presentation">
                         <a class="nav-link {% if log_type == 'system' %}active{% endif %}"
                            href="?type=system&limit={{ limit }}">
                             <i class="fas fa-cog"></i> System
@@ -190,7 +196,9 @@
 
                 <!-- Log Type Description -->
                 <div class="alert alert-info mb-3">
-                    {% if log_type == 'system' %}
+                    {% if log_type == 'all' %}
+                        <strong><i class="fas fa-info-circle"></i> All Logs:</strong> Combined view of all system logs from all categories, sorted by timestamp.
+                    {% elif log_type == 'system' %}
                         <strong><i class="fas fa-info-circle"></i> System Logs:</strong> General application logs including errors, warnings, and informational messages.
                     {% elif log_type == 'polling' %}
                         <strong><i class="fas fa-info-circle"></i> Polling Logs:</strong> CAP alert polling history showing fetch attempts, new alerts, and errors.

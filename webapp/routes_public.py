@@ -1172,7 +1172,66 @@ def register(app: Flask, logger) -> None:
         log_type_name = "System Logs"
         logs_data: List[Dict[str, Any]] = []
 
-        if log_type == 'system':
+        if log_type == 'all':
+            log_type_name = "All Logs"
+            # Combine all log types - fetch each type and merge them
+            all_logs = []
+            
+            # System logs
+            for log in SystemLog.query.order_by(SystemLog.timestamp.desc()).limit(limit).all():
+                all_logs.append({
+                    'timestamp': log.timestamp,
+                    'level': log.level,
+                    'module': log.module or 'system',
+                    'message': log.message,
+                    'details': log.details,
+                })
+            
+            # Polling logs
+            for log in PollHistory.query.order_by(PollHistory.timestamp.desc()).limit(limit).all():
+                all_logs.append({
+                    'timestamp': log.timestamp,
+                    'level': 'ERROR' if log.error_message else 'SUCCESS' if (log.status or '').lower() == 'success' else 'INFO',
+                    'module': 'CAP Polling',
+                    'message': f"Status: {log.status} | Fetched: {log.alerts_fetched} | New: {log.alerts_new} | Updated: {log.alerts_updated}",
+                    'details': {
+                        'execution_time_ms': log.execution_time_ms,
+                        'error': log.error_message,
+                        'data_source': log.data_source,
+                    },
+                })
+            
+            # Audio alerts
+            for log in AudioAlert.query.order_by(AudioAlert.created_at.desc()).limit(limit).all():
+                all_logs.append({
+                    'timestamp': log.created_at,
+                    'level': log.alert_level.upper(),
+                    'module': f'Audio Alert: {log.source_name}',
+                    'message': log.message,
+                    'details': {
+                        'alert_type': log.alert_type,
+                        'acknowledged': log.acknowledged,
+                    },
+                })
+            
+            # GPIO logs
+            for log in GPIOActivationLog.query.order_by(GPIOActivationLog.activated_at.desc()).limit(limit).all():
+                all_logs.append({
+                    'timestamp': log.activated_at,
+                    'level': 'INFO',
+                    'module': f'GPIO Pin {log.pin}',
+                    'message': f"Type: {log.activation_type} | Operator: {log.operator or 'System'} | Duration: {log.duration_seconds or 'Active'}s",
+                    'details': {
+                        'pin': log.pin,
+                        'activation_type': log.activation_type,
+                    },
+                })
+            
+            # Sort all logs by timestamp and limit
+            all_logs.sort(key=lambda x: x['timestamp'] if x['timestamp'] else utc_now(), reverse=True)
+            logs_data = all_logs[:limit]
+
+        elif log_type == 'system':
             log_type_name = "System Logs"
             logs_result = (
                 SystemLog.query
@@ -1533,7 +1592,7 @@ def register(app: Flask, logger) -> None:
     def logs():
         """Comprehensive log viewer with filtering by log type."""
         try:
-            log_type = request.args.get('type', 'system')
+            log_type = request.args.get('type', 'all')  # Default to 'all' to show everything
             limit = min(int(request.args.get('limit', 100)), 500)  # Max 500 records
 
             # Get filter parameters

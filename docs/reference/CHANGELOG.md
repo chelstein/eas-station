@@ -6,6 +6,17 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.19.12] - 2025-12-11
+### Fixed
+  - Fixed logs page to display ALL logs instead of only categorized logs
+  - Added "All Logs" tab as the default view showing combined logs from all categories
+  - Logs no longer ignored if they don't fit specific categories
+  - All log types now visible in frontend regardless of category
+
+### Changed
+  - Default logs view changed from "System" to "All Logs" for better visibility
+  - All logs tab shows combined view sorted by timestamp
+
 ## [2.19.11] - 2025-12-10
 ### Fixed
   - Fixed pgAdmin 4 installation failures by adding better error handling and --allow-downgrades flag
