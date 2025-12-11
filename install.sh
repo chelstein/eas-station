@@ -203,6 +203,9 @@ VENV_DIR="${INSTALL_DIR}/venv"
 LOG_DIR="/var/log/eas-station"
 CONFIG_FILE="${INSTALL_DIR}/.env"
 
+# Get the directory where this script is located (for accessing bundled helper scripts before install)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 echo_step "System Detection"
 
 # Detect system architecture
@@ -624,13 +627,14 @@ if whiptail --title "FIPS Codes Configuration" --backtitle "$(whiptail_footer)" 
     set +e
     
     # Try to use the helper script with system Python (no dependencies needed)
-    if [ -f "$INSTALL_DIR/scripts/fips_lookup_helper.py" ] && command -v python3 &> /dev/null; then
-        LOOKUP_RESULT=$(python3 "$INSTALL_DIR/scripts/fips_lookup_helper.py" list "$STATE_CODE" 2>&1)
+    # Use SCRIPT_DIR (where install.sh is located) since files aren't copied to INSTALL_DIR yet
+    if [ -f "$SCRIPT_DIR/scripts/fips_lookup_helper.py" ] && command -v python3 &> /dev/null; then
+        LOOKUP_RESULT=$(python3 "$SCRIPT_DIR/scripts/fips_lookup_helper.py" list "$STATE_CODE" 2>&1)
         LOOKUP_EXIT=$?
     else
         LOOKUP_EXIT=1
-        if [ ! -f "$INSTALL_DIR/scripts/fips_lookup_helper.py" ]; then
-            LOOKUP_ERROR="FIPS lookup helper script not found"
+        if [ ! -f "$SCRIPT_DIR/scripts/fips_lookup_helper.py" ]; then
+            LOOKUP_ERROR="FIPS lookup helper script not found at $SCRIPT_DIR/scripts/"
         else
             LOOKUP_ERROR="Python 3 not available"
         fi
@@ -733,7 +737,11 @@ if whiptail --title "FIPS Codes Configuration" --backtitle "$(whiptail_footer)" 
         if [ -n "$LOOKUP_ERROR" ]; then
             echo_warning "FIPS lookup not available: $LOOKUP_ERROR"
         else
-            echo_warning "FIPS lookup encountered an error"
+            echo_warning "FIPS lookup encountered an error (exit=$LOOKUP_EXIT)"
+            # Show first 200 chars of result for debugging
+            if [ -n "$LOOKUP_RESULT" ]; then
+                echo_info "Debug: ${LOOKUP_RESULT:0:200}"
+            fi
         fi
         
         if whiptail --title "FIPS Lookup Unavailable" --backtitle "$(whiptail_footer)" --yesno "FIPS code lookup is not yet available (Python environment is being set up during installation).\n\nWould you like to:\n• Enter FIPS codes manually now\n• Skip and use the web interface after installation" 14 78 --yes-button "Manual Entry" --no-button "Skip"; then
