@@ -135,7 +135,7 @@ cat << "EOF"
 ║   ███████╗██║  ██║███████║    ███████║   ██║   ██║  ██║   ██║         ║
 ║   ╚══════╝╚═╝  ╚═╝╚══════╝    ╚══════╝   ╚═╝   ╚═╝  ╚═╝   ╚═╝         ║
 ║                                                                       ║
-║             📡  Emergency Alert System Installation  📡               ║
+║             📡  Emergency Alert System Installation  📡                 ║
 ║                                                                       ║
 ║          Monitoring & Broadcasting • Bare Metal Setup                 ║
 ║                                                                       ║
@@ -1128,7 +1128,7 @@ cat << "EOF"
 ║  ╚██████╗╚██████╔╝██║ ╚═╝ ██║██║     ███████╗███████╗   ██║   ███████╗║
 ║   ╚═════╝ ╚═════╝ ╚═╝     ╚═╝╚═╝     ╚══════╝╚══════╝   ╚═╝   ╚══════╝║
 ║                                                                       ║
-║                 🎉  Installation Successful!  🎉                     ║
+║                 🎉  Installation Successful!  🎉                        ║
 ║                                                                       ║
 ║             Your EAS Station is now up and running!                   ║
 ║                                                                       ║
