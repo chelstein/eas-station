@@ -1184,102 +1184,125 @@ def register(app: Flask, logger) -> None:
             # Each category gets a portion of the limit
             logs_per_category = max(MIN_LOGS_PER_CATEGORY, limit // 10)
             all_logs = []
-            
-            # System logs
-            for log in SystemLog.query.order_by(SystemLog.timestamp.desc()).limit(logs_per_category).all():
-                all_logs.append({
-                    'timestamp': log.timestamp,
-                    'level': log.level,
-                    'module': log.module or 'system',
-                    'message': log.message,
-                    'details': log.details,
-                    'category': 'System'
-                })
-            
+
+            # System logs - wrapped in try-except for resilience
+            try:
+                for log in SystemLog.query.order_by(SystemLog.timestamp.desc()).limit(logs_per_category).all():
+                    all_logs.append({
+                        'timestamp': log.timestamp,
+                        'level': log.level,
+                        'module': log.module or 'system',
+                        'message': log.message,
+                        'details': log.details,
+                        'category': 'System'
+                    })
+            except Exception as e:
+                route_logger.warning("Failed to load system logs: %s", e)
+
             # Polling logs
-            for log in PollHistory.query.order_by(PollHistory.timestamp.desc()).limit(logs_per_category).all():
-                all_logs.append({
-                    'timestamp': log.timestamp,
-                    'level': 'ERROR' if log.error_message else 'SUCCESS' if (log.status or '').lower() == 'success' else 'INFO',
-                    'module': f"CAP Polling ({log.data_source or 'Unknown'})",
-                    'message': f"Status: {log.status} | Fetched: {log.alerts_fetched} | New: {log.alerts_new} | Updated: {log.alerts_updated}",
-                    'details': {
-                        'execution_time_ms': log.execution_time_ms,
-                        'error': log.error_message,
-                        'data_source': log.data_source,
-                    },
-                    'category': 'Polling'
-                })
-            
+            try:
+                for log in PollHistory.query.order_by(PollHistory.timestamp.desc()).limit(logs_per_category).all():
+                    all_logs.append({
+                        'timestamp': log.timestamp,
+                        'level': 'ERROR' if log.error_message else 'SUCCESS' if (log.status or '').lower() == 'success' else 'INFO',
+                        'module': f"CAP Polling ({log.data_source or 'Unknown'})",
+                        'message': f"Status: {log.status} | Fetched: {log.alerts_fetched} | New: {log.alerts_new} | Updated: {log.alerts_updated}",
+                        'details': {
+                            'execution_time_ms': log.execution_time_ms,
+                            'error': log.error_message,
+                            'data_source': log.data_source,
+                        },
+                        'category': 'Polling'
+                    })
+            except Exception as e:
+                route_logger.warning("Failed to load polling logs: %s", e)
+
             # Audio alerts
-            for log in AudioAlert.query.order_by(AudioAlert.created_at.desc()).limit(logs_per_category).all():
-                all_logs.append({
-                    'timestamp': log.created_at,
-                    'level': log.alert_level.upper(),
-                    'module': f'Audio Alert: {log.source_name}',
-                    'message': log.message,
-                    'details': {
-                        'alert_type': log.alert_type,
-                        'acknowledged': log.acknowledged,
-                    },
-                    'category': 'Audio'
-                })
-            
+            try:
+                for log in AudioAlert.query.order_by(AudioAlert.created_at.desc()).limit(logs_per_category).all():
+                    all_logs.append({
+                        'timestamp': log.created_at,
+                        'level': log.alert_level.upper(),
+                        'module': f'Audio Alert: {log.source_name}',
+                        'message': log.message,
+                        'details': {
+                            'alert_type': log.alert_type,
+                            'acknowledged': log.acknowledged,
+                        },
+                        'category': 'Audio'
+                    })
+            except Exception as e:
+                route_logger.warning("Failed to load audio alerts: %s", e)
+
             # GPIO logs
-            for log in GPIOActivationLog.query.order_by(GPIOActivationLog.activated_at.desc()).limit(logs_per_category).all():
-                all_logs.append({
-                    'timestamp': log.activated_at,
-                    'level': 'INFO',
-                    'module': f'GPIO Pin {log.pin}',
-                    'message': f"Type: {log.activation_type} | Operator: {log.operator or 'System'} | Duration: {log.duration_seconds or 'Active'}s",
-                    'details': {
-                        'pin': log.pin,
-                        'activation_type': log.activation_type,
-                    },
-                    'category': 'GPIO'
-                })
-            
+            try:
+                for log in GPIOActivationLog.query.order_by(GPIOActivationLog.activated_at.desc()).limit(logs_per_category).all():
+                    all_logs.append({
+                        'timestamp': log.activated_at,
+                        'level': 'INFO',
+                        'module': f'GPIO Pin {log.pin}',
+                        'message': f"Type: {log.activation_type} | Operator: {log.operator or 'System'} | Duration: {log.duration_seconds or 'Active'}s",
+                        'details': {
+                            'pin': log.pin,
+                            'activation_type': log.activation_type,
+                        },
+                        'category': 'GPIO'
+                    })
+            except Exception as e:
+                route_logger.warning("Failed to load GPIO logs: %s", e)
+
             # EAS Messages
-            for log in EASMessage.query.order_by(EASMessage.created_at.desc()).limit(logs_per_category).all():
-                all_logs.append({
-                    'timestamp': log.created_at,
-                    'level': 'INFO',
-                    'module': 'EAS Message Generator',
-                    'message': f"SAME: {log.same_header} | TTS: {log.tts_provider or 'None'}",
-                    'details': {
-                        'same_header': log.same_header,
-                        'audio_filename': log.audio_filename,
-                    },
-                    'category': 'EAS Messages'
-                })
-            
+            try:
+                for log in EASMessage.query.order_by(EASMessage.created_at.desc()).limit(logs_per_category).all():
+                    all_logs.append({
+                        'timestamp': log.created_at,
+                        'level': 'INFO',
+                        'module': 'EAS Message Generator',
+                        'message': f"SAME: {log.same_header} | TTS: {log.tts_provider or 'None'}",
+                        'details': {
+                            'same_header': log.same_header,
+                            'audio_filename': log.audio_filename,
+                        },
+                        'category': 'EAS Messages'
+                    })
+            except Exception as e:
+                route_logger.warning("Failed to load EAS messages: %s", e)
+
             # Manual Activations
-            for log in ManualEASActivation.query.order_by(ManualEASActivation.created_at.desc()).limit(logs_per_category).all():
-                all_logs.append({
-                    'timestamp': log.created_at,
-                    'level': 'WARNING' if log.status == 'ALERT' else 'INFO',
-                    'module': 'Manual EAS Activation',
-                    'message': f"Event: {log.event_name} ({log.event_code}) | Status: {log.status}",
-                    'details': {
-                        'event_code': log.event_code,
-                        'status': log.status,
-                    },
-                    'category': 'Manual Activations'
-                })
+            try:
+                for log in ManualEASActivation.query.order_by(ManualEASActivation.created_at.desc()).limit(logs_per_category).all():
+                    all_logs.append({
+                        'timestamp': log.created_at,
+                        'level': 'WARNING' if log.status == 'ALERT' else 'INFO',
+                        'module': 'Manual EAS Activation',
+                        'message': f"Event: {log.event_name} ({log.event_code}) | Status: {log.status}",
+                        'details': {
+                            'event_code': log.event_code,
+                            'status': log.status,
+                        },
+                        'category': 'Manual Activations'
+                    })
+            except Exception as e:
+                route_logger.warning("Failed to load manual activations: %s", e)
 
             # Service Logs (systemd)
-            for service in get_all_log_services():
-                result = get_systemd_logs(service, lines=max(3, logs_per_category // len(get_all_log_services())), priority=None, since='today')
-                if result.get('success') and result.get('logs'):
-                    for log_entry in result['logs']:
-                        all_logs.append({
-                            'timestamp': datetime.fromtimestamp(int(log_entry['timestamp']) / 1000000) if log_entry.get('timestamp') else None,
-                            'level': 'ERROR' if log_entry.get('priority', '6') in ['0', '1', '2', '3'] else 'WARNING' if log_entry.get('priority') == '4' else 'INFO',
-                            'module': log_entry.get('unit', service),
-                            'message': log_entry.get('message', ''),
-                            'details': {'service': service},
-                            'category': 'Services'
-                        })
+            try:
+                services = get_all_log_services()
+                lines_per_service = max(3, logs_per_category // len(services)) if services else 10
+                for service in services:
+                    result = get_systemd_logs(service, lines=lines_per_service, priority=None, since='today')
+                    if result.get('success') and result.get('logs'):
+                        for log_entry in result['logs']:
+                            all_logs.append({
+                                'timestamp': datetime.fromtimestamp(int(log_entry['timestamp']) / 1000000) if log_entry.get('timestamp') else None,
+                                'level': 'ERROR' if log_entry.get('priority', '6') in ['0', '1', '2', '3'] else 'WARNING' if log_entry.get('priority') == '4' else 'INFO',
+                                'module': log_entry.get('unit', service),
+                                'message': log_entry.get('message', ''),
+                                'details': {'service': service},
+                                'category': 'Services'
+                            })
+            except Exception as e:
+                route_logger.warning("Failed to load service logs: %s", e)
 
             # Sort all logs by timestamp
             all_logs.sort(key=lambda x: x['timestamp'] if x['timestamp'] else datetime.min, reverse=True)

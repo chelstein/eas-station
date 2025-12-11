@@ -45,8 +45,12 @@ def init_cache(app):
         app: Flask application instance
 
     Note: Redis is now the default for production use. Multi-worker deployments
-    require Redis to share cache state across workers.
+    require Redis to share cache state across workers. Falls back to simple
+    cache if Redis is unavailable.
     """
+    import logging
+    logger = logging.getLogger(__name__)
+
     cache_type = os.environ.get('CACHE_TYPE', 'redis')
     cache_default_timeout = int(os.environ.get('CACHE_DEFAULT_TIMEOUT', '300'))
 
@@ -62,10 +66,38 @@ def init_cache(app):
         os.makedirs(cache_dir, exist_ok=True)
     elif cache_type == 'redis':
         # Use centralized Redis config
-        config['CACHE_REDIS_URL'] = get_cache_redis_url()
+        redis_url = get_cache_redis_url()
+        config['CACHE_REDIS_URL'] = redis_url
+
+        # Test Redis connectivity before committing to Redis cache
+        try:
+            import redis
+            # Parse the URL and test connection
+            parsed = redis.connection.parse_url(redis_url)
+            test_client = redis.Redis(
+                host=parsed.get('host', 'localhost'),
+                port=parsed.get('port', 6379),
+                db=parsed.get('db', 0),
+                password=parsed.get('password'),
+                socket_connect_timeout=2,
+                socket_timeout=2,
+            )
+            test_client.ping()
+            logger.info("Redis cache connection verified")
+        except Exception as redis_error:
+            logger.warning(
+                "Redis unavailable for caching (%s), falling back to simple cache. "
+                "This may cause issues in multi-worker deployments.",
+                redis_error
+            )
+            # Fall back to simple in-memory cache
+            config['CACHE_TYPE'] = 'simple'
+            config.pop('CACHE_REDIS_URL', None)
 
     app.config.update(config)
     cache.init_app(app)
+
+    logger.info("Cache initialized with type: %s", config['CACHE_TYPE'])
 
     return cache
 
