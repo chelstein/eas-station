@@ -754,7 +754,8 @@ def _fetch_embedded_audio(
         )
         
         try:
-            response = requests.get(uri, timeout=timeout, stream=True)
+            # Disable proxy to allow direct download from IPAWS
+            response = requests.get(uri, timeout=timeout, stream=True, proxies={'http': None, 'https': None})
             response.raise_for_status()
             
             audio_data = response.content
