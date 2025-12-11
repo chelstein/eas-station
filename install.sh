@@ -664,11 +664,12 @@ PGADMIN_CONFIG
         PGADMIN_PYTHON="python3"
     fi
     
-    sudo -u www-data "$PGADMIN_PYTHON" setup.py << SETUP_INPUT
-${ADMIN_EMAIL}
-${ADMIN_PASSWORD}
-${ADMIN_PASSWORD}
-SETUP_INPUT
+    # Modern pgAdmin 4 uses Click-based CLI requiring the setup-db command
+    # Use environment variables for non-interactive setup
+    sudo -u www-data \
+        PGADMIN_SETUP_EMAIL="${ADMIN_EMAIL}" \
+        PGADMIN_SETUP_PASSWORD="${ADMIN_PASSWORD}" \
+        "$PGADMIN_PYTHON" setup.py setup-db
     
     # Only create systemd service if we have the venv gunicorn
     if [ ! -f "$PGADMIN_GUNICORN" ]; then
