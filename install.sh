@@ -517,17 +517,18 @@ DEBIAN_FRONTEND=noninteractive apt-get install -y python3-typer python3-gunicorn
 }
 echo_success "pgAdmin dependencies installed"
 
-# Block Apache2 packages to prevent them from being installed as dependencies
-# (pgadmin4-web has apache2 as a dependency, but we won't actually use it)
+# Note: pgadmin4-web requires Apache2 as a dependency
+# We allow Apache2 to install, then disable it afterward (using Nginx instead)
 echo_progress "Preparing for pgAdmin installation..."
-cat > /etc/apt/preferences.d/block-apache2 << 'APT_PREFS'
-Package: apache2 apache2-bin apache2-data apache2-utils libapache2-mod-wsgi-py3
-Pin: version *
-Pin-Priority: -1
-APT_PREFS
-echo_success "Apache2 packages blocked during installation"
 
-# Install pgadmin4-desktop (no Apache2 dependency) and pgadmin4-web (Python files only, apache2 blocked)
+# Remove any existing Apache2 blocking preferences that might interfere
+if [ -f /etc/apt/preferences.d/block-apache2 ]; then
+    rm -f /etc/apt/preferences.d/block-apache2
+    apt-get update -qq 2>/dev/null || true
+fi
+echo_success "Ready for pgAdmin installation"
+
+# Install pgadmin4-desktop and pgadmin4-web (Apache2 will be disabled after installation)
 echo_progress "Installing pgAdmin 4 packages (this may take a few minutes)..."
 
 # Validate that admin credentials are set (should be set earlier in the script)
@@ -565,13 +566,14 @@ EOF
 
         # Configuration for installation timeout
         PGADMIN_INSTALL_TIMEOUT=300  # 5 minutes
-        APT_LOG_TAIL_LINES=20
-        APT_ERROR_DISPLAY_LINES=5
-        
+        PGADMIN_APT_LOG=$(mktemp)
+
         # Use timeout to prevent infinite hangs
         # Redirect stdin from /dev/null to prevent any input blocking
-        if timeout $PGADMIN_INSTALL_TIMEOUT apt-get install -y --allow-downgrades --no-install-recommends pgadmin4-desktop pgadmin4-web < /dev/null > /dev/null 2>&1; then
+        # Note: Removed --no-install-recommends to allow Apache2 dependency
+        if timeout $PGADMIN_INSTALL_TIMEOUT apt-get install -y --allow-downgrades pgadmin4-desktop pgadmin4-web < /dev/null > "$PGADMIN_APT_LOG" 2>&1; then
             echo_success "pgAdmin 4 installed successfully"
+            rm -f "$PGADMIN_APT_LOG"
         else
             PGADMIN_EXIT_CODE=$?
             if [ $PGADMIN_EXIT_CODE -eq 124 ]; then
@@ -580,14 +582,15 @@ EOF
                 echo_info "This may indicate a hung postinstall script or dependency issue"
             else
                 echo_warning "pgAdmin 4 installation encountered errors (exit code: $PGADMIN_EXIT_CODE)"
-                
-                # Try to get error details from apt logs
-                if [ -f /var/log/apt/term.log ]; then
-                    echo_info "Error details from apt log:"
-                    tail -n $APT_LOG_TAIL_LINES /var/log/apt/term.log | grep -E "E:|Err:" | head -n $APT_ERROR_DISPLAY_LINES || echo "No specific errors found in log"
+
+                # Show actual error output
+                if [ -f "$PGADMIN_APT_LOG" ] && [ -s "$PGADMIN_APT_LOG" ]; then
+                    echo_info "Error details:"
+                    grep -E "^E:|error:|failed|Unable to|dpkg:" "$PGADMIN_APT_LOG" | head -n 10 || tail -n 15 "$PGADMIN_APT_LOG"
                 fi
             fi
-            
+            rm -f "$PGADMIN_APT_LOG"
+
             echo_warning "pgAdmin 4 will not be available - you can install it manually later"
             echo_info "Continuing installation without pgAdmin..."
             # Skip pgAdmin configuration
