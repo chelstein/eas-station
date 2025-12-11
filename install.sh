@@ -23,11 +23,7 @@ TOTAL_STEPS=17
 
 echo_step() {
     STEP_NUM=$((STEP_NUM + 1))
-    echo ""
-    echo -e "${BOLD}${CYAN}════════════════════════════════════════════════════════════════${NC}"
-    echo -e "${BOLD}${WHITE}  Step ${STEP_NUM}/${TOTAL_STEPS}: $1${NC}"
-    echo -e "${BOLD}${CYAN}════════════════════════════════════════════════════════════════${NC}"
-    echo ""
+    show_step_progress "$STEP_NUM" "$TOTAL_STEPS" "$1"
 }
 
 echo_info() {
@@ -58,16 +54,89 @@ echo_header() {
     echo ""
 }
 
+# Progress bar function
+show_progress_bar() {
+    local current=$1
+    local total=$2
+    local width=50
+    local percentage=$((current * 100 / total))
+    local filled=$((current * width / total))
+    local empty=$((width - filled))
+    
+    printf "\r${CYAN}["
+    printf "%${filled}s" | tr ' ' '█'
+    printf "%${empty}s" | tr ' ' '░'
+    printf "]${NC} ${BOLD}${percentage}%%${NC} ${WHITE}($current/$total)${NC}"
+    
+    if [ "$current" -eq "$total" ]; then
+        echo ""
+    fi
+}
+
+# Animated spinner for long operations
+show_spinner() {
+    local pid=$1
+    local delay=0.1
+    local spinstr='⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏'
+    while ps -p $pid > /dev/null 2>&1; do
+        local temp=${spinstr#?}
+        printf " ${CYAN}[%c]${NC}  " "$spinstr"
+        local spinstr=$temp${spinstr%"$temp"}
+        sleep $delay
+        printf "\b\b\b\b\b\b"
+    done
+    printf "    \b\b\b\b"
+}
+
+# Box drawing for important information
+draw_box() {
+    local text="$1"
+    local width=66
+    echo ""
+    echo -e "${BOLD}${GREEN}┌$(printf '─%.0s' $(seq 1 $width))┐${NC}"
+    echo -e "${BOLD}${GREEN}│${NC} ${BOLD}${WHITE}${text}$(printf ' %.0s' $(seq 1 $((width - ${#text}))))${NC}${BOLD}${GREEN}│${NC}"
+    echo -e "${BOLD}${GREEN}└$(printf '─%.0s' $(seq 1 $width))┘${NC}"
+    echo ""
+}
+
+# Display a visual step indicator with progress
+show_step_progress() {
+    local step=$1
+    local total=$2
+    local desc="$3"
+    local width=60
+    
+    echo ""
+    echo -e "${BOLD}${CYAN}╔═══════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${BOLD}${CYAN}║${NC} ${BOLD}${WHITE}Step $step of $total${NC}$(printf ' %.0s' $(seq 1 $((width - 13 - ${#step} - ${#total}))))${BOLD}${CYAN}║${NC}"
+    echo -e "${BOLD}${CYAN}║${NC} ${CYAN}$desc${NC}$(printf ' %.0s' $(seq 1 $((width - ${#desc}))))${BOLD}${CYAN}║${NC}"
+    echo -e "${BOLD}${CYAN}╚═══════════════════════════════════════════════════════════════╝${NC}"
+    
+    # Show mini progress bar
+    local filled=$((step * 50 / total))
+    local empty=$((50 - filled))
+    printf "  ${CYAN}["
+    printf "%${filled}s" | tr ' ' '█'
+    printf "%${empty}s" | tr ' ' '░'
+    printf "]${NC}\n\n"
+}
+
 # Display installation banner
 clear
 echo -e "${BOLD}${CYAN}"
 cat << "EOF"
 ╔═══════════════════════════════════════════════════════════════════════╗
 ║                                                                       ║
-║              📡  EAS STATION INSTALLATION WIZARD  📡                  ║
+║   ███████╗ █████╗ ███████╗    ███████╗████████╗ █████╗ ████████╗   ║
+║   ██╔════╝██╔══██╗██╔════╝    ██╔════╝╚══██╔══╝██╔══██╗╚══██╔══╝   ║
+║   █████╗  ███████║███████╗    ███████╗   ██║   ███████║   ██║      ║
+║   ██╔══╝  ██╔══██║╚════██║    ╚════██║   ██║   ██╔══██║   ██║      ║
+║   ███████╗██║  ██║███████║    ███████║   ██║   ██║  ██║   ██║      ║
+║   ╚══════╝╚═╝  ╚═╝╚══════╝    ╚══════╝   ╚═╝   ╚═╝  ╚═╝   ╚═╝      ║
 ║                                                                       ║
-║           Emergency Alert System Monitoring & Broadcasting           ║
-║                     Bare Metal Installation                           ║
+║             📡  Emergency Alert System Installation  📡              ║
+║                                                                       ║
+║           Monitoring & Broadcasting • Bare Metal Setup               ║
 ║                                                                       ║
 ╚═══════════════════════════════════════════════════════════════════════╝
 EOF
@@ -86,8 +155,7 @@ if [ "$EUID" -ne 0 ]; then
     exit 1
 fi
 
-echo_success "Running with root privileges"
-echo ""
+draw_box "✓  Root privileges confirmed - Installation ready to begin"
 
 # Configuration variables
 INSTALL_DIR="/opt/eas-station"
@@ -995,7 +1063,14 @@ echo -e "${BOLD}${GREEN}"
 cat << "EOF"
 ╔═══════════════════════════════════════════════════════════════════════╗
 ║                                                                       ║
-║                  🎉  INSTALLATION COMPLETE!  🎉                       ║
+║   ██████╗ ██████╗ ███╗   ███╗██████╗ ██╗     ███████╗████████╗███████╗
+║  ██╔════╝██╔═══██╗████╗ ████║██╔══██╗██║     ██╔════╝╚══██╔══╝██╔════╝
+║  ██║     ██║   ██║██╔████╔██║██████╔╝██║     █████╗     ██║   █████╗  
+║  ██║     ██║   ██║██║╚██╔╝██║██╔═══╝ ██║     ██╔══╝     ██║   ██╔══╝  
+║  ╚██████╗╚██████╔╝██║ ╚═╝ ██║██║     ███████╗███████╗   ██║   ███████╗
+║   ╚═════╝ ╚═════╝ ╚═╝     ╚═╝╚═╝     ╚══════╝╚══════╝   ╚═╝   ╚══════╝
+║                                                                       ║
+║                  🎉  Installation Successful!  🎉                     ║
 ║                                                                       ║
 ║              Your EAS Station is now up and running!                  ║
 ║                                                                       ║
