@@ -62,11 +62,57 @@ echo_success "Services stopped"
 echo_info "Saving configuration..."
 cp "$INSTALL_DIR/.env" "/tmp/eas-station.env.backup"
 
-# Update from Git
-echo_info "Pulling latest changes from Git..."
+# Update from GitHub
+echo_info "Downloading latest version..."
 cd "$INSTALL_DIR"
-sudo -u "$SERVICE_USER" git fetch origin
-sudo -u "$SERVICE_USER" git pull origin main || echo_warning "Git pull failed - using existing code"
+
+# Check if this is a git repository
+if [ -d ".git" ]; then
+    # Git-based update
+    echo_info "Using git to update..."
+    sudo -u "$SERVICE_USER" git fetch origin
+    sudo -u "$SERVICE_USER" git pull origin main || echo_warning "Git pull failed - using existing code"
+else
+    # Download release tarball (for non-git installations)
+    echo_info "Downloading release from GitHub..."
+    GITHUB_REPO="KR8MER/eas-station"
+    TEMP_DIR=$(mktemp -d)
+
+    # Get latest release tag or use main branch
+    LATEST_URL="https://github.com/$GITHUB_REPO/archive/refs/heads/main.tar.gz"
+
+    if curl -fsSL "$LATEST_URL" -o "$TEMP_DIR/eas-station.tar.gz"; then
+        echo_info "Extracting update..."
+        tar -xzf "$TEMP_DIR/eas-station.tar.gz" -C "$TEMP_DIR"
+
+        # Find extracted directory (usually eas-station-main)
+        EXTRACTED_DIR=$(find "$TEMP_DIR" -maxdepth 1 -type d -name "eas-station*" | head -1)
+
+        if [ -n "$EXTRACTED_DIR" ] && [ -d "$EXTRACTED_DIR" ]; then
+            # Copy files, excluding .env and user data
+            echo_info "Updating application files..."
+            rsync -a --exclude='.env' \
+                     --exclude='*.db' \
+                     --exclude='uploads/' \
+                     --exclude='captures/' \
+                     --exclude='venv/' \
+                     --exclude='__pycache__/' \
+                     --exclude='*.pyc' \
+                     "$EXTRACTED_DIR/" "$INSTALL_DIR/"
+
+            chown -R "$SERVICE_USER:$SERVICE_USER" "$INSTALL_DIR"
+            echo_success "Files updated successfully"
+        else
+            echo_error "Failed to extract update"
+        fi
+
+        # Cleanup
+        rm -rf "$TEMP_DIR"
+    else
+        echo_error "Failed to download update from GitHub"
+        echo_warning "Check your internet connection and try again"
+    fi
+fi
 
 # Restore .env file
 echo_info "Restoring configuration..."

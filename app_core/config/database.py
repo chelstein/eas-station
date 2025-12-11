@@ -48,7 +48,7 @@ def build_database_url() -> str:
     # Build from individual POSTGRES_* variables
     user = os.getenv('POSTGRES_USER', 'postgres') or 'postgres'
     password = os.getenv('POSTGRES_PASSWORD', 'postgres')
-    host = os.getenv('POSTGRES_HOST', 'alerts-db') or 'alerts-db'
+    host = os.getenv('POSTGRES_HOST', 'localhost') or 'localhost'
     port = os.getenv('POSTGRES_PORT', '5432') or '5432'
     database = os.getenv('POSTGRES_DB', 'alerts') or 'alerts'
 

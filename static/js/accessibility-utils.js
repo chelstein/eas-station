@@ -460,13 +460,14 @@ class AccessibilityUtils {
     }
 
     rgbToHex(rgb) {
-        const result = rgb.match(/\d+/g);
-        if (!result) return '#000000';
-        
-        const r = parseInt(result[0]);
-        const g = parseInt(result[1]);
-        const b = parseInt(result[2]);
-        
+        // Match integers and decimals (e.g., rgb(255.5, 128.2, 64.8))
+        const result = rgb.match(/[\d.]+/g);
+        if (!result || result.length < 3) return '#000000';
+
+        const r = Math.round(parseFloat(result[0]));
+        const g = Math.round(parseFloat(result[1]));
+        const b = Math.round(parseFloat(result[2]));
+
         return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
     }
 
