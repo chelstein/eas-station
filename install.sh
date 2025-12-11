@@ -642,6 +642,10 @@ SQLITE_PATH = '/var/lib/pgadmin/pgadmin4.db'
 SESSION_DB_PATH = '/var/lib/pgadmin/sessions'
 STORAGE_DIR = '/var/lib/pgadmin/storage'
 
+# Reverse proxy configuration - required when running behind nginx at /pgadmin4/
+# This ensures URLs, redirects, and static assets use the correct path prefix
+APPLICATION_ROOT = '/pgadmin4'
+
 # Security settings
 ENHANCED_COOKIE_PROTECTION = True
 WTF_CSRF_CHECK_DEFAULT = True
@@ -675,11 +679,17 @@ PGADMIN_CONFIG
     
     # Modern pgAdmin 4 uses Click-based CLI requiring the setup-db command
     # Use environment variables for non-interactive setup
-    sudo -u www-data \
+    echo_progress "Setting up pgAdmin database..."
+    if sudo -u www-data \
         PGADMIN_SETUP_EMAIL="${ADMIN_EMAIL}" \
         PGADMIN_SETUP_PASSWORD="${ADMIN_PASSWORD}" \
-        "$PGADMIN_PYTHON" setup.py setup-db
-    
+        "$PGADMIN_PYTHON" setup.py setup-db 2>/dev/null; then
+        echo_success "pgAdmin database initialized successfully"
+    else
+        echo_warning "pgAdmin database setup failed - pgAdmin may not work correctly"
+        echo_info "You can try running manually: cd /usr/pgadmin4/web && sudo -u www-data python3 setup.py setup-db"
+    fi
+
     # Only create systemd service if we have the venv gunicorn
     if [ ! -f "$PGADMIN_GUNICORN" ]; then
         echo_warning "pgAdmin gunicorn not found at $PGADMIN_GUNICORN"
