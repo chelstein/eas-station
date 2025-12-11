@@ -34,6 +34,67 @@ This guide will hold your hand through every step of the setup process, from SSH
 
 ---
 
+## 🚀 Quick Start: Essential Settings for zencoder.ai
+
+**Already familiar with PyCharm/VS Code?** Here are the exact settings zencoder.ai needs:
+
+### PyCharm Professional Settings
+
+| Setting | Path | Field | Value |
+|---------|------|-------|-------|
+| **SSH Deployment** | Settings → Deployment | Host | `192.168.1.100` (your server IP) |
+| | | Port | `22` |
+| | | Username | `eas-station` |
+| | | Auth type | `Password` |
+| | | Deployment path | `/opt/eas-station` |
+| **Python Interpreter** | Settings → Python Interpreter | Interpreter | `/opt/eas-station/venv/bin/python` |
+| | | Type | `SSH Interpreter` |
+| **Database** | Database Tools | Host | `192.168.1.100` |
+| | | Port | `5432` |
+| | | Database | `alerts` |
+| | | User | `eas_station` |
+| | | Password | From `.env` file |
+| **Debug Config** | Run → Edit Configurations | Type | `Python Debug Server` |
+| | | Port | `5678` (web), `5679` (audio) |
+| | | Path mapping | Local → `/opt/eas-station` |
+
+### VS Code Settings
+
+| Extension | Setting | Value |
+|-----------|---------|-------|
+| **Remote-SSH** | Host | `eas-station@192.168.1.100` |
+| | Remote folder | `/opt/eas-station` |
+| **Python** | Interpreter | `/opt/eas-station/venv/bin/python` |
+| **PostgreSQL** | Host | `192.168.1.100:5432` |
+| | Database | `alerts` |
+| | User | `eas_station` |
+
+### Required Server Permissions (Part 2)
+
+Add to `/etc/sudoers` via `sudo visudo`:
+```bash
+# Allow service management without password
+eas-station ALL=(ALL) NOPASSWD: /bin/systemctl * eas-station*
+eas-station ALL=(ALL) NOPASSWD: /bin/journalctl -u eas-station*
+eas-station ALL=(ALL) NOPASSWD: /usr/bin/psql
+eas-station ALL=(ALL) NOPASSWD: /usr/bin/redis-cli
+```
+
+### Verification Checklist
+
+Test these to confirm zencoder.ai has full access:
+- [ ] **Files**: Edit a file, see it sync to `/opt/eas-station/`
+- [ ] **Python**: Run `python --version` shows `Python 3.11.x`
+- [ ] **Database**: Run `psql -d alerts -c "SELECT COUNT(*) FROM cap_alerts;"`
+- [ ] **Services**: Run `sudo systemctl status eas-station-web.service`
+- [ ] **Logs**: Run `sudo journalctl -u eas-station-web.service -n 5`
+
+**All working?** ✅ You're ready to use zencoder.ai!
+
+**Need detailed instructions?** Continue reading below. ↓
+
+---
+
 ## Why This Setup is Perfect for zencoder.ai
 
 **zencoder.ai** (https://zencoder.ai) is an AI coding assistant that needs full access to your development environment to be truly effective. Think of it as having an expert developer sitting next to you who can:
@@ -3100,9 +3161,9 @@ ssh -L 5678:localhost:5678 eas-station@YOUR_SERVER_IP
 
 ---
 
-## Using with AI Coding Agents (ZenCoder, etc.)
+## Using with AI Coding Agents (zencoder.ai, GitHub Copilot, etc.)
 
-AI coding agents like ZenCoder work best when they can see your code, run it, and observe failures in real-time. Here's how to integrate them with your EAS Station development environment.
+AI coding agents like **zencoder.ai** (https://zencoder.ai) and GitHub Copilot work best when they can see your code, run it, and observe failures in real-time. Here's how to integrate them with your EAS Station development environment.
 
 ### Why This Setup is Perfect for AI Agents
 
@@ -3113,7 +3174,215 @@ AI coding agents like ZenCoder work best when they can see your code, run it, an
 ✅ **Log streaming** - Agent can watch systemd logs in real-time
 ✅ **Hardware testing** - Agent can test with actual GPIO/SDR/audio devices
 
-### Setting Up ZenCoder with PyCharm
+---
+
+### Complete Configuration for zencoder.ai
+
+**What zencoder.ai needs to work effectively:**
+
+| Capability | What to Configure | Where | Status After This Guide |
+|------------|------------------|-------|------------------------|
+| **Execute Python code** | Remote interpreter | PyCharm Settings | ✅ Configured in Step 1.3 |
+| **Read/write files** | SSH deployment | PyCharm Settings | ✅ Configured in Step 1.3 |
+| **Query database** | PostgreSQL connection | Database Tools | ✅ Configured in Step 1.3 |
+| **View logs** | Terminal access + sudo | Part 2 | ✅ Configured in Part 2 |
+| **Restart services** | systemctl permissions | Part 2 | ✅ Configured in Part 2 |
+| **Debug code** | Debug configurations | Step 1.3 | ✅ Configured in Step 1.3 |
+| **Access Redis** | redis-cli access | Part 2 | ✅ Configured in Part 2 |
+
+---
+
+### Step-by-Step: Enabling zencoder.ai Integration
+
+#### Option A: Using zencoder.ai with PyCharm (Recommended)
+
+**Prerequisites**: Complete [Step 1.3: Configure PyCharm Professional](#step-13-configure-pycharm-professional-for-remote-development) first.
+
+**Step 1: Install zencoder.ai Plugin**
+
+1. Open PyCharm
+2. Go to **File** → **Settings** → **Plugins**
+3. Click **Marketplace** tab
+4. Search for: `zencoder` or `zencoder.ai`
+5. Click **Install**
+6. Click **Restart IDE** when prompted
+
+**Step 2: Configure zencoder.ai Settings**
+
+After PyCharm restarts:
+
+1. Go to **File** → **Settings** → **Tools** → **zencoder.ai**
+2. You'll see the zencoder.ai configuration panel
+
+**Fill in these fields:**
+
+| Field | What to Enter | Example | Explanation |
+|-------|--------------|---------|-------------|
+| **API Key** | Your zencoder.ai API key | `zenc_abc123...` | Get from https://zencoder.ai/settings |
+| **Model** | Select your preferred model | `gpt-4` or `claude-3` | Which AI model to use |
+| **Auto-complete** | Check to enable | ☑️ | Real-time code suggestions |
+| **Auto-apply** | Check to enable (optional) | ☐ | Auto-apply simple fixes |
+| **Context size** | Set tokens | `8000` | How much code context to send |
+
+**Step 3: Verify zencoder.ai Can Access Everything**
+
+Test each capability:
+
+**✅ Test 1: File Access**
+1. Open any Python file (e.g., `app.py`)
+2. Ask zencoder.ai: "Can you read this file?"
+3. zencoder.ai should display the file contents
+
+**✅ Test 2: Python Execution**
+1. Open PyCharm terminal (View → Tool Windows → Terminal)
+2. Ask zencoder.ai: "Run `python --version` on the server"
+3. Should show: `Python 3.11.x`
+
+**✅ Test 3: Database Access**
+1. Ask zencoder.ai: "How many alerts are in the database?"
+2. zencoder.ai should run: `psql -d alerts -c "SELECT COUNT(*) FROM cap_alerts;"`
+3. Should return a count
+
+**✅ Test 4: Service Management**
+1. Ask zencoder.ai: "What's the status of eas-station-web service?"
+2. zencoder.ai should run: `sudo systemctl status eas-station-web.service`
+3. Should show service status
+
+**✅ Test 5: Log Viewing**
+1. Ask zencoder.ai: "Show me the last 10 lines of web service logs"
+2. zencoder.ai should run: `sudo journalctl -u eas-station-web.service -n 10`
+3. Should display recent log entries
+
+**If all tests pass**: ✅ **zencoder.ai is fully configured!**
+
+---
+
+#### Option B: Using zencoder.ai with VS Code
+
+**Prerequisites**: Complete [Step 1.2: Configure VS Code](#step-12-configure-vs-code-for-remote-development) first.
+
+**Step 1: Install zencoder.ai Extension**
+
+1. Open VS Code
+2. Click Extensions icon (Ctrl+Shift+X)
+3. Search for: `zencoder` or `zencoder.ai`
+4. Click **Install**
+5. Reload VS Code if prompted
+
+**Step 2: Configure zencoder.ai**
+
+1. Press `Ctrl+Shift+P` (Cmd+Shift+P on Mac)
+2. Type: `zencoder: Configure`
+3. Enter your API key from https://zencoder.ai
+
+**Step 3: Connect to Remote Server**
+
+Make sure you're connected via Remote-SSH:
+1. Click the green icon in bottom-left corner
+2. Select "Remote-SSH: Connect to Host"
+3. Choose your EAS Station server
+
+**Step 4: Verify Access**
+
+Run the same 5 tests as in Option A above.
+
+---
+
+### What zencoder.ai Can Do With This Setup
+
+**Scenario 1: Fix a Bug**
+
+You say:
+```
+"The audio service is crashing. Fix it."
+```
+
+zencoder.ai can:
+1. Check service status: `sudo systemctl status eas-station-audio.service`
+2. Read logs: `sudo journalctl -u eas-station-audio.service -n 50`
+3. Find the error in the logs
+4. Open the Python file with the bug
+5. Fix the code
+6. Restart the service: `sudo systemctl restart eas-station-audio.service`
+7. Verify the fix: Check logs again
+8. Report: "✅ Fixed! The issue was..."
+
+**No back-and-forth needed!**
+
+---
+
+**Scenario 2: Add a New Feature**
+
+You say:
+```
+"Add a new API endpoint that returns the 10 most recent alerts"
+```
+
+zencoder.ai can:
+1. Check database schema: `psql -d alerts -c "\d cap_alerts"`
+2. Write the Python code for the endpoint
+3. Add it to `/opt/eas-station/webapp/api/alerts.py`
+4. Restart web service: `sudo systemctl restart eas-station-web.service`
+5. Test the endpoint: `curl http://localhost:5000/api/alerts/recent`
+6. Check logs for errors
+7. Fix any issues
+8. Report: "✅ Done! The new endpoint is at /api/alerts/recent"
+
+---
+
+**Scenario 3: Optimize Database Performance**
+
+You say:
+```
+"The map page is slow. Investigate and fix it."
+```
+
+zencoder.ai can:
+1. Enable query logging: `sudo sed -i "s/log_statement = 'none'/log_statement = 'all'/" /etc/postgresql/*/main/postgresql.conf`
+2. Reload PostgreSQL: `sudo systemctl reload postgresql`
+3. Test the slow page: `curl http://localhost:5000/map`
+4. Read query logs: `sudo tail -100 /var/log/postgresql/postgresql-17-main.log`
+5. Find the slow query (e.g., missing index)
+6. Create the index: `sudo -u eas-station psql -d alerts -c "CREATE INDEX idx_counties_geom ON counties USING GIST(geom);"`
+7. Test again and measure improvement
+8. Disable query logging
+9. Report: "✅ Fixed! Added spatial index - query time reduced from 12s to 120ms"
+
+---
+
+### Giving zencoder.ai Context
+
+**For best results, tell zencoder.ai:**
+
+✅ **DO provide:**
+- What you're trying to accomplish
+- Any error messages you see
+- Which service or file is involved
+- What you've already tried
+
+✅ **Examples of good prompts:**
+```
+"The NOAA poller service keeps timing out. Check the logs and fix it."
+
+"Add validation to the alert form - severity must be one of: Extreme, Severe, Moderate, Minor"
+
+"The database has 10,000 old alerts. Write a script to archive alerts older than 90 days."
+
+"Add a new column to track alert broadcast status. Include migration script."
+```
+
+❌ **Avoid vague prompts:**
+```
+"Fix the bug"  ← Which bug? Where?
+"Make it faster"  ← What's slow?
+"It doesn't work"  ← What doesn't work?
+```
+
+---
+
+### Setting Up ZenCoder Plugin (Alternative to zencoder.ai)
+
+If you're using the ZenCoder plugin instead of zencoder.ai:
 
 1. **Install ZenCoder extension** in PyCharm:
    - Go to **Settings** → **Plugins** → **Marketplace**
