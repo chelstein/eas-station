@@ -122,6 +122,11 @@ show_step_progress() {
     printf "]${NC}\n\n"
 }
 
+# Add branding footer for whiptail dialogs
+whiptail_footer() {
+    echo "Copyright (c) 2025 Timothy Kramer (KR8MER) | AGPL v3 / Commercial License"
+}
+
 # Display installation banner
 clear
 echo -e "${BOLD}${CYAN}"
