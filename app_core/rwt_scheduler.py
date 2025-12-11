@@ -82,12 +82,18 @@ def trigger_rwt_broadcast(config: RWTScheduleConfig, logger_instance=None) -> Di
         )
 
         same_codes = [code for code in (config.same_codes or []) if code]
-        if not same_codes:
-            same_codes = manual_default_same_codes()
 
+        # IMPORTANT: RWT broadcasts should ONLY use explicitly configured SAME codes.
+        # We do NOT fall back to location filtering FIPS codes because:
+        # 1. Location FIPS codes are for FILTERING incoming alerts (includes nationwide 000000)
+        # 2. RWT should only target the station's local broadcast area
+        # 3. Broadcasting RWT to nationwide would be inappropriate
         if not same_codes:
             raise ValueError(
-                "No SAME/FIPS codes are configured for automatic RWT broadcasts"
+                "No SAME/FIPS codes configured for RWT broadcasts. "
+                "Please configure specific SAME codes for RWT on the RWT Schedule page. "
+                "Do NOT use your alert filtering FIPS codes - RWT should only target "
+                "your local broadcast area, not nationwide or all monitored areas."
             )
 
         # Prepare payload wrapper

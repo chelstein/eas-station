@@ -26,7 +26,6 @@ from typing import List
 from flask import jsonify, render_template, request
 from app_core.extensions import db
 from app_core.models import RWTScheduleConfig, SystemLog
-from app_utils.eas import manual_default_same_codes
 from app_utils.fips_codes import get_us_state_county_tree, get_same_lookup
 
 
@@ -53,8 +52,10 @@ def register_routes(app, logger):
             config = RWTScheduleConfig.query.first()
 
             if config is None:
-                # Return default configuration
-                default_same_codes = manual_default_same_codes()
+                # Return default configuration with EMPTY same_codes
+                # RWT should NOT auto-populate with location filtering FIPS codes
+                # because those include nationwide (000000) and are meant for
+                # filtering incoming alerts, NOT for RWT broadcast targeting.
                 return jsonify({
                     'success': True,
                     'config': {
@@ -65,18 +66,23 @@ def register_routes(app, logger):
                         'start_minute': 0,
                         'end_hour': 16,
                         'end_minute': 0,
-                        'same_codes': default_same_codes,
+                        'same_codes': [],  # Empty - must be explicitly configured for RWT
                         'last_run_at': None,
                         'last_run_status': None,
                         'last_run_details': {},
-                        'same_codes_source': 'location_defaults',
+                        'same_codes_source': 'not_configured',
+                        'same_codes_note': 'RWT SAME codes must be explicitly configured. Use only your local broadcast area codes, NOT your alert filtering FIPS codes.',
                     }
                 })
 
             payload = config.to_dict()
+            # Do NOT auto-populate with location filtering FIPS codes
             if not payload.get('same_codes'):
-                payload['same_codes'] = manual_default_same_codes()
-            payload['same_codes_source'] = 'location_defaults'
+                payload['same_codes'] = []
+                payload['same_codes_source'] = 'not_configured'
+                payload['same_codes_note'] = 'RWT SAME codes must be explicitly configured. Use only your local broadcast area codes, NOT your alert filtering FIPS codes.'
+            else:
+                payload['same_codes_source'] = 'configured'
 
             return jsonify({
                 'success': True,
@@ -118,8 +124,9 @@ def register_routes(app, logger):
                 return jsonify({'success': False, 'error': 'Invalid end time'}), 400
 
             same_codes_input = data.get('same_codes')
+            # Do NOT fallback to location filtering FIPS codes - RWT codes must be explicit
             if same_codes_input is None:
-                same_codes_input = manual_default_same_codes()
+                same_codes_input = []
             elif not isinstance(same_codes_input, list):
                 return jsonify({'success': False, 'error': 'same_codes must be an array'}), 400
 

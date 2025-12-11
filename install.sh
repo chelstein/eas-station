@@ -612,7 +612,9 @@ fi
 echo_success "County: ${BOLD}$COUNTY_NAME${NC}"
 
 # Optional: FIPS codes with improved checklist functionality
-if whiptail --title "FIPS Codes Configuration" --backtitle "$(whiptail_footer)" --yesno "Do you want to configure FIPS codes for authorized alert areas?\n\nFIPS codes define which geographic areas can trigger alerts.\n\nYou can select multiple counties from a checklist or enter manually.\n\nConfigure FIPS codes now?" 15 78; then
+# NOTE: These FIPS codes are for FILTERING incoming alerts, NOT for RWT broadcasts.
+# RWT broadcast targeting must be configured separately in the RWT Schedule page.
+if whiptail --title "Alert Filtering FIPS Codes" --backtitle "$(whiptail_footer)" --yesno "Configure FIPS codes for ALERT FILTERING?\n\nThese codes determine which incoming alerts your station will process and forward. Select the areas you want to RECEIVE alerts for.\n\nNOTE: This is NOT for RWT broadcasts. RWT targeting\nis configured separately on the RWT Schedule page.\n\nConfigure alert filtering FIPS codes now?" 16 78; then
     
     # Try to get county list from Python helper
     FIPS_CODES=""
@@ -692,8 +694,8 @@ if whiptail --title "FIPS Codes Configuration" --backtitle "$(whiptail_footer)" 
             
             if [ ${#CHECKLIST_ITEMS[@]} -gt 0 ]; then
                 # Show checklist dialog (allow multiple selection)
-                SELECTED_FIPS=$(whiptail --title "Select FIPS Codes" --backtitle "$(whiptail_footer)" \
-                    --checklist "Select areas to monitor for alerts:\n\n★ = Entire state (for statewide alerts like RWT)\n\nUse SPACE to select, ENTER to confirm:" \
+                SELECTED_FIPS=$(whiptail --title "Select Alert Filtering Areas" --backtitle "$(whiptail_footer)" \
+                    --checklist "Select areas to RECEIVE alerts for:\n\n★ = Entire state (receives statewide alerts)\nNOTE: This is for filtering INCOMING alerts only.\n\nUse SPACE to select, ENTER to confirm:" \
                     25 78 15 "${CHECKLIST_ITEMS[@]}" 3>&1 1>&2 2>&3)
                 
                 if [ $? = 0 ] && [ -n "$SELECTED_FIPS" ]; then
@@ -772,17 +774,19 @@ else
     echo_info "Skipping FIPS code configuration"
 fi
 
-# Always ensure 000000 (nationwide) is included in FIPS codes
+# Always ensure 000000 (nationwide) is included in alert FILTERING FIPS codes
+# This allows the station to RECEIVE nationwide alerts (e.g., national emergencies)
+# NOTE: This does NOT affect RWT broadcasts - RWT targeting is configured separately
 if [ -n "$FIPS_CODES" ]; then
     # Check if 000000 is already in the list
     if ! echo ",$FIPS_CODES," | grep -q ",000000,"; then
         FIPS_CODES="000000,$FIPS_CODES"
-        echo_info "Added nationwide code (000000) - required for EAS compliance"
+        echo_info "Added nationwide code (000000) to receive nationwide alerts"
     fi
 else
     # Even if no counties selected, set nationwide code as minimum
     FIPS_CODES="000000"
-    echo_info "Using nationwide code (000000) as default"
+    echo_info "Using nationwide code (000000) to receive nationwide alerts"
 fi
 
 # Optional: Derive zone codes from FIPS codes
