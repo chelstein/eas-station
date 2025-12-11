@@ -170,11 +170,17 @@
             return fetch(url, options);
         }
 
+        // Respect cache: 'no-store' and cache: 'no-cache' directives
+        if (options.cache === 'no-store' || options.cache === 'no-cache') {
+            return fetch(url, options);
+        }
+
         // Check cache first
         const cached = apiCache.get(url, options);
         if (cached) {
             cacheHits++;
-            apiCache._hitRate = cacheHits / (cacheHits + cacheMisses);
+            const totalRequests = cacheHits + cacheMisses;
+            apiCache._hitRate = totalRequests > 0 ? cacheHits / totalRequests : 0;
             
             // Only log in development
             if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
@@ -211,7 +217,8 @@
 
         // Cache miss - fetch from server
         cacheMisses++;
-        apiCache._hitRate = cacheHits / (cacheHits + cacheMisses);
+        const totalRequests = cacheHits + cacheMisses;
+        apiCache._hitRate = totalRequests > 0 ? cacheHits / totalRequests : 0;
         
         // Only log in development
         if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
