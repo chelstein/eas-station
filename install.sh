@@ -537,107 +537,75 @@ if [ -z "$ADMIN_EMAIL" ] || [ -z "$ADMIN_PASSWORD" ]; then
     SKIP_PGADMIN=true
 else
     PGADMIN_INSTALLED=false
-    PGADMIN_INSTALL_DIR="/opt/pgadmin4"
-    PGADMIN_VENV="$PGADMIN_INSTALL_DIR/venv"
     PGADMIN_LOG=$(mktemp)
 
-    # Strategy 1: Install via pip in dedicated virtual environment (NO Apache2!)
-    echo_progress "Attempting pgAdmin 4 installation via pip (no Apache2)..."
+    # Save current DEBIAN_FRONTEND value to restore later
+    OLD_DEBIAN_FRONTEND="${DEBIAN_FRONTEND:-}"
+    export DEBIAN_FRONTEND=noninteractive
+    export DEBCONF_NONINTERACTIVE_SEEN=true
 
-    # Install build dependencies for pip installation
-    apt-get install -y -qq python3-venv python3-dev libpq-dev > /dev/null 2>&1 || true
-
-    # Create dedicated directory and virtual environment
-    mkdir -p "$PGADMIN_INSTALL_DIR"
-
-    if python3 -m venv "$PGADMIN_VENV" 2>/dev/null; then
-        # Upgrade pip and install pgadmin4
-        if "$PGADMIN_VENV/bin/pip" install --upgrade pip > /dev/null 2>&1 && \
-           "$PGADMIN_VENV/bin/pip" install pgadmin4 gunicorn > "$PGADMIN_LOG" 2>&1; then
-
-            # Find where pgadmin4 was installed
-            PGADMIN_WEB_DIR=$("$PGADMIN_VENV/bin/python3" -c "import pgadmin4; import os; print(os.path.dirname(pgadmin4.__file__))" 2>/dev/null)
-
-            if [ -n "$PGADMIN_WEB_DIR" ] && [ -d "$PGADMIN_WEB_DIR" ]; then
-                echo_success "pgAdmin 4 installed via pip (no Apache2)"
-                PGADMIN_INSTALLED=true
-                PGADMIN_SOURCE="pip"
-
-                # Create symlinks for compatibility with rest of script
-                mkdir -p /usr/pgadmin4
-                ln -sf "$PGADMIN_WEB_DIR" /usr/pgadmin4/web 2>/dev/null || true
-                ln -sf "$PGADMIN_VENV" /usr/pgadmin4/venv 2>/dev/null || true
-            else
-                echo_info "pip installation completed but pgadmin4 module not found"
-            fi
-        else
-            echo_info "pip installation failed, trying apt packages..."
-            if [ -f "$PGADMIN_LOG" ]; then
-                cat "$PGADMIN_LOG" | tail -n 5
-            fi
-        fi
-    else
-        echo_info "Failed to create virtual environment, trying apt packages..."
-    fi
-
-    # Strategy 2: apt pgadmin4-desktop only (no Apache2 dependency)
-    if [ "$PGADMIN_INSTALLED" != "true" ]; then
-        echo_progress "Attempting pgAdmin 4 apt installation without Apache2..."
-
-        # Save current DEBIAN_FRONTEND value to restore later
-        OLD_DEBIAN_FRONTEND="${DEBIAN_FRONTEND:-}"
-        export DEBIAN_FRONTEND=noninteractive
-        export DEBCONF_NONINTERACTIVE_SEEN=true
-
-        # Preconfigure debconf for non-interactive installation
-        DEBCONF_TEMP=$(mktemp)
-        chmod 600 "$DEBCONF_TEMP"
-        cat > "$DEBCONF_TEMP" <<EOF
+    # Preconfigure debconf for non-interactive installation
+    DEBCONF_TEMP=$(mktemp)
+    chmod 600 "$DEBCONF_TEMP"
+    cat > "$DEBCONF_TEMP" <<EOF
 pgadmin4 pgadmin4/email string ${ADMIN_EMAIL}
 pgadmin4 pgadmin4/password password ${ADMIN_PASSWORD}
 pgadmin4 pgadmin4/password-again password ${ADMIN_PASSWORD}
 EOF
-        debconf-set-selections < "$DEBCONF_TEMP"
-        rm -f "$DEBCONF_TEMP"
+    debconf-set-selections < "$DEBCONF_TEMP"
+    rm -f "$DEBCONF_TEMP"
 
-        if timeout 300 apt-get install -y pgadmin4-desktop < /dev/null > "$PGADMIN_LOG" 2>&1; then
-            if [ -d /usr/pgadmin4/web ] && [ -f /usr/pgadmin4/web/pgAdmin4.py ]; then
-                echo_success "pgAdmin 4 installed via apt (without Apache2)"
-                PGADMIN_INSTALLED=true
-                PGADMIN_SOURCE="apt-desktop"
-            fi
+    # Strategy 1: apt pgadmin4-desktop only (no Apache2 dependency, fast)
+    echo_progress "Installing pgAdmin 4 desktop package (no Apache2)..."
+    if timeout 300 apt-get install -y pgadmin4-desktop < /dev/null > "$PGADMIN_LOG" 2>&1; then
+        if [ -d /usr/pgadmin4/web ] && [ -f /usr/pgadmin4/web/pgAdmin4.py ]; then
+            echo_success "pgAdmin 4 installed via apt (without Apache2)"
+            PGADMIN_INSTALLED=true
+            PGADMIN_SOURCE="apt-desktop"
+        else
+            echo_info "pgAdmin desktop installed but web files not found"
         fi
+    else
+        APT_EXIT=$?
+        if [ $APT_EXIT -eq 124 ]; then
+            echo_warning "pgAdmin installation timed out"
+        else
+            echo_info "pgAdmin desktop package not available (exit: $APT_EXIT)"
+        fi
+    fi
 
-        # Strategy 3: Last resort - apt pgadmin4-web (Apache2 will be disabled)
-        if [ "$PGADMIN_INSTALLED" != "true" ]; then
-            echo_progress "Installing pgAdmin 4 with web package (Apache2 will be disabled)..."
-            if timeout 300 apt-get install -y --allow-downgrades pgadmin4-desktop pgadmin4-web < /dev/null > "$PGADMIN_LOG" 2>&1; then
-                echo_success "pgAdmin 4 installed via apt (Apache2 will be disabled)"
+    # Strategy 2: pgadmin4-web (Apache2 will be installed but disabled)
+    if [ "$PGADMIN_INSTALLED" != "true" ]; then
+        echo_progress "Installing pgAdmin 4 with web package (Apache2 will be disabled)..."
+        if timeout 300 apt-get install -y --allow-downgrades pgadmin4-web < /dev/null > "$PGADMIN_LOG" 2>&1; then
+            if [ -d /usr/pgadmin4/web ]; then
+                echo_success "pgAdmin 4 installed via apt"
                 PGADMIN_INSTALLED=true
                 PGADMIN_SOURCE="apt-web"
-            else
-                PGADMIN_EXIT_CODE=$?
-                echo_warning "pgAdmin 4 installation failed (exit code: $PGADMIN_EXIT_CODE)"
-                if [ -f "$PGADMIN_LOG" ] && [ -s "$PGADMIN_LOG" ]; then
-                    echo_info "Error details:"
-                    grep -E "^E:|error:|failed|Unable to|dpkg:" "$PGADMIN_LOG" | head -n 10 || tail -n 15 "$PGADMIN_LOG"
-                fi
+            fi
+        else
+            APT_EXIT=$?
+            echo_warning "pgAdmin 4 installation failed (exit code: $APT_EXIT)"
+            if [ -f "$PGADMIN_LOG" ] && [ -s "$PGADMIN_LOG" ]; then
+                echo_info "Error details:"
+                grep -E "^E:|error:|failed|Unable to|dpkg:|Depends:" "$PGADMIN_LOG" | head -n 10 || tail -n 10 "$PGADMIN_LOG"
             fi
         fi
-
-        # Restore environment
-        if [ -n "$OLD_DEBIAN_FRONTEND" ]; then
-            export DEBIAN_FRONTEND="$OLD_DEBIAN_FRONTEND"
-        else
-            unset DEBIAN_FRONTEND
-        fi
-        unset DEBCONF_NONINTERACTIVE_SEEN
     fi
+
+    # Restore environment
+    if [ -n "$OLD_DEBIAN_FRONTEND" ]; then
+        export DEBIAN_FRONTEND="$OLD_DEBIAN_FRONTEND"
+    else
+        unset DEBIAN_FRONTEND
+    fi
+    unset DEBCONF_NONINTERACTIVE_SEEN
 
     rm -f "$PGADMIN_LOG"
 
     if [ "$PGADMIN_INSTALLED" != "true" ]; then
         echo_warning "pgAdmin 4 will not be available - you can install it manually later"
+        echo_info "Manual install: pip3 install pgadmin4 (takes ~10 min)"
         echo_info "Continuing installation without pgAdmin..."
         SKIP_PGADMIN=true
     fi
@@ -658,21 +626,11 @@ fi
 rm -f /etc/apt/preferences.d/block-apache2
 
 # Configure pgAdmin for WSGI mode (works with Nginx)
-# Check for either pip installation (symlinked) or apt installation
 PGADMIN_WEB_DIR=""
-if [ "$SKIP_PGADMIN" != "true" ]; then
-    if [ -d /usr/pgadmin4/web ]; then
-        # Check for pgAdmin app file (different names in different versions)
-        if [ -f /usr/pgadmin4/web/pgAdmin4.py ] || [ -f /usr/pgadmin4/web/config.py ] || [ -f /usr/pgadmin4/web/config_distro.py ]; then
-            PGADMIN_WEB_DIR="/usr/pgadmin4/web"
-        fi
-    fi
-    # Also check pip venv installation directly
-    if [ -z "$PGADMIN_WEB_DIR" ] && [ -d "$PGADMIN_VENV" ]; then
-        PIP_PGADMIN_DIR=$("$PGADMIN_VENV/bin/python3" -c "import pgadmin4; import os; print(os.path.dirname(pgadmin4.__file__))" 2>/dev/null || true)
-        if [ -n "$PIP_PGADMIN_DIR" ] && [ -d "$PIP_PGADMIN_DIR" ]; then
-            PGADMIN_WEB_DIR="$PIP_PGADMIN_DIR"
-        fi
+if [ "$SKIP_PGADMIN" != "true" ] && [ -d /usr/pgadmin4/web ]; then
+    # Check for pgAdmin app file (different names in different versions)
+    if [ -f /usr/pgadmin4/web/pgAdmin4.py ] || [ -f /usr/pgadmin4/web/config.py ] || [ -f /usr/pgadmin4/web/config_distro.py ]; then
+        PGADMIN_WEB_DIR="/usr/pgadmin4/web"
     fi
 fi
 
