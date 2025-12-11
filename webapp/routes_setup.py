@@ -522,6 +522,89 @@ def register(app, logger):
             setup_logger.exception("Failed to restore .env file from upload")
             return jsonify({"error": f"Failed to restore file: {str(exc)}"}), 500
 
+    @app.route("/setup/get-states", methods=["GET"])
+    def setup_get_states():
+        """Get list of all US states with their statewide FIPS codes."""
+        setup_active = app.config.get("SETUP_MODE", False)
+        current_user = getattr(g, "current_user", None)
+        is_authenticated = bool(current_user and current_user.is_authenticated)
+
+        if not setup_active and not is_authenticated:
+            return jsonify({"error": "Authentication required"}), 401
+
+        try:
+            from app_utils.fips_codes import get_us_state_county_tree, NATIONWIDE_SAME_CODE, NATIONWIDE_LABEL
+
+            state_tree = get_us_state_county_tree()
+
+            states = []
+            for state in state_tree:
+                if state.get("abbr") == "US":
+                    continue  # Skip the "United States" entry
+                states.append({
+                    "abbr": state.get("abbr", ""),
+                    "name": state.get("name", ""),
+                    "statewide_code": state.get("statewide_code", ""),
+                    "county_count": len(state.get("counties", []))
+                })
+
+            return jsonify({
+                "states": states,
+                "nationwide_code": NATIONWIDE_SAME_CODE,
+                "nationwide_label": NATIONWIDE_LABEL
+            })
+
+        except Exception as exc:
+            setup_logger.exception("Failed to get states list")
+            return jsonify({"error": str(exc)}), 500
+
+    @app.route("/setup/get-counties/<state_code>", methods=["GET"])
+    def setup_get_counties(state_code):
+        """Get all counties for a specific state."""
+        setup_active = app.config.get("SETUP_MODE", False)
+        current_user = getattr(g, "current_user", None)
+        is_authenticated = bool(current_user and current_user.is_authenticated)
+
+        if not setup_active and not is_authenticated:
+            return jsonify({"error": "Authentication required"}), 401
+
+        try:
+            from app_utils.fips_codes import get_us_state_county_tree
+
+            state_code = state_code.strip().upper()
+            state_tree = get_us_state_county_tree()
+
+            # Find the state
+            state_data = None
+            for state in state_tree:
+                if state.get("abbr", "").upper() == state_code:
+                    state_data = state
+                    break
+
+            if not state_data:
+                return jsonify({"error": f"State {state_code} not found"}), 404
+
+            counties = [
+                {
+                    "name": county.get("name", ""),
+                    "fips": county.get("code", "")
+                }
+                for county in state_data.get("counties", [])
+            ]
+
+            return jsonify({
+                "state": {
+                    "abbr": state_data.get("abbr", ""),
+                    "name": state_data.get("name", ""),
+                    "statewide_code": state_data.get("statewide_code", "")
+                },
+                "counties": counties
+            })
+
+        except Exception as exc:
+            setup_logger.exception("Failed to get counties for state")
+            return jsonify({"error": str(exc)}), 500
+
     @app.route("/setup/lookup-county-fips", methods=["POST"])
     def setup_lookup_county_fips():
         """Look up FIPS codes for counties by state and county name."""
@@ -560,7 +643,7 @@ def register(app, logger):
                 counties = [
                     {
                         "name": county.get("name", ""),
-                        "fips": county.get("same", "")
+                        "fips": county.get("code", "")
                     }
                     for county in state_data.get("counties", [])
                 ]
@@ -573,7 +656,7 @@ def register(app, logger):
                 if county_query in county_name:
                     matching_counties.append({
                         "name": county.get("name", ""),
-                        "fips": county.get("same", "")
+                        "fips": county.get("code", "")
                     })
 
             return jsonify({"counties": matching_counties})

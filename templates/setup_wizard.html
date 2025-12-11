@@ -3,9 +3,134 @@
 {% block title %}Setup Wizard - EAS Station{% endblock %}
 
 {% block content %}
+<style>
+/* FIPS Selector Styles */
+.fips-selector {
+    border: 1px solid #dee2e6;
+    border-radius: 0.375rem;
+    background: #fff;
+}
+.fips-selector-header {
+    padding: 0.75rem 1rem;
+    background: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+    border-radius: 0.375rem 0.375rem 0 0;
+}
+.fips-state-select {
+    max-width: 300px;
+}
+.fips-county-list {
+    max-height: 300px;
+    overflow-y: auto;
+    padding: 0.5rem;
+    background: #fff;
+}
+.fips-county-item {
+    display: flex;
+    align-items: center;
+    padding: 0.5rem 0.75rem;
+    margin: 0.25rem 0;
+    border-radius: 0.25rem;
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+    border: 1px solid transparent;
+}
+.fips-county-item:hover {
+    background: #e9ecef;
+}
+.fips-county-item.selected {
+    background: #cfe2ff;
+    border-color: #9ec5fe;
+}
+.fips-county-item .county-name {
+    flex: 1;
+    font-weight: 500;
+}
+.fips-county-item .county-code {
+    font-family: monospace;
+    font-size: 0.85rem;
+    color: #6c757d;
+    margin-left: 0.5rem;
+}
+.fips-county-item .check-icon {
+    color: #0d6efd;
+    margin-right: 0.5rem;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+}
+.fips-county-item.selected .check-icon {
+    opacity: 1;
+}
+.fips-selected-codes {
+    padding: 0.75rem 1rem;
+    background: #f8f9fa;
+    border-top: 1px solid #dee2e6;
+    border-radius: 0 0 0.375rem 0.375rem;
+}
+.fips-selected-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.35rem 0.65rem;
+    margin: 0.25rem;
+    background: #e9ecef;
+    border-radius: 0.25rem;
+    font-size: 0.875rem;
+}
+.fips-selected-badge.required {
+    background: #d1e7dd;
+    border: 1px solid #a3cfbb;
+}
+.fips-selected-badge .badge-label {
+    margin-right: 0.5rem;
+}
+.fips-selected-badge .badge-code {
+    font-family: monospace;
+    color: #495057;
+}
+.fips-selected-badge .remove-btn {
+    margin-left: 0.5rem;
+    padding: 0 0.25rem;
+    color: #6c757d;
+    cursor: pointer;
+    border: none;
+    background: none;
+}
+.fips-selected-badge .remove-btn:hover {
+    color: #dc3545;
+}
+.fips-search-box {
+    position: relative;
+}
+.fips-search-box input {
+    padding-left: 2.25rem;
+}
+.fips-search-box .search-icon {
+    position: absolute;
+    left: 0.75rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #6c757d;
+}
+.fips-empty-state {
+    text-align: center;
+    padding: 2rem;
+    color: #6c757d;
+}
+.fips-loading {
+    text-align: center;
+    padding: 2rem;
+    color: #6c757d;
+}
+.fips-quick-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+</style>
+
 <div class="container py-5">
     <div class="row justify-content-center">
-        <div class="col-lg-8 col-xl-7">
+        <div class="col-lg-10 col-xl-9">
             <div class="card shadow border-0">
                 <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
                     <div>
@@ -31,19 +156,18 @@
 
                     <!-- Restore from backup option -->
                     <div class="card mb-3 border-info">
-                        <div class="card-header bg-info text-white">
+                        <div class="card-header bg-info text-white py-2">
                             <h6 class="mb-0"><i class="fas fa-upload me-2"></i>Have a backup? Restore it here</h6>
                         </div>
-                        <div class="card-body">
-                            <p class="mb-2">If you previously downloaded a configuration backup, you can restore it instead of filling out the wizard:</p>
+                        <div class="card-body py-2">
                             <form id="wizard-restore-form" enctype="multipart/form-data">
-                                <div class="row align-items-end">
+                                <div class="row align-items-center g-2">
                                     <div class="col-md-8">
-                                        <input type="file" class="form-control" id="wizard-env-file-input" name="env_file" accept=".env">
+                                        <input type="file" class="form-control form-control-sm" id="wizard-env-file-input" name="env_file" accept=".env">
                                     </div>
                                     <div class="col-md-4">
-                                        <button type="submit" class="btn btn-info w-100">
-                                            <i class="fas fa-upload me-2"></i>Restore & Skip Wizard
+                                        <button type="submit" class="btn btn-info btn-sm w-100">
+                                            <i class="fas fa-upload me-1"></i>Restore
                                         </button>
                                     </div>
                                 </div>
@@ -53,38 +177,102 @@
                     </div>
 
                     {% if not env_exists %}
-                    <div class="alert alert-warning" role="alert">
+                    <div class="alert alert-warning py-2" role="alert">
                         <i class="fas fa-exclamation-triangle me-2"></i>
-                        No existing <code>.env</code> file was detected. Completing this wizard will create one using
-                        the template defaults.
-                    </div>
-                    {% else %}
-                    <div class="alert alert-info" role="alert">
-                        <i class="fas fa-info-circle me-2"></i>
-                        Updating the form will rewrite <code>.env</code>. Enable the backup toggle below to keep a
-                        timestamped copy of the current file.
+                        No existing <code>.env</code> file detected. This wizard will create one.
                     </div>
                     {% endif %}
 
-                    <!-- Configuration Persistence Notice -->
-                    <div class="alert alert-info border-info" role="alert">
-                        <h6 class="alert-heading mb-2"><i class="fas fa-info-circle me-2"></i>Configuration Persistence</h6>
-                        <p class="mb-2 small">Your configuration is saved to <code>/app-config/.env</code> on a persistent volume:</p>
-                        <ul class="small mb-2">
-                            <li><strong>Service Restart</strong>: ✅ Config persists</li>
-                            <li><strong>System Updates</strong> (Git pull/upgrade): ✅ Config persists</li>
-                            <li><strong>Fresh Installation</strong>: ❌ Config must be backed up and restored</li>
-                        </ul>
-                        <div class="bg-light border rounded p-2 small">
-                            <strong>💡 Backup Your Configuration:</strong>
-                            <p class="mb-1">After completing this wizard, download a backup of your environment variables from the settings page.</p>
-                            <p class="mb-0">Keep this backup safe for disaster recovery or migration to a new system.</p>
-                        </div>
-                    </div>
-
-                    <form method="post" class="mt-4">
+                    <form method="post" class="mt-3" id="setup-form">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
                         {% for field in env_fields %}
+                        {% if field.key == 'EAS_MANUAL_FIPS_CODES' %}
+                        <!-- Custom FIPS County Selector -->
+                        <div class="mb-4">
+                            <label class="form-label fw-semibold">
+                                <i class="fas fa-map-marker-alt me-1 text-primary"></i>
+                                Authorized FIPS Codes
+                                <span class="text-danger" title="Required">*</span>
+                            </label>
+                            <input type="hidden" name="EAS_MANUAL_FIPS_CODES" id="field-EAS_MANUAL_FIPS_CODES" value="{{ form_data.get('EAS_MANUAL_FIPS_CODES', '000000') }}">
+
+                            <div class="fips-selector">
+                                <div class="fips-selector-header">
+                                    <div class="row g-2 align-items-center">
+                                        <div class="col-md-5">
+                                            <select class="form-select form-select-sm fips-state-select" id="fips-state-dropdown">
+                                                <option value="">-- Select a State --</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-7">
+                                            <div class="fips-search-box">
+                                                <i class="fas fa-search search-icon"></i>
+                                                <input type="text" class="form-control form-control-sm" id="fips-county-search" placeholder="Search counties..." disabled>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="fips-quick-actions">
+                                        <button type="button" class="btn btn-outline-secondary btn-sm" id="fips-select-all" disabled>
+                                            <i class="fas fa-check-double me-1"></i>Select All
+                                        </button>
+                                        <button type="button" class="btn btn-outline-secondary btn-sm" id="fips-add-statewide" disabled>
+                                            <i class="fas fa-globe me-1"></i>Add Statewide
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div class="fips-county-list" id="fips-county-list">
+                                    <div class="fips-empty-state">
+                                        <i class="fas fa-map-marked-alt fa-2x mb-2 text-muted"></i>
+                                        <p class="mb-0">Select a state to view counties</p>
+                                    </div>
+                                </div>
+
+                                <div class="fips-selected-codes" id="fips-selected-container">
+                                    <small class="text-muted d-block mb-2">
+                                        <i class="fas fa-check-circle me-1"></i>Selected FIPS Codes (click counties above to add/remove):
+                                    </small>
+                                    <div id="fips-selected-badges">
+                                        <!-- Selected codes will appear here -->
+                                    </div>
+                                </div>
+                            </div>
+
+                            {% if errors.get('EAS_MANUAL_FIPS_CODES') %}
+                            <div class="invalid-feedback d-block">
+                                {{ errors.get('EAS_MANUAL_FIPS_CODES') }}
+                            </div>
+                            {% endif %}
+                            <small class="form-text text-muted">
+                                Click on counties to select them. The nationwide code (000000) is always required and cannot be removed.
+                            </small>
+                        </div>
+                        {% elif field.key == 'DEFAULT_ZONE_CODES' %}
+                        <!-- Zone codes with auto-derive button -->
+                        <div class="mb-4">
+                            <label class="form-label fw-semibold" for="field-{{ field.key }}">
+                                {{ field.label }}
+                            </label>
+                            <div class="input-group">
+                                <input type="text" class="form-control {% if errors.get(field.key) %}is-invalid{% endif %}"
+                                       id="field-{{ field.key }}"
+                                       name="{{ field.key }}"
+                                       value="{{ form_data.get(field.key, '') }}"
+                                       placeholder="{{ field.placeholder or '' }}">
+                                <button class="btn btn-outline-secondary" type="button" id="derive-zones" title="Auto-derive zone codes from selected FIPS codes">
+                                    <i class="fas fa-magic me-1"></i>Auto-Derive
+                                </button>
+                            </div>
+                            {% if errors.get(field.key) %}
+                            <div class="invalid-feedback d-block">
+                                {{ errors.get(field.key) }}
+                            </div>
+                            {% endif %}
+                            <small class="form-text text-muted">{{ field.description }}</small>
+                        </div>
+                        {% else %}
+                        <!-- Standard field rendering -->
                         <div class="mb-4">
                             <label class="form-label fw-semibold" for="field-{{ field.key }}">
                                 {{ field.label }}
@@ -97,7 +285,6 @@
                                       rows="4"
                                       placeholder="{{ field.placeholder or '' }}">{{ form_data.get(field.key, '') }}</textarea>
                             {% elif field.widget == 'select' %}
-                            {# Dropdown for fields with predefined options #}
                             <select class="form-select {% if errors.get(field.key) %}is-invalid{% endif %}"
                                     id="field-{{ field.key }}"
                                     name="{{ field.key }}">
@@ -106,7 +293,6 @@
                                 {% endfor %}
                             </select>
                             {% elif field.key in ['EAS_BROADCAST_ENABLED', 'AUDIO_INGEST_ENABLED', 'AUDIO_ALSA_ENABLED', 'AUDIO_SDR_ENABLED'] %}
-                            {# Binary dropdown for boolean fields #}
                             <select class="form-select {% if errors.get(field.key) %}is-invalid{% endif %}"
                                     id="field-{{ field.key }}"
                                     name="{{ field.key }}">
@@ -128,15 +314,7 @@
                                        {% if field.key == 'SECRET_KEY' %}autocomplete="new-password"{% endif %}>
                                 {% if field.key == 'SECRET_KEY' %}
                                 <button class="btn btn-outline-secondary" type="button" id="generate-secret">
-                                    <i class="fas fa-magic me-1"></i> Generate
-                                </button>
-                                {% elif field.key == 'EAS_MANUAL_FIPS_CODES' %}
-                                <button class="btn btn-outline-secondary" type="button" id="lookup-fips" title="Look up FIPS code from state and county">
-                                    <i class="fas fa-search me-1"></i> Lookup from County
-                                </button>
-                                {% elif field.key == 'DEFAULT_ZONE_CODES' %}
-                                <button class="btn btn-outline-secondary" type="button" id="derive-zones" title="Auto-derive zone codes from FIPS codes">
-                                    <i class="fas fa-map-marked-alt me-1"></i> Auto-Derive
+                                    <i class="fas fa-magic me-1"></i>Generate
                                 </button>
                                 {% endif %}
                             </div>
@@ -149,11 +327,13 @@
                             <small class="form-text text-muted">
                                 {{ field.description }}
                                 {% if field.key == 'SECRET_KEY' and secret_present %}
-                                    <br>Existing secrets are hidden for security. Leave the field blank to keep the current value or generate a new key to rotate it.
+                                    <br>Existing secrets are hidden for security. Leave blank to keep current value.
                                 {% endif %}
                             </small>
                         </div>
+                        {% endif %}
                         {% endfor %}
+
                         <div class="form-check form-switch mb-4">
                             <input class="form-check-input" type="checkbox" role="switch" id="backup-switch" name="create_backup" value="yes" checked>
                             <label class="form-check-label" for="backup-switch">Create a timestamped backup before writing</label>
@@ -170,11 +350,8 @@
                 </div>
             </div>
             <div class="text-center mt-3">
-                <p class="text-muted mb-2">
-                    Changes take effect after restarting the systemd services or reloading the Flask process.
-                </p>
                 <a href="{{ url_for('setup_view_env') }}" class="btn btn-sm btn-outline-secondary">
-                    <i class="fas fa-file-code me-1"></i> View .env File (Debug)
+                    <i class="fas fa-file-code me-1"></i>View .env File (Debug)
                 </a>
             </div>
         </div>
@@ -182,19 +359,355 @@
 </div>
 
 <script>
-// Handle restore form on wizard page
+// =====================================================
+// FIPS County Selector - Interactive UI
+// =====================================================
+const FIPSSelector = {
+    selectedCodes: new Map(), // code -> {name, state}
+    currentCounties: [],
+    currentState: null,
+    nationwideCode: '000000',
+    nationwideLabel: 'Nationwide (All Areas)',
+
+    init() {
+        // Always ensure nationwide code is selected
+        this.selectedCodes.set(this.nationwideCode, {
+            name: this.nationwideLabel,
+            state: 'US',
+            required: true
+        });
+
+        // Load existing FIPS codes from hidden input
+        const existingCodes = document.getElementById('field-EAS_MANUAL_FIPS_CODES')?.value || '';
+        if (existingCodes) {
+            existingCodes.split(',').forEach(code => {
+                code = code.trim();
+                if (code && code !== this.nationwideCode) {
+                    this.selectedCodes.set(code, { name: `Code ${code}`, state: '??', required: false });
+                }
+            });
+        }
+
+        this.loadStates();
+        this.renderSelectedBadges();
+        this.setupEventListeners();
+    },
+
+    async loadStates() {
+        const dropdown = document.getElementById('fips-state-dropdown');
+        try {
+            const response = await fetch('{{ url_for("setup_get_states") }}');
+            if (!response.ok) throw new Error('Failed to load states');
+
+            const data = await response.json();
+
+            // Update nationwide info
+            if (data.nationwide_code) {
+                this.nationwideCode = data.nationwide_code;
+            }
+            if (data.nationwide_label) {
+                this.nationwideLabel = data.nationwide_label;
+            }
+
+            // Update the required nationwide entry
+            this.selectedCodes.set(this.nationwideCode, {
+                name: this.nationwideLabel,
+                state: 'US',
+                required: true
+            });
+            this.renderSelectedBadges();
+
+            // Populate dropdown
+            dropdown.innerHTML = '<option value="">-- Select a State --</option>';
+            data.states.forEach(state => {
+                const opt = document.createElement('option');
+                opt.value = state.abbr;
+                opt.textContent = `${state.name} (${state.county_count} counties)`;
+                opt.dataset.statewideCode = state.statewide_code;
+                dropdown.appendChild(opt);
+            });
+        } catch (error) {
+            console.error('Error loading states:', error);
+            dropdown.innerHTML = '<option value="">Error loading states</option>';
+        }
+    },
+
+    async loadCounties(stateCode) {
+        const listContainer = document.getElementById('fips-county-list');
+        const searchInput = document.getElementById('fips-county-search');
+        const selectAllBtn = document.getElementById('fips-select-all');
+        const addStatewideBtn = document.getElementById('fips-add-statewide');
+
+        if (!stateCode) {
+            listContainer.innerHTML = `
+                <div class="fips-empty-state">
+                    <i class="fas fa-map-marked-alt fa-2x mb-2 text-muted"></i>
+                    <p class="mb-0">Select a state to view counties</p>
+                </div>
+            `;
+            searchInput.disabled = true;
+            selectAllBtn.disabled = true;
+            addStatewideBtn.disabled = true;
+            this.currentCounties = [];
+            this.currentState = null;
+            return;
+        }
+
+        listContainer.innerHTML = `
+            <div class="fips-loading">
+                <div class="spinner-border spinner-border-sm text-primary me-2" role="status"></div>
+                Loading counties...
+            </div>
+        `;
+
+        try {
+            const response = await fetch(`{{ url_for("setup_get_counties", state_code="__STATE__") }}`.replace('__STATE__', stateCode));
+            if (!response.ok) throw new Error('Failed to load counties');
+
+            const data = await response.json();
+            this.currentCounties = data.counties;
+            this.currentState = data.state;
+
+            searchInput.disabled = false;
+            searchInput.value = '';
+            selectAllBtn.disabled = false;
+            addStatewideBtn.disabled = false;
+
+            this.renderCountyList(this.currentCounties);
+        } catch (error) {
+            console.error('Error loading counties:', error);
+            listContainer.innerHTML = `
+                <div class="fips-empty-state text-danger">
+                    <i class="fas fa-exclamation-triangle fa-2x mb-2"></i>
+                    <p class="mb-0">Error loading counties: ${error.message}</p>
+                </div>
+            `;
+        }
+    },
+
+    renderCountyList(counties) {
+        const listContainer = document.getElementById('fips-county-list');
+
+        if (counties.length === 0) {
+            listContainer.innerHTML = `
+                <div class="fips-empty-state">
+                    <i class="fas fa-search fa-2x mb-2 text-muted"></i>
+                    <p class="mb-0">No counties match your search</p>
+                </div>
+            `;
+            return;
+        }
+
+        listContainer.innerHTML = counties.map(county => {
+            const isSelected = this.selectedCodes.has(county.fips);
+            return `
+                <div class="fips-county-item ${isSelected ? 'selected' : ''}"
+                     data-fips="${county.fips}"
+                     data-name="${county.name}"
+                     data-state="${this.currentState?.abbr || ''}">
+                    <i class="fas fa-check check-icon"></i>
+                    <span class="county-name">${county.name}</span>
+                    <span class="county-code">${county.fips}</span>
+                </div>
+            `;
+        }).join('');
+
+        // Add click handlers
+        listContainer.querySelectorAll('.fips-county-item').forEach(item => {
+            item.addEventListener('click', () => this.toggleCounty(item));
+        });
+    },
+
+    toggleCounty(element) {
+        const fips = element.dataset.fips;
+        const name = element.dataset.name;
+        const state = element.dataset.state;
+
+        if (this.selectedCodes.has(fips)) {
+            const entry = this.selectedCodes.get(fips);
+            if (entry.required) {
+                // Can't remove required codes
+                return;
+            }
+            this.selectedCodes.delete(fips);
+            element.classList.remove('selected');
+        } else {
+            this.selectedCodes.set(fips, { name, state, required: false });
+            element.classList.add('selected');
+        }
+
+        this.updateHiddenInput();
+        this.renderSelectedBadges();
+    },
+
+    addCode(fips, name, state, required = false) {
+        if (!this.selectedCodes.has(fips)) {
+            this.selectedCodes.set(fips, { name, state, required });
+            this.updateHiddenInput();
+            this.renderSelectedBadges();
+
+            // Update county list if visible
+            const item = document.querySelector(`.fips-county-item[data-fips="${fips}"]`);
+            if (item) {
+                item.classList.add('selected');
+            }
+        }
+    },
+
+    removeCode(fips) {
+        const entry = this.selectedCodes.get(fips);
+        if (entry && entry.required) {
+            return; // Can't remove required codes
+        }
+
+        this.selectedCodes.delete(fips);
+        this.updateHiddenInput();
+        this.renderSelectedBadges();
+
+        // Update county list if visible
+        const item = document.querySelector(`.fips-county-item[data-fips="${fips}"]`);
+        if (item) {
+            item.classList.remove('selected');
+        }
+    },
+
+    selectAllVisible() {
+        this.currentCounties.forEach(county => {
+            if (!this.selectedCodes.has(county.fips)) {
+                this.selectedCodes.set(county.fips, {
+                    name: county.name,
+                    state: this.currentState?.abbr || '',
+                    required: false
+                });
+            }
+        });
+        this.updateHiddenInput();
+        this.renderSelectedBadges();
+        this.renderCountyList(this.currentCounties);
+    },
+
+    addStatewide() {
+        if (this.currentState && this.currentState.statewide_code) {
+            this.addCode(
+                this.currentState.statewide_code,
+                `${this.currentState.name} (Statewide)`,
+                this.currentState.abbr,
+                false
+            );
+        }
+    },
+
+    updateHiddenInput() {
+        const input = document.getElementById('field-EAS_MANUAL_FIPS_CODES');
+        if (input) {
+            const codes = Array.from(this.selectedCodes.keys());
+            input.value = codes.join(',');
+        }
+    },
+
+    renderSelectedBadges() {
+        const container = document.getElementById('fips-selected-badges');
+        if (!container) return;
+
+        const badges = [];
+
+        // Always show nationwide first
+        if (this.selectedCodes.has(this.nationwideCode)) {
+            const entry = this.selectedCodes.get(this.nationwideCode);
+            badges.push(`
+                <span class="fips-selected-badge required" title="Required - cannot be removed">
+                    <i class="fas fa-globe me-1 text-success"></i>
+                    <span class="badge-label">${entry.name}</span>
+                    <span class="badge-code">${this.nationwideCode}</span>
+                </span>
+            `);
+        }
+
+        // Then show other codes
+        this.selectedCodes.forEach((entry, code) => {
+            if (code === this.nationwideCode) return;
+
+            badges.push(`
+                <span class="fips-selected-badge">
+                    <span class="badge-label">${entry.name}</span>
+                    <span class="badge-code">${code}</span>
+                    <button type="button" class="remove-btn" data-fips="${code}" title="Remove">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </span>
+            `);
+        });
+
+        container.innerHTML = badges.join('');
+
+        // Add remove handlers
+        container.querySelectorAll('.remove-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.removeCode(btn.dataset.fips);
+            });
+        });
+    },
+
+    filterCounties(query) {
+        query = query.toLowerCase().trim();
+        if (!query) {
+            this.renderCountyList(this.currentCounties);
+            return;
+        }
+
+        const filtered = this.currentCounties.filter(county =>
+            county.name.toLowerCase().includes(query) ||
+            county.fips.includes(query)
+        );
+        this.renderCountyList(filtered);
+    },
+
+    setupEventListeners() {
+        // State dropdown change
+        document.getElementById('fips-state-dropdown')?.addEventListener('change', (e) => {
+            this.loadCounties(e.target.value);
+        });
+
+        // Search input
+        let searchTimeout;
+        document.getElementById('fips-county-search')?.addEventListener('input', (e) => {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+                this.filterCounties(e.target.value);
+            }, 200);
+        });
+
+        // Select all button
+        document.getElementById('fips-select-all')?.addEventListener('click', () => {
+            this.selectAllVisible();
+        });
+
+        // Add statewide button
+        document.getElementById('fips-add-statewide')?.addEventListener('click', () => {
+            this.addStatewide();
+        });
+    }
+};
+
+// =====================================================
+// Other Form Handlers
+// =====================================================
 document.addEventListener('DOMContentLoaded', function() {
+    // Initialize FIPS Selector
+    FIPSSelector.init();
+
+    // Handle restore form
     const wizardRestoreForm = document.getElementById('wizard-restore-form');
     if (wizardRestoreForm) {
         wizardRestoreForm.addEventListener('submit', async function(e) {
             e.preventDefault();
-
             const fileInput = document.getElementById('wizard-env-file-input');
             const file = fileInput.files[0];
             const statusDiv = document.getElementById('wizard-restore-status');
 
             if (!file) {
-                statusDiv.innerHTML = '<div class="alert alert-danger">Please select a file.</div>';
+                statusDiv.innerHTML = '<div class="alert alert-danger py-1">Please select a file.</div>';
                 return;
             }
 
@@ -202,204 +715,97 @@ document.addEventListener('DOMContentLoaded', function() {
             formData.append('env_file', file);
 
             try {
-                statusDiv.innerHTML = '<div class="alert alert-info">Uploading and restoring configuration...</div>';
-
+                statusDiv.innerHTML = '<div class="alert alert-info py-1">Restoring...</div>';
                 const response = await fetch('{{ url_for("setup_upload_env") }}', {
                     method: 'POST',
                     body: formData
                 });
-
                 const result = await response.json();
 
                 if (response.ok) {
-                    statusDiv.innerHTML = `
-                        <div class="alert alert-success">
-                            <strong>Success!</strong> ${result.message || 'Configuration restored successfully!'}
-                            <br><strong>Next step:</strong> Restart the services for changes to take effect.
-                        </div>
-                    `;
-                    fileInput.value = '';
-                    // Reload page after 3 seconds to show restored values
-                    setTimeout(() => window.location.reload(), 3000);
+                    statusDiv.innerHTML = '<div class="alert alert-success py-1">Restored! Reloading...</div>';
+                    setTimeout(() => window.location.reload(), 2000);
                 } else {
-                    statusDiv.innerHTML = `
-                        <div class="alert alert-danger">
-                            <strong>Error:</strong> ${result.error || 'Failed to restore configuration.'}
-                        </div>
-                    `;
+                    statusDiv.innerHTML = `<div class="alert alert-danger py-1">${result.error || 'Failed'}</div>`;
                 }
             } catch (error) {
-                statusDiv.innerHTML = `
-                    <div class="alert alert-danger">
-                        <strong>Error:</strong> ${error.message}
-                    </div>
-                `;
+                statusDiv.innerHTML = `<div class="alert alert-danger py-1">${error.message}</div>`;
+            }
+        });
+    }
+
+    // Secret key generator
+    const secretButton = document.getElementById('generate-secret');
+    if (secretButton) {
+        secretButton.addEventListener('click', async () => {
+            secretButton.disabled = true;
+            secretButton.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+            try {
+                const csrfToken = document.querySelector('input[name="csrf_token"]').value;
+                const response = await fetch('{{ url_for('setup_generate_secret') }}', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
+                    credentials: 'same-origin'
+                });
+                if (!response.ok) throw new Error('Failed');
+                const data = await response.json();
+                const target = document.getElementById('field-SECRET_KEY');
+                if (target) {
+                    target.value = data.secret_key;
+                    target.classList.remove('is-invalid');
+                }
+            } catch (error) {
+                alert('Unable to generate secret key.');
+            } finally {
+                secretButton.disabled = false;
+                secretButton.innerHTML = '<i class="fas fa-magic me-1"></i>Generate';
+            }
+        });
+    }
+
+    // Zone codes auto-derive
+    const deriveZonesButton = document.getElementById('derive-zones');
+    if (deriveZonesButton) {
+        deriveZonesButton.addEventListener('click', async () => {
+            deriveZonesButton.disabled = true;
+            deriveZonesButton.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+            try {
+                const csrfToken = document.querySelector('input[name="csrf_token"]').value;
+                const fipsCodes = document.getElementById('field-EAS_MANUAL_FIPS_CODES')?.value || '';
+
+                if (!fipsCodes.trim() || fipsCodes === '000000') {
+                    alert('Please select at least one county FIPS code first.');
+                    return;
+                }
+
+                const response = await fetch('{{ url_for('setup_derive_zone_codes') }}', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({ fips_codes: fipsCodes })
+                });
+
+                if (!response.ok) throw new Error('Failed');
+
+                const data = await response.json();
+                const target = document.getElementById('field-DEFAULT_ZONE_CODES');
+                if (target && data.zone_codes) {
+                    if (data.zone_codes.length === 0) {
+                        alert('No zone codes could be derived. You may need to enter them manually.');
+                    } else {
+                        target.value = data.zone_codes.join(',');
+                        target.classList.remove('is-invalid');
+                        alert(`Derived ${data.zone_codes.length} zone code(s).`);
+                    }
+                }
+            } catch (error) {
+                alert('Unable to derive zone codes.');
+            } finally {
+                deriveZonesButton.disabled = false;
+                deriveZonesButton.innerHTML = '<i class="fas fa-magic me-1"></i>Auto-Derive';
             }
         });
     }
 });
-
-const secretButton = document.getElementById('generate-secret');
-if (secretButton) {
-    secretButton.addEventListener('click', async () => {
-        secretButton.disabled = true;
-        secretButton.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Generating';
-        try {
-            const csrfToken = document.querySelector('input[name="csrf_token"]').value;
-            const response = await fetch('{{ url_for('setup_generate_secret') }}', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-Token': csrfToken
-                },
-                credentials: 'same-origin'
-            });
-            if (!response.ok) {
-                throw new Error('Failed to generate secret key.');
-            }
-            const data = await response.json();
-            const target = document.getElementById('field-SECRET_KEY');
-            if (target) {
-                target.value = data.secret_key;
-                target.classList.remove('is-invalid');
-            }
-        } catch (error) {
-            alert(error.message || 'Unable to generate a secret key.');
-        } finally {
-            secretButton.disabled = false;
-            secretButton.innerHTML = '<i class="fas fa-magic me-1"></i> Generate';
-        }
-    });
-}
-
-const deriveZonesButton = document.getElementById('derive-zones');
-if (deriveZonesButton) {
-    deriveZonesButton.addEventListener('click', async () => {
-        deriveZonesButton.disabled = true;
-        deriveZonesButton.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Deriving';
-        try {
-            const csrfToken = document.querySelector('input[name="csrf_token"]').value;
-            const fipsInput = document.getElementById('field-EAS_MANUAL_FIPS_CODES');
-            const fipsCodes = fipsInput ? fipsInput.value : '';
-
-            if (!fipsCodes.trim()) {
-                alert('Please enter FIPS codes in the "Authorized FIPS Codes" field first. Zone codes will be derived from these FIPS codes.');
-                return;
-            }
-
-            const response = await fetch('{{ url_for('setup_derive_zone_codes') }}', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-Token': csrfToken
-                },
-                credentials: 'same-origin',
-                body: JSON.stringify({ fips_codes: fipsCodes })
-            });
-
-            if (!response.ok) {
-                throw new Error('Failed to derive zone codes.');
-            }
-
-            const data = await response.json();
-            const target = document.getElementById('field-DEFAULT_ZONE_CODES');
-            if (target && data.zone_codes) {
-                if (data.zone_codes.length === 0) {
-                    alert('No zone codes could be derived from the provided FIPS codes. You may need to enter them manually.');
-                } else {
-                    target.value = data.zone_codes.join(',');
-                    target.classList.remove('is-invalid');
-                    alert(`Successfully derived ${data.zone_codes.length} zone code(s).`);
-                }
-            }
-        } catch (error) {
-            alert(error.message || 'Unable to derive zone codes.');
-        } finally {
-            deriveZonesButton.disabled = false;
-            deriveZonesButton.innerHTML = '<i class="fas fa-map-marked-alt me-1"></i> Auto-Derive';
-        }
-    });
-}
-
-const lookupFipsButton = document.getElementById('lookup-fips');
-if (lookupFipsButton) {
-    lookupFipsButton.addEventListener('click', async () => {
-        lookupFipsButton.disabled = true;
-        lookupFipsButton.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Looking up';
-        try {
-            const csrfToken = document.querySelector('input[name="csrf_token"]').value;
-            const stateInput = document.getElementById('field-DEFAULT_STATE_CODE');
-            const countyInput = document.getElementById('field-DEFAULT_COUNTY_NAME');
-
-            const stateCode = stateInput ? stateInput.value : '';
-            const countyName = countyInput ? countyInput.value : '';
-
-            if (!stateCode.trim()) {
-                alert('Please select a state in "Default State Code" first.');
-                return;
-            }
-
-            if (!countyName.trim()) {
-                alert('Please enter a county name in "Default County Name" first.');
-                return;
-            }
-
-            const response = await fetch('{{ url_for('setup_lookup_county_fips') }}', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-Token': csrfToken
-                },
-                credentials: 'same-origin',
-                body: JSON.stringify({
-                    state_code: stateCode,
-                    county_name: countyName
-                })
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'Failed to lookup FIPS code.');
-            }
-
-            const data = await response.json();
-            const target = document.getElementById('field-EAS_MANUAL_FIPS_CODES');
-
-            if (data.counties && data.counties.length > 0) {
-                if (data.counties.length === 1) {
-                    // Exact match, auto-fill
-                    if (target) {
-                        target.value = data.counties[0].fips;
-                        target.classList.remove('is-invalid');
-                        alert(`FIPS code found: ${data.counties[0].fips} for ${data.counties[0].name}`);
-                    }
-                } else {
-                    // Multiple matches, let user choose
-                    const countyList = data.counties.map((c, i) => `${i+1}. ${c.name}: ${c.fips}`).join('\n');
-                    const choice = prompt(`Multiple counties found. Enter the number of your choice:\n\n${countyList}`);
-
-                    if (choice) {
-                        const index = parseInt(choice) - 1;
-                        if (index >= 0 && index < data.counties.length) {
-                            if (target) {
-                                target.value = data.counties[index].fips;
-                                target.classList.remove('is-invalid');
-                            }
-                        } else {
-                            alert('Invalid choice.');
-                        }
-                    }
-                }
-            } else {
-                alert('No FIPS code found for the specified county. Please check the county name or enter the FIPS code manually.');
-            }
-        } catch (error) {
-            alert(error.message || 'Unable to lookup FIPS code.');
-        } finally {
-            lookupFipsButton.disabled = false;
-            lookupFipsButton.innerHTML = '<i class="fas fa-search me-1"></i> Lookup from County';
-        }
-    });
-}
 </script>
 {% endblock %}
