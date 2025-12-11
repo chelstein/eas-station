@@ -27,8 +27,8 @@ This backup script supports both bare-metal and containerized deployments:
 - Containers (optional): Additionally backs up Docker/Podman volumes if available
 
 Usage:
-    python tools/create_backup.py                           # Full backup
-    python tools/create_backup.py --output-dir /backup      # Custom output directory
+    python tools/create_backup.py                                    # Full backup (default: ./backups)
+    python tools/create_backup.py --output-dir ~/eas-backups         # Custom output directory
 """
 
 import argparse
