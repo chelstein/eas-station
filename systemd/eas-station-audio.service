@@ -17,6 +17,11 @@ Environment="PATH=/opt/eas-station/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/
 Environment="PYTHONPATH=/opt/eas-station"
 EnvironmentFile=/opt/eas-station/.env
 
+# Logging to systemd journal
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=eas-station-audio
+
 ExecStart=/opt/eas-station/venv/bin/python eas_monitoring_service.py
 
 # Service management
