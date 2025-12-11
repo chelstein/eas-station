@@ -256,7 +256,7 @@ ENV_CATEGORIES = {
                 'type': 'text',
                 'required': True,
                 'default': 'localhost',
-                'description': 'Database server hostname or IP (use localhost for bare metal, alerts-db for Docker)',
+                'description': 'Database server hostname or IP (typically localhost for local PostgreSQL)',
             },
             {
                 'key': 'POSTGRES_PORT',
