@@ -39,7 +39,6 @@ from sqlalchemy import text
 
 from .formatting import format_uptime
 from .time import UTC_TZ, local_now, utc_now
-from app_core.config import get_eas_services, INFRASTRUCTURE_SERVICES
 
 
 DEVICE_TREE_CANDIDATES = [
@@ -442,6 +441,9 @@ def build_system_health_snapshot(db, logger) -> SystemHealth:
 
 def _collect_systemd_services(logger) -> Dict[str, Any]:
     """Collect status information for EAS Station systemd services."""
+    
+    # Import here to avoid circular dependency (app_core imports app_utils)
+    from app_core.config import get_eas_services, INFRASTRUCTURE_SERVICES
     
     result: Dict[str, Any] = {
         "available": False,
