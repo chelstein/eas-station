@@ -556,13 +556,15 @@ else
 
         echo_info "Installing pgAdmin4 package (this takes 2-5 minutes)..."
         if "$PGADMIN_VENV/bin/pip" install pgadmin4 gunicorn 2>&1 | tail -n 5; then
-            # Verify installation
-            PGADMIN_PATH=$("$PGADMIN_VENV/bin/python3" -c "import pgadmin4; import os; print(os.path.dirname(pgadmin4.__file__))" 2>/dev/null)
-            if [ -n "$PGADMIN_PATH" ] && [ -d "$PGADMIN_PATH" ]; then
-                echo_success "pgAdmin 4 installed via pip"
-                PGADMIN_INSTALLED=true
-                PGADMIN_SOURCE="pip"
-                PGADMIN_WEB_DIR="$PGADMIN_PATH"
+            # Verify installation - use pip show to find location
+            PGADMIN_LOCATION=$("$PGADMIN_VENV/bin/pip" show pgadmin4 2>/dev/null | grep "Location:" | cut -d' ' -f2)
+            if [ -n "$PGADMIN_LOCATION" ]; then
+                PGADMIN_WEB_DIR="$PGADMIN_LOCATION/pgadmin4"
+                if [ -d "$PGADMIN_WEB_DIR" ]; then
+                    echo_success "pgAdmin 4 installed via pip at $PGADMIN_WEB_DIR"
+                    PGADMIN_INSTALLED=true
+                    PGADMIN_SOURCE="pip"
+                fi
             fi
         fi
     fi
@@ -626,15 +628,20 @@ fi
 rm -f /etc/apt/preferences.d/block-apache2
 
 # Configure pgAdmin for WSGI mode (works with Nginx)
-# PGADMIN_WEB_DIR and PGADMIN_VENV may already be set from installation above
+# PGADMIN_WEB_DIR, PGADMIN_VENV, PGADMIN_SOURCE may already be set from installation above
 if [ "$SKIP_PGADMIN" != "true" ] && [ -z "$PGADMIN_WEB_DIR" ]; then
     # Try to detect pgAdmin location if not set
-    if [ -f "/opt/pgadmin4/venv/bin/python3" ]; then
-        PGADMIN_WEB_DIR=$("/opt/pgadmin4/venv/bin/python3" -c "import pgadmin4; import os; print(os.path.dirname(pgadmin4.__file__))" 2>/dev/null)
-        PGADMIN_VENV="/opt/pgadmin4/venv"
+    if [ -f "/opt/pgadmin4/venv/bin/pip" ]; then
+        PGADMIN_LOCATION=$("/opt/pgadmin4/venv/bin/pip" show pgadmin4 2>/dev/null | grep "Location:" | cut -d' ' -f2)
+        if [ -n "$PGADMIN_LOCATION" ] && [ -d "$PGADMIN_LOCATION/pgadmin4" ]; then
+            PGADMIN_WEB_DIR="$PGADMIN_LOCATION/pgadmin4"
+            PGADMIN_VENV="/opt/pgadmin4/venv"
+            PGADMIN_SOURCE="pip"
+        fi
     elif [ -d /usr/pgadmin4/web ]; then
         PGADMIN_WEB_DIR="/usr/pgadmin4/web"
         PGADMIN_VENV="/usr/pgadmin4/venv"
+        PGADMIN_SOURCE="apt"
     fi
 fi
 
@@ -729,8 +736,15 @@ PGADMIN_CONFIG
 d /run/pgadmin4 0755 www-data www-data -
 TMPFILES
 
+        # Determine WSGI app name based on installation source
+        # pip uses lowercase 'pgadmin4:create_app()', apt uses 'pgAdmin4:app'
+        if [ "$PGADMIN_SOURCE" = "pip" ]; then
+            PGADMIN_WSGI_APP="pgadmin4:create_app()"
+        else
+            PGADMIN_WSGI_APP="pgAdmin4:app"
+        fi
+
         # Create systemd service for pgAdmin WSGI
-        # Use heredoc with variable expansion for dynamic paths
         cat > /etc/systemd/system/pgadmin4.service << PGADMIN_SERVICE
 [Unit]
 Description=pgAdmin 4 WSGI Service
@@ -753,7 +767,7 @@ ExecStart=$PGADMIN_GUNICORN \\
     --chdir $PGADMIN_WEB_DIR \\
     --access-logfile /var/log/pgadmin/access.log \\
     --error-logfile /var/log/pgadmin/error.log \\
-    'pgAdmin4:app'
+    $PGADMIN_WSGI_APP
 Restart=always
 RestartSec=10
 
