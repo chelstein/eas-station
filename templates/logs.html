@@ -118,9 +118,32 @@
                     <div class="card-body">
                         <form method="GET" action="/logs" id="filterForm">
                             <input type="hidden" name="type" value="{{ log_type }}">
-                            <input type="hidden" name="limit" value="{{ limit }}">
 
                             <div class="row g-3">
+                                {% if log_type == 'services' %}
+                                <!-- Service Filter (only for Services tab) -->
+                                <div class="col-md-3">
+                                    <label for="serviceFilter" class="form-label">
+                                        <i class="fas fa-server"></i> Service
+                                    </label>
+                                    <select class="form-select form-select-sm" id="serviceFilter" name="service">
+                                        <option value="">All Services</option>
+                                        {% for svc in available_services %}
+                                        <option value="{{ svc }}" {% if service_filter == svc %}selected{% endif %}>{{ svc.replace('.service', '') }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+
+                                <!-- Search -->
+                                <div class="col-md-2">
+                                    <label for="searchInput" class="form-label">
+                                        <i class="fas fa-search"></i> Search
+                                    </label>
+                                    <input type="text" class="form-control form-control-sm" id="searchInput"
+                                           name="search" placeholder="Search logs..."
+                                           value="{{ search_query or '' }}">
+                                </div>
+                                {% else %}
                                 <!-- Search -->
                                 <div class="col-md-3">
                                     <label for="searchInput" class="form-label">
@@ -130,6 +153,7 @@
                                            name="search" placeholder="Search logs..."
                                            value="{{ search_query or '' }}">
                                 </div>
+                                {% endif %}
 
                                 <!-- Log Level Filter -->
                                 <div class="col-md-2">
@@ -187,7 +211,7 @@
                             </div>
 
                             <!-- Clear Filters Button -->
-                            {% if search_query or log_level_filter or date_from or date_to %}
+                            {% if search_query or log_level_filter or date_from or date_to or service_filter %}
                             <div class="row mt-2">
                                 <div class="col-12">
                                     <a href="?type={{ log_type }}&limit={{ limit }}" class="btn btn-sm btn-outline-secondary">

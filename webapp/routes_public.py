@@ -1172,7 +1172,7 @@ def register(app: Flask, logger) -> None:
                 f"<p>{exc}</p><p><a href='/'>← Back to Main</a></p>"
             )
 
-    def _load_logs_data(log_type: str, limit: int) -> Tuple[str, List[Dict[str, Any]]]:
+    def _load_logs_data(log_type: str, limit: int, service_filter: str = None) -> Tuple[str, List[Dict[str, Any]]]:
         """Load the requested log data and metadata for rendering or export."""
 
         log_type_name = "System Logs"
@@ -1201,7 +1201,7 @@ def register(app: Flask, logger) -> None:
                 all_logs.append({
                     'timestamp': log.timestamp,
                     'level': 'ERROR' if log.error_message else 'SUCCESS' if (log.status or '').lower() == 'success' else 'INFO',
-                    'module': 'CAP Polling',
+                    'module': f"CAP Polling ({log.data_source or 'Unknown'})",
                     'message': f"Status: {log.status} | Fetched: {log.alerts_fetched} | New: {log.alerts_new} | Updated: {log.alerts_updated}",
                     'details': {
                         'execution_time_ms': log.execution_time_ms,
@@ -1320,7 +1320,7 @@ def register(app: Flask, logger) -> None:
                     else 'SUCCESS'
                     if (log.status or '').lower() == 'success'
                     else 'INFO',
-                    'module': 'CAP Polling',
+                    'module': f"CAP Polling ({log.data_source or 'Unknown'})",
                     'message': (
                         f"Status: {log.status} | Fetched: {log.alerts_fetched} | "
                         f"New: {log.alerts_new} | Updated: {log.alerts_updated}"
@@ -1642,10 +1642,19 @@ def register(app: Flask, logger) -> None:
 
         elif log_type == 'services':
             log_type_name = "Service Logs (systemd)"
-            # Fetch systemd journal logs for all EAS Station services
+            # Fetch systemd journal logs for EAS Station services
             logs_data = []
-            for service in get_all_log_services():
-                result = get_systemd_logs(service, lines=max(5, limit // len(get_all_log_services())), priority=None, since='today')
+
+            # If a specific service is selected, only fetch from that service
+            if service_filter and service_filter in get_all_log_services():
+                services_to_fetch = [service_filter]
+                lines_per_service = limit
+            else:
+                services_to_fetch = get_all_log_services()
+                lines_per_service = max(5, limit // len(services_to_fetch))
+
+            for service in services_to_fetch:
+                result = get_systemd_logs(service, lines=lines_per_service, priority=None, since='today')
                 if result.get('success') and result.get('logs'):
                     for log_entry in result['logs']:
                         logs_data.append({
@@ -1673,8 +1682,9 @@ def register(app: Flask, logger) -> None:
             log_level_filter = request.args.get('level', '').strip().upper()
             date_from = request.args.get('date_from', '').strip()
             date_to = request.args.get('date_to', '').strip()
+            service_filter = request.args.get('service', '').strip()
 
-            log_type_name, logs_data = _load_logs_data(log_type, limit)
+            log_type_name, logs_data = _load_logs_data(log_type, limit, service_filter)
 
             # Apply filters
             if search_query:
@@ -1723,6 +1733,8 @@ def register(app: Flask, logger) -> None:
                 log_level_filter=log_level_filter,
                 date_from=date_from,
                 date_to=date_to,
+                service_filter=service_filter,
+                available_services=get_all_log_services(),
             )
 
         except Exception as exc:  # pragma: no cover - fallback content
