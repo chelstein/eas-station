@@ -6,13 +6,6 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
-## [2.19.12] - 2025-12-11
-### Fixed
-  - Reduced WebSocket connection error spam in browser console
-  - Changed connection retry errors from console.error to console.debug to reduce noise
-  - WebSocket connection errors during graceful degradation now log only once at info level
-  - Increased WebSocket connection timeout from 5s to 10s for better reliability
-
 ## [2.19.11] - 2025-12-10
 ### Fixed
   - Fixed pgAdmin 4 installation failures by adding better error handling and --allow-downgrades flag
