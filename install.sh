@@ -128,16 +128,16 @@ echo -e "${BOLD}${CYAN}"
 cat << "EOF"
 ╔═══════════════════════════════════════════════════════════════════════╗
 ║                                                                       ║
-║   ███████╗ █████╗ ███████╗    ███████╗████████╗ █████╗ ████████╗   ║
-║   ██╔════╝██╔══██╗██╔════╝    ██╔════╝╚══██╔══╝██╔══██╗╚══██╔══╝   ║
-║   █████╗  ███████║███████╗    ███████╗   ██║   ███████║   ██║      ║
-║   ██╔══╝  ██╔══██║╚════██║    ╚════██║   ██║   ██╔══██║   ██║      ║
-║   ███████╗██║  ██║███████║    ███████║   ██║   ██║  ██║   ██║      ║
-║   ╚══════╝╚═╝  ╚═╝╚══════╝    ╚══════╝   ╚═╝   ╚═╝  ╚═╝   ╚═╝      ║
+║   ███████╗ █████╗ ███████╗    ███████╗████████╗ █████╗ ████████╗      ║
+║   ██╔════╝██╔══██╗██╔════╝    ██╔════╝╚══██╔══╝██╔══██╗╚══██╔══╝      ║
+║   █████╗  ███████║███████╗    ███████╗   ██║   ███████║   ██║         ║
+║   ██╔══╝  ██╔══██║╚════██║    ╚════██║   ██║   ██╔══██║   ██║         ║
+║   ███████╗██║  ██║███████║    ███████║   ██║   ██║  ██║   ██║         ║
+║   ╚══════╝╚═╝  ╚═╝╚══════╝    ╚══════╝   ╚═╝   ╚═╝  ╚═╝   ╚═╝         ║
 ║                                                                       ║
-║             📡  Emergency Alert System Installation  📡              ║
+║             📡  Emergency Alert System Installation  📡                 ║
 ║                                                                       ║
-║           Monitoring & Broadcasting • Bare Metal Setup               ║
+║          Monitoring & Broadcasting • Bare Metal Setup                 ║
 ║                                                                       ║
 ╚═══════════════════════════════════════════════════════════════════════╝
 EOF
@@ -912,50 +912,105 @@ cd "$INSTALL_DIR"
 # Check if this is a fresh install or an upgrade
 echo_progress "Checking database state..."
 
-# Query to count existing tables in the public schema
-TABLE_COUNT_QUERY="SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE';"
+# Query to count existing application tables (excluding alembic_version and PostGIS tables)
+# This ensures we don't count alembic_version or spatial_ref_sys as "existing data"
+TABLE_COUNT_QUERY="SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE' AND table_name NOT IN ('alembic_version', 'spatial_ref_sys');"
 
-DB_HAS_TABLES=$(sudo -u postgres psql -d alerts -tAc "$TABLE_COUNT_QUERY" 2>/dev/null || echo "0")
+# Disable exit-on-error temporarily for this check
+set +e
+DB_HAS_TABLES=$(sudo -u postgres psql -d alerts -tAc "$TABLE_COUNT_QUERY" 2>/dev/null)
+DB_CHECK_EXIT=$?
+set -e
+
+# If the query failed, assume fresh install
+if [ $DB_CHECK_EXIT -ne 0 ] || [ -z "$DB_HAS_TABLES" ]; then
+    echo_warning "Could not check database state (assuming fresh install)"
+    DB_HAS_TABLES="0"
+fi
+
+# Trim whitespace
+DB_HAS_TABLES=$(echo "$DB_HAS_TABLES" | xargs)
+
+echo_info "Database has $DB_HAS_TABLES application tables"
 
 if [ "$DB_HAS_TABLES" -eq "0" ]; then
-    # Fresh install - use db.create_all() which creates the complete schema
-    echo_info "Fresh installation detected - creating database schema..."
+    # Fresh install - use db.create_all() which creates the complete schema all at once
+    echo_info "Fresh installation detected - creating complete database schema..."
+    echo_info "Using SQLAlchemy db.create_all() for fresh install (NOT using migrations)"
+    echo ""
     
-    sudo -u "$SERVICE_USER" "$VENV_DIR/bin/python" -c "
+    # Disable exit-on-error for database initialization
+    set +e
+    INIT_OUTPUT=$(sudo -u "$SERVICE_USER" "$VENV_DIR/bin/python" -c "
 from app import app, db
 with app.app_context():
     db.create_all()
-    print('Database schema created successfully')
-" || {
-    echo_error "Database initialization failed"
-    echo_warning "You may need to manually initialize the database"
-    exit 1
-}
+    print('✓ Database schema created successfully')
+    print('✓ All tables, indexes, and constraints created')
+" 2>&1)
+    INIT_EXIT=$?
+    set -e
     
-    echo_success "Database schema created for fresh install"
+    if [ $INIT_EXIT -eq 0 ]; then
+        echo "$INIT_OUTPUT"
+        echo ""
+        echo_success "✓ Complete database schema created for fresh install"
+        echo_info "Schema created all at once (not patched together from migrations)"
+    else
+        echo_error "Database initialization failed (exit code: $INIT_EXIT)"
+        echo_info "Output: $INIT_OUTPUT"
+        echo_warning "Continuing anyway - you may need to manually initialize the database"
+        echo_info "Run: sudo -u $SERVICE_USER $VENV_DIR/bin/python -c 'from app import app, db; db.create_all()'"
+    fi
 else
     # Existing database - run migrations to upgrade schema
-    echo_info "Existing database detected - running migrations..."
+    echo_info "Existing database detected ($DB_HAS_TABLES tables found)"
+    echo_info "Running Alembic migrations for database upgrade..."
+    echo ""
     
     if [ -f "$INSTALL_DIR/alembic.ini" ]; then
         echo_progress "Running Alembic migrations..."
+        
+        # Disable exit-on-error for migrations
+        set +e
         ALEMBIC_OUTPUT=$(sudo -u "$SERVICE_USER" "$VENV_DIR/bin/alembic" upgrade head 2>&1)
         ALEMBIC_EXIT_CODE=$?
+        set -e
+        
         if [ $ALEMBIC_EXIT_CODE -eq 0 ]; then
-            echo_success "Database migrations completed"
+            echo_success "✓ Database migrations completed successfully"
         else
             echo_warning "Alembic migrations encountered errors (exit code: $ALEMBIC_EXIT_CODE)"
-            echo_info "Migration output: $ALEMBIC_OUTPUT"
-            echo_info "Attempting to create any missing tables..."
+            echo ""
+            echo_info "Migration output:"
+            echo "$ALEMBIC_OUTPUT" | head -20
+            echo ""
+            echo_info "Attempting to create any missing tables with db.create_all()..."
+            
+            set +e
             sudo -u "$SERVICE_USER" "$VENV_DIR/bin/python" -c "
 from app import app, db
 with app.app_context():
     db.create_all()
-    print('Missing tables created')
-" || echo_warning "Database initialization may be incomplete"
+    print('✓ Missing tables created')
+" 2>&1
+            set -e
+            
+            echo_warning "Database upgrade may be incomplete - check logs after installation"
+            echo_info "You can manually run migrations: cd $INSTALL_DIR && sudo -u $SERVICE_USER $VENV_DIR/bin/alembic upgrade head"
         fi
     else
         echo_warning "alembic.ini not found - skipping migrations"
+        echo_info "Using db.create_all() to create any missing tables..."
+        
+        set +e
+        sudo -u "$SERVICE_USER" "$VENV_DIR/bin/python" -c "
+from app import app, db
+with app.app_context():
+    db.create_all()
+    print('✓ Missing tables created')
+" 2>&1
+        set -e
     fi
 fi
 
@@ -1066,16 +1121,16 @@ echo -e "${BOLD}${GREEN}"
 cat << "EOF"
 ╔═══════════════════════════════════════════════════════════════════════╗
 ║                                                                       ║
-║   ██████╗ ██████╗ ███╗   ███╗██████╗ ██╗     ███████╗████████╗███████╗
-║  ██╔════╝██╔═══██╗████╗ ████║██╔══██╗██║     ██╔════╝╚══██╔══╝██╔════╝
-║  ██║     ██║   ██║██╔████╔██║██████╔╝██║     █████╗     ██║   █████╗  
-║  ██║     ██║   ██║██║╚██╔╝██║██╔═══╝ ██║     ██╔══╝     ██║   ██╔══╝  
-║  ╚██████╗╚██████╔╝██║ ╚═╝ ██║██║     ███████╗███████╗   ██║   ███████╗
-║   ╚═════╝ ╚═════╝ ╚═╝     ╚═╝╚═╝     ╚══════╝╚══════╝   ╚═╝   ╚══════╝
+║   ██████╗ ██████╗ ███╗   ███╗██████╗ ██╗     ███████╗████████╗██████╗ ║
+║  ██╔════╝██╔═══██╗████╗ ████║██╔══██╗██║     ██╔════╝╚══██╔══╝██╔═══╝ ║
+║  ██║     ██║   ██║██╔████╔██║██████╔╝██║     █████╗     ██║   █████╗  ║
+║  ██║     ██║   ██║██║╚██╔╝██║██╔═══╝ ██║     ██╔══╝     ██║   ██╔══╝  ║
+║  ╚██████╗╚██████╔╝██║ ╚═╝ ██║██║     ███████╗███████╗   ██║   ███████╗║
+║   ╚═════╝ ╚═════╝ ╚═╝     ╚═╝╚═╝     ╚══════╝╚══════╝   ╚═╝   ╚══════╝║
 ║                                                                       ║
-║                  🎉  Installation Successful!  🎉                     ║
+║                 🎉  Installation Successful!  🎉                        ║
 ║                                                                       ║
-║              Your EAS Station is now up and running!                  ║
+║             Your EAS Station is now up and running!                   ║
 ║                                                                       ║
 ╚═══════════════════════════════════════════════════════════════════════╝
 EOF
