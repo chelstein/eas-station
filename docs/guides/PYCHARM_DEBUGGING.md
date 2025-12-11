@@ -81,6 +81,16 @@ This guide will hold your hand through every step of the setup process, from SSH
 | | Database | `alerts` |
 | | User | `eas_station` |
 
+### Wing IDE Settings
+
+| Setting | Path | Value |
+|---------|------|-------|
+| **Remote Host** | Project → Project Properties → Remote Hosts | `eas-station@192.168.1.100` |
+| **Python Executable** | Project Properties → Python Executable | `eas-station@192.168.1.100:/opt/eas-station/venv/bin/python` |
+| **Local Directory** | Project Properties → Remote Hosts | Your local project folder |
+| **Remote Directory** | Project Properties → Remote Hosts | `/opt/eas-station` |
+| **Auto Sync** | Project Properties → Remote Hosts | Enable |
+
 ### AI Assistant Plugins
 
 | IDE | Plugin | Purpose |
@@ -89,6 +99,8 @@ This guide will hold your hand through every step of the setup process, from SSH
 | **PyCharm** | `zencoder.ai` | Autonomous execution (if using) |
 | **VS Code** | `GitHub Copilot` + `GitHub Copilot Chat` | Code + Chat |
 | **VS Code** | `zencoder.ai` | Autonomous execution (if using) |
+| **Wing IDE** | GitHub Copilot (via extension) | Code suggestions |
+| **Wing IDE** | zencoder.ai (via API) | Autonomous execution (if using) |
 
 ### Required Server Permissions (Part 2)
 
@@ -209,9 +221,9 @@ This is a **production-grade development setup** used by professional developers
 
 ---
 
-## Part 1: Setting Up Your IDE (PyCharm or VS Code)
+## Part 1: Setting Up Your IDE (PyCharm, VS Code, or Wing)
 
-This section will help you choose and configure your IDE for remote development. Both PyCharm Professional and VS Code work excellently - choose based on your preference.
+This section will help you choose and configure your IDE for remote development. PyCharm Professional, VS Code, and Wing IDE all work well - choose based on your preference and needs.
 
 ### Step 1.1: Choose Your IDE
 
@@ -251,6 +263,59 @@ Since `eas-station` is an open source project under AGPL-3.0, you qualify for a 
 While waiting for approval, use the [30-day free trial](https://www.jetbrains.com/pycharm/download/) or start with VS Code.
 
 **⚠️ Don't Use PyCharm Community Edition** - It lacks remote SSH development features required for this workflow.
+
+---
+
+#### Option C: Wing IDE (Professional Python IDE)
+
+**Why Wing IDE?**
+- ✅ Professional Python IDE with excellent remote development
+- ✅ Built-in remote debugging via SSH
+- ✅ Powerful debugger with conditional breakpoints
+- ✅ Intelligent code completion and refactoring
+- ✅ Integrated unit testing
+- ✅ Works on Windows, Mac, Linux
+
+**Get it**: Download from [https://wingware.com/](https://wingware.com/)
+
+**Versions**:
+- **Wing Pro**: Full-featured, includes remote development ($179/year or $245 perpetual)
+- **Wing Personal**: Free for personal use, limited features
+- **30-day free trial** available for Wing Pro
+
+**Remote Development Support**:
+Wing IDE supports remote development through SSH, similar to PyCharm. You can:
+- ✅ Edit files on remote server via SFTP
+- ✅ Execute Python on remote interpreter
+- ✅ Debug remotely with breakpoints
+- ✅ View remote files and directories
+- ✅ Integrated terminal to remote server
+
+**Setup Summary for Wing IDE**:
+
+1. **Configure Remote Host**:
+   - Go to: **Project** → **Project Properties**
+   - Set **Python Executable**: `eas-station@192.168.1.100:/opt/eas-station/venv/bin/python`
+   - Configure SSH connection with your server credentials
+
+2. **Set Up Remote Files**:
+   - Go to: **Project** → **Project Properties** → **Remote Hosts**
+   - Add remote host: `eas-station@192.168.1.100`
+   - Map local directory to `/opt/eas-station`
+   - Enable automatic file sync
+
+3. **Configure Debugging**:
+   - Wing Pro supports remote debugging out of the box
+   - Breakpoints work on remote files
+   - Can inspect variables on remote server
+
+4. **AI Assistant Support**:
+   - Wing IDE works with GitHub Copilot via VS Code integration
+   - For zencoder.ai, use through VS Code extension or API
+
+**For detailed Wing IDE setup**: See [Wing IDE Remote Development Documentation](https://wingware.com/doc/howtos/remote-hosts)
+
+**Note**: While Wing IDE supports remote development, VS Code and PyCharm have larger communities and more extensive documentation for this workflow. Wing is a solid alternative if you prefer its interface.
 
 ---
 

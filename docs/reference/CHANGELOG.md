@@ -21,6 +21,10 @@ tracks releases under the 2.x series.
   - Added workflow examples showing how to use GitHub Copilot Chat effectively
   - Added recommendations for when to use each AI assistant
   - Updated document title to cover all AI coding assistants, not just zencoder.ai
+  - **Added Wing IDE integration section** - Complete setup guide for Wing Professional Python IDE
+  - Added Wing IDE to Quick Start settings table with remote host configuration
+  - Added Wing IDE as Option C in IDE selection with pros/cons
+  - Added Wing IDE remote development capabilities and AI assistant support
   - Added comprehensive zencoder.ai integration section with API setup and testing steps
   - Added scenario-based examples showing zencoder.ai workflow (bug fixing, features, optimization)
   - Added verification tests for each capability (files, Python, database, services, logs)
