@@ -123,28 +123,19 @@ def try_acquire_master_lock() -> bool:
 
 def release_master_lock():
     """Release the master worker lock."""
-    global _master_lock_fd, _is_master_worker
+    global _is_master_worker
 
-    # Try Redis first
-    if _USE_REDIS and _redis_coordinator:
-        try:
-            _redis_coordinator.release_master_lock()
-            _is_master_worker = False
-            return
-        except Exception as e:
-            logger.error(f"Redis coordinator failed during release: {e}")
-            # Fall through to file-based
+    if not _USE_REDIS or not _redis_coordinator:
+        logger.warning("Redis not available for releasing master lock")
+        _is_master_worker = False
+        return
 
-    if _master_lock_fd is not None:
-        try:
-            fcntl.flock(_master_lock_fd, fcntl.LOCK_UN)
-            os.close(_master_lock_fd)
-            logger.info(f"Worker PID {os.getpid()} released master lock")
-        except Exception as e:
-            logger.error(f"Error releasing master lock: {e}")
-        finally:
-            _master_lock_fd = None
-            _is_master_worker = False
+    try:
+        _redis_coordinator.release_master_lock()
+        _is_master_worker = False
+    except Exception as e:
+        logger.error(f"Redis coordinator failed during release: {e}")
+        _is_master_worker = False
 
 
 def is_master_worker() -> bool:
