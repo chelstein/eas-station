@@ -699,9 +699,11 @@ Group=www-data
 WorkingDirectory=/usr/pgadmin4/web
 Environment="PYTHONPATH=/usr/pgadmin4/web"
 # Use pgAdmin's virtual environment gunicorn which has all dependencies
+# NOTE: Must use --workers=1 per pgAdmin documentation to maintain connection affinity
 ExecStart=/usr/pgadmin4/venv/bin/gunicorn \
     --bind unix:/var/run/pgadmin4.sock \
-    --workers 2 \
+    --workers=1 \
+    --threads=25 \
     --timeout 300 \
     --access-logfile /var/log/pgadmin/access.log \
     --error-logfile /var/log/pgadmin/error.log \
