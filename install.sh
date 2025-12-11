@@ -537,8 +537,8 @@ fi
 
 echo_success "Timezone: ${BOLD}$TIMEZONE${NC}"
 
-# State selection
-STATE_CODE=$(whiptail --title "State Selection" --backtitle "$(whiptail_footer)" --menu "Select your state:" 22 70 12 \
+# State selection (includes DC and territories for EAS coverage)
+STATE_CODE=$(whiptail --title "State Selection" --backtitle "$(whiptail_footer)" --menu "Select your state or territory:" 22 70 12 \
     "AL" "Alabama" \
     "AK" "Alaska" \
     "AZ" "Arizona" \
@@ -546,6 +546,7 @@ STATE_CODE=$(whiptail --title "State Selection" --backtitle "$(whiptail_footer)"
     "CA" "California" \
     "CO" "Colorado" \
     "CT" "Connecticut" \
+    "DC" "District of Columbia" \
     "DE" "Delaware" \
     "FL" "Florida" \
     "GA" "Georgia" \
@@ -691,8 +692,8 @@ if whiptail --title "FIPS Codes Configuration" --backtitle "$(whiptail_footer)" 
             
             if [ ${#CHECKLIST_ITEMS[@]} -gt 0 ]; then
                 # Show checklist dialog (allow multiple selection)
-                SELECTED_FIPS=$(whiptail --title "Select Counties for FIPS Codes" --backtitle "$(whiptail_footer)" \
-                    --checklist "Select one or more counties to monitor for alerts:\n\nUse SPACE to select, ENTER to confirm\n\n${COUNTY_COUNT} counties available in ${STATE_CODE}:" \
+                SELECTED_FIPS=$(whiptail --title "Select FIPS Codes" --backtitle "$(whiptail_footer)" \
+                    --checklist "Select areas to monitor for alerts:\n\n★ = Entire state (for statewide alerts like RWT)\n\nUse SPACE to select, ENTER to confirm:" \
                     25 78 15 "${CHECKLIST_ITEMS[@]}" 3>&1 1>&2 2>&3)
                 
                 if [ $? = 0 ] && [ -n "$SELECTED_FIPS" ]; then
@@ -871,6 +872,27 @@ if [ -n "$FIPS_CODES" ]; then
     fi
 else
     ZONE_CODES=""
+fi
+
+# Check if user is in a coastal/marine state and mention marine zones
+COASTAL_STATES="AL AK CA CT DE FL GA HI IL IN LA MA MD ME MI MN MS NC NH NJ NY OH OR PA RI SC TX VA WA WI"
+if echo "$COASTAL_STATES" | grep -qw "$STATE_CODE"; then
+    # Determine what marine area applies
+    MARINE_AREA=""
+    case "$STATE_CODE" in
+        MI|WI|MN|IL|IN|OH|PA|NY) MARINE_AREA="Great Lakes" ;;
+        TX|LA|MS|AL) MARINE_AREA="Gulf of America" ;;
+        FL) MARINE_AREA="Gulf of America and Atlantic coast" ;;
+        ME|NH|MA|RI|CT|NJ|DE|MD|VA|NC|SC|GA) MARINE_AREA="Atlantic coast" ;;
+        WA|OR|CA) MARINE_AREA="Pacific coast" ;;
+        HI) MARINE_AREA="Pacific Ocean" ;;
+        AK) MARINE_AREA="Pacific and Arctic waters" ;;
+    esac
+
+    if [ -n "$MARINE_AREA" ]; then
+        whiptail --title "Marine Zones Available" --backtitle "$(whiptail_footer)" --msgbox "Your state (${STATE_CODE}) borders the ${MARINE_AREA}.\n\nMarine weather zones (for coastal/offshore alerts) can be configured after installation via the web interface at /setup.\n\nLook for zone codes starting with:\n• GMZ - Gulf of America\n• AMZ - Atlantic Marine\n• PMZ - Pacific Marine\n• LMZ/LEZ/LHZ/LSZ/LOZ - Great Lakes" 17 78
+        echo_info "Marine zones for ${MARINE_AREA} can be added via /setup"
+    fi
 fi
 
 # ====================================================================
