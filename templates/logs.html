@@ -15,25 +15,25 @@
         <div class="card">
             <div class="card-header">
                 <div class="row align-items-center">
-                    <div class="col-md-6">
+                    <div class="col-12 col-lg-6 mb-2 mb-lg-0">
                         <h5 class="mb-0">Log Viewer - {{ log_type_name }}</h5>
                     </div>
-                    <div class="col-md-6 text-end">
-                        <div class="btn-group" role="group">
-                            <button class="btn btn-sm btn-outline-primary" id="copyLogsBtn" onclick="copyLogsToClipboard()">
-                                <i class="fas fa-copy"></i> Copy Logs
+                    <div class="col-12 col-lg-6 text-lg-end">
+                        <div class="btn-group flex-wrap" role="group">
+                            <button class="btn btn-sm btn-outline-primary" id="copyLogsBtn" onclick="copyLogsToClipboard()" title="Copy all displayed logs to clipboard">
+                                <i class="fas fa-copy"></i><span class="d-none d-sm-inline"> Copy Logs</span>
                             </button>
-                            <a href="/logs/export.csv?type={{ log_type }}&limit={{ limit }}" class="btn btn-sm btn-outline-success">
-                                <i class="fas fa-file-csv"></i> Export CSV
+                            <a href="/logs/export.csv?type={{ log_type }}&limit={{ limit }}" class="btn btn-sm btn-outline-success" title="Export logs as CSV">
+                                <i class="fas fa-file-csv"></i><span class="d-none d-sm-inline"> CSV</span>
                             </a>
-                            <a href="/logs/export.pdf?type={{ log_type }}&limit={{ limit }}" target="_blank" class="btn btn-sm btn-outline-secondary">
-                                <i class="fas fa-file-pdf"></i> Export PDF
+                            <a href="/logs/export.pdf?type={{ log_type }}&limit={{ limit }}" target="_blank" class="btn btn-sm btn-outline-secondary" title="Export logs as PDF">
+                                <i class="fas fa-file-pdf"></i><span class="d-none d-sm-inline"> PDF</span>
                             </a>
-                            <button class="btn btn-sm btn-outline-primary" onclick="location.reload()">
-                                <i class="fas fa-sync"></i> Refresh
+                            <button class="btn btn-sm btn-outline-primary" onclick="location.reload()" title="Refresh logs">
+                                <i class="fas fa-sync"></i><span class="d-none d-sm-inline"> Refresh</span>
                             </button>
-                            <button class="btn btn-sm btn-outline-info" id="autoRefreshBtn" onclick="toggleAutoRefresh()">
-                                <i class="fas fa-clock"></i> Auto-Refresh: <span id="autoRefreshStatus">OFF</span>
+                            <button class="btn btn-sm btn-outline-info" id="autoRefreshBtn" onclick="toggleAutoRefresh()" title="Toggle automatic log refresh">
+                                <i class="fas fa-clock"></i><span class="d-none d-xl-inline"> Auto-Refresh: </span><span id="autoRefreshStatus">OFF</span>
                             </button>
                         </div>
                     </div>
