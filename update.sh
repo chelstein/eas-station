@@ -442,17 +442,42 @@ else
     fi
 fi
 
-# Restore .env file
-echo_step "Restoring Configuration"
+# Restore and merge .env file
+echo_step "Restoring and Updating Configuration"
 
 if [ -f "/tmp/eas-station.env.backup" ]; then
     echo_progress "Restoring .env configuration..."
     cp "/tmp/eas-station.env.backup" "$INSTALL_DIR/.env"
     chown "$SERVICE_USER:$SERVICE_USER" "$INSTALL_DIR/.env"
     echo_success "Configuration restored"
+    
+    # Merge new variables from .env.example into existing .env
+    echo_progress "Merging new configuration variables from .env.example..."
+    if [ -f "$INSTALL_DIR/scripts/merge_env.py" ] && [ -f "$INSTALL_DIR/.env.example" ]; then
+        if sudo -u "$SERVICE_USER" python3 "$INSTALL_DIR/scripts/merge_env.py" --install-dir "$INSTALL_DIR" --backup 2>&1 | grep -E "(variables|Merge complete|added)" || true; then
+            echo_success "Configuration merged with new variables from .env.example"
+        else
+            echo_warning "Configuration merge encountered issues (non-critical)"
+        fi
+    else
+        echo_info "Merge script not available - skipping config merge"
+    fi
+    
     rm "/tmp/eas-station.env.backup"
 else
     echo_info "No configuration backup to restore"
+    
+    # If no .env exists, create from .env.example
+    if [ ! -f "$INSTALL_DIR/.env" ] && [ -f "$INSTALL_DIR/.env.example" ]; then
+        echo_warning "No .env file found - creating from .env.example"
+        if [ -f "$INSTALL_DIR/scripts/merge_env.py" ]; then
+            sudo -u "$SERVICE_USER" python3 "$INSTALL_DIR/scripts/merge_env.py" --install-dir "$INSTALL_DIR" --force
+        else
+            cp "$INSTALL_DIR/.env.example" "$INSTALL_DIR/.env"
+            chown "$SERVICE_USER:$SERVICE_USER" "$INSTALL_DIR/.env"
+        fi
+        echo_warning "IMPORTANT: Edit $INSTALL_DIR/.env and configure your settings"
+    fi
 fi
 
 # Write git metadata to .env file so Flask can display it
