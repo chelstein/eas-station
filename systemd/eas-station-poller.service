@@ -27,7 +27,7 @@ PrivateTmp=yes
 NoNewPrivileges=yes
 ProtectSystem=strict
 ProtectHome=yes
-ReadWritePaths=/opt/eas-station/radio_captures /tmp
+ReadWritePaths=/tmp
 
 [Install]
 WantedBy=multi-user.target

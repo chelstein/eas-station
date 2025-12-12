@@ -1221,11 +1221,6 @@ echo_progress "Creating log directory: ${BOLD}$LOG_DIR${NC}"
 mkdir -p "$LOG_DIR"
 chown -R "$SERVICE_USER:$SERVICE_GROUP" "$LOG_DIR"
 
-# Create radio_captures directory for poller service
-echo_progress "Creating radio_captures directory: ${BOLD}$INSTALL_DIR/radio_captures${NC}"
-mkdir -p "$INSTALL_DIR/radio_captures"
-chown -R "$SERVICE_USER:$SERVICE_GROUP" "$INSTALL_DIR/radio_captures"
-
 # Set ownership
 echo_progress "Setting file permissions..."
 chown -R "$SERVICE_USER:$SERVICE_GROUP" "$INSTALL_DIR"
