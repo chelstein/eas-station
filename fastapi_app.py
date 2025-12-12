@@ -151,7 +151,9 @@ if _icecast_enabled and _icecast_enabled.lower() in ('true', '1', 'yes', 'enable
 _setup_mode_reasons: List[str] = []
 
 # Database configuration
-DATABASE_URL = build_database_url()
+DATABASE_URL = os.getenv('DATABASE_URL')
+if not DATABASE_URL:
+    raise ValueError("DATABASE_URL environment variable is required")
 os.environ.setdefault('DATABASE_URL', DATABASE_URL)
 
 # Session configuration

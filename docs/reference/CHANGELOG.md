@@ -7,16 +7,18 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Changed
-- **Database configuration consolidated** - `.env.example` now uses single `DATABASE_URL` variable instead of individual POSTGRES_* variables
+- **Database URL no longer built dynamically** - All services now directly use `DATABASE_URL` environment variable
+  - Removed calls to `build_database_url()` and `build_database_url_from_env()` functions
+  - DATABASE_URL is now REQUIRED in `.env` file
   - Format: `DATABASE_URL=postgresql+psycopg2://username:password@host:port/database`
+  - Affects: app.py, fastapi_app.py, poller/cap_poller.py
+- **Database configuration consolidated** - `.env.example` now uses single `DATABASE_URL` variable
   - Legacy POSTGRES_* variables commented out for backward compatibility reference
-  - `build_database_url()` function still supports both formats (DATABASE_URL takes precedence)
-- VERSION bumped to 2.21.4
+- VERSION bumped to 2.21.5
 
 ### Fixed
-- **Poller database URL handling** - Poller uses `build_database_url_from_env()` to construct database URL from either DATABASE_URL or individual POSTGRES_* environment variables
-- **Systemd logs permission error** - Added missing `os` import in `webapp/routes_logs.py` that caused crash when checking journal permissions
-- **Install script systemd-journal group** - Install script now automatically adds service user to `systemd-journal` group for log viewing access
+- **Systemd logs permission error** - Added missing `os` import in `webapp/routes_logs.py`
+- **Install script systemd-journal group** - Install script automatically adds service user to `systemd-journal` group
 
 ## [2.21.0] - 2025-12-12
 
