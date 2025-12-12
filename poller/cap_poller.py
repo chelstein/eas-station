@@ -598,30 +598,10 @@ class CAPPoller:
                 " to let alert playbacks trigger IQ/PCM recordings."
             )
 
-        # Endpoint configuration - Flexible multi-source polling
-        # The poller can handle NOAA, IPAWS, and any other CAP-compliant sources
-        # 
-        # DEPRECATED: CAP_POLLER_MODE is deprecated and will be removed in a future release.
-        # The poller now automatically polls all configured sources (NOAA, IPAWS, custom).
-        # To use the unified poller:
-        #   1. Remove CAP_POLLER_MODE environment variable
-        #   2. Use eas-station-poller.service instead of separate noaa/ipaws services
-        #   3. Configure sources via IPAWS_CAP_FEED_URLS and CAP_ENDPOINTS
-        legacy_mode = os.getenv('CAP_POLLER_MODE', '').strip().upper()
-        if legacy_mode in ('NOAA', 'IPAWS'):
-            self.logger.warning(
-                "⚠️  CAP_POLLER_MODE=%s is DEPRECATED and will be removed in a future release. "
-                "Please migrate to the unified poller by removing CAP_POLLER_MODE and using "
-                "eas-station-poller.service. See documentation for migration guide.",
-                legacy_mode
-            )
-            self.poller_mode = legacy_mode
-        else:
-            # Default to "ALL" - poll all configured sources
-            # Invalid or empty CAP_POLLER_MODE values default to ALL
-            if legacy_mode and legacy_mode not in ('ALL', ''):
-                self.logger.warning("Invalid CAP_POLLER_MODE=%s, defaulting to ALL", legacy_mode)
-            self.poller_mode = 'ALL'
+        # Endpoint configuration - Unified multi-source polling
+        # The poller automatically polls all configured sources (NOAA, IPAWS, custom)
+        # Configure sources via IPAWS_CAP_FEED_URLS and CAP_ENDPOINTS in .env file
+        self.poller_mode = 'ALL'  # Always poll all sources
 
         configured_endpoints: List[str] = []
 
@@ -636,9 +616,8 @@ class CAPPoller:
         # Read all configured endpoints from various sources
         _extend_from_csv(os.getenv('CAP_ENDPOINTS'))
         
-        # Read IPAWS URLs (unless in legacy NOAA-only mode)
-        if self.poller_mode != 'NOAA':
-            _extend_from_csv(os.getenv('IPAWS_CAP_FEED_URLS'))
+        # Always read IPAWS URLs (unified poller)
+        _extend_from_csv(os.getenv('IPAWS_CAP_FEED_URLS'))
 
         if cap_endpoints:
             configured_endpoints.extend([endpoint for endpoint in cap_endpoints if endpoint])
@@ -693,34 +672,32 @@ class CAPPoller:
                     seen.add(endpoint)
             self.cap_endpoints = unique_endpoints
         else:
-            # No explicit endpoints configured - build defaults
+            # No explicit endpoints configured - build defaults for both NOAA and IPAWS
             default_endpoints: List[str] = []
             
-            # Add IPAWS endpoint unless in legacy NOAA-only mode
-            if self.poller_mode != 'NOAA':
-                endpoint_template = (
-                    os.getenv(
-                        'IPAWS_DEFAULT_ENDPOINT_TEMPLATE',
-                        'https://apps.fema.gov/IPAWSOPEN_EAS_SERVICE/rest/public/recent/{timestamp}',
-                    )
-                    or 'https://apps.fema.gov/IPAWSOPEN_EAS_SERVICE/rest/public/recent/{timestamp}'
+            # Add IPAWS endpoint
+            endpoint_template = (
+                os.getenv(
+                    'IPAWS_DEFAULT_ENDPOINT_TEMPLATE',
+                    'https://apps.fema.gov/IPAWSOPEN_EAS_SERVICE/rest/public/recent/{timestamp}',
                 )
-                try:
-                    ipaws_endpoint = endpoint_template.format(timestamp=default_start)
-                except Exception:
-                    ipaws_endpoint = endpoint_template
+                or 'https://apps.fema.gov/IPAWSOPEN_EAS_SERVICE/rest/public/recent/{timestamp}'
+            )
+            try:
+                ipaws_endpoint = endpoint_template.format(timestamp=default_start)
+            except Exception:
+                ipaws_endpoint = endpoint_template
 
-                default_endpoints.append(ipaws_endpoint)
-                self.logger.info("Added default IPAWS endpoint (starting %s)", default_start)
+            default_endpoints.append(ipaws_endpoint)
+            self.logger.info("Added default IPAWS endpoint (starting %s)", default_start)
             
-            # Add NOAA endpoints unless in legacy IPAWS-only mode
-            if self.poller_mode != 'IPAWS':
-                # Batch zone codes into single requests to reduce API calls
-                noaa_endpoints = self._build_batched_noaa_endpoints(
-                    self.location_settings['zone_codes'] or DEFAULT_LOCATION_SETTINGS['zone_codes']
-                )
-                default_endpoints.extend(noaa_endpoints)
-                self.logger.info("Added %d NOAA endpoint(s)", len(noaa_endpoints))
+            # Add NOAA endpoints
+            # Batch zone codes into single requests to reduce API calls
+            noaa_endpoints = self._build_batched_noaa_endpoints(
+                self.location_settings['zone_codes'] or DEFAULT_LOCATION_SETTINGS['zone_codes']
+            )
+            default_endpoints.extend(noaa_endpoints)
+            self.logger.info("Added %d NOAA endpoint(s)", len(noaa_endpoints))
             
             self.cap_endpoints = default_endpoints
             
@@ -2554,16 +2531,10 @@ class CAPPoller:
 
         try:
             # Log poller mode and endpoints
-            if self.poller_mode == 'ALL':
-                poller_mode_display = " [NOAA + IPAWS]"
-            elif self.poller_mode:
-                poller_mode_display = f" [{self.poller_mode}]"
-            else:
-                poller_mode_display = ""
             endpoint_summary = f" ({len(self.cap_endpoints)} endpoint{'s' if len(self.cap_endpoints) != 1 else ''})"
 
             self.logger.info(
-                f"Starting alert polling cycle{poller_mode_display}{endpoint_summary} for {self.location_name} at {format_local_datetime(poll_start_utc)}"
+                f"Starting alert polling cycle [NOAA + IPAWS]{endpoint_summary} for {self.location_name} at {format_local_datetime(poll_start_utc)}"
             )
 
             # Log first endpoint being polled for visibility
@@ -2839,9 +2810,8 @@ def main():
     logger = logging.getLogger(__name__)
 
     startup_utc = utc_now()
-    # Use dynamic location information instead of hardcoded "PUTNAM COUNTY"
-    poller_mode = (os.getenv('CAP_POLLER_MODE', 'NOAA') or 'NOAA').strip().upper()
-    logger.info(f"Starting CAP Alert Poller with LED Integration - Mode: {poller_mode}")
+    # Unified poller - always polls NOAA + IPAWS + custom sources
+    logger.info("Starting Alert Poller with LED Integration - Unified Mode (NOAA + IPAWS)")
     logger.info(f"Startup time: {format_local_datetime(startup_utc)}")
     if args.led_ip:
         logger.info(f"LED Sign: {args.led_ip}:{args.led_port}")

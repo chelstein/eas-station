@@ -1,45 +1,47 @@
-# Migrating to Unified Alert Poller
+# EAS Station Alert Poller - Unified System
 
 ## Overview
 
-The EAS Station alert polling system has been simplified from **two separate services** (noaa-poller and ipaws-poller) to **ONE unified service** that polls all sources together.
+The EAS Station uses **ONE unified poller service** that polls all alert sources (NOAA, IPAWS, and custom) together in a single efficient cycle.
 
-## Benefits
+## Service File
 
-- ✅ **Simpler configuration** - One service, one config file, one poll interval
-- ✅ **More efficient** - Polls NOAA and IPAWS in a single cycle
-- ✅ **Flexible** - Easy to add custom CAP sources
-- ✅ **Better logging** - Clear source identification (NOAA|IPAWS) in logs
+**Unified Service**: `eas-station-poller.service`
+- Polls NOAA weather alerts
+- Polls IPAWS/FEMA alerts
+- Polls any custom CAP-compliant sources
+- Single configuration file
+- One poll interval for all sources
 
-## Migration Steps
+## Configuration
 
-### 1. Stop Old Services
+All configuration is in `/app-config/.env` (or CONFIG_PATH):
 
 ```bash
-sudo systemctl stop eas-station-noaa-poller
-sudo systemctl stop eas-station-ipaws-poller
-sudo systemctl disable eas-station-noaa-poller
-sudo systemctl disable eas-station-ipaws-poller
+# Required for NOAA API compliance
+NOAA_USER_AGENT=EAS Station/2.12 (+https://example.com; contact@example.com)
+
+# Poll interval (applies to all sources)
+POLL_INTERVAL_SEC=120
+
+# IPAWS feed (optional, has sensible default)
+IPAWS_CAP_FEED_URLS=https://apps.fema.gov/IPAWSOPEN_EAS_SERVICE/rest/public/recent/{timestamp}
+
+# Custom CAP sources (optional)
+CAP_ENDPOINTS=https://custom-cap-server.example.com/feed
+
+# Location settings (zone codes for NOAA filtering)
+# Configured via web UI at /settings/location
 ```
 
-### 2. Remove CAP_POLLER_MODE from Configuration
-
-Edit `/app-config/.env` and remove or comment out:
-```bash
-# CAP_POLLER_MODE=NOAA  # REMOVE THIS LINE
-```
-
-### 3. Enable Unified Poller Service
+## Starting the Poller
 
 ```bash
+# Enable and start the unified poller
 sudo systemctl enable eas-station-poller
 sudo systemctl start eas-station-poller
-```
 
-### 4. Verify Operation
-
-```bash
-# Check service status
+# Check status
 sudo systemctl status eas-station-poller
 
 # View logs
@@ -49,40 +51,20 @@ sudo journalctl -u eas-station-poller -f
 # "Starting alert polling cycle [NOAA + IPAWS] (2 endpoints) for..."
 ```
 
-### 5. Configure Sources via Web UI (Optional)
+## Web UI Configuration
 
 Visit `/settings/alert-feeds` to configure:
-- NOAA User Agent (required)
-- IPAWS feed selection
-- Custom CAP endpoints
+- **NOAA User Agent** - Required for NOAA API compliance
+- **IPAWS Feed** - Select environment (production/staging) and feed type
+- **Custom Sources** - Add any additional CAP-compliant alert feeds
+- **Poll Interval** - Single interval for all sources (minimum 120 seconds)
 
-## Configuration File
+## Architecture Benefits
 
-### Before (Old System)
-```bash
-# Separate services with CAP_POLLER_MODE
-CAP_POLLER_MODE=NOAA  # Used by noaa-poller service
-CAP_POLLER_MODE=IPAWS # Used by ipaws-poller service
-POLL_INTERVAL_SEC=120
-```
-
-### After (Unified System)
-```bash
-# No CAP_POLLER_MODE needed - polls all sources
-POLL_INTERVAL_SEC=120
-NOAA_USER_AGENT=EAS Station/2.12 (+https://example.com; contact@example.com)
-IPAWS_CAP_FEED_URLS=https://apps.fema.gov/IPAWSOPEN_EAS_SERVICE/rest/public/recent/{timestamp}
-CAP_ENDPOINTS=  # Optional: Add custom sources here
-```
-
-## Backward Compatibility
-
-The old separate service files (`eas-station-noaa-poller.service` and `eas-station-ipaws-poller.service`) still work but are **deprecated** and will be removed in a future release.
-
-If you continue using them:
-- You'll see deprecation warnings in logs
-- They will not receive new features
-- They may be removed in version 3.x
+✅ **Simple** - One service, one config file, one poll interval  
+✅ **Efficient** - Polls all sources in a single cycle  
+✅ **Flexible** - Easy to add custom CAP sources  
+✅ **Clear logging** - Shows "NOAA|IPAWS" in data_source field
 
 ## Troubleshooting
 
@@ -91,32 +73,15 @@ If you continue using them:
 - Check zone codes are configured in location settings
 - For IPAWS, either set IPAWS_CAP_FEED_URLS or use default
 
-### "CAP_POLLER_MODE is DEPRECATED"
-- Remove `CAP_POLLER_MODE` from your .env file
-- Stop and disable old separate services
-- Enable the unified `eas-station-poller` service
-
 ### Service won't start
 - Check logs: `sudo journalctl -u eas-station-poller -n 50`
 - Verify database connection: `POSTGRES_HOST`, `POSTGRES_PASSWORD`, etc.
 - Ensure `/app-config/.env` exists and is readable
 
-## Rollback
-
-If you need to revert to the old system:
-
-```bash
-sudo systemctl stop eas-station-poller
-sudo systemctl disable eas-station-poller
-
-# Add back to .env:
-# CAP_POLLER_MODE=NOAA  # or IPAWS
-
-sudo systemctl enable eas-station-noaa-poller
-sudo systemctl enable eas-station-ipaws-poller
-sudo systemctl start eas-station-noaa-poller
-sudo systemctl start eas-station-ipaws-poller
-```
+### No alerts being fetched
+- Verify NOAA_USER_AGENT is configured correctly
+- Check zone codes match your location
+- Review logs for API errors (rate limiting, authentication issues)
 
 ## Questions?
 
