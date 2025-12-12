@@ -550,11 +550,13 @@ if [ -n "$NEW_VERSION" ] && [ "$NEW_VERSION" != "unknown" ]; then
 fi
 echo -e "${CYAN}Branch:${NC}        $CURRENT_BRANCH"
 echo -e "${CYAN}Old Commit:${NC}    $CURRENT_COMMIT"
+# Get current commit after update for comparison
+NEW_COMMIT=""
 if [ -d "$INSTALL_DIR/.git" ]; then
     NEW_COMMIT=$(git -C "$INSTALL_DIR" rev-parse --short HEAD 2>/dev/null || echo "")
-    if [ -n "$NEW_COMMIT" ] && [ "$NEW_COMMIT" != "$CURRENT_COMMIT" ]; then
-        echo -e "${CYAN}New Commit:${NC}    $NEW_COMMIT"
-    fi
+fi
+if [ -n "$NEW_COMMIT" ] && [ "$NEW_COMMIT" != "$CURRENT_COMMIT" ]; then
+    echo -e "${CYAN}New Commit:${NC}    $NEW_COMMIT"
 fi
 echo -e "${CYAN}Configuration:${NC} Preserved"
 echo -e "${CYAN}Services:${NC}      $SERVICE_STATUS"
