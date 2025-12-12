@@ -12,10 +12,11 @@ tracks releases under the 2.x series.
   - Changed `Group=easstation` to `Group=eas-station` (missing dash)
   - Service was failing with exit code 217/USER: "Failed to determine user credentials: No such process"
   - All other services correctly use `eas-station` user/group created by install script
-- **Hardware service supplementary groups** - Fixed install script to create missing system groups
-  - Install script now creates gpio, i2c, spi, audio, plugdev, dialout groups if they don't exist
+- **Hardware service supplementary groups** - Fixed install script and update script to create missing system groups
+  - Both `install.sh` and `update.sh` now create gpio, i2c, spi, audio, plugdev, dialout groups if they don't exist
   - Hardware service was failing with exit code 216/GROUP: "Failed to determine supplementary groups: No such process"
   - Ensures turnkey installation works on all systems without pre-existing hardware groups
+  - Running `update.sh` will automatically fix this issue on deployed systems
   - Critical for hardware-based features (GPIO, I2C, SPI devices, USB serial, audio)
 - VERSION bumped to 2.21.10
 - **EAS service crash** - Fixed `TypeError: create_fips_filtering_callback() got an unexpected keyword argument 'flask_app'`
