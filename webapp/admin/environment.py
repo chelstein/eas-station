@@ -415,7 +415,7 @@ ENV_CATEGORIES = {
                 'label': 'Timezone',
                 'type': 'text',
                 'default': 'America/New_York',
-                'description': 'Default timezone (e.g., America/New_York)',
+                'description': 'Application timezone used for all timestamps, scheduling, and time calculations (e.g., America/New_York, America/Chicago)',
             },
             {
                 'key': 'DEFAULT_COUNTY_NAME',
@@ -1031,13 +1031,6 @@ ENV_CATEGORIES = {
         'icon': 'fa-cog',
         'description': 'System and deployment settings',
         'variables': [
-            {
-                'key': 'TZ',
-                'label': 'System Timezone',
-                'type': 'text',
-                'default': 'America/New_York',
-                'description': 'System timezone for log timestamps and scheduling',
-            },
         ],
     },
     'icecast': {

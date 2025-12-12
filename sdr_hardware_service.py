@@ -101,11 +101,13 @@ if _config_path:
 else:
     load_dotenv(override=True)
 
+# Import centralized Redis configuration
+from app_core.config.redis_config import get_redis_host, get_redis_port, get_redis_db
 
 # Redis configuration
-REDIS_HOST = os.environ.get('REDIS_HOST', 'localhost')
-REDIS_PORT = int(os.environ.get('REDIS_PORT', 6379))
-REDIS_DB = int(os.environ.get('REDIS_DB', 0))
+REDIS_HOST = get_redis_host()
+REDIS_PORT = get_redis_port()
+REDIS_DB = get_redis_db()
 
 # SDR sample publishing configuration
 # IQ samples are published in chunks to balance latency vs overhead
