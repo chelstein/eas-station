@@ -13,7 +13,7 @@ WorkingDirectory=/opt/eas-station
 Environment="PYTHONUNBUFFERED=1"
 # NOTE: CAP_POLLER_MODE is NOT set - unified poller polls all sources (NOAA + IPAWS)
 # Configure sources via .env: IPAWS_CAP_FEED_URLS, CAP_ENDPOINTS, NOAA_USER_AGENT
-# CONFIG_PATH defaults to /opt/eas-station/.env if not set
+# Application defaults to /opt/eas-station/.env (can override with CONFIG_PATH env var)
 EnvironmentFile=-/opt/eas-station/.env
 ExecStart=/usr/bin/python3 /opt/eas-station/poller/cap_poller.py --continuous --database-url postgresql://postgres:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}
 Restart=always
