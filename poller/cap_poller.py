@@ -84,14 +84,46 @@ if PROJECT_ROOT not in sys.path:
 # For bare metal installations, defaults to project directory .env file.
 # For Docker/container deployments, set CONFIG_PATH=/app-config/.env.
 def _resolve_config_path() -> Optional[Path]:
+    """Resolve configuration file path with automatic fallback for invalid paths.
+    
+    Returns the path to the .env configuration file. If CONFIG_PATH environment
+    variable points to a non-existent or non-writable location, automatically
+    falls back to the project directory .env file to prevent errors.
+    """
+    # Get project root directory (fallback path)
+    project_root = Path(__file__).parent.parent
+    project_env = project_root / '.env'
+    
     # Check for explicit CONFIG_PATH override
-    config_path = os.environ.get('CONFIG_PATH', '').strip()
-    if config_path:
-        return Path(config_path)
+    config_path_env = os.environ.get('CONFIG_PATH', '').strip()
+    if config_path_env:
+        config_path = Path(config_path_env)
+        parent_dir = config_path.parent
+        
+        # Validate that the override path is usable
+        if not parent_dir.exists():
+            print(
+                f"[CAP_POLLER] WARNING: CONFIG_PATH parent directory does not exist: {parent_dir}. "
+                f"Falling back to project directory: {project_env}",
+                flush=True
+            )
+            return project_env
+        
+        if not os.access(parent_dir, os.W_OK):
+            print(
+                f"[CAP_POLLER] WARNING: CONFIG_PATH parent directory is not writable: {parent_dir}. "
+                f"Falling back to project directory: {project_env}",
+                flush=True
+            )
+            return project_env
+        
+        # CONFIG_PATH is valid
+        print(f"[CAP_POLLER] Using CONFIG_PATH: {config_path}", flush=True)
+        return config_path
     
     # Default to project directory .env file (bare metal installation)
-    project_root = Path(__file__).parent.parent
-    return project_root / '.env'
+    print(f"[CAP_POLLER] Using default config path: {project_env}", flush=True)
+    return project_env
 
 
 # Load the master configuration file

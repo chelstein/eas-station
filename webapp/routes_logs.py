@@ -62,13 +62,15 @@ def get_systemd_logs(service: str, lines: int = 100, priority: str = None, since
         Dictionary with logs and metadata
     """
     import shutil
+    import pwd
 
     # Check if journalctl is available
     if not shutil.which('journalctl'):
         return {
             'success': False,
-            'error': 'journalctl not available on this system',
-            'service': service
+            'error': 'journalctl command not found. Install systemd to view service logs.',
+            'service': service,
+            'help': 'Service logs require systemd and journalctl to be installed.'
         }
 
     try:
@@ -88,19 +90,27 @@ def get_systemd_logs(service: str, lines: int = 100, priority: str = None, since
         # Check for common issues in stderr/stdout
         combined_output = (result.stdout or '') + (result.stderr or '')
 
-        # Permission denied check
+        # Permission denied check - provide helpful fix instructions
         if 'Permission denied' in combined_output or 'Access denied' in combined_output:
+            # Try to get current user for helpful message
+            try:
+                current_user = pwd.getpwuid(os.getuid()).pw_name
+            except:
+                current_user = 'www-data'
+            
             return {
                 'success': False,
-                'error': 'Permission denied accessing journal (web server user may need systemd-journal group)',
-                'service': service
+                'error': f'Permission denied accessing journal',
+                'service': service,
+                'help': f'Add web server user to systemd-journal group:\n  sudo usermod -a -G systemd-journal {current_user}\n  sudo systemctl restart eas-station-web.service'
             }
 
         if 'No journal files were found' in combined_output:
             return {
                 'success': False,
                 'error': 'Systemd journal not available',
-                'service': service
+                'service': service,
+                'help': 'Journal may be disabled or not configured. Check: sudo systemctl status systemd-journald'
             }
 
         if result.returncode == 0:

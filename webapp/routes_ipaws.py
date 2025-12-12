@@ -96,30 +96,74 @@ def _get_config_path() -> Path:
     
     For bare metal installations, defaults to project directory .env file.
     For Docker/container deployments, set CONFIG_PATH=/app-config/.env.
+    
+    IMPORTANT: If CONFIG_PATH points to a non-existent or non-writable location,
+    this function will automatically fall back to the project directory .env file
+    to prevent "Read-only file system" errors.
     """
-    # Explicit override via CONFIG_PATH environment variable
+    # Get project root directory (fallback path)
+    project_root = Path(__file__).parent.parent
+    project_env = project_root / '.env'
+    
+    # Check for explicit override via CONFIG_PATH environment variable
     config_path_env = os.environ.get('CONFIG_PATH', '').strip()
     if config_path_env:
-        return Path(config_path_env)
+        config_path = Path(config_path_env)
+        
+        # Validate that the override path is actually usable
+        # Check if parent directory exists and is writable
+        parent_dir = config_path.parent
+        
+        if not parent_dir.exists():
+            logger.warning(
+                f"CONFIG_PATH parent directory does not exist: {parent_dir}. "
+                f"Falling back to project directory: {project_env}"
+            )
+            return project_env
+        
+        if not os.access(parent_dir, os.W_OK):
+            logger.warning(
+                f"CONFIG_PATH parent directory is not writable: {parent_dir}. "
+                f"Falling back to project directory: {project_env}"
+            )
+            return project_env
+        
+        # CONFIG_PATH is valid and writable
+        logger.debug(f"Using CONFIG_PATH: {config_path}")
+        return config_path
 
     # Default to project directory .env file (bare metal installation)
-    # Get the project root directory (parent of webapp directory)
-    project_root = Path(__file__).parent.parent
-    return project_root / '.env'
+    logger.debug(f"Using default config path: {project_env}")
+    return project_env
 
 
 def _read_current_config() -> Dict[str, str]:
-    """Read current IPAWS configuration from .env file."""
+    """Read current IPAWS configuration from .env file.
+    
+    Configuration Priority:
+    1. Runtime environment variables (highest priority - from systemd service files)
+    2. .env file values (persistent configuration)
+    
+    When environment variables are set (e.g., in systemd service files), they take
+    precedence over .env file values. This ensures the UI shows what's actually
+    running, but may cause confusion when updating settings.
+    
+    Returns a dict with configuration values and optional '_source' metadata.
+    """
     config_path = _get_config_path()
     config: Dict[str, str] = {}
+    config_sources: Dict[str, str] = {}  # Track where each value came from
 
     # First, attempt to load from the persistent config file (if it exists)
     if config_path.exists():
         try:
             file_values = dotenv_values(config_path)
-            config.update({k: v for k, v in file_values.items() if v is not None})
+            for k, v in file_values.items():
+                if v is not None:
+                    config[k] = v
+                    config_sources[k] = 'file'
         except Exception as exc:
-            logger.error(f"Failed to read config file: {exc}")
+            logger.error(f"Failed to read config file {config_path}: {exc}")
 
     # Always merge runtime environment variables so the UI reflects the
     # active configuration even if the persistent file is missing or empty.
@@ -134,6 +178,11 @@ def _read_current_config() -> Dict[str, str]:
         env_value = os.environ.get(key, '').strip()
         if env_value:
             config[key] = env_value
+            config_sources[key] = 'environment'
+    
+    # Add source metadata for debugging (prefixed with _ to avoid conflicts)
+    config['_sources'] = config_sources
+    config['_config_path'] = str(config_path)
 
     return config
 
