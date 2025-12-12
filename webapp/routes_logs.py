@@ -283,6 +283,97 @@ def get_recent_logs():
         }), 500
 
 
+@logs_bp.route('/api/logs/debug')
+def debug_logs():
+    """
+    Diagnostic endpoint to help troubleshoot log display issues.
+    Returns information about log sources and their status.
+    """
+    from datetime import datetime, timezone
+    from app_core.models import SystemLog, AudioAlert, GPIOActivationLog, EASMessage
+
+    results = {
+        'timestamp': datetime.now(timezone.utc).isoformat(),
+        'database_status': 'unknown',
+        'systemd_status': 'unknown',
+        'sources': {},
+    }
+
+    # Check database logs
+    try:
+        system_log_count = SystemLog.query.count()
+        results['sources']['system_log'] = {
+            'count': system_log_count,
+            'status': 'ok' if system_log_count >= 0 else 'error',
+        }
+        if system_log_count > 0:
+            latest = SystemLog.query.order_by(SystemLog.timestamp.desc()).first()
+            results['sources']['system_log']['latest'] = {
+                'id': latest.id,
+                'timestamp': latest.timestamp.isoformat() if latest.timestamp else None,
+                'level': latest.level,
+                'message': latest.message[:100] if latest.message else None,
+            }
+        results['database_status'] = 'ok'
+    except Exception as e:
+        results['sources']['system_log'] = {'status': 'error', 'error': str(e)}
+        results['database_status'] = 'error'
+
+    try:
+        audio_alert_count = AudioAlert.query.count()
+        results['sources']['audio_alert'] = {
+            'count': audio_alert_count,
+            'status': 'ok',
+        }
+    except Exception as e:
+        results['sources']['audio_alert'] = {'status': 'error', 'error': str(e)}
+
+    try:
+        gpio_count = GPIOActivationLog.query.count()
+        results['sources']['gpio_log'] = {
+            'count': gpio_count,
+            'status': 'ok',
+        }
+    except Exception as e:
+        results['sources']['gpio_log'] = {'status': 'error', 'error': str(e)}
+
+    try:
+        eas_count = EASMessage.query.count()
+        results['sources']['eas_message'] = {
+            'count': eas_count,
+            'status': 'ok',
+        }
+    except Exception as e:
+        results['sources']['eas_message'] = {'status': 'error', 'error': str(e)}
+
+    # Check systemd logs
+    try:
+        services = get_eas_services()
+        results['sources']['systemd'] = {
+            'services_configured': services,
+            'service_count': len(services),
+        }
+
+        # Try to fetch logs from the first service
+        if services:
+            test_service = services[0]
+            test_result = get_systemd_logs(test_service, lines=5, priority=None, since='1 hour ago')
+            results['sources']['systemd']['test_service'] = test_service
+            results['sources']['systemd']['test_result'] = {
+                'success': test_result.get('success', False),
+                'log_count': len(test_result.get('logs', [])),
+                'error': test_result.get('error'),
+            }
+            if test_result.get('logs'):
+                results['sources']['systemd']['sample_log'] = test_result['logs'][0]
+        results['systemd_status'] = 'ok'
+    except Exception as e:
+        results['sources']['systemd'] = {'status': 'error', 'error': str(e)}
+        results['systemd_status'] = 'error'
+
+    return jsonify(results)
+
+
 def register(app):
     """Register logs blueprint with the Flask app."""
     app.register_blueprint(logs_bp)
