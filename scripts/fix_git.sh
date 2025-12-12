@@ -44,7 +44,7 @@ if [ "$EUID" -ne 0 ]; then
 fi
 
 INSTALL_DIR="/opt/eas-station"
-SERVICE_USER="easstation"
+SERVICE_USER="eas-station"
 
 echo_header "🔧 EAS Station - Restore Git Repository"
 
