@@ -1750,10 +1750,17 @@ def register(app: Flask, logger) -> None:
                 try:
                     from datetime import datetime
                     date_from_obj = datetime.strptime(date_from, '%Y-%m-%d')
-                    logs_data = [
-                        log for log in logs_data
-                        if log.get('timestamp') and log['timestamp'] >= date_from_obj
-                    ]
+
+                    def check_date_from(log):
+                        ts = log.get('timestamp')
+                        if not ts:
+                            return False
+                        # Strip timezone for comparison
+                        if hasattr(ts, 'tzinfo') and ts.tzinfo is not None:
+                            ts = ts.replace(tzinfo=None)
+                        return ts >= date_from_obj
+
+                    logs_data = [log for log in logs_data if check_date_from(log)]
                 except ValueError:
                     pass
 
@@ -1761,10 +1768,17 @@ def register(app: Flask, logger) -> None:
                 try:
                     from datetime import datetime, timedelta
                     date_to_obj = datetime.strptime(date_to, '%Y-%m-%d') + timedelta(days=1)
-                    logs_data = [
-                        log for log in logs_data
-                        if log.get('timestamp') and log['timestamp'] < date_to_obj
-                    ]
+
+                    def check_date_to(log):
+                        ts = log.get('timestamp')
+                        if not ts:
+                            return False
+                        # Strip timezone for comparison
+                        if hasattr(ts, 'tzinfo') and ts.tzinfo is not None:
+                            ts = ts.replace(tzinfo=None)
+                        return ts < date_to_obj
+
+                    logs_data = [log for log in logs_data if check_date_to(log)]
                 except ValueError:
                     pass
 
