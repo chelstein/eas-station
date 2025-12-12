@@ -362,6 +362,8 @@ if [ -d ".git" ]; then
     fi
     
     # Pull updates for current branch - use reset --hard to ensure we get exact remote state
+    # This is INTENTIONAL and ensures the local code matches GitHub exactly.
+    # Local changes are already stashed above, so they won't be lost.
     echo_progress "Pulling updates for branch $CURRENT_BRANCH..."
     if sudo -u "$SERVICE_USER" git reset --hard "origin/$CURRENT_BRANCH" 2>&1; then
         NEW_COMMIT=$(git rev-parse --short HEAD)
@@ -529,6 +531,7 @@ echo_success "Systemd daemon reloaded"
 echo_progress "Starting all EAS Station services with updated code..."
 # Use restart (not start) to ensure all services reload with new code
 # This works whether services were stopped or are already running
+# Longer sleep (8s) to allow services to fully initialize and load new code
 systemctl restart eas-station.target
 sleep 8
 
