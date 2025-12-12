@@ -7,8 +7,8 @@ StartLimitIntervalSec=0
 
 [Service]
 Type=simple
-User=easstation
-Group=easstation
+User=eas-station
+Group=eas-station
 WorkingDirectory=/opt/eas-station
 Environment="PYTHONUNBUFFERED=1"
 # NOTE: CAP_POLLER_MODE is NOT set - unified poller polls all sources (NOAA + IPAWS)

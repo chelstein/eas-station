@@ -492,6 +492,30 @@
             </div>
         </div>
     </div>
+
+    <!-- SSL Certificate Section -->
+    <div class="row">
+        <div class="col-md-12">
+            <div class="security-section">
+                <h3><i class="fas fa-lock"></i> SSL Certificate Status</h3>
+                <p class="text-muted">View information about your HTTPS/SSL certificate</p>
+
+                <!-- Certificate Status Display -->
+                <div id="ssl-cert-status" class="mb-3">
+                    <div class="text-center py-4">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p class="mt-2 text-muted">Loading certificate information...</p>
+                    </div>
+                </div>
+
+                <button class="btn btn-primary" id="refresh-ssl-btn">
+                    <i class="fas fa-sync-alt"></i> Refresh Certificate Status
+                </button>
+            </div>
+        </div>
+    </div>
 </div>
 
 <!-- Disable MFA Modal -->
@@ -668,6 +692,198 @@ document.getElementById('confirm-disable-mfa-btn')?.addEventListener('click', as
 document.getElementById('verify-code')?.addEventListener('input', function(e) {
     this.value = this.value.replace(/[^0-9]/g, '');
     this.classList.remove('is-invalid');
+});
+
+// ============================================================================
+// SSL Certificate Status
+// ============================================================================
+
+async function loadSSLCertificateStatus() {
+    const statusContainer = document.getElementById('ssl-cert-status');
+    
+    try {
+        const response = await fetch('/security/ssl-certificate');
+        const data = await response.json();
+        
+        if (!response.ok) {
+            throw new Error(data.error || 'Failed to load certificate status');
+        }
+        
+        const cert = data.certificate;
+        const renewal = data.renewal;
+        
+        // Build status HTML
+        let html = '';
+        
+        if (!cert.installed) {
+            html = `
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <strong>No SSL Certificate Installed</strong><br>
+                    Your server is using HTTP only. For production use, install an SSL certificate.
+                    ${cert.error ? `<br><small class="text-muted">Error: ${cert.error}</small>` : ''}
+                </div>
+            `;
+        } else {
+            // Determine status badge
+            let statusBadge = '';
+            let alertClass = 'alert-success';
+            
+            if (cert.self_signed) {
+                statusBadge = '<span class="badge bg-warning text-dark"><i class="fas fa-exclamation-triangle"></i> Self-Signed</span>';
+                alertClass = 'alert-warning';
+            } else if (cert.valid && cert.days_remaining > 30) {
+                statusBadge = '<span class="badge bg-success"><i class="fas fa-check-circle"></i> Valid</span>';
+                alertClass = 'alert-success';
+            } else if (cert.valid && cert.days_remaining <= 30) {
+                statusBadge = '<span class="badge bg-warning text-dark"><i class="fas fa-clock"></i> Expiring Soon</span>';
+                alertClass = 'alert-warning';
+            } else {
+                statusBadge = '<span class="badge bg-danger"><i class="fas fa-times-circle"></i> Expired</span>';
+                alertClass = 'alert-danger';
+            }
+            
+            html = `
+                <div class="alert ${alertClass}">
+                    <div class="row">
+                        <div class="col-md-8">
+                            <h5 class="mb-3">
+                                <i class="fas fa-certificate"></i> Certificate Information ${statusBadge}
+                            </h5>
+                            <table class="table table-sm table-borderless mb-0">
+                                <tr>
+                                    <td style="width: 150px;"><strong>Type:</strong></td>
+                                    <td>${cert.type === 'letsencrypt' ? "Let's Encrypt" : cert.type === 'self-signed' ? 'Self-Signed' : cert.type}</td>
+                                </tr>
+                                ${cert.domain ? `
+                                <tr>
+                                    <td><strong>Domain:</strong></td>
+                                    <td><code>${cert.domain}</code></td>
+                                </tr>
+                                ` : ''}
+                                ${cert.issuer ? `
+                                <tr>
+                                    <td><strong>Issuer:</strong></td>
+                                    <td>${cert.issuer}</td>
+                                </tr>
+                                ` : ''}
+                                ${cert.valid_from ? `
+                                <tr>
+                                    <td><strong>Valid From:</strong></td>
+                                    <td>${new Date(cert.valid_from).toLocaleString()}</td>
+                                </tr>
+                                ` : ''}
+                                ${cert.valid_until ? `
+                                <tr>
+                                    <td><strong>Valid Until:</strong></td>
+                                    <td>${new Date(cert.valid_until).toLocaleString()}</td>
+                                </tr>
+                                ` : ''}
+                                ${cert.days_remaining !== null ? `
+                                <tr>
+                                    <td><strong>Days Remaining:</strong></td>
+                                    <td>
+                                        <strong class="${cert.days_remaining > 30 ? 'text-success' : cert.days_remaining > 0 ? 'text-warning' : 'text-danger'}">
+                                            ${cert.days_remaining} days
+                                        </strong>
+                                    </td>
+                                </tr>
+                                ` : ''}
+                            </table>
+                        </div>
+                        <div class="col-md-4">
+                            ${cert.type === 'letsencrypt' ? `
+                            <h6 class="mb-2"><i class="fas fa-sync-alt"></i> Automatic Renewal</h6>
+                            <table class="table table-sm table-borderless mb-0">
+                                <tr>
+                                    <td><strong>Timer Status:</strong></td>
+                                    <td>
+                                        ${renewal.timer_active ? 
+                                            '<span class="badge bg-success"><i class="fas fa-check"></i> Active</span>' : 
+                                            '<span class="badge bg-danger"><i class="fas fa-times"></i> Inactive</span>'}
+                                    </td>
+                                </tr>
+                                ${renewal.next_run ? `
+                                <tr>
+                                    <td><strong>Next Check:</strong></td>
+                                    <td><small>${renewal.next_run}</small></td>
+                                </tr>
+                                ` : ''}
+                            </table>
+                            ${!renewal.timer_active ? `
+                            <div class="mt-2">
+                                <small class="text-danger"><i class="fas fa-exclamation-triangle"></i> Automatic renewal is disabled. Enable certbot.timer to auto-renew.</small>
+                            </div>
+                            ` : ''}
+                            ` : cert.self_signed ? `
+                            <div class="alert alert-info mb-0">
+                                <small>
+                                    <i class="fas fa-info-circle"></i> <strong>Self-signed certificates</strong> are not trusted by browsers.
+                                    For production use, obtain a certificate from Let's Encrypt:
+                                    <br><code class="mt-1 d-block">sudo certbot --nginx -d your-domain.com</code>
+                                </small>
+                            </div>
+                            ` : ''}
+                        </div>
+                    </div>
+                    ${cert.error ? `<div class="mt-2"><small class="text-muted">Note: ${cert.error}</small></div>` : ''}
+                </div>
+            `;
+            
+            // Add certificate warnings if applicable
+            if (cert.days_remaining !== null && cert.days_remaining <= 7 && cert.days_remaining > 0) {
+                html += `
+                    <div class="alert alert-danger">
+                        <i class="fas fa-exclamation-circle"></i>
+                        <strong>Certificate Expiring Soon!</strong><br>
+                        Your SSL certificate will expire in ${cert.days_remaining} days. 
+                        ${cert.type === 'letsencrypt' ? 
+                            'Ensure the certbot renewal timer is active.' : 
+                            'Renew your certificate as soon as possible.'}
+                    </div>
+                `;
+            } else if (cert.days_remaining !== null && cert.days_remaining <= 0) {
+                html += `
+                    <div class="alert alert-danger">
+                        <i class="fas fa-times-circle"></i>
+                        <strong>Certificate Expired!</strong><br>
+                        Your SSL certificate expired ${Math.abs(cert.days_remaining)} days ago. 
+                        Renew immediately to restore HTTPS access.
+                    </div>
+                `;
+            }
+        }
+        
+        statusContainer.innerHTML = html;
+        
+    } catch (error) {
+        console.error('Failed to load SSL certificate status:', error);
+        statusContainer.innerHTML = `
+            <div class="alert alert-danger">
+                <i class="fas fa-times-circle"></i>
+                <strong>Error Loading Certificate Status</strong><br>
+                ${error.message || 'Unknown error occurred'}
+            </div>
+        `;
+    }
+}
+
+// Load SSL status on page load
+document.addEventListener('DOMContentLoaded', loadSSLCertificateStatus);
+
+// Refresh button
+document.getElementById('refresh-ssl-btn')?.addEventListener('click', function() {
+    this.disabled = true;
+    this.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Refreshing...';
+    
+    loadSSLCertificateStatus().then(() => {
+        this.disabled = false;
+        this.innerHTML = '<i class="fas fa-sync-alt"></i> Refresh Certificate Status';
+        showToast('Certificate status refreshed', 'success');
+    }).catch(() => {
+        this.disabled = false;
+        this.innerHTML = '<i class="fas fa-sync-alt"></i> Refresh Certificate Status';
+    });
 });
 </script>
 {% endblock %}

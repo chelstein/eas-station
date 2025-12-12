@@ -549,8 +549,34 @@ if [ -d "$INSTALL_DIR/systemd" ]; then
     echo_progress "Updating systemd service files..."
     cp "$INSTALL_DIR/systemd/"*.service /etc/systemd/system/ 2>/dev/null || true
     cp "$INSTALL_DIR/systemd/"*.target /etc/systemd/system/ 2>/dev/null || true
+    cp "$INSTALL_DIR/systemd/"*.timer /etc/systemd/system/ 2>/dev/null || true
     systemctl daemon-reload
     echo_success "Service files updated"
+    
+    # Ensure hardware access groups exist (for services that use SupplementaryGroups)
+    echo_progress "Ensuring hardware access groups exist..."
+    HARDWARE_GROUPS="gpio i2c spi audio plugdev dialout"
+    GROUPS_CREATED=0
+    for group in $HARDWARE_GROUPS; do
+        if ! getent group "$group" >/dev/null 2>&1; then
+            if groupadd --system "$group" 2>/dev/null; then
+                echo_info "Created group: $group"
+                GROUPS_CREATED=$((GROUPS_CREATED + 1))
+            fi
+        fi
+    done
+    
+    # Add service user to hardware groups (always run to ensure user is member)
+    echo_progress "Adding $SERVICE_USER to hardware access groups..."
+    for group in $HARDWARE_GROUPS; do
+        usermod -a -G "$group" "$SERVICE_USER" 2>/dev/null || true
+    done
+    
+    if [ $GROUPS_CREATED -gt 0 ]; then
+        echo_success "Hardware access groups configured (created $GROUPS_CREATED new groups)"
+    else
+        echo_success "Hardware access groups configured (all groups already existed)"
+    fi
 else
     echo_warning "Systemd directory not found - skipping service file update"
 fi

@@ -6,7 +6,40 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+### Added
+- **SSL Certificate Status UI** - Added comprehensive certificate viewer to Security Settings page
+  - Shows certificate type (Let's Encrypt, Self-Signed, or None)
+  - Displays validity status with color-coded badges (Valid, Expiring Soon, Expired)
+  - Shows domain, issuer, valid from/until dates, and days remaining
+  - Displays certbot automatic renewal timer status and next check time
+  - Provides warnings for expiring (≤30 days) or expired certificates
+  - Includes helpful guidance for self-signed certificates and renewal procedures
+  - Auto-refreshes on page load with manual refresh button
+  - Added API endpoint `/security/ssl-certificate` to retrieve certificate data
+  - Created `app_core/ssl_utils.py` with certificate parsing utilities
+  - Added "Security Settings" link to user dropdown menu for easy access
+- VERSION bumped to 2.22.0 (new feature)
+
 ### Fixed
+- **Certbot systemd service missing** - Added certbot.service and certbot.timer to systemd directory
+  - Install script was trying to enable certbot.timer but the systemd files didn't exist
+  - Created proper systemd service for certificate renewal with nginx reload hook
+  - Timer runs twice daily (00:00 and 12:00) with randomized delay for load distribution
+  - Both install.sh and update.sh now copy .timer files to /etc/systemd/system/
+  - Fixes silent failure of automatic certificate renewal on deployed systems
+- VERSION bumped to 2.21.11
+- **Poller service user credentials** - Fixed incorrect username in `systemd/eas-station-poller.service`
+  - Changed `User=easstation` to `User=eas-station` (missing dash)
+  - Changed `Group=easstation` to `Group=eas-station` (missing dash)
+  - Service was failing with exit code 217/USER: "Failed to determine user credentials: No such process"
+  - All other services correctly use `eas-station` user/group created by install script
+- **Hardware service supplementary groups** - Fixed install script and update script to create missing system groups
+  - Both `install.sh` and `update.sh` now create gpio, i2c, spi, audio, plugdev, dialout groups if they don't exist
+  - Hardware service was failing with exit code 216/GROUP: "Failed to determine supplementary groups: No such process"
+  - Ensures turnkey installation works on all systems without pre-existing hardware groups
+  - Running `update.sh` will automatically fix this issue on deployed systems
+  - Critical for hardware-based features (GPIO, I2C, SPI devices, USB serial, audio)
+- VERSION bumped to 2.21.10
 - **EAS service crash** - Fixed `TypeError: create_fips_filtering_callback() got an unexpected keyword argument 'flask_app'`
   - Updated `eas_service.py` to use correct callback pattern with `forward_callback` parameter
   - Added proper alert forwarding handler using `forward_alert_to_api` from `app_core.audio.alert_forwarding`

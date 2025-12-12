@@ -1143,10 +1143,29 @@ else
     echo_info "User $SERVICE_USER already exists (skipping)"
 fi
 
+# Create hardware access groups if they don't exist
+echo_progress "Ensuring hardware access groups exist..."
+HARDWARE_GROUPS="gpio i2c spi audio plugdev dialout"
+GROUPS_CREATED=0
+for group in $HARDWARE_GROUPS; do
+    if ! getent group "$group" >/dev/null 2>&1; then
+        groupadd --system "$group" 2>/dev/null || true
+        echo_info "Created group: $group"
+        GROUPS_CREATED=$((GROUPS_CREATED + 1))
+    fi
+done
+
 # Add service user to necessary groups for hardware access
 echo_progress "Adding $SERVICE_USER to hardware access groups..."
-usermod -a -G dialout,plugdev,gpio,i2c,spi,audio "$SERVICE_USER" 2>/dev/null || true
-echo_success "Hardware access groups configured"
+for group in $HARDWARE_GROUPS; do
+    usermod -a -G "$group" "$SERVICE_USER" 2>/dev/null || true
+done
+
+if [ $GROUPS_CREATED -gt 0 ]; then
+    echo_success "Hardware access groups configured (created $GROUPS_CREATED new groups)"
+else
+    echo_success "Hardware access groups configured (all groups already existed)"
+fi
 
 # Add service user to systemd-journal group for log access
 echo_progress "Adding $SERVICE_USER to systemd-journal group for log viewing..."
@@ -1489,6 +1508,7 @@ echo_step "Install Systemd Services"
 echo_progress "Installing systemd service files..."
 cp "$INSTALL_DIR/systemd/"*.service /etc/systemd/system/
 cp "$INSTALL_DIR/systemd/"*.target /etc/systemd/system/
+cp "$INSTALL_DIR/systemd/"*.timer /etc/systemd/system/ 2>/dev/null || true
 systemctl daemon-reload
 echo_success "Systemd service files installed"
 
