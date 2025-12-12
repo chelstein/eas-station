@@ -201,14 +201,6 @@ ENV_CATEGORIES = {
                 'default': 'logs/eas_station.log',
                 'description': 'Path to application log file',
             },
-            {
-                'key': 'WEB_ACCESS_LOG',
-                'label': 'Web Server Access Logs',
-                'type': 'select',
-                'options': ['false', 'true'],
-                'default': 'false',
-                'description': 'Enable web server access logs (shows all HTTP requests). Set to false to reduce log clutter and only show errors.',
-            },
         ],
     },
     'https': {
@@ -1070,14 +1062,6 @@ ENV_CATEGORIES = {
                 'category': 'icecast_enabled',
             },
             {
-                'key': 'ICECAST_HOSTNAME',
-                'label': 'Icecast Hostname (Config)',
-                'type': 'text',
-                'description': 'Hostname in Icecast icecast.xml config (server identity). Different from PUBLIC_HOSTNAME which is for stream URLs.',
-                'placeholder': 'icecast.example.com',
-                'category': 'icecast_enabled',
-            },
-            {
                 'key': 'ICECAST_PUBLIC_HOSTNAME',
                 'label': 'Public Hostname/IP',
                 'type': 'text',
@@ -1130,16 +1114,6 @@ ENV_CATEGORIES = {
                 'description': 'Maximum concurrent stream listeners',
                 'min': 1,
                 'max': 10000,
-                'category': 'icecast_enabled',
-            },
-            {
-                'key': 'ICECAST_MAX_SOURCES',
-                'label': 'Max Sources',
-                'type': 'number',
-                'default': '50',
-                'description': 'Maximum concurrent source connections (audio streams)',
-                'min': 1,
-                'max': 100,
                 'category': 'icecast_enabled',
             },
             {
