@@ -33,7 +33,7 @@
                                 <i class="fas fa-sync"></i><span class="d-none d-sm-inline"> Refresh</span>
                             </button>
                             <button class="btn btn-sm btn-outline-info" id="autoRefreshBtn" onclick="toggleAutoRefresh()" title="Toggle automatic log refresh">
-                                <i class="fas fa-clock"></i><span class="d-none d-xl-inline"> Auto-Refresh: </span><span id="autoRefreshStatus">OFF</span>
+                                <i class="fas fa-clock"></i><span class="d-none d-sm-inline"> Auto-Refresh: </span><span id="autoRefreshStatus">OFF</span>
                             </button>
                         </div>
                     </div>
@@ -440,6 +440,26 @@
                         <i class="fas fa-info-circle"></i> No logs available for this category.
                         {% if search_query or log_level_filter or date_from or date_to %}
                         <br><small>Try adjusting your filters or <a href="?type={{ log_type }}&limit={{ limit }}">clear all filters</a>.</small>
+                        {% else %}
+                        <br><small class="text-muted">
+                            {% if log_type == 'audio_metrics' or log_type == 'audio_health' %}
+                            Logs will appear once audio sources are active and generating metrics.
+                            {% elif log_type == 'gpio' %}
+                            Logs will appear when GPIO pins are activated (manual or automatic).
+                            {% elif log_type == 'eas_messages' %}
+                            Logs will appear when EAS messages are generated for broadcast.
+                            {% elif log_type == 'decoded_audio' %}
+                            Logs will appear when EAS audio signals are decoded from radio receivers.
+                            {% elif log_type == 'manual_activations' %}
+                            Logs will appear when manual EAS activations are triggered via the web interface.
+                            {% elif log_type == 'polling_debug' %}
+                            Logs will appear when debug logging is enabled in the poller configuration.
+                            {% elif log_type == 'services' %}
+                            No systemd logs found. Services may not be running or journalctl is not accessible.
+                            {% else %}
+                            Logs will appear as system activity occurs.
+                            {% endif %}
+                        </small>
                         {% endif %}
                     </div>
                 {% endif %}
