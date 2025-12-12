@@ -611,14 +611,49 @@ fi
 echo_step "Running Database Migrations"
 cd "$INSTALL_DIR"
 
-if [ -f "$INSTALL_DIR/venv/bin/python" ]; then
-    echo_progress "Updating database schema..."
+if [ -f "$INSTALL_DIR/venv/bin/alembic" ] && [ -f "$INSTALL_DIR/alembic.ini" ]; then
+    echo_progress "Running Alembic migrations to update database schema..."
+    
+    # Disable exit-on-error for migrations
+    set +e
+    ALEMBIC_OUTPUT=$(sudo -u "$SERVICE_USER" "$INSTALL_DIR/venv/bin/alembic" upgrade head 2>&1)
+    ALEMBIC_EXIT_CODE=$?
+    set -e
+    
+    if [ $ALEMBIC_EXIT_CODE -eq 0 ]; then
+        echo_success "Database migrations completed successfully"
+    else
+        echo_warning "Alembic migrations encountered errors (exit code: $ALEMBIC_EXIT_CODE)"
+        echo ""
+        echo_info "Migration output:"
+        echo "$ALEMBIC_OUTPUT" | head -20
+        echo ""
+        echo_info "Attempting to create any missing tables with db.create_all() as fallback..."
+        
+        set +e
+        sudo -u "$SERVICE_USER" "$INSTALL_DIR/venv/bin/python" -c "
+from app import app, db
+with app.app_context():
+    db.create_all()
+    print('Missing tables created')
+" 2>&1
+        set -e
+        
+        echo_warning "Database upgrade may be incomplete - check logs after update"
+        echo_info "You can manually run migrations: cd $INSTALL_DIR && sudo -u $SERVICE_USER $INSTALL_DIR/venv/bin/alembic upgrade head"
+    fi
+elif [ -f "$INSTALL_DIR/venv/bin/python" ]; then
+    echo_warning "Alembic not found - using db.create_all() fallback"
+    echo_progress "Creating any missing database tables..."
+    
+    set +e
     sudo -u "$SERVICE_USER" "$INSTALL_DIR/venv/bin/python" -c "
 from app import app, db
 with app.app_context():
     db.create_all()
     print('Database schema updated')
-" 2>&1 && echo_success "Database migrations complete" || echo_warning "Database migration failed (non-critical)"
+" 2>&1 && echo_success "Database tables created" || echo_warning "Database operation failed (non-critical)"
+    set -e
 else
     echo_warning "Python environment not found - skipping database migrations"
 fi

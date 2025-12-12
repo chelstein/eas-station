@@ -68,9 +68,10 @@ print("[CAP_POLLER_INIT] datetime, pathlib, typing, argparse imported", flush=Tr
 
 import pytz
 import certifi
+import redis
 from dotenv import load_dotenv
 from urllib.parse import quote
-print("[CAP_POLLER_INIT] pytz, certifi, dotenv, urllib imported", flush=True)
+print("[CAP_POLLER_INIT] pytz, certifi, redis, dotenv, urllib imported", flush=True)
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.abspath(os.path.join(CURRENT_DIR, os.pardir))
@@ -174,10 +175,6 @@ from app_utils.location_settings import (
     normalise_upper,
     sanitize_fips_codes,
 )
-print(f"[CAP_POLLER] Importing app_utils.eas...")
-from app_utils.eas import EASBroadcaster, load_eas_config
-print(f"[CAP_POLLER] Importing app_core.radio...")
-from app_core.radio import RadioManager, ensure_radio_tables
 print(f"[CAP_POLLER] Importing app_utils.optimized_parsing...")
 from app_utils.optimized_parsing import json_loads, json_dumps, parse_xml_string, get_element_tree_module
 print(f"[CAP_POLLER] All app module imports complete!")
@@ -209,20 +206,6 @@ def _env_flag(name: str, default: bool = False) -> bool:
     if value is None:
         return default
     return value.strip().lower() in {"1", "true", "yes", "on", "t", "y"}
-
-# =======================================================================================
-# Optional LED controller import
-# =======================================================================================
-
-LED_AVAILABLE = False
-LEDSignController = None
-try:
-    from scripts.led_sign_controller import LEDSignController as _LED
-    LEDSignController = _LED
-    LED_AVAILABLE = True
-except Exception as e:
-    # Use logger later; stdout here to ensure visibility even before logging config
-    print(f"Warning: LED sign controller not available ({e})")
 
 # =======================================================================================
 # Fall-back ORM model definitions if app models aren't importable
@@ -486,16 +469,9 @@ class CAPPoller:
     def __init__(
         self,
         database_url: str,
-        led_sign_ip: str = None,
-        led_sign_port: int = 10001,
         cap_endpoints: Optional[List[str]] = None,
-        *,
-        enable_radio_captures: bool = False,
     ):
         self.database_url = database_url
-        self.led_sign_ip = led_sign_ip
-        self.led_sign_port = led_sign_port
-        self.enable_radio_captures = enable_radio_captures
 
         self.logger = logging.getLogger(__name__)
 
@@ -530,24 +506,30 @@ class CAPPoller:
         self._last_debug_records_cleanup_time = None
         self._cleanup_interval_seconds = 86400  # Run cleanup once per day (24 hours)
         
-        # Track when radio configuration was last refreshed to avoid CPU overhead
-        self._last_radio_config_refresh_time = None
-        self._radio_config_refresh_interval_seconds = 3600  # Refresh radio config once per hour
-        
         # Control debug record persistence to avoid CPU/database overhead
         # Debug records are useful for troubleshooting but expensive (one DB row per alert per poll)
         self._debug_records_enabled = _env_flag('CAP_POLLER_DEBUG_RECORDS', False)
 
-        # EAS broadcaster
-        self.eas_broadcaster = None
+        # Redis client for event publishing
+        # Poller publishes events to Redis instead of directly managing EAS/LED/Radio
+        redis_host = os.getenv('REDIS_HOST', 'redis')
+        redis_port = int(os.getenv('REDIS_PORT', '6379'))
+        redis_db = int(os.getenv('REDIS_DB', '0'))
         try:
-            eas_config = load_eas_config(PROJECT_ROOT)
-            self.eas_broadcaster = EASBroadcaster(
-                self.db_session, EASMessage, eas_config, self.logger, self.location_settings
+            self.redis_client = redis.Redis(
+                host=redis_host,
+                port=redis_port,
+                db=redis_db,
+                decode_responses=True,
+                socket_connect_timeout=5,
+                socket_timeout=5
             )
+            # Test connection
+            self.redis_client.ping()
+            self.logger.info(f"Redis client initialized: {redis_host}:{redis_port}/{redis_db}")
         except Exception as exc:
-            self.logger.warning(f"EAS broadcaster unavailable: {exc}")
-            self.eas_broadcaster = None
+            self.logger.warning(f"Redis unavailable: {exc}. Event publishing will be disabled.")
+            self.redis_client = None
 
         # HTTP Session with compliance headers for both NOAA and IPAWS
         # NOAA Weather API: https://www.weather.gov/documentation/services-web-api
@@ -589,47 +571,6 @@ class CAPPoller:
                 certifi_path = certifi.where()
                 self.logger.info('Using certifi CA bundle for SSL verification: %s', certifi_path)
                 self.session.verify = certifi_path
-
-        # LED
-        self.led_controller = None
-        if led_sign_ip and LED_AVAILABLE:
-            try:
-                self.led_controller = LEDSignController(led_sign_ip, led_sign_port, location_settings=self.location_settings)
-                self.logger.info(f"LED sign controller initialized for {led_sign_ip}:{led_sign_port}")
-            except Exception as e:
-                self.logger.error(f"Failed to initialize LED controller: {e}")
-        elif led_sign_ip:
-            self.logger.warning("LED sign IP provided but controller not available")
-
-        # Radio manager configuration
-        self.radio_manager: Optional[RadioManager] = None
-        self._radio_receiver_cache: Dict[str, RadioReceiver] = {}
-        capture_dir_env = os.getenv("RADIO_CAPTURE_DIR", os.path.join(PROJECT_ROOT, "radio_captures"))
-        self.radio_capture_dir = Path(capture_dir_env)
-        try:
-            self.radio_capture_dir.mkdir(parents=True, exist_ok=True)
-        except Exception as exc:
-            self.logger.warning("Unable to create radio capture directory %s: %s", self.radio_capture_dir, exc)
-
-        capture_mode = (os.getenv("RADIO_CAPTURE_MODE", "iq") or "iq").lower()
-        if capture_mode not in {"iq", "pcm"}:
-            self.logger.warning("Unsupported RADIO_CAPTURE_MODE '%s'; defaulting to 'iq'", capture_mode)
-            capture_mode = "iq"
-        self.radio_capture_mode = capture_mode
-
-        try:
-            self.radio_capture_duration = max(1.0, float(os.getenv("RADIO_CAPTURE_DURATION", "30")))
-        except ValueError:
-            self.logger.warning("Invalid RADIO_CAPTURE_DURATION; defaulting to 30 seconds")
-            self.radio_capture_duration = 30.0
-
-        if self.enable_radio_captures:
-            self._setup_radio_manager()
-        else:
-            self.logger.info(
-                "SDR capture requests from the CAP poller are disabled; set CAP_POLLER_ENABLE_RADIO=1 or pass --radio-captures"
-                " to let alert playbacks trigger IQ/PCM recordings."
-            )
 
         # Endpoint configuration - Unified multi-source polling
         # The poller automatically polls all configured sources (NOAA, IPAWS, custom)
@@ -869,213 +810,70 @@ class CAPPoller:
             self._debug_table_checked = False
         return self._debug_table_checked
 
-    def _setup_radio_manager(self) -> None:
-        try:
-            if not ensure_radio_tables(self.logger):
-                self.logger.warning("Radio receiver tables unavailable; skipping capture orchestration")
-                return
-        except RuntimeError as exc:
-            self.logger.debug("Falling back to manual radio table creation: %s", exc)
-            try:
-                RadioReceiver.__table__.create(bind=self.engine, checkfirst=True)
-                RadioReceiverStatus.__table__.create(bind=self.engine, checkfirst=True)
-            except Exception as table_exc:
-                self.logger.warning("Unable to create radio tables manually: %s", table_exc)
-                return
-        except Exception as exc:
-            self.logger.warning("Unable to verify radio tables: %s", exc)
-            return
-
-        # NOTE: RadioManager initialization for direct SDR hardware control.
-        # In bare metal deployments, the poller service can directly manage SDR hardware
-        # if USB devices are accessible. For service separation architectures, consider
-        # using a dedicated sdr-service with inter-service communication (e.g., Redis).
-        #
-        # FUTURE ENHANCEMENT: Migrate radio capture coordination to use Redis command queue pattern.
-        #   See docs/FUTURE_ENHANCEMENTS.md for details.
-        #   - Send capture requests to sdr-service via Redis (sdr:commands)
-        #   - Receive capture results via Redis (sdr:command_result:{command_id})
-        #
-        # For now, radio captures from CAP poller are disabled by default. 
-        # The _coordinate_radio_captures and _record_receiver_statuses methods 
-        # will return early since radio_manager is None.
-
-        self.logger.info(
-            "Radio capture coordination from CAP poller requires USB device access. "
-            "Set CAP_POLLER_ENABLE_RADIO=0 to suppress this message."
-        )
-
-        # Uncomment to enable direct SDR hardware control from poller (requires USB access):
-        # try:
-        #     manager = RadioManager()
-        #     manager.register_builtin_drivers()
-        # except Exception as exc:
-        #     self.logger.warning("Radio manager unavailable: %s", exc)
-        #     return
-        #
-        # self.radio_manager = manager
-        # self._refresh_radio_configuration(initial=True)
-
-    def _refresh_radio_configuration(self, initial: bool = False) -> None:
-        """Refresh radio receiver configuration from database.
+    def _publish_alert_event(self, channel: str, alert_data: Dict[str, Any]) -> None:
+        """Publish alert event to Redis for other services to consume.
         
         Args:
-            initial: If True, always refresh. If False, only refresh if interval has elapsed.
-        
-        This is a potentially expensive operation that queries the database and may
-        start/restart SDR processes. To avoid CPU overhead, it only runs periodically
-        (once per hour by default) unless initial=True.
+            channel: Redis channel name (e.g., 'alerts:new', 'alerts:led')
+            alert_data: Alert data payload to publish
         """
-        if not self.radio_manager:
+        if not self.redis_client:
+            self.logger.debug("Redis client not available, skipping event publish")
             return
         
-        # Skip refresh if not due (unless initial=True)
-        if not initial:
-            now = utc_now()
-            if self._last_radio_config_refresh_time is not None:
-                time_since_refresh = (now - self._last_radio_config_refresh_time).total_seconds()
-                if time_since_refresh < self._radio_config_refresh_interval_seconds:
-                    # Skip refresh - not enough time has passed
-                    return
-
         try:
-            receivers = (
-                self.db_session.query(RadioReceiver)
-                .order_by(RadioReceiver.identifier)
-                .all()
-            )
-        except Exception as exc:
-            self.logger.error("Failed to load radio receivers: %s", exc)
-            return
-
-        cache: Dict[str, RadioReceiver] = {}
-        configs = []
-        for receiver in receivers:
-            identifier = receiver.identifier
-            if not identifier:
-                continue
-            cache[identifier] = receiver
-            try:
-                configs.append(receiver.to_receiver_config())
-            except Exception as exc:
-                self.logger.error("Invalid receiver %s: %s", identifier, exc)
-
-        try:
-            self.radio_manager.configure_receivers(configs)
-            self._radio_receiver_cache = cache
-            if configs:
-                self.radio_manager.start_all()
+            # Validate inputs
+            if not channel or not isinstance(channel, str):
+                self.logger.error(f"Invalid Redis channel: {channel}")
+                return
+                
+            if not isinstance(alert_data, dict):
+                self.logger.error(f"Alert data must be dict, got {type(alert_data).__name__}")
+                return
             
-            # Update last refresh time on success
-            if not initial:
-                self._last_radio_config_refresh_time = utc_now()
-            else:
-                # On initial setup, set the time so we don't refresh again immediately
-                self._last_radio_config_refresh_time = utc_now()
+            # Convert datetime objects to ISO format strings for JSON serialization
+            serializable_data = {}
+            for key, value in alert_data.items():
+                try:
+                    if isinstance(value, datetime):
+                        serializable_data[key] = value.isoformat()
+                    elif value is None:
+                        serializable_data[key] = None
+                    elif isinstance(value, (str, int, float, bool)):
+                        serializable_data[key] = value
+                    elif isinstance(value, (list, dict)):
+                        # Will be handled by json_dumps, but check for nested datetimes
+                        serializable_data[key] = value
+                    else:
+                        # Convert other types to string
+                        serializable_data[key] = str(value)
+                except Exception as convert_err:
+                    self.logger.warning(
+                        f"Failed to serialize field '{key}' (type {type(value).__name__}): {convert_err}"
+                    )
+                    serializable_data[key] = None
+            
+            try:
+                payload = json_dumps(serializable_data)
+            except (TypeError, ValueError) as json_err:
+                self.logger.error(
+                    f"Failed to serialize alert data to JSON for channel {channel}: {json_err}. "
+                    f"Keys: {list(serializable_data.keys())}"
+                )
+                return
+            
+            try:
+                subscribers = self.redis_client.publish(channel, payload)
+                self.logger.debug(f"Published alert event to {channel} ({subscribers} subscribers)")
+            except Exception as pub_err:
+                self.logger.error(
+                    f"Redis publish failed for channel {channel}: {type(pub_err).__name__}: {pub_err}"
+                )
                 
         except Exception as exc:
-            self.logger.error("Failed to configure radio manager: %s", exc)
-
-    def _coordinate_radio_captures(self, alert: CAPAlert, broadcast_result: Dict[str, Any]) -> List[Dict[str, object]]:
-        if not self.radio_manager or not self._radio_receiver_cache:
-            return []
-
-        capture_mode = broadcast_result.get("preferred_capture_mode") or self.radio_capture_mode
-        prefix_parts = [
-            broadcast_result.get("event_code"),
-            getattr(alert, "identifier", None),
-        ]
-        prefix_raw = "-".join(part for part in prefix_parts if part)
-        safe_prefix = re.sub(r"[^A-Za-z0-9_-]", "_", prefix_raw) or "capture"
-
-        try:
-            results = self.radio_manager.request_captures(
-                self.radio_capture_duration,
-                self.radio_capture_dir,
-                prefix=safe_prefix,
-                mode=capture_mode,
+            self.logger.error(
+                f"Unexpected error publishing to Redis channel {channel}: {type(exc).__name__}: {exc}"
             )
-            for entry in results:
-                identifier = entry.get("identifier")
-                if entry.get("path"):
-                    self.logger.info(
-                        "Captured %s data for receiver %s → %s",
-                        (entry.get("mode") or "iq").upper(),
-                        identifier,
-                        entry.get("path"),
-                    )
-                else:
-                    self.logger.warning(
-                        "Radio capture failed for %s: %s",
-                        identifier,
-                        entry.get("error"),
-                    )
-            return results
-        except Exception as exc:
-            self.logger.error("Radio capture orchestration failed: %s", exc)
-            return []
-
-    def _record_receiver_statuses(self, capture_events: Optional[List[Dict[str, Any]]] = None) -> None:
-        if not self.radio_manager or not self._radio_receiver_cache:
-            return
-
-        events = capture_events or []
-        rows_written = 0
-
-        try:
-            for event in events:
-                timestamp = event.get("timestamp") or utc_now()
-                for capture in event.get("captures", []):
-                    identifier = capture.get("identifier")
-                    if not identifier:
-                        continue
-                    receiver = self._radio_receiver_cache.get(identifier)
-                    if not receiver:
-                        continue
-
-                    status = capture.get("status")
-                    reported_at = getattr(status, "reported_at", None) or timestamp
-                    error_text = capture.get("error")
-                    last_error = getattr(status, "last_error", None)
-                    if last_error and error_text and error_text not in last_error:
-                        last_error = f"{last_error}; {error_text}"
-                    elif not last_error:
-                        last_error = error_text
-
-                    row = RadioReceiverStatus(
-                        receiver_id=receiver.id,
-                        reported_at=reported_at,
-                        locked=bool(getattr(status, "locked", False)),
-                        signal_strength=getattr(status, "signal_strength", None),
-                        last_error=last_error,
-                        capture_mode=capture.get("mode"),
-                        capture_path=str(capture.get("path")) if capture.get("path") else None,
-                    )
-                    self.db_session.add(row)
-                    rows_written += 1
-
-            status_reports = self.radio_manager.get_status_reports()
-            for report in status_reports:
-                receiver = self._radio_receiver_cache.get(report.identifier)
-                if not receiver:
-                    continue
-                row = RadioReceiverStatus(
-                    receiver_id=receiver.id,
-                    reported_at=report.reported_at or utc_now(),
-                    locked=bool(report.locked),
-                    signal_strength=report.signal_strength,
-                    last_error=report.last_error,
-                    capture_mode=report.capture_mode,
-                    capture_path=report.capture_path,
-                )
-                self.db_session.add(row)
-                rows_written += 1
-
-            if rows_written:
-                self.db_session.commit()
-        except Exception as exc:
-            self.logger.error("Failed to record radio receiver statuses: %s", exc)
-            self.db_session.rollback()
 
     # ---------- Engine with retry ----------
     def _load_location_settings(self) -> Dict[str, Any]:
@@ -1390,6 +1188,15 @@ class CAPPoller:
                 lat_str, lon_str = pair.split(',', 1)
                 lat = float(lat_str)
                 lon = float(lon_str)
+                
+                # Validate coordinate ranges
+                if not (-90 <= lat <= 90):
+                    self.logger.warning(f"Invalid latitude {lat} in polygon, skipping coordinate")
+                    continue
+                if not (-180 <= lon <= 180):
+                    self.logger.warning(f"Invalid longitude {lon} in polygon, skipping coordinate")
+                    continue
+                    
                 coords.append([lon, lat])
             except ValueError:
                 continue
@@ -1404,54 +1211,172 @@ class CAPPoller:
         return coords
 
     def _parse_cap_circle(self, circle_text: Optional[str], points: int = 36) -> Optional[List[List[float]]]:
+        """Parse CAP circle element into polygon coordinates.
+        
+        Args:
+            circle_text: CAP circle string format "lat,lon radius_km"
+            points: Number of points to approximate circle (default 36)
+            
+        Returns:
+            List of [lon, lat] coordinate pairs, or None if invalid
+        """
         if not circle_text:
             return None
 
         parts = circle_text.strip().split()
         if not parts:
+            self.logger.debug("Empty circle text after stripping whitespace")
             return None
 
         try:
+            if ',' not in parts[0]:
+                self.logger.warning(f"Invalid circle format (missing comma): '{circle_text[:50]}'")
+                return None
+                
             lat_str, lon_str = parts[0].split(',', 1)
             lat = float(lat_str)
             lon = float(lon_str)
-        except ValueError:
+            
+            # Validate coordinate ranges
+            if not (-90 <= lat <= 90):
+                self.logger.warning(f"Circle latitude out of range: {lat} (must be -90 to 90)")
+                return None
+            if not (-180 <= lon <= 180):
+                self.logger.warning(f"Circle longitude out of range: {lon} (must be -180 to 180)")
+                return None
+                
+        except ValueError as e:
+            self.logger.warning(f"Invalid circle coordinates: '{parts[0]}' - {e}")
+            return None
+        except Exception as e:
+            self.logger.error(f"Unexpected error parsing circle coordinates: {e}")
             return None
 
         radius_km = 0.0
         if len(parts) > 1:
             try:
                 radius_km = float(parts[1])
-            except ValueError:
+            except ValueError as e:
+                self.logger.warning(f"Invalid circle radius: '{parts[1]}' - {e}")
                 radius_km = 0.0
 
         if radius_km <= 0:
+            self.logger.warning(f"Circle radius must be positive: {radius_km} km")
+            return None
+            
+        if radius_km > 20000:  # Earth's half-circumference
+            self.logger.warning(f"Circle radius unreasonably large: {radius_km} km (max 20000 km)")
             return None
 
         return self._approximate_circle_polygon(lat, lon, radius_km, points)
 
     def _approximate_circle_polygon(self, lat: float, lon: float, radius_km: float, points: int) -> List[List[float]]:
+        """Approximate a circle as a polygon using haversine formula.
+        
+        Args:
+            lat: Center latitude in degrees
+            lon: Center longitude in degrees
+            radius_km: Radius in kilometers
+            points: Number of points to use for approximation
+            
+        Returns:
+            List of [lon, lat] coordinate pairs forming a closed ring
+            
+        Raises:
+            ValueError: If inputs are invalid
+        """
         coords: List[List[float]] = []
-        radius_ratio = radius_km / 6371.0  # Earth radius in km
-        center_lat = math.radians(lat)
-        center_lon = math.radians(lon)
-
-        for step in range(points):
-            bearing = 2 * math.pi * (step / points)
-            sin_lat = math.sin(center_lat)
-            cos_lat = math.cos(center_lat)
-            sin_radius = math.sin(radius_ratio)
-            cos_radius = math.cos(radius_ratio)
-
-            lat_rad = math.asin(
-                sin_lat * cos_radius + cos_lat * sin_radius * math.cos(bearing)
+        
+        # Validate inputs
+        if not (-90 <= lat <= 90):
+            raise ValueError(f"Latitude must be -90 to 90, got {lat}")
+        if not (-180 <= lon <= 180):
+            raise ValueError(f"Longitude must be -180 to 180, got {lon}")
+        if radius_km <= 0:
+            raise ValueError(f"Radius must be positive, got {radius_km}")
+        if points < 3:
+            raise ValueError(f"Need at least 3 points for polygon, got {points}")
+        
+        # Handle edge case: circles at or near poles
+        if abs(lat) > 89.5:
+            self.logger.warning(
+                f"Circle center at extreme latitude ({lat:.2f}°) - using simplified rectangular approximation. "
+                f"Haversine formula unreliable near poles."
             )
-            lon_rad = center_lon + math.atan2(
-                math.sin(bearing) * sin_radius * cos_lat,
-                cos_radius - sin_lat * math.sin(lat_rad)
+            # For near-pole circles, use a simplified square approximation
+            offset = radius_km / 111.0  # Rough km to degrees conversion
+            coords = [
+                [lon - offset, min(89.9, lat + offset)],
+                [lon + offset, min(89.9, lat + offset)],
+                [lon + offset, max(-89.9, lat - offset)],
+                [lon - offset, max(-89.9, lat - offset)],
+                [lon - offset, min(89.9, lat + offset)],  # Close ring
+            ]
+            return coords
+        
+        # Handle edge case: very large radius
+        if radius_km > 10000:
+            self.logger.warning(
+                f"Circle radius very large ({radius_km:.0f} km) - may produce distorted geometry"
             )
+        
+        try:
+            radius_ratio = radius_km / 6371.0  # Earth radius in km
+            center_lat = math.radians(lat)
+            center_lon = math.radians(lon)
 
-            coords.append([math.degrees(lon_rad), math.degrees(lat_rad)])
+            for step in range(points):
+                bearing = 2 * math.pi * (step / points)
+                sin_lat = math.sin(center_lat)
+                cos_lat = math.cos(center_lat)
+                sin_radius = math.sin(radius_ratio)
+                cos_radius = math.cos(radius_ratio)
+
+                # Haversine formula for point on great circle
+                lat_rad = math.asin(
+                    sin_lat * cos_radius + cos_lat * sin_radius * math.cos(bearing)
+                )
+                
+                # Handle potential division by zero when cos_lat is very small
+                if abs(cos_lat) < 1e-10:
+                    self.logger.warning(f"cos_lat near zero at {lat}°, using center longitude")
+                    lon_rad = center_lon
+                else:
+                    lon_rad = center_lon + math.atan2(
+                        math.sin(bearing) * sin_radius * cos_lat,
+                        cos_radius - sin_lat * math.sin(lat_rad)
+                    )
+
+                # Convert to degrees and validate
+                lon_deg = math.degrees(lon_rad)
+                lat_deg = math.degrees(lat_rad)
+                
+                # Normalize longitude to -180 to 180
+                while lon_deg > 180:
+                    lon_deg -= 360
+                while lon_deg < -180:
+                    lon_deg += 360
+                
+                # Clamp latitude to valid range
+                lat_deg = max(-90, min(90, lat_deg))
+                
+                coords.append([lon_deg, lat_deg])
+
+        except (ValueError, OverflowError) as e:
+            self.logger.error(
+                f"Math error approximating circle at ({lat}, {lon}) radius {radius_km}km: {e}. "
+                f"Falling back to simple square."
+            )
+            # Fallback to simple square on math error
+            offset = radius_km / 111.0
+            coords = [
+                [lon - offset, min(89.9, lat + offset)],
+                [lon + offset, min(89.9, lat + offset)],
+                [lon + offset, max(-89.9, lat - offset)],
+                [lon - offset, max(-89.9, lat - offset)],
+                [lon - offset, min(89.9, lat + offset)],
+            ]
+            return coords
 
         # Use epsilon tolerance for ring closure
         if coords and not self._coords_equal(coords[0], coords[-1]):
@@ -1909,57 +1834,108 @@ class CAPPoller:
         return sum(self._count_vertices(item, depth + 1) for item in coords)
 
     def _set_alert_geometry(self, alert: CAPAlert, geometry_data: Optional[Dict]):
-        """Set alert geometry with validation for complexity and validity."""
+        """Set alert geometry with validation for complexity and validity.
+        
+        Args:
+            alert: CAPAlert object to update
+            geometry_data: GeoJSON geometry dict or None
+        """
         try:
-            if geometry_data and isinstance(geometry_data, dict):
-                # Check polygon complexity before storing
-                coords = geometry_data.get('coordinates', [])
-                total_vertices = self._count_vertices(coords)
+            if not geometry_data or not isinstance(geometry_data, dict):
+                alert.geom = None
+                self.logger.debug(f"No geometry for alert {getattr(alert, 'identifier', '?')}")
+                return
+                
+            # Check polygon complexity before storing
+            coords = geometry_data.get('coordinates', [])
+            if not coords:
+                self.logger.debug(f"Empty coordinates in geometry for alert {getattr(alert, 'identifier', '?')}")
+                alert.geom = None
+                return
+                
+            total_vertices = self._count_vertices(coords)
 
-                # Warn and skip geometries that are excessively complex
-                if total_vertices > 10000:
-                    self.logger.warning(
-                        f"Alert {getattr(alert, 'identifier', '?')} has {total_vertices} vertices "
-                        "(exceeds 10,000 limit). Geometry will not be stored to prevent performance issues."
-                    )
-                    alert.geom = None
-                    return
+            # Warn and skip geometries that are excessively complex
+            if total_vertices > 10000:
+                self.logger.warning(
+                    f"Alert {getattr(alert, 'identifier', '?')} has {total_vertices:,} vertices "
+                    f"(exceeds 10,000 limit). Geometry will not be stored to prevent database "
+                    f"performance degradation. Consider simplifying the geometry."
+                )
+                alert.geom = None
+                return
 
-                if total_vertices > 5000:
-                    self.logger.info(
-                        f"Alert {getattr(alert, 'identifier', '?')} has {total_vertices} vertices "
-                        "(high complexity)"
-                    )
+            if total_vertices > 5000:
+                self.logger.info(
+                    f"Alert {getattr(alert, 'identifier', '?')} has {total_vertices:,} vertices "
+                    f"(high complexity - may impact performance)"
+                )
 
+            # Convert to GeoJSON string for PostGIS
+            try:
                 geom_json = json_dumps(geometry_data)
+            except (TypeError, ValueError) as json_err:
+                self.logger.error(
+                    f"Failed to serialize geometry to JSON for alert {getattr(alert, 'identifier', '?')}: {json_err}"
+                )
+                alert.geom = None
+                return
+
+            # Use PostGIS to create geometry from GeoJSON
+            try:
                 result = self.db_session.execute(
                     text("SELECT ST_SetSRID(ST_GeomFromGeoJSON(:g), 4326)"),
                     {"g": geom_json}
                 ).scalar()
+            except Exception as geom_err:
+                self.logger.error(
+                    f"PostGIS failed to parse GeoJSON for alert {getattr(alert, 'identifier', '?')}: {geom_err}. "
+                    f"Geometry type: {geometry_data.get('type')}, vertices: {total_vertices}"
+                )
+                alert.geom = None
+                return
 
-                # Validate geometry and attempt repair if invalid
+            # Validate geometry and attempt repair if invalid
+            try:
                 is_valid = self.db_session.execute(
                     text("SELECT ST_IsValid(:geom)"),
                     {"geom": result}
                 ).scalar()
+            except Exception as valid_err:
+                self.logger.warning(
+                    f"Geometry validation check failed for alert {getattr(alert, 'identifier', '?')}: {valid_err}"
+                )
+                # Assume invalid if check fails
+                is_valid = False
 
-                if not is_valid:
-                    self.logger.warning(
-                        f"Invalid geometry for alert {getattr(alert, 'identifier', '?')}, "
-                        "attempting automatic repair with ST_MakeValid"
-                    )
+            if not is_valid:
+                self.logger.warning(
+                    f"Invalid geometry for alert {getattr(alert, 'identifier', '?')} - "
+                    f"attempting automatic repair with ST_MakeValid. "
+                    f"This may indicate self-intersecting polygons or other topology issues."
+                )
+                try:
                     result = self.db_session.execute(
                         text("SELECT ST_MakeValid(:geom)"),
                         {"geom": result}
                     ).scalar()
+                    self.logger.info(f"Geometry repaired successfully for alert {getattr(alert, 'identifier', '?')}")
+                except Exception as repair_err:
+                    self.logger.error(
+                        f"ST_MakeValid failed to repair geometry for alert {getattr(alert, 'identifier', '?')}: {repair_err}. "
+                        f"Geometry will not be stored."
+                    )
+                    alert.geom = None
+                    return
 
-                alert.geom = result
-                self.logger.debug(f"Geometry set for alert {alert.identifier}")
-            else:
-                alert.geom = None
-                self.logger.debug(f"No geometry for alert {alert.identifier}")
+            alert.geom = result
+            self.logger.debug(f"Geometry set for alert {getattr(alert, 'identifier', '?')} ({total_vertices} vertices)")
+            
         except Exception as e:
-            self.logger.warning(f"Could not set geometry for alert {getattr(alert,'identifier','?')}: {e}")
+            self.logger.error(
+                f"Unexpected error setting geometry for alert {getattr(alert,'identifier','?')}: {type(e).__name__}: {e}. "
+                f"Geometry will not be stored."
+            )
             alert.geom = None
 
     def _has_geometry_changed(self, old_geom, new_geom) -> bool:
@@ -1993,41 +1969,101 @@ class CAPPoller:
         
         Optimized to use a single bulk query instead of N+1 queries (one per boundary).
         This dramatically reduces CPU usage when processing alerts with many boundaries.
+        
+        Args:
+            alert: CAPAlert object with geometry to intersect
+            
+        Raises:
+            Exception: Re-raises exceptions after rollback to signal failure
         """
         try:
             if not alert.geom:
+                self.logger.debug(f"Alert {getattr(alert, 'identifier', '?')} has no geometry, skipping intersections")
+                return
+            
+            if not alert.id:
+                self.logger.error(f"Alert {getattr(alert, 'identifier', '?')} has no ID, cannot calculate intersections")
+                return
+
+            # Validate geometry before processing intersections
+            try:
+                is_valid = self.db_session.execute(
+                    text("SELECT ST_IsValid(:geom)"),
+                    {"geom": alert.geom}
+                ).scalar()
+                
+                if not is_valid:
+                    self.logger.warning(
+                        f"Alert {getattr(alert, 'identifier', '?')} has invalid geometry, "
+                        f"cannot calculate intersections. Run ST_MakeValid to repair."
+                    )
+                    return
+            except Exception as validation_err:
+                self.logger.error(
+                    f"Geometry validation failed for alert {getattr(alert, 'identifier', '?')}: {validation_err}"
+                )
                 return
 
             # Delete old intersections
-            self.db_session.query(Intersection).filter_by(cap_alert_id=alert.id).delete()
+            try:
+                deleted_count = self.db_session.query(Intersection).filter_by(cap_alert_id=alert.id).delete()
+                if deleted_count > 0:
+                    self.logger.debug(f"Deleted {deleted_count} old intersections for alert {alert.id}")
+            except Exception as delete_err:
+                self.logger.error(f"Failed to delete old intersections for alert {alert.id}: {delete_err}")
+                raise
 
             # OPTIMIZED: Calculate ALL intersections in a single query instead of N queries
             # This uses a SQL subquery to compute ST_Intersects and ST_Area for all boundaries at once
             # OLD: N+1 queries (1 to fetch boundaries + N queries for intersections)
             # NEW: 1 query that calculates all intersections
-            # Note: ST_Intersects in WHERE clause filters boundaries, so we don't need it in SELECT
+            # 
+            # IMPORTANT: Use ST_Area(geography(...)) to get area in square meters, not degrees²
+            # This provides accurate area measurements for intersection calculations
             intersection_query = text("""
                 SELECT 
                     b.id as boundary_id,
-                    ST_Area(ST_Intersection(:alert_geom, b.geom)) as intersection_area
+                    ST_Area(
+                        ST_Transform(
+                            ST_Intersection(:alert_geom, b.geom),
+                            4326
+                        )::geography
+                    ) as intersection_area
                 FROM boundaries b
                 WHERE b.geom IS NOT NULL
+                  AND ST_IsValid(b.geom)
                   AND ST_Intersects(:alert_geom, b.geom)
             """)
             
-            results = self.db_session.execute(
-                intersection_query,
-                {'alert_geom': alert.geom}
-            ).fetchall()
+            try:
+                results = self.db_session.execute(
+                    intersection_query,
+                    {'alert_geom': alert.geom}
+                ).fetchall()
+            except Exception as query_err:
+                self.logger.error(
+                    f"Intersection query failed for alert {getattr(alert, 'identifier', '?')}: {query_err}. "
+                    f"This may indicate corrupted geometry or database issues."
+                )
+                raise
 
             # Build list of new intersections from bulk query results
             new_intersections = []
             with_area = 0
+            errors = 0
 
             for row in results:
                 try:
                     boundary_id = row.boundary_id
+                    # Area is now in square meters (from geography cast)
                     ia = float(row.intersection_area or 0)
+                    
+                    if ia < 0:
+                        self.logger.warning(
+                            f"Negative intersection area ({ia}) for alert {alert.id} boundary {boundary_id}, "
+                            f"setting to 0"
+                        )
+                        ia = 0
                     
                     new_intersections.append(Intersection(
                         cap_alert_id=alert.id,
@@ -2037,24 +2073,53 @@ class CAPPoller:
                     ))
                     if ia > 0:
                         with_area += 1
-                except Exception as be:
-                    self.logger.warning(f"Intersection error with boundary {boundary_id}: {be}")
-                    # Continue processing other boundaries
+                except (ValueError, TypeError) as convert_err:
+                    errors += 1
+                    self.logger.warning(
+                        f"Data conversion error for intersection alert={alert.id} boundary={boundary_id}: {convert_err}"
+                    )
+                except Exception as row_err:
+                    errors += 1
+                    self.logger.error(
+                        f"Unexpected error processing intersection row alert={alert.id} boundary={boundary_id}: {row_err}"
+                    )
+
+            if errors > 0:
+                self.logger.warning(f"Encountered {errors} errors processing intersection results")
 
             # Bulk insert all intersections atomically
             if new_intersections:
-                self.db_session.bulk_save_objects(new_intersections)
+                try:
+                    self.db_session.bulk_save_objects(new_intersections)
+                except Exception as bulk_err:
+                    self.logger.error(
+                        f"Bulk insert failed for {len(new_intersections)} intersections: {bulk_err}"
+                    )
+                    raise
 
-            self.db_session.commit()
+            try:
+                self.db_session.commit()
+            except Exception as commit_err:
+                self.logger.error(f"Failed to commit intersections for alert {alert.id}: {commit_err}")
+                raise
 
             if new_intersections:
                 self.logger.info(
-                    f"Intersections for alert {alert.identifier}: {len(new_intersections)} "
-                    f"({with_area} with area > 0)"
+                    f"Intersections for alert {getattr(alert, 'identifier', '?')}: {len(new_intersections)} total "
+                    f"({with_area} with area > 0, {errors} errors)"
                 )
+            else:
+                self.logger.debug(f"No intersections found for alert {getattr(alert, 'identifier', '?')}")
+                
         except Exception as e:
-            self.db_session.rollback()
-            self.logger.error(f"Error processing intersections for alert {alert.id}: {e}")
+            self.logger.error(
+                f"Error processing intersections for alert {getattr(alert, 'id', '?')} "
+                f"({getattr(alert, 'identifier', '?')}): {type(e).__name__}: {e}"
+            )
+            try:
+                self.db_session.rollback()
+            except Exception as rollback_err:
+                self.logger.error(f"Rollback failed: {rollback_err}")
             raise  # Re-raise so caller knows intersection calculation failed
 
     def save_cap_alert(self, alert_data: Dict) -> Tuple[bool, Optional[CAPAlert], Optional[Dict[str, Any]]]:
@@ -2127,8 +2192,16 @@ class CAPPoller:
 
         if geom_changed or self._needs_intersection_calculation(existing):
             self.process_intersections(existing)
-        if self.led_controller and not self.is_alert_expired(existing):
-            self.update_led_display()
+        
+        # Publish LED update event via Redis
+        if not self.is_alert_expired(existing):
+            self._publish_alert_event('alerts:led:update', {
+                'alert_id': existing.id,
+                'identifier': existing.identifier,
+                'event': existing.event,
+                'severity': existing.severity
+            })
+        
         self.logger.info(f"Updated alert: {existing.event}")
         return False, existing, None
 
@@ -2160,59 +2233,32 @@ class CAPPoller:
 
         if new_alert.geom:
             self.process_intersections(new_alert)
-        if self.led_controller and not self.is_alert_expired(new_alert):
-            self.update_led_display()
-
-        capture_metadata: Optional[Dict[str, Any]] = None
-        if self.eas_broadcaster:
-            try:
-                # Pass alert_data (not payload) because it contains raw_json with BLOCKCHANNEL
-                broadcast_result = self.eas_broadcaster.handle_alert(new_alert, alert_data)
-                if broadcast_result and broadcast_result.get("same_triggered"):
-                    # EAS was triggered - update the alert record
-                    new_alert.eas_forwarded = True
-                    new_alert.eas_forwarding_reason = "EAS broadcast generated"
-                    # Build audio URL from output directory and filename
-                    audio_path = broadcast_result.get("audio_path")
-                    if audio_path:
-                        web_subdir = self.eas_broadcaster.config.get('web_subdir', 'eas_messages')
-                        audio_filename = os.path.basename(audio_path)
-                        new_alert.eas_audio_url = f"/static/{web_subdir}/{audio_filename}"
-                    
-                    capture_results = self._coordinate_radio_captures(new_alert, broadcast_result)
-                    capture_metadata = {
-                        "alert_identifier": getattr(new_alert, "identifier", None),
-                        "broadcast": broadcast_result,
-                        "captures": capture_results,
-                    }
-                else:
-                    # EAS was NOT triggered - record the reason
-                    new_alert.eas_forwarded = False
-                    reason = broadcast_result.get("reason") if broadcast_result else "Unknown"
-                    new_alert.eas_forwarding_reason = reason
-                    capture_metadata = {"broadcast": broadcast_result}
-                
-                # Second commit: Update EAS forwarding status after broadcast decision
-                self.db_session.commit()
-            except Exception as exc:
-                self.logger.error(f"EAS broadcast failed for {new_alert.identifier}: {exc}")
-                new_alert.eas_forwarded = False
-                new_alert.eas_forwarding_reason = f"Error: {str(exc)}"
-                try:
-                    self.db_session.commit()
-                except Exception:
-                    self.db_session.rollback()
-                capture_metadata = {"error": str(exc)}
-        else:
-            # No EAS broadcaster configured
-            new_alert.eas_forwarding_reason = "EAS broadcasting disabled"
-            try:
-                self.db_session.commit()
-            except Exception:
-                self.db_session.rollback()
+        
+        # Publish new alert event to Redis for EAS service to handle
+        if not self.is_alert_expired(new_alert):
+            # Publish to EAS service for broadcast decision
+            self._publish_alert_event('alerts:new', {
+                'alert_id': new_alert.id,
+                'identifier': new_alert.identifier,
+                'event': new_alert.event,
+                'severity': new_alert.severity,
+                'urgency': new_alert.urgency,
+                'certainty': new_alert.certainty,
+                'sent': new_alert.sent,
+                'expires': new_alert.expires,
+                'raw_json': alert_data.get('raw_json', {})
+            })
+            
+            # Publish to LED service for display update
+            self._publish_alert_event('alerts:led:new', {
+                'alert_id': new_alert.id,
+                'identifier': new_alert.identifier,
+                'event': new_alert.event,
+                'severity': new_alert.severity
+            })
 
         self.logger.info(f"Saved new alert: {new_alert.identifier} - {new_alert.event}")
-        return True, new_alert, capture_metadata
+        return True, new_alert, None
 
     # ---------- LED ----------
     def is_alert_expired(self, alert, max_age_days: int = 30) -> bool:
@@ -2237,23 +2283,6 @@ class CAPPoller:
                 return True
 
         return False
-
-    def update_led_display(self):
-        if not self.led_controller:
-            return
-        try:
-            active = self.db_session.query(CAPAlert).filter(
-                or_(CAPAlert.expires.is_(None), CAPAlert.expires > utc_now())
-            ).order_by(CAPAlert.severity.desc(), CAPAlert.sent.desc()).limit(5).all()
-
-            if active:
-                self.led_controller.display_alerts(active)
-                self.logger.info(f"Updated LED with {len(active)} active alerts")
-            else:
-                self.led_controller.display_default_message()
-                self.logger.info("Updated LED with default message (no active alerts)")
-        except Exception as e:
-            self.logger.error(f"LED update failed: {e}")
 
     # ---------- Maintenance ----------
     def fix_existing_geometry(self) -> Dict:
@@ -2552,14 +2581,12 @@ class CAPPoller:
             'zone': f"{'/'.join(self.location_settings['zone_codes'])} ({self.location_name}) - STRICT FILTERING",
             'poll_time_utc': poll_start_utc.isoformat(),
             'poll_time_local': poll_start_local.isoformat(),
-            'timezone': self.location_settings['timezone'], 'led_updated': False,
+            'timezone': self.location_settings['timezone'],
             'sources': [], 'duplicates_filtered': 0,
             'poll_run_id': poll_run_id,
-            'radio_captures': 0,
         }
 
         debug_records: List[Dict[str, Any]] = []
-        capture_events: List[Dict[str, Any]] = []
 
         try:
             # Log poller mode and endpoints
@@ -2581,8 +2608,6 @@ class CAPPoller:
                 else:
                     env_marker = ""
                 self.logger.info(f"Polling: {first_endpoint}{env_marker}")
-
-            self._refresh_radio_configuration()
 
             alerts_data = self.fetch_cap_alerts()
             stats['alerts_fetched'] = len(alerts_data)
@@ -2658,10 +2683,9 @@ class CAPPoller:
 
                 if is_storage_relevant:
                     # SAME code match: Save to database and calculate boundaries
-                    is_new, alert, capture_metadata = self.save_cap_alert(parsed)
+                    is_new, alert, _ = self.save_cap_alert(parsed)
                     if is_new:
                         stats['alerts_new'] += 1
-                        stats['led_updated'] = True
                         self.logger.info(
                             f"Saved new {self.location_name} alert: {alert.event if alert else parsed['event']} - Sent: {format_local_datetime(parsed.get('sent'))}"
                         )
@@ -2678,10 +2702,6 @@ class CAPPoller:
                         if not alert:
                             debug_entry.setdefault('notes', []).append('Database save failed')
 
-                    if capture_metadata:
-                        capture_metadata.setdefault('timestamp', utc_now())
-                        stats['radio_captures'] += len(capture_metadata.get('captures', []))
-                        capture_events.append(capture_metadata)
                 else:
                     # UGC/Zone match only: Broadcast but don't store or calculate boundaries
                     self.logger.info(
@@ -2692,41 +2712,32 @@ class CAPPoller:
                         debug_entry['was_saved'] = False
                         debug_entry['was_new'] = False
 
-                    # Trigger EAS broadcast without saving to database
-                    if self.eas_broadcaster:
-                        try:
-                            # Create a temporary alert object for broadcasting without persisting
-                            from app_core.models import CAPAlert
-                            # Remove geometry data before creating CAPAlert object (not a valid constructor argument)
-                            broadcast_payload = dict(parsed)
-                            broadcast_payload.pop('_geometry_data', None)
-                            temp_alert = CAPAlert(**broadcast_payload)
-                            broadcast_result = self.eas_broadcaster.handle_alert(temp_alert, alert_data)
-                            if broadcast_result and broadcast_result.get("same_triggered"):
-                                self.logger.info(f"EAS broadcast triggered for {event}")
-                            capture_metadata = {"broadcast": broadcast_result, "broadcast_only": True}
-                            capture_metadata.setdefault('timestamp', utc_now())
-                            capture_events.append(capture_metadata)
-                        except Exception as exc:
-                            self.logger.error(f"EAS broadcast failed for {event}: {exc}")
-                            if self._debug_records_enabled:
-                                debug_entry.setdefault('notes', []).append(f'Broadcast error: {exc}')
+                    # Publish broadcast-only alert to Redis for EAS service
+                    self._publish_alert_event('alerts:broadcast_only', {
+                        'event': event,
+                        'severity': parsed.get('severity'),
+                        'urgency': parsed.get('urgency'),
+                        'certainty': parsed.get('certainty'),
+                        'sent': parsed.get('sent'),
+                        'expires': parsed.get('expires'),
+                        'raw_json': alert_data.get('raw_json', {})
+                    })
 
             self.cleanup_old_poll_history()
             self.log_poll_history(stats)
             self.persist_debug_records(poll_run_id, poll_start_utc, stats, debug_records)
             self.cleanup_old_debug_records()
 
-            if self.led_controller:
-                self.update_led_display()
-                stats['led_updated'] = True
+            # Publish LED refresh event to update display with all current alerts
+            self._publish_alert_event('alerts:led:refresh', {
+                'timestamp': utc_now()
+            })
 
             stats['execution_time_ms'] = int((time.time() - start) * 1000)
             self.logger.info(
                 f"Polling cycle completed: {stats['alerts_accepted']} accepted, {stats['alerts_new']} new, "
                 f"{stats['alerts_updated']} updated, {stats['alerts_filtered']} filtered, "
-                f"{stats['duplicates_filtered']} duplicates skipped, "
-                f"{stats['radio_captures']} radio captures"
+                f"{stats['duplicates_filtered']} duplicates skipped"
             )
             if stats['sources']:
                 self.logger.info("Polling sources: %s", ", ".join(stats['sources']))
@@ -2742,26 +2753,20 @@ class CAPPoller:
             self.persist_debug_records(poll_run_id, poll_start_utc, stats, debug_records)
             self.cleanup_old_debug_records()
 
-        finally:
-            try:
-                self._record_receiver_statuses(capture_events)
-            except Exception as exc:
-                self.logger.error("Failed to persist radio status snapshots: %s", exc)
-
         return stats
 
     def close(self):
         try:
             if hasattr(self, 'db_session'):
                 self.db_session.close()
+            if hasattr(self, 'redis_client') and self.redis_client:
+                try:
+                    self.redis_client.close()
+                except Exception as redis_exc:
+                    self.logger.debug("Redis client cleanup failed: %s", redis_exc)
         finally:
             if hasattr(self, 'session'):
                 self.session.close()
-            if self.led_controller:
-                try:
-                    self.led_controller.close()
-                except Exception as led_exc:
-                    self.logger.debug("LED controller cleanup failed: %s", led_exc)
 
 # =======================================================================================
 # Main
@@ -2810,25 +2815,11 @@ def main():
     parser.add_argument('--database-url',
                         default=database_url,
                         help='SQLAlchemy DB URL (from DATABASE_URL env var)')
-    parser.add_argument('--led-ip', help='LED sign IP address')
-    parser.add_argument('--led-port', type=int, default=10001, help='LED sign port (default: 10001)')
     parser.add_argument('--log-level', default=os.getenv('LOG_LEVEL', 'INFO'),
                         choices=['DEBUG', 'INFO', 'WARNING', 'ERROR'], help='Logging level')
     parser.add_argument('--continuous', action='store_true', help='Run continuously')
     parser.add_argument('--interval', type=int, default=int(os.getenv('POLL_INTERVAL_SEC', '300')),
                         help='Polling interval seconds (default: 300, minimum: 30)')
-    radio_default = _env_flag('CAP_POLLER_ENABLE_RADIO', False)
-    parser.add_argument(
-        '--radio-captures',
-        dest='radio_captures',
-        action=argparse.BooleanOptionalAction,
-        default=radio_default,
-        help=(
-            'Let the CAP poller request SDR capture files via RadioManager when alert audio plays. '
-            'This does not manage continuous SDR monitoring. '
-            'Defaults to disabled; set CAP_POLLER_ENABLE_RADIO=1 or pass --radio-captures to enable.'
-        ),
-    )
     parser.add_argument('--cap-endpoint', dest='cap_endpoints', action='append', default=[],
                         help='Custom CAP feed endpoint (repeatable)')
     parser.add_argument('--cap-endpoints', dest='cap_endpoints_csv',
@@ -2845,11 +2836,9 @@ def main():
     logger = logging.getLogger(__name__)
 
     startup_utc = utc_now()
-    # Unified poller - always polls NOAA + IPAWS + custom sources
-    logger.info("Starting Alert Poller with LED Integration - Unified Mode (NOAA + IPAWS)")
+    # Unified poller - polls NOAA + IPAWS + custom sources, publishes to Redis
+    logger.info("Starting CAP Alert Poller - Unified Mode (NOAA + IPAWS) with Redis Event Publishing")
     logger.info(f"Startup time: {format_local_datetime(startup_utc)}")
-    if args.led_ip:
-        logger.info(f"LED Sign: {args.led_ip}:{args.led_port}")
 
     cli_endpoints = list(args.cap_endpoints or [])
     if args.cap_endpoints_csv:
@@ -2861,10 +2850,7 @@ def main():
 
     poller = CAPPoller(
         args.database_url,
-        args.led_ip,
-        args.led_port,
         cap_endpoints=cli_endpoints or None,
-        enable_radio_captures=args.radio_captures,
     )
 
     try:
