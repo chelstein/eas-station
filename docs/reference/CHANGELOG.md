@@ -7,12 +7,12 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
-- **Poller database authentication failure** - Fixed hardcoded `postgres` user in systemd service file; now uses `${POSTGRES_USER}` from .env
+- **Poller service database URL** - Removed hardcoded URL construction from systemd service file; now lets Python build URL from POSTGRES_* environment variables
 - **Systemd logs permission error** - Added missing `os` import in `webapp/routes_logs.py` that caused crash when checking journal permissions
 - **Install script systemd-journal group** - Install script now automatically adds service user to `systemd-journal` group for log viewing access
 
 ### Changed
-- VERSION bumped to 2.21.2
+- VERSION bumped to 2.21.3
 
 ## [2.21.0] - 2025-12-12
 
