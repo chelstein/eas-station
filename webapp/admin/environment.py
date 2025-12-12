@@ -115,7 +115,8 @@ def _find_ssl_material(filename: str) -> tuple[Path | None, List[Path], str | No
 
     search_roots = [
         Path('/etc/letsencrypt/live'),
-        Path('/app-config/certs/live'),
+        # For bare metal: use project directory for certs
+        Path(__file__).parent.parent.parent / 'certs' / 'live',
     ]
 
     attempted_paths: List[Path] = []
@@ -897,7 +898,7 @@ ENV_CATEGORIES = {
                 'key': 'RADIO_CAPTURE_DIR',
                 'label': 'Capture Directory',
                 'type': 'text',
-                'default': '/app/captures',
+                'default': '/opt/eas-station/radio_captures',
                 'description': 'Directory to store captured radio audio files',
             },
             {
@@ -1070,7 +1071,7 @@ ENV_CATEGORIES = {
                 'key': 'UPLOAD_FOLDER',
                 'label': 'Upload Directory',
                 'type': 'text',
-                'default': '/app/uploads',
+                'default': '/opt/eas-station/uploads',
                 'description': 'Directory for file uploads',
             },
         ],
