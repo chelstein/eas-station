@@ -88,27 +88,19 @@ IPAWS_ENVIRONMENTS = {
 
 
 def _get_config_path() -> Path:
-    """Get the path to the persistent IPAWS config file.
+    """Get the path to the master persistent config file.
 
-    The IPAWS poller runs as its own service and reads configuration from a
-    dedicated file (typically `/app-config/ipaws.env`). If the UI writes to the
-    wrong file (such as the main application `.env`), the poller silently falls
-    back to the staging defaults. Prioritize an explicit IPAWS config path so
-    the poller and UI stay in sync.
+    All services (web, NOAA poller, IPAWS poller) share the same configuration
+    file for consistency. The CONFIG_PATH environment variable can override the
+    default location.
     """
-
-    # Explicit override for IPAWS configuration
-    ipaws_path_env = os.environ.get('IPAWS_CONFIG_PATH', '').strip()
-    if ipaws_path_env:
-        return Path(ipaws_path_env)
-
-    # Fallback to shared CONFIG_PATH to maintain backward compatibility
+    # Explicit override via CONFIG_PATH environment variable
     config_path_env = os.environ.get('CONFIG_PATH', '').strip()
     if config_path_env:
         return Path(config_path_env)
 
-    # Default to the poller-specific config file location
-    return Path('/app-config/ipaws.env')
+    # Default to the standard persistent config file location
+    return Path('/app-config/.env')
 
 
 def _read_current_config() -> Dict[str, str]:
@@ -202,6 +194,9 @@ def _get_ipaws_status() -> Dict:
 def _update_env_file(key: str, value: str) -> None:
     """Update a single key in the .env file."""
     config_path = _get_config_path()
+
+    # Ensure parent directory exists
+    config_path.parent.mkdir(parents=True, exist_ok=True)
 
     if not config_path.exists():
         # Create new file
