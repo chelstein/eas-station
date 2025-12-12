@@ -1304,8 +1304,17 @@ def register(app: Flask, logger) -> None:
             except Exception as e:
                 route_logger.warning("Failed to load service logs: %s", e)
 
-            # Sort all logs by timestamp
-            all_logs.sort(key=lambda x: x['timestamp'] if x['timestamp'] else datetime.min, reverse=True)
+            # Sort all logs by timestamp (handle both timezone-aware and naive datetimes)
+            def get_sort_key(log_entry):
+                ts = log_entry.get('timestamp')
+                if ts is None:
+                    return datetime.min.replace(tzinfo=None)
+                # Strip timezone info for consistent comparison
+                if hasattr(ts, 'tzinfo') and ts.tzinfo is not None:
+                    return ts.replace(tzinfo=None)
+                return ts
+
+            all_logs.sort(key=get_sort_key, reverse=True)
             logs_data = all_logs[:limit]
 
         elif log_type == 'system':
@@ -1691,8 +1700,17 @@ def register(app: Flask, logger) -> None:
                 elif not result.get('success'):
                     # Log the error but continue with other services
                     route_logger.debug("Failed to fetch logs for %s: %s", service, result.get('error', 'Unknown error'))
-            # Sort by timestamp
-            logs_data.sort(key=lambda x: x['timestamp'] if x.get('timestamp') else datetime.min, reverse=True)
+
+            # Sort by timestamp (handle both timezone-aware and naive datetimes)
+            def get_sort_key(log_entry):
+                ts = log_entry.get('timestamp')
+                if ts is None:
+                    return datetime.min.replace(tzinfo=None)
+                if hasattr(ts, 'tzinfo') and ts.tzinfo is not None:
+                    return ts.replace(tzinfo=None)
+                return ts
+
+            logs_data.sort(key=get_sort_key, reverse=True)
             logs_data = logs_data[:limit]
 
         return log_type_name, logs_data
