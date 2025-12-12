@@ -51,43 +51,78 @@ def is_valid_since_param(since: str) -> bool:
 def get_systemd_logs(service: str, lines: int = 100, priority: str = None, since: str = None) -> Dict[str, Any]:
     """
     Fetch logs from systemd journalctl for a specific service.
-    
+
     Args:
         service: Service name (e.g., 'eas-station-web.service')
         lines: Number of log lines to retrieve
         priority: Log priority filter (err, warning, info, debug)
         since: Time filter (e.g., 'today', '1 hour ago', '2025-12-10')
-    
+
     Returns:
         Dictionary with logs and metadata
     """
+    import shutil
+
+    # Check if journalctl is available
+    if not shutil.which('journalctl'):
+        return {
+            'success': False,
+            'error': 'journalctl not available on this system',
+            'service': service
+        }
+
     try:
         cmd = ['journalctl', '-u', service, '-n', str(lines), '--no-pager', '--output=json']
-        
+
         if priority:
             cmd.extend(['-p', priority])
-        
+
         if since:
             cmd.extend(['--since', since])
-        
+
+        logger.debug("Running journalctl command: %s", ' '.join(cmd))
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
-        
+        logger.debug("journalctl returncode=%d, stdout_len=%d, stderr_len=%d",
+                     result.returncode, len(result.stdout or ''), len(result.stderr or ''))
+
+        # Check for common issues in stderr/stdout
+        combined_output = (result.stdout or '') + (result.stderr or '')
+
+        # Permission denied check
+        if 'Permission denied' in combined_output or 'Access denied' in combined_output:
+            return {
+                'success': False,
+                'error': 'Permission denied accessing journal (web server user may need systemd-journal group)',
+                'service': service
+            }
+
+        if 'No journal files were found' in combined_output:
+            return {
+                'success': False,
+                'error': 'Systemd journal not available',
+                'service': service
+            }
+
         if result.returncode == 0:
             import json
             logs = []
-            for line in result.stdout.strip().split('\n'):
-                if line:
-                    try:
-                        log_entry = json.loads(line)
-                        logs.append({
-                            'timestamp': log_entry.get('__REALTIME_TIMESTAMP', ''),
-                            'priority': log_entry.get('PRIORITY', '6'),
-                            'message': log_entry.get('MESSAGE', ''),
-                            'unit': log_entry.get('_SYSTEMD_UNIT', service)
-                        })
-                    except json.JSONDecodeError:
-                        continue
-            
+            output = result.stdout.strip()
+            if output and '-- No entries --' not in output:
+                for line in output.split('\n'):
+                    if line and not line.startswith('--'):
+                        try:
+                            log_entry = json.loads(line)
+                            logs.append({
+                                'timestamp': log_entry.get('__REALTIME_TIMESTAMP', ''),
+                                'priority': log_entry.get('PRIORITY', '6'),
+                                'message': log_entry.get('MESSAGE', ''),
+                                'unit': log_entry.get('_SYSTEMD_UNIT', service)
+                            })
+                        except json.JSONDecodeError as e:
+                            logger.debug("Failed to parse JSON line: %s (error: %s)", line[:100], e)
+                            continue
+
+            logger.debug("Parsed %d log entries for %s", len(logs), service)
             return {
                 'success': True,
                 'service': service,
@@ -95,12 +130,28 @@ def get_systemd_logs(service: str, lines: int = 100, priority: str = None, since
                 'count': len(logs)
             }
         else:
+            error_msg = result.stderr.strip() if result.stderr else 'Failed to fetch logs'
+            logger.debug("journalctl failed for %s: %s", service, error_msg)
+            # journalctl returns exit code 1 when no entries are found for a unit
+            if 'No entries' in error_msg or 'No entries' in (result.stdout or '') or result.returncode == 1:
+                return {
+                    'success': True,
+                    'service': service,
+                    'logs': [],
+                    'count': 0
+                }
             return {
                 'success': False,
-                'error': result.stderr or 'Failed to fetch logs',
+                'error': error_msg,
                 'service': service
             }
-    
+
+    except FileNotFoundError:
+        return {
+            'success': False,
+            'error': 'journalctl command not found',
+            'service': service
+        }
     except subprocess.TimeoutExpired:
         return {
             'success': False,
