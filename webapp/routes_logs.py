@@ -75,7 +75,7 @@ def get_systemd_logs(service: str, lines: int = 100, priority: str = None, since
         }
 
     try:
-        cmd = ['journalctl', '-u', service, '-n', str(lines), '--no-pager', '--output=json']
+        cmd = ['journalctl', '-u', service, '-n', str(lines), '--no-pager', '--output=json', '--all']
 
         if priority:
             cmd.extend(['-p', priority])
