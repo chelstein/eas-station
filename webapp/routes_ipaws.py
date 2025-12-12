@@ -93,14 +93,25 @@ def _get_config_path() -> Path:
     All services (web, NOAA poller, IPAWS poller) share the same configuration
     file for consistency. The CONFIG_PATH environment variable can override the
     default location.
+    
+    Falls back to project directory .env if /app-config is not writable.
     """
     # Explicit override via CONFIG_PATH environment variable
     config_path_env = os.environ.get('CONFIG_PATH', '').strip()
     if config_path_env:
         return Path(config_path_env)
 
-    # Default to the standard persistent config file location
-    return Path('/app-config/.env')
+    # Try the standard persistent config file location if it exists and is writable
+    default_path = Path('/app-config/.env')
+    if default_path.parent.exists() and os.access(default_path.parent, os.W_OK):
+        return default_path
+    
+    # Fallback to project directory .env file (writable location)
+    # Get the project root directory (parent of webapp directory)
+    project_root = Path(__file__).parent.parent
+    fallback_path = project_root / '.env'
+    logger.info(f"Using fallback config path: {fallback_path} (/app-config not writable)")
+    return fallback_path
 
 
 def _read_current_config() -> Dict[str, str]:
@@ -192,38 +203,79 @@ def _get_ipaws_status() -> Dict:
 
 
 def _update_env_file(key: str, value: str) -> None:
-    """Update a single key in the .env file."""
+    """Update a single key in the .env file.
+    
+    Raises:
+        PermissionError: If the config file or directory is not writable
+        IOError: If there's an error reading or writing the file
+    """
     config_path = _get_config_path()
 
-    # Ensure parent directory exists
-    config_path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        # Ensure parent directory exists and is writable
+        if not config_path.parent.exists():
+            try:
+                config_path.parent.mkdir(parents=True, exist_ok=True)
+            except (PermissionError, OSError) as e:
+                raise PermissionError(
+                    f"Cannot create config directory {config_path.parent}: {e}. "
+                    f"Please ensure the directory exists and is writable, or set CONFIG_PATH environment variable."
+                ) from e
+        
+        # Check if parent directory is writable
+        if not os.access(config_path.parent, os.W_OK):
+            raise PermissionError(
+                f"Config directory {config_path.parent} is not writable. "
+                f"Please check permissions or set CONFIG_PATH to a writable location."
+            )
 
-    if not config_path.exists():
-        # Create new file
-        with open(config_path, 'w') as f:
-            f.write(f"{key}={value}\n")
-        return
+        if not config_path.exists():
+            # Create new file
+            try:
+                with open(config_path, 'w') as f:
+                    f.write(f"{key}={value}\n")
+                logger.info(f"Created new config file at {config_path}")
+                return
+            except (PermissionError, OSError) as e:
+                raise PermissionError(
+                    f"Cannot create config file {config_path}: {e}. "
+                    f"Please check permissions or set CONFIG_PATH environment variable."
+                ) from e
 
-    # Read existing content
-    lines = []
-    key_found = False
+        # Read existing content
+        lines = []
+        key_found = False
 
-    with open(config_path, 'r') as f:
-        for line in f:
-            stripped = line.strip()
-            if stripped.startswith(f"{key}="):
-                lines.append(f"{key}={value}\n")
-                key_found = True
-            else:
-                lines.append(line)
+        try:
+            with open(config_path, 'r') as f:
+                for line in f:
+                    stripped = line.strip()
+                    if stripped.startswith(f"{key}="):
+                        lines.append(f"{key}={value}\n")
+                        key_found = True
+                    else:
+                        lines.append(line)
+        except (PermissionError, OSError) as e:
+            raise IOError(f"Cannot read config file {config_path}: {e}") from e
 
-    # Add key if it wasn't found
-    if not key_found:
-        lines.append(f"{key}={value}\n")
+        # Add key if it wasn't found
+        if not key_found:
+            lines.append(f"{key}={value}\n")
 
-    # Write back
-    with open(config_path, 'w') as f:
-        f.writelines(lines)
+        # Write back
+        try:
+            with open(config_path, 'w') as f:
+                f.writelines(lines)
+            logger.info(f"Updated {key} in config file {config_path}")
+        except (PermissionError, OSError) as e:
+            raise PermissionError(
+                f"Cannot write to config file {config_path}: {e}. "
+                f"Please check permissions or set CONFIG_PATH environment variable."
+            ) from e
+    except Exception as e:
+        # Log the error for debugging
+        logger.error(f"Error updating config file: {e}")
+        raise
 
 
 def _restart_ipaws_poller() -> bool:

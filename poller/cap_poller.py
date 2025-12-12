@@ -88,8 +88,16 @@ def _resolve_config_path() -> Optional[Path]:
     if config_path:
         return Path(config_path)
     
-    # Default to the standard persistent config location
-    return Path('/app-config/.env')
+    # Try the standard persistent config file location if it exists and is writable
+    default_path = Path('/app-config/.env')
+    if default_path.parent.exists() and os.access(default_path.parent, os.W_OK):
+        return default_path
+    
+    # Fallback to project directory .env file (writable location)
+    project_root = Path(__file__).parent.parent
+    fallback_path = project_root / '.env'
+    print(f"[CAP_POLLER] Using fallback config path: {fallback_path} (/app-config not writable)")
+    return fallback_path
 
 
 # Load the master configuration file
