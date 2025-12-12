@@ -460,6 +460,80 @@ def api_noaa_configure():
         return jsonify({'error': str(exc)}), 500
 
 
+@ipaws_bp.route('/api/ipaws/configure-custom-sources', methods=['POST'])
+@require_permission('system.edit_config')
+def api_configure_custom_sources():
+    """Configure custom CAP alert sources."""
+    try:
+        data = request.get_json()
+        if not data:
+            raise BadRequest("No data provided")
+
+        cap_endpoints = data.get('cap_endpoints', '').strip()
+        poll_interval = data.get('poll_interval', '120')
+
+        # Validate poll interval
+        try:
+            interval_int = int(poll_interval)
+            if interval_int < 30:
+                raise BadRequest("Poll interval must be at least 30 seconds")
+        except ValueError:
+            raise BadRequest("Invalid poll interval")
+
+        # Update configuration
+        _update_env_file('CAP_ENDPOINTS', cap_endpoints)
+        _update_env_file('POLL_INTERVAL_SEC', poll_interval)
+
+        # Restart the poller service (unified poller, not separate services)
+        restart_success = False
+        try:
+            # Try to restart the unified poller service
+            result = subprocess.run(
+                ['sudo', 'systemctl', 'restart', 'eas-station-poller.service'],
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
+            restart_success = result.returncode == 0
+            if restart_success:
+                logger.info("Alert poller restarted successfully")
+            else:
+                logger.warning(f"Failed to restart poller: {result.stderr}")
+                # Try legacy service names for backward compatibility
+                for service in ['eas-station-noaa-poller.service', 'eas-station-ipaws-poller.service']:
+                    try:
+                        result = subprocess.run(
+                            ['sudo', 'systemctl', 'restart', service],
+                            capture_output=True,
+                            text=True,
+                            timeout=30
+                        )
+                        if result.returncode == 0:
+                            logger.info(f"Restarted {service}")
+                            restart_success = True
+                    except Exception:
+                        pass
+        except Exception as exc:
+            logger.error(f"Error restarting poller: {exc}")
+
+        return jsonify({
+            'success': True,
+            'cap_endpoints': cap_endpoints,
+            'poll_interval': poll_interval,
+            'poller_restarted': restart_success,
+            'message': 'Custom alert sources updated successfully' + (
+                ' and poller restarted' if restart_success else ' (manual restart required)'
+            )
+        })
+
+    except BadRequest as e:
+        return jsonify({'error': str(e)}), 400
+    except Exception as exc:
+        logger.error(f"Error configuring custom sources: {exc}")
+        return jsonify({'error': str(exc)}), 500
+
+
+
 def register(app, logger):
     """Register IPAWS routes with the Flask app."""
     app.register_blueprint(ipaws_bp)

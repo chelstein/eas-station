@@ -494,11 +494,38 @@
         </div>
     </div>
 
+    <!-- Custom Alert Sources -->
+    <div class="feed-section" style="margin-bottom: 2rem;">
+        <h2>
+            <i class="fas fa-plus-circle" style="color: var(--primary-color);"></i>
+            Custom Alert Sources (Advanced)
+        </h2>
+        <p style="font-size: 0.875rem; color: var(--text-secondary); margin-bottom: 1rem;">
+            Add additional CAP-compliant alert feeds. Comma-separated list of URLs. The unified poller automatically fetches from all configured sources.
+        </p>
+        <form id="customSourcesForm">
+            <div class="config-card">
+                <div class="form-group">
+                    <label for="capEndpoints">Additional CAP Endpoints</label>
+                    <textarea id="capEndpoints" name="cap_endpoints" rows="3"
+                              placeholder="https://custom-cap-server.example.com/feed,https://another-source.com/alerts">{{ noaa_status.custom_endpoints }}</textarea>
+                    <div class="form-help">
+                        Enter comma-separated URLs for any CAP-compliant alert feeds. Leave empty if not using custom sources.
+                    </div>
+                </div>
+            </div>
+
+            <button type="submit" class="btn-primary">
+                <i class="fas fa-save"></i> Update Custom Sources
+            </button>
+        </form>
+    </div>
+
     <!-- Shared Settings -->
     <div class="shared-settings">
-        <h2><i class="fas fa-clock"></i> Shared Poll Interval</h2>
+        <h2><i class="fas fa-clock"></i> Unified Poll Interval</h2>
         <p style="font-size: 0.875rem; color: var(--text-secondary); margin-bottom: 1rem;">
-            Both NOAA and IPAWS pollers use this interval. FEMA recommends 2 minutes (120 seconds) minimum.
+            All alert sources (NOAA, IPAWS, and custom) are polled together using this single interval. FEMA recommends minimum 2 minutes (120 seconds).
         </p>
         <div class="form-group">
             <label for="sharedPollInterval">Poll Interval (seconds)</label>
@@ -616,6 +643,35 @@ async function disableIPAWS() {
         showAlert('Error disabling IPAWS: ' + error.message, 'error');
     }
 }
+
+// Custom Sources Configuration
+document.getElementById('customSourcesForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const capEndpoints = document.getElementById('capEndpoints').value.trim();
+    const pollInterval = document.getElementById('sharedPollInterval').value;
+
+    try {
+        const response = await fetch('/api/ipaws/configure-custom-sources', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                cap_endpoints: capEndpoints,
+                poll_interval: pollInterval
+            })
+        });
+
+        const result = await response.json();
+        if (result.success) {
+            showAlert('Custom alert sources updated successfully', 'success');
+            setTimeout(() => location.reload(), 2000);
+        } else {
+            showAlert(result.error || 'Failed to update custom sources', 'error');
+        }
+    } catch (error) {
+        showAlert('Error updating custom sources: ' + error.message, 'error');
+    }
+});
 
 // IPAWS status update handler for alert feeds page
 function handleAlertFeedsIpawsUpdate(data) {
