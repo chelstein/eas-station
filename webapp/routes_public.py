@@ -1285,12 +1285,12 @@ def register(app: Flask, logger) -> None:
             except Exception as e:
                 route_logger.warning("Failed to load manual activations: %s", e)
 
-            # Service Logs (systemd)
+            # Service Logs (systemd) - fetch recent logs without date restriction
             try:
                 services = get_all_log_services()
                 lines_per_service = max(3, logs_per_category // len(services)) if services else 10
                 for service in services:
-                    result = get_systemd_logs(service, lines=lines_per_service, priority=None, since='today')
+                    result = get_systemd_logs(service, lines=lines_per_service, priority=None, since=None)
                     if result.get('success') and result.get('logs'):
                         for log_entry in result['logs']:
                             all_logs.append({
@@ -1674,10 +1674,11 @@ def register(app: Flask, logger) -> None:
                 lines_per_service = limit
             else:
                 services_to_fetch = get_all_log_services()
-                lines_per_service = max(5, limit // len(services_to_fetch))
+                lines_per_service = max(5, limit // len(services_to_fetch)) if services_to_fetch else limit
 
             for service in services_to_fetch:
-                result = get_systemd_logs(service, lines=lines_per_service, priority=None, since='today')
+                # Don't restrict to 'today' - fetch recent logs regardless of date
+                result = get_systemd_logs(service, lines=lines_per_service, priority=None, since=None)
                 if result.get('success') and result.get('logs'):
                     for log_entry in result['logs']:
                         logs_data.append({
@@ -1687,6 +1688,9 @@ def register(app: Flask, logger) -> None:
                             'message': log_entry.get('message', ''),
                             'details': {'service': service, 'priority': log_entry.get('priority')},
                         })
+                elif not result.get('success'):
+                    # Log the error but continue with other services
+                    route_logger.debug("Failed to fetch logs for %s: %s", service, result.get('error', 'Unknown error'))
             # Sort by timestamp
             logs_data.sort(key=lambda x: x['timestamp'] if x.get('timestamp') else datetime.min, reverse=True)
             logs_data = logs_data[:limit]

@@ -51,43 +51,64 @@ def is_valid_since_param(since: str) -> bool:
 def get_systemd_logs(service: str, lines: int = 100, priority: str = None, since: str = None) -> Dict[str, Any]:
     """
     Fetch logs from systemd journalctl for a specific service.
-    
+
     Args:
         service: Service name (e.g., 'eas-station-web.service')
         lines: Number of log lines to retrieve
         priority: Log priority filter (err, warning, info, debug)
         since: Time filter (e.g., 'today', '1 hour ago', '2025-12-10')
-    
+
     Returns:
         Dictionary with logs and metadata
     """
+    import shutil
+
+    # Check if journalctl is available
+    if not shutil.which('journalctl'):
+        return {
+            'success': False,
+            'error': 'journalctl not available on this system',
+            'service': service
+        }
+
     try:
         cmd = ['journalctl', '-u', service, '-n', str(lines), '--no-pager', '--output=json']
-        
+
         if priority:
             cmd.extend(['-p', priority])
-        
+
         if since:
             cmd.extend(['--since', since])
-        
+
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
-        
+
+        # Check for common issues in stderr/stdout
+        combined_output = (result.stdout or '') + (result.stderr or '')
+        if 'No journal files were found' in combined_output:
+            return {
+                'success': False,
+                'error': 'Systemd journal not available (common in containerized environments)',
+                'service': service
+            }
+
         if result.returncode == 0:
             import json
             logs = []
-            for line in result.stdout.strip().split('\n'):
-                if line:
-                    try:
-                        log_entry = json.loads(line)
-                        logs.append({
-                            'timestamp': log_entry.get('__REALTIME_TIMESTAMP', ''),
-                            'priority': log_entry.get('PRIORITY', '6'),
-                            'message': log_entry.get('MESSAGE', ''),
-                            'unit': log_entry.get('_SYSTEMD_UNIT', service)
-                        })
-                    except json.JSONDecodeError:
-                        continue
-            
+            output = result.stdout.strip()
+            if output and '-- No entries --' not in output:
+                for line in output.split('\n'):
+                    if line and not line.startswith('--'):
+                        try:
+                            log_entry = json.loads(line)
+                            logs.append({
+                                'timestamp': log_entry.get('__REALTIME_TIMESTAMP', ''),
+                                'priority': log_entry.get('PRIORITY', '6'),
+                                'message': log_entry.get('MESSAGE', ''),
+                                'unit': log_entry.get('_SYSTEMD_UNIT', service)
+                            })
+                        except json.JSONDecodeError:
+                            continue
+
             return {
                 'success': True,
                 'service': service,
@@ -95,12 +116,27 @@ def get_systemd_logs(service: str, lines: int = 100, priority: str = None, since
                 'count': len(logs)
             }
         else:
+            error_msg = result.stderr.strip() if result.stderr else 'Failed to fetch logs'
+            # journalctl returns exit code 1 when no entries are found for a unit
+            if 'No entries' in error_msg or 'No entries' in (result.stdout or '') or result.returncode == 1:
+                return {
+                    'success': True,
+                    'service': service,
+                    'logs': [],
+                    'count': 0
+                }
             return {
                 'success': False,
-                'error': result.stderr or 'Failed to fetch logs',
+                'error': error_msg,
                 'service': service
             }
-    
+
+    except FileNotFoundError:
+        return {
+            'success': False,
+            'error': 'journalctl command not found',
+            'service': service
+        }
     except subprocess.TimeoutExpired:
         return {
             'success': False,
