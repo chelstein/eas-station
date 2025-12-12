@@ -7,13 +7,16 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Changed
+- **.env.example minimized** - Removed all comments and obsolete variables
+  - Reduced from 373 lines to 36 lines
+  - Kept only essential variables needed for operation
+  - No explanatory comments - configuration is managed via web UI
 - **ALL database connections use DATABASE_URL** - Removed POSTGRES_* variables completely
   - Format: `DATABASE_URL=postgresql+psycopg2://username:password@host:port/database`  
   - Updated ALL service files: app.py, fastapi_app.py, poller/cap_poller.py, hardware_service.py, sdr_hardware_service.py, eas_service.py, eas_monitoring_service.py
   - Updated utility scripts: run_eas_broadcaster.py, run_radio_manager.py
   - install.sh now writes DATABASE_URL instead of individual POSTGRES_* variables
-  - .env.example updated to show DATABASE_URL as the standard
-- VERSION bumped to 2.21.6
+- VERSION bumped to 2.21.7
 
 ### Fixed
 - **Systemd logs permission error** - Added missing `os` import in `webapp/routes_logs.py`
@@ -21,6 +24,8 @@ tracks releases under the 2.x series.
 
 ### Removed
 - POSTGRES_USER, POSTGRES_HOST, POSTGRES_PORT, POSTGRES_DB, POSTGRES_PASSWORD variables (replaced by DATABASE_URL)
+- All verbose comments from .env.example (373 lines → 36 lines)
+- Obsolete environment variables no longer used by the application
 
 ## [2.21.0] - 2025-12-12
 
