@@ -7,18 +7,20 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Changed
-- **Database URL no longer built dynamically** - All services now directly use `DATABASE_URL` environment variable
-  - Removed calls to `build_database_url()` and `build_database_url_from_env()` functions
-  - DATABASE_URL is now REQUIRED in `.env` file
-  - Format: `DATABASE_URL=postgresql+psycopg2://username:password@host:port/database`
-  - Affects: app.py, fastapi_app.py, poller/cap_poller.py
-- **Database configuration consolidated** - `.env.example` now uses single `DATABASE_URL` variable
-  - Legacy POSTGRES_* variables commented out for backward compatibility reference
-- VERSION bumped to 2.21.5
+- **ALL database connections use DATABASE_URL** - Removed POSTGRES_* variables completely
+  - Format: `DATABASE_URL=postgresql+psycopg2://username:password@host:port/database`  
+  - Updated ALL service files: app.py, fastapi_app.py, poller/cap_poller.py, hardware_service.py, sdr_hardware_service.py, eas_service.py, eas_monitoring_service.py
+  - Updated utility scripts: run_eas_broadcaster.py, run_radio_manager.py
+  - install.sh now writes DATABASE_URL instead of individual POSTGRES_* variables
+  - .env.example updated to show DATABASE_URL as the standard
+- VERSION bumped to 2.21.6
 
 ### Fixed
 - **Systemd logs permission error** - Added missing `os` import in `webapp/routes_logs.py`
-- **Install script systemd-journal group** - Install script automatically adds service user to `systemd-journal` group
+- **Install script systemd-journal group** - Automatically adds service user to `systemd-journal` group
+
+### Removed
+- POSTGRES_USER, POSTGRES_HOST, POSTGRES_PORT, POSTGRES_DB, POSTGRES_PASSWORD variables (replaced by DATABASE_URL)
 
 ## [2.21.0] - 2025-12-12
 
