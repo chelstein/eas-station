@@ -1416,11 +1416,7 @@ HOSTNAME=$SYSTEM_HOSTNAME
 DOMAIN_NAME=$DOMAIN_NAME
 
 # Database Configuration
-POSTGRES_HOST=localhost
-POSTGRES_PORT=5432
-POSTGRES_DB=alerts
-POSTGRES_USER=eas_station
-POSTGRES_PASSWORD=$DB_PASSWORD
+DATABASE_URL=postgresql+psycopg2://eas_station:$DB_PASSWORD@localhost:5432/alerts
 
 # Redis Configuration
 REDIS_HOST=localhost

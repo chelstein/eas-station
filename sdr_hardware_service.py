@@ -234,30 +234,25 @@ def initialize_database():
     from app_core.extensions import db
     from flask import Flask
 
-    postgres_host = os.getenv("POSTGRES_HOST", "localhost")
-    postgres_port = os.getenv("POSTGRES_PORT", "5432")
-    postgres_db = os.getenv("POSTGRES_DB", "alerts")
-    postgres_user = os.getenv("POSTGRES_USER", "postgres")
-    postgres_password = os.getenv("POSTGRES_PASSWORD", "postgres")
+    database_url = os.getenv("DATABASE_URL")
+    if not database_url:
+        raise ValueError("DATABASE_URL environment variable is required")
 
-    from urllib.parse import quote_plus
-    escaped_password = quote_plus(postgres_password)
-
-    # Build database URI without logging credentials
-    db_uri = (
-        f"postgresql://{postgres_user}:{escaped_password}@"
-        f"{postgres_host}:{postgres_port}/{postgres_db}"
-    )
-
-    # Log connection info without credentials
-    logger.info(f"Connecting to database: {postgres_user}@{postgres_host}:{postgres_port}/{postgres_db}")
+    # Log connection info without credentials (extract username@host:port/db from URL)
+    import re
+    match = re.match(r'postgresql.*://([^:]+):.*@([^:]+):(\d+)/(.+)', database_url)
+    if match:
+        user, host, port, db_name = match.groups()
+        logger.info(f"Connecting to database: {user}@{host}:{port}/{db_name}")
+    else:
+        logger.info(f"Connecting to database with provided DATABASE_URL")
 
     # Retry database connection with exponential backoff
     max_retries = 10
     for attempt in range(max_retries):
         try:
             app = Flask(__name__)
-            app.config["SQLALCHEMY_DATABASE_URI"] = db_uri
+            app.config["SQLALCHEMY_DATABASE_URI"] = database_url
             app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
             app.config["SQLALCHEMY_ECHO"] = False
 
@@ -281,7 +276,6 @@ def initialize_database():
                 time.sleep(wait_time)
             else:
                 logger.error(f"❌ Failed to connect to database after {max_retries} attempts")
-                logger.error(f"   Connection string: postgresql://{postgres_user}:***@{postgres_host}:{postgres_port}/{postgres_db}")
                 logger.error(f"   Error: {e}")
                 raise
 
