@@ -7,12 +7,12 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **Poller database authentication failure** - Fixed hardcoded `postgres` user in systemd service file; now uses `${POSTGRES_USER}` from .env
 - **Systemd logs permission error** - Added missing `os` import in `webapp/routes_logs.py` that caused crash when checking journal permissions
 - **Install script systemd-journal group** - Install script now automatically adds service user to `systemd-journal` group for log viewing access
-- This fixes the "Permission denied accessing journal" error that appeared when viewing service logs
 
 ### Changed
-- VERSION bumped to 2.21.1
+- VERSION bumped to 2.21.2
 
 ## [2.21.0] - 2025-12-12
 
