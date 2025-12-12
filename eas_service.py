@@ -153,6 +153,7 @@ def initialize_eas_monitor(app):
         from app_core.audio.eas_monitor import EASMonitor, create_fips_filtering_callback
         from app_core.audio.redis_audio_adapter import RedisAudioAdapter
         from app_core.audio.startup_integration import load_fips_codes_from_config
+        from app_core.audio.alert_forwarding import forward_alert_to_api
 
         logger.info("Initializing EAS monitor...")
 
@@ -160,10 +161,23 @@ def initialize_eas_monitor(app):
         configured_fips = load_fips_codes_from_config()
         logger.info(f"Loaded {len(configured_fips)} FIPS codes for monitoring")
 
+        # Create alert forwarding handler
+        def forward_alert_handler(alert):
+            """Forward matched alerts to API."""
+            source_name = alert.get('source_name', 'unknown')
+            event_code = alert.get('event_code', 'UNKNOWN')
+            location_codes = alert.get('location_codes', [])
+            logger.info(
+                f"Forwarding alert from source '{source_name}': "
+                f"{event_code} for {location_codes}"
+            )
+            forward_alert_to_api(alert)
+
         # Create FIPS filtering callback
         fips_callback = create_fips_filtering_callback(
             configured_fips_codes=configured_fips,
-            flask_app=app
+            forward_callback=forward_alert_handler,
+            logger_instance=logger
         )
 
         # Create Redis audio adapter
