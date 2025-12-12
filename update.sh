@@ -19,7 +19,7 @@ NC='\033[0m' # No Color
 
 # Step counter for progress tracking
 STEP_NUM=0
-TOTAL_STEPS=10
+TOTAL_STEPS=11
 
 echo_step() {
     STEP_NUM=$((STEP_NUM + 1))
@@ -379,6 +379,20 @@ if [ -d ".git" ]; then
     find "$INSTALL_DIR" -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
     find "$INSTALL_DIR" -type f -name "*.pyc" -delete 2>/dev/null || true
     echo_success "Python cache cleared"
+    
+    # Display what version was pulled
+    if [ -f "$INSTALL_DIR/VERSION" ]; then
+        PULLED_VERSION=$(cat "$INSTALL_DIR/VERSION" | tr -d '\n' | tr -d '\r')
+        echo_info "Pulled version: ${BOLD}$PULLED_VERSION${NC}"
+    fi
+    
+    # Show git commit info
+    if [ -d "$INSTALL_DIR/.git" ]; then
+        PULLED_COMMIT=$(git -C "$INSTALL_DIR" rev-parse --short HEAD 2>/dev/null || echo "unknown")
+        PULLED_BRANCH=$(git -C "$INSTALL_DIR" branch --show-current 2>/dev/null || echo "unknown")
+        echo_info "Git branch: ${BOLD}$PULLED_BRANCH${NC}"
+        echo_info "Git commit: ${BOLD}$PULLED_COMMIT${NC}"
+    fi
 else
     # Download release tarball (for non-git installations)
     echo_info "Downloading release from GitHub..."
@@ -506,20 +520,17 @@ else
     echo_warning "Python environment not found - skipping database migrations"
 fi
 
-# Start services
-echo_step "Starting Services"
+# Restart services with updated code
+echo_step "Restarting Services"
 echo_progress "Reloading systemd daemon to pick up any service file changes..."
 systemctl daemon-reload
 echo_success "Systemd daemon reloaded"
 
-echo_progress "Starting EAS Station services..."
-systemctl start eas-station.target
-sleep 5
-
-# Force restart to ensure new code is loaded
-echo_progress "Restarting services to ensure new code is active..."
+echo_progress "Starting all EAS Station services with updated code..."
+# Use restart (not start) to ensure all services reload with new code
+# This works whether services were stopped or are already running
 systemctl restart eas-station.target
-sleep 3
+sleep 8
 
 # Check status
 echo_progress "Checking service status..."
