@@ -60,8 +60,11 @@ echo_success "Found EAS Station installation at $INSTALL_DIR"
 # Fix "dubious ownership" errors when running git as root
 # This allows git commands to work on repositories owned by SERVICE_USER
 echo_info "Configuring git safe.directory for $INSTALL_DIR..."
-git config --global --add safe.directory "$INSTALL_DIR" 2>/dev/null || true
-echo_success "Git configuration updated"
+if git config --global --add safe.directory "$INSTALL_DIR" 2>&1; then
+    echo_success "Git configuration updated"
+else
+    echo_warning "Could not update git config (non-critical - continuing)"
+fi
 
 # Check if .git already exists
 if [ -d "$INSTALL_DIR/.git" ]; then
