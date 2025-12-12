@@ -6,6 +6,15 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+### Changed
+- **Environment variable consolidation** - Reduced from 93 to 73 variables by consolidating related settings
+  - `MAIL_URL` replaces 5 mail variables (MAIL_SERVER, MAIL_PORT, MAIL_USERNAME, MAIL_PASSWORD, MAIL_USE_TLS)
+  - `LOCATION_CONFIG` (JSON) replaces 9 location variables (DEFAULT_TIMEZONE, DEFAULT_COUNTY_NAME, DEFAULT_STATE_CODE, DEFAULT_ZONE_CODES, DEFAULT_FIPS_CODES, DEFAULT_STORAGE_ZONE_CODES, DEFAULT_MAP_CENTER_LAT, DEFAULT_MAP_CENTER_LNG, DEFAULT_MAP_ZOOM)
+  - `ICECAST_CONFIG` (JSON) replaces 5 Icecast auth variables (ICECAST_SOURCE_PASSWORD, ICECAST_RELAY_PASSWORD, ICECAST_ADMIN_USER, ICECAST_ADMIN_PASSWORD, ICECAST_ADMIN)
+  - `ICECAST_INTERNAL_URL` and `ICECAST_PUBLIC_URL` replace 4 connection variables (ICECAST_SERVER, ICECAST_PORT, ICECAST_EXTERNAL_PORT, ICECAST_PUBLIC_HOSTNAME)
+  - `AZURE_OPENAI_CONFIG` (JSON) replaces 5 Azure OpenAI variables (AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_KEY, AZURE_OPENAI_MODEL, AZURE_OPENAI_VOICE, AZURE_OPENAI_SPEED)
+- VERSION bumped to 2.21.0
+
 ### Fixed
 - Copy button label on logs page changed from "Copy Logs" to "Copy" for clarity
 - CSV export button relabeled to "Excel" to match user terminology  
