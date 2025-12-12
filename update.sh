@@ -356,6 +356,9 @@ if [ -d ".git" ]; then
     # Check for uncommitted changes
     if ! git diff-index --quiet HEAD -- 2>/dev/null; then
         echo_warning "Uncommitted changes detected"
+        echo_info "Listing modified files:"
+        git status --short 2>/dev/null | head -20
+        echo ""
         echo_info "These changes will be stashed to allow update"
         sudo -u "$SERVICE_USER" git stash push -m "Auto-stash before update $(date +%Y%m%d-%H%M%S)" 2>&1 || true
         echo_success "Changes stashed (can be restored with 'git stash pop')"
@@ -365,10 +368,24 @@ if [ -d ".git" ]; then
     # This is INTENTIONAL and ensures the local code matches GitHub exactly.
     # Local changes are already stashed above, so they won't be lost.
     echo_progress "Pulling updates for branch $CURRENT_BRANCH..."
+    
+    # Show which files will be updated
+    echo_info "Files changed between local and remote:"
+    git diff --name-status HEAD "origin/$CURRENT_BRANCH" 2>/dev/null | head -20 || echo "  (unable to show diff)"
+    echo ""
+    
     if sudo -u "$SERVICE_USER" git reset --hard "origin/$CURRENT_BRANCH" 2>&1; then
         NEW_COMMIT=$(git rev-parse --short HEAD)
         echo_success "Updated to commit: $NEW_COMMIT"
         echo_success "Local code now matches GitHub exactly"
+        
+        # Show what files were actually updated
+        if [ "$LOCAL_COMMIT" != "$NEW_COMMIT" ]; then
+            echo_info "Files updated in this release:"
+            git diff --name-only "$LOCAL_COMMIT" "$NEW_COMMIT" 2>/dev/null | head -30 | while read -r file; do
+                echo "  ✓ $file"
+            done
+        fi
     else
         echo_error "Git reset failed - update incomplete"
         echo_info "Your installation may be out of date"

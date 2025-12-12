@@ -96,16 +96,45 @@ def _get_config_path() -> Path:
     
     For bare metal installations, defaults to project directory .env file.
     For Docker/container deployments, set CONFIG_PATH=/app-config/.env.
+    
+    IMPORTANT: If CONFIG_PATH points to a non-existent or non-writable location,
+    this function will automatically fall back to the project directory .env file
+    to prevent "Read-only file system" errors.
     """
-    # Explicit override via CONFIG_PATH environment variable
+    # Get project root directory (fallback path)
+    project_root = Path(__file__).parent.parent
+    project_env = project_root / '.env'
+    
+    # Check for explicit override via CONFIG_PATH environment variable
     config_path_env = os.environ.get('CONFIG_PATH', '').strip()
     if config_path_env:
-        return Path(config_path_env)
+        config_path = Path(config_path_env)
+        
+        # Validate that the override path is actually usable
+        # Check if parent directory exists and is writable
+        parent_dir = config_path.parent
+        
+        if not parent_dir.exists():
+            logger.warning(
+                f"CONFIG_PATH parent directory does not exist: {parent_dir}. "
+                f"Falling back to project directory: {project_env}"
+            )
+            return project_env
+        
+        if not os.access(parent_dir, os.W_OK):
+            logger.warning(
+                f"CONFIG_PATH parent directory is not writable: {parent_dir}. "
+                f"Falling back to project directory: {project_env}"
+            )
+            return project_env
+        
+        # CONFIG_PATH is valid and writable
+        logger.debug(f"Using CONFIG_PATH: {config_path}")
+        return config_path
 
     # Default to project directory .env file (bare metal installation)
-    # Get the project root directory (parent of webapp directory)
-    project_root = Path(__file__).parent.parent
-    return project_root / '.env'
+    logger.debug(f"Using default config path: {project_env}")
+    return project_env
 
 
 def _read_current_config() -> Dict[str, str]:
