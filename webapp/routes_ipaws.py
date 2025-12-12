@@ -109,17 +109,32 @@ def _get_config_path() -> Path:
 
 
 def _read_current_config() -> Dict[str, str]:
-    """Read current IPAWS configuration from .env file."""
+    """Read current IPAWS configuration from .env file.
+    
+    Configuration Priority:
+    1. Runtime environment variables (highest priority - from systemd service files)
+    2. .env file values (persistent configuration)
+    
+    When environment variables are set (e.g., in systemd service files), they take
+    precedence over .env file values. This ensures the UI shows what's actually
+    running, but may cause confusion when updating settings.
+    
+    Returns a dict with configuration values and optional '_source' metadata.
+    """
     config_path = _get_config_path()
     config: Dict[str, str] = {}
+    config_sources: Dict[str, str] = {}  # Track where each value came from
 
     # First, attempt to load from the persistent config file (if it exists)
     if config_path.exists():
         try:
             file_values = dotenv_values(config_path)
-            config.update({k: v for k, v in file_values.items() if v is not None})
+            for k, v in file_values.items():
+                if v is not None:
+                    config[k] = v
+                    config_sources[k] = 'file'
         except Exception as exc:
-            logger.error(f"Failed to read config file: {exc}")
+            logger.error(f"Failed to read config file {config_path}: {exc}")
 
     # Always merge runtime environment variables so the UI reflects the
     # active configuration even if the persistent file is missing or empty.
@@ -134,6 +149,11 @@ def _read_current_config() -> Dict[str, str]:
         env_value = os.environ.get(key, '').strip()
         if env_value:
             config[key] = env_value
+            config_sources[key] = 'environment'
+    
+    # Add source metadata for debugging (prefixed with _ to avoid conflicts)
+    config['_sources'] = config_sources
+    config['_config_path'] = str(config_path)
 
     return config
 
