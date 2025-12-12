@@ -7,6 +7,13 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **Certbot systemd service missing** - Added certbot.service and certbot.timer to systemd directory
+  - Install script was trying to enable certbot.timer but the systemd files didn't exist
+  - Created proper systemd service for certificate renewal with nginx reload hook
+  - Timer runs twice daily (00:00 and 12:00) with randomized delay for load distribution
+  - Both install.sh and update.sh now copy .timer files to /etc/systemd/system/
+  - Fixes silent failure of automatic certificate renewal on deployed systems
+- VERSION bumped to 2.21.11
 - **Poller service user credentials** - Fixed incorrect username in `systemd/eas-station-poller.service`
   - Changed `User=easstation` to `User=eas-station` (missing dash)
   - Changed `Group=easstation` to `Group=eas-station` (missing dash)

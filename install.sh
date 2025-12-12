@@ -1508,6 +1508,7 @@ echo_step "Install Systemd Services"
 echo_progress "Installing systemd service files..."
 cp "$INSTALL_DIR/systemd/"*.service /etc/systemd/system/
 cp "$INSTALL_DIR/systemd/"*.target /etc/systemd/system/
+cp "$INSTALL_DIR/systemd/"*.timer /etc/systemd/system/ 2>/dev/null || true
 systemctl daemon-reload
 echo_success "Systemd service files installed"
 
