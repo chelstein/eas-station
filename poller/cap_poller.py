@@ -1148,6 +1148,15 @@ class CAPPoller:
                 lat_str, lon_str = pair.split(',', 1)
                 lat = float(lat_str)
                 lon = float(lon_str)
+                
+                # Validate coordinate ranges
+                if not (-90 <= lat <= 90):
+                    self.logger.warning(f"Invalid latitude {lat} in polygon, skipping coordinate")
+                    continue
+                if not (-180 <= lon <= 180):
+                    self.logger.warning(f"Invalid longitude {lon} in polygon, skipping coordinate")
+                    continue
+                    
                 coords.append([lon, lat])
             except ValueError:
                 continue
@@ -1190,6 +1199,21 @@ class CAPPoller:
 
     def _approximate_circle_polygon(self, lat: float, lon: float, radius_km: float, points: int) -> List[List[float]]:
         coords: List[List[float]] = []
+        
+        # Handle edge case: circles at or near poles
+        if abs(lat) > 89.5:
+            self.logger.warning(f"Circle center at extreme latitude ({lat}°) - using simplified polygon")
+            # For near-pole circles, use a simplified square approximation
+            offset = radius_km / 111.0  # Rough km to degrees conversion
+            coords = [
+                [lon - offset, min(89.9, lat + offset)],
+                [lon + offset, min(89.9, lat + offset)],
+                [lon + offset, max(-89.9, lat - offset)],
+                [lon - offset, max(-89.9, lat - offset)],
+                [lon - offset, min(89.9, lat + offset)],  # Close ring
+            ]
+            return coords
+        
         radius_ratio = radius_km / 6371.0  # Earth radius in km
         center_lat = math.radians(lat)
         center_lon = math.radians(lon)
@@ -1201,13 +1225,19 @@ class CAPPoller:
             sin_radius = math.sin(radius_ratio)
             cos_radius = math.cos(radius_ratio)
 
+            # Haversine formula for point on great circle
             lat_rad = math.asin(
                 sin_lat * cos_radius + cos_lat * sin_radius * math.cos(bearing)
             )
-            lon_rad = center_lon + math.atan2(
-                math.sin(bearing) * sin_radius * cos_lat,
-                cos_radius - sin_lat * math.sin(lat_rad)
-            )
+            
+            # Handle potential division by zero when cos_lat is very small
+            if abs(cos_lat) < 1e-10:
+                lon_rad = center_lon
+            else:
+                lon_rad = center_lon + math.atan2(
+                    math.sin(bearing) * sin_radius * cos_lat,
+                    cos_radius - sin_lat * math.sin(lat_rad)
+                )
 
             coords.append([math.degrees(lon_rad), math.degrees(lat_rad)])
 
@@ -1756,6 +1786,24 @@ class CAPPoller:
             if not alert.geom:
                 return
 
+            # Validate geometry before processing intersections
+            try:
+                is_valid = self.db_session.execute(
+                    text("SELECT ST_IsValid(:geom)"),
+                    {"geom": alert.geom}
+                ).scalar()
+                
+                if not is_valid:
+                    self.logger.warning(
+                        f"Alert {alert.identifier} has invalid geometry, cannot calculate intersections"
+                    )
+                    return
+            except Exception as validation_err:
+                self.logger.warning(
+                    f"Geometry validation failed for alert {alert.identifier}: {validation_err}"
+                )
+                return
+
             # Delete old intersections
             self.db_session.query(Intersection).filter_by(cap_alert_id=alert.id).delete()
 
@@ -1763,13 +1811,21 @@ class CAPPoller:
             # This uses a SQL subquery to compute ST_Intersects and ST_Area for all boundaries at once
             # OLD: N+1 queries (1 to fetch boundaries + N queries for intersections)
             # NEW: 1 query that calculates all intersections
-            # Note: ST_Intersects in WHERE clause filters boundaries, so we don't need it in SELECT
+            # 
+            # IMPORTANT: Use ST_Area(geography(...)) to get area in square meters, not degrees²
+            # This provides accurate area measurements for intersection calculations
             intersection_query = text("""
                 SELECT 
                     b.id as boundary_id,
-                    ST_Area(ST_Intersection(:alert_geom, b.geom)) as intersection_area
+                    ST_Area(
+                        ST_Transform(
+                            ST_Intersection(:alert_geom, b.geom),
+                            4326
+                        )::geography
+                    ) as intersection_area
                 FROM boundaries b
                 WHERE b.geom IS NOT NULL
+                  AND ST_IsValid(b.geom)
                   AND ST_Intersects(:alert_geom, b.geom)
             """)
             
@@ -1785,6 +1841,7 @@ class CAPPoller:
             for row in results:
                 try:
                     boundary_id = row.boundary_id
+                    # Area is now in square meters (from geography cast)
                     ia = float(row.intersection_area or 0)
                     
                     new_intersections.append(Intersection(
@@ -2301,8 +2358,6 @@ class CAPPoller:
                 else:
                     env_marker = ""
                 self.logger.info(f"Polling: {first_endpoint}{env_marker}")
-
-            self._refresh_radio_configuration()
 
             alerts_data = self.fetch_cap_alerts()
             stats['alerts_fetched'] = len(alerts_data)
