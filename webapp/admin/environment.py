@@ -898,7 +898,7 @@ ENV_CATEGORIES = {
                 'key': 'RADIO_CAPTURE_DIR',
                 'label': 'Capture Directory',
                 'type': 'text',
-                'default': '/app/captures',
+                'default': '/opt/eas-station/radio_captures',
                 'description': 'Directory to store captured radio audio files',
             },
             {
@@ -1071,7 +1071,7 @@ ENV_CATEGORIES = {
                 'key': 'UPLOAD_FOLDER',
                 'label': 'Upload Directory',
                 'type': 'text',
-                'default': '/app/uploads',
+                'default': '/opt/eas-station/uploads',
                 'description': 'Directory for file uploads',
             },
         ],
