@@ -331,27 +331,54 @@ if [ -d ".git" ]; then
     echo_info "Updating branch: ${BOLD}$CURRENT_BRANCH${NC}"
     
     # Fetch updates
+    echo_progress "Fetching latest changes from remote..."
     if sudo -u "$SERVICE_USER" git fetch origin 2>&1; then
         echo_success "Fetched latest changes from remote"
     else
-        echo_warning "Git fetch failed - will try to continue"
+        echo_error "Git fetch failed - cannot update"
+        echo_info "Check your internet connection and git configuration"
+        exit 1
+    fi
+    
+    # Show what we're updating to
+    REMOTE_COMMIT=$(git rev-parse --short "origin/$CURRENT_BRANCH" 2>/dev/null || echo "unknown")
+    LOCAL_COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+    
+    if [ "$REMOTE_COMMIT" != "$LOCAL_COMMIT" ]; then
+        echo_info "Local commit:  $LOCAL_COMMIT"
+        echo_info "Remote commit: $REMOTE_COMMIT"
+        echo_info "Changes to be applied:"
+        git log --oneline "$LOCAL_COMMIT..$REMOTE_COMMIT" 2>/dev/null | head -10 || echo "  (unable to show log)"
+    else
+        echo_success "Already up to date with remote"
     fi
     
     # Check for uncommitted changes
     if ! git diff-index --quiet HEAD -- 2>/dev/null; then
-        echo_warning "Uncommitted changes detected - stashing them"
+        echo_warning "Uncommitted changes detected"
+        echo_info "These changes will be stashed to allow update"
         sudo -u "$SERVICE_USER" git stash push -m "Auto-stash before update $(date +%Y%m%d-%H%M%S)" 2>&1 || true
+        echo_success "Changes stashed (can be restored with 'git stash pop')"
     fi
     
-    # Pull updates for current branch (not hardcoded 'main')
+    # Pull updates for current branch - use reset --hard to ensure we get exact remote state
     echo_progress "Pulling updates for branch $CURRENT_BRANCH..."
-    if sudo -u "$SERVICE_USER" git pull origin "$CURRENT_BRANCH" 2>&1; then
+    if sudo -u "$SERVICE_USER" git reset --hard "origin/$CURRENT_BRANCH" 2>&1; then
         NEW_COMMIT=$(git rev-parse --short HEAD)
         echo_success "Updated to commit: $NEW_COMMIT"
+        echo_success "Local code now matches GitHub exactly"
     else
-        echo_warning "Git pull failed - using existing code"
-        echo_info "This may be okay if you're on a local branch"
+        echo_error "Git reset failed - update incomplete"
+        echo_info "Your installation may be out of date"
+        echo_info "Try running: git reset --hard origin/$CURRENT_BRANCH"
+        exit 1
     fi
+    
+    # Clear Python bytecode cache to ensure new code is loaded
+    echo_progress "Clearing Python bytecode cache..."
+    find "$INSTALL_DIR" -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
+    find "$INSTALL_DIR" -type f -name "*.pyc" -delete 2>/dev/null || true
+    echo_success "Python cache cleared"
 else
     # Download release tarball (for non-git installations)
     echo_info "Downloading release from GitHub..."
@@ -481,16 +508,34 @@ fi
 
 # Start services
 echo_step "Starting Services"
-echo_progress "Starting EAS Station services..."
+echo_progress "Reloading systemd daemon to pick up any service file changes..."
+systemctl daemon-reload
+echo_success "Systemd daemon reloaded"
 
+echo_progress "Starting EAS Station services..."
 systemctl start eas-station.target
 sleep 5
+
+# Force restart to ensure new code is loaded
+echo_progress "Restarting services to ensure new code is active..."
+systemctl restart eas-station.target
+sleep 3
 
 # Check status
 echo_progress "Checking service status..."
 if systemctl is-active --quiet eas-station.target; then
     echo_success "All services started successfully"
     SERVICE_STATUS="running"
+    
+    # Verify web service is actually responding
+    echo_progress "Verifying web service is responding..."
+    sleep 2
+    if systemctl is-active --quiet eas-station-web.service 2>/dev/null; then
+        echo_success "Web service is active and should be serving updated code"
+        echo_info "Note: Your browser may have cached content - do a hard refresh (Ctrl+Shift+R or Cmd+Shift+R)"
+    else
+        echo_warning "Web service status unclear - check manually"
+    fi
 else
     echo_error "Some services failed to start"
     echo_info "Check status with: ${BOLD}sudo systemctl status eas-station.target${NC}"
@@ -526,6 +571,8 @@ if [ "$USE_WHIPTAIL" = true ]; then
     SUMMARY+="Services: $SERVICE_STATUS\n\n"
     SUMMARY+="Next Steps:\n"
     SUMMARY+="━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+    SUMMARY+="• IMPORTANT: Hard refresh your browser (Ctrl+Shift+R)\n"
+    SUMMARY+="  to clear cached JavaScript and CSS files\n"
     SUMMARY+="• View logs: journalctl -u eas-station-web -f\n"
     SUMMARY+="• Check status: systemctl status eas-station.target\n"
     SUMMARY+="• Web interface: https://$(hostname -I | awk '{print $1}')\n"
@@ -571,6 +618,10 @@ echo ""
 echo -e "${BOLD}Web Interface:${NC}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo -e "${GREEN}➜${NC}  https://$(hostname -I | awk '{print $1}')"
+echo ""
+echo -e "${YELLOW}⚠️  IMPORTANT:${NC} Hard refresh your browser to see the updated code:"
+echo -e "   ${BOLD}• Chrome/Firefox/Edge:${NC} Ctrl+Shift+R (Windows/Linux) or Cmd+Shift+R (Mac)"
+echo -e "   ${BOLD}• Safari:${NC} Cmd+Option+R"
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
