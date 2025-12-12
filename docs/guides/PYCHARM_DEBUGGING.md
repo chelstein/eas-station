@@ -1,15 +1,27 @@
-# Complete Development Setup Guide for zencoder.ai Integration
+# Complete Development Setup Guide for AI Coding Assistant Integration
 
-**Transform your development workflow!** This comprehensive guide shows you how to set up your Raspberry Pi or Linux server so that **zencoder.ai** (https://zencoder.ai) can work alongside you like a pair programmer sitting at your desk. Zencoder will be able to:
+**Transform your development workflow!** This comprehensive guide shows you how to set up your Raspberry Pi or Linux server so that **AI coding assistants** like **zencoder.ai** (https://zencoder.ai) and **GitHub Copilot** can work alongside you like a pair programmer sitting at your desk.
 
+## What AI Assistants Can Do With This Setup
+
+### zencoder.ai (Autonomous Execution)
 - ✅ **Run your code** and see the output in real-time
 - ✅ **Debug issues** by setting breakpoints and inspecting variables
 - ✅ **View database transactions** and query data directly
 - ✅ **Access the web interface** to test UI changes
 - ✅ **Monitor system logs** and service status
 - ✅ **Execute tests** and verify fixes immediately
+- ✅ **Restart services** and manage system autonomously
 
-This guide will hold your hand through every step of the setup process, from SSH configuration to database access to debugging tools. By the end, zencoder.ai will have complete visibility into your EAS Station development environment.
+### GitHub Copilot (Interactive Assistance)
+- ✅ **Code suggestions** inline as you type
+- ✅ **Explain code** and answer questions via Copilot Chat
+- ✅ **Suggest commands** for terminal execution
+- ✅ **Analyze errors** and recommend fixes
+- ✅ **Refactor code** with multi-file awareness
+- ✅ **Generate tests** and documentation
+
+This guide will hold your hand through every step of the setup process, from SSH configuration to database access to debugging tools. By the end, your AI coding assistants will have complete visibility into your EAS Station development environment.
 
 > **💡 New to this setup?** Don't worry! This guide assumes no prior experience with remote development. We'll explain everything step-by-step.
 
@@ -31,6 +43,93 @@ This guide will hold your hand through every step of the setup process, from SSH
 - [Best Practices](#best-practices)
 - [Quick Reference Commands](#quick-reference-commands)
 - [Summary and Next Steps](#summary-and-next-steps)
+
+---
+
+## 🚀 Quick Start: Essential Settings for AI Coding Assistants
+
+**Already familiar with PyCharm/VS Code?** Here are the exact settings your AI coding assistants need:
+
+### PyCharm Professional Settings
+
+| Setting | Path | Field | Value |
+|---------|------|-------|-------|
+| **SSH Deployment** | Settings → Deployment | Host | `192.168.1.100` (your server IP) |
+| | | Port | `22` |
+| | | Username | `eas-station` |
+| | | Auth type | `Password` |
+| | | Deployment path | `/opt/eas-station` |
+| **Python Interpreter** | Settings → Python Interpreter | Interpreter | `/opt/eas-station/venv/bin/python` |
+| | | Type | `SSH Interpreter` |
+| **Database** | Database Tools | Host | `192.168.1.100` |
+| | | Port | `5432` |
+| | | Database | `alerts` |
+| | | User | `eas_station` |
+| | | Password | From `.env` file |
+| **Debug Config** | Run → Edit Configurations | Type | `Python Debug Server` |
+| | | Port | `5678` (web), `5679` (audio) |
+| | | Path mapping | Local → `/opt/eas-station` |
+
+### VS Code Settings
+
+| Extension | Setting | Value |
+|-----------|---------|-------|
+| **Remote-SSH** | Host | `eas-station@192.168.1.100` |
+| | Remote folder | `/opt/eas-station` |
+| **Python** | Interpreter | `/opt/eas-station/venv/bin/python` |
+| **PostgreSQL** | Host | `192.168.1.100:5432` |
+| | Database | `alerts` |
+| | User | `eas_station` |
+
+### Wing IDE Settings
+
+| Setting | Path | Value |
+|---------|------|-------|
+| **Remote Host** | Project → Project Properties → Remote Hosts | `eas-station@192.168.1.100` |
+| **Python Executable** | Project Properties → Python Executable | `eas-station@192.168.1.100:/opt/eas-station/venv/bin/python` |
+| **Local Directory** | Project Properties → Remote Hosts | Your local project folder |
+| **Remote Directory** | Project Properties → Remote Hosts | `/opt/eas-station` |
+| **Auto Sync** | Project Properties → Remote Hosts | Enable |
+
+### AI Assistant Plugins
+
+| IDE | Plugin | Purpose |
+|-----|--------|---------|
+| **PyCharm** | `GitHub Copilot` | Code suggestions + Chat |
+| **PyCharm** | `zencoder.ai` | Autonomous execution (if using) |
+| **VS Code** | `GitHub Copilot` + `GitHub Copilot Chat` | Code + Chat |
+| **VS Code** | `zencoder.ai` | Autonomous execution (if using) |
+| **Wing IDE** | GitHub Copilot (via extension) | Code suggestions |
+| **Wing IDE** | zencoder.ai (via API) | Autonomous execution (if using) |
+
+### Required Server Permissions (Part 2)
+
+Add to `/etc/sudoers` via `sudo visudo`:
+```bash
+# Allow service management without password
+eas-station ALL=(ALL) NOPASSWD: /bin/systemctl * eas-station*
+eas-station ALL=(ALL) NOPASSWD: /bin/journalctl -u eas-station*
+eas-station ALL=(ALL) NOPASSWD: /usr/bin/psql
+eas-station ALL=(ALL) NOPASSWD: /usr/bin/redis-cli
+```
+
+### Verification Checklist
+
+Test these to confirm your AI coding assistants have full access:
+- [ ] **Files**: Edit a file, see it sync to `/opt/eas-station/`
+- [ ] **Python**: Run `python --version` shows `Python 3.11.x`
+- [ ] **Database**: Run `psql -d alerts -c "SELECT COUNT(*) FROM cap_alerts;"`
+- [ ] **Services**: Run `sudo systemctl status eas-station-web.service`
+- [ ] **Logs**: Run `sudo journalctl -u eas-station-web.service -n 5`
+
+**All working?** ✅ You're ready to use AI coding assistants!
+
+**Which assistant should you use?**
+- **GitHub Copilot**: Native IDE integration, great for code writing and suggestions
+- **zencoder.ai**: Autonomous execution, great for debugging and service management
+- **Both**: Use Copilot for writing, zencoder.ai for debugging (see comparison below)
+
+**Need detailed instructions?** Continue reading below. ↓
 
 ---
 
@@ -122,9 +221,9 @@ This is a **production-grade development setup** used by professional developers
 
 ---
 
-## Part 1: Setting Up Your IDE (PyCharm or VS Code)
+## Part 1: Setting Up Your IDE (PyCharm, VS Code, or Wing)
 
-This section will help you choose and configure your IDE for remote development. Both PyCharm Professional and VS Code work excellently - choose based on your preference.
+This section will help you choose and configure your IDE for remote development. PyCharm Professional, VS Code, and Wing IDE all work well - choose based on your preference and needs.
 
 ### Step 1.1: Choose Your IDE
 
@@ -164,6 +263,59 @@ Since `eas-station` is an open source project under AGPL-3.0, you qualify for a 
 While waiting for approval, use the [30-day free trial](https://www.jetbrains.com/pycharm/download/) or start with VS Code.
 
 **⚠️ Don't Use PyCharm Community Edition** - It lacks remote SSH development features required for this workflow.
+
+---
+
+#### Option C: Wing IDE (Professional Python IDE)
+
+**Why Wing IDE?**
+- ✅ Professional Python IDE with excellent remote development
+- ✅ Built-in remote debugging via SSH
+- ✅ Powerful debugger with conditional breakpoints
+- ✅ Intelligent code completion and refactoring
+- ✅ Integrated unit testing
+- ✅ Works on Windows, Mac, Linux
+
+**Get it**: Download from [https://wingware.com/](https://wingware.com/)
+
+**Versions**:
+- **Wing Pro**: Full-featured, includes remote development ($179/year or $245 perpetual)
+- **Wing Personal**: Free for personal use, limited features
+- **30-day free trial** available for Wing Pro
+
+**Remote Development Support**:
+Wing IDE supports remote development through SSH, similar to PyCharm. You can:
+- ✅ Edit files on remote server via SFTP
+- ✅ Execute Python on remote interpreter
+- ✅ Debug remotely with breakpoints
+- ✅ View remote files and directories
+- ✅ Integrated terminal to remote server
+
+**Setup Summary for Wing IDE**:
+
+1. **Configure Remote Host**:
+   - Go to: **Project** → **Project Properties**
+   - Set **Python Executable**: `eas-station@192.168.1.100:/opt/eas-station/venv/bin/python`
+   - Configure SSH connection with your server credentials
+
+2. **Set Up Remote Files**:
+   - Go to: **Project** → **Project Properties** → **Remote Hosts**
+   - Add remote host: `eas-station@192.168.1.100`
+   - Map local directory to `/opt/eas-station`
+   - Enable automatic file sync
+
+3. **Configure Debugging**:
+   - Wing Pro supports remote debugging out of the box
+   - Breakpoints work on remote files
+   - Can inspect variables on remote server
+
+4. **AI Assistant Support**:
+   - Wing IDE works with GitHub Copilot via VS Code integration
+   - For zencoder.ai, use through VS Code extension or API
+
+**For detailed Wing IDE setup**: See [Wing IDE Remote Development Documentation](https://wingware.com/doc/howtos/remote-hosts)
+
+**Note**: While Wing IDE supports remote development, VS Code and PyCharm have larger communities and more extensive documentation for this workflow. Wing is a solid alternative if you prefer its interface.
 
 ---
 
@@ -214,42 +366,320 @@ While waiting for approval, use the [30-day free trial](https://www.jetbrains.co
 
 **Follow these steps if you chose PyCharm:**
 
-#### Set Up SSH Deployment
+#### Set Up SSH Deployment (Step-by-Step with Every Field)
+
+**Step 1: Open PyCharm Settings**
 
 1. **Open PyCharm** and create a new project or open an existing one
+   - You can create an empty project locally - we'll sync it to the server
 2. Go to: **File** → **Settings** (Windows/Linux) or **PyCharm** → **Preferences** (Mac)
-3. Navigate to: **Build, Execution, Deployment** → **Deployment**
-4. Click the **+** button and select **SFTP**
-5. Name it: `EAS Station Server`
-6. Configure the **Connection** tab:
-   - **Type**: SFTP
-   - **Host**: Your server's IP address (e.g., `192.168.1.100`)
-   - **Port**: `22`
-   - **Username**: `eas-station` (or `pi` if on Raspberry Pi)
-   - **Auth type**: Password
-   - **Password**: Your server password (save it)
-   - Click **Test Connection** - you should see "Successfully connected"
-7. Configure the **Mappings** tab:
-   - **Local path**: Your local project folder (can be empty for now)
-   - **Deployment path**: `/opt/eas-station`
-   - **Web path**: (leave empty)
-8. Click **OK**
+   - Or press `Ctrl+Alt+S` (Windows/Linux) or `Cmd+,` (Mac)
 
-#### Set Up SSH Interpreter
+**Step 2: Navigate to Deployment Settings**
 
-1. Go to: **File** → **Settings** → **Project** → **Python Interpreter**
-2. Click the **gear icon** ⚙️ → **Add...**
-3. Select **SSH Interpreter**
-4. Choose **Existing server configuration** and select the server you just created
-5. Click **Next**
-6. Set the interpreter path: `/opt/eas-station/venv/bin/python`
-7. Configure sync folders:
-   - **Local**: Your project folder
-   - **Remote**: `/opt/eas-station`
-8. Click **Finish**
-9. Wait for PyCharm to sync files and index the project (this can take 2-5 minutes)
+3. In the left sidebar, navigate to: **Build, Execution, Deployment** → **Deployment**
+   - This is where we configure the SSH connection to your server
 
-**✅ PyCharm is now configured!** Continue to Part 2.
+**Step 3: Create New SFTP Server Configuration**
+
+4. Click the **+** (plus) button at the top of the Deployment window
+5. Select **SFTP** from the dropdown menu
+6. A dialog "Add Server" appears:
+   - **Name**: Enter `EAS Station Server` (or any name you prefer)
+   - Click **OK**
+
+**Step 4: Configure Connection Tab (All Fields Explained)**
+
+You should now see a configuration dialog with multiple tabs. Start with the **Connection** tab:
+
+| Field | What to Enter | Example | Required? |
+|-------|--------------|---------|-----------|
+| **Type** | Select `SFTP` from dropdown | `SFTP` | ✅ Yes |
+| **Host** | Your server's IP address | `192.168.1.100` | ✅ Yes |
+| **Port** | Leave as default | `22` | ✅ Yes |
+| **Root path** | Leave blank (auto-detected) | (empty) | ❌ No |
+| **Username** | Enter `eas-station` | `eas-station` | ✅ Yes |
+| **Auth type** | Select `Password` from dropdown | `Password` | ✅ Yes |
+| **Password** | Your server password | `your_password` | ✅ Yes |
+| **☑️ Save password** | Check this box | ☑️ Checked | ⚠️ Recommended |
+| **Private key file** | Leave empty (we're using password) | (empty) | ❌ No |
+| **Key passphrase** | Leave empty | (empty) | ❌ No |
+| **Proxy** | Leave as `No proxy` | `No proxy` | ❌ No |
+
+**Important Notes:**
+- **Host**: This is the IP address from [Finding Your Server IP](#finding-your-server-ip)
+- **Username**: Use `eas-station` (NOT `pi` or `root`) - this is the service account
+- **Save password**: Checking this saves the password securely in PyCharm's credential store
+
+7. **Click "Test Connection"** button
+   - You should see: ✅ **"Successfully connected to [IP address]"**
+   - If it fails, see [Troubleshooting SSH Connection](#problem-pycharmvs-code-cant-connect-via-ssh)
+
+**Step 5: Configure Mappings Tab**
+
+Click the **Mappings** tab at the top:
+
+| Field | What to Enter | Example | Required? | Explanation |
+|-------|--------------|---------|-----------|-------------|
+| **Local path** | Your local project directory | `C:\Users\YourName\PyCharmProjects\eas-station` | ✅ Yes | Where files are on YOUR computer |
+| **Deployment path** | Enter exactly `/opt/eas-station` | `/opt/eas-station` | ✅ Yes | Where files are on the SERVER |
+| **Web path** | Leave empty | (empty) | ❌ No | Not used for this project |
+
+**What these paths mean:**
+- **Local path**: When you edit a file in PyCharm, it's stored here on your computer
+- **Deployment path**: PyCharm will sync that file to this location on the server
+- The mapping tells PyCharm: "When I edit `MyProject/app.py` locally, sync it to `/opt/eas-station/app.py` on the server"
+
+8. **Click "OK"** to save the deployment configuration
+
+**Step 6: Set Default Deployment Server**
+
+Back in the Deployment settings window:
+1. **Select** your newly created `EAS Station Server` from the list
+2. **Click** the checkmark button (✓) at the top to make it the **default server**
+   - This tells PyCharm to automatically upload changes to this server
+
+**Step 7: Configure Automatic Upload (Optional but Recommended)**
+
+Still in the Deployment settings:
+1. Click the **Options** sub-menu (under **Build, Execution, Deployment** → **Deployment**)
+2. Set **Upload changed files automatically to the default server**:
+   - **Always**: Upload every save (recommended for active development)
+   - **On explicit save action**: Upload when you press Ctrl+S
+   - **Never**: Manual upload only
+
+3. **Recommended setting**: Select `Always`
+
+**✅ SSH Deployment is now configured!**
+
+---
+
+#### Set Up Python Remote Interpreter (Step-by-Step with Every Field)
+
+Now we'll tell PyCharm to use Python on the server (not your local Python).
+
+**Step 1: Open Python Interpreter Settings**
+
+1. Go to: **File** → **Settings** → **Project: [Your Project Name]** → **Python Interpreter**
+   - Or press `Ctrl+Alt+S` → type "python interpreter" in search
+
+**Step 2: Add New Interpreter**
+
+2. Click the **gear icon** (⚙️) next to the Python Interpreter dropdown
+3. Click **Add...** or **Add Interpreter**
+4. A dialog "Add Python Interpreter" appears
+
+**Step 3: Choose SSH Interpreter Type**
+
+5. In the left sidebar, select **SSH Interpreter**
+6. You'll see two options:
+   - **New server configuration** - for setting up a new SSH connection
+   - **Existing server configuration** - use the SFTP server we just created
+
+7. **Select**: ⚪ **Existing server configuration**
+8. **Choose**: `EAS Station Server` from the dropdown (the deployment server we created)
+9. Click **Next**
+
+**Step 4: Configure Interpreter Path**
+
+You'll see a screen titled "Configure Remote Python Interpreter":
+
+| Field | What to Enter | Example | Required? | Explanation |
+|-------|--------------|---------|-----------|-------------|
+| **Interpreter** | Python executable path on server | `/opt/eas-station/venv/bin/python` | ✅ Yes | The Python in the EAS Station virtualenv |
+| **Sync folders** | Mappings (auto-filled from deployment) | ↓ See below | ✅ Yes | Which folders to sync |
+| **Automatically upload project files to the server** | Check this box | ☑️ Checked | ⚠️ Recommended | Auto-sync on save |
+
+**Interpreter Path - IMPORTANT:**
+- **Enter exactly**: `/opt/eas-station/venv/bin/python`
+- This is the Python interpreter inside the EAS Station virtual environment
+- **NOT** `/usr/bin/python` (system Python)
+- **NOT** `/opt/eas-station/python` (doesn't exist)
+
+**Sync Folders Section:**
+
+This should be auto-filled from your deployment configuration:
+
+| Local Path | Remote Path | Note |
+|------------|-------------|------|
+| `C:\Users\YourName\PyCharmProjects\eas-station` | `/opt/eas-station` | Auto-filled from deployment config |
+
+If it's empty, click **Add** and manually enter:
+- **Local path**: Your local project folder
+- **Remote path**: `/opt/eas-station`
+
+10. Click **Finish**
+
+**Step 5: Wait for PyCharm to Index**
+
+PyCharm will now:
+1. Connect to the server via SSH ✓
+2. Download the list of Python packages installed in the virtualenv
+3. Index the remote project files
+4. Build a cache of code structure
+
+**This takes 2-5 minutes.** You'll see a progress bar at the bottom:
+```
+Scanning files to index...
+Updating indices...
+```
+
+☕ Grab a coffee - this is normal!
+
+**Step 6: Verify Interpreter is Set**
+
+Once indexing completes:
+1. Go back to: **Settings** → **Project** → **Python Interpreter**
+2. You should see:
+   - **Interpreter**: `Remote Python 3.11.x (/opt/eas-station/venv/bin/python)`
+   - A list of installed packages (Flask, SQLAlchemy, psycopg2, etc.)
+
+**✅ Python Remote Interpreter is now configured!**
+
+**What you can do now:**
+- Edit Python files in PyCharm
+- Changes automatically sync to the server
+- Run Python scripts on the server
+- Debug Python code on the server
+- View database with DataGrip (built into PyCharm Professional)
+
+---
+
+#### Set Up Database Tools (Built-in DataGrip - Step-by-Step)
+
+PyCharm Professional includes DataGrip for database management. Let's connect it to the EAS Station database.
+
+**Step 1: Open Database Tool Window**
+
+1. Go to: **View** → **Tool Windows** → **Database**
+   - Or click the **Database** tab on the right side of the window
+   - Or press `Alt+1` (Windows/Linux) or `Cmd+1` (Mac), then select Database
+
+**Step 2: Add PostgreSQL Data Source**
+
+2. In the Database tool window, click the **+** button
+3. Select **Data Source** → **PostgreSQL**
+
+**Step 3: Configure Database Connection (All Fields)**
+
+A "Data Sources and Drivers" dialog appears with the **General** tab selected:
+
+| Field | What to Enter | Example | Required? | Explanation |
+|-------|--------------|---------|-----------|-------------|
+| **Name** | Give it a descriptive name | `EAS Station - alerts` | ⚠️ Recommended | What you'll see in the database list |
+| **Comment** | Optional description | `EAS Station PostgreSQL database` | ❌ No | Additional notes |
+| **Host** | Server IP address | `192.168.1.100` | ✅ Yes | Database server location |
+| **Port** | PostgreSQL port | `5432` | ✅ Yes | Standard PostgreSQL port |
+| **Authentication** | Select `User & Password` | `User & Password` | ✅ Yes | How to authenticate |
+| **User** | Database username | `eas_station` | ✅ Yes | Database user account |
+| **Password** | Database password from .env file | `[from .env file]` | ✅ Yes | Get from Step 3.2 |
+| **☑️ Save password** | Check this box | ☑️ Checked | ⚠️ Recommended | Store securely in PyCharm |
+| **Database** | Database name | `alerts` | ✅ Yes | The database containing alert data |
+| **URL** | Auto-generated | `jdbc:postgresql://192.168.1.100:5432/alerts` | ℹ️ Auto-filled | JDBC connection string |
+
+**Getting the Database Password:**
+1. In PyCharm's built-in terminal: **View** → **Tool Windows** → **Terminal**
+2. Run: `grep POSTGRES_PASSWORD /opt/eas-station/.env`
+3. Copy the password (everything after `POSTGRES_PASSWORD=`)
+
+**Step 4: Test Connection**
+
+4. Click **Test Connection** at the bottom of the dialog
+   - First time: PyCharm will download PostgreSQL JDBC drivers (takes 10-30 seconds)
+   - You should see: ✅ **"Succeeded"** in green
+
+**If connection fails**, see possible issues:
+- ❌ "Connection refused" - Server firewall blocking port 5432, see [Database Connection Troubleshooting](#problem-cant-connect-to-database-from-remote-tools)
+- ❌ "Password authentication failed" - Wrong password, check `.env` file
+- ❌ "Unknown host" - Wrong IP address
+
+**Step 5: Configure Advanced Options (Optional)**
+
+Click the **Advanced** tab (optional optimizations):
+
+| Field | Recommended Value | Explanation |
+|-------|------------------|-------------|
+| **useSSL** | `false` | Not needed for local network |
+| **serverTimezone** | `UTC` | Match server timezone |
+
+5. Click **OK** to save
+
+**Step 6: Explore the Database**
+
+In the Database tool window, you should now see:
+```
+📁 EAS Station - alerts
+  └─ 📁 alerts
+      └─ 📁 schemas
+          └─ 📁 public
+              ├─ 📁 tables
+              │   ├─ cap_alerts (142 rows)
+              │   ├─ counties (3234 rows)
+              │   ├─ alert_history
+              │   └─ ...
+              └─ 📁 views
+```
+
+**Double-click any table** to view its data!
+
+**✅ Database Tools is now configured!**
+
+---
+
+#### Set Up Debug Configurations (Step-by-Step for zencoder.ai)
+
+Create debug configurations so zencoder.ai can attach debuggers to running services.
+
+**Step 1: Create Web Service Debug Configuration**
+
+1. Click **Run** → **Edit Configurations...** (or click the dropdown next to the Run button)
+2. Click the **+** button
+3. Select **Python Debug Server**
+4. Configure the debug server:
+
+| Field | What to Enter | Example | Explanation |
+|-------|--------------|---------|-------------|
+| **Name** | `Attach to Web Service` | `Attach to Web Service` | Configuration name |
+| **IDE host name** | Your computer's IP or `localhost` | `192.168.1.50` | Where PyCharm is running |
+| **Port** | `5678` | `5678` | Debug port for web service |
+| **Path mappings** | Local ↔ Remote | `C:\...\eas-station` ↔ `/opt/eas-station` | Code location mapping |
+
+**For Path Mappings:**
+- Click the folder icon
+- Add mapping: **Local**: `C:\Users\YourName\PyCharmProjects\eas-station` → **Remote**: `/opt/eas-station`
+
+5. Click **OK**
+
+**Step 2: Create Additional Debug Configurations (Optional)**
+
+Repeat for other services:
+
+| Service | Configuration Name | Port |
+|---------|-------------------|------|
+| Web | `Attach to Web Service` | `5678` |
+| Audio | `Attach to Audio Service` | `5679` |
+| NOAA Poller | `Attach to NOAA Poller` | `5680` |
+
+**✅ Debug configurations are ready!**
+
+---
+
+#### Complete PyCharm Setup Checklist
+
+Verify everything is configured:
+
+- [ ] **SSH Deployment configured**
+  - Test: Settings → Deployment → Test Connection shows "Successfully connected"
+- [ ] **Python Remote Interpreter configured**
+  - Test: Settings → Python Interpreter shows "Remote Python 3.11.x"
+- [ ] **Files sync automatically**
+  - Test: Edit a file, save it, check server with `ls -la /opt/eas-station/` in terminal
+- [ ] **Database connection works**
+  - Test: Database tool window → Right-click table → View Data
+- [ ] **Debug configuration created**
+  - Test: Run → Edit Configurations shows your debug configs
+
+**✅ PyCharm Professional is fully configured for zencoder.ai development!** Continue to Part 2.
 
 ---
 
@@ -2822,9 +3252,9 @@ ssh -L 5678:localhost:5678 eas-station@YOUR_SERVER_IP
 
 ---
 
-## Using with AI Coding Agents (ZenCoder, etc.)
+## Using with AI Coding Agents (zencoder.ai, GitHub Copilot, etc.)
 
-AI coding agents like ZenCoder work best when they can see your code, run it, and observe failures in real-time. Here's how to integrate them with your EAS Station development environment.
+AI coding agents like **zencoder.ai** (https://zencoder.ai) and GitHub Copilot work best when they can see your code, run it, and observe failures in real-time. Here's how to integrate them with your EAS Station development environment.
 
 ### Why This Setup is Perfect for AI Agents
 
@@ -2835,7 +3265,215 @@ AI coding agents like ZenCoder work best when they can see your code, run it, an
 ✅ **Log streaming** - Agent can watch systemd logs in real-time
 ✅ **Hardware testing** - Agent can test with actual GPIO/SDR/audio devices
 
-### Setting Up ZenCoder with PyCharm
+---
+
+### Complete Configuration for zencoder.ai
+
+**What zencoder.ai needs to work effectively:**
+
+| Capability | What to Configure | Where | Status After This Guide |
+|------------|------------------|-------|------------------------|
+| **Execute Python code** | Remote interpreter | PyCharm Settings | ✅ Configured in Step 1.3 |
+| **Read/write files** | SSH deployment | PyCharm Settings | ✅ Configured in Step 1.3 |
+| **Query database** | PostgreSQL connection | Database Tools | ✅ Configured in Step 1.3 |
+| **View logs** | Terminal access + sudo | Part 2 | ✅ Configured in Part 2 |
+| **Restart services** | systemctl permissions | Part 2 | ✅ Configured in Part 2 |
+| **Debug code** | Debug configurations | Step 1.3 | ✅ Configured in Step 1.3 |
+| **Access Redis** | redis-cli access | Part 2 | ✅ Configured in Part 2 |
+
+---
+
+### Step-by-Step: Enabling zencoder.ai Integration
+
+#### Option A: Using zencoder.ai with PyCharm (Recommended)
+
+**Prerequisites**: Complete [Step 1.3: Configure PyCharm Professional](#step-13-configure-pycharm-professional-for-remote-development) first.
+
+**Step 1: Install zencoder.ai Plugin**
+
+1. Open PyCharm
+2. Go to **File** → **Settings** → **Plugins**
+3. Click **Marketplace** tab
+4. Search for: `zencoder` or `zencoder.ai`
+5. Click **Install**
+6. Click **Restart IDE** when prompted
+
+**Step 2: Configure zencoder.ai Settings**
+
+After PyCharm restarts:
+
+1. Go to **File** → **Settings** → **Tools** → **zencoder.ai**
+2. You'll see the zencoder.ai configuration panel
+
+**Fill in these fields:**
+
+| Field | What to Enter | Example | Explanation |
+|-------|--------------|---------|-------------|
+| **API Key** | Your zencoder.ai API key | `zenc_abc123...` | Get from https://zencoder.ai/settings |
+| **Model** | Select your preferred model | `gpt-4` or `claude-3` | Which AI model to use |
+| **Auto-complete** | Check to enable | ☑️ | Real-time code suggestions |
+| **Auto-apply** | Check to enable (optional) | ☐ | Auto-apply simple fixes |
+| **Context size** | Set tokens | `8000` | How much code context to send |
+
+**Step 3: Verify zencoder.ai Can Access Everything**
+
+Test each capability:
+
+**✅ Test 1: File Access**
+1. Open any Python file (e.g., `app.py`)
+2. Ask zencoder.ai: "Can you read this file?"
+3. zencoder.ai should display the file contents
+
+**✅ Test 2: Python Execution**
+1. Open PyCharm terminal (View → Tool Windows → Terminal)
+2. Ask zencoder.ai: "Run `python --version` on the server"
+3. Should show: `Python 3.11.x`
+
+**✅ Test 3: Database Access**
+1. Ask zencoder.ai: "How many alerts are in the database?"
+2. zencoder.ai should run: `psql -d alerts -c "SELECT COUNT(*) FROM cap_alerts;"`
+3. Should return a count
+
+**✅ Test 4: Service Management**
+1. Ask zencoder.ai: "What's the status of eas-station-web service?"
+2. zencoder.ai should run: `sudo systemctl status eas-station-web.service`
+3. Should show service status
+
+**✅ Test 5: Log Viewing**
+1. Ask zencoder.ai: "Show me the last 10 lines of web service logs"
+2. zencoder.ai should run: `sudo journalctl -u eas-station-web.service -n 10`
+3. Should display recent log entries
+
+**If all tests pass**: ✅ **zencoder.ai is fully configured!**
+
+---
+
+#### Option B: Using zencoder.ai with VS Code
+
+**Prerequisites**: Complete [Step 1.2: Configure VS Code](#step-12-configure-vs-code-for-remote-development) first.
+
+**Step 1: Install zencoder.ai Extension**
+
+1. Open VS Code
+2. Click Extensions icon (Ctrl+Shift+X)
+3. Search for: `zencoder` or `zencoder.ai`
+4. Click **Install**
+5. Reload VS Code if prompted
+
+**Step 2: Configure zencoder.ai**
+
+1. Press `Ctrl+Shift+P` (Cmd+Shift+P on Mac)
+2. Type: `zencoder: Configure`
+3. Enter your API key from https://zencoder.ai
+
+**Step 3: Connect to Remote Server**
+
+Make sure you're connected via Remote-SSH:
+1. Click the green icon in bottom-left corner
+2. Select "Remote-SSH: Connect to Host"
+3. Choose your EAS Station server
+
+**Step 4: Verify Access**
+
+Run the same 5 tests as in Option A above.
+
+---
+
+### What zencoder.ai Can Do With This Setup
+
+**Scenario 1: Fix a Bug**
+
+You say:
+```
+"The audio service is crashing. Fix it."
+```
+
+zencoder.ai can:
+1. Check service status: `sudo systemctl status eas-station-audio.service`
+2. Read logs: `sudo journalctl -u eas-station-audio.service -n 50`
+3. Find the error in the logs
+4. Open the Python file with the bug
+5. Fix the code
+6. Restart the service: `sudo systemctl restart eas-station-audio.service`
+7. Verify the fix: Check logs again
+8. Report: "✅ Fixed! The issue was..."
+
+**No back-and-forth needed!**
+
+---
+
+**Scenario 2: Add a New Feature**
+
+You say:
+```
+"Add a new API endpoint that returns the 10 most recent alerts"
+```
+
+zencoder.ai can:
+1. Check database schema: `psql -d alerts -c "\d cap_alerts"`
+2. Write the Python code for the endpoint
+3. Add it to `/opt/eas-station/webapp/api/alerts.py`
+4. Restart web service: `sudo systemctl restart eas-station-web.service`
+5. Test the endpoint: `curl http://localhost:5000/api/alerts/recent`
+6. Check logs for errors
+7. Fix any issues
+8. Report: "✅ Done! The new endpoint is at /api/alerts/recent"
+
+---
+
+**Scenario 3: Optimize Database Performance**
+
+You say:
+```
+"The map page is slow. Investigate and fix it."
+```
+
+zencoder.ai can:
+1. Enable query logging: `sudo sed -i "s/log_statement = 'none'/log_statement = 'all'/" /etc/postgresql/*/main/postgresql.conf`
+2. Reload PostgreSQL: `sudo systemctl reload postgresql`
+3. Test the slow page: `curl http://localhost:5000/map`
+4. Read query logs: `sudo tail -100 /var/log/postgresql/postgresql-17-main.log`
+5. Find the slow query (e.g., missing index)
+6. Create the index: `sudo -u eas-station psql -d alerts -c "CREATE INDEX idx_counties_geom ON counties USING GIST(geom);"`
+7. Test again and measure improvement
+8. Disable query logging
+9. Report: "✅ Fixed! Added spatial index - query time reduced from 12s to 120ms"
+
+---
+
+### Giving zencoder.ai Context
+
+**For best results, tell zencoder.ai:**
+
+✅ **DO provide:**
+- What you're trying to accomplish
+- Any error messages you see
+- Which service or file is involved
+- What you've already tried
+
+✅ **Examples of good prompts:**
+```
+"The NOAA poller service keeps timing out. Check the logs and fix it."
+
+"Add validation to the alert form - severity must be one of: Extreme, Severe, Moderate, Minor"
+
+"The database has 10,000 old alerts. Write a script to archive alerts older than 90 days."
+
+"Add a new column to track alert broadcast status. Include migration script."
+```
+
+❌ **Avoid vague prompts:**
+```
+"Fix the bug"  ← Which bug? Where?
+"Make it faster"  ← What's slow?
+"It doesn't work"  ← What doesn't work?
+```
+
+---
+
+### Setting Up ZenCoder Plugin (Alternative to zencoder.ai)
+
+If you're using the ZenCoder plugin instead of zencoder.ai:
 
 1. **Install ZenCoder extension** in PyCharm:
    - Go to **Settings** → **Plugins** → **Marketplace**
@@ -2938,6 +3576,272 @@ eas-station ALL=(ALL) NOPASSWD: /bin/journalctl -u eas-station-*
 - The above restricts systemctl to eas-station-* services only
 - journalctl is restricted to eas-station-* units to prevent reading sensitive system logs
 - Consider using `sudo -v` to cache credentials instead for even tighter security
+
+---
+
+## GitHub Copilot Integration
+
+### Can GitHub Copilot Do These Things?
+
+**Short Answer**: Yes, but with some differences in capabilities and setup.
+
+GitHub Copilot (especially **GitHub Copilot Chat** and **GitHub Copilot Workspace**) can perform many of the same tasks as zencoder.ai when properly configured. Here's a detailed comparison:
+
+### Capability Comparison
+
+| Capability | GitHub Copilot | GitHub Copilot Chat | zencoder.ai | Notes |
+|------------|---------------|-------------------|-------------|-------|
+| **Code suggestions** | ✅ Excellent | ✅ Excellent | ✅ Excellent | All provide inline suggestions |
+| **Execute Python code** | ❌ No | ⚠️ Limited | ✅ Yes | Copilot Chat can suggest commands but you run them |
+| **Read/write files** | ✅ Yes | ✅ Yes | ✅ Yes | All can access workspace files |
+| **Query database** | ❌ No | ⚠️ Via terminal | ✅ Yes | Copilot Chat can suggest SQL queries |
+| **View logs** | ❌ No | ⚠️ Via terminal | ✅ Yes | Copilot Chat works through terminal |
+| **Restart services** | ❌ No | ⚠️ Via terminal | ✅ Yes | Copilot Chat suggests commands |
+| **Debug with breakpoints** | ⚠️ Limited | ⚠️ Limited | ✅ Yes | Copilot focuses on code, not runtime |
+| **Multi-file refactoring** | ⚠️ Limited | ✅ Good | ✅ Excellent | Copilot Chat improving rapidly |
+
+**Legend**: ✅ Native support | ⚠️ Partial/indirect support | ❌ Not supported
+
+---
+
+### Setting Up GitHub Copilot with This Environment
+
+#### For VS Code (Recommended for GitHub Copilot)
+
+**Prerequisites**: Complete [Step 1.2: Configure VS Code for Remote Development](#step-12-configure-vs-code-for-remote-development)
+
+**Step 1: Install GitHub Copilot Extensions**
+
+1. Open VS Code
+2. Click Extensions (Ctrl+Shift+X)
+3. Search for and install:
+   - **GitHub Copilot** - Code suggestions
+   - **GitHub Copilot Chat** - Interactive AI assistant
+4. Sign in with your GitHub account when prompted
+
+**Step 2: Verify Remote Connection**
+
+GitHub Copilot works through VS Code's Remote-SSH:
+1. Connect to your EAS Station server via Remote-SSH
+2. Open folder: `/opt/eas-station`
+3. GitHub Copilot will automatically work with remote files
+
+**Step 3: Configure Copilot Chat for Terminal Access**
+
+1. Open VS Code terminal (Ctrl+`)
+2. You're now connected to the server terminal
+3. Copilot Chat can suggest commands that you run in this terminal
+
+**Step 4: Test GitHub Copilot Capabilities**
+
+**✅ Test 1: Code Suggestions**
+- Open any Python file
+- Start typing a function - Copilot will suggest completions
+- Press Tab to accept suggestions
+
+**✅ Test 2: Copilot Chat for Debugging**
+1. Open Copilot Chat (Ctrl+Shift+I or click chat icon)
+2. Ask: "What does this function do?" while viewing code
+3. Copilot Chat will explain the code
+
+**✅ Test 3: Terminal Commands via Chat**
+1. In Copilot Chat, ask: "How do I check the web service status?"
+2. Copilot Chat will suggest: `sudo systemctl status eas-station-web.service`
+3. **You** copy and run the command in your terminal
+4. Paste the output back to Copilot Chat for analysis
+
+**✅ Test 4: Database Query Assistance**
+1. Ask Copilot Chat: "Write a SQL query to count alerts"
+2. Copilot will suggest: `SELECT COUNT(*) FROM cap_alerts;`
+3. **You** run: `psql -d alerts -c "SELECT COUNT(*) FROM cap_alerts;"`
+4. Share results with Copilot for further analysis
+
+---
+
+#### For PyCharm (GitHub Copilot Plugin Available)
+
+**Step 1: Install GitHub Copilot Plugin**
+
+1. Go to **File** → **Settings** → **Plugins**
+2. Click **Marketplace**
+3. Search for: `GitHub Copilot`
+4. Click **Install**
+5. Restart PyCharm
+6. Sign in with GitHub account
+
+**Step 2: Configure with Remote Development**
+
+GitHub Copilot works with your SSH remote interpreter automatically:
+- It sees the remote files you're editing
+- Suggestions are based on your remote project context
+- Works seamlessly with the SSH deployment you configured earlier
+
+**Step 3: Test Functionality**
+
+Same as VS Code tests above - Copilot provides suggestions, you execute commands.
+
+---
+
+### Key Differences: GitHub Copilot vs zencoder.ai
+
+#### GitHub Copilot Strengths
+
+✅ **Native IDE integration** - Built into VS Code and PyCharm
+✅ **No additional API key** - Uses GitHub account
+✅ **Code completion** - Excellent inline suggestions
+✅ **Large community** - Extensive training on open source code
+✅ **No separate plugin** - Official Microsoft/GitHub support
+
+#### GitHub Copilot Limitations (compared to zencoder.ai)
+
+❌ **No autonomous execution** - Suggests commands, doesn't run them
+❌ **No service management** - Can't restart services automatically
+❌ **No database queries** - Can suggest SQL but can't execute
+❌ **Terminal-dependent** - Requires you to copy/paste commands
+❌ **No log monitoring** - Can't watch journalctl output directly
+
+#### zencoder.ai Strengths
+
+✅ **Autonomous execution** - Runs commands directly
+✅ **Full service access** - Can restart services, view logs
+✅ **Database integration** - Queries database directly
+✅ **Complete workflows** - End-to-end bug fixing without user intervention
+✅ **Real-time monitoring** - Watches logs and service status
+
+---
+
+### Recommended Workflow: Using Both Together
+
+**Best practice**: Use both tools for different purposes:
+
+**Use GitHub Copilot for**:
+- ✅ Writing new code (excellent suggestions)
+- ✅ Code explanations and documentation
+- ✅ Refactoring suggestions
+- ✅ Quick questions about code
+- ✅ Learning and exploring APIs
+
+**Use zencoder.ai for**:
+- ✅ End-to-end bug fixing (autonomous execution)
+- ✅ Service debugging (log analysis + restart)
+- ✅ Database investigations (query + analyze)
+- ✅ Performance optimization (measure + fix + verify)
+- ✅ Complex multi-step workflows
+
+**Example Combined Workflow**:
+
+1. **Write code with Copilot**: Use inline suggestions to write new feature
+2. **Test manually**: Run the code, see an error
+3. **Debug with zencoder.ai**: "The service crashed, fix it" - zencoder finds the issue, fixes code, restarts service, verifies
+4. **Refine with Copilot**: Use Copilot suggestions to improve the fixed code
+5. **Commit**: Version control the working solution
+
+---
+
+### GitHub Copilot Chat Workflow Examples
+
+Since Copilot Chat works differently (suggests vs executes), here's how to use it effectively:
+
+#### Scenario 1: Debugging a Service Crash
+
+**You**: "The audio service is crashing"
+
+**Copilot Chat suggests**:
+```bash
+# Check service status
+sudo systemctl status eas-station-audio.service
+
+# View recent logs
+sudo journalctl -u eas-station-audio.service -n 50
+```
+
+**You**: Copy commands, run them in terminal, paste output back
+
+**Copilot Chat analyzes**: "The error shows a Redis connection issue. The audio service can't connect to Redis on port 6379."
+
+**Copilot Chat suggests**:
+```bash
+# Check if Redis is running
+sudo systemctl status redis-server
+
+# If not running, start it
+sudo systemctl start redis-server
+
+# Restart audio service
+sudo systemctl restart eas-station-audio.service
+```
+
+**You**: Execute the commands and verify
+
+**Difference from zencoder.ai**: You're executing each step manually instead of zencoder.ai doing it autonomously.
+
+---
+
+#### Scenario 2: Writing a Database Query
+
+**You**: "Show me alerts from the last 24 hours"
+
+**Copilot Chat suggests**:
+```sql
+SELECT id, event, headline, sent, urgency, severity
+FROM cap_alerts
+WHERE sent > NOW() - INTERVAL '24 hours'
+ORDER BY sent DESC;
+```
+
+**You**: Run the query:
+```bash
+psql -d alerts -c "SELECT id, event, headline, sent FROM cap_alerts WHERE sent > NOW() - INTERVAL '24 hours' ORDER BY sent DESC;"
+```
+
+**Copilot Chat**: Can then help you analyze the results or modify the query
+
+---
+
+### Summary: Which AI Agent Should I Use?
+
+**Choose GitHub Copilot if**:
+- ✅ You want native IDE integration
+- ✅ You prefer to execute commands yourself
+- ✅ You need excellent code completion
+- ✅ You want to learn by seeing suggestions
+- ✅ You have GitHub Copilot access through work/school
+
+**Choose zencoder.ai if**:
+- ✅ You want autonomous bug fixing
+- ✅ You need end-to-end workflow execution
+- ✅ You want the AI to run commands directly
+- ✅ You need service management automation
+- ✅ You want hands-off debugging
+
+**Use both if**:
+- ✅ You want the best of both worlds
+- ✅ Copilot for writing, zencoder.ai for debugging
+- ✅ You're willing to pay for both services
+- ✅ You want maximum productivity
+
+---
+
+### Setup Verification for GitHub Copilot
+
+After installing GitHub Copilot, verify it can access your remote environment:
+
+**Test 1: Remote File Access**
+- ✅ Open a Python file from `/opt/eas-station/`
+- ✅ Start typing - Copilot should suggest completions
+- ✅ Suggestions should be contextual to EAS Station code
+
+**Test 2: Terminal Access**
+- ✅ Open integrated terminal (Ctrl+`)
+- ✅ You should see: `eas-station@raspberrypi:/opt/eas-station$`
+- ✅ You can run: `python --version` → shows `Python 3.11.x`
+
+**Test 3: Copilot Chat Integration**
+- ✅ Open Copilot Chat (Ctrl+Shift+I)
+- ✅ Ask about a file: "What does app.py do?"
+- ✅ Copilot should analyze the remote file
+
+**All tests pass?** ✅ GitHub Copilot is fully integrated with your remote environment!
 
 ---
 

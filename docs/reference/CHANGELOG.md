@@ -6,6 +6,31 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.20.1] - 2025-12-11
+### Changed
+  - **Enhanced PyCharm integration documentation** - Added comprehensive field-by-field setup instructions in `docs/guides/PYCHARM_DEBUGGING.md`
+  - Added detailed tables for every configuration dialog with all fields explained
+  - Added example values for each field with explanations
+  - Added step-by-step Database Tools (DataGrip) configuration
+  - Added step-by-step Debug Configuration setup for AI coding assistants
+  - Added validation checklist for complete PyCharm setup
+  - Added "Quick Start" section with essential settings table for rapid configuration
+  - **Added comprehensive GitHub Copilot integration section** - Detailed comparison with zencoder.ai
+  - Added GitHub Copilot setup instructions for PyCharm and VS Code
+  - Added capability comparison table (Copilot vs zencoder.ai)
+  - Added workflow examples showing how to use GitHub Copilot Chat effectively
+  - Added recommendations for when to use each AI assistant
+  - Updated document title to cover all AI coding assistants, not just zencoder.ai
+  - **Added Wing IDE integration section** - Complete setup guide for Wing Professional Python IDE
+  - Added Wing IDE to Quick Start settings table with remote host configuration
+  - Added Wing IDE as Option C in IDE selection with pros/cons
+  - Added Wing IDE remote development capabilities and AI assistant support
+  - Added comprehensive zencoder.ai integration section with API setup and testing steps
+  - Added scenario-based examples showing zencoder.ai workflow (bug fixing, features, optimization)
+  - Added verification tests for each capability (files, Python, database, services, logs)
+  - Improved clarity on which fields are required vs optional
+  - Added troubleshooting references for each configuration step
+
 ## [2.20.0] - 2025-12-11
 ### Added
   - **Complete whiptail-based setup** - All installation inputs now use professional TUI interface
