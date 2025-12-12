@@ -1156,9 +1156,7 @@ done
 # Add service user to necessary groups for hardware access
 echo_progress "Adding $SERVICE_USER to hardware access groups..."
 for group in $HARDWARE_GROUPS; do
-    if getent group "$group" >/dev/null 2>&1; then
-        usermod -a -G "$group" "$SERVICE_USER" 2>/dev/null || true
-    fi
+    usermod -a -G "$group" "$SERVICE_USER" 2>/dev/null || true
 done
 echo_success "Hardware access groups configured"
 

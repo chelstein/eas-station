@@ -565,17 +565,18 @@ if [ -d "$INSTALL_DIR/systemd" ]; then
         fi
     done
     
-    # Add service user to hardware groups
+    # Add service user to hardware groups (always run to ensure user is member)
+    echo_progress "Adding $SERVICE_USER to hardware access groups..."
+    for group in $HARDWARE_GROUPS; do
+        if getent group "$group" >/dev/null 2>&1; then
+            usermod -a -G "$group" "$SERVICE_USER" 2>/dev/null || true
+        fi
+    done
+    
     if [ $GROUPS_CREATED -gt 0 ]; then
-        echo_progress "Adding $SERVICE_USER to new hardware access groups..."
-        for group in $HARDWARE_GROUPS; do
-            if getent group "$group" >/dev/null 2>&1; then
-                usermod -a -G "$group" "$SERVICE_USER" 2>/dev/null || true
-            fi
-        done
-        echo_success "Hardware access groups configured (created $GROUPS_CREATED)"
+        echo_success "Hardware access groups configured (created $GROUPS_CREATED new groups)"
     else
-        echo_info "All hardware groups already exist"
+        echo_success "Hardware access groups configured (all groups already existed)"
     fi
 else
     echo_warning "Systemd directory not found - skipping service file update"
