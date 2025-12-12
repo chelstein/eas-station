@@ -466,17 +466,18 @@ if [ -d "$INSTALL_DIR/.git" ]; then
     
     # Update or add git metadata to .env file
     if [ -n "$GIT_COMMIT_FULL" ]; then
-        # Remove old git metadata lines if they exist
-        sed -i '/^GIT_COMMIT=/d' "$INSTALL_DIR/.env" 2>/dev/null || true
-        sed -i '/^GIT_BRANCH=/d' "$INSTALL_DIR/.env" 2>/dev/null || true
-        sed -i '/^GIT_COMMIT_DATE=/d' "$INSTALL_DIR/.env" 2>/dev/null || true
-        sed -i '/^GIT_COMMIT_MESSAGE=/d' "$INSTALL_DIR/.env" 2>/dev/null || true
+        # Ensure .env file exists
+        touch "$INSTALL_DIR/.env"
         
-        # Append new git metadata
+        # Remove old git metadata lines if they exist (combined for efficiency)
+        sed -i '/^GIT_COMMIT=/d; /^GIT_BRANCH=/d; /^GIT_COMMIT_DATE=/d; /^GIT_COMMIT_MESSAGE=/d' "$INSTALL_DIR/.env" 2>/dev/null || true
+        
+        # Append new git metadata (properly escaped)
         echo "GIT_COMMIT=$GIT_COMMIT_FULL" >> "$INSTALL_DIR/.env"
         [ -n "$GIT_BRANCH_NAME" ] && echo "GIT_BRANCH=$GIT_BRANCH_NAME" >> "$INSTALL_DIR/.env"
         [ -n "$GIT_COMMIT_DATE" ] && echo "GIT_COMMIT_DATE=$GIT_COMMIT_DATE" >> "$INSTALL_DIR/.env"
-        [ -n "$GIT_COMMIT_MSG" ] && echo "GIT_COMMIT_MESSAGE=$GIT_COMMIT_MSG" >> "$INSTALL_DIR/.env"
+        # Escape commit message for shell safety
+        [ -n "$GIT_COMMIT_MSG" ] && printf 'GIT_COMMIT_MESSAGE=%s\n' "$GIT_COMMIT_MSG" >> "$INSTALL_DIR/.env"
         
         chown "$SERVICE_USER:$SERVICE_USER" "$INSTALL_DIR/.env"
         echo_success "Version metadata updated (commit: ${GIT_COMMIT_FULL:0:8})"
