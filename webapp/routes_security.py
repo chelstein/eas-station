@@ -817,6 +817,25 @@ def cleanup_expired_filters():
 
 
 # ============================================================================
+# SSL Certificate Management
+# ============================================================================
+
+@security_bp.route('/ssl-certificate', methods=['GET'])
+@require_permission('system.view')
+def get_ssl_certificate_info():
+    """Get SSL certificate information and renewal status."""
+    from app_core.ssl_utils import get_ssl_certificate_info, get_certificate_renewal_status
+    
+    cert_info = get_ssl_certificate_info()
+    renewal_info = get_certificate_renewal_status()
+    
+    return jsonify({
+        'certificate': cert_info,
+        'renewal': renewal_info
+    }), 200
+
+
+# ============================================================================
 # Blueprint Registration
 # ============================================================================
 

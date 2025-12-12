@@ -468,6 +468,12 @@
                             <li><h6 class="dropdown-header">{{ current_user.username }}</h6></li>
                             <li><hr class="dropdown-divider"></li>
                             <li>
+                                <a class="dropdown-item" href="/security/settings">
+                                    <i class="fas fa-shield-halved"></i> Security Settings
+                                </a>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
                                 <a class="dropdown-item" href="{{ url_for('auth.logout') }}">
                                     <i class="fas fa-sign-out-alt"></i> Sign Out
                                 </a>

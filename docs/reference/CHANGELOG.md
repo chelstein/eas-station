@@ -6,6 +6,20 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+### Added
+- **SSL Certificate Status UI** - Added comprehensive certificate viewer to Security Settings page
+  - Shows certificate type (Let's Encrypt, Self-Signed, or None)
+  - Displays validity status with color-coded badges (Valid, Expiring Soon, Expired)
+  - Shows domain, issuer, valid from/until dates, and days remaining
+  - Displays certbot automatic renewal timer status and next check time
+  - Provides warnings for expiring (≤30 days) or expired certificates
+  - Includes helpful guidance for self-signed certificates and renewal procedures
+  - Auto-refreshes on page load with manual refresh button
+  - Added API endpoint `/security/ssl-certificate` to retrieve certificate data
+  - Created `app_core/ssl_utils.py` with certificate parsing utilities
+  - Added "Security Settings" link to user dropdown menu for easy access
+- VERSION bumped to 2.22.0 (new feature)
+
 ### Fixed
 - **Certbot systemd service missing** - Added certbot.service and certbot.timer to systemd directory
   - Install script was trying to enable certbot.timer but the systemd files didn't exist
