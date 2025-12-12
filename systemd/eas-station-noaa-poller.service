@@ -1,9 +1,15 @@
 [Unit]
-Description=EAS Station NOAA Alert Poller
+Description=EAS Station NOAA Alert Poller (DEPRECATED - Use eas-station-poller.service)
 Documentation=https://github.com/KR8MER/eas-station
 After=network-online.target postgresql.service
 Wants=network-online.target
 Requires=postgresql.service
+
+# DEPRECATION NOTICE:
+# This separate NOAA-only poller service is deprecated.
+# Please migrate to the unified poller: eas-station-poller.service
+# The unified poller polls both NOAA and IPAWS in a single service.
+# Migration: systemctl disable eas-station-noaa-poller && systemctl enable eas-station-poller
 
 [Service]
 Type=simple

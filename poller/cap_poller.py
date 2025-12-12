@@ -600,10 +600,21 @@ class CAPPoller:
 
         # Endpoint configuration - Flexible multi-source polling
         # The poller can handle NOAA, IPAWS, and any other CAP-compliant sources
-        # Legacy CAP_POLLER_MODE is deprecated but still supported for backward compatibility
+        # 
+        # DEPRECATED: CAP_POLLER_MODE is deprecated and will be removed in a future release.
+        # The poller now automatically polls all configured sources (NOAA, IPAWS, custom).
+        # To use the unified poller:
+        #   1. Remove CAP_POLLER_MODE environment variable
+        #   2. Use eas-station-poller.service instead of separate noaa/ipaws services
+        #   3. Configure sources via IPAWS_CAP_FEED_URLS and CAP_ENDPOINTS
         legacy_mode = os.getenv('CAP_POLLER_MODE', '').strip().upper()
         if legacy_mode in ('NOAA', 'IPAWS'):
-            self.logger.info("CAP_POLLER_MODE=%s (legacy mode, consider using CAP_ENDPOINTS instead)", legacy_mode)
+            self.logger.warning(
+                "⚠️  CAP_POLLER_MODE=%s is DEPRECATED and will be removed in a future release. "
+                "Please migrate to the unified poller by removing CAP_POLLER_MODE and using "
+                "eas-station-poller.service. See documentation for migration guide.",
+                legacy_mode
+            )
             self.poller_mode = legacy_mode
         else:
             # Default to "ALL" - poll all configured sources
