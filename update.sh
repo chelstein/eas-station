@@ -455,6 +455,38 @@ else
     echo_info "No configuration backup to restore"
 fi
 
+# Write git metadata to .env file so Flask can display it
+echo_progress "Updating version metadata in configuration..."
+if [ -d "$INSTALL_DIR/.git" ]; then
+    # Get full git metadata
+    GIT_COMMIT_FULL=$(git -C "$INSTALL_DIR" rev-parse HEAD 2>/dev/null || echo "")
+    GIT_BRANCH_NAME=$(git -C "$INSTALL_DIR" branch --show-current 2>/dev/null || echo "")
+    GIT_COMMIT_DATE=$(git -C "$INSTALL_DIR" log -1 --format=%cI 2>/dev/null || echo "")
+    GIT_COMMIT_MSG=$(git -C "$INSTALL_DIR" log -1 --format=%s 2>/dev/null || echo "")
+    
+    # Update or add git metadata to .env file
+    if [ -n "$GIT_COMMIT_FULL" ]; then
+        # Remove old git metadata lines if they exist
+        sed -i '/^GIT_COMMIT=/d' "$INSTALL_DIR/.env" 2>/dev/null || true
+        sed -i '/^GIT_BRANCH=/d' "$INSTALL_DIR/.env" 2>/dev/null || true
+        sed -i '/^GIT_COMMIT_DATE=/d' "$INSTALL_DIR/.env" 2>/dev/null || true
+        sed -i '/^GIT_COMMIT_MESSAGE=/d' "$INSTALL_DIR/.env" 2>/dev/null || true
+        
+        # Append new git metadata
+        echo "GIT_COMMIT=$GIT_COMMIT_FULL" >> "$INSTALL_DIR/.env"
+        [ -n "$GIT_BRANCH_NAME" ] && echo "GIT_BRANCH=$GIT_BRANCH_NAME" >> "$INSTALL_DIR/.env"
+        [ -n "$GIT_COMMIT_DATE" ] && echo "GIT_COMMIT_DATE=$GIT_COMMIT_DATE" >> "$INSTALL_DIR/.env"
+        [ -n "$GIT_COMMIT_MSG" ] && echo "GIT_COMMIT_MESSAGE=$GIT_COMMIT_MSG" >> "$INSTALL_DIR/.env"
+        
+        chown "$SERVICE_USER:$SERVICE_USER" "$INSTALL_DIR/.env"
+        echo_success "Version metadata updated (commit: ${GIT_COMMIT_FULL:0:8})"
+    else
+        echo_warning "Could not read git metadata"
+    fi
+else
+    echo_info "Not a git repository - skipping version metadata"
+fi
+
 # Update Python dependencies
 echo_step "Updating Python Dependencies"
 
