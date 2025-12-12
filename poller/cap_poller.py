@@ -818,22 +818,62 @@ class CAPPoller:
             alert_data: Alert data payload to publish
         """
         if not self.redis_client:
+            self.logger.debug("Redis client not available, skipping event publish")
             return
         
         try:
+            # Validate inputs
+            if not channel or not isinstance(channel, str):
+                self.logger.error(f"Invalid Redis channel: {channel}")
+                return
+                
+            if not isinstance(alert_data, dict):
+                self.logger.error(f"Alert data must be dict, got {type(alert_data).__name__}")
+                return
+            
             # Convert datetime objects to ISO format strings for JSON serialization
             serializable_data = {}
             for key, value in alert_data.items():
-                if isinstance(value, datetime):
-                    serializable_data[key] = value.isoformat()
-                else:
-                    serializable_data[key] = value
+                try:
+                    if isinstance(value, datetime):
+                        serializable_data[key] = value.isoformat()
+                    elif value is None:
+                        serializable_data[key] = None
+                    elif isinstance(value, (str, int, float, bool)):
+                        serializable_data[key] = value
+                    elif isinstance(value, (list, dict)):
+                        # Will be handled by json_dumps, but check for nested datetimes
+                        serializable_data[key] = value
+                    else:
+                        # Convert other types to string
+                        serializable_data[key] = str(value)
+                except Exception as convert_err:
+                    self.logger.warning(
+                        f"Failed to serialize field '{key}' (type {type(value).__name__}): {convert_err}"
+                    )
+                    serializable_data[key] = None
             
-            payload = json_dumps(serializable_data)
-            self.redis_client.publish(channel, payload)
-            self.logger.debug(f"Published alert event to {channel}")
+            try:
+                payload = json_dumps(serializable_data)
+            except (TypeError, ValueError) as json_err:
+                self.logger.error(
+                    f"Failed to serialize alert data to JSON for channel {channel}: {json_err}. "
+                    f"Keys: {list(serializable_data.keys())}"
+                )
+                return
+            
+            try:
+                subscribers = self.redis_client.publish(channel, payload)
+                self.logger.debug(f"Published alert event to {channel} ({subscribers} subscribers)")
+            except Exception as pub_err:
+                self.logger.error(
+                    f"Redis publish failed for channel {channel}: {type(pub_err).__name__}: {pub_err}"
+                )
+                
         except Exception as exc:
-            self.logger.error(f"Failed to publish to Redis channel {channel}: {exc}")
+            self.logger.error(
+                f"Unexpected error publishing to Redis channel {channel}: {type(exc).__name__}: {exc}"
+            )
 
     # ---------- Engine with retry ----------
     def _load_location_settings(self) -> Dict[str, Any]:
@@ -1171,38 +1211,98 @@ class CAPPoller:
         return coords
 
     def _parse_cap_circle(self, circle_text: Optional[str], points: int = 36) -> Optional[List[List[float]]]:
+        """Parse CAP circle element into polygon coordinates.
+        
+        Args:
+            circle_text: CAP circle string format "lat,lon radius_km"
+            points: Number of points to approximate circle (default 36)
+            
+        Returns:
+            List of [lon, lat] coordinate pairs, or None if invalid
+        """
         if not circle_text:
             return None
 
         parts = circle_text.strip().split()
         if not parts:
+            self.logger.debug("Empty circle text after stripping whitespace")
             return None
 
         try:
+            if ',' not in parts[0]:
+                self.logger.warning(f"Invalid circle format (missing comma): '{circle_text[:50]}'")
+                return None
+                
             lat_str, lon_str = parts[0].split(',', 1)
             lat = float(lat_str)
             lon = float(lon_str)
-        except ValueError:
+            
+            # Validate coordinate ranges
+            if not (-90 <= lat <= 90):
+                self.logger.warning(f"Circle latitude out of range: {lat} (must be -90 to 90)")
+                return None
+            if not (-180 <= lon <= 180):
+                self.logger.warning(f"Circle longitude out of range: {lon} (must be -180 to 180)")
+                return None
+                
+        except ValueError as e:
+            self.logger.warning(f"Invalid circle coordinates: '{parts[0]}' - {e}")
+            return None
+        except Exception as e:
+            self.logger.error(f"Unexpected error parsing circle coordinates: {e}")
             return None
 
         radius_km = 0.0
         if len(parts) > 1:
             try:
                 radius_km = float(parts[1])
-            except ValueError:
+            except ValueError as e:
+                self.logger.warning(f"Invalid circle radius: '{parts[1]}' - {e}")
                 radius_km = 0.0
 
         if radius_km <= 0:
+            self.logger.warning(f"Circle radius must be positive: {radius_km} km")
+            return None
+            
+        if radius_km > 20000:  # Earth's half-circumference
+            self.logger.warning(f"Circle radius unreasonably large: {radius_km} km (max 20000 km)")
             return None
 
         return self._approximate_circle_polygon(lat, lon, radius_km, points)
 
     def _approximate_circle_polygon(self, lat: float, lon: float, radius_km: float, points: int) -> List[List[float]]:
+        """Approximate a circle as a polygon using haversine formula.
+        
+        Args:
+            lat: Center latitude in degrees
+            lon: Center longitude in degrees
+            radius_km: Radius in kilometers
+            points: Number of points to use for approximation
+            
+        Returns:
+            List of [lon, lat] coordinate pairs forming a closed ring
+            
+        Raises:
+            ValueError: If inputs are invalid
+        """
         coords: List[List[float]] = []
+        
+        # Validate inputs
+        if not (-90 <= lat <= 90):
+            raise ValueError(f"Latitude must be -90 to 90, got {lat}")
+        if not (-180 <= lon <= 180):
+            raise ValueError(f"Longitude must be -180 to 180, got {lon}")
+        if radius_km <= 0:
+            raise ValueError(f"Radius must be positive, got {radius_km}")
+        if points < 3:
+            raise ValueError(f"Need at least 3 points for polygon, got {points}")
         
         # Handle edge case: circles at or near poles
         if abs(lat) > 89.5:
-            self.logger.warning(f"Circle center at extreme latitude ({lat}°) - using simplified polygon")
+            self.logger.warning(
+                f"Circle center at extreme latitude ({lat:.2f}°) - using simplified rectangular approximation. "
+                f"Haversine formula unreliable near poles."
+            )
             # For near-pole circles, use a simplified square approximation
             offset = radius_km / 111.0  # Rough km to degrees conversion
             coords = [
@@ -1214,32 +1314,69 @@ class CAPPoller:
             ]
             return coords
         
-        radius_ratio = radius_km / 6371.0  # Earth radius in km
-        center_lat = math.radians(lat)
-        center_lon = math.radians(lon)
-
-        for step in range(points):
-            bearing = 2 * math.pi * (step / points)
-            sin_lat = math.sin(center_lat)
-            cos_lat = math.cos(center_lat)
-            sin_radius = math.sin(radius_ratio)
-            cos_radius = math.cos(radius_ratio)
-
-            # Haversine formula for point on great circle
-            lat_rad = math.asin(
-                sin_lat * cos_radius + cos_lat * sin_radius * math.cos(bearing)
+        # Handle edge case: very large radius
+        if radius_km > 10000:
+            self.logger.warning(
+                f"Circle radius very large ({radius_km:.0f} km) - may produce distorted geometry"
             )
-            
-            # Handle potential division by zero when cos_lat is very small
-            if abs(cos_lat) < 1e-10:
-                lon_rad = center_lon
-            else:
-                lon_rad = center_lon + math.atan2(
-                    math.sin(bearing) * sin_radius * cos_lat,
-                    cos_radius - sin_lat * math.sin(lat_rad)
-                )
+        
+        try:
+            radius_ratio = radius_km / 6371.0  # Earth radius in km
+            center_lat = math.radians(lat)
+            center_lon = math.radians(lon)
 
-            coords.append([math.degrees(lon_rad), math.degrees(lat_rad)])
+            for step in range(points):
+                bearing = 2 * math.pi * (step / points)
+                sin_lat = math.sin(center_lat)
+                cos_lat = math.cos(center_lat)
+                sin_radius = math.sin(radius_ratio)
+                cos_radius = math.cos(radius_ratio)
+
+                # Haversine formula for point on great circle
+                lat_rad = math.asin(
+                    sin_lat * cos_radius + cos_lat * sin_radius * math.cos(bearing)
+                )
+                
+                # Handle potential division by zero when cos_lat is very small
+                if abs(cos_lat) < 1e-10:
+                    self.logger.warning(f"cos_lat near zero at {lat}°, using center longitude")
+                    lon_rad = center_lon
+                else:
+                    lon_rad = center_lon + math.atan2(
+                        math.sin(bearing) * sin_radius * cos_lat,
+                        cos_radius - sin_lat * math.sin(lat_rad)
+                    )
+
+                # Convert to degrees and validate
+                lon_deg = math.degrees(lon_rad)
+                lat_deg = math.degrees(lat_rad)
+                
+                # Normalize longitude to -180 to 180
+                while lon_deg > 180:
+                    lon_deg -= 360
+                while lon_deg < -180:
+                    lon_deg += 360
+                
+                # Clamp latitude to valid range
+                lat_deg = max(-90, min(90, lat_deg))
+                
+                coords.append([lon_deg, lat_deg])
+
+        except (ValueError, OverflowError) as e:
+            self.logger.error(
+                f"Math error approximating circle at ({lat}, {lon}) radius {radius_km}km: {e}. "
+                f"Falling back to simple square."
+            )
+            # Fallback to simple square on math error
+            offset = radius_km / 111.0
+            coords = [
+                [lon - offset, min(89.9, lat + offset)],
+                [lon + offset, min(89.9, lat + offset)],
+                [lon + offset, max(-89.9, lat - offset)],
+                [lon - offset, max(-89.9, lat - offset)],
+                [lon - offset, min(89.9, lat + offset)],
+            ]
+            return coords
 
         # Use epsilon tolerance for ring closure
         if coords and not self._coords_equal(coords[0], coords[-1]):
@@ -1697,57 +1834,108 @@ class CAPPoller:
         return sum(self._count_vertices(item, depth + 1) for item in coords)
 
     def _set_alert_geometry(self, alert: CAPAlert, geometry_data: Optional[Dict]):
-        """Set alert geometry with validation for complexity and validity."""
+        """Set alert geometry with validation for complexity and validity.
+        
+        Args:
+            alert: CAPAlert object to update
+            geometry_data: GeoJSON geometry dict or None
+        """
         try:
-            if geometry_data and isinstance(geometry_data, dict):
-                # Check polygon complexity before storing
-                coords = geometry_data.get('coordinates', [])
-                total_vertices = self._count_vertices(coords)
+            if not geometry_data or not isinstance(geometry_data, dict):
+                alert.geom = None
+                self.logger.debug(f"No geometry for alert {getattr(alert, 'identifier', '?')}")
+                return
+                
+            # Check polygon complexity before storing
+            coords = geometry_data.get('coordinates', [])
+            if not coords:
+                self.logger.debug(f"Empty coordinates in geometry for alert {getattr(alert, 'identifier', '?')}")
+                alert.geom = None
+                return
+                
+            total_vertices = self._count_vertices(coords)
 
-                # Warn and skip geometries that are excessively complex
-                if total_vertices > 10000:
-                    self.logger.warning(
-                        f"Alert {getattr(alert, 'identifier', '?')} has {total_vertices} vertices "
-                        "(exceeds 10,000 limit). Geometry will not be stored to prevent performance issues."
-                    )
-                    alert.geom = None
-                    return
+            # Warn and skip geometries that are excessively complex
+            if total_vertices > 10000:
+                self.logger.warning(
+                    f"Alert {getattr(alert, 'identifier', '?')} has {total_vertices:,} vertices "
+                    f"(exceeds 10,000 limit). Geometry will not be stored to prevent database "
+                    f"performance degradation. Consider simplifying the geometry."
+                )
+                alert.geom = None
+                return
 
-                if total_vertices > 5000:
-                    self.logger.info(
-                        f"Alert {getattr(alert, 'identifier', '?')} has {total_vertices} vertices "
-                        "(high complexity)"
-                    )
+            if total_vertices > 5000:
+                self.logger.info(
+                    f"Alert {getattr(alert, 'identifier', '?')} has {total_vertices:,} vertices "
+                    f"(high complexity - may impact performance)"
+                )
 
+            # Convert to GeoJSON string for PostGIS
+            try:
                 geom_json = json_dumps(geometry_data)
+            except (TypeError, ValueError) as json_err:
+                self.logger.error(
+                    f"Failed to serialize geometry to JSON for alert {getattr(alert, 'identifier', '?')}: {json_err}"
+                )
+                alert.geom = None
+                return
+
+            # Use PostGIS to create geometry from GeoJSON
+            try:
                 result = self.db_session.execute(
                     text("SELECT ST_SetSRID(ST_GeomFromGeoJSON(:g), 4326)"),
                     {"g": geom_json}
                 ).scalar()
+            except Exception as geom_err:
+                self.logger.error(
+                    f"PostGIS failed to parse GeoJSON for alert {getattr(alert, 'identifier', '?')}: {geom_err}. "
+                    f"Geometry type: {geometry_data.get('type')}, vertices: {total_vertices}"
+                )
+                alert.geom = None
+                return
 
-                # Validate geometry and attempt repair if invalid
+            # Validate geometry and attempt repair if invalid
+            try:
                 is_valid = self.db_session.execute(
                     text("SELECT ST_IsValid(:geom)"),
                     {"geom": result}
                 ).scalar()
+            except Exception as valid_err:
+                self.logger.warning(
+                    f"Geometry validation check failed for alert {getattr(alert, 'identifier', '?')}: {valid_err}"
+                )
+                # Assume invalid if check fails
+                is_valid = False
 
-                if not is_valid:
-                    self.logger.warning(
-                        f"Invalid geometry for alert {getattr(alert, 'identifier', '?')}, "
-                        "attempting automatic repair with ST_MakeValid"
-                    )
+            if not is_valid:
+                self.logger.warning(
+                    f"Invalid geometry for alert {getattr(alert, 'identifier', '?')} - "
+                    f"attempting automatic repair with ST_MakeValid. "
+                    f"This may indicate self-intersecting polygons or other topology issues."
+                )
+                try:
                     result = self.db_session.execute(
                         text("SELECT ST_MakeValid(:geom)"),
                         {"geom": result}
                     ).scalar()
+                    self.logger.info(f"Geometry repaired successfully for alert {getattr(alert, 'identifier', '?')}")
+                except Exception as repair_err:
+                    self.logger.error(
+                        f"ST_MakeValid failed to repair geometry for alert {getattr(alert, 'identifier', '?')}: {repair_err}. "
+                        f"Geometry will not be stored."
+                    )
+                    alert.geom = None
+                    return
 
-                alert.geom = result
-                self.logger.debug(f"Geometry set for alert {alert.identifier}")
-            else:
-                alert.geom = None
-                self.logger.debug(f"No geometry for alert {alert.identifier}")
+            alert.geom = result
+            self.logger.debug(f"Geometry set for alert {getattr(alert, 'identifier', '?')} ({total_vertices} vertices)")
+            
         except Exception as e:
-            self.logger.warning(f"Could not set geometry for alert {getattr(alert,'identifier','?')}: {e}")
+            self.logger.error(
+                f"Unexpected error setting geometry for alert {getattr(alert,'identifier','?')}: {type(e).__name__}: {e}. "
+                f"Geometry will not be stored."
+            )
             alert.geom = None
 
     def _has_geometry_changed(self, old_geom, new_geom) -> bool:
@@ -1781,9 +1969,20 @@ class CAPPoller:
         
         Optimized to use a single bulk query instead of N+1 queries (one per boundary).
         This dramatically reduces CPU usage when processing alerts with many boundaries.
+        
+        Args:
+            alert: CAPAlert object with geometry to intersect
+            
+        Raises:
+            Exception: Re-raises exceptions after rollback to signal failure
         """
         try:
             if not alert.geom:
+                self.logger.debug(f"Alert {getattr(alert, 'identifier', '?')} has no geometry, skipping intersections")
+                return
+            
+            if not alert.id:
+                self.logger.error(f"Alert {getattr(alert, 'identifier', '?')} has no ID, cannot calculate intersections")
                 return
 
             # Validate geometry before processing intersections
@@ -1795,17 +1994,24 @@ class CAPPoller:
                 
                 if not is_valid:
                     self.logger.warning(
-                        f"Alert {alert.identifier} has invalid geometry, cannot calculate intersections"
+                        f"Alert {getattr(alert, 'identifier', '?')} has invalid geometry, "
+                        f"cannot calculate intersections. Run ST_MakeValid to repair."
                     )
                     return
             except Exception as validation_err:
-                self.logger.warning(
-                    f"Geometry validation failed for alert {alert.identifier}: {validation_err}"
+                self.logger.error(
+                    f"Geometry validation failed for alert {getattr(alert, 'identifier', '?')}: {validation_err}"
                 )
                 return
 
             # Delete old intersections
-            self.db_session.query(Intersection).filter_by(cap_alert_id=alert.id).delete()
+            try:
+                deleted_count = self.db_session.query(Intersection).filter_by(cap_alert_id=alert.id).delete()
+                if deleted_count > 0:
+                    self.logger.debug(f"Deleted {deleted_count} old intersections for alert {alert.id}")
+            except Exception as delete_err:
+                self.logger.error(f"Failed to delete old intersections for alert {alert.id}: {delete_err}")
+                raise
 
             # OPTIMIZED: Calculate ALL intersections in a single query instead of N queries
             # This uses a SQL subquery to compute ST_Intersects and ST_Area for all boundaries at once
@@ -1829,20 +2035,35 @@ class CAPPoller:
                   AND ST_Intersects(:alert_geom, b.geom)
             """)
             
-            results = self.db_session.execute(
-                intersection_query,
-                {'alert_geom': alert.geom}
-            ).fetchall()
+            try:
+                results = self.db_session.execute(
+                    intersection_query,
+                    {'alert_geom': alert.geom}
+                ).fetchall()
+            except Exception as query_err:
+                self.logger.error(
+                    f"Intersection query failed for alert {getattr(alert, 'identifier', '?')}: {query_err}. "
+                    f"This may indicate corrupted geometry or database issues."
+                )
+                raise
 
             # Build list of new intersections from bulk query results
             new_intersections = []
             with_area = 0
+            errors = 0
 
             for row in results:
                 try:
                     boundary_id = row.boundary_id
                     # Area is now in square meters (from geography cast)
                     ia = float(row.intersection_area or 0)
+                    
+                    if ia < 0:
+                        self.logger.warning(
+                            f"Negative intersection area ({ia}) for alert {alert.id} boundary {boundary_id}, "
+                            f"setting to 0"
+                        )
+                        ia = 0
                     
                     new_intersections.append(Intersection(
                         cap_alert_id=alert.id,
@@ -1852,24 +2073,53 @@ class CAPPoller:
                     ))
                     if ia > 0:
                         with_area += 1
-                except Exception as be:
-                    self.logger.warning(f"Intersection error with boundary {boundary_id}: {be}")
-                    # Continue processing other boundaries
+                except (ValueError, TypeError) as convert_err:
+                    errors += 1
+                    self.logger.warning(
+                        f"Data conversion error for intersection alert={alert.id} boundary={boundary_id}: {convert_err}"
+                    )
+                except Exception as row_err:
+                    errors += 1
+                    self.logger.error(
+                        f"Unexpected error processing intersection row alert={alert.id} boundary={boundary_id}: {row_err}"
+                    )
+
+            if errors > 0:
+                self.logger.warning(f"Encountered {errors} errors processing intersection results")
 
             # Bulk insert all intersections atomically
             if new_intersections:
-                self.db_session.bulk_save_objects(new_intersections)
+                try:
+                    self.db_session.bulk_save_objects(new_intersections)
+                except Exception as bulk_err:
+                    self.logger.error(
+                        f"Bulk insert failed for {len(new_intersections)} intersections: {bulk_err}"
+                    )
+                    raise
 
-            self.db_session.commit()
+            try:
+                self.db_session.commit()
+            except Exception as commit_err:
+                self.logger.error(f"Failed to commit intersections for alert {alert.id}: {commit_err}")
+                raise
 
             if new_intersections:
                 self.logger.info(
-                    f"Intersections for alert {alert.identifier}: {len(new_intersections)} "
-                    f"({with_area} with area > 0)"
+                    f"Intersections for alert {getattr(alert, 'identifier', '?')}: {len(new_intersections)} total "
+                    f"({with_area} with area > 0, {errors} errors)"
                 )
+            else:
+                self.logger.debug(f"No intersections found for alert {getattr(alert, 'identifier', '?')}")
+                
         except Exception as e:
-            self.db_session.rollback()
-            self.logger.error(f"Error processing intersections for alert {alert.id}: {e}")
+            self.logger.error(
+                f"Error processing intersections for alert {getattr(alert, 'id', '?')} "
+                f"({getattr(alert, 'identifier', '?')}): {type(e).__name__}: {e}"
+            )
+            try:
+                self.db_session.rollback()
+            except Exception as rollback_err:
+                self.logger.error(f"Rollback failed: {rollback_err}")
             raise  # Re-raise so caller knows intersection calculation failed
 
     def save_cap_alert(self, alert_data: Dict) -> Tuple[bool, Optional[CAPAlert], Optional[Dict[str, Any]]]:
