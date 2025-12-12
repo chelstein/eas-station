@@ -1,0 +1,33 @@
+[Unit]
+Description=EAS Station Alert Poller (Unified - NOAA + IPAWS)
+Documentation=https://github.com/KR8MER/eas-station
+After=network-online.target postgresql.service redis-server.service
+Wants=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+User=easstation
+Group=easstation
+WorkingDirectory=/opt/eas-station
+Environment="PYTHONUNBUFFERED=1"
+# NOTE: CAP_POLLER_MODE is NOT set - unified poller polls all sources (NOAA + IPAWS)
+# Configure sources via /app-config/.env: IPAWS_CAP_FEED_URLS, CAP_ENDPOINTS, NOAA_USER_AGENT
+Environment="CONFIG_PATH=/app-config/.env"
+EnvironmentFile=-/app-config/.env
+ExecStart=/usr/bin/python3 /opt/eas-station/poller/cap_poller.py --continuous --database-url postgresql://postgres:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=eas-poller
+
+# Security hardening
+PrivateTmp=yes
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/opt/eas-station/radio_captures /tmp
+
+[Install]
+WantedBy=multi-user.target

@@ -88,27 +88,19 @@ IPAWS_ENVIRONMENTS = {
 
 
 def _get_config_path() -> Path:
-    """Get the path to the persistent IPAWS config file.
+    """Get the path to the master persistent config file.
 
-    The IPAWS poller runs as its own service and reads configuration from a
-    dedicated file (typically `/app-config/ipaws.env`). If the UI writes to the
-    wrong file (such as the main application `.env`), the poller silently falls
-    back to the staging defaults. Prioritize an explicit IPAWS config path so
-    the poller and UI stay in sync.
+    All services (web, NOAA poller, IPAWS poller) share the same configuration
+    file for consistency. The CONFIG_PATH environment variable can override the
+    default location.
     """
-
-    # Explicit override for IPAWS configuration
-    ipaws_path_env = os.environ.get('IPAWS_CONFIG_PATH', '').strip()
-    if ipaws_path_env:
-        return Path(ipaws_path_env)
-
-    # Fallback to shared CONFIG_PATH to maintain backward compatibility
+    # Explicit override via CONFIG_PATH environment variable
     config_path_env = os.environ.get('CONFIG_PATH', '').strip()
     if config_path_env:
         return Path(config_path_env)
 
-    # Default to the poller-specific config file location
-    return Path('/app-config/ipaws.env')
+    # Default to the standard persistent config file location
+    return Path('/app-config/.env')
 
 
 def _read_current_config() -> Dict[str, str]:
@@ -203,6 +195,9 @@ def _update_env_file(key: str, value: str) -> None:
     """Update a single key in the .env file."""
     config_path = _get_config_path()
 
+    # Ensure parent directory exists
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+
     if not config_path.exists():
         # Create new file
         with open(config_path, 'w') as f:
@@ -268,7 +263,6 @@ def _get_noaa_status() -> Dict:
     status = {
         'configured': bool(noaa_user_agent),
         'user_agent': noaa_user_agent,
-        'custom_endpoints': cap_endpoints,
         'poll_interval': poll_interval,
         'last_poll': None,
         'last_poll_status': None,
@@ -285,6 +279,15 @@ def _get_noaa_status() -> Dict:
     return status
 
 
+def _get_custom_sources_status() -> Dict:
+    """Get current custom sources configuration."""
+    config = _read_current_config()
+    return {
+        'cap_endpoints': config.get('CAP_ENDPOINTS', '').strip(),
+        'poll_interval': config.get('POLL_INTERVAL_SEC', '120')
+    }
+
+
 @ipaws_bp.route('/settings/alert-feeds')
 @require_permission('system.view_config')
 def alert_feeds_settings():
@@ -292,11 +295,13 @@ def alert_feeds_settings():
     try:
         ipaws_status = _get_ipaws_status()
         noaa_status = _get_noaa_status()
+        custom_status = _get_custom_sources_status()
 
         return render_template(
             'settings/alert_feeds.html',
             ipaws_status=ipaws_status,
             noaa_status=noaa_status,
+            custom_status=custom_status,
             environments=IPAWS_ENVIRONMENTS,
             feed_types=IPAWS_FEED_TYPES
         )
@@ -463,6 +468,82 @@ def api_noaa_configure():
     except Exception as exc:
         logger.error(f"Error configuring NOAA: {exc}")
         return jsonify({'error': str(exc)}), 500
+
+
+@ipaws_bp.route('/api/ipaws/configure-custom-sources', methods=['POST'])
+@require_permission('system.edit_config')
+def api_configure_custom_sources():
+    """Configure custom CAP alert sources."""
+    try:
+        data = request.get_json()
+        if not data:
+            raise BadRequest("No data provided")
+
+        cap_endpoints = data.get('cap_endpoints', '').strip()
+        poll_interval = data.get('poll_interval', '120')
+
+        # Validate poll interval
+        try:
+            interval_int = int(poll_interval)
+            if interval_int < 30:
+                raise BadRequest("Poll interval must be at least 30 seconds")
+        except ValueError:
+            raise BadRequest("Invalid poll interval")
+
+        # Update configuration
+        _update_env_file('CAP_ENDPOINTS', cap_endpoints)
+        _update_env_file('POLL_INTERVAL_SEC', poll_interval)
+
+        # Restart the poller service (unified poller, not separate services)
+        restart_success = False
+        try:
+            # Try to restart the unified poller service
+            result = subprocess.run(
+                ['sudo', 'systemctl', 'restart', 'eas-station-poller.service'],
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
+            restart_success = result.returncode == 0
+            if restart_success:
+                logger.info("Alert poller restarted successfully")
+            else:
+                logger.warning(f"Failed to restart poller: {result.stderr}")
+                # Try legacy service names for backward compatibility
+                for service in ['eas-station-noaa-poller.service', 'eas-station-ipaws-poller.service']:
+                    try:
+                        result = subprocess.run(
+                            ['sudo', 'systemctl', 'restart', service],
+                            capture_output=True,
+                            text=True,
+                            timeout=30
+                        )
+                        if result.returncode == 0:
+                            logger.info(f"Restarted {service}")
+                            restart_success = True
+                    except subprocess.SubprocessError as svc_exc:
+                        logger.debug(f"Could not restart {service}: {svc_exc}")
+                    except Exception as svc_exc:
+                        logger.debug(f"Error attempting to restart {service}: {svc_exc}")
+        except Exception as exc:
+            logger.error(f"Error restarting poller: {exc}")
+
+        return jsonify({
+            'success': True,
+            'cap_endpoints': cap_endpoints,
+            'poll_interval': poll_interval,
+            'poller_restarted': restart_success,
+            'message': 'Custom alert sources updated successfully' + (
+                ' and poller restarted' if restart_success else ' (manual restart required)'
+            )
+        })
+
+    except BadRequest as e:
+        return jsonify({'error': str(e)}), 400
+    except Exception as exc:
+        logger.error(f"Error configuring custom sources: {exc}")
+        return jsonify({'error': str(exc)}), 500
+
 
 
 def register(app, logger):

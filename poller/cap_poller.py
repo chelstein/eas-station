@@ -79,58 +79,29 @@ if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
     print(f"[CAP_POLLER_INIT] Added PROJECT_ROOT to sys.path", flush=True)
 
-# Load persistent configuration with poller-specific overrides.
-# Each poller service should have its own config file (noaa.env, ipaws.env)
+# Load persistent configuration from a single master environment file.
+# Use CONFIG_PATH environment variable to specify the config file location.
+# Defaults to /app-config/.env if CONFIG_PATH is not set.
 def _resolve_config_path() -> Optional[Path]:
-    mode = os.environ.get('CAP_POLLER_MODE', '').strip().upper()
-    ipaws_path = os.environ.get('IPAWS_CONFIG_PATH', '').strip()
-    noaa_path = os.environ.get('NOAA_CONFIG_PATH', '').strip()
-    shared_path = os.environ.get('CONFIG_PATH', '').strip()
-
-    if mode == 'IPAWS':
-        if ipaws_path:
-            return Path(ipaws_path)
-        if shared_path:
-            return Path(shared_path)
-        return Path('/app-config/ipaws.env')
-
-    if mode == 'NOAA':
-        if noaa_path:
-            return Path(noaa_path)
-        if shared_path:
-            return Path(shared_path)
-        return Path('/app-config/noaa.env')
-
-    if shared_path:
-        return Path(shared_path)
-
-    return None
+    # Check for explicit CONFIG_PATH override
+    config_path = os.environ.get('CONFIG_PATH', '').strip()
+    if config_path:
+        return Path(config_path)
+    
+    # Default to the standard persistent config location
+    return Path('/app-config/.env')
 
 
-# CRITICAL: Load database settings from the APP's main persistent config first.
-# This ensures all containers (app, noaa-poller, ipaws-poller) use the same database.
-# The app's config is the source of truth for database connection settings.
-_app_config_path = Path('/app-config/.env')
-print(f"[CAP_POLLER] Checking for app config at: {_app_config_path}")
-print(f"[CAP_POLLER] App config exists: {_app_config_path.exists()}")
-if _app_config_path.exists():
-    print(f"[CAP_POLLER] Loading app config from: {_app_config_path}")
-    load_dotenv(_app_config_path, override=False)
-    print(f"[CAP_POLLER] App config loaded successfully")
-else:
-    print(f"[CAP_POLLER] App config not found, skipping")
-
-# Then load poller-specific config for non-database settings (polling intervals, etc.)
+# Load the master configuration file
 _config_path = _resolve_config_path()
-print(f"[CAP_POLLER] Resolved poller config path: {_config_path}")
-print(f"[CAP_POLLER] Poller config exists: {_config_path.exists() if _config_path else False}")
+print(f"[CAP_POLLER] Master config path: {_config_path}")
+print(f"[CAP_POLLER] Config file exists: {_config_path.exists() if _config_path else False}")
 if _config_path and _config_path.exists():
-    # Load poller config, but don't let it override database settings from app config
-    print(f"[CAP_POLLER] Loading poller config from: {_config_path}")
+    print(f"[CAP_POLLER] Loading master config from: {_config_path}")
     load_dotenv(_config_path, override=False)
-    print(f"[CAP_POLLER] Poller config loaded successfully")
+    print(f"[CAP_POLLER] Master config loaded successfully")
 else:
-    print(f"[CAP_POLLER] Poller config not found or not configured")
+    print(f"[CAP_POLLER] Master config not found, using environment variables only")
 
 # Always load a local .env file last so it only fills in missing values and
 # never overrides anything supplied by the container or environment volume.
@@ -627,8 +598,9 @@ class CAPPoller:
                 " to let alert playbacks trigger IQ/PCM recordings."
             )
 
-        # Endpoint configuration & defaults
-        self.poller_mode = (os.getenv('CAP_POLLER_MODE', 'NOAA') or 'NOAA').strip().upper()
+        # Endpoint configuration - Unified multi-source polling
+        # The poller automatically polls all configured sources (NOAA, IPAWS, custom)
+        # Configure sources via IPAWS_CAP_FEED_URLS and CAP_ENDPOINTS in .env file
 
         configured_endpoints: List[str] = []
 
@@ -640,12 +612,11 @@ class CAPPoller:
                 if cleaned:
                     configured_endpoints.append(cleaned)
 
+        # Read all configured endpoints from various sources
         _extend_from_csv(os.getenv('CAP_ENDPOINTS'))
-
-        # Only read IPAWS environment variables if in IPAWS mode
-        # This prevents NOAA poller from inheriting IPAWS URLs from /app-config/.env
-        if self.poller_mode == 'IPAWS':
-            _extend_from_csv(os.getenv('IPAWS_CAP_FEED_URLS'))
+        
+        # Always read IPAWS URLs (unified poller)
+        _extend_from_csv(os.getenv('IPAWS_CAP_FEED_URLS'))
 
         if cap_endpoints:
             configured_endpoints.extend([endpoint for endpoint in cap_endpoints if endpoint])
@@ -700,33 +671,37 @@ class CAPPoller:
                     seen.add(endpoint)
             self.cap_endpoints = unique_endpoints
         else:
-            if self.poller_mode == 'IPAWS':
-                # Default to production IPAWS server (not TDL/staging)
-                # Users can override with IPAWS_DEFAULT_ENDPOINT_TEMPLATE env var
-                endpoint_template = (
-                    os.getenv(
-                        'IPAWS_DEFAULT_ENDPOINT_TEMPLATE',
-                        'https://apps.fema.gov/IPAWSOPEN_EAS_SERVICE/rest/public/recent/{timestamp}',
-                    )
-                    or 'https://apps.fema.gov/IPAWSOPEN_EAS_SERVICE/rest/public/recent/{timestamp}'
+            # No explicit endpoints configured - build defaults for both NOAA and IPAWS
+            default_endpoints: List[str] = []
+            
+            # Add IPAWS endpoint
+            endpoint_template = (
+                os.getenv(
+                    'IPAWS_DEFAULT_ENDPOINT_TEMPLATE',
+                    'https://apps.fema.gov/IPAWSOPEN_EAS_SERVICE/rest/public/recent/{timestamp}',
                 )
-                try:
-                    default_endpoint = endpoint_template.format(timestamp=default_start)
-                except Exception:
-                    default_endpoint = endpoint_template
+                or 'https://apps.fema.gov/IPAWSOPEN_EAS_SERVICE/rest/public/recent/{timestamp}'
+            )
+            try:
+                ipaws_endpoint = endpoint_template.format(timestamp=default_start)
+            except Exception:
+                ipaws_endpoint = endpoint_template
 
-                self.cap_endpoints = [default_endpoint]
-                self.logger.info(
-                    "No CAP endpoints configured; defaulting to FEMA IPAWS public feed starting %s",
-                    default_start,
-                )
-            else:
-                # Batch zone codes into single requests to reduce API calls and avoid rate limiting
-                # NOAA API supports comma-separated zone codes (e.g., ?zone=OHZ004,OHZ005,OHZ006)
-                # We batch to keep URL length reasonable (under ~2000 chars for compatibility)
-                self.cap_endpoints = self._build_batched_noaa_endpoints(
-                    self.location_settings['zone_codes'] or DEFAULT_LOCATION_SETTINGS['zone_codes']
-                )
+            default_endpoints.append(ipaws_endpoint)
+            self.logger.info("Added default IPAWS endpoint (starting %s)", default_start)
+            
+            # Add NOAA endpoints
+            # Batch zone codes into single requests to reduce API calls
+            noaa_endpoints = self._build_batched_noaa_endpoints(
+                self.location_settings['zone_codes'] or DEFAULT_LOCATION_SETTINGS['zone_codes']
+            )
+            default_endpoints.extend(noaa_endpoints)
+            self.logger.info("Added %d NOAA endpoint(s)", len(noaa_endpoints))
+            
+            self.cap_endpoints = default_endpoints
+            
+            if not default_endpoints:
+                self.logger.warning("No endpoints configured and no defaults could be generated")
 
         self.zone_codes = set(self.location_settings['zone_codes'])
         fips_codes, _ = sanitize_fips_codes(self.location_settings.get('fips_codes'))
@@ -2555,11 +2530,10 @@ class CAPPoller:
 
         try:
             # Log poller mode and endpoints
-            poller_mode_display = f" [{self.poller_mode}]" if self.poller_mode else ""
             endpoint_summary = f" ({len(self.cap_endpoints)} endpoint{'s' if len(self.cap_endpoints) != 1 else ''})"
 
             self.logger.info(
-                f"Starting CAP alert polling cycle{poller_mode_display}{endpoint_summary} for {self.location_name} at {format_local_datetime(poll_start_utc)}"
+                f"Starting alert polling cycle [NOAA + IPAWS]{endpoint_summary} for {self.location_name} at {format_local_datetime(poll_start_utc)}"
             )
 
             # Log first endpoint being polled for visibility
@@ -2580,6 +2554,9 @@ class CAPPoller:
             alerts_data = self.fetch_cap_alerts()
             stats['alerts_fetched'] = len(alerts_data)
             stats['sources'] = list(self.last_poll_sources)
+            # If no sources were detected in alerts (e.g., empty poll), use unified identifier
+            if not stats['sources']:
+                stats['sources'] = ['NOAA', 'IPAWS']  # Default sources for unified poller
             stats['duplicates_filtered'] = self.last_duplicates_filtered
 
             # Check for fetch errors and log them to the database
@@ -2832,9 +2809,8 @@ def main():
     logger = logging.getLogger(__name__)
 
     startup_utc = utc_now()
-    # Use dynamic location information instead of hardcoded "PUTNAM COUNTY"
-    poller_mode = (os.getenv('CAP_POLLER_MODE', 'NOAA') or 'NOAA').strip().upper()
-    logger.info(f"Starting CAP Alert Poller with LED Integration - Mode: {poller_mode}")
+    # Unified poller - always polls NOAA + IPAWS + custom sources
+    logger.info("Starting Alert Poller with LED Integration - Unified Mode (NOAA + IPAWS)")
     logger.info(f"Startup time: {format_local_datetime(startup_utc)}")
     if args.led_ip:
         logger.info(f"LED Sign: {args.led_ip}:{args.led_port}")
