@@ -1159,9 +1159,10 @@ echo_progress "Copying application files from repository..."
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$SCRIPT_DIR"
 
-# Copy all files except Docker-related, development files, and git
-rsync -a --exclude='.git' \
-    --exclude='Dockerfile*' \
+# Copy all files including .git directory for update capability
+# NOTE: We KEEP .git directory so update.sh can use git to pull updates
+# This enables fast git-based updates instead of slow tarball downloads
+rsync -a --exclude='Dockerfile*' \
     --exclude='docker-compose*.yml' \
     --exclude='.dockerignore' \
     --exclude='docker-entrypoint*.sh' \
@@ -1175,6 +1176,17 @@ rsync -a --exclude='.git' \
     "$REPO_ROOT/" "$INSTALL_DIR/" > /dev/null 2>&1
 
 echo_success "Application files copied to $INSTALL_DIR"
+
+# Verify .git directory was copied for update capability
+if [ -d "$INSTALL_DIR/.git" ]; then
+    echo_success "Git repository preserved - updates will use git"
+    # Set proper ownership for .git directory
+    chown -R "$SERVICE_USER:$SERVICE_GROUP" "$INSTALL_DIR/.git"
+else
+    echo_warning "No .git directory - updates will download from GitHub (slower)"
+    echo_info "For git-based updates, clone the repository before installing:"
+    echo_info "  git clone https://github.com/KR8MER/eas-station.git ~/eas-station"
+fi
 
 # Create log directory
 echo_progress "Creating log directory: ${BOLD}$LOG_DIR${NC}"
