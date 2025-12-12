@@ -91,7 +91,7 @@ sudo /opt/eas-station/update.sh
 
 **Symptom**: Service logs show:
 ```
-No systemd logs found. Services may not be running or journalctl is not accessible.
+Permission denied accessing journal
 ```
 
 **Cause**: Web server user doesn't have permission to read systemd journal.
@@ -105,9 +105,11 @@ sudo usermod -a -G systemd-journal www-data
 # For EAS Station installations, the user is typically 'easstation'
 sudo usermod -a -G systemd-journal easstation
 
-# Restart web service
+# Restart web service to apply group membership
 sudo systemctl restart eas-station-web.service
 ```
+
+**Note**: As of version 2.21.1, new installations automatically configure this during `install.sh`. Existing installations should apply this fix manually.
 
 **Verification**:
 ```bash
@@ -115,6 +117,11 @@ sudo systemctl restart eas-station-web.service
 groups easstation
 
 # Should include: ... systemd-journal ...
+
+# Test log access
+sudo -u easstation journalctl -u eas-station-web.service -n 5
+
+# Should display recent logs without permission errors
 ```
 
 ## Utility Reference
