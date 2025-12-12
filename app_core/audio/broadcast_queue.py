@@ -49,6 +49,22 @@ class BroadcastQueue:
     Publishers write once, subscribers each get their own independent
     queue with a copy of the data. This prevents one consumer from
     starving others.
+    
+    IMPORTANT: Dropped chunks are EXPECTED behavior when subscribers cannot keep up.
+    
+    The broadcast queue implements a circular buffer pattern where slow consumers
+    automatically drop their oldest chunks to make room for new ones. This prevents
+    one slow consumer (e.g., a network streaming client) from blocking or slowing
+    down the entire audio pipeline.
+    
+    High drop counts typically indicate:
+    1. A subscriber is not reading fast enough (normal for cold-start or reconnecting clients)
+    2. Network streaming clients disconnecting/reconnecting frequently
+    3. The queue size (max_queue_size) may need adjustment for your use case
+    
+    This is by design and ensures real-time audio processing continues uninterrupted.
+    The "total dropped" counter is cumulative since service start and will naturally
+    grow over time, especially with network streaming subscribers.
     """
 
     def __init__(self, name: str = "audio-broadcast", max_queue_size: int = 100):

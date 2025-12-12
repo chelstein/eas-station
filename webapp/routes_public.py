@@ -1205,7 +1205,7 @@ def register(app: Flask, logger) -> None:
                     all_logs.append({
                         'timestamp': log.timestamp,
                         'level': 'ERROR' if log.error_message else 'SUCCESS' if (log.status or '').lower() == 'success' else 'INFO',
-                        'module': f"CAP Polling ({log.data_source or 'Unknown'})",
+                        'module': f"Alert Polling ({log.data_source or 'UNKNOWN'})",
                         'message': f"Status: {log.status} | Fetched: {log.alerts_fetched} | New: {log.alerts_new} | Updated: {log.alerts_updated}",
                         'details': {
                             'execution_time_ms': log.execution_time_ms,
@@ -1352,7 +1352,7 @@ def register(app: Flask, logger) -> None:
                     else 'SUCCESS'
                     if (log.status or '').lower() == 'success'
                     else 'INFO',
-                    'module': f"CAP Polling ({log.data_source or 'Unknown'})",
+                    'module': f"Alert Polling ({log.data_source or 'UNKNOWN'})",
                     'message': (
                         f"Status: {log.status} | Fetched: {log.alerts_fetched} | "
                         f"New: {log.alerts_new} | Updated: {log.alerts_updated}"

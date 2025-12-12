@@ -50,6 +50,8 @@ INFRASTRUCTURE_SERVICES = [
     'nginx.service',
     'postgresql.service',
     'redis-server.service',
+    'certbot.service',
+    'certbot.timer',
 ]
 
 # All services for log viewing

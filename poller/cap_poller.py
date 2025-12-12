@@ -2580,6 +2580,9 @@ class CAPPoller:
             alerts_data = self.fetch_cap_alerts()
             stats['alerts_fetched'] = len(alerts_data)
             stats['sources'] = list(self.last_poll_sources)
+            # If no sources were seen in alerts (empty poll), use poller mode as source
+            if not stats['sources'] and self.poller_mode:
+                stats['sources'] = [self.poller_mode]
             stats['duplicates_filtered'] = self.last_duplicates_filtered
 
             # Check for fetch errors and log them to the database
