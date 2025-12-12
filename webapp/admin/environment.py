@@ -350,11 +350,11 @@ ENV_CATEGORIES = {
             },
             {
                 'key': 'CACHE_REDIS_URL',
-                'label': 'Redis URL',
+                'label': 'Redis URL (Consolidated)',
                 'type': 'text',
                 'default': 'redis://localhost:6379/0',
-                'description': 'Full Redis connection URL. When set, takes precedence over individual REDIS_* settings above.',
-                'placeholder': 'redis://[password@]host:port/db',
+                'description': 'Full Redis connection URL. When set, this REPLACES and takes precedence over individual REDIS_HOST, REDIS_PORT, REDIS_DB, and REDIS_PASSWORD settings above. Format: redis://[password@]host:port/db',
+                'placeholder': 'redis://password@localhost:6379/0',
             },
         ],
     },
@@ -700,21 +700,7 @@ ENV_CATEGORIES = {
                 'max': 4.0,
                 'category': 'azure_openai',
             },
-            {
-                'key': 'AZURE_SPEECH_KEY',
-                'label': 'Azure Speech API Key',
-                'type': 'password',
-                'description': 'Azure AI Speech service key (legacy)',
-                'sensitive': True,
-                'category': 'azure',
-            },
-            {
-                'key': 'AZURE_SPEECH_REGION',
-                'label': 'Azure Speech Region',
-                'type': 'text',
-                'description': 'Azure service region (e.g., eastus)',
-                'category': 'azure',
-            },
+
         ],
     },
     'led': {
@@ -1028,23 +1014,14 @@ ENV_CATEGORIES = {
     'performance': {
         'name': 'Performance',
         'icon': 'fa-tachometer-alt',
-        'description': 'Caching and worker settings',
+        'description': 'Worker and concurrency settings',
         'variables': [
-            {
-                'key': 'CACHE_TIMEOUT',
-                'label': 'Cache Timeout (seconds)',
-                'type': 'number',
-                'default': '300',
-                'description': 'How long to cache API responses',
-                'min': 60,
-                'max': 3600,
-            },
             {
                 'key': 'MAX_WORKERS',
                 'label': 'Gunicorn Workers',
                 'type': 'number',
                 'default': '2',
-                'description': 'Number of Gunicorn worker processes. More workers allow handling more concurrent web requests but use more memory. Requires container restart to take effect.',
+                'description': 'Number of Gunicorn worker processes. More workers allow handling more concurrent web requests but use more memory. Requires service restart to take effect.',
                 'min': 1,
                 'max': 8,
             },
