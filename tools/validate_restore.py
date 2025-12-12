@@ -248,11 +248,10 @@ class RestoreValidator:
     
     def validate_configuration(self) -> ValidationResult:
         """Check configuration file integrity."""
-        # Check if running in Docker container
+        # Check for config file in various locations (bare metal installation)
         config_paths = [
-            Path("/app-config/.env"),  # Docker persistent volume
-            Path("/app/.env"),          # Docker app directory
-            Path(".env"),               # Current directory
+            Path(".env"),               # Current directory (primary for bare metal)
+            Path(__file__).parent.parent / ".env",  # Project root
         ]
         
         config_file = None

@@ -94,24 +94,18 @@ def _get_config_path() -> Path:
     file for consistency. The CONFIG_PATH environment variable can override the
     default location.
     
-    Falls back to project directory .env if /app-config is not writable.
+    For bare metal installations, defaults to project directory .env file.
+    For Docker/container deployments, set CONFIG_PATH=/app-config/.env.
     """
     # Explicit override via CONFIG_PATH environment variable
     config_path_env = os.environ.get('CONFIG_PATH', '').strip()
     if config_path_env:
         return Path(config_path_env)
 
-    # Try the standard persistent config file location if it exists and is writable
-    default_path = Path('/app-config/.env')
-    if default_path.parent.exists() and os.access(default_path.parent, os.W_OK):
-        return default_path
-    
-    # Fallback to project directory .env file (writable location)
+    # Default to project directory .env file (bare metal installation)
     # Get the project root directory (parent of webapp directory)
     project_root = Path(__file__).parent.parent
-    fallback_path = project_root / '.env'
-    logger.info(f"Using fallback config path: {fallback_path} (/app-config not writable)")
-    return fallback_path
+    return project_root / '.env'
 
 
 def _read_current_config() -> Dict[str, str]:

@@ -66,8 +66,23 @@ from typing import Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
-# Default profiles directory
-DEFAULT_PROFILES_DIR = Path("/app-config/stream-profiles")
+# Default profiles directory - use project directory for bare metal installs
+# For Docker/container deployments, override with environment variable
+def _get_default_profiles_dir() -> Path:
+    """Get default stream profiles directory.
+    
+    Returns project_root/stream-profiles for bare metal installations.
+    Override with STREAM_PROFILES_DIR environment variable if needed.
+    """
+    env_dir = os.environ.get('STREAM_PROFILES_DIR', '').strip()
+    if env_dir:
+        return Path(env_dir)
+    
+    # Use project directory for bare metal installation
+    project_root = Path(__file__).parent.parent.parent
+    return project_root / "stream-profiles"
+
+DEFAULT_PROFILES_DIR = _get_default_profiles_dir()
 
 
 class StreamFormat(Enum):
@@ -206,7 +221,8 @@ class StreamProfileManager:
         Initialize profile manager.
         
         Args:
-            profiles_dir: Directory for profile storage (default: /app-config/stream-profiles)
+            profiles_dir: Directory for profile storage (default: project_root/stream-profiles)
+                         Override with STREAM_PROFILES_DIR environment variable if needed.
         """
         self.profiles_dir = profiles_dir or DEFAULT_PROFILES_DIR
         self.profiles_dir.mkdir(parents=True, exist_ok=True)

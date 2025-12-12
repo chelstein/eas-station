@@ -115,7 +115,8 @@ def _find_ssl_material(filename: str) -> tuple[Path | None, List[Path], str | No
 
     search_roots = [
         Path('/etc/letsencrypt/live'),
-        Path('/app-config/certs/live'),
+        # For bare metal: use project directory for certs
+        Path(__file__).parent.parent.parent / 'certs' / 'live',
     ]
 
     attempted_paths: List[Path] = []

@@ -102,7 +102,8 @@
     }
 
     .form-group input,
-    .form-group select {
+    .form-group select,
+    .form-group textarea {
         width: 100%;
         padding: 0.625rem;
         border: 1px solid var(--border-color);
@@ -110,10 +111,17 @@
         background: var(--surface-color);
         color: var(--text-color);
         font-size: 0.875rem;
+        font-family: inherit;
+    }
+
+    .form-group textarea {
+        resize: vertical;
+        min-height: 80px;
     }
 
     .form-group input:focus,
-    .form-group select:focus {
+    .form-group select:focus,
+    .form-group textarea:focus {
         outline: none;
         border-color: var(--primary-color);
         box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.1);

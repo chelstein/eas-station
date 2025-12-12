@@ -20,8 +20,8 @@ Repository: https://github.com/KR8MER/eas-station
 
 """
 NOAA CAP Alert Poller with configurable location filtering
-Docker-safe DB defaults, strict jurisdiction filtering, PostGIS geometry/intersections,
-optional LED sign integration.
+Supports bare metal and containerized deployments with strict jurisdiction filtering,
+PostGIS geometry/intersections, and optional LED sign integration.
 
 NOAA Weather API Compliance:
   The NOAA Weather API (https://api.weather.gov/) requires:
@@ -81,23 +81,17 @@ if PROJECT_ROOT not in sys.path:
 
 # Load persistent configuration from a single master environment file.
 # Use CONFIG_PATH environment variable to specify the config file location.
-# Defaults to /app-config/.env if CONFIG_PATH is not set.
+# For bare metal installations, defaults to project directory .env file.
+# For Docker/container deployments, set CONFIG_PATH=/app-config/.env.
 def _resolve_config_path() -> Optional[Path]:
     # Check for explicit CONFIG_PATH override
     config_path = os.environ.get('CONFIG_PATH', '').strip()
     if config_path:
         return Path(config_path)
     
-    # Try the standard persistent config file location if it exists and is writable
-    default_path = Path('/app-config/.env')
-    if default_path.parent.exists() and os.access(default_path.parent, os.W_OK):
-        return default_path
-    
-    # Fallback to project directory .env file (writable location)
+    # Default to project directory .env file (bare metal installation)
     project_root = Path(__file__).parent.parent
-    fallback_path = project_root / '.env'
-    print(f"[CAP_POLLER] Using fallback config path: {fallback_path} (/app-config not writable)")
-    return fallback_path
+    return project_root / '.env'
 
 
 # Load the master configuration file
@@ -111,8 +105,7 @@ if _config_path and _config_path.exists():
 else:
     print(f"[CAP_POLLER] Master config not found, using environment variables only")
 
-# Always load a local .env file last so it only fills in missing values and
-# never overrides anything supplied by the container or environment volume.
+# Always load a local .env file last so it only fills in missing values
 print(f"[CAP_POLLER] Loading fallback .env file (if exists)")
 load_dotenv(override=False)
 print(f"[CAP_POLLER] Environment loading complete")
@@ -474,7 +467,7 @@ class CAPPoller:
 
         self.logger = logging.getLogger(__name__)
 
-        # Create engine with retry (Docker race with Postgres)
+        # Create engine with retry (for database initialization timing)
         self.engine = self._make_engine_with_retry(self.database_url)
         Session = sessionmaker(bind=self.engine)
         self.db_session = Session()
@@ -861,26 +854,26 @@ class CAPPoller:
             self.logger.warning("Unable to verify radio tables: %s", exc)
             return
 
-        # NOTE: RadioManager initialization DISABLED in CAP poller container.
-        # This container does not have USB device access (/dev/bus/usb) and cannot
-        # directly control SDR hardware. The SDR hardware is managed by the sdr-service
-        # container which has proper USB access and privileges.
+        # NOTE: RadioManager initialization for direct SDR hardware control.
+        # In bare metal deployments, the poller service can directly manage SDR hardware
+        # if USB devices are accessible. For service separation architectures, consider
+        # using a dedicated sdr-service with inter-service communication (e.g., Redis).
         #
         # FUTURE ENHANCEMENT: Migrate radio capture coordination to use Redis command queue pattern.
         #   See docs/FUTURE_ENHANCEMENTS.md for details.
         #   - Send capture requests to sdr-service via Redis (sdr:commands)
         #   - Receive capture results via Redis (sdr:command_result:{command_id})
-        #   - See docs/troubleshooting/CONTAINERIZATION_FIXES.md for architecture
         #
-        # For now, radio captures from CAP poller are disabled. The _coordinate_radio_captures
-        # and _record_receiver_statuses methods will return early since radio_manager is None.
+        # For now, radio captures from CAP poller are disabled by default. 
+        # The _coordinate_radio_captures and _record_receiver_statuses methods 
+        # will return early since radio_manager is None.
 
         self.logger.info(
-            "Radio capture coordination from CAP poller is not yet implemented "
-            "for containerized deployment. Set CAP_POLLER_ENABLE_RADIO=0 to suppress this message."
+            "Radio capture coordination from CAP poller requires USB device access. "
+            "Set CAP_POLLER_ENABLE_RADIO=0 to suppress this message."
         )
 
-        # Commented out to prevent USB access attempts in container without device passthrough:
+        # Uncomment to enable direct SDR hardware control from poller (requires USB access):
         # try:
         #     manager = RadioManager()
         #     manager.register_builtin_drivers()
@@ -1108,7 +1101,7 @@ class CAPPoller:
                 time.sleep(delay)
         
         # If we get here, all retries failed
-        # Sleep for a longer period before raising to prevent Docker restart loops
+        # Sleep for a longer period before raising to prevent service restart loops
         self.logger.error(
             f"Failed to connect to database after {retries} attempts. "
             f"Sleeping for 60 seconds before exit to prevent restart loop."
@@ -2808,7 +2801,7 @@ def main():
     parser.add_argument('--fix-geometry', action='store_true', help='Fix geometry for existing alerts and exit')
     args = parser.parse_args()
 
-    # Logging to stdout (container-friendly)
+    # Logging to stdout for service management and systemd
     logging.basicConfig(
         level=getattr(logging, args.log_level),
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
