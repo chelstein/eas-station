@@ -568,9 +568,7 @@ if [ -d "$INSTALL_DIR/systemd" ]; then
     # Add service user to hardware groups (always run to ensure user is member)
     echo_progress "Adding $SERVICE_USER to hardware access groups..."
     for group in $HARDWARE_GROUPS; do
-        if getent group "$group" >/dev/null 2>&1; then
-            usermod -a -G "$group" "$SERVICE_USER" 2>/dev/null || true
-        fi
+        usermod -a -G "$group" "$SERVICE_USER" 2>/dev/null || true
     done
     
     if [ $GROUPS_CREATED -gt 0 ]; then

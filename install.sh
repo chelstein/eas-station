@@ -1146,10 +1146,12 @@ fi
 # Create hardware access groups if they don't exist
 echo_progress "Ensuring hardware access groups exist..."
 HARDWARE_GROUPS="gpio i2c spi audio plugdev dialout"
+GROUPS_CREATED=0
 for group in $HARDWARE_GROUPS; do
     if ! getent group "$group" >/dev/null 2>&1; then
         groupadd --system "$group" 2>/dev/null || true
         echo_info "Created group: $group"
+        GROUPS_CREATED=$((GROUPS_CREATED + 1))
     fi
 done
 
@@ -1158,7 +1160,12 @@ echo_progress "Adding $SERVICE_USER to hardware access groups..."
 for group in $HARDWARE_GROUPS; do
     usermod -a -G "$group" "$SERVICE_USER" 2>/dev/null || true
 done
-echo_success "Hardware access groups configured"
+
+if [ $GROUPS_CREATED -gt 0 ]; then
+    echo_success "Hardware access groups configured (created $GROUPS_CREATED new groups)"
+else
+    echo_success "Hardware access groups configured (all groups already existed)"
+fi
 
 # Add service user to systemd-journal group for log access
 echo_progress "Adding $SERVICE_USER to systemd-journal group for log viewing..."
