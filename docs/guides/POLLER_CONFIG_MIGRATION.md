@@ -1,162 +1,110 @@
-# Poller Configuration Migration Guide
+# Poller Configuration Guide
 
 ## Overview
 
-As of this update, the NOAA and IPAWS pollers now use **separate configuration files** instead of sharing a single `/app-config/.env` file.
+**Note:** This guide describes the legacy separate-poller configuration. As of version 2.20+, the system uses a **unified poller** that polls both NOAA and IPAWS from a single configuration file (`/app-config/.env`).
+
+## Current Configuration (Unified Poller)
+
+The unified poller automatically polls all configured sources:
+- NOAA Weather Alerts
+- FEMA IPAWS Alerts  
+- Custom CAP endpoints
+
+All configuration is done through the web UI at **Settings → Alert Feeds** or via `/app-config/.env`.
+
+### Configuration via Web UI
+
+1. Navigate to **Settings → Alert Feeds**
+2. Configure NOAA settings (User Agent)
+3. Configure IPAWS settings (Environment and Feed Type)
+4. Add custom CAP endpoints if desired
+5. Set poll interval (default: 120 seconds)
+
+### Expected Unified Poller Logs
+
+```
+INFO:__main__:Starting Alert Poller with LED Integration - Unified Mode (NOAA + IPAWS)
+INFO:__main__:Starting alert polling cycle [NOAA + IPAWS] (2 endpoints) for ...
+INFO:__main__:Polling: https://api.weather.gov/alerts/active?zone=OHZ016
+INFO:__main__:🔢 SAME/FIPS codes: ['039137']
+```
+
+## Legacy Documentation (Pre-2.20)
+
+<details>
+<summary>Click to expand legacy separate-poller documentation</summary>
 
 ### Why This Change?
 
 - **Configuration Conflicts**: Both pollers were reading the same config file, causing NOAA to inherit IPAWS settings and vice versa
 - **Independent Control**: Each poller can now be configured independently without affecting the other
 
-## New Configuration Structure
+## Old Configuration Structure
 
 ```
 /app-config/
 ├── .env          # Main app configuration (web UI, database, etc.)
-├── noaa.env      # NOAA Weather poller configuration
-└── ipaws.env     # IPAWS (FEMA) poller configuration
+├── noaa.env      # NOAA Weather poller configuration (LEGACY - not used in 2.20+)
+└── ipaws.env     # IPAWS (FEMA) poller configuration (LEGACY - not used in 2.20+)
 ```
 
-## Migration Steps
-
-### Step 1: Initialize Config Files
-
-Run the initialization script to create separate poller configs:
-
-This script will:
-- Create `/app-config/noaa.env` with NOAA defaults
-- Create `/app-config/ipaws.env` and migrate existing IPAWS settings from `/app-config/.env`
-- Preserve existing files (won't overwrite)
-
-### Step 2: Fix Empty FIPS Codes (If Needed)
-
-If your location has empty FIPS codes (logs show `🔢 SAME/FIPS codes: []`):
-
-### Step 3: Rebuild Containers
-
-### Step 4: Verify Configuration
-
-Check the logs to confirm proper configuration:
-
-**Expected NOAA poller logs:**
-```
-INFO:__main__:Starting CAP Alert Poller with LED Integration - Mode: NOAA
-INFO:__main__:Polling: https://api.weather.gov/alerts/active?zone=OHZ016
-INFO:__main__:🔢 SAME/FIPS codes: ['039137']
-```
-
-**Expected IPAWS poller logs:**
-```
-INFO:__main__:Starting CAP Alert Poller with LED Integration - Mode: IPAWS
-INFO:__main__:Polling: https://apps.fema.gov/IPAWSOPEN_EAS_SERVICE/rest/public/recent/...
-INFO:__main__:🔢 SAME/FIPS codes: ['039137']
-```
-
-## Database Configuration
-
-If you need to change database settings:
-2. Restart all containers to apply changes
-
-Do **NOT** add `POSTGRES_*` variables to the poller config files - they will be ignored in favor of environment variables.
-
-## Configuration File Details
-
-### noaa.env
-
-```bash
-# NOAA Weather Alert Poller Configuration
-CAP_POLLER_MODE=NOAA
-
-# NOAA automatically builds endpoints from zone codes in location_settings
-# No need to specify CAP_ENDPOINTS or IPAWS_CAP_FEED_URLS
-
-# Optional: Enable debug logging
-# CAP_POLLER_DEBUG_RECORDS=1
-
-# Optional: Enable radio captures
-# CAP_POLLER_ENABLE_RADIO=1
-```
-
-### ipaws.env
-
-```bash
-# IPAWS (FEMA) Alert Poller Configuration
-CAP_POLLER_MODE=IPAWS
-
-# IPAWS Feed URL with timestamp
-IPAWS_CAP_FEED_URLS=https://apps.fema.gov/IPAWSOPEN_EAS_SERVICE/rest/public/recent/2024-01-01T00:00:00Z
-
-# Optional: Use staging/test environment
-# IPAWS_CAP_FEED_URLS=https://tdl.apps.fema.gov/IPAWSOPEN_EAS_SERVICE/rest/public/recent/2024-01-01T00:00:00Z
-
-# Optional: Disable SSL verification (NOT recommended for production)
-# SSL_VERIFY_DISABLE=1
-
-# Optional: Enable debug logging
-# CAP_POLLER_DEBUG_RECORDS=1
-```
+</details>
 
 ## Troubleshooting
 
-### NOAA Still Polling IPAWS
+### "IPAWS.env not found" Error
 
-If NOAA poller is still fetching from `apps.fema.gov`:
+If you see an error about `IPAWS.env` or `noaa.env` not existing:
 
-1. Check `/app-config/noaa.env` exists:
-   ```bash
-   ```
-
-2. Verify CAP_POLLER_MODE is set:
-   ```bash
-   ```
-
-3. Re-run init script and rebuild containers
+1. **This is expected** - These files are no longer used in version 2.20+
+2. The system now uses `/app-config/.env` for all configuration
+3. Configure alert sources via **Settings → Alert Feeds** in the web UI
+4. No migration is needed - the unified poller will work automatically
 
 ### Empty FIPS Codes
 
 If logs show `🔢 SAME/FIPS codes: []`:
 
-1. Run the FIPS code fix script (Step 2 above)
-2. Restart pollers:
-   ```bash
-   ```
+1. Check location settings in **Settings → Location**
+2. Ensure county and state are properly configured
+3. FIPS codes are automatically generated from location settings
 
-### Redis Connection Errors
+### Poller Not Running
 
-If seeing "Error 111 connecting to localhost:6379":
+If the poller isn't fetching alerts:
 
-- This should be fixed with the latest code
-- Rebuild containers to get the fix
+1. Check the service status: `systemctl status eas-station-poller.service`
+2. View logs: `journalctl -u eas-station-poller.service -f`
+3. Verify configuration in **Settings → Alert Feeds**
+4. Check poll interval is set (minimum 30 seconds recommended)
 
-### Database Connection Issues
+## Configuration Reference
 
-If pollers are connecting to a different database than the app:
+### Environment Variables
 
-   ```bash
-   ```
+All configuration is in `/app-config/.env`:
 
-2. Ensure the values match across all containers
+**NOAA Configuration:**
+- `NOAA_USER_AGENT` - Required user agent string for NOAA API compliance
 
-3. If your poller config files (`/app-config/noaa.env`, `/app-config/ipaws.env`) contain `POSTGRES_*` entries from a previous version, remove them:
-   ```bash
-   ```
+**IPAWS Configuration:**
+- `IPAWS_CAP_FEED_URLS` - Comma-separated IPAWS feed URLs
+- `IPAWS_DEFAULT_LOOKBACK_HOURS` - Hours to look back for alerts (default: 12)
 
-4. Restart pollers:
-   ```bash
-   ```
+**Custom Sources:**
+- `CAP_ENDPOINTS` - Comma-separated URLs for additional CAP feeds
 
-## Rolling Back
+**Polling:**
+- `POLL_INTERVAL_SEC` - Seconds between polls (minimum: 30, recommended: 120)
 
-If you need to revert to the old single-config behavior:
+**Location:**
+- Location settings are configured via **Settings → Location** in the web UI
+- SAME/FIPS codes are automatically generated
 
-   ```yaml
-   # Change both pollers back to:
-   CONFIG_PATH: /app-config/.env
-   ```
+## Additional Resources
 
-2. Rebuild containers:
-   ```bash
-   ```
-
-Note: This will bring back the configuration conflicts!
+- **Web UI Configuration:** Settings → Alert Feeds
+- **System Logs:** `/logs?type=polling`  
+- **Service Status:** `systemctl status eas-station-poller.service`
+- **Main Documentation:** [System Architecture](../architecture/SYSTEM_ARCHITECTURE.md)

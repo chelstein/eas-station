@@ -39,10 +39,9 @@ EAS_SERVICES = [
     f'{SERVICE_PREFIX}-hardware.service',
 ]
 
-# Poller services (NOAA and IPAWS)
+# Poller services (Unified poller for NOAA + IPAWS)
 POLLER_SERVICES = [
-    f'{SERVICE_PREFIX}-noaa-poller.service',
-    f'{SERVICE_PREFIX}-ipaws-poller.service',
+    f'{SERVICE_PREFIX}-poller.service',
 ]
 
 # Infrastructure services (not prefixed)

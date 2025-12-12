@@ -6,6 +6,19 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+### Fixed
+- Copy button label on logs page changed from "Copy Logs" to "Copy" for clarity
+- CSV export button relabeled to "Excel" to match user terminology  
+- CSV export icon changed from `fa-file-csv` to `fa-file-excel`
+- Update script (`update.sh`) now properly displays VERSION file contents instead of showing "unknown"
+- Update script now prioritizes VERSION file over git commit hash for version display
+- Updated POLLER_CONFIG_MIGRATION.md to clarify unified poller architecture
+- Removed outdated references to separate `ipaws.env` and `noaa.env` files (no longer used in 2.20+)
+- Added troubleshooting section for "IPAWS.env not found" error
+
+### Changed
+- VERSION bumped to 2.20.2
+
 ## [2.20.1] - 2025-12-11
 ### Changed
   - **Enhanced PyCharm integration documentation** - Added comprehensive field-by-field setup instructions in `docs/guides/PYCHARM_DEBUGGING.md`

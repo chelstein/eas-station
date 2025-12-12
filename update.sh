@@ -231,6 +231,11 @@ fi
 cd "$INSTALL_DIR"
 CURRENT_BRANCH=""
 CURRENT_COMMIT=""
+CURRENT_VERSION=""
+if [ -f "VERSION" ]; then
+    CURRENT_VERSION=$(cat VERSION | tr -d '\n' | tr -d '\r')
+    echo_success "Current version: ${BOLD}${CURRENT_VERSION}${NC}"
+fi
 if [ -d ".git" ]; then
     CURRENT_BRANCH=$(git branch --show-current 2>/dev/null || echo "unknown")
     CURRENT_COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
@@ -241,7 +246,11 @@ fi
 
 # Show welcome dialog with whiptail if available
 if [ "$USE_WHIPTAIL" = true ]; then
-    if ! whiptail --title "EAS Station Update" --backtitle "$(whiptail_footer)" --yesno "Welcome to the EAS Station Update Wizard!\n\nThis will update your EAS Station installation to the latest version.\n\nThe update process will:\n• Create a backup of your current installation\n• Stop all EAS Station services temporarily\n• Update application files from Git or GitHub\n• Preserve your configuration (.env file)\n• Update Python dependencies\n• Run database migrations if needed\n• Update systemd service files\n• Restart all services\n\nCurrent Installation:\n  Location: $INSTALL_DIR\n  Branch: $CURRENT_BRANCH\n  Commit: $CURRENT_COMMIT\n\nDo you want to continue with the update?" 26 75; then
+    VERSION_LINE=""
+    if [ -n "$CURRENT_VERSION" ]; then
+        VERSION_LINE="  Version: $CURRENT_VERSION\n"
+    fi
+    if ! whiptail --title "EAS Station Update" --backtitle "$(whiptail_footer)" --yesno "Welcome to the EAS Station Update Wizard!\n\nThis will update your EAS Station installation to the latest version.\n\nThe update process will:\n• Create a backup of your current installation\n• Stop all EAS Station services temporarily\n• Update application files from Git or GitHub\n• Preserve your configuration (.env file)\n• Update Python dependencies\n• Run database migrations if needed\n• Update systemd service files\n• Restart all services\n\nCurrent Installation:\n  Location: $INSTALL_DIR\n${VERSION_LINE}  Branch: $CURRENT_BRANCH\n  Commit: $CURRENT_COMMIT\n\nDo you want to continue with the update?" 28 75; then
         echo_info "Update cancelled by user"
         exit 0
     fi
@@ -253,6 +262,9 @@ else
     echo ""
     echo_info "Current Installation:"
     echo "  Location: $INSTALL_DIR"
+    if [ -n "$CURRENT_VERSION" ]; then
+        echo "  Version: $CURRENT_VERSION"
+    fi
     echo "  Branch: $CURRENT_BRANCH"
     echo "  Commit: $CURRENT_COMMIT"
     echo ""
@@ -487,7 +499,9 @@ fi
 
 # Get updated version info
 NEW_VERSION="unknown"
-if [ -d "$INSTALL_DIR/.git" ]; then
+if [ -f "$INSTALL_DIR/VERSION" ]; then
+    NEW_VERSION=$(cat "$INSTALL_DIR/VERSION" | tr -d '\n' | tr -d '\r')
+elif [ -d "$INSTALL_DIR/.git" ]; then
     NEW_VERSION=$(git -C "$INSTALL_DIR" rev-parse --short HEAD 2>/dev/null || echo "unknown")
 fi
 
@@ -501,9 +515,13 @@ if [ "$USE_WHIPTAIL" = true ]; then
     SUMMARY+="Update Details:\n"
     SUMMARY+="━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
     SUMMARY+="Backup: $BACKUP_FILE\n"
+    if [ -n "$CURRENT_VERSION" ] || [ -n "$NEW_VERSION" ]; then
+        [ -n "$CURRENT_VERSION" ] && SUMMARY+="Old Version: $CURRENT_VERSION\n"
+        [ -n "$NEW_VERSION" ] && [ "$NEW_VERSION" != "unknown" ] && SUMMARY+="New Version: $NEW_VERSION\n"
+    fi
     SUMMARY+="Branch: $CURRENT_BRANCH\n"
-    SUMMARY+="Old Version: $CURRENT_COMMIT\n"
-    SUMMARY+="New Version: $NEW_VERSION\n"
+    SUMMARY+="Old Commit: $CURRENT_COMMIT\n"
+    [ -n "$NEW_COMMIT" ] && SUMMARY+="New Commit: $NEW_COMMIT\n"
     SUMMARY+="Configuration: Preserved\n"
     SUMMARY+="Services: $SERVICE_STATUS\n\n"
     SUMMARY+="Next Steps:\n"
@@ -524,9 +542,22 @@ echo ""
 echo -e "${BOLD}Update Summary:${NC}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo -e "${CYAN}Backup:${NC}        $BACKUP_FILE"
+if [ -n "$CURRENT_VERSION" ]; then
+    echo -e "${CYAN}Old Version:${NC}   $CURRENT_VERSION"
+fi
+if [ -n "$NEW_VERSION" ] && [ "$NEW_VERSION" != "unknown" ]; then
+    echo -e "${CYAN}New Version:${NC}   $NEW_VERSION"
+fi
 echo -e "${CYAN}Branch:${NC}        $CURRENT_BRANCH"
-echo -e "${CYAN}Old Version:${NC}   $CURRENT_COMMIT"
-echo -e "${CYAN}New Version:${NC}   $NEW_VERSION"
+echo -e "${CYAN}Old Commit:${NC}    $CURRENT_COMMIT"
+# Get current commit after update for comparison
+NEW_COMMIT=""
+if [ -d "$INSTALL_DIR/.git" ]; then
+    NEW_COMMIT=$(git -C "$INSTALL_DIR" rev-parse --short HEAD 2>/dev/null || echo "")
+fi
+if [ -n "$NEW_COMMIT" ] && [ "$NEW_COMMIT" != "$CURRENT_COMMIT" ]; then
+    echo -e "${CYAN}New Commit:${NC}    $NEW_COMMIT"
+fi
 echo -e "${CYAN}Configuration:${NC} Preserved"
 echo -e "${CYAN}Services:${NC}      $SERVICE_STATUS"
 echo ""
