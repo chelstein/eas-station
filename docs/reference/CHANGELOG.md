@@ -6,6 +6,21 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+### Fixed
+- **Certificate Status API Fetch Error** - Fixed "Unexpected token '<'" error in Security Settings page
+  - Added `Accept: application/json` header to `/security/ssl-certificate` fetch() call (line 705 in security_settings.html)
+  - Prevents HTML redirect response when authentication fails, ensuring proper JSON error handling
+  - Resolves TypeError when backend returns HTML instead of expected JSON
+- **Missing radio_captures Directory** - Fixed systemd namespace mounting error for eas-station-poller service
+  - Added creation of `/opt/eas-station/radio_captures` directory in install.sh
+  - Directory is required by `ReadWritePaths` in systemd/eas-station-poller.service (line 30)
+  - Prevents "Failed to set up mount namespacing" errors on fresh installations
+- **Database Migration Documentation** - Added clarifying comments to update.sh database migration
+  - Documented that migrations use DATABASE_URL from .env file (not hardcoded postgres username)
+  - Clarified that `from app import app, db` loads credentials from environment via os.getenv()
+  - Ensures understanding that correct database user (e.g., eas_station) is used automatically
+- VERSION bumped to 2.22.1 (bug fixes)
+
 ### Added
 - **SSL Certificate Status UI** - Added comprehensive certificate viewer to Security Settings page
   - Shows certificate type (Let's Encrypt, Self-Signed, or None)

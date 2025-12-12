@@ -613,6 +613,9 @@ cd "$INSTALL_DIR"
 
 if [ -f "$INSTALL_DIR/venv/bin/python" ]; then
     echo_progress "Updating database schema..."
+    # NOTE: Database migrations use credentials from $INSTALL_DIR/.env (DATABASE_URL)
+    # The 'from app import app, db' loads DATABASE_URL from environment via os.getenv()
+    # This ensures migrations use the correct database user (e.g., eas_station, not postgres)
     sudo -u "$SERVICE_USER" "$INSTALL_DIR/venv/bin/python" -c "
 from app import app, db
 with app.app_context():

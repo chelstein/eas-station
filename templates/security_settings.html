@@ -702,7 +702,11 @@ async function loadSSLCertificateStatus() {
     const statusContainer = document.getElementById('ssl-cert-status');
     
     try {
-        const response = await fetch('/security/ssl-certificate');
+        const response = await fetch('/security/ssl-certificate', {
+            headers: {
+                'Accept': 'application/json'
+            }
+        });
         const data = await response.json();
         
         if (!response.ok) {
