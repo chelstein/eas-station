@@ -1,4 +1,4 @@
-# EAS Station Alert Poller - Unified System
+# EAS Station Alert Poller - Setup Guide
 
 ## Overview
 
