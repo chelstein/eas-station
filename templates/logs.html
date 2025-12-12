@@ -528,6 +528,9 @@
     .log-message {
         font-family: 'Courier New', monospace;
         font-size: 0.9rem;
+        word-break: break-word;
+        white-space: pre-wrap;
+        overflow-wrap: break-word;
     }
 
     .card-body form .row {
@@ -614,7 +617,9 @@
                             const timestamp = cells[0].textContent.trim();
                             const level = cells[1].textContent.trim();
                             const module = cells[2].textContent.trim();
-                            const message = cells[3].textContent.trim();
+                            // Get message from .log-message span or entire cell
+                            const messageSpan = cells[3].querySelector('.log-message');
+                            const message = messageSpan ? messageSpan.textContent.trim() : cells[3].textContent.trim();
                             logText += `${timestamp}\t${level}\t${module}\t${message}\n`;
                         }
                     });
@@ -627,7 +632,9 @@
                         const timestamp = cells[0].textContent.trim();
                         const level = cells[1].textContent.trim();
                         const module = cells[2].textContent.trim();
-                        const message = cells[3].textContent.trim();
+                        // Get message from .log-message span or entire cell
+                        const messageSpan = cells[3].querySelector('.log-message');
+                        const message = messageSpan ? messageSpan.textContent.trim() : cells[3].textContent.trim();
                         logText += `${timestamp}\t${level}\t${module}\t${message}\n`;
                     }
                 });

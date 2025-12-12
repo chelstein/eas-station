@@ -6,6 +6,17 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+### Fixed
+- **EAS service crash** - Fixed `TypeError: create_fips_filtering_callback() got an unexpected keyword argument 'flask_app'`
+  - Updated `eas_service.py` to use correct callback pattern with `forward_callback` parameter
+  - Added proper alert forwarding handler using `forward_alert_to_api` from `app_core.audio.alert_forwarding`
+  - Pattern now matches working implementation in `eas_monitoring_service.py`
+- **Log message truncation** - Added `--all` flag to journalctl command to prevent message truncation
+  - Service logs (systemd) now show full message content instead of truncated ellipsis (...)
+  - Enhanced CSS for `.log-message` to properly wrap long messages with `word-break`, `white-space`, and `overflow-wrap`
+  - Improved copy function to explicitly get text from `.log-message` span for more reliable copying
+- VERSION bumped to 2.21.8
+
 ### Changed
 - **.env.example minimized** - Removed all comments and obsolete variables
   - Reduced from 373 lines to 36 lines
