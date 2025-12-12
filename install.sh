@@ -1505,6 +1505,111 @@ else
     echo_info "Nginx configuration already exists (skipping)"
 fi
 
+echo_step "SSL Certificate Configuration"
+
+# Automatic Let's Encrypt SSL certificate setup
+if [[ "$DOMAIN_NAME" != "localhost" ]] && ! [[ "$DOMAIN_NAME" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    echo_info "Domain detected: $DOMAIN_NAME"
+
+    if whiptail --title "SSL Certificate Setup" --backtitle "$(whiptail_footer)" --yesno "Would you like to automatically obtain an SSL certificate from Let's Encrypt for $DOMAIN_NAME?\n\nRequirements:\n• Domain must point to this server's public IP\n• Ports 80 and 443 must be accessible from internet\n• Valid email address for certificate notifications\n\nSelect 'No' to skip (you can run 'sudo certbot --nginx -d $DOMAIN_NAME' later)" 18 75; then
+
+        echo_progress "Checking DNS resolution for $DOMAIN_NAME..."
+
+        # Check if domain resolves
+        if host "$DOMAIN_NAME" > /dev/null 2>&1; then
+            RESOLVED_IP=$(host "$DOMAIN_NAME" | grep "has address" | head -n1 | awk '{print $NF}')
+            echo_success "Domain resolves to: $RESOLVED_IP"
+
+            # Get server's public IP
+            SERVER_IP=$(curl -s -4 ifconfig.me 2>/dev/null || curl -s -4 icanhazip.com 2>/dev/null || echo "unknown")
+
+            if [ "$SERVER_IP" != "unknown" ]; then
+                if [ "$RESOLVED_IP" = "$SERVER_IP" ]; then
+                    echo_success "DNS correctly points to this server"
+                else
+                    echo_warning "DNS points to $RESOLVED_IP but this server's public IP is $SERVER_IP"
+                    if ! whiptail --title "DNS Mismatch" --backtitle "$(whiptail_footer)" --yesno "DNS does not point to this server. Continue anyway?\n\n(Certificate issuance may fail)" 10 70; then
+                        echo_info "Skipping Let's Encrypt setup"
+                        continue
+                    fi
+                fi
+            fi
+
+            # Prompt for email if not already set
+            if [ -z "$ADMIN_EMAIL" ] || [ "$ADMIN_EMAIL" = "admin@localhost" ]; then
+                SSL_EMAIL=$(whiptail --title "SSL Email" --backtail "$(whiptail_footer)" --inputbox "Enter email for SSL certificate notifications:" 10 70 "" 3>&1 1>&2 2>&3)
+            else
+                SSL_EMAIL="$ADMIN_EMAIL"
+            fi
+
+            # Ask about staging mode
+            STAGING_FLAG=""
+            if whiptail --title "Staging Mode" --backtitle "$(whiptail_footer)" --yesno "Use Let's Encrypt staging server?\n\nRecommended for testing. Staging certificates are not trusted by browsers but won't count against rate limits (50 certs/week).\n\nSelect 'No' for production certificate." 14 70; then
+                STAGING_FLAG="--staging"
+                echo_info "Using Let's Encrypt staging server"
+            else
+                echo_info "Using Let's Encrypt production server"
+            fi
+
+            echo_progress "Requesting SSL certificate from Let's Encrypt..."
+
+            # Stop nginx temporarily for standalone mode (more reliable)
+            systemctl stop nginx
+
+            # Run certbot
+            if certbot certonly --standalone --non-interactive --agree-tos --email "$SSL_EMAIL" -d "$DOMAIN_NAME" $STAGING_FLAG; then
+                echo_success "SSL certificate obtained successfully!"
+
+                # Update nginx config to use Let's Encrypt certificates
+                sed -i "s|ssl_certificate /etc/ssl/certs/eas-station-selfsigned.crt;|ssl_certificate /etc/letsencrypt/live/$DOMAIN_NAME/fullchain.pem;|g" /etc/nginx/sites-available/eas-station
+                sed -i "s|ssl_certificate_key /etc/ssl/private/eas-station-selfsigned.key;|ssl_certificate_key /etc/letsencrypt/live/$DOMAIN_NAME/privkey.pem;|g" /etc/nginx/sites-available/eas-station
+
+                # Test nginx config
+                if nginx -t; then
+                    systemctl start nginx
+                    echo_success "Nginx restarted with Let's Encrypt certificate"
+                else
+                    echo_error "Nginx configuration test failed, reverting to self-signed"
+                    sed -i "s|ssl_certificate /etc/letsencrypt/live/$DOMAIN_NAME/fullchain.pem;|ssl_certificate /etc/ssl/certs/eas-station-selfsigned.crt;|g" /etc/nginx/sites-available/eas-station
+                    sed -i "s|ssl_certificate_key /etc/letsencrypt/live/$DOMAIN_NAME/privkey.pem;|ssl_certificate_key /etc/ssl/private/eas-station-selfsigned.key;|g" /etc/nginx/sites-available/eas-station
+                    systemctl start nginx
+                fi
+
+                # Enable certbot renewal timer
+                echo_progress "Enabling automatic certificate renewal..."
+                systemctl enable certbot.timer
+                systemctl start certbot.timer
+                echo_success "Certbot renewal timer enabled (checks twice daily)"
+
+                # Add SSL_EMAIL to .env
+                echo "SSL_EMAIL=$SSL_EMAIL" >> "$CONFIG_DIR/.env"
+
+                # Set flag for post-install message
+                SSL_CONFIGURED=true
+
+            else
+                echo_error "Failed to obtain SSL certificate from Let's Encrypt"
+                echo_warning "Using self-signed certificate instead"
+                echo_info "You can manually request a certificate later with:"
+                echo_info "  sudo certbot --nginx -d $DOMAIN_NAME"
+                systemctl start nginx
+            fi
+        else
+            echo_warning "Domain $DOMAIN_NAME does not resolve to an IP address"
+            echo_info "Skipping Let's Encrypt setup. Configure DNS first, then run:"
+            echo_info "  sudo certbot --nginx -d $DOMAIN_NAME"
+        fi
+    else
+        echo_info "Skipping automatic SSL setup"
+        echo_info "You can manually request a certificate later with:"
+        echo_info "  sudo certbot --nginx -d $DOMAIN_NAME"
+    fi
+else
+    echo_info "Using localhost or IP address - self-signed certificate will be used"
+    echo_info "For production SSL, configure a domain name and run:"
+    echo_info "  sudo certbot --nginx -d your-domain.com"
+fi
+
 echo_step "Firewall Configuration"
 
 # Configure UFW firewall for remote access
@@ -2003,10 +2108,12 @@ echo ""
 echo -e "  ${CYAN}Database restore:${NC}"
 echo -e "    ${BOLD}sudo -u postgres psql alerts < /tmp/eas_backup_YYYYMMDD.sql${NC}"
 echo ""
-echo -e "  ${CYAN}Set up production SSL certificate (Let's Encrypt):${NC}"
-echo -e "    ${BOLD}sudo certbot --nginx -d your-domain.com${NC}"
-echo -e "    ${DIM}(Replace 'your-domain.com' with your actual domain)${NC}"
-echo ""
+if [ "${SSL_CONFIGURED:-false}" != "true" ]; then
+    echo -e "  ${CYAN}Set up production SSL certificate (Let's Encrypt):${NC}"
+    echo -e "    ${BOLD}sudo certbot --nginx -d your-domain.com${NC}"
+    echo -e "    ${DIM}(Replace 'your-domain.com' with your actual domain)${NC}"
+    echo ""
+fi
 echo -e "  ${CYAN}View firewall status:${NC}"
 echo -e "    ${BOLD}sudo ufw status verbose${NC}"
 echo ""
