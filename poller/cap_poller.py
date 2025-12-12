@@ -2803,10 +2803,13 @@ def main():
     print("[CAP_POLLER] main() function called - poller starting")
     print("[CAP_POLLER] ========================================")
     parser = argparse.ArgumentParser(description='Emergency CAP Alert Poller (configurable feeds)')
-    print("[CAP_POLLER] Building database URL...")
+    print("[CAP_POLLER] Reading database URL from environment...")
+    database_url = os.getenv('DATABASE_URL')
+    if not database_url:
+        raise ValueError("DATABASE_URL environment variable is required")
     parser.add_argument('--database-url',
-                        default=build_database_url_from_env(),
-                        help='SQLAlchemy DB URL (defaults from env POSTGRES_* or DATABASE_URL)')
+                        default=database_url,
+                        help='SQLAlchemy DB URL (from DATABASE_URL env var)')
     parser.add_argument('--led-ip', help='LED sign IP address')
     parser.add_argument('--led-port', type=int, default=10001, help='LED sign port (default: 10001)')
     parser.add_argument('--log-level', default=os.getenv('LOG_LEVEL', 'INFO'),

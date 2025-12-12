@@ -126,13 +126,11 @@ def create_app():
     app = Flask(__name__)
 
     # Database configuration
-    app.config['SQLALCHEMY_DATABASE_URI'] = (
-        f"postgresql://{os.environ.get('POSTGRES_USER', 'postgres')}:"
-        f"{os.environ.get('POSTGRES_PASSWORD', 'postgres')}@"
-        f"{os.environ.get('POSTGRES_HOST', 'localhost')}:"
-        f"{os.environ.get('POSTGRES_PORT', '5432')}/"
-        f"{os.environ.get('POSTGRES_DB', 'alerts')}"
-    )
+    database_url = os.getenv("DATABASE_URL")
+    if not database_url:
+        raise ValueError("DATABASE_URL environment variable is required")
+
+    app.config['SQLALCHEMY_DATABASE_URI'] = database_url
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
         'pool_size': 5,
