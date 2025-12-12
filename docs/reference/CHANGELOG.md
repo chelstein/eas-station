@@ -7,7 +7,7 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
-- **Poller service database URL** - Removed hardcoded URL construction from systemd service file; now lets Python build URL from POSTGRES_* environment variables
+- **Poller database URL handling** - Poller now properly uses `build_database_url_from_env()` to construct database URL from either DATABASE_URL or individual POSTGRES_* environment variables (POSTGRES_USER, POSTGRES_HOST, POSTGRES_PORT, POSTGRES_DB, POSTGRES_PASSWORD)
 - **Systemd logs permission error** - Added missing `os` import in `webapp/routes_logs.py` that caused crash when checking journal permissions
 - **Install script systemd-journal group** - Install script now automatically adds service user to `systemd-journal` group for log viewing access
 
