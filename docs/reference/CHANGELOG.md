@@ -7,6 +7,12 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **Poller service user credentials** - Fixed incorrect username in `systemd/eas-station-poller.service`
+  - Changed `User=easstation` to `User=eas-station` (missing dash)
+  - Changed `Group=easstation` to `Group=eas-station` (missing dash)
+  - Service was failing with exit code 217/USER: "Failed to determine user credentials: No such process"
+  - All other services correctly use `eas-station` user/group created by install script
+- VERSION bumped to 2.21.10
 - **EAS service crash** - Fixed `TypeError: create_fips_filtering_callback() got an unexpected keyword argument 'flask_app'`
   - Updated `eas_service.py` to use correct callback pattern with `forward_callback` parameter
   - Added proper alert forwarding handler using `forward_alert_to_api` from `app_core.audio.alert_forwarding`
