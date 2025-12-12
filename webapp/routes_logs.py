@@ -21,6 +21,7 @@ from flask import Blueprint, render_template, jsonify, request
 import subprocess
 import logging
 import re
+import os
 from typing import Dict, List, Any
 from app_core.config import get_all_log_services, get_eas_services
 

@@ -1148,6 +1148,15 @@ echo_progress "Adding $SERVICE_USER to hardware access groups..."
 usermod -a -G dialout,plugdev,gpio,i2c,spi,audio "$SERVICE_USER" 2>/dev/null || true
 echo_success "Hardware access groups configured"
 
+# Add service user to systemd-journal group for log access
+echo_progress "Adding $SERVICE_USER to systemd-journal group for log viewing..."
+if getent group systemd-journal >/dev/null 2>&1; then
+    usermod -a -G systemd-journal "$SERVICE_USER" 2>/dev/null || true
+    echo_success "systemd-journal group access configured"
+else
+    echo_warning "systemd-journal group not found (systemd logs may not be accessible)"
+fi
+
 # Create installation directory
 echo_progress "Setting up installation directory: ${BOLD}$INSTALL_DIR${NC}"
 if [ ! -d "$INSTALL_DIR" ]; then

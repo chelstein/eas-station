@@ -6,6 +6,16 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+### Fixed
+- **Systemd logs permission error** - Added missing `os` import in `webapp/routes_logs.py` that caused crash when checking journal permissions
+- **Install script systemd-journal group** - Install script now automatically adds service user to `systemd-journal` group for log viewing access
+- This fixes the "Permission denied accessing journal" error that appeared when viewing service logs
+
+### Changed
+- VERSION bumped to 2.21.1
+
+## [2.21.0] - 2025-12-12
+
 ### Changed
 - **Environment variable consolidation** - Reduced from 93 to 73 variables by consolidating related settings
   - `MAIL_URL` replaces 5 mail variables (MAIL_SERVER, MAIL_PORT, MAIL_USERNAME, MAIL_PASSWORD, MAIL_USE_TLS)
