@@ -6,6 +6,19 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+### Changed
+- **CAP Poller Refactored** - Removed non-polling responsibilities from CAP poller service
+  - Removed direct EAS broadcasting (now handled by eas-service via Redis)
+  - Removed direct LED sign control (now handled by dedicated service via Redis)
+  - Removed direct radio/SDR capture coordination (now handled by sdr-service via Redis)
+  - Added Redis event publishing for alert events (`alerts:new`, `alerts:led:*`, `alerts:broadcast_only`)
+  - Removed command-line arguments: `--led-ip`, `--led-port`, `--radio-captures`
+  - Removed `__init__` parameters: `led_sign_ip`, `led_sign_port`, `enable_radio_captures`
+  - Removed imports: `EASBroadcaster`, `load_eas_config`, `RadioManager`, `LEDSignController`
+  - Removed methods: `_setup_radio_manager()`, `_refresh_radio_configuration()`, `_coordinate_radio_captures()`, `_record_receiver_statuses()`, `update_led_display()`
+  - Poller now focuses solely on: polling feeds, parsing responses, checking location matches, saving to database, and publishing events
+  - VERSION bumped to 2.23.0 (architecture refactoring)
+
 ### Fixed
 - **Certificate Status API Fetch Error** - Fixed "Unexpected token '<'" error in Security Settings page
   - Added `Accept: application/json` header to `/security/ssl-certificate` fetch() call (line 705 in security_settings.html)
