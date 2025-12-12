@@ -20,6 +20,9 @@
                     </div>
                     <div class="col-md-6 text-end">
                         <div class="btn-group" role="group">
+                            <button class="btn btn-sm btn-outline-primary" id="copyLogsBtn" onclick="copyLogsToClipboard()">
+                                <i class="fas fa-copy"></i> Copy Logs
+                            </button>
                             <a href="/logs/export.csv?type={{ log_type }}&limit={{ limit }}" class="btn btn-sm btn-outline-success">
                                 <i class="fas fa-file-csv"></i> Export CSV
                             </a>
@@ -567,6 +570,78 @@
 
     // Call on page load
     updateLastUpdateTime();
+
+    // Copy logs to clipboard
+    function copyLogsToClipboard() {
+        const btn = document.getElementById('copyLogsBtn');
+        const originalHTML = btn.innerHTML;
+
+        try {
+            let logText = '';
+            const logRows = document.querySelectorAll('#logsTable tbody tr.log-row');
+
+            if (logRows.length === 0) {
+                // Handle "All Logs" view with accordion
+                const accordionItems = document.querySelectorAll('.accordion-item');
+                accordionItems.forEach(item => {
+                    const category = item.querySelector('.accordion-button strong').textContent;
+                    logText += `\n=== ${category} ===\n\n`;
+
+                    const rows = item.querySelectorAll('tr.log-row');
+                    rows.forEach(row => {
+                        const cells = row.querySelectorAll('td');
+                        if (cells.length >= 4) {
+                            const timestamp = cells[0].textContent.trim();
+                            const level = cells[1].textContent.trim();
+                            const module = cells[2].textContent.trim();
+                            const message = cells[3].textContent.trim();
+                            logText += `${timestamp}\t${level}\t${module}\t${message}\n`;
+                        }
+                    });
+                });
+            } else {
+                // Standard table view
+                logRows.forEach(row => {
+                    const cells = row.querySelectorAll('td');
+                    if (cells.length >= 4) {
+                        const timestamp = cells[0].textContent.trim();
+                        const level = cells[1].textContent.trim();
+                        const module = cells[2].textContent.trim();
+                        const message = cells[3].textContent.trim();
+                        logText += `${timestamp}\t${level}\t${module}\t${message}\n`;
+                    }
+                });
+            }
+
+            if (!logText) {
+                showToast('No logs to copy', 'warning');
+                return;
+            }
+
+            // Copy to clipboard
+            navigator.clipboard.writeText(logText).then(() => {
+                // Success feedback
+                btn.innerHTML = '<i class="fas fa-check"></i> Copied!';
+                btn.classList.remove('btn-outline-primary');
+                btn.classList.add('btn-success');
+
+                showToast('Logs copied to clipboard', 'success');
+
+                // Reset button after 2 seconds
+                setTimeout(() => {
+                    btn.innerHTML = originalHTML;
+                    btn.classList.remove('btn-success');
+                    btn.classList.add('btn-outline-primary');
+                }, 2000);
+            }).catch(err => {
+                console.error('Failed to copy:', err);
+                showToast('Failed to copy logs to clipboard', 'danger');
+            });
+        } catch (err) {
+            console.error('Error copying logs:', err);
+            showToast('Error copying logs', 'danger');
+        }
+    }
 
     // Keyboard shortcuts
     document.addEventListener('keydown', function(e) {
