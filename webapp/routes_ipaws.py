@@ -263,7 +263,6 @@ def _get_noaa_status() -> Dict:
     status = {
         'configured': bool(noaa_user_agent),
         'user_agent': noaa_user_agent,
-        'custom_endpoints': cap_endpoints,
         'poll_interval': poll_interval,
         'last_poll': None,
         'last_poll_status': None,
@@ -280,6 +279,15 @@ def _get_noaa_status() -> Dict:
     return status
 
 
+def _get_custom_sources_status() -> Dict:
+    """Get current custom sources configuration."""
+    config = _read_current_config()
+    return {
+        'cap_endpoints': config.get('CAP_ENDPOINTS', '').strip(),
+        'poll_interval': config.get('POLL_INTERVAL_SEC', '120')
+    }
+
+
 @ipaws_bp.route('/settings/alert-feeds')
 @require_permission('system.view_config')
 def alert_feeds_settings():
@@ -287,11 +295,13 @@ def alert_feeds_settings():
     try:
         ipaws_status = _get_ipaws_status()
         noaa_status = _get_noaa_status()
+        custom_status = _get_custom_sources_status()
 
         return render_template(
             'settings/alert_feeds.html',
             ipaws_status=ipaws_status,
             noaa_status=noaa_status,
+            custom_status=custom_status,
             environments=IPAWS_ENVIRONMENTS,
             feed_types=IPAWS_FEED_TYPES
         )
@@ -511,8 +521,10 @@ def api_configure_custom_sources():
                         if result.returncode == 0:
                             logger.info(f"Restarted {service}")
                             restart_success = True
-                    except Exception:
-                        pass
+                    except subprocess.SubprocessError as svc_exc:
+                        logger.debug(f"Could not restart {service}: {svc_exc}")
+                    except Exception as svc_exc:
+                        logger.debug(f"Error attempting to restart {service}: {svc_exc}")
         except Exception as exc:
             logger.error(f"Error restarting poller: {exc}")
 

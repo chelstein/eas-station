@@ -602,11 +602,14 @@ class CAPPoller:
         # The poller can handle NOAA, IPAWS, and any other CAP-compliant sources
         # Legacy CAP_POLLER_MODE is deprecated but still supported for backward compatibility
         legacy_mode = os.getenv('CAP_POLLER_MODE', '').strip().upper()
-        if legacy_mode:
+        if legacy_mode in ('NOAA', 'IPAWS'):
             self.logger.info("CAP_POLLER_MODE=%s (legacy mode, consider using CAP_ENDPOINTS instead)", legacy_mode)
             self.poller_mode = legacy_mode
         else:
             # Default to "ALL" - poll all configured sources
+            # Invalid or empty CAP_POLLER_MODE values default to ALL
+            if legacy_mode and legacy_mode not in ('ALL', ''):
+                self.logger.warning("Invalid CAP_POLLER_MODE=%s, defaulting to ALL", legacy_mode)
             self.poller_mode = 'ALL'
 
         configured_endpoints: List[str] = []
