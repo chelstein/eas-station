@@ -22,7 +22,7 @@
     {
       "label": "Flask: Stop Development Server",
       "type": "shell",
-      "command": "pkill -f 'python app.py' || echo 'No Flask dev server running'",
+      "command": "# Find and kill Flask dev server (app.py) safely\nPID=$(pgrep -f 'python.*app\\.py' | head -1); if [ -n \"$PID\" ]; then kill $PID && echo \"Stopped Flask dev server (PID $PID)\"; else echo \"No Flask dev server running\"; fi",
       "problemMatcher": [],
       "presentation": {
         "reveal": "always",
@@ -310,9 +310,13 @@
       }
     },
     {
-      "label": "Redis: Flush Database (DANGER)",
+      "label": "Redis: Flush Database (REQUIRES CONFIRMATION)",
       "type": "shell",
-      "command": "echo 'WARNING: This will delete ALL Redis data!' && read -p 'Type YES to confirm: ' confirm && [ \"$confirm\" = \"YES\" ] && redis-cli FLUSHDB || echo 'Cancelled'",
+      "command": "bash",
+      "args": [
+        "-c",
+        "echo '⚠️  WARNING: This will delete ALL Redis data!' && echo 'Press Ctrl+C to cancel, or press Enter to continue...' && read && redis-cli FLUSHDB && echo '✓ Redis database flushed' || echo '✗ Operation cancelled'"
+      ],
       "problemMatcher": [],
       "presentation": {
         "reveal": "always",
