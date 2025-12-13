@@ -1316,10 +1316,10 @@ if [ -n "$PG_VERSION" ]; then
             # Insert before the first "local all" line to ensure it takes precedence
             sed -i '/^# TYPE.*DATABASE.*USER.*ADDRESS.*METHOD/a\
 # EAS Station authentication (added by install.sh)\
-host    alerts          "eas-station"   127.0.0.1/32            scram-sha-256\
-host    alerts          "eas-station"   ::1/128                 scram-sha-256' "$PG_HBA_CONF"
+host    alerts          eas_station   127.0.0.1/32            scram-sha-256\
+host    alerts          eas_station   ::1/128                 scram-sha-256' "$PG_HBA_CONF"
             
-            echo_success "Added authentication rules for eas-station user"
+            echo_success "Added authentication rules for eas_station user"
             
             # Reload PostgreSQL to apply changes
             systemctl reload postgresql 2>/dev/null
@@ -1349,39 +1349,39 @@ else
 fi
 
 # Create database user (use dollar-quoting to safely handle special characters in password)
-if ! sudo -u postgres psql -tc "SELECT 1 FROM pg_user WHERE usename = 'eas-station'" 2>/dev/null | grep -q 1; then
-    echo_progress "Creating database user 'eas-station'..."
+if ! sudo -u postgres psql -tc "SELECT 1 FROM pg_user WHERE usename = 'eas_station'" 2>/dev/null | grep -q 1; then
+    echo_progress "Creating database user 'eas_station'..."
     if sudo -u postgres psql <<EOF 2>/dev/null
-CREATE USER "eas-station" WITH PASSWORD \$\$${DB_PASSWORD}\$\$;
+CREATE USER eas_station WITH PASSWORD \$\$${DB_PASSWORD}\$\$;
 EOF
     then
-        echo_success "Database user 'eas-station' created successfully"
+        echo_success "Database user 'eas_station' created successfully"
     else
         echo_warning "User creation failed - it may already exist"
     fi
 else
-    echo_info "Database user 'eas-station' already exists (updating password)"
+    echo_info "Database user 'eas_station' already exists (updating password)"
 fi
 
 # Update password if user already exists (in case of re-running script)
 sudo -u postgres psql <<EOF 2>/dev/null
-ALTER USER "eas-station" WITH PASSWORD \$\$${DB_PASSWORD}\$\$;
+ALTER USER eas_station WITH PASSWORD \$\$${DB_PASSWORD}\$\$;
 EOF
 
-sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE alerts TO \"eas-station\";" 2>/dev/null
+sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE alerts TO eas_station;" 2>/dev/null
 
 # Grant schema privileges (required for PostgreSQL 15+)
-sudo -u postgres psql -d alerts -c "GRANT ALL ON SCHEMA public TO \"eas-station\";" 2>/dev/null
-sudo -u postgres psql -d alerts -c "GRANT CREATE ON SCHEMA public TO \"eas-station\";" 2>/dev/null
-sudo -u postgres psql -d alerts -c "ALTER SCHEMA public OWNER TO \"eas-station\";" 2>/dev/null
+sudo -u postgres psql -d alerts -c "GRANT ALL ON SCHEMA public TO eas_station;" 2>/dev/null
+sudo -u postgres psql -d alerts -c "GRANT CREATE ON SCHEMA public TO eas_station;" 2>/dev/null
+sudo -u postgres psql -d alerts -c "ALTER SCHEMA public OWNER TO eas_station;" 2>/dev/null
 
 # Grant privileges on all existing tables and sequences (if any)
-sudo -u postgres psql -d alerts -c "GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO \"eas-station\";" 2>/dev/null
-sudo -u postgres psql -d alerts -c "GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO \"eas-station\";" 2>/dev/null
+sudo -u postgres psql -d alerts -c "GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO eas_station;" 2>/dev/null
+sudo -u postgres psql -d alerts -c "GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO eas_station;" 2>/dev/null
 
 # Grant default privileges for future tables and sequences
-sudo -u postgres psql -d alerts -c "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO \"eas-station\";" 2>/dev/null
-sudo -u postgres psql -d alerts -c "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO \"eas-station\";" 2>/dev/null
+sudo -u postgres psql -d alerts -c "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO eas_station;" 2>/dev/null
+sudo -u postgres psql -d alerts -c "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO eas_station;" 2>/dev/null
 
 # Create PostGIS extensions
 sudo -u postgres psql -d alerts -c "CREATE EXTENSION IF NOT EXISTS postgis;" 2>/dev/null
@@ -1437,7 +1437,7 @@ HOSTNAME=$SYSTEM_HOSTNAME
 DOMAIN_NAME=$DOMAIN_NAME
 
 # Database Configuration
-DATABASE_URL=postgresql+psycopg2://eas-station:$DB_PASSWORD@127.0.0.1:5432/alerts
+DATABASE_URL=postgresql+psycopg2://eas_station:$DB_PASSWORD@127.0.0.1:5432/alerts
 
 # Redis Configuration
 REDIS_HOST=localhost

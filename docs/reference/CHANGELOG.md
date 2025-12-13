@@ -7,6 +7,13 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **CRITICAL: PostgreSQL username is eas_station (underscore) not eas-station (hyphen)** - Fixed all references to use correct username
+  - Changed DATABASE_URL from `eas-station` to `eas_station` in .env.example, install.sh, webapp/admin/environment.py
+  - Updated install.sh to create PostgreSQL user `eas_station` instead of `"eas-station"`
+  - Updated pg_hba.conf rules to use `eas_station` instead of `"eas-station"`
+  - Updated all GRANT statements to use `eas_station`
+  - User confirmed: `psql -U eas_station` works, `psql -U eas-station` fails
+  - VERSION bumped to 2.23.6 (bug fix)
 - **ACTUAL ROOT CAUSE: Poller .env override mismatch** - Fixed poller failing to load DATABASE_URL from .env file
   - Changed `load_dotenv(override=False)` to `load_dotenv(override=True)` in poller/cap_poller.py (lines 131, 138)
   - Poller was using override=False while app.py uses override=True, causing environment variable mismatch

@@ -4,7 +4,7 @@
 
 You have the **correct DATABASE_URL** format in your `.env` file:
 ```
-DATABASE_URL=postgresql+psycopg2://eas-station:PASSWORD@127.0.0.1:5432/alerts
+DATABASE_URL=postgresql+psycopg2://eas_station:PASSWORD@127.0.0.1:5432/alerts
 ```
 
 But you're seeing errors like:
