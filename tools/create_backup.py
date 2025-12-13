@@ -126,7 +126,7 @@ def compose_service_running(compose_cmd: List[str], service: str) -> bool:
 def run_pg_dump(env: Dict[str, str], output_path: Path) -> str:
     host = env.get("POSTGRES_HOST", "localhost")
     port = env.get("POSTGRES_PORT", "5432")
-    user = env.get("POSTGRES_USER", "postgres")
+    user = env.get("POSTGRES_USER", "eas-station")
     db_name = env.get("POSTGRES_DB", "alerts")
     password = env.get("POSTGRES_PASSWORD", "")
 
@@ -197,7 +197,7 @@ def write_metadata(target: Path, env: Dict[str, str], dump_cmd: str) -> None:
             "host": env.get("POSTGRES_HOST", "unknown"),
             "port": env.get("POSTGRES_PORT", "5432"),
             "name": env.get("POSTGRES_DB", "alerts"),
-            "user": env.get("POSTGRES_USER", "postgres"),
+            "user": env.get("POSTGRES_USER", "eas-station"),
             "command": dump_cmd,
         },
     }
@@ -423,7 +423,7 @@ Examples:
             "host": env_values.get("POSTGRES_HOST", "unknown"),
             "port": env_values.get("POSTGRES_PORT", "5432"),
             "name": env_values.get("POSTGRES_DB", "alerts"),
-            "user": env_values.get("POSTGRES_USER", "postgres"),
+            "user": env_values.get("POSTGRES_USER", "eas-station"),
             "command": dump_command,
         },
         "summary": backup_summary,

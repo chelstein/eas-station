@@ -191,7 +191,7 @@ def restore_database(backup_dir: Path, env_values: Dict[str, str], force: bool =
 
     host = env_values.get("POSTGRES_HOST", "localhost")
     port = env_values.get("POSTGRES_PORT", "5432")
-    user = env_values.get("POSTGRES_USER", "postgres")
+    user = env_values.get("POSTGRES_USER", "eas-station")
     db_name = env_values.get("POSTGRES_DB", "alerts")
     password = env_values.get("POSTGRES_PASSWORD", "")
 

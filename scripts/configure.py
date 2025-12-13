@@ -47,7 +47,7 @@ class Config:
 
     if not SQLALCHEMY_DATABASE_URI:
         # Build from individual POSTGRES_* variables (same logic as app.py)
-        user = os.environ.get('POSTGRES_USER', 'postgres') or 'postgres'
+        user = os.environ.get('POSTGRES_USER', 'eas-station') or 'eas-station'
         password = os.environ.get('POSTGRES_PASSWORD', 'postgres') or 'postgres'
         host = os.environ.get('POSTGRES_HOST', 'localhost') or 'localhost'
         port = os.environ.get('POSTGRES_PORT', '5432') or '5432'

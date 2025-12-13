@@ -29,7 +29,7 @@ Environment variables (reads from .env or can be set manually):
     POSTGRES_HOST (default: localhost)
     POSTGRES_PORT (default: 5432)
     POSTGRES_DB (default: alerts)
-    POSTGRES_USER (default: postgres)
+    POSTGRES_USER (default: eas-station)
     POSTGRES_PASSWORD (required)
 
 Or set DATABASE_URL directly:
@@ -59,7 +59,7 @@ def get_db_connection():
     host = os.getenv('POSTGRES_HOST', 'localhost')
     port = os.getenv('POSTGRES_PORT', '5432')
     database = os.getenv('POSTGRES_DB', 'alerts')
-    user = os.getenv('POSTGRES_USER', 'postgres')
+    user = os.getenv('POSTGRES_USER', 'eas-station')
     password = os.getenv('POSTGRES_PASSWORD')
 
     if not password:

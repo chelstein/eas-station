@@ -38,19 +38,24 @@ from app_core.audio.ingest import AudioSourceType
 app = Flask(__name__)
 
 # Database configuration
-postgres_host = os.getenv("POSTGRES_HOST", "localhost")
-postgres_port = os.getenv("POSTGRES_PORT", "5432")
-postgres_db = os.getenv("POSTGRES_DB", "alerts")
-postgres_user = os.getenv("POSTGRES_USER", "postgres")
-postgres_password = os.getenv("POSTGRES_PASSWORD", "postgres")
+database_url = os.getenv("DATABASE_URL")
+if not database_url:
+    # Fallback: build from individual POSTGRES_* variables
+    postgres_host = os.getenv("POSTGRES_HOST", "localhost")
+    postgres_port = os.getenv("POSTGRES_PORT", "5432")
+    postgres_db = os.getenv("POSTGRES_DB", "alerts")
+    postgres_user = os.getenv("POSTGRES_USER", "eas-station")
+    postgres_password = os.getenv("POSTGRES_PASSWORD", "postgres")
+    
+    from urllib.parse import quote_plus
+    escaped_password = quote_plus(postgres_password)
+    
+    database_url = (
+        f"postgresql://{postgres_user}:{escaped_password}@"
+        f"{postgres_host}:{postgres_port}/{postgres_db}"
+    )
 
-from urllib.parse import quote_plus
-escaped_password = quote_plus(postgres_password)
-
-app.config["SQLALCHEMY_DATABASE_URI"] = (
-    f"postgresql://{postgres_user}:{escaped_password}@"
-    f"{postgres_host}:{postgres_port}/{postgres_db}"
-)
+app.config["SQLALCHEMY_DATABASE_URI"] = database_url
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 db.init_app(app)
