@@ -1,6 +1,7 @@
 [Unit]
 Description=EAS Station Alert Poller (Unified - NOAA + IPAWS)
 Documentation=https://github.com/KR8MER/eas-station
+PartOf=eas-station.target
 After=network-online.target postgresql.service redis-server.service
 Wants=network-online.target
 StartLimitIntervalSec=0
@@ -32,4 +33,4 @@ ProtectHome=yes
 ReadWritePaths=/tmp
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=multi-user.target eas-station.target

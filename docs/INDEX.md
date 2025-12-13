@@ -82,6 +82,7 @@ If you're new to EAS Station, start here:
 | Document | Description |
 |----------|-------------|
 | [Database Issues](troubleshooting/DATABASE_CONSISTENCY_FIXES) | PostgreSQL troubleshooting |
+| [Systemd Target Cycling](troubleshooting/SYSTEMD_TARGET_CYCLING) | Fix repeated service restarts |
 | [Firewall Requirements](troubleshooting/FIREWALL_REQUIREMENTS) | Network ports and firewall setup |
 | [IPv6 Connectivity](troubleshooting/FIX_IPV6_CONNECTIVITY) | IPv6 troubleshooting |
 | [Audio Squeal Fix](troubleshooting/AUDIO_SQUEAL_FIX) | Audio feedback/squeal issues |
@@ -125,7 +126,7 @@ docs/
 ├── development/     # 1 developer guide
 ├── frontend/        # 3 UI documentation files
 ├── hardware/        # 1 SDR setup guide
-├── troubleshooting/ # 9 problem-solving guides
+├── troubleshooting/ # 10 problem-solving guides
 ├── security/        # 4 security guides
 ├── reference/       # 5 reference materials
 ├── roadmap/         # 1 roadmap document
@@ -151,10 +152,10 @@ docs/
 
 | Metric | Value |
 |--------|-------|
-| Total Documentation Files | 46 |
+| Total Documentation Files | 47 |
 | Essential User Guides | 6 |
 | Architecture Documents | 10 |
-| Troubleshooting Guides | 9 |
+| Troubleshooting Guides | 10 |
 | Security Documents | 4 |
 | Reference Materials | 5 |
 | Total Directories | 13 |

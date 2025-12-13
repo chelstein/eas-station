@@ -1,6 +1,7 @@
 [Unit]
 Description=EAS Station Web Application
 Documentation=https://github.com/KR8MER/eas-station
+PartOf=eas-station.target
 After=network.target postgresql.service redis.service
 Wants=postgresql.service redis.service
 
@@ -50,4 +51,4 @@ LimitNOFILE=65536
 MemoryMax=512M
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=multi-user.target eas-station.target

@@ -1,6 +1,7 @@
 [Unit]
 Description=EAS Station SDR Hardware Service
 Documentation=https://github.com/KR8MER/eas-station
+PartOf=eas-station.target
 After=network.target redis.service
 Requires=redis.service
 
@@ -46,4 +47,4 @@ LimitMEMLOCK=infinity
 MemoryMax=256M
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=multi-user.target eas-station.target

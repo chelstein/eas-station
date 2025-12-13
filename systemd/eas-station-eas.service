@@ -1,6 +1,7 @@
 [Unit]
 Description=EAS Station EAS Monitoring Service
 Documentation=https://github.com/KR8MER/eas-station
+PartOf=eas-station.target
 After=network.target redis.service eas-station-audio.service
 Requires=redis.service
 Wants=eas-station-audio.service
@@ -40,4 +41,4 @@ LimitNOFILE=65536
 MemoryMax=256M
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=multi-user.target eas-station.target
