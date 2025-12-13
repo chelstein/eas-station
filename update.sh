@@ -609,12 +609,21 @@ fi
 
 # Run database migrations (if any)
 echo_step "Running Database Migrations"
-cd "$INSTALL_DIR"
+echo_progress "Running Alembic migrations to update database schema..."
 
-if [ -f "$INSTALL_DIR/venv/bin/alembic" ] && [ -f "$INSTALL_DIR/alembic.ini" ]; then
-    echo_progress "Running Alembic migrations to update database schema..."
-    echo_info "This may take a few moments. Output will be shown below:"
-    echo_info "Press Ctrl+C to cancel if needed (changes will be rolled back)"
+# FIX PASSWORD AUTHENTICATION BEFORE MIGRATIONS
+echo_info "Checking database authentication..."
+if [ -f "$INSTALL_DIR/scripts/database/fix_database_user.sh" ]; then
+    echo_info "Syncing database password from .env..."
+    "$INSTALL_DIR/scripts/database/fix_database_user.sh" 2>&1 | grep -E "success|error|warning|ERROR|WARNING" || true
+    echo_success "Database password synchronized"
+else
+    echo_warning "Password sync script not found - using existing credentials"
+fi
+
+echo ""
+echo_info "This may take a few moments. Output will be shown below:"
+echo_info "Press Ctrl+C to cancel if needed (changes will be rolled back)"
     echo ""
     
     # Check current database revision before migration

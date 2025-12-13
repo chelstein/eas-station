@@ -7,6 +7,43 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **CRITICAL: PostgreSQL username is eas_station (underscore) not eas-station (hyphen)** - Fixed all references to use correct username
+  - Changed DATABASE_URL from `eas-station` to `eas_station` in .env.example, install.sh, webapp/admin/environment.py
+  - Updated install.sh to create PostgreSQL user `eas_station` instead of `"eas-station"`
+  - Updated pg_hba.conf rules to use `eas_station` instead of `"eas-station"`
+  - Updated all GRANT statements to use `eas_station`
+  - User confirmed: `psql -U eas_station` works, `psql -U eas-station` fails
+  - VERSION bumped to 2.23.6 (bug fix)
+- **ACTUAL ROOT CAUSE: Poller .env override mismatch** - Fixed poller failing to load DATABASE_URL from .env file
+  - Changed `load_dotenv(override=False)` to `load_dotenv(override=True)` in poller/cap_poller.py (lines 131, 138)
+  - Poller was using override=False while app.py uses override=True, causing environment variable mismatch
+  - When poller imports from app.py, app.py's override=True happened AFTER poller's override=False
+  - This caused poller to use wrong/missing DATABASE_URL even though .env file was correct
+  - Other services work because they don't import app.py and use override=True directly
+  - VERSION bumped to 2.23.5 (bug fix)
+- **Auto-fix Password Authentication in update.sh** - update.sh now automatically syncs PostgreSQL password before running migrations
+  - Added password sync step in update.sh before database migrations (line 617)
+  - Runs `scripts/database/fix_database_user.sh` automatically to sync password from .env to PostgreSQL
+  - Prevents "password authentication failed" errors during migrations
+  - Made fix_database_user.sh completely non-interactive (removed confirmation prompt)
+  - Created fix_and_restart.sh for one-command fix with service restart
+  - VERSION bumped to 2.23.4 (bug fix)
+- **Password Authentication Root Cause Identified** - Clarified that "password authentication failed" is a password mismatch, not network/IPv6 issue
+  - Updated documentation to explain that `OperationalError` means PostgreSQL rejected the password after connection succeeded
+  - Changed DATABASE_URL defaults from `localhost` to `127.0.0.1` to force IPv4 and improve consistency
+  - Updated `.env.example`, `install.sh`, `webapp/admin/environment.py`, and `scripts/profile_poller.py`
+  - Added `docs/troubleshooting/PASSWORD_MISMATCH.md` with detailed root cause analysis
+  - Updated `QUICK_DATABASE_FIX.md` to emphasize running fix script to sync passwords
+  - The fix script (`scripts/database/fix_database_user.sh`) extracts password from .env and updates PostgreSQL
+  - IPv6 (::1) connections work fine - the real issue is password mismatch between .env and PostgreSQL
+  - VERSION bumped to 2.23.3 (bug fix)
+- **Database Authentication Issues** - Fixed database connection failures during migrations and poller service startup
+  - Changed poller service `EnvironmentFile` from optional (`-/opt/eas-station/.env`) to required (`/opt/eas-station/.env`)
+  - Ensures DATABASE_URL is always loaded from environment file, preventing fallback to incorrect database usernames
+  - Added `scripts/database/fix_database_user.sh` to clean up incorrectly named database users (e.g., "eas_station" vs "eas-station")
+  - Script automatically reassigns ownership and drops incorrect users while preserving data
+  - Resolves "password authentication failed for user eas_station" errors in screen_manager and migrations
+  - VERSION bumped to 2.23.2 (bug fix)
 - **CAP Poller Service ModuleNotFoundError** - Fixed "No module named 'redis'" error on bare metal installations
   - Updated `systemd/eas-station-poller.service` to use virtual environment Python interpreter
   - Changed `ExecStart` from `/usr/bin/python3` to `/opt/eas-station/venv/bin/python`
