@@ -194,18 +194,24 @@ def restore_database(backup_dir: Path, env_values: Dict[str, str], force: bool =
         print("  ✗ DATABASE_URL not found in environment")
         return False
 
+    # Convert psycopg2 URL format to standard PostgreSQL format for psql/pg_dump
+    # postgresql+psycopg2://user:pass@host:port/db -> postgresql://user:pass@host:port/db
+    psql_url = database_url.replace("postgresql+psycopg2://", "postgresql://")
+
     # Parse database name from URL for drop/create operations
-    # DATABASE_URL format: postgresql+psycopg2://user:pass@host:port/dbname
     try:
-        if '/' in database_url:
-            db_name = database_url.rsplit('/', 1)[1].split('?')[0]
+        if '/' in psql_url:
+            db_name = psql_url.rsplit('/', 1)[1].split('?')[0]
         else:
             db_name = "alerts"
     except Exception:
         db_name = "alerts"
+    
+    # Create a connection URL without the database name for admin operations
+    admin_url = psql_url.rsplit('/', 1)[0] + '/postgres'
 
     compose_cmd = detect_compose_command()
-    # Check if using containerized database (host would be in URL)
+    # Check if using containerized database
     use_compose = "alerts-db" in database_url or ("postgres" in database_url and "localhost" not in database_url)
 
     # Drop and recreate database
@@ -214,26 +220,26 @@ def restore_database(backup_dir: Path, env_values: Dict[str, str], force: bool =
         # For containerized deployments
         drop_cmd = [
             *compose_cmd, "exec", "-T", "alerts-db",
-            "psql", database_url, "-c", f"DROP DATABASE IF EXISTS {db_name}"
+            "psql", admin_url, "-c", f"DROP DATABASE IF EXISTS {db_name}"
         ]
         create_cmd = [
             *compose_cmd, "exec", "-T", "alerts-db",
-            "psql", database_url, "-c", f"CREATE DATABASE {db_name}"
+            "psql", admin_url, "-c", f"CREATE DATABASE {db_name}"
         ]
         restore_cmd = [
             *compose_cmd, "exec", "-T", "alerts-db",
-            "psql", database_url
+            "psql", psql_url
         ]
     else:
-        # For bare-metal deployments, use DATABASE_URL directly
+        # For bare-metal deployments, use connection URL
         drop_cmd = [
-            "psql", database_url, "-c", f"DROP DATABASE IF EXISTS {db_name}"
+            "psql", admin_url, "-c", f"DROP DATABASE IF EXISTS {db_name}"
         ]
         create_cmd = [
-            "psql", database_url, "-c", f"CREATE DATABASE {db_name}"
+            "psql", admin_url, "-c", f"CREATE DATABASE {db_name}"
         ]
         restore_cmd = [
-            "psql", database_url
+            "psql", psql_url
         ]
 
     # Execute restoration

@@ -140,8 +140,12 @@ def run_pg_dump(env: Dict[str, str], output_path: Path) -> str:
     if not database_url:
         raise RuntimeError("DATABASE_URL environment variable is required for backup")
     
+    # Convert psycopg2 URL format to standard PostgreSQL format for pg_dump
+    # postgresql+psycopg2://user:pass@host:port/db -> postgresql://user:pass@host:port/db
+    pgdump_url = database_url.replace("postgresql+psycopg2://", "postgresql://")
+    
     # Use pg_dump with connection string
-    dump_cmd = ["pg_dump", database_url]
+    dump_cmd = ["pg_dump", pgdump_url]
 
     with output_path.open("wb") as handle:
         process = subprocess.run(dump_cmd, stdout=handle, stderr=subprocess.PIPE)
