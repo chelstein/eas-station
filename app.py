@@ -489,29 +489,34 @@ logger.info("NOAA Alerts System startup")
 register_routes(app, logger)
 
 # Start background health monitoring alerts
-if app.config.get('SETUP_MODE'):
+# Skip background services during migrations to prevent hanging
+if os.environ.get('SKIP_DB_INIT'):
+    logger.info('Skipping background services during database migration')
+elif app.config.get('SETUP_MODE'):
     logger.info('Skipping health alert worker while setup mode is active.')
 else:
     start_health_alert_worker(app, logger)
 
 # Start screen manager for LED/VFD display rotation
-try:
-    from scripts.screen_manager import screen_manager
-    screen_manager.init_app(app)
-    if not app.config.get('SETUP_MODE'):
-        screen_manager.start()
-        logger.info('Screen manager started for display rotation')
-except Exception as screen_mgr_error:
-    logger.warning('Screen manager could not be started: %s', screen_mgr_error)
+if not os.environ.get('SKIP_DB_INIT'):
+    try:
+        from scripts.screen_manager import screen_manager
+        screen_manager.init_app(app)
+        if not app.config.get('SETUP_MODE'):
+            screen_manager.start()
+            logger.info('Screen manager started for display rotation')
+    except Exception as screen_mgr_error:
+        logger.warning('Screen manager could not be started: %s', screen_mgr_error)
 
 # Start RWT (Required Weekly Test) scheduler
-try:
-    from app_core.rwt_scheduler import start_scheduler as start_rwt_scheduler
-    if not app.config.get('SETUP_MODE'):
-        start_rwt_scheduler(app)
-        logger.info('RWT scheduler started for automatic weekly tests')
-except Exception as rwt_scheduler_error:
-    logger.warning('RWT scheduler could not be started: %s', rwt_scheduler_error)
+if not os.environ.get('SKIP_DB_INIT'):
+    try:
+        from app_core.rwt_scheduler import start_scheduler as start_rwt_scheduler
+        if not app.config.get('SETUP_MODE'):
+            start_rwt_scheduler(app)
+            logger.info('RWT scheduler started for automatic weekly tests')
+    except Exception as rwt_scheduler_error:
+        logger.warning('RWT scheduler could not be started: %s', rwt_scheduler_error)
 
 # =============================================================================
 # BOUNDARY TYPE METADATA
