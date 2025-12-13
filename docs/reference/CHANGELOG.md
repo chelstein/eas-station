@@ -19,6 +19,14 @@ tracks releases under the 2.x series.
   - Uses thread-safe double-checked locking to ensure initialization happens exactly once
   - Prevents 504 Gateway Timeout errors during service startup
   - VERSION bumped to 2.27.2 (bug fix)
+
+### Improved
+- **Startup Logging** - Enhanced diagnostic logging to help identify blocking issues during application startup
+  - Added startup banner showing process ID
+  - Added checkpoint logs at key initialization steps (✓ for success, ⊘ for skipped, ✗ for errors)
+  - Added module import completion log to confirm app.py loads successfully
+  - Helps diagnose silent failures that block Gunicorn workers
+  - Makes it clear in logs where startup process is hanging
 - **Web Service Startup Issue** - Fixed systemd service configuration preventing web app from fully starting
   - Changed `Type=notify` to `Type=simple` in `systemd/eas-station-web.service`
   - Gunicorn with gevent workers doesn't support systemd notify protocol

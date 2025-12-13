@@ -212,6 +212,12 @@ from app_core.datetime.parsing import parse_nws_datetime
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Log application startup to help diagnose blocking issues
+logger.info("=" * 60)
+logger.info("EAS Station Web Application starting...")
+logger.info(f"Process ID: {os.getpid()}")
+logger.info("=" * 60)
+
 # Load environment variables early for local CLI usage
 # Use CONFIG_PATH if set (for alternate location), otherwise use default .env location
 # CRITICAL: override=True to override env vars from empty .env
@@ -456,9 +462,9 @@ socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent')
 
 logger.info("Checking database connectivity at startup...")
 if check_database_connectivity(app, db):
-    logger.info("Database connectivity check succeeded.")
+    logger.info("✓ Database connectivity check succeeded")
 else:
-    logger.error("Database connectivity check failed; application may not operate correctly.")
+    logger.error("✗ Database connectivity check failed; application may not operate correctly")
     if 'database' not in _setup_mode_reasons:
         _setup_mode_reasons.append('database')
 
@@ -481,10 +487,13 @@ app.config['EAS_OUTPUT_WEB_SUBDIR'] = EAS_CONFIG.get('web_subdir', 'eas_messages
 _db_initialized = False
 _db_initialization_error = None
 _db_init_lock = threading.Lock()
-logger.info("NOAA Alerts System startup")
+
+logger.info("✓ Flask application configuration complete")
 
 # Register route modules
+logger.info("Registering route modules...")
 register_routes(app, logger)
+logger.info("✓ Route modules registered")
 
 # Check if we're running in migration mode (SKIP_DB_INIT is set by alembic/env.py)
 # to prevent background services from starting and causing migrations to hang
@@ -493,11 +502,13 @@ skip_background_services = bool(os.environ.get('SKIP_DB_INIT'))
 # Start background health monitoring alerts
 # Skip background services during migrations to prevent hanging
 if skip_background_services:
-    logger.info('Skipping background services during database migration')
+    logger.info('⊘ Skipping background services during database migration')
 elif app.config.get('SETUP_MODE'):
-    logger.info('Skipping health alert worker while setup mode is active.')
+    logger.info('⊘ Skipping health alert worker while setup mode is active')
 else:
+    logger.info("Starting health alert worker...")
     start_health_alert_worker(app, logger)
+    logger.info("✓ Health alert worker started")
 
 # Start screen manager for LED/VFD display rotation
 if not skip_background_services:
@@ -945,6 +956,11 @@ def initialize_database():
 #
 # The lazy initialization pattern is more robust and compatible with all
 # deployment modes (Gunicorn, Flask dev server, CLI commands, etc.)
+
+# Log successful module import - helps diagnose blocking issues during startup
+logger.info("=" * 60)
+logger.info("✓ Module import complete - application ready for requests")
+logger.info("=" * 60)
 
 
 # =============================================================================
