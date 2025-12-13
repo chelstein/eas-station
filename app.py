@@ -932,7 +932,7 @@ def initialize_database():
             return True
 
 
-# Database initialization is handled lazily in the before_request hook (line ~671)
+# Database initialization is handled lazily in the before_request hook (line 671)
 # This prevents blocking the Gunicorn workers during startup and allows the
 # application to start quickly. The before_request hook uses thread-safe
 # double-checked locking to ensure initialization happens exactly once.
