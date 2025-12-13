@@ -1,0 +1,129 @@
+{
+  // Python Configuration
+  "python.defaultInterpreterPath": "/opt/eas-station/venv/bin/python",
+  "python.terminal.activateEnvironment": true,
+  "python.analysis.extraPaths": [
+    "/opt/eas-station",
+    "/opt/eas-station/app_core",
+    "/opt/eas-station/app_utils",
+    "/opt/eas-station/webapp"
+  ],
+  
+  // Linting and Formatting
+  "python.linting.enabled": false,
+  "[python]": {
+    "editor.defaultFormatter": "ms-python.black-formatter",
+    "editor.formatOnSave": false,
+    "editor.codeActionsOnSave": {
+      "source.organizeImports": "never"
+    }
+  },
+  
+  // Use separate linting extensions
+  "flake8.args": [
+    "--max-line-length=120",
+    "--ignore=E501,W503"
+  ],
+  
+  // Testing
+  "python.testing.pytestEnabled": true,
+  "python.testing.unittestEnabled": false,
+  "python.testing.pytestArgs": [
+    "tests"
+  ],
+  
+  // File associations
+  "files.associations": {
+    "*.env.example": "properties",
+    "*.service": "systemd",
+    ".env": "properties"
+  },
+  
+  // Files to exclude from search and explorer
+  "files.exclude": {
+    "**/__pycache__": true,
+    "**/*.pyc": true,
+    "**/*.pyo": true,
+    "**/venv": true,
+    "**/.pytest_cache": true,
+    "**/htmlcov": true,
+    "**/.coverage": true
+  },
+  
+  // Search exclusions
+  "search.exclude": {
+    "**/venv": true,
+    "**/__pycache__": true,
+    "**/node_modules": true,
+    "**/.git": true,
+    "**/htmlcov": true
+  },
+  
+  // Terminal configuration
+  "terminal.integrated.defaultProfile.linux": "bash",
+  "terminal.integrated.cwd": "/opt/eas-station",
+  "terminal.integrated.env.linux": {
+    "PYTHONPATH": "/opt/eas-station"
+  },
+  
+  // Git configuration
+  "git.ignoreLimitWarning": true,
+  
+  // Editor settings
+  "editor.rulers": [120],
+  "editor.tabSize": 4,
+  "editor.insertSpaces": true,
+  "editor.trimAutoWhitespace": true,
+  "files.trimTrailingWhitespace": true,
+  "files.insertFinalNewline": true,
+  
+  // Remote development specific
+  "remote.SSH.remotePlatform": {
+    "easstation-dev.local": "linux"
+  },
+  "remote.SSH.useLocalServer": false,
+  
+  // File watcher exclusions (performance)
+  "files.watcherExclude": {
+    "**/venv/**": true,
+    "**/__pycache__/**": true,
+    "**/logs/**": true,
+    "**/static/eas_messages/**": true
+  },
+  
+  // PostgreSQL Database Configuration
+  // NOTE: Password is read from .env file automatically
+  // For manual connection, use tasks or see .vscode/VSCODE_SETUP.md
+  "sqltools.connections": [
+    {
+      "name": "EAS Station Database",
+      "driver": "PostgreSQL",
+      "server": "localhost",
+      "port": 5432,
+      "database": "alerts",
+      "username": "eas_station",
+      "askForPassword": true,
+      "connectionTimeout": 30,
+      "previewLimit": 50,
+      "pgOptions": {
+        "ssl": false
+      },
+      "group": "EAS Station",
+      "icons": {
+        "active": "🗄️",
+        "inactive": "💾"
+      }
+    }
+  ],
+  "sqltools.useNodeRuntime": true,
+  "sqltools.autoOpenSessionFiles": false,
+  "sqltools.defaultExportType": "csv",
+  "sqltools.results": {
+    "limit": 100,
+    "location": "current"
+  },
+  "sqltools.format": {
+    "language": "sql",
+    "reservedWordCase": "upper"
+  }
+}

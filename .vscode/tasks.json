@@ -1,0 +1,347 @@
+{
+  // VSCode Tasks for EAS Station Development
+  // Run tasks with Terminal > Run Task... or Ctrl+Shift+B
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Flask: Run Development Server",
+      "type": "shell",
+      "command": "source ${workspaceFolder}/venv/bin/activate && FLASK_ENV=development FLASK_DEBUG=true python app.py",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "focus": true
+      },
+      "isBackground": true,
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      }
+    },
+    {
+      "label": "Flask: Stop Development Server",
+      "type": "shell",
+      "command": "# Find and kill Flask dev server (app.py) safely\nPID=$(pgrep -f 'python.*app\\.py' | head -1); if [ -n \"$PID\" ]; then kill $PID && echo \"Stopped Flask dev server (PID $PID)\"; else echo \"No Flask dev server running\"; fi",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      }
+    },
+    {
+      "label": "Service: Restart Web",
+      "type": "shell",
+      "command": "sudo systemctl restart eas-station-web.service && sudo systemctl status eas-station-web.service",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      }
+    },
+    {
+      "label": "Service: Restart Audio",
+      "type": "shell",
+      "command": "sudo systemctl restart eas-station-audio.service && sudo systemctl status eas-station-audio.service",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      }
+    },
+    {
+      "label": "Service: Restart Poller",
+      "type": "shell",
+      "command": "sudo systemctl restart eas-station-poller.service && sudo systemctl status eas-station-poller.service",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      }
+    },
+    {
+      "label": "Service: Restart EAS",
+      "type": "shell",
+      "command": "sudo systemctl restart eas-station-eas.service && sudo systemctl status eas-station-eas.service",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      }
+    },
+    {
+      "label": "Service: Restart Hardware",
+      "type": "shell",
+      "command": "sudo systemctl restart eas-station-hardware.service && sudo systemctl status eas-station-hardware.service",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      }
+    },
+    {
+      "label": "Service: Restart SDR",
+      "type": "shell",
+      "command": "sudo systemctl restart eas-station-sdr.service && sudo systemctl status eas-station-sdr.service",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      }
+    },
+    {
+      "label": "Logs: Web Service (Live)",
+      "type": "shell",
+      "command": "sudo journalctl -u eas-station-web.service -f",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      },
+      "isBackground": true
+    },
+    {
+      "label": "Logs: Audio Service (Live)",
+      "type": "shell",
+      "command": "sudo journalctl -u eas-station-audio.service -f",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      },
+      "isBackground": true
+    },
+    {
+      "label": "Logs: Poller Service (Live)",
+      "type": "shell",
+      "command": "sudo journalctl -u eas-station-poller.service -f",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      },
+      "isBackground": true
+    },
+    {
+      "label": "Logs: All EAS Services (Live)",
+      "type": "shell",
+      "command": "sudo journalctl -u 'eas-station*' -f",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      },
+      "isBackground": true
+    },
+    {
+      "label": "Logs: Web Service (Last 100)",
+      "type": "shell",
+      "command": "sudo journalctl -u eas-station-web.service -n 100 --no-pager",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      }
+    },
+    {
+      "label": "Check All Services Status",
+      "type": "shell",
+      "command": "sudo systemctl status eas-station.target",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      }
+    },
+    {
+      "label": "Restart All EAS Services",
+      "type": "shell",
+      "command": "sudo systemctl restart eas-station.target && sudo systemctl status eas-station.target",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      }
+    },
+    {
+      "label": "Stop All EAS Services",
+      "type": "shell",
+      "command": "sudo systemctl stop eas-station.target",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      }
+    },
+    {
+      "label": "Start All EAS Services",
+      "type": "shell",
+      "command": "sudo systemctl start eas-station.target && sudo systemctl status eas-station.target",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      }
+    },
+    {
+      "label": "Run Pytest",
+      "type": "shell",
+      "command": "${workspaceFolder}/venv/bin/pytest",
+      "args": [
+        "tests/",
+        "-v"
+      ],
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "group": {
+        "kind": "test",
+        "isDefault": true
+      }
+    },
+    {
+      "label": "Run Flake8",
+      "type": "shell",
+      "command": "${workspaceFolder}/venv/bin/flake8",
+      "args": [
+        "app.py",
+        "app_core/",
+        "app_utils/",
+        "webapp/",
+        "--max-line-length=120"
+      ],
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "Database: Connect with psql",
+      "type": "shell",
+      "command": "sudo -u postgres psql -d alerts",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      }
+    },
+    {
+      "label": "Database: Show Alert Count",
+      "type": "shell",
+      "command": "sudo -u postgres psql -d alerts -c 'SELECT COUNT(*) FROM cap_alerts;'",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      }
+    },
+    {
+      "label": "Database: Show Recent Alerts",
+      "type": "shell",
+      "command": "sudo -u postgres psql -d alerts -c 'SELECT id, event, headline, sent FROM cap_alerts ORDER BY sent DESC LIMIT 10;'",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      }
+    },
+    {
+      "label": "Database: Show Tables",
+      "type": "shell",
+      "command": "sudo -u postgres psql -d alerts -c '\\dt'",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      }
+    },
+    {
+      "label": "Database: Show Connection Info",
+      "type": "shell",
+      "command": "echo 'Database credentials from .env:' && grep -E 'DATABASE_URL|POSTGRES' ${workspaceFolder}/.env | sed 's/:.*/: [HIDDEN]/' && echo '' && echo 'To get password: grep POSTGRES_PASSWORD ${workspaceFolder}/.env'",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      }
+    },
+    {
+      "label": "Redis: Check Status",
+      "type": "shell",
+      "command": "redis-cli ping && echo '✓ Redis is running!' || echo '✗ Redis is not responding'",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      }
+    },
+    {
+      "label": "Redis: Monitor Commands (Live)",
+      "type": "shell",
+      "command": "redis-cli monitor",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      },
+      "isBackground": true
+    },
+    {
+      "label": "Redis: List All Keys",
+      "type": "shell",
+      "command": "redis-cli KEYS '*'",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      }
+    },
+    {
+      "label": "Redis: Show Info",
+      "type": "shell",
+      "command": "redis-cli INFO | head -50",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      }
+    },
+    {
+      "label": "Redis: Flush Database (REQUIRES CONFIRMATION)",
+      "type": "shell",
+      "command": "bash",
+      "args": [
+        "-c",
+        "echo '⚠️  WARNING: This will delete ALL Redis data!' && echo 'Press Ctrl+C to cancel, or press Enter to continue...' && read && redis-cli FLUSHDB && echo '✓ Redis database flushed' || echo '✗ Operation cancelled'"
+      ],
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      }
+    },
+    {
+      "label": "Install Python Dependencies",
+      "type": "shell",
+      "command": "sudo -u eas-station ${workspaceFolder}/venv/bin/pip install -r ${workspaceFolder}/requirements.txt",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "Show System Information",
+      "type": "shell",
+      "command": "echo '=== Hostname ===' && hostname && echo '' && echo '=== IP Addresses ===' && hostname -I && echo '' && echo '=== Python Version ===' && ${workspaceFolder}/venv/bin/python --version && echo '' && echo '=== Disk Usage ===' && df -h /opt/eas-station",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      }
+    }
+  ]
+}

@@ -1,0 +1,55 @@
+{
+  // Recommended VSCode extensions for EAS Station development
+  // VSCode will prompt to install these when you open the workspace
+  "recommendations": [
+    // Python Development
+    "ms-python.python",
+    "ms-python.vscode-pylance",
+    "ms-python.debugpy",
+    "ms-python.black-formatter",
+    
+    // Remote Development (REQUIRED)
+    "ms-vscode-remote.remote-ssh",
+    "ms-vscode-remote.remote-ssh-edit",
+    
+    // Database Tools
+    "mtxr.sqltools",
+    "mtxr.sqltools-driver-pg",
+    
+    // Git and Version Control
+    "eamodio.gitlens",
+    
+    // File Format Support
+    "foxundermoon.shell-format",
+    "redhat.vscode-yaml",
+    "DavidAnson.vscode-markdownlint",
+    
+    // Systemd service files
+    "hangxingliu.vscode-systemd-support",
+    
+    // .env file support
+    "mikestead.dotenv",
+    
+    // Docker (if you want to understand the legacy setup)
+    "ms-azuretools.vscode-docker",
+    
+    // AI Coding Assistants (Optional)
+    "github.copilot",
+    "github.copilot-chat",
+    
+    // REST API Testing
+    "humao.rest-client",
+    
+    // Code Quality
+    "ms-python.flake8",
+    
+    // Productivity
+    "aaron-bond.better-comments",
+    "oderwat.indent-rainbow",
+    "PKief.material-icon-theme"
+  ],
+  "unwantedRecommendations": [
+    // These conflict with our setup
+    "ms-python.pylint"
+  ]
+}
