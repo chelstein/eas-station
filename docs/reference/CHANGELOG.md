@@ -7,54 +7,18 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Added
-- **M-Protocol Phase 9: Web UI Dashboard** - Complete web-based management interface for Alpha LED signs
-  - Created new dedicated page `/alpha-sign` for comprehensive sign management
-  - Added backend API in `webapp/routes_alpha.py` with 10 RESTful endpoints
-  - Created frontend template `templates/alpha_sign.html` with interactive dashboard
-  - Updated navigation bar with "Alpha LED Sign" menu item in Hardware dropdown
-  - **Real-time Diagnostics Monitoring**:
-    - Live connection status with auto-refresh every 30 seconds
-    - Sign serial number, model, and firmware display
-    - Internal temperature monitoring
-    - Memory usage statistics
-  - **Time Management Interface**:
-    - One-click system time synchronization
-    - 12-hour / 24-hour format selection
-    - Auto / Manual run mode control
-    - Apply settings via web UI
-  - **Speaker Control Panel**:
-    - Enable/disable speaker toggle
-    - Test beep functionality (3 beeps)
-    - Audio configuration for emergency alerts
-  - **Brightness Management**:
-    - Interactive slider for 0-100% brightness
-    - Quick preset buttons (25%, 50%, 75%, 100%)
-    - Auto brightness mode (ambient sensor)
-    - Real-time brightness value display
-  - **File Reader Interface**:
-    - Read text from file labels (0-9, A-Z)
-    - Verify current display content
-    - Content display in textarea
-  - **Comprehensive Test Suite**:
-    - Run all M-Protocol function tests from web UI
-    - Real-time test results display
-    - Pass/fail summary with percentage
-    - Individual test result details
-  - **API Endpoints** (all require `hardware.manage` permission):
-    - `GET /api/alpha/diagnostics` - Read all sign diagnostics
-    - `POST /api/alpha/sync-time` - Sync time with system
-    - `POST /api/alpha/set-time-format` - Set 12h/24h format
-    - `POST /api/alpha/set-run-mode` - Set auto/manual mode
-    - `POST /api/alpha/speaker` - Enable/disable speaker
-    - `POST /api/alpha/beep` - Make sign beep
-    - `POST /api/alpha/brightness` - Set brightness level or auto
-    - `GET /api/alpha/read-file/<label>` - Read text file content
-    - `POST /api/alpha/test-all` - Run complete test suite
-  - **Security**: All endpoints require authentication, CSRF protection, input validation
-  - **User Experience**: Toast notifications, error handling, loading indicators, mobile-responsive
-  - **Integration**: Routes registered in `webapp/__init__.py`
-  - VERSION bumped to 2.27.0 (feature addition)
-  - **Result**: Complete browser-based control of Alpha LED signs - no CLI required!
+- **M-Protocol Phases 1-5: Complete Alpha LED Sign Control** - Deep integration with Alpha LED signs via M-Protocol
+  - **Phase 1: Sign Diagnostics** - Read serial number, model, firmware, memory, temperature (Type F commands)
+  - **Phase 2: Time/Date Control** - Set time, date, format, run mode, sync with system (Type E commands)
+  - **Phase 3: Speaker/Beep Control** - Enable/disable speaker, beep for alerts (Type E commands)
+  - **Phase 4: Brightness Control** - Set 0-100% brightness or auto mode (Type E commands)
+  - **Phase 5: File Management** - Read text from file labels 0-9, A-Z (Type B commands)
+  - All functions implemented in `scripts/led_sign_controller.py`
+  - Comprehensive test scripts for each phase
+  - Complete documentation for all phases
+  - VERSION bumped to 2.27.0 (feature additions)
+  - **Result**: Full programmatic control of Alpha LED signs over network
+  - **Note**: Web UI integration into existing `/led-control` page pending
 - **M-Protocol Phases 3-5: Complete Advanced Control** - Final implementation of speaker, brightness, and file management
   - **Phase 3: Speaker/Beep Control**
     - Added `set_speaker()` method to enable/disable speaker (Type E, Function 0x23)
