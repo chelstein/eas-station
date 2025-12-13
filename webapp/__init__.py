@@ -28,6 +28,7 @@ from flask import Flask
 
 from . import (
     routes_admin,
+    routes_alpha,
     routes_analytics,
     routes_audio_tests,
     routes_backups,
@@ -87,6 +88,7 @@ def iter_route_modules() -> Iterable[RouteModule]:
     yield RouteModule("routes_led", routes_led.register)
     yield RouteModule("routes_vfd", routes_vfd.register)
     yield RouteModule("routes_screens", routes_screens.register)
+    yield RouteModule("routes_alpha", routes_alpha.register)
     yield RouteModule("routes_analytics", routes_analytics.register)
     yield RouteModule("routes_security", routes_security.register)
     yield RouteModule("routes_backups", routes_backups.register)
