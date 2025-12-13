@@ -1,19 +1,32 @@
-# Troubleshooting 504 Gateway Timeout Errors
+# Troubleshooting 502/504 Gateway Errors
+
+## Quick Diagnostic
+
+If you're seeing 502 or 504 errors, run this diagnostic script first:
+
+```bash
+sudo bash /opt/eas-station/scripts/diagnose_502_504.sh
+```
+
+This will check all common causes and tell you exactly what's wrong.
 
 ## Problem Description
 
-When the `eas-station-web.service` fails to start, you may see errors like:
+### 502 Bad Gateway
+The web service is not responding at all. This means:
+- Gunicorn workers are crashing on startup, OR
+- Workers cannot be reached by nginx, OR
+- Workers fail to import app.py
 
-```
-Dec 13 18:15:59 easstation systemd[1]: eas-station-web.service: Main process exited, code=killed, status=9/KILL
-Dec 13 18:15:59 easstation systemd[1]: eas-station-web.service: Failed with result 'timeout'.
-```
+### 504 Gateway Timeout  
+The web service starts but takes too long to respond. This means:
+- Database initialization is hanging, OR
+- Workers are stuck during startup, OR
+- First request triggers long-running operation
 
-This indicates the service is being killed by systemd because it didn't start within the timeout period.
+## Common Causes (In Order of Likelihood)
 
-## Common Causes
-
-### 1. Gevent/System Package Conflicts (MOST COMMON after SDR install)
+### 1. App Import Failure (MOST COMMON for immediate 502)
 
 **Symptom**: Service fails immediately after installing SoapySDR or other system Python packages
 

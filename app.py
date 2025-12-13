@@ -433,16 +433,18 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # Add connection timeout and pool settings to prevent startup hangs
 # Pool settings optimized for robustness and performance
+# Note: With 2 gunicorn workers, total max connections = 2 * (pool_size + max_overflow) = 2 * (5 + 10) = 30
 app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
     'connect_args': {
-        'connect_timeout': 10,  # 10 second timeout for initial connection
+        'connect_timeout': 5,       # 5 second timeout for initial connection (reduced from 10)
+        'options': '-c statement_timeout=30s',  # 30 second query timeout
     },
-    'pool_pre_ping': True,      # Verify connections before using them (detect stale connections)
-    'pool_recycle': 3600,       # Recycle connections after 1 hour
-    'pool_size': 10,            # Number of connections to maintain
-    'max_overflow': 20,         # Additional connections when pool exhausted
-    'pool_timeout': 30,         # Timeout waiting for connection from pool
-    'echo_pool': False,         # Set to True for connection pool debugging
+    'pool_pre_ping': True,          # Verify connections before using them (detect stale connections)
+    'pool_recycle': 3600,           # Recycle connections after 1 hour
+    'pool_size': 3,                 # Number of connections per worker (reduced from 10 to avoid exhaustion)
+    'max_overflow': 5,              # Additional connections when pool exhausted (reduced from 20)
+    'pool_timeout': 10,             # Timeout waiting for connection from pool (reduced from 30)
+    'echo_pool': False,             # Set to True for connection pool debugging
 }
 
 # Initialize database
