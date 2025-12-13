@@ -23,6 +23,8 @@ StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=eas-station-web
 
+# Ensure log directory exists with correct permissions before starting
+ExecStartPre=+/bin/sh -c 'mkdir -p /var/log/eas-station && chown eas-station:eas-station /var/log/eas-station && chmod 755 /var/log/eas-station'
 # Run Gunicorn with gevent workers for Flask-SocketIO support
 # IMPORTANT: gevent is REQUIRED for WebSocket functionality
 # If service fails to start, check: /opt/eas-station/venv/bin/python3 -c "import gevent"

@@ -26,6 +26,43 @@ def check_dependency(name, import_name=None, critical=True):
         print(f"✗ {name:30s} {status} - {e}")
         return not critical
 
+def check_permissions():
+    """Check file system permissions."""
+    issues = []
+    
+    # Check if running as root (usually means testing)
+    if os.geteuid() == 0:
+        print("  Running as root - skipping permission checks")
+        return True
+    
+    # Check project directory
+    project_dir = "/opt/eas-station"
+    if os.path.exists(project_dir):
+        if not os.access(project_dir, os.R_OK):
+            issues.append(f"Cannot read {project_dir}")
+        if not os.access(project_dir, os.W_OK):
+            issues.append(f"Cannot write to {project_dir}")
+    else:
+        issues.append(f"Project directory {project_dir} does not exist")
+    
+    # Check log directory
+    log_dir = "/var/log/eas-station"
+    if os.path.exists(log_dir):
+        if not os.access(log_dir, os.W_OK):
+            issues.append(f"Cannot write to {log_dir}")
+    else:
+        print(f"  ⚠ Log directory {log_dir} does not exist (will be created on service start)")
+    
+    # Check venv directory
+    venv_dir = "/opt/eas-station/venv"
+    if os.path.exists(venv_dir):
+        if not os.access(venv_dir, os.R_OK):
+            issues.append(f"Cannot read {venv_dir}")
+    else:
+        issues.append(f"Virtual environment {venv_dir} does not exist")
+    
+    return len(issues) == 0, issues
+
 def main():
     print("=" * 80)
     print("EAS Station Web Service Dependency Check")
@@ -53,9 +90,20 @@ def main():
     check_dependency("pytz", "pytz", critical=False)
     print()
     
+    print("File System Permissions:")
+    print("-" * 80)
+    perm_ok, perm_issues = check_permissions()
+    if perm_ok:
+        print("  ✓ All permissions OK")
+    else:
+        for issue in perm_issues:
+            print(f"  ✗ {issue}")
+            all_ok = False
+    print()
+    
     if all_ok:
         print("=" * 80)
-        print("✓ All critical dependencies are installed")
+        print("✓ All critical dependencies and permissions are OK")
         print("=" * 80)
         print()
         print("If the web service still fails to start, check:")
@@ -66,15 +114,24 @@ def main():
         return 0
     else:
         print("=" * 80)
-        print("✗ Missing critical dependencies!")
+        print("✗ Issues found that will prevent service startup!")
         print("=" * 80)
         print()
-        print("To fix, run:")
+        
+        if not perm_ok:
+            print("To fix permission issues:")
+            print("  sudo chown -R eas-station:eas-station /opt/eas-station")
+            print("  sudo mkdir -p /var/log/eas-station")
+            print("  sudo chown eas-station:eas-station /var/log/eas-station")
+            print()
+        
+        print("To fix missing dependencies:")
         print("  cd /opt/eas-station")
         print("  source venv/bin/activate")
         print("  pip install -r requirements.txt")
+        print("  deactivate")
         print()
-        print("After installing dependencies, restart the service:")
+        print("After fixing issues, restart the service:")
         print("  sudo systemctl restart eas-station-web.service")
         print()
         return 1
