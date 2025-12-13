@@ -1251,7 +1251,12 @@ echo_step "Python Environment Setup"
 # Create Python virtual environment with access to system packages
 # (required for python3-soapysdr which is installed via apt)
 echo_progress "Creating Python virtual environment..."
-sudo -u "$SERVICE_USER" python3 -m venv --system-site-packages "$VENV_DIR" > /dev/null 2>&1
+if ! sudo -u "$SERVICE_USER" python3 -m venv --system-site-packages "$VENV_DIR" 2>&1 | tee /tmp/venv-creation.log | grep -v "^$" > /dev/null; then
+    echo_error "Failed to create virtual environment"
+    echo_info "Error details:"
+    cat /tmp/venv-creation.log
+    exit 1
+fi
 echo_success "Virtual environment created at $VENV_DIR"
 
 # Install Python dependencies
@@ -1269,8 +1274,16 @@ echo ""
 echo_progress "Installing via pip (this takes 2-4 minutes)..."
 echo_info "This may take 5-10 minutes depending on your system"
 echo ""
-sudo -u "$SERVICE_USER" "$VENV_DIR/bin/pip" install --upgrade pip setuptools wheel > /dev/null 2>&1
-sudo -u "$SERVICE_USER" "$VENV_DIR/bin/pip" install -r "$INSTALL_DIR/requirements.txt" > /dev/null 2>&1
+if ! sudo -u "$SERVICE_USER" "$VENV_DIR/bin/pip" install --upgrade pip setuptools wheel 2>&1 | tee /tmp/pip-upgrade.log | tail -1; then
+    echo_error "Failed to upgrade pip, setuptools, and wheel"
+    echo_info "Error details in /tmp/pip-upgrade.log"
+    exit 1
+fi
+if ! sudo -u "$SERVICE_USER" "$VENV_DIR/bin/pip" install -r "$INSTALL_DIR/requirements.txt" 2>&1 | tee /tmp/pip-install.log | grep -E "(Successfully installed|Requirement already satisfied)" | tail -5; then
+    echo_error "Failed to install Python dependencies"
+    echo_info "Error details in /tmp/pip-install.log"
+    exit 1
+fi
 echo ""
 echo_success "✓ Python dependencies installed successfully"
 
