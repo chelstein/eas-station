@@ -457,6 +457,21 @@ init_cache(app)
 # - Flask-SocketIO must use 'gevent' or None (auto-detect) to enable WebSocket transport
 # - Using 'threading' with gevent workers causes WebSockets to FAIL SILENTLY and fall back to polling
 from flask_socketio import SocketIO
+
+# Verify gevent is available (required for WebSocket functionality)
+try:
+    import gevent
+    logger.info("✓ gevent available - WebSocket support enabled")
+except ImportError as e:
+    logger.critical("=" * 80)
+    logger.critical("FATAL: gevent is not installed - WebSockets will NOT work!")
+    logger.critical("=" * 80)
+    logger.critical("gevent is REQUIRED for real-time WebSocket communication")
+    logger.critical("Install gevent: cd /opt/eas-station && source venv/bin/activate && pip install 'gevent>=25.9.1'")
+    logger.critical("=" * 80)
+    # Don't fail here - let gunicorn fail with a clear error instead
+    # This allows the app to import for CLI commands even if gevent is missing
+
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent')
 
 
