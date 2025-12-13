@@ -488,9 +488,13 @@ logger.info("NOAA Alerts System startup")
 # Register route modules
 register_routes(app, logger)
 
+# Check if we're running in migration mode (SKIP_DB_INIT is set by alembic/env.py)
+# to prevent background services from starting and causing migrations to hang
+skip_background_services = bool(os.environ.get('SKIP_DB_INIT'))
+
 # Start background health monitoring alerts
 # Skip background services during migrations to prevent hanging
-if os.environ.get('SKIP_DB_INIT'):
+if skip_background_services:
     logger.info('Skipping background services during database migration')
 elif app.config.get('SETUP_MODE'):
     logger.info('Skipping health alert worker while setup mode is active.')
@@ -498,7 +502,7 @@ else:
     start_health_alert_worker(app, logger)
 
 # Start screen manager for LED/VFD display rotation
-if not os.environ.get('SKIP_DB_INIT'):
+if not skip_background_services:
     try:
         from scripts.screen_manager import screen_manager
         screen_manager.init_app(app)
@@ -509,7 +513,7 @@ if not os.environ.get('SKIP_DB_INIT'):
         logger.warning('Screen manager could not be started: %s', screen_mgr_error)
 
 # Start RWT (Required Weekly Test) scheduler
-if not os.environ.get('SKIP_DB_INIT'):
+if not skip_background_services:
     try:
         from app_core.rwt_scheduler import start_scheduler as start_rwt_scheduler
         if not app.config.get('SETUP_MODE'):
