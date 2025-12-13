@@ -88,22 +88,24 @@ if [ -n "$PG_VERSION" ]; then
             echo_info "Backed up pg_hba.conf to ${PG_HBA_CONF}.backup"
         fi
         
-        # Check if eas_station authentication rule already exists
-        if ! grep -q "^host.*alerts.*eas_station.*md5" "$PG_HBA_CONF" && \
+        # Check if eas-station authentication rule already exists
+        if ! grep -q "^host.*alerts.*\"eas-station\".*md5" "$PG_HBA_CONF" && \
+           ! grep -q "^host.*alerts.*\"eas-station\".*scram-sha-256" "$PG_HBA_CONF" && \
+           ! grep -q "^host.*alerts.*eas_station.*md5" "$PG_HBA_CONF" && \
            ! grep -q "^host.*alerts.*eas_station.*scram-sha-256" "$PG_HBA_CONF"; then
             
-            echo_info "Adding authentication rules for eas_station user..."
+            echo_info "Adding authentication rules for eas-station user..."
             # Insert before the first "local all" line to ensure it takes precedence
             sed -i '/^# TYPE.*DATABASE.*USER.*ADDRESS.*METHOD/a\
 # EAS Station authentication (added by fix_database_permissions.sh)\
-host    alerts          eas_station     127.0.0.1/32            scram-sha-256\
-host    alerts          eas_station     ::1/128                 scram-sha-256' "$PG_HBA_CONF"
+host    alerts          "eas-station"   127.0.0.1/32            scram-sha-256\
+host    alerts          "eas-station"   ::1/128                 scram-sha-256' "$PG_HBA_CONF"
             
             # Reload PostgreSQL to apply changes
             systemctl reload postgresql
             echo_success "PostgreSQL authentication configured and reloaded"
         else
-            echo_info "Authentication rule for eas_station already exists"
+            echo_info "Authentication rule for eas-station already exists"
         fi
     else
         echo_warning "pg_hba.conf not found at expected location: $PG_HBA_CONF"

@@ -1268,7 +1268,7 @@ echo_info "Configuring PostgreSQL database for EAS Station..."
 echo ""
 echo -e "${CYAN}Database setup tasks:${NC}"
 echo -e "  ${DIM}• Create 'alerts' database with PostGIS extensions${NC}"
-echo -e "  ${DIM}• Create 'eas_station' database user${NC}"
+echo -e "  ${DIM}• Create 'eas-station' database user${NC}"
 echo -e "  ${DIM}• Configure authentication (password-based)${NC}"
 echo -e "  ${DIM}• Grant necessary permissions${NC}"
 echo ""
@@ -1306,18 +1306,20 @@ if [ -n "$PG_VERSION" ]; then
             echo_info "Created backup: ${PG_HBA_CONF}.backup"
         fi
         
-        # Check if eas_station authentication rule already exists
-        if ! grep -q "^host.*alerts.*eas_station.*md5" "$PG_HBA_CONF" && \
+        # Check if eas-station authentication rule already exists
+        if ! grep -q "^host.*alerts.*\"eas-station\".*md5" "$PG_HBA_CONF" && \
+           ! grep -q "^host.*alerts.*\"eas-station\".*scram-sha-256" "$PG_HBA_CONF" && \
+           ! grep -q "^host.*alerts.*eas_station.*md5" "$PG_HBA_CONF" && \
            ! grep -q "^host.*alerts.*eas_station.*scram-sha-256" "$PG_HBA_CONF"; then
             
-            # Add authentication rule for eas_station user
+            # Add authentication rule for eas-station user
             # Insert before the first "local all" line to ensure it takes precedence
             sed -i '/^# TYPE.*DATABASE.*USER.*ADDRESS.*METHOD/a\
 # EAS Station authentication (added by install.sh)\
-host    alerts          eas_station     127.0.0.1/32            scram-sha-256\
-host    alerts          eas_station     ::1/128                 scram-sha-256' "$PG_HBA_CONF"
+host    alerts          "eas-station"   127.0.0.1/32            scram-sha-256\
+host    alerts          "eas-station"   ::1/128                 scram-sha-256' "$PG_HBA_CONF"
             
-            echo_success "Added authentication rules for eas_station user"
+            echo_success "Added authentication rules for eas-station user"
             
             # Reload PostgreSQL to apply changes
             systemctl reload postgresql 2>/dev/null
