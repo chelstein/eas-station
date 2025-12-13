@@ -47,10 +47,20 @@ except Exception as import_error:  # pragma: no cover - optional dependency
 else:
     _IMPORT_ERROR = None
 
-try:  # pragma: no cover - optional dependency
-    from gpiozero import Button
-except Exception:  # pragma: no cover - gpiozero optional on non-RPi
-    Button = None  # type: ignore[assignment]
+# gpiozero Button is imported lazily to avoid conflicts with gevent monkey-patching
+# in the web service. The actual import happens in ensure_oled_button() when needed.
+Button = None  # type: ignore[assignment]
+
+def _get_gpiozero_button():
+    """Lazily import gpiozero Button to avoid gevent conflicts."""
+    global Button
+    if Button is None:
+        try:
+            from gpiozero import Button as _Button
+            Button = _Button
+        except Exception:
+            pass
+    return Button
 
 
 def _env_flag(name: str, default: str = "false") -> bool:
@@ -955,15 +965,17 @@ oled_button_device: Optional[Button] = None
 _oled_lock = threading.Lock()
 
 
-def ensure_oled_button(log: Optional[logging.Logger] = None) -> Optional[Button]:
+def ensure_oled_button(log: Optional[logging.Logger] = None):
     """Initialise and return the OLED front-panel button if available.
 
     Returns:
         Button instance if successfully initialized, None otherwise.
         Returns existing button if already initialized.
     """
+    # Lazy import to avoid gevent conflicts in web service
+    ButtonClass = _get_gpiozero_button()
 
-    if Button is None:
+    if ButtonClass is None:
         if log:
             log.debug("gpiozero Button class unavailable; skipping OLED button setup")
         return None
@@ -1001,7 +1013,7 @@ def ensure_oled_button(log: Optional[logging.Logger] = None) -> Optional[Button]
             # - pull_up=True (default): Internal pull-up resistor enabled, button connects GPIO to GND when pressed
             # - pull_up=False: Internal pull-down resistor enabled, button connects GPIO to 3.3V when pressed
             # The OLED_BUTTON_ACTIVE_HIGH env var controls this for different enclosure wiring configurations
-            button = Button(
+            button = ButtonClass(
                 OLED_BUTTON_GPIO,
                 pull_up=not OLED_BUTTON_ACTIVE_HIGH,
                 hold_time=OLED_BUTTON_HOLD_SECONDS,
