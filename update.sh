@@ -322,6 +322,10 @@ cd "$INSTALL_DIR"
 if [ -d ".git" ]; then
     # Git-based update
     echo_info "Using git to update..."
+
+    # Fix git ownership warning when running as root
+    git config --global --add safe.directory "$INSTALL_DIR" 2>/dev/null || true
+
     echo_progress "Fetching latest changes from origin..."
     
     # Get current branch name (fixing the hardcoded 'main' issue)
@@ -677,8 +681,10 @@ fi
 echo ""
 echo_info "This may take a few moments. Output will be shown below:"
 echo_info "Press Ctrl+C to cancel if needed (changes will be rolled back)"
+
+if [ -f "$INSTALL_DIR/venv/bin/alembic" ]; then
     echo ""
-    
+
     # Check current database revision before migration
     echo_info "Checking current database state..."
     CURRENT_REV=$(sudo -u "$SERVICE_USER" bash -c "cd '$INSTALL_DIR' && '$INSTALL_DIR/venv/bin/alembic' current" 2>/dev/null | tail -1 | awk '{print $1}' || echo "none")
