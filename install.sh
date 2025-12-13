@@ -1773,20 +1773,32 @@ else
     
     if [ -f "$INSTALL_DIR/alembic.ini" ]; then
         echo_progress "Running Alembic migrations..."
+        echo_info "This may take a few moments. Output will be shown below:"
+        echo_info "Press Ctrl+C to cancel if needed (changes will be rolled back)"
+        echo ""
         
         # Disable exit-on-error for migrations
         set +e
-        ALEMBIC_OUTPUT=$(sudo -u "$SERVICE_USER" "$VENV_DIR/bin/alembic" upgrade head 2>&1)
+        # Run Alembic directly (no output capture) so user sees real-time feedback
+        # and can interrupt with Ctrl+C if needed
+        sudo -u "$SERVICE_USER" "$VENV_DIR/bin/alembic" upgrade head
         ALEMBIC_EXIT_CODE=$?
         set -e
         
+        echo ""
         if [ $ALEMBIC_EXIT_CODE -eq 0 ]; then
             echo_success "✓ Database migrations completed successfully"
+        elif [ $ALEMBIC_EXIT_CODE -eq 130 ]; then
+            echo_warning "Migration cancelled by user (Ctrl+C)"
+            echo_info "Database state may be partially migrated"
+            echo_info "To retry: cd $INSTALL_DIR && sudo -u $SERVICE_USER $VENV_DIR/bin/alembic upgrade head"
         else
             echo_warning "Alembic migrations encountered errors (exit code: $ALEMBIC_EXIT_CODE)"
             echo ""
-            echo_info "Migration output:"
-            echo "$ALEMBIC_OUTPUT" | head -20
+            echo_info "Common causes:"
+            echo_info "  • Database connection failed (check DATABASE_URL)"
+            echo_info "  • PostgreSQL/PostGIS not running"
+            echo_info "  • Migration script has errors"
             echo ""
             echo_info "Attempting to create any missing tables with db.create_all()..."
             
@@ -1796,15 +1808,18 @@ from app import app, db
 with app.app_context():
     db.create_all()
     print('✓ Missing tables created')
-" 2>&1
+"
             set -e
             
+            echo ""
             echo_warning "Database upgrade may be incomplete - check logs after installation"
-            echo_info "You can manually run migrations: cd $INSTALL_DIR && sudo -u $SERVICE_USER $VENV_DIR/bin/alembic upgrade head"
+            echo_info "You can manually run migrations:"
+            echo_info "  cd $INSTALL_DIR && sudo -u $SERVICE_USER $VENV_DIR/bin/alembic upgrade head"
         fi
     else
         echo_warning "alembic.ini not found - skipping migrations"
         echo_info "Using db.create_all() to create any missing tables..."
+        echo ""
         
         set +e
         sudo -u "$SERVICE_USER" "$VENV_DIR/bin/python" -c "
@@ -1812,8 +1827,16 @@ from app import app, db
 with app.app_context():
     db.create_all()
     print('✓ Missing tables created')
-" 2>&1
+"
+        DB_EXIT_CODE=$?
         set -e
+        
+        echo ""
+        if [ $DB_EXIT_CODE -eq 0 ]; then
+            echo_success "✓ Database tables created"
+        else
+            echo_warning "Database operation failed (non-critical)"
+        fi
     fi
 fi
 
