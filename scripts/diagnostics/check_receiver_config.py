@@ -22,20 +22,13 @@ def check_receiver_config():
     
     app = Flask(__name__)
     
-    # Database configuration
-    postgres_host = os.getenv("POSTGRES_HOST", "localhost")
-    postgres_port = os.getenv("POSTGRES_PORT", "5432")
-    postgres_db = os.getenv("POSTGRES_DB", "alerts")
-    postgres_user = os.getenv("POSTGRES_USER", "postgres")
-    postgres_password = os.getenv("POSTGRES_PASSWORD", "postgres")
+    # Database configuration - requires DATABASE_URL
+    database_url = os.getenv("DATABASE_URL")
+    if not database_url:
+        print("ERROR: DATABASE_URL environment variable is required", file=sys.stderr)
+        sys.exit(1)
     
-    from urllib.parse import quote_plus
-    escaped_password = quote_plus(postgres_password)
-    
-    app.config["SQLALCHEMY_DATABASE_URI"] = (
-        f"postgresql://{postgres_user}:{escaped_password}@"
-        f"{postgres_host}:{postgres_port}/{postgres_db}"
-    )
+    app.config["SQLALCHEMY_DATABASE_URI"] = database_url
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
     
     db.init_app(app)

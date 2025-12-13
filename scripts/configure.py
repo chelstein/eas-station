@@ -42,27 +42,11 @@ class Config:
         )
     SECRET_KEY = _secret_key
 
-    # Database settings - Auto-build from POSTGRES_* or use DATABASE_URL
+    # Database settings - requires DATABASE_URL
     SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL')
-
+    
     if not SQLALCHEMY_DATABASE_URI:
-        # Build from individual POSTGRES_* variables (same logic as app.py)
-        user = os.environ.get('POSTGRES_USER', 'postgres') or 'postgres'
-        password = os.environ.get('POSTGRES_PASSWORD', 'postgres') or 'postgres'
-        host = os.environ.get('POSTGRES_HOST', 'localhost') or 'localhost'
-        port = os.environ.get('POSTGRES_PORT', '5432') or '5432'
-        database = os.environ.get('POSTGRES_DB', 'alerts') or 'alerts'
-
-        # URL-encode credentials to handle special characters (same as app.py)
-        user_part = quote(user, safe='')
-        password_part = quote(password, safe='') if password else ''
-
-        if password_part:
-            auth_segment = f"{user_part}:{password_part}"
-        else:
-            auth_segment = user_part
-
-        SQLALCHEMY_DATABASE_URI = f"postgresql+psycopg2://{auth_segment}@{host}:{port}/{database}"
+        raise ValueError("DATABASE_URL environment variable is required")
 
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_ENGINE_OPTIONS = {
