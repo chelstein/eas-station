@@ -70,8 +70,6 @@ sudo systemctl restart eas-station.target
 
 ### 2. Missing Dependencies
 
-**Symptom**: Service fails immediately on startup
-
 **Check**:
 ```bash
 /opt/eas-station/venv/bin/python3 /opt/eas-station/scripts/check_dependencies.py
@@ -100,7 +98,7 @@ deactivate
 sudo systemctl restart eas-station-web.service
 ```
 
-### 2. Permission Issues
+### 3. Permission Issues
 
 **Symptom**: Service starts but worker crashes during initialization
 
@@ -130,7 +128,7 @@ sudo chmod 755 /var/log/eas-station
 sudo systemctl restart eas-station-web.service
 ```
 
-### 3. Database Connection Issues
+### 4. Database Connection Issues
 
 **Symptom**: Service starts but hangs during database initialization
 
@@ -160,7 +158,7 @@ sudo -u postgres psql -d eas_station -c "CREATE EXTENSION IF NOT EXISTS postgis;
 sudo systemctl restart eas-station-web.service
 ```
 
-### 4. Database Initialization Timeout
+### 5. Database Initialization Timeout
 
 **Symptom**: Service times out after 90-300 seconds
 
@@ -177,7 +175,7 @@ sudo systemctl daemon-reload
 sudo systemctl restart eas-station-web.service
 ```
 
-### 5. Port Already in Use
+### 6. Port Already in Use
 
 **Symptom**: Service fails with "Address already in use"
 

@@ -27,7 +27,12 @@ def check_dependency(name, import_name=None, critical=True):
         return not critical
 
 def check_permissions():
-    """Check file system permissions."""
+    """
+    Check file system permissions.
+    
+    Returns:
+        tuple: (success: bool, issues: list) - Always returns a tuple for consistent unpacking
+    """
     issues = []
     
     # Check if running as root (usually means testing)

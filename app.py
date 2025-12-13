@@ -472,8 +472,10 @@ except ImportError as gevent_error:
     logger.critical("If gevent is installed but fails to import, check for C extension conflicts:")
     logger.critical("  Run: /opt/eas-station/venv/bin/python3 /opt/eas-station/scripts/check_gevent_compat.py")
     logger.critical("=" * 80)
-    # Don't fail here - let gunicorn fail with a clear error instead
-    # This allows the app to import for CLI commands even if gevent is missing
+    # Don't raise exception here - this allows Flask CLI commands to work even without gevent.
+    # When gunicorn tries to use gevent worker class, it will fail immediately with:
+    # "ImportError: No module named 'gevent'" or similar greenlet C extension error.
+    # The pre-flight check in systemd service will catch this before gunicorn starts.
 
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent')
 

@@ -41,7 +41,7 @@ def check_greenlet_import():
     except Exception as e:
         print(f"✗ CRITICAL: greenlet C extension error: {e}")
         print("  This indicates binary incompatibility")
-        print("  Try: pip install --force-reinstall --no-binary :all: greenlet")
+        print("  Try: pip install --force-reinstall --no-binary :all: 'greenlet'")
         return False
 
 def check_numpy_compatibility():

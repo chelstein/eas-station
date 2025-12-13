@@ -28,6 +28,12 @@ StandardError=journal
 SyslogIdentifier=eas-station-web
 
 # Ensure log directory exists with correct permissions before starting
+# Note: The '+' prefix runs this command as root (elevated privileges required)
+# This is necessary because:
+#   1. The directory /var/log/eas-station must be owned by eas-station:eas-station
+#   2. Only root can change ownership of files/directories (chown)
+#   3. The main service runs as user 'eas-station', which cannot create system directories
+# Security: This command only creates a directory and sets ownership - no user input involved
 ExecStartPre=+/bin/sh -c 'mkdir -p /var/log/eas-station && chown eas-station:eas-station /var/log/eas-station && chmod 755 /var/log/eas-station'
 # Check gevent compatibility (diagnose C extension conflicts from system packages)
 ExecStartPre=/opt/eas-station/venv/bin/python3 /opt/eas-station/scripts/check_gevent_compat.py
