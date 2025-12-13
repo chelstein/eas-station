@@ -38,7 +38,7 @@ echo_info "Fixing PostgreSQL database permissions for EAS Station..."
 
 # Configuration
 DB_NAME="${POSTGRES_DB:-alerts}"
-DB_USER="${POSTGRES_USER:-eas_station}"
+DB_USER="${POSTGRES_USER:-eas-station}"
 
 echo_info "Database: $DB_NAME"
 echo_info "User: $DB_USER"

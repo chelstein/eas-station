@@ -204,7 +204,7 @@ echo
 if [[ $REMOVE_DB =~ ^[Yy]$ ]]; then
     echo_info "Removing PostgreSQL database..."
     sudo -u postgres psql -c "DROP DATABASE IF EXISTS alerts;" 2>/dev/null || echo_warning "Database removal failed"
-    sudo -u postgres psql -c "DROP USER IF EXISTS eas_station;" 2>/dev/null || echo_warning "Database user removal failed"
+    sudo -u postgres psql -c "DROP USER IF EXISTS \"eas-station\";" 2>/dev/null || echo_warning "Database user removal failed"
     echo_success "Database removed"
 fi
 echo ""

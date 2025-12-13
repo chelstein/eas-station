@@ -38,7 +38,7 @@ INSTALL_DIR="${INSTALL_DIR:-/opt/eas-station}"
 SERVICE_USER="${SERVICE_USER:-eas-station}"
 VENV_DIR="${VENV_DIR:-$INSTALL_DIR/venv}"
 DB_NAME="${POSTGRES_DB:-alerts}"
-DB_USER="${POSTGRES_USER:-eas_station}"
+DB_USER="${POSTGRES_USER:-eas-station}"
 
 # Check if running as root or service user
 if [ "$EUID" -eq 0 ]; then

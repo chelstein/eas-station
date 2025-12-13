@@ -334,7 +334,7 @@ database_config_menu() {
         DB_HOST=$(get_config_value "POSTGRES_HOST" "localhost")
         DB_PORT=$(get_config_value "POSTGRES_PORT" "5432")
         DB_NAME=$(get_config_value "POSTGRES_DB" "alerts")
-        DB_USER=$(get_config_value "POSTGRES_USER" "eas_station")
+        DB_USER=$(get_config_value "POSTGRES_USER" "eas-station")
         
         CHOICE=$(whiptail --title "Database Configuration" --menu "\nCurrent PostgreSQL Settings:\nHost: $DB_HOST\nPort: $DB_PORT\nDatabase: $DB_NAME\nUser: $DB_USER\n\nSelect option:" 20 78 6 \
             "1" "Change Database Host" \

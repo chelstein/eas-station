@@ -23,7 +23,7 @@ def build_database_url() -> str:
         POSTGRES_HOST: Database host (default: 'localhost')
         POSTGRES_PORT: Database port (default: '5432')
         POSTGRES_DB: Database name (default: 'alerts')
-        POSTGRES_USER: Database user (default: 'postgres')
+        POSTGRES_USER: Database user (default: 'eas-station')
         POSTGRES_PASSWORD: Database password (default: 'postgres')
     
     Returns:
@@ -46,7 +46,7 @@ def build_database_url() -> str:
         return url
 
     # Build from individual POSTGRES_* variables
-    user = os.getenv('POSTGRES_USER', 'postgres') or 'postgres'
+    user = os.getenv('POSTGRES_USER', 'eas-station') or 'eas-station'
     password = os.getenv('POSTGRES_PASSWORD', 'postgres')
     host = os.getenv('POSTGRES_HOST', 'localhost') or 'localhost'
     port = os.getenv('POSTGRES_PORT', '5432') or '5432'

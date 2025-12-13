@@ -35,7 +35,7 @@ Database Configuration (via environment variables or --database-url):
   POSTGRES_HOST      - Database host (default: alerts-db)
   POSTGRES_PORT      - Database port (default: 5432)
   POSTGRES_DB        - Database name (default: alerts)
-  POSTGRES_USER      - Database user (default: postgres)
+  POSTGRES_USER      - Database user (default: eas-station)
   POSTGRES_PASSWORD  - Database password (default: postgres)
   DATABASE_URL       - Or provide full connection string to override individual vars
 
@@ -2780,7 +2780,7 @@ def build_database_url_from_env() -> str:
         print(f"[CAP_POLLER] Using DATABASE_URL from environment")
         return url
 
-    user = os.getenv("POSTGRES_USER", "postgres") or "postgres"
+    user = os.getenv("POSTGRES_USER", "eas-station") or "eas-station"
     password = os.getenv("POSTGRES_PASSWORD", "postgres")
     host = os.getenv("POSTGRES_HOST", "localhost") or "localhost"
     port = os.getenv("POSTGRES_PORT", "5432") or "5432"
