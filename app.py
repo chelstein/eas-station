@@ -150,11 +150,9 @@ from app_core.led import (
     initialise_led_controller,
     led_controller,
 )
-from app_core.oled import (
-    OLED_AVAILABLE,
-    initialise_oled_display,
-    oled_controller,
-)
+# OLED imports removed - hardware initialization handled by hardware service
+# Web routes that need OLED import it lazily inside functions (see routes_screens.py)
+OLED_AVAILABLE = False  # Web service doesn't directly access OLED hardware
 from app_core.vfd import (
     VFD_AVAILABLE,
     ensure_vfd_tables,
