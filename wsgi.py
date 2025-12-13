@@ -20,6 +20,18 @@ Repository: https://github.com/KR8MER/eas-station
 
 import os
 import sys
+import logging
+from datetime import datetime
+import tempfile
+
+# Configure logging early for wsgi startup diagnostics
+# NOTE: Gunicorn will override this with its own logging config, but this ensures
+# that errors during import are visible if running outside Gunicorn
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s [%(process)d] [%(levelname)s] %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S %z'
+)
 
 
 def _project_root() -> str:
@@ -33,7 +45,121 @@ if project_dir not in sys.path:
 
 os.chdir(project_dir)
 
-from app import app as application, socketio  # noqa: E402
+from app import app as application, socketio, initialize_database  # noqa: E402
 
+# Initialize database eagerly when Gunicorn workers start
+# This prevents the first request from hanging while initialization completes
+# Skip during migrations to avoid chicken-and-egg problems
+if not os.environ.get("SKIP_DB_INIT"):
+    logger = logging.getLogger(__name__)
+    
+    # Force unbuffered stderr for immediate visibility in journalctl
+    try:
+        # Python 3.7+ reconfigure method
+        sys.stderr.reconfigure(line_buffering=True)
+    except AttributeError:
+        # Fallback for older Python versions
+        sys.stderr = os.fdopen(sys.stderr.fileno(), 'w', 1)
+    
+    startup_banner = (
+        f"\n{'=' * 80}\n"
+        f"WSGI STARTUP: Worker PID {os.getpid()} initializing database...\n"
+        f"{'=' * 80}\n"
+    )
+    print(startup_banner, file=sys.stderr, flush=True)
+    logger.info("WSGI: Initializing database at worker startup (PID: %d)...", os.getpid())
+    
+    try:
+        with application.app_context():
+            if not initialize_database():
+                # Try to get the actual error from the global variable
+                from app import _db_initialization_error
+                error_details = str(_db_initialization_error) if _db_initialization_error else "Unknown error"
+                
+                error_msg = (
+                    f"\n{'=' * 80}\n"
+                    f"FATAL ERROR: Database initialization failed!\n"
+                    f"Worker PID: {os.getpid()}\n"
+                    f"{'=' * 80}\n"
+                    f"Error: {error_details}\n"
+                    f"{'=' * 80}\n"
+                    f"Common causes:\n"
+                    f"  1. PostgreSQL is not running (check: systemctl status postgresql)\n"
+                    f"  2. Database credentials in .env are incorrect (check DATABASE_URL)\n"
+                    f"  3. Database 'eas_station' does not exist (run: createdb eas_station)\n"
+                    f"  4. Network connectivity to database host failed\n"
+                    f"  5. PostGIS extension is not installed (run: apt install postgresql-postgis)\n"
+                    f"{'=' * 80}\n"
+                    f"Troubleshooting commands:\n"
+                    f"  sudo journalctl -u eas-station-web.service -n 200 --no-pager\n"
+                    f"  sudo systemctl status postgresql\n"
+                    f"  psql -U eas_station -d eas_station -c 'SELECT version();'\n"
+                    f"{'=' * 80}\n"
+                )
+                
+                # Print to stderr with flush for immediate visibility
+                print(error_msg, file=sys.stderr, flush=True)
+                logger.critical("WSGI: Database initialization failed! Error: %s", error_details)
+                
+                # Write to secure temporary file for persistence
+                try:
+                    with tempfile.NamedTemporaryFile(
+                        mode='w',
+                        prefix='eas-station-web-startup-error-',
+                        suffix='.log',
+                        dir='/var/log/eas-station' if os.path.exists('/var/log/eas-station') else None,
+                        delete=False
+                    ) as f:
+                        f.write(error_msg)
+                        f.write(f"\nTimestamp: {datetime.now()}\n")
+                        error_log_path = f.name
+                    logger.critical("Error details written to: %s", error_log_path)
+                except Exception as log_error:
+                    # Silently ignore if we can't write the file
+                    logger.debug("Could not write error log file: %s", log_error)
+                
+                raise RuntimeError(f"Database initialization failed: {error_details}")
+    except Exception as e:
+        error_msg = (
+            f"\n{'=' * 80}\n"
+            f"FATAL ERROR: Exception during database initialization!\n"
+            f"Worker PID: {os.getpid()}\n"
+            f"{'=' * 80}\n"
+            f"Exception Type: {type(e).__name__}\n"
+            f"Exception Message: {str(e)}\n"
+            f"{'=' * 80}\n"
+        )
+        print(error_msg, file=sys.stderr, flush=True)
+        logger.critical("WSGI: Exception during database initialization: %s", e, exc_info=True)
+        
+        # Write to secure temporary file for persistence
+        try:
+            import traceback
+            with tempfile.NamedTemporaryFile(
+                mode='w',
+                prefix='eas-station-web-startup-error-',
+                suffix='.log',
+                dir='/var/log/eas-station' if os.path.exists('/var/log/eas-station') else None,
+                delete=False
+            ) as f:
+                f.write(error_msg)
+                f.write(f"\nFull traceback:\n")
+                f.write(traceback.format_exc())
+                f.write(f"\nTimestamp: {datetime.now()}\n")
+                error_log_path = f.name
+            logger.critical("Error details written to: %s", error_log_path)
+        except Exception as log_error:
+            # Silently ignore if we can't write the file
+            logger.debug("Could not write error log file: %s", log_error)
+        
+        raise
+    
+    success_banner = (
+        f"\n{'=' * 80}\n"
+        f"WSGI STARTUP: Worker PID {os.getpid()} database initialization complete ✓\n"
+        f"{'=' * 80}\n"
+    )
+    print(success_banner, file=sys.stderr, flush=True)
+    logger.info("WSGI: Database initialization complete (PID: %d)", os.getpid())
 
 __all__ = ["application", "socketio"]

@@ -831,17 +831,25 @@ def initialize_database():
                     "PostGIS helper unavailable during initialization; skipping extension check.",
                 )
             elif not postgis_helper(app, db):
-                _db_initialization_error = RuntimeError("PostGIS extension could not be ensured")
+                error_msg = "PostGIS extension could not be ensured. Check database permissions and PostGIS installation."
+                logger.error(error_msg)
+                _db_initialization_error = RuntimeError(error_msg)
                 return False
+            
+            logger.info("Creating database tables...")
             db.create_all()
+            logger.info("✓ Database tables created")
+            
             if not ensure_alert_source_columns(logger):
-                _db_initialization_error = RuntimeError("CAP alert source columns could not be ensured")
+                error_msg = "CAP alert source columns could not be ensured. Check database schema migration logs above."
+                logger.error(error_msg)
+                _db_initialization_error = RuntimeError(error_msg)
                 return False
             ensure_boundary_geometry_column(logger)
             if not ensure_eas_audio_columns(logger):
-                _db_initialization_error = RuntimeError(
-                    "EAS audio columns could not be ensured"
-                )
+                error_msg = "EAS audio columns could not be ensured. Check database schema migration logs above."
+                logger.error(error_msg)
+                _db_initialization_error = RuntimeError(error_msg)
                 return False
             if not ensure_eas_message_foreign_key(logger):
                 _db_initialization_error = RuntimeError(
@@ -920,12 +928,15 @@ def initialize_database():
             except Exception as monitor_error:
                 logger.warning("Failed to initialize EAS monitoring: %s", monitor_error)
         except OperationalError as db_error:
+            error_msg = f"Database connection or operation failed: {db_error}"
+            logger.error(error_msg)
+            logger.error("Common causes: PostgreSQL not running, wrong credentials, database doesn't exist")
             _db_initialization_error = db_error
-            logger.error("Database initialization failed: %s", db_error)
             return False
         except Exception as db_error:
+            error_msg = f"Unexpected error during database initialization: {db_error}"
+            logger.error(error_msg, exc_info=True)
             _db_initialization_error = db_error
-            logger.error("Database initialization failed: %s", db_error)
             raise
         else:
             _db_initialized = True

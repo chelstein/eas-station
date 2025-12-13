@@ -40,6 +40,7 @@ Restart=always
 RestartSec=10s
 KillMode=mixed
 KillSignal=SIGQUIT
+TimeoutStartSec=90
 TimeoutStopSec=30
 
 # Security settings
