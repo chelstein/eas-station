@@ -22,6 +22,13 @@ import os
 import sys
 import logging
 
+# Configure logging early for wsgi startup diagnostics
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s [%(process)d] [%(levelname)s] %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S %z'
+)
+
 
 def _project_root() -> str:
     """Return the project root based on this file's location."""
@@ -44,8 +51,11 @@ if not os.environ.get("SKIP_DB_INIT"):
     logger.info("WSGI: Initializing database at worker startup...")
     with application.app_context():
         if not initialize_database():
-            logger.critical("WSGI: Database initialization failed! Worker cannot start.")
-            raise RuntimeError("Database initialization failed - worker cannot continue")
+            # Try to get the actual error from the global variable
+            from app import _db_initialization_error
+            error_details = str(_db_initialization_error) if _db_initialization_error else "Unknown error"
+            logger.critical("WSGI: Database initialization failed! Error: %s", error_details)
+            raise RuntimeError(f"Database initialization failed: {error_details}")
     logger.info("WSGI: Database initialization complete")
 
 __all__ = ["application", "socketio"]
