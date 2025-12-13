@@ -25,6 +25,7 @@ import json
 import logging
 import os
 import re
+import subprocess
 from functools import wraps
 from typing import Any, Dict, List
 from pathlib import Path
@@ -602,10 +603,10 @@ ENV_CATEGORIES = {
         'variables': [
             {
                 'key': 'VFD_PORT',
-                'label': 'Serial Port',
+                'label': 'Connection',
                 'type': 'text',
-                'description': 'Serial port for VFD (leave empty to disable). Disabling this will gray out other VFD settings.',
-                'placeholder': '/dev/ttyUSB0',
+                'description': 'Serial port (/dev/ttyUSB0) or network (socket://192.168.8.122:10001). Leave empty to disable VFD.',
+                'placeholder': '/dev/ttyUSB0 or socket://IP:PORT',
             },
             {
                 'key': 'VFD_BAUDRATE',
@@ -613,7 +614,7 @@ ENV_CATEGORIES = {
                 'type': 'select',
                 'options': ['9600', '19200', '38400', '57600', '115200'],
                 'default': '38400',
-                'description': 'Serial communication speed',
+                'description': 'Serial communication speed (ignored for network connections)',
                 'category': 'vfd_enabled',
             },
         ],
@@ -1476,6 +1477,108 @@ def admin_download_ssl_key():
         download_name=download_name,
         mimetype='application/x-pem-file'
     )
+
+
+@environment_bp.route('/api/environment/restart-services', methods=['POST'])
+@require_permission_or_setup_mode('system.configure')
+def restart_services():
+    """
+    Restart EAS Station services after configuration changes.
+    
+    This endpoint allows restarting specific services or the entire stack
+    without requiring CLI access.
+    """
+    try:
+        data = request.get_json() or {}
+        service = data.get('service', 'all')
+        
+        services_to_restart = []
+        
+        if service == 'all':
+            # Restart all EAS Station services
+            services_to_restart = ['eas-station.target']
+        elif service == 'hardware':
+            # Restart hardware service (GPIO, OLED, VFD, LED)
+            services_to_restart = ['eas-station-hardware.service']
+        elif service == 'web':
+            # Restart web service
+            services_to_restart = ['eas-station-web.service']
+        elif service == 'poller':
+            # Restart alert poller
+            services_to_restart = ['eas-station-poller.service']
+        elif service == 'sdr':
+            # Restart SDR service
+            services_to_restart = ['eas-station-sdr.service']
+        elif service == 'audio':
+            # Restart audio monitoring service
+            services_to_restart = ['eas-station-audio.service']
+        else:
+            return jsonify({
+                'success': False,
+                'error': f'Invalid service: {service}. Valid options: all, hardware, web, poller, sdr, audio'
+            }), 400
+        
+        restart_results = []
+        all_successful = True
+        
+        for svc_name in services_to_restart:
+            try:
+                logger.info(f"Restarting service: {svc_name}")
+                result = subprocess.run(
+                    ['sudo', 'systemctl', 'restart', svc_name],
+                    capture_output=True,
+                    text=True,
+                    timeout=30
+                )
+                
+                if result.returncode == 0:
+                    restart_results.append({
+                        'service': svc_name,
+                        'success': True,
+                        'message': f'Service {svc_name} restarted successfully'
+                    })
+                    logger.info(f"Successfully restarted {svc_name}")
+                else:
+                    restart_results.append({
+                        'service': svc_name,
+                        'success': False,
+                        'message': f'Failed to restart {svc_name}',
+                        'error': result.stderr
+                    })
+                    all_successful = False
+                    logger.error(f"Failed to restart {svc_name}: {result.stderr}")
+                    
+            except subprocess.TimeoutExpired:
+                restart_results.append({
+                    'service': svc_name,
+                    'success': False,
+                    'message': f'Restart timeout for {svc_name}',
+                    'error': 'Command timed out after 30 seconds'
+                })
+                all_successful = False
+                logger.error(f"Restart timeout for {svc_name}")
+            except Exception as svc_exc:
+                restart_results.append({
+                    'service': svc_name,
+                    'success': False,
+                    'message': f'Error restarting {svc_name}',
+                    'error': str(svc_exc)
+                })
+                all_successful = False
+                logger.error(f"Error restarting {svc_name}: {svc_exc}")
+        
+        return jsonify({
+            'success': all_successful,
+            'message': 'All services restarted successfully' if all_successful else 'Some services failed to restart',
+            'results': restart_results
+        })
+        
+    except Exception as e:
+        logger.error(f"Error in restart-services endpoint: {e}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'error': f'Failed to restart services: {str(e)}'
+        }), 500
 
 
 __all__ = ['register_environment_routes', 'ENV_CATEGORIES']
