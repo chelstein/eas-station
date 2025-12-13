@@ -273,9 +273,7 @@ class RestoreValidator:
             # Check for critical configuration keys
             critical_keys = [
                 "SECRET_KEY",
-                "POSTGRES_HOST",
-                "POSTGRES_DB",
-                "POSTGRES_USER",
+                "DATABASE_URL",
             ]
             
             missing = []

@@ -189,57 +189,62 @@ def restore_database(backup_dir: Path, env_values: Dict[str, str], force: bool =
             print("  - Database restoration skipped")
             return False
 
-    host = env_values.get("POSTGRES_HOST", "localhost")
-    port = env_values.get("POSTGRES_PORT", "5432")
-    user = env_values.get("POSTGRES_USER", "eas-station")
-    db_name = env_values.get("POSTGRES_DB", "alerts")
-    password = env_values.get("POSTGRES_PASSWORD", "")
+    database_url = env_values.get("DATABASE_URL")
+    if not database_url:
+        print("  ✗ DATABASE_URL not found in environment")
+        return False
+
+    # Parse database name from URL for drop/create operations
+    # DATABASE_URL format: postgresql+psycopg2://user:pass@host:port/dbname
+    try:
+        if '/' in database_url:
+            db_name = database_url.rsplit('/', 1)[1].split('?')[0]
+        else:
+            db_name = "alerts"
+    except Exception:
+        db_name = "alerts"
 
     compose_cmd = detect_compose_command()
-    use_compose = host in {"alerts-db", "postgres", "postgresql"}
+    # Check if using containerized database (host would be in URL)
+    use_compose = "alerts-db" in database_url or ("postgres" in database_url and "localhost" not in database_url)
 
     # Drop and recreate database
     print("  Recreating database...")
     if use_compose:
+        # For containerized deployments
         drop_cmd = [
             *compose_cmd, "exec", "-T", "alerts-db",
-            "psql", "-U", user, "-c", f"DROP DATABASE IF EXISTS {db_name}"
+            "psql", database_url, "-c", f"DROP DATABASE IF EXISTS {db_name}"
         ]
         create_cmd = [
             *compose_cmd, "exec", "-T", "alerts-db",
-            "psql", "-U", user, "-c", f"CREATE DATABASE {db_name}"
+            "psql", database_url, "-c", f"CREATE DATABASE {db_name}"
         ]
         restore_cmd = [
             *compose_cmd, "exec", "-T", "alerts-db",
-            "psql", "-U", user, "-d", db_name
+            "psql", database_url
         ]
     else:
+        # For bare-metal deployments, use DATABASE_URL directly
         drop_cmd = [
-            "psql", "-h", host, "-p", port, "-U", user,
-            "-c", f"DROP DATABASE IF EXISTS {db_name}"
+            "psql", database_url, "-c", f"DROP DATABASE IF EXISTS {db_name}"
         ]
         create_cmd = [
-            "psql", "-h", host, "-p", port, "-U", user,
-            "-c", f"CREATE DATABASE {db_name}"
+            "psql", database_url, "-c", f"CREATE DATABASE {db_name}"
         ]
         restore_cmd = [
-            "psql", "-h", host, "-p", port, "-U", user, "-d", db_name
+            "psql", database_url
         ]
-
-    env_vars = os.environ.copy()
-    if password:
-        env_vars["PGPASSWORD"] = password
 
     # Execute restoration
     try:
-        subprocess.run(drop_cmd, env=env_vars, check=True, capture_output=True)
-        subprocess.run(create_cmd, env=env_vars, check=True, capture_output=True)
+        subprocess.run(drop_cmd, check=True, capture_output=True)
+        subprocess.run(create_cmd, check=True, capture_output=True)
 
         with db_dump.open("rb") as dump_file:
             result = subprocess.run(
                 restore_cmd,
                 stdin=dump_file,
-                env=env_vars,
                 capture_output=True
             )
 

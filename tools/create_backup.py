@@ -124,47 +124,34 @@ def compose_service_running(compose_cmd: List[str], service: str) -> bool:
 
 
 def run_pg_dump(env: Dict[str, str], output_path: Path) -> str:
-    host = env.get("POSTGRES_HOST", "localhost")
-    port = env.get("POSTGRES_PORT", "5432")
-    user = env.get("POSTGRES_USER", "eas-station")
-    db_name = env.get("POSTGRES_DB", "alerts")
-    password = env.get("POSTGRES_PASSWORD", "")
-
-    # Use standard pg_dump command for bare metal deployment
-    dump_cmd = [
-        "pg_dump",
-        "-h",
-        host,
-        "-p",
-        port,
-            "-U",
-            user,
-            "-d",
-            db_name,
-        ]
-
-    env_vars = os.environ.copy()
-    if password:
-        env_vars["PGPASSWORD"] = password
+    """Run pg_dump using DATABASE_URL from environment.
+    
+    Args:
+        env: Environment variables dictionary (must contain DATABASE_URL)
+        output_path: Path where the dump should be written
+        
+    Returns:
+        Sanitized command string for logging
+        
+    Raises:
+        RuntimeError: If DATABASE_URL is not set or pg_dump fails
+    """
+    database_url = env.get("DATABASE_URL")
+    if not database_url:
+        raise RuntimeError("DATABASE_URL environment variable is required for backup")
+    
+    # Use pg_dump with connection string
+    dump_cmd = ["pg_dump", database_url]
 
     with output_path.open("wb") as handle:
-        process = subprocess.run(dump_cmd, stdout=handle, stderr=subprocess.PIPE, env=env_vars)
+        process = subprocess.run(dump_cmd, stdout=handle, stderr=subprocess.PIPE)
     if process.returncode != 0:
         output_path.unlink(missing_ok=True)
         sys.stderr.write(process.stderr.decode())
         raise RuntimeError("pg_dump failed; see stderr above for details.")
 
-    sanitized_parts = []
-    skip_next = False
-    for part in dump_cmd:
-        if skip_next:
-            skip_next = False
-            continue
-        if part in {"-U", "--username"}:
-            skip_next = True
-            continue
-        sanitized_parts.append(part)
-    return " ".join(sanitized_parts)
+    # Return sanitized command (hide credentials)
+    return "pg_dump <DATABASE_URL>"
 
 
 def write_metadata(target: Path, env: Dict[str, str], dump_cmd: str) -> None:
@@ -194,10 +181,6 @@ def write_metadata(target: Path, env: Dict[str, str], dump_cmd: str) -> None:
         "git_status": git_status,
         "app_version": get_current_version(),
         "database": {
-            "host": env.get("POSTGRES_HOST", "unknown"),
-            "port": env.get("POSTGRES_PORT", "5432"),
-            "name": env.get("POSTGRES_DB", "alerts"),
-            "user": env.get("POSTGRES_USER", "eas-station"),
             "command": dump_cmd,
         },
     }
@@ -420,10 +403,6 @@ Examples:
         "git_branch": git_branch,
         "app_version": get_current_version(),
         "database": {
-            "host": env_values.get("POSTGRES_HOST", "unknown"),
-            "port": env_values.get("POSTGRES_PORT", "5432"),
-            "name": env_values.get("POSTGRES_DB", "alerts"),
-            "user": env_values.get("POSTGRES_USER", "eas-station"),
             "command": dump_command,
         },
         "summary": backup_summary,
