@@ -22,6 +22,7 @@ import os
 import sys
 import logging
 from datetime import datetime
+import tempfile
 
 # Configure logging early for wsgi startup diagnostics
 # NOTE: Gunicorn will override this with its own logging config, but this ensures
@@ -53,7 +54,12 @@ if not os.environ.get("SKIP_DB_INIT"):
     logger = logging.getLogger(__name__)
     
     # Force unbuffered stderr for immediate visibility in journalctl
-    sys.stderr.reconfigure(line_buffering=True)
+    try:
+        # Python 3.7+ reconfigure method
+        sys.stderr.reconfigure(line_buffering=True)
+    except AttributeError:
+        # Fallback for older Python versions
+        sys.stderr = os.fdopen(sys.stderr.fileno(), 'w', 1)
     
     startup_banner = (
         f"\n{'=' * 80}\n"
@@ -95,13 +101,22 @@ if not os.environ.get("SKIP_DB_INIT"):
                 print(error_msg, file=sys.stderr, flush=True)
                 logger.critical("WSGI: Database initialization failed! Error: %s", error_details)
                 
-                # Also write to a file for persistence
+                # Write to secure temporary file for persistence
                 try:
-                    with open('/tmp/eas-station-web-startup-error.log', 'w') as f:
+                    with tempfile.NamedTemporaryFile(
+                        mode='w',
+                        prefix='eas-station-web-startup-error-',
+                        suffix='.log',
+                        dir='/var/log/eas-station' if os.path.exists('/var/log/eas-station') else None,
+                        delete=False
+                    ) as f:
                         f.write(error_msg)
                         f.write(f"\nTimestamp: {datetime.now()}\n")
-                except:
-                    pass  # Don't fail if we can't write the file
+                        error_log_path = f.name
+                    logger.critical("Error details written to: %s", error_log_path)
+                except Exception as log_error:
+                    # Silently ignore if we can't write the file
+                    logger.debug("Could not write error log file: %s", log_error)
                 
                 raise RuntimeError(f"Database initialization failed: {error_details}")
     except Exception as e:
@@ -117,16 +132,25 @@ if not os.environ.get("SKIP_DB_INIT"):
         print(error_msg, file=sys.stderr, flush=True)
         logger.critical("WSGI: Exception during database initialization: %s", e, exc_info=True)
         
-        # Also write to a file for persistence
+        # Write to secure temporary file for persistence
         try:
             import traceback
-            with open('/tmp/eas-station-web-startup-error.log', 'w') as f:
+            with tempfile.NamedTemporaryFile(
+                mode='w',
+                prefix='eas-station-web-startup-error-',
+                suffix='.log',
+                dir='/var/log/eas-station' if os.path.exists('/var/log/eas-station') else None,
+                delete=False
+            ) as f:
                 f.write(error_msg)
                 f.write(f"\nFull traceback:\n")
                 f.write(traceback.format_exc())
                 f.write(f"\nTimestamp: {datetime.now()}\n")
-        except:
-            pass  # Don't fail if we can't write the file
+                error_log_path = f.name
+            logger.critical("Error details written to: %s", error_log_path)
+        except Exception as log_error:
+            # Silently ignore if we can't write the file
+            logger.debug("Could not write error log file: %s", log_error)
         
         raise
     
