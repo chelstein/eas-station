@@ -9,6 +9,8 @@ Wants=postgresql.service redis.service
 Type=notify
 User=eas-station
 Group=eas-station
+# GPIO access required for OLED button on Pi 5
+SupplementaryGroups=gpio i2c
 WorkingDirectory=/opt/eas-station
 Environment="PATH=/opt/eas-station/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 Environment="PYTHONPATH=/opt/eas-station"
@@ -46,6 +48,11 @@ PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
 ReadWritePaths=/opt/eas-station /var/log/eas-station
+
+# GPIO device access for OLED button on Pi 5
+DeviceAllow=/dev/gpiochip0 rw
+DeviceAllow=/dev/gpiochip4 rw
+DeviceAllow=/dev/i2c-1 rw
 CapabilityBoundingSet=
 
 # Resource limits
