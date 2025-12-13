@@ -14,6 +14,10 @@ SupplementaryGroups=gpio i2c
 WorkingDirectory=/opt/eas-station
 Environment="PATH=/opt/eas-station/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 Environment="PYTHONPATH=/opt/eas-station"
+# Prevent system site-packages from interfering with venv gevent
+# This is critical when venv was created with --system-site-packages flag
+# System numpy/scipy can conflict with gevent's greenlet C extensions
+Environment="PYTHONNOUSERSITE=1"
 # Pi 5 requires lgpio for GPIO access - prevents gpiozero auto-detection hangs
 Environment="GPIOZERO_PIN_FACTORY=lgpio"
 EnvironmentFile=/opt/eas-station/.env
@@ -25,10 +29,11 @@ SyslogIdentifier=eas-station-web
 
 # Ensure log directory exists with correct permissions before starting
 ExecStartPre=+/bin/sh -c 'mkdir -p /var/log/eas-station && chown eas-station:eas-station /var/log/eas-station && chmod 755 /var/log/eas-station'
+# Check gevent compatibility (diagnose C extension conflicts from system packages)
+ExecStartPre=/opt/eas-station/venv/bin/python3 /opt/eas-station/scripts/check_gevent_compat.py
 # Run Gunicorn with gevent workers for Flask-SocketIO support
 # IMPORTANT: gevent is REQUIRED for WebSocket functionality
-# If service fails to start, check: /opt/eas-station/venv/bin/python3 -c "import gevent"
-ExecStartPre=/opt/eas-station/venv/bin/python3 -c "import gevent; import gunicorn; print('✓ gevent and gunicorn available')"
+# System packages (numpy, scipy, SoapySDR) may conflict with gevent C extensions
 ExecStart=/opt/eas-station/venv/bin/gunicorn \
     --bind 0.0.0.0:5000 \
     --workers 2 \

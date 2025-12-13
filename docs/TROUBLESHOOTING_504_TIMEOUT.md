@@ -13,7 +13,62 @@ This indicates the service is being killed by systemd because it didn't start wi
 
 ## Common Causes
 
-### 1. Missing Dependencies (Most Common)
+### 1. Gevent/System Package Conflicts (MOST COMMON after SDR install)
+
+**Symptom**: Service fails immediately after installing SoapySDR or other system Python packages
+
+**Root Cause**: The venv is created with `--system-site-packages`, which allows system packages (python3-numpy, python3-scipy, python3-soapysdr) to be visible inside the venv. These system packages have C extensions that may conflict with gevent's greenlet C extensions, causing immediate segfaults or import errors.
+
+**Check**:
+```bash
+# Run the gevent compatibility check
+/opt/eas-station/venv/bin/python3 /opt/eas-station/scripts/check_gevent_compat.py
+```
+
+Look for warnings about numpy loaded from `/usr/lib` or `/usr/local/lib`.
+
+**Fix - Reinstall Conflicting Packages in Venv**:
+```bash
+cd /opt/eas-station
+source venv/bin/activate
+
+# Force reinstall gevent and greenlet to rebuild C extensions
+pip install --force-reinstall 'gevent>=25.9.1' greenlet
+
+# If numpy conflict detected, reinstall in venv to override system version
+pip install --force-reinstall numpy
+
+# Reinstall any other packages showing conflicts
+pip install --force-reinstall scipy
+
+deactivate
+sudo systemctl restart eas-station-web.service
+```
+
+**Alternative Fix - Rebuild Venv Without System Packages** (more drastic):
+```bash
+# Backup current requirements
+pip freeze > /tmp/eas-requirements-backup.txt
+
+# Remove old venv
+sudo rm -rf /opt/eas-station/venv
+
+# Create new venv WITHOUT system packages
+sudo -u eas-station python3 -m venv /opt/eas-station/venv
+
+# Reinstall packages
+cd /opt/eas-station
+source venv/bin/activate
+pip install -r requirements.txt
+deactivate
+
+# Restart services
+sudo systemctl restart eas-station.target
+```
+
+**Note**: The SDR service needs SoapySDR from system packages, but the web service does NOT. Future versions may use separate venvs for each service.
+
+### 2. Missing Dependencies
 
 **Symptom**: Service fails immediately on startup
 
