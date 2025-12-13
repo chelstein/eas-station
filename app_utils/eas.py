@@ -103,6 +103,45 @@ def load_eas_config(base_path: Optional[str] = None) -> Dict[str, object]:
     gpio_configs = load_gpio_pin_configs_from_env()
     gpio_behavior_matrix = load_gpio_behavior_matrix_from_env()
 
+    # Parse Azure OpenAI configuration from JSON or individual env vars
+    azure_openai_config = {}
+    azure_openai_config_str = os.getenv('AZURE_OPENAI_CONFIG', '').strip()
+    if azure_openai_config_str:
+        try:
+            azure_openai_config = json.loads(azure_openai_config_str)
+        except json.JSONDecodeError:
+            if has_app_context():
+                current_app.logger.warning(
+                    'AZURE_OPENAI_CONFIG is not valid JSON, falling back to individual env vars'
+                )
+    
+    # Extract Azure OpenAI settings with fallback to individual env vars
+    azure_openai_endpoint = (
+        azure_openai_config.get('endpoint') or 
+        os.getenv('AZURE_OPENAI_ENDPOINT') or ''
+    ).strip()
+    azure_openai_key = (
+        azure_openai_config.get('key') or 
+        os.getenv('AZURE_OPENAI_KEY') or ''
+    ).strip()
+    azure_openai_voice = (
+        azure_openai_config.get('voice') or 
+        os.getenv('AZURE_OPENAI_VOICE') or 'alloy'
+    ).strip()
+    azure_openai_model = (
+        azure_openai_config.get('model') or 
+        os.getenv('AZURE_OPENAI_MODEL') or 'tts-1-hd'
+    ).strip()
+    
+    # Parse speed with fallback
+    try:
+        azure_openai_speed = float(
+            azure_openai_config.get('speed') or 
+            os.getenv('AZURE_OPENAI_SPEED') or 1.0
+        )
+    except (ValueError, TypeError):
+        azure_openai_speed = 1.0
+
     config: Dict[str, object] = {
         'enabled': os.getenv('EAS_BROADCAST_ENABLED', 'false').lower() == 'true',
         'originator': (os.getenv('EAS_ORIGINATOR') or 'WXR')[:3].upper(),
@@ -136,11 +175,11 @@ def load_eas_config(base_path: Optional[str] = None) -> Dict[str, object]:
         'azure_speech_region': os.getenv('AZURE_SPEECH_REGION'),
         'azure_speech_voice': os.getenv('AZURE_SPEECH_VOICE', 'en-US-AriaNeural'),
         'azure_speech_sample_rate': int(os.getenv('AZURE_SPEECH_SAMPLE_RATE', '24000') or 24000),
-        'azure_openai_endpoint': os.getenv('AZURE_OPENAI_ENDPOINT'),
-        'azure_openai_key': os.getenv('AZURE_OPENAI_KEY'),
-        'azure_openai_voice': os.getenv('AZURE_OPENAI_VOICE', 'alloy'),
-        'azure_openai_model': os.getenv('AZURE_OPENAI_MODEL', 'tts-1-hd'),
-        'azure_openai_speed': float(os.getenv('AZURE_OPENAI_SPEED', '1.0') or 1.0),
+        'azure_openai_endpoint': azure_openai_endpoint,
+        'azure_openai_key': azure_openai_key,
+        'azure_openai_voice': azure_openai_voice,
+        'azure_openai_model': azure_openai_model,
+        'azure_openai_speed': azure_openai_speed,
         'pyttsx3_voice': os.getenv('PYTTSX3_VOICE'),
         'pyttsx3_rate': os.getenv('PYTTSX3_RATE'),
         'pyttsx3_volume': os.getenv('PYTTSX3_VOLUME'),
