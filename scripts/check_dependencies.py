@@ -33,7 +33,7 @@ def check_permissions():
     # Check if running as root (usually means testing)
     if os.geteuid() == 0:
         print("  Running as root - skipping permission checks")
-        return True
+        return True, []  # Return consistent tuple format
     
     # Check project directory
     project_dir = "/opt/eas-station"

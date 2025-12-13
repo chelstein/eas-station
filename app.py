@@ -462,12 +462,15 @@ from flask_socketio import SocketIO
 try:
     import gevent
     logger.info("✓ gevent available - WebSocket support enabled")
-except ImportError as e:
+except ImportError as gevent_error:
     logger.critical("=" * 80)
     logger.critical("FATAL: gevent is not installed - WebSockets will NOT work!")
     logger.critical("=" * 80)
     logger.critical("gevent is REQUIRED for real-time WebSocket communication")
+    logger.critical("Import error details: %s", gevent_error)
     logger.critical("Install gevent: cd /opt/eas-station && source venv/bin/activate && pip install 'gevent>=25.9.1'")
+    logger.critical("If gevent is installed but fails to import, check for C extension conflicts:")
+    logger.critical("  Run: /opt/eas-station/venv/bin/python3 /opt/eas-station/scripts/check_gevent_compat.py")
     logger.critical("=" * 80)
     # Don't fail here - let gunicorn fail with a clear error instead
     # This allows the app to import for CLI commands even if gevent is missing
