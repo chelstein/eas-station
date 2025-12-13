@@ -619,8 +619,8 @@ if [ -f "$INSTALL_DIR/venv/bin/alembic" ] && [ -f "$INSTALL_DIR/alembic.ini" ]; 
     
     # Check current database revision before migration
     echo_info "Checking current database state..."
-    CURRENT_REV=$(sudo -u "$SERVICE_USER" "$INSTALL_DIR/venv/bin/alembic" current 2>/dev/null | grep -oP '(?<=\(head\)|\w+)$' || echo "none")
-    if [ -n "$CURRENT_REV" ] && [ "$CURRENT_REV" != "none" ]; then
+    CURRENT_REV=$(sudo -u "$SERVICE_USER" "$INSTALL_DIR/venv/bin/alembic" current 2>/dev/null | tail -1 | awk '{print $1}' || echo "none")
+    if [ -n "$CURRENT_REV" ] && [ "$CURRENT_REV" != "none" ] && [ "$CURRENT_REV" != "" ]; then
         echo_info "Current revision: $CURRENT_REV"
     else
         echo_info "Database is at an unknown or initial state"
@@ -639,8 +639,8 @@ if [ -f "$INSTALL_DIR/venv/bin/alembic" ] && [ -f "$INSTALL_DIR/alembic.ini" ]; 
     if [ $ALEMBIC_EXIT_CODE -eq 0 ]; then
         echo_success "Database migrations completed successfully"
         # Show what revision we're at now
-        NEW_REV=$(sudo -u "$SERVICE_USER" "$INSTALL_DIR/venv/bin/alembic" current 2>/dev/null | tail -1 || echo "")
-        if [ -n "$NEW_REV" ]; then
+        NEW_REV=$(sudo -u "$SERVICE_USER" "$INSTALL_DIR/venv/bin/alembic" current 2>/dev/null | tail -1 | awk '{print $1}' || echo "")
+        if [ -n "$NEW_REV" ] && [ "$NEW_REV" != "" ]; then
             echo_info "Database is now at: $NEW_REV"
         fi
     elif [ $ALEMBIC_EXIT_CODE -eq 130 ]; then
@@ -669,7 +669,8 @@ with app.app_context():
         
         echo ""
         echo_warning "Database upgrade may be incomplete - check logs after update"
-        echo_info "You can manually run migrations: cd $INSTALL_DIR && sudo -u $SERVICE_USER $INSTALL_DIR/venv/bin/alembic upgrade head"
+        echo_info "You can manually run migrations:"
+        echo_info "  cd $INSTALL_DIR && sudo -u $SERVICE_USER $INSTALL_DIR/venv/bin/alembic upgrade head"
     fi
 elif [ -f "$INSTALL_DIR/venv/bin/python" ]; then
     echo_warning "Alembic not found - using db.create_all() fallback"

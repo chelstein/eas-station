@@ -1813,7 +1813,8 @@ with app.app_context():
             
             echo ""
             echo_warning "Database upgrade may be incomplete - check logs after installation"
-            echo_info "You can manually run migrations: cd $INSTALL_DIR && sudo -u $SERVICE_USER $VENV_DIR/bin/alembic upgrade head"
+            echo_info "You can manually run migrations:"
+            echo_info "  cd $INSTALL_DIR && sudo -u $SERVICE_USER $VENV_DIR/bin/alembic upgrade head"
         fi
     else
         echo_warning "alembic.ini not found - skipping migrations"
