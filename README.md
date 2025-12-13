@@ -243,6 +243,7 @@ graph TD
 | **Daily Operations** | [User Guide](docs/guides/HELP) |
 | **Deployment** | [Installation Guide](docs/installation/README.md) |
 | **Development** | [Developer Guide](docs/development/AGENTS) |
+| **Remote Development (VSCode)** | [VSCode Setup Guide](.vscode/VSCODE_SETUP.md) - **5-minute setup!** |
 | **Debugging on Pi** | [PyCharm Remote Debugging Guide](docs/guides/PYCHARM_DEBUGGING) |
 
 **📖 [Complete Documentation Index](docs/INDEX)** - Searchable topics and detailed guides
