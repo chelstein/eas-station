@@ -113,19 +113,10 @@ echo ""
 # If there are incorrect users and the correct user exists, offer to clean up
 if [ ${#INCORRECT_USERS[@]} -gt 0 ]; then
     if [ "$USER_EXISTS" = true ]; then
-        echo_warning "Found ${#INCORRECT_USERS[@]} incorrectly named user(s) that should be removed"
+        echo_warning "Found ${#INCORRECT_USERS[@]} incorrectly named user(s)"
         echo ""
-        echo "This script will:"
-        echo "  1. Reassign ownership of all objects from incorrect users to 'eas-station'"
-        echo "  2. Drop the incorrect user(s)"
-        echo "  3. Update password for 'eas-station' user"
+        echo "Auto-fixing: reassigning ownership and removing incorrect users..."
         echo ""
-        read -p "Do you want to proceed? (y/N): " -n 1 -r
-        echo
-        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-            echo_info "Operation cancelled"
-            exit 0
-        fi
         
         # Reassign ownership and drop each incorrect user
         # Note: User names are from hardcoded list above (not user input)

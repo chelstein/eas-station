@@ -7,6 +7,13 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **Auto-fix Password Authentication in update.sh** - update.sh now automatically syncs PostgreSQL password before running migrations
+  - Added password sync step in update.sh before database migrations (line 617)
+  - Runs `scripts/database/fix_database_user.sh` automatically to sync password from .env to PostgreSQL
+  - Prevents "password authentication failed" errors during migrations
+  - Made fix_database_user.sh completely non-interactive (removed confirmation prompt)
+  - Created fix_and_restart.sh for one-command fix with service restart
+  - VERSION bumped to 2.23.4 (bug fix)
 - **Password Authentication Root Cause Identified** - Clarified that "password authentication failed" is a password mismatch, not network/IPv6 issue
   - Updated documentation to explain that `OperationalError` means PostgreSQL rejected the password after connection succeeded
   - Changed DATABASE_URL defaults from `localhost` to `127.0.0.1` to force IPv4 and improve consistency
