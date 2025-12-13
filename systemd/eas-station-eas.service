@@ -14,6 +14,8 @@ Group=eas-station
 WorkingDirectory=/opt/eas-station
 Environment="PATH=/opt/eas-station/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 Environment="PYTHONPATH=/opt/eas-station"
+# Pi 5 requires lgpio for GPIO access - prevents gpiozero auto-detection hangs
+Environment="GPIOZERO_PIN_FACTORY=lgpio"
 EnvironmentFile=/opt/eas-station/.env
 
 # Logging to systemd journal
