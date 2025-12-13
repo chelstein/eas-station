@@ -883,13 +883,12 @@ def initialize_database():
             timezone_name = settings.get('timezone')
             if timezone_name:
                 set_location_timezone(timezone_name)
+            # Hardware display initialization (LED/OLED/VFD) is handled by
+            # the dedicated hardware service to avoid gevent conflicts.
+            # The web service only needs the database tables for display config.
             if LED_AVAILABLE:
-                initialise_led_controller(logger)
                 ensure_led_tables()
-            if OLED_AVAILABLE:
-                initialise_oled_display(logger)
             if VFD_AVAILABLE:
-                initialise_vfd_controller(logger)
                 ensure_vfd_tables()
             # Initialize RBAC roles and permissions
             try:
