@@ -144,6 +144,14 @@ class ReadSpecialExtCommand(Enum):
     READ_TEMPERATURE = 0x35    # Read internal temperature
 
 
+class WriteSpecialExtCommand(Enum):
+    """Type E - Write Special Functions (Extended)"""
+    SET_TIME_DATE = 0x20       # Set time and date
+    SET_DAY_OF_WEEK = 0x22     # Set day of week
+    SET_TIME_FORMAT = 0x27     # Set 12h/24h time format
+    SET_RUN_MODE = 0x2E        # Set run mode (auto/manual)
+
+
 class LineSegmentSpec(TypedDict, total=False):
     text: str
     color: Color
@@ -1613,6 +1621,291 @@ class Alpha9120CController:
             diagnostics['temperature'] = self.read_temperature()
         
         return diagnostics
+
+    def set_time_and_date(self, dt: Optional[datetime] = None) -> bool:
+        """
+        Set sign time and date (M-Protocol Type E, Function 0x20).
+        
+        Args:
+            dt: datetime object to set. If None, uses current system time.
+            
+        Returns:
+            True if successful, False otherwise
+            
+        Example:
+            >>> led = Alpha9120CController(host='192.168.8.122', port=10001)
+            >>> from datetime import datetime
+            >>> led.set_time_and_date(datetime(2025, 12, 13, 15, 30, 0))
+            True
+            
+        Note:
+            Time format is 10 bytes ASCII: HH:MM:SS\rMM/DD/YY
+            Example: "15:30:00\r12/13/25"
+        """
+        if dt is None:
+            dt = datetime.now()
+            
+        if not self.connected or not self.socket:
+            self.logger.warning("Not connected to sign")
+            return False
+            
+        try:
+            # Format time and date
+            # Format: HH:MM:SS\rMM/DD/YY (10 bytes)
+            time_str = dt.strftime("%H:%M:%S")
+            date_str = dt.strftime("%m/%d/%y")
+            time_date = f"{time_str}\r{date_str}"
+            
+            # Build Type E command packet
+            # Format: <NULL>x5 <ID> <CMD=0x45> <FUNC=0x20> <TIME_DATE> <ETX>
+            sign_id = self.sign_id.encode('ascii')
+            command_type = b'\x45'  # Type E command
+            function = bytes([WriteSpecialExtCommand.SET_TIME_DATE.value])
+            data = time_date.encode('ascii')
+            etx = b'\x03'
+            
+            packet = (
+                b'\x00\x00\x00\x00\x00' +
+                sign_id +
+                command_type +
+                function +
+                data +
+                etx
+            )
+            
+            # Send command
+            self._drain_input_buffer()
+            self.socket.sendall(packet)
+            self.logger.debug(f"Sent set time/date command: {time_date}")
+            
+            # Wait for ACK/NAK
+            ack = self._read_acknowledgement()
+            
+            if ack == self.ACK:
+                self.logger.info(f"Time and date set successfully: {time_date}")
+                self._send_eot()
+                return True
+            elif ack == self.NAK:
+                self.logger.error("Sign returned NAK for set time/date")
+                return False
+            else:
+                self.logger.error("No acknowledgement received for set time/date")
+                return False
+                
+        except Exception as e:
+            self.logger.error(f"Error setting time and date: {e}")
+            return False
+
+    def set_day_of_week(self, day: Optional[int] = None) -> bool:
+        """
+        Set sign day of week (M-Protocol Type E, Function 0x22).
+        
+        Args:
+            day: Day of week (0=Sunday, 1=Monday, ..., 6=Saturday)
+                 If None, uses current system day
+                 
+        Returns:
+            True if successful, False otherwise
+        """
+        if day is None:
+            day = datetime.now().weekday()
+            # Convert Python weekday (0=Monday) to Alpha weekday (0=Sunday)
+            day = (day + 1) % 7
+            
+        if not 0 <= day <= 6:
+            self.logger.error(f"Invalid day of week: {day} (must be 0-6)")
+            return False
+            
+        if not self.connected or not self.socket:
+            self.logger.warning("Not connected to sign")
+            return False
+            
+        try:
+            # Build Type E command packet
+            sign_id = self.sign_id.encode('ascii')
+            command_type = b'\x45'
+            function = bytes([WriteSpecialExtCommand.SET_DAY_OF_WEEK.value])
+            data = bytes([ord('0') + day])  # ASCII digit 0-6
+            etx = b'\x03'
+            
+            packet = (
+                b'\x00\x00\x00\x00\x00' +
+                sign_id +
+                command_type +
+                function +
+                data +
+                etx
+            )
+            
+            # Send command
+            self._drain_input_buffer()
+            self.socket.sendall(packet)
+            
+            days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+            self.logger.debug(f"Sent set day of week: {days[day]}")
+            
+            # Wait for ACK/NAK
+            ack = self._read_acknowledgement()
+            
+            if ack == self.ACK:
+                self.logger.info(f"Day of week set successfully: {days[day]}")
+                self._send_eot()
+                return True
+            elif ack == self.NAK:
+                self.logger.error("Sign returned NAK for set day of week")
+                return False
+            else:
+                self.logger.error("No acknowledgement received")
+                return False
+                
+        except Exception as e:
+            self.logger.error(f"Error setting day of week: {e}")
+            return False
+
+    def set_time_format(self, format_24h: bool = True) -> bool:
+        """
+        Set sign time format to 12-hour or 24-hour (M-Protocol Type E, Function 0x27).
+        
+        Args:
+            format_24h: True for 24-hour format, False for 12-hour format
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        if not self.connected or not self.socket:
+            self.logger.warning("Not connected to sign")
+            return False
+            
+        try:
+            # Build Type E command packet
+            sign_id = self.sign_id.encode('ascii')
+            command_type = b'\x45'
+            function = bytes([WriteSpecialExtCommand.SET_TIME_FORMAT.value])
+            # 'S' for 24h, 'M' for 12h (per M-Protocol spec)
+            data = b'S' if format_24h else b'M'
+            etx = b'\x03'
+            
+            packet = (
+                b'\x00\x00\x00\x00\x00' +
+                sign_id +
+                command_type +
+                function +
+                data +
+                etx
+            )
+            
+            # Send command
+            self._drain_input_buffer()
+            self.socket.sendall(packet)
+            
+            format_str = "24-hour" if format_24h else "12-hour"
+            self.logger.debug(f"Sent set time format: {format_str}")
+            
+            # Wait for ACK/NAK
+            ack = self._read_acknowledgement()
+            
+            if ack == self.ACK:
+                self.logger.info(f"Time format set successfully: {format_str}")
+                self._send_eot()
+                return True
+            elif ack == self.NAK:
+                self.logger.error("Sign returned NAK for set time format")
+                return False
+            else:
+                self.logger.error("No acknowledgement received")
+                return False
+                
+        except Exception as e:
+            self.logger.error(f"Error setting time format: {e}")
+            return False
+
+    def set_run_mode(self, auto: bool = True) -> bool:
+        """
+        Set sign run mode to auto or manual (M-Protocol Type E, Function 0x2E).
+        
+        Args:
+            auto: True for auto mode (scheduled messages), False for manual mode
+            
+        Returns:
+            True if successful, False otherwise
+            
+        Note:
+            Auto mode allows the sign to display scheduled messages.
+            Manual mode keeps the sign displaying the current message.
+        """
+        if not self.connected or not self.socket:
+            self.logger.warning("Not connected to sign")
+            return False
+            
+        try:
+            # Build Type E command packet
+            sign_id = self.sign_id.encode('ascii')
+            command_type = b'\x45'
+            function = bytes([WriteSpecialExtCommand.SET_RUN_MODE.value])
+            # 'A' for auto, 'M' for manual
+            data = b'A' if auto else b'M'
+            etx = b'\x03'
+            
+            packet = (
+                b'\x00\x00\x00\x00\x00' +
+                sign_id +
+                command_type +
+                function +
+                data +
+                etx
+            )
+            
+            # Send command
+            self._drain_input_buffer()
+            self.socket.sendall(packet)
+            
+            mode_str = "auto" if auto else "manual"
+            self.logger.debug(f"Sent set run mode: {mode_str}")
+            
+            # Wait for ACK/NAK
+            ack = self._read_acknowledgement()
+            
+            if ack == self.ACK:
+                self.logger.info(f"Run mode set successfully: {mode_str}")
+                self._send_eot()
+                return True
+            elif ack == self.NAK:
+                self.logger.error("Sign returned NAK for set run mode")
+                return False
+            else:
+                self.logger.error("No acknowledgement received")
+                return False
+                
+        except Exception as e:
+            self.logger.error(f"Error setting run mode: {e}")
+            return False
+
+    def sync_time_with_system(self) -> bool:
+        """
+        Synchronize sign time with EAS Station system time.
+        
+        This is a convenience method that sets time, date, and day of week
+        all at once using the current system time.
+        
+        Returns:
+            True if all operations successful, False otherwise
+        """
+        self.logger.info("Synchronizing sign time with system time...")
+        
+        now = datetime.now()
+        
+        # Set time and date
+        if not self.set_time_and_date(now):
+            self.logger.error("Failed to set time and date")
+            return False
+            
+        # Set day of week
+        if not self.set_day_of_week():
+            self.logger.warning("Failed to set day of week (continuing anyway)")
+            # Don't fail completely if day of week doesn't work
+            
+        self.logger.info(f"Sign synchronized to: {now.strftime('%Y-%m-%d %H:%M:%S %A')}")
+        return True
 
     def get_status(self, check_health: bool = False) -> Dict:
         """

@@ -7,6 +7,17 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Added
+- **M-Protocol Phase 2: Time/Date Control** - Complete time and date management for Alpha LED signs
+  - Added `set_time_and_date()` method to set sign time and date (Type E, Function 0x20)
+  - Added `set_day_of_week()` method to set day of week 0-6 (Type E, Function 0x22)
+  - Added `set_time_format()` method to set 12h/24h time format (Type E, Function 0x27)
+  - Added `set_run_mode()` method to set auto/manual operation mode (Type E, Function 0x2E)
+  - Added `sync_time_with_system()` convenience method to sync sign with EAS Station time
+  - Added `WriteSpecialExtCommand` enum for M-Protocol Type E function codes
+  - All functions use bidirectional communication with ACK/NAK handling
+  - Created test script `scripts/test_alpha_timedate.py` for testing time control
+  - Added complete documentation in `docs/hardware/ALPHA_TIMEDATE_PHASE2.md`
+  - VERSION bumped to 2.25.0 (feature addition)
 - **M-Protocol Phase 1: Sign Diagnostics** - Alpha LED signs can now be queried for status and configuration
   - Added `read_serial_number()` method to read sign serial number (Type F, Function 0x24)
   - Added `read_model_number()` method to read sign model (Type F, Function 0x25)
