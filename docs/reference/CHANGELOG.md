@@ -7,6 +7,13 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **ACTUAL ROOT CAUSE: Poller .env override mismatch** - Fixed poller failing to load DATABASE_URL from .env file
+  - Changed `load_dotenv(override=False)` to `load_dotenv(override=True)` in poller/cap_poller.py (lines 131, 138)
+  - Poller was using override=False while app.py uses override=True, causing environment variable mismatch
+  - When poller imports from app.py, app.py's override=True happened AFTER poller's override=False
+  - This caused poller to use wrong/missing DATABASE_URL even though .env file was correct
+  - Other services work because they don't import app.py and use override=True directly
+  - VERSION bumped to 2.23.5 (bug fix)
 - **Auto-fix Password Authentication in update.sh** - update.sh now automatically syncs PostgreSQL password before running migrations
   - Added password sync step in update.sh before database migrations (line 617)
   - Runs `scripts/database/fix_database_user.sh` automatically to sync password from .env to PostgreSQL
