@@ -1105,6 +1105,12 @@ apt-get install -y \
     libevent-dev \
     libffi-dev \
     libssl-dev \
+    libxml2-dev \
+    libxslt1-dev \
+    libjpeg-dev \
+    zlib1g-dev \
+    libpng-dev \
+    libfreetype6-dev \
     postgresql \
     postgresql-contrib \
     postgis \
@@ -1126,6 +1132,9 @@ apt-get install -y \
     soapysdr-module-rtlsdr \
     soapysdr-module-airspy \
     libairspy0 \
+    i2c-tools \
+    python3-smbus \
+    python3-lgpio \
     git \
     curl \
     wget > /dev/null 2>&1
