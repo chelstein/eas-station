@@ -7,6 +7,15 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **Password Authentication Root Cause Identified** - Clarified that "password authentication failed" is a password mismatch, not network/IPv6 issue
+  - Updated documentation to explain that `OperationalError` means PostgreSQL rejected the password after connection succeeded
+  - Changed DATABASE_URL defaults from `localhost` to `127.0.0.1` to force IPv4 and improve consistency
+  - Updated `.env.example`, `install.sh`, `webapp/admin/environment.py`, and `scripts/profile_poller.py`
+  - Added `docs/troubleshooting/PASSWORD_MISMATCH.md` with detailed root cause analysis
+  - Updated `QUICK_DATABASE_FIX.md` to emphasize running fix script to sync passwords
+  - The fix script (`scripts/database/fix_database_user.sh`) extracts password from .env and updates PostgreSQL
+  - IPv6 (::1) connections work fine - the real issue is password mismatch between .env and PostgreSQL
+  - VERSION bumped to 2.23.3 (bug fix)
 - **Database Authentication Issues** - Fixed database connection failures during migrations and poller service startup
   - Changed poller service `EnvironmentFile` from optional (`-/opt/eas-station/.env`) to required (`/opt/eas-station/.env`)
   - Ensures DATABASE_URL is always loaded from environment file, preventing fallback to incorrect database usernames

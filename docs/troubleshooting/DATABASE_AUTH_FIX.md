@@ -3,12 +3,28 @@
 ## Issue
 Database authentication failures during migrations and service startup with error:
 ```
-FATAL: password authentication failed for user "eas_station"
+FATAL: password authentication failed for user "eas-station"
+connection to server at "localhost" (::1), port 5432 failed
 ```
 
 ## Root Causes
 
-### 1. Services Not Restarted After Configuration
+### 1. IPv6 Connection Issues (MOST COMMON)
+**The DATABASE_URL uses `localhost` which resolves to IPv6 (::1) first**, causing connection failures if PostgreSQL isn't properly configured for IPv6.
+
+**Solution:** Use `127.0.0.1` instead of `localhost` in your DATABASE_URL to force IPv4 connections.
+
+**Before (causes IPv6 issues):**
+```
+DATABASE_URL=postgresql+psycopg2://eas-station:PASSWORD@localhost:5432/alerts
+```
+
+**After (forces IPv4):**
+```
+DATABASE_URL=postgresql+psycopg2://eas-station:PASSWORD@127.0.0.1:5432/alerts
+```
+
+### 2. Services Not Restarted After Configuration
 The most likely cause is that services were running **before** the `.env` file was properly configured with DATABASE_URL. Services need to be restarted to load new environment variables.
 
 ### 2. Optional Environment File in Poller Service
@@ -115,7 +131,7 @@ The fix changes the poller service from optional to required.
 ### Database URL Format
 Your `.env` file should contain:
 ```
-DATABASE_URL=postgresql+psycopg2://eas-station:PASSWORD@localhost:5432/alerts
+DATABASE_URL=postgresql+psycopg2://eas-station:PASSWORD@127.0.0.1:5432/alerts
 ```
 
 Note the username is **eas-station** (with hyphen), not "eas_station" (with underscore).

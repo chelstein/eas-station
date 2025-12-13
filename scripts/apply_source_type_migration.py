@@ -29,7 +29,7 @@ Environment variables:
     DATABASE_URL (required) - Complete PostgreSQL connection URL
     
 Example:
-    DATABASE_URL=******localhost:5432/alerts python3 apply_source_type_migration.py
+    DATABASE_URL=******127.0.0.1:5432/alerts python3 apply_source_type_migration.py
 """
 
 import os

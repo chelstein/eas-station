@@ -17,7 +17,7 @@ project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, project_root)
 
 # Set minimal environment for testing
-os.environ['DATABASE_URL'] = os.getenv('DATABASE_URL', 'postgresql://postgres:postgres@localhost:5432/alerts')
+os.environ['DATABASE_URL'] = os.getenv('DATABASE_URL', 'postgresql+psycopg2://eas-station:change-me@127.0.0.1:5432/alerts')
 os.environ['CAP_POLLER_DEBUG_RECORDS'] = '0'  # Ensure debug records are disabled
 
 def profile_single_poll():
