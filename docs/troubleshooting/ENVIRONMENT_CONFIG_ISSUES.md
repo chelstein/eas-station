@@ -169,6 +169,76 @@ ICECAST_CONFIG={"source_password": "xyz123", "relay_password": "abc456", "admin_
 
 ---
 
+## Issue 4: Azure OpenAI TTS Configuration
+
+### Problem
+
+Users need to configure Azure OpenAI TTS endpoints and API keys for text-to-speech narration in EAS broadcasts. The configuration requires multiple values including endpoint URL, API key, model, voice, and speed.
+
+### Solution
+
+Use the `AZURE_OPENAI_CONFIG` JSON environment variable. This consolidated approach is cleaner and easier to manage than individual environment variables.
+
+#### Method 1: Using the Web UI (Recommended)
+
+1. **Navigate to** `/admin/environment` in the web interface
+2. **Find the "Text-to-Speech" section**
+3. **Click on "Azure OpenAI Configuration"**
+4. **Use the Builder tab** to fill in:
+   - **Endpoint URL**: Your full Azure OpenAI endpoint (e.g., `https://YOUR-RESOURCE.openai.azure.com/openai/deployments/YOUR-DEPLOYMENT/audio/speech?api-version=2025-03-01-preview`)
+   - **API Key**: Your Azure OpenAI API key
+   - **Model**: Usually `tts-1` or `tts-1-hd`
+   - **Voice**: Choose from `alloy`, `echo`, `fable`, `onyx`, `nova`, or `shimmer`
+   - **Speed**: Speech speed (0.25 to 4.0, default 1.0)
+5. **Save changes**
+
+The web UI provides a JSON builder that validates your configuration and makes it easy to edit.
+
+#### Method 2: Editing .env Directly
+
+Add or update the following line in your `.env` file:
+
+```bash
+AZURE_OPENAI_CONFIG={"endpoint": "https://YOUR-RESOURCE.openai.azure.com/openai/deployments/YOUR-DEPLOYMENT/audio/speech?api-version=2025-03-01-preview", "key": "YOUR_API_KEY", "model": "tts-1", "voice": "alloy", "speed": 1.05}
+```
+
+**Example with actual values:**
+```bash
+AZURE_OPENAI_CONFIG={"endpoint": "https://me-mho3uvw9-northcentralus.openai.azure.com/openai/deployments/tts-hd/audio/speech?api-version=2025-03-01-preview", "key": "sk-abc123xyz789...", "model": "tts-1", "voice": "alloy", "speed": 1.05}
+```
+
+### Important Notes
+
+1. **Endpoint Format**: The endpoint must include the full path with deployment name and API version:
+   ```
+   https://{resource-name}.openai.azure.com/openai/deployments/{deployment-name}/audio/speech?api-version={version}
+   ```
+
+2. **Backward Compatibility**: If you have existing individual environment variables (`AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_KEY`, etc.), they will still work. However, `AZURE_OPENAI_CONFIG` takes precedence if both are present.
+
+3. **Provider Selection**: Don't forget to set `EAS_TTS_PROVIDER=azure_openai` to use Azure OpenAI TTS.
+
+4. **Testing**: After configuration, test by creating a test EAS message in the web UI. Check the logs for any TTS errors.
+
+### Troubleshooting
+
+**"Azure OpenAI TTS credentials are missing"**
+- Verify the JSON is valid (use the web UI's JSON validator)
+- Ensure both `endpoint` and `key` fields are not empty
+- Check for typos in field names (must be lowercase)
+
+**"Could not extract deployment name from Azure endpoint"**
+- Your endpoint must include `/deployments/YOUR-DEPLOYMENT/` in the path
+- Example: `https://resource.openai.azure.com/openai/deployments/tts-hd/audio/speech?api-version=...`
+
+**"Azure OpenAI TTS is configured but synthesis failed"**
+- Verify your API key is correct
+- Check that the deployment name in the endpoint matches your Azure deployment
+- Ensure the API version is supported by your deployment
+- Review application logs for detailed error messages
+
+---
+
 ## General Troubleshooting
 
 ### How to Check Which Variables Are Being Used

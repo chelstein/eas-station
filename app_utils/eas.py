@@ -104,6 +104,10 @@ def load_eas_config(base_path: Optional[str] = None) -> Dict[str, object]:
     gpio_behavior_matrix = load_gpio_behavior_matrix_from_env()
 
     # Parse Azure OpenAI configuration from JSON or individual env vars
+    # Supports both:
+    # 1. AZURE_OPENAI_CONFIG (JSON): {"endpoint": "...", "key": "...", "model": "tts-1", "voice": "alloy", "speed": 1.05}
+    # 2. Individual env vars: AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_KEY, etc. (backward compatibility)
+    # JSON config takes precedence if both are present
     azure_openai_config = {}
     azure_openai_config_str = os.getenv('AZURE_OPENAI_CONFIG', '').strip()
     if azure_openai_config_str:
