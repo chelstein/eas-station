@@ -457,6 +457,26 @@ init_cache(app)
 # - Flask-SocketIO must use 'gevent' or None (auto-detect) to enable WebSocket transport
 # - Using 'threading' with gevent workers causes WebSockets to FAIL SILENTLY and fall back to polling
 from flask_socketio import SocketIO
+
+# Verify gevent is available (required for WebSocket functionality)
+try:
+    import gevent
+    logger.info("✓ gevent available - WebSocket support enabled")
+except ImportError as gevent_error:
+    logger.critical("=" * 80)
+    logger.critical("FATAL: gevent is not installed - WebSockets will NOT work!")
+    logger.critical("=" * 80)
+    logger.critical("gevent is REQUIRED for real-time WebSocket communication")
+    logger.critical("Import error details: %s", gevent_error)
+    logger.critical("Install gevent: cd /opt/eas-station && source venv/bin/activate && pip install 'gevent>=25.9.1'")
+    logger.critical("If gevent is installed but fails to import, check for C extension conflicts:")
+    logger.critical("  Run: /opt/eas-station/venv/bin/python3 /opt/eas-station/scripts/check_gevent_compat.py")
+    logger.critical("=" * 80)
+    # Don't raise exception here - this allows Flask CLI commands to work even without gevent.
+    # When gunicorn tries to use gevent worker class, it will fail immediately with:
+    # "ImportError: No module named 'gevent'" or similar greenlet C extension error.
+    # The pre-flight check in systemd service will catch this before gunicorn starts.
+
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent')
 
 
