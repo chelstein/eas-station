@@ -6,6 +6,16 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+### Fixed
+- **CAP Poller Service ModuleNotFoundError** - Fixed "No module named 'redis'" error on bare metal installations
+  - Updated `systemd/eas-station-poller.service` to use virtual environment Python interpreter
+  - Changed `ExecStart` from `/usr/bin/python3` to `/opt/eas-station/venv/bin/python`
+  - Added `PATH=/opt/eas-station/venv/bin:...` environment variable
+  - Added `PYTHONPATH=/opt/eas-station` environment variable
+  - Aligns poller service with other services (web, audio, eas, sdr, hardware)
+  - Resolves issue where system Python lacked required dependencies (redis, pytz, etc.)
+  - VERSION bumped to 2.23.1 (bug fix)
+
 ### Changed
 - **CAP Poller Refactored** - Removed non-polling responsibilities from CAP poller service
   - Removed direct EAS broadcasting (now handled by eas-service via Redis)
