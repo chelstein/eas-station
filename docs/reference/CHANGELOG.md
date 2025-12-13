@@ -7,6 +7,26 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **Installation Script Error Handling** - Added proper error checking for Python virtual environment creation
+  - Virtual environment creation now fails fast with clear error messages instead of silently continuing
+  - pip install commands now check for success and display detailed error logs on failure
+  - Prevents confusing errors later in installation when venv creation fails
+  - Logs saved to /tmp for debugging (venv-creation.log, pip-upgrade.log, pip-install.log)
+  - VERSION bumped to 2.27.2 (bug fix)
+- **Web Service Startup Timeout** - Fixed Gunicorn workers blocking during database initialization
+  - Removed import-time database initialization that caused workers to timeout
+  - Database initialization now happens lazily on first request via before_request hook
+  - Uses thread-safe double-checked locking to ensure initialization happens exactly once
+  - Prevents 504 Gateway Timeout errors during service startup
+  - VERSION bumped to 2.27.2 (bug fix)
+
+### Improved
+- **Startup Logging** - Enhanced diagnostic logging to help identify blocking issues during application startup
+  - Added startup banner showing process ID
+  - Added checkpoint logs at key initialization steps (✓ for success, ⊘ for skipped, ✗ for errors)
+  - Added module import completion log to confirm app.py loads successfully
+  - Helps diagnose silent failures that block Gunicorn workers
+  - Makes it clear in logs where startup process is hanging
 - **Web Service Startup Issue** - Fixed systemd service configuration preventing web app from fully starting
   - Changed `Type=notify` to `Type=simple` in `systemd/eas-station-web.service`
   - Gunicorn with gevent workers doesn't support systemd notify protocol
