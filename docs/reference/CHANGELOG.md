@@ -7,6 +7,27 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Added
+- **M-Protocol Phases 3-5: Complete Advanced Control** - Final implementation of speaker, brightness, and file management
+  - **Phase 3: Speaker/Beep Control**
+    - Added `set_speaker()` method to enable/disable speaker (Type E, Function 0x23)
+    - Added `beep()` convenience method to make sign beep for alerts
+    - Audio alerts for emergencies and notifications
+  - **Phase 4: Brightness Control**
+    - Added `set_brightness()` method to set brightness 0-100% or auto mode (Type E, Function 0x30)
+    - Manual brightness control with percentage levels
+    - Auto brightness mode for ambient light adaptation
+    - Night mode and energy saving capabilities
+  - **Phase 5: File Management**
+    - Added `read_text_file()` method to read text from file labels (Type B, Function 0x42)
+    - Query current display content
+    - Read user-defined text files (0-9, A-Z)
+  - Added `ReadTextCommand` enum for M-Protocol Type B function codes
+  - Extended `WriteSpecialExtCommand` enum with speaker and brightness functions
+  - Created comprehensive test script `scripts/test_alpha_advanced.py` for all advanced features
+  - Added complete documentation in `docs/hardware/ALPHA_ADVANCED_PHASES3-5.md`
+  - Integration examples for emergency alerts, auto-dimming, and business hours automation
+  - M-Protocol implementation now production-ready with full sign control
+  - VERSION bumped to 2.26.0 (feature addition)
 - **M-Protocol Phase 2: Time/Date Control** - Complete time and date management for Alpha LED signs
   - Added `set_time_and_date()` method to set sign time and date (Type E, Function 0x20)
   - Added `set_day_of_week()` method to set day of week 0-6 (Type E, Function 0x22)

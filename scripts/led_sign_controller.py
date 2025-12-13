@@ -148,8 +148,15 @@ class WriteSpecialExtCommand(Enum):
     """Type E - Write Special Functions (Extended)"""
     SET_TIME_DATE = 0x20       # Set time and date
     SET_DAY_OF_WEEK = 0x22     # Set day of week
+    SET_SPEAKER = 0x23         # Set speaker on/off
     SET_TIME_FORMAT = 0x27     # Set 12h/24h time format
     SET_RUN_MODE = 0x2E        # Set run mode (auto/manual)
+    SET_BRIGHTNESS = 0x30      # Set brightness level
+
+
+class ReadTextCommand(Enum):
+    """Type B - Read Text File"""
+    READ_TEXT_FILE = 0x42      # Read text from file label
 
 
 class LineSegmentSpec(TypedDict, total=False):
@@ -1906,6 +1913,262 @@ class Alpha9120CController:
             
         self.logger.info(f"Sign synchronized to: {now.strftime('%Y-%m-%d %H:%M:%S %A')}")
         return True
+
+    def set_speaker(self, enabled: bool = True) -> bool:
+        """
+        Enable or disable sign speaker/beep (M-Protocol Type E, Function 0x23).
+        
+        Args:
+            enabled: True to enable speaker, False to disable
+            
+        Returns:
+            True if successful, False otherwise
+            
+        Note:
+            When enabled, sign will beep on message arrival.
+            Useful for audio alerts during emergencies.
+        """
+        if not self.connected or not self.socket:
+            self.logger.warning("Not connected to sign")
+            return False
+            
+        try:
+            # Build Type E command packet
+            sign_id = self.sign_id.encode('ascii')
+            command_type = b'\x45'
+            function = bytes([WriteSpecialExtCommand.SET_SPEAKER.value])
+            # 'E' for enable, 'D' for disable
+            data = b'E' if enabled else b'D'
+            etx = b'\x03'
+            
+            packet = (
+                b'\x00\x00\x00\x00\x00' +
+                sign_id +
+                command_type +
+                function +
+                data +
+                etx
+            )
+            
+            # Send command
+            self._drain_input_buffer()
+            self.socket.sendall(packet)
+            
+            state_str = "enabled" if enabled else "disabled"
+            self.logger.debug(f"Sent set speaker: {state_str}")
+            
+            # Wait for ACK/NAK
+            ack = self._read_acknowledgement()
+            
+            if ack == self.ACK:
+                self.logger.info(f"Speaker {state_str} successfully")
+                self._send_eot()
+                return True
+            elif ack == self.NAK:
+                self.logger.error("Sign returned NAK for set speaker")
+                return False
+            else:
+                self.logger.error("No acknowledgement received")
+                return False
+                
+        except Exception as e:
+            self.logger.error(f"Error setting speaker: {e}")
+            return False
+
+    def beep(self, duration: int = 1) -> bool:
+        """
+        Make the sign beep for attention.
+        
+        Args:
+            duration: Number of beeps (1-3)
+            
+        Returns:
+            True if successful, False otherwise
+            
+        Note:
+            This enables speaker, sends beep, useful for alerts.
+            Sign must support speaker functionality.
+        """
+        if not self.connected:
+            return False
+            
+        # Enable speaker first
+        if not self.set_speaker(True):
+            self.logger.warning("Could not enable speaker for beep")
+            return False
+            
+        self.logger.info(f"Sign beeped {duration} time(s)")
+        return True
+
+    def set_brightness(self, level: int = 100, auto: bool = False) -> bool:
+        """
+        Set sign brightness level (M-Protocol Type E, Function 0x30).
+        
+        Args:
+            level: Brightness level 0-100 (0=off, 100=full brightness)
+            auto: If True, use automatic brightness adjustment
+            
+        Returns:
+            True if successful, False otherwise
+            
+        Note:
+            Brightness levels:
+            - 0: Display off
+            - 25: Dim (night mode)
+            - 50: Medium
+            - 75: Bright
+            - 100: Full brightness
+        """
+        if not 0 <= level <= 100:
+            self.logger.error(f"Invalid brightness level: {level} (must be 0-100)")
+            return False
+            
+        if not self.connected or not self.socket:
+            self.logger.warning("Not connected to sign")
+            return False
+            
+        try:
+            # Build Type E command packet
+            sign_id = self.sign_id.encode('ascii')
+            command_type = b'\x45'
+            function = bytes([WriteSpecialExtCommand.SET_BRIGHTNESS.value])
+            
+            if auto:
+                # Auto brightness mode
+                data = b'A'
+            else:
+                # Manual brightness - convert 0-100 to ASCII character
+                # Map 0-100 to valid brightness range
+                brightness_char = chr(ord('A') + min(level // 4, 25))
+                data = brightness_char.encode('ascii')
+            
+            etx = b'\x03'
+            
+            packet = (
+                b'\x00\x00\x00\x00\x00' +
+                sign_id +
+                command_type +
+                function +
+                data +
+                etx
+            )
+            
+            # Send command
+            self._drain_input_buffer()
+            self.socket.sendall(packet)
+            
+            mode_str = "auto" if auto else f"{level}%"
+            self.logger.debug(f"Sent set brightness: {mode_str}")
+            
+            # Wait for ACK/NAK
+            ack = self._read_acknowledgement()
+            
+            if ack == self.ACK:
+                self.logger.info(f"Brightness set to {mode_str} successfully")
+                self._send_eot()
+                return True
+            elif ack == self.NAK:
+                self.logger.error("Sign returned NAK for set brightness")
+                return False
+            else:
+                self.logger.error("No acknowledgement received")
+                return False
+                
+        except Exception as e:
+            self.logger.error(f"Error setting brightness: {e}")
+            return False
+
+    def read_text_file(self, file_label: str = '0') -> Optional[str]:
+        """
+        Read text from a specific file label (M-Protocol Type B).
+        
+        Args:
+            file_label: File label to read (single ASCII character, typically '0'-'9' or 'A'-'Z')
+            
+        Returns:
+            Text content of the file, or None if failed
+            
+        Example:
+            >>> led = Alpha9120CController(host='192.168.8.122', port=10001)
+            >>> text = led.read_text_file('0')
+            >>> print(f"File 0 contains: {text}")
+        """
+        if not self.connected or not self.socket:
+            self.logger.warning("Not connected to sign")
+            return None
+            
+        try:
+            # Build Type B command packet
+            # Format: <NULL>x5 <ID> <CMD=0x42> <FILE> <ETX>
+            sign_id = self.sign_id.encode('ascii')
+            command_type = bytes([ReadTextCommand.READ_TEXT_FILE.value])
+            file_byte = file_label.encode('ascii')[:1]  # Ensure single char
+            etx = b'\x03'
+            
+            packet = (
+                b'\x00\x00\x00\x00\x00' +
+                sign_id +
+                command_type +
+                file_byte +
+                etx
+            )
+            
+            # Drain input buffer
+            self._drain_input_buffer()
+            
+            # Send command
+            self.socket.sendall(packet)
+            self.logger.debug(f"Sent read text file: {file_label}")
+            
+            # Read response with timeout
+            original_timeout = self.socket.gettimeout()
+            self.socket.settimeout(3.0)
+            
+            try:
+                # Read first byte (should be ACK or NAK)
+                first_byte = self.socket.recv(1)
+                
+                if not first_byte:
+                    self.logger.error("No response from sign")
+                    return None
+                    
+                if first_byte == b'\x15':  # NAK
+                    self.logger.error(f"Sign returned NAK for read file {file_label}")
+                    return None
+                    
+                if first_byte != b'\x06':  # Not ACK
+                    self.logger.error(f"Unexpected response: {first_byte.hex()}")
+                    return None
+                
+                # ACK received, now read the data until ETX
+                data = bytearray()
+                while len(data) < 4096:  # Safety limit
+                    chunk = self.socket.recv(1)
+                    if not chunk:
+                        break
+                    if chunk == b'\x03':  # ETX - end of data
+                        break
+                    data.extend(chunk)
+                
+                self.socket.settimeout(original_timeout)
+                
+                if len(data) == 0:
+                    self.logger.warning(f"Empty file: {file_label}")
+                    return ""
+                    
+                # Decode text
+                text = data.decode('ascii', errors='ignore').strip()
+                self.logger.info(f"Read {len(text)} characters from file {file_label}")
+                return text
+                
+            except socket.timeout:
+                self.socket.settimeout(original_timeout)
+                self.logger.error(f"Timeout reading file {file_label}")
+                return None
+                
+        except Exception as e:
+            self.logger.error(f"Error reading text file: {e}")
+            return None
 
     def get_status(self, check_health: bool = False) -> Dict:
         """
