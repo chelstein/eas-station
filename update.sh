@@ -19,7 +19,7 @@ NC='\033[0m' # No Color
 
 # Step counter for progress tracking
 STEP_NUM=0
-TOTAL_STEPS=11
+TOTAL_STEPS=12
 
 echo_step() {
     STEP_NUM=$((STEP_NUM + 1))
@@ -275,6 +275,46 @@ else
         exit 0
     fi
 fi
+
+# Update system dependencies
+echo_step "Updating System Dependencies"
+echo_progress "Checking for new system packages..."
+
+apt-get update > /dev/null 2>&1
+
+# Install all required system dependencies (matches install.sh)
+# This ensures new dependencies added in updates are installed
+apt-get install -y \
+    python3-dev \
+    build-essential \
+    libpq-dev \
+    libev-dev \
+    libevent-dev \
+    libffi-dev \
+    libssl-dev \
+    libxml2-dev \
+    libxslt1-dev \
+    libjpeg-dev \
+    zlib1g-dev \
+    libpng-dev \
+    libfreetype6-dev \
+    ffmpeg \
+    espeak \
+    libespeak-ng1 \
+    libusb-1.0-0 \
+    libusb-1.0-0-dev \
+    python3-numpy \
+    python3-soapysdr \
+    soapysdr-tools \
+    rtl-sdr \
+    soapysdr-module-rtlsdr \
+    soapysdr-module-airspy \
+    libairspy0 \
+    i2c-tools \
+    python3-smbus \
+    python3-lgpio > /dev/null 2>&1
+
+echo_success "System dependencies up to date"
 
 # Create backup
 echo_step "Creating Backup"

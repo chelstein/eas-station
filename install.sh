@@ -1129,6 +1129,7 @@ apt-get install -y \
     python3-numpy \
     python3-soapysdr \
     soapysdr-tools \
+    rtl-sdr \
     soapysdr-module-rtlsdr \
     soapysdr-module-airspy \
     libairspy0 \
