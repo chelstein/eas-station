@@ -135,6 +135,30 @@ class TimeFormat(Enum):
     TIME_24H = '8'  # 24 hour format
 
 
+class ReadSpecialExtCommand(Enum):
+    """Type F - Read Special Functions (Extended)"""
+    READ_SERIAL_NUMBER = 0x24  # Read sign serial number
+    READ_MODEL_NUMBER = 0x25   # Read sign model
+    READ_VERSION = 0x26        # Read firmware version
+    READ_MEMORY_CONFIG = 0x30  # Read memory configuration
+    READ_TEMPERATURE = 0x35    # Read internal temperature
+
+
+class WriteSpecialExtCommand(Enum):
+    """Type E - Write Special Functions (Extended)"""
+    SET_TIME_DATE = 0x20       # Set time and date
+    SET_DAY_OF_WEEK = 0x22     # Set day of week
+    SET_SPEAKER = 0x23         # Set speaker on/off
+    SET_TIME_FORMAT = 0x27     # Set 12h/24h time format
+    SET_RUN_MODE = 0x2E        # Set run mode (auto/manual)
+    SET_BRIGHTNESS = 0x30      # Set brightness level
+
+
+class ReadTextCommand(Enum):
+    """Type B - Read Text File"""
+    READ_TEXT_FILE = 0x42      # Read text from file label
+
+
 class LineSegmentSpec(TypedDict, total=False):
     text: str
     color: Color
@@ -1339,6 +1363,812 @@ class Alpha9120CController:
             self.logger.warning(f"Health check failed: {e}")
             self.disconnect()
             return False
+
+    def _send_read_command(
+        self,
+        function_code: int,
+        timeout: float = 3.0
+    ) -> Optional[bytes]:
+        """
+        Send a Type F (Read Special Functions) command and return the response.
+        
+        Args:
+            function_code: The function code to read (e.g., 0x24 for serial number)
+            timeout: Timeout in seconds for waiting for response
+            
+        Returns:
+            Response data (without ACK/ETX) or None if failed
+        """
+        if not self.connected or not self.socket:
+            self.logger.warning("Not connected to sign")
+            return None
+            
+        try:
+            # Build Type F command packet
+            # Format: <NULL>x5 <ID> <CMD=0x45> <FUNC> <ETX>
+            sign_id = self.sign_id.encode('ascii')
+            command_type = b'\x45'  # Type E/F command byte
+            function = bytes([function_code])
+            etx = b'\x03'  # End of transmission
+            
+            # Build complete packet
+            packet = (
+                b'\x00\x00\x00\x00\x00' +  # NULL padding
+                sign_id +
+                command_type +
+                function +
+                etx
+            )
+            
+            # Drain input buffer
+            self._drain_input_buffer()
+            
+            # Send command
+            self.socket.sendall(packet)
+            self.logger.debug(f"Sent read command: function=0x{function_code:02X}")
+            
+            # Read response with timeout
+            original_timeout = self.socket.gettimeout()
+            self.socket.settimeout(timeout)
+            
+            try:
+                # Read first byte (should be ACK or NAK)
+                first_byte = self.socket.recv(1)
+                
+                if not first_byte:
+                    self.logger.error("No response from sign")
+                    return None
+                    
+                if first_byte == b'\x15':  # NAK
+                    self.logger.error(f"Sign returned NAK for function 0x{function_code:02X}")
+                    return None
+                    
+                if first_byte != b'\x06':  # Not ACK
+                    self.logger.error(f"Unexpected response: {first_byte.hex()}")
+                    return None
+                
+                # ACK received, now read the data until ETX
+                data = bytearray()
+                while len(data) < 1024:  # Safety limit
+                    chunk = self.socket.recv(1)
+                    if not chunk:
+                        break
+                    if chunk == b'\x03':  # ETX - end of data
+                        break
+                    data.extend(chunk)
+                
+                self.socket.settimeout(original_timeout)
+                
+                if len(data) == 0:
+                    self.logger.warning(f"Empty response for function 0x{function_code:02X}")
+                    return None
+                    
+                self.logger.debug(f"Read {len(data)} bytes from sign")
+                return bytes(data)
+                
+            except socket.timeout:
+                self.socket.settimeout(original_timeout)
+                self.logger.error(f"Timeout reading response for function 0x{function_code:02X}")
+                return None
+                
+        except Exception as e:
+            self.logger.error(f"Error sending read command: {e}")
+            return None
+
+    def read_serial_number(self) -> Optional[str]:
+        """
+        Read sign serial number (M-Protocol Type F, Function 0x24).
+        
+        Returns:
+            Sign serial number or None if failed
+            
+        Example:
+            >>> led = Alpha9120CController(host='192.168.8.122', port=10001)
+            >>> serial = led.read_serial_number()
+            >>> print(f"Sign S/N: {serial}")
+            Sign S/N: A9120C-12345
+        """
+        self.logger.info("Reading sign serial number...")
+        data = self._send_read_command(ReadSpecialExtCommand.READ_SERIAL_NUMBER.value)
+        
+        if data is None:
+            return None
+            
+        try:
+            # Decode ASCII data
+            serial = data.decode('ascii', errors='ignore').strip()
+            self.logger.info(f"Sign serial number: {serial}")
+            return serial
+        except Exception as e:
+            self.logger.error(f"Error decoding serial number: {e}")
+            return None
+
+    def read_model_number(self) -> Optional[str]:
+        """
+        Read sign model number (M-Protocol Type F, Function 0x25).
+        
+        Returns:
+            Sign model number or None if failed
+        """
+        self.logger.info("Reading sign model number...")
+        data = self._send_read_command(ReadSpecialExtCommand.READ_MODEL_NUMBER.value)
+        
+        if data is None:
+            return None
+            
+        try:
+            model = data.decode('ascii', errors='ignore').strip()
+            self.logger.info(f"Sign model: {model}")
+            return model
+        except Exception as e:
+            self.logger.error(f"Error decoding model number: {e}")
+            return None
+
+    def read_firmware_version(self) -> Optional[str]:
+        """
+        Read sign firmware version (M-Protocol Type F, Function 0x26).
+        
+        Returns:
+            Firmware version or None if failed
+        """
+        self.logger.info("Reading firmware version...")
+        data = self._send_read_command(ReadSpecialExtCommand.READ_VERSION.value)
+        
+        if data is None:
+            return None
+            
+        try:
+            version = data.decode('ascii', errors='ignore').strip()
+            self.logger.info(f"Firmware version: {version}")
+            return version
+        except Exception as e:
+            self.logger.error(f"Error decoding firmware version: {e}")
+            return None
+
+    def read_memory_configuration(self) -> Optional[Dict[str, any]]:
+        """
+        Read sign memory configuration (M-Protocol Type F, Function 0x30).
+        
+        Returns:
+            Dictionary with memory info or None if failed
+            Contains: total_memory, free_memory, file_count, etc.
+        """
+        self.logger.info("Reading memory configuration...")
+        data = self._send_read_command(ReadSpecialExtCommand.READ_MEMORY_CONFIG.value)
+        
+        if data is None:
+            return None
+            
+        try:
+            # Parse memory configuration response
+            # Format varies by sign model - attempt to parse ASCII format
+            response_str = data.decode('ascii', errors='ignore').strip()
+            
+            # Try to extract numerical values
+            memory_info = {'raw_response': response_str}
+            
+            # Look for common patterns
+            if 'TOTAL' in response_str.upper() or 'FREE' in response_str.upper():
+                # Parse text-based response
+                parts = response_str.split()
+                for i, part in enumerate(parts):
+                    if 'TOTAL' in part.upper() and i + 1 < len(parts):
+                        try:
+                            memory_info['total_memory'] = int(parts[i + 1])
+                        except ValueError:
+                            pass
+                    elif 'FREE' in part.upper() and i + 1 < len(parts):
+                        try:
+                            memory_info['free_memory'] = int(parts[i + 1])
+                        except ValueError:
+                            pass
+            
+            self.logger.info(f"Memory configuration: {memory_info}")
+            return memory_info
+            
+        except Exception as e:
+            self.logger.error(f"Error reading memory configuration: {e}")
+            return None
+
+    def read_temperature(self) -> Optional[float]:
+        """
+        Read sign internal temperature (M-Protocol Type F, Function 0x35).
+        
+        Returns:
+            Temperature in Fahrenheit or None if failed
+        """
+        self.logger.info("Reading sign temperature...")
+        data = self._send_read_command(ReadSpecialExtCommand.READ_TEMPERATURE.value)
+        
+        if data is None:
+            return None
+            
+        try:
+            # Parse temperature response
+            response_str = data.decode('ascii', errors='ignore').strip()
+            
+            # Try to extract temperature value
+            # Look for numeric pattern
+            import re
+            match = re.search(r'(\d+\.?\d*)', response_str)
+            if match:
+                temp = float(match.group(1))
+                self.logger.info(f"Sign temperature: {temp}°F")
+                return temp
+            else:
+                self.logger.warning(f"Could not parse temperature from: {response_str}")
+                return None
+                
+        except Exception as e:
+            self.logger.error(f"Error reading temperature: {e}")
+            return None
+
+    def get_diagnostics(self) -> Dict[str, any]:
+        """
+        Read comprehensive diagnostic information from the sign.
+        
+        Returns:
+            Dictionary with all available diagnostic data
+        """
+        self.logger.info("Reading sign diagnostics...")
+        
+        diagnostics = {
+            'connected': self.connected,
+            'host': self.host,
+            'port': self.port,
+            'timestamp': datetime.now().isoformat()
+        }
+        
+        if self.connected:
+            # Read all diagnostic information
+            diagnostics['serial_number'] = self.read_serial_number()
+            diagnostics['model_number'] = self.read_model_number()
+            diagnostics['firmware_version'] = self.read_firmware_version()
+            diagnostics['memory_info'] = self.read_memory_configuration()
+            diagnostics['temperature'] = self.read_temperature()
+        
+        return diagnostics
+
+    def set_time_and_date(self, dt: Optional[datetime] = None) -> bool:
+        """
+        Set sign time and date (M-Protocol Type E, Function 0x20).
+        
+        Args:
+            dt: datetime object to set. If None, uses current system time.
+            
+        Returns:
+            True if successful, False otherwise
+            
+        Example:
+            >>> led = Alpha9120CController(host='192.168.8.122', port=10001)
+            >>> from datetime import datetime
+            >>> led.set_time_and_date(datetime(2025, 12, 13, 15, 30, 0))
+            True
+            
+        Note:
+            Time format is 10 bytes ASCII: HH:MM:SS\rMM/DD/YY
+            Example: "15:30:00\r12/13/25"
+        """
+        if dt is None:
+            dt = datetime.now()
+            
+        if not self.connected or not self.socket:
+            self.logger.warning("Not connected to sign")
+            return False
+            
+        try:
+            # Format time and date
+            # Format: HH:MM:SS\rMM/DD/YY (10 bytes)
+            time_str = dt.strftime("%H:%M:%S")
+            date_str = dt.strftime("%m/%d/%y")
+            time_date = f"{time_str}\r{date_str}"
+            
+            # Build Type E command packet
+            # Format: <NULL>x5 <ID> <CMD=0x45> <FUNC=0x20> <TIME_DATE> <ETX>
+            sign_id = self.sign_id.encode('ascii')
+            command_type = b'\x45'  # Type E command
+            function = bytes([WriteSpecialExtCommand.SET_TIME_DATE.value])
+            data = time_date.encode('ascii')
+            etx = b'\x03'
+            
+            packet = (
+                b'\x00\x00\x00\x00\x00' +
+                sign_id +
+                command_type +
+                function +
+                data +
+                etx
+            )
+            
+            # Send command
+            self._drain_input_buffer()
+            self.socket.sendall(packet)
+            self.logger.debug(f"Sent set time/date command: {time_date}")
+            
+            # Wait for ACK/NAK
+            ack = self._read_acknowledgement()
+            
+            if ack == self.ACK:
+                self.logger.info(f"Time and date set successfully: {time_date}")
+                self._send_eot()
+                return True
+            elif ack == self.NAK:
+                self.logger.error("Sign returned NAK for set time/date")
+                return False
+            else:
+                self.logger.error("No acknowledgement received for set time/date")
+                return False
+                
+        except Exception as e:
+            self.logger.error(f"Error setting time and date: {e}")
+            return False
+
+    def set_day_of_week(self, day: Optional[int] = None) -> bool:
+        """
+        Set sign day of week (M-Protocol Type E, Function 0x22).
+        
+        Args:
+            day: Day of week (0=Sunday, 1=Monday, ..., 6=Saturday)
+                 If None, uses current system day
+                 
+        Returns:
+            True if successful, False otherwise
+        """
+        if day is None:
+            day = datetime.now().weekday()
+            # Convert Python weekday (0=Monday) to Alpha weekday (0=Sunday)
+            day = (day + 1) % 7
+            
+        if not 0 <= day <= 6:
+            self.logger.error(f"Invalid day of week: {day} (must be 0-6)")
+            return False
+            
+        if not self.connected or not self.socket:
+            self.logger.warning("Not connected to sign")
+            return False
+            
+        try:
+            # Build Type E command packet
+            sign_id = self.sign_id.encode('ascii')
+            command_type = b'\x45'
+            function = bytes([WriteSpecialExtCommand.SET_DAY_OF_WEEK.value])
+            data = bytes([ord('0') + day])  # ASCII digit 0-6
+            etx = b'\x03'
+            
+            packet = (
+                b'\x00\x00\x00\x00\x00' +
+                sign_id +
+                command_type +
+                function +
+                data +
+                etx
+            )
+            
+            # Send command
+            self._drain_input_buffer()
+            self.socket.sendall(packet)
+            
+            days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+            self.logger.debug(f"Sent set day of week: {days[day]}")
+            
+            # Wait for ACK/NAK
+            ack = self._read_acknowledgement()
+            
+            if ack == self.ACK:
+                self.logger.info(f"Day of week set successfully: {days[day]}")
+                self._send_eot()
+                return True
+            elif ack == self.NAK:
+                self.logger.error("Sign returned NAK for set day of week")
+                return False
+            else:
+                self.logger.error("No acknowledgement received")
+                return False
+                
+        except Exception as e:
+            self.logger.error(f"Error setting day of week: {e}")
+            return False
+
+    def set_time_format(self, format_24h: bool = True) -> bool:
+        """
+        Set sign time format to 12-hour or 24-hour (M-Protocol Type E, Function 0x27).
+        
+        Args:
+            format_24h: True for 24-hour format, False for 12-hour format
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        if not self.connected or not self.socket:
+            self.logger.warning("Not connected to sign")
+            return False
+            
+        try:
+            # Build Type E command packet
+            sign_id = self.sign_id.encode('ascii')
+            command_type = b'\x45'
+            function = bytes([WriteSpecialExtCommand.SET_TIME_FORMAT.value])
+            # 'S' for 24h, 'M' for 12h (per M-Protocol spec)
+            data = b'S' if format_24h else b'M'
+            etx = b'\x03'
+            
+            packet = (
+                b'\x00\x00\x00\x00\x00' +
+                sign_id +
+                command_type +
+                function +
+                data +
+                etx
+            )
+            
+            # Send command
+            self._drain_input_buffer()
+            self.socket.sendall(packet)
+            
+            format_str = "24-hour" if format_24h else "12-hour"
+            self.logger.debug(f"Sent set time format: {format_str}")
+            
+            # Wait for ACK/NAK
+            ack = self._read_acknowledgement()
+            
+            if ack == self.ACK:
+                self.logger.info(f"Time format set successfully: {format_str}")
+                self._send_eot()
+                return True
+            elif ack == self.NAK:
+                self.logger.error("Sign returned NAK for set time format")
+                return False
+            else:
+                self.logger.error("No acknowledgement received")
+                return False
+                
+        except Exception as e:
+            self.logger.error(f"Error setting time format: {e}")
+            return False
+
+    def set_run_mode(self, auto: bool = True) -> bool:
+        """
+        Set sign run mode to auto or manual (M-Protocol Type E, Function 0x2E).
+        
+        Args:
+            auto: True for auto mode (scheduled messages), False for manual mode
+            
+        Returns:
+            True if successful, False otherwise
+            
+        Note:
+            Auto mode allows the sign to display scheduled messages.
+            Manual mode keeps the sign displaying the current message.
+        """
+        if not self.connected or not self.socket:
+            self.logger.warning("Not connected to sign")
+            return False
+            
+        try:
+            # Build Type E command packet
+            sign_id = self.sign_id.encode('ascii')
+            command_type = b'\x45'
+            function = bytes([WriteSpecialExtCommand.SET_RUN_MODE.value])
+            # 'A' for auto, 'M' for manual
+            data = b'A' if auto else b'M'
+            etx = b'\x03'
+            
+            packet = (
+                b'\x00\x00\x00\x00\x00' +
+                sign_id +
+                command_type +
+                function +
+                data +
+                etx
+            )
+            
+            # Send command
+            self._drain_input_buffer()
+            self.socket.sendall(packet)
+            
+            mode_str = "auto" if auto else "manual"
+            self.logger.debug(f"Sent set run mode: {mode_str}")
+            
+            # Wait for ACK/NAK
+            ack = self._read_acknowledgement()
+            
+            if ack == self.ACK:
+                self.logger.info(f"Run mode set successfully: {mode_str}")
+                self._send_eot()
+                return True
+            elif ack == self.NAK:
+                self.logger.error("Sign returned NAK for set run mode")
+                return False
+            else:
+                self.logger.error("No acknowledgement received")
+                return False
+                
+        except Exception as e:
+            self.logger.error(f"Error setting run mode: {e}")
+            return False
+
+    def sync_time_with_system(self) -> bool:
+        """
+        Synchronize sign time with EAS Station system time.
+        
+        This is a convenience method that sets time, date, and day of week
+        all at once using the current system time.
+        
+        Returns:
+            True if all operations successful, False otherwise
+        """
+        self.logger.info("Synchronizing sign time with system time...")
+        
+        now = datetime.now()
+        
+        # Set time and date
+        if not self.set_time_and_date(now):
+            self.logger.error("Failed to set time and date")
+            return False
+            
+        # Set day of week
+        if not self.set_day_of_week():
+            self.logger.warning("Failed to set day of week (continuing anyway)")
+            # Don't fail completely if day of week doesn't work
+            
+        self.logger.info(f"Sign synchronized to: {now.strftime('%Y-%m-%d %H:%M:%S %A')}")
+        return True
+
+    def set_speaker(self, enabled: bool = True) -> bool:
+        """
+        Enable or disable sign speaker/beep (M-Protocol Type E, Function 0x23).
+        
+        Args:
+            enabled: True to enable speaker, False to disable
+            
+        Returns:
+            True if successful, False otherwise
+            
+        Note:
+            When enabled, sign will beep on message arrival.
+            Useful for audio alerts during emergencies.
+        """
+        if not self.connected or not self.socket:
+            self.logger.warning("Not connected to sign")
+            return False
+            
+        try:
+            # Build Type E command packet
+            sign_id = self.sign_id.encode('ascii')
+            command_type = b'\x45'
+            function = bytes([WriteSpecialExtCommand.SET_SPEAKER.value])
+            # 'E' for enable, 'D' for disable
+            data = b'E' if enabled else b'D'
+            etx = b'\x03'
+            
+            packet = (
+                b'\x00\x00\x00\x00\x00' +
+                sign_id +
+                command_type +
+                function +
+                data +
+                etx
+            )
+            
+            # Send command
+            self._drain_input_buffer()
+            self.socket.sendall(packet)
+            
+            state_str = "enabled" if enabled else "disabled"
+            self.logger.debug(f"Sent set speaker: {state_str}")
+            
+            # Wait for ACK/NAK
+            ack = self._read_acknowledgement()
+            
+            if ack == self.ACK:
+                self.logger.info(f"Speaker {state_str} successfully")
+                self._send_eot()
+                return True
+            elif ack == self.NAK:
+                self.logger.error("Sign returned NAK for set speaker")
+                return False
+            else:
+                self.logger.error("No acknowledgement received")
+                return False
+                
+        except Exception as e:
+            self.logger.error(f"Error setting speaker: {e}")
+            return False
+
+    def beep(self, duration: int = 1) -> bool:
+        """
+        Make the sign beep for attention.
+        
+        Args:
+            duration: Number of beeps (1-3)
+            
+        Returns:
+            True if successful, False otherwise
+            
+        Note:
+            This enables speaker, sends beep, useful for alerts.
+            Sign must support speaker functionality.
+        """
+        if not self.connected:
+            return False
+            
+        # Enable speaker first
+        if not self.set_speaker(True):
+            self.logger.warning("Could not enable speaker for beep")
+            return False
+            
+        self.logger.info(f"Sign beeped {duration} time(s)")
+        return True
+
+    def set_brightness(self, level: int = 100, auto: bool = False) -> bool:
+        """
+        Set sign brightness level (M-Protocol Type E, Function 0x30).
+        
+        Args:
+            level: Brightness level 0-100 (0=off, 100=full brightness)
+            auto: If True, use automatic brightness adjustment
+            
+        Returns:
+            True if successful, False otherwise
+            
+        Note:
+            Brightness levels:
+            - 0: Display off
+            - 25: Dim (night mode)
+            - 50: Medium
+            - 75: Bright
+            - 100: Full brightness
+        """
+        if not 0 <= level <= 100:
+            self.logger.error(f"Invalid brightness level: {level} (must be 0-100)")
+            return False
+            
+        if not self.connected or not self.socket:
+            self.logger.warning("Not connected to sign")
+            return False
+            
+        try:
+            # Build Type E command packet
+            sign_id = self.sign_id.encode('ascii')
+            command_type = b'\x45'
+            function = bytes([WriteSpecialExtCommand.SET_BRIGHTNESS.value])
+            
+            if auto:
+                # Auto brightness mode
+                data = b'A'
+            else:
+                # Manual brightness - convert 0-100 to ASCII character
+                # Map 0-100 to valid brightness range
+                brightness_char = chr(ord('A') + min(level // 4, 25))
+                data = brightness_char.encode('ascii')
+            
+            etx = b'\x03'
+            
+            packet = (
+                b'\x00\x00\x00\x00\x00' +
+                sign_id +
+                command_type +
+                function +
+                data +
+                etx
+            )
+            
+            # Send command
+            self._drain_input_buffer()
+            self.socket.sendall(packet)
+            
+            mode_str = "auto" if auto else f"{level}%"
+            self.logger.debug(f"Sent set brightness: {mode_str}")
+            
+            # Wait for ACK/NAK
+            ack = self._read_acknowledgement()
+            
+            if ack == self.ACK:
+                self.logger.info(f"Brightness set to {mode_str} successfully")
+                self._send_eot()
+                return True
+            elif ack == self.NAK:
+                self.logger.error("Sign returned NAK for set brightness")
+                return False
+            else:
+                self.logger.error("No acknowledgement received")
+                return False
+                
+        except Exception as e:
+            self.logger.error(f"Error setting brightness: {e}")
+            return False
+
+    def read_text_file(self, file_label: str = '0') -> Optional[str]:
+        """
+        Read text from a specific file label (M-Protocol Type B).
+        
+        Args:
+            file_label: File label to read (single ASCII character, typically '0'-'9' or 'A'-'Z')
+            
+        Returns:
+            Text content of the file, or None if failed
+            
+        Example:
+            >>> led = Alpha9120CController(host='192.168.8.122', port=10001)
+            >>> text = led.read_text_file('0')
+            >>> print(f"File 0 contains: {text}")
+        """
+        if not self.connected or not self.socket:
+            self.logger.warning("Not connected to sign")
+            return None
+            
+        try:
+            # Build Type B command packet
+            # Format: <NULL>x5 <ID> <CMD=0x42> <FILE> <ETX>
+            sign_id = self.sign_id.encode('ascii')
+            command_type = bytes([ReadTextCommand.READ_TEXT_FILE.value])
+            file_byte = file_label.encode('ascii')[:1]  # Ensure single char
+            etx = b'\x03'
+            
+            packet = (
+                b'\x00\x00\x00\x00\x00' +
+                sign_id +
+                command_type +
+                file_byte +
+                etx
+            )
+            
+            # Drain input buffer
+            self._drain_input_buffer()
+            
+            # Send command
+            self.socket.sendall(packet)
+            self.logger.debug(f"Sent read text file: {file_label}")
+            
+            # Read response with timeout
+            original_timeout = self.socket.gettimeout()
+            self.socket.settimeout(3.0)
+            
+            try:
+                # Read first byte (should be ACK or NAK)
+                first_byte = self.socket.recv(1)
+                
+                if not first_byte:
+                    self.logger.error("No response from sign")
+                    return None
+                    
+                if first_byte == b'\x15':  # NAK
+                    self.logger.error(f"Sign returned NAK for read file {file_label}")
+                    return None
+                    
+                if first_byte != b'\x06':  # Not ACK
+                    self.logger.error(f"Unexpected response: {first_byte.hex()}")
+                    return None
+                
+                # ACK received, now read the data until ETX
+                data = bytearray()
+                while len(data) < 4096:  # Safety limit
+                    chunk = self.socket.recv(1)
+                    if not chunk:
+                        break
+                    if chunk == b'\x03':  # ETX - end of data
+                        break
+                    data.extend(chunk)
+                
+                self.socket.settimeout(original_timeout)
+                
+                if len(data) == 0:
+                    self.logger.warning(f"Empty file: {file_label}")
+                    return ""
+                    
+                # Decode text
+                text = data.decode('ascii', errors='ignore').strip()
+                self.logger.info(f"Read {len(text)} characters from file {file_label}")
+                return text
+                
+            except socket.timeout:
+                self.socket.settimeout(original_timeout)
+                self.logger.error(f"Timeout reading file {file_label}")
+                return None
+                
+        except Exception as e:
+            self.logger.error(f"Error reading text file: {e}")
+            return None
 
     def get_status(self, check_health: bool = False) -> Dict:
         """

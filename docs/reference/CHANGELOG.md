@@ -6,6 +6,63 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+### Added
+- **M-Protocol Phases 1-5: Complete Alpha LED Sign Control** - Deep integration with Alpha LED signs via M-Protocol
+  - **Phase 1: Sign Diagnostics** - Read serial number, model, firmware, memory, temperature (Type F commands)
+  - **Phase 2: Time/Date Control** - Set time, date, format, run mode, sync with system (Type E commands)
+  - **Phase 3: Speaker/Beep Control** - Enable/disable speaker, beep for alerts (Type E commands)
+  - **Phase 4: Brightness Control** - Set 0-100% brightness or auto mode (Type E commands)
+  - **Phase 5: File Management** - Read text from file labels 0-9, A-Z (Type B commands)
+  - All functions implemented in `scripts/led_sign_controller.py`
+  - Comprehensive test scripts for each phase
+  - Complete documentation for all phases
+  - VERSION bumped to 2.27.0 (feature additions)
+  - **Result**: Full programmatic control of Alpha LED signs over network
+  - **Note**: Web UI integration into existing `/led-control` page pending
+- **M-Protocol Phases 3-5: Complete Advanced Control** - Final implementation of speaker, brightness, and file management
+  - **Phase 3: Speaker/Beep Control**
+    - Added `set_speaker()` method to enable/disable speaker (Type E, Function 0x23)
+    - Added `beep()` convenience method to make sign beep for alerts
+    - Audio alerts for emergencies and notifications
+  - **Phase 4: Brightness Control**
+    - Added `set_brightness()` method to set brightness 0-100% or auto mode (Type E, Function 0x30)
+    - Manual brightness control with percentage levels
+    - Auto brightness mode for ambient light adaptation
+    - Night mode and energy saving capabilities
+  - **Phase 5: File Management**
+    - Added `read_text_file()` method to read text from file labels (Type B, Function 0x42)
+    - Query current display content
+    - Read user-defined text files (0-9, A-Z)
+  - Added `ReadTextCommand` enum for M-Protocol Type B function codes
+  - Extended `WriteSpecialExtCommand` enum with speaker and brightness functions
+  - Created comprehensive test script `scripts/test_alpha_advanced.py` for all advanced features
+  - Added complete documentation in `docs/hardware/ALPHA_ADVANCED_PHASES3-5.md`
+  - Integration examples for emergency alerts, auto-dimming, and business hours automation
+  - M-Protocol implementation now production-ready with full sign control
+  - VERSION bumped to 2.26.0 (feature addition)
+- **M-Protocol Phase 2: Time/Date Control** - Complete time and date management for Alpha LED signs
+  - Added `set_time_and_date()` method to set sign time and date (Type E, Function 0x20)
+  - Added `set_day_of_week()` method to set day of week 0-6 (Type E, Function 0x22)
+  - Added `set_time_format()` method to set 12h/24h time format (Type E, Function 0x27)
+  - Added `set_run_mode()` method to set auto/manual operation mode (Type E, Function 0x2E)
+  - Added `sync_time_with_system()` convenience method to sync sign with EAS Station time
+  - Added `WriteSpecialExtCommand` enum for M-Protocol Type E function codes
+  - All functions use bidirectional communication with ACK/NAK handling
+  - Created test script `scripts/test_alpha_timedate.py` for testing time control
+  - Added complete documentation in `docs/hardware/ALPHA_TIMEDATE_PHASE2.md`
+  - VERSION bumped to 2.25.0 (feature addition)
+- **M-Protocol Phase 1: Sign Diagnostics** - Alpha LED signs can now be queried for status and configuration
+  - Added `read_serial_number()` method to read sign serial number (Type F, Function 0x24)
+  - Added `read_model_number()` method to read sign model (Type F, Function 0x25)
+  - Added `read_firmware_version()` method to read firmware version (Type F, Function 0x26)
+  - Added `read_memory_configuration()` method to query memory usage (Type F, Function 0x30)
+  - Added `read_temperature()` method to read internal temperature (Type F, Function 0x35)
+  - Added `get_diagnostics()` method to fetch all diagnostic information at once
+  - Added `_send_read_command()` generic handler for Type F read commands
+  - Added `ReadSpecialExtCommand` enum for M-Protocol Type F function codes
+  - Full bidirectional communication support verified and documented
+  - VERSION bumped to 2.24.0 (feature addition)
+
 ### Fixed
 - **Systemd Target Cycling Issue** - Fixed eas-station.target repeatedly stopping and starting
   - Changed `Requires=` to `Wants=` for postgresql, redis, nginx dependencies in eas-station.target

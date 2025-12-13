@@ -1166,10 +1166,36 @@
                 Object.assign(currentValues, updates);
                 checkChanges(catId);
 
-                // Show restart warning
+                // Show restart warning with action button
                 if (result.restart_required) {
                     setTimeout(() => {
-                        showToast('Restart the application for changes to take effect', 'warning', 10000);
+                        const restartToast = document.createElement('div');
+                        restartToast.className = 'toast align-items-center text-white bg-warning border-0';
+                        restartToast.setAttribute('role', 'alert');
+                        restartToast.setAttribute('aria-live', 'assertive');
+                        restartToast.setAttribute('aria-atomic', 'true');
+                        restartToast.innerHTML = `
+                            <div class="d-flex">
+                                <div class="toast-body">
+                                    <i class="fas fa-exclamation-triangle me-2"></i>
+                                    Services need to be restarted for changes to take effect
+                                </div>
+                                <button type="button" class="btn btn-sm btn-light me-2 my-auto" onclick="restartHardwareService()">
+                                    <i class="fas fa-sync-alt me-1"></i> Restart Now
+                                </button>
+                                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                            </div>
+                        `;
+                        
+                        const toastContainer = document.querySelector('.toast-container');
+                        if (toastContainer) {
+                            toastContainer.appendChild(restartToast);
+                            const bsToast = new bootstrap.Toast(restartToast, { autohide: false });
+                            bsToast.show();
+                        } else {
+                            // Fallback to regular toast if container not found
+                            showToast('Restart the hardware service for changes to take effect', 'warning', 10000);
+                        }
                     }, 1000);
                 }
 
@@ -1579,6 +1605,102 @@
                 removeBtn.setAttribute('onclick', `removeGPIOPin(${index})`);
             }
         });
+    }
+
+    /**
+     * Restart hardware service after configuration changes
+     */
+    async function restartHardwareService() {
+        if (!confirm('Restart the hardware service? This will briefly interrupt GPIO, OLED, VFD, and LED functionality.')) {
+            return;
+        }
+
+        showLoading();
+        
+        try {
+            const response = await fetch('/api/environment/restart-services', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    service: 'hardware'
+                })
+            });
+
+            const result = await response.json();
+
+            if (response.ok && result.success) {
+                showToast('Hardware service restarted successfully', 'success');
+                
+                // Close any open restart warning toasts
+                document.querySelectorAll('.toast').forEach(toast => {
+                    const bsToast = bootstrap.Toast.getInstance(toast);
+                    if (bsToast) {
+                        bsToast.hide();
+                    }
+                });
+            } else {
+                const errorMsg = result.error || result.message || 'Failed to restart hardware service';
+                showToast(errorMsg, 'danger', 10000);
+                
+                // Show detailed errors if available
+                if (result.results) {
+                    result.results.forEach(r => {
+                        if (!r.success) {
+                            console.error(`Service ${r.service} failed:`, r.error);
+                        }
+                    });
+                }
+            }
+        } catch (error) {
+            console.error('Error restarting hardware service:', error);
+            showToast('Failed to restart hardware service: ' + error.message, 'danger', 10000);
+        } finally {
+            hideLoading();
+        }
+    }
+
+    /**
+     * Restart all EAS Station services
+     */
+    async function restartAllServices() {
+        if (!confirm('Restart all EAS Station services? This will cause a brief service interruption.')) {
+            return;
+        }
+
+        showLoading();
+        
+        try {
+            const response = await fetch('/api/environment/restart-services', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    service: 'all'
+                })
+            });
+
+            const result = await response.json();
+
+            if (response.ok && result.success) {
+                showToast('All services restarted successfully', 'success');
+                
+                // Reload page after brief delay
+                setTimeout(() => {
+                    window.location.reload();
+                }, 2000);
+            } else {
+                const errorMsg = result.error || result.message || 'Failed to restart services';
+                showToast(errorMsg, 'danger', 10000);
+            }
+        } catch (error) {
+            console.error('Error restarting services:', error);
+            showToast('Failed to restart services: ' + error.message, 'danger', 10000);
+        } finally {
+            hideLoading();
+        }
     }
 </script>
 {% endblock %}
