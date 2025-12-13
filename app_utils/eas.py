@@ -134,7 +134,7 @@ def load_eas_config(base_path: Optional[str] = None) -> Dict[str, object]:
     ).strip()
     azure_openai_model = (
         azure_openai_config.get('model') or 
-        os.getenv('AZURE_OPENAI_MODEL') or 'tts-1-hd'
+        os.getenv('AZURE_OPENAI_MODEL') or 'tts-1'
     ).strip()
     
     # Parse speed with fallback

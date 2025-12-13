@@ -832,6 +832,14 @@
             if (fieldType === 'select') {
                 html += `<select class="form-control" id="${fieldId}" data-field="${fieldKey}" 
                                onchange="updateJSONFromBuilder('${variable.key}')" ${disabledAttr}>`;
+                
+                // Add empty option if field is optional (no required flag and no default value)
+                const hasDefaultValue = fieldValue !== '' && fieldValue !== null && fieldValue !== undefined;
+                if (!hasDefaultValue && !fieldDef.required) {
+                    const selected = !fieldValue ? 'selected' : '';
+                    html += `<option value="" ${selected}>(not set)</option>`;
+                }
+                
                 const options = fieldDef.options || [];
                 for (const opt of options) {
                     const selected = fieldValue === opt ? 'selected' : '';
