@@ -614,6 +614,17 @@ cd "$INSTALL_DIR"
 if [ -f "$INSTALL_DIR/venv/bin/alembic" ] && [ -f "$INSTALL_DIR/alembic.ini" ]; then
     echo_progress "Running Alembic migrations to update database schema..."
     echo_info "This may take a few moments. Output will be shown below:"
+    echo_info "Press Ctrl+C to cancel if needed (changes will be rolled back)"
+    echo ""
+    
+    # Check current database revision before migration
+    echo_info "Checking current database state..."
+    CURRENT_REV=$(sudo -u "$SERVICE_USER" "$INSTALL_DIR/venv/bin/alembic" current 2>/dev/null | grep -oP '(?<=\(head\)|\w+)$' || echo "none")
+    if [ -n "$CURRENT_REV" ] && [ "$CURRENT_REV" != "none" ]; then
+        echo_info "Current revision: $CURRENT_REV"
+    else
+        echo_info "Database is at an unknown or initial state"
+    fi
     echo ""
     
     # Disable exit-on-error for migrations
@@ -627,8 +638,23 @@ if [ -f "$INSTALL_DIR/venv/bin/alembic" ] && [ -f "$INSTALL_DIR/alembic.ini" ]; 
     echo ""
     if [ $ALEMBIC_EXIT_CODE -eq 0 ]; then
         echo_success "Database migrations completed successfully"
+        # Show what revision we're at now
+        NEW_REV=$(sudo -u "$SERVICE_USER" "$INSTALL_DIR/venv/bin/alembic" current 2>/dev/null | tail -1 || echo "")
+        if [ -n "$NEW_REV" ]; then
+            echo_info "Database is now at: $NEW_REV"
+        fi
+    elif [ $ALEMBIC_EXIT_CODE -eq 130 ]; then
+        echo_warning "Migration cancelled by user (Ctrl+C)"
+        echo_info "Database state may be partially migrated - check with: alembic current"
+        echo_info "To retry: cd $INSTALL_DIR && sudo -u $SERVICE_USER $INSTALL_DIR/venv/bin/alembic upgrade head"
     else
         echo_warning "Alembic migrations encountered errors (exit code: $ALEMBIC_EXIT_CODE)"
+        echo ""
+        echo_info "Common causes:"
+        echo_info "  • Database connection failed (check DATABASE_URL in .env)"
+        echo_info "  • PostgreSQL/PostGIS not running (check: systemctl status postgresql)"
+        echo_info "  • Migration script has errors (check output above)"
+        echo_info "  • Conflicting schema changes (may need manual resolution)"
         echo ""
         echo_info "Attempting to create any missing tables with db.create_all() as fallback..."
         
