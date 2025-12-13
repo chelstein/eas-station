@@ -6,6 +6,19 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+### Added
+- **M-Protocol Phase 1: Sign Diagnostics** - Alpha LED signs can now be queried for status and configuration
+  - Added `read_serial_number()` method to read sign serial number (Type F, Function 0x24)
+  - Added `read_model_number()` method to read sign model (Type F, Function 0x25)
+  - Added `read_firmware_version()` method to read firmware version (Type F, Function 0x26)
+  - Added `read_memory_configuration()` method to query memory usage (Type F, Function 0x30)
+  - Added `read_temperature()` method to read internal temperature (Type F, Function 0x35)
+  - Added `get_diagnostics()` method to fetch all diagnostic information at once
+  - Added `_send_read_command()` generic handler for Type F read commands
+  - Added `ReadSpecialExtCommand` enum for M-Protocol Type F function codes
+  - Full bidirectional communication support verified and documented
+  - VERSION bumped to 2.24.0 (feature addition)
+
 ### Fixed
 - **Systemd Target Cycling Issue** - Fixed eas-station.target repeatedly stopping and starting
   - Changed `Requires=` to `Wants=` for postgresql, redis, nginx dependencies in eas-station.target

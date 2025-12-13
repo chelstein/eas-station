@@ -135,6 +135,15 @@ class TimeFormat(Enum):
     TIME_24H = '8'  # 24 hour format
 
 
+class ReadSpecialExtCommand(Enum):
+    """Type F - Read Special Functions (Extended)"""
+    READ_SERIAL_NUMBER = 0x24  # Read sign serial number
+    READ_MODEL_NUMBER = 0x25   # Read sign model
+    READ_VERSION = 0x26        # Read firmware version
+    READ_MEMORY_CONFIG = 0x30  # Read memory configuration
+    READ_TEMPERATURE = 0x35    # Read internal temperature
+
+
 class LineSegmentSpec(TypedDict, total=False):
     text: str
     color: Color
@@ -1339,6 +1348,271 @@ class Alpha9120CController:
             self.logger.warning(f"Health check failed: {e}")
             self.disconnect()
             return False
+
+    def _send_read_command(
+        self,
+        function_code: int,
+        timeout: float = 3.0
+    ) -> Optional[bytes]:
+        """
+        Send a Type F (Read Special Functions) command and return the response.
+        
+        Args:
+            function_code: The function code to read (e.g., 0x24 for serial number)
+            timeout: Timeout in seconds for waiting for response
+            
+        Returns:
+            Response data (without ACK/ETX) or None if failed
+        """
+        if not self.connected or not self.socket:
+            self.logger.warning("Not connected to sign")
+            return None
+            
+        try:
+            # Build Type F command packet
+            # Format: <NULL>x5 <ID> <CMD=0x45> <FUNC> <ETX>
+            sign_id = self.sign_id.encode('ascii')
+            command_type = b'\x45'  # Type E/F command byte
+            function = bytes([function_code])
+            etx = b'\x03'  # End of transmission
+            
+            # Build complete packet
+            packet = (
+                b'\x00\x00\x00\x00\x00' +  # NULL padding
+                sign_id +
+                command_type +
+                function +
+                etx
+            )
+            
+            # Drain input buffer
+            self._drain_input_buffer()
+            
+            # Send command
+            self.socket.sendall(packet)
+            self.logger.debug(f"Sent read command: function=0x{function_code:02X}")
+            
+            # Read response with timeout
+            original_timeout = self.socket.gettimeout()
+            self.socket.settimeout(timeout)
+            
+            try:
+                # Read first byte (should be ACK or NAK)
+                first_byte = self.socket.recv(1)
+                
+                if not first_byte:
+                    self.logger.error("No response from sign")
+                    return None
+                    
+                if first_byte == b'\x15':  # NAK
+                    self.logger.error(f"Sign returned NAK for function 0x{function_code:02X}")
+                    return None
+                    
+                if first_byte != b'\x06':  # Not ACK
+                    self.logger.error(f"Unexpected response: {first_byte.hex()}")
+                    return None
+                
+                # ACK received, now read the data until ETX
+                data = bytearray()
+                while len(data) < 1024:  # Safety limit
+                    chunk = self.socket.recv(1)
+                    if not chunk:
+                        break
+                    if chunk == b'\x03':  # ETX - end of data
+                        break
+                    data.extend(chunk)
+                
+                self.socket.settimeout(original_timeout)
+                
+                if len(data) == 0:
+                    self.logger.warning(f"Empty response for function 0x{function_code:02X}")
+                    return None
+                    
+                self.logger.debug(f"Read {len(data)} bytes from sign")
+                return bytes(data)
+                
+            except socket.timeout:
+                self.socket.settimeout(original_timeout)
+                self.logger.error(f"Timeout reading response for function 0x{function_code:02X}")
+                return None
+                
+        except Exception as e:
+            self.logger.error(f"Error sending read command: {e}")
+            return None
+
+    def read_serial_number(self) -> Optional[str]:
+        """
+        Read sign serial number (M-Protocol Type F, Function 0x24).
+        
+        Returns:
+            Sign serial number or None if failed
+            
+        Example:
+            >>> led = Alpha9120CController(host='192.168.8.122', port=10001)
+            >>> serial = led.read_serial_number()
+            >>> print(f"Sign S/N: {serial}")
+            Sign S/N: A9120C-12345
+        """
+        self.logger.info("Reading sign serial number...")
+        data = self._send_read_command(ReadSpecialExtCommand.READ_SERIAL_NUMBER.value)
+        
+        if data is None:
+            return None
+            
+        try:
+            # Decode ASCII data
+            serial = data.decode('ascii', errors='ignore').strip()
+            self.logger.info(f"Sign serial number: {serial}")
+            return serial
+        except Exception as e:
+            self.logger.error(f"Error decoding serial number: {e}")
+            return None
+
+    def read_model_number(self) -> Optional[str]:
+        """
+        Read sign model number (M-Protocol Type F, Function 0x25).
+        
+        Returns:
+            Sign model number or None if failed
+        """
+        self.logger.info("Reading sign model number...")
+        data = self._send_read_command(ReadSpecialExtCommand.READ_MODEL_NUMBER.value)
+        
+        if data is None:
+            return None
+            
+        try:
+            model = data.decode('ascii', errors='ignore').strip()
+            self.logger.info(f"Sign model: {model}")
+            return model
+        except Exception as e:
+            self.logger.error(f"Error decoding model number: {e}")
+            return None
+
+    def read_firmware_version(self) -> Optional[str]:
+        """
+        Read sign firmware version (M-Protocol Type F, Function 0x26).
+        
+        Returns:
+            Firmware version or None if failed
+        """
+        self.logger.info("Reading firmware version...")
+        data = self._send_read_command(ReadSpecialExtCommand.READ_VERSION.value)
+        
+        if data is None:
+            return None
+            
+        try:
+            version = data.decode('ascii', errors='ignore').strip()
+            self.logger.info(f"Firmware version: {version}")
+            return version
+        except Exception as e:
+            self.logger.error(f"Error decoding firmware version: {e}")
+            return None
+
+    def read_memory_configuration(self) -> Optional[Dict[str, any]]:
+        """
+        Read sign memory configuration (M-Protocol Type F, Function 0x30).
+        
+        Returns:
+            Dictionary with memory info or None if failed
+            Contains: total_memory, free_memory, file_count, etc.
+        """
+        self.logger.info("Reading memory configuration...")
+        data = self._send_read_command(ReadSpecialExtCommand.READ_MEMORY_CONFIG.value)
+        
+        if data is None:
+            return None
+            
+        try:
+            # Parse memory configuration response
+            # Format varies by sign model - attempt to parse ASCII format
+            response_str = data.decode('ascii', errors='ignore').strip()
+            
+            # Try to extract numerical values
+            memory_info = {'raw_response': response_str}
+            
+            # Look for common patterns
+            if 'TOTAL' in response_str.upper() or 'FREE' in response_str.upper():
+                # Parse text-based response
+                parts = response_str.split()
+                for i, part in enumerate(parts):
+                    if 'TOTAL' in part.upper() and i + 1 < len(parts):
+                        try:
+                            memory_info['total_memory'] = int(parts[i + 1])
+                        except ValueError:
+                            pass
+                    elif 'FREE' in part.upper() and i + 1 < len(parts):
+                        try:
+                            memory_info['free_memory'] = int(parts[i + 1])
+                        except ValueError:
+                            pass
+            
+            self.logger.info(f"Memory configuration: {memory_info}")
+            return memory_info
+            
+        except Exception as e:
+            self.logger.error(f"Error reading memory configuration: {e}")
+            return None
+
+    def read_temperature(self) -> Optional[float]:
+        """
+        Read sign internal temperature (M-Protocol Type F, Function 0x35).
+        
+        Returns:
+            Temperature in Fahrenheit or None if failed
+        """
+        self.logger.info("Reading sign temperature...")
+        data = self._send_read_command(ReadSpecialExtCommand.READ_TEMPERATURE.value)
+        
+        if data is None:
+            return None
+            
+        try:
+            # Parse temperature response
+            response_str = data.decode('ascii', errors='ignore').strip()
+            
+            # Try to extract temperature value
+            # Look for numeric pattern
+            import re
+            match = re.search(r'(\d+\.?\d*)', response_str)
+            if match:
+                temp = float(match.group(1))
+                self.logger.info(f"Sign temperature: {temp}°F")
+                return temp
+            else:
+                self.logger.warning(f"Could not parse temperature from: {response_str}")
+                return None
+                
+        except Exception as e:
+            self.logger.error(f"Error reading temperature: {e}")
+            return None
+
+    def get_diagnostics(self) -> Dict[str, any]:
+        """
+        Read comprehensive diagnostic information from the sign.
+        
+        Returns:
+            Dictionary with all available diagnostic data
+        """
+        self.logger.info("Reading sign diagnostics...")
+        
+        diagnostics = {
+            'connected': self.connected,
+            'host': self.host,
+            'port': self.port,
+            'timestamp': datetime.now().isoformat()
+        }
+        
+        if self.connected:
+            # Read all diagnostic information
+            diagnostics['serial_number'] = self.read_serial_number()
+            diagnostics['model_number'] = self.read_model_number()
+            diagnostics['firmware_version'] = self.read_firmware_version()
+            diagnostics['memory_info'] = self.read_memory_configuration()
+            diagnostics['temperature'] = self.read_temperature()
+        
+        return diagnostics
 
     def get_status(self, check_health: bool = False) -> Dict:
         """
