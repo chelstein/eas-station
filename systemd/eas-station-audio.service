@@ -1,6 +1,7 @@
 [Unit]
 Description=EAS Station Audio Processing Service
 Documentation=https://github.com/KR8MER/eas-station
+PartOf=eas-station.target
 After=network.target redis.service eas-station-sdr.service
 Requires=redis.service
 Wants=eas-station-sdr.service
@@ -42,4 +43,4 @@ LimitNOFILE=65536
 MemoryMax=512M
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=multi-user.target eas-station.target

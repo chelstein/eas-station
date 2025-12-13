@@ -7,6 +7,14 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **Systemd Target Cycling Issue** - Fixed eas-station.target repeatedly stopping and starting
+  - Changed `Requires=` to `Wants=` for postgresql, redis, nginx dependencies in eas-station.target
+  - Hard `Requires=` dependencies were causing cascading restarts whenever PostgreSQL, Redis, or Nginx restarted
+  - Added `PartOf=eas-station.target` to all EAS service files (web, sdr, audio, eas, hardware, poller)
+  - Added `WantedBy=eas-station.target` to all EAS service files for proper target membership
+  - Services now properly belong to the target and won't cause unnecessary restart cycles
+  - Soft `Wants=` dependencies allow services to start even if dependencies are temporarily unavailable
+  - VERSION bumped to 2.23.7 (bug fix)
 - **CRITICAL: PostgreSQL username is eas_station (underscore) not eas-station (hyphen)** - Fixed all references to use correct username
   - Changed DATABASE_URL from `eas-station` to `eas_station` in .env.example, install.sh, webapp/admin/environment.py
   - Updated install.sh to create PostgreSQL user `eas_station` instead of `"eas-station"`

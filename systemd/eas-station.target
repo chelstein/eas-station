@@ -1,7 +1,7 @@
 [Unit]
 Description=EAS Station Services
 Documentation=https://github.com/KR8MER/eas-station
-Requires=postgresql.service redis.service nginx.service
+Wants=postgresql.service redis.service nginx.service
 After=postgresql.service redis.service nginx.service
 
 # This target starts all EAS Station services together
