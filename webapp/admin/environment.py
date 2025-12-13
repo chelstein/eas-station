@@ -547,8 +547,8 @@ ENV_CATEGORIES = {
                 'type': 'json',
                 'rows': 6,
                 'description': 'JSON object containing Azure OpenAI settings: endpoint, key, model, voice, speed',
-                'placeholder': '{"endpoint": "https://your-resource.openai.azure.com/openai/deployments/YOUR_DEPLOYMENT/audio/speech?api-version=2025-03-01-preview", "key": "your-api-key", "model": "tts-1-hd", "voice": "alloy", "speed": 1.0}',
-                'default': '{"endpoint": "", "key": "", "model": "tts-1-hd", "voice": "alloy", "speed": 1.0}',
+                'placeholder': '{"endpoint": "https://your-resource.openai.azure.com/openai/deployments/YOUR_DEPLOYMENT/audio/speech?api-version=2025-03-01-preview", "key": "your-api-key", "model": "tts-1", "voice": "alloy", "speed": 1.0}',
+                'default': '{"endpoint": "", "key": "", "model": "tts-1", "voice": "alloy", "speed": 1.0}',
                 'sensitive': True,
                 'category': 'azure_openai',
                 'json_schema': {
