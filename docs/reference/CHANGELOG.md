@@ -13,6 +13,11 @@ tracks releases under the 2.x series.
   - Added TimeoutStartSec=90 to systemd service to allow initialization time
   - Prevents health checks from timing out waiting for database schema creation
   - Fixes "Main process exited, code=killed, status=9/KILL" systemd errors
+  - **Enhanced error visibility**: Clear error messages with troubleshooting steps
+    - Unbuffered stderr output for immediate visibility in journalctl
+    - Detailed error messages showing worker PID and specific failure reason
+    - Error log written to /tmp/eas-station-web-startup-error.log for persistence
+    - Helpful troubleshooting commands included in error output
   - VERSION bumped to 2.27.3 (bug fix)
 - **Installation Script Error Handling** - Added proper error checking for Python virtual environment creation
   - Virtual environment creation now fails fast with clear error messages instead of silently continuing
