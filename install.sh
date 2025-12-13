@@ -1794,7 +1794,7 @@ else
         elif [ $ALEMBIC_EXIT_CODE -eq 130 ]; then
             echo_warning "Migration cancelled by user (Ctrl+C)"
             echo_info "Database state may be partially migrated"
-            echo_info "To retry: cd $INSTALL_DIR && sudo -u $SERVICE_USER bash -c 'cd $INSTALL_DIR && $VENV_DIR/bin/alembic upgrade head'"
+            echo_info "To retry: sudo -u $SERVICE_USER bash -c 'cd $INSTALL_DIR && $VENV_DIR/bin/alembic upgrade head'"
         else
             echo_warning "Alembic migrations encountered errors (exit code: $ALEMBIC_EXIT_CODE)"
             echo ""
@@ -1817,7 +1817,7 @@ with app.app_context():
             echo ""
             echo_warning "Database upgrade may be incomplete - check logs after installation"
             echo_info "You can manually run migrations:"
-            echo_info "  cd $INSTALL_DIR && sudo -u $SERVICE_USER bash -c 'cd $INSTALL_DIR && $VENV_DIR/bin/alembic upgrade head'"
+            echo_info "  sudo -u $SERVICE_USER bash -c 'cd $INSTALL_DIR && $VENV_DIR/bin/alembic upgrade head'"
         fi
     else
         echo_warning "alembic.ini not found - skipping migrations"

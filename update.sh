@@ -655,8 +655,8 @@ echo_info "Press Ctrl+C to cancel if needed (changes will be rolled back)"
         fi
     elif [ $ALEMBIC_EXIT_CODE -eq 130 ]; then
         echo_warning "Migration cancelled by user (Ctrl+C)"
-        echo_info "Database state may be partially migrated - check with: cd $INSTALL_DIR && sudo -u $SERVICE_USER $INSTALL_DIR/venv/bin/alembic current"
-        echo_info "To retry: cd $INSTALL_DIR && sudo -u $SERVICE_USER bash -c 'cd $INSTALL_DIR && $INSTALL_DIR/venv/bin/alembic upgrade head'"
+        echo_info "Database state may be partially migrated - check with: sudo -u $SERVICE_USER bash -c 'cd $INSTALL_DIR && $INSTALL_DIR/venv/bin/alembic current'"
+        echo_info "To retry: sudo -u $SERVICE_USER bash -c 'cd $INSTALL_DIR && $INSTALL_DIR/venv/bin/alembic upgrade head'"
     else
         echo_warning "Alembic migrations encountered errors (exit code: $ALEMBIC_EXIT_CODE)"
         echo ""
@@ -680,7 +680,7 @@ with app.app_context():
         echo ""
         echo_warning "Database upgrade may be incomplete - check logs after update"
         echo_info "You can manually run migrations:"
-        echo_info "  cd $INSTALL_DIR && sudo -u $SERVICE_USER bash -c 'cd $INSTALL_DIR && $INSTALL_DIR/venv/bin/alembic upgrade head'"
+        echo_info "  sudo -u $SERVICE_USER bash -c 'cd $INSTALL_DIR && $INSTALL_DIR/venv/bin/alembic upgrade head'"
     fi
 elif [ -f "$INSTALL_DIR/venv/bin/python" ]; then
     echo_warning "Alembic not found - using db.create_all() fallback"
