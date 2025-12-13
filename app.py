@@ -932,25 +932,19 @@ def initialize_database():
             return True
 
 
-def _initialize_database_with_error_check():
-    """Wrapper to ensure database initialization errors are handled properly"""
-    if not initialize_database():
-        logger.critical("Database initialization failed! Application cannot start. Check logs for details.")
-        raise RuntimeError("Database initialization failed - application cannot continue")
-
-if hasattr(app, "before_serving"):
-    app.before_serving(_initialize_database_with_error_check)
-elif hasattr(app, "before_first_request"):
-    app.before_first_request(_initialize_database_with_error_check)
-else:
-    # Skip initialization if running migrations
-    # This prevents the chicken-and-egg problem where migrations need to add
-    # columns that the initialization code tries to query
-    if not os.environ.get("SKIP_DB_INIT"):
-        with app.app_context():
-            if not initialize_database():
-                logger.critical("Database initialization failed! Application cannot start. Check logs for details.")
-                raise RuntimeError("Database initialization failed - application cannot continue")
+# Database initialization is handled lazily in the before_request hook (line ~671)
+# This prevents blocking the Gunicorn workers during startup and allows the
+# application to start quickly. The before_request hook uses thread-safe
+# double-checked locking to ensure initialization happens exactly once.
+# 
+# Historical note: Previously this code attempted to initialize the database
+# during module import using before_serving/before_first_request hooks, but:
+# - Flask 3.x removed before_first_request
+# - before_serving doesn't exist on standard Flask apps
+# - Import-time initialization blocks Gunicorn workers and causes timeouts
+#
+# The lazy initialization pattern is more robust and compatible with all
+# deployment modes (Gunicorn, Flask dev server, CLI commands, etc.)
 
 
 # =============================================================================

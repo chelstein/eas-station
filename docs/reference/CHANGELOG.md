@@ -7,6 +7,12 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **Web Service Startup Timeout** - Fixed Gunicorn workers blocking during database initialization
+  - Removed import-time database initialization that caused workers to timeout
+  - Database initialization now happens lazily on first request via before_request hook
+  - Uses thread-safe double-checked locking to ensure initialization happens exactly once
+  - Prevents 504 Gateway Timeout errors during service startup
+  - VERSION bumped to 2.27.2 (bug fix)
 - **Web Service Startup Issue** - Fixed systemd service configuration preventing web app from fully starting
   - Changed `Type=notify` to `Type=simple` in `systemd/eas-station-web.service`
   - Gunicorn with gevent workers doesn't support systemd notify protocol
