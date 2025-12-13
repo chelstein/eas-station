@@ -59,12 +59,28 @@ if [ -z "$DATABASE_URL" ]; then
     exit 1
 fi
 
-# Parse DATABASE_URL to extract password
+# Parse DATABASE_URL to extract password using Python (more robust for special characters)
 # Format: postgresql+psycopg2://user:password@host:port/database
-DB_PASSWORD=$(echo "$DATABASE_URL" | sed -n 's/.*:\/\/[^:]*:\([^@]*\)@.*/\1/p')
+DB_PASSWORD=$(python3 << 'PYTHON_EOF'
+import sys
+from urllib.parse import urlparse
+
+try:
+    database_url = """${DATABASE_URL}"""
+    parsed = urlparse(database_url)
+    if parsed.password:
+        print(parsed.password)
+        sys.exit(0)
+    else:
+        sys.exit(1)
+except Exception:
+    sys.exit(1)
+PYTHON_EOF
+)
 
 if [ -z "$DB_PASSWORD" ]; then
     echo_error "Could not extract database password from DATABASE_URL"
+    echo_info "DATABASE_URL format should be: postgresql+psycopg2://user:password@host:port/database"
     exit 1
 fi
 
@@ -75,6 +91,7 @@ echo ""
 echo_info "Checking for incorrectly named database users..."
 
 INCORRECT_USERS=()
+# Note: User list is hardcoded - not from user input (prevents SQL injection)
 for user in "eas_station" "easstation" "eas-station-old"; do
     if sudo -u postgres psql -tc "SELECT 1 FROM pg_user WHERE usename = '$user'" 2>/dev/null | grep -q 1; then
         INCORRECT_USERS+=("$user")
@@ -111,10 +128,13 @@ if [ ${#INCORRECT_USERS[@]} -gt 0 ]; then
         fi
         
         # Reassign ownership and drop each incorrect user
+        # Note: User names are from hardcoded list above (not user input)
+        # PostgreSQL identifiers are properly quoted with double quotes
         for user in "${INCORRECT_USERS[@]}"; do
             echo_info "Processing user: $user"
             
             # Reassign database ownership
+            # Using dollar-quoting ($$) for password to safely handle special characters
             sudo -u postgres psql -d alerts <<EOF 2>/dev/null || true
 REASSIGN OWNED BY "$user" TO "eas-station";
 DROP OWNED BY "$user";
@@ -135,6 +155,7 @@ EOF
         echo_success "User 'eas-station' created"
         
         # Now reassign and drop incorrect users
+        # Note: User names are from hardcoded list (not user input)
         for user in "${INCORRECT_USERS[@]}"; do
             echo_info "Migrating objects from $user to eas-station..."
             sudo -u postgres psql -d alerts <<EOF 2>/dev/null || true
@@ -156,6 +177,8 @@ EOF
 fi
 
 # Update password and permissions (in case password changed)
+# Dollar-quoting ($$) safely handles special characters in passwords
+# This is PostgreSQL's recommended method for literal string delimiters
 echo ""
 echo_info "Updating password and permissions for 'eas-station'..."
 sudo -u postgres psql <<EOF 2>/dev/null
