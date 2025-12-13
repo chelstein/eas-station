@@ -7,6 +7,13 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **Web Service 504 Timeout** - Fixed lazy database initialization causing 504 Gateway Timeout errors
+  - Database initialization moved from first-request to worker startup in wsgi.py
+  - Added eager database initialization when Gunicorn workers start
+  - Added TimeoutStartSec=90 to systemd service to allow initialization time
+  - Prevents health checks from timing out waiting for database schema creation
+  - Fixes "Main process exited, code=killed, status=9/KILL" systemd errors
+  - VERSION bumped to 2.27.3 (bug fix)
 - **Installation Script Error Handling** - Added proper error checking for Python virtual environment creation
   - Virtual environment creation now fails fast with clear error messages instead of silently continuing
   - pip install commands now check for success and display detailed error logs on failure

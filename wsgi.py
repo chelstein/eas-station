@@ -20,6 +20,7 @@ Repository: https://github.com/KR8MER/eas-station
 
 import os
 import sys
+import logging
 
 
 def _project_root() -> str:
@@ -33,7 +34,18 @@ if project_dir not in sys.path:
 
 os.chdir(project_dir)
 
-from app import app as application, socketio  # noqa: E402
+from app import app as application, socketio, initialize_database  # noqa: E402
 
+# Initialize database eagerly when Gunicorn workers start
+# This prevents the first request from hanging while initialization completes
+# Skip during migrations to avoid chicken-and-egg problems
+if not os.environ.get("SKIP_DB_INIT"):
+    logger = logging.getLogger(__name__)
+    logger.info("WSGI: Initializing database at worker startup...")
+    with application.app_context():
+        if not initialize_database():
+            logger.critical("WSGI: Database initialization failed! Worker cannot start.")
+            raise RuntimeError("Database initialization failed - worker cannot continue")
+    logger.info("WSGI: Database initialization complete")
 
 __all__ = ["application", "socketio"]
