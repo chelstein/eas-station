@@ -1538,35 +1538,31 @@ def restart_services():
     This endpoint allows restarting specific services or the entire stack
     without requiring CLI access.
     """
+    # Whitelist of allowed service names for security
+    ALLOWED_SERVICES = {
+        'all': 'eas-station.target',
+        'hardware': 'eas-station-hardware.service',
+        'web': 'eas-station-web.service',
+        'poller': 'eas-station-poller.service',
+        'sdr': 'eas-station-sdr.service',
+        'audio': 'eas-station-audio.service',
+    }
+    
     try:
         data = request.get_json() or {}
         service = data.get('service', 'all')
         
-        services_to_restart = []
-        
-        if service == 'all':
-            # Restart all EAS Station services
-            services_to_restart = ['eas-station.target']
-        elif service == 'hardware':
-            # Restart hardware service (GPIO, OLED, VFD, LED)
-            services_to_restart = ['eas-station-hardware.service']
-        elif service == 'web':
-            # Restart web service
-            services_to_restart = ['eas-station-web.service']
-        elif service == 'poller':
-            # Restart alert poller
-            services_to_restart = ['eas-station-poller.service']
-        elif service == 'sdr':
-            # Restart SDR service
-            services_to_restart = ['eas-station-sdr.service']
-        elif service == 'audio':
-            # Restart audio monitoring service
-            services_to_restart = ['eas-station-audio.service']
-        else:
+        # Validate service name against whitelist
+        if service not in ALLOWED_SERVICES:
+            valid_options = ', '.join(ALLOWED_SERVICES.keys())
             return jsonify({
                 'success': False,
-                'error': f'Invalid service: {service}. Valid options: all, hardware, web, poller, sdr, audio'
+                'error': f'Invalid service: {service}. Valid options: {valid_options}'
             }), 400
+        
+        # Get the actual systemd service name from whitelist
+        systemd_service = ALLOWED_SERVICES[service]
+        services_to_restart = [systemd_service]
         
         restart_results = []
         all_successful = True
@@ -1574,6 +1570,7 @@ def restart_services():
         for svc_name in services_to_restart:
             try:
                 logger.info(f"Restarting service: {svc_name}")
+                # Use list for subprocess to prevent command injection
                 result = subprocess.run(
                     ['sudo', 'systemctl', 'restart', svc_name],
                     capture_output=True,

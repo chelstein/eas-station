@@ -122,7 +122,8 @@ class NoritakeVFDController:
         self.serial: Optional[serial.Serial] = None
         self.connected = False
         self.current_brightness = VFDBrightness.LEVEL_7
-        self.is_network_connection = port.startswith('socket://') if port else False
+        # Type-safe check for network connection
+        self.is_network_connection = isinstance(port, str) and port.startswith('socket://') if port else False
 
     def connect(self) -> bool:
         """
