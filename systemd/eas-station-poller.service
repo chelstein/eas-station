@@ -16,7 +16,7 @@ Environment="PYTHONUNBUFFERED=1"
 # NOTE: CAP_POLLER_MODE is NOT set - unified poller polls all sources (NOAA + IPAWS)
 # Configure sources via .env: IPAWS_CAP_FEED_URLS, CAP_ENDPOINTS, NOAA_USER_AGENT
 # Application defaults to /opt/eas-station/.env (can override with CONFIG_PATH env var)
-EnvironmentFile=-/opt/eas-station/.env
+EnvironmentFile=/opt/eas-station/.env
 ExecStart=/opt/eas-station/venv/bin/python /opt/eas-station/poller/cap_poller.py --continuous
 Restart=always
 RestartSec=10

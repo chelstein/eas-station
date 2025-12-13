@@ -7,6 +7,13 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **Database Authentication Issues** - Fixed database connection failures during migrations and poller service startup
+  - Changed poller service `EnvironmentFile` from optional (`-/opt/eas-station/.env`) to required (`/opt/eas-station/.env`)
+  - Ensures DATABASE_URL is always loaded from environment file, preventing fallback to incorrect database usernames
+  - Added `scripts/database/fix_database_user.sh` to clean up incorrectly named database users (e.g., "eas_station" vs "eas-station")
+  - Script automatically reassigns ownership and drops incorrect users while preserving data
+  - Resolves "password authentication failed for user eas_station" errors in screen_manager and migrations
+  - VERSION bumped to 2.23.2 (bug fix)
 - **CAP Poller Service ModuleNotFoundError** - Fixed "No module named 'redis'" error on bare metal installations
   - Updated `systemd/eas-station-poller.service` to use virtual environment Python interpreter
   - Changed `ExecStart` from `/usr/bin/python3` to `/opt/eas-station/venv/bin/python`
