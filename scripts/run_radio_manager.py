@@ -28,23 +28,11 @@ logger = logging.getLogger('radio_manager')
 
 
 def get_database_url():
-    """Build database URL from environment."""
+    """Get database URL from environment - DATABASE_URL is required."""
     url = os.getenv("DATABASE_URL")
-    if url:
-        return url
-    
-    from urllib.parse import quote
-    user = os.getenv("POSTGRES_USER", "eas-station")
-    password = os.getenv("POSTGRES_PASSWORD", "")
-    host = os.getenv("POSTGRES_HOST", "localhost")
-    port = os.getenv("POSTGRES_PORT", "5432")
-    database = os.getenv("POSTGRES_DB", "alerts")
-    
-    user_part = quote(user, safe="")
-    password_part = quote(password, safe="") if password else ""
-    auth = f"{user_part}:{password_part}" if password_part else user_part
-    
-    return f"postgresql+psycopg2://{auth}@{host}:{port}/{database}"
+    if not url:
+        raise ValueError("DATABASE_URL environment variable is required")
+    return url
 
 
 def main():

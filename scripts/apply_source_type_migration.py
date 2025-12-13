@@ -23,17 +23,13 @@ Standalone script to apply the source_type column migration to radio_receivers t
 This fixes the error: column radio_receivers.source_type does not exist
 
 Usage:
-    python3 apply_source_type_migration.py
-
-Environment variables (reads from .env or can be set manually):
-    POSTGRES_HOST (default: localhost)
-    POSTGRES_PORT (default: 5432)
-    POSTGRES_DB (default: alerts)
-    POSTGRES_USER (default: eas-station)
-    POSTGRES_PASSWORD (required)
-
-Or set DATABASE_URL directly:
     DATABASE_URL=postgresql://user:pass@host:port/dbname python3 apply_source_type_migration.py
+
+Environment variables:
+    DATABASE_URL (required) - Complete PostgreSQL connection URL
+    
+Example:
+    DATABASE_URL=******localhost:5432/alerts python3 apply_source_type_migration.py
 """
 
 import os
@@ -48,33 +44,14 @@ elif os.path.exists('.env'):
     load_dotenv('.env')
 
 def get_db_connection():
-    """Get a database connection using environment variables."""
-
-    # Try DATABASE_URL first
+    """Get a database connection using DATABASE_URL environment variable."""
+    
     database_url = os.getenv('DATABASE_URL')
-    if database_url:
-        return psycopg2.connect(database_url)
-
-    # Build from individual variables
-    host = os.getenv('POSTGRES_HOST', 'localhost')
-    port = os.getenv('POSTGRES_PORT', '5432')
-    database = os.getenv('POSTGRES_DB', 'alerts')
-    user = os.getenv('POSTGRES_USER', 'eas-station')
-    password = os.getenv('POSTGRES_PASSWORD')
-
-    if not password:
-        print("ERROR: POSTGRES_PASSWORD environment variable is required", file=sys.stderr)
+    if not database_url:
+        print("ERROR: DATABASE_URL environment variable is required", file=sys.stderr)
         sys.exit(1)
-
-    print(f"Connecting to database: {user}@{host}:{port}/{database}")
-
-    return psycopg2.connect(
-        host=host,
-        port=port,
-        database=database,
-        user=user,
-        password=password
-    )
+    
+    return psycopg2.connect(database_url)
 
 def check_column_exists(cursor, table_name, column_name):
     """Check if a column exists in a table."""
