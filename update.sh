@@ -322,6 +322,10 @@ cd "$INSTALL_DIR"
 if [ -d ".git" ]; then
     # Git-based update
     echo_info "Using git to update..."
+
+    # Fix git ownership warning when running as root
+    git config --global --add safe.directory "$INSTALL_DIR" 2>/dev/null || true
+
     echo_progress "Fetching latest changes from origin..."
     
     # Get current branch name (fixing the hardcoded 'main' issue)
