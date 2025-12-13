@@ -1105,6 +1105,12 @@ apt-get install -y \
     libevent-dev \
     libffi-dev \
     libssl-dev \
+    libxml2-dev \
+    libxslt1-dev \
+    libjpeg-dev \
+    zlib1g-dev \
+    libpng-dev \
+    libfreetype6-dev \
     postgresql \
     postgresql-contrib \
     postgis \
@@ -1120,11 +1126,16 @@ apt-get install -y \
     libusb-1.0-0 \
     libusb-1.0-0-dev \
     usbutils \
+    python3-numpy \
     python3-soapysdr \
     soapysdr-tools \
+    rtl-sdr \
     soapysdr-module-rtlsdr \
     soapysdr-module-airspy \
     libairspy0 \
+    i2c-tools \
+    python3-smbus \
+    python3-lgpio \
     git \
     curl \
     wget > /dev/null 2>&1
@@ -1237,9 +1248,10 @@ echo_success "Permissions configured"
 
 echo_step "Python Environment Setup"
 
-# Create Python virtual environment
+# Create Python virtual environment with access to system packages
+# (required for python3-soapysdr which is installed via apt)
 echo_progress "Creating Python virtual environment..."
-sudo -u "$SERVICE_USER" python3 -m venv "$VENV_DIR" > /dev/null 2>&1
+sudo -u "$SERVICE_USER" python3 -m venv --system-site-packages "$VENV_DIR" > /dev/null 2>&1
 echo_success "Virtual environment created at $VENV_DIR"
 
 # Install Python dependencies

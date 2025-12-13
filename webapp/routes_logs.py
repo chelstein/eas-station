@@ -29,6 +29,9 @@ logger = logging.getLogger(__name__)
 
 logs_bp = Blueprint('logs', __name__)
 
+# Regex pattern to strip ANSI escape codes from log messages
+ANSI_ESCAPE_PATTERN = re.compile(r'\x1b\[[0-9;]*m')
+
 # Valid patterns for journalctl --since parameter
 VALID_SINCE_PATTERNS = [
     r'^today$',
@@ -123,10 +126,21 @@ def get_systemd_logs(service: str, lines: int = 100, priority: str = None, since
                     if line and not line.startswith('--'):
                         try:
                             log_entry = json.loads(line)
+                            # Handle MESSAGE field - journalctl outputs byte arrays
+                            # when messages contain ANSI escape codes or binary data
+                            message = log_entry.get('MESSAGE', '')
+                            if isinstance(message, list):
+                                # MESSAGE is a list of byte values, decode to string
+                                try:
+                                    message = bytes(message).decode('utf-8', errors='replace')
+                                except (TypeError, ValueError):
+                                    message = str(message)
+                            # Strip ANSI escape codes for clean display
+                            message = ANSI_ESCAPE_PATTERN.sub('', message)
                             logs.append({
                                 'timestamp': log_entry.get('__REALTIME_TIMESTAMP', ''),
                                 'priority': log_entry.get('PRIORITY', '6'),
-                                'message': log_entry.get('MESSAGE', ''),
+                                'message': message,
                                 'unit': log_entry.get('_SYSTEMD_UNIT', service)
                             })
                         except json.JSONDecodeError as e:

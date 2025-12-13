@@ -190,10 +190,10 @@ def initialize_eas_monitor(app):
 
         # Create EAS monitor
         _eas_monitor = EASMonitor(
-            audio_manager=audio_adapter,
+            audio_source=audio_adapter,
             sample_rate=16000,
             alert_callback=fips_callback,
-            save_audio_files=True
+            source_name="eas-service"
         )
 
         # Start monitoring

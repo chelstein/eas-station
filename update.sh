@@ -19,7 +19,7 @@ NC='\033[0m' # No Color
 
 # Step counter for progress tracking
 STEP_NUM=0
-TOTAL_STEPS=11
+TOTAL_STEPS=12
 
 echo_step() {
     STEP_NUM=$((STEP_NUM + 1))
@@ -276,7 +276,8 @@ else
     fi
 fi
 
-# Create backup
+# Create backup (skip if restarting after self-update)
+if [ "${EAS_SKIP_BACKUP:-}" != "true" ]; then
 echo_step "Creating Backup"
 mkdir -p "$BACKUP_DIR"
 BACKUP_FILE="$BACKUP_DIR/eas-station-$(date +%Y%m%d-%H%M%S).tar.gz"
@@ -289,6 +290,7 @@ else
     echo_warning "Backup failed (non-critical - continuing with update)"
     BACKUP_FILE="none"
 fi
+fi  # End of EAS_SKIP_BACKUP check
 
 # Stop services
 echo_step "Stopping Services"
@@ -398,6 +400,17 @@ if [ -d ".git" ]; then
     find "$INSTALL_DIR" -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
     find "$INSTALL_DIR" -type f -name "*.pyc" -delete 2>/dev/null || true
     echo_success "Python cache cleared"
+
+    # Check if update.sh itself was updated - if so, restart with new version
+    if [ "${EAS_UPDATE_RESTARTED:-}" != "true" ]; then
+        if git diff --name-only "$LOCAL_COMMIT" "$NEW_COMMIT" 2>/dev/null | grep -q "^update.sh$"; then
+            echo_info "Update script was modified - restarting with new version..."
+            export EAS_UPDATE_RESTARTED=true
+            export EAS_SKIP_BACKUP=true
+            export EAS_SKIP_PULL=true
+            exec "$INSTALL_DIR/update.sh"
+        fi
+    fi
     
     # Display what version was pulled
     if [ -f "$INSTALL_DIR/VERSION" ]; then
@@ -529,6 +542,46 @@ if [ -d "$INSTALL_DIR/.git" ]; then
 else
     echo_info "Not a git repository - skipping version metadata"
 fi
+
+# Update system dependencies (after code pull so new deps are included)
+echo_step "Updating System Dependencies"
+echo_progress "Installing any new system packages..."
+
+apt-get update > /dev/null 2>&1
+
+# Install all required system dependencies (matches install.sh)
+# This ensures new dependencies added in updates are installed
+apt-get install -y \
+    python3-dev \
+    build-essential \
+    libpq-dev \
+    libev-dev \
+    libevent-dev \
+    libffi-dev \
+    libssl-dev \
+    libxml2-dev \
+    libxslt1-dev \
+    libjpeg-dev \
+    zlib1g-dev \
+    libpng-dev \
+    libfreetype6-dev \
+    ffmpeg \
+    espeak \
+    libespeak-ng1 \
+    libusb-1.0-0 \
+    libusb-1.0-0-dev \
+    python3-numpy \
+    python3-soapysdr \
+    soapysdr-tools \
+    rtl-sdr \
+    soapysdr-module-rtlsdr \
+    soapysdr-module-airspy \
+    libairspy0 \
+    i2c-tools \
+    python3-smbus \
+    python3-lgpio > /dev/null 2>&1
+
+echo_success "System dependencies up to date"
 
 # Update Python dependencies
 echo_step "Updating Python Dependencies"
