@@ -6,6 +6,13 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+### Fixed
+- **Web Service Startup Issue** - Fixed systemd service configuration preventing web app from fully starting
+  - Changed `Type=notify` to `Type=simple` in `systemd/eas-station-web.service`
+  - Gunicorn with gevent workers doesn't support systemd notify protocol
+  - Service now starts correctly and systemd recognizes when it's ready
+  - VERSION bumped to 2.27.1 (bug fix)
+
 ### Added
 - **M-Protocol Phases 1-5: Complete Alpha LED Sign Control** - Deep integration with Alpha LED signs via M-Protocol
   - **Phase 1: Sign Diagnostics** - Read serial number, model, firmware, memory, temperature (Type F commands)

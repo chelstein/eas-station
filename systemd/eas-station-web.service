@@ -6,7 +6,7 @@ After=network.target postgresql.service redis.service
 Wants=postgresql.service redis.service
 
 [Service]
-Type=notify
+Type=simple
 User=eas-station
 Group=eas-station
 # GPIO access required for OLED button on Pi 5
