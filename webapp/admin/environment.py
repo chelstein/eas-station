@@ -945,6 +945,41 @@ def get_env_file_path() -> Path:
     return env_path
 
 
+def _unquote_env_value(value: str) -> str:
+    """Remove quotes from environment variable value if present.
+    
+    Handles single quotes, double quotes, and unquoted values.
+    This is needed because systemd EnvironmentFile requires JSON values to be quoted.
+    """
+    value = value.strip()
+    if len(value) >= 2:
+        if (value.startswith("'") and value.endswith("'")) or \
+           (value.startswith('"') and value.endswith('"')):
+            return value[1:-1]
+    return value
+
+
+def _quote_env_value(value: str) -> str:
+    """Add quotes to environment variable value if needed.
+    
+    JSON objects and values containing special characters need to be quoted
+    for systemd EnvironmentFile compatibility.
+    """
+    value = str(value)
+    # Check if value looks like JSON (starts with { or [)
+    if value.strip().startswith(('{', '[')):
+        # Use single quotes to avoid escaping issues with JSON's double quotes
+        return f"'{value}'"
+    # Check if value contains spaces, quotes, or other special characters
+    if any(char in value for char in [' ', '"', "'", '$', '`', '\\']):
+        # Use single quotes for most cases
+        if "'" in value and '"' not in value:
+            return f'"{value}"'
+        else:
+            return f"'{value}'"
+    return value
+
+
 def read_env_file() -> Dict[str, str]:
     """Read all variables from .env file, or from environment if .env doesn't exist."""
     env_path = get_env_file_path()
@@ -972,7 +1007,8 @@ def read_env_file() -> Dict[str, str]:
             # Parse KEY=VALUE
             if '=' in line:
                 key, value = line.split('=', 1)
-                env_vars[key.strip()] = value.strip()
+                # Unquote the value to get the actual content
+                env_vars[key.strip()] = _unquote_env_value(value)
 
     return env_vars
 
@@ -1003,7 +1039,9 @@ def write_env_file(env_vars: Dict[str, str]) -> None:
         if '=' in stripped:
             key = stripped.split('=', 1)[0].strip()
             if key in env_vars:
-                new_lines.append(f"{key}={env_vars[key]}\n")
+                # Quote the value if needed for systemd compatibility
+                quoted_value = _quote_env_value(env_vars[key])
+                new_lines.append(f"{key}={quoted_value}\n")
                 processed_keys.add(key)
             else:
                 # Keep line as-is if not in update dict
@@ -1012,7 +1050,9 @@ def write_env_file(env_vars: Dict[str, str]) -> None:
     # Add new variables not in original file
     for key, value in env_vars.items():
         if key not in processed_keys:
-            new_lines.append(f"{key}={value}\n")
+            # Quote the value if needed for systemd compatibility
+            quoted_value = _quote_env_value(value)
+            new_lines.append(f"{key}={quoted_value}\n")
 
     # Write back to file
     with open(env_path, 'w') as f:
