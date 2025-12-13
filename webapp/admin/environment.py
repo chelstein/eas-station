@@ -966,17 +966,23 @@ def _quote_env_value(value: str) -> str:
     for systemd EnvironmentFile compatibility.
     """
     value = str(value)
+    stripped_value = value.strip()
+    
     # Check if value looks like JSON (starts with { or [)
-    if value.strip().startswith(('{', '[')):
+    if stripped_value.startswith(('{', '[')):
         # Use single quotes to avoid escaping issues with JSON's double quotes
         return f"'{value}'"
+    
     # Check if value contains spaces, quotes, or other special characters
-    if any(char in value for char in [' ', '"', "'", '$', '`', '\\']):
-        # Use single quotes for most cases
+    special_chars = (' ', '"', "'", '$', '`', '\\')
+    if any(char in value for char in special_chars):
+        # Prefer double quotes if value contains single quotes but no double quotes
+        # Otherwise use single quotes (less escaping needed for most cases)
         if "'" in value and '"' not in value:
             return f'"{value}"'
         else:
             return f"'{value}'"
+    
     return value
 
 
