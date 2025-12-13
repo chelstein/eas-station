@@ -35,7 +35,7 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/opt/eas-station /var/log/eas-station /dev/bus/usb
+ReadWritePaths=/opt/eas-station /var/log/eas-station -/dev/bus/usb
 
 # USB device access via udev rules
 DeviceAllow=/dev/bus/usb rw
