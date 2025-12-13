@@ -112,6 +112,7 @@ class NoritakeVFDController:
 
         Args:
             port: Serial port device (e.g., '/dev/ttyUSB0', 'COM3')
+                  or TCP socket URL (e.g., 'socket://192.168.8.122:10001')
             baudrate: Communication baud rate (default: 38400)
             timeout: Serial read timeout in seconds
         """
@@ -121,23 +122,41 @@ class NoritakeVFDController:
         self.serial: Optional[serial.Serial] = None
         self.connected = False
         self.current_brightness = VFDBrightness.LEVEL_7
+        self.is_network_connection = port.startswith('socket://') if port else False
 
     def connect(self) -> bool:
         """
-        Connect to the VFD display via serial port.
+        Connect to the VFD display via serial port or TCP socket.
 
         Returns:
             True if connection successful, False otherwise
         """
         try:
-            self.serial = serial.Serial(
-                port=self.port,
-                baudrate=self.baudrate,
-                bytesize=serial.EIGHTBITS,
-                parity=serial.PARITY_NONE,
-                stopbits=serial.STOPBITS_ONE,
-                timeout=self.timeout
-            )
+            # Create serial connection
+            # pyserial supports socket:// URLs for TCP connections
+            if self.is_network_connection:
+                # For network connections, pyserial handles socket:// URLs directly
+                # No need to specify baudrate for network connections, but we set it anyway
+                self.serial = serial.serial_for_url(
+                    self.port,
+                    baudrate=self.baudrate,
+                    bytesize=serial.EIGHTBITS,
+                    parity=serial.PARITY_NONE,
+                    stopbits=serial.STOPBITS_ONE,
+                    timeout=self.timeout
+                )
+                logger.info(f"Connecting to VFD via TCP socket: {self.port}")
+            else:
+                # Traditional serial port connection
+                self.serial = serial.Serial(
+                    port=self.port,
+                    baudrate=self.baudrate,
+                    bytesize=serial.EIGHTBITS,
+                    parity=serial.PARITY_NONE,
+                    stopbits=serial.STOPBITS_ONE,
+                    timeout=self.timeout
+                )
+                logger.info(f"Connecting to VFD via serial port: {self.port}")
 
             # Allow time for connection to stabilize
             time.sleep(0.1)
@@ -146,7 +165,10 @@ class NoritakeVFDController:
             self.initialize_display()
 
             self.connected = True
-            logger.info(f"Connected to Noritake VFD on {self.port} at {self.baudrate} baud")
+            if self.is_network_connection:
+                logger.info(f"Connected to Noritake VFD via network on {self.port}")
+            else:
+                logger.info(f"Connected to Noritake VFD on {self.port} at {self.baudrate} baud")
             return True
 
         except serial.SerialException as e:
