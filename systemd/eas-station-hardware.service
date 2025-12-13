@@ -34,7 +34,7 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/opt/eas-station /var/log/eas-station /dev/gpiochip0 /dev/gpiochip1 /dev/i2c-1 /dev/spidev0.0
+ReadWritePaths=/opt/eas-station /var/log/eas-station -/dev/gpiochip0 -/dev/gpiochip1 -/dev/i2c-1 -/dev/spidev0.0
 
 # GPIO and hardware device access
 DeviceAllow=/dev/gpiochip0 rw
