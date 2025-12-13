@@ -433,16 +433,18 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # Add connection timeout and pool settings to prevent startup hangs
 # Pool settings optimized for robustness and performance
+# Note: With 2 gunicorn workers, total max connections = 2 * (pool_size + max_overflow) = 2 * (5 + 10) = 30
 app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
     'connect_args': {
-        'connect_timeout': 10,  # 10 second timeout for initial connection
+        'connect_timeout': 5,       # 5 second timeout for initial connection (reduced from 10)
+        'options': '-c statement_timeout=30s',  # 30 second query timeout
     },
-    'pool_pre_ping': True,      # Verify connections before using them (detect stale connections)
-    'pool_recycle': 3600,       # Recycle connections after 1 hour
-    'pool_size': 10,            # Number of connections to maintain
-    'max_overflow': 20,         # Additional connections when pool exhausted
-    'pool_timeout': 30,         # Timeout waiting for connection from pool
-    'echo_pool': False,         # Set to True for connection pool debugging
+    'pool_pre_ping': True,          # Verify connections before using them (detect stale connections)
+    'pool_recycle': 3600,           # Recycle connections after 1 hour
+    'pool_size': 3,                 # Number of connections per worker (reduced from 10 to avoid exhaustion)
+    'max_overflow': 5,              # Additional connections when pool exhausted (reduced from 20)
+    'pool_timeout': 10,             # Timeout waiting for connection from pool (reduced from 30)
+    'echo_pool': False,             # Set to True for connection pool debugging
 }
 
 # Initialize database
@@ -844,7 +846,12 @@ def initialize_database():
         if _db_initialized:
             return True
 
+        logger.info("=" * 60)
+        logger.info("DATABASE INITIALIZATION STARTING (Worker PID: %d)", os.getpid())
+        logger.info("=" * 60)
+
         try:
+            logger.info("[1/15] Checking PostGIS extension...")
             postgis_helper = globals().get("ensure_postgis_extension")
             if postgis_helper is None:
                 logger.warning(
@@ -856,64 +863,89 @@ def initialize_database():
                 _db_initialization_error = RuntimeError(error_msg)
                 return False
             
-            logger.info("Creating database tables...")
+            logger.info("[2/15] Creating database tables...")
             db.create_all()
             logger.info("✓ Database tables created")
             
+            logger.info("[3/15] Ensuring CAP alert source columns...")
             if not ensure_alert_source_columns(logger):
                 error_msg = "CAP alert source columns could not be ensured. Check database schema migration logs above."
                 logger.error(error_msg)
                 _db_initialization_error = RuntimeError(error_msg)
                 return False
+            
+            logger.info("[4/15] Ensuring boundary geometry column...")
             ensure_boundary_geometry_column(logger)
+            
+            logger.info("[5/15] Ensuring EAS audio columns...")
             if not ensure_eas_audio_columns(logger):
                 error_msg = "EAS audio columns could not be ensured. Check database schema migration logs above."
                 logger.error(error_msg)
                 _db_initialization_error = RuntimeError(error_msg)
                 return False
+            
+            logger.info("[6/15] Ensuring EAS message foreign key...")
             if not ensure_eas_message_foreign_key(logger):
                 _db_initialization_error = RuntimeError(
                     "EAS message foreign key constraint could not be ensured"
                 )
                 return False
+            
+            logger.info("[7/15] Ensuring manual EAS audio columns...")
             if not ensure_manual_eas_audio_columns(logger):
                 _db_initialization_error = RuntimeError(
                     "Manual EAS audio columns could not be ensured"
                 )
                 return False
+            
+            logger.info("[8/15] Ensuring poll debug table...")
             if not ensure_poll_debug_table(logger):
                 _db_initialization_error = RuntimeError(
                     "Poll debug table could not be ensured"
                 )
                 return False
+            
+            logger.info("[9/15] Ensuring radio tables...")
             if not ensure_radio_tables(logger):
                 _db_initialization_error = RuntimeError(
                     "Radio receiver tables could not be ensured"
                 )
                 return False
+            
+            logger.info("[10/15] Ensuring radio squelch columns...")
             if not ensure_radio_squelch_columns(logger):
                 _db_initialization_error = RuntimeError(
                     "Radio squelch columns could not be ensured"
                 )
                 return False
+            
+            logger.info("[11/15] Ensuring radio audio sample rate column...")
             if not ensure_radio_audio_sample_rate_column(logger):
                 _db_initialization_error = RuntimeError(
                     "Radio audio_sample_rate column could not be ensured"
                 )
                 return False
+            
+            logger.info("[12/15] Ensuring radio frequency correction column...")
             if not ensure_radio_frequency_correction_column(logger):
                 _db_initialization_error = RuntimeError(
                     "Radio frequency_correction_ppm column could not be ensured"
                 )
                 return False
+            
+            logger.info("[13/15] Loading NWS zone catalog (may take time)...")
             # Zone catalog is optional - app can start without it
             if not ensure_zone_catalog(logger):
                 logger.warning("NWS zone catalog could not be loaded - continuing without it")
+            
+            logger.info("[14/15] Ensuring storage zone codes column...")
             if not ensure_storage_zone_codes_column(logger):
                 _db_initialization_error = RuntimeError(
                     "Location settings storage_zone_codes column could not be ensured"
                 )
                 return False
+            
+            logger.info("[15/15] Backfilling data and initializing services...")
             backfill_eas_message_payloads(logger)
             backfill_manual_eas_audio(logger)
             settings = get_location_settings(force_reload=True)
@@ -961,7 +993,9 @@ def initialize_database():
         else:
             _db_initialized = True
             _db_initialization_error = None
-            logger.info("Database tables ensured on startup")
+            logger.info("=" * 60)
+            logger.info("DATABASE INITIALIZATION COMPLETE")
+            logger.info("=" * 60)
 
             # Start WebSocket push service for real-time updates
             try:
