@@ -2089,6 +2089,10 @@ systemctl enable nginx > /dev/null 2>&1
 echo_success "Services enabled"
 
 # Start the services automatically
+echo_progress "Starting nginx web server..."
+systemctl start nginx
+echo_success "Nginx started"
+
 echo_progress "Starting all EAS Station services..."
 systemctl start eas-station.target
 
