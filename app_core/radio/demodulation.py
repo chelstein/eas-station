@@ -240,6 +240,12 @@ class FMDemodulator:
             return np.array([], dtype=np.float32), None
 
         iq_array = np.asarray(iq_samples, dtype=np.complex64)
+
+        # Remove DC offset from IQ samples
+        # DC offset causes discriminator to see a constant frequency offset,
+        # which can appear as hum or drift in the audio
+        iq_array = iq_array - np.mean(iq_array)
+
         if self._prev_sample is not None:
             iq_array = np.concatenate(([self._prev_sample], iq_array))
         self._prev_sample = iq_array[-1]
@@ -247,6 +253,9 @@ class FMDemodulator:
         # Phase discriminator - extract instantaneous frequency
         discriminator = np.angle(iq_array[1:] * np.conj(iq_array[:-1]))
         multiplex = discriminator / np.pi
+
+        # Remove any DC from the multiplex signal (prevents audio drift)
+        multiplex = multiplex - np.mean(multiplex)
 
         # Apply decimation if configured (for high sample rate SDRs)
         if self._decimation_factor > 1 and self._decim_filter is not None:
