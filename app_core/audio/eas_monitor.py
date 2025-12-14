@@ -346,10 +346,12 @@ class EASMonitor:
 
     def __init__(
         self,
-        audio_source,
+        audio_source=None,
         sample_rate: int = 16000,
         alert_callback: Optional[Callable] = None,
-        source_name: str = "unknown"
+        source_name: str = "unknown",
+        audio_manager=None,  # Backwards compatibility - deprecated
+        save_audio_files: bool = False  # Backwards compatibility - deprecated
     ):
         """
         Initialize monitor.
@@ -359,7 +361,17 @@ class EASMonitor:
             sample_rate: Target sample rate for decoder (16kHz for SAME)
             alert_callback: Function to call when alert detected
             source_name: Human-readable name for this source
+            audio_manager: DEPRECATED - use audio_source instead (for backwards compatibility)
+            save_audio_files: DEPRECATED - ignored (for backwards compatibility)
         """
+        # Handle backwards compatibility with audio_manager parameter
+        if audio_manager is not None and audio_source is None:
+            audio_source = audio_manager
+            logger.warning("audio_manager parameter is deprecated, use audio_source instead")
+        
+        if audio_source is None:
+            raise ValueError("audio_source parameter is required")
+        
         self.audio_source = audio_source
         self.sample_rate = sample_rate
         self.alert_callback = alert_callback
