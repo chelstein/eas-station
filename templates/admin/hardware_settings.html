@@ -67,32 +67,150 @@
         margin-bottom: 1.5rem;
     }
 
-    .gpio-pin-visual {
+    .gpio-pins-grid {
         display: grid;
-        grid-template-columns: repeat(2, 1fr);
-        gap: 0.5rem;
-        max-width: 600px;
-        margin: 1rem 0;
+        grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+        gap: 0.75rem;
+        margin: 1.5rem 0;
     }
 
-    .gpio-pin {
-        padding: 0.5rem;
-        border: 1px solid #dee2e6;
-        border-radius: 0.25rem;
-        font-family: monospace;
-        font-size: 0.875rem;
+    .gpio-pin-card {
+        padding: 1rem;
+        border: 2px solid #dee2e6;
+        border-radius: 0.5rem;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.2s;
+        background: white;
+        position: relative;
     }
 
-    .gpio-pin.reserved {
+    .gpio-pin-card:hover:not(.reserved) {
+        border-color: #007bff;
+        box-shadow: 0 2px 8px rgba(0,123,255,0.2);
+    }
+
+    .gpio-pin-card.reserved {
         background: #f8d7da;
         border-color: #f5c6cb;
         color: #721c24;
+        cursor: not-allowed;
+        opacity: 0.6;
     }
 
-    .gpio-pin.available {
+    .gpio-pin-card.configured {
         background: #d4edda;
-        border-color: #c3e6cb;
+        border-color: #28a745;
         color: #155724;
+    }
+
+    .gpio-pin-card .pin-number {
+        font-weight: bold;
+        font-size: 1.25rem;
+        margin-bottom: 0.25rem;
+    }
+
+    .gpio-pin-card .pin-label {
+        font-size: 0.75rem;
+        color: #6c757d;
+    }
+
+    .configured-pins-table {
+        margin-top: 1.5rem;
+    }
+
+    .configured-pins-table table {
+        width: 100%;
+        background: white;
+        border-radius: 0.375rem;
+        overflow: hidden;
+    }
+
+    .configured-pins-table th {
+        background: #f8f9fa;
+        padding: 0.75rem;
+        font-weight: 600;
+        text-align: left;
+        border-bottom: 2px solid #dee2e6;
+    }
+
+    .configured-pins-table td {
+        padding: 0.75rem;
+        border-bottom: 1px solid #dee2e6;
+    }
+
+    .btn-remove-pin {
+        background: #dc3545;
+        color: white;
+        border: none;
+        padding: 0.25rem 0.5rem;
+        border-radius: 0.25rem;
+        cursor: pointer;
+        font-size: 0.875rem;
+    }
+
+    .btn-remove-pin:hover {
+        background: #c82333;
+    }
+
+    .modal {
+        display: none;
+        position: fixed;
+        z-index: 1000;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.5);
+    }
+
+    .modal.show {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .modal-content {
+        background: white;
+        padding: 2rem;
+        border-radius: 0.5rem;
+        max-width: 600px;
+        width: 90%;
+        max-height: 90vh;
+        overflow-y: auto;
+    }
+
+    .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1.5rem;
+    }
+
+    .modal-header h3 {
+        margin: 0;
+    }
+
+    .modal-close {
+        background: none;
+        border: none;
+        font-size: 1.5rem;
+        cursor: pointer;
+        color: #6c757d;
+    }
+
+    .modal-close:hover {
+        color: #000;
+    }
+
+    .behavior-checkboxes {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 0.5rem;
+    }
+
+    .behavior-checkboxes .form-check {
+        margin-bottom: 0.5rem;
     }
 
     .btn-restart-services {
@@ -170,25 +288,38 @@
                     {% endif %}
 
                     <div class="form-section">
-                        <h4>GPIO Pin Map</h4>
-                        <p class="text-muted">
-                            Configure GPIO pins in JSON format. Each pin is identified by BCM number.
+                        <h4>GPIO Pin Configuration</h4>
+                        <p class="text-muted mb-3">
+                            Click on a GPIO pin to configure it. Reserved pins (OLED) are shown in red and cannot be configured.
                         </p>
-                        <textarea class="form-control font-monospace" id="gpio_pin_map" name="gpio_pin_map" rows="8" placeholder='{"17": {"name": "EAS Transmitter PTT", "active_high": true, "hold_seconds": 5.0, "watchdog_seconds": 300.0}}'>{{ settings.gpio_pin_map|tojson if settings.gpio_pin_map else '' }}</textarea>
-                        <small class="form-text text-muted">
-                            Format: {"pin": {"name": "...", "active_high": true, "hold_seconds": 5.0, "watchdog_seconds": 300.0}}
-                        </small>
-                    </div>
 
-                    <div class="form-section">
-                        <h4>GPIO Behavior Matrix (Optional)</h4>
-                        <p class="text-muted">
-                            Map pins to automated behaviors during alert processing.
-                        </p>
-                        <textarea class="form-control font-monospace" id="gpio_behavior_matrix" name="gpio_behavior_matrix" rows="6" placeholder='{"17": ["duration_of_alert"], "27": ["flash"]}'>{{ settings.gpio_behavior_matrix|tojson if settings.gpio_behavior_matrix else '' }}</textarea>
-                        <small class="form-text text-muted">
-                            Available behaviors: duration_of_alert, playout, flash, five_seconds, incoming_alert, forwarding_alert
-                        </small>
+                        <div class="gpio-pins-grid" id="gpioPinsGrid">
+                            <!-- GPIO pins will be generated here by JavaScript -->
+                        </div>
+
+                        <div class="configured-pins-table" id="configuredPinsTable" style="display: none;">
+                            <h5>Configured Pins</h5>
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Pin</th>
+                                        <th>Name</th>
+                                        <th>Active</th>
+                                        <th>Hold (s)</th>
+                                        <th>Watchdog (s)</th>
+                                        <th>Behaviors</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="configuredPinsBody">
+                                    <!-- Configured pins will appear here -->
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- Hidden fields for JSON data -->
+                        <input type="hidden" id="gpio_pin_map" name="gpio_pin_map" value="">
+                        <input type="hidden" id="gpio_behavior_matrix" name="gpio_behavior_matrix" value="">
                     </div>
                 </div>
 
@@ -197,7 +328,7 @@
                     <div class="form-section">
                         <h4>OLED Display (Argon Industria SSD1306)</h4>
                         <div class="form-check mb-3">
-                            <input class="form-check-input" type="checkbox" id="oled_enabled" name="oled_enabled" value="true" {% if settings.oled_enabled %}checked{% endif %}>
+                            <input class="form-check-input" type="checkbox" id="oled_enabled" name="oled_enabled" value="true" {% if settings.oled_enabled %}checked{% endif %} onchange="updateOLEDReservedPins()">
                             <label class="form-check-label" for="oled_enabled">
                                 Enable OLED Display (128x64)
                             </label>
@@ -431,7 +562,289 @@
     </div>
 </div>
 
+<!-- GPIO Pin Configuration Modal -->
+<div id="gpioPinModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Configure GPIO Pin <span id="modalPinNumber"></span></h3>
+            <button class="modal-close" onclick="closeGPIOModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="mb-3">
+                <label for="pinName" class="form-label">Pin Name/Label</label>
+                <input type="text" class="form-control" id="pinName" placeholder="e.g., EAS Transmitter PTT">
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Activation Mode</label>
+                <div class="form-check">
+                    <input class="form-check-input" type="radio" name="pinActiveMode" id="pinActiveHigh" value="true" checked>
+                    <label class="form-check-label" for="pinActiveHigh">
+                        Active High (ON = 3.3V)
+                    </label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="radio" name="pinActiveMode" id="pinActiveLow" value="false">
+                    <label class="form-check-label" for="pinActiveLow">
+                        Active Low (ON = 0V)
+                    </label>
+                </div>
+            </div>
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <label for="pinHoldSeconds" class="form-label">Hold Time (seconds)</label>
+                    <input type="number" step="0.1" class="form-control" id="pinHoldSeconds" value="5.0" placeholder="5.0">
+                    <small class="form-text text-muted">How long to keep the pin active</small>
+                </div>
+                <div class="col-md-6">
+                    <label for="pinWatchdogSeconds" class="form-label">Watchdog (seconds)</label>
+                    <input type="number" step="1" class="form-control" id="pinWatchdogSeconds" value="300.0" placeholder="300.0">
+                    <small class="form-text text-muted">Safety timeout</small>
+                </div>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Automated Behaviors (Optional)</label>
+                <p class="text-muted small">Select when this pin should automatically activate:</p>
+                <div class="behavior-checkboxes">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="behavior_duration_of_alert" value="duration_of_alert">
+                        <label class="form-check-label" for="behavior_duration_of_alert">
+                            During Alert
+                        </label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="behavior_playout" value="playout">
+                        <label class="form-check-label" for="behavior_playout">
+                            During Playout
+                        </label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="behavior_flash" value="flash">
+                        <label class="form-check-label" for="behavior_flash">
+                            Flash Mode
+                        </label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="behavior_five_seconds" value="five_seconds">
+                        <label class="form-check-label" for="behavior_five_seconds">
+                            5 Second Pulse
+                        </label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="behavior_incoming_alert" value="incoming_alert">
+                        <label class="form-check-label" for="behavior_incoming_alert">
+                            Incoming Alert
+                        </label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="behavior_forwarding_alert" value="forwarding_alert">
+                        <label class="form-check-label" for="behavior_forwarding_alert">
+                            Forwarding Alert
+                        </label>
+                    </div>
+                </div>
+            </div>
+            <div class="d-flex justify-content-end gap-2">
+                <button type="button" class="btn btn-secondary" onclick="closeGPIOModal()">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="saveGPIOPin()">Save Pin</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
+// GPIO Pin Configuration State
+const gpioPinConfigs = {{ settings.gpio_pin_map|tojson|safe }};
+const reservedPins = {{ reserved_gpio_pins|tojson|safe }};
+let currentEditingPin = null;
+
+// Available behaviors
+const BEHAVIORS = [
+    'duration_of_alert',
+    'playout',
+    'flash',
+    'five_seconds',
+    'incoming_alert',
+    'forwarding_alert'
+];
+
+// Initialize GPIO pins grid
+function initGPIOPins() {
+    const grid = document.getElementById('gpioPinsGrid');
+    grid.innerHTML = '';
+
+    // Create pin cards for GPIO 2-27 (BCM numbering)
+    for (let pin = 2; pin <= 27; pin++) {
+        const card = document.createElement('div');
+        card.className = 'gpio-pin-card';
+
+        const isReserved = reservedPins.includes(pin);
+        const isConfigured = gpioPinConfigs.hasOwnProperty(pin.toString());
+
+        if (isReserved) {
+            card.classList.add('reserved');
+        } else if (isConfigured) {
+            card.classList.add('configured');
+        }
+
+        card.innerHTML = `
+            <div class="pin-number">GPIO ${pin}</div>
+            <div class="pin-label">${isReserved ? 'OLED' : isConfigured ? gpioPinConfigs[pin].name.substring(0, 12) : 'Available'}</div>
+        `;
+
+        if (!isReserved) {
+            card.onclick = () => editGPIOPin(pin);
+        }
+
+        grid.appendChild(card);
+    }
+
+    updateConfiguredPinsTable();
+}
+
+// Open GPIO pin configuration modal
+function editGPIOPin(pin) {
+    currentEditingPin = pin;
+    const modal = document.getElementById('gpioPinModal');
+    const config = gpioPinConfigs[pin.toString()];
+
+    document.getElementById('modalPinNumber').textContent = pin;
+    document.getElementById('pinName').value = config ? config.name : '';
+
+    if (config && config.active_high !== undefined) {
+        document.getElementById('pinActiveHigh').checked = config.active_high;
+        document.getElementById('pinActiveLow').checked = !config.active_high;
+    } else {
+        document.getElementById('pinActiveHigh').checked = true;
+    }
+
+    document.getElementById('pinHoldSeconds').value = config ? config.hold_seconds : 5.0;
+    document.getElementById('pinWatchdogSeconds').value = config ? config.watchdog_seconds : 300.0;
+
+    // Clear all behavior checkboxes
+    BEHAVIORS.forEach(behavior => {
+        document.getElementById('behavior_' + behavior).checked = false;
+    });
+
+    // Load existing behavior matrix for this pin
+    const behaviorMatrix = {{ settings.gpio_behavior_matrix|tojson|safe }};
+    if (behaviorMatrix && behaviorMatrix[pin.toString()]) {
+        behaviorMatrix[pin.toString()].forEach(behavior => {
+            const checkbox = document.getElementById('behavior_' + behavior);
+            if (checkbox) checkbox.checked = true;
+        });
+    }
+
+    modal.classList.add('show');
+}
+
+// Close GPIO modal
+function closeGPIOModal() {
+    document.getElementById('gpioPinModal').classList.remove('show');
+    currentEditingPin = null;
+}
+
+// Save GPIO pin configuration
+function saveGPIOPin() {
+    if (!currentEditingPin) return;
+
+    const pinName = document.getElementById('pinName').value.trim();
+    if (!pinName) {
+        alert('Please enter a pin name');
+        return;
+    }
+
+    const activeHigh = document.getElementById('pinActiveHigh').checked;
+    const holdSeconds = parseFloat(document.getElementById('pinHoldSeconds').value) || 5.0;
+    const watchdogSeconds = parseFloat(document.getElementById('pinWatchdogSeconds').value) || 300.0;
+
+    // Save pin configuration
+    gpioPinConfigs[currentEditingPin.toString()] = {
+        name: pinName,
+        active_high: activeHigh,
+        hold_seconds: holdSeconds,
+        watchdog_seconds: watchdogSeconds
+    };
+
+    // Save behaviors
+    const behaviors = [];
+    BEHAVIORS.forEach(behavior => {
+        if (document.getElementById('behavior_' + behavior).checked) {
+            behaviors.push(behavior);
+        }
+    });
+
+    const behaviorMatrix = {{ settings.gpio_behavior_matrix|tojson|safe }};
+    if (behaviors.length > 0) {
+        behaviorMatrix[currentEditingPin.toString()] = behaviors;
+    } else {
+        delete behaviorMatrix[currentEditingPin.toString()];
+    }
+
+    // Update hidden fields
+    document.getElementById('gpio_pin_map').value = JSON.stringify(gpioPinConfigs);
+    document.getElementById('gpio_behavior_matrix').value = JSON.stringify(behaviorMatrix);
+
+    closeGPIOModal();
+    initGPIOPins();
+}
+
+// Remove a configured pin
+function removeGPIOPin(pin) {
+    if (!confirm(`Remove configuration for GPIO ${pin}?`)) return;
+
+    delete gpioPinConfigs[pin.toString()];
+    const behaviorMatrix = {{ settings.gpio_behavior_matrix|tojson|safe }};
+    delete behaviorMatrix[pin.toString()];
+
+    document.getElementById('gpio_pin_map').value = JSON.stringify(gpioPinConfigs);
+    document.getElementById('gpio_behavior_matrix').value = JSON.stringify(behaviorMatrix);
+
+    initGPIOPins();
+}
+
+// Update configured pins table
+function updateConfiguredPinsTable() {
+    const tbody = document.getElementById('configuredPinsBody');
+    const table = document.getElementById('configuredPinsTable');
+    const behaviorMatrix = {{ settings.gpio_behavior_matrix|tojson|safe }};
+
+    tbody.innerHTML = '';
+
+    const configuredPinNumbers = Object.keys(gpioPinConfigs).sort((a, b) => parseInt(a) - parseInt(b));
+
+    if (configuredPinNumbers.length === 0) {
+        table.style.display = 'none';
+        return;
+    }
+
+    table.style.display = 'block';
+
+    configuredPinNumbers.forEach(pin => {
+        const config = gpioPinConfigs[pin];
+        const behaviors = behaviorMatrix[pin] || [];
+
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td><strong>GPIO ${pin}</strong></td>
+            <td>${config.name}</td>
+            <td>${config.active_high ? 'High' : 'Low'}</td>
+            <td>${config.hold_seconds}s</td>
+            <td>${config.watchdog_seconds}s</td>
+            <td>${behaviors.join(', ') || 'None'}</td>
+            <td>
+                <button type="button" class="btn-remove-pin" onclick="removeGPIOPin('${pin}')">Remove</button>
+            </td>
+        `;
+        tbody.appendChild(row);
+    });
+}
+
+// Update OLED reserved pins when toggling OLED
+function updateOLEDReservedPins() {
+    // Reload page to update reserved pins display
+    // In production, you'd dynamically update the reserved pins
+}
+
 function switchTab(tabName) {
     // Hide all tab contents
     document.querySelectorAll('.hardware-tab-content').forEach(tab => {
@@ -469,8 +882,9 @@ function updateLEDConnectionVisibility() {
     }
 }
 
-// Initialize LED connection visibility on page load
+// Initialize on page load
 document.addEventListener('DOMContentLoaded', function() {
+    initGPIOPins();
     updateLEDConnectionVisibility();
 
     // Add change listeners
@@ -497,6 +911,11 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+
+    // Initialize hidden JSON fields with current config
+    document.getElementById('gpio_pin_map').value = JSON.stringify(gpioPinConfigs);
+    const behaviorMatrix = {{ settings.gpio_behavior_matrix|tojson|safe }};
+    document.getElementById('gpio_behavior_matrix').value = JSON.stringify(behaviorMatrix);
 });
 
 function restartServices() {
