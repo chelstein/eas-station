@@ -94,9 +94,12 @@ sudo systemctl status eas-station-sdr
 # View logs (should see "Found N SoapySDR device(s)")
 journalctl -u eas-station-sdr -n 50
 
-# Test device enumeration manually
+# Test device enumeration manually (with error suppression)
 sudo -u eas-station bash -c '
 export PYTHONPATH=/opt/eas-station:/usr/lib/python3/dist-packages
+export ALSA_CONFIG_PATH=/dev/null
+export PULSE_SERVER=/dev/null
+export SOAPY_SDR_LOG_LEVEL=WARNING
 cd /opt/eas-station && source venv/bin/activate
 python3 -c "
 import SoapySDR
@@ -133,8 +136,11 @@ However, SoapySDR's plugin architecture loads ALL available modules during initi
 | Issue | Impact on Functionality | Recommended Action |
 |-------|-------------------------|-------------------|
 | ALSA errors in logs | None (cosmetic only) | Suppress with env vars (already configured) |
-| PulseAudio/Jack errors | None (cosmetic only) | Suppress with env vars (already configured) |
-| Want completely clean logs | None (cosmetic only) | Uninstall soapysdr-module-audio package |
-| "no match" errors | Prevents device opening | Retry logic (already implemented) |
+```
+ALSA lib control.c:1575:(snd_ctl_open_noupdate) Invalid CTL hw:0
+RtApiAlsa::probeDevices: control open, card = 0, No such file or directory.
+RtApiPulse::probeDevices: pa_context_connect() failed: Connection refused
+RtApiJack::probeDevices: Jack server not found or connection error!
+```
 
 **Bottom line**: If your SDR device is working (check web UI for signal/audio), you can safely ignore these errors. They're just noise from an unnecessary audio module.

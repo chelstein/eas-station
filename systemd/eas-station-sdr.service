@@ -19,7 +19,7 @@ Environment="PATH=/opt/eas-station/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/
 # but the SDR service needs SoapySDR which is only available as a system package
 Environment="PYTHONPATH=/opt/eas-station:/usr/lib/python3/dist-packages"
 Environment="SOAPY_SDR_PLUGIN_PATH=/usr/lib/aarch64-linux-gnu/SoapySDR/modules0.8:/usr/lib/arm-linux-gnueabihf/SoapySDR/modules0.8:/usr/lib/x86_64-linux-gnu/SoapySDR/modules0.8:/usr/lib/SoapySDR/modules0.8"
-# Suppress ALSA/RtAudio errors from soapysdr-module-audio (if installed)
+# Suppress ALSA/PulseAudio/Jack errors from soapysdr-module-audio (if installed)
 # soapysdr-module-audio tries to probe ALSA/Pulse/Jack devices even though we only use SDR hardware
 # Setting these environment variables suppresses the error messages without affecting SDR functionality
 Environment="ALSA_CONFIG_PATH=/dev/null"
