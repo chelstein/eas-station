@@ -322,5 +322,21 @@ class RedisSDRSourceAdapter(AudioSourceAdapter):
         self.metrics.metadata['center_frequency_mhz'] = round(self._center_frequency / 1_000_000, 6)
         self.metrics.metadata['samples_received'] = self._samples_received
         self.metrics.metadata['last_sample_age'] = time.time() - self._last_sample_time if self._last_sample_time > 0 else None
-        # Stereo flag for FM broadcasts (WFM and FM support stereo)
-        self.metrics.metadata['stereo_enabled'] = (demod_mode.upper() == 'WFM' or demod_mode.upper() == 'FM')
+
+        # Stereo detection from demodulator
+        # stereo_enabled = modulation type supports stereo (WFM/FM)
+        # stereo_pilot_locked = 19kHz pilot tone actually detected
+        # is_stereo = receiving stereo audio (pilot locked and stereo mode)
+        modulation_supports_stereo = demod_mode.upper() in ('WFM', 'FM')
+        self.metrics.metadata['stereo_enabled'] = modulation_supports_stereo
+
+        # Get actual stereo detection status from demodulator
+        if self._demodulator and hasattr(self._demodulator, 'get_last_status'):
+            status = self._demodulator.get_last_status()
+            if status:
+                self.metrics.metadata['stereo_pilot_locked'] = status.stereo_pilot_locked
+                self.metrics.metadata['stereo_pilot_strength'] = status.stereo_pilot_strength
+                self.metrics.metadata['is_stereo'] = status.is_stereo
+                # Override stereo_enabled with actual detection for display
+                if modulation_supports_stereo:
+                    self.metrics.metadata['stereo_enabled'] = status.stereo_pilot_locked
