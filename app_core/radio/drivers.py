@@ -662,11 +662,54 @@ class _SoapySDRReceiver(ReceiverInterface):
                 )
                 self._no_devices_last_log_time = now
 
-        try:
-            device = SoapySDR.Device(args)
-        except Exception as exc:
+        # Add a small delay after enumeration to allow libusb to settle
+        # This helps avoid "no match" errors caused by timing/race conditions
+        # between enumeration and device opening (especially with USB3 hubs)
+        time.sleep(0.1)
+
+        # Retry Device.make() specifically for "no match" errors
+        # These can occur due to libusb timing issues or USB module interference
+        device = None
+        last_exc = None
+        no_match_retries = 3
+        no_match_delay = 0.5
+
+        for attempt in range(no_match_retries):
+            try:
+                device = SoapySDR.Device(args)
+                break  # Success
+            except Exception as exc:
+                last_exc = exc
+                error_str = str(exc).lower()
+
+                # Check if this is a "no match" error that might benefit from retry
+                if "no match" in error_str or "nomatch" in error_str:
+                    if attempt < no_match_retries - 1:
+                        self._interface_logger.warning(
+                            "Device.make() returned 'no match' for %s (attempt %d/%d). "
+                            "This may be a USB timing issue. Retrying in %.1fs...",
+                            self.config.identifier,
+                            attempt + 1,
+                            no_match_retries,
+                            no_match_delay
+                        )
+                        time.sleep(no_match_delay)
+                        no_match_delay *= 2  # Exponential backoff
+                        continue
+                    else:
+                        self._interface_logger.error(
+                            "Device.make() returned 'no match' after %d retries for %s. "
+                            "The device was enumerated but cannot be opened. "
+                            "This may indicate a libusb issue or USB hub problem.",
+                            no_match_retries,
+                            self.config.identifier
+                        )
+                # For non "no match" errors, try fallback immediately
+                break
+
+        if device is None and last_exc is not None:
             device = self._retry_device_open_without_serial(
-                SoapySDR, args, exc
+                SoapySDR, args, last_exc
             )
 
         try:
