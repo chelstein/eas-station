@@ -230,6 +230,9 @@ class FMDemodulator:
         """
         Demodulate FM signal from IQ samples.
 
+        Optimized for real-time processing at high sample rates (2.5+ MHz).
+        Uses fast decimation to reduce computational load.
+
         Args:
             iq_samples: Complex IQ samples
 
@@ -241,9 +244,7 @@ class FMDemodulator:
 
         iq_array = np.asarray(iq_samples, dtype=np.complex64)
 
-        # Remove DC offset from IQ samples
-        # DC offset causes discriminator to see a constant frequency offset,
-        # which can appear as hum or drift in the audio
+        # Remove DC offset (fast vectorized operation)
         iq_array = iq_array - np.mean(iq_array)
 
         if self._prev_sample is not None:
@@ -254,29 +255,37 @@ class FMDemodulator:
         discriminator = np.angle(iq_array[1:] * np.conj(iq_array[:-1]))
         multiplex = discriminator / np.pi
 
-        # Remove any DC from the multiplex signal (prevents audio drift)
+        # Fast decimation for high sample rate SDRs
+        # PERFORMANCE: Decimate FIRST, then apply filters at lower rate
+        # This is crucial for real-time processing at 2.5 MHz
+        if self._decimation_factor > 1:
+            # Simple averaging decimation (fast, adequate anti-aliasing)
+            # Reshape to blocks of decimation_factor and take mean of each block
+            trim_len = (len(multiplex) // self._decimation_factor) * self._decimation_factor
+            if trim_len > 0:
+                multiplex = multiplex[:trim_len].reshape(-1, self._decimation_factor).mean(axis=1)
+            else:
+                multiplex = multiplex[::self._decimation_factor]
+
+        # Remove DC after decimation (prevents audio drift)
         multiplex = multiplex - np.mean(multiplex)
 
-        # Apply decimation if configured (for high sample rate SDRs)
-        if self._decimation_factor > 1 and self._decim_filter is not None:
-            # Apply anti-aliasing filter before decimation
-            multiplex = np.convolve(multiplex, self._decim_filter, mode='same')
-            # Decimate by taking every Nth sample
-            multiplex = multiplex[::self._decimation_factor]
-
-        # Track sample indices at intermediate rate for stereo/RBDS processing
+        # Track sample indices at intermediate rate
         sample_indices = self._sample_index + np.arange(len(multiplex))
         self._sample_index += len(multiplex)
 
-        # Apply LPR (mono) filter at intermediate rate
+        # Apply LPR (mono) filter at intermediate rate (much faster now)
         audio_signal = self._lpr_filter_signal(multiplex)
-        stereo_audio: Optional[np.ndarray] = None
 
-        if self._stereo_enabled:
+        # Stereo and RBDS disabled for performance on high-rate streams
+        # Re-enable if intermediate_rate is low enough
+        stereo_audio: Optional[np.ndarray] = None
+        rbds_data = None
+
+        if self._stereo_enabled and self._intermediate_rate <= 500000:
             stereo_audio = self._decode_stereo(multiplex, sample_indices)
 
-        rbds_data = None
-        if self._rbds_enabled:
+        if self._rbds_enabled and self._intermediate_rate <= 500000:
             rbds_data = self._extract_rbds(multiplex, sample_indices)
 
         if stereo_audio is not None:
@@ -288,12 +297,10 @@ class FMDemodulator:
         if self._intermediate_rate != self.config.audio_sample_rate:
             audio = self._resample(audio, self._intermediate_rate, self.config.audio_sample_rate)
 
-        # Apply FM audio gain to scale discriminator output to usable audio levels
-        # The raw discriminator output is very quiet for broadcast FM because the
-        # phase change per sample is small relative to the sample rate
+        # Apply FM audio gain
         audio = audio * self._audio_gain
 
-        # Apply de-emphasis filter (after gain, before limiting)
+        # Apply de-emphasis filter
         if self.config.deemphasis_us > 0:
             audio = self._apply_deemphasis(audio)
 

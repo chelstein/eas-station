@@ -1492,13 +1492,13 @@ class AirspyReceiver(_SoapySDRReceiver):
     """Driver for Airspy receivers using the SoapyAirspy module.
 
     Airspy R2 (most common) only supports 2.5 MHz and 10 MHz sample rates.
-    Uses linearity gain mode by default for optimal strong signal performance.
 
     Gain Settings:
+    - When gain is None/not set: AGC is enabled (auto gain)
+    - When gain is set to a value: Manual gain mode with linearity optimization
     - Airspy has a range of 0-21 dB in "linearity" mode
     - For strong signals (local FM stations), use 0-5 dB to prevent ADC overload
     - For weak signals, use 15-21 dB for better sensitivity
-    - Default is 10 dB (balanced for most FM reception)
     """
 
     driver_hint = "airspy"
@@ -1506,17 +1506,13 @@ class AirspyReceiver(_SoapySDRReceiver):
     # Airspy R2 valid sample rates - ONLY these two are supported
     AIRSPY_R2_SAMPLE_RATES = [2_500_000, 10_000_000]
 
-    # Default gain for Airspy in dB (balanced for FM broadcast)
-    # Lower values (0-5) for very strong signals, higher (15-21) for weak signals
-    DEFAULT_AIRSPY_GAIN = 10.0
-
     def _open_handle(self) -> _SoapySDRHandle:
         """Open Airspy device with Airspy-specific configuration.
 
         Overrides parent to add:
         1. Sample rate validation (must be exactly 2.5 MHz or 10 MHz for R2)
-        2. Linearity gain mode (optimal for FM/NOAA reception)
-        3. Proper default gain when not specified
+        2. AGC or manual gain mode based on config
+        3. Explicit frequency component tuning
         4. Bias-T configuration if supported
         """
         # Validate sample rate for Airspy R2 before opening device
@@ -1538,63 +1534,113 @@ class AirspyReceiver(_SoapySDRReceiver):
             # Get channel
             channel = self.config.channel if self.config.channel is not None else 0
 
-            # Airspy works best in manual gain mode with linearity optimization
-            # This provides best dynamic range for strong signals like FM broadcast
+            # Configure gain mode based on whether gain is specified
+            if self.config.gain is None:
+                # No gain specified - enable AGC (automatic gain control)
+                try:
+                    handle.device.setGainMode(handle.sdr.SOAPY_SDR_RX, channel, True)  # Enable AGC
+                    self._interface_logger.info(
+                        "Enabled AGC (automatic gain) for Airspy %s",
+                        self.config.identifier
+                    )
+                except Exception as e:
+                    self._interface_logger.warning(
+                        "Could not enable AGC for Airspy %s: %s - falling back to manual gain",
+                        self.config.identifier,
+                        e
+                    )
+                    # Fallback: set a moderate default gain
+                    try:
+                        handle.device.setGainMode(handle.sdr.SOAPY_SDR_RX, channel, False)
+                        handle.device.setGain(handle.sdr.SOAPY_SDR_RX, channel, 10.0)
+                    except Exception:
+                        pass
+            else:
+                # Gain specified - use manual gain mode with linearity optimization
+                try:
+                    handle.device.setGainMode(handle.sdr.SOAPY_SDR_RX, channel, False)  # Disable AGC
+                    # Clamp gain to valid Airspy range (0-21 dB)
+                    actual_gain = max(0.0, min(21.0, float(self.config.gain)))
+                    handle.device.setGain(handle.sdr.SOAPY_SDR_RX, channel, actual_gain)
+                    self._interface_logger.info(
+                        "Set Airspy %s to manual gain %.1f dB (range 0-21)",
+                        self.config.identifier,
+                        actual_gain
+                    )
+                except Exception as e:
+                    self._interface_logger.warning(
+                        "Could not set Airspy gain for %s: %s",
+                        self.config.identifier,
+                        e
+                    )
+
+            # Explicitly set the frequency using the RF component
+            # Some SoapySDR drivers need explicit component tuning
             try:
-                handle.device.setGainMode(handle.sdr.SOAPY_SDR_RX, channel, False)  # Disable AGC
+                freq_hz = self.config.frequency_hz
+                # Try to set RF frequency component explicitly
+                handle.device.setFrequency(handle.sdr.SOAPY_SDR_RX, channel, "RF", freq_hz)
                 self._interface_logger.info(
-                    "Configured Airspy %s in manual gain mode (linearity optimized)",
-                    self.config.identifier
+                    "Set Airspy %s RF frequency to %.6f MHz",
+                    self.config.identifier,
+                    freq_hz / 1_000_000
                 )
             except Exception as e:
-                self._interface_logger.warning(
-                    "Could not set Airspy gain mode for %s: %s",
+                # If RF component doesn't work, the parent already set the main frequency
+                self._interface_logger.debug(
+                    "Could not set RF frequency component for %s (using default tuning): %s",
                     self.config.identifier,
                     e
                 )
 
-            # Set gain - use configured value or default
-            # Airspy linearity mode has a range of 0-21 dB
-            actual_gain = self.config.gain if self.config.gain is not None else self.DEFAULT_AIRSPY_GAIN
+            # Verify the actual tuned frequency
             try:
-                # Clamp gain to valid Airspy range
-                actual_gain = max(0.0, min(21.0, float(actual_gain)))
-                handle.device.setGain(handle.sdr.SOAPY_SDR_RX, channel, actual_gain)
-                self._interface_logger.info(
-                    "Set Airspy %s gain to %.1f dB (range 0-21, lower for strong signals)",
-                    self.config.identifier,
-                    actual_gain
-                )
+                actual_freq = handle.device.getFrequency(handle.sdr.SOAPY_SDR_RX, channel)
+                expected_freq = self.config.frequency_hz
+                freq_error_khz = (actual_freq - expected_freq) / 1000.0
+
+                if abs(freq_error_khz) > 10:  # More than 10 kHz error
+                    self._interface_logger.warning(
+                        "⚠️ Airspy %s frequency mismatch: expected %.6f MHz, actual %.6f MHz (%.1f kHz error)",
+                        self.config.identifier,
+                        expected_freq / 1_000_000,
+                        actual_freq / 1_000_000,
+                        freq_error_khz
+                    )
+                else:
+                    self._interface_logger.info(
+                        "Airspy %s tuned to %.6f MHz (error: %.1f kHz)",
+                        self.config.identifier,
+                        actual_freq / 1_000_000,
+                        freq_error_khz
+                    )
             except Exception as e:
-                self._interface_logger.warning(
-                    "Could not set Airspy gain for %s: %s",
+                self._interface_logger.debug(
+                    "Could not verify Airspy frequency for %s: %s",
                     self.config.identifier,
                     e
                 )
 
             # Try to disable Bias-T by default (can damage some equipment if left on)
-            # User can enable via hardware settings if they have an LNA that needs it
             try:
                 if hasattr(handle.device, 'writeSetting'):
                     handle.device.writeSetting('biastee', 'false')
                     self._interface_logger.debug(
-                        "Disabled Bias-T for Airspy %s (enable in hardware settings if needed)",
+                        "Disabled Bias-T for Airspy %s",
                         self.config.identifier
                     )
             except Exception as e:
                 # Not all Airspy modules support bias-T, that's OK
-                self._interface_logger.debug(
-                    "Bias-T setting not available for %s: %s",
-                    self.config.identifier,
-                    e
-                )
+                pass
 
-            # Log Airspy-specific configuration
+            # Log final configuration
+            gain_mode = "AGC" if self.config.gain is None else f"{self.config.gain} dB manual"
             self._interface_logger.info(
-                "✅ Airspy %s configured: %d Hz sample rate, gain %.1f dB",
+                "✅ Airspy %s configured: %.6f MHz, %d Hz sample rate, %s",
                 self.config.identifier,
+                self.config.frequency_hz / 1_000_000,
                 self.config.sample_rate,
-                actual_gain
+                gain_mode
             )
 
         except Exception as exc:
