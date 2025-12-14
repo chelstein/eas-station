@@ -1132,6 +1132,7 @@ apt-get install -y \
     rtl-sdr \
     soapysdr-module-rtlsdr \
     soapysdr-module-airspy \
+    airspy \
     libairspy0 \
     i2c-tools \
     python3-smbus \
@@ -1538,8 +1539,8 @@ echo_step "Install Systemd Services"
 
 # Detect Python and SoapySDR paths dynamically
 echo_progress "Detecting Python and SoapySDR paths..."
-PYTHON_SITE_PACKAGES=$(python3 -c "import site; print(':'.join(site.getsitepackages()))" 2>/dev/null || echo "/usr/lib/python3/dist-packages")
-SOAPY_PLUGIN_PATHS=$(python3 << 'EOPY'
+PYTHON_SITE_PACKAGES=$(python3 -c "import site; print(':'.join(site.getsitepackages()))" 2>/dev/null || python3 -c "import sysconfig; print(sysconfig.get_path('purelib'))" 2>/dev/null || echo "/usr/lib/python3/dist-packages:/usr/local/lib/python3/dist-packages")
+SOAPY_PLUGIN_PATHS=$(python3 << 'EOF'
 import glob
 import os
 
@@ -1564,7 +1565,7 @@ if plugin_paths:
 else:
     # Fallback to default paths if not found
     print("/usr/lib/aarch64-linux-gnu/SoapySDR/modules0.8:/usr/lib/arm-linux-gnueabihf/SoapySDR/modules0.8:/usr/lib/x86_64-linux-gnu/SoapySDR/modules0.8:/usr/lib/SoapySDR/modules0.8")
-EOPY
+EOF
 )
 
 echo_info "Python site-packages: $PYTHON_SITE_PACKAGES"
@@ -1577,22 +1578,30 @@ cp "$INSTALL_DIR/systemd/"*.target /etc/systemd/system/
 cp "$INSTALL_DIR/systemd/"*.timer /etc/systemd/system/ 2>/dev/null || true
 
 # Update SDR service with dynamically detected paths
+# Use @ as sed delimiter to avoid issues with paths containing /
 echo_progress "Configuring SDR service with detected paths..."
 if [ -f /etc/systemd/system/eas-station-sdr.service ]; then
+    # Escape special characters for sed (handle &, |, @, and backslashes)
+    PYTHONPATH_ESCAPED=$(echo "/opt/eas-station:${PYTHON_SITE_PACKAGES}" | sed 's/[@&|\\]/\\&/g')
+    SOAPY_PATH_ESCAPED=$(echo "${SOAPY_PLUGIN_PATHS}" | sed 's/[@&|\\]/\\&/g')
+    
     # Update PYTHONPATH to include all system site-packages
-    sed -i "s|Environment=\"PYTHONPATH=/opt/eas-station:/usr/lib/python3/dist-packages\"|Environment=\"PYTHONPATH=/opt/eas-station:${PYTHON_SITE_PACKAGES}\"|" /etc/systemd/system/eas-station-sdr.service
+    sed -i "s@Environment=\"PYTHONPATH=/opt/eas-station:/usr/lib/python3/dist-packages\"@Environment=\"PYTHONPATH=${PYTHONPATH_ESCAPED}\"@" /etc/systemd/system/eas-station-sdr.service
     # Update SOAPY_SDR_PLUGIN_PATH with detected paths
-    sed -i "s|Environment=\"SOAPY_SDR_PLUGIN_PATH=.*\"|Environment=\"SOAPY_SDR_PLUGIN_PATH=${SOAPY_PLUGIN_PATHS}\"|" /etc/systemd/system/eas-station-sdr.service
+    sed -i "s@Environment=\"SOAPY_SDR_PLUGIN_PATH=.*\"@Environment=\"SOAPY_SDR_PLUGIN_PATH=${SOAPY_PATH_ESCAPED}\"@" /etc/systemd/system/eas-station-sdr.service
 fi
 
 # Update audio service (also uses SDR via Redis, needs same paths for diagnostics)
 if [ -f /etc/systemd/system/eas-station-audio.service ]; then
-    # Check if audio service has PYTHONPATH, add if missing
-    if ! grep -q "PYTHONPATH" /etc/systemd/system/eas-station-audio.service; then
+    # Escape for sed
+    PYTHONPATH_ESCAPED=$(echo "/opt/eas-station:${PYTHON_SITE_PACKAGES}" | sed 's/[@&|\\]/\\&/g')
+    
+    # Check if audio service has PYTHONPATH environment variable, add if missing
+    if ! grep -q '^Environment=.*PYTHONPATH' /etc/systemd/system/eas-station-audio.service; then
         # Add after the PATH environment variable
-        sed -i "/Environment=\"PATH=/a Environment=\"PYTHONPATH=/opt/eas-station:${PYTHON_SITE_PACKAGES}\"" /etc/systemd/system/eas-station-audio.service
+        sed -i "/^Environment=\"PATH=/a Environment=\"PYTHONPATH=${PYTHONPATH_ESCAPED}\"" /etc/systemd/system/eas-station-audio.service
     else
-        sed -i "s|Environment=\"PYTHONPATH=.*\"|Environment=\"PYTHONPATH=/opt/eas-station:${PYTHON_SITE_PACKAGES}\"|" /etc/systemd/system/eas-station-audio.service
+        sed -i "s@^Environment=\"PYTHONPATH=.*\"@Environment=\"PYTHONPATH=${PYTHONPATH_ESCAPED}\"@" /etc/systemd/system/eas-station-audio.service
     fi
 fi
 

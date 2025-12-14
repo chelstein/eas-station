@@ -7,6 +7,13 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **Airspy SDR Not Opening** - Fixed "Unable to open AirSpy device" error even with root/sudo access
+  - Added `airspy` package to installation (contains firmware and host utilities like airspy_info)
+  - Previously only installed `libairspy0` (library) and `soapysdr-module-airspy` (SoapySDR plugin)
+  - The `airspy` package provides critical firmware loading and device initialization
+  - Without it, SoapySDR cannot open the device even with correct permissions
+  - Fixes error: "SoapySDR::Device::make() no match" for Airspy devices
+  - VERSION bumped to 2.27.9 (bug fix)
 - **SDR Not Working on Bare Metal** - Fixed SoapySDR device detection failure on bare metal installations
   - Install script now dynamically detects Python site-packages paths for all Python versions
   - Install script now dynamically detects SoapySDR plugin module paths
