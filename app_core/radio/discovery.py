@@ -81,10 +81,75 @@ def enumerate_devices() -> List[Dict[str, Any]]:
     """
     try:
         import SoapySDR  # type: ignore
+        return _enumerate_devices_python(SoapySDR)
     except ImportError:
-        logger.warning("SoapySDR Python bindings not found. Cannot enumerate devices.")
-        return []
+        logger.info("SoapySDR Python bindings not found, falling back to CLI tool")
+        return _enumerate_devices_cli()
 
+
+def _enumerate_devices_cli() -> List[Dict[str, Any]]:
+    """Enumerate devices using SoapySDRUtil command-line tool as fallback."""
+    import subprocess
+    import re
+
+    results = []
+    known_drivers = ["airspy", "rtlsdr", "hackrf", "sdrplay", "bladerf"]
+
+    for driver in known_drivers:
+        try:
+            proc = subprocess.run(
+                ["SoapySDRUtil", f"--find=driver={driver}"],
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+            if proc.returncode != 0:
+                continue
+
+            # Parse output - each device block starts with "Found device N"
+            current_device = {}
+            for line in proc.stdout.split('\n'):
+                line = line.strip()
+                if line.startswith('Found device'):
+                    if current_device and current_device.get('serial'):
+                        results.append(current_device)
+                    current_device = {
+                        'index': len(results),
+                        'driver': driver,
+                        'raw_info': {}
+                    }
+                elif '=' in line and current_device is not None:
+                    key, _, value = line.partition('=')
+                    key = key.strip()
+                    value = value.strip()
+                    current_device['raw_info'][key] = value
+                    if key == 'serial':
+                        current_device['serial'] = value
+                    elif key == 'label':
+                        current_device['label'] = value
+                    elif key == 'driver':
+                        current_device['driver'] = value
+
+            # Don't forget the last device
+            if current_device and current_device.get('serial'):
+                if 'label' not in current_device:
+                    current_device['label'] = f"{driver.upper()} Device"
+                results.append(current_device)
+
+        except subprocess.TimeoutExpired:
+            logger.warning(f"SoapySDRUtil timed out for driver {driver}")
+        except FileNotFoundError:
+            logger.warning("SoapySDRUtil command not found")
+            break
+        except Exception as e:
+            logger.debug(f"CLI enumeration failed for {driver}: {e}")
+
+    logger.info(f"Enumerated {len(results)} SoapySDR device(s) via CLI")
+    return results
+
+
+def _enumerate_devices_python(SoapySDR) -> List[Dict[str, Any]]:
+    """Enumerate devices using SoapySDR Python bindings."""
     results = []
     seen_serials = set()
 
