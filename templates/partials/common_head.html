@@ -10,8 +10,8 @@
 
 <!-- Bootstrap CSS (local to avoid third-party blocking) -->
 <link href="{{ url_for('static', filename='vendor/bootstrap/bootstrap.min.css') }}" rel="stylesheet">
-<!-- Font Awesome -->
-<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+<!-- Font Awesome (local to avoid CDN tracking prevention blocks) -->
+<link href="{{ url_for('static', filename='vendor/fontawesome/css/all.min.css') }}" rel="stylesheet">
 
 <!-- EAS Station Stylesheets -->
 <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">

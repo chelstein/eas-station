@@ -1173,12 +1173,15 @@ class GPIOController:
 
 
 def load_gpio_pin_configs_from_env(logger=None, oled_enabled: bool = False) -> List[GPIOPinConfig]:
-    """Load GPIO pin configurations from environment variables.
+    """Load GPIO pin configurations from database.
 
-    The loader reads from a single ``GPIO_PIN_MAP`` environment variable containing
-    a JSON object mapping pin numbers to their configuration.
+    Hardware settings (GPIO, OLED, LED Sign, VFD) are configured via the web UI
+    at /admin/hardware and stored in the database. Environment variables are
+    NOT supported for hardware configuration.
 
-    Example GPIO_PIN_MAP format:
+    The pin map is stored as a JSON object mapping pin numbers to their configuration.
+
+    Example pin_map format:
     {
       "17": {"name": "EAS Transmitter PTT", "active_high": true, "hold_seconds": 5.0, "watchdog_seconds": 300.0},
       "27": {"name": "Backup Relay", "active_high": true}
@@ -1267,7 +1270,7 @@ def load_gpio_pin_configs_from_env(logger=None, oled_enabled: bool = False) -> L
     configs: List[GPIOPinConfig] = []
     seen_pins: set = set()
 
-    # Try to read from database first, fallback to environment
+    # Load from database (hardware settings are only configured via /admin/hardware)
     gpio_pin_map = {}
     if _GPIO_SETTINGS_AVAILABLE:
         try:
@@ -1277,24 +1280,15 @@ def load_gpio_pin_configs_from_env(logger=None, oled_enabled: bool = False) -> L
                 logger.debug("Loaded GPIO pin map from database")
         except Exception as exc:
             if logger:
-                logger.warning("Failed to load GPIO settings from database: %s; falling back to environment", exc)
+                logger.warning("Failed to load GPIO settings from database: %s", exc)
 
-    # Fallback to environment variable if database doesn't have config
+    # No pins configured in database
     if not gpio_pin_map:
-        gpio_pin_map_raw = os.getenv("GPIO_PIN_MAP", "").strip()
-
-        if not gpio_pin_map_raw:
-            _log("info", "No GPIO_PIN_MAP configured - GPIO controller will be initialized with no pins")
-            return configs
-
-        try:
-            gpio_pin_map = json.loads(gpio_pin_map_raw)
-        except json.JSONDecodeError as exc:
-            _log("error", f"Failed to parse GPIO_PIN_MAP JSON: {exc}")
-            return configs
+        _log("info", "No GPIO pins configured (configure in Admin > Hardware Settings)")
+        return configs
 
     if not isinstance(gpio_pin_map, dict):
-        _log("error", "GPIO_PIN_MAP must be a JSON object mapping pin numbers to configurations")
+        _log("error", "GPIO pin_map must be a JSON object mapping pin numbers to configurations")
         return configs
 
     # Process each pin in the map
@@ -1302,7 +1296,7 @@ def load_gpio_pin_configs_from_env(logger=None, oled_enabled: bool = False) -> L
         try:
             pin_number = int(pin_key)
         except (TypeError, ValueError):
-            _log("error", f"Invalid GPIO pin number '{pin_key}' in GPIO_PIN_MAP - must be an integer")
+            _log("error", f"Invalid GPIO pin number '{pin_key}' in gpio_pin_map - must be an integer")
             continue
 
         if not isinstance(pin_config, dict):
@@ -1354,7 +1348,11 @@ def serialize_gpio_behavior_matrix(matrix: Dict[int, Iterable[GPIOBehavior]]) ->
 
 
 def load_gpio_behavior_matrix_from_env(logger=None, oled_enabled: bool = False) -> Dict[int, Set[GPIOBehavior]]:
-    """Load GPIO behavior assignments from ``GPIO_PIN_BEHAVIOR_MATRIX``.
+    """Load GPIO behavior assignments from database.
+
+    Hardware settings (GPIO, OLED, LED Sign, VFD) are configured via the web UI
+    at /admin/hardware and stored in the database. Environment variables are
+    NOT supported for hardware configuration.
 
     Args:
         logger: Optional logger used for diagnostic warnings.
@@ -1365,7 +1363,7 @@ def load_gpio_behavior_matrix_from_env(logger=None, oled_enabled: bool = False) 
         Dictionary mapping pin numbers to sets of GPIO behaviors.
     """
 
-    # Try to read from database first, fallback to environment
+    # Load from database (hardware settings are only configured via /admin/hardware)
     data = None
     if _GPIO_SETTINGS_AVAILABLE:
         try:
@@ -1375,22 +1373,11 @@ def load_gpio_behavior_matrix_from_env(logger=None, oled_enabled: bool = False) 
                 logger.debug("Loaded GPIO behavior matrix from database")
         except Exception as exc:
             if logger is not None:
-                logger.warning("Failed to load GPIO behavior matrix from database: %s; falling back to environment", exc)
+                logger.warning("Failed to load GPIO behavior matrix from database: %s", exc)
 
-    # Fallback to environment variable if database doesn't have config
+    # No behavior matrix configured
     if not data:
-        raw = os.getenv("GPIO_PIN_BEHAVIOR_MATRIX", "").strip()
-        if not raw:
-            return {}
-
-        try:
-            data = json.loads(raw)
-        except json.JSONDecodeError as exc:
-            if logger is not None:
-                logger.warning(
-                    "Failed to parse GPIO_PIN_BEHAVIOR_MATRIX: %s", exc
-                )
-            return {}
+        return {}
 
     matrix: Dict[int, Set[GPIOBehavior]] = {}
     for key, values in data.items():

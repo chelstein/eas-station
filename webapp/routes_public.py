@@ -664,7 +664,8 @@ def register(app: Flask, logger) -> None:
             template_context = dict(health_data)
             template_context["format_bytes"] = format_bytes
             template_context["format_uptime"] = format_uptime
-            template_context["health_data_json"] = json.dumps(health_data)
+            # Pass raw health_data for tojson filter in template (handles HTML-safe escaping)
+            template_context["health_data_raw"] = health_data
             return render_template("system_health.html", **template_context)
         except Exception as exc:  # pragma: no cover - fallback content
             route_logger.error("Error loading system health: %s", exc)

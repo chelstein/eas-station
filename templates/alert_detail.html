@@ -1065,9 +1065,9 @@
 {% endblock %}
 
 {% block scripts %}
-<!-- Leaflet for maps -->
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
-<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<!-- Leaflet for maps (local to avoid CDN tracking prevention) -->
+<link rel="stylesheet" href="{{ url_for('static', filename='vendor/leaflet/leaflet.css') }}" />
+<script src="{{ url_for('static', filename='vendor/leaflet/leaflet.min.js') }}"></script>
 
 <script>
 console.log('Alert detail page scripts loading...');

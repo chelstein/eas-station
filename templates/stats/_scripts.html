@@ -1,8 +1,8 @@
-<!-- Load Chart.js and required plugins -->
-<script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@2.0.1/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chartjs-chart-matrix@2.0.0/dist/chartjs-chart-matrix.min.js"></script>
+<!-- Load Chart.js and required plugins (local to avoid CDN tracking prevention) -->
+<script src="{{ url_for('static', filename='vendor/chartjs/chart-v3.min.js') }}"></script>
+<script src="{{ url_for('static', filename='vendor/chartjs/chartjs-adapter-date-fns.bundle.min.js') }}"></script>
+<script src="{{ url_for('static', filename='vendor/chartjs/chartjs-plugin-datalabels.min.js') }}"></script>
+<script src="{{ url_for('static', filename='vendor/chartjs/chartjs-chart-matrix.min.js') }}"></script>
 
 <script>
 console.log('Statistics dashboard initializing...');
