@@ -435,14 +435,14 @@ function createSourceCard(source) {
                                 </small>
                                 ` : ''}
                             </div>
-                            <audio 
-                                controls 
-                                preload="none" 
+                            <audio
+                                controls
+                                preload="none"
                                 class="w-100"
                                 id="audio-player-${safeId}"
                                 style="height: 40px;">
                                 ${source.icecast_url ? `<source src="${escapeHtml(source.icecast_url)}" type="audio/mpeg">` : ''}
-                                <source src="/api/audio/stream/${encodeURIComponent(source.name)}" type="audio/mpeg">
+                                <source src="/api/audio/stream/${encodeURIComponent(source.name)}" type="audio/wav">
                                 Your browser does not support the audio element.
                             </audio>
                             ${source.icecast_url ? `
