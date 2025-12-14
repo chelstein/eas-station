@@ -186,6 +186,15 @@ class RBDSData:
     ms: Optional[bool] = None  # Music/Speech flag
 
 
+@dataclass
+class DemodulatorStatus:
+    """Status information from FM demodulator."""
+    rbds_data: Optional[RBDSData] = None  # RBDS data if available
+    stereo_pilot_locked: bool = False  # 19 kHz stereo pilot detected
+    stereo_pilot_strength: float = 0.0  # Pilot signal strength (0.0 to 1.0)
+    is_stereo: bool = False  # Stereo decoding active
+
+
 class FMDemodulator:
     """FM demodulator with stereo decoding and RBDS extraction.
 
@@ -341,32 +350,36 @@ class FMDemodulator:
     def process(self, iq_samples: np.ndarray) -> np.ndarray:
         """
         Process IQ samples and return audio samples.
-        
+
         This is the main entry point used by audio processing pipeline.
-        RBDS data is intentionally discarded for simplicity in the audio pipeline.
-        For full demodulation with RBDS data extraction, use demodulate() instead.
-        
+        Demodulator status (RBDS, stereo pilot) is available via get_last_status().
+
         Args:
             iq_samples: Complex IQ samples
-            
+
         Returns:
-            Audio samples (float32 numpy array) with RBDS data discarded
+            Audio samples (float32 numpy array)
         """
-        audio, _ = self.demodulate(iq_samples)
+        audio, status = self.demodulate(iq_samples)
+        self._last_status = status  # Store for get_last_status()
         return audio
 
-    def demodulate(self, iq_samples: np.ndarray) -> Tuple[np.ndarray, Optional[RBDSData]]:
+    def get_last_status(self) -> Optional[DemodulatorStatus]:
+        """Get the most recent demodulator status (stereo pilot, RBDS data)."""
+        return getattr(self, '_last_status', None)
+
+    def demodulate(self, iq_samples: np.ndarray) -> Tuple[np.ndarray, Optional[DemodulatorStatus]]:
         """
         Demodulate FM signal from IQ samples.
 
-        ULTRA-FAST VERSION: Minimal processing for real-time at 2.5 MHz.
-        Skips filtering to keep up with sample rate.
+        Optimized for real-time processing at high IQ sample rates (2.5 MHz).
+        Optionally extracts RBDS data and detects stereo pilot tone.
 
         Args:
             iq_samples: Complex IQ samples
 
         Returns:
-            Tuple of (audio samples, RBDS data if available)
+            Tuple of (audio samples, demodulator status with RBDS/stereo info)
         """
         if len(iq_samples) == 0:
             return np.array([], dtype=np.float32), None
@@ -381,9 +394,49 @@ class FMDemodulator:
 
         # Phase discriminator - uses Numba JIT if available (50-100x faster)
         # This is the core FM demodulation algorithm
-        audio = fm_discriminator(iq_array)
+        # Output is the FM multiplex signal containing L+R, stereo (L-R at 38kHz), and RBDS (at 57kHz)
+        multiplex = fm_discriminator(iq_array)
 
-        # Calculate decimation factor for coarse downsampling
+        # Detect stereo pilot tone (19 kHz) and RBDS extraction
+        # Must happen BEFORE audio decimation destroys the subcarriers
+        rbds_data: Optional[RBDSData] = None
+        stereo_pilot_locked = False
+        stereo_pilot_strength = 0.0
+
+        # Stereo pilot detection (19 kHz tone indicates stereo broadcast)
+        if self._stereo_enabled and self.config.sample_rate >= 38000:
+            # Filter for 19 kHz pilot tone
+            pilot_filtered = np.convolve(multiplex, self._pilot_filter, mode="same")
+
+            # Measure pilot strength (RMS of filtered signal)
+            pilot_rms = np.sqrt(np.mean(pilot_filtered ** 2))
+            stereo_pilot_strength = min(1.0, pilot_rms * 10.0)  # Scale to 0-1 range
+
+            # Pilot is considered "locked" if strength exceeds threshold
+            stereo_pilot_locked = stereo_pilot_strength > 0.1  # 10% threshold
+
+            if stereo_pilot_locked:
+                logger.debug(f"Stereo pilot detected: strength={stereo_pilot_strength:.2f}")
+
+        # RBDS extraction (if enabled) - RBDS subcarrier at 57 kHz needs sample rate > 114 kHz
+        if self._rbds_enabled and self.config.sample_rate >= 114000:
+            # Extract RBDS from multiplex signal before decimation destroys the 57kHz subcarrier
+            # Create sample indices for RBDS timing recovery
+            sample_indices = np.arange(len(multiplex), dtype=np.float64) + self._sample_index
+            self._sample_index += len(multiplex)
+
+            # Extract RBDS data - this processes the 57 kHz subcarrier
+            try:
+                rbds_data = self._extract_rbds(multiplex, sample_indices)
+                if rbds_data:
+                    logger.info(
+                        f"RBDS: PS='{rbds_data.ps_name}' RT='{rbds_data.radio_text}' "
+                        f"PTY={rbds_data.pty} PI={rbds_data.pi_code}"
+                    )
+            except Exception as e:
+                logger.warning(f"RBDS extraction error: {e}", exc_info=True)
+
+        # Calculate decimation factor for audio downsampling
         target_rate = self.config.audio_sample_rate
         decim = max(1, self.config.sample_rate // target_rate)
 
@@ -392,7 +445,7 @@ class FMDemodulator:
         # This causes "chipmunk" audio when played back at declared rate
         if decim > 1:
             # First decimate to get close to target rate (fast, low quality)
-            audio = fast_decimate(audio, decim)
+            audio = fast_decimate(multiplex, decim)
             # Calculate actual intermediate rate after decimation
             intermediate_rate = self.config.sample_rate // decim
             logger.debug(
@@ -400,6 +453,7 @@ class FMDemodulator:
                 f"{intermediate_rate}Hz → resample → {target_rate}Hz"
             )
         else:
+            audio = multiplex
             intermediate_rate = self.config.sample_rate
             logger.debug(f"FM demod: No decimation needed, {intermediate_rate}Hz → {target_rate}Hz")
 
@@ -425,8 +479,15 @@ class FMDemodulator:
         # Scale down before tanh and back up after to preserve dynamics
         audio = np.tanh(audio * 0.7) / 0.7
 
-        # ULTRA-FAST mode skips RBDS extraction entirely for performance
-        return audio.astype(np.float32), None
+        # Create demodulator status with stereo pilot and RBDS info
+        status = DemodulatorStatus(
+            rbds_data=rbds_data,
+            stereo_pilot_locked=stereo_pilot_locked,
+            stereo_pilot_strength=stereo_pilot_strength,
+            is_stereo=self._stereo_enabled and stereo_pilot_locked
+        )
+
+        return audio.astype(np.float32), status
 
     def _resample(self, signal: np.ndarray, from_rate: int, to_rate: int) -> np.ndarray:
         """Resample signal using polyphase filtering (high quality) or linear interpolation (fallback)."""
@@ -748,7 +809,7 @@ class AMDemodulator:
         audio, _ = self.demodulate(iq_samples)
         return audio
 
-    def demodulate(self, iq_samples: np.ndarray) -> Tuple[np.ndarray, None]:
+    def demodulate(self, iq_samples: np.ndarray) -> Tuple[np.ndarray, Optional[DemodulatorStatus]]:
         """
         Demodulate AM signal from IQ samples using envelope detection.
 
@@ -756,7 +817,7 @@ class AMDemodulator:
             iq_samples: Complex IQ samples
 
         Returns:
-            Tuple of (audio samples, None) - consistent with FM demodulator interface
+            Tuple of (audio samples, None) - AM has no stereo/RBDS status
         """
         if len(iq_samples) == 0:
             return np.array([], dtype=np.float32), None
