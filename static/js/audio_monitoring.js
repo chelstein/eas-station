@@ -452,6 +452,21 @@ function createSourceCard(source) {
                             ` : `
                             <small class="text-muted d-block mt-1">
                                 <i class="fas fa-info-circle"></i> Using built-in proxy stream
+                                ${metrics.metadata && metrics.metadata.stereo_enabled ? `
+                                    <span class="badge bg-success ms-2" title="Stereo audio with 19 kHz pilot tone">
+                                        <i class="fas fa-circle-dot"></i> STEREO
+                                    </span>
+                                ` : ''}
+                                ${metrics.sample_rate ? `
+                                    <span class="badge bg-info ms-2" title="Audio sample rate">
+                                        ${(metrics.sample_rate / 1000).toFixed(1)} kHz
+                                    </span>
+                                ` : ''}
+                                ${metrics.metadata && metrics.metadata.receiver_modulation ? `
+                                    <span class="badge bg-secondary ms-2" title="FM modulation type">
+                                        ${escapeHtml(metrics.metadata.receiver_modulation)}
+                                    </span>
+                                ` : ''}
                             </small>
                             `}
                         </div>
