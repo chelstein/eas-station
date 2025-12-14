@@ -61,7 +61,8 @@ print(f"{'=' * 80}\n", file=sys.stderr, flush=True)
 # Initialize database eagerly when Gunicorn workers start
 # This prevents the first request from hanging while initialization completes
 # Skip during migrations to avoid chicken-and-egg problems
-if not os.environ.get("SKIP_DB_INIT"):
+# Skip if setup mode is active (database unavailable)
+if not os.environ.get("SKIP_DB_INIT") and not application.config.get('SETUP_MODE'):
     logger = logging.getLogger(__name__)
     
     # Force unbuffered stderr for immediate visibility in journalctl
@@ -172,5 +173,10 @@ if not os.environ.get("SKIP_DB_INIT"):
     )
     print(success_banner, file=sys.stderr, flush=True)
     logger.info("WSGI: Database initialization complete (PID: %d)", os.getpid())
+elif application.config.get('SETUP_MODE'):
+    logger = logging.getLogger(__name__)
+    setup_reasons = ', '.join(application.config.get('SETUP_MODE_REASONS', []))
+    logger.warning("WSGI: Skipping database initialization - application is in setup mode (%s)", setup_reasons)
+    logger.warning("WSGI: Visit /setup to complete configuration")
 
 __all__ = ["application", "socketio"]
