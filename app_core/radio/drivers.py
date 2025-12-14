@@ -258,6 +258,16 @@ class _SoapySDRReceiver(ReceiverInterface):
             hints.append(f"Device with serial '{serial}' not found. Verify device is connected "
                         f"and serial number is correct using: 'SoapySDRUtil --find=\"driver={driver}\"'")
 
+        # Check for "no match" error - specific troubleshooting
+        if "no match" in lowered or "nomatch" in lowered:
+            if driver == "airspy":
+                hints.append("'No match' error for Airspy is usually caused by missing packages. "
+                           "Install required packages: 'sudo apt-get install airspy libairspy0 soapysdr-module-airspy'. "
+                           "Verify with: 'airspy_info' and 'SoapySDRUtil --probe=\"driver=airspy\"'")
+            else:
+                hints.append("'No match' error indicates the driver cannot find the device. "
+                           "This may be a USB timing issue, missing driver module, or incorrect device arguments")
+        
         # Add device-specific hints
         if driver == "airspy":
             hints.append("For Airspy: ensure SoapyAirspy module is installed and libairspy is available. "
@@ -616,7 +626,9 @@ class _SoapySDRReceiver(ReceiverInterface):
             args["device_id"] = str(self.config.channel)
 
         # Label is for human reference only, not device identification
-        if self.config.identifier:
+        # IMPORTANT: Airspy driver does NOT support the 'label' parameter and will
+        # return "no match" if it's present. Only set label for drivers that support it.
+        if self.config.identifier and self.driver_hint != "airspy":
             args.setdefault("label", self.config.identifier)
 
         # Log available devices for diagnostics
@@ -668,10 +680,11 @@ class _SoapySDRReceiver(ReceiverInterface):
         time.sleep(0.1)
 
         # Retry Device.make() specifically for "no match" errors
-        # These can occur due to libusb timing issues or USB module interference
+        # These can occur due to libusb timing issues, USB module interference,
+        # or missing driver packages (especially for Airspy)
         device = None
         last_exc = None
-        no_match_retries = 3
+        no_match_retries = 5  # Increased from 3 to handle more timing issues
         no_match_delay = 0.5
 
         for attempt in range(no_match_retries):
@@ -687,7 +700,7 @@ class _SoapySDRReceiver(ReceiverInterface):
                     if attempt < no_match_retries - 1:
                         self._interface_logger.warning(
                             "Device.make() returned 'no match' for %s (attempt %d/%d). "
-                            "This may be a USB timing issue. Retrying in %.1fs...",
+                            "This may be a USB timing issue or missing driver package. Retrying in %.1fs...",
                             self.config.identifier,
                             attempt + 1,
                             no_match_retries,
@@ -697,13 +710,27 @@ class _SoapySDRReceiver(ReceiverInterface):
                         no_match_delay *= 2  # Exponential backoff
                         continue
                     else:
-                        self._interface_logger.error(
-                            "Device.make() returned 'no match' after %d retries for %s. "
-                            "The device was enumerated but cannot be opened. "
-                            "This may indicate a libusb issue or USB hub problem.",
-                            no_match_retries,
-                            self.config.identifier
+                        # After all retries failed, provide detailed diagnostic information
+                        error_msg = (
+                            f"Device.make() returned 'no match' after {no_match_retries} retries for {self.config.identifier}. "
                         )
+                        
+                        if self.driver_hint == "airspy":
+                            # Airspy-specific troubleshooting
+                            error_msg += (
+                                "For Airspy devices, this usually means missing packages. "
+                                "Install: 'sudo apt-get install airspy libairspy0 soapysdr-module-airspy'. "
+                                "Then verify: 'airspy_info' (should show device) and "
+                                "'SoapySDRUtil --probe=\"driver=airspy\"' (should succeed). "
+                            )
+                        else:
+                            # General troubleshooting
+                            error_msg += (
+                                "The device was enumerated but cannot be opened. "
+                                "This may indicate a libusb issue, USB hub problem, or missing driver package. "
+                            )
+                        
+                        self._interface_logger.error(error_msg)
                 # For non "no match" errors, try fallback immediately
                 break
 

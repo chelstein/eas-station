@@ -152,6 +152,11 @@ def signal_handler(signum, frame):
 def verify_soapysdr_installation():
     """Verify SoapySDR and NumPy are properly installed."""
     logger.info("Verifying SDR dependencies...")
+    
+    # Get Python version for diagnostics
+    import sys
+    python_version = f"{sys.version_info.major}.{sys.version_info.minor}"
+    logger.info(f"Running Python {python_version}")
 
     # Check SoapySDR Python bindings
     try:
@@ -159,8 +164,49 @@ def verify_soapysdr_installation():
         logger.info(f"✅ SoapySDR Python bindings installed (API version: {SoapySDR.getAPIVersion()})")
     except ImportError as e:
         logger.error("❌ SoapySDR Python bindings NOT installed")
-        logger.error("   Install with: apt-get install python3-soapysdr")
-        logger.error(f"   Error: {e}")
+        logger.error("")
+        logger.error("=" * 80)
+        logger.error("CRITICAL: SoapySDR Python bindings are missing")
+        logger.error("=" * 80)
+        logger.error("")
+        
+        # Python 3.13 specific guidance
+        if sys.version_info.major == 3 and sys.version_info.minor >= 13:
+            logger.error(f"⚠️  You are running Python {python_version}")
+            logger.error("   The python3-soapysdr package may not be available for Python 3.13 yet.")
+            logger.error("")
+            logger.error("Solutions:")
+            logger.error("  1. Check if python3-soapysdr is available for your Python version:")
+            logger.error(f"     apt-cache policy python3-soapysdr")
+            logger.error("")
+            logger.error("  2. If not available, you need to build SoapySDR Python bindings from source:")
+            logger.error("     # Install build dependencies")
+            logger.error("     sudo apt-get install cmake g++ libpython3-dev swig")
+            logger.error("     # Clone and build SoapySDR")
+            logger.error("     git clone https://github.com/pothosware/SoapySDR.git")
+            logger.error("     cd SoapySDR && mkdir build && cd build")
+            logger.error(f"     cmake .. -DPYTHON3_EXECUTABLE=/usr/bin/python3")
+            logger.error("     make -j4 && sudo make install")
+            logger.error("     sudo ldconfig")
+            logger.error("")
+            logger.error("  3. Alternatively, downgrade to Python 3.11 or 3.12:")
+            logger.error("     sudo apt-get install python3.12 python3.12-venv")
+            logger.error("     Then reinstall EAS Station using Python 3.12")
+        else:
+            logger.error("Standard installation (Python 3.11/3.12):")
+            logger.error("  1. Install the package:")
+            logger.error("     sudo apt-get update")
+            logger.error("     sudo apt-get install python3-soapysdr")
+            logger.error("")
+            logger.error("  2. Verify installation:")
+            logger.error(f"     python{python_version} -c 'import SoapySDR; print(SoapySDR.getAPIVersion())'")
+        
+        logger.error("")
+        logger.error("  3. Ensure PYTHONPATH includes system site-packages:")
+        logger.error("     Run: sudo ./update.sh")
+        logger.error("     This will configure PYTHONPATH for your Python version")
+        logger.error("=" * 80)
+        logger.error(f"   Error details: {e}")
         return False
 
     # Check NumPy
