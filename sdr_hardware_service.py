@@ -653,6 +653,15 @@ def process_commands(redis_client):
             try:
                 from app_core.radio.discovery import enumerate_devices
                 devices = enumerate_devices()
+                if devices:
+                    logger.info(f"📡 Device discovery found {len(devices)} device(s):")
+                    for dev in devices:
+                        driver = dev.get('driver', 'unknown')
+                        serial = dev.get('serial', 'N/A')
+                        label = dev.get('label', 'Unknown')
+                        logger.info(f"   - {driver}: {label} (serial={serial})")
+                else:
+                    logger.warning("📡 Device discovery: No SDR devices found. Check USB connections and permissions.")
                 result = {
                     "command_id": command_id,
                     "success": True,
