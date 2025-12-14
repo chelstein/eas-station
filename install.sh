@@ -1344,6 +1344,39 @@ fi
 echo ""
 echo_success "✓ Python dependencies installed successfully"
 
+# Create separate venv for SDR service with system site-packages
+# This allows the SDR service to access python3-soapysdr from apt without PYTHONPATH hacks
+# The web service uses the isolated venv above to avoid gunicorn/gevent conflicts
+echo_progress "Creating SDR virtual environment (with system packages)..."
+VENV_SDR_DIR="$INSTALL_DIR/venv-sdr"
+if ! sudo -u "$SERVICE_USER" python3 -m venv --system-site-packages "$VENV_SDR_DIR" 2>&1 | tee /tmp/venv-sdr-creation.log; then
+    echo_error "Failed to create SDR virtual environment"
+    echo_info "See /tmp/venv-sdr-creation.log for details"
+    exit 1
+fi
+echo_success "SDR virtual environment created at $VENV_SDR_DIR"
+
+# Install minimal SDR-specific dependencies
+echo_progress "Installing SDR service dependencies..."
+if ! sudo -u "$SERVICE_USER" "$VENV_SDR_DIR/bin/pip" install --upgrade pip 2>&1 | tee -a /tmp/venv-sdr-creation.log; then
+    echo_warning "Failed to upgrade pip in SDR venv (non-critical)"
+fi
+if ! sudo -u "$SERVICE_USER" "$VENV_SDR_DIR/bin/pip" install -r "$INSTALL_DIR/requirements-sdr.txt" 2>&1 | tee -a /tmp/venv-sdr-creation.log; then
+    echo_error "Failed to install SDR dependencies"
+    echo_info "See /tmp/venv-sdr-creation.log for details"
+    exit 1
+fi
+echo_success "✓ SDR dependencies installed successfully"
+
+# Verify SoapySDR is accessible in SDR venv
+echo_progress "Verifying SoapySDR access in SDR venv..."
+if "$VENV_SDR_DIR/bin/python" -c "import SoapySDR; print('SoapySDR API:', SoapySDR.getAPIVersion())" 2>&1; then
+    echo_success "✓ SoapySDR accessible in SDR venv (via system packages)"
+else
+    echo_warning "⚠️  SoapySDR not accessible in SDR venv"
+    echo_warning "   Install: sudo apt-get install python3-soapysdr"
+fi
+
 echo_step "PostgreSQL Database Configuration"
 
 echo_info "Configuring PostgreSQL database for EAS Station..."
@@ -1588,89 +1621,16 @@ echo_success "Configuration created with auto-generated SECRET_KEY"
 
 echo_step "Install Systemd Services"
 
-# Detect Python and SoapySDR paths dynamically
-echo_progress "Detecting Python and SoapySDR paths..."
-
-# Get detected paths from current Python
-DETECTED_PATHS=$(python3 -c "import site; print(':'.join(site.getsitepackages()))" 2>/dev/null || echo "")
-
-# IMPORTANT: Also include ALL Python version-specific paths as fallbacks
-# SoapySDR from apt is compiled for a specific Python version and may not match the running Python
-# This ensures compatibility across Python 3.10, 3.11, 3.12, and 3.13
-FALLBACK_PATHS="/usr/lib/python3.13/dist-packages:/usr/lib/python3.12/dist-packages:/usr/lib/python3.11/dist-packages:/usr/lib/python3.10/dist-packages:/usr/lib/python3/dist-packages:/usr/local/lib/python3.13/dist-packages:/usr/local/lib/python3.12/dist-packages:/usr/local/lib/python3.11/dist-packages:/usr/local/lib/python3.10/dist-packages:/usr/local/lib/python3/dist-packages"
-
-# Combine detected paths with fallbacks
-if [ -n "$DETECTED_PATHS" ]; then
-    PYTHON_SITE_PACKAGES="${DETECTED_PATHS}:${FALLBACK_PATHS}"
-else
-    PYTHON_SITE_PACKAGES="${FALLBACK_PATHS}"
-fi
-SOAPY_PLUGIN_PATHS=$(python3 << 'EOF'
-import glob
-import os
-
-# Search for SoapySDR plugin directories
-search_patterns = [
-    "/usr/lib/*/SoapySDR/modules*",
-    "/usr/local/lib/*/SoapySDR/modules*",
-    "/usr/lib/SoapySDR/modules*",
-    "/usr/local/lib/SoapySDR/modules*",
-]
-
-plugin_paths = []
-for pattern in search_patterns:
-    matches = glob.glob(pattern)
-    plugin_paths.extend(matches)
-
-# Remove duplicates and sort
-plugin_paths = sorted(set(plugin_paths))
-
-if plugin_paths:
-    print(":".join(plugin_paths))
-else:
-    # Fallback to default paths if not found
-    print("/usr/lib/aarch64-linux-gnu/SoapySDR/modules0.8:/usr/lib/arm-linux-gnueabihf/SoapySDR/modules0.8:/usr/lib/x86_64-linux-gnu/SoapySDR/modules0.8:/usr/lib/SoapySDR/modules0.8")
-EOF
-)
-
-echo_info "Python site-packages: $PYTHON_SITE_PACKAGES"
-echo_info "SoapySDR plugin paths: $SOAPY_PLUGIN_PATHS"
-
 # Install systemd service files
+# SDR service uses venv-sdr (with --system-site-packages) for direct python3-soapysdr access
+# This eliminates the need for complex PYTHONPATH configuration
 echo_progress "Installing systemd service files..."
 cp "$INSTALL_DIR/systemd/"*.service /etc/systemd/system/
 cp "$INSTALL_DIR/systemd/"*.target /etc/systemd/system/
 cp "$INSTALL_DIR/systemd/"*.timer /etc/systemd/system/ 2>/dev/null || true
 
-# Update SDR service with dynamically detected paths
-# Use @ as sed delimiter to avoid issues with paths containing /
-echo_progress "Configuring SDR service with detected paths..."
-
-# Escape special characters for sed (handle &, |, @, and backslashes)
-# Calculate once and reuse
-PYTHONPATH_ESCAPED=$(echo "/opt/eas-station:${PYTHON_SITE_PACKAGES}" | sed 's/[@&|\\]/\\&/g')
-SOAPY_PATH_ESCAPED=$(echo "${SOAPY_PLUGIN_PATHS}" | sed 's/[@&|\\]/\\&/g')
-
-if [ -f /etc/systemd/system/eas-station-sdr.service ]; then
-    # Update PYTHONPATH to include all system site-packages
-    sed -i "s@Environment=\"PYTHONPATH=/opt/eas-station:/usr/lib/python3/dist-packages\"@Environment=\"PYTHONPATH=${PYTHONPATH_ESCAPED}\"@" /etc/systemd/system/eas-station-sdr.service
-    # Update SOAPY_SDR_PLUGIN_PATH with detected paths
-    sed -i "s@Environment=\"SOAPY_SDR_PLUGIN_PATH=.*\"@Environment=\"SOAPY_SDR_PLUGIN_PATH=${SOAPY_PATH_ESCAPED}\"@" /etc/systemd/system/eas-station-sdr.service
-fi
-
-# Update audio service (also uses SDR via Redis, needs same paths for diagnostics)
-if [ -f /etc/systemd/system/eas-station-audio.service ]; then
-    # Check if audio service has PYTHONPATH environment variable, add if missing
-    if ! grep -q '^Environment="PYTHONPATH=' /etc/systemd/system/eas-station-audio.service; then
-        # Add after the PATH environment variable
-        sed -i "/^Environment=\"PATH=/a Environment=\"PYTHONPATH=${PYTHONPATH_ESCAPED}\"" /etc/systemd/system/eas-station-audio.service
-    else
-        sed -i "s@^Environment=\"PYTHONPATH=.*\"@Environment=\"PYTHONPATH=${PYTHONPATH_ESCAPED}\"@" /etc/systemd/system/eas-station-audio.service
-    fi
-fi
-
 systemctl daemon-reload
-echo_success "Systemd service files installed and configured"
+echo_success "Systemd service files installed"
 
 echo_step "Nginx Web Server Configuration"
 

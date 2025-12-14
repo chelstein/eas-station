@@ -1,0 +1,9 @@
+# Requirements for SDR Hardware Service (venv-sdr)
+# This venv uses --system-site-packages to access python3-soapysdr and python3-numpy from apt
+# Only pip packages not available from apt are listed here
+
+# Redis client for IQ sample publishing
+redis>=4.5.0
+
+# Environment variable loading
+python-dotenv>=1.0.0

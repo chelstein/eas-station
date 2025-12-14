@@ -13,13 +13,12 @@ Group=eas-station
 SupplementaryGroups=plugdev dialout
 
 WorkingDirectory=/opt/eas-station
-Environment="PATH=/opt/eas-station/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-# Include system site-packages for apt-installed packages like python3-soapysdr
-# The venv doesn't have --system-site-packages (to avoid gunicorn conflicts)
-# but the SDR service needs SoapySDR which is only available as a system package
-# NOTE: These paths support Python 3.10-3.13+ and are auto-updated by install.sh/update.sh
-# The paths include version-specific directories to ensure SoapySDR is found regardless of Python version
-Environment="PYTHONPATH=/opt/eas-station:/usr/lib/python3.13/dist-packages:/usr/lib/python3.12/dist-packages:/usr/lib/python3.11/dist-packages:/usr/lib/python3.10/dist-packages:/usr/lib/python3/dist-packages:/usr/local/lib/python3.13/dist-packages:/usr/local/lib/python3.12/dist-packages:/usr/local/lib/python3.11/dist-packages:/usr/local/lib/python3.10/dist-packages:/usr/local/lib/python3/dist-packages"
+Environment="PATH=/opt/eas-station/venv-sdr/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+# venv-sdr is created with --system-site-packages so it can access python3-soapysdr from apt
+# This eliminates the need for complex PYTHONPATH hacks - SoapySDR is directly importable
+# The web service uses a separate isolated venv to avoid gunicorn/gevent conflicts
+Environment="PYTHONPATH=/opt/eas-station"
+# SoapySDR plugin path for hardware driver modules (architecture-specific)
 Environment="SOAPY_SDR_PLUGIN_PATH=/usr/lib/aarch64-linux-gnu/SoapySDR/modules0.8:/usr/lib/arm-linux-gnueabihf/SoapySDR/modules0.8:/usr/lib/x86_64-linux-gnu/SoapySDR/modules0.8:/usr/lib/SoapySDR/modules0.8"
 # Suppress ALSA/PulseAudio/Jack errors from soapysdr-module-audio (if installed)
 # soapysdr-module-audio tries to probe ALSA/Pulse/Jack devices even though we only use SDR hardware
@@ -36,7 +35,7 @@ StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=eas-station-sdr
 
-ExecStart=/opt/eas-station/venv/bin/python sdr_hardware_service.py
+ExecStart=/opt/eas-station/venv-sdr/bin/python sdr_hardware_service.py
 
 # Service management
 Restart=always

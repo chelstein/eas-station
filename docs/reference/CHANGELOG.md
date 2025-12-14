@@ -6,14 +6,17 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+### Changed
+- **SDR Service Architecture Simplification** - SDR service now uses separate venv with system site-packages
+  - Created `venv-sdr` with `--system-site-packages` flag for direct python3-soapysdr access
+  - This eliminates complex PYTHONPATH hacks that were fragile across Python versions
+  - Main web service venv remains isolated to avoid gunicorn/gevent conflicts
+  - SDR service uses `requirements-sdr.txt` (minimal: redis, python-dotenv)
+  - install.sh and update.sh automatically create/update venv-sdr
+  - Removed ~80 lines of PYTHONPATH detection code from install.sh and update.sh
+  - VERSION bumped to 2.27.12
+
 ### Fixed
-- **SDR Python Version Mismatch Fix** - Fixed SoapySDR failing to load when system Python version differs from SoapySDR package
-  - Service file now includes all Python version paths (3.10, 3.11, 3.12, 3.13) in PYTHONPATH
-  - update.sh now adds comprehensive fallback paths in addition to detected paths
-  - install.sh updated with same fallback path strategy
-  - fix_soapysdr_venv.sh script updated with comprehensive paths
-  - This fixes "Device.make() returned 'no match'" when running Python 3.13 but python3-soapysdr was compiled for 3.12
-  - VERSION bumped to 2.27.12 (bug fix)
 - **SDR Airspy "No Match" Error** - Fixed SoapySDR device opening failures for Airspy devices
   - Fixed Airspy driver rejecting `label` parameter (not supported by Airspy SoapySDR module)
   - Increased retry attempts from 3 to 5 for "no match" errors
