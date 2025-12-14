@@ -1161,20 +1161,22 @@ class GPIOController:
             pass  # Suppress exceptions in destructor
 
 
-def load_gpio_pin_configs_from_env(logger=None) -> List[GPIOPinConfig]:
+def load_gpio_pin_configs_from_env(logger=None, oled_enabled: bool = False) -> List[GPIOPinConfig]:
     """Load GPIO pin configurations from environment variables.
 
-    The loader understands the following environment variables:
+    The loader reads from a single ``GPIO_PIN_MAP`` environment variable containing
+    a JSON object mapping pin numbers to their configuration.
 
-    - ``EAS_GPIO_PIN`` / ``EAS_GPIO_ACTIVE_STATE`` / ``EAS_GPIO_HOLD_SECONDS`` /
-      ``EAS_GPIO_WATCHDOG_SECONDS`` for the primary transmitter relay.
-    - ``GPIO_ADDITIONAL_PINS``: comma or newline separated entries in the form
-      ``pin:name:state:hold:watchdog`` where state is ``HIGH``/``LOW``.
-    - ``GPIO_PIN_<N>`` variables for pin-specific overrides using
-      ``STATE:HOLD:WATCHDOG:NAME`` or a simplified value such as ``HIGH``.
+    Example GPIO_PIN_MAP format:
+    {
+      "17": {"name": "EAS Transmitter PTT", "active_high": true, "hold_seconds": 5.0, "watchdog_seconds": 300.0},
+      "27": {"name": "Backup Relay", "active_high": true}
+    }
 
     Args:
         logger: Optional logger used for diagnostic warnings.
+        oled_enabled: Whether the OLED display is enabled. If True, pins 2, 3, 4, and 14
+                      will be blocked as they are reserved for the OLED module.
 
     Returns:
         List of :class:`GPIOPinConfig` entries ready to be registered with a
@@ -1188,12 +1190,21 @@ def load_gpio_pin_configs_from_env(logger=None) -> List[GPIOPinConfig]:
         if callable(log_method):
             log_method(message)
 
-    def _parse_active_state(value: Optional[str], default: bool = True) -> bool:
+    def _parse_bool(value: Any, default: bool = True) -> bool:
+        """Parse a boolean value from JSON (true/false) or string (HIGH/LOW)."""
+        if isinstance(value, bool):
+            return value
         if value is None:
             return default
-        return str(value).strip().upper() != "LOW"
+        str_value = str(value).strip().upper()
+        if str_value in {"TRUE", "1", "YES", "HIGH"}:
+            return True
+        if str_value in {"FALSE", "0", "NO", "LOW"}:
+            return False
+        return default
 
-    def _parse_float(value: Optional[str], default: float) -> float:
+    def _parse_float(value: Any, default: float) -> float:
+        """Parse a float value from JSON or string."""
         if value is None or value == "":
             return default
         try:
@@ -1213,16 +1224,19 @@ def load_gpio_pin_configs_from_env(logger=None) -> List[GPIOPinConfig]:
         if pin in seen:
             _log("warning", f"Duplicate GPIO pin {pin} ignored")
             return
-        if pin in ARGON_OLED_RESERVED_BCM:
+
+        # Only block OLED reserved pins if OLED is actually enabled
+        if oled_enabled and pin in ARGON_OLED_RESERVED_BCM:
             reserved_physical = ", ".join(str(p) for p in sorted(ARGON_OLED_RESERVED_PHYSICAL))
             _log(
                 "error",
                 (
-                    f"GPIO pin {pin} is reserved for the Argon OLED module (physical header block {reserved_physical}) "
-                    "and cannot be configured"
+                    f"GPIO pin {pin} is reserved for the Argon OLED module (physical pins {reserved_physical}) "
+                    "and cannot be configured while OLED is enabled"
                 ),
             )
             return
+
         if pin < 2 or pin > 27:
             _log("error", f"GPIO pin {pin} is outside the supported BCM range (2-27)")
             return
@@ -1242,90 +1256,40 @@ def load_gpio_pin_configs_from_env(logger=None) -> List[GPIOPinConfig]:
     configs: List[GPIOPinConfig] = []
     seen_pins: set = set()
 
-    # Primary EAS GPIO pin
-    eas_gpio_pin = os.getenv("EAS_GPIO_PIN", "").strip()
-    if eas_gpio_pin:
+    # Read GPIO pin map from single JSON environment variable
+    gpio_pin_map_raw = os.getenv("GPIO_PIN_MAP", "").strip()
+
+    if not gpio_pin_map_raw:
+        _log("info", "No GPIO_PIN_MAP configured - GPIO controller will be initialized with no pins")
+        return configs
+
+    try:
+        gpio_pin_map = json.loads(gpio_pin_map_raw)
+    except json.JSONDecodeError as exc:
+        _log("error", f"Failed to parse GPIO_PIN_MAP JSON: {exc}")
+        return configs
+
+    if not isinstance(gpio_pin_map, dict):
+        _log("error", "GPIO_PIN_MAP must be a JSON object mapping pin numbers to configurations")
+        return configs
+
+    # Process each pin in the map
+    for pin_key, pin_config in gpio_pin_map.items():
         try:
-            pin_number = int(eas_gpio_pin)
-        except ValueError:
-            _log("error", f"Invalid EAS_GPIO_PIN value '{eas_gpio_pin}' - expected integer")
-        else:
-            active_high = _parse_active_state(os.getenv("EAS_GPIO_ACTIVE_STATE", "HIGH"))
-            hold_seconds = _parse_float(os.getenv("EAS_GPIO_HOLD_SECONDS"), 5.0)
-            watchdog_seconds = _parse_float(os.getenv("EAS_GPIO_WATCHDOG_SECONDS"), 300.0)
-            _add_config(
-                configs,
-                seen_pins,
-                pin_number,
-                "EAS Transmitter PTT",
-                active_high,
-                hold_seconds,
-                watchdog_seconds,
-            )
-
-    # Additional pins declared in GPIO_ADDITIONAL_PINS
-    additional = os.getenv("GPIO_ADDITIONAL_PINS", "").strip()
-    if additional:
-        entries = [entry.strip() for entry in re.split(r"[,\n]+", additional) if entry.strip()]
-        for entry in entries:
-            parts = [part.strip() for part in entry.split(":")]
-            if not parts:
-                continue
-            try:
-                pin_number = int(parts[0])
-            except ValueError:
-                _log("error", f"Invalid GPIO_ADDITIONAL_PINS entry '{entry}' - pin must be numeric")
-                continue
-
-            name = parts[1] if len(parts) > 1 and parts[1] else f"GPIO Pin {pin_number}"
-            active_high = _parse_active_state(parts[2] if len(parts) > 2 else None)
-            hold_seconds = _parse_float(parts[3] if len(parts) > 3 else None, 5.0)
-            watchdog_seconds = _parse_float(parts[4] if len(parts) > 4 else None, 300.0)
-
-            _add_config(
-                configs,
-                seen_pins,
-                pin_number,
-                name,
-                active_high,
-                hold_seconds,
-                watchdog_seconds,
-            )
-
-    # Individual GPIO_PIN_<number> overrides
-    pin_pattern = re.compile(r"^GPIO_PIN_(\d+)$")
-    for key, value in os.environ.items():
-        match = pin_pattern.match(key)
-        if not match:
+            pin_number = int(pin_key)
+        except (TypeError, ValueError):
+            _log("error", f"Invalid GPIO pin number '{pin_key}' in GPIO_PIN_MAP - must be an integer")
             continue
 
-        pin_number = int(match.group(1))
-        raw_value = (value or "").strip()
+        if not isinstance(pin_config, dict):
+            _log("error", f"Invalid configuration for GPIO pin {pin_number} - must be an object")
+            continue
 
-        active_high = True
-        hold_seconds = 5.0
-        watchdog_seconds = 300.0
-        name = f"GPIO Pin {pin_number}"
-
-        if ":" in raw_value:
-            parts = [part.strip() for part in raw_value.split(":")]
-            active_high = _parse_active_state(parts[0] if parts else None)
-            if len(parts) > 1:
-                hold_seconds = _parse_float(parts[1], 5.0)
-            if len(parts) > 2:
-                watchdog_seconds = _parse_float(parts[2], 300.0)
-            if len(parts) > 3 and parts[3]:
-                name = parts[3]
-        elif raw_value:
-            upper_value = raw_value.upper()
-            if upper_value in {"HIGH", "LOW"}:
-                active_high = upper_value != "LOW"
-            else:
-                try:
-                    int(raw_value)
-                except ValueError:
-                    _log("warning", f"Ignoring GPIO_PIN_{pin_number} value '{raw_value}' - expected HIGH/LOW or numeric pin")
-                # Name defaults; hold/watchdog remain defaults
+        # Extract configuration with defaults
+        name = pin_config.get("name", f"GPIO Pin {pin_number}")
+        active_high = _parse_bool(pin_config.get("active_high"), default=True)
+        hold_seconds = _parse_float(pin_config.get("hold_seconds"), 5.0)
+        watchdog_seconds = _parse_float(pin_config.get("watchdog_seconds"), 300.0)
 
         _add_config(
             configs,
@@ -1365,8 +1329,17 @@ def serialize_gpio_behavior_matrix(matrix: Dict[int, Iterable[GPIOBehavior]]) ->
     return json.dumps(serializable, separators=(",", ":"), sort_keys=True)
 
 
-def load_gpio_behavior_matrix_from_env(logger=None) -> Dict[int, Set[GPIOBehavior]]:
-    """Load GPIO behavior assignments from ``GPIO_PIN_BEHAVIOR_MATRIX``."""
+def load_gpio_behavior_matrix_from_env(logger=None, oled_enabled: bool = False) -> Dict[int, Set[GPIOBehavior]]:
+    """Load GPIO behavior assignments from ``GPIO_PIN_BEHAVIOR_MATRIX``.
+
+    Args:
+        logger: Optional logger used for diagnostic warnings.
+        oled_enabled: Whether the OLED display is enabled. If True, pins 2, 3, 4, and 14
+                      will be blocked as they are reserved for the OLED module.
+
+    Returns:
+        Dictionary mapping pin numbers to sets of GPIO behaviors.
+    """
 
     raw = os.getenv("GPIO_PIN_BEHAVIOR_MATRIX", "").strip()
     if not raw:
@@ -1390,10 +1363,11 @@ def load_gpio_behavior_matrix_from_env(logger=None) -> Dict[int, Set[GPIOBehavio
                 logger.warning("Ignoring invalid GPIO behavior pin key %r", key)
             continue
 
-        if pin in ARGON_OLED_RESERVED_BCM:
+        # Only block OLED reserved pins if OLED is actually enabled
+        if oled_enabled and pin in ARGON_OLED_RESERVED_BCM:
             if logger is not None:
                 logger.warning(
-                    "Ignoring GPIO behavior assignment for reserved pin %s", pin
+                    "Ignoring GPIO behavior assignment for OLED-reserved pin %s (OLED is enabled)", pin
                 )
             continue
 
