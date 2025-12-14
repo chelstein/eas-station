@@ -836,6 +836,16 @@ echo_progress "Reloading systemd daemon to pick up any service file changes..."
 systemctl daemon-reload
 echo_success "Systemd daemon reloaded"
 
+# Ensure nginx is running (may have been stopped or never started)
+echo_progress "Ensuring nginx web server is running..."
+if systemctl is-active --quiet nginx 2>/dev/null; then
+    systemctl reload nginx
+    echo_success "Nginx reloaded"
+else
+    systemctl start nginx
+    echo_success "Nginx started"
+fi
+
 echo_progress "Starting all EAS Station services with updated code..."
 # Use restart (not start) to ensure all services reload with new code
 # This works whether services were stopped or are already running
