@@ -108,7 +108,6 @@ systemctl stop eas-station-sdr.service 2>/dev/null || true
 systemctl stop eas-station-hardware.service 2>/dev/null || true
 systemctl stop eas-station-ipaws-poller.service 2>/dev/null || true
 systemctl stop eas-station-noaa-poller.service 2>/dev/null || true
-systemctl stop pgadmin4.service 2>/dev/null || true
 echo_success "Services stopped"
 
 # Disable all EAS Station services
@@ -121,14 +120,12 @@ systemctl disable eas-station-sdr.service 2>/dev/null || true
 systemctl disable eas-station-hardware.service 2>/dev/null || true
 systemctl disable eas-station-ipaws-poller.service 2>/dev/null || true
 systemctl disable eas-station-noaa-poller.service 2>/dev/null || true
-systemctl disable pgadmin4.service 2>/dev/null || true
 echo_success "Services disabled"
 
 # Remove systemd service files
 echo_info "Removing systemd service files..."
 rm -f ${SYSTEMD_DIR}/eas-station.target
 rm -f ${SYSTEMD_DIR}/eas-station-*.service
-rm -f ${SYSTEMD_DIR}/pgadmin4.service
 systemctl daemon-reload
 echo_success "Systemd files removed"
 
@@ -165,13 +162,6 @@ if [ -d "$LOG_DIR" ]; then
 else
     echo_warning "Directory ${LOG_DIR} not found"
 fi
-
-# Remove pgAdmin files
-echo_info "Removing pgAdmin files..."
-rm -rf /var/lib/pgadmin 2>/dev/null || true
-rm -rf /var/log/pgadmin 2>/dev/null || true
-rm -f /var/run/pgadmin4.sock 2>/dev/null || true
-echo_success "pgAdmin files removed"
 
 # Remove service user
 echo_info "Removing service user..."
@@ -247,19 +237,6 @@ if [[ $REMOVE_NGINX =~ ^[Yy]$ ]]; then
     apt-get remove --purge -y nginx nginx-common 2>/dev/null || echo_warning "Nginx removal failed"
     rm -rf /etc/nginx 2>/dev/null || true
     echo_success "Nginx removed"
-fi
-echo ""
-
-# pgAdmin removal
-echo_prompt "Do you want to remove pgAdmin? [y/N]:"
-read -n 1 -r REMOVE_PGADMIN
-echo
-if [[ $REMOVE_PGADMIN =~ ^[Yy]$ ]]; then
-    echo_info "Removing pgAdmin..."
-    apt-get remove --purge -y pgadmin4 pgadmin4-web 2>/dev/null || true
-    rm -f /etc/apt/sources.list.d/pgadmin4.list 2>/dev/null || true
-    rm -f /usr/share/keyrings/pgadmin-archive-keyring.gpg 2>/dev/null || true
-    echo_success "pgAdmin removed"
 fi
 echo ""
 
