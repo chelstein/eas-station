@@ -1144,6 +1144,58 @@ apt-get install -y \
 echo ""
 echo_success "✓ System dependencies installed successfully"
 
+# Verify SDR package installation (especially critical for Airspy and Python 3.13)
+echo_progress "Verifying SDR package installation..."
+SDR_VERIFICATION_FAILED=0
+
+# Get Python version for diagnostics
+PYTHON_VERSION=$(python3 -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
+echo_info "Detected Python version: $PYTHON_VERSION"
+
+# Check for SoapySDR Python bindings (critical!)
+if python3 -c "import SoapySDR" 2>/dev/null; then
+    SOAPY_VERSION=$(python3 -c "import SoapySDR; print(SoapySDR.getAPIVersion())" 2>/dev/null)
+    echo_success "✓ SoapySDR Python bindings installed (API: $SOAPY_VERSION)"
+else
+    echo_error "❌ SoapySDR Python bindings NOT found for Python $PYTHON_VERSION"
+    SDR_VERIFICATION_FAILED=1
+    
+    # Check if this is a Python 3.13 compatibility issue
+    if python3 -c "import sys; sys.exit(0 if sys.version_info >= (3, 13) else 1)" 2>/dev/null; then
+        echo_warning "⚠️  Python 3.13 detected - python3-soapysdr may not be available yet"
+        echo_warning "   Solutions:"
+        echo_warning "   1. Build SoapySDR Python bindings from source (see docs/troubleshooting/PYTHON_313_SOAPYSDR.md)"
+        echo_warning "   2. Or downgrade to Python 3.12: sudo apt-get install python3.12"
+    else
+        echo_warning "   Run: sudo apt-get install python3-soapysdr"
+    fi
+fi
+
+# Check for airspy_info utility (critical for Airspy support)
+if command -v airspy_info >/dev/null 2>&1; then
+    echo_success "✓ airspy_info utility installed (Airspy hardware support enabled)"
+else
+    echo_warning "⚠️ airspy_info utility not found - Airspy devices may not work"
+    echo_warning "   Run: sudo apt-get install airspy libairspy0"
+    SDR_VERIFICATION_FAILED=1
+fi
+
+# Check for SoapySDRUtil
+if command -v SoapySDRUtil >/dev/null 2>&1; then
+    echo_success "✓ SoapySDRUtil installed (SDR diagnostics available)"
+else
+    echo_warning "⚠️ SoapySDRUtil not found - SDR diagnostics unavailable"
+    SDR_VERIFICATION_FAILED=1
+fi
+
+if [ $SDR_VERIFICATION_FAILED -eq 0 ]; then
+    echo_success "✓ SDR packages verified successfully"
+else
+    echo_warning "⚠️  Some SDR packages may be missing - SDR functionality may be limited"
+    echo_info "  Check installation logs above for details"
+    echo_info "  For Python 3.13 issues, see: docs/troubleshooting/PYTHON_313_SOAPYSDR.md"
+fi
+
 echo_step "Create Service User & Directories"
 
 # Create service user and group

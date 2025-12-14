@@ -7,6 +7,13 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **SDR Airspy "No Match" Error** - Fixed SoapySDR device opening failures for Airspy devices
+  - Fixed Airspy driver rejecting `label` parameter (not supported by Airspy SoapySDR module)
+  - Increased retry attempts from 3 to 5 for "no match" errors
+  - Added Python 3.13 compatibility detection and error messages
+  - Improved install script verification of python3-soapysdr package
+  - Enhanced error messages with package installation instructions
+  - VERSION bumped to 2.27.11 (bug fix)
 - **Update Script Missing Dynamic Path Detection** - Fixed update.sh not applying dynamic PYTHONPATH and SOAPY_SDR_PLUGIN_PATH
   - Update script now detects Python site-packages paths (supports Python 3.10-3.13+)
   - Update script now detects SoapySDR plugin directories
