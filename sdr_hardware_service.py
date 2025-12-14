@@ -739,53 +739,9 @@ def process_commands(redis_client):
         command_id = command.get("command_id", "unknown")
         
         logger.info(f"Processing command: {action} for {receiver_id}")
-        
-        radio_manager = _state.radio_manager
-        if not radio_manager:
-            result = {
-                "command_id": command_id,
-                "success": False,
-                "error": "Radio manager not initialized"
-            }
-        elif action == "restart":
-            receiver = radio_manager.get_receiver(receiver_id)
-            if receiver:
-                try:
-                    receiver.stop()
-                    time.sleep(0.5)
-                    receiver.start()
-                    result = {
-                        "command_id": command_id,
-                        "success": True,
-                        "message": f"Receiver {receiver_id} restarted"
-                    }
-                except Exception as e:
-                    result = {
-                        "command_id": command_id,
-                        "success": False,
-                        "error": str(e)
-                    }
-            else:
-                result = {
-                    "command_id": command_id,
-                    "success": False,
-                    "error": f"Receiver {receiver_id} not found"
-                }
-        elif action == "stop":
-            receiver = radio_manager.get_receiver(receiver_id)
-            if receiver:
-                receiver.stop()
-                result = {"command_id": command_id, "success": True}
-            else:
-                result = {"command_id": command_id, "success": False, "error": "Not found"}
-        elif action == "start":
-            receiver = radio_manager.get_receiver(receiver_id)
-            if receiver:
-                receiver.start()
-                result = {"command_id": command_id, "success": True}
-            else:
-                result = {"command_id": command_id, "success": False, "error": "Not found"}
-        elif action == "discover_devices":
+
+        # Handle actions that don't require radio_manager first
+        if action == "discover_devices":
             # Enumerate all connected SoapySDR devices
             try:
                 from app_core.radio.discovery import enumerate_devices
@@ -828,6 +784,7 @@ def process_commands(redis_client):
                 with _state.flask_app.app_context():
                     receivers = RadioReceiver.query.filter_by(enabled=True).all()
 
+                    radio_manager = _state.radio_manager
                     if not radio_manager:
                         radio_manager = get_radio_manager()
                         _state.radio_manager = radio_manager
@@ -871,48 +828,95 @@ def process_commands(redis_client):
                     "success": False,
                     "error": str(e)
                 }
-        elif action == "get_spectrum":
-            # Get spectrum data for waterfall display
-            receiver = radio_manager.get_receiver(receiver_id)
-            if not receiver:
+        else:
+            # Actions below require radio_manager to be initialized
+            radio_manager = _state.radio_manager
+            if not radio_manager:
                 result = {
                     "command_id": command_id,
                     "success": False,
-                    "error": f"Receiver '{receiver_id}' not found"
+                    "error": "Radio manager not initialized"
                 }
-            else:
-                try:
-                    num_samples = command.get("num_samples", 2048)
-                    iq_samples = receiver.get_samples(num_samples=num_samples)
-                    
-                    if iq_samples is None or len(iq_samples) == 0:
-                        result = {
-                            "command_id": command_id,
-                            "success": False,
-                            "error": "No samples available from receiver"
-                        }
-                    else:
-                        # Convert complex samples to list of [real, imag] pairs
-                        samples_list = [[float(s.real), float(s.imag)] for s in iq_samples[:num_samples]]
+            elif action == "restart":
+                receiver = radio_manager.get_receiver(receiver_id)
+                if receiver:
+                    try:
+                        receiver.stop()
+                        time.sleep(0.5)
+                        receiver.start()
                         result = {
                             "command_id": command_id,
                             "success": True,
-                            "samples": samples_list,
-                            "num_samples": len(samples_list)
+                            "message": f"Receiver {receiver_id} restarted"
                         }
-                except Exception as e:
-                    logger.error(f"Failed to get spectrum for receiver {receiver_id}: {e}")
+                    except Exception as e:
+                        result = {
+                            "command_id": command_id,
+                            "success": False,
+                            "error": str(e)
+                        }
+                else:
                     result = {
                         "command_id": command_id,
                         "success": False,
-                        "error": str(e)
+                        "error": f"Receiver {receiver_id} not found"
                     }
-        else:
-            result = {
-                "command_id": command_id,
-                "success": False,
-                "error": f"Unknown action: {action}"
-            }
+            elif action == "stop":
+                receiver = radio_manager.get_receiver(receiver_id)
+                if receiver:
+                    receiver.stop()
+                    result = {"command_id": command_id, "success": True}
+                else:
+                    result = {"command_id": command_id, "success": False, "error": "Not found"}
+            elif action == "start":
+                receiver = radio_manager.get_receiver(receiver_id)
+                if receiver:
+                    receiver.start()
+                    result = {"command_id": command_id, "success": True}
+                else:
+                    result = {"command_id": command_id, "success": False, "error": "Not found"}
+            elif action == "get_spectrum":
+                # Get spectrum data for waterfall display
+                receiver = radio_manager.get_receiver(receiver_id)
+                if not receiver:
+                    result = {
+                        "command_id": command_id,
+                        "success": False,
+                        "error": f"Receiver '{receiver_id}' not found"
+                    }
+                else:
+                    try:
+                        num_samples = command.get("num_samples", 2048)
+                        iq_samples = receiver.get_samples(num_samples=num_samples)
+
+                        if iq_samples is None or len(iq_samples) == 0:
+                            result = {
+                                "command_id": command_id,
+                                "success": False,
+                                "error": "No samples available from receiver"
+                            }
+                        else:
+                            # Convert complex samples to list of [real, imag] pairs
+                            samples_list = [[float(s.real), float(s.imag)] for s in iq_samples[:num_samples]]
+                            result = {
+                                "command_id": command_id,
+                                "success": True,
+                                "samples": samples_list,
+                                "num_samples": len(samples_list)
+                            }
+                    except Exception as e:
+                        logger.error(f"Failed to get spectrum for receiver {receiver_id}: {e}")
+                        result = {
+                            "command_id": command_id,
+                            "success": False,
+                            "error": str(e)
+                        }
+            else:
+                result = {
+                    "command_id": command_id,
+                    "success": False,
+                    "error": f"Unknown action: {action}"
+                }
         
         redis_client.setex(
             f"sdr:command_result:{command_id}",
