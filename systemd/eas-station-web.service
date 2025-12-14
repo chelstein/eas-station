@@ -49,7 +49,7 @@ ExecStart=/opt/eas-station/venv/bin/gunicorn \
     --log-level info \
     --access-logfile - \
     --error-logfile - \
-    app:app
+    wsgi:application
 
 # Service management
 Restart=always

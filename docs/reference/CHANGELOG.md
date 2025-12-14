@@ -7,6 +7,14 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **Critical: Fixed Gunicorn Bypassing Database Initialization** - Changed systemd service to use `wsgi:application` instead of `app:app`
+  - Previously, gunicorn was loading app.py directly, bypassing all wsgi.py initialization code
+  - This caused lazy database initialization on first request, resulting in 504 Gateway Timeout errors
+  - Now uses wsgi.py as entry point, which eagerly initializes database before accepting requests
+  - Database initialization completes during worker startup, not during first HTTP request
+  - Eliminates race conditions where multiple workers try to initialize database simultaneously
+  - Web service now starts reliably without timeouts
+  - VERSION bumped to 2.27.5 (critical bug fix)
 - **WSGI Startup Honors Setup Mode** - Fixed wsgi.py to respect setup mode when database is unavailable
   - wsgi.py now checks if application is in setup mode before attempting database initialization
   - Prevents attempting to initialize database when connectivity check already failed during app.py import
