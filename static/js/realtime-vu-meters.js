@@ -90,7 +90,7 @@ function initializeRealtimeVUMeter(audioElement, sourceName) {
             rmsLabel
         });
 
-        console.log(`Real-time VU meter initialized for ${sourceName} (audio context state: ${audioContext.state})`);
+        console.debug(`Real-time VU meter initialized for ${sourceName} (audio context state: ${audioContext.state})`);
 
         // Start animation loop if not already running
         if (!animationFrameId) {
@@ -316,8 +316,8 @@ function enableRealtimeVUMeters() {
             }
         }
     });
-    
-    console.log(`Real-time VU meters enabled for ${audioElements.length} audio sources`);
+
+    console.debug(`Real-time VU meters enabled for ${audioElements.length} audio sources`);
 }
 
 /**
@@ -334,8 +334,8 @@ function disableRealtimeVUMeters() {
         cancelAnimationFrame(animationFrameId);
         animationFrameId = null;
     }
-    
-    console.log('Real-time VU meters disabled');
+
+    console.debug('Real-time VU meters disabled');
 }
 
 // Export functions for use in other scripts

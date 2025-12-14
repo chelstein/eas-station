@@ -1019,14 +1019,15 @@ def main():
                     source_sample_rate = adapter.config.sample_rate
                     source_channels = adapter.config.channels
 
-                    # Stream configuration: 22.05kHz mono (human voice is clear at this rate)
-                    stream_sample_rate = 22050
+                    # Stream configuration: Match source sample rate for now (no resampling)
+                    # Resampling was causing quality issues - use native rate instead
+                    stream_sample_rate = source_sample_rate  # Use native rate (typically 44100 Hz)
                     stream_channels = 1  # Mono saves 50% bandwidth
                     bits_per_sample = 16
 
                     # Check if resampling is needed and pre-compute the ratio
-                    needs_resample = source_sample_rate != stream_sample_rate
-                    resample_ratio = stream_sample_rate / source_sample_rate if needs_resample else 1.0
+                    needs_resample = False  # Disabled - use native sample rate
+                    resample_ratio = 1.0
 
                     # Subscribe to BroadcastQueue for non-competitive audio access
                     # Use unique subscriber ID per connection
@@ -1056,7 +1057,7 @@ def main():
                         silence_duration = 0.05
                         silence_samples = int(stream_sample_rate * stream_channels * silence_duration)
 
-                        logger.info(f"Web stream '{subscriber_id}' started, subscribed to broadcast queue")
+                        logger.debug(f"Web stream '{subscriber_id}' started, subscribed to broadcast queue")
 
                         while _running:
                             try:
@@ -1107,7 +1108,7 @@ def main():
                     finally:
                         # Unsubscribe when client disconnects
                         broadcast_queue.unsubscribe(subscriber_id)
-                        logger.info(f"Web stream '{subscriber_id}' ended, unsubscribed from broadcast queue")
+                        logger.debug(f"Web stream '{subscriber_id}' ended, unsubscribed from broadcast queue")
                 
                 try:
                     if not _audio_controller:
