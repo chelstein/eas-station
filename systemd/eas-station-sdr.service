@@ -39,12 +39,14 @@ TimeoutStopSec=30
 # Security settings (needs USB device access)
 NoNewPrivileges=true
 PrivateTmp=true
-ProtectSystem=strict
+# Note: ProtectSystem=strict breaks SoapySDR USB enumeration
+# Using 'full' instead which still protects /usr and /boot but allows /sys access
+ProtectSystem=full
 ProtectHome=true
-ReadWritePaths=/opt/eas-station /var/log/eas-station -/dev/bus/usb
+ReadWritePaths=/opt/eas-station /var/log/eas-station
 
-# USB device access via udev rules
-DeviceAllow=/dev/bus/usb rw
+# USB device access - SoapySDR needs /dev/bus/usb and /sys/bus/usb for enumeration
+DeviceAllow=/dev/bus/usb/* rw
 
 # Resource limits - USB streaming requires locked memory for DMA
 LimitNOFILE=65536
