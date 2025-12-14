@@ -395,8 +395,13 @@ class FMDemodulator:
             audio = fast_decimate(audio, decim)
             # Calculate actual intermediate rate after decimation
             intermediate_rate = self.config.sample_rate // decim
+            logger.debug(
+                f"FM demod: IQ {self.config.sample_rate}Hz → decim {decim}x → "
+                f"{intermediate_rate}Hz → resample → {target_rate}Hz"
+            )
         else:
             intermediate_rate = self.config.sample_rate
+            logger.debug(f"FM demod: No decimation needed, {intermediate_rate}Hz → {target_rate}Hz")
 
         # Scale to audio levels BEFORE resampling (at intermediate rate)
         # For 75 kHz deviation: phase_diff_per_sample = 2π × 75000 / sample_rate
@@ -408,6 +413,9 @@ class FMDemodulator:
         # This ensures audio is at the EXACT sample rate expected by downstream consumers
         if intermediate_rate != target_rate:
             audio = self._resample(audio, intermediate_rate, target_rate)
+            logger.debug(
+                f"Resampled {len(audio)} samples from {intermediate_rate}Hz to {target_rate}Hz"
+            )
 
         # Clamp to prevent overflow
         audio = np.clip(audio, -1.5, 1.5)
