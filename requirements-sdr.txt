@@ -1,9 +1,19 @@
 # Requirements for SDR Hardware Service (venv-sdr)
 # This venv uses --system-site-packages to access python3-soapysdr and python3-numpy from apt
-# Only pip packages not available from apt are listed here
+# Additional pip packages needed for database access and app_core imports
 
 # Redis client for IQ sample publishing
 redis>=4.5.0
 
 # Environment variable loading
 python-dotenv>=1.0.0
+
+# Flask and extensions (needed for app_core imports - database models, etc.)
+Flask>=3.0.0
+Flask-SQLAlchemy>=3.1.1
+SQLAlchemy>=2.0.0
+psycopg2-binary>=2.9.9
+GeoAlchemy2>=0.15.0
+
+# NumPy for signal processing (fallback if python3-numpy not available)
+numpy>=1.26.0
