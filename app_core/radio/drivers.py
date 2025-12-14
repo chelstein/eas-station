@@ -194,6 +194,16 @@ class _SoapySDRReceiver(ReceiverInterface):
         self._fallback_last_log_time = 0.0
         self._fallback_log_interval = 30.0  # Log fallback messages at most every 30 seconds
 
+        # Early decimation in USB callback to reduce sample rate BEFORE ring buffer
+        # This is critical for high sample rate SDRs (2.5 MHz+) because Python/NumPy
+        # cannot process that many samples in real-time. Decimating early reduces
+        # both ring buffer memory usage and downstream processing load.
+        # Target ~250 kHz intermediate rate (sufficient for FM stereo with 38 kHz subcarrier)
+        self._early_decim_target_rate = 250000  # Target output rate after decimation
+        self._early_decim_factor = 1  # Will be calculated on stream start
+        self._early_decim_buffer = None  # Accumulator for partial decimation blocks
+        self._effective_sample_rate = config.sample_rate  # Effective rate after decimation
+
     # ------------------------------------------------------------------
     # Lifecycle helpers
     # ------------------------------------------------------------------
@@ -565,25 +575,43 @@ class _SoapySDRReceiver(ReceiverInterface):
             self._sample_buffer = numpy_module.zeros(self._sample_buffer_size, dtype=numpy_module.complex64)
             self._sample_buffer_pos = 0
         
+        # Calculate early decimation factor for high sample rate SDRs
+        # This is critical for rates > 500 kHz because Python can't process that in real-time
+        if self.config.sample_rate > self._early_decim_target_rate * 2:
+            self._early_decim_factor = max(1, self.config.sample_rate // self._early_decim_target_rate)
+            self._effective_sample_rate = self.config.sample_rate // self._early_decim_factor
+            self._early_decim_buffer = numpy_module.array([], dtype=numpy_module.complex64)
+            self._interface_logger.info(
+                "Early decimation enabled for %s: %dx (%d Hz -> %d Hz)",
+                self.config.identifier,
+                self._early_decim_factor,
+                self.config.sample_rate,
+                self._effective_sample_rate
+            )
+        else:
+            self._early_decim_factor = 1
+            self._effective_sample_rate = self.config.sample_rate
+            self._early_decim_buffer = None
+
         # Initialize SDRRingBuffer for robust USB reading if enabled
         if self._ring_buffer_enabled and _RING_BUFFER_AVAILABLE:
             try:
-                # Calculate buffer size for ~2 seconds of samples
-                # Larger buffer provides more headroom for processing latency spikes
-                buffer_size = calculate_buffer_size(self.config.sample_rate, buffer_time_seconds=2.0)
-                
+                # Calculate buffer size for ~2 seconds of DECIMATED samples
+                # Use effective sample rate after decimation for buffer sizing
+                buffer_size = calculate_buffer_size(self._effective_sample_rate, buffer_time_seconds=2.0)
+
                 self._ring_buffer = SDRRingBuffer(
                     size=buffer_size,
                     numpy_module=numpy_module,
                     identifier=self.config.identifier
                 )
                 self._interface_logger.info(
-                    "Initialized ring buffer for %s: %d samples (%.2f MB, %.2fs at %d Hz)",
+                    "Initialized ring buffer for %s: %d samples (%.2f MB, %.2fs at %d Hz effective)",
                     self.config.identifier,
                     buffer_size,
                     buffer_size * 8 / 1024 / 1024,  # complex64 = 8 bytes
-                    buffer_size / self.config.sample_rate,
-                    self.config.sample_rate
+                    buffer_size / self._effective_sample_rate,
+                    self._effective_sample_rate
                 )
             except Exception as e:
                 self._interface_logger.warning(
@@ -1188,18 +1216,47 @@ class _SoapySDRReceiver(ReceiverInterface):
                 self._timeout_backoff = 0.01
 
                 if result.ret > 0:
-                    samples = buffer[: result.ret]
-                    
-                    # Write samples to ring buffer if enabled
+                    raw_samples = buffer[: result.ret]
+
+                    # Early decimation to reduce sample rate BEFORE ring buffer
+                    # This is critical for high sample rate SDRs (2.5 MHz+)
+                    # Uses fast integer averaging: reshape + mean along axis
+                    decimated_samples = None
+                    if self._early_decim_factor > 1:
+                        # Accumulate samples with any leftover from previous read
+                        to_decimate = raw_samples
+                        if self._early_decim_buffer is not None and len(self._early_decim_buffer) > 0:
+                            to_decimate = handle.numpy.concatenate([self._early_decim_buffer, raw_samples])
+
+                        # Calculate how many complete decimation blocks we have
+                        decim = self._early_decim_factor
+                        n_complete = (len(to_decimate) // decim) * decim
+
+                        if n_complete >= decim:
+                            # Fast decimation using reshape + mean
+                            # This is much faster than convolution or sample-by-sample
+                            decimated_samples = to_decimate[:n_complete].reshape(-1, decim).mean(axis=1)
+                            decimated_samples = decimated_samples.astype(handle.numpy.complex64)
+
+                            # Save leftover samples for next iteration
+                            self._early_decim_buffer = to_decimate[n_complete:].copy()
+                        else:
+                            # Not enough samples yet, save for next iteration
+                            self._early_decim_buffer = to_decimate.copy()
+                    else:
+                        # No decimation needed
+                        decimated_samples = raw_samples
+
+                    # Write DECIMATED samples to ring buffer if enabled
                     # This provides overflow detection and backpressure monitoring
-                    if self._ring_buffer is not None:
+                    if self._ring_buffer is not None and decimated_samples is not None and len(decimated_samples) > 0:
                         try:
-                            written = self._ring_buffer.write(samples)
-                            if written < len(samples):
+                            written = self._ring_buffer.write(decimated_samples)
+                            if written < len(decimated_samples):
                                 # Overflow detected - ring buffer is full
                                 # This is a significant operational issue indicating
                                 # processing can't keep up with USB data rate
-                                dropped = len(samples) - written
+                                dropped = len(decimated_samples) - written
                                 self._overflow_dropped_since_last_log += dropped
 
                                 # Rate-limit overflow logging to avoid log spam
@@ -1220,21 +1277,23 @@ class _SoapySDRReceiver(ReceiverInterface):
                                 e
                             )
                     
-                    # 1. Compute Spectrum (if interval elapsed)
+                    # 1. Compute Spectrum (if interval elapsed) - use RAW samples for full bandwidth
                     now = time.time()
                     if now - last_spectrum_time > self._spectrum_update_interval:
-                        self._compute_spectrum(samples, handle.numpy)
+                        self._compute_spectrum(raw_samples, handle.numpy)
                         last_spectrum_time = now
-                    
-                    # 2. Update Signal Strength
-                    magnitude = float(handle.numpy.mean(handle.numpy.abs(samples)))
+
+                    # 2. Update Signal Strength - use RAW samples for accurate measurement
+                    magnitude = float(handle.numpy.mean(handle.numpy.abs(raw_samples)))
                     self._update_status(locked=True, signal_strength=magnitude)
-                    
-                    # 3. Update Audio Sample Buffer (existing logic)
-                    self._update_sample_buffer(samples)
-                    
-                    # 4. Process Capture (existing logic)
-                    self._process_capture(samples)
+
+                    # 3. Update Audio Sample Buffer (fallback when ring buffer not available)
+                    # Uses decimated samples if available for consistency with ring buffer
+                    if decimated_samples is not None:
+                        self._update_sample_buffer(decimated_samples)
+
+                    # 4. Process Capture (IQ recording) - use RAW samples for full bandwidth
+                    self._process_capture(raw_samples)
                     
                 else:
                     self._update_status(locked=True, signal_strength=0.0)
@@ -1373,6 +1432,18 @@ class _SoapySDRReceiver(ReceiverInterface):
 
                 self._sample_buffer_pos = end_pos % self._sample_buffer_size
 
+    def get_effective_sample_rate(self) -> int:
+        """Get the effective sample rate after early decimation.
+
+        For high sample rate SDRs (2.5 MHz+), early decimation reduces the rate
+        before samples enter the ring buffer. This returns the rate that downstream
+        consumers (demodulator, audio pipeline) should use.
+
+        Returns:
+            Effective sample rate in Hz (after decimation)
+        """
+        return self._effective_sample_rate
+
     def get_samples(self, num_samples: Optional[int] = None):
         """Get recent IQ samples from the receiver for real-time processing.
 
@@ -1490,23 +1561,30 @@ class RTLSDRReceiver(_SoapySDRReceiver):
 
 class AirspyReceiver(_SoapySDRReceiver):
     """Driver for Airspy receivers using the SoapyAirspy module.
-    
+
     Airspy R2 (most common) only supports 2.5 MHz and 10 MHz sample rates.
-    Uses linearity gain mode by default for optimal strong signal performance.
+
+    Gain Settings:
+    - When gain is None/not set: AGC is enabled (auto gain)
+    - When gain is set to a value: Manual gain mode with linearity optimization
+    - Airspy has a range of 0-21 dB in "linearity" mode
+    - For strong signals (local FM stations), use 0-5 dB to prevent ADC overload
+    - For weak signals, use 15-21 dB for better sensitivity
     """
 
     driver_hint = "airspy"
-    
+
     # Airspy R2 valid sample rates - ONLY these two are supported
     AIRSPY_R2_SAMPLE_RATES = [2_500_000, 10_000_000]
-    
+
     def _open_handle(self) -> _SoapySDRHandle:
         """Open Airspy device with Airspy-specific configuration.
 
         Overrides parent to add:
         1. Sample rate validation (must be exactly 2.5 MHz or 10 MHz for R2)
-        2. Linearity gain mode (optimal for FM/NOAA reception)
-        3. Bias-T configuration if supported
+        2. AGC or manual gain mode based on config
+        3. Explicit frequency component tuning
+        4. Bias-T configuration if supported
         """
         # Validate sample rate for Airspy R2 before opening device
         # Airspy R2 hardware ONLY supports these two rates - no other rates work
@@ -1522,62 +1600,127 @@ class AirspyReceiver(_SoapySDRReceiver):
 
         # Open device using parent implementation
         handle = super()._open_handle()
-        
+
         try:
             # Get channel
             channel = self.config.channel if self.config.channel is not None else 0
-            
-            # Set linearity gain mode (better for strong signals like FM broadcast and NOAA)
-            # Linearity mode optimizes dynamic range, reducing distortion on strong signals
+
+            # Configure gain mode based on whether gain is specified
+            if self.config.gain is None:
+                # No gain specified - enable AGC (automatic gain control)
+                try:
+                    handle.device.setGainMode(handle.sdr.SOAPY_SDR_RX, channel, True)  # Enable AGC
+                    self._interface_logger.info(
+                        "Enabled AGC (automatic gain) for Airspy %s",
+                        self.config.identifier
+                    )
+                except Exception as e:
+                    self._interface_logger.warning(
+                        "Could not enable AGC for Airspy %s: %s - falling back to manual gain",
+                        self.config.identifier,
+                        e
+                    )
+                    # Fallback: set a moderate default gain
+                    try:
+                        handle.device.setGainMode(handle.sdr.SOAPY_SDR_RX, channel, False)
+                        handle.device.setGain(handle.sdr.SOAPY_SDR_RX, channel, 10.0)
+                    except Exception:
+                        pass
+            else:
+                # Gain specified - use manual gain mode with linearity optimization
+                try:
+                    handle.device.setGainMode(handle.sdr.SOAPY_SDR_RX, channel, False)  # Disable AGC
+                    # Clamp gain to valid Airspy range (0-21 dB)
+                    actual_gain = max(0.0, min(21.0, float(self.config.gain)))
+                    handle.device.setGain(handle.sdr.SOAPY_SDR_RX, channel, actual_gain)
+                    self._interface_logger.info(
+                        "Set Airspy %s to manual gain %.1f dB (range 0-21)",
+                        self.config.identifier,
+                        actual_gain
+                    )
+                except Exception as e:
+                    self._interface_logger.warning(
+                        "Could not set Airspy gain for %s: %s",
+                        self.config.identifier,
+                        e
+                    )
+
+            # Explicitly set the frequency using the RF component
+            # Some SoapySDR drivers need explicit component tuning
             try:
-                # SoapyAirspy uses "LNA" gain setting with special modes:
-                # - Linearity mode: reduces sensitivity but handles strong signals better
-                # - Sensitivity mode: maximum sensitivity for weak signals
-                # For NOAA and FM broadcast, linearity is better
-                handle.device.setGainMode(handle.sdr.SOAPY_SDR_RX, channel, False)  # Disable AGC
+                freq_hz = self.config.frequency_hz
+                # Try to set RF frequency component explicitly
+                handle.device.setFrequency(handle.sdr.SOAPY_SDR_RX, channel, "RF", freq_hz)
                 self._interface_logger.info(
-                    "Configured Airspy %s in manual gain mode (linearity optimized)",
-                    self.config.identifier
+                    "Set Airspy %s RF frequency to %.6f MHz",
+                    self.config.identifier,
+                    freq_hz / 1_000_000
                 )
             except Exception as e:
-                self._interface_logger.warning(
-                    "Could not set Airspy gain mode for %s: %s",
+                # If RF component doesn't work, the parent already set the main frequency
+                self._interface_logger.debug(
+                    "Could not set RF frequency component for %s (using default tuning): %s",
                     self.config.identifier,
                     e
                 )
-            
+
+            # Verify the actual tuned frequency
+            try:
+                actual_freq = handle.device.getFrequency(handle.sdr.SOAPY_SDR_RX, channel)
+                expected_freq = self.config.frequency_hz
+                freq_error_khz = (actual_freq - expected_freq) / 1000.0
+
+                if abs(freq_error_khz) > 10:  # More than 10 kHz error
+                    self._interface_logger.warning(
+                        "⚠️ Airspy %s frequency mismatch: expected %.6f MHz, actual %.6f MHz (%.1f kHz error)",
+                        self.config.identifier,
+                        expected_freq / 1_000_000,
+                        actual_freq / 1_000_000,
+                        freq_error_khz
+                    )
+                else:
+                    self._interface_logger.info(
+                        "Airspy %s tuned to %.6f MHz (error: %.1f kHz)",
+                        self.config.identifier,
+                        actual_freq / 1_000_000,
+                        freq_error_khz
+                    )
+            except Exception as e:
+                self._interface_logger.debug(
+                    "Could not verify Airspy frequency for %s: %s",
+                    self.config.identifier,
+                    e
+                )
+
             # Try to disable Bias-T by default (can damage some equipment if left on)
-            # User can enable via hardware settings if they have an LNA that needs it
             try:
                 if hasattr(handle.device, 'writeSetting'):
                     handle.device.writeSetting('biastee', 'false')
                     self._interface_logger.debug(
-                        "Disabled Bias-T for Airspy %s (enable in hardware settings if needed)",
+                        "Disabled Bias-T for Airspy %s",
                         self.config.identifier
                     )
             except Exception as e:
                 # Not all Airspy modules support bias-T, that's OK
-                self._interface_logger.debug(
-                    "Bias-T setting not available for %s: %s",
-                    self.config.identifier,
-                    e
-                )
-            
-            # Log Airspy-specific configuration
+                pass
+
+            # Log final configuration
+            gain_mode = "AGC" if self.config.gain is None else f"{self.config.gain} dB manual"
             self._interface_logger.info(
-                "✅ Airspy %s configured: %d Hz sample rate, gain %.1f dB",
+                "✅ Airspy %s configured: %.6f MHz, %d Hz sample rate, %s",
                 self.config.identifier,
+                self.config.frequency_hz / 1_000_000,
                 self.config.sample_rate,
-                self.config.gain if self.config.gain else 0.0
+                gain_mode
             )
-            
+
         except Exception as exc:
             # If Airspy-specific config fails, clean up and raise
             self._teardown_handle(handle)
             raise RuntimeError(
                 f"Failed to configure Airspy-specific settings for {self.config.identifier}: {exc}"
             ) from exc
-        
+
         return handle
 
 
