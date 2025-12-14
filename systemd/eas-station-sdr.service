@@ -19,6 +19,9 @@ Environment="PATH=/opt/eas-station/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/
 # but the SDR service needs SoapySDR which is only available as a system package
 Environment="PYTHONPATH=/opt/eas-station:/usr/lib/python3/dist-packages"
 Environment="SOAPY_SDR_PLUGIN_PATH=/usr/lib/aarch64-linux-gnu/SoapySDR/modules0.8:/usr/lib/arm-linux-gnueabihf/SoapySDR/modules0.8:/usr/lib/x86_64-linux-gnu/SoapySDR/modules0.8:/usr/lib/SoapySDR/modules0.8"
+# Suppress ALSA errors that can occur when soapysdr-module-audio loads
+# These don't affect SDR functionality but cause log noise
+Environment="ALSA_CONFIG_PATH=/dev/null"
 # Pi 5 requires lgpio for GPIO access - prevents gpiozero auto-detection hangs
 Environment="GPIOZERO_PIN_FACTORY=lgpio"
 EnvironmentFile=/opt/eas-station/.env
