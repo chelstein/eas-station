@@ -45,7 +45,18 @@ if project_dir not in sys.path:
 
 os.chdir(project_dir)
 
+# DIAGNOSTIC: Print immediately to stderr before importing app
+# This proves the worker is reaching this point
+print(f"\n{'=' * 80}", file=sys.stderr, flush=True)
+print(f"WSGI PRE-IMPORT: Worker PID {os.getpid()} about to import app module...", file=sys.stderr, flush=True)
+print(f"{'=' * 80}\n", file=sys.stderr, flush=True)
+
 from app import app as application, socketio, initialize_database  # noqa: E402
+
+# DIAGNOSTIC: Print immediately after import completes
+print(f"\n{'=' * 80}", file=sys.stderr, flush=True)
+print(f"WSGI POST-IMPORT: Worker PID {os.getpid()} successfully imported app module", file=sys.stderr, flush=True)
+print(f"{'=' * 80}\n", file=sys.stderr, flush=True)
 
 # Initialize database eagerly when Gunicorn workers start
 # This prevents the first request from hanging while initialization completes

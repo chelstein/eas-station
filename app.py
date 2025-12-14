@@ -483,10 +483,14 @@ socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent')
 
 
 logger.info("Checking database connectivity at startup...")
+import sys
+print(f"[PID {os.getpid()}] About to check database connectivity...", file=sys.stderr, flush=True)
 if check_database_connectivity(app, db):
     logger.info("✓ Database connectivity check succeeded")
+    print(f"[PID {os.getpid()}] Database connectivity check PASSED", file=sys.stderr, flush=True)
 else:
     logger.error("✗ Database connectivity check failed; application may not operate correctly")
+    print(f"[PID {os.getpid()}] Database connectivity check FAILED", file=sys.stderr, flush=True)
     if 'database' not in _setup_mode_reasons:
         _setup_mode_reasons.append('database')
 
@@ -514,8 +518,10 @@ logger.info("✓ Flask application configuration complete")
 
 # Register route modules
 logger.info("Registering route modules...")
+print(f"[PID {os.getpid()}] About to register route modules...", file=sys.stderr, flush=True)
 register_routes(app, logger)
 logger.info("✓ Route modules registered")
+print(f"[PID {os.getpid()}] Route modules registered successfully", file=sys.stderr, flush=True)
 
 # Check if we're running in migration mode (SKIP_DB_INIT is set by alembic/env.py)
 # to prevent background services from starting and causing migrations to hang
@@ -529,29 +535,39 @@ elif app.config.get('SETUP_MODE'):
     logger.info('⊘ Skipping health alert worker while setup mode is active')
 else:
     logger.info("Starting health alert worker...")
+    print(f"[PID {os.getpid()}] About to start health alert worker...", file=sys.stderr, flush=True)
     start_health_alert_worker(app, logger)
     logger.info("✓ Health alert worker started")
+    print(f"[PID {os.getpid()}] Health alert worker started successfully", file=sys.stderr, flush=True)
 
 # Start screen manager for LED/VFD display rotation
 if not skip_background_services:
+    print(f"[PID {os.getpid()}] About to start screen manager...", file=sys.stderr, flush=True)
     try:
         from scripts.screen_manager import screen_manager
         screen_manager.init_app(app)
         if not app.config.get('SETUP_MODE'):
             screen_manager.start()
             logger.info('Screen manager started for display rotation')
+            print(f"[PID {os.getpid()}] Screen manager started successfully", file=sys.stderr, flush=True)
     except Exception as screen_mgr_error:
         logger.warning('Screen manager could not be started: %s', screen_mgr_error)
+        print(f"[PID {os.getpid()}] Screen manager failed: {screen_mgr_error}", file=sys.stderr, flush=True)
 
 # Start RWT (Required Weekly Test) scheduler
 if not skip_background_services:
+    print(f"[PID {os.getpid()}] About to start RWT scheduler...", file=sys.stderr, flush=True)
     try:
         from app_core.rwt_scheduler import start_scheduler as start_rwt_scheduler
         if not app.config.get('SETUP_MODE'):
             start_rwt_scheduler(app)
             logger.info('RWT scheduler started for automatic weekly tests')
+            print(f"[PID {os.getpid()}] RWT scheduler started successfully", file=sys.stderr, flush=True)
     except Exception as rwt_scheduler_error:
         logger.warning('RWT scheduler could not be started: %s', rwt_scheduler_error)
+        print(f"[PID {os.getpid()}] RWT scheduler failed: {rwt_scheduler_error}", file=sys.stderr, flush=True)
+
+print(f"[PID {os.getpid()}] app.py module initialization COMPLETE", file=sys.stderr, flush=True)
 
 # =============================================================================
 # BOUNDARY TYPE METADATA
