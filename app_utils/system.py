@@ -1307,6 +1307,20 @@ def _collect_smart_health(logger, devices: List[Dict[str, Any]]) -> Dict[str, An
         if not path:
             continue
 
+        # CRITICAL FIX: For NVMe namespaces (nvme0n1, nvme1n1, etc.), SMART data is on the controller
+        # Convert /dev/nvme0n1 -> /dev/nvme0, /dev/nvme1n2 -> /dev/nvme1
+        original_path = path
+        device_name = device.get("name") or ""
+        if "nvme" in device_name.lower() and "n" in device_name:
+            # Extract controller path: nvme0n1 -> nvme0, nvme1n2 -> nvme1
+            import re
+            match = re.match(r'(nvme\d+)n\d+', device_name)
+            if match:
+                controller_name = match.group(1)
+                path = f"/dev/{controller_name}"
+                if logger:
+                    logger.debug(f"NVMe namespace detected: {original_path} -> {path} (controller)")
+
         device_result: Dict[str, Any] = {
             "name": device.get("name"),
             "path": path,
