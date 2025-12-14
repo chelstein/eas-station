@@ -14,7 +14,7 @@ tracks releases under the 2.x series.
   - Database initialization completes during worker startup, not during first HTTP request
   - Eliminates race conditions where multiple workers try to initialize database simultaneously
   - Web service now starts reliably without timeouts
-  - VERSION bumped to 2.7.5 (critical bug fix)
+  - VERSION bumped to 2.27.5 (critical bug fix)
 - **WSGI Startup Honors Setup Mode** - Fixed wsgi.py to respect setup mode when database is unavailable
   - wsgi.py now checks if application is in setup mode before attempting database initialization
   - Prevents attempting to initialize database when connectivity check already failed during app.py import

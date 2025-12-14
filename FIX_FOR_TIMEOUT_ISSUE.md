@@ -44,7 +44,7 @@ This change ensures:
 ```
 
 ### VERSION
-Bumped to 2.7.5 (critical bug fix)
+Bumped to 2.27.5 (critical bug fix)
 
 ### docs/reference/CHANGELOG.md
 Added entry explaining the fix
