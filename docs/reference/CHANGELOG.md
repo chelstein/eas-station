@@ -7,6 +7,13 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **Airspy "No Match" with Label Parameter** - Fixed Airspy device failing to open when label parameter is included
+  - Airspy's SoapySDR module does NOT support the 'label' parameter
+  - Code was adding label to SoapySDR.Device() args, causing "no match" error
+  - Label parameter now excluded for Airspy (only used for RTL-SDR, HackRF, etc.)
+  - Device could be enumerated but not opened due to rejected label parameter
+  - Fixes "Device.make() returned 'no match'" even after airspy package installation
+  - VERSION bumped to 2.27.10 (bug fix)
 - **Airspy SDR Not Opening** - Fixed "Unable to open AirSpy device" error even with root/sudo access
   - Added `airspy` package to installation (contains firmware and host utilities like airspy_info)
   - Previously only installed `libairspy0` (library) and `soapysdr-module-airspy` (SoapySDR plugin)

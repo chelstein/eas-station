@@ -616,7 +616,9 @@ class _SoapySDRReceiver(ReceiverInterface):
             args["device_id"] = str(self.config.channel)
 
         # Label is for human reference only, not device identification
-        if self.config.identifier:
+        # NOTE: Airspy driver does NOT support the 'label' parameter and will return "no match" if it's present
+        # Only add label for drivers that support it (RTL-SDR, HackRF, etc.)
+        if self.config.identifier and self.driver_hint != "airspy":
             args.setdefault("label", self.config.identifier)
 
         # Log available devices for diagnostics
