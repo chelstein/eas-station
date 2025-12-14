@@ -7,6 +7,31 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **Update Script Missing Dynamic Path Detection** - Fixed update.sh not applying dynamic PYTHONPATH and SOAPY_SDR_PLUGIN_PATH
+  - Update script now detects Python site-packages paths (supports Python 3.10-3.13+)
+  - Update script now detects SoapySDR plugin directories
+  - Updates systemd service files with correct paths for current Python version
+  - Previously update.sh only copied static files, leaving old hardcoded paths
+  - Users must run `sudo ./update.sh` to apply the fix (not just `git pull`)
+  - This is why Airspy worked after `apt install airspy` but still failed in the service
+  - VERSION bumped to 2.27.10 (bug fix)
+- **Airspy SDR Not Opening** - Fixed "Unable to open AirSpy device" error even with root/sudo access
+  - Added `airspy` package to installation (contains firmware and host utilities like airspy_info)
+  - Previously only installed `libairspy0` (library) and `soapysdr-module-airspy` (SoapySDR plugin)
+  - The `airspy` package provides critical firmware loading and device initialization
+  - Without it, SoapySDR cannot open the device even with correct permissions
+  - Fixes error: "SoapySDR::Device::make() no match" for Airspy devices
+  - VERSION bumped to 2.27.9 (bug fix)
+- **SDR Not Working on Bare Metal** - Fixed SoapySDR device detection failure on bare metal installations
+  - Install script now dynamically detects Python site-packages paths for all Python versions
+  - Install script now dynamically detects SoapySDR plugin module paths
+  - Updated systemd service to inject detected paths instead of using hardcoded paths
+  - Fixes "SoapySDR::Device::make() no match" errors caused by incorrect PYTHONPATH
+  - Fixes missing SoapySDR modules caused by incorrect SOAPY_SDR_PLUGIN_PATH
+  - SDR worked in Docker but failed on bare metal due to venv isolation from system packages
+  - Python venv doesn't use --system-site-packages to avoid conflicts with gunicorn/gevent
+  - SDR service now gets correct paths to apt-installed python3-soapysdr and soapysdr-module-airspy
+  - VERSION bumped to 2.27.8 (bug fix)
 - **SDR Service Audio Errors** - Suppressed ALSA/PulseAudio/Jack errors in SDR hardware service logs
   - Added `PULSE_SERVER=/dev/null` to prevent PulseAudio connection attempts
   - Added `SOAPY_SDR_LOG_LEVEL=WARNING` to reduce SoapySDR log noise
