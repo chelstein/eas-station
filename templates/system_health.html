@@ -1546,10 +1546,10 @@
 {% endblock %}
 
 {% block scripts %}
-    <!-- Chart.js for visualizations -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <!-- Chart.js for visualizations (local to avoid CDN tracking prevention) -->
+    <script src="{{ url_for('static', filename='vendor/chartjs/chart.min.js') }}"></script>
     <script>
-        const initialHealthData = {{ health_data_json | safe }} || {};
+        const initialHealthData = {{ health_data_raw | tojson }} || {};
         const REFRESH_INTERVAL_MS = 30000;
         const numberFormatter = new Intl.NumberFormat();
         let lastUpdatedTime = null;

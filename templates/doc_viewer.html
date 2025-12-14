@@ -3,8 +3,8 @@
 {% block title %}{{ title }} - Documentation - EAS Station{% endblock %}
 
 {% block extra_css %}
-<!-- Mermaid.js for diagram rendering -->
-<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<!-- Mermaid.js for diagram rendering (local to avoid CDN tracking prevention) -->
+<script src="{{ url_for('static', filename='vendor/mermaid/mermaid.min.js') }}"></script>
 <script>
     // Initialize Mermaid when DOM is ready
     document.addEventListener('DOMContentLoaded', function() {

@@ -3,8 +3,8 @@
 {% block title %}Interactive Map - EAS Station{% endblock %}
 
 {% block extra_css %}
-<!-- Leaflet CSS -->
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
+<!-- Leaflet CSS (local to avoid CDN tracking prevention) -->
+<link rel="stylesheet" href="{{ url_for('static', filename='vendor/leaflet/leaflet.css') }}" />
 
 <style>
     #map {
@@ -1066,8 +1066,8 @@
 {% endblock %}
 
 {% block scripts %}
-<!-- Load Leaflet -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+<!-- Load Leaflet (local to avoid CDN tracking prevention) -->
+<script src="{{ url_for('static', filename='vendor/leaflet/leaflet.min.js') }}"></script>
 
 <script>
 console.log('🗺️ Interactive map page initializing...');

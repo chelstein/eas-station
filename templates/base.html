@@ -28,8 +28,8 @@
 
     <!-- Vendor CSS (Bootstrap) -->
     <link href="{{ url_for('static', filename='css/vendor.css') }}" rel="stylesheet">
-    <!-- Font Awesome -->
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <!-- Font Awesome (local to avoid CDN tracking prevention blocks) -->
+    <link href="{{ url_for('static', filename='vendor/fontawesome/css/all.min.css') }}" rel="stylesheet">
 
     <!-- EAS Station Styles (Consolidated) -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
