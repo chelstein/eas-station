@@ -280,17 +280,153 @@ def initialize_database():
                 raise
 
 
+def _auto_detect_and_configure_receivers(app):
+    """Auto-detect connected SDR devices and create receiver configurations.
+
+    Called when no receivers are configured in the database. Discovers connected
+    SDR hardware and creates default configurations for NOAA Weather Radio monitoring.
+
+    Returns:
+        List of RadioReceiver objects that were auto-configured, or empty list if none found.
+    """
+    from app_core.radio.discovery import enumerate_devices
+    from app_core.models import RadioReceiver
+    from app_core.extensions import db
+
+    # Default NOAA Weather Radio frequency (WX7 - most common)
+    DEFAULT_FREQUENCY_HZ = 162_550_000
+
+    # Driver-specific defaults
+    DRIVER_DEFAULTS = {
+        'airspy': {
+            'sample_rate': 2_500_000,  # Airspy R2 only supports 2.5 MHz or 10 MHz
+            'gain': 21,
+            'modulation_type': 'NFM',
+            'audio_sample_rate': 48000,
+        },
+        'rtlsdr': {
+            'sample_rate': 2_400_000,
+            'gain': 49.6,
+            'modulation_type': 'NFM',
+            'audio_sample_rate': 48000,
+        },
+        'hackrf': {
+            'sample_rate': 2_000_000,
+            'gain': 40,
+            'modulation_type': 'NFM',
+            'audio_sample_rate': 48000,
+        },
+    }
+
+    try:
+        devices = enumerate_devices()
+        if not devices:
+            logger.info("📡 Auto-detection: No SDR devices found")
+            return []
+
+        logger.info(f"📡 Auto-detection: Found {len(devices)} device(s)")
+
+        configured_receivers = []
+
+        with app.app_context():
+            for device in devices:
+                driver = device.get('driver', 'unknown').lower()
+                serial = device.get('serial')
+                label = device.get('label', f'SDR Device')
+
+                if not serial:
+                    logger.warning(f"  Skipping device without serial: {label}")
+                    continue
+
+                # Check if already configured (by serial)
+                existing = RadioReceiver.query.filter_by(serial=serial).first()
+                if existing:
+                    logger.info(f"  Device {serial} already configured as '{existing.identifier}'")
+                    if existing.enabled:
+                        configured_receivers.append(existing)
+                    continue
+
+                # Get driver-specific defaults
+                defaults = DRIVER_DEFAULTS.get(driver, {
+                    'sample_rate': 2_400_000,
+                    'gain': 30,
+                    'modulation_type': 'NFM',
+                    'audio_sample_rate': 48000,
+                })
+
+                # Create unique identifier
+                identifier = f"{driver}-{serial[-8:]}" if len(serial) > 8 else f"{driver}-{serial}"
+                display_name = f"{label} (Auto-configured)"
+
+                logger.info(f"  📻 Auto-configuring: {identifier}")
+                logger.info(f"     Driver: {driver}, Serial: {serial}")
+                logger.info(f"     Frequency: {DEFAULT_FREQUENCY_HZ / 1e6:.3f} MHz (NOAA WX7)")
+                logger.info(f"     Sample rate: {defaults['sample_rate'] / 1e6:.1f} MHz")
+
+                # Create receiver configuration
+                receiver = RadioReceiver(
+                    identifier=identifier,
+                    display_name=display_name,
+                    driver=driver,
+                    serial=serial,
+                    frequency_hz=DEFAULT_FREQUENCY_HZ,
+                    sample_rate=defaults['sample_rate'],
+                    audio_sample_rate=defaults.get('audio_sample_rate', 48000),
+                    gain=defaults.get('gain'),
+                    modulation_type=defaults.get('modulation_type', 'NFM'),
+                    audio_output=True,
+                    enabled=True,
+                    auto_start=True,
+                    notes=f"Auto-configured on {time.strftime('%Y-%m-%d %H:%M:%S')}. "
+                          f"Tune frequency in Settings → Radio Receivers for your area.",
+                )
+
+                db.session.add(receiver)
+                configured_receivers.append(receiver)
+
+            if configured_receivers:
+                db.session.commit()
+                logger.info(f"✅ Auto-configured {len(configured_receivers)} receiver(s)")
+
+                # Publish status to Redis
+                try:
+                    redis_client = get_redis_client(retry=False)
+                    redis_client.setex(
+                        "sdr:status",
+                        300,
+                        json.dumps({
+                            "status": "auto_configured",
+                            "message": f"Auto-configured {len(configured_receivers)} receiver(s)",
+                            "receivers": [r.identifier for r in configured_receivers],
+                            "timestamp": time.time()
+                        })
+                    )
+                except Exception:
+                    pass
+
+        return configured_receivers
+
+    except Exception as e:
+        logger.error(f"Auto-detection failed: {e}", exc_info=True)
+        return []
+
+
 def initialize_radio_receivers(app):
     """Initialize and start SDR receivers from database configuration."""
     try:
         with app.app_context():
             from app_core.models import RadioReceiver
-            from app_core.extensions import get_radio_manager
+            from app_core.extensions import get_radio_manager, db
 
             receivers = RadioReceiver.query.filter_by(enabled=True).all()
             if not receivers:
+                # No receivers configured - try auto-detection
+                logger.info("No receivers configured - attempting auto-detection...")
+                receivers = _auto_detect_and_configure_receivers(app)
+
+            if not receivers:
                 logger.error("=" * 80)
-                logger.error("❌ NO SDR RECEIVERS CONFIGURED IN DATABASE")
+                logger.error("❌ NO SDR RECEIVERS CONFIGURED OR DETECTED")
                 logger.error("=" * 80)
                 logger.error("The SDR service will run but will NOT receive any radio signals.")
                 logger.error("")
@@ -300,6 +436,7 @@ def initialize_radio_receivers(app):
                 logger.error("  3. Enable the receiver and set auto_start=true")
                 logger.error("  4. Restart the SDR hardware service process")
                 logger.error("")
+                logger.error("Or connect an SDR device (Airspy, RTL-SDR) and restart the service.")
                 logger.error("The service will continue running and wait for configuration via")
                 logger.error("the 'reload_receivers' command through Redis.")
                 logger.error("=" * 80)
@@ -312,7 +449,7 @@ def initialize_radio_receivers(app):
                         300,  # 5 minute TTL
                         json.dumps({
                             "status": "no_receivers_configured",
-                            "message": "No SDR receivers configured in database",
+                            "message": "No SDR receivers configured or detected",
                             "timestamp": time.time()
                         })
                     )
