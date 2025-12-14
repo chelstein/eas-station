@@ -145,7 +145,7 @@ class SDRSourceAdapter(AudioSourceAdapter):
 
         # Get receiver configuration to check demodulation settings
         from app_core.models import RadioReceiver
-        from app_core.radio.demodulation import create_demodulator, DemodulatorConfig
+        from app_core.radio.demodulation import create_demodulator, DemodulatorConfig, DemodulatorStatus
 
         db_receiver = RadioReceiver.query.filter_by(identifier=receiver_id).first()
         if db_receiver:
@@ -388,32 +388,52 @@ class SDRSourceAdapter(AudioSourceAdapter):
                     else:
                         iq_complex = np.array(audio_data, dtype=np.complex64)
 
-                    # Demodulate to audio
-                    audio_array, rbds_data = self._demodulator.demodulate(iq_complex)
+                    # Demodulate to audio - returns status with stereo pilot and RBDS info
+                    audio_array, demod_status = self._demodulator.demodulate(iq_complex)
 
-                    # Update RBDS data and metadata if available
-                    latest_rbds = rbds_data or self._rbds_data
-                    if latest_rbds:
-                        if rbds_data:
-                            self._rbds_data = rbds_data
+                    # Update metadata with demodulator status (stereo pilot, RBDS data)
+                    if demod_status:
                         if self.metrics.metadata is None:
                             self.metrics.metadata = {}
                         metadata = self.metrics.metadata
-                        metadata['rbds_ps_name'] = latest_rbds.ps_name
-                        metadata['rbds_radio_text'] = latest_rbds.radio_text
-                        metadata['rbds_pty'] = latest_rbds.pty
-                        metadata['rbds_pi_code'] = latest_rbds.pi_code
-                        metadata['rbds_tp'] = latest_rbds.tp
-                        metadata['rbds_ta'] = latest_rbds.ta
-                        metadata['rbds_ms'] = latest_rbds.ms
-                        metadata['rbds_program_type_name'] = (
-                            RBDS_PROGRAM_TYPES.get(int(latest_rbds.pty))
-                            if latest_rbds.pty is not None
-                            else None
-                        )
+
+                        # Stereo pilot status
+                        metadata['stereo_pilot_locked'] = demod_status.stereo_pilot_locked
+                        metadata['stereo_pilot_strength'] = demod_status.stereo_pilot_strength
+                        metadata['is_stereo'] = demod_status.is_stereo
+
+                        # RBDS data (if available)
+                        rbds_data = demod_status.rbds_data
                         if rbds_data:
+                            self._rbds_data = rbds_data
+                            metadata['rbds_ps_name'] = rbds_data.ps_name
+                            metadata['rbds_radio_text'] = rbds_data.radio_text
+                            metadata['rbds_pty'] = rbds_data.pty
+                            metadata['rbds_pi_code'] = rbds_data.pi_code
+                            metadata['rbds_tp'] = rbds_data.tp
+                            metadata['rbds_ta'] = rbds_data.ta
+                            metadata['rbds_ms'] = rbds_data.ms
+                            metadata['rbds_program_type_name'] = (
+                                RBDS_PROGRAM_TYPES.get(int(rbds_data.pty))
+                                if rbds_data.pty is not None
+                                else None
+                            )
                             metadata['rbds_last_updated'] = time.time()
-                        metadata.setdefault('rbds_last_updated', time.time())
+                        elif self._rbds_data:
+                            # Use last known RBDS data if no new data this cycle
+                            metadata['rbds_ps_name'] = self._rbds_data.ps_name
+                            metadata['rbds_radio_text'] = self._rbds_data.radio_text
+                            metadata['rbds_pty'] = self._rbds_data.pty
+                            metadata['rbds_pi_code'] = self._rbds_data.pi_code
+                            metadata['rbds_tp'] = self._rbds_data.tp
+                            metadata['rbds_ta'] = self._rbds_data.ta
+                            metadata['rbds_ms'] = self._rbds_data.ms
+                            metadata['rbds_program_type_name'] = (
+                                RBDS_PROGRAM_TYPES.get(int(self._rbds_data.pty))
+                                if self._rbds_data.pty is not None
+                                else None
+                            )
+
                         self.metrics.metadata = metadata
 
                     return self._apply_squelch(audio_array)

@@ -55,7 +55,7 @@ from dotenv import load_dotenv
 
 # Configure logging early
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.DEBUG,  # Changed from INFO to DEBUG to show diagnostic logs
     format='%(asctime)s [%(levelname)s] [%(name)s] %(message)s',
     handlers=[
         logging.StreamHandler(sys.stdout)

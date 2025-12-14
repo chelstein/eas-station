@@ -1,0 +1,2 @@
+smartmontools
+smartmontools  # Required for NVMe/SSD SMART monitoring

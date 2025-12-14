@@ -712,7 +712,12 @@
                 <div class="card health-card {{ cpu_class }} h-100">
                     <div class="card-body">
                         <h5><i class="fas fa-microchip section-icon"></i> CPU Usage</h5>
-                        
+
+                        <!-- CPU Usage Chart -->
+                        <div class="text-center mb-3" style="position: relative; height: 200px;">
+                            <canvas id="cpuGaugeChart"></canvas>
+                        </div>
+
                         <div class="d-flex justify-content-between align-items-center mb-2">
                             <span class="metric-label">Overall Usage</span>
                             <span class="badge bg-{{ 'danger' if cpu.cpu_usage_percent > 80 else 'warning' if cpu.cpu_usage_percent > 50 else 'success' }}">
@@ -777,7 +782,12 @@
                 <div class="card health-card {{ mem_class }} h-100">
                     <div class="card-body">
                         <h5><i class="fas fa-memory section-icon"></i> Memory Usage</h5>
-                        
+
+                        <!-- Memory Usage Chart -->
+                        <div class="text-center mb-3" style="position: relative; height: 200px;">
+                            <canvas id="memoryDonutChart"></canvas>
+                        </div>
+
                         <div class="d-flex justify-content-between align-items-center mb-2">
                             <span class="metric-label">RAM Usage</span>
                             <span class="badge bg-{{ 'danger' if memory.percentage > 90 else 'warning' if memory.percentage > 75 else 'success' }}">
@@ -1536,6 +1546,8 @@
 {% endblock %}
 
 {% block scripts %}
+    <!-- Chart.js for visualizations -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script>
         const initialHealthData = {{ health_data_json | safe }} || {};
         const REFRESH_INTERVAL_MS = 30000;
@@ -1780,6 +1792,11 @@
                     <div class="card-body">
                         <h5><i class="fas fa-microchip section-icon"></i> CPU Usage</h5>
 
+                        <!-- CPU Usage Chart -->
+                        <div class="text-center mb-3" style="position: relative; height: 200px;">
+                            <canvas id="cpuGaugeChart"></canvas>
+                        </div>
+
                         <div class="d-flex justify-content-between align-items-center mb-2">
                             <span class="metric-label">Overall Usage</span>
                             <span class="badge bg-${usage > 80 ? 'danger' : usage > 50 ? 'warning' : 'success'}">
@@ -1845,6 +1862,11 @@
                 <div class="card health-card ${memoryClass} h-100">
                     <div class="card-body">
                         <h5><i class="fas fa-memory section-icon"></i> Memory Usage</h5>
+
+                        <!-- Memory Usage Chart -->
+                        <div class="text-center mb-3" style="position: relative; height: 200px;">
+                            <canvas id="memoryDonutChart"></canvas>
+                        </div>
 
                         <div class="d-flex justify-content-between align-items-center mb-2">
                             <span class="metric-label">RAM Usage</span>
@@ -2206,12 +2228,16 @@
                 `;
             }
 
-            const sections = devices.slice(0, 5).map((device) => {
+            // Build table rows for each device
+            const tableRows = devices.slice(0, 10).map((device) => {
                 const data = device && typeof device === 'object' ? device : {};
-                const path = escapeHtml(data.path || data.name || 'Unknown device');
-                const model = data.model ? `<div class="hardware-meta">${escapeHtml(data.model)}</div>` : '';
-                const serial = data.serial ? `<div class="hardware-meta">Serial: ${escapeHtml(data.serial)}</div>` : '';
 
+                // Device name/path
+                const deviceName = escapeHtml(data.name || data.path || 'Unknown');
+                const model = data.model ? escapeHtml(data.model) : '';
+                const serial = data.serial ? `<small class="text-muted">S/N: ${escapeHtml(data.serial)}</small>` : '';
+
+                // Status badge
                 const statusRaw = String(data.overall_status || 'unknown').toLowerCase();
                 let badgeClass = 'warning';
                 let statusLabel = data.overall_status ? escapeHtml(String(data.overall_status)) : 'Unknown';
@@ -2223,161 +2249,111 @@
                     statusLabel = 'Failed';
                 }
 
-                const identityParts = [];
-                if (data.firmware_version) {
-                    identityParts.push(`FW ${escapeHtml(String(data.firmware_version))}`);
-                }
-                if (data.nvme_version_string) {
-                    identityParts.push(`NVMe ${escapeHtml(String(data.nvme_version_string))}`);
-                }
-                if (data.nvme_controller_id !== undefined && data.nvme_controller_id !== null) {
-                    identityParts.push(`Controller ${escapeHtml(String(data.nvme_controller_id))}`);
-                }
-                if (data.nvme_number_of_namespaces !== undefined && data.nvme_number_of_namespaces !== null) {
-                    const namespaces = toNumber(data.nvme_number_of_namespaces, Number(data.nvme_number_of_namespaces));
-                    const nsLabel = `${formatNumber(namespaces) || escapeHtml(String(data.nvme_number_of_namespaces))} namespace${namespaces === 1 ? '' : 's'}`;
-                    identityParts.push(nsLabel);
-                }
-                if (data.ieee_oui_identifier) {
-                    identityParts.push(`OUI ${escapeHtml(String(data.ieee_oui_identifier))}`);
-                }
-                const identityMeta = identityParts.length
-                    ? `<div class="hardware-meta">${identityParts.join(' • ')}</div>`
-                    : '';
-
-                const capacityParts = [];
-                if (data.total_capacity_bytes != null) {
-                    capacityParts.push(`Capacity: ${formatBytes(data.total_capacity_bytes)}`);
-                }
-                if (data.unallocated_capacity_bytes) {
-                    capacityParts.push(`Unallocated: ${formatBytes(data.unallocated_capacity_bytes)}`);
-                }
-                const capacityMeta = capacityParts.length
-                    ? `<div class="hardware-meta">${capacityParts.join(' • ')}</div>`
-                    : '';
-
-                const temperature = data.temperature_celsius != null
+                // Temperature
+                const temp = data.temperature_celsius != null
                     ? `${toNumber(data.temperature_celsius, 0).toFixed(0)}°C`
-                    : 'N/A';
-                const sensorValues = Array.isArray(data.temperature_sensors_celsius)
-                    ? data.temperature_sensors_celsius
-                        .map((value) => {
-                            const numeric = toNumber(value, NaN);
-                            return Number.isFinite(numeric) ? `${numeric.toFixed(0)}°C` : null;
-                        })
-                        .filter(Boolean)
-                    : [];
-                const sensorMeta = sensorValues.length ? ` • Sensors: ${sensorValues.join(', ')}` : '';
-                const temperatureMeta = `<div class="hardware-meta">Temp: ${temperature}${sensorMeta}</div>`;
+                    : '<span class="text-muted">N/A</span>';
 
-                const powerParts = [];
-                if (data.power_on_hours != null) {
-                    const formatted = formatNumber(data.power_on_hours) || escapeHtml(String(data.power_on_hours));
-                    powerParts.push(`Power On: ${formatted}h`);
-                }
-                if (data.power_cycle_count != null) {
-                    const formatted = formatNumber(data.power_cycle_count) || escapeHtml(String(data.power_cycle_count));
-                    powerParts.push(`Cycles: ${formatted}`);
-                }
-                if (data.unsafe_shutdowns != null) {
-                    const formatted = formatNumber(data.unsafe_shutdowns) || escapeHtml(String(data.unsafe_shutdowns));
-                    powerParts.push(`Unsafe: ${formatted}`);
-                }
-                if (data.warning_temp_time_minutes && toNumber(data.warning_temp_time_minutes, 0) > 0) {
-                    powerParts.push(`Warn Temp: ${formatNumber(data.warning_temp_time_minutes) || escapeHtml(String(data.warning_temp_time_minutes))} min`);
-                }
-                if (data.critical_temp_time_minutes && toNumber(data.critical_temp_time_minutes, 0) > 0) {
-                    powerParts.push(`Critical Temp: ${formatNumber(data.critical_temp_time_minutes) || escapeHtml(String(data.critical_temp_time_minutes))} min`);
-                }
-                const powerMeta = powerParts.length
-                    ? `<div class="hardware-meta">${powerParts.join(' • ')}</div>`
-                    : '';
+                // Power on hours
+                const powerOnHours = data.power_on_hours != null
+                    ? formatNumber(data.power_on_hours) || escapeHtml(String(data.power_on_hours))
+                    : '<span class="text-muted">N/A</span>';
 
+                // Capacity
+                const capacity = data.total_capacity_bytes != null
+                    ? formatBytes(data.total_capacity_bytes)
+                    : '<span class="text-muted">N/A</span>';
+
+                // Wear level (percentage used)
+                const wearLevel = data.percentage_used != null
+                    ? `${formatPercent(data.percentage_used)}%`
+                    : '<span class="text-muted">N/A</span>';
+
+                // Health metrics
                 const healthParts = [];
-                const reallocated = data.reallocated_sector_count != null
-                    ? escapeHtml(String(data.reallocated_sector_count))
-                    : 'N/A';
-                healthParts.push(`Realloc: ${reallocated}`);
-                if (data.media_errors != null) {
-                    healthParts.push(`Media Errors: ${escapeHtml(String(data.media_errors))}`);
+                if (data.media_errors != null && data.media_errors > 0) {
+                    healthParts.push(`<span class="text-danger">Media Errors: ${escapeHtml(String(data.media_errors))}</span>`);
                 }
-                if (data.critical_warnings != null) {
-                    healthParts.push(`Warnings: ${escapeHtml(String(data.critical_warnings))}`);
+                if (data.critical_warnings != null && data.critical_warnings > 0) {
+                    healthParts.push(`<span class="text-warning">Warnings: ${escapeHtml(String(data.critical_warnings))}</span>`);
+                }
+                if (data.reallocated_sector_count != null && data.reallocated_sector_count > 0) {
+                    healthParts.push(`<span class="text-warning">Realloc: ${escapeHtml(String(data.reallocated_sector_count))}</span>`);
                 }
                 if (data.available_spare != null) {
-                    healthParts.push(`Spare: ${toNumber(data.available_spare, 0).toFixed(0)}%`);
+                    const spare = toNumber(data.available_spare, 0).toFixed(0);
+                    healthParts.push(`Spare: ${spare}%`);
                 }
-                if (data.available_spare_threshold != null) {
-                    healthParts.push(`Threshold: ${toNumber(data.available_spare_threshold, 0).toFixed(0)}%`);
-                }
-                if (data.percentage_used != null) {
-                    healthParts.push(`Wear: ${formatPercent(data.percentage_used)}%`);
-                }
-                if (data.num_error_log_entries != null) {
-                    const formatted = formatNumber(data.num_error_log_entries) || escapeHtml(String(data.num_error_log_entries));
-                    healthParts.push(`Error Log: ${formatted}`);
-                }
-                const healthMeta = healthParts.length
-                    ? `<div class="hardware-meta">${healthParts.join(' • ')}</div>`
-                    : '';
+                const healthInfo = healthParts.length
+                    ? healthParts.join('<br>')
+                    : '<span class="text-success">✓ Healthy</span>';
 
-                const note = data.error
-                    ? `<div class="hardware-meta text-warning"><i class="fas fa-exclamation-triangle"></i> ${escapeHtml(String(data.error))}</div>`
-                    : '';
-
-                const nvmeDetails = [];
+                // Additional info (NVMe-specific, errors)
+                const additionalInfo = [];
                 if (data.data_units_written_bytes != null) {
-                    nvmeDetails.push(`Written: ${formatBytes(data.data_units_written_bytes)}`);
+                    additionalInfo.push(`Written: ${formatBytes(data.data_units_written_bytes)}`);
                 }
                 if (data.data_units_read_bytes != null) {
-                    nvmeDetails.push(`Read: ${formatBytes(data.data_units_read_bytes)}`);
+                    additionalInfo.push(`Read: ${formatBytes(data.data_units_read_bytes)}`);
                 }
-                if (data.host_read_commands != null) {
-                    const formatted = formatNumber(data.host_read_commands) || escapeHtml(String(data.host_read_commands));
-                    nvmeDetails.push(`Reads: ${formatted} cmds`);
+                if (data.power_cycle_count != null) {
+                    additionalInfo.push(`Power Cycles: ${formatNumber(data.power_cycle_count) || escapeHtml(String(data.power_cycle_count))}`);
                 }
-                if (data.host_write_commands != null) {
-                    const formatted = formatNumber(data.host_write_commands) || escapeHtml(String(data.host_write_commands));
-                    nvmeDetails.push(`Writes: ${formatted} cmds`);
+                if (data.error) {
+                    additionalInfo.push(`<span class="text-warning"><i class="fas fa-exclamation-triangle"></i> ${escapeHtml(String(data.error))}</span>`);
                 }
-                if (data.controller_busy_time_minutes != null) {
-                    const formatted = formatNumber(data.controller_busy_time_minutes) || escapeHtml(String(data.controller_busy_time_minutes));
-                    nvmeDetails.push(`Busy: ${formatted} min`);
-                }
-                const nvmeMeta = nvmeDetails.length
-                    ? `<div class="hardware-meta">NVMe: ${nvmeDetails.join(' • ')}</div>`
+                const additionalInfoHtml = additionalInfo.length
+                    ? `<small class="text-muted">${additionalInfo.join(' • ')}</small>`
                     : '';
 
                 return `
-                    <div class="mb-3">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <div>
-                                <span class="metric-label">${path}</span>
-                                ${model}
-                                ${serial}
-                            </div>
+                    <tr>
+                        <td>
+                            <strong>${deviceName}</strong>
+                            ${model ? `<br><small class="text-muted">${model}</small>` : ''}
+                            ${serial ? `<br>${serial}` : ''}
+                        </td>
+                        <td class="text-center">
                             <span class="badge bg-${badgeClass} smart-status-badge">${statusLabel}</span>
-                        </div>
-                        ${identityMeta}
-                        ${capacityMeta}
-                        ${temperatureMeta}
-                        ${powerMeta}
-                        ${healthMeta}
-                        ${nvmeMeta}
-                        ${note}
-                    </div>
+                        </td>
+                        <td class="text-end">${temp}</td>
+                        <td class="text-end">${powerOnHours}h</td>
+                        <td class="text-end">${capacity}</td>
+                        <td class="text-end">${wearLevel}</td>
+                        <td>
+                            ${healthInfo}
+                            ${additionalInfoHtml ? `<br>${additionalInfoHtml}` : ''}
+                        </td>
+                    </tr>
                 `;
             }).join('');
 
-            const overflow = devices.length > 5
-                ? `<small class="text-muted">… and ${devices.length - 5} more devices</small>`
+            const overflow = devices.length > 10
+                ? `<p class="text-muted mt-2 mb-0"><small>… and ${devices.length - 10} more devices</small></p>`
                 : '';
 
             return `
                 <div class="card health-card h-100">
                     <div class="card-body">
                         <h5><i class="fas fa-heartbeat section-icon"></i> Storage Health (S.M.A.R.T.)</h5>
-                        ${sections}
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>Device</th>
+                                        <th class="text-center">Status</th>
+                                        <th class="text-end">Temp</th>
+                                        <th class="text-end">Power On</th>
+                                        <th class="text-end">Capacity</th>
+                                        <th class="text-end">Wear</th>
+                                        <th>Health Details</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${tableRows}
+                                </tbody>
+                            </table>
+                        </div>
                         ${overflow}
                     </div>
                 </div>
@@ -3121,6 +3097,10 @@
                 memoryContainer.innerHTML = renderMemoryCard(data.memory || {});
             }
 
+            // Reinitialize charts after content replacement and update with new data
+            initializeCharts();
+            updateCharts(data);
+
             const hardwareDevicesContainer = document.getElementById('hardware-devices-card');
             if (hardwareDevicesContainer) {
                 hardwareDevicesContainer.innerHTML = renderHardwareInventoryCard(hardware.block_devices || {});
@@ -3208,8 +3188,146 @@
             }
         }
 
+        // Chart instances
+        let cpuChart = null;
+        let memoryChart = null;
+
+        // Initialize charts
+        function initializeCharts() {
+            // CPU Gauge Chart (Doughnut with custom styling to look like gauge)
+            const cpuCanvas = document.getElementById('cpuGaugeChart');
+            if (cpuCanvas) {
+                const cpuCtx = cpuCanvas.getContext('2d');
+                cpuChart = new Chart(cpuCtx, {
+                    type: 'doughnut',
+                    data: {
+                        datasets: [{
+                            data: [0, 100],
+                            backgroundColor: ['#28a745', '#e9ecef'],
+                            borderWidth: 0,
+                            circumference: 180,
+                            rotation: 270
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: true,
+                        cutout: '75%',
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: { enabled: false },
+                            title: {
+                                display: true,
+                                text: '0%',
+                                position: 'bottom',
+                                font: { size: 24, weight: 'bold' },
+                                color: '#28a745'
+                            }
+                        }
+                    }
+                });
+            }
+
+            // Memory Donut Chart
+            const memCanvas = document.getElementById('memoryDonutChart');
+            if (memCanvas) {
+                const memCtx = memCanvas.getContext('2d');
+                memoryChart = new Chart(memCtx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['Used', 'Free'],
+                        datasets: [{
+                            data: [0, 100],
+                            backgroundColor: ['#28a745', '#e9ecef'],
+                            borderWidth: 2,
+                            borderColor: '#fff'
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: true,
+                        cutout: '70%',
+                        plugins: {
+                            legend: {
+                                display: true,
+                                position: 'bottom',
+                                labels: { padding: 10, font: { size: 11 } }
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        return context.label + ': ' + context.parsed.toFixed(1) + '%';
+                                    }
+                                }
+                            },
+                            title: {
+                                display: true,
+                                text: '0%',
+                                position: 'center',
+                                font: { size: 20, weight: 'bold' },
+                                color: '#28a745'
+                            }
+                        }
+                    },
+                    plugins: [{
+                        id: 'centerText',
+                        afterDraw: function(chart) {
+                            const ctx = chart.ctx;
+                            const width = chart.width;
+                            const height = chart.height;
+                            const dataset = chart.data.datasets[0];
+                            const total = dataset.data.reduce((a, b) => a + b, 0);
+                            const percentage = total > 0 ? ((dataset.data[0] / total) * 100).toFixed(1) : 0;
+
+                            ctx.restore();
+                            const fontSize = (height / 200).toFixed(2);
+                            ctx.font = fontSize + "em bold sans-serif";
+                            ctx.textBaseline = "middle";
+
+                            const text = percentage + "%";
+                            const textX = Math.round((width - ctx.measureText(text).width) / 2);
+                            const textY = height / 2;
+
+                            ctx.fillStyle = dataset.data[0] > 90 ? '#dc3545' : dataset.data[0] > 75 ? '#ffc107' : '#28a745';
+                            ctx.fillText(text, textX, textY);
+                            ctx.save();
+                        }
+                    }]
+                });
+            }
+        }
+
+        // Update charts with new data
+        function updateCharts(healthData) {
+            // Update CPU Chart
+            if (cpuChart && healthData.cpu) {
+                const cpuUsage = healthData.cpu.cpu_usage_percent || 0;
+                cpuChart.data.datasets[0].data = [cpuUsage, 100 - cpuUsage];
+
+                // Update color based on usage
+                const cpuColor = cpuUsage > 80 ? '#dc3545' : cpuUsage > 50 ? '#ffc107' : '#28a745';
+                cpuChart.data.datasets[0].backgroundColor[0] = cpuColor;
+                cpuChart.options.plugins.title.text = cpuUsage.toFixed(1) + '%';
+                cpuChart.options.plugins.title.color = cpuColor;
+                cpuChart.update('none'); // 'none' animation mode for performance
+            }
+
+            // Update Memory Chart
+            if (memoryChart && healthData.memory) {
+                const memUsage = healthData.memory.percentage || 0;
+                memoryChart.data.datasets[0].data = [memUsage, 100 - memUsage];
+
+                // Update color based on usage
+                const memColor = memUsage > 90 ? '#dc3545' : memUsage > 75 ? '#ffc107' : '#28a745';
+                memoryChart.data.datasets[0].backgroundColor[0] = memColor;
+                memoryChart.update('none');
+            }
+        }
+
         document.addEventListener('DOMContentLoaded', () => {
+            initializeCharts();
             applyHealthData(initialHealthData);
+            updateCharts(initialHealthData);
             updateCurrentTimeDisplay();
             setInterval(updateCurrentTimeDisplay, 1000);
 
