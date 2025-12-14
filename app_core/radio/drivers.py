@@ -194,6 +194,16 @@ class _SoapySDRReceiver(ReceiverInterface):
         self._fallback_last_log_time = 0.0
         self._fallback_log_interval = 30.0  # Log fallback messages at most every 30 seconds
 
+        # Early decimation in USB callback to reduce sample rate BEFORE ring buffer
+        # This is critical for high sample rate SDRs (2.5 MHz+) because Python/NumPy
+        # cannot process that many samples in real-time. Decimating early reduces
+        # both ring buffer memory usage and downstream processing load.
+        # Target ~250 kHz intermediate rate (sufficient for FM stereo with 38 kHz subcarrier)
+        self._early_decim_target_rate = 250000  # Target output rate after decimation
+        self._early_decim_factor = 1  # Will be calculated on stream start
+        self._early_decim_buffer = None  # Accumulator for partial decimation blocks
+        self._effective_sample_rate = config.sample_rate  # Effective rate after decimation
+
     # ------------------------------------------------------------------
     # Lifecycle helpers
     # ------------------------------------------------------------------
@@ -565,25 +575,43 @@ class _SoapySDRReceiver(ReceiverInterface):
             self._sample_buffer = numpy_module.zeros(self._sample_buffer_size, dtype=numpy_module.complex64)
             self._sample_buffer_pos = 0
         
+        # Calculate early decimation factor for high sample rate SDRs
+        # This is critical for rates > 500 kHz because Python can't process that in real-time
+        if self.config.sample_rate > self._early_decim_target_rate * 2:
+            self._early_decim_factor = max(1, self.config.sample_rate // self._early_decim_target_rate)
+            self._effective_sample_rate = self.config.sample_rate // self._early_decim_factor
+            self._early_decim_buffer = numpy_module.array([], dtype=numpy_module.complex64)
+            self._interface_logger.info(
+                "Early decimation enabled for %s: %dx (%d Hz -> %d Hz)",
+                self.config.identifier,
+                self._early_decim_factor,
+                self.config.sample_rate,
+                self._effective_sample_rate
+            )
+        else:
+            self._early_decim_factor = 1
+            self._effective_sample_rate = self.config.sample_rate
+            self._early_decim_buffer = None
+
         # Initialize SDRRingBuffer for robust USB reading if enabled
         if self._ring_buffer_enabled and _RING_BUFFER_AVAILABLE:
             try:
-                # Calculate buffer size for ~2 seconds of samples
-                # Larger buffer provides more headroom for processing latency spikes
-                buffer_size = calculate_buffer_size(self.config.sample_rate, buffer_time_seconds=2.0)
-                
+                # Calculate buffer size for ~2 seconds of DECIMATED samples
+                # Use effective sample rate after decimation for buffer sizing
+                buffer_size = calculate_buffer_size(self._effective_sample_rate, buffer_time_seconds=2.0)
+
                 self._ring_buffer = SDRRingBuffer(
                     size=buffer_size,
                     numpy_module=numpy_module,
                     identifier=self.config.identifier
                 )
                 self._interface_logger.info(
-                    "Initialized ring buffer for %s: %d samples (%.2f MB, %.2fs at %d Hz)",
+                    "Initialized ring buffer for %s: %d samples (%.2f MB, %.2fs at %d Hz effective)",
                     self.config.identifier,
                     buffer_size,
                     buffer_size * 8 / 1024 / 1024,  # complex64 = 8 bytes
-                    buffer_size / self.config.sample_rate,
-                    self.config.sample_rate
+                    buffer_size / self._effective_sample_rate,
+                    self._effective_sample_rate
                 )
             except Exception as e:
                 self._interface_logger.warning(
@@ -1188,18 +1216,47 @@ class _SoapySDRReceiver(ReceiverInterface):
                 self._timeout_backoff = 0.01
 
                 if result.ret > 0:
-                    samples = buffer[: result.ret]
-                    
-                    # Write samples to ring buffer if enabled
+                    raw_samples = buffer[: result.ret]
+
+                    # Early decimation to reduce sample rate BEFORE ring buffer
+                    # This is critical for high sample rate SDRs (2.5 MHz+)
+                    # Uses fast integer averaging: reshape + mean along axis
+                    decimated_samples = None
+                    if self._early_decim_factor > 1:
+                        # Accumulate samples with any leftover from previous read
+                        to_decimate = raw_samples
+                        if self._early_decim_buffer is not None and len(self._early_decim_buffer) > 0:
+                            to_decimate = handle.numpy.concatenate([self._early_decim_buffer, raw_samples])
+
+                        # Calculate how many complete decimation blocks we have
+                        decim = self._early_decim_factor
+                        n_complete = (len(to_decimate) // decim) * decim
+
+                        if n_complete >= decim:
+                            # Fast decimation using reshape + mean
+                            # This is much faster than convolution or sample-by-sample
+                            decimated_samples = to_decimate[:n_complete].reshape(-1, decim).mean(axis=1)
+                            decimated_samples = decimated_samples.astype(handle.numpy.complex64)
+
+                            # Save leftover samples for next iteration
+                            self._early_decim_buffer = to_decimate[n_complete:].copy()
+                        else:
+                            # Not enough samples yet, save for next iteration
+                            self._early_decim_buffer = to_decimate.copy()
+                    else:
+                        # No decimation needed
+                        decimated_samples = raw_samples
+
+                    # Write DECIMATED samples to ring buffer if enabled
                     # This provides overflow detection and backpressure monitoring
-                    if self._ring_buffer is not None:
+                    if self._ring_buffer is not None and decimated_samples is not None and len(decimated_samples) > 0:
                         try:
-                            written = self._ring_buffer.write(samples)
-                            if written < len(samples):
+                            written = self._ring_buffer.write(decimated_samples)
+                            if written < len(decimated_samples):
                                 # Overflow detected - ring buffer is full
                                 # This is a significant operational issue indicating
                                 # processing can't keep up with USB data rate
-                                dropped = len(samples) - written
+                                dropped = len(decimated_samples) - written
                                 self._overflow_dropped_since_last_log += dropped
 
                                 # Rate-limit overflow logging to avoid log spam
@@ -1220,21 +1277,23 @@ class _SoapySDRReceiver(ReceiverInterface):
                                 e
                             )
                     
-                    # 1. Compute Spectrum (if interval elapsed)
+                    # 1. Compute Spectrum (if interval elapsed) - use RAW samples for full bandwidth
                     now = time.time()
                     if now - last_spectrum_time > self._spectrum_update_interval:
-                        self._compute_spectrum(samples, handle.numpy)
+                        self._compute_spectrum(raw_samples, handle.numpy)
                         last_spectrum_time = now
-                    
-                    # 2. Update Signal Strength
-                    magnitude = float(handle.numpy.mean(handle.numpy.abs(samples)))
+
+                    # 2. Update Signal Strength - use RAW samples for accurate measurement
+                    magnitude = float(handle.numpy.mean(handle.numpy.abs(raw_samples)))
                     self._update_status(locked=True, signal_strength=magnitude)
-                    
-                    # 3. Update Audio Sample Buffer (existing logic)
-                    self._update_sample_buffer(samples)
-                    
-                    # 4. Process Capture (existing logic)
-                    self._process_capture(samples)
+
+                    # 3. Update Audio Sample Buffer (fallback when ring buffer not available)
+                    # Uses decimated samples if available for consistency with ring buffer
+                    if decimated_samples is not None:
+                        self._update_sample_buffer(decimated_samples)
+
+                    # 4. Process Capture (IQ recording) - use RAW samples for full bandwidth
+                    self._process_capture(raw_samples)
                     
                 else:
                     self._update_status(locked=True, signal_strength=0.0)
@@ -1372,6 +1431,18 @@ class _SoapySDRReceiver(ReceiverInterface):
                     self._sample_buffer[:num_samples - first_chunk] = samples[first_chunk:]
 
                 self._sample_buffer_pos = end_pos % self._sample_buffer_size
+
+    def get_effective_sample_rate(self) -> int:
+        """Get the effective sample rate after early decimation.
+
+        For high sample rate SDRs (2.5 MHz+), early decimation reduces the rate
+        before samples enter the ring buffer. This returns the rate that downstream
+        consumers (demodulator, audio pipeline) should use.
+
+        Returns:
+            Effective sample rate in Hz (after decimation)
+        """
+        return self._effective_sample_rate
 
     def get_samples(self, num_samples: Optional[int] = None):
         """Get recent IQ samples from the receiver for real-time processing.

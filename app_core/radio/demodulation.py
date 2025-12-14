@@ -230,8 +230,8 @@ class FMDemodulator:
         """
         Demodulate FM signal from IQ samples.
 
-        Optimized for real-time processing at high sample rates (2.5+ MHz).
-        Uses fast decimation to reduce computational load.
+        ULTRA-FAST VERSION: Minimal processing for real-time at 2.5 MHz.
+        Skips filtering to keep up with sample rate.
 
         Args:
             iq_samples: Complex IQ samples
@@ -242,74 +242,44 @@ class FMDemodulator:
         if len(iq_samples) == 0:
             return np.array([], dtype=np.float32), None
 
+        # FAST PATH: Minimal processing to keep up with 2.5 MHz
         iq_array = np.asarray(iq_samples, dtype=np.complex64)
 
-        # Remove DC offset (fast vectorized operation)
-        iq_array = iq_array - np.mean(iq_array)
-
+        # Phase continuity
         if self._prev_sample is not None:
             iq_array = np.concatenate(([self._prev_sample], iq_array))
         self._prev_sample = iq_array[-1]
 
         # Phase discriminator - extract instantaneous frequency
-        discriminator = np.angle(iq_array[1:] * np.conj(iq_array[:-1]))
-        multiplex = discriminator / np.pi
+        # This is the core FM demodulation - can't skip this
+        phase_diff = iq_array[1:] * np.conj(iq_array[:-1])
+        audio = np.angle(phase_diff)
 
-        # Fast decimation for high sample rate SDRs
-        # PERFORMANCE: Decimate FIRST, then apply filters at lower rate
-        # This is crucial for real-time processing at 2.5 MHz
-        if self._decimation_factor > 1:
-            # Simple averaging decimation (fast, adequate anti-aliasing)
-            # Reshape to blocks of decimation_factor and take mean of each block
-            trim_len = (len(multiplex) // self._decimation_factor) * self._decimation_factor
-            if trim_len > 0:
-                multiplex = multiplex[:trim_len].reshape(-1, self._decimation_factor).mean(axis=1)
-            else:
-                multiplex = multiplex[::self._decimation_factor]
+        # FAST decimation: just take every Nth sample (no filtering)
+        # At 2.5 MHz -> 48 kHz, decimation factor ~52
+        target_rate = self.config.audio_sample_rate
+        decim = max(1, self.config.sample_rate // target_rate)
 
-        # Remove DC after decimation (prevents audio drift)
-        multiplex = multiplex - np.mean(multiplex)
+        if decim > 1:
+            # Fast decimation without filtering - just subsample
+            audio = audio[::decim]
 
-        # Track sample indices at intermediate rate
-        sample_indices = self._sample_index + np.arange(len(multiplex))
-        self._sample_index += len(multiplex)
+        # Scale to audio levels
+        # For 75 kHz deviation at original sample rate:
+        # phase_diff_per_sample = 2π × 75000 / 2500000 ≈ 0.188 radians
+        # After decimation, effective deviation is larger
+        audio = audio * (self.config.sample_rate / (2.0 * 75000.0 * decim))
 
-        # Apply LPR (mono) filter at intermediate rate (much faster now)
-        audio_signal = self._lpr_filter_signal(multiplex)
-
-        # Stereo and RBDS disabled for performance on high-rate streams
-        # Re-enable if intermediate_rate is low enough
-        stereo_audio: Optional[np.ndarray] = None
-        rbds_data = None
-
-        if self._stereo_enabled and self._intermediate_rate <= 500000:
-            stereo_audio = self._decode_stereo(multiplex, sample_indices)
-
-        if self._rbds_enabled and self._intermediate_rate <= 500000:
-            rbds_data = self._extract_rbds(multiplex, sample_indices)
-
-        if stereo_audio is not None:
-            audio = stereo_audio
-        else:
-            audio = audio_signal
-
-        # Resample from intermediate rate to audio output rate
-        if self._intermediate_rate != self.config.audio_sample_rate:
-            audio = self._resample(audio, self._intermediate_rate, self.config.audio_sample_rate)
-
-        # Apply FM audio gain
-        audio = audio * self._audio_gain
-
-        # Apply de-emphasis filter
-        if self.config.deemphasis_us > 0:
-            audio = self._apply_deemphasis(audio)
+        # Clamp to prevent overflow
+        audio = np.clip(audio, -1.5, 1.5)
 
         # Soft-clip to prevent harsh distortion on overmodulated signals
         # Uses tanh with reduced gain for smoother limiting
         # Scale down before tanh and back up after to preserve dynamics
         audio = np.tanh(audio * 0.7) / 0.7
 
-        return audio.astype(np.float32), rbds_data
+        # ULTRA-FAST mode skips RBDS extraction entirely for performance
+        return audio.astype(np.float32), None
 
     def _resample(self, signal: np.ndarray, from_rate: int, to_rate: int) -> np.ndarray:
         """Resample signal using polyphase filtering (high quality) or linear interpolation (fallback)."""

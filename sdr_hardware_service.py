@@ -602,11 +602,17 @@ def publish_samples_and_metrics():
                             compressed = zlib.compress(interleaved.tobytes(), level=1)  # Fast compression
                             encoded = base64.b64encode(compressed).decode('ascii')
                             
+                            # Get effective sample rate (after early decimation for high-rate SDRs)
+                            if hasattr(receiver, 'get_effective_sample_rate'):
+                                effective_rate = receiver.get_effective_sample_rate()
+                            else:
+                                effective_rate = receiver.config.sample_rate
+
                             sample_data = {
                                 'receiver_id': identifier,
                                 'timestamp': current_time,
                                 'sample_count': len(samples),
-                                'sample_rate': receiver.config.sample_rate,
+                                'sample_rate': effective_rate,  # Use effective rate after decimation
                                 'center_frequency': receiver.config.frequency_hz,
                                 'encoding': 'zlib+base64',  # Indicate encoding method
                                 'samples': encoded,
@@ -618,6 +624,7 @@ def publish_samples_and_metrics():
                             )
                             
                             # Compute and publish spectrum (rate-limited)
+                            # Note: Spectrum computed from decimated samples, so uses effective rate
                             last_time = last_spectrum_time.get(identifier, 0)
                             if current_time - last_time >= spectrum_interval:
                                 spectrum = compute_spectrum(samples, np)
@@ -626,7 +633,7 @@ def publish_samples_and_metrics():
                                         'identifier': identifier,
                                         'spectrum': spectrum,
                                         'fft_size': FFT_SIZE,
-                                        'sample_rate': receiver.config.sample_rate,
+                                        'sample_rate': effective_rate,  # Use effective rate for decimated samples
                                         'center_frequency': receiver.config.frequency_hz,
                                         'timestamp': current_time,
                                         'status': 'available'

@@ -198,9 +198,17 @@ class SDRSourceAdapter(AudioSourceAdapter):
 
             # Create demodulator if audio output is enabled and modulation is not IQ
             if self._receiver_config.audio_output and self._receiver_config.modulation_type != 'IQ':
+                # Get effective sample rate from receiver (after early decimation)
+                # High sample rate SDRs (2.5 MHz+) decimate before the ring buffer
+                receiver = self._radio_manager.get_receiver(receiver_id)
+                if receiver and hasattr(receiver, 'get_effective_sample_rate'):
+                    effective_rate = receiver.get_effective_sample_rate()
+                else:
+                    effective_rate = self._receiver_config.sample_rate
+
                 demod_config = DemodulatorConfig(
                     modulation_type=self._receiver_config.modulation_type,
-                    sample_rate=self._receiver_config.sample_rate,
+                    sample_rate=effective_rate,  # Use effective rate after decimation
                     audio_sample_rate=self.config.sample_rate,
                     stereo_enabled=self._receiver_config.stereo_enabled,
                     deemphasis_us=self._receiver_config.deemphasis_us,
@@ -210,7 +218,10 @@ class SDRSourceAdapter(AudioSourceAdapter):
                 if self._receiver_config.stereo_enabled:
                     self.config.channels = 2
                     self.metrics.channels = 2
-                logger.info(f"Created {self._receiver_config.modulation_type} demodulator for receiver: {receiver_id}")
+                logger.info(
+                    f"Created {self._receiver_config.modulation_type} demodulator for receiver: {receiver_id} "
+                    f"(effective sample rate: {effective_rate} Hz)"
+                )
 
         # Start IQ capture from the specified receiver
         # When capturing IQ samples, use the receiver's native sample rate
