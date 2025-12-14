@@ -405,6 +405,26 @@ if [ -d ".git" ]; then
     find "$INSTALL_DIR" -type f -name "*.pyc" -delete 2>/dev/null || true
     echo_success "Python cache cleared"
 
+    # Force nginx to clear cache and stop caching static files temporarily
+    echo_progress "Clearing web server cache..."
+    if command -v nginx &> /dev/null; then
+        # Delete nginx cache if it exists
+        if [ -d "/var/cache/nginx" ]; then
+            rm -rf /var/cache/nginx/* 2>/dev/null || true
+        fi
+        # Reload nginx to clear in-memory cache
+        if systemctl is-active --quiet nginx 2>/dev/null; then
+            systemctl reload nginx 2>/dev/null || true
+            echo_success "Nginx cache cleared"
+        fi
+    fi
+
+    # Create a cache-bust timestamp file that Flask can use for static assets
+    echo_progress "Creating cache-bust timestamp..."
+    date +%s > "$INSTALL_DIR/.cache-bust" 2>/dev/null || true
+    chown "$SERVICE_USER:$SERVICE_USER" "$INSTALL_DIR/.cache-bust" 2>/dev/null || true
+    echo_success "Cache-bust timestamp created"
+
     # Check if update.sh itself was updated - if so, restart with new version
     if [ "${EAS_UPDATE_RESTARTED:-}" != "true" ]; then
         if git diff --name-only "$LOCAL_COMMIT" "$NEW_COMMIT" 2>/dev/null | grep -q "^update.sh$"; then
@@ -816,6 +836,16 @@ echo_progress "Reloading systemd daemon to pick up any service file changes..."
 systemctl daemon-reload
 echo_success "Systemd daemon reloaded"
 
+# Ensure nginx is running (may have been stopped or never started)
+echo_progress "Ensuring nginx web server is running..."
+if systemctl is-active --quiet nginx 2>/dev/null; then
+    systemctl reload nginx
+    echo_success "Nginx reloaded"
+else
+    systemctl start nginx
+    echo_success "Nginx started"
+fi
+
 echo_progress "Starting all EAS Station services with updated code..."
 # Use restart (not start) to ensure all services reload with new code
 # This works whether services were stopped or are already running
@@ -921,9 +951,16 @@ echo -e "${BOLD}Web Interface:${NC}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo -e "${GREEN}➜${NC}  https://$(hostname -I | awk '{print $1}')"
 echo ""
-echo -e "${YELLOW}⚠️  IMPORTANT:${NC} Hard refresh your browser to see the updated code:"
-echo -e "   ${BOLD}• Chrome/Firefox/Edge:${NC} Ctrl+Shift+R (Windows/Linux) or Cmd+Shift+R (Mac)"
-echo -e "   ${BOLD}• Safari:${NC} Cmd+Option+R"
+echo -e "${YELLOW}⚠️  CRITICAL:${NC} ${BOLD}You MUST clear your browser cache to see changes!${NC}"
+echo -e "   ${BOLD}Hard Refresh:${NC}"
+echo -e "   • Chrome/Firefox/Edge: ${GREEN}Ctrl+Shift+R${NC} (Windows/Linux) or ${GREEN}Cmd+Shift+R${NC} (Mac)"
+echo -e "   • Safari: ${GREEN}Cmd+Option+R${NC}"
+echo -e ""
+echo -e "   ${BOLD}Or manually clear cache:${NC}"
+echo -e "   • Chrome: Settings > Privacy > Clear browsing data > Cached images and files"
+echo -e "   • Firefox: Settings > Privacy & Security > Clear Data > Cached Web Content"
+echo -e ""
+echo -e "   ${RED}If you still see old pages after hard refresh, fully clear browser cache!${NC}"
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""

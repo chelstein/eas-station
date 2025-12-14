@@ -658,6 +658,171 @@ class LocationSettings(db.Model):
         }
 
 
+class HardwareSettings(db.Model):
+    """Unified hardware settings stored in database.
+
+    Replaces environment variables for peripheral hardware configuration.
+    All hardware settings are stored in a single row (id=1).
+    """
+    __tablename__ = "hardware_settings"
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    # ========================================================================
+    # GPIO Settings
+    # ========================================================================
+    gpio_enabled = db.Column(db.Boolean, nullable=False, default=False)
+    gpio_pin_map = db.Column(JSONB, nullable=False, default=dict)
+    gpio_behavior_matrix = db.Column(JSONB, nullable=False, default=dict)
+
+    # ========================================================================
+    # OLED Display Settings (Argon Industria SSD1306)
+    # ========================================================================
+    oled_enabled = db.Column(db.Boolean, nullable=False, default=False)
+    oled_i2c_bus = db.Column(db.Integer, nullable=False, default=1)
+    oled_i2c_address = db.Column(db.Integer, nullable=False, default=0x3C)
+    oled_width = db.Column(db.Integer, nullable=False, default=128)
+    oled_height = db.Column(db.Integer, nullable=False, default=64)
+    oled_rotate = db.Column(db.Integer, nullable=False, default=0)
+    oled_contrast = db.Column(db.Integer, nullable=True)
+    oled_font_path = db.Column(db.String(255), nullable=True)
+    oled_default_invert = db.Column(db.Boolean, nullable=False, default=False)
+    oled_button_gpio = db.Column(db.Integer, nullable=False, default=4)
+    oled_button_hold_seconds = db.Column(db.Float, nullable=False, default=1.25)
+    oled_button_active_high = db.Column(db.Boolean, nullable=False, default=False)
+    oled_scroll_effect = db.Column(db.String(50), nullable=False, default='scroll_left')
+    oled_scroll_speed = db.Column(db.Integer, nullable=False, default=4)
+    oled_scroll_fps = db.Column(db.Integer, nullable=False, default=30)
+    screens_auto_start = db.Column(db.Boolean, nullable=False, default=True)
+
+    # ========================================================================
+    # LED Sign Settings (BetaBrite/Alpha)
+    # ========================================================================
+    led_enabled = db.Column(db.Boolean, nullable=False, default=False)
+    led_connection_type = db.Column(db.String(20), nullable=False, default='network')  # 'network' or 'serial'
+    led_ip_address = db.Column(db.String(50), nullable=False, default='192.168.1.100')
+    led_port = db.Column(db.Integer, nullable=False, default=10001)
+    led_serial_port = db.Column(db.String(100), nullable=False, default='/dev/ttyUSB1')
+    led_baudrate = db.Column(db.Integer, nullable=False, default=9600)
+    led_serial_mode = db.Column(db.String(20), nullable=False, default='RS232')
+    led_default_text = db.Column(db.Text, nullable=True)
+
+    # ========================================================================
+    # VFD Display Settings (Noritake GU140x32F-7000B)
+    # ========================================================================
+    vfd_enabled = db.Column(db.Boolean, nullable=False, default=False)
+    vfd_port = db.Column(db.String(100), nullable=False, default='/dev/ttyUSB0')
+    vfd_baudrate = db.Column(db.Integer, nullable=False, default=38400)
+
+    # ========================================================================
+    # Metadata
+    # ========================================================================
+    updated_at = db.Column(
+        db.DateTime(timezone=True),
+        nullable=False,
+        default=utc_now,
+        onupdate=utc_now,
+    )
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert settings to dictionary."""
+        return {
+            "id": self.id,
+            # GPIO
+            "gpio_enabled": self.gpio_enabled,
+            "gpio_pin_map": self.gpio_pin_map or {},
+            "gpio_behavior_matrix": self.gpio_behavior_matrix or {},
+            # OLED
+            "oled_enabled": self.oled_enabled,
+            "oled_i2c_bus": self.oled_i2c_bus,
+            "oled_i2c_address": self.oled_i2c_address,
+            "oled_width": self.oled_width,
+            "oled_height": self.oled_height,
+            "oled_rotate": self.oled_rotate,
+            "oled_contrast": self.oled_contrast,
+            "oled_font_path": self.oled_font_path,
+            "oled_default_invert": self.oled_default_invert,
+            "oled_button_gpio": self.oled_button_gpio,
+            "oled_button_hold_seconds": self.oled_button_hold_seconds,
+            "oled_button_active_high": self.oled_button_active_high,
+            "oled_scroll_effect": self.oled_scroll_effect,
+            "oled_scroll_speed": self.oled_scroll_speed,
+            "oled_scroll_fps": self.oled_scroll_fps,
+            "screens_auto_start": self.screens_auto_start,
+            # LED
+            "led_enabled": self.led_enabled,
+            "led_connection_type": self.led_connection_type,
+            "led_ip_address": self.led_ip_address,
+            "led_port": self.led_port,
+            "led_serial_port": self.led_serial_port,
+            "led_baudrate": self.led_baudrate,
+            "led_serial_mode": self.led_serial_mode,
+            "led_default_text": self.led_default_text,
+            # VFD
+            "vfd_enabled": self.vfd_enabled,
+            "vfd_port": self.vfd_port,
+            "vfd_baudrate": self.vfd_baudrate,
+            # Metadata
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+
+class IcecastSettings(db.Model):
+    """Icecast streaming server configuration stored in database.
+
+    Replaces environment variables for Icecast configuration.
+    All settings are stored in a single row (id=1).
+    """
+    __tablename__ = "icecast_settings"
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    # Connection Settings
+    enabled = db.Column(db.Boolean, nullable=False, default=True)
+    server = db.Column(db.String(255), nullable=False, default='localhost')
+    port = db.Column(db.Integer, nullable=False, default=8000)
+    external_port = db.Column(db.Integer, nullable=True)  # For browser access (optional)
+    public_hostname = db.Column(db.String(255), nullable=True)  # Public hostname/IP
+
+    # Authentication
+    source_password = db.Column(db.String(255), nullable=False, default='')
+    admin_user = db.Column(db.String(255), nullable=True)
+    admin_password = db.Column(db.String(255), nullable=True)
+
+    # Stream Settings
+    default_mount = db.Column(db.String(255), nullable=False, default='monitor.mp3')
+    stream_name = db.Column(db.String(255), nullable=False, default='EAS Station Audio')
+    stream_description = db.Column(db.String(500), nullable=False, default='Emergency Alert System Audio Monitor')
+    stream_genre = db.Column(db.String(100), nullable=False, default='Emergency')
+    stream_bitrate = db.Column(db.Integer, nullable=False, default=128)
+    stream_format = db.Column(db.String(10), nullable=False, default='mp3')  # mp3 or ogg
+    stream_public = db.Column(db.Boolean, nullable=False, default=False)  # List in directory
+
+    # Metadata
+    updated_at = db.Column(db.DateTime, nullable=True, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def to_dict(self):
+        """Convert model to dictionary."""
+        return {
+            "enabled": self.enabled,
+            "server": self.server,
+            "port": self.port,
+            "external_port": self.external_port,
+            "public_hostname": self.public_hostname,
+            "source_password": self.source_password,
+            "admin_user": self.admin_user,
+            "admin_password": self.admin_password,
+            "default_mount": self.default_mount,
+            "stream_name": self.stream_name,
+            "stream_description": self.stream_description,
+            "stream_genre": self.stream_genre,
+            "stream_bitrate": self.stream_bitrate,
+            "stream_format": self.stream_format,
+            "stream_public": self.stream_public,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+
 class RadioReceiver(db.Model):
     """Persistent configuration for SDR hardware receivers.
 

@@ -33,6 +33,17 @@ from app_utils.gpio import ensure_gpiozero_pin_factory
 
 logger = logging.getLogger(__name__)
 
+# Import hardware settings helper
+try:
+    from app_core.hardware_settings import get_oled_settings
+    _SETTINGS_AVAILABLE = True
+except ImportError:
+    _SETTINGS_AVAILABLE = False
+
+    def get_oled_settings():
+        """Fallback when settings module not available."""
+        return {}
+
 try:  # pragma: no cover - optional dependency
     from luma.core.interface.serial import i2c
     from luma.oled.device import ssd1306
@@ -63,27 +74,53 @@ def _get_gpiozero_button():
     return Button
 
 
-def _env_flag(name: str, default: str = "false") -> bool:
-    return os.getenv(name, default).strip().lower() in {"1", "true", "yes", "on"}
+def _get_settings_or_env():
+    """Get settings from database or fall back to environment variables."""
+    if _SETTINGS_AVAILABLE:
+        try:
+            return get_oled_settings()
+        except Exception as exc:
+            logger.warning("Failed to load OLED settings from database: %s; falling back to environment", exc)
 
+    # Fallback to environment variables
+    def _env_flag(name: str, default: str = "false") -> bool:
+        return os.getenv(name, default).strip().lower() in {"1", "true", "yes", "on"}
 
-def _env_int(name: str, default: str) -> int:
-    value = os.getenv(name, default).strip()
-    base = 16 if value.startswith("0x") else 10
-    try:
-        return int(value, base)
-    except (TypeError, ValueError):
-        logger.warning("Invalid integer for %s=%s; using default %s", name, value, default)
-        return int(default, base)
+    def _env_int(name: str, default: str) -> int:
+        value = os.getenv(name, default).strip()
+        base = 16 if value.startswith("0x") else 10
+        try:
+            return int(value, base)
+        except (TypeError, ValueError):
+            logger.warning("Invalid integer for %s=%s; using default %s", name, value, default)
+            return int(default, base)
 
+    def _env_float(name: str, default: str) -> float:
+        value = os.getenv(name, default)
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            logger.warning("Invalid float for %s=%s; using default %s", name, value, default)
+            return float(default)
 
-def _env_float(name: str, default: str) -> float:
-    value = os.getenv(name, default)
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        logger.warning("Invalid float for %s=%s; using default %s", name, value, default)
-        return float(default)
+    return {
+        'enabled': _env_flag("OLED_ENABLED", "false"),
+        'width': max(16, _env_int("OLED_WIDTH", "128")),
+        'height': max(16, _env_int("OLED_HEIGHT", "64")),
+        'i2c_bus': _env_int("OLED_I2C_BUS", "1"),
+        'i2c_address': _env_int("OLED_I2C_ADDRESS", "0x3C"),
+        'rotate': (_env_int("OLED_ROTATE", "0") % 360) // 90,
+        'contrast': int(os.getenv("OLED_CONTRAST")) if os.getenv("OLED_CONTRAST") else None,
+        'font_path': os.getenv("OLED_FONT_PATH"),
+        'default_invert': _env_flag("OLED_DEFAULT_INVERT", "false"),
+        'button_gpio': _env_int("OLED_BUTTON_GPIO", "4"),
+        'button_hold_seconds': max(0.5, _env_float("OLED_BUTTON_HOLD_SECONDS", "1.25")),
+        'button_active_high': _env_flag("OLED_BUTTON_ACTIVE_HIGH", "false"),
+        'scroll_effect': os.getenv("OLED_SCROLL_EFFECT", "scroll_left").lower(),
+        'scroll_speed': max(1, _env_int("OLED_SCROLL_SPEED", "4")),
+        'scroll_fps': max(5, min(60, _env_int("OLED_SCROLL_FPS", "30"))),
+        'screens_auto_start': _env_flag("SCREENS_AUTO_START", "true"),
+    }
 
 
 class OLEDScrollEffect(Enum):
@@ -940,23 +977,26 @@ class ArgonOLEDController:
             return None
 
 
-OLED_ENABLED = _env_flag("OLED_ENABLED", "false")
-OLED_WIDTH = max(16, _env_int("OLED_WIDTH", "128"))
-OLED_HEIGHT = max(16, _env_int("OLED_HEIGHT", "64"))
-OLED_I2C_BUS = _env_int("OLED_I2C_BUS", "1")
-OLED_I2C_ADDRESS = _env_int("OLED_I2C_ADDRESS", "0x3C")
-OLED_ROTATE = (_env_int("OLED_ROTATE", "0") % 360) // 90
-OLED_CONTRAST = os.getenv("OLED_CONTRAST")
-OLED_FONT_PATH = os.getenv("OLED_FONT_PATH")
-OLED_DEFAULT_INVERT = _env_flag("OLED_DEFAULT_INVERT", "false")
-OLED_BUTTON_GPIO = _env_int("OLED_BUTTON_GPIO", "4")
-OLED_BUTTON_HOLD_SECONDS = max(0.5, _env_float("OLED_BUTTON_HOLD_SECONDS", "1.25"))
-OLED_BUTTON_ACTIVE_HIGH = _env_flag("OLED_BUTTON_ACTIVE_HIGH", "false")
+# Load settings from database (with environment fallback)
+_oled_settings = _get_settings_or_env()
+
+OLED_ENABLED = _oled_settings.get('enabled', False)
+OLED_WIDTH = max(16, _oled_settings.get('width', 128))
+OLED_HEIGHT = max(16, _oled_settings.get('height', 64))
+OLED_I2C_BUS = _oled_settings.get('i2c_bus', 1)
+OLED_I2C_ADDRESS = _oled_settings.get('i2c_address', 0x3C)
+OLED_ROTATE = _oled_settings.get('rotate', 0)
+OLED_CONTRAST = _oled_settings.get('contrast')
+OLED_FONT_PATH = _oled_settings.get('font_path')
+OLED_DEFAULT_INVERT = _oled_settings.get('default_invert', False)
+OLED_BUTTON_GPIO = _oled_settings.get('button_gpio', 4)
+OLED_BUTTON_HOLD_SECONDS = max(0.5, _oled_settings.get('button_hold_seconds', 1.25))
+OLED_BUTTON_ACTIVE_HIGH = _oled_settings.get('button_active_high', False)
 
 # Scroll animation configuration
-OLED_SCROLL_EFFECT = os.getenv("OLED_SCROLL_EFFECT", "scroll_left").lower()
-OLED_SCROLL_SPEED = max(1, _env_int("OLED_SCROLL_SPEED", "4"))  # Pixels per frame (1-10)
-OLED_SCROLL_FPS = max(5, min(60, _env_int("OLED_SCROLL_FPS", "30")))  # Frames per second (default 30 for smooth I2C updates)
+OLED_SCROLL_EFFECT = _oled_settings.get('scroll_effect', 'scroll_left')
+OLED_SCROLL_SPEED = max(1, _oled_settings.get('scroll_speed', 4))  # Pixels per frame (1-10)
+OLED_SCROLL_FPS = max(5, min(60, _oled_settings.get('scroll_fps', 30)))  # Frames per second (default 30 for smooth I2C updates)
 
 OLED_AVAILABLE = False
 oled_controller: Optional[ArgonOLEDController] = None

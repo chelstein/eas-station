@@ -50,8 +50,69 @@ class IcecastAutoConfig:
         self._detect_config()
 
     def _detect_config(self) -> None:
-        """Detect Icecast configuration from environment variables."""
+        """Detect Icecast configuration from database with environment fallback."""
         try:
+            # Try to read from database first
+            try:
+                from app_core.icecast_settings import get_icecast_settings
+                settings = get_icecast_settings()
+
+                # Check if enabled
+                if not settings.enabled:
+                    logger.info("Icecast auto-configuration disabled via database settings")
+                    self.enabled = False
+                    return
+
+                # Get source password (required)
+                self.source_password = settings.source_password or ''
+                if not self.source_password or self.source_password in ('changeme_source', 'changeme'):
+                    logger.warning(
+                        "Icecast auto-configuration: No source password configured "
+                        "in database. Icecast streaming will not be enabled automatically."
+                    )
+                    self.enabled = False
+                    return
+
+                # Get server and port
+                self.server = settings.server or 'localhost'
+                self.port = settings.port or 8000
+
+                # Admin credentials (optional, but required for metadata updates)
+                self.admin_user = settings.admin_user
+                self.admin_password = settings.admin_password
+                if bool(self.admin_user) ^ bool(self.admin_password):
+                    logger.warning(
+                        "Icecast auto-configuration: Admin username/password mismatch. "
+                        "Metadata updates will be disabled until both admin user "
+                        "and admin password are provided."
+                    )
+
+                # For external URLs (browser access), use the external port
+                if settings.external_port:
+                    self.external_port = settings.external_port
+                else:
+                    # Default: use same port for external access
+                    self.external_port = self.port
+
+                # Get public hostname for browser access
+                self.public_hostname = settings.public_hostname
+
+                self.enabled = True
+
+                logger.info(
+                    f"Icecast auto-configuration enabled from database: "
+                    f"server={self.server}, port={self.port}, "
+                    f"external_port={self.external_port}, "
+                    f"public_hostname={self.public_hostname or 'localhost (WARNING: may not work remotely)'}"
+                )
+                return
+
+            except ImportError:
+                logger.debug("Database not available, falling back to environment variables")
+            except Exception as db_err:
+                logger.warning(f"Failed to load Icecast settings from database: {db_err}, falling back to environment")
+
+            # Fallback to environment variables
             # Check if Icecast is explicitly disabled
             enabled_str = os.environ.get('ICECAST_ENABLED', 'true').lower()
             if enabled_str in ('false', '0', 'no', 'disabled'):
@@ -101,7 +162,7 @@ class IcecastAutoConfig:
             self.enabled = True
 
             logger.info(
-                f"Icecast auto-configuration enabled: "
+                f"Icecast auto-configuration enabled from environment: "
                 f"server={self.server}, port={self.port}, "
                 f"external_port={self.external_port}, "
                 f"public_hostname={self.public_hostname or 'localhost (WARNING: may not work remotely)'}"

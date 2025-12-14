@@ -1328,17 +1328,17 @@ echo -e "  ${DIM}• NumPy & SciPy (signal processing & audio analysis)${NC}"
 echo -e "  ${DIM}• Requests & lxml (CAP alert parsing)${NC}"
 echo -e "  ${DIM}• And 50+ other dependencies...${NC}"
 echo ""
-echo_progress "Installing via pip (this takes 2-4 minutes)..."
+echo_progress "Installing Python packages (main venv)..."
 echo_info "This may take 5-10 minutes depending on your system"
+echo_info "Full output shown below to track progress:"
 echo ""
-if ! sudo -u "$SERVICE_USER" "$VENV_DIR/bin/pip" install --upgrade pip setuptools wheel 2>&1 | tee /tmp/pip-upgrade.log; then
+if ! sudo -u "$SERVICE_USER" "$VENV_DIR/bin/pip" install --upgrade pip setuptools wheel; then
     echo_error "Failed to upgrade pip, setuptools, and wheel"
-    echo_info "See /tmp/pip-upgrade.log for details"
     exit 1
 fi
-if ! sudo -u "$SERVICE_USER" "$VENV_DIR/bin/pip" install -r "$INSTALL_DIR/requirements.txt" 2>&1 | tee /tmp/pip-install.log; then
+echo ""
+if ! sudo -u "$SERVICE_USER" "$VENV_DIR/bin/pip" install -r "$INSTALL_DIR/requirements.txt"; then
     echo_error "Failed to install Python dependencies"
-    echo_info "See /tmp/pip-install.log for details"
     exit 1
 fi
 echo ""
@@ -1349,23 +1349,25 @@ echo_success "✓ Python dependencies installed successfully"
 # The web service uses the isolated venv above to avoid gunicorn/gevent conflicts
 echo_progress "Creating SDR virtual environment (with system packages)..."
 VENV_SDR_DIR="$INSTALL_DIR/venv-sdr"
-if ! sudo -u "$SERVICE_USER" python3 -m venv --system-site-packages "$VENV_SDR_DIR" 2>&1 | tee /tmp/venv-sdr-creation.log; then
+if ! sudo -u "$SERVICE_USER" python3 -m venv --system-site-packages "$VENV_SDR_DIR"; then
     echo_error "Failed to create SDR virtual environment"
-    echo_info "See /tmp/venv-sdr-creation.log for details"
     exit 1
 fi
 echo_success "SDR virtual environment created at $VENV_SDR_DIR"
 
 # Install minimal SDR-specific dependencies
 echo_progress "Installing SDR service dependencies..."
-if ! sudo -u "$SERVICE_USER" "$VENV_SDR_DIR/bin/pip" install --upgrade pip 2>&1 | tee -a /tmp/venv-sdr-creation.log; then
+echo_info "Installing SDR requirements (scipy, numba may take 5-15 min to compile)..."
+echo_info "Full output shown below to track progress:"
+echo ""
+if ! sudo -u "$SERVICE_USER" "$VENV_SDR_DIR/bin/pip" install --upgrade pip; then
     echo_warning "Failed to upgrade pip in SDR venv (non-critical)"
 fi
-if ! sudo -u "$SERVICE_USER" "$VENV_SDR_DIR/bin/pip" install -r "$INSTALL_DIR/requirements-sdr.txt" 2>&1 | tee -a /tmp/venv-sdr-creation.log; then
+if ! sudo -u "$SERVICE_USER" "$VENV_SDR_DIR/bin/pip" install -r "$INSTALL_DIR/requirements-sdr.txt"; then
     echo_error "Failed to install SDR dependencies"
-    echo_info "See /tmp/venv-sdr-creation.log for details"
     exit 1
 fi
+echo ""
 echo_success "✓ SDR dependencies installed successfully"
 
 # Verify SoapySDR is accessible in SDR venv
@@ -1857,33 +1859,76 @@ DB_HAS_TABLES=$(echo "$DB_HAS_TABLES" | xargs)
 echo_info "Database has $DB_HAS_TABLES application tables"
 
 if [ "$DB_HAS_TABLES" -eq "0" ]; then
-    # Fresh install - use db.create_all() which creates the complete schema all at once
-    echo_info "Fresh installation detected - creating complete database schema..."
-    echo_info "Using SQLAlchemy db.create_all() for fresh install (NOT using migrations)"
+    # Fresh install - run migrations to create schema AND populate initial data
+    echo_info "Fresh installation detected - initializing database with migrations..."
+    echo_info "Using Alembic migrations to create schema and populate initial data"
     echo ""
-    
-    # Disable exit-on-error for database initialization
-    set +e
-    INIT_OUTPUT=$(sudo -u "$SERVICE_USER" "$VENV_DIR/bin/python" -c "
+
+    if [ -f "$INSTALL_DIR/alembic.ini" ]; then
+        echo_progress "Running Alembic migrations for fresh install..."
+        echo_info "This will create all tables and populate settings from environment variables"
+        echo ""
+
+        # Disable exit-on-error for migrations
+        set +e
+        # Run Alembic directly (no output capture) so user sees real-time feedback
+        # IMPORTANT: Run from install directory to ensure .env file is found
+        sudo -u "$SERVICE_USER" bash -c "cd '$INSTALL_DIR' && '$VENV_DIR/bin/alembic' upgrade head"
+        ALEMBIC_EXIT_CODE=$?
+        set -e
+
+        echo ""
+        if [ $ALEMBIC_EXIT_CODE -eq 0 ]; then
+            echo_success "✓ Database schema created and initial data populated"
+            echo_info "Hardware and Icecast settings auto-configured from environment variables"
+        else
+            echo_warning "Alembic migrations encountered errors (exit code: $ALEMBIC_EXIT_CODE)"
+            echo ""
+            echo_info "Attempting fallback: creating schema with db.create_all()..."
+
+            set +e
+            INIT_OUTPUT=$(sudo -u "$SERVICE_USER" "$VENV_DIR/bin/python" -c "
 from app import app, db
 with app.app_context():
     db.create_all()
     print('✓ Database schema created successfully')
-    print('✓ All tables, indexes, and constraints created')
+    print('⚠️  WARNING: Initial data not populated - you may need to configure settings manually')
 " 2>&1)
-    INIT_EXIT=$?
-    set -e
-    
-    if [ $INIT_EXIT -eq 0 ]; then
-        echo "$INIT_OUTPUT"
-        echo ""
-        echo_success "✓ Complete database schema created for fresh install"
-        echo_info "Schema created all at once (not patched together from migrations)"
+            INIT_EXIT=$?
+            set -e
+
+            if [ $INIT_EXIT -eq 0 ]; then
+                echo "$INIT_OUTPUT"
+                echo ""
+                echo_warning "Schema created but settings tables may be empty"
+                echo_info "Configure via web UI at /admin/hardware and /settings/audio"
+            else
+                echo_error "Database initialization failed completely (exit code: $INIT_EXIT)"
+                echo_info "Output: $INIT_OUTPUT"
+            fi
+        fi
     else
-        echo_error "Database initialization failed (exit code: $INIT_EXIT)"
-        echo_info "Output: $INIT_OUTPUT"
-        echo_warning "Continuing anyway - you may need to manually initialize the database"
-        echo_info "Run: sudo -u $SERVICE_USER $VENV_DIR/bin/python -c 'from app import app, db; db.create_all()'"
+        echo_warning "alembic.ini not found - using fallback db.create_all()"
+        echo_info "WARNING: Settings will not be auto-populated from environment"
+        echo ""
+
+        set +e
+        INIT_OUTPUT=$(sudo -u "$SERVICE_USER" "$VENV_DIR/bin/python" -c "
+from app import app, db
+with app.app_context():
+    db.create_all()
+    print('✓ Database schema created')
+    print('⚠️  WARNING: Configure hardware and Icecast settings via web UI')
+" 2>&1)
+        INIT_EXIT=$?
+        set -e
+
+        if [ $INIT_EXIT -eq 0 ]; then
+            echo "$INIT_OUTPUT"
+        else
+            echo_error "Database initialization failed (exit code: $INIT_EXIT)"
+            echo_info "Output: $INIT_OUTPUT"
+        fi
     fi
 else
     # Existing database - run migrations to upgrade schema
@@ -2044,6 +2089,10 @@ systemctl enable nginx > /dev/null 2>&1
 echo_success "Services enabled"
 
 # Start the services automatically
+echo_progress "Starting nginx web server..."
+systemctl start nginx
+echo_success "Nginx started"
+
 echo_progress "Starting all EAS Station services..."
 systemctl start eas-station.target
 

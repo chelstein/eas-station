@@ -36,6 +36,7 @@ from flask import (
 from app_core.auth.roles import require_permission
 from app_core.extensions import db
 from app_core.models import GPIOActivationLog
+from app_core.oled import OLED_ENABLED
 from app_utils.gpio import (
     GPIOActivationType,
     GPIOBehavior,
@@ -69,7 +70,7 @@ def register(app: Flask, logger) -> None:
     def _load_gpio_configuration(controller):
         """Load GPIO pin configurations from environment variables."""
 
-        configs = load_gpio_pin_configs_from_env(route_logger)
+        configs = load_gpio_pin_configs_from_env(route_logger, oled_enabled=OLED_ENABLED)
 
         for config in configs:
             try:
@@ -121,8 +122,8 @@ def register(app: Flask, logger) -> None:
         return entry
 
     def _build_pin_rows():
-        configs = load_gpio_pin_configs_from_env(route_logger)
-        behavior_matrix = load_gpio_behavior_matrix_from_env(route_logger)
+        configs = load_gpio_pin_configs_from_env(route_logger, oled_enabled=OLED_ENABLED)
+        behavior_matrix = load_gpio_behavior_matrix_from_env(route_logger, oled_enabled=OLED_ENABLED)
         config_map = {cfg.pin: cfg for cfg in configs}
 
         rows = []
