@@ -7,12 +7,13 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
-- **Airspy "No Match" with Label Parameter** - Fixed Airspy device failing to open when label parameter is included
-  - Airspy's SoapySDR module does NOT support the 'label' parameter
-  - Code was adding label to SoapySDR.Device() args, causing "no match" error
-  - Label parameter now excluded for Airspy (only used for RTL-SDR, HackRF, etc.)
-  - Device could be enumerated but not opened due to rejected label parameter
-  - Fixes "Device.make() returned 'no match'" even after airspy package installation
+- **Update Script Missing Dynamic Path Detection** - Fixed update.sh not applying dynamic PYTHONPATH and SOAPY_SDR_PLUGIN_PATH
+  - Update script now detects Python site-packages paths (supports Python 3.10-3.13+)
+  - Update script now detects SoapySDR plugin directories
+  - Updates systemd service files with correct paths for current Python version
+  - Previously update.sh only copied static files, leaving old hardcoded paths
+  - Users must run `sudo ./update.sh` to apply the fix (not just `git pull`)
+  - This is why Airspy worked after `apt install airspy` but still failed in the service
   - VERSION bumped to 2.27.10 (bug fix)
 - **Airspy SDR Not Opening** - Fixed "Unable to open AirSpy device" error even with root/sudo access
   - Added `airspy` package to installation (contains firmware and host utilities like airspy_info)
