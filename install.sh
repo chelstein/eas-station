@@ -1580,11 +1580,13 @@ cp "$INSTALL_DIR/systemd/"*.timer /etc/systemd/system/ 2>/dev/null || true
 # Update SDR service with dynamically detected paths
 # Use @ as sed delimiter to avoid issues with paths containing /
 echo_progress "Configuring SDR service with detected paths..."
+
+# Escape special characters for sed (handle &, |, @, and backslashes)
+# Calculate once and reuse
+PYTHONPATH_ESCAPED=$(echo "/opt/eas-station:${PYTHON_SITE_PACKAGES}" | sed 's/[@&|\\]/\\&/g')
+SOAPY_PATH_ESCAPED=$(echo "${SOAPY_PLUGIN_PATHS}" | sed 's/[@&|\\]/\\&/g')
+
 if [ -f /etc/systemd/system/eas-station-sdr.service ]; then
-    # Escape special characters for sed (handle &, |, @, and backslashes)
-    PYTHONPATH_ESCAPED=$(echo "/opt/eas-station:${PYTHON_SITE_PACKAGES}" | sed 's/[@&|\\]/\\&/g')
-    SOAPY_PATH_ESCAPED=$(echo "${SOAPY_PLUGIN_PATHS}" | sed 's/[@&|\\]/\\&/g')
-    
     # Update PYTHONPATH to include all system site-packages
     sed -i "s@Environment=\"PYTHONPATH=/opt/eas-station:/usr/lib/python3/dist-packages\"@Environment=\"PYTHONPATH=${PYTHONPATH_ESCAPED}\"@" /etc/systemd/system/eas-station-sdr.service
     # Update SOAPY_SDR_PLUGIN_PATH with detected paths
@@ -1593,11 +1595,8 @@ fi
 
 # Update audio service (also uses SDR via Redis, needs same paths for diagnostics)
 if [ -f /etc/systemd/system/eas-station-audio.service ]; then
-    # Escape for sed
-    PYTHONPATH_ESCAPED=$(echo "/opt/eas-station:${PYTHON_SITE_PACKAGES}" | sed 's/[@&|\\]/\\&/g')
-    
     # Check if audio service has PYTHONPATH environment variable, add if missing
-    if ! grep -q '^Environment=.*PYTHONPATH' /etc/systemd/system/eas-station-audio.service; then
+    if ! grep -q '^Environment="PYTHONPATH=' /etc/systemd/system/eas-station-audio.service; then
         # Add after the PATH environment variable
         sed -i "/^Environment=\"PATH=/a Environment=\"PYTHONPATH=${PYTHONPATH_ESCAPED}\"" /etc/systemd/system/eas-station-audio.service
     else
