@@ -7,6 +7,12 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **WSGI Startup Honors Setup Mode** - Fixed wsgi.py to respect setup mode when database is unavailable
+  - wsgi.py now checks if application is in setup mode before attempting database initialization
+  - Prevents attempting to initialize database when connectivity check already failed during app.py import
+  - Allows proper first-time setup workflow through /setup web UI
+  - Eliminates unnecessary duplicate database connection attempts and error messages
+  - VERSION bumped to 2.27.4 (bug fix)
 - **Web Service 504 Timeout** - Fixed lazy database initialization causing 504 Gateway Timeout errors
   - Database initialization moved from first-request to worker startup in wsgi.py
   - Added eager database initialization when Gunicorn workers start
