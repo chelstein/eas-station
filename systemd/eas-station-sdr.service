@@ -36,17 +36,10 @@ RestartSec=10s
 KillMode=mixed
 TimeoutStopSec=30
 
-# Security settings (needs USB device access)
+# Security settings - relaxed for USB/SDR hardware access
+# SDR hardware requires access to /dev/bus/usb and /sys for device enumeration
 NoNewPrivileges=true
 PrivateTmp=true
-# Note: ProtectSystem=strict breaks SoapySDR USB enumeration
-# Using 'full' instead which still protects /usr and /boot but allows /sys access
-ProtectSystem=full
-ProtectHome=true
-ReadWritePaths=/opt/eas-station /var/log/eas-station
-
-# USB device access - SoapySDR needs /dev/bus/usb and /sys/bus/usb for enumeration
-DeviceAllow=/dev/bus/usb/* rw
 
 # Resource limits - USB streaming requires locked memory for DMA
 LimitNOFILE=65536
