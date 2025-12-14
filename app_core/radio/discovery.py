@@ -97,20 +97,45 @@ def enumerate_devices() -> List[Dict[str, Any]]:
 def _enumerate_devices_cli() -> List[Dict[str, Any]]:
     """Enumerate devices using SoapySDRUtil command-line tool as fallback."""
     import subprocess
-    import re
+    import shutil
+    import os
 
     results = []
     known_drivers = ["airspy", "rtlsdr", "hackrf", "sdrplay", "bladerf"]
 
+    # Find SoapySDRUtil - check common paths
+    soapy_util = shutil.which("SoapySDRUtil")
+    if not soapy_util:
+        for path in ["/usr/bin/SoapySDRUtil", "/usr/local/bin/SoapySDRUtil"]:
+            if os.path.exists(path):
+                soapy_util = path
+                break
+
+    if not soapy_util:
+        logger.warning("SoapySDRUtil command not found in PATH or common locations")
+        return []
+
+    logger.debug(f"Using SoapySDRUtil at: {soapy_util}")
+
     for driver in known_drivers:
         try:
             proc = subprocess.run(
-                ["SoapySDRUtil", f"--find=driver={driver}"],
+                [soapy_util, f"--find=driver={driver}"],
                 capture_output=True,
                 text=True,
-                timeout=10
+                timeout=10,
+                env={**os.environ, "SOAPY_SDR_LOG_LEVEL": "FATAL"}  # Suppress noisy logs
             )
+
+            # Log for debugging
+            if "Found device" in proc.stdout:
+                logger.info(f"SoapySDRUtil found {driver} device: {proc.stdout.strip()[:200]}")
+            else:
+                logger.debug(f"SoapySDRUtil {driver}: returncode={proc.returncode}, stdout_len={len(proc.stdout)}")
+
             if proc.returncode != 0:
+                if proc.stderr:
+                    logger.debug(f"SoapySDRUtil {driver} error: {proc.stderr[:200]}")
                 continue
 
             # Parse output - each device block starts with "Found device N"
