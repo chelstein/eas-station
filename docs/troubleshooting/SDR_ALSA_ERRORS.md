@@ -48,7 +48,7 @@ Environment="SOAPY_SDR_LOG_LEVEL=WARNING"
 These settings:
 - Prevent ALSA from loading its configuration (not needed for SDR)
 - Prevent PulseAudio connection attempts (not needed for SDR)
-- Reduce SoapySDR log verbosity to suppress debug messages
+- Prevent SoapySDR from logging debug messages (reduces log verbosity)
 
 **The errors may still appear in logs** because they come from C libraries (librtaudio) that write directly to stderr, bypassing Python logging and environment variable suppression.
 
@@ -130,11 +130,11 @@ However, SoapySDR's plugin architecture loads ALL available modules during initi
 
 ## Summary
 
-| Issue | Impact | Solution |
-|-------|--------|----------|
-| ALSA errors in logs | Cosmetic only | Suppress with env vars (already done) |
-| PulseAudio/Jack errors | Cosmetic only | Suppress with env vars (already done) |
-| Want clean logs | Minor annoyance | Uninstall soapysdr-module-audio |
+| Issue | Impact on Functionality | Recommended Action |
+|-------|-------------------------|-------------------|
+| ALSA errors in logs | None (cosmetic only) | Suppress with env vars (already configured) |
+| PulseAudio/Jack errors | None (cosmetic only) | Suppress with env vars (already configured) |
+| Want completely clean logs | None (cosmetic only) | Uninstall soapysdr-module-audio package |
 | "no match" errors | Prevents device opening | Retry logic (already implemented) |
 
 **Bottom line**: If your SDR device is working (check web UI for signal/audio), you can safely ignore these errors. They're just noise from an unnecessary audio module.
