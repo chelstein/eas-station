@@ -838,12 +838,22 @@ echo_success "Systemd daemon reloaded"
 
 # Ensure nginx is running (may have been stopped or never started)
 echo_progress "Ensuring nginx web server is running..."
+NGINX_STATUS="ok"
 if systemctl is-active --quiet nginx 2>/dev/null; then
-    systemctl reload nginx
-    echo_success "Nginx reloaded"
+    if systemctl reload nginx 2>&1; then
+        echo_success "Nginx reloaded"
+    else
+        echo_error "Failed to reload nginx - check 'sudo nginx -t' for config errors"
+        NGINX_STATUS="failed"
+    fi
 else
-    systemctl start nginx
-    echo_success "Nginx started"
+    if systemctl start nginx 2>&1; then
+        echo_success "Nginx started"
+    else
+        echo_error "Failed to start nginx - check 'sudo systemctl status nginx'"
+        echo_info "Web interface will only be accessible on port 5000"
+        NGINX_STATUS="failed"
+    fi
 fi
 
 echo_progress "Starting all EAS Station services with updated code..."
@@ -909,7 +919,27 @@ if [ "$USE_WHIPTAIL" = true ]; then
     SUMMARY+="• Check status: systemctl status eas-station.target\n"
     SUMMARY+="• Web interface: https://$(hostname -I | awk '{print $1}')\n"
     
-    whiptail --title "Update Complete" --backtitle "$(whiptail_footer)" --msgbox "$SUMMARY" 24 75
+    # Only show whiptail success dialog if update completed without errors
+    if [ "$SERVICE_STATUS" = "running" ] && [ "$NGINX_STATUS" = "ok" ]; then
+        whiptail --title "Update Complete" --backtitle "$(whiptail_footer)" --msgbox "$SUMMARY" 24 75
+    else
+        # Show error dialog instead
+        ERROR_MSG="Update completed with errors:\n\n"
+        if [ "$NGINX_STATUS" = "failed" ]; then
+            ERROR_MSG+="✗ Nginx failed to start\n"
+            ERROR_MSG+="  Check: sudo nginx -t\n"
+            ERROR_MSG+="  Status: sudo systemctl status nginx\n\n"
+        fi
+        if [ "$SERVICE_STATUS" != "running" ]; then
+            ERROR_MSG+="✗ EAS Station services failed to start\n"
+            ERROR_MSG+="  Check: sudo systemctl status eas-station.target\n"
+            ERROR_MSG+="  Logs: sudo journalctl -u eas-station-web -n 100\n\n"
+        fi
+        ERROR_MSG+="Review the console output above for details.\n"
+        ERROR_MSG+="Press OK to continue..."
+
+        whiptail --title "Update Issues Detected" --backtitle "$(whiptail_footer)" --msgbox "$ERROR_MSG" 20 75
+    fi
 fi
 
 # Console summary
