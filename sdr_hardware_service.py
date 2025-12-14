@@ -328,81 +328,81 @@ def _auto_detect_and_configure_receivers(app):
 
         configured_receivers = []
 
-        with app.app_context():
-            for device in devices:
-                driver = device.get('driver', 'unknown').lower()
-                serial = device.get('serial')
-                label = device.get('label', f'SDR Device')
+        # Note: We're already inside an app context from initialize_radio_receivers
+        for device in devices:
+            driver = device.get('driver', 'unknown').lower()
+            serial = device.get('serial')
+            label = device.get('label', f'SDR Device')
 
-                if not serial:
-                    logger.warning(f"  Skipping device without serial: {label}")
-                    continue
+            if not serial:
+                logger.warning(f"  Skipping device without serial: {label}")
+                continue
 
-                # Check if already configured (by serial)
-                existing = RadioReceiver.query.filter_by(serial=serial).first()
-                if existing:
-                    logger.info(f"  Device {serial} already configured as '{existing.identifier}'")
-                    if existing.enabled:
-                        configured_receivers.append(existing)
-                    continue
+            # Check if already configured (by serial)
+            existing = RadioReceiver.query.filter_by(serial=serial).first()
+            if existing:
+                logger.info(f"  Device {serial} already configured as '{existing.identifier}'")
+                if existing.enabled:
+                    configured_receivers.append(existing)
+                continue
 
-                # Get driver-specific defaults
-                defaults = DRIVER_DEFAULTS.get(driver, {
-                    'sample_rate': 2_400_000,
-                    'gain': 30,
-                    'modulation_type': 'NFM',
-                    'audio_sample_rate': 48000,
-                })
+            # Get driver-specific defaults
+            defaults = DRIVER_DEFAULTS.get(driver, {
+                'sample_rate': 2_400_000,
+                'gain': 30,
+                'modulation_type': 'NFM',
+                'audio_sample_rate': 48000,
+            })
 
-                # Create unique identifier
-                identifier = f"{driver}-{serial[-8:]}" if len(serial) > 8 else f"{driver}-{serial}"
-                display_name = f"{label} (Auto-configured)"
+            # Create unique identifier
+            identifier = f"{driver}-{serial[-8:]}" if len(serial) > 8 else f"{driver}-{serial}"
+            display_name = f"{label} (Auto-configured)"
 
-                logger.info(f"  📻 Auto-configuring: {identifier}")
-                logger.info(f"     Driver: {driver}, Serial: {serial}")
-                logger.info(f"     Frequency: {DEFAULT_FREQUENCY_HZ / 1e6:.3f} MHz (NOAA WX7)")
-                logger.info(f"     Sample rate: {defaults['sample_rate'] / 1e6:.1f} MHz")
+            logger.info(f"  📻 Auto-configuring: {identifier}")
+            logger.info(f"     Driver: {driver}, Serial: {serial}")
+            logger.info(f"     Frequency: {DEFAULT_FREQUENCY_HZ / 1e6:.3f} MHz (NOAA WX7)")
+            logger.info(f"     Sample rate: {defaults['sample_rate'] / 1e6:.1f} MHz")
 
-                # Create receiver configuration
-                receiver = RadioReceiver(
-                    identifier=identifier,
-                    display_name=display_name,
-                    driver=driver,
-                    serial=serial,
-                    frequency_hz=DEFAULT_FREQUENCY_HZ,
-                    sample_rate=defaults['sample_rate'],
-                    audio_sample_rate=defaults.get('audio_sample_rate', 48000),
-                    gain=defaults.get('gain'),
-                    modulation_type=defaults.get('modulation_type', 'NFM'),
-                    audio_output=True,
-                    enabled=True,
-                    auto_start=True,
-                    notes=f"Auto-configured on {time.strftime('%Y-%m-%d %H:%M:%S')}. "
-                          f"Tune frequency in Settings → Radio Receivers for your area.",
+            # Create receiver configuration
+            receiver = RadioReceiver(
+                identifier=identifier,
+                display_name=display_name,
+                driver=driver,
+                serial=serial,
+                frequency_hz=DEFAULT_FREQUENCY_HZ,
+                sample_rate=defaults['sample_rate'],
+                audio_sample_rate=defaults.get('audio_sample_rate', 48000),
+                gain=defaults.get('gain'),
+                modulation_type=defaults.get('modulation_type', 'NFM'),
+                audio_output=True,
+                enabled=True,
+                auto_start=True,
+                notes=f"Auto-configured on {time.strftime('%Y-%m-%d %H:%M:%S')}. "
+                      f"Tune frequency in Settings → Radio Receivers for your area.",
+            )
+
+            db.session.add(receiver)
+            configured_receivers.append(receiver)
+
+        if configured_receivers:
+            db.session.commit()
+            logger.info(f"✅ Auto-configured {len(configured_receivers)} receiver(s)")
+
+            # Publish status to Redis
+            try:
+                redis_client = get_redis_client(retry=False)
+                redis_client.setex(
+                    "sdr:status",
+                    300,
+                    json.dumps({
+                        "status": "auto_configured",
+                        "message": f"Auto-configured {len(configured_receivers)} receiver(s)",
+                        "receivers": [r.identifier for r in configured_receivers],
+                        "timestamp": time.time()
+                    })
                 )
-
-                db.session.add(receiver)
-                configured_receivers.append(receiver)
-
-            if configured_receivers:
-                db.session.commit()
-                logger.info(f"✅ Auto-configured {len(configured_receivers)} receiver(s)")
-
-                # Publish status to Redis
-                try:
-                    redis_client = get_redis_client(retry=False)
-                    redis_client.setex(
-                        "sdr:status",
-                        300,
-                        json.dumps({
-                            "status": "auto_configured",
-                            "message": f"Auto-configured {len(configured_receivers)} receiver(s)",
-                            "receivers": [r.identifier for r in configured_receivers],
-                            "timestamp": time.time()
-                        })
-                    )
-                except Exception:
-                    pass
+            except Exception:
+                pass
 
         return configured_receivers
 
