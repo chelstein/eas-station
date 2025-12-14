@@ -253,18 +253,24 @@ def initialize_gpio_controller(db_session=None):
         )
         from app_core.oled import OLED_ENABLED
 
-        # Check if GPIO is enabled
-        gpio_enabled = os.getenv("GPIO_ENABLED", "false").lower() in ("true", "1", "yes")
+        # Try to load GPIO enabled flag from database first
+        try:
+            from app_core.hardware_settings import get_gpio_settings
+            gpio_settings = get_gpio_settings()
+            gpio_enabled = gpio_settings.get('enabled', False)
+        except Exception:
+            # Fallback to environment variable if database not available
+            gpio_enabled = os.getenv("GPIO_ENABLED", "false").lower() in ("true", "1", "yes")
 
         if not gpio_enabled:
-            logger.info("GPIO controller disabled (GPIO_ENABLED=false)")
+            logger.info("GPIO controller disabled (enable in Admin > Hardware Settings)")
             return
 
-        # Load GPIO pin configurations from environment
+        # Load GPIO pin configurations (from database with env fallback)
         # Pass OLED_ENABLED to ensure reserved pins are only blocked when OLED is actually enabled
         gpio_configs = load_gpio_pin_configs_from_env(logger, oled_enabled=OLED_ENABLED)
         if not gpio_configs:
-            logger.info("No GPIO pins configured (check GPIO_PIN_MAP environment variable)")
+            logger.info("No GPIO pins configured (configure in Admin > Hardware Settings)")
             return
 
         # Create GPIO controller with database session for audit logging

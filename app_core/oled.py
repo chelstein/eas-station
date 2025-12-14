@@ -75,51 +75,36 @@ def _get_gpiozero_button():
 
 
 def _get_settings_or_env():
-    """Get settings from database or fall back to environment variables."""
+    """Get settings from database (hardware settings are only in database).
+
+    Hardware settings (GPIO, OLED, LED Sign, VFD) are configured via the web UI
+    at /admin/hardware and stored in the database. Environment variables are
+    NOT supported for hardware configuration.
+    """
     if _SETTINGS_AVAILABLE:
         try:
             return get_oled_settings()
         except Exception as exc:
-            logger.warning("Failed to load OLED settings from database: %s; falling back to environment", exc)
+            logger.warning("Failed to load OLED settings from database: %s; using defaults", exc)
 
-    # Fallback to environment variables
-    def _env_flag(name: str, default: str = "false") -> bool:
-        return os.getenv(name, default).strip().lower() in {"1", "true", "yes", "on"}
-
-    def _env_int(name: str, default: str) -> int:
-        value = os.getenv(name, default).strip()
-        base = 16 if value.startswith("0x") else 10
-        try:
-            return int(value, base)
-        except (TypeError, ValueError):
-            logger.warning("Invalid integer for %s=%s; using default %s", name, value, default)
-            return int(default, base)
-
-    def _env_float(name: str, default: str) -> float:
-        value = os.getenv(name, default)
-        try:
-            return float(value)
-        except (TypeError, ValueError):
-            logger.warning("Invalid float for %s=%s; using default %s", name, value, default)
-            return float(default)
-
+    # Return sensible defaults if database not available (e.g., during testing)
     return {
-        'enabled': _env_flag("OLED_ENABLED", "false"),
-        'width': max(16, _env_int("OLED_WIDTH", "128")),
-        'height': max(16, _env_int("OLED_HEIGHT", "64")),
-        'i2c_bus': _env_int("OLED_I2C_BUS", "1"),
-        'i2c_address': _env_int("OLED_I2C_ADDRESS", "0x3C"),
-        'rotate': (_env_int("OLED_ROTATE", "0") % 360) // 90,
-        'contrast': int(os.getenv("OLED_CONTRAST")) if os.getenv("OLED_CONTRAST") else None,
-        'font_path': os.getenv("OLED_FONT_PATH"),
-        'default_invert': _env_flag("OLED_DEFAULT_INVERT", "false"),
-        'button_gpio': _env_int("OLED_BUTTON_GPIO", "4"),
-        'button_hold_seconds': max(0.5, _env_float("OLED_BUTTON_HOLD_SECONDS", "1.25")),
-        'button_active_high': _env_flag("OLED_BUTTON_ACTIVE_HIGH", "false"),
-        'scroll_effect': os.getenv("OLED_SCROLL_EFFECT", "scroll_left").lower(),
-        'scroll_speed': max(1, _env_int("OLED_SCROLL_SPEED", "4")),
-        'scroll_fps': max(5, min(60, _env_int("OLED_SCROLL_FPS", "30"))),
-        'screens_auto_start': _env_flag("SCREENS_AUTO_START", "true"),
+        'enabled': False,  # Disabled by default - must be enabled via /admin/hardware
+        'width': 128,
+        'height': 64,
+        'i2c_bus': 1,
+        'i2c_address': 0x3C,
+        'rotate': 0,
+        'contrast': None,
+        'font_path': None,
+        'default_invert': False,
+        'button_gpio': 4,
+        'button_hold_seconds': 1.25,
+        'button_active_high': False,
+        'scroll_effect': 'scroll_left',
+        'scroll_speed': 4,
+        'scroll_fps': 30,
+        'screens_auto_start': True,
     }
 
 
