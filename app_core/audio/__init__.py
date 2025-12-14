@@ -30,6 +30,7 @@ from .sources import SDRSourceAdapter, ALSASourceAdapter, FileSourceAdapter
 from .metering import AudioMeter, SilenceDetector
 from .eas_monitor import (
     EASMonitor,
+    ContinuousEASMonitor,  # Backwards compatibility alias
     MonitorHealth,
     create_fips_filtering_callback,
     compute_alert_signature,
@@ -45,6 +46,7 @@ __all__ = [
     'AudioMeter',
     'SilenceDetector',
     'EASMonitor',
+    'ContinuousEASMonitor',  # Backwards compatibility alias
     'MonitorHealth',
     'create_fips_filtering_callback',
     'compute_alert_signature',

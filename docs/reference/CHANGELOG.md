@@ -7,6 +7,13 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **EASMonitor Backwards Compatibility** - Fixed TypeError when old code calls EASMonitor with deprecated parameters
+  - Added backwards compatibility for `audio_manager` parameter (now accepts both `audio_manager` and `audio_source`)
+  - Added backwards compatibility for `save_audio_files` parameter (accepted but ignored)
+  - Exported `ContinuousEASMonitor` as an alias for `EASMonitor` for test compatibility
+  - Prevents "TypeError: EASMonitor.__init__() got an unexpected keyword argument 'audio_manager'" errors
+  - Allows deployed systems with cached Python bytecode to continue functioning during upgrades
+  - VERSION bumped to 2.27.6 (bug fix)
 - **Critical: Fixed Gunicorn Bypassing Database Initialization** - Changed systemd service to use `wsgi:application` instead of `app:app`
   - Previously, gunicorn was loading app.py directly, bypassing all wsgi.py initialization code
   - This caused lazy database initialization on first request, resulting in 504 Gateway Timeout errors
