@@ -43,6 +43,17 @@ from typing import Any, Callable, Dict, Iterable, List, Optional, Protocol, Set
 
 from app_utils.pi_pinout import ARGON_OLED_RESERVED_BCM, ARGON_OLED_RESERVED_PHYSICAL
 
+# Import hardware settings helper
+try:
+    from app_core.hardware_settings import get_gpio_settings
+    _GPIO_SETTINGS_AVAILABLE = True
+except ImportError:
+    _GPIO_SETTINGS_AVAILABLE = False
+
+    def get_gpio_settings():
+        """Fallback when settings module not available."""
+        return {}
+
 try:  # pragma: no cover - GPIO hardware is optional and platform specific
     from gpiozero import Device, OutputDevice
 except Exception:  # pragma: no cover - gracefully handle non-RPi environments
@@ -1256,18 +1267,31 @@ def load_gpio_pin_configs_from_env(logger=None, oled_enabled: bool = False) -> L
     configs: List[GPIOPinConfig] = []
     seen_pins: set = set()
 
-    # Read GPIO pin map from single JSON environment variable
-    gpio_pin_map_raw = os.getenv("GPIO_PIN_MAP", "").strip()
+    # Try to read from database first, fallback to environment
+    gpio_pin_map = {}
+    if _GPIO_SETTINGS_AVAILABLE:
+        try:
+            gpio_settings = get_gpio_settings()
+            gpio_pin_map = gpio_settings.get('pin_map', {})
+            if gpio_pin_map and logger:
+                logger.debug("Loaded GPIO pin map from database")
+        except Exception as exc:
+            if logger:
+                logger.warning("Failed to load GPIO settings from database: %s; falling back to environment", exc)
 
-    if not gpio_pin_map_raw:
-        _log("info", "No GPIO_PIN_MAP configured - GPIO controller will be initialized with no pins")
-        return configs
+    # Fallback to environment variable if database doesn't have config
+    if not gpio_pin_map:
+        gpio_pin_map_raw = os.getenv("GPIO_PIN_MAP", "").strip()
 
-    try:
-        gpio_pin_map = json.loads(gpio_pin_map_raw)
-    except json.JSONDecodeError as exc:
-        _log("error", f"Failed to parse GPIO_PIN_MAP JSON: {exc}")
-        return configs
+        if not gpio_pin_map_raw:
+            _log("info", "No GPIO_PIN_MAP configured - GPIO controller will be initialized with no pins")
+            return configs
+
+        try:
+            gpio_pin_map = json.loads(gpio_pin_map_raw)
+        except json.JSONDecodeError as exc:
+            _log("error", f"Failed to parse GPIO_PIN_MAP JSON: {exc}")
+            return configs
 
     if not isinstance(gpio_pin_map, dict):
         _log("error", "GPIO_PIN_MAP must be a JSON object mapping pin numbers to configurations")
@@ -1341,18 +1365,32 @@ def load_gpio_behavior_matrix_from_env(logger=None, oled_enabled: bool = False) 
         Dictionary mapping pin numbers to sets of GPIO behaviors.
     """
 
-    raw = os.getenv("GPIO_PIN_BEHAVIOR_MATRIX", "").strip()
-    if not raw:
-        return {}
+    # Try to read from database first, fallback to environment
+    data = None
+    if _GPIO_SETTINGS_AVAILABLE:
+        try:
+            gpio_settings = get_gpio_settings()
+            data = gpio_settings.get('behavior_matrix', {})
+            if data and logger:
+                logger.debug("Loaded GPIO behavior matrix from database")
+        except Exception as exc:
+            if logger is not None:
+                logger.warning("Failed to load GPIO behavior matrix from database: %s; falling back to environment", exc)
 
-    try:
-        data = json.loads(raw)
-    except json.JSONDecodeError as exc:
-        if logger is not None:
-            logger.warning(
-                "Failed to parse GPIO_PIN_BEHAVIOR_MATRIX: %s", exc
-            )
-        return {}
+    # Fallback to environment variable if database doesn't have config
+    if not data:
+        raw = os.getenv("GPIO_PIN_BEHAVIOR_MATRIX", "").strip()
+        if not raw:
+            return {}
+
+        try:
+            data = json.loads(raw)
+        except json.JSONDecodeError as exc:
+            if logger is not None:
+                logger.warning(
+                    "Failed to parse GPIO_PIN_BEHAVIOR_MATRIX: %s", exc
+                )
+            return {}
 
     matrix: Dict[int, Set[GPIOBehavior]] = {}
     for key, values in data.items():
