@@ -687,9 +687,16 @@ class _SoapySDRReceiver(ReceiverInterface):
         no_match_retries = 5  # Increased from 3 to handle more timing issues
         no_match_delay = 0.5
 
+        # Convert args dict to string format for SoapySDR.Device()
+        # IMPORTANT: String format ("driver=airspy,serial=xxx") works reliably
+        # while dict format ({"driver": "airspy"}) can fail with "no match"
+        # on some Python/SWIG versions. Use string format for compatibility.
+        args_string = ",".join(f"{k}={v}" for k, v in args.items())
+        self._interface_logger.debug("Opening device with args: %s", args_string)
+
         for attempt in range(no_match_retries):
             try:
-                device = SoapySDR.Device(args)
+                device = SoapySDR.Device(args_string)
                 break  # Success
             except Exception as exc:
                 last_exc = exc
@@ -941,7 +948,9 @@ class _SoapySDRReceiver(ReceiverInterface):
                 self._fallback_last_log_time = now
 
             try:
-                device = sdr_module.Device(fallback_args)
+                # Use string format for better compatibility
+                fallback_args_str = ",".join(f"{k}={v}" for k, v in fallback_args.items())
+                device = sdr_module.Device(fallback_args_str)
                 self._emit_event(
                     "info",
                     "Opened SDR device without serial filter after fallback",
@@ -964,7 +973,9 @@ class _SoapySDRReceiver(ReceiverInterface):
             self._fallback_last_log_time = now
 
         try:
-            device = sdr_module.Device(minimal_args)
+            # Use string format for better compatibility
+            minimal_args_str = ",".join(f"{k}={v}" for k, v in minimal_args.items())
+            device = sdr_module.Device(minimal_args_str)
             self._emit_event(
                 "info",
                 "Opened SDR device with driver-only filter after fallback",
