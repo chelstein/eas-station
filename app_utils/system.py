@@ -1307,19 +1307,10 @@ def _collect_smart_health(logger, devices: List[Dict[str, Any]]) -> Dict[str, An
         if not path:
             continue
 
-        # CRITICAL FIX: For NVMe namespaces (nvme0n1, nvme1n1, etc.), SMART data is on the controller
-        # Convert /dev/nvme0n1 -> /dev/nvme0, /dev/nvme1n2 -> /dev/nvme1
-        original_path = path
+        # Note: For NVMe devices, smartctl can query either the namespace (nvme0n1)
+        # or the controller (nvme0). We query the namespace directly which provides
+        # complete SMART data for the attached media.
         device_name = device.get("name") or ""
-        if "nvme" in device_name.lower() and "n" in device_name:
-            # Extract controller path: nvme0n1 -> nvme0, nvme1n2 -> nvme1
-            import re
-            match = re.match(r'(nvme\d+)n\d+', device_name)
-            if match:
-                controller_name = match.group(1)
-                path = f"/dev/{controller_name}"
-                if logger:
-                    logger.debug(f"NVMe namespace detected: {original_path} -> {path} (controller)")
 
         device_result: Dict[str, Any] = {
             "name": device.get("name"),
@@ -1781,7 +1772,8 @@ def _iter_disk_devices(devices: List[Dict[str, Any]]):
             continue
         device_type = (device.get("type") or "").lower()
         name = device.get("name") or ""
-        if device_type == "disk" and not name.startswith(("ram", "loop")):
+        # Skip virtual/RAM devices that don't support SMART
+        if device_type == "disk" and not name.startswith(("ram", "loop", "zram")):
             yield device
         for child in device.get("children") or []:
             yield from _iter_disk_devices([child])
