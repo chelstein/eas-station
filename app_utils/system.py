@@ -1350,13 +1350,24 @@ def _collect_smart_health(logger, devices: List[Dict[str, Any]]) -> Dict[str, An
 
         # Detect device type and add appropriate flags for smartctl
         device_type_flag = _detect_device_type(device, path, logger)
-        command = [smartctl_path, "--json=o", "-H", "-A"]
-        
+
+        # Check if we need sudo (smartctl requires root access to read device data)
+        # If smartctl_path doesn't start with /usr or /sbin, or if we're not root, use sudo
+        import os
+        use_sudo = os.geteuid() != 0 if hasattr(os, 'geteuid') else True
+
+        command = []
+        if use_sudo:
+            # Use sudo for smartctl (requires sudoers configuration)
+            command.extend(["sudo", "-n"])  # -n means don't prompt for password
+
+        command.extend([smartctl_path, "--json=o", "-H", "-A"])
+
         # The -n standby flag is for ATA/SATA devices to skip devices in standby mode.
         # NVMe devices don't support standby mode in the same way, so skip this flag for them.
         if device_type_flag != "nvme":
             command.extend(["-n", "standby,now"])
-        
+
         if device_type_flag:
             command.extend(["-d", device_type_flag])
         command.append(path)
