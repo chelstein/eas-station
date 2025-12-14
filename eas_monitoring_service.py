@@ -632,12 +632,15 @@ def initialize_eas_monitor(app, audio_controller):
                     source_broadcast_queue = source_adapter.get_broadcast_queue()
                     source_sample_rate = source_adapter.config.sample_rate
 
-                    # Create broadcast adapter for this specific source
+                    # Create resampling broadcast adapter for this specific source
+                    # CRITICAL: EAS decoder requires 16kHz, adapter handles resampling
                     subscriber_id = f"eas-monitor-{source_name}"
-                    audio_adapter = BroadcastAudioAdapter(
+                    from app_core.audio.resampling_adapter import ResamplingBroadcastAdapter
+                    audio_adapter = ResamplingBroadcastAdapter(
                         broadcast_queue=source_broadcast_queue,
                         subscriber_id=subscriber_id,
-                        sample_rate=int(source_sample_rate)
+                        source_sample_rate=int(source_sample_rate),
+                        target_sample_rate=16000
                     )
 
                     # Create v2 EAS monitor (complete rewrite with robust health tracking)
