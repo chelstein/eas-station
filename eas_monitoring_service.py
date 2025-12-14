@@ -553,11 +553,17 @@ def initialize_eas_monitor(app, audio_controller):
                 source_sample_rate = source_adapter.config.sample_rate
 
                 # Create broadcast adapter for this specific source
+                # CRITICAL: Adapter must handle resampling to 16kHz for EAS decoder
+                # The source data is at source_sample_rate (e.g., 48kHz) but EAS needs 16kHz
                 subscriber_id = f"eas-monitor-{source_name}"
-                audio_adapter = BroadcastAudioAdapter(
+
+                # Create a resampling wrapper adapter
+                from app_core.audio.resampling_adapter import ResamplingBroadcastAdapter
+                audio_adapter = ResamplingBroadcastAdapter(
                     broadcast_queue=source_broadcast_queue,
                     subscriber_id=subscriber_id,
-                    sample_rate=int(source_sample_rate)
+                    source_sample_rate=int(source_sample_rate),
+                    target_sample_rate=16000  # EAS decoder requires 16kHz
                 )
 
                 # Create v2 EAS monitor (complete rewrite with robust health tracking)
@@ -626,12 +632,15 @@ def initialize_eas_monitor(app, audio_controller):
                     source_broadcast_queue = source_adapter.get_broadcast_queue()
                     source_sample_rate = source_adapter.config.sample_rate
 
-                    # Create broadcast adapter for this specific source
+                    # Create resampling broadcast adapter for this specific source
+                    # CRITICAL: EAS decoder requires 16kHz, adapter handles resampling
                     subscriber_id = f"eas-monitor-{source_name}"
-                    audio_adapter = BroadcastAudioAdapter(
+                    from app_core.audio.resampling_adapter import ResamplingBroadcastAdapter
+                    audio_adapter = ResamplingBroadcastAdapter(
                         broadcast_queue=source_broadcast_queue,
                         subscriber_id=subscriber_id,
-                        sample_rate=int(source_sample_rate)
+                        source_sample_rate=int(source_sample_rate),
+                        target_sample_rate=16000
                     )
 
                     # Create v2 EAS monitor (complete rewrite with robust health tracking)
@@ -1019,14 +1028,15 @@ def main():
                     source_sample_rate = adapter.config.sample_rate
                     source_channels = adapter.config.channels
 
-                    # Stream configuration: 22.05kHz mono (human voice is clear at this rate)
-                    stream_sample_rate = 22050
+                    # Stream configuration: Match source sample rate for now (no resampling)
+                    # Resampling was causing quality issues - use native rate instead
+                    stream_sample_rate = source_sample_rate  # Use native rate (typically 44100 Hz)
                     stream_channels = 1  # Mono saves 50% bandwidth
                     bits_per_sample = 16
 
                     # Check if resampling is needed and pre-compute the ratio
-                    needs_resample = source_sample_rate != stream_sample_rate
-                    resample_ratio = stream_sample_rate / source_sample_rate if needs_resample else 1.0
+                    needs_resample = False  # Disabled - use native sample rate
+                    resample_ratio = 1.0
 
                     # Subscribe to BroadcastQueue for non-competitive audio access
                     # Use unique subscriber ID per connection
@@ -1056,7 +1066,7 @@ def main():
                         silence_duration = 0.05
                         silence_samples = int(stream_sample_rate * stream_channels * silence_duration)
 
-                        logger.info(f"Web stream '{subscriber_id}' started, subscribed to broadcast queue")
+                        logger.debug(f"Web stream '{subscriber_id}' started, subscribed to broadcast queue")
 
                         while _running:
                             try:
@@ -1107,7 +1117,7 @@ def main():
                     finally:
                         # Unsubscribe when client disconnects
                         broadcast_queue.unsubscribe(subscriber_id)
-                        logger.info(f"Web stream '{subscriber_id}' ended, unsubscribed from broadcast queue")
+                        logger.debug(f"Web stream '{subscriber_id}' ended, unsubscribed from broadcast queue")
                 
                 try:
                     if not _audio_controller:

@@ -316,8 +316,11 @@ class RedisSDRSourceAdapter(AudioSourceAdapter):
         self.metrics.metadata['iq_sample_rate'] = self._iq_sample_rate
         self.metrics.metadata['center_frequency'] = self._center_frequency
         self.metrics.metadata['receiver_frequency_hz'] = self._center_frequency  # For waterfall display
-        self.metrics.metadata['receiver_modulation'] = self.config.device_params.get('demod_mode', 'FM')  # For waterfall display
+        demod_mode = self.config.device_params.get('demod_mode', 'FM')
+        self.metrics.metadata['receiver_modulation'] = demod_mode  # For waterfall display
         self.metrics.metadata['demodulation_enabled'] = True  # For waterfall display
         self.metrics.metadata['center_frequency_mhz'] = round(self._center_frequency / 1_000_000, 6)
         self.metrics.metadata['samples_received'] = self._samples_received
         self.metrics.metadata['last_sample_age'] = time.time() - self._last_sample_time if self._last_sample_time > 0 else None
+        # Stereo flag for FM broadcasts (WFM and FM support stereo)
+        self.metrics.metadata['stereo_enabled'] = (demod_mode.upper() == 'WFM' or demod_mode.upper() == 'FM')

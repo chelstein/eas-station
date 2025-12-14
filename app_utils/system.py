@@ -1380,7 +1380,7 @@ def _collect_smart_health(logger, devices: List[Dict[str, Any]]) -> Dict[str, An
         # The -n standby flag is for ATA/SATA devices to skip devices in standby mode.
         # NVMe devices don't support standby mode in the same way, so skip this flag for them.
         if device_type_flag != "nvme":
-            command.extend(["-n", "standby,now"])
+            command.extend(["-n", "standby"])
 
         if device_type_flag:
             command.extend(["-d", device_type_flag])
