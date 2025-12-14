@@ -79,12 +79,19 @@ def enumerate_devices() -> List[Dict[str, Any]]:
     Returns:
         List of device info dictionaries, or empty list if SoapySDR is unavailable or no devices found.
     """
+    # Try Python bindings first
     try:
         import SoapySDR  # type: ignore
-        return _enumerate_devices_python(SoapySDR)
+        results = _enumerate_devices_python(SoapySDR)
+        if results:
+            return results
+        # Python bindings found nothing, try CLI fallback
+        logger.info("SoapySDR Python bindings found no devices, trying CLI fallback")
     except ImportError:
         logger.info("SoapySDR Python bindings not found, falling back to CLI tool")
-        return _enumerate_devices_cli()
+
+    # CLI fallback - either Python not available or found nothing
+    return _enumerate_devices_cli()
 
 
 def _enumerate_devices_cli() -> List[Dict[str, Any]]:
