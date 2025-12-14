@@ -1328,17 +1328,17 @@ echo -e "  ${DIM}• NumPy & SciPy (signal processing & audio analysis)${NC}"
 echo -e "  ${DIM}• Requests & lxml (CAP alert parsing)${NC}"
 echo -e "  ${DIM}• And 50+ other dependencies...${NC}"
 echo ""
-echo_progress "Installing via pip (this takes 2-4 minutes)..."
+echo_progress "Installing Python packages (main venv)..."
 echo_info "This may take 5-10 minutes depending on your system"
+echo_info "Full output shown below to track progress:"
 echo ""
-if ! sudo -u "$SERVICE_USER" "$VENV_DIR/bin/pip" install --upgrade pip setuptools wheel 2>&1 | tee /tmp/pip-upgrade.log; then
+if ! sudo -u "$SERVICE_USER" "$VENV_DIR/bin/pip" install --upgrade pip setuptools wheel; then
     echo_error "Failed to upgrade pip, setuptools, and wheel"
-    echo_info "See /tmp/pip-upgrade.log for details"
     exit 1
 fi
-if ! sudo -u "$SERVICE_USER" "$VENV_DIR/bin/pip" install -r "$INSTALL_DIR/requirements.txt" 2>&1 | tee /tmp/pip-install.log; then
+echo ""
+if ! sudo -u "$SERVICE_USER" "$VENV_DIR/bin/pip" install -r "$INSTALL_DIR/requirements.txt"; then
     echo_error "Failed to install Python dependencies"
-    echo_info "See /tmp/pip-install.log for details"
     exit 1
 fi
 echo ""
@@ -1349,23 +1349,25 @@ echo_success "✓ Python dependencies installed successfully"
 # The web service uses the isolated venv above to avoid gunicorn/gevent conflicts
 echo_progress "Creating SDR virtual environment (with system packages)..."
 VENV_SDR_DIR="$INSTALL_DIR/venv-sdr"
-if ! sudo -u "$SERVICE_USER" python3 -m venv --system-site-packages "$VENV_SDR_DIR" 2>&1 | tee /tmp/venv-sdr-creation.log; then
+if ! sudo -u "$SERVICE_USER" python3 -m venv --system-site-packages "$VENV_SDR_DIR"; then
     echo_error "Failed to create SDR virtual environment"
-    echo_info "See /tmp/venv-sdr-creation.log for details"
     exit 1
 fi
 echo_success "SDR virtual environment created at $VENV_SDR_DIR"
 
 # Install minimal SDR-specific dependencies
 echo_progress "Installing SDR service dependencies..."
-if ! sudo -u "$SERVICE_USER" "$VENV_SDR_DIR/bin/pip" install --upgrade pip 2>&1 | tee -a /tmp/venv-sdr-creation.log; then
+echo_info "Installing SDR requirements (scipy, numba may take 5-15 min to compile)..."
+echo_info "Full output shown below to track progress:"
+echo ""
+if ! sudo -u "$SERVICE_USER" "$VENV_SDR_DIR/bin/pip" install --upgrade pip; then
     echo_warning "Failed to upgrade pip in SDR venv (non-critical)"
 fi
-if ! sudo -u "$SERVICE_USER" "$VENV_SDR_DIR/bin/pip" install -r "$INSTALL_DIR/requirements-sdr.txt" 2>&1 | tee -a /tmp/venv-sdr-creation.log; then
+if ! sudo -u "$SERVICE_USER" "$VENV_SDR_DIR/bin/pip" install -r "$INSTALL_DIR/requirements-sdr.txt"; then
     echo_error "Failed to install SDR dependencies"
-    echo_info "See /tmp/venv-sdr-creation.log for details"
     exit 1
 fi
+echo ""
 echo_success "✓ SDR dependencies installed successfully"
 
 # Verify SoapySDR is accessible in SDR venv
