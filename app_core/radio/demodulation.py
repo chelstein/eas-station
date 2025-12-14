@@ -383,19 +383,31 @@ class FMDemodulator:
         # This is the core FM demodulation algorithm
         audio = fm_discriminator(iq_array)
 
-        # Calculate decimation factor
+        # Calculate decimation factor for coarse downsampling
         target_rate = self.config.audio_sample_rate
         decim = max(1, self.config.sample_rate // target_rate)
 
+        # CRITICAL FIX: Use proper resampling to exact target rate instead of simple decimation
+        # Simple decimation produces wrong sample rate: e.g., 2.5MHz / 52 = 48,077 Hz (not 48,000 Hz)
+        # This causes "chipmunk" audio when played back at declared rate
         if decim > 1:
-            # Use JIT-compiled decimation if available
+            # First decimate to get close to target rate (fast, low quality)
             audio = fast_decimate(audio, decim)
+            # Calculate actual intermediate rate after decimation
+            intermediate_rate = self.config.sample_rate // decim
+        else:
+            intermediate_rate = self.config.sample_rate
 
-        # Scale to audio levels
+        # Scale to audio levels BEFORE resampling (at intermediate rate)
         # For 75 kHz deviation: phase_diff_per_sample = 2π × 75000 / sample_rate
         # We scale by sample_rate / (2 × deviation × decimation_factor) to normalize
         deviation_hz = self.FM_DEVIATION_HZ.get(self.config.modulation_type, self.DEFAULT_DEVIATION_HZ)
         audio = audio * (self.config.sample_rate / (2.0 * deviation_hz * decim))
+
+        # Now resample from intermediate_rate to exact target_rate
+        # This ensures audio is at the EXACT sample rate expected by downstream consumers
+        if intermediate_rate != target_rate:
+            audio = self._resample(audio, intermediate_rate, target_rate)
 
         # Clamp to prevent overflow
         audio = np.clip(audio, -1.5, 1.5)
