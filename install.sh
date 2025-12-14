@@ -1252,8 +1252,10 @@ echo_step "Python Environment Setup"
 # NOTE: We explicitly DO NOT use --system-site-packages because:
 #   1. System packages can conflict with venv packages (e.g., numpy, scipy, gevent)
 #   2. C extension conflicts cause gunicorn workers to fail with import errors
-#   3. The systemd service sets PYTHONNOUSERSITE=1 to prevent conflicts
-# If you need system packages like python3-soapysdr, install them into the venv after creation
+#   3. Creates import order issues where wrong package versions get loaded
+# The systemd service sets PYTHONNOUSERSITE=1 which prevents USER site-packages,
+# but that doesn't help with the --system-site-packages flag (which is different).
+# If you need system packages like python3-soapysdr, install them into the venv after creation.
 echo_progress "Creating Python virtual environment..."
 if ! sudo -u "$SERVICE_USER" python3 -m venv "$VENV_DIR" 2>&1 | tee /tmp/venv-creation.log; then
     echo_error "Failed to create virtual environment"

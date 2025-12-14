@@ -102,18 +102,19 @@ After fixing, verify:
 
 1. Check venv was created without system packages:
    ```bash
-   grep -r "system-site-packages" /opt/eas-station/venv/pyvenv.cfg
+   grep "include-system-site-packages" /opt/eas-station/venv/pyvenv.cfg
    # Should show: include-system-site-packages = false
    ```
 
-2. Verify PYTHONNOUSERSITE is set:
+2. Verify PYTHONNOUSERSITE is set (prevents USER site-packages, separate from system-site-packages):
    ```bash
    sudo systemctl show eas-station-web.service | grep PYTHONNOUSERSITE
    ```
 
-3. Check for package conflicts:
+3. Check sys.path doesn't include system site-packages:
    ```bash
-   /opt/eas-station/venv/bin/python3 -c "import sys; print('System packages:', 'NOT INCLUDED' if '--no-user-site' in sys.flags else 'INCLUDED')"
+   /opt/eas-station/venv/bin/python3 -c "import sys; import site; print('System site-packages in path:', any('/usr/lib/python3' in p and 'site-packages' in p for p in sys.path))"
+   # Should show: False
    ```
 
 ## Conclusion
