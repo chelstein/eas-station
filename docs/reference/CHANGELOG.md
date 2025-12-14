@@ -7,6 +7,14 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **SDR Service Audio Errors** - Suppressed ALSA/PulseAudio/Jack errors in SDR hardware service logs
+  - Added `PULSE_SERVER=/dev/null` to prevent PulseAudio connection attempts
+  - Added `SOAPY_SDR_LOG_LEVEL=WARNING` to reduce SoapySDR log noise
+  - Enhanced `ALSA_CONFIG_PATH=/dev/null` documentation explaining why audio errors appear
+  - These errors are caused by soapysdr-module-audio probing for audio devices during SDR enumeration
+  - The errors don't affect SDR functionality (USB radio devices work correctly)
+  - To completely eliminate errors, uninstall soapysdr-module-audio if not needed for audio streaming
+  - VERSION bumped to 2.27.7 (bug fix)
 - **EASMonitor Backwards Compatibility** - Fixed TypeError when old code calls EASMonitor with deprecated parameters
   - Added backwards compatibility for `audio_manager` parameter (now accepts both `audio_manager` and `audio_source`)
   - Added backwards compatibility for `save_audio_files` parameter (accepted but ignored)
