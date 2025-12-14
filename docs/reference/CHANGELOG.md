@@ -7,6 +7,16 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **SDR Not Working on Bare Metal** - Fixed SoapySDR device detection failure on bare metal installations
+  - Install script now dynamically detects Python site-packages paths for all Python versions
+  - Install script now dynamically detects SoapySDR plugin module paths
+  - Updated systemd service to inject detected paths instead of using hardcoded paths
+  - Fixes "SoapySDR::Device::make() no match" errors caused by incorrect PYTHONPATH
+  - Fixes missing SoapySDR modules caused by incorrect SOAPY_SDR_PLUGIN_PATH
+  - SDR worked in Docker but failed on bare metal due to venv isolation from system packages
+  - Python venv doesn't use --system-site-packages to avoid conflicts with gunicorn/gevent
+  - SDR service now gets correct paths to apt-installed python3-soapysdr and soapysdr-module-airspy
+  - VERSION bumped to 2.27.8 (bug fix)
 - **SDR Service Audio Errors** - Suppressed ALSA/PulseAudio/Jack errors in SDR hardware service logs
   - Added `PULSE_SERVER=/dev/null` to prevent PulseAudio connection attempts
   - Added `SOAPY_SDR_LOG_LEVEL=WARNING` to reduce SoapySDR log noise

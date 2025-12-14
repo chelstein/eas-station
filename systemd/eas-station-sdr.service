@@ -17,6 +17,7 @@ Environment="PATH=/opt/eas-station/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/
 # Include system site-packages for apt-installed packages like python3-soapysdr
 # The venv doesn't have --system-site-packages (to avoid gunicorn conflicts)
 # but the SDR service needs SoapySDR which is only available as a system package
+# NOTE: These paths are auto-detected and updated during install.sh execution
 Environment="PYTHONPATH=/opt/eas-station:/usr/lib/python3/dist-packages"
 Environment="SOAPY_SDR_PLUGIN_PATH=/usr/lib/aarch64-linux-gnu/SoapySDR/modules0.8:/usr/lib/arm-linux-gnueabihf/SoapySDR/modules0.8:/usr/lib/x86_64-linux-gnu/SoapySDR/modules0.8:/usr/lib/SoapySDR/modules0.8"
 # Suppress ALSA/PulseAudio/Jack errors from soapysdr-module-audio (if installed)
