@@ -1193,7 +1193,6 @@ if [ $SDR_VERIFICATION_FAILED -eq 0 ]; then
 else
     echo_warning "⚠️  Some SDR packages may be missing - SDR functionality may be limited"
     echo_info "  Check installation logs above for details"
-    echo_info "  For Python 3.13 issues, see: docs/troubleshooting/PYTHON_313_SOAPYSDR.md"
 fi
 
 echo_step "Create Service User & Directories"
