@@ -280,17 +280,153 @@ def initialize_database():
                 raise
 
 
+def _auto_detect_and_configure_receivers(app):
+    """Auto-detect connected SDR devices and create receiver configurations.
+
+    Called when no receivers are configured in the database. Discovers connected
+    SDR hardware and creates default configurations for NOAA Weather Radio monitoring.
+
+    Returns:
+        List of RadioReceiver objects that were auto-configured, or empty list if none found.
+    """
+    from app_core.radio.discovery import enumerate_devices
+    from app_core.models import RadioReceiver
+    from app_core.extensions import db
+
+    # Default NOAA Weather Radio frequency (WX7 - most common)
+    DEFAULT_FREQUENCY_HZ = 162_550_000
+
+    # Driver-specific defaults
+    DRIVER_DEFAULTS = {
+        'airspy': {
+            'sample_rate': 2_500_000,  # Airspy R2 only supports 2.5 MHz or 10 MHz
+            'gain': 21,
+            'modulation_type': 'NFM',
+            'audio_sample_rate': 48000,
+        },
+        'rtlsdr': {
+            'sample_rate': 2_400_000,
+            'gain': 49.6,
+            'modulation_type': 'NFM',
+            'audio_sample_rate': 48000,
+        },
+        'hackrf': {
+            'sample_rate': 2_000_000,
+            'gain': 40,
+            'modulation_type': 'NFM',
+            'audio_sample_rate': 48000,
+        },
+    }
+
+    try:
+        devices = enumerate_devices()
+        if not devices:
+            logger.info("📡 Auto-detection: No SDR devices found")
+            return []
+
+        logger.info(f"📡 Auto-detection: Found {len(devices)} device(s)")
+
+        configured_receivers = []
+
+        # Note: We're already inside an app context from initialize_radio_receivers
+        for device in devices:
+            driver = device.get('driver', 'unknown').lower()
+            serial = device.get('serial')
+            label = device.get('label', f'SDR Device')
+
+            if not serial:
+                logger.warning(f"  Skipping device without serial: {label}")
+                continue
+
+            # Check if already configured (by serial)
+            existing = RadioReceiver.query.filter_by(serial=serial).first()
+            if existing:
+                logger.info(f"  Device {serial} already configured as '{existing.identifier}'")
+                if existing.enabled:
+                    configured_receivers.append(existing)
+                continue
+
+            # Get driver-specific defaults
+            defaults = DRIVER_DEFAULTS.get(driver, {
+                'sample_rate': 2_400_000,
+                'gain': 30,
+                'modulation_type': 'NFM',
+                'audio_sample_rate': 48000,
+            })
+
+            # Create unique identifier
+            identifier = f"{driver}-{serial[-8:]}" if len(serial) > 8 else f"{driver}-{serial}"
+            display_name = f"{label} (Auto-configured)"
+
+            logger.info(f"  📻 Auto-configuring: {identifier}")
+            logger.info(f"     Driver: {driver}, Serial: {serial}")
+            logger.info(f"     Frequency: {DEFAULT_FREQUENCY_HZ / 1e6:.3f} MHz (NOAA WX7)")
+            logger.info(f"     Sample rate: {defaults['sample_rate'] / 1e6:.1f} MHz")
+
+            # Create receiver configuration
+            receiver = RadioReceiver(
+                identifier=identifier,
+                display_name=display_name,
+                driver=driver,
+                serial=serial,
+                frequency_hz=DEFAULT_FREQUENCY_HZ,
+                sample_rate=defaults['sample_rate'],
+                audio_sample_rate=defaults.get('audio_sample_rate', 48000),
+                gain=defaults.get('gain'),
+                modulation_type=defaults.get('modulation_type', 'NFM'),
+                audio_output=True,
+                enabled=True,
+                auto_start=True,
+                notes=f"Auto-configured on {time.strftime('%Y-%m-%d %H:%M:%S')}. "
+                      f"Tune frequency in Settings → Radio Receivers for your area.",
+            )
+
+            db.session.add(receiver)
+            configured_receivers.append(receiver)
+
+        if configured_receivers:
+            db.session.commit()
+            logger.info(f"✅ Auto-configured {len(configured_receivers)} receiver(s)")
+
+            # Publish status to Redis
+            try:
+                redis_client = get_redis_client(retry=False)
+                redis_client.setex(
+                    "sdr:status",
+                    300,
+                    json.dumps({
+                        "status": "auto_configured",
+                        "message": f"Auto-configured {len(configured_receivers)} receiver(s)",
+                        "receivers": [r.identifier for r in configured_receivers],
+                        "timestamp": time.time()
+                    })
+                )
+            except Exception:
+                pass
+
+        return configured_receivers
+
+    except Exception as e:
+        logger.error(f"Auto-detection failed: {e}", exc_info=True)
+        return []
+
+
 def initialize_radio_receivers(app):
     """Initialize and start SDR receivers from database configuration."""
     try:
         with app.app_context():
             from app_core.models import RadioReceiver
-            from app_core.extensions import get_radio_manager
+            from app_core.extensions import get_radio_manager, db
 
             receivers = RadioReceiver.query.filter_by(enabled=True).all()
             if not receivers:
+                # No receivers configured - try auto-detection
+                logger.info("No receivers configured - attempting auto-detection...")
+                receivers = _auto_detect_and_configure_receivers(app)
+
+            if not receivers:
                 logger.error("=" * 80)
-                logger.error("❌ NO SDR RECEIVERS CONFIGURED IN DATABASE")
+                logger.error("❌ NO SDR RECEIVERS CONFIGURED OR DETECTED")
                 logger.error("=" * 80)
                 logger.error("The SDR service will run but will NOT receive any radio signals.")
                 logger.error("")
@@ -300,6 +436,7 @@ def initialize_radio_receivers(app):
                 logger.error("  3. Enable the receiver and set auto_start=true")
                 logger.error("  4. Restart the SDR hardware service process")
                 logger.error("")
+                logger.error("Or connect an SDR device (Airspy, RTL-SDR) and restart the service.")
                 logger.error("The service will continue running and wait for configuration via")
                 logger.error("the 'reload_receivers' command through Redis.")
                 logger.error("=" * 80)
@@ -312,7 +449,7 @@ def initialize_radio_receivers(app):
                         300,  # 5 minute TTL
                         json.dumps({
                             "status": "no_receivers_configured",
-                            "message": "No SDR receivers configured in database",
+                            "message": "No SDR receivers configured or detected",
                             "timestamp": time.time()
                         })
                     )
@@ -602,57 +739,22 @@ def process_commands(redis_client):
         command_id = command.get("command_id", "unknown")
         
         logger.info(f"Processing command: {action} for {receiver_id}")
-        
-        radio_manager = _state.radio_manager
-        if not radio_manager:
-            result = {
-                "command_id": command_id,
-                "success": False,
-                "error": "Radio manager not initialized"
-            }
-        elif action == "restart":
-            receiver = radio_manager.get_receiver(receiver_id)
-            if receiver:
-                try:
-                    receiver.stop()
-                    time.sleep(0.5)
-                    receiver.start()
-                    result = {
-                        "command_id": command_id,
-                        "success": True,
-                        "message": f"Receiver {receiver_id} restarted"
-                    }
-                except Exception as e:
-                    result = {
-                        "command_id": command_id,
-                        "success": False,
-                        "error": str(e)
-                    }
-            else:
-                result = {
-                    "command_id": command_id,
-                    "success": False,
-                    "error": f"Receiver {receiver_id} not found"
-                }
-        elif action == "stop":
-            receiver = radio_manager.get_receiver(receiver_id)
-            if receiver:
-                receiver.stop()
-                result = {"command_id": command_id, "success": True}
-            else:
-                result = {"command_id": command_id, "success": False, "error": "Not found"}
-        elif action == "start":
-            receiver = radio_manager.get_receiver(receiver_id)
-            if receiver:
-                receiver.start()
-                result = {"command_id": command_id, "success": True}
-            else:
-                result = {"command_id": command_id, "success": False, "error": "Not found"}
-        elif action == "discover_devices":
+
+        # Handle actions that don't require radio_manager first
+        if action == "discover_devices":
             # Enumerate all connected SoapySDR devices
             try:
                 from app_core.radio.discovery import enumerate_devices
                 devices = enumerate_devices()
+                if devices:
+                    logger.info(f"📡 Device discovery found {len(devices)} device(s):")
+                    for dev in devices:
+                        driver = dev.get('driver', 'unknown')
+                        serial = dev.get('serial', 'N/A')
+                        label = dev.get('label', 'Unknown')
+                        logger.info(f"   - {driver}: {label} (serial={serial})")
+                else:
+                    logger.warning("📡 Device discovery: No SDR devices found. Check USB connections and permissions.")
                 result = {
                     "command_id": command_id,
                     "success": True,
@@ -682,6 +784,7 @@ def process_commands(redis_client):
                 with _state.flask_app.app_context():
                     receivers = RadioReceiver.query.filter_by(enabled=True).all()
 
+                    radio_manager = _state.radio_manager
                     if not radio_manager:
                         radio_manager = get_radio_manager()
                         _state.radio_manager = radio_manager
@@ -725,48 +828,95 @@ def process_commands(redis_client):
                     "success": False,
                     "error": str(e)
                 }
-        elif action == "get_spectrum":
-            # Get spectrum data for waterfall display
-            receiver = radio_manager.get_receiver(receiver_id)
-            if not receiver:
+        else:
+            # Actions below require radio_manager to be initialized
+            radio_manager = _state.radio_manager
+            if not radio_manager:
                 result = {
                     "command_id": command_id,
                     "success": False,
-                    "error": f"Receiver '{receiver_id}' not found"
+                    "error": "Radio manager not initialized"
                 }
-            else:
-                try:
-                    num_samples = command.get("num_samples", 2048)
-                    iq_samples = receiver.get_samples(num_samples=num_samples)
-                    
-                    if iq_samples is None or len(iq_samples) == 0:
-                        result = {
-                            "command_id": command_id,
-                            "success": False,
-                            "error": "No samples available from receiver"
-                        }
-                    else:
-                        # Convert complex samples to list of [real, imag] pairs
-                        samples_list = [[float(s.real), float(s.imag)] for s in iq_samples[:num_samples]]
+            elif action == "restart":
+                receiver = radio_manager.get_receiver(receiver_id)
+                if receiver:
+                    try:
+                        receiver.stop()
+                        time.sleep(0.5)
+                        receiver.start()
                         result = {
                             "command_id": command_id,
                             "success": True,
-                            "samples": samples_list,
-                            "num_samples": len(samples_list)
+                            "message": f"Receiver {receiver_id} restarted"
                         }
-                except Exception as e:
-                    logger.error(f"Failed to get spectrum for receiver {receiver_id}: {e}")
+                    except Exception as e:
+                        result = {
+                            "command_id": command_id,
+                            "success": False,
+                            "error": str(e)
+                        }
+                else:
                     result = {
                         "command_id": command_id,
                         "success": False,
-                        "error": str(e)
+                        "error": f"Receiver {receiver_id} not found"
                     }
-        else:
-            result = {
-                "command_id": command_id,
-                "success": False,
-                "error": f"Unknown action: {action}"
-            }
+            elif action == "stop":
+                receiver = radio_manager.get_receiver(receiver_id)
+                if receiver:
+                    receiver.stop()
+                    result = {"command_id": command_id, "success": True}
+                else:
+                    result = {"command_id": command_id, "success": False, "error": "Not found"}
+            elif action == "start":
+                receiver = radio_manager.get_receiver(receiver_id)
+                if receiver:
+                    receiver.start()
+                    result = {"command_id": command_id, "success": True}
+                else:
+                    result = {"command_id": command_id, "success": False, "error": "Not found"}
+            elif action == "get_spectrum":
+                # Get spectrum data for waterfall display
+                receiver = radio_manager.get_receiver(receiver_id)
+                if not receiver:
+                    result = {
+                        "command_id": command_id,
+                        "success": False,
+                        "error": f"Receiver '{receiver_id}' not found"
+                    }
+                else:
+                    try:
+                        num_samples = command.get("num_samples", 2048)
+                        iq_samples = receiver.get_samples(num_samples=num_samples)
+
+                        if iq_samples is None or len(iq_samples) == 0:
+                            result = {
+                                "command_id": command_id,
+                                "success": False,
+                                "error": "No samples available from receiver"
+                            }
+                        else:
+                            # Convert complex samples to list of [real, imag] pairs
+                            samples_list = [[float(s.real), float(s.imag)] for s in iq_samples[:num_samples]]
+                            result = {
+                                "command_id": command_id,
+                                "success": True,
+                                "samples": samples_list,
+                                "num_samples": len(samples_list)
+                            }
+                    except Exception as e:
+                        logger.error(f"Failed to get spectrum for receiver {receiver_id}: {e}")
+                        result = {
+                            "command_id": command_id,
+                            "success": False,
+                            "error": str(e)
+                        }
+            else:
+                result = {
+                    "command_id": command_id,
+                    "success": False,
+                    "error": f"Unknown action: {action}"
+                }
         
         redis_client.setex(
             f"sdr:command_result:{command_id}",
