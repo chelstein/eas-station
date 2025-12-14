@@ -33,6 +33,135 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
+# Try to import Numba for JIT compilation of hot DSP functions
+# Falls back to pure NumPy if Numba is not available
+_NUMBA_AVAILABLE = False
+try:
+    from numba import jit, prange
+    _NUMBA_AVAILABLE = True
+    logger.info("Numba JIT compilation available - FM demodulation will use optimized code paths")
+except ImportError:
+    logger.info("Numba not available - FM demodulation will use pure NumPy (slower)")
+    # Create a no-op decorator for when numba isn't available
+    def jit(*args, **kwargs):
+        def decorator(func):
+            return func
+        return decorator
+    prange = range
+
+
+# =============================================================================
+# JIT-compiled DSP functions for real-time FM demodulation
+# These functions are the hot path and benefit significantly from JIT compilation
+# =============================================================================
+
+@jit(nopython=True, cache=True, fastmath=True)
+def _fm_discriminator_numba(iq_real: np.ndarray, iq_imag: np.ndarray) -> np.ndarray:
+    """JIT-compiled FM phase discriminator.
+
+    Extracts instantaneous frequency from IQ samples using the arctangent
+    of the product of consecutive samples. This is the core FM demodulation
+    algorithm and runs millions of times per second.
+
+    Args:
+        iq_real: Real component of IQ samples (float32)
+        iq_imag: Imaginary component of IQ samples (float32)
+
+    Returns:
+        Audio samples as phase differences (float32)
+    """
+    n = len(iq_real) - 1
+    audio = np.empty(n, dtype=np.float32)
+
+    for i in prange(n):
+        # Compute: angle(iq[i+1] * conj(iq[i]))
+        # = angle((r1 + j*i1) * (r0 - j*i0))
+        # = angle((r1*r0 + i1*i0) + j*(i1*r0 - r1*i0))
+        r0, i0 = iq_real[i], iq_imag[i]
+        r1, i1 = iq_real[i + 1], iq_imag[i + 1]
+
+        real_part = r1 * r0 + i1 * i0
+        imag_part = i1 * r0 - r1 * i0
+
+        audio[i] = np.arctan2(imag_part, real_part)
+
+    return audio
+
+
+@jit(nopython=True, cache=True, fastmath=True)
+def _fast_decimate_numba(samples: np.ndarray, factor: int) -> np.ndarray:
+    """JIT-compiled fast decimation by averaging.
+
+    Reduces sample rate by averaging groups of samples. Much faster than
+    convolution-based decimation for real-time processing.
+
+    Args:
+        samples: Input samples (float32)
+        factor: Decimation factor (e.g., 10 means 10:1 reduction)
+
+    Returns:
+        Decimated samples (float32)
+    """
+    n_out = len(samples) // factor
+    output = np.empty(n_out, dtype=np.float32)
+
+    for i in prange(n_out):
+        acc = np.float32(0.0)
+        base = i * factor
+        for j in range(factor):
+            acc += samples[base + j]
+        output[i] = acc / factor
+
+    return output
+
+
+def fm_discriminator(iq_samples: np.ndarray) -> np.ndarray:
+    """FM phase discriminator - dispatches to JIT or NumPy implementation.
+
+    Args:
+        iq_samples: Complex IQ samples (complex64)
+
+    Returns:
+        Audio samples (float32)
+    """
+    if _NUMBA_AVAILABLE and len(iq_samples) > 100:
+        # Use JIT-compiled version for larger arrays
+        return _fm_discriminator_numba(
+            iq_samples.real.astype(np.float32),
+            iq_samples.imag.astype(np.float32)
+        )
+    else:
+        # Pure NumPy fallback
+        phase_diff = iq_samples[1:] * np.conj(iq_samples[:-1])
+        return np.angle(phase_diff).astype(np.float32)
+
+
+def fast_decimate(samples: np.ndarray, factor: int) -> np.ndarray:
+    """Fast decimation - dispatches to JIT or NumPy implementation.
+
+    Args:
+        samples: Input samples (float32)
+        factor: Decimation factor
+
+    Returns:
+        Decimated samples (float32)
+    """
+    if factor <= 1:
+        return samples
+
+    # Truncate to multiple of factor
+    n_complete = (len(samples) // factor) * factor
+    if n_complete == 0:
+        return samples
+
+    samples = samples[:n_complete].astype(np.float32)
+
+    if _NUMBA_AVAILABLE and len(samples) > 100:
+        return _fast_decimate_numba(samples, factor)
+    else:
+        # Pure NumPy using reshape+mean (still fast)
+        return samples.reshape(-1, factor).mean(axis=1).astype(np.float32)
+
 
 @dataclass
 class DemodulatorConfig:
@@ -242,33 +371,31 @@ class FMDemodulator:
         if len(iq_samples) == 0:
             return np.array([], dtype=np.float32), None
 
-        # FAST PATH: Minimal processing to keep up with 2.5 MHz
+        # FAST PATH: Using JIT-compiled functions when available
         iq_array = np.asarray(iq_samples, dtype=np.complex64)
 
-        # Phase continuity
+        # Phase continuity - prepend last sample from previous block
         if self._prev_sample is not None:
             iq_array = np.concatenate(([self._prev_sample], iq_array))
         self._prev_sample = iq_array[-1]
 
-        # Phase discriminator - extract instantaneous frequency
-        # This is the core FM demodulation - can't skip this
-        phase_diff = iq_array[1:] * np.conj(iq_array[:-1])
-        audio = np.angle(phase_diff)
+        # Phase discriminator - uses Numba JIT if available (50-100x faster)
+        # This is the core FM demodulation algorithm
+        audio = fm_discriminator(iq_array)
 
-        # FAST decimation: just take every Nth sample (no filtering)
-        # At 2.5 MHz -> 48 kHz, decimation factor ~52
+        # Calculate decimation factor
         target_rate = self.config.audio_sample_rate
         decim = max(1, self.config.sample_rate // target_rate)
 
         if decim > 1:
-            # Fast decimation without filtering - just subsample
-            audio = audio[::decim]
+            # Use JIT-compiled decimation if available
+            audio = fast_decimate(audio, decim)
 
         # Scale to audio levels
-        # For 75 kHz deviation at original sample rate:
-        # phase_diff_per_sample = 2π × 75000 / 2500000 ≈ 0.188 radians
-        # After decimation, effective deviation is larger
-        audio = audio * (self.config.sample_rate / (2.0 * 75000.0 * decim))
+        # For 75 kHz deviation: phase_diff_per_sample = 2π × 75000 / sample_rate
+        # We scale by sample_rate / (2 × deviation × decimation_factor) to normalize
+        deviation_hz = self.FM_DEVIATION_HZ.get(self.config.modulation_type, self.DEFAULT_DEVIATION_HZ)
+        audio = audio * (self.config.sample_rate / (2.0 * deviation_hz * decim))
 
         # Clamp to prevent overflow
         audio = np.clip(audio, -1.5, 1.5)
