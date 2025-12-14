@@ -1248,10 +1248,14 @@ echo_success "Permissions configured"
 
 echo_step "Python Environment Setup"
 
-# Create Python virtual environment with access to system packages
-# (required for python3-soapysdr which is installed via apt)
+# Create Python virtual environment
+# NOTE: We explicitly DO NOT use --system-site-packages because:
+#   1. System packages can conflict with venv packages (e.g., numpy, scipy, gevent)
+#   2. C extension conflicts cause gunicorn workers to fail with import errors
+#   3. The systemd service sets PYTHONNOUSERSITE=1 to prevent conflicts
+# If you need system packages like python3-soapysdr, install them into the venv after creation
 echo_progress "Creating Python virtual environment..."
-if ! sudo -u "$SERVICE_USER" python3 -m venv --system-site-packages "$VENV_DIR" 2>&1 | tee /tmp/venv-creation.log; then
+if ! sudo -u "$SERVICE_USER" python3 -m venv "$VENV_DIR" 2>&1 | tee /tmp/venv-creation.log; then
     echo_error "Failed to create virtual environment"
     echo_info "See /tmp/venv-creation.log for details"
     exit 1
