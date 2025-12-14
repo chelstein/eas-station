@@ -2482,43 +2482,26 @@ def api_get_health_metrics():
 def api_get_icecast_config():
     """Get Icecast rebroadcast configuration."""
     try:
-        from .environment import read_env_file
+        from app_core.icecast_settings import get_icecast_settings
 
-        env_vars = read_env_file()
-
-        def _get(key: str, default: Optional[str] = None) -> Optional[str]:
-            if key in env_vars:
-                return env_vars[key]
-            return os.environ.get(key, default)
-
-        def _get_bool(key: str, default: bool = False) -> bool:
-            value = _get(key)
-            if value is None:
-                return default
-            return str(value).strip().lower() in {"1", "true", "yes", "on"}
-
-        def _get_int(key: str, default: int) -> int:
-            try:
-                return int(_get(key, str(default)) or default)
-            except (TypeError, ValueError):
-                return default
+        settings = get_icecast_settings()
 
         config = {
-            'enabled': _get_bool('ICECAST_ENABLED', True),
-            'server': _get('ICECAST_SERVER', 'localhost'),
-            'port': _get_int('ICECAST_PORT', 8000),
-            'external_port': _get_int('ICECAST_EXTERNAL_PORT', 8001),
-            'password': _get('ICECAST_SOURCE_PASSWORD', ''),
-            'admin_user': _get('ICECAST_ADMIN_USER', ''),
-            'admin_password': _get('ICECAST_ADMIN_PASSWORD', ''),
-            'public_hostname': _get('ICECAST_PUBLIC_HOSTNAME', ''),
-            'mount': _get('ICECAST_DEFAULT_MOUNT', 'monitor.mp3'),
-            'name': _get('ICECAST_STREAM_NAME', 'EAS Station Audio'),
-            'description': _get('ICECAST_STREAM_DESCRIPTION', 'Emergency Alert System Audio Monitor'),
-            'genre': _get('ICECAST_STREAM_GENRE', 'Emergency'),
-            'bitrate': _get_int('ICECAST_STREAM_BITRATE', 128),
-            'format': (_get('ICECAST_STREAM_FORMAT', 'mp3') or 'mp3').lower(),
-            'public': _get_bool('ICECAST_STREAM_PUBLIC', False),
+            'enabled': settings.enabled,
+            'server': settings.server,
+            'port': settings.port,
+            'external_port': settings.external_port,
+            'password': settings.source_password,
+            'admin_user': settings.admin_user or '',
+            'admin_password': settings.admin_password or '',
+            'public_hostname': settings.public_hostname or '',
+            'mount': settings.default_mount,
+            'name': settings.stream_name,
+            'description': settings.stream_description,
+            'genre': settings.stream_genre,
+            'bitrate': settings.stream_bitrate,
+            'format': settings.stream_format,
+            'public': settings.stream_public,
         }
 
         return jsonify(config)
@@ -2579,54 +2562,29 @@ def api_update_icecast_config():
         enabled = bool(data.get('enabled', True))
         public = bool(data.get('public', False))
 
-        from .environment import read_env_file, write_env_file
+        from app_core.icecast_settings import update_icecast_settings, invalidate_icecast_settings_cache
 
-        env_vars = read_env_file()
-        env_vars.update({
-            'ICECAST_ENABLED': 'true' if enabled else 'false',
-            'ICECAST_SERVER': server,
-            'ICECAST_PORT': str(port),
-            'ICECAST_SOURCE_PASSWORD': password,
-            'ICECAST_ADMIN_USER': admin_user,
-            'ICECAST_ADMIN_PASSWORD': admin_password,
-            'ICECAST_PUBLIC_HOSTNAME': public_hostname,
-            'ICECAST_STREAM_NAME': name,
-            'ICECAST_STREAM_DESCRIPTION': description,
-            'ICECAST_STREAM_GENRE': genre,
-            'ICECAST_STREAM_BITRATE': str(bitrate),
-            'ICECAST_STREAM_FORMAT': format_value,
-            'ICECAST_STREAM_PUBLIC': 'true' if public else 'false',
-            'ICECAST_DEFAULT_MOUNT': mount,
+        # Update database
+        settings = update_icecast_settings({
+            'enabled': enabled,
+            'server': server,
+            'port': port,
+            'external_port': external_port,
+            'public_hostname': public_hostname,
+            'source_password': password,
+            'admin_user': admin_user,
+            'admin_password': admin_password,
+            'default_mount': mount,
+            'stream_name': name,
+            'stream_description': description,
+            'stream_genre': genre,
+            'stream_bitrate': bitrate,
+            'stream_format': format_value,
+            'stream_public': public,
         })
 
-        if external_port is not None:
-            env_vars['ICECAST_EXTERNAL_PORT'] = str(external_port)
-        elif 'ICECAST_EXTERNAL_PORT' in env_vars and data.get('external_port') in (None, ''):
-            env_vars.pop('ICECAST_EXTERNAL_PORT', None)
-
-        write_env_file(env_vars)
-
-        os.environ['ICECAST_ENABLED'] = 'true' if enabled else 'false'
-        os.environ['ICECAST_SERVER'] = server
-        os.environ['ICECAST_PORT'] = str(port)
-        os.environ['ICECAST_SOURCE_PASSWORD'] = password
-        os.environ['ICECAST_ADMIN_USER'] = admin_user
-        os.environ['ICECAST_ADMIN_PASSWORD'] = admin_password
-        os.environ['ICECAST_PUBLIC_HOSTNAME'] = public_hostname
-        os.environ['ICECAST_STREAM_FORMAT'] = format_value
-
-        if external_port is not None:
-            os.environ['ICECAST_EXTERNAL_PORT'] = str(external_port)
-
-        current_app.config.update({
-            'ICECAST_ENABLED': enabled,
-            'ICECAST_SERVER': server,
-            'ICECAST_PORT': port,
-            'ICECAST_SOURCE_PASSWORD': password,
-            'ICECAST_ADMIN_USER': admin_user,
-            'ICECAST_ADMIN_PASSWORD': admin_password,
-        })
-
+        # Invalidate cache to force reload
+        invalidate_icecast_settings_cache()
         _reload_auto_streaming_from_env()
 
         response_config = {

@@ -767,6 +767,62 @@ class HardwareSettings(db.Model):
         }
 
 
+class IcecastSettings(db.Model):
+    """Icecast streaming server configuration stored in database.
+
+    Replaces environment variables for Icecast configuration.
+    All settings are stored in a single row (id=1).
+    """
+    __tablename__ = "icecast_settings"
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    # Connection Settings
+    enabled = db.Column(db.Boolean, nullable=False, default=True)
+    server = db.Column(db.String(255), nullable=False, default='localhost')
+    port = db.Column(db.Integer, nullable=False, default=8000)
+    external_port = db.Column(db.Integer, nullable=True)  # For browser access (optional)
+    public_hostname = db.Column(db.String(255), nullable=True)  # Public hostname/IP
+
+    # Authentication
+    source_password = db.Column(db.String(255), nullable=False, default='')
+    admin_user = db.Column(db.String(255), nullable=True)
+    admin_password = db.Column(db.String(255), nullable=True)
+
+    # Stream Settings
+    default_mount = db.Column(db.String(255), nullable=False, default='monitor.mp3')
+    stream_name = db.Column(db.String(255), nullable=False, default='EAS Station Audio')
+    stream_description = db.Column(db.String(500), nullable=False, default='Emergency Alert System Audio Monitor')
+    stream_genre = db.Column(db.String(100), nullable=False, default='Emergency')
+    stream_bitrate = db.Column(db.Integer, nullable=False, default=128)
+    stream_format = db.Column(db.String(10), nullable=False, default='mp3')  # mp3 or ogg
+    stream_public = db.Column(db.Boolean, nullable=False, default=False)  # List in directory
+
+    # Metadata
+    updated_at = db.Column(db.DateTime, nullable=True, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def to_dict(self):
+        """Convert model to dictionary."""
+        return {
+            "enabled": self.enabled,
+            "server": self.server,
+            "port": self.port,
+            "external_port": self.external_port,
+            "public_hostname": self.public_hostname,
+            "source_password": self.source_password,
+            "admin_user": self.admin_user,
+            "admin_password": self.admin_password,
+            "default_mount": self.default_mount,
+            "stream_name": self.stream_name,
+            "stream_description": self.stream_description,
+            "stream_genre": self.stream_genre,
+            "stream_bitrate": self.stream_bitrate,
+            "stream_format": self.stream_format,
+            "stream_public": self.stream_public,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+
 class RadioReceiver(db.Model):
     """Persistent configuration for SDR hardware receivers.
 
