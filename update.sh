@@ -591,12 +591,43 @@ echo_success "System dependencies up to date"
 echo_step "Updating Python Dependencies"
 
 if [ -f "$INSTALL_DIR/venv/bin/pip" ]; then
-    echo_progress "Installing updated Python packages..."
+    echo_progress "Installing updated Python packages (main venv)..."
     sudo -u "$SERVICE_USER" "$INSTALL_DIR/venv/bin/pip" install --upgrade -r "$INSTALL_DIR/requirements.txt" 2>&1 | grep -E "(Successfully installed|Requirement already satisfied)" || true
-    echo_success "Dependencies updated"
+    echo_success "Main venv dependencies updated"
 else
-    echo_warning "Virtual environment not found - skipping dependency update"
+    echo_warning "Main virtual environment not found - skipping dependency update"
     echo_info "You may need to recreate the virtual environment"
+fi
+
+# Update or create SDR venv (with --system-site-packages for python3-soapysdr access)
+VENV_SDR_DIR="$INSTALL_DIR/venv-sdr"
+if [ ! -d "$VENV_SDR_DIR" ]; then
+    echo_progress "Creating SDR virtual environment (new in v2.27.12+)..."
+    if sudo -u "$SERVICE_USER" python3 -m venv --system-site-packages "$VENV_SDR_DIR" 2>&1; then
+        echo_success "SDR virtual environment created at $VENV_SDR_DIR"
+    else
+        echo_warning "Failed to create SDR venv - SDR service may not work"
+    fi
+fi
+
+if [ -f "$VENV_SDR_DIR/bin/pip" ]; then
+    echo_progress "Installing SDR service dependencies..."
+    sudo -u "$SERVICE_USER" "$VENV_SDR_DIR/bin/pip" install --upgrade pip 2>&1 | grep -E "(Successfully installed)" || true
+    if [ -f "$INSTALL_DIR/requirements-sdr.txt" ]; then
+        sudo -u "$SERVICE_USER" "$VENV_SDR_DIR/bin/pip" install --upgrade -r "$INSTALL_DIR/requirements-sdr.txt" 2>&1 | grep -E "(Successfully installed|Requirement already satisfied)" || true
+    fi
+    echo_success "SDR venv dependencies updated"
+
+    # Verify SoapySDR access
+    if "$VENV_SDR_DIR/bin/python" -c "import SoapySDR" 2>/dev/null; then
+        SOAPY_VER=$("$VENV_SDR_DIR/bin/python" -c "import SoapySDR; print(SoapySDR.getAPIVersion())" 2>/dev/null)
+        echo_success "✓ SoapySDR accessible in SDR venv (API: $SOAPY_VER)"
+    else
+        echo_warning "⚠️  SoapySDR not accessible in SDR venv"
+        echo_warning "   Install: sudo apt-get install python3-soapysdr"
+    fi
+else
+    echo_warning "SDR venv not found - SDR service may not work"
 fi
 
 # Update systemd service files
@@ -604,112 +635,16 @@ echo_step "Updating System Services"
 
 if [ -d "$INSTALL_DIR/systemd" ]; then
     echo_progress "Updating systemd service files..."
-    
-    # Detect Python and SoapySDR paths dynamically (same as install.sh)
-    echo_info "Detecting Python and SoapySDR paths..."
 
-    # Get detected paths from current Python
-    DETECTED_PATHS=$(python3 -c "import site; print(':'.join(site.getsitepackages()))" 2>/dev/null || echo "")
-
-    # IMPORTANT: Also include ALL Python version-specific paths as fallbacks
-    # SoapySDR from apt is compiled for a specific Python version and may not match the running Python
-    # This ensures compatibility across Python 3.10, 3.11, 3.12, and 3.13
-    FALLBACK_PATHS="/usr/lib/python3.13/dist-packages:/usr/lib/python3.12/dist-packages:/usr/lib/python3.11/dist-packages:/usr/lib/python3.10/dist-packages:/usr/lib/python3/dist-packages:/usr/local/lib/python3.13/dist-packages:/usr/local/lib/python3.12/dist-packages:/usr/local/lib/python3.11/dist-packages:/usr/local/lib/python3.10/dist-packages:/usr/local/lib/python3/dist-packages"
-
-    # Combine detected paths with fallbacks, removing duplicates
-    if [ -n "$DETECTED_PATHS" ]; then
-        PYTHON_SITE_PACKAGES="${DETECTED_PATHS}:${FALLBACK_PATHS}"
-    else
-        PYTHON_SITE_PACKAGES="${FALLBACK_PATHS}"
-    fi
-    SOAPY_PLUGIN_PATHS=$(python3 << 'EOF'
-import glob
-import os
-
-# Search for SoapySDR plugin directories
-search_patterns = [
-    "/usr/lib/*/SoapySDR/modules*",
-    "/usr/local/lib/*/SoapySDR/modules*",
-    "/usr/lib/SoapySDR/modules*",
-    "/usr/local/lib/SoapySDR/modules*",
-]
-
-plugin_paths = []
-for pattern in search_patterns:
-    matches = glob.glob(pattern)
-    plugin_paths.extend(matches)
-
-# Remove duplicates and sort
-plugin_paths = sorted(set(plugin_paths))
-
-if plugin_paths:
-    print(":".join(plugin_paths))
-else:
-    # Fallback to default paths if not found
-    print("/usr/lib/aarch64-linux-gnu/SoapySDR/modules0.8:/usr/lib/arm-linux-gnueabihf/SoapySDR/modules0.8:/usr/lib/x86_64-linux-gnu/SoapySDR/modules0.8:/usr/lib/SoapySDR/modules0.8")
-EOF
-)
-    
-    echo_info "Python site-packages: $PYTHON_SITE_PACKAGES"
-    echo_info "SoapySDR plugin paths: $SOAPY_PLUGIN_PATHS"
-    
-    # Copy service files
+    # Copy service files (SDR service now uses venv-sdr with --system-site-packages)
+    # This eliminates the need for complex PYTHONPATH detection
     cp "$INSTALL_DIR/systemd/"*.service /etc/systemd/system/ 2>/dev/null || true
     cp "$INSTALL_DIR/systemd/"*.target /etc/systemd/system/ 2>/dev/null || true
     cp "$INSTALL_DIR/systemd/"*.timer /etc/systemd/system/ 2>/dev/null || true
-    
-    # Update SDR service with dynamically detected paths (same as install.sh)
-    # Use @ as sed delimiter to avoid issues with paths containing /
-    echo_progress "Configuring SDR service with detected paths..."
-    
-    # Escape special characters for sed (handle &, |, @, and backslashes)
-    # Calculate once and reuse
-    PYTHONPATH_ESCAPED=$(echo "/opt/eas-station:${PYTHON_SITE_PACKAGES}" | sed 's/[@&|\\]/\\&/g')
-    SOAPY_PATH_ESCAPED=$(echo "${SOAPY_PLUGIN_PATHS}" | sed 's/[@&|\\]/\\&/g')
-    
-    if [ -f /etc/systemd/system/eas-station-sdr.service ]; then
-        # Update PYTHONPATH to include all system site-packages
-        # Handle both old hardcoded paths and any existing PYTHONPATH
-        if grep -q '^Environment="PYTHONPATH=' /etc/systemd/system/eas-station-sdr.service; then
-            sed -i "s@^Environment=\"PYTHONPATH=.*\"@Environment=\"PYTHONPATH=${PYTHONPATH_ESCAPED}\"@" /etc/systemd/system/eas-station-sdr.service
-        else
-            # Add PYTHONPATH if it doesn't exist
-            sed -i "/^Environment=\"PATH=/a Environment=\"PYTHONPATH=${PYTHONPATH_ESCAPED}\"" /etc/systemd/system/eas-station-sdr.service
-        fi
-        # Update SOAPY_SDR_PLUGIN_PATH with detected paths
-        if grep -q '^Environment="SOAPY_SDR_PLUGIN_PATH=' /etc/systemd/system/eas-station-sdr.service; then
-            sed -i "s@^Environment=\"SOAPY_SDR_PLUGIN_PATH=.*\"@Environment=\"SOAPY_SDR_PLUGIN_PATH=${SOAPY_PATH_ESCAPED}\"@" /etc/systemd/system/eas-station-sdr.service
-        else
-            # Add SOAPY_SDR_PLUGIN_PATH if it doesn't exist
-            sed -i "/^Environment=\"PATH=/a Environment=\"SOAPY_SDR_PLUGIN_PATH=${SOAPY_PATH_ESCAPED}\"" /etc/systemd/system/eas-station-sdr.service
-        fi
-    fi
-    
-    # Update audio service (also uses SDR via Redis, needs same paths for diagnostics)
-    if [ -f /etc/systemd/system/eas-station-audio.service ]; then
-        # Check if audio service has PYTHONPATH environment variable, add if missing
-        if ! grep -q '^Environment="PYTHONPATH=' /etc/systemd/system/eas-station-audio.service; then
-            # Add after the PATH environment variable
-            sed -i "/^Environment=\"PATH=/a Environment=\"PYTHONPATH=${PYTHONPATH_ESCAPED}\"" /etc/systemd/system/eas-station-audio.service
-        else
-            sed -i "s@^Environment=\"PYTHONPATH=.*\"@Environment=\"PYTHONPATH=${PYTHONPATH_ESCAPED}\"@" /etc/systemd/system/eas-station-audio.service
-        fi
-    fi
-    
+
     systemctl daemon-reload
-    echo_success "Service files updated and configured"
-    
-    # Verify SoapySDR can be imported with the configured PYTHONPATH
-    echo_progress "Verifying SoapySDR access..."
-    if PYTHONPATH="/opt/eas-station:${PYTHON_SITE_PACKAGES}" python3 -c "import SoapySDR" 2>/dev/null; then
-        SOAPY_VERSION=$(PYTHONPATH="/opt/eas-station:${PYTHON_SITE_PACKAGES}" python3 -c "import SoapySDR; print(SoapySDR.getAPIVersion())" 2>/dev/null)
-        echo_success "✓ SoapySDR accessible (API: $SOAPY_VERSION)"
-    else
-        echo_warning "⚠️  Cannot import SoapySDR with configured PYTHONPATH"
-        echo_warning "   This may cause SDR service failures"
-        echo_warning "   Check: sudo apt-get install python3-soapysdr"
-    fi
-    
+    echo_success "Service files updated"
+
     # Ensure hardware access groups exist (for services that use SupplementaryGroups)
     echo_progress "Ensuring hardware access groups exist..."
     HARDWARE_GROUPS="gpio i2c spi audio plugdev dialout"
