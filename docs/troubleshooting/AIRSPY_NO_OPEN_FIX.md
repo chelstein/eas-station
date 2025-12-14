@@ -1,5 +1,7 @@
 # Airspy "Unable to open AirSpy device" Fix
 
+✅ **VERIFIED WORKING** - Tested on Debian Trixie ARM64 (2025-12-14)
+
 ## Problem
 
 Airspy device fails to open even with root/sudo access:
@@ -20,7 +22,7 @@ The `airspy` package (which contains firmware and host utilities) was not instal
 
 While `libairspy0` (library) and `soapysdr-module-airspy` (SoapySDR plugin) were present, the device firmware and initialization tools were missing.
 
-## Solution
+## Solution ✅
 
 ### Automatic Fix (Fresh Install)
 
@@ -45,7 +47,7 @@ Then restart the SDR service:
 sudo systemctl restart eas-station-sdr.service
 ```
 
-## Verification
+## Verification ✅
 
 1. **Test with airspy_info** (should now work):
    ```bash
@@ -65,11 +67,22 @@ sudo systemctl restart eas-station-sdr.service
    SoapySDRUtil --probe="driver=airspy"
    ```
    
-   Expected output:
+   Expected output (VERIFIED WORKING):
    ```
-   Found device 0
-     driver = airspy
-     serial = b58069dc39399513
+   Probe device driver=airspy
+
+   ----------------------------------------------------
+   -- Device identification
+   ----------------------------------------------------
+     driver=Airspy
+     hardware=Airspy
+     serial=b58069dc39399513
+
+   ----------------------------------------------------
+   -- Peripheral summary
+   ----------------------------------------------------
+     Channels: 1 Rx, 0 Tx
+     Timestamps: NO
      ...
    ```
 
@@ -77,6 +90,33 @@ sudo systemctl restart eas-station-sdr.service
    ```bash
    lsusb -d 1d50:60a1 -v
    ```
+
+## Verified Test Results
+
+**System**: Raspberry Pi (Debian Trixie), ARM64  
+**Date**: 2025-12-14  
+**Package Version**: airspy 1.0.10-3+b3
+
+**Before Fix**:
+```
+$ SoapySDRUtil --probe="driver=airspy"
+Error probing device: Unable to open AirSpy device with serial b58069dc39399513
+```
+
+**After Fix** (install airspy + restart service):
+```
+$ SoapySDRUtil --probe="driver=airspy"
+Probe device driver=airspy
+  driver=Airspy
+  hardware=Airspy
+  serial=b58069dc39399513
+  Channels: 1 Rx, 0 Tx
+  Full gain range: [0, 45] dB
+  Full freq range: [24, 1800] MHz
+  Sample rates: 10, 2.5 MSps
+```
+
+✅ **FIX CONFIRMED WORKING**
 
 ## Related Packages
 
@@ -106,4 +146,6 @@ Without the firmware, SoapySDR can enumerate the USB device but cannot initializ
 ---
 
 **Fixed in**: Version 2.27.9  
-**Date**: 2025-12-14
+**Date**: 2025-12-14  
+**Verified**: ✅ Working on Raspberry Pi (Debian Trixie ARM64)
+
