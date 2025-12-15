@@ -421,7 +421,8 @@ class FMDemodulator:
                 logger.debug(f"Stereo pilot detected: strength={stereo_pilot_strength:.2f}")
 
         # RBDS extraction (if enabled) - RBDS subcarrier at 57 kHz needs sample rate > 114 kHz
-        if self._rbds_enabled and self.config.sample_rate >= 114000:
+        # NOTE: Check intermediate_rate (not final audio sample_rate) since RBDS is in the FM multiplex
+        if self._rbds_enabled and self._intermediate_rate >= 114000:
             # Extract RBDS from multiplex signal before decimation destroys the 57kHz subcarrier
             # Create sample indices for RBDS timing recovery
             sample_indices = np.arange(len(multiplex), dtype=np.float64) + self._sample_index
