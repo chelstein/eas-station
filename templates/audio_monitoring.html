@@ -871,7 +871,7 @@ function renderAudioSources(fullRender = true) {
                                             <span class="font-monospace small">${escapeHtml(source.metrics.metadata.rbds_pi_code)}</span>
                                         </div>
                                     ` : ''}
-                                    ${source.metrics.metadata.rbds_program_type_name || source.metrics.metadata.rbds_pty !== undefined && source.metrics.metadata.rbds_pty !== null ? `
+                                    ${(source.metrics.metadata.rbds_program_type_name || (source.metrics.metadata.rbds_pty !== undefined && source.metrics.metadata.rbds_pty !== null)) ? `
                                         <div class="d-flex justify-content-between mb-1">
                                             <span class="text-muted">Program Type (PTY):</span>
                                             <span>
@@ -887,7 +887,7 @@ function renderAudioSources(fullRender = true) {
                                         </div>
                                     ` : ''}
                                     
-                                    ${source.metrics.metadata.rbds_tp !== undefined && source.metrics.metadata.rbds_tp !== null || source.metrics.metadata.rbds_ta !== undefined && source.metrics.metadata.rbds_ta !== null ? `
+                                    ${((source.metrics.metadata.rbds_tp !== undefined && source.metrics.metadata.rbds_tp !== null) || (source.metrics.metadata.rbds_ta !== undefined && source.metrics.metadata.rbds_ta !== null)) ? `
                                         <hr class="my-2">
                                         <div class="text-muted mb-1"><strong>Traffic Information</strong></div>
                                     ` : ''}
