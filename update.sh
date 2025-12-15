@@ -579,7 +579,7 @@ echo ""
 
 # Detect GPIO hardware presence (Raspberry Pi or other SBCs with GPIO)
 HAS_GPIO=false
-if [ -e /dev/gpiochip0 ] || [ -e /dev/gpiomem ] || grep -qi "raspberry\|bcm2" /proc/cpuinfo 2>/dev/null; then
+if [ -e /dev/gpiochip0 ] || [ -e /dev/gpiomem ] || grep -qiE "raspberry|bcm2[0-9]|broadcom" /proc/cpuinfo 2>/dev/null; then
     HAS_GPIO=true
     echo_info "GPIO hardware detected - will install GPIO support packages"
 else
