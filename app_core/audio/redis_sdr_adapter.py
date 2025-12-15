@@ -340,3 +340,27 @@ class RedisSDRSourceAdapter(AudioSourceAdapter):
                 # Override stereo_enabled with actual detection for display
                 if modulation_supports_stereo:
                     self.metrics.metadata['stereo_enabled'] = status.stereo_pilot_locked
+                
+                # Extract RBDS/RDS data if available
+                if status.rbds_data:
+                    rbds = status.rbds_data
+                    # Add all RBDS fields to metadata for frontend display
+                    if rbds.ps_name:
+                        self.metrics.metadata['rbds_ps_name'] = rbds.ps_name
+                    if rbds.pi_code:
+                        self.metrics.metadata['rbds_pi_code'] = rbds.pi_code
+                    if rbds.radio_text:
+                        self.metrics.metadata['rbds_radio_text'] = rbds.radio_text
+                    if rbds.pty is not None:
+                        self.metrics.metadata['rbds_pty'] = rbds.pty
+                        # Map PTY code to human-readable name
+                        from .sources import RBDS_PROGRAM_TYPES
+                        self.metrics.metadata['rbds_program_type_name'] = RBDS_PROGRAM_TYPES.get(rbds.pty, f"Unknown ({rbds.pty})")
+                    if rbds.tp is not None:
+                        self.metrics.metadata['rbds_tp'] = rbds.tp
+                    if rbds.ta is not None:
+                        self.metrics.metadata['rbds_ta'] = rbds.ta
+                    if rbds.ms is not None:
+                        self.metrics.metadata['rbds_ms'] = rbds.ms
+                    # Add timestamp for when RBDS was last updated
+                    self.metrics.metadata['rbds_last_updated'] = time.time()

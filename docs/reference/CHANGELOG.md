@@ -7,6 +7,14 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **RBDS Data Not Displaying in Frontend** - Fixed RBDS metadata not showing in audio-monitor
+  - RBDS decoder in `demodulation.py` was working correctly, extracting PS name, PI code, radio text, etc.
+  - Bug: `redis_sdr_adapter.py` extracted stereo pilot data from demodulator status but NOT RBDS data
+  - Added extraction of all RBDS fields from `DemodulatorStatus.rbds_data` to metrics metadata
+  - RBDS fields now published: ps_name, pi_code, radio_text, pty, tp, ta, ms, last_updated
+  - Frontend template already had complete RBDS display support (no changes needed)
+  - Verified SDR++ can decode RBDS confirms hardware/signal is good
+  - VERSION bumped to 2.27.24 (bug fix)
 - **Audio Bitrate/Sample Rate Mismatch** - Fixed slow/fast audio playback in web monitoring
   - Removed hardcoded 44.1kHz resampling in web audio stream endpoint
   - Audio now streams at native source sample rate (32kHz, 44.1kHz, 48kHz, etc.)
