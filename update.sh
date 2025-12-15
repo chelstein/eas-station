@@ -579,7 +579,7 @@ echo ""
 
 # Detect GPIO hardware presence (Raspberry Pi or other SBCs with GPIO)
 HAS_GPIO=false
-if [ -e /dev/gpiochip0 ] || [ -e /dev/gpiomem ] || grep -qiE "raspberry|bcm2[0-9]|broadcom" /proc/cpuinfo 2>/dev/null; then
+if [ -e /dev/gpiochip0 ] || [ -e /dev/gpiomem ] || grep -qiE "raspberry|bcm2[0-9]{3,4}|broadcom" /proc/cpuinfo 2>/dev/null; then
     HAS_GPIO=true
     echo_info "GPIO hardware detected - will install GPIO support packages"
 else
@@ -617,6 +617,9 @@ BASE_PACKAGES=(
 )
 
 # Add GPIO packages only if hardware is present
+# i2c-tools: Command-line I2C bus utilities (for sensors, displays)
+# python3-smbus: Python bindings for SMBus/I2C communication
+# python3-lgpio: Raspberry Pi 5-compatible GPIO library (replaces deprecated RPi.GPIO)
 if [ "$HAS_GPIO" = true ]; then
     BASE_PACKAGES+=(
         i2c-tools
