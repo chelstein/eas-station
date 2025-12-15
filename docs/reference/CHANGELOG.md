@@ -7,6 +7,14 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **Audio Bitrate/Sample Rate Mismatch** - Fixed slow/fast audio playback in web monitoring
+  - Removed hardcoded 44.1kHz resampling in web audio stream endpoint
+  - Audio now streams at native source sample rate (32kHz, 44.1kHz, 48kHz, etc.)
+  - Prevents pitch/speed mismatch when source rate differs from hardcoded 44.1kHz
+  - Critical for iHeartMedia and other web streams that may use different sample rates
+  - EAS decoder still gets properly resampled 16kHz feed via ResamplingBroadcastAdapter
+  - WAV header now correctly matches actual audio sample rate
+  - VERSION bumped to 2.27.23 (bug fix)
 - **Migration Chain Broken** - Fixed Alembic migration revision mismatch causing KeyError
   - Migration `20251214_add_hardware_settings.py` incorrectly referenced `down_revision = '20251205_add_audio_sample_rate'`
   - Actual revision ID was `'20251205_audio_sample_rate'` (without `add_` prefix)
