@@ -81,6 +81,7 @@ If you're new to EAS Station, start here:
 ### General Troubleshooting
 | Document | Description |
 |----------|-------------|
+| **[502/504 Gateway Errors](troubleshooting/TROUBLESHOOTING_504_TIMEOUT)** | **Complete guide to website timeout and gateway errors** |
 | [Database Issues](troubleshooting/DATABASE_CONSISTENCY_FIXES) | PostgreSQL troubleshooting |
 | [Systemd Target Cycling](troubleshooting/SYSTEMD_TARGET_CYCLING) | Fix repeated service restarts |
 | [Firewall Requirements](troubleshooting/FIREWALL_REQUIREMENTS) | Network ports and firewall setup |
@@ -98,6 +99,12 @@ If you're new to EAS Station, start here:
 | [Security & Bug Fixes](security/SECURITY_AND_BUG_FIXES) | Security fixes and patches |
 | [Terms of Use](policies/TERMS_OF_USE) | Usage terms |
 | [Privacy Policy](policies/PRIVACY_POLICY) | Privacy information |
+
+## 📦 Archive
+
+| Document | Description |
+|----------|-------------|
+| [Historical Fixes](archive/) | Archived bug fixes and root cause analyses from development history |
 
 ## 🛡️ Reliability & Compliance
 
@@ -131,7 +138,8 @@ docs/
 ├── reference/       # 5 reference materials
 ├── roadmap/         # 1 roadmap document
 ├── policies/        # 2 legal documents
-└── process/         # 2 process and reliability guides
+├── process/         # 2 process and reliability guides
+└── archive/         # Historical fixes and deprecated documentation
 ```
 
 ## 🔍 Finding Information

@@ -6,6 +6,23 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+### Changed
+- **Documentation Organization** - Cleaned up and reorganized all documentation
+  - Moved all historical fix documents from root directory to `docs/archive/historical-fixes/`
+  - Moved `docs/TROUBLESHOOTING_504_TIMEOUT.md` to `docs/troubleshooting/` subdirectory
+  - Moved `docs/ENV_FILE_MIGRATION.md` to `docs/troubleshooting/`
+  - Moved `docs/Installation-Changes.md` and `docs/PostgreSQL-15-Fix.md` to `docs/installation/`
+  - Moved `docs/QUICKSTART-BARE-METAL.md` to `docs/installation/`
+  - Moved `docs/POLLER_MIGRATION_GUIDE.md` and `docs/SMART_SETUP.md` to `docs/guides/`
+  - Moved `docs/FUTURE_ENHANCEMENTS.md` to `docs/roadmap/`
+  - Moved `docs/SECURITY_FEATURES.md` to `docs/security/`
+  - Created `docs/archive/` directory with README for historical documentation
+  - Updated `docs/INDEX.md` to reference new file locations
+  - Root directory now contains only README.md and essential scripts (install.sh, update.sh, uninstall.sh, diagnose.sh)
+  - Documentation root (`docs/`) now contains only INDEX.md and README.md
+  - All documentation properly organized into category subdirectories
+  - VERSION bumped to 2.27.17 (documentation cleanup)
+
 ### Fixed
 - **S.M.A.R.T. Invalid Argument Error** - Fixed smartctl compatibility issue with `-n standby` flag
   - The `-n standby` flag was being added for all device types except 'nvme' and 'auto'
