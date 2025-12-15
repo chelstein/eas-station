@@ -6,6 +6,17 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+### Removed
+- **Internal Documentation Cleanup** - Removed internal planning and working memory documents (16 total files)
+  - **Architecture planning docs**: Deleted REWRITE_PLAN_SUMMARY.md, REWRITE_ARCHITECTURE.md, REWRITE_ROADMAP.md, CODEBASE_INVENTORY.md, CODE_MODERNIZATION_RECOMMENDATIONS.md, APP_PY_REFACTORING_PLAN.md, LIBRARY_REPLACEMENT_AUDIT.md, LIBRARY_REPLACEMENT_IMPLEMENTATION_PLAN.md, SDR_ARCHITECTURE_REFACTORING.md, MIGRATION_GUIDE.md (planning for theoretical rewrite, not current system)
+  - **Internal working memory**: Deleted CLAUDE_MEMORY.md, SDR_WORKING_MEMORY.md (AI agent internal context, not user documentation)
+  - **Dated status reports**: Deleted CRITICAL_ISSUES_STATUS.md, VALIDATION_REPORT.md, ARCHITECTURE_REVIEW_BUGS.md (issues already fixed or addressed)
+  - **Auto-generated stats**: Deleted static/docs/REPO_STATS.md (auto-generated, outdated: 2025-11-29)
+  - **Old templates**: Deleted templates/settings/network_old.html (unreferenced old template file)
+  - These documents were internal/temporary and not user-facing documentation
+  - Active architecture docs remain in docs/architecture/ (SYSTEM_ARCHITECTURE.md, THEORY_OF_OPERATION.md, etc.)
+  - VERSION bumped to 2.27.18 (documentation cleanup)
+
 ### Changed
 - **Documentation Organization** - Cleaned up and reorganized all documentation
   - Moved `docs/TROUBLESHOOTING_504_TIMEOUT.md` to `docs/troubleshooting/` subdirectory
