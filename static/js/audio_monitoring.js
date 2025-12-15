@@ -1238,6 +1238,7 @@ async function addAudioSource() {
         silence_threshold_db: silenceThreshold,
         silence_duration_seconds: silenceDuration,
         device_params: deviceParams,
+        auto_start: document.getElementById('autoStart')?.checked || false,
     };
 
     console.log('Creating audio source with config:', requestBody);
