@@ -655,6 +655,7 @@ function renderAudioSources(fullRender = true) {
 
                         <!-- Buffer Utilization Indicator (hidden for SDR sources which don't use buffering) -->
                         <!-- Note: source.type contains the source_type value from database ('sdr', 'redis_sdr', etc.) -->
+                        <!-- Exclude buffer indicator for all SDR-based source types since they don't use buffering -->
                         ${source.type !== 'sdr' && source.type !== 'redis_sdr' ? `
                         <div class="mt-2">
                             <div class="d-flex justify-content-between align-items-center mb-1">

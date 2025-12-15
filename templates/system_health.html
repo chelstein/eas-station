@@ -2288,8 +2288,8 @@
                     healthParts.push(`Spare: ${spare}%`);
                 }
                 
-                // If there's an error, show it instead of "Healthy" only if it's a real failure
-                // Don't show "Healthy" alongside error messages like "Invalid command line arguments"
+                // Display error message instead of "Healthy" when present
+                // All errors are shown as warnings since they indicate data collection issues
                 let healthInfo = '';
                 if (data.error) {
                     healthInfo = `<span class="text-warning"><i class="fas fa-exclamation-triangle"></i> ${escapeHtml(String(data.error))}</span>`;
