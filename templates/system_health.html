@@ -1265,7 +1265,11 @@
                                         {% if device.available_spare_threshold is not none %}{% set health_parts = health_parts + ['Threshold: ' ~ '%.0f'|format(device.available_spare_threshold) ~ '%'] %}{% endif %}
                                         {% if device.percentage_used is not none %}{% set health_parts = health_parts + ['Wear: ' ~ '%.1f'|format(device.percentage_used) ~ '%'] %}{% endif %}
                                         {% if device.num_error_log_entries is not none %}{% set health_parts = health_parts + ['Error Log: ' ~ device.num_error_log_entries] %}{% endif %}
-                                        {% if health_parts %}<div class="hardware-meta">{{ health_parts|join(' • ') }}</div>{% endif %}
+                                        {% if device.error %}
+                                            <div class="hardware-meta text-warning"><i class="fas fa-exclamation-triangle"></i> {{ device.error }}</div>
+                                        {% elif health_parts %}
+                                            <div class="hardware-meta">{{ health_parts|join(' • ') }}</div>
+                                        {% endif %}
 
                                         {% set nvme_ns = namespace(lines=[]) %}
                                         {% set nvme_written = device.get('data_units_written_bytes') %}
@@ -1291,7 +1295,6 @@
                                         {% if nvme_ns.lines %}
                                             <div class="hardware-meta">NVMe: {{ nvme_ns.lines|join(' • ') }}</div>
                                         {% endif %}
-                                        {% if device.error %}<div class="hardware-meta text-warning"><i class="fas fa-exclamation-triangle"></i> {{ device.error }}</div>{% endif %}
                                     </div>
                                 {% endfor %}
                                 {% if smart_devices|length > 5 %}
@@ -2284,11 +2287,19 @@
                     const spare = toNumber(data.available_spare, 0).toFixed(0);
                     healthParts.push(`Spare: ${spare}%`);
                 }
-                const healthInfo = healthParts.length
-                    ? healthParts.join('<br>')
-                    : '<span class="text-success">✓ Healthy</span>';
+                
+                // If there's an error, show it instead of "Healthy" only if it's a real failure
+                // Don't show "Healthy" alongside error messages like "Invalid command line arguments"
+                let healthInfo = '';
+                if (data.error) {
+                    healthInfo = `<span class="text-warning"><i class="fas fa-exclamation-triangle"></i> ${escapeHtml(String(data.error))}</span>`;
+                } else if (healthParts.length) {
+                    healthInfo = healthParts.join('<br>');
+                } else {
+                    healthInfo = '<span class="text-success">✓ Healthy</span>';
+                }
 
-                // Additional info (NVMe-specific, errors)
+                // Additional info (NVMe-specific) - exclude error since it's already shown in healthInfo
                 const additionalInfo = [];
                 if (data.data_units_written_bytes != null) {
                     additionalInfo.push(`Written: ${formatBytes(data.data_units_written_bytes)}`);
@@ -2299,9 +2310,7 @@
                 if (data.power_cycle_count != null) {
                     additionalInfo.push(`Power Cycles: ${formatNumber(data.power_cycle_count) || escapeHtml(String(data.power_cycle_count))}`);
                 }
-                if (data.error) {
-                    additionalInfo.push(`<span class="text-warning"><i class="fas fa-exclamation-triangle"></i> ${escapeHtml(String(data.error))}</span>`);
-                }
+                // Note: error is already shown in healthInfo, so we don't add it here
                 const additionalInfoHtml = additionalInfo.length
                     ? `<small class="text-muted">${additionalInfo.join(' • ')}</small>`
                     : '';
