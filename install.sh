@@ -247,12 +247,33 @@ if ! command -v whiptail &> /dev/null; then
     echo_error "whiptail is required for interactive installation"
     echo_info "whiptail provides the blue/gray dialog boxes for interactive configuration"
     echo_info "Installing whiptail package..."
-    apt-get update > /dev/null 2>&1
-    apt-get install -y whiptail > /dev/null 2>&1
+    
+    # Disable exit-on-error temporarily
+    set +e
+    apt-get update
+    UPDATE_EXIT=$?
+    
+    if [ $UPDATE_EXIT -eq 0 ]; then
+        apt-get install -y whiptail
+        INSTALL_EXIT=$?
+    else
+        INSTALL_EXIT=1
+    fi
+    
+    # Re-enable exit-on-error
+    set -e
+    
+    if [ $UPDATE_EXIT -ne 0 ] || [ $INSTALL_EXIT -ne 0 ]; then
+        echo_error "Failed to install whiptail automatically"
+        echo_info "Please install manually and re-run installer:"
+        echo_info "  ${BOLD}sudo apt-get update && sudo apt-get install whiptail${NC}"
+        exit 1
+    fi
     
     if ! command -v whiptail &> /dev/null; then
-        echo_error "Failed to install whiptail. Please install manually:"
-        echo_error "  sudo apt-get install whiptail"
+        echo_error "whiptail installation succeeded but command not found"
+        echo_info "This is unusual. Please install manually:"
+        echo_info "  ${BOLD}sudo apt-get install whiptail${NC}"
         exit 1
     fi
     echo_success "whiptail installed successfully"
@@ -1073,7 +1094,33 @@ echo_success "✓ Configuration complete! Starting installation..."
 echo_step "Update Package Lists"
 
 echo_progress "Updating package lists..."
-apt-get update > /dev/null 2>&1
+echo ""
+
+# Disable exit-on-error temporarily to provide better error messages
+set +e
+apt-get update
+APT_UPDATE_EXIT=$?
+set -e
+
+echo ""
+
+if [ $APT_UPDATE_EXIT -ne 0 ]; then
+    echo_error "Failed to update package lists (exit code: $APT_UPDATE_EXIT)"
+    echo ""
+    echo_info "Common causes:"
+    echo_info "  • No internet connection"
+    echo_info "  • Package repository mirrors are down"
+    echo_info "  • DNS resolution issues"
+    echo ""
+    echo_info "Troubleshooting steps:"
+    echo_info "  1. Check internet connection: ${BOLD}ping -c 3 8.8.8.8${NC}"
+    echo_info "  2. Check DNS: ${BOLD}ping -c 3 archive.ubuntu.com${NC}"
+    echo_info "  3. Try again later if mirrors are temporarily unavailable"
+    echo ""
+    echo_error "Cannot continue installation without package list updates"
+    exit 1
+fi
+
 echo_success "Package lists updated"
 
 echo_step "Install System Dependencies"
@@ -1090,6 +1137,10 @@ echo -e "  ${DIM}• SDR libraries (RTL-SDR, Airspy, SoapySDR)${NC}"
 echo -e "  ${DIM}• SSL certificate tools (Certbot)${NC}"
 echo ""
 echo_progress "Downloading and installing packages (please wait)..."
+echo ""
+
+# Disable exit-on-error temporarily for package installation to provide better error messages
+set +e
 
 apt-get install -y \
     python3 \
@@ -1139,9 +1190,34 @@ apt-get install -y \
     python3-lgpio \
     git \
     curl \
-    wget > /dev/null 2>&1
+    wget
+
+APT_EXIT_CODE=$?
+
+# Re-enable exit-on-error
+set -e
 
 echo ""
+
+if [ $APT_EXIT_CODE -ne 0 ]; then
+    echo_error "Failed to install system dependencies (exit code: $APT_EXIT_CODE)"
+    echo ""
+    echo_info "Common causes:"
+    echo_info "  • Network connection issues (cannot reach package mirrors)"
+    echo_info "  • Package repository unavailable or outdated"
+    echo_info "  • Conflicting packages already installed"
+    echo_info "  • Insufficient disk space"
+    echo ""
+    echo_info "Troubleshooting steps:"
+    echo_info "  1. Check internet connection: ${BOLD}ping -c 3 archive.ubuntu.com${NC}"
+    echo_info "  2. Update package lists: ${BOLD}sudo apt-get update${NC}"
+    echo_info "  3. Check disk space: ${BOLD}df -h${NC}"
+    echo_info "  4. Try installing packages individually to identify the problem"
+    echo ""
+    echo_error "Installation cannot continue without required dependencies"
+    exit 1
+fi
+
 echo_success "✓ System dependencies installed successfully"
 
 # Verify SDR package installation (especially critical for Airspy and Python 3.13)
