@@ -6,6 +6,20 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+### Fixed
+- **Update Script Freezing** - Fixed update.sh hanging at "Updating System Dependencies" step
+  - Added `DEBIAN_FRONTEND=noninteractive` to prevent apt-get prompts during updates
+  - Changed output from `/dev/null` to `-qq` (quiet but shows errors)
+  - Added progress messages so users know the update is still running
+  - Script now completes without user interaction required
+  - VERSION bumped to 2.27.20 (bug fix)
+- **Alembic Migration Idempotency** - Fixed migrations hanging when tables already exist
+  - Added table existence checks to hardware_settings and icecast_settings migrations
+  - Migrations now skip table creation if table already exists (idempotent)
+  - Prevents "table already exists" errors that cause update.sh to hang
+  - Fixes issue where update would stop after "Context impl PostgresqlImpl" message
+  - VERSION bumped to 2.27.19 (bug fix)
+
 ### Removed
 - **Internal Documentation Cleanup** - Removed internal planning and working memory documents (16 total files)
   - **Architecture planning docs**: Deleted REWRITE_PLAN_SUMMARY.md, REWRITE_ARCHITECTURE.md, REWRITE_ROADMAP.md, CODEBASE_INVENTORY.md, CODE_MODERNIZATION_RECOMMENDATIONS.md, APP_PY_REFACTORING_PLAN.md, LIBRARY_REPLACEMENT_AUDIT.md, LIBRARY_REPLACEMENT_IMPLEMENTATION_PLAN.md, SDR_ARCHITECTURE_REFACTORING.md, MIGRATION_GUIDE.md (planning for theoretical rewrite, not current system)
