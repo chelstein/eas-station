@@ -6,6 +6,31 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+### Changed
+- **Documentation Organization** - Cleaned up and reorganized all documentation
+  - Moved `docs/TROUBLESHOOTING_504_TIMEOUT.md` to `docs/troubleshooting/` subdirectory
+  - Moved `docs/ENV_FILE_MIGRATION.md` to `docs/troubleshooting/`
+  - Moved `docs/Installation-Changes.md` and `docs/PostgreSQL-15-Fix.md` to `docs/installation/`
+  - Moved `docs/QUICKSTART-BARE-METAL.md` to `docs/installation/`
+  - Moved `docs/POLLER_MIGRATION_GUIDE.md` and `docs/SMART_SETUP.md` to `docs/guides/`
+  - Moved `docs/FUTURE_ENHANCEMENTS.md` to `docs/roadmap/`
+  - Moved `docs/SECURITY_FEATURES.md` to `docs/security/`
+  - Updated `docs/INDEX.md` to reference new file locations and added more documentation links
+  - Root directory now contains only README.md and essential scripts (install.sh, update.sh, uninstall.sh, diagnose.sh)
+  - Documentation root (`docs/`) now contains only INDEX.md and README.md
+  - All documentation properly organized into category subdirectories
+  - VERSION bumped to 2.27.17 (documentation cleanup)
+
+### Removed
+- **Historical Fix Documentation** - Eliminated one-off fix documents from repository (27 total files)
+  - **Root directory fixes**: Deleted STARTUP_FIX_SUMMARY.md, DEPLOYMENT_INSTRUCTIONS.md, FIXES_APPLIED.md, WEBSITE_504_FIX.md, FIX_FOR_TIMEOUT_ISSUE.md, DEPLOYED_SYSTEM_FIX.md, QUICK_FIX.md, QUICK_DATABASE_FIX.md, ROOT_CAUSE_ANALYSIS.md, FIX_SUMMARY_OLD.md, ISO_BUILD_READY.md, PATH_AUDIT.md, ISSUE_ANALYSIS.md
+  - **Architecture fixes**: Deleted docs/architecture/AUDIO_PLAYER_FIX.md, SDR_FIX_SUMMARY.md, CHANGES_SUMMARY.md, SDR_ANALYSIS_2025-12-08.md, IMPLEMENTATION_COMPLETE.md
+  - **Troubleshooting fixes**: Deleted docs/troubleshooting/AIRSPY_CONTAINER_FIX.md, AIRSPY_NO_OPEN_FIX.md, FRONTEND_AIRSPY_ERROR_AFTER_FIX.md, CONTAINERIZATION_FIXES.md, AIRSPY_SERVICE_FILE_NOT_UPDATED.md, ROOT_CAUSE_AIRSPY_BARE_METAL.md, PASSWORD_MISMATCH.md
+  - **Security fixes**: Deleted docs/security/SECURITY_SUMMARY.md
+  - **Installation fixes**: Deleted docs/installation/CHANGES_SUMMARY.md
+  - These documents described specific bugs and fixes that are no longer relevant
+  - Current troubleshooting information is maintained in `docs/troubleshooting/` directory
+
 ### Fixed
 - **S.M.A.R.T. Invalid Argument Error** - Fixed smartctl compatibility issue with `-n standby` flag
   - The `-n standby` flag was being added for all device types except 'nvme' and 'auto'

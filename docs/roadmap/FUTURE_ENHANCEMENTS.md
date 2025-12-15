@@ -17,7 +17,7 @@ Radio captures from CAP poller are currently disabled in containerized deploymen
 **Proposed Solution:**
 - Send capture requests to sdr-service via Redis (`sdr:commands`)
 - Receive capture results via Redis (`sdr:command_result:{command_id}`)
-- See `docs/troubleshooting/CONTAINERIZATION_FIXES.md` for architecture details
+- Use Redis command queue pattern for better separation of concerns
 
 **Benefits:**
 - Enable radio capture coordination in containerized deployments

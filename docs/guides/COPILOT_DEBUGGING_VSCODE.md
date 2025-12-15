@@ -566,7 +566,7 @@ timeout 10 curl https://api.weather.gov/alerts/active
 Once you're comfortable with the basics:
 1. Read the full debugging guide: `docs/guides/PYCHARM_DEBUGGING.md`
 2. Explore the architecture docs: `docs/architecture/SYSTEM_ARCHITECTURE.md`
-3. Check the troubleshooting guide: `docs/TROUBLESHOOTING_504_TIMEOUT.md`
+3. Check the troubleshooting guide: `docs/troubleshooting/TROUBLESHOOTING_504_TIMEOUT.md`
 4. Review the agent guidelines: `docs/development/AGENTS.md`
 
 ## Quick Reference Card
