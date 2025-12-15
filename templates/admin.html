@@ -7167,7 +7167,18 @@
         // Refresh zone info
         async function refreshZoneInfo() {
             try {
-                const response = await fetch('/admin/zones/info');
+                const response = await fetch('/admin/zones/info', {
+                    headers: {
+                        'Accept': 'application/json'
+                    }
+                });
+                
+                // Check if response is JSON before parsing
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    throw new Error('Expected JSON response but got ' + (contentType || 'unknown type'));
+                }
+                
                 const data = await response.json();
                 
                 if (response.ok) {
@@ -7212,9 +7223,20 @@
                     if (zoneReloadBtn) {
                         zoneReloadBtn.disabled = !data.exists;
                     }
+                } else {
+                    // Handle error response
+                    console.error('Zone info request failed:', response.status, data.error || data.message);
+                    if (data.error === 'authentication_required') {
+                        showToast('Please log in to continue', 'warning');
+                    } else if (data.error === 'permission_denied') {
+                        showToast('Permission denied: ' + (data.message || 'admin.settings required'), 'danger');
+                    } else {
+                        showToast('Failed to load zone info: ' + (data.error || 'Unknown error'), 'danger');
+                    }
                 }
             } catch (error) {
                 console.error('Error refreshing zone info:', error);
+                showToast('Error loading zone information. Check console for details.', 'danger');
             }
         }
 
