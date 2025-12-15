@@ -458,7 +458,7 @@ function updateSourcePlayer(source) {
         
         // Switch if preference changed
         if (preferIcecast && currentStreamType !== 'icecast' && newIcecastUrl) {
-            console.debug(`Switching ${source.name} to Icecast stream`);
+            // Switching to Icecast stream
             audioEl.dataset.streamType = 'icecast';
             audioEl.src = newIcecastUrl;
             audioEl.dataset.suppressPauseMessage = '1';
@@ -466,11 +466,11 @@ function updateSourcePlayer(source) {
             
             if (wasPlaying) {
                 audioEl.play().catch(err => {
-                    console.debug(`Could not resume playback after switch to Icecast:`, err.message);
+                    // Could not resume playback after switch to Icecast
                 });
             }
         } else if (!preferIcecast && currentStreamType === 'icecast') {
-            console.debug(`Switching ${source.name} to proxy stream`);
+            // Switching to proxy stream
             switchToProxyStream(audioEl, source.name, {
                 autoplay: wasPlaying,
                 reason: 'Icecast stream no longer available',
@@ -1018,7 +1018,7 @@ function initializeAudioPlayers(playingStates = {}, currentTimes = {}) {
 
         // If player was already initialized and playing, don't interrupt it
         if (!isNewPlayer && !audioEl.paused && audioEl.currentTime > 0) {
-            console.debug(`Preserving active playback for ${source.name}`);
+            // Preserving active playback
             return;
         }
 
@@ -1043,12 +1043,12 @@ function initializeAudioPlayers(playingStates = {}, currentTimes = {}) {
                     try {
                         audioEl.currentTime = resumeTime;
                     } catch (err) {
-                        console.debug(`Unable to restore playback position for ${source.name}:`, err.message);
+                        // Unable to restore playback position
                     }
                 }
 
                 audioEl.play().catch(err => {
-                    console.debug(`Could not auto-resume playback for ${source.name}:`, err.message);
+                    // Could not auto-resume playback
                 });
             }
 
@@ -1141,7 +1141,7 @@ function switchToProxyStream(audioEl, sourceName, options = {}) {
             playPromise.then(() => {
                 setPlayerStatus(sourceName, 'Streaming.', 'success');
             }).catch(err => {
-                console.debug(`Autoplay blocked for ${sourceName}:`, err.message);
+                // Autoplay blocked - user interaction required
                 setPlayerStatus(sourceName, 'Ready. Press play to listen.', 'muted');
             });
         }
@@ -1219,7 +1219,7 @@ function onAudioPlaybackError(event) {
     const lastErrorTime = parseInt(audioEl.dataset.lastErrorTime || '0', 10);
     const now = Date.now();
     if (now - lastErrorTime < 10000) {
-        console.debug(`Debouncing error recovery for ${sourceName} (last error was ${(now - lastErrorTime) / 1000}s ago)`);
+        // Debouncing error recovery
         return;
     }
     audioEl.dataset.lastErrorTime = String(now);
@@ -1677,7 +1677,6 @@ async function stopSource(sourceName) {
 
 function updateLevelMetersFromSnapshot(snapshot) {
     if (!snapshot || !Array.isArray(snapshot.live_metrics)) {
-        console.debug('No live_metrics in snapshot');
         return;
     }
 
@@ -1692,7 +1691,6 @@ function updateLevelMetersFromSnapshot(snapshot) {
         const rmsLabel = document.getElementById(`rms-label-${safeId}`);
 
         if (!peakBar) {
-            console.debug(`VU meter elements not found for source_id: ${metric.source_id} (safeId: ${safeId})`);
             return;
         }
 
@@ -1770,12 +1768,6 @@ function updateLevelMetersFromSnapshot(snapshot) {
         }
         updatedCount++;
     });
-
-    // Throttle debug logging to avoid console spam (log at most once every 5 seconds)
-    if (now - lastVuMeterDebugLog > DEBUG_LOG_INTERVAL_MS) {
-        console.debug(`Updated ${updatedCount} VU meters from ${snapshot.live_metrics.length} metrics`);
-        lastVuMeterDebugLog = now;
-    }
 }
 
 // ============================================================================
@@ -1815,7 +1807,7 @@ function updateEASMonitorDisplay(status) {
         if (lastValidEASMonitorState) {
             // Use cached state silently - don't show error for transient Redis issues
             status = lastValidEASMonitorState;
-            console.debug('Using cached EAS monitor state (Redis data unavailable)');
+            // Using cached EAS monitor state
         } else {
             // No cached state and no valid data - show error
             const errorDiv = document.getElementById('eas-monitor-error');
@@ -2255,7 +2247,7 @@ function connectAudioMonitoringSocket() {
     });
 
     audioMonitoringSocket.on('connect', () => {
-        console.info('Connected to audio monitoring WebSocket');
+        // Connected to audio monitoring WebSocket
     });
 
     audioMonitoringSocket.on('audio_monitoring_update', payload => {
@@ -2336,24 +2328,20 @@ function initializeWebSocket() {
         });
 
         socket.on('connect', function() {
-            console.log('✓ WebSocket connected - real-time updates active (100ms intervals)');
             socketConnected = true;
 
             // Stop polling since we're using WebSocket now
             if (levelIntervalHandle) {
                 clearInterval(levelIntervalHandle);
                 levelIntervalHandle = null;
-                console.log('  Stopped audio level polling (using WebSocket)');
             }
             if (easMonitorIntervalHandle) {
                 clearInterval(easMonitorIntervalHandle);
                 easMonitorIntervalHandle = null;
-                console.log('  Stopped EAS monitor polling (using WebSocket)');
             }
         });
 
         socket.on('disconnect', function() {
-            console.log('⚠ WebSocket disconnected - falling back to polling (5s intervals)');
             socketConnected = false;
 
             // Fall back to polling if WebSocket disconnects
@@ -2386,25 +2374,11 @@ function initializeWebSocket() {
                 if (data.eas_monitor != null) {
                     updateEASMonitorDisplay(data.eas_monitor);
                 }
-
-                // Log broadcast queue stats for diagnostics (throttled to avoid console spam)
-                if (data.audio_metrics && data.audio_metrics.broadcast_stats) {
-                    const stats = data.audio_metrics.broadcast_stats;
-                    const now = Date.now();
-                    if (now - lastBroadcastQueueDebugLog > DEBUG_LOG_INTERVAL_MS) {
-                        console.debug(
-                            `Broadcast queue: ${stats.subscribers} subscribers, ` +
-                            `${stats.published_chunks} published, ${stats.dropped_chunks} dropped`
-                        );
-                        lastBroadcastQueueDebugLog = now;
-                    }
-                }
             } catch (error) {
                 console.error('Error processing WebSocket update:', error);
             }
         });
-
-        console.log('WebSocket initialization complete');
+    
     } catch (error) {
         console.error('Failed to initialize WebSocket:', error);
         // Fall back to polling if WebSocket initialization fails
@@ -2458,7 +2432,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Enable real-time VU meters for smooth 60Hz updates
     if (typeof enableRealtimeVUMeters === 'function') {
         enableRealtimeVUMeters();
-        console.debug('✓ Real-time VU meters enabled (60Hz Web Audio API)');
+        // Real-time VU meters enabled
     }
 });
 
