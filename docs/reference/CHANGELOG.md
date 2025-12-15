@@ -6,6 +6,34 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+### Fixed
+- **S.M.A.R.T. "Invalid command line arguments"** - Fixed smartctl compatibility issue with older versions
+  - Changed `--json=o` flag to `--json` for broader smartctl version support
+  - The `=o` option was added in smartctl 7.2+ and caused "Invalid command line arguments" error on older systems
+  - S.M.A.R.T. disk health monitoring now works on systems with smartctl < 7.2
+  - VERSION bumped to 2.27.13 (bug fix)
+- **Audio Monitor Chipmunk Sound** - Fixed demodulated FM audio playing too fast in web browser
+  - Enabled sample rate resampling to consistent 44.1 kHz for web playback
+  - FM sources output at 48 kHz but browsers expected 44.1 kHz, causing 1.09x speed increase
+  - Web streams now resample all sources to standard 44.1 kHz regardless of source rate
+  - Fixes high-pitched "chipmunk" audio from FM radio sources
+  - VERSION bumped to 2.27.13 (bug fix)
+- **Web Player Stability** - Improved audio streaming stability for continuous playback
+  - Added `Accept-Ranges: none` header to prevent browser seeking in live streams
+  - Added `Connection: keep-alive` header to maintain streaming connection
+  - These headers prevent browsers from closing streams after buffering attempts
+  - VERSION bumped to 2.27.13 (bug fix)
+
+### Added
+- **FM Stereo Pilot & RBDS Display** - Added real-time FM broadcast metadata to audio monitor
+  - Shows stereo pilot tone lock status and signal strength (19 kHz pilot detection)
+  - Displays stereo/mono audio mode indicator
+  - Shows RBDS (Radio Broadcast Data System) station name, radio text, and program type
+  - Displays PI (Program Identification) code and traffic program/alert flags
+  - Shows music/speech content type flag
+  - Backend already collected this data; now visible in UI
+  - VERSION bumped to 2.27.13 (feature)
+
 ### Changed
 - **SDR Service Architecture Simplification** - SDR service now uses separate venv with system site-packages
   - Created `venv-sdr` with `--system-site-packages` flag for direct python3-soapysdr access

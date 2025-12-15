@@ -1150,6 +1150,8 @@ def main():
                             'Expires': '0',
                             'X-Content-Type-Options': 'nosniff',
                             'Access-Control-Allow-Origin': '*',
+                            'Accept-Ranges': 'none',  # Disable seeking/range requests
+                            'Connection': 'keep-alive',  # Keep connection alive
                         }
                     )
                 except Exception as exc:
