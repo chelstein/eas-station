@@ -238,6 +238,16 @@ fi
 
 echo_success "System detection complete"
 
+# Detect GPIO hardware presence (Raspberry Pi or other SBCs with GPIO)
+# This must be done early since it's used in both package installation and hardware setup
+HAS_GPIO=false
+if [ -e /dev/gpiochip0 ] || [ -e /dev/gpiomem ] || grep -qi "raspberry\|bcm2" /proc/cpuinfo 2>/dev/null; then
+    HAS_GPIO=true
+    echo_info "GPIO hardware detected (will be available for configuration)"
+else
+    echo_info "No GPIO hardware detected (VM or standard PC)"
+fi
+
 # ====================================================================
 # COLLECT MINIMAL CONFIGURATION
 # ====================================================================
@@ -1145,17 +1155,6 @@ echo -e "  ${DIM}• FFmpeg (audio processing)${NC}"
 echo -e "  ${DIM}• SDR libraries (RTL-SDR, Airspy, SoapySDR)${NC}"
 echo -e "  ${DIM}• SSL certificate tools (Certbot)${NC}"
 echo ""
-
-# Detect GPIO hardware presence (Raspberry Pi or other SBCs with GPIO)
-HAS_GPIO=false
-if [ -e /dev/gpiochip0 ] || [ -e /dev/gpiomem ] || grep -qi "raspberry\|bcm2" /proc/cpuinfo 2>/dev/null; then
-    HAS_GPIO=true
-    echo_info "GPIO hardware detected - will install GPIO support packages"
-else
-    echo_info "No GPIO hardware detected (VM or standard PC) - skipping GPIO packages"
-fi
-echo ""
-
 echo_progress "Downloading and installing packages (please wait)..."
 echo ""
 
@@ -1217,7 +1216,7 @@ if [ "$HAS_GPIO" = true ]; then
     python3-lgpio"
 fi
 
-# Install all packages
+# Install all packages (note: intentionally unquoted for word splitting)
 apt-get install -y $BASE_PACKAGES $GPIO_PACKAGES
 
 APT_EXIT_CODE=$?

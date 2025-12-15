@@ -626,6 +626,7 @@ fi
 # This ensures new dependencies added in updates are installed
 # Use DEBIAN_FRONTEND=noninteractive to prevent prompts from package configuration
 # Show output (no -qq) so user can see progress and diagnose any issues
+# Note: Variables intentionally unquoted to allow word splitting for package names
 DEBIAN_FRONTEND=noninteractive apt-get install -y $BASE_PACKAGES $GPIO_PACKAGES
 
 echo ""
