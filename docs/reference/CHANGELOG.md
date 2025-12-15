@@ -7,6 +7,30 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **High CPU Usage in eas_monitoring_service** - Fixed excessive logging hammering CPU
+  - RBDS decoder was logging at INFO level every time data was decoded (multiple times per second)
+  - Each log write causes disk I/O and string formatting overhead
+  - Changed to only log when RBDS data actually changes (PS name, radio text, etc.)
+  - Added `_last_logged_rbds` to track last logged state
+  - Prevents CPU from spiking to 125% during RBDS reception
+  - RBDS data still flows to frontend metrics in real-time (no functional change)
+  - VERSION bumped to 2.27.25 (bug fix)
+- **RBDS Data Not Displaying in Frontend** - Fixed RBDS metadata not showing in audio-monitor
+  - RBDS decoder in `demodulation.py` was working correctly, extracting PS name, PI code, radio text, etc.
+  - Bug: `redis_sdr_adapter.py` extracted stereo pilot data from demodulator status but NOT RBDS data
+  - Added extraction of all RBDS fields from `DemodulatorStatus.rbds_data` to metrics metadata
+  - RBDS fields now published: ps_name, pi_code, radio_text, pty, tp, ta, ms, last_updated
+  - Frontend template already had complete RBDS display support (no changes needed)
+  - Verified SDR++ can decode RBDS confirms hardware/signal is good
+  - VERSION bumped to 2.27.24 (bug fix)
+- **Audio Bitrate/Sample Rate Mismatch** - Fixed slow/fast audio playback in web monitoring
+  - Removed hardcoded 44.1kHz resampling in web audio stream endpoint
+  - Audio now streams at native source sample rate (32kHz, 44.1kHz, 48kHz, etc.)
+  - Prevents pitch/speed mismatch when source rate differs from hardcoded 44.1kHz
+  - Critical for iHeartMedia and other web streams that may use different sample rates
+  - EAS decoder still gets properly resampled 16kHz feed via ResamplingBroadcastAdapter
+  - WAV header now correctly matches actual audio sample rate
+  - VERSION bumped to 2.27.23 (bug fix)
 - **Migration Chain Broken** - Fixed Alembic migration revision mismatch causing KeyError
   - Migration `20251214_add_hardware_settings.py` incorrectly referenced `down_revision = '20251205_add_audio_sample_rate'`
   - Actual revision ID was `'20251205_audio_sample_rate'` (without `add_` prefix)

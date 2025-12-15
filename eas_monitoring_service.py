@@ -1001,15 +1001,17 @@ def main():
             
             @stream_app.route('/api/audio/stream/<source_name>')
             def stream_audio(source_name):
-                """Stream live audio as downsampled WAV for low bandwidth + zero latency.
+                """Stream live audio at native sample rate for accurate playback.
+                
+                CRITICAL: Audio is streamed at the source's native sample rate to prevent
+                pitch/speed mismatch issues. No resampling is performed for web playback.
+                
+                - Uses source's native sample rate (e.g., 32kHz, 44.1kHz, 48kHz)
+                - Mono output to reduce bandwidth (50% reduction)
+                - Uncompressed PCM = ZERO latency (critical for real-time monitoring)
+                - EAS decoder gets separately resampled 16kHz feed (ResamplingBroadcastAdapter)
                 
                 VU meters get levels from /api/audio/metrics (published to Redis every 5s).
-                This stream is for audio playback, so we downsample to reduce bandwidth
-                while maintaining real-time zero-latency streaming:
-                - Original: 44.1kHz stereo = 176 KB/s per source
-                - Downsampled: 22.05kHz mono = 44 KB/s per source (4x smaller)
-                - Still uncompressed = ZERO latency (critical for Pi performance and SAME decoding)
-                - No CPU overhead for transcoding (Pi can focus on SAME decoding)
                 """
                 import struct
                 import io
@@ -1017,10 +1019,13 @@ def main():
                 from app_core.audio.ingest import AudioSourceStatus
                 
                 def generate_wav_stream(adapter, source_name):
-                    """Generator that yields downsampled WAV chunks.
+                    """Generator that yields WAV chunks at native sample rate.
 
                     Uses BroadcastQueue subscription to avoid competing with other audio consumers
                     (Icecast, EAS monitor, etc). Each subscriber gets independent copy of all audio chunks.
+                    
+                    No resampling is performed - audio is passed through at native rate to ensure
+                    accurate pitch and playback speed.
                     """
                     import queue as queue_module
 
@@ -1031,26 +1036,23 @@ def main():
                     # We'll detect actual channels from the audio data shape instead of relying on config.
                     config_channels = adapter.config.channels
 
-                    # Stream configuration: Always resample to standard browser-friendly rate
-                    # Different sources may output at different rates (44.1k, 48k, etc)
-                    # Browser expects consistent rate matching WAV header
-                    stream_sample_rate = 44100  # Standard browser audio rate
+                    # Stream configuration: Use source's native sample rate for playback
+                    # CRITICAL: Do NOT resample audio for web playback - use native bitrate
+                    # Only the EAS decoder needs 16kHz (handled by ResamplingBroadcastAdapter)
+                    # Resampling for playback causes pitch/speed mismatch issues
+                    stream_sample_rate = source_sample_rate  # Use native source rate
                     stream_channels = 1  # Mono saves 50% bandwidth
                     bits_per_sample = 16
 
-                    # Check if resampling is needed and pre-compute the ratio
-                    needs_resample = (source_sample_rate != stream_sample_rate)
+                    # Validate source sample rate
                     if source_sample_rate <= 0:
                         logger.error(f"Invalid source sample rate: {source_sample_rate} Hz. Using 44100 Hz as fallback.")
                         source_sample_rate = 44100
-                        needs_resample = False
-                    resample_ratio = stream_sample_rate / source_sample_rate if source_sample_rate > 0 else 1.0
+                        stream_sample_rate = 44100
                     
-                    if needs_resample:
-                        logger.debug(
-                            f"Web stream will resample from {source_sample_rate}Hz to {stream_sample_rate}Hz "
-                            f"(ratio={resample_ratio:.4f})"
-                        )
+                    logger.debug(
+                        f"Web stream for {source_name}: {stream_sample_rate}Hz (native rate, no resampling)"
+                    )
 
                     # Subscribe to BroadcastQueue for non-competitive audio access
                     # Use unique subscriber ID per connection
@@ -1109,16 +1111,7 @@ def main():
                                     # Unexpected format - flatten to mono
                                     audio_chunk = audio_chunk.flatten()
 
-                                # Resample to target sample rate using linear interpolation
-                                # This ensures the output matches the WAV header sample rate exactly,
-                                # fixing the high-pitched squeal caused by sample rate mismatch
-                                if needs_resample and len(audio_chunk) > 0:
-                                    new_length = max(int(len(audio_chunk) * resample_ratio), 1)
-                                    old_indices = np.arange(len(audio_chunk))
-                                    new_indices = np.linspace(0, len(audio_chunk) - 1, new_length)
-                                    audio_chunk = np.interp(new_indices, old_indices, audio_chunk).astype(np.float32)
-
-                                # Convert to int16 PCM
+                                # Convert to int16 PCM (no resampling - use native sample rate)
                                 pcm_data = (np.clip(audio_chunk, -1.0, 1.0) * 32767).astype(np.int16)
                                 yield pcm_data.tobytes()
 

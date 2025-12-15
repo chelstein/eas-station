@@ -322,6 +322,8 @@ class FMDemodulator:
         self._rbds_partial_group: List[int] = []
         # RBDS uses differential BPSK, so we must keep the previous symbol polarity
         self._rbds_prev_symbol: float = 1.0
+        # Track last logged RBDS data to avoid excessive logging (CPU hammer)
+        self._last_logged_rbds: Optional[str] = None
 
     def _calculate_filter_taps(self, cutoff_hz: float, sample_rate: int, transition_bw_ratio: float = 0.125) -> int:
         """Calculate appropriate number of filter taps for given parameters.
@@ -429,10 +431,12 @@ class FMDemodulator:
             try:
                 rbds_data = self._extract_rbds(multiplex, sample_indices)
                 if rbds_data:
-                    logger.info(
-                        f"RBDS: PS='{rbds_data.ps_name}' RT='{rbds_data.radio_text}' "
-                        f"PTY={rbds_data.pty} PI={rbds_data.pi_code}"
-                    )
+                    # Only log when RBDS data actually changes (not every demodulation cycle)
+                    # This prevents CPU hammering from excessive logging
+                    rbds_str = f"PS='{rbds_data.ps_name}' RT='{rbds_data.radio_text}' PTY={rbds_data.pty} PI={rbds_data.pi_code}"
+                    if rbds_str != self._last_logged_rbds:
+                        logger.info(f"RBDS: {rbds_str}")
+                        self._last_logged_rbds = rbds_str
             except Exception as e:
                 logger.warning(f"RBDS extraction error: {e}", exc_info=True)
 
