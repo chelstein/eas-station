@@ -571,16 +571,17 @@ fi
 echo_step "Updating System Dependencies"
 echo_progress "Updating package lists..."
 
-apt-get update -qq
+apt-get update > /dev/null 2>&1
 
 echo_progress "Installing any new system packages..."
-echo_info "This may take a few minutes..."
+echo_info "This may take a few minutes. Output shown below:"
 echo ""
 
 # Install all required system dependencies (matches install.sh)
 # This ensures new dependencies added in updates are installed
-# Use DEBIAN_FRONTEND=noninteractive to prevent prompts
-DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
+# Use DEBIAN_FRONTEND=noninteractive to prevent prompts from package configuration
+# Show output (no -qq) so user can see progress and diagnose any issues
+DEBIAN_FRONTEND=noninteractive apt-get install -y \
     python3-dev \
     build-essential \
     libpq-dev \

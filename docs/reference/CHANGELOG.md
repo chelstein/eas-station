@@ -8,11 +8,11 @@ tracks releases under the 2.x series.
 
 ### Fixed
 - **Update Script Freezing** - Fixed update.sh hanging at "Updating System Dependencies" step
-  - Added `DEBIAN_FRONTEND=noninteractive` to prevent apt-get prompts during updates
-  - Changed output from `/dev/null` to `-qq` (quiet but shows errors)
-  - Added progress messages so users know the update is still running
-  - Script now completes without user interaction required
-  - VERSION bumped to 2.27.20 (bug fix)
+  - Removed `-qq` flag from apt-get install to show actual progress output (was suppressing all output making it appear frozen)
+  - Kept `DEBIAN_FRONTEND=noninteractive` to prevent interactive prompts from package configuration
+  - Now shows full apt-get output so users can see installation progress and diagnose any issues
+  - Matches install.sh behavior for consistency
+  - VERSION bumped to 2.27.21 (bug fix)
 - **Alembic Migration Idempotency** - Fixed migrations hanging when tables already exist
   - Added table existence checks to hardware_settings and icecast_settings migrations
   - Migrations now skip table creation if table already exists (idempotent)
