@@ -1026,7 +1026,10 @@ def main():
 
                     # Source configuration
                     source_sample_rate = adapter.config.sample_rate
-                    source_channels = adapter.config.channels
+                    # NOTE: config.channels may be 2 (stereo) but actual audio from FM demodulator
+                    # is currently mono (L+R only, no stereo decoding implemented yet).
+                    # We'll detect actual channels from the audio data shape instead of relying on config.
+                    config_channels = adapter.config.channels
 
                     # Stream configuration: Always resample to standard browser-friendly rate
                     # Different sources may output at different rates (44.1k, 48k, etc)
@@ -1093,14 +1096,18 @@ def main():
                                 if not isinstance(audio_chunk, np.ndarray):
                                     audio_chunk = np.array(audio_chunk, dtype=np.float32)
 
-                                # Convert stereo to mono if needed (mix channels)
-                                if source_channels > 1 and stream_channels == 1:
-                                    # Ensure chunk length is divisible by channels
-                                    remainder = len(audio_chunk) % source_channels
-                                    if remainder != 0:
-                                        audio_chunk = audio_chunk[:-remainder]
-                                    if len(audio_chunk) > 0:
-                                        audio_chunk = np.mean(audio_chunk.reshape(-1, source_channels), axis=1)
+                                # Detect actual audio format (mono 1D array vs stereo 2D array)
+                                # FM demodulator currently outputs mono even with stereo pilot detection
+                                if audio_chunk.ndim == 2 and stream_channels == 1:
+                                    # True stereo (Nx2 array) - mix to mono
+                                    actual_channels = audio_chunk.shape[1]
+                                    audio_chunk = np.mean(audio_chunk, axis=1)
+                                elif audio_chunk.ndim == 1:
+                                    # Already mono - no conversion needed
+                                    pass
+                                else:
+                                    # Unexpected format - flatten to mono
+                                    audio_chunk = audio_chunk.flatten()
 
                                 # Resample to target sample rate using linear interpolation
                                 # This ensures the output matches the WAV header sample rate exactly,

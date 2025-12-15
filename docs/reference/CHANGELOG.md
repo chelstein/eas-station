@@ -7,16 +7,18 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **Critical Audio Chipmunk Bug** - Fixed severe audio speed issue (2x speed, not 1.09x as previously calculated)
+  - Root cause: FM demodulator outputs mono audio but config reported 2 channels (stereo)
+  - Streaming code incorrectly treated mono samples as interleaved stereo pairs
+  - This caused 48000 mono samples to be interpreted as 24000 stereo samples
+  - Browser played 24000 samples at 48kHz rate = 2x speed = severe chipmunk effect
+  - Fixed by detecting actual audio shape (1D vs 2D array) instead of trusting config
+  - NOTE: FM stereo decoding (L-R separation) not yet implemented; only pilot detection works
+  - VERSION bumped to 2.27.14 (critical bug fix)
 - **S.M.A.R.T. "Invalid command line arguments"** - Fixed smartctl compatibility issue with older versions
   - Changed `--json=o` flag to `--json` for broader smartctl version support
   - The `=o` option was added in smartctl 7.2+ and caused "Invalid command line arguments" error on older systems
   - S.M.A.R.T. disk health monitoring now works on systems with smartctl < 7.2
-  - VERSION bumped to 2.27.13 (bug fix)
-- **Audio Monitor Chipmunk Sound** - Fixed demodulated FM audio playing too fast in web browser
-  - Enabled sample rate resampling to consistent 44.1 kHz for web playback
-  - FM sources output at 48 kHz but browsers expected 44.1 kHz, causing 1.09x speed increase
-  - Web streams now resample all sources to standard 44.1 kHz regardless of source rate
-  - Fixes high-pitched "chipmunk" audio from FM radio sources
   - VERSION bumped to 2.27.13 (bug fix)
 - **Web Player Stability** - Improved audio streaming stability for continuous playback
   - Added `Accept-Ranges: none` header to prevent browser seeking in live streams
