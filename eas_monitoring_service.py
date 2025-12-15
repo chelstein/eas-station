@@ -1037,6 +1037,10 @@ def main():
 
                     # Check if resampling is needed and pre-compute the ratio
                     needs_resample = (source_sample_rate != stream_sample_rate)
+                    if source_sample_rate <= 0:
+                        logger.error(f"Invalid source sample rate: {source_sample_rate} Hz. Using 44100 Hz as fallback.")
+                        source_sample_rate = 44100
+                        needs_resample = False
                     resample_ratio = stream_sample_rate / source_sample_rate if source_sample_rate > 0 else 1.0
                     
                     if needs_resample:

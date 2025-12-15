@@ -837,7 +837,7 @@ function renderAudioSources(fullRender = true) {
                                                         <i class="fas fa-check-circle"></i> Locked
                                                     </span>
                                                     ${source.metrics.metadata.stereo_pilot_strength !== undefined ? `
-                                                        <span class="text-muted ms-2 small">${Math.round(source.metrics.metadata.stereo_pilot_strength * 100)}%</span>
+                                                        <span class="text-muted ms-2 small">${Math.round(Math.max(0, Math.min(1, source.metrics.metadata.stereo_pilot_strength)) * 100)}%</span>
                                                     ` : ''}
                                                 ` : `
                                                     <span class="badge bg-secondary">
