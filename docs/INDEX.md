@@ -80,7 +80,6 @@ If you're new to EAS Station, start here:
 | [SDR Audio Tuning Issues](troubleshooting/SDR_AUDIO_TUNING_ISSUES) | Audio-specific SDR troubleshooting |
 | [SDR Waterfall Issues](troubleshooting/SDR_WATERFALL_TROUBLESHOOTING) | Waterfall display troubleshooting |
 | [SDR Streaming Issues](troubleshooting/SDR_STREAMING_ISSUES_ANALYSIS) | SDR streaming analysis |
-| [Airspy Container Fix](troubleshooting/AIRSPY_CONTAINER_FIX) | Legacy Docker SDR issues |
 | [Audio SDR Issues](troubleshooting/AUDIO_SDR_ISSUES_EXPLAINED) | SDR audio problems explained |
 
 ### General Troubleshooting
@@ -91,7 +90,6 @@ If you're new to EAS Station, start here:
 | [Environment File Migration](troubleshooting/ENV_FILE_MIGRATION) | Systemd environment file JSON parsing errors |
 | [Database Issues](troubleshooting/DATABASE_CONSISTENCY_FIXES) | PostgreSQL troubleshooting |
 | [Database Authentication](troubleshooting/DATABASE_AUTH_FIX) | Database password and auth issues |
-| [Password Mismatch](troubleshooting/PASSWORD_MISMATCH) | Password authentication troubleshooting |
 | [Systemd Target Cycling](troubleshooting/SYSTEMD_TARGET_CYCLING) | Fix repeated service restarts |
 | [Firewall Requirements](troubleshooting/FIREWALL_REQUIREMENTS) | Network ports and firewall setup |
 | [IPv6 Connectivity](troubleshooting/FIX_IPV6_CONNECTIVITY) | IPv6 troubleshooting |
