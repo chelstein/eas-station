@@ -569,13 +569,19 @@ fi
 
 # Update system dependencies (after code pull so new deps are included)
 echo_step "Updating System Dependencies"
-echo_progress "Installing any new system packages..."
+echo_progress "Updating package lists..."
 
 apt-get update > /dev/null 2>&1
 
+echo_progress "Installing any new system packages..."
+echo_info "This may take a few minutes. Output shown below:"
+echo ""
+
 # Install all required system dependencies (matches install.sh)
 # This ensures new dependencies added in updates are installed
-apt-get install -y \
+# Use DEBIAN_FRONTEND=noninteractive to prevent prompts from package configuration
+# Show output (no -qq) so user can see progress and diagnose any issues
+DEBIAN_FRONTEND=noninteractive apt-get install -y \
     python3-dev \
     build-essential \
     libpq-dev \
@@ -603,8 +609,9 @@ apt-get install -y \
     libairspy0 \
     i2c-tools \
     python3-smbus \
-    python3-lgpio > /dev/null 2>&1
+    python3-lgpio
 
+echo ""
 echo_success "System dependencies up to date"
 
 # Update Python dependencies
