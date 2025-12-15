@@ -587,47 +587,50 @@ else
 fi
 echo ""
 
-# Build base package list
-BASE_PACKAGES="python3-dev \
-    build-essential \
-    libpq-dev \
-    libev-dev \
-    libevent-dev \
-    libffi-dev \
-    libssl-dev \
-    libxml2-dev \
-    libxslt1-dev \
-    libjpeg-dev \
-    zlib1g-dev \
-    libpng-dev \
-    libfreetype6-dev \
-    ffmpeg \
-    espeak \
-    libespeak-ng1 \
-    libusb-1.0-0 \
-    libusb-1.0-0-dev \
-    python3-numpy \
-    python3-soapysdr \
-    soapysdr-tools \
-    rtl-sdr \
-    soapysdr-module-rtlsdr \
-    soapysdr-module-airspy \
-    libairspy0"
+# Build base package list as array for safe expansion
+BASE_PACKAGES=(
+    python3-dev
+    build-essential
+    libpq-dev
+    libev-dev
+    libevent-dev
+    libffi-dev
+    libssl-dev
+    libxml2-dev
+    libxslt1-dev
+    libjpeg-dev
+    zlib1g-dev
+    libpng-dev
+    libfreetype6-dev
+    ffmpeg
+    espeak
+    libespeak-ng1
+    libusb-1.0-0
+    libusb-1.0-0-dev
+    python3-numpy
+    python3-soapysdr
+    soapysdr-tools
+    rtl-sdr
+    soapysdr-module-rtlsdr
+    soapysdr-module-airspy
+    libairspy0
+)
 
 # Add GPIO packages only if hardware is present
-GPIO_PACKAGES=""
 if [ "$HAS_GPIO" = true ]; then
-    GPIO_PACKAGES="i2c-tools \
-    python3-smbus \
-    python3-lgpio"
+    BASE_PACKAGES+=(
+        i2c-tools
+        python3-smbus
+        python3-lgpio
+    )
 fi
 
 # Install all required system dependencies (matches install.sh)
 # This ensures new dependencies added in updates are installed
 # Use DEBIAN_FRONTEND=noninteractive to prevent prompts from package configuration
 # Show output (no -qq) so user can see progress and diagnose any issues
-# Note: Variables intentionally unquoted to allow word splitting for package names
-DEBIAN_FRONTEND=noninteractive apt-get install -y $BASE_PACKAGES $GPIO_PACKAGES
+# Array expansion is safe and prevents command injection
+DEBIAN_FRONTEND=noninteractive apt-get install -y "${BASE_PACKAGES[@]}"
 
 echo ""
 echo_success "System dependencies up to date"

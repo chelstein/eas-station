@@ -1161,63 +1161,66 @@ echo ""
 # Disable exit-on-error temporarily for package installation to provide better error messages
 set +e
 
-# Build base package list
-BASE_PACKAGES="python3 \
-    python3-pip \
-    python3-venv \
-    python3-dev \
-    build-essential \
-    gcc \
-    g++ \
-    make \
-    libpq-dev \
-    libev-dev \
-    libevent-dev \
-    libffi-dev \
-    libssl-dev \
-    libxml2-dev \
-    libxslt1-dev \
-    libjpeg-dev \
-    zlib1g-dev \
-    libpng-dev \
-    libfreetype6-dev \
-    postgresql \
-    postgresql-contrib \
-    postgis \
-    postgresql-17-postgis-3 \
-    redis-server \
-    nginx \
-    certbot \
-    python3-certbot-nginx \
-    ffmpeg \
-    espeak \
-    libespeak-ng1 \
-    ca-certificates \
-    libusb-1.0-0 \
-    libusb-1.0-0-dev \
-    usbutils \
-    python3-numpy \
-    python3-soapysdr \
-    soapysdr-tools \
-    rtl-sdr \
-    soapysdr-module-rtlsdr \
-    soapysdr-module-airspy \
-    airspy \
-    libairspy0 \
-    git \
-    curl \
-    wget"
+# Build base package list as array for safe expansion
+BASE_PACKAGES=(
+    python3
+    python3-pip
+    python3-venv
+    python3-dev
+    build-essential
+    gcc
+    g++
+    make
+    libpq-dev
+    libev-dev
+    libevent-dev
+    libffi-dev
+    libssl-dev
+    libxml2-dev
+    libxslt1-dev
+    libjpeg-dev
+    zlib1g-dev
+    libpng-dev
+    libfreetype6-dev
+    postgresql
+    postgresql-contrib
+    postgis
+    postgresql-17-postgis-3
+    redis-server
+    nginx
+    certbot
+    python3-certbot-nginx
+    ffmpeg
+    espeak
+    libespeak-ng1
+    ca-certificates
+    libusb-1.0-0
+    libusb-1.0-0-dev
+    usbutils
+    python3-numpy
+    python3-soapysdr
+    soapysdr-tools
+    rtl-sdr
+    soapysdr-module-rtlsdr
+    soapysdr-module-airspy
+    airspy
+    libairspy0
+    git
+    curl
+    wget
+)
 
 # Add GPIO packages only if hardware is present
-GPIO_PACKAGES=""
 if [ "$HAS_GPIO" = true ]; then
-    GPIO_PACKAGES="i2c-tools \
-    python3-smbus \
-    python3-lgpio"
+    BASE_PACKAGES+=(
+        i2c-tools
+        python3-smbus
+        python3-lgpio
+    )
 fi
 
-# Install all packages (note: intentionally unquoted for word splitting)
-apt-get install -y $BASE_PACKAGES $GPIO_PACKAGES
+# Install all packages (array expansion is safe and prevents injection)
+apt-get install -y "${BASE_PACKAGES[@]}"
 
 APT_EXIT_CODE=$?
 
