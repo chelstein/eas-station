@@ -7,6 +7,11 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **Audio Monitor UI Fixes** - Fixed three display issues on audio monitoring page
+  - RBDS metadata now properly displays when available (added null check for source.metrics)
+  - S.M.A.R.T. health display no longer shows both "✓ Healthy" and error message simultaneously
+  - SDR sources no longer show buffer utilization indicator (added check for 'redis_sdr' source type)
+  - VERSION bumped to 2.27.15 (bug fix)
 - **Critical Audio Chipmunk Bug** - Fixed severe audio speed issue (2x speed, not 1.09x as previously calculated)
   - Root cause: FM demodulator outputs mono audio but config reported 2 channels (stereo)
   - Streaming code incorrectly treated mono samples as interleaved stereo pairs
