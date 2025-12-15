@@ -8,7 +8,6 @@ tracks releases under the 2.x series.
 
 ### Changed
 - **Documentation Organization** - Cleaned up and reorganized all documentation
-  - Moved all historical fix documents from root directory to `docs/archive/historical-fixes/`
   - Moved `docs/TROUBLESHOOTING_504_TIMEOUT.md` to `docs/troubleshooting/` subdirectory
   - Moved `docs/ENV_FILE_MIGRATION.md` to `docs/troubleshooting/`
   - Moved `docs/Installation-Changes.md` and `docs/PostgreSQL-15-Fix.md` to `docs/installation/`
@@ -16,12 +15,18 @@ tracks releases under the 2.x series.
   - Moved `docs/POLLER_MIGRATION_GUIDE.md` and `docs/SMART_SETUP.md` to `docs/guides/`
   - Moved `docs/FUTURE_ENHANCEMENTS.md` to `docs/roadmap/`
   - Moved `docs/SECURITY_FEATURES.md` to `docs/security/`
-  - Created `docs/archive/` directory with README for historical documentation
-  - Updated `docs/INDEX.md` to reference new file locations
+  - Updated `docs/INDEX.md` to reference new file locations and added more documentation links
   - Root directory now contains only README.md and essential scripts (install.sh, update.sh, uninstall.sh, diagnose.sh)
   - Documentation root (`docs/`) now contains only INDEX.md and README.md
   - All documentation properly organized into category subdirectories
   - VERSION bumped to 2.27.17 (documentation cleanup)
+
+### Removed
+- **Historical Fix Documentation** - Eliminated one-off fix documents from repository
+  - Deleted all historical fix documents from root directory (STARTUP_FIX_SUMMARY.md, DEPLOYMENT_INSTRUCTIONS.md, etc.)
+  - Removed FIX_SUMMARY_OLD.md, ISO_BUILD_READY.md, PATH_AUDIT.md, and other temporary fix documents
+  - These documents described specific bugs and fixes that are no longer relevant
+  - Current troubleshooting information is maintained in `docs/troubleshooting/` directory
 
 ### Fixed
 - **S.M.A.R.T. Invalid Argument Error** - Fixed smartctl compatibility issue with `-n standby` flag

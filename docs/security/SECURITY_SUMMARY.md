@@ -82,7 +82,7 @@ A comprehensive, multi-layered security system to prevent and mitigate attacks:
 - `templates/admin/malicious_logins.html` - Web UI
 - `app_core/migrations/versions/20251203_add_ip_filters.py` - Database migration
 - `tests/test_auth_input_validation.py` - Test suite
-- `docs/SECURITY_FEATURES.md` - Documentation
+- `docs/security/SECURITY_FEATURES.md` - Documentation
 
 **Modified Files**:
 - `webapp/admin/auth.py` - Integrated all security features
