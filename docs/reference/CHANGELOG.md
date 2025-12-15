@@ -7,6 +7,14 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **High CPU Usage in eas_monitoring_service** - Fixed excessive logging hammering CPU
+  - RBDS decoder was logging at INFO level every time data was decoded (multiple times per second)
+  - Each log write causes disk I/O and string formatting overhead
+  - Changed to only log when RBDS data actually changes (PS name, radio text, etc.)
+  - Added `_last_logged_rbds` to track last logged state
+  - Prevents CPU from spiking to 125% during RBDS reception
+  - RBDS data still flows to frontend metrics in real-time (no functional change)
+  - VERSION bumped to 2.27.25 (bug fix)
 - **RBDS Data Not Displaying in Frontend** - Fixed RBDS metadata not showing in audio-monitor
   - RBDS decoder in `demodulation.py` was working correctly, extracting PS name, PI code, radio text, etc.
   - Bug: `redis_sdr_adapter.py` extracted stereo pilot data from demodulator status but NOT RBDS data
