@@ -769,6 +769,7 @@ if [ -f "$INSTALL_DIR/venv/bin/alembic" ]; then
     set -e
     
     echo ""
+    MIGRATION_FAILED=false
     if [ $ALEMBIC_EXIT_CODE -eq 0 ]; then
         echo_success "Database migrations completed successfully"
         # Show what revision we're at now
@@ -777,10 +778,12 @@ if [ -f "$INSTALL_DIR/venv/bin/alembic" ]; then
             echo_info "Database is now at: $NEW_REV"
         fi
     elif [ $ALEMBIC_EXIT_CODE -eq 130 ]; then
+        MIGRATION_FAILED=true
         echo_warning "Migration cancelled by user (Ctrl+C)"
         echo_info "Database state may be partially migrated - check with: sudo -u $SERVICE_USER bash -c 'cd $INSTALL_DIR && $INSTALL_DIR/venv/bin/alembic current'"
         echo_info "To retry: sudo -u $SERVICE_USER bash -c 'cd $INSTALL_DIR && $INSTALL_DIR/venv/bin/alembic upgrade head'"
     else
+        MIGRATION_FAILED=true
         echo_warning "Alembic migrations encountered errors (exit code: $ALEMBIC_EXIT_CODE)"
         echo ""
         echo_info "Common causes:"
@@ -804,6 +807,12 @@ with app.app_context():
         echo_warning "Database upgrade may be incomplete - check logs after update"
         echo_info "You can manually run migrations:"
         echo_info "  sudo -u $SERVICE_USER bash -c 'cd $INSTALL_DIR && $INSTALL_DIR/venv/bin/alembic upgrade head'"
+        
+        # Give user time to read the error before continuing
+        echo ""
+        echo_warning "Migration errors detected above - review carefully before continuing"
+        echo_info "Press Enter to continue with update (auto-continue in 60s), or Ctrl+C to abort..."
+        read -r -t 60 || echo_info "Auto-continuing after timeout..."
     fi
 elif [ -f "$INSTALL_DIR/venv/bin/python" ]; then
     echo_warning "Alembic not found - using db.create_all() fallback"
@@ -893,7 +902,10 @@ elif [ -d "$INSTALL_DIR/.git" ]; then
 fi
 
 # Display success summary
-clear
+# Don't clear screen if migration failed - user needs to see the errors
+if [ "$MIGRATION_FAILED" != "true" ]; then
+    clear
+fi
 echo_header "Update Complete!"
 
 if [ "$USE_WHIPTAIL" = true ]; then

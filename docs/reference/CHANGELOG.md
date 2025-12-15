@@ -7,6 +7,26 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **S.M.A.R.T. Invalid Argument Error** - Fixed smartctl compatibility issue with `-n standby` flag
+  - The `-n standby` flag was being added for all device types except 'nvme' and 'auto'
+  - This caused "Invalid argument" errors on USB, SCSI, and other device types that don't support standby mode
+  - Changed logic to ONLY add `-n standby` flag for ATA/SATA devices (device types 'ata' or 'sat')
+  - S.M.A.R.T. health monitoring now works correctly across all device types
+  - VERSION bumped to 2.27.16 (bug fix)
+- **Update Script Migration Errors** - Fixed migration errors being hidden by screen clear
+  - Added `MIGRATION_FAILED` flag to track when Alembic migrations encounter errors
+  - Screen is no longer cleared after failed migrations, keeping error output visible
+  - Added pause prompt after migration errors so user can read details before continuing
+  - Makes it much easier to diagnose database migration issues during updates
+  - VERSION bumped to 2.27.16 (bug fix)
+- **Audio Monitor Console Spam** - Removed noisy console.log/console.debug statements
+  - Removed VU meter debug logging that spammed console every 5 seconds
+  - Removed WebSocket connection status logging
+  - Removed stream switching debug messages
+  - Removed playback state debug messages
+  - Removed broadcast queue statistics logging
+  - Console now only shows errors and warnings, not routine operational messages
+  - VERSION bumped to 2.27.16 (bug fix)
 - **Audio Monitor UI Fixes** - Fixed three display issues on audio monitoring page
   - RBDS metadata now properly displays when available (added null check for source.metrics)
   - S.M.A.R.T. health display no longer shows both "✓ Healthy" and error message simultaneously
