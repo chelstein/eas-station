@@ -7,6 +7,32 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **Migration Chain Broken** - Fixed Alembic migration revision mismatch causing KeyError
+  - Migration `20251214_add_hardware_settings.py` incorrectly referenced `down_revision = '20251205_add_audio_sample_rate'`
+  - Actual revision ID was `'20251205_audio_sample_rate'` (without `add_` prefix)
+  - Fixed down_revision to match actual revision ID
+  - Resolves KeyError: '20251205_add_audio_sample_rate' during `alembic upgrade head`
+  - VERSION bumped to 2.27.22 (bug fix)
+- **SDR Buffer Display** - Hide buffer utilization metric for SDR sources in audio monitoring UI
+  - SDR sources don't use buffering (data flows directly from hardware)
+  - Buffer metric now hidden for source types 'sdr' and 'redis_sdr'
+  - Matches behavior of detailed buffer utilization indicator
+  - VERSION bumped to 2.27.22 (bug fix)
+- **Administrator Role Assignment** - Improved role validation during installation
+  - Install script now explicitly validates admin role exists before creating user
+  - Fails with clear error message if role not found instead of silently continuing
+  - Sets both `role` and `role_id` fields for redundancy
+  - Confirms role assignment in success message
+  - VERSION bumped to 2.27.22 (bug fix)
+
+### Added
+- **Web Stream Auto-Start** - Added auto-start option for HTTP/stream audio sources
+  - Added checkbox to audio source creation modal
+  - Sources can now auto-start on system boot (backend already supported this)
+  - Matches functionality available for SDR sources
+  - VERSION bumped to 2.27.22 (feature)
+
+### Fixed
 - **Update Script Freezing** - Fixed update.sh hanging at "Updating System Dependencies" step
   - Removed `-qq` flag from apt-get install to show actual progress output (was suppressing all output making it appear frozen)
   - Kept `DEBIAN_FRONTEND=noninteractive` to prevent interactive prompts from package configuration

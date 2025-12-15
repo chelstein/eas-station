@@ -643,10 +643,12 @@ function renderAudioSources(fullRender = true) {
                                 <div class="metric-label">Channels</div>
                                 <div class="metric-value">${source.metrics.channels || '--'}</div>
                             </div>
+                            ${source.type !== 'sdr' && source.type !== 'redis_sdr' ? `
                             <div class="metric-item">
                                 <div class="metric-label">Buffer</div>
                                 <div class="metric-value">${typeof source.metrics.buffer_utilization === 'number' ? (source.metrics.buffer_utilization * 100).toFixed(0) : '--'}%</div>
                             </div>
+                            ` : ''}
                             <div class="metric-item">
                                 <div class="metric-label">Frames</div>
                                 <div class="metric-value">${(source.metrics.frames_captured || 0).toLocaleString()}</div>

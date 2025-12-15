@@ -2149,15 +2149,20 @@ with app.app_context():
     admin_user = AdminUser(username=username)
     admin_user.set_password(password)
     
-    # Assign admin role
+    # Assign admin role - CRITICAL: Must assign role or user will have no permissions
     admin_role = Role.query.filter(func.lower(Role.name) == RoleDefinition.ADMIN.value).first()
-    if admin_role:
-        admin_user.role = admin_role
+    if not admin_role:
+        print(f"ERROR: Admin role not found in database. Roles must be created by migrations first.", file=sys.stderr)
+        print(f"Available roles: {[r.name for r in Role.query.all()]}", file=sys.stderr)
+        sys.exit(1)
+    
+    admin_user.role = admin_role
+    admin_user.role_id = admin_role.id
     
     db.session.add(admin_user)
     db.session.commit()
     
-    print(f"Administrator account '{username}' created successfully")
+    print(f"Administrator account '{username}' created successfully with role '{admin_role.name}'")
 EOPY
 
 # Unset the environment variables
