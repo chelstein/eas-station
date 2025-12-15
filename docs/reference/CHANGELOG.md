@@ -7,6 +7,28 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **RBDS Extraction Not Working** - Fixed RBDS decoder checking wrong sample rate
+  - Bug: Checked `self.config.sample_rate` (final audio rate, 48kHz) instead of `self._intermediate_rate` (FM multiplex rate, 250kHz)
+  - RBDS subcarrier at 57kHz exists in FM multiplex signal BEFORE final decimation
+  - Changed condition from `self.config.sample_rate >= 114000` to `self._intermediate_rate >= 114000`
+  - RBDS now extracts correctly when intermediate rate is high enough
+  - VERSION bumped to 2.27.26 (bug fix)
+- **HTTP Streams Playing at Wrong Bitrate** - Fixed forced resampling degrading stream quality
+  - Bug: FFmpeg was forcing ALL HTTP streams to resample to configured sample rate (44.1kHz)
+  - Streams with native 48kHz/128kbps were being degraded by unnecessary resampling
+  - Solution: Removed `-ar` flag to let FFmpeg preserve stream's native sample rate
+  - Added `preserve_native_rate` config option (defaults to True for HTTP streams)
+  - Set to False if you specifically need resampling for compatibility
+  - Prevents quality loss and "wrong bitrate" playback issues
+  - VERSION bumped to 2.27.26 (bug fix)
+- **Zone Catalog API Returning HTML** - Fixed JSON parsing error in admin zone catalog
+  - Bug: JavaScript fetch() to `/admin/zones/info` didn't include Accept header
+  - Without `Accept: application/json`, authentication failures returned HTML redirects
+  - Added Accept header to all zone catalog API calls
+  - Added content-type validation before JSON parsing
+  - Added proper error handling with toast notifications for auth/permission errors
+  - Better user feedback instead of cryptic "Unexpected token '<'" errors
+  - VERSION bumped to 2.27.26 (bug fix)
 - **High CPU Usage in eas_monitoring_service** - Fixed excessive logging hammering CPU
   - RBDS decoder was logging at INFO level every time data was decoded (multiple times per second)
   - Each log write causes disk I/O and string formatting overhead

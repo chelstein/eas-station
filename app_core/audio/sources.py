@@ -878,17 +878,18 @@ class StreamSourceAdapter(AudioSourceAdapter):
         return url
 
     def _build_ffmpeg_command(self, stream_url: str) -> List[str]:
-        """Construct the FFmpeg command used for streaming + decoding."""
-        output_sample_rate = self.config.sample_rate
-        if output_sample_rate < 32000:
-            logger.warning(
-                f"StreamSourceAdapter {self.config.name}: sample_rate is {output_sample_rate} Hz "
-                f"which is below normal audio range. Using 48000 Hz instead. "
-                f"(If configured for EAS decoder, that should be applied downstream, not to source)"
-            )
-            output_sample_rate = 48000
+        """Construct the FFmpeg command used for streaming + decoding.
         
-        return [
+        IMPORTANT: For HTTP/HTTPS streams, we let FFmpeg preserve the stream's native
+        sample rate instead of resampling. This ensures the stream plays at the correct
+        bitrate and prevents quality degradation from unnecessary resampling.
+        
+        The stream's actual sample rate will be detected by FFmpeg from the stream metadata.
+        """
+        # Check if we should preserve stream's native sample rate (default for HTTP streams)
+        preserve_native_rate = self.config.device_params.get('preserve_native_rate', True)
+        
+        cmd = [
             'ffmpeg',
             '-hide_banner',
             '-loglevel', 'error',
@@ -903,11 +904,31 @@ class StreamSourceAdapter(AudioSourceAdapter):
             '-i', stream_url,
             '-vn',
             '-acodec', 'pcm_s16le',
-            '-ar', str(output_sample_rate),
+        ]
+        
+        # Only add sample rate conversion if explicitly requested (not default)
+        if not preserve_native_rate:
+            output_sample_rate = self.config.sample_rate
+            if output_sample_rate < 32000:
+                logger.warning(
+                    f"StreamSourceAdapter {self.config.name}: sample_rate is {output_sample_rate} Hz "
+                    f"which is below normal audio range. Using 48000 Hz instead. "
+                    f"(If configured for EAS decoder, that should be applied downstream, not to source)"
+                )
+                output_sample_rate = 48000
+            cmd.extend(['-ar', str(output_sample_rate)])
+            logger.info(f"{self.config.name}: Forcing stream resample to {output_sample_rate} Hz")
+        else:
+            logger.info(f"{self.config.name}: Preserving stream's native sample rate (no resampling)")
+        
+        # Always specify output channels and format
+        cmd.extend([
             '-ac', str(self.config.channels),
             '-f', 's16le',
             'pipe:1',
-        ]
+        ])
+        
+        return cmd
 
     def _launch_ffmpeg_process(self) -> None:
         """Start a fresh FFmpeg process that reads from the resolved stream URL."""
