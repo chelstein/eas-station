@@ -14,7 +14,7 @@ import json
 
 # revision identifiers, used by Alembic.
 revision = '20251214_add_hardware_settings'
-down_revision = '20251205_add_audio_sample_rate'
+down_revision = '20251205_audio_sample_rate'
 branch_labels = None
 depends_on = None
 
