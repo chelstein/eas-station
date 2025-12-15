@@ -27,8 +27,6 @@ tracks releases under the 2.x series.
   - Removed broadcast queue statistics logging
   - Console now only shows errors and warnings, not routine operational messages
   - VERSION bumped to 2.27.16 (bug fix)
-
-### Fixed
 - **Audio Monitor UI Fixes** - Fixed three display issues on audio monitoring page
   - RBDS metadata now properly displays when available (added null check for source.metrics)
   - S.M.A.R.T. health display no longer shows both "✓ Healthy" and error message simultaneously

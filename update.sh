@@ -811,8 +811,8 @@ with app.app_context():
         # Give user time to read the error before continuing
         echo ""
         echo_warning "Migration errors detected above - review carefully before continuing"
-        echo_info "Press Enter to continue with update, or Ctrl+C to abort..."
-        read -r
+        echo_info "Press Enter to continue with update (auto-continue in 60s), or Ctrl+C to abort..."
+        read -r -t 60 || echo_info "Auto-continuing after timeout..."
     fi
 elif [ -f "$INSTALL_DIR/venv/bin/python" ]; then
     echo_warning "Alembic not found - using db.create_all() fallback"
