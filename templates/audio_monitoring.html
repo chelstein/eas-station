@@ -822,6 +822,82 @@ function renderAudioSources(fullRender = true) {
                                 </div>
                             </div>
                         ` : ''}
+                        
+                        <!-- Stereo Pilot & RBDS Information (FM Radio) -->
+                        ${source.metrics.metadata && (source.metrics.metadata.stereo_pilot_locked !== undefined || source.metrics.metadata.rbds_ps_name) ? `
+                            <div class="mt-3">
+                                <h6 class="text-muted mb-2"><i class="fas fa-broadcast-tower"></i> FM Stereo / RBDS</h6>
+                                <div class="small">
+                                    ${source.metrics.metadata.stereo_pilot_locked !== undefined ? `
+                                        <div class="d-flex justify-content-between mb-1">
+                                            <span class="text-muted">Stereo Pilot:</span>
+                                            <span class="fw-bold">
+                                                ${source.metrics.metadata.stereo_pilot_locked ? `
+                                                    <span class="badge bg-success">
+                                                        <i class="fas fa-check-circle"></i> Locked
+                                                    </span>
+                                                    ${source.metrics.metadata.stereo_pilot_strength !== undefined ? `
+                                                        <span class="text-muted ms-2 small">${Math.round(Math.max(0, Math.min(1, source.metrics.metadata.stereo_pilot_strength)) * 100)}%</span>
+                                                    ` : ''}
+                                                ` : `
+                                                    <span class="badge bg-secondary">
+                                                        <i class="fas fa-times-circle"></i> Not Detected
+                                                    </span>
+                                                `}
+                                            </span>
+                                        </div>
+                                    ` : ''}
+                                    ${source.metrics.metadata.is_stereo !== undefined ? `
+                                        <div class="d-flex justify-content-between mb-1">
+                                            <span class="text-muted">Audio Mode:</span>
+                                            <span class="fw-bold">${source.metrics.metadata.is_stereo ? 'Stereo' : 'Mono'}</span>
+                                        </div>
+                                    ` : ''}
+                                    ${source.metrics.metadata.rbds_ps_name ? `
+                                        <div class="d-flex justify-content-between mb-1">
+                                            <span class="text-muted">RBDS Station:</span>
+                                            <span class="fw-bold">${escapeHtml(source.metrics.metadata.rbds_ps_name)}</span>
+                                        </div>
+                                    ` : ''}
+                                    ${source.metrics.metadata.rbds_radio_text ? `
+                                        <div class="d-flex justify-content-between mb-1">
+                                            <span class="text-muted">Radio Text:</span>
+                                            <span class="text-break">${escapeHtml(source.metrics.metadata.rbds_radio_text)}</span>
+                                        </div>
+                                    ` : ''}
+                                    ${source.metrics.metadata.rbds_program_type_name ? `
+                                        <div class="d-flex justify-content-between mb-1">
+                                            <span class="text-muted">Program Type:</span>
+                                            <span>${escapeHtml(source.metrics.metadata.rbds_program_type_name)}</span>
+                                        </div>
+                                    ` : ''}
+                                    ${source.metrics.metadata.rbds_pi_code ? `
+                                        <div class="d-flex justify-content-between mb-1">
+                                            <span class="text-muted">PI Code:</span>
+                                            <span class="font-monospace small">${escapeHtml(source.metrics.metadata.rbds_pi_code)}</span>
+                                        </div>
+                                    ` : ''}
+                                    ${source.metrics.metadata.rbds_tp !== undefined && source.metrics.metadata.rbds_tp !== null ? `
+                                        <div class="d-flex justify-content-between mb-1">
+                                            <span class="text-muted">Traffic Program:</span>
+                                            <span>${source.metrics.metadata.rbds_tp ? '<span class="badge bg-info">Yes</span>' : 'No'}</span>
+                                        </div>
+                                    ` : ''}
+                                    ${source.metrics.metadata.rbds_ta !== undefined && source.metrics.metadata.rbds_ta !== null ? `
+                                        <div class="d-flex justify-content-between mb-1">
+                                            <span class="text-muted">Traffic Alert:</span>
+                                            <span>${source.metrics.metadata.rbds_ta ? '<span class="badge bg-warning text-dark">Active</span>' : 'No'}</span>
+                                        </div>
+                                    ` : ''}
+                                    ${source.metrics.metadata.rbds_ms !== undefined && source.metrics.metadata.rbds_ms !== null ? `
+                                        <div class="d-flex justify-content-between mb-1">
+                                            <span class="text-muted">Content Type:</span>
+                                            <span>${source.metrics.metadata.rbds_ms ? 'Music' : 'Speech'}</span>
+                                        </div>
+                                    ` : ''}
+                                </div>
+                            </div>
+                        ` : ''}
                     ` : ''}
 
                     <!-- Control Buttons -->

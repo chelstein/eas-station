@@ -6,6 +6,36 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+### Fixed
+- **Critical Audio Chipmunk Bug** - Fixed severe audio speed issue (2x speed, not 1.09x as previously calculated)
+  - Root cause: FM demodulator outputs mono audio but config reported 2 channels (stereo)
+  - Streaming code incorrectly treated mono samples as interleaved stereo pairs
+  - This caused 48000 mono samples to be interpreted as 24000 stereo samples
+  - Browser played 24000 samples at 48kHz rate = 2x speed = severe chipmunk effect
+  - Fixed by detecting actual audio shape (1D vs 2D array) instead of trusting config
+  - NOTE: FM stereo decoding (L-R separation) not yet implemented; only pilot detection works
+  - VERSION bumped to 2.27.14 (critical bug fix)
+- **S.M.A.R.T. "Invalid command line arguments"** - Fixed smartctl compatibility issue with older versions
+  - Changed `--json=o` flag to `--json` for broader smartctl version support
+  - The `=o` option was added in smartctl 7.2+ and caused "Invalid command line arguments" error on older systems
+  - S.M.A.R.T. disk health monitoring now works on systems with smartctl < 7.2
+  - VERSION bumped to 2.27.13 (bug fix)
+- **Web Player Stability** - Improved audio streaming stability for continuous playback
+  - Added `Accept-Ranges: none` header to prevent browser seeking in live streams
+  - Added `Connection: keep-alive` header to maintain streaming connection
+  - These headers prevent browsers from closing streams after buffering attempts
+  - VERSION bumped to 2.27.13 (bug fix)
+
+### Added
+- **FM Stereo Pilot & RBDS Display** - Added real-time FM broadcast metadata to audio monitor
+  - Shows stereo pilot tone lock status and signal strength (19 kHz pilot detection)
+  - Displays stereo/mono audio mode indicator
+  - Shows RBDS (Radio Broadcast Data System) station name, radio text, and program type
+  - Displays PI (Program Identification) code and traffic program/alert flags
+  - Shows music/speech content type flag
+  - Backend already collected this data; now visible in UI
+  - VERSION bumped to 2.27.13 (feature)
+
 ### Changed
 - **SDR Service Architecture Simplification** - SDR service now uses separate venv with system site-packages
   - Created `venv-sdr` with `--system-site-packages` flag for direct python3-soapysdr access

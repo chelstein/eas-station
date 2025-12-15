@@ -1366,7 +1366,7 @@ def _collect_smart_health(logger, devices: List[Dict[str, Any]]) -> Dict[str, An
             # Use sudo for smartctl (requires sudoers configuration)
             command.extend(["sudo", "-n"])  # -n means don't prompt for password
 
-        command.extend([smartctl_path, "--json=o", "-H", "-A"])
+        command.extend([smartctl_path, "--json", "-H", "-A"])
 
         # The -n standby flag is for ATA/SATA devices to skip devices in standby mode.
         # NVMe devices don't support standby mode in the same way, so skip this flag for them.
