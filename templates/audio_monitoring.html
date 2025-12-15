@@ -654,6 +654,7 @@ function renderAudioSources(fullRender = true) {
                         </div>
 
                         <!-- Buffer Utilization Indicator (hidden for SDR sources which don't use buffering) -->
+                        <!-- Note: Using source.type (from API field 'type') not source.source_type -->
                         ${source.type !== 'sdr' ? `
                         <div class="mt-2">
                             <div class="d-flex justify-content-between align-items-center mb-1">
