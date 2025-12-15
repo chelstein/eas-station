@@ -577,12 +577,18 @@ echo_progress "Installing any new system packages..."
 echo_info "This may take a few minutes. Output shown below:"
 echo ""
 
-# Install all required system dependencies (matches install.sh)
-# This ensures new dependencies added in updates are installed
-# Use DEBIAN_FRONTEND=noninteractive to prevent prompts from package configuration
-# Show output (no -qq) so user can see progress and diagnose any issues
-DEBIAN_FRONTEND=noninteractive apt-get install -y \
-    python3-dev \
+# Detect GPIO hardware presence (Raspberry Pi or other SBCs with GPIO)
+HAS_GPIO=false
+if [ -e /dev/gpiochip0 ] || [ -e /dev/gpiomem ] || grep -qi "raspberry\|bcm2" /proc/cpuinfo 2>/dev/null; then
+    HAS_GPIO=true
+    echo_info "GPIO hardware detected - will install GPIO support packages"
+else
+    echo_info "No GPIO hardware detected (VM or standard PC) - skipping GPIO packages"
+fi
+echo ""
+
+# Build base package list
+BASE_PACKAGES="python3-dev \
     build-essential \
     libpq-dev \
     libev-dev \
@@ -606,10 +612,21 @@ DEBIAN_FRONTEND=noninteractive apt-get install -y \
     rtl-sdr \
     soapysdr-module-rtlsdr \
     soapysdr-module-airspy \
-    libairspy0 \
-    i2c-tools \
+    libairspy0"
+
+# Add GPIO packages only if hardware is present
+GPIO_PACKAGES=""
+if [ "$HAS_GPIO" = true ]; then
+    GPIO_PACKAGES="i2c-tools \
     python3-smbus \
-    python3-lgpio
+    python3-lgpio"
+fi
+
+# Install all required system dependencies (matches install.sh)
+# This ensures new dependencies added in updates are installed
+# Use DEBIAN_FRONTEND=noninteractive to prevent prompts from package configuration
+# Show output (no -qq) so user can see progress and diagnose any issues
+DEBIAN_FRONTEND=noninteractive apt-get install -y $BASE_PACKAGES $GPIO_PACKAGES
 
 echo ""
 echo_success "System dependencies up to date"
