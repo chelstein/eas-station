@@ -567,10 +567,6 @@ ENV_CATEGORIES = {
         'icon': 'fa-envelope',
         'description': 'Email and SMS alerts',
         'variables': [
-        'name': 'SDR & Radio Capture',
-        'icon': 'fa-radio',
-        'description': 'Software-Defined Radio and audio capture settings',
-        'variables': [
             {
                 'key': 'ENABLE_EMAIL_NOTIFICATIONS',
                 'label': 'Capture Mode',
