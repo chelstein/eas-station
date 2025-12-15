@@ -850,7 +850,7 @@ function renderAudioSources(fullRender = true) {
                                     ${source.metrics.metadata.is_stereo !== undefined ? `
                                         <div class="d-flex justify-content-between mb-1">
                                             <span class="text-muted">Audio Mode:</span>
-                                            <span class="fw-bold">${source.metrics.metadata.is_stereo ? '<span class="badge bg-primary">Stereo</span>' : '<span class="badge bg-secondary">Mono</span>'}</span>
+                                            ${source.metrics.metadata.is_stereo ? '<span class="badge bg-primary">Stereo</span>' : '<span class="badge bg-secondary">Mono</span>'}
                                         </div>
                                     ` : ''}
                                     
@@ -921,7 +921,7 @@ function renderAudioSources(fullRender = true) {
                                             <span class="text-muted">Content Type (M/S):</span>
                                             <span>
                                                 ${source.metrics.metadata.rbds_ms ? 
-                                                    '<span class="badge bg-purple"><i class="fas fa-music"></i> Music</span>' : 
+                                                    '<span class="badge bg-primary"><i class="fas fa-music"></i> Music</span>' : 
                                                     '<span class="badge bg-info"><i class="fas fa-microphone"></i> Speech</span>'}
                                             </span>
                                         </div>
