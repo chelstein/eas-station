@@ -577,39 +577,63 @@ echo_progress "Installing any new system packages..."
 echo_info "This may take a few minutes. Output shown below:"
 echo ""
 
+# Detect GPIO hardware presence (Raspberry Pi or other SBCs with GPIO)
+HAS_GPIO=false
+if [ -e /dev/gpiochip0 ] || [ -e /dev/gpiomem ] || grep -qiE "raspberry|bcm2[0-9]+|broadcom" /proc/cpuinfo 2>/dev/null; then
+    HAS_GPIO=true
+    echo_info "GPIO hardware detected - will install GPIO support packages"
+else
+    echo_info "No GPIO hardware detected (VM or standard PC) - skipping GPIO packages"
+fi
+echo ""
+
+# Build base package list as array for safe expansion
+BASE_PACKAGES=(
+    python3-dev
+    build-essential
+    libpq-dev
+    libev-dev
+    libevent-dev
+    libffi-dev
+    libssl-dev
+    libxml2-dev
+    libxslt1-dev
+    libjpeg-dev
+    zlib1g-dev
+    libpng-dev
+    libfreetype6-dev
+    ffmpeg
+    espeak
+    libespeak-ng1
+    libusb-1.0-0
+    libusb-1.0-0-dev
+    python3-numpy
+    python3-soapysdr
+    soapysdr-tools
+    rtl-sdr
+    soapysdr-module-rtlsdr
+    soapysdr-module-airspy
+    libairspy0
+)
+
+# Add GPIO packages only if hardware is present
+# i2c-tools: Command-line I2C bus utilities (for sensors, displays)
+# python3-smbus: Python bindings for SMBus/I2C communication
+# python3-lgpio: Raspberry Pi 5-compatible GPIO library (replaces deprecated RPi.GPIO)
+if [ "$HAS_GPIO" = true ]; then
+    BASE_PACKAGES+=(
+        i2c-tools
+        python3-smbus
+        python3-lgpio
+    )
+fi
+
 # Install all required system dependencies (matches install.sh)
 # This ensures new dependencies added in updates are installed
 # Use DEBIAN_FRONTEND=noninteractive to prevent prompts from package configuration
 # Show output (no -qq) so user can see progress and diagnose any issues
-DEBIAN_FRONTEND=noninteractive apt-get install -y \
-    python3-dev \
-    build-essential \
-    libpq-dev \
-    libev-dev \
-    libevent-dev \
-    libffi-dev \
-    libssl-dev \
-    libxml2-dev \
-    libxslt1-dev \
-    libjpeg-dev \
-    zlib1g-dev \
-    libpng-dev \
-    libfreetype6-dev \
-    ffmpeg \
-    espeak \
-    libespeak-ng1 \
-    libusb-1.0-0 \
-    libusb-1.0-0-dev \
-    python3-numpy \
-    python3-soapysdr \
-    soapysdr-tools \
-    rtl-sdr \
-    soapysdr-module-rtlsdr \
-    soapysdr-module-airspy \
-    libairspy0 \
-    i2c-tools \
-    python3-smbus \
-    python3-lgpio
+# Array expansion is safe and prevents command injection
+DEBIAN_FRONTEND=noninteractive apt-get install -y "${BASE_PACKAGES[@]}"
 
 echo ""
 echo_success "System dependencies up to date"

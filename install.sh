@@ -238,6 +238,16 @@ fi
 
 echo_success "System detection complete"
 
+# Detect GPIO hardware presence (Raspberry Pi or other SBCs with GPIO)
+# This must be done early since it's used in both package installation and hardware setup
+HAS_GPIO=false
+if [ -e /dev/gpiochip0 ] || [ -e /dev/gpiomem ] || grep -qiE "raspberry|bcm2[0-9]+|broadcom" /proc/cpuinfo 2>/dev/null; then
+    HAS_GPIO=true
+    echo_info "GPIO hardware detected (will be available for configuration)"
+else
+    echo_info "No GPIO hardware detected (VM or standard PC)"
+fi
+
 # ====================================================================
 # COLLECT MINIMAL CONFIGURATION
 # ====================================================================
@@ -988,24 +998,33 @@ fi
 
 echo_step "Hardware Integration Setup"
 
-# GPIO Integration
-if whiptail --title "GPIO Integration" --backtitle "$(whiptail_footer)" --yesno "Enable GPIO (General Purpose Input/Output) integration?\n\nAllows control of relays, LEDs, and other hardware." 11 70 --defaultno; then
-    GPIO_ENABLED="true"
-    echo_success "GPIO: ${BOLD}enabled${NC}"
-    
-    # GPIO Pin for relay
-    GPIO_PIN=$(whiptail --title "GPIO Relay Pin" --backtitle "$(whiptail_footer)" --inputbox "Enter GPIO pin number for relay control (2-27):\n\nLeave blank to disable.\nPins 2, 3, 4, 14 are reserved for Argon OLED." 13 70 3>&1 1>&2 2>&3)
-    
-    if [ $? = 0 ] && [ -n "$GPIO_PIN" ]; then
-        echo_success "GPIO relay pin: ${BOLD}$GPIO_PIN${NC}"
+# GPIO Integration - automatically detect hardware availability
+if [ "$HAS_GPIO" = true ]; then
+    # GPIO hardware detected - ask user if they want to enable it
+    if whiptail --title "GPIO Integration" --backtitle "$(whiptail_footer)" --yesno "GPIO hardware detected on this system!\n\nEnable GPIO (General Purpose Input/Output) integration?\n\nAllows control of relays, LEDs, and other hardware." 12 70 --defaultno; then
+        GPIO_ENABLED="true"
+        echo_success "GPIO: ${BOLD}enabled${NC}"
+        
+        # GPIO Pin for relay
+        GPIO_PIN=$(whiptail --title "GPIO Relay Pin" --backtitle "$(whiptail_footer)" --inputbox "Enter GPIO pin number for relay control (2-27):\n\nLeave blank to disable.\nPins 2, 3, 4, 14 are reserved for Argon OLED." 13 70 3>&1 1>&2 2>&3)
+        
+        if [ $? = 0 ] && [ -n "$GPIO_PIN" ]; then
+            echo_success "GPIO relay pin: ${BOLD}$GPIO_PIN${NC}"
+        else
+            GPIO_PIN=""
+            echo_info "GPIO relay pin not configured"
+        fi
     else
+        GPIO_ENABLED="false"
         GPIO_PIN=""
-        echo_info "GPIO relay pin not configured"
+        echo_info "GPIO: ${BOLD}disabled${NC}"
     fi
 else
+    # No GPIO hardware - automatically disable
     GPIO_ENABLED="false"
     GPIO_PIN=""
-    echo_info "GPIO: ${BOLD}disabled${NC}"
+    echo_info "No GPIO hardware detected (VM or standard PC)"
+    echo_info "GPIO: ${BOLD}disabled${NC} (no hardware available)"
 fi
 
 # LED Sign
@@ -1142,55 +1161,69 @@ echo ""
 # Disable exit-on-error temporarily for package installation to provide better error messages
 set +e
 
-apt-get install -y \
-    python3 \
-    python3-pip \
-    python3-venv \
-    python3-dev \
-    build-essential \
-    gcc \
-    g++ \
-    make \
-    libpq-dev \
-    libev-dev \
-    libevent-dev \
-    libffi-dev \
-    libssl-dev \
-    libxml2-dev \
-    libxslt1-dev \
-    libjpeg-dev \
-    zlib1g-dev \
-    libpng-dev \
-    libfreetype6-dev \
-    postgresql \
-    postgresql-contrib \
-    postgis \
-    postgresql-17-postgis-3 \
-    redis-server \
-    nginx \
-    certbot \
-    python3-certbot-nginx \
-    ffmpeg \
-    espeak \
-    libespeak-ng1 \
-    ca-certificates \
-    libusb-1.0-0 \
-    libusb-1.0-0-dev \
-    usbutils \
-    python3-numpy \
-    python3-soapysdr \
-    soapysdr-tools \
-    rtl-sdr \
-    soapysdr-module-rtlsdr \
-    soapysdr-module-airspy \
-    airspy \
-    libairspy0 \
-    i2c-tools \
-    python3-smbus \
-    python3-lgpio \
-    git \
-    curl \
+# Build base package list as array for safe expansion
+BASE_PACKAGES=(
+    python3
+    python3-pip
+    python3-venv
+    python3-dev
+    build-essential
+    gcc
+    g++
+    make
+    libpq-dev
+    libev-dev
+    libevent-dev
+    libffi-dev
+    libssl-dev
+    libxml2-dev
+    libxslt1-dev
+    libjpeg-dev
+    zlib1g-dev
+    libpng-dev
+    libfreetype6-dev
+    postgresql
+    postgresql-contrib
+    postgis
+    postgresql-17-postgis-3
+    redis-server
+    nginx
+    certbot
+    python3-certbot-nginx
+    ffmpeg
+    espeak
+    libespeak-ng1
+    ca-certificates
+    libusb-1.0-0
+    libusb-1.0-0-dev
+    usbutils
+    python3-numpy
+    python3-soapysdr
+    soapysdr-tools
+    rtl-sdr
+    soapysdr-module-rtlsdr
+    soapysdr-module-airspy
+    airspy
+    libairspy0
+    git
+    curl
     wget
+)
+
+# Add GPIO packages only if hardware is present
+# i2c-tools: Command-line I2C bus utilities (for sensors, displays)
+# python3-smbus: Python bindings for SMBus/I2C communication
+# python3-lgpio: Raspberry Pi 5-compatible GPIO library (replaces deprecated RPi.GPIO)
+if [ "$HAS_GPIO" = true ]; then
+    BASE_PACKAGES+=(
+        i2c-tools
+        python3-smbus
+        python3-lgpio
+    )
+fi
+
+# Install all packages (array expansion is safe and prevents injection)
+apt-get install -y "${BASE_PACKAGES[@]}"
 
 APT_EXIT_CODE=$?
 
