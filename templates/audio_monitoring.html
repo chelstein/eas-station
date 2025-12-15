@@ -653,7 +653,8 @@ function renderAudioSources(fullRender = true) {
                             </div>
                         </div>
 
-                        <!-- Buffer Utilization Indicator -->
+                        <!-- Buffer Utilization Indicator (hidden for SDR sources which don't use buffering) -->
+                        ${source.source_type !== 'sdr' ? `
                         <div class="mt-2">
                             <div class="d-flex justify-content-between align-items-center mb-1">
                                 <small class="text-muted">Buffer Utilization</small>
@@ -674,8 +675,6 @@ function renderAudioSources(fullRender = true) {
                                         // Provide specific diagnostic messages
                                         if (source.status !== 'running') {
                                             return '⚠️ Source not started - click Start button to begin streaming';
-                                        } else if (source.source_type === 'sdr') {
-                                            return '⚠️ No data from SDR - check sdr-service logs and hardware connection';
                                         } else if (source.source_type === 'http_stream') {
                                             return '⚠️ Stream not responding - check URL and network connectivity';
                                         } else {
@@ -689,6 +688,7 @@ function renderAudioSources(fullRender = true) {
                                 })()}
                             </small>
                         </div>
+                        ` : ''}
 
                         <!-- Now Playing (if available) -->
                         ${(() => {
