@@ -824,6 +824,42 @@ class IcecastSettings(db.Model):
         }
 
 
+class CertbotSettings(db.Model):
+    """Certbot/Let's Encrypt SSL certificate configuration stored in database.
+
+    Replaces environment variables for Certbot configuration.
+    All settings are stored in a single row (id=1).
+    """
+    __tablename__ = "certbot_settings"
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    # General Settings
+    enabled = db.Column(db.Boolean, nullable=False, default=False)
+    domain_name = db.Column(db.String(255), nullable=False, default='')
+    email = db.Column(db.String(255), nullable=False, default='')
+
+    # Certificate Settings
+    staging = db.Column(db.Boolean, nullable=False, default=False)  # Use Let's Encrypt staging server
+    auto_renew_enabled = db.Column(db.Boolean, nullable=False, default=True)
+    renew_days_before_expiry = db.Column(db.Integer, nullable=False, default=30)
+
+    # Metadata
+    updated_at = db.Column(db.DateTime, nullable=True, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def to_dict(self):
+        """Convert model to dictionary."""
+        return {
+            "enabled": self.enabled,
+            "domain_name": self.domain_name,
+            "email": self.email,
+            "staging": self.staging,
+            "auto_renew_enabled": self.auto_renew_enabled,
+            "renew_days_before_expiry": self.renew_days_before_expiry,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+
 class RadioReceiver(db.Model):
     """Persistent configuration for SDR hardware receivers.
 
@@ -1587,10 +1623,12 @@ __all__ = [
     "AdminUser",
     "Boundary",
     "CAPAlert",
+    "CertbotSettings",
     "DisplayScreen",
     "EASDecodedAudio",
     "EASMessage",
     "GPIOActivationLog",
+    "IcecastSettings",
     "Intersection",
     "LEDMessage",
     "LEDSignStatus",

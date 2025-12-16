@@ -7,6 +7,22 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Added
+- **Certbot/SSL Admin Page** - New dedicated admin page for SSL certificate management
+  - Created `/webapp/admin/certbot.py` blueprint with comprehensive Certbot/Let's Encrypt management routes
+  - Created `/templates/admin/certbot.html` template with configuration and diagnostics sections
+  - Created `/app_core/certbot_settings.py` helper functions for database settings management
+  - Added `CertbotSettings` database model to store certificate configuration
+  - Added database migration `20251216_add_certbot_settings.py` to create certbot_settings table
+  - Includes GET/PUT `/api/admin/certbot/settings` for reading and updating Certbot configuration
+  - Includes GET `/api/admin/certbot/certificate-status` for checking certificate status and expiration
+  - Includes POST `/api/admin/certbot/renew-certificate` for triggering certificate renewal (dry-run)
+  - Includes POST `/api/admin/certbot/test-domain` for DNS and HTTP accessibility testing
+  - Includes GET `/api/admin/certbot/download-certificate` for downloading certificates
+  - Updated `/app_core/ssl_utils.py` to read configuration from database with env var fallback
+  - Follows established admin page patterns with Bootstrap 5 styling and theme support
+  - Protected with `@require_permission('system.configure')` decorator
+  - Integrated into admin blueprint registration in `/webapp/admin/__init__.py`
+  - VERSION bumped to 2.30.0 (new feature)
 - **Unified EAS Monitor Architecture (V3)** - Complete redesign of EAS monitoring system for efficiency
   - Created `/app_core/audio/eas_monitor_v3.py` with unified single-threaded architecture
   - `UnifiedEASMonitorService` class replaces multi-monitor architecture (1 thread instead of N threads)

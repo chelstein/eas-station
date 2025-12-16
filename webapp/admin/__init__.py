@@ -40,6 +40,7 @@ from .zigbee import register_zigbee_routes
 from .zones import zones_bp
 from .hardware import hardware_bp
 from .icecast import register_icecast_routes
+from .certbot import register_certbot_routes
 
 
 def register(app, logger):
@@ -65,6 +66,7 @@ def register(app, logger):
     app.register_blueprint(hardware_bp, url_prefix='/admin')  # Hardware settings management
     logger.info("Hardware settings routes registered")
     register_icecast_routes(app, logger)  # Icecast streaming configuration
+    register_certbot_routes(app, logger)  # Certbot/SSL certificate management
 
     # Note: Audio controller initialization removed for separated architecture.
     # In separated architecture, audio processing runs in dedicated audio-service process.

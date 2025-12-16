@@ -9,6 +9,37 @@ from datetime import datetime
 from typing import Dict, Optional
 
 
+def get_certbot_config() -> Dict:
+    """
+    Get Certbot configuration from database with fallback to environment variables.
+    
+    Returns:
+        dict: Certbot configuration settings
+    """
+    config = {
+        'enabled': False,
+        'domain_name': '',
+        'email': '',
+        'staging': False,
+        'auto_renew_enabled': True,
+        'renew_days_before_expiry': 30,
+    }
+    
+    try:
+        # Try to import database settings
+        from app_core.certbot_settings import get_certbot_settings
+        settings = get_certbot_settings()
+        config.update(settings.to_dict())
+    except Exception:
+        # Fallback to environment variables
+        config['enabled'] = os.getenv('CERTBOT_ENABLED', 'false').lower() in ('true', '1', 'yes', 'on')
+        config['domain_name'] = os.getenv('DOMAIN_NAME', '')
+        config['email'] = os.getenv('SSL_EMAIL', '')
+        config['staging'] = os.getenv('CERTBOT_STAGING', '0') == '1'
+    
+    return config
+
+
 def get_ssl_certificate_info() -> Dict:
     """
     Get information about the installed SSL certificate.
