@@ -412,7 +412,7 @@ sudo journalctl -u eas-app -n 50
 - [SDR Service Isolation](SDR_SERVICE_ISOLATION.md) - USB/SDR-specific isolation
 - [System Architecture](SYSTEM_ARCHITECTURE.md) - Overall system design
 - [SDR Setup Guide](../hardware/SDR_SETUP.md) - SDR hardware configuration
-- [GPIO Configuration](../hardware/GPIO_SETUP.md) - GPIO setup guide
+- [Hardware Quick Start](../guides/HARDWARE_QUICKSTART.md) - GPIO and display setup guide
 
 ---
 

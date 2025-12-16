@@ -293,29 +293,19 @@ When building new features:
 
 ## Documentation
 
-### Complete Analysis
+### Current Implementation
 
-1. **[BATCH_VS_REALTIME_ANALYSIS.md](BATCH_VS_REALTIME_ANALYSIS.md)**
-   - Why batch was wrong
-   - Performance comparison
-   - Lessons learned
+The current streaming decoder implementation has resolved these issues:
 
-2. **[WHY_BATCH_PROCESSING_WAS_USED.md](WHY_BATCH_PROCESSING_WAS_USED.md)**
-   - Root cause analysis
-   - Code reuse gone wrong
-   - Cost of the shortcut
-
-3. **[RASPBERRY_PI_PERFORMANCE.md](../hardware/RASPBERRY_PI_PERFORMANCE.md)**
-   - Performance validation
-   - Real-world benchmarks
-   - Hardware recommendations
+- **Streaming Decoder**: `app_core/audio/streaming_same_decoder.py` - Real-time EAS detection with <200ms latency
+- **EAS Monitor**: `app_core/audio/eas_monitor.py` - Continuous monitoring service
+- **File Decoder**: `app_utils/eas_decode.py` - Legacy batch processing for file uploads
 
 ### Related Documents
 
-- **Streaming Decoder**: `app_core/audio/streaming_same_decoder.py`
-- **EAS Monitor**: `app_core/audio/eas_monitor.py`
-- **File Decoder**: `app_utils/eas_decode.py`
-- **CPU Fix History**: `../archive/root-docs/CPU_FIX_SUMMARY_FINAL.md`
+- [System Architecture](SYSTEM_ARCHITECTURE.md) - Current architecture overview
+- [Data Flow Sequences](DATA_FLOW_SEQUENCES.md) - Real-time processing flows
+- [Theory of Operation](THEORY_OF_OPERATION.md) - System operational concepts
 
 ---
 
