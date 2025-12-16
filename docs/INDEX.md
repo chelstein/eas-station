@@ -54,6 +54,7 @@ If you're new to EAS Station, start here:
 | [Theory of Operation](architecture/THEORY_OF_OPERATION) | How the system works |
 | [Data Flow Sequences](architecture/DATA_FLOW_SEQUENCES) | Detailed mermaid diagrams |
 | [Display System Architecture](architecture/DISPLAY_SYSTEM_ARCHITECTURE) | Display subsystem diagrams |
+| [EAS Monitor V3 Architecture](architecture/EAS_MONITOR_V3_ARCHITECTURE) | Unified EAS monitoring system (v2.29.0+) |
 | [EAS Decoding Summary](architecture/EAS_DECODING_SUMMARY) | Architecture analysis |
 | [Hardware Isolation](architecture/HARDWARE_ISOLATION) | Service hardware isolation |
 | [SDR Service Isolation](architecture/SDR_SERVICE_ISOLATION) | SDR service architecture |

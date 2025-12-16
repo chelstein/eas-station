@@ -6,6 +6,48 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+### Added
+- **Certbot/SSL Admin Page** - New dedicated admin page for SSL certificate management
+  - Created `/webapp/admin/certbot.py` blueprint with comprehensive Certbot/Let's Encrypt management routes
+  - Created `/templates/admin/certbot.html` template with configuration and diagnostics sections
+  - Created `/app_core/certbot_settings.py` helper functions for database settings management
+  - Added `CertbotSettings` database model to store certificate configuration
+  - Added database migration `20251216_add_certbot_settings.py` to create certbot_settings table
+  - Includes GET/PUT `/api/admin/certbot/settings` for reading and updating Certbot configuration
+  - Includes GET `/api/admin/certbot/certificate-status` for checking certificate status and expiration
+  - Includes POST `/api/admin/certbot/renew-certificate` for triggering certificate renewal (dry-run)
+  - Includes POST `/api/admin/certbot/test-domain` for DNS and HTTP accessibility testing
+  - Includes GET `/api/admin/certbot/download-certificate` for downloading certificates
+  - Updated `/app_core/ssl_utils.py` to read configuration from database with env var fallback
+  - Follows established admin page patterns with Bootstrap 5 styling and theme support
+  - Protected with `@require_permission('system.configure')` decorator
+  - Integrated into admin blueprint registration in `/webapp/admin/__init__.py`
+  - VERSION bumped to 2.30.0 (new feature)
+- **Unified EAS Monitor Architecture (V3)** - Complete redesign of EAS monitoring system for efficiency
+  - Created `/app_core/audio/eas_monitor_v3.py` with unified single-threaded architecture
+  - `UnifiedEASMonitorService` class replaces multi-monitor architecture (1 thread instead of N threads)
+  - `SourceWatcher` class provides lightweight per-source audio subscribers (no separate threads)
+  - `HealthTracker` class provides centralized health tracking for all sources
+  - Auto-discovery automatically finds and monitors running audio sources (no manual lifecycle management)
+  - Single shared StreamingSAMEDecoder processes audio from all sources
+  - Updated `/eas_monitoring_service.py` initialize_eas_monitor() to use UnifiedEASMonitorService
+  - Maintains backward-compatible status API format (no webapp changes needed)
+  - Benefits: Reduced CPU/memory usage, simpler codebase, no status aggregation overhead
+  - Kept existing `/app_core/audio/eas_monitor.py` for backward compatibility
+  - VERSION bumped to 2.29.0 (new feature)
+- **Icecast Admin Page** - New dedicated admin page for Icecast streaming configuration
+  - Created `/webapp/admin/icecast.py` blueprint with comprehensive Icecast management routes
+  - Created `/templates/admin/icecast.html` template with configuration and diagnostics sections
+  - Added routes for settings management, connection testing, and real-time status monitoring
+  - Includes GET/PUT `/api/admin/icecast/settings` for reading and updating Icecast configuration
+  - Includes POST `/api/admin/icecast/test-connection` for testing Icecast connectivity
+  - Includes GET `/api/admin/icecast/status` for retrieving streaming status and listener counts
+  - Uses existing IcecastSettings database model and helper functions
+  - Follows established admin page patterns with Bootstrap 5 styling and theme support
+  - Protected with `@require_permission('system.configure')` decorator
+  - Integrated into admin blueprint registration in `/webapp/admin/__init__.py`
+  - VERSION bumped to 2.28.0 (new feature)
+
 ### Changed
 - **Documentation Update** - Comprehensive review and updates across all documentation
   - Updated all main architecture documents with current timestamps (2025-12-16)

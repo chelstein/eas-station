@@ -1,0 +1,548 @@
+{% extends "base.html" %}
+
+{% block title %}Icecast Settings - Admin{% endblock %}
+
+{% block extra_head %}
+<style>
+    .icecast-container {
+        max-width: 1200px;
+        margin: 0 auto;
+    }
+
+    .icecast-tabs {
+        display: flex;
+        border-bottom: 2px solid var(--border-color);
+        margin-bottom: 2rem;
+        gap: 0;
+    }
+
+    .icecast-tab {
+        padding: 1rem 1.5rem;
+        background: var(--bg-color);
+        border: 1px solid var(--border-color);
+        border-bottom: none;
+        cursor: pointer;
+        transition: all 0.2s;
+        font-weight: 500;
+        color: var(--text-color);
+    }
+
+    .icecast-tab:hover {
+        background: var(--hover-bg);
+    }
+
+    .icecast-tab.active {
+        background: var(--card-bg);
+        color: var(--primary-color);
+        border-bottom: 2px solid var(--card-bg);
+        margin-bottom: -2px;
+        position: relative;
+        z-index: 1;
+    }
+
+    .icecast-tab-content {
+        display: none;
+    }
+
+    .icecast-tab-content.active {
+        display: block;
+    }
+
+    .form-section {
+        margin-bottom: 2rem;
+        padding: 1.5rem;
+        border: 1px solid var(--border-color);
+        border-radius: 0.375rem;
+        background: var(--card-bg);
+    }
+
+    .form-section h4 {
+        margin-top: 0;
+        margin-bottom: 1rem;
+        color: var(--text-color);
+        font-size: 1.125rem;
+        font-weight: 600;
+    }
+
+    .form-section .form-text {
+        color: var(--muted-text);
+        font-size: 0.875rem;
+    }
+
+    .diagnostics-card {
+        padding: 1.5rem;
+        border: 1px solid var(--border-color);
+        border-radius: 0.375rem;
+        background: var(--card-bg);
+        margin-bottom: 1.5rem;
+    }
+
+    .diagnostics-card h4 {
+        margin-top: 0;
+        margin-bottom: 1rem;
+        color: var(--text-color);
+        font-size: 1.125rem;
+        font-weight: 600;
+    }
+
+    .status-badge {
+        display: inline-block;
+        padding: 0.375rem 0.75rem;
+        border-radius: 0.25rem;
+        font-size: 0.875rem;
+        font-weight: 600;
+        text-transform: uppercase;
+    }
+
+    .status-badge.success {
+        background: #d4edda;
+        color: #155724;
+    }
+
+    .status-badge.danger {
+        background: #f8d7da;
+        color: #721c24;
+    }
+
+    .status-badge.warning {
+        background: #fff3cd;
+        color: #856404;
+    }
+
+    .status-badge.secondary {
+        background: var(--border-color);
+        color: var(--text-color);
+    }
+
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+        margin-top: 1rem;
+    }
+
+    .stat-item {
+        padding: 1rem;
+        border: 1px solid var(--border-color);
+        border-radius: 0.375rem;
+        background: var(--bg-color);
+    }
+
+    .stat-label {
+        font-size: 0.875rem;
+        color: var(--muted-text);
+        margin-bottom: 0.5rem;
+    }
+
+    .stat-value {
+        font-size: 1.5rem;
+        font-weight: 600;
+        color: var(--text-color);
+    }
+
+    .btn-test {
+        margin-top: 1rem;
+    }
+
+    .alert {
+        padding: 1rem;
+        margin-bottom: 1rem;
+        border: 1px solid transparent;
+        border-radius: 0.375rem;
+    }
+
+    .alert-info {
+        background: #d1ecf1;
+        border-color: #bee5eb;
+        color: #0c5460;
+    }
+
+    .alert-success {
+        background: #d4edda;
+        border-color: #c3e6cb;
+        color: #155724;
+    }
+
+    .alert-danger {
+        background: #f8d7da;
+        border-color: #f5c6cb;
+        color: #721c24;
+    }
+
+    .spinner-border {
+        display: inline-block;
+        width: 1rem;
+        height: 1rem;
+        vertical-align: text-bottom;
+        border: 0.15rem solid currentColor;
+        border-right-color: transparent;
+        border-radius: 50%;
+        animation: spinner-border 0.75s linear infinite;
+    }
+
+    @keyframes spinner-border {
+        to { transform: rotate(360deg); }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="icecast-container">
+    <h1>Icecast Streaming Server Configuration</h1>
+    <p class="text-muted">Configure Icecast streaming server for live audio monitoring</p>
+
+    <div class="icecast-tabs">
+        <div class="icecast-tab active" data-tab="configuration">Configuration</div>
+        <div class="icecast-tab" data-tab="diagnostics">Diagnostics</div>
+    </div>
+
+    <!-- Configuration Tab -->
+    <div class="icecast-tab-content active" id="configuration">
+        <form id="icecastSettingsForm">
+            <!-- General Settings -->
+            <div class="form-section">
+                <h4>General Settings</h4>
+                
+                <div class="mb-3">
+                    <label for="enabled" class="form-label">Streaming Enabled</label>
+                    <select class="form-control" id="enabled" name="enabled">
+                        <option value="true" {% if settings.enabled %}selected{% endif %}>Enabled</option>
+                        <option value="false" {% if not settings.enabled %}selected{% endif %}>Disabled</option>
+                    </select>
+                    <div class="form-text">Enable or disable Icecast streaming</div>
+                </div>
+            </div>
+
+            <!-- Connection Settings -->
+            <div class="form-section">
+                <h4>Connection Settings</h4>
+                
+                <div class="mb-3">
+                    <label for="server" class="form-label">Server Hostname/IP *</label>
+                    <input type="text" class="form-control" id="server" name="server" 
+                           value="{{ settings.server }}" required>
+                    <div class="form-text">Icecast server hostname or IP address (e.g., localhost, 192.168.1.100)</div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label for="port" class="form-label">Server Port *</label>
+                        <input type="number" class="form-control" id="port" name="port" 
+                               value="{{ settings.port }}" min="1" max="65535" required>
+                        <div class="form-text">Internal Icecast server port (default: 8000)</div>
+                    </div>
+
+                    <div class="col-md-6 mb-3">
+                        <label for="external_port" class="form-label">External Port</label>
+                        <input type="number" class="form-control" id="external_port" name="external_port" 
+                               value="{{ settings.external_port or '' }}" min="1" max="65535">
+                        <div class="form-text">Port for browser access (leave empty to use server port)</div>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label for="public_hostname" class="form-label">Public Hostname</label>
+                    <input type="text" class="form-control" id="public_hostname" name="public_hostname" 
+                           value="{{ settings.public_hostname or '' }}">
+                    <div class="form-text">Public hostname/IP for remote access (e.g., stream.example.com)</div>
+                </div>
+            </div>
+
+            <!-- Authentication -->
+            <div class="form-section">
+                <h4>Authentication</h4>
+                
+                <div class="mb-3">
+                    <label for="source_password" class="form-label">Source Password *</label>
+                    <input type="password" class="form-control" id="source_password" name="source_password" 
+                           value="{{ settings.source_password }}" required autocomplete="new-password">
+                    <div class="form-text">Password for connecting audio sources to Icecast</div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label for="admin_user" class="form-label">Admin Username</label>
+                        <input type="text" class="form-control" id="admin_user" name="admin_user" 
+                               value="{{ settings.admin_user or '' }}" autocomplete="username">
+                        <div class="form-text">Admin interface username (optional)</div>
+                    </div>
+
+                    <div class="col-md-6 mb-3">
+                        <label for="admin_password" class="form-label">Admin Password</label>
+                        <input type="password" class="form-control" id="admin_password" name="admin_password" 
+                               value="{{ settings.admin_password or '' }}" autocomplete="new-password">
+                        <div class="form-text">Admin interface password (optional)</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Stream Settings -->
+            <div class="form-section">
+                <h4>Stream Settings</h4>
+                
+                <div class="mb-3">
+                    <label for="default_mount" class="form-label">Default Mount Point *</label>
+                    <input type="text" class="form-control" id="default_mount" name="default_mount" 
+                           value="{{ settings.default_mount }}" required>
+                    <div class="form-text">Default mount point name (e.g., monitor.mp3)</div>
+                </div>
+
+                <div class="mb-3">
+                    <label for="stream_name" class="form-label">Stream Name *</label>
+                    <input type="text" class="form-control" id="stream_name" name="stream_name" 
+                           value="{{ settings.stream_name }}" required>
+                    <div class="form-text">Display name for the audio stream</div>
+                </div>
+
+                <div class="mb-3">
+                    <label for="stream_description" class="form-label">Stream Description *</label>
+                    <input type="text" class="form-control" id="stream_description" name="stream_description" 
+                           value="{{ settings.stream_description }}" required>
+                    <div class="form-text">Description of the audio stream</div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <label for="stream_genre" class="form-label">Genre *</label>
+                        <input type="text" class="form-control" id="stream_genre" name="stream_genre" 
+                               value="{{ settings.stream_genre }}" required>
+                        <div class="form-text">Stream genre/category</div>
+                    </div>
+
+                    <div class="col-md-4 mb-3">
+                        <label for="stream_bitrate" class="form-label">Bitrate (kbps) *</label>
+                        <input type="number" class="form-control" id="stream_bitrate" name="stream_bitrate" 
+                               value="{{ settings.stream_bitrate }}" min="8" max="320" required>
+                        <div class="form-text">Stream bitrate (8-320 kbps)</div>
+                    </div>
+
+                    <div class="col-md-4 mb-3">
+                        <label for="stream_format" class="form-label">Format *</label>
+                        <select class="form-control" id="stream_format" name="stream_format">
+                            <option value="mp3" {% if settings.stream_format == 'mp3' %}selected{% endif %}>MP3</option>
+                            <option value="ogg" {% if settings.stream_format == 'ogg' %}selected{% endif %}>OGG</option>
+                        </select>
+                        <div class="form-text">Audio codec format</div>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label for="stream_public" class="form-label">Public Listing</label>
+                    <select class="form-control" id="stream_public" name="stream_public">
+                        <option value="false" {% if not settings.stream_public %}selected{% endif %}>Private (Not Listed)</option>
+                        <option value="true" {% if settings.stream_public %}selected{% endif %}>Public (Listed in Directory)</option>
+                    </select>
+                    <div class="form-text">List stream in public Icecast directories</div>
+                </div>
+            </div>
+
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-save"></i> Save Settings
+                </button>
+                <button type="button" class="btn btn-secondary" onclick="window.location.reload()">
+                    <i class="bi bi-arrow-clockwise"></i> Reset
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Diagnostics Tab -->
+    <div class="icecast-tab-content" id="diagnostics">
+        <div class="diagnostics-card">
+            <h4>Connection Test</h4>
+            <p class="text-muted">Test connection to Icecast server using current settings</p>
+            
+            <div id="connectionTestResult"></div>
+            
+            <button type="button" class="btn btn-primary btn-test" onclick="testConnection()">
+                <i class="bi bi-wifi"></i> Test Connection
+            </button>
+        </div>
+
+        <div class="diagnostics-card">
+            <h4>Streaming Status</h4>
+            <p class="text-muted">Real-time Icecast server status and statistics</p>
+            
+            <div id="streamingStatus">
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i> Click "Refresh Status" to check current streaming status
+                </div>
+            </div>
+
+            <div class="stats-grid" id="statsGrid" style="display: none;">
+                <div class="stat-item">
+                    <div class="stat-label">Total Listeners</div>
+                    <div class="stat-value" id="totalListeners">-</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">Active Sources</div>
+                    <div class="stat-value" id="totalSources">-</div>
+                </div>
+            </div>
+            
+            <button type="button" class="btn btn-primary btn-test" onclick="refreshStatus()">
+                <i class="bi bi-arrow-clockwise"></i> Refresh Status
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+// Tab switching
+document.querySelectorAll('.icecast-tab').forEach(tab => {
+    tab.addEventListener('click', function() {
+        const tabName = this.dataset.tab;
+        
+        // Update tab active state
+        document.querySelectorAll('.icecast-tab').forEach(t => t.classList.remove('active'));
+        this.classList.add('active');
+        
+        // Update content active state
+        document.querySelectorAll('.icecast-tab-content').forEach(c => c.classList.remove('active'));
+        document.getElementById(tabName).classList.add('active');
+    });
+});
+
+// Form submission
+document.getElementById('icecastSettingsForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const formData = new FormData(this);
+    const data = Object.fromEntries(formData.entries());
+    
+    try {
+        const response = await fetch('/api/admin/icecast/settings', {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(data)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showToast(result.message || 'Settings updated successfully', 'success');
+        } else {
+            showToast(result.error || 'Failed to update settings', 'error');
+        }
+    } catch (error) {
+        showToast('Error updating settings: ' + error.message, 'error');
+    }
+});
+
+// Test connection
+async function testConnection() {
+    const resultDiv = document.getElementById('connectionTestResult');
+    resultDiv.innerHTML = '<div class="alert alert-info"><span class="spinner-border"></span> Testing connection...</div>';
+    
+    try {
+        const response = await fetch('/api/admin/icecast/test-connection', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            resultDiv.innerHTML = `
+                <div class="alert alert-success">
+                    <i class="bi bi-check-circle"></i> ${result.message}
+                    ${result.details ? `
+                        <ul class="mt-2 mb-0">
+                            <li>Server: ${result.details.server}:${result.details.port}</li>
+                            <li>Authenticated: ${result.details.authenticated ? 'Yes' : 'No'}</li>
+                        </ul>
+                    ` : ''}
+                </div>
+            `;
+        } else {
+            resultDiv.innerHTML = `
+                <div class="alert alert-danger">
+                    <i class="bi bi-exclamation-triangle"></i> ${result.error}
+                </div>
+            `;
+        }
+    } catch (error) {
+        resultDiv.innerHTML = `
+            <div class="alert alert-danger">
+                <i class="bi bi-exclamation-triangle"></i> Error testing connection: ${error.message}
+            </div>
+        `;
+    }
+}
+
+// Refresh status
+async function refreshStatus() {
+    const statusDiv = document.getElementById('streamingStatus');
+    const statsGrid = document.getElementById('statsGrid');
+    
+    statusDiv.innerHTML = '<div class="alert alert-info"><span class="spinner-border"></span> Checking status...</div>';
+    statsGrid.style.display = 'none';
+    
+    try {
+        const response = await fetch('/api/admin/icecast/status');
+        const result = await response.json();
+        
+        if (!result.success) {
+            statusDiv.innerHTML = `
+                <div class="alert alert-danger">
+                    <i class="bi bi-exclamation-triangle"></i> ${result.error}
+                </div>
+            `;
+            return;
+        }
+        
+        if (!result.enabled) {
+            statusDiv.innerHTML = `
+                <div class="alert alert-warning">
+                    <i class="bi bi-exclamation-circle"></i> Icecast streaming is disabled
+                </div>
+            `;
+            return;
+        }
+        
+        if (!result.server_reachable) {
+            statusDiv.innerHTML = `
+                <div class="alert alert-danger">
+                    <i class="bi bi-exclamation-triangle"></i> Cannot reach Icecast server
+                    ${result.error ? `<br><small>${result.error}</small>` : ''}
+                </div>
+            `;
+            return;
+        }
+        
+        // Show success status
+        statusDiv.innerHTML = `
+            <div class="alert alert-success">
+                <i class="bi bi-check-circle"></i> Icecast server is running at ${result.server}:${result.port}
+            </div>
+        `;
+        
+        // Update stats if available
+        if (result.stats) {
+            document.getElementById('totalListeners').textContent = result.stats.total_listeners || 0;
+            document.getElementById('totalSources').textContent = result.stats.total_sources || 0;
+            statsGrid.style.display = 'grid';
+        }
+        
+    } catch (error) {
+        statusDiv.innerHTML = `
+            <div class="alert alert-danger">
+                <i class="bi bi-exclamation-triangle"></i> Error checking status: ${error.message}
+            </div>
+        `;
+    }
+}
+
+// Toast notification (fallback if base.html function not available)
+if (typeof window.showToast !== 'function') {
+    window.showToast = function(message, type = 'info') {
+        alert(message);
+    };
+}
+</script>
+{% endblock %}
