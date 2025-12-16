@@ -570,11 +570,12 @@ class UnifiedEASMonitorService:
                 self._current_source_context = None
                 
                 # Sleep briefly to prevent CPU spinning
-                # Reduced sleep when no audio to check more frequently and prevent queue buildup
+                # Reduced both sleep times to prevent queue buildup (was 10ms/50ms)
+                # Small difference maintained for slight CPU savings when no audio
                 if any_audio_processed:
                     time.sleep(0.01)  # 10ms when audio flowing
                 else:
-                    time.sleep(0.01)  # Reduced from 50ms to 10ms - check more frequently!
+                    time.sleep(0.02)  # 20ms when no audio (reduced from 50ms)
             
             except Exception as e:
                 logger.error(f"Error in unified monitor loop: {e}", exc_info=True)

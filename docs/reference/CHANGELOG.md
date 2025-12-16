@@ -10,7 +10,7 @@ tracks releases under the 2.x series.
 - **CRITICAL: EAS Monitor Buffer Starvation** - Fixed monitor bouncing between healthy and starved states
   - Increased EAS monitor read timeout from 0.1s to 1.0s in `app_core/audio/eas_monitor_v3.py`
   - Root cause: Monitor requested 1600 samples but timeout fired before accumulating enough chunks
-  - Reduced "no audio" sleep from 50ms to 10ms to check more frequently and prevent queue buildup
+  - Reduced "no audio" sleep from 50ms to 20ms to check more frequently and prevent queue buildup
   - Prevents vicious cycle: timeout → sleep 50ms → audio builds up → queue fills → drops → repeat
   - Eliminates false "no audio sources" errors when sources are actually running
   - Prevents missed emergency alerts due to audio starvation
