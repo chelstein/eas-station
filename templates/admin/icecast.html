@@ -94,19 +94,35 @@
         text-transform: uppercase;
     }
 
-    .status-badge.success {
+    /* Status badge colors that work in both light and dark themes */
+    [data-theme-mode="light"] .status-badge.success {
         background: #d4edda;
         color: #155724;
     }
 
-    .status-badge.danger {
+    [data-theme-mode="dark"] .status-badge.success {
+        background: rgba(40, 167, 69, 0.3);
+        color: #85e89d;
+    }
+
+    [data-theme-mode="light"] .status-badge.danger {
         background: #f8d7da;
         color: #721c24;
     }
 
-    .status-badge.warning {
+    [data-theme-mode="dark"] .status-badge.danger {
+        background: rgba(220, 53, 69, 0.3);
+        color: #f5a0aa;
+    }
+
+    [data-theme-mode="light"] .status-badge.warning {
         background: #fff3cd;
         color: #856404;
+    }
+
+    [data-theme-mode="dark"] .status-badge.warning {
+        background: rgba(255, 193, 7, 0.3);
+        color: #ffd966;
     }
 
     .status-badge.secondary {
@@ -151,22 +167,53 @@
         border-radius: 0.375rem;
     }
 
-    .alert-info {
+    /* Alert colors that work in both light and dark themes */
+    [data-theme-mode="light"] .alert-info {
         background: #d1ecf1;
         border-color: #bee5eb;
         color: #0c5460;
     }
 
-    .alert-success {
+    [data-theme-mode="dark"] .alert-info {
+        background: rgba(23, 162, 184, 0.2);
+        border-color: rgba(23, 162, 184, 0.4);
+        color: #90d4e3;
+    }
+
+    [data-theme-mode="light"] .alert-success {
         background: #d4edda;
         border-color: #c3e6cb;
         color: #155724;
     }
 
-    .alert-danger {
+    [data-theme-mode="dark"] .alert-success {
+        background: rgba(40, 167, 69, 0.2);
+        border-color: rgba(40, 167, 69, 0.4);
+        color: #85e89d;
+    }
+
+    [data-theme-mode="light"] .alert-danger {
         background: #f8d7da;
         border-color: #f5c6cb;
         color: #721c24;
+    }
+
+    [data-theme-mode="dark"] .alert-danger {
+        background: rgba(220, 53, 69, 0.2);
+        border-color: rgba(220, 53, 69, 0.4);
+        color: #f5a0aa;
+    }
+
+    [data-theme-mode="light"] .alert-warning {
+        background: #fff3cd;
+        border-color: #ffeeba;
+        color: #856404;
+    }
+
+    [data-theme-mode="dark"] .alert-warning {
+        background: rgba(255, 193, 7, 0.2);
+        border-color: rgba(255, 193, 7, 0.4);
+        color: #ffd966;
     }
 
     .spinner-border {
@@ -200,10 +247,13 @@
     .password-display-group .btn {
         padding: 0.375rem 0.75rem;
         border: 1px solid var(--border-color);
+        background: var(--card-bg);
+        color: var(--text-color);
     }
 
     .password-display-group .btn:hover {
         background: var(--hover-bg);
+        color: var(--text-color);
     }
 </style>
 {% endblock %}
@@ -212,6 +262,19 @@
 <div class="icecast-container">
     <h1>Icecast Streaming Server Configuration</h1>
     <p class="text-muted">Configure Icecast streaming server for live audio monitoring</p>
+
+    <!-- Server Status Indicator -->
+    <div class="alert alert-info" id="server-status-banner" style="display: none;">
+        <div class="d-flex align-items-center">
+            <i class="bi bi-info-circle me-2"></i>
+            <div class="flex-grow-1">
+                <strong>Server Status:</strong> <span id="server-status-message">Checking...</span>
+            </div>
+            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="checkServerStatus()">
+                <i class="bi bi-arrow-clockwise"></i> Refresh
+            </button>
+        </div>
+    </div>
 
     <div class="icecast-tabs">
         <div class="icecast-tab active" data-tab="configuration">Configuration</div>
@@ -449,6 +512,45 @@
 </div>
 
 <script>
+// Check server status on page load
+document.addEventListener('DOMContentLoaded', function() {
+    checkServerStatus();
+});
+
+// Check server status
+async function checkServerStatus() {
+    try {
+        const response = await fetch('/api/health/icecast');
+        const data = await response.json();
+        
+        const banner = document.getElementById('server-status-banner');
+        const message = document.getElementById('server-status-message');
+        
+        banner.style.display = 'block';
+        
+        if (!data.enabled) {
+            banner.className = 'alert alert-warning';
+            message.innerHTML = '<i class="bi bi-dash-circle"></i> Icecast streaming is disabled';
+        } else if (data.running) {
+            banner.className = 'alert alert-success';
+            const listeners = data.listeners !== undefined ? data.listeners : 0;
+            const sources = data.sources !== undefined ? data.sources : 0;
+            message.innerHTML = `<i class="bi bi-check-circle"></i> Server running at ${data.server}:${data.port} - ${listeners} listener(s), ${sources} source(s)`;
+        } else {
+            banner.className = 'alert alert-danger';
+            message.innerHTML = `<i class="bi bi-x-circle"></i> Cannot reach server: ${data.error || 'Unknown error'}`;
+        }
+    } catch (error) {
+        console.error('Error checking server status:', error);
+        const banner = document.getElementById('server-status-banner');
+        const message = document.getElementById('server-status-message');
+        
+        banner.style.display = 'block';
+        banner.className = 'alert alert-danger';
+        message.innerHTML = `<i class="bi bi-exclamation-triangle"></i> Error checking server status`;
+    }
+}
+
 // Tab switching
 document.querySelectorAll('.icecast-tab').forEach(tab => {
     tab.addEventListener('click', function() {
@@ -530,6 +632,9 @@ async function testConnection() {
                 </div>
             `;
         }
+        
+        // Update server status banner
+        checkServerStatus();
     } catch (error) {
         resultDiv.innerHTML = `
             <div class="alert alert-danger">
@@ -557,6 +662,8 @@ async function refreshStatus() {
                     <i class="bi bi-exclamation-triangle"></i> ${result.error}
                 </div>
             `;
+            // Update server status banner
+            checkServerStatus();
             return;
         }
         
@@ -566,6 +673,8 @@ async function refreshStatus() {
                     <i class="bi bi-exclamation-circle"></i> Icecast streaming is disabled
                 </div>
             `;
+            // Update server status banner
+            checkServerStatus();
             return;
         }
         
@@ -576,6 +685,8 @@ async function refreshStatus() {
                     ${result.error ? `<br><small>${result.error}</small>` : ''}
                 </div>
             `;
+            // Update server status banner
+            checkServerStatus();
             return;
         }
         
@@ -592,6 +703,9 @@ async function refreshStatus() {
             document.getElementById('totalSources').textContent = result.stats.total_sources || 0;
             statsGrid.style.display = 'grid';
         }
+        
+        // Update server status banner
+        checkServerStatus();
         
     } catch (error) {
         statusDiv.innerHTML = `
