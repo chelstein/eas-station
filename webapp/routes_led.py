@@ -650,9 +650,16 @@ def register(app: Flask, logger) -> None:
                 if baud_rate not in valid_baud_rates:
                     return jsonify({"success": False, "error": f"Invalid baud rate. Must be one of {valid_baud_rates}."})
 
-                # Validate IP address (basic validation)
+                # Validate IP address properly
                 if not ip_address or not isinstance(ip_address, str):
                     return jsonify({"success": False, "error": "Invalid IP address."})
+                
+                # Use ipaddress module for proper IP validation
+                try:
+                    import ipaddress
+                    ipaddress.ip_address(ip_address)
+                except ValueError:
+                    return jsonify({"success": False, "error": "Invalid IP address format. Please provide a valid IPv4 or IPv6 address."})
 
                 # Validate port
                 if not (1 <= port <= 65535):
@@ -697,16 +704,17 @@ def register(app: Flask, logger) -> None:
                 except Exception as db_error:
                     route_logger.warning(f"Could not store serial config in database: {db_error}")
                     return jsonify({"success": False, "error": f"Database error: {str(db_error)}"})
-                    return jsonify({"success": False, "error": f"Database error: {str(db_error)}"})
 
                 return jsonify({
                     "success": True,
-                    "message": f"Serial configuration saved: {serial_mode} @ {baud_rate} baud",
+                    "message": f"LED configuration saved: {ip_address}:{port}, {serial_mode} @ {baud_rate} baud",
                     "config": {
+                        "ip_address": ip_address,
+                        "port": port,
                         "serial_mode": serial_mode,
                         "baud_rate": baud_rate,
                     },
-                    "note": "Remember to configure these same settings on your Lantronix adapter."
+                    "note": "Configuration saved. Restart hardware service for changes to take effect."
                 })
             except Exception as exc:
                 route_logger.error(f"Error saving serial configuration: {exc}")
