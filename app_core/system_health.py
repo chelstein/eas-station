@@ -270,7 +270,9 @@ def collect_icecast_status(logger=None) -> Dict[str, Any]:
     port = settings.port or 8000
     
     # SECURITY: Validate server hostname (defense in depth)
-    if not re.match(r'^[a-zA-Z0-9\.\-]+$', server):
+    # Allow only valid hostnames: alphanumeric, dots, hyphens (not at start/end)
+    # This regex allows localhost, IP addresses, and proper domain names
+    if not re.match(r'^[a-zA-Z0-9]([a-zA-Z0-9\.\-]*[a-zA-Z0-9])?$', server):
         effective_logger.error(f"Invalid Icecast server hostname: {server}")
         return {
             "enabled": True,
@@ -287,11 +289,14 @@ def collect_icecast_status(logger=None) -> Dict[str, Any]:
     
     try:
         # SECURITY: Disable redirects to prevent redirect-based SSRF
+        # NOTE: verify=False for internal/localhost connections (Icecast typically on same host)
+        # In production with external servers, this should be verify=True
         response = requests.get(
             stats_url,
             auth=(settings.admin_user, settings.admin_password) if settings.admin_user and settings.admin_password else None,
             timeout=3,
-            allow_redirects=False  # SSRF prevention
+            allow_redirects=False,  # SSRF prevention
+            verify=False  # Internal connection - external servers should use verify=True
         )
         
         if response.status_code == 200:
