@@ -279,8 +279,18 @@ def _emit_audio_monitoring_update(app: 'Flask', socketio: 'SocketIO', config_cac
 
     if redis_metrics:
         audio_controller_data = redis_metrics.get('audio_controller')
+        
+        # Handle case where audio_controller is a JSON string (legacy) or already parsed dict
         if isinstance(audio_controller_data, str):
-            audio_controller_data = json.loads(audio_controller_data)
+            # Skip empty strings to avoid JSON parse errors
+            if audio_controller_data.strip():
+                try:
+                    audio_controller_data = json.loads(audio_controller_data)
+                except json.JSONDecodeError as e:
+                    logger.debug(f"Failed to parse audio_controller JSON: {e}")
+                    audio_controller_data = None
+            else:
+                audio_controller_data = None
 
         if audio_controller_data:
             active_source = audio_controller_data.get('active_source')
@@ -316,7 +326,15 @@ def _emit_audio_monitoring_update(app: 'Flask', socketio: 'SocketIO', config_cac
 
         broadcast_stats = redis_metrics.get('broadcast_queue') or {}
         if isinstance(broadcast_stats, str):
-            broadcast_stats = json.loads(broadcast_stats)
+            # Skip empty strings to avoid JSON parse errors
+            if broadcast_stats.strip():
+                try:
+                    broadcast_stats = json.loads(broadcast_stats)
+                except json.JSONDecodeError as e:
+                    logger.debug(f"Failed to parse broadcast_stats JSON: {e}")
+                    broadcast_stats = {}
+            else:
+                broadcast_stats = {}
 
         eas_monitor_status = redis_metrics.get('eas_monitor')
 

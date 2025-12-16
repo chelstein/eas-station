@@ -249,6 +249,11 @@ class ScreenRenderer:
                     payload.get("error"),
                 )
                 payload = None
+        except requests.exceptions.ConnectionError as exc:
+            # Connection refused is expected when web service isn't running
+            # This is normal for hardware-only mode, so log at DEBUG level
+            logger.debug(f"Web service unavailable at {endpoint}: {exc}")
+            payload = None
         except Exception as exc:
             logger.error(f"Failed to fetch data from {endpoint}: {exc}")
             payload = None

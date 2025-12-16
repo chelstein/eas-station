@@ -300,7 +300,16 @@ class IcecastStreamer:
                     # Only log important messages (errors/warnings) to avoid log spam
                     # FFmpeg is very verbose with version info and config
                     lower_line = decoded_line.lower()
-                    if any(keyword in lower_line for keyword in
+                    
+                    # Suppress connection errors during backoff to avoid log spam
+                    # These are expected when Icecast isn't running
+                    is_connection_error = any(keyword in lower_line for keyword in
+                                            ['connection refused', 'connection reset'])
+                    
+                    # Only log connection errors once per backoff cycle
+                    if is_connection_error and self._connection_health['reconnect_attempts'] > 1:
+                        logger.debug(f"FFmpeg [{self.config.mount}]: {decoded_line}")
+                    elif any(keyword in lower_line for keyword in
                            ['error', 'failed', 'invalid', 'unable', 'not found',
                             'warning', 'deprecated', 'refused', 'timeout']):
                         logger.warning(f"FFmpeg [{self.config.mount}]: {decoded_line}")

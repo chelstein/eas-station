@@ -206,7 +206,11 @@ class RedisAudioAdapter:
             # Check if we have enough samples now
             if self._chunk_total_samples < num_samples:
                 self._underrun_count += 1
-                if self._underrun_count % 100 == 0:
+                # Log with exponential backoff: at 10, 50, 100, 200, 500, 1000, etc.
+                # This reduces log spam while still showing the problem severity
+                # Using set for O(1) lookup performance
+                if (self._underrun_count in {10, 50, 100, 200, 500, 1000, 2000, 5000, 10000} or
+                    (self._underrun_count > 10000 and self._underrun_count % 10000 == 0)):
                     logger.warning(
                         f"Audio underrun #{self._underrun_count}: "
                         f"buffer={self._chunk_total_samples}/{num_samples} samples"
