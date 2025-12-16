@@ -260,6 +260,113 @@ def test_connection():
         return jsonify({"success": False, "error": str(exc)}), 500
 
 
+@icecast_bp.route('/api/icecast/regenerate-passwords', methods=['POST'])
+@require_permission('system.configure')
+def regenerate_passwords():
+    """Regenerate Icecast passwords.
+    
+    Generates new secure passwords for source and admin authentication,
+    updates both the database and .env file for persistence.
+    """
+    try:
+        import secrets
+        import os
+        from pathlib import Path
+        
+        # Generate new secure passwords
+        new_source_password = secrets.token_urlsafe(16)
+        new_admin_password = secrets.token_urlsafe(16)
+        
+        # Update database
+        settings = get_icecast_settings()
+        settings.source_password = new_source_password
+        settings.admin_password = new_admin_password
+        db.session.commit()
+        
+        # Update .env file
+        # Get the path to the .env file
+        config_path = os.environ.get('CONFIG_PATH')
+        if config_path:
+            env_path = Path(config_path)
+        else:
+            current_dir = Path(__file__).resolve().parent
+            project_root = current_dir.parent.parent
+            env_path = project_root / '.env'
+        
+        # Read existing .env file
+        env_vars = {}
+        if env_path.exists():
+            with open(env_path, 'r') as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith('#') and '=' in line:
+                        key, value = line.split('=', 1)
+                        env_vars[key.strip()] = value.strip()
+        
+        # Update password variables
+        env_vars['ICECAST_SOURCE_PASSWORD'] = new_source_password
+        env_vars['ICECAST_ADMIN_PASSWORD'] = new_admin_password
+        
+        # Write back to .env file (preserve structure)
+        if env_path.exists():
+            with open(env_path, 'r') as f:
+                existing_lines = f.readlines()
+            
+            new_lines = []
+            processed_keys = set()
+            
+            for line in existing_lines:
+                stripped = line.strip()
+                
+                # Preserve comments and empty lines
+                if not stripped or stripped.startswith('#'):
+                    new_lines.append(line)
+                    continue
+                
+                # Update existing variable
+                if '=' in stripped:
+                    key = stripped.split('=', 1)[0].strip()
+                    if key in ['ICECAST_SOURCE_PASSWORD', 'ICECAST_ADMIN_PASSWORD']:
+                        new_lines.append(f"{key}={env_vars[key]}\n")
+                        processed_keys.add(key)
+                    else:
+                        new_lines.append(line)
+            
+            # Add new variables if they weren't in the file
+            if 'ICECAST_SOURCE_PASSWORD' not in processed_keys:
+                new_lines.append(f"ICECAST_SOURCE_PASSWORD={new_source_password}\n")
+            if 'ICECAST_ADMIN_PASSWORD' not in processed_keys:
+                new_lines.append(f"ICECAST_ADMIN_PASSWORD={new_admin_password}\n")
+            
+            # Write back to file
+            with open(env_path, 'w') as f:
+                f.writelines(new_lines)
+        else:
+            # Create new .env file if it doesn't exist
+            with open(env_path, 'w') as f:
+                f.write(f"ICECAST_SOURCE_PASSWORD={new_source_password}\n")
+                f.write(f"ICECAST_ADMIN_PASSWORD={new_admin_password}\n")
+        
+        # Invalidate cached settings
+        invalidate_icecast_settings_cache()
+        
+        logger.info("Icecast passwords regenerated successfully")
+        
+        return jsonify({
+            "success": True,
+            "message": "Passwords regenerated successfully. Restart Icecast services for changes to take effect.",
+            "passwords": {
+                "source_password": new_source_password,
+                "admin_password": new_admin_password,
+            }
+        })
+    
+    except Exception as exc:
+        logger.error(f"Failed to regenerate Icecast passwords: {exc}")
+        db.session.rollback()
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+
 @icecast_bp.route('/api/icecast/status', methods=['GET'])
 @require_permission('system.configure')
 def get_status():

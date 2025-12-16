@@ -183,6 +183,28 @@
     @keyframes spinner-border {
         to { transform: rotate(360deg); }
     }
+
+    .password-display-group {
+        display: flex;
+        gap: 0.5rem;
+        align-items: stretch;
+    }
+
+    .password-display-group .password-display {
+        flex: 1;
+        font-family: monospace;
+        background: var(--bg-color);
+        border: 1px solid var(--border-color);
+    }
+
+    .password-display-group .btn {
+        padding: 0.375rem 0.75rem;
+        border: 1px solid var(--border-color);
+    }
+
+    .password-display-group .btn:hover {
+        background: var(--hover-bg);
+    }
 </style>
 {% endblock %}
 
@@ -251,12 +273,24 @@
             <!-- Authentication -->
             <div class="form-section">
                 <h4>Authentication</h4>
+                <div class="alert alert-info mb-3">
+                    <i class="bi bi-info-circle"></i> Passwords are auto-generated during installation for security. 
+                    You can view, copy, or regenerate them below.
+                </div>
                 
                 <div class="mb-3">
                     <label for="source_password" class="form-label">Source Password *</label>
-                    <input type="password" class="form-control" id="source_password" name="source_password" 
-                           value="{{ settings.source_password }}" required autocomplete="new-password">
-                    <div class="form-text">Password for connecting audio sources to Icecast</div>
+                    <div class="password-display-group">
+                        <input type="password" class="form-control password-display" id="source_password" 
+                               value="{{ settings.source_password }}" readonly>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="togglePasswordVisibility('source_password')" title="Show/Hide Password">
+                            <i class="bi bi-eye" id="source_password-icon"></i>
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="copyPassword('source_password')" title="Copy to Clipboard">
+                            <i class="bi bi-clipboard"></i>
+                        </button>
+                    </div>
+                    <div class="form-text">Password for connecting audio sources to Icecast (auto-generated)</div>
                 </div>
 
                 <div class="row">
@@ -269,10 +303,27 @@
 
                     <div class="col-md-6 mb-3">
                         <label for="admin_password" class="form-label">Admin Password</label>
-                        <input type="password" class="form-control" id="admin_password" name="admin_password" 
-                               value="{{ settings.admin_password or '' }}" autocomplete="new-password">
-                        <div class="form-text">Admin interface password (optional)</div>
+                        <div class="password-display-group">
+                            <input type="password" class="form-control password-display" id="admin_password" 
+                                   value="{{ settings.admin_password or '' }}" readonly>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="togglePasswordVisibility('admin_password')" title="Show/Hide Password">
+                                <i class="bi bi-eye" id="admin_password-icon"></i>
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="copyPassword('admin_password')" title="Copy to Clipboard">
+                                <i class="bi bi-clipboard"></i>
+                            </button>
+                        </div>
+                        <div class="form-text">Admin interface password (auto-generated, optional)</div>
                     </div>
+                </div>
+
+                <div class="mt-3">
+                    <button type="button" class="btn btn-warning" onclick="regeneratePasswords()">
+                        <i class="bi bi-arrow-clockwise"></i> Regenerate All Passwords
+                    </button>
+                    <small class="text-muted d-block mt-2">
+                        <i class="bi bi-exclamation-triangle"></i> Regenerating passwords will update the .env file and require restarting Icecast services.
+                    </small>
                 </div>
             </div>
 
@@ -411,6 +462,10 @@ document.getElementById('icecastSettingsForm').addEventListener('submit', async 
     const formData = new FormData(this);
     const data = Object.fromEntries(formData.entries());
     
+    // Remove password fields from submission since they're read-only
+    delete data.source_password;
+    delete data.admin_password;
+    
     try {
         const response = await fetch('/admin/api/icecast/settings', {
             method: 'PUT',
@@ -543,6 +598,79 @@ if (typeof window.showToast !== 'function') {
     window.showToast = function(message, type = 'info') {
         alert(message);
     };
+}
+
+// Password visibility toggle
+function togglePasswordVisibility(fieldId) {
+    const field = document.getElementById(fieldId);
+    const icon = document.getElementById(fieldId + '-icon');
+    
+    if (field.type === 'password') {
+        field.type = 'text';
+        icon.classList.remove('bi-eye');
+        icon.classList.add('bi-eye-slash');
+    } else {
+        field.type = 'password';
+        icon.classList.remove('bi-eye-slash');
+        icon.classList.add('bi-eye');
+    }
+}
+
+// Copy password to clipboard
+async function copyPassword(fieldId) {
+    const field = document.getElementById(fieldId);
+    const password = field.value;
+    
+    if (!password) {
+        showToast('No password to copy', 'warning');
+        return;
+    }
+    
+    try {
+        await navigator.clipboard.writeText(password);
+        showToast('Password copied to clipboard', 'success');
+    } catch (err) {
+        // Fallback for older browsers
+        field.select();
+        document.execCommand('copy');
+        showToast('Password copied to clipboard', 'success');
+    }
+}
+
+// Regenerate passwords
+async function regeneratePasswords() {
+    if (!confirm('Are you sure you want to regenerate all Icecast passwords?\n\nThis will:\n- Generate new secure passwords\n- Update the .env file\n- Require restarting Icecast services\n\nExisting connections will be disconnected.')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch('/admin/api/icecast/regenerate-passwords', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showToast(result.message || 'Passwords regenerated successfully', 'success');
+            
+            // Update the password fields with new values
+            if (result.passwords) {
+                if (result.passwords.source_password) {
+                    document.getElementById('source_password').value = result.passwords.source_password;
+                }
+                if (result.passwords.admin_password) {
+                    document.getElementById('admin_password').value = result.passwords.admin_password;
+                }
+            }
+        } else {
+            showToast(result.error || 'Failed to regenerate passwords', 'error');
+        }
+    } catch (error) {
+        showToast('Error regenerating passwords: ' + error.message, 'error');
+    }
 }
 </script>
 {% endblock %}

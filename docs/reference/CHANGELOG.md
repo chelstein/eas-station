@@ -6,6 +6,19 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+### Added
+- **Icecast Password Management Improvements** - Transformed password handling to read-only display with regenerate option
+  - Password fields now read-only to prevent user errors and mismatches with Icecast server
+  - Added password masking with show/hide toggle buttons for security
+  - Added copy-to-clipboard functionality for easy password access
+  - Added informational text explaining passwords are auto-generated during installation
+  - Added regenerate password functionality that updates both database and .env file
+  - New endpoint `/admin/api/icecast/regenerate-passwords` for secure password regeneration
+  - Maintains strong auto-generated passwords (secrets.token_urlsafe(16))
+  - Non-password settings (ports, stream name, etc.) remain editable
+  - Prevents security risks from weak user-chosen passwords
+  - VERSION bumped to 2.32.0 (feature enhancement)
+
 ### Fixed
 - **CRITICAL: EAS Monitor Buffer Starvation** - Fixed monitor bouncing between healthy and starved states
   - Increased EAS monitor read timeout from 0.1s to 1.0s in `app_core/audio/eas_monitor_v3.py`
