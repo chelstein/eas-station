@@ -22,8 +22,11 @@ from __future__ import annotations
 """Icecast streaming server settings management routes."""
 
 import logging
+import os
 import re
 import requests
+import secrets
+from pathlib import Path
 from typing import Any, Dict
 
 from flask import Blueprint, flash, jsonify, redirect, render_template, request, url_for
@@ -41,6 +44,21 @@ logger = logging.getLogger(__name__)
 
 # Create Blueprint for icecast routes
 icecast_bp = Blueprint('icecast', __name__)
+
+
+def _get_env_file_path() -> Path:
+    """Get the path to the .env file.
+    
+    Returns the CONFIG_PATH if set (persistent volume), otherwise the .env
+    file in the project root.
+    """
+    config_path = os.environ.get('CONFIG_PATH')
+    if config_path:
+        return Path(config_path)
+    
+    current_dir = Path(__file__).resolve().parent
+    project_root = current_dir.parent.parent
+    return project_root / '.env'
 
 
 # Routes are relative to blueprint's url_prefix='/admin'
@@ -269,10 +287,6 @@ def regenerate_passwords():
     updates both the database and .env file for persistence.
     """
     try:
-        import secrets
-        import os
-        from pathlib import Path
-        
         # Generate new secure passwords
         new_source_password = secrets.token_urlsafe(16)
         new_admin_password = secrets.token_urlsafe(16)
@@ -284,68 +298,47 @@ def regenerate_passwords():
         db.session.commit()
         
         # Update .env file
-        # Get the path to the .env file
-        config_path = os.environ.get('CONFIG_PATH')
-        if config_path:
-            env_path = Path(config_path)
-        else:
-            current_dir = Path(__file__).resolve().parent
-            project_root = current_dir.parent.parent
-            env_path = project_root / '.env'
+        env_path = _get_env_file_path()
         
         # Read existing .env file
-        env_vars = {}
-        if env_path.exists():
-            with open(env_path, 'r') as f:
-                for line in f:
-                    line = line.strip()
-                    if line and not line.startswith('#') and '=' in line:
-                        key, value = line.split('=', 1)
-                        env_vars[key.strip()] = value.strip()
-        
-        # Update password variables
-        env_vars['ICECAST_SOURCE_PASSWORD'] = new_source_password
-        env_vars['ICECAST_ADMIN_PASSWORD'] = new_admin_password
-        
-        # Write back to .env file (preserve structure)
+        existing_lines = []
         if env_path.exists():
             with open(env_path, 'r') as f:
                 existing_lines = f.readlines()
+        
+        # Update password variables while preserving file structure
+        new_lines = []
+        processed_keys = set()
+        
+        for line in existing_lines:
+            stripped = line.strip()
             
-            new_lines = []
-            processed_keys = set()
+            # Preserve comments and empty lines
+            if not stripped or stripped.startswith('#'):
+                new_lines.append(line)
+                continue
             
-            for line in existing_lines:
-                stripped = line.strip()
-                
-                # Preserve comments and empty lines
-                if not stripped or stripped.startswith('#'):
+            # Update password variables
+            if '=' in stripped:
+                key = stripped.split('=', 1)[0].strip()
+                if key == 'ICECAST_SOURCE_PASSWORD':
+                    new_lines.append(f"{key}={new_source_password}\n")
+                    processed_keys.add(key)
+                elif key == 'ICECAST_ADMIN_PASSWORD':
+                    new_lines.append(f"{key}={new_admin_password}\n")
+                    processed_keys.add(key)
+                else:
                     new_lines.append(line)
-                    continue
-                
-                # Update existing variable
-                if '=' in stripped:
-                    key = stripped.split('=', 1)[0].strip()
-                    if key in ['ICECAST_SOURCE_PASSWORD', 'ICECAST_ADMIN_PASSWORD']:
-                        new_lines.append(f"{key}={env_vars[key]}\n")
-                        processed_keys.add(key)
-                    else:
-                        new_lines.append(line)
-            
-            # Add new variables if they weren't in the file
-            if 'ICECAST_SOURCE_PASSWORD' not in processed_keys:
-                new_lines.append(f"ICECAST_SOURCE_PASSWORD={new_source_password}\n")
-            if 'ICECAST_ADMIN_PASSWORD' not in processed_keys:
-                new_lines.append(f"ICECAST_ADMIN_PASSWORD={new_admin_password}\n")
-            
-            # Write back to file
-            with open(env_path, 'w') as f:
-                f.writelines(new_lines)
-        else:
-            # Create new .env file if it doesn't exist
-            with open(env_path, 'w') as f:
-                f.write(f"ICECAST_SOURCE_PASSWORD={new_source_password}\n")
-                f.write(f"ICECAST_ADMIN_PASSWORD={new_admin_password}\n")
+        
+        # Add new variables if they weren't in the file
+        if 'ICECAST_SOURCE_PASSWORD' not in processed_keys:
+            new_lines.append(f"ICECAST_SOURCE_PASSWORD={new_source_password}\n")
+        if 'ICECAST_ADMIN_PASSWORD' not in processed_keys:
+            new_lines.append(f"ICECAST_ADMIN_PASSWORD={new_admin_password}\n")
+        
+        # Write back to file
+        with open(env_path, 'w') as f:
+            f.writelines(new_lines)
         
         # Invalidate cached settings
         invalidate_icecast_settings_cache()
