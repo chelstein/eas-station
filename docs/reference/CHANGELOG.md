@@ -20,6 +20,9 @@ tracks releases under the 2.x series.
   - Updated Redis version to 7.1 in badges
   - Enhanced documentation navigation diagram with troubleshooting branch
   - All service references now accurately reflect systemd-based deployment
+  - Fixed broken documentation links: HARDWARE_ISOLATION.md, EAS_DECODING_SUMMARY.md, PYCHARM_DEBUGGING.md
+  - Removed references to deleted architecture analysis documents
+  - Updated cross-references to point to existing current documentation
   - VERSION bumped to 2.27.27 (documentation update)
 
 ### Fixed
