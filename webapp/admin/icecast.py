@@ -22,8 +22,13 @@ from __future__ import annotations
 """Icecast streaming server settings management routes."""
 
 import logging
+import os
 import re
 import requests
+import secrets
+import subprocess
+import xml.etree.ElementTree as ET
+from pathlib import Path
 from typing import Any, Dict
 
 from flask import Blueprint, flash, jsonify, redirect, render_template, request, url_for
@@ -41,6 +46,142 @@ logger = logging.getLogger(__name__)
 
 # Create Blueprint for icecast routes
 icecast_bp = Blueprint('icecast', __name__)
+
+
+def _get_env_file_path() -> Path:
+    """Get the path to the .env file.
+    
+    Returns the CONFIG_PATH if set (persistent volume), otherwise the .env
+    file in the project root.
+    """
+    config_path = os.environ.get('CONFIG_PATH')
+    if config_path:
+        return Path(config_path)
+    
+    current_dir = Path(__file__).resolve().parent
+    project_root = current_dir.parent.parent
+    return project_root / '.env'
+
+
+def _update_icecast_config_file(source_password: str, admin_password: str) -> tuple[bool, str]:
+    """Update Icecast server configuration file with new passwords.
+    
+    This function handles:
+    1. Finding the Icecast config file
+    2. Parsing and updating XML passwords
+    3. Writing the config file (may require sudo)
+    4. Restarting the Icecast service
+    
+    Args:
+        source_password: New source password
+        admin_password: New admin password
+        
+    Returns:
+        Tuple of (success: bool, message: str)
+    """
+    # Common Icecast configuration file locations
+    config_paths = [
+        Path('/etc/icecast2/icecast.xml'),
+        Path('/etc/icecast.xml'),
+        Path('/usr/local/etc/icecast.xml'),
+        Path('/opt/icecast/etc/icecast.xml'),
+    ]
+    
+    icecast_config = None
+    for config_path in config_paths:
+        if config_path.exists():
+            icecast_config = config_path
+            break
+    
+    if not icecast_config:
+        logger.warning("Icecast configuration file not found in common locations")
+        return False, ("Icecast configuration file not found. "
+                      "Please manually update passwords in /etc/icecast2/icecast.xml and restart: "
+                      "sudo systemctl restart icecast2")
+    
+    try:
+        # Parse XML configuration
+        tree = ET.parse(icecast_config)
+        root = tree.getroot()
+        
+        updated_fields = []
+        
+        # Update authentication section
+        auth = root.find('.//authentication')
+        if auth is not None:
+            # Update source password
+            source_pw_elem = auth.find('source-password')
+            if source_pw_elem is not None:
+                source_pw_elem.text = source_password
+                updated_fields.append('source-password')
+            else:
+                # Create if missing
+                source_pw_elem = ET.SubElement(auth, 'source-password')
+                source_pw_elem.text = source_password
+                updated_fields.append('source-password (created)')
+            
+            # Update admin password
+            admin_pw_elem = auth.find('admin-password')
+            if admin_pw_elem is not None:
+                admin_pw_elem.text = admin_password
+                updated_fields.append('admin-password')
+            else:
+                # Create if missing
+                admin_pw_elem = ET.SubElement(auth, 'admin-password')
+                admin_pw_elem.text = admin_password
+                updated_fields.append('admin-password (created)')
+        else:
+            logger.warning(f"No authentication section found in {icecast_config}")
+            return False, f"Invalid Icecast config at {icecast_config} - no authentication section found"
+        
+        # Write back to file (may require root permissions)
+        try:
+            # Preserve XML formatting
+            ET.indent(tree, space='  ')
+            tree.write(icecast_config, encoding='utf-8', xml_declaration=True)
+            
+            logger.info(f"Updated Icecast config: {', '.join(updated_fields)}")
+            
+            # Restart Icecast service
+            try:
+                # Try different service names
+                for service_name in ['icecast2', 'icecast']:
+                    try:
+                        result = subprocess.run(
+                            ['sudo', 'systemctl', 'restart', service_name], 
+                            check=True, 
+                            capture_output=True, 
+                            timeout=10,
+                            text=True
+                        )
+                        return True, f"Icecast configuration updated ({', '.join(updated_fields)}) and service '{service_name}' restarted successfully"
+                    except subprocess.CalledProcessError:
+                        continue  # Try next service name
+                
+                # If we get here, all service names failed
+                return True, (f"Icecast configuration updated at {icecast_config} ({', '.join(updated_fields)}), "
+                            "but service restart failed. Please restart manually: "
+                            "sudo systemctl restart icecast2")
+                
+            except FileNotFoundError:
+                return True, (f"Icecast configuration updated at {icecast_config} ({', '.join(updated_fields)}), "
+                            "but systemctl not found. Please restart Icecast manually")
+            except subprocess.TimeoutExpired:
+                return True, (f"Icecast configuration updated at {icecast_config} ({', '.join(updated_fields)}), "
+                            "but service restart timed out. Please check: sudo systemctl status icecast2")
+                
+        except PermissionError:
+            logger.error(f"Permission denied writing to {icecast_config}")
+            return False, (f"Permission denied writing to {icecast_config}. "
+                          f"Manual update required with sudo: "
+                          f"source-password={source_password}, admin-password={admin_password}")
+    
+    except ET.ParseError as e:
+        logger.error(f"Failed to parse Icecast config: {e}")
+        return False, f"Failed to parse Icecast config at {icecast_config}: {e}"
+    except Exception as e:
+        logger.error(f"Error updating Icecast config: {e}")
+        return False, f"Error updating Icecast config: {e}"
 
 
 # Routes are relative to blueprint's url_prefix='/admin'
@@ -257,6 +398,102 @@ def test_connection():
 
     except Exception as exc:
         logger.error(f"Failed to test Icecast connection: {exc}")
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+
+@icecast_bp.route('/api/icecast/regenerate-passwords', methods=['POST'])
+@require_permission('system.configure')
+def regenerate_passwords():
+    """Regenerate Icecast passwords.
+    
+    Generates new secure passwords for source and admin authentication,
+    updates the database, .env file, and Icecast server configuration file.
+    """
+    try:
+        # Generate new secure passwords
+        new_source_password = secrets.token_urlsafe(16)
+        new_admin_password = secrets.token_urlsafe(16)
+        
+        # Update database
+        settings = get_icecast_settings()
+        settings.source_password = new_source_password
+        settings.admin_password = new_admin_password
+        db.session.commit()
+        
+        # Update .env file
+        env_path = _get_env_file_path()
+        
+        # Read existing .env file
+        existing_lines = []
+        if env_path.exists():
+            with open(env_path, 'r') as f:
+                existing_lines = f.readlines()
+        
+        # Update password variables while preserving file structure
+        new_lines = []
+        processed_keys = set()
+        
+        for line in existing_lines:
+            stripped = line.strip()
+            
+            # Preserve comments and empty lines
+            if not stripped or stripped.startswith('#'):
+                new_lines.append(line)
+                continue
+            
+            # Update password variables
+            if '=' in stripped:
+                key = stripped.split('=', 1)[0].strip()
+                if key == 'ICECAST_SOURCE_PASSWORD':
+                    new_lines.append(f"{key}={new_source_password}\n")
+                    processed_keys.add(key)
+                elif key == 'ICECAST_ADMIN_PASSWORD':
+                    new_lines.append(f"{key}={new_admin_password}\n")
+                    processed_keys.add(key)
+                else:
+                    new_lines.append(line)
+        
+        # Add new variables if they weren't in the file
+        if 'ICECAST_SOURCE_PASSWORD' not in processed_keys:
+            new_lines.append(f"ICECAST_SOURCE_PASSWORD={new_source_password}\n")
+        if 'ICECAST_ADMIN_PASSWORD' not in processed_keys:
+            new_lines.append(f"ICECAST_ADMIN_PASSWORD={new_admin_password}\n")
+        
+        # Write back to file
+        with open(env_path, 'w') as f:
+            f.writelines(new_lines)
+        
+        # Update Icecast server configuration file
+        config_success, config_message = _update_icecast_config_file(
+            new_source_password, 
+            new_admin_password
+        )
+        
+        # Invalidate cached settings
+        invalidate_icecast_settings_cache()
+        
+        logger.info(f"Icecast passwords regenerated successfully. Config update: {config_message}")
+        
+        # Build response message
+        if config_success:
+            message = "Passwords regenerated and Icecast server updated successfully."
+        else:
+            message = f"Passwords regenerated in database and .env file. Note: {config_message}"
+        
+        return jsonify({
+            "success": True,
+            "message": message,
+            "config_updated": config_success,
+            "config_message": config_message,
+            "passwords": {
+                "source_password": new_source_password,
+                "admin_password": new_admin_password,
+            }
+        })
+    
+    except Exception as exc:
+        logger.error(f"Failed to regenerate Icecast passwords: {exc}")
+        db.session.rollback()
         return jsonify({"success": False, "error": str(exc)}), 500
 
 

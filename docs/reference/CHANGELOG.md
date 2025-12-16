@@ -6,6 +6,22 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+### Added
+- **Icecast Password Management Improvements** - Transformed password handling to read-only display with regenerate option
+  - Password fields now read-only to prevent user errors and mismatches with Icecast server
+  - Added password masking with show/hide toggle buttons for security
+  - Added copy-to-clipboard functionality for easy password access
+  - Added informational text explaining passwords are auto-generated during installation
+  - Added regenerate password functionality that updates database, .env file, AND Icecast server config
+  - New endpoint `/admin/api/icecast/regenerate-passwords` for secure password regeneration
+  - **CRITICAL: Now updates Icecast server configuration file** (`/etc/icecast2/icecast.xml`)
+  - Automatically restarts Icecast service after password regeneration
+  - Handles default passwords (changeme_admin) by updating server config
+  - Maintains strong auto-generated passwords (secrets.token_urlsafe(16))
+  - Non-password settings (ports, stream name, etc.) remain editable
+  - Prevents security risks from weak user-chosen passwords
+  - VERSION bumped to 2.33.0 (critical security fix + feature enhancement)
+
 ### Fixed
 - **Certbot Certificate Acquisition Issues** - Fixed missing functionality and errors in SSL certificate management
   - Fixed 400 Bad Request error in `/api/certbot/test-domain` endpoint (was not handling empty JSON body)
