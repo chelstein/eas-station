@@ -718,6 +718,7 @@ function copyCertCommand(elementId) {
         navigator.clipboard.writeText(input.value).then(() => {
             showToast('Command copied to clipboard', 'success');
         }).catch((err) => {
+            console.warn('Clipboard API failed, using fallback:', err);
             // Fallback to deprecated execCommand
             if (copyToClipboardFallback(input)) {
                 showToast('Command copied to clipboard', 'success');

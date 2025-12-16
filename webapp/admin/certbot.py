@@ -376,13 +376,24 @@ def obtain_certificate():
         staging_flag = ' --staging' if settings.staging else ''
         
         # Method 1: Standalone (requires stopping nginx)
-        standalone_cmd = f"sudo systemctl stop nginx && sudo certbot certonly --standalone --non-interactive --agree-tos --email {email} -d {domain}{staging_flag} && sudo systemctl start nginx"
+        standalone_cmd = (
+            f"sudo systemctl stop nginx && "
+            f"sudo certbot certonly --standalone --non-interactive --agree-tos "
+            f"--email {email} -d {domain}{staging_flag} && "
+            f"sudo systemctl start nginx"
+        )
         
         # Method 2: Nginx plugin (no downtime)
-        nginx_cmd = f"sudo certbot --nginx --non-interactive --agree-tos --email {email} -d {domain}{staging_flag}"
+        nginx_cmd = (
+            f"sudo certbot --nginx --non-interactive --agree-tos "
+            f"--email {email} -d {domain}{staging_flag}"
+        )
         
         # Method 3: Webroot (if nginx is serving files)
-        webroot_cmd = f"sudo certbot certonly --webroot -w /var/www/html --non-interactive --agree-tos --email {email} -d {domain}{staging_flag}"
+        webroot_cmd = (
+            f"sudo certbot certonly --webroot -w /var/www/html "
+            f"--non-interactive --agree-tos --email {email} -d {domain}{staging_flag}"
+        )
 
         instructions = {
             'domain': domain,
