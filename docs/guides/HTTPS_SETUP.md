@@ -179,6 +179,74 @@ Let's Encrypt production limits:
 
 ---
 
+## Web UI Certificate Management
+
+**NEW in v2.35.0:** Full SSL certificate management through the web interface - no CLI required!
+
+### Accessing the Certificate Manager
+
+1. Log in to EAS Station web interface
+2. Navigate to **Settings → SSL Certificates** (or visit `/admin/certbot`)
+3. Configure your domain and email in the **Configuration** tab
+
+### Obtaining a Certificate via Web UI
+
+**Step 1: Configure Settings**
+- Enable Certbot
+- Enter your domain name (e.g., `eas.example.com`)
+- Enter your email address
+- Choose Production or Staging mode
+- Save settings
+
+**Step 2: Test Domain**
+- Click **Test Domain** to verify DNS and port 80 accessibility
+- Ensure both tests pass before obtaining a certificate
+
+**Step 3: Obtain Certificate**
+- Click **Obtain Certificate Now**
+- Choose acquisition method:
+  - **Standalone** (Recommended): Temporarily stops nginx, obtains cert, restarts nginx
+  - **Nginx Plugin**: No downtime, uses nginx plugin
+  - **Webroot**: Uses existing web server
+- Click **Obtain Certificate** and wait for completion
+- Real-time output shows certbot progress
+
+**Step 4: Verify**
+- Click **Check Certificate Status** to view certificate details
+- Your site should now be accessible via HTTPS
+
+### Managing Certificate Renewal via Web UI
+
+**Check Renewal Status:**
+- Click **Manage Certificate Renewal**
+- Click **Check Auto-Renewal Status**
+- View systemd timer status and next run time
+
+**Manual Renewal:**
+- Click **Manage Certificate Renewal**
+- Choose renewal type:
+  - **Dry Run**: Test renewal without making changes (safe)
+  - **Normal Renewal**: Only renew if certificate is expiring soon
+  - **Force Renewal**: Force renewal immediately (use with caution)
+- Click **Execute Renewal**
+- View real-time certbot output
+
+**Enable/Disable Auto-Renewal:**
+- Check auto-renewal status
+- Click **Enable Auto-Renewal** or **Disable Auto-Renewal**
+- Auto-renewal uses systemd timer (certbot.timer)
+
+### Benefits of Web UI Management
+
+✅ **No CLI Access Required** - Everything through the web interface
+✅ **Real-Time Feedback** - See certbot output as it runs
+✅ **Error Handling** - Clear error messages with actionable guidance
+✅ **One-Click Operations** - Obtain, renew, enable auto-renewal with clicks
+✅ **Safe Testing** - Dry run option prevents accidental changes
+✅ **Status Monitoring** - Check certificate validity, auto-renewal timer status
+
+---
+
 ## Troubleshooting
 
 ### Problem: Certificate Not Obtained
