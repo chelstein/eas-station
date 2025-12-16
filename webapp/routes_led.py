@@ -638,6 +638,8 @@ def register(app: Flask, logger) -> None:
                 data = request.get_json(silent=True) or {}
                 serial_mode = data.get("serial_mode", "RS232")
                 baud_rate = int(data.get("baud_rate", 9600))
+                ip_address = data.get("ip_address", "192.168.1.100")
+                port = int(data.get("port", 10001))
 
                 # Validate serial mode
                 if serial_mode not in ["RS232", "RS485"]:
@@ -648,19 +650,32 @@ def register(app: Flask, logger) -> None:
                 if baud_rate not in valid_baud_rates:
                     return jsonify({"success": False, "error": f"Invalid baud rate. Must be one of {valid_baud_rates}."})
 
-                # Note: These settings are informational only and stored in the database
-                # The actual serial configuration must be set on the Lantronix adapter
-                route_logger.info(f"LED serial configuration updated: {serial_mode} @ {baud_rate} baud")
+                # Validate IP address properly
+                if not ip_address or not isinstance(ip_address, str):
+                    return jsonify({"success": False, "error": "Invalid IP address."})
+                
+                # Use ipaddress module for proper IP validation
+                try:
+                    import ipaddress
+                    ipaddress.ip_address(ip_address)
+                except ValueError:
+                    return jsonify({"success": False, "error": "Invalid IP address format. Please provide a valid IPv4 or IPv6 address."})
 
-                # Store configuration in LEDSignStatus table
+                # Validate port
+                if not (1 <= port <= 65535):
+                    return jsonify({"success": False, "error": "Invalid port. Must be between 1 and 65535."})
+
+                # Store configuration in LEDSignStatus table and HardwareSettings table
+                route_logger.info(f"LED configuration updated: {ip_address}:{port}, {serial_mode} @ {baud_rate} baud")
+
                 try:
                     ensure_led_tables()
 
-                    # Check if there's an existing status record
+                    # Update LEDSignStatus table for backward compatibility
                     status_record = LEDSignStatus.query.first()
                     if not status_record:
                         status_record = LEDSignStatus(
-                            sign_ip=os.getenv("LED_SIGN_IP", "192.168.1.100"),
+                            sign_ip=ip_address,
                             serial_mode=serial_mode,
                             baud_rate=baud_rate,
                             brightness_level=10,
@@ -669,10 +684,20 @@ def register(app: Flask, logger) -> None:
                         )
                         db.session.add(status_record)
                     else:
-                        # Update existing record with new serial configuration
+                        # Update existing record with new configuration
+                        status_record.sign_ip = ip_address
                         status_record.serial_mode = serial_mode
                         status_record.baud_rate = baud_rate
                         status_record.last_update = utc_now()
+
+                    # Also update HardwareSettings table (the new unified location)
+                    from app_core.hardware_settings import get_hardware_settings, update_hardware_settings
+                    update_hardware_settings({
+                        'led_ip_address': ip_address,
+                        'led_port': port,
+                        'led_serial_mode': serial_mode,
+                        'led_baudrate': baud_rate,
+                    })
 
                     db.session.commit()
 
@@ -682,12 +707,14 @@ def register(app: Flask, logger) -> None:
 
                 return jsonify({
                     "success": True,
-                    "message": f"Serial configuration saved: {serial_mode} @ {baud_rate} baud",
+                    "message": f"LED configuration saved: {ip_address}:{port}, {serial_mode} @ {baud_rate} baud",
                     "config": {
+                        "ip_address": ip_address,
+                        "port": port,
                         "serial_mode": serial_mode,
                         "baud_rate": baud_rate,
                     },
-                    "note": "Remember to configure these same settings on your Lantronix adapter."
+                    "note": "Configuration saved. Restart hardware service for changes to take effect."
                 })
             except Exception as exc:
                 route_logger.error(f"Error saving serial configuration: {exc}")

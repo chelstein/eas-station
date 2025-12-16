@@ -69,7 +69,7 @@ zones_bp = Blueprint('zones_admin', __name__)
 
 
 @zones_bp.route('/zones')
-@require_permission('admin.settings')
+@require_permission('system.configure')
 def zone_management():
     """Display zone catalog management page."""
     try:
@@ -106,7 +106,7 @@ def zone_management():
 
 
 @zones_bp.route('/zones/info', methods=['GET'])
-@require_permission('admin.settings')
+@require_permission('system.configure')
 def zone_info():
     """Get zone catalog information."""
     try:
@@ -139,7 +139,7 @@ def zone_info():
 
 
 @zones_bp.route('/zones/reload', methods=['POST'])
-@require_permission('admin.settings')
+@require_permission('system.configure')
 def reload_zones():
     """Reload zone catalog from DBF file into database."""
     try:
@@ -172,7 +172,7 @@ def reload_zones():
 
 
 @zones_bp.route('/zones/upload', methods=['POST'])
-@require_permission('admin.settings')
+@require_permission('system.configure')
 def upload_zone_file():
     """Upload a new zone catalog DBF file."""
     try:
@@ -231,7 +231,7 @@ def upload_zone_file():
 
 
 @zones_bp.route('/zones/search', methods=['GET'])
-@require_permission('admin.settings')
+@require_permission('system.configure')
 def search_zones():
     """Search zones by code or name."""
     try:
