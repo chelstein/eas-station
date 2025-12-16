@@ -7546,7 +7546,7 @@
 
         async function loadCertbotSettings() {
             try {
-                const response = await fetch('/api/admin/certbot/settings');
+                const response = await fetch('/admin/api/certbot/settings');
                 const data = await response.json();
                 
                 if (data.success && data.settings) {
@@ -7573,7 +7573,7 @@
                 const data = Object.fromEntries(formData.entries());
                 
                 try {
-                    const response = await fetch('/api/admin/certbot/settings', {
+                    const response = await fetch('/admin/api/certbot/settings', {
                         method: 'PUT',
                         headers: {
                             'Content-Type': 'application/json',
@@ -7603,7 +7603,7 @@
             certInfoGrid.style.display = 'none';
             
             try {
-                const response = await fetch('/api/admin/certbot/certificate-status');
+                const response = await fetch('/admin/api/certbot/certificate-status');
                 const result = await response.json();
                 
                 if (!result.success) {
@@ -7660,7 +7660,7 @@
             resultDiv.innerHTML = '<div class="alert alert-info"><span class="spinner-border spinner-border-sm"></span> Testing domain...</div>';
             
             try {
-                const response = await fetch('/api/admin/certbot/test-domain', {
+                const response = await fetch('/admin/api/certbot/test-domain', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -7706,7 +7706,7 @@
             resultDiv.innerHTML = '<div class="alert alert-info"><span class="spinner-border spinner-border-sm"></span> Testing certificate renewal...</div>';
             
             try {
-                const response = await fetch('/api/admin/certbot/renew-certificate', {
+                const response = await fetch('/admin/api/certbot/renew-certificate', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -7738,7 +7738,7 @@
         // Download certificate
         async function downloadCertbotCertificate() {
             try {
-                window.location.href = '/api/admin/certbot/download-certificate?type=fullchain';
+                window.location.href = '/admin/api/certbot/download-certificate?type=fullchain';
                 showToast('Downloading certificate...', 'info');
             } catch (error) {
                 showToast('Error downloading certificate: ' + error.message, 'danger');

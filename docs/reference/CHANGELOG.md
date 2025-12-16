@@ -6,6 +6,31 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+### Fixed
+- **Hardware Settings Route 404** - Fixed hardware blueprint route registration issue
+  - Removed `/admin` prefix from hardware route decorators (blueprint already has `url_prefix='/admin'`)
+  - Fixed `/admin/hardware` returning 404 error (same issue as certbot/icecast)
+  - All three routes now work: `/admin/hardware`, `/admin/hardware/update`, `/admin/hardware/restart-services`
+  - Critical fix as LED control page now redirects users to hardware settings
+  - VERSION bumped to 2.31.3 (bug fix)
+- **Removed Duplicate LED Sign Settings** - Eliminated redundant configuration UI from LED control page
+  - Removed serial port configuration section (serial mode, baud rate) from `/led_control` page
+  - Removed duplicate connection type information text
+  - Updated connection info to link to `/admin/hardware` for all configuration
+  - LED configuration now exclusively in `/admin/hardware` → LED Sign tab
+  - LED control page now focused only on operational controls (sending messages, effects)
+  - Simplified user experience - one location for all hardware configuration
+  - VERSION bumped to 2.31.2 (bug fix)
+- **Blueprint Route Registration Bug** - Fixed double URL prefix causing 404 errors on certbot and icecast pages
+  - Fixed certbot routes: removed `/admin` prefix from route decorators (blueprint already has `url_prefix='/admin'`)
+  - Fixed icecast routes: removed `/admin` prefix from route decorators (blueprint already has `url_prefix='/admin'`)
+  - Updated API paths in templates: `/api/admin/certbot/*` → `/admin/api/certbot/*`
+  - Updated API paths in templates: `/api/admin/icecast/*` → `/admin/api/icecast/*`
+  - Fixed JavaScript "Unexpected token '<'" errors caused by 404 HTML responses
+  - Corrected blueprint registration documentation comments
+  - `/admin/certbot` and `/admin/icecast` now return correct pages instead of 404
+  - VERSION bumped to 2.31.1 (bug fix)
+
 ### Changed
 - **Environment Variables Cleanup** - Removed redundant settings that are now managed via dedicated admin pages
   - Removed 'gpio' category from environment variables (now managed via `/admin/hardware`)
