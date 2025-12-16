@@ -107,6 +107,12 @@ def update_settings():
         if 'server' in data and not data['server']:
             raise BadRequest("Server hostname/IP is required")
         
+        # SECURITY: Validate server hostname to prevent SSRF
+        if 'server' in data and data['server']:
+            import re
+            if not re.match(r'^[a-zA-Z0-9\.\-]+$', data['server']):
+                raise BadRequest("Invalid server hostname. Only alphanumeric characters, dots, and hyphens allowed.")
+        
         if 'port' in data:
             port = data['port']
             if port is not None and (port < 1 or port > 65535):
@@ -147,7 +153,17 @@ def update_settings():
 @icecast_bp.route('/api/admin/icecast/test-connection', methods=['POST'])
 @require_permission('system.configure')
 def test_connection():
-    """Test connection to Icecast server."""
+    """Test connection to Icecast server.
+    
+    SECURITY NOTE: This endpoint makes HTTP requests to user-specified servers.
+    To prevent SSRF attacks:
+    1. Validates port is in allowed range (1-65535)
+    2. Validates server hostname format (alphanumeric, dots, hyphens only)
+    3. Restricts to HTTP protocol only (no file://, gopher://, etc.)
+    4. Uses short timeout (5s) to prevent hanging
+    5. Disables redirects to prevent redirect-based SSRF
+    6. Only accessible with system.configure permission
+    """
     try:
         data = request.get_json() if request.is_json else {}
         
@@ -157,18 +173,38 @@ def test_connection():
         port = data.get('port', settings.port)
         admin_user = data.get('admin_user', settings.admin_user)
         admin_password = data.get('admin_password', settings.admin_password)
+        
+        # SECURITY: Validate server hostname to prevent SSRF attacks
+        # Allow localhost, IP addresses, and domain names only
+        # Reject URLs, paths, and suspicious characters
+        import re
+        if not re.match(r'^[a-zA-Z0-9\.\-]+$', server):
+            return jsonify({
+                "success": False,
+                "error": f"Invalid server hostname. Only alphanumeric characters, dots, and hyphens allowed."
+            }), 400
+        
+        # SECURITY: Validate port is in valid range
+        if not (1 <= port <= 65535):
+            return jsonify({
+                "success": False,
+                "error": f"Invalid port: {port}. Must be between 1 and 65535."
+            }), 400
 
         # Try to connect to Icecast admin interface
+        # SECURITY: Construct URL carefully to prevent injection
         test_url = f"http://{server}:{port}/admin/stats.xml"
         
         logger.info(f"Testing Icecast connection to {server}:{port}")
         
         try:
             # Test basic connectivity
+            # SECURITY: Set allow_redirects=False to prevent redirect-based SSRF
             response = requests.get(
                 test_url,
                 auth=(admin_user, admin_password) if admin_user and admin_password else None,
-                timeout=5
+                timeout=5,
+                allow_redirects=False  # SSRF prevention
             )
             
             if response.status_code == 200:
@@ -227,7 +263,11 @@ def test_connection():
 @icecast_bp.route('/api/admin/icecast/status', methods=['GET'])
 @require_permission('system.configure')
 def get_status():
-    """Get current Icecast streaming status."""
+    """Get current Icecast streaming status.
+    
+    SECURITY NOTE: Makes HTTP requests to configured Icecast server.
+    SSRF prevention handled by hostname validation during settings save.
+    """
     try:
         settings = get_icecast_settings()
         
@@ -237,15 +277,27 @@ def get_status():
                 "enabled": False,
                 "message": "Icecast streaming is disabled",
             })
+        
+        # SECURITY: Validate server hostname (defense in depth)
+        import re
+        server = settings.server or 'localhost'
+        if not re.match(r'^[a-zA-Z0-9\.\-]+$', server):
+            logger.error(f"Invalid Icecast server hostname in database: {server}")
+            return jsonify({
+                "success": False,
+                "error": "Invalid server hostname in configuration"
+            }), 500
 
         # Try to get stats from Icecast server
-        stats_url = f"http://{settings.server}:{settings.port}/admin/stats.xml"
+        stats_url = f"http://{server}:{settings.port}/admin/stats.xml"
         
         try:
+            # SECURITY: Disable redirects to prevent redirect-based SSRF
             response = requests.get(
                 stats_url,
                 auth=(settings.admin_user, settings.admin_password) if settings.admin_user and settings.admin_password else None,
-                timeout=3
+                timeout=3,
+                allow_redirects=False  # SSRF prevention
             )
             
             if response.status_code == 200:
