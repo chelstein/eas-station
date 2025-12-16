@@ -12,12 +12,15 @@ tracks releases under the 2.x series.
   - Added password masking with show/hide toggle buttons for security
   - Added copy-to-clipboard functionality for easy password access
   - Added informational text explaining passwords are auto-generated during installation
-  - Added regenerate password functionality that updates both database and .env file
+  - Added regenerate password functionality that updates database, .env file, AND Icecast server config
   - New endpoint `/admin/api/icecast/regenerate-passwords` for secure password regeneration
+  - **CRITICAL: Now updates Icecast server configuration file** (`/etc/icecast2/icecast.xml`)
+  - Automatically restarts Icecast service after password regeneration
+  - Handles default passwords (changeme_admin) by updating server config
   - Maintains strong auto-generated passwords (secrets.token_urlsafe(16))
   - Non-password settings (ports, stream name, etc.) remain editable
   - Prevents security risks from weak user-chosen passwords
-  - VERSION bumped to 2.32.0 (feature enhancement)
+  - VERSION bumped to 2.33.0 (critical security fix + feature enhancement)
 
 ### Fixed
 - **CRITICAL: EAS Monitor Buffer Starvation** - Fixed monitor bouncing between healthy and starved states

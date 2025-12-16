@@ -26,6 +26,8 @@ import os
 import re
 import requests
 import secrets
+import subprocess
+import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any, Dict
 
@@ -59,6 +61,141 @@ def _get_env_file_path() -> Path:
     current_dir = Path(__file__).resolve().parent
     project_root = current_dir.parent.parent
     return project_root / '.env'
+
+
+def _update_icecast_config_file(source_password: str, admin_password: str, relay_password: str = None) -> tuple[bool, str]:
+    """Update Icecast server configuration file with new passwords.
+    
+    This function handles:
+    1. Finding the Icecast config file
+    2. Parsing and updating XML passwords
+    3. Writing the config file (may require sudo)
+    4. Restarting the Icecast service
+    
+    Args:
+        source_password: New source password
+        admin_password: New admin password
+        relay_password: New relay password (optional)
+        
+    Returns:
+        Tuple of (success: bool, message: str)
+    """
+    import xml.etree.ElementTree as ET
+    
+    # Common Icecast configuration file locations
+    config_paths = [
+        Path('/etc/icecast2/icecast.xml'),
+        Path('/etc/icecast.xml'),
+        Path('/usr/local/etc/icecast.xml'),
+        Path('/opt/icecast/etc/icecast.xml'),
+    ]
+    
+    icecast_config = None
+    for config_path in config_paths:
+        if config_path.exists():
+            icecast_config = config_path
+            break
+    
+    if not icecast_config:
+        logger.warning("Icecast configuration file not found in common locations")
+        return False, ("Icecast configuration file not found. "
+                      "Please manually update passwords in /etc/icecast2/icecast.xml and restart: "
+                      "sudo systemctl restart icecast2")
+    
+    try:
+        # Parse XML configuration
+        tree = ET.parse(icecast_config)
+        root = tree.getroot()
+        
+        updated_fields = []
+        
+        # Update authentication section
+        auth = root.find('.//authentication')
+        if auth is not None:
+            # Update source password
+            source_pw_elem = auth.find('source-password')
+            if source_pw_elem is not None:
+                source_pw_elem.text = source_password
+                updated_fields.append('source-password')
+            else:
+                # Create if missing
+                source_pw_elem = ET.SubElement(auth, 'source-password')
+                source_pw_elem.text = source_password
+                updated_fields.append('source-password (created)')
+            
+            # Update admin password
+            admin_pw_elem = auth.find('admin-password')
+            if admin_pw_elem is not None:
+                admin_pw_elem.text = admin_password
+                updated_fields.append('admin-password')
+            else:
+                # Create if missing
+                admin_pw_elem = ET.SubElement(auth, 'admin-password')
+                admin_pw_elem.text = admin_password
+                updated_fields.append('admin-password (created)')
+            
+            # Update relay password if provided
+            if relay_password:
+                relay_pw_elem = auth.find('relay-password')
+                if relay_pw_elem is not None:
+                    relay_pw_elem.text = relay_password
+                    updated_fields.append('relay-password')
+                else:
+                    relay_pw_elem = ET.SubElement(auth, 'relay-password')
+                    relay_pw_elem.text = relay_password
+                    updated_fields.append('relay-password (created)')
+        else:
+            logger.warning(f"No authentication section found in {icecast_config}")
+            return False, f"Invalid Icecast config at {icecast_config} - no authentication section found"
+        
+        # Write back to file (may require root permissions)
+        try:
+            # Preserve XML formatting
+            ET.indent(tree, space='  ')
+            tree.write(icecast_config, encoding='utf-8', xml_declaration=True)
+            
+            logger.info(f"Updated Icecast config: {', '.join(updated_fields)}")
+            
+            # Restart Icecast service
+            try:
+                # Try different service names
+                for service_name in ['icecast2', 'icecast']:
+                    try:
+                        result = subprocess.run(
+                            ['sudo', 'systemctl', 'restart', service_name], 
+                            check=True, 
+                            capture_output=True, 
+                            timeout=10,
+                            text=True
+                        )
+                        return True, f"Icecast configuration updated ({', '.join(updated_fields)}) and service '{service_name}' restarted successfully"
+                    except subprocess.CalledProcessError:
+                        continue  # Try next service name
+                
+                # If we get here, all service names failed
+                return True, (f"Icecast configuration updated at {icecast_config} ({', '.join(updated_fields)}), "
+                            "but service restart failed. Please restart manually: "
+                            "sudo systemctl restart icecast2")
+                
+            except FileNotFoundError:
+                return True, (f"Icecast configuration updated at {icecast_config} ({', '.join(updated_fields)}), "
+                            "but systemctl not found. Please restart Icecast manually")
+            except subprocess.TimeoutExpired:
+                return True, (f"Icecast configuration updated at {icecast_config} ({', '.join(updated_fields)}), "
+                            "but service restart timed out. Please check: sudo systemctl status icecast2")
+                
+        except PermissionError:
+            logger.error(f"Permission denied writing to {icecast_config}")
+            return False, (f"Permission denied writing to {icecast_config}. "
+                          f"Manual update required with sudo: "
+                          f"source-password={source_password}, admin-password={admin_password}")
+    
+    except ET.ParseError as e:
+        logger.error(f"Failed to parse Icecast config: {e}")
+        return False, f"Failed to parse Icecast config at {icecast_config}: {e}"
+    except Exception as e:
+        logger.error(f"Error updating Icecast config: {e}")
+        return False, f"Error updating Icecast config: {e}"
 
 
 # Routes are relative to blueprint's url_prefix='/admin'
@@ -284,7 +421,7 @@ def regenerate_passwords():
     """Regenerate Icecast passwords.
     
     Generates new secure passwords for source and admin authentication,
-    updates both the database and .env file for persistence.
+    updates the database, .env file, and Icecast server configuration file.
     """
     try:
         # Generate new secure passwords
@@ -340,14 +477,28 @@ def regenerate_passwords():
         with open(env_path, 'w') as f:
             f.writelines(new_lines)
         
+        # Update Icecast server configuration file
+        config_success, config_message = _update_icecast_config_file(
+            new_source_password, 
+            new_admin_password
+        )
+        
         # Invalidate cached settings
         invalidate_icecast_settings_cache()
         
-        logger.info("Icecast passwords regenerated successfully")
+        logger.info(f"Icecast passwords regenerated successfully. Config update: {config_message}")
+        
+        # Build response message
+        if config_success:
+            message = "Passwords regenerated and Icecast server updated successfully."
+        else:
+            message = f"Passwords regenerated in database and .env file. Note: {config_message}"
         
         return jsonify({
             "success": True,
-            "message": "Passwords regenerated successfully. Restart Icecast services for changes to take effect.",
+            "message": message,
+            "config_updated": config_success,
+            "config_message": config_message,
             "passwords": {
                 "source_password": new_source_password,
                 "admin_password": new_admin_password,
