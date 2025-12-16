@@ -6,12 +6,13 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.34.2]
+
 ### Fixed
 - **Screen Renderer Connection Error Logging** - Reduced log spam from expected connection failures
   - Changed screen_renderer.py to log connection errors at DEBUG level instead of ERROR
   - Connection refused errors are expected when web service isn't running (hardware-only mode)
   - Prevents log spam while still showing unexpected errors
-  - VERSION bumped to 2.34.2 (bug fix: logging level adjustment)
 
 ## [2.34.1]
 
@@ -23,7 +24,6 @@ tracks releases under the 2.x series.
   - Reduced Icecast connection error spam by suppressing repetitive "Connection refused" logs during backoff
   - Improved audio underrun warning frequency with exponential backoff (10, 50, 100, 200, 500, etc.)
   - Added better error handling for invalid heartbeat values in Redis metrics
-  - VERSION bumped to 2.34.1 (bug fix: error logging and Redis parsing)
 
 ## [2.34.0]
 

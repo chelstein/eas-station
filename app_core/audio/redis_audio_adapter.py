@@ -208,7 +208,8 @@ class RedisAudioAdapter:
                 self._underrun_count += 1
                 # Log with exponential backoff: at 10, 50, 100, 200, 500, 1000, etc.
                 # This reduces log spam while still showing the problem severity
-                if (self._underrun_count in [10, 50, 100, 200, 500, 1000, 2000, 5000, 10000] or
+                # Using set for O(1) lookup performance
+                if (self._underrun_count in {10, 50, 100, 200, 500, 1000, 2000, 5000, 10000} or
                     (self._underrun_count > 10000 and self._underrun_count % 10000 == 0)):
                     logger.warning(
                         f"Audio underrun #{self._underrun_count}: "
