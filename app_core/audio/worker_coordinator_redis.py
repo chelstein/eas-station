@@ -270,21 +270,33 @@ def read_shared_metrics() -> Optional[Dict[str, Any]]:
         # Deserialize JSON strings back to dicts/lists
         metrics = {}
         for key, value in flat_metrics.items():
+            # Decode bytes to string if needed (redis-py 7.x returns bytes)
+            decoded_key = key.decode('utf-8') if isinstance(key, bytes) else key
+            decoded_value = value.decode('utf-8') if isinstance(value, bytes) else value
+            
+            # Skip empty values that would cause JSON parse errors
+            if not decoded_value:
+                continue
+                
             # Try to parse as JSON, fall back to raw value
-            if isinstance(value, str) and (value.startswith('{') or value.startswith('[')):
+            if isinstance(decoded_value, str) and (decoded_value.startswith('{') or decoded_value.startswith('[')):
                 try:
-                    metrics[key] = json.loads(value)
+                    metrics[decoded_key] = json.loads(decoded_value)
                 except json.JSONDecodeError:
-                    metrics[key] = value
+                    metrics[decoded_key] = decoded_value
             else:
-                metrics[key] = value
+                metrics[decoded_key] = decoded_value
 
         # Check heartbeat freshness
-        heartbeat = float(metrics.get("_heartbeat", 0))
-        age = time.time() - heartbeat
+        try:
+            heartbeat = float(metrics.get("_heartbeat", 0))
+            age = time.time() - heartbeat
 
-        if age > METRICS_TTL:
-            logger.warning(f"Shared metrics are stale (age: {age:.1f}s), master may be dead")
+            if age > METRICS_TTL:
+                logger.warning(f"Shared metrics are stale (age: {age:.1f}s), master may be dead")
+                return None
+        except (ValueError, TypeError) as e:
+            logger.debug(f"Invalid heartbeat value in metrics: {e}")
             return None
 
         return metrics
@@ -293,6 +305,10 @@ def read_shared_metrics() -> Optional[Dict[str, Any]]:
         # Log as debug instead of error - Redis unavailability is expected in separated architecture
         # when audio-service is starting up or Redis is temporarily unreachable
         logger.debug(f"Failed to read shared metrics from Redis: {e}")
+        return None
+    except Exception as e:
+        # Catch JSON decode errors and other unexpected issues
+        logger.warning(f"Error reading shared metrics from Redis: {e}")
         return None
 
 

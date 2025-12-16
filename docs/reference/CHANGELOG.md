@@ -6,6 +6,27 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.34.2]
+
+### Fixed
+- **Screen Renderer Connection Error Logging** - Reduced log spam from expected connection failures
+  - Changed screen_renderer.py to log connection errors at DEBUG level instead of ERROR
+  - Connection refused errors are expected when web service isn't running (hardware-only mode)
+  - Prevents log spam while still showing unexpected errors
+
+## [2.34.1]
+
+### Fixed
+- **Audio/Icecast Error Logging Fixes** - Resolved excessive error logging and JSON parsing issues
+  - Fixed JSON parsing error in websocket audio_monitoring_update caused by improper bytes decoding from Redis
+  - Added proper UTF-8 decoding for Redis hgetall() values (redis-py 7.x returns bytes)
+  - Added validation to skip empty strings before JSON parsing to prevent "Expecting value" errors
+  - Reduced Icecast connection error spam by suppressing repetitive "Connection refused" logs during backoff
+  - Improved audio underrun warning frequency with exponential backoff (10, 50, 100, 200, 500, etc.)
+  - Added better error handling for invalid heartbeat values in Redis metrics
+
+## [2.34.0]
+
 ### Added
 - **Icecast Auto-Installation** - Icecast2 now installed by default during bare metal installation
   - Added `icecast2` package to install.sh BASE_PACKAGES array
