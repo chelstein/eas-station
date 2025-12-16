@@ -7,6 +7,14 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **Removed Duplicate LED Sign Settings** - Eliminated redundant configuration UI from LED control page
+  - Removed serial port configuration section (serial mode, baud rate) from `/led_control` page
+  - Removed duplicate connection type information text
+  - Updated connection info to link to `/admin/hardware` for all configuration
+  - LED configuration now exclusively in `/admin/hardware` → LED Sign tab
+  - LED control page now focused only on operational controls (sending messages, effects)
+  - Simplified user experience - one location for all hardware configuration
+  - VERSION bumped to 2.31.2 (bug fix)
 - **Blueprint Route Registration Bug** - Fixed double URL prefix causing 404 errors on certbot and icecast pages
   - Fixed certbot routes: removed `/admin` prefix from route decorators (blueprint already has `url_prefix='/admin'`)
   - Fixed icecast routes: removed `/admin` prefix from route decorators (blueprint already has `url_prefix='/admin'`)
