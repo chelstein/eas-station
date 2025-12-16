@@ -409,7 +409,7 @@ def obtain_certificate():
                 }
             },
             'post_install': [
-                'Certificate will be saved to: /etc/letsencrypt/live/{domain}/',
+                f'Certificate will be saved to: /etc/letsencrypt/live/{domain}/',
                 'Update nginx configuration to use the new certificate',
                 'Restart nginx: sudo systemctl restart nginx',
                 'Verify certificate status on this page'

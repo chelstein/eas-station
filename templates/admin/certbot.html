@@ -683,7 +683,7 @@ async function obtainCertificate() {
                     <div class="card-header">After Certificate Installation</div>
                     <div class="card-body">
                         <ol>
-                            ${inst.post_install.map(s => `<li>${s.replace('{domain}', inst.domain)}</li>`).join('')}
+                            ${inst.post_install.map(s => `<li>${s}</li>`).join('')}
                         </ol>
                     </div>
                 </div>
@@ -736,6 +736,8 @@ function copyCertCommand(elementId) {
 }
 
 // Fallback clipboard copy using deprecated execCommand
+// Note: execCommand('copy') is deprecated but necessary for older browsers
+// and environments that don't support the modern Clipboard API (e.g., non-HTTPS contexts)
 function copyToClipboardFallback(element) {
     try {
         element.select();
