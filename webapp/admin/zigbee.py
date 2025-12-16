@@ -91,11 +91,11 @@ def get_zigbee_config():
     }
 
 
-@zigbee_bp.route('/settings/zigbee')
+@zigbee_bp.route('/admin/zigbee')
 @require_permission('system.configure')
 def zigbee_settings():
     """Render the Zigbee monitoring page."""
-    return render_template('settings/zigbee.html')
+    return render_template('admin/zigbee.html')
 
 
 @zigbee_bp.route('/api/zigbee/status')

@@ -602,7 +602,7 @@ def _sync_audio_monitors(route_logger, receivers: List[RadioReceiver]) -> None:
 def register(app: Flask, logger) -> None:
     route_logger = logger.getChild("routes_settings_radio")
 
-    @app.route("/settings/radio")
+    @app.route("/admin/radio")
     def radio_settings() -> Any:
         try:
             ensure_radio_tables(route_logger)
@@ -613,7 +613,7 @@ def register(app: Flask, logger) -> None:
         location_settings = get_location_settings()
 
         return render_template(
-            "settings/radio.html",
+            "admin/radio.html",
             receivers=[_receiver_to_dict(receiver) for receiver in receivers],
             location_settings=location_settings,
         )
@@ -1803,7 +1803,7 @@ def register(app: Flask, logger) -> None:
                 "health_message": f"Diagnostic check failed: {exc}"
             }), 500
 
-    @app.route("/settings/radio/diagnostics")
+    @app.route("/admin/radio/diagnostics")
     def radio_diagnostics_page() -> Any:
         """Display radio receiver diagnostics page."""
         try:
@@ -1811,7 +1811,7 @@ def register(app: Flask, logger) -> None:
         except Exception as exc:
             route_logger.debug("Radio table validation failed: %s", exc)
 
-        return render_template("settings/radio_diagnostics.html")
+        return render_template("admin/radio_diagnostics.html")
 
 
 __all__ = ["register"]

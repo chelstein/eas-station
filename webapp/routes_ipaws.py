@@ -383,7 +383,7 @@ def _get_custom_sources_status() -> Dict:
     }
 
 
-@ipaws_bp.route('/settings/alert-feeds')
+@ipaws_bp.route('/admin/alert-feeds')
 @require_permission('system.view_config')
 def alert_feeds_settings():
     """Render consolidated alert feeds configuration page."""
@@ -393,7 +393,7 @@ def alert_feeds_settings():
         custom_status = _get_custom_sources_status()
 
         return render_template(
-            'settings/alert_feeds.html',
+            'admin/alert_feeds.html',
             ipaws_status=ipaws_status,
             noaa_status=noaa_status,
             custom_status=custom_status,
@@ -405,11 +405,18 @@ def alert_feeds_settings():
         return f"Error loading alert feeds settings: {exc}", 500
 
 
-# Redirect old URL to new unified page
+# Redirect old URLs to new unified page
 @ipaws_bp.route('/settings/ipaws')
 @require_permission('system.view_config')
 def ipaws_settings_redirect():
     """Redirect old IPAWS settings URL to new unified page."""
+    from flask import redirect, url_for
+    return redirect(url_for('ipaws.alert_feeds_settings'))
+
+@ipaws_bp.route('/settings/alert-feeds')
+@require_permission('system.view_config')
+def alert_feeds_settings_redirect():
+    """Redirect old alert feeds URL to new admin page."""
     from flask import redirect, url_for
     return redirect(url_for('ipaws.alert_feeds_settings'))
 

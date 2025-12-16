@@ -949,7 +949,7 @@ def validate_environment():
         'warnings': warnings,
     })
 
-@environment_bp.route('/settings/environment')
+@environment_bp.route('/admin/environment')
 @require_permission_or_setup_mode('system.view_config')
 def environment_settings():
     """Render environment settings management page."""
@@ -960,16 +960,16 @@ def environment_settings():
     except Exception as exc:
         logger.warning(f'Failed to load location settings (database may be unavailable): {exc}')
         location_settings = None
-    
+
     try:
         can_configure = has_permission('system.configure')
     except Exception as exc:
         # During setup mode or database failure, allow configuration
         logger.debug(f'Permission check failed (expected during setup mode): {exc}')
         can_configure = current_app.config.get('SETUP_MODE', False)
-    
+
     return render_template(
-        'settings/environment.html',
+        'admin/environment.html',
         location_settings=location_settings,
         can_configure=can_configure,
     )
