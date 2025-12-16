@@ -350,18 +350,18 @@
         <!-- Certificate Acquisition -->
         <div class="diagnostics-card">
             <h4>Obtain SSL Certificate</h4>
-            <p class="text-muted">Get instructions for obtaining a new SSL certificate from Let's Encrypt</p>
+            <p class="text-muted">Acquire a new SSL certificate from Let's Encrypt directly through the web interface</p>
             
-            <div class="alert alert-info">
-                <i class="bi bi-info-circle"></i>
-                <strong>Security Note:</strong> Certificate operations require root privileges and must be run from the command line.
-                This tool generates the correct commands for your configuration.
+            <div class="alert alert-success">
+                <i class="bi bi-check-circle"></i>
+                <strong>Automated Execution:</strong> Click the button below to obtain your SSL certificate automatically. 
+                The system will execute certbot with the settings you've configured above.
             </div>
             
             <div id="obtainCertResult"></div>
             
             <button type="button" class="btn btn-success btn-test" onclick="obtainCertificate()">
-                <i class="bi bi-terminal"></i> Get Certificate Commands
+                <i class="bi bi-play-circle-fill"></i> Obtain Certificate Now
             </button>
         </div>
 
@@ -380,18 +380,18 @@
         <!-- Certificate Renewal -->
         <div class="diagnostics-card">
             <h4>Certificate Renewal</h4>
-            <p class="text-muted">Check automatic renewal status and get manual renewal commands</p>
+            <p class="text-muted">Renew SSL certificates or manage automatic renewal settings directly through the web interface</p>
             
-            <div class="alert alert-info">
-                <i class="bi bi-info-circle"></i>
-                <strong>Automatic Renewal:</strong> Certbot includes a systemd timer (certbot.timer) that automatically renews certificates before expiration.
-                Use this tool to check the timer status and get manual renewal commands if needed.
+            <div class="alert alert-success">
+                <i class="bi bi-check-circle"></i>
+                <strong>Automated Execution:</strong> Perform certificate renewal operations, enable/disable automatic renewal, 
+                and check renewal status - all from the web interface.
             </div>
             
             <div id="renewalResult"></div>
             
             <button type="button" class="btn btn-warning btn-test" onclick="renewCertificate()">
-                <i class="bi bi-arrow-clockwise"></i> Check Renewal Status
+                <i class="bi bi-arrow-clockwise"></i> Manage Certificate Renewal
             </button>
         </div>
     </div>
@@ -589,122 +589,183 @@ async function testDomain() {
     }
 }
 
-// Obtain certificate
+// Obtain certificate - Now with direct execution!
 async function obtainCertificate() {
     const resultDiv = document.getElementById('obtainCertResult');
     
-    resultDiv.innerHTML = '<div class="alert alert-info"><span class="spinner-border"></span> Generating certificate acquisition instructions...</div>';
+    // Show method selection UI
+    let html = `
+        <div class="card">
+            <div class="card-header"><strong>Choose Certificate Acquisition Method</strong></div>
+            <div class="card-body">
+                <p class="text-muted">Select how you want to obtain your SSL certificate. Each method has different requirements.</p>
+                
+                <div class="mb-3">
+                    <label class="form-label"><strong>Method:</strong></label>
+                    <select class="form-control" id="certMethod">
+                        <option value="standalone">Standalone (Recommended) - Temporarily stops nginx</option>
+                        <option value="nginx">Nginx Plugin - No downtime required</option>
+                        <option value="webroot">Webroot - Uses existing web server</option>
+                    </select>
+                </div>
+                
+                <div id="methodDescription" class="alert alert-info mb-3">
+                    <strong>Standalone Method:</strong> Temporarily stops nginx, obtains certificate, then restarts nginx. Requires port 80 to be accessible from the internet.
+                </div>
+                
+                <div class="d-flex gap-2">
+                    <button class="btn btn-success" onclick="executeObtainCertificate()">
+                        <i class="bi bi-play-circle"></i> Obtain Certificate
+                    </button>
+                    <button class="btn btn-secondary" onclick="cancelObtainCertificate()">
+                        <i class="bi bi-x-circle"></i> Cancel
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    resultDiv.innerHTML = html;
+    
+    // Add method description updater
+    document.getElementById('certMethod').addEventListener('change', function() {
+        const method = this.value;
+        const descDiv = document.getElementById('methodDescription');
+        
+        if (method === 'standalone') {
+            descDiv.innerHTML = '<strong>Standalone Method:</strong> Temporarily stops nginx, obtains certificate, then restarts nginx. Requires port 80 to be accessible from the internet.';
+            descDiv.className = 'alert alert-info mb-3';
+        } else if (method === 'nginx') {
+            descDiv.innerHTML = '<strong>Nginx Plugin:</strong> Uses nginx plugin to obtain and configure certificate automatically. No downtime required. Nginx must be running and domain must be configured.';
+            descDiv.className = 'alert alert-success mb-3';
+        } else if (method === 'webroot') {
+            descDiv.innerHTML = '<strong>Webroot Method:</strong> Uses existing web server without stopping it. Nginx must be serving files from /var/www/html.';
+            descDiv.className = 'alert alert-warning mb-3';
+        }
+    });
+}
+
+function cancelObtainCertificate() {
+    document.getElementById('obtainCertResult').innerHTML = '';
+}
+
+async function executeObtainCertificate() {
+    const resultDiv = document.getElementById('obtainCertResult');
+    const method = document.getElementById('certMethod').value;
+    
+    resultDiv.innerHTML = `
+        <div class="alert alert-info">
+            <span class="spinner-border"></span> Obtaining SSL certificate using ${method} method...
+            <p class="mt-2 mb-0"><small>This may take up to 2 minutes. Please wait...</small></p>
+        </div>
+    `;
     
     try {
-        const response = await fetch('/admin/api/certbot/obtain-certificate', {
+        const response = await fetch('/admin/api/certbot/obtain-certificate-execute', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({})
+            body: JSON.stringify({ method: method })
         });
         
         const result = await response.json();
         
-        if (result.success && result.instructions) {
-            const inst = result.instructions;
+        if (result.success) {
             let html = `
-                <div class="alert alert-info">
-                    <i class="bi bi-info-circle"></i> <strong>${result.message}</strong>
-                    <div class="mt-3"><small>${inst.note}</small></div>
-                </div>
-                <div class="card mt-3">
-                    <div class="card-header"><strong>Certificate Configuration</strong></div>
-                    <div class="card-body">
-                        <p><strong>Domain:</strong> ${inst.domain}</p>
-                        <p><strong>Email:</strong> ${inst.email}</p>
-                        <p><strong>Mode:</strong> ${inst.staging ? 'Staging (Testing)' : 'Production'}</p>
-                    </div>
+                <div class="alert alert-success">
+                    <i class="bi bi-check-circle"></i> <strong>${result.message}</strong>
                 </div>
             `;
             
-            // Add method tabs
-            html += '<div class="mt-3">';
-            html += '<h5>Choose a Method:</h5>';
+            if (result.output) {
+                html += `
+                    <div class="card mt-3">
+                        <div class="card-header">Certbot Output</div>
+                        <div class="card-body">
+                            <pre class="mb-0" style="max-height: 300px; overflow-y: auto;">${escapeHtml(result.output)}</pre>
+                        </div>
+                    </div>
+                `;
+            }
             
-            // Standalone method
-            const standalone = inst.methods.standalone;
+            if (result.note) {
+                html += `
+                    <div class="alert alert-info mt-3">
+                        <i class="bi bi-info-circle"></i> ${result.note}
+                    </div>
+                `;
+            }
+            
             html += `
-                <div class="card mb-3">
-                    <div class="card-header bg-primary text-white">
-                        <i class="bi bi-star-fill"></i> ${standalone.name}
-                    </div>
-                    <div class="card-body">
-                        <p>${standalone.description}</p>
-                        <div class="alert alert-secondary mb-2">
-                            <strong>Requirements:</strong>
-                            <ul class="mb-0">
-                                ${standalone.requirements.map(r => `<li>${r}</li>`).join('')}
-                            </ul>
-                        </div>
-                        <div class="input-group">
-                            <input type="text" class="form-control font-monospace" value="${standalone.command}" id="standaloneCmd" readonly>
-                            <button class="btn btn-outline-primary" onclick="copyCertCommand('standaloneCmd')">
-                                <i class="bi bi-clipboard"></i> Copy
-                            </button>
-                        </div>
-                    </div>
+                <div class="mt-3">
+                    <button class="btn btn-primary" onclick="checkCertificateStatus()">
+                        <i class="bi bi-shield-check"></i> Verify Certificate
+                    </button>
+                    <button class="btn btn-secondary" onclick="cancelObtainCertificate()">
+                        <i class="bi bi-x-circle"></i> Close
+                    </button>
                 </div>
             `;
             
-            // Nginx method
-            const nginx = inst.methods.nginx;
-            html += `
-                <div class="card mb-3">
-                    <div class="card-header">
-                        ${nginx.name}
-                    </div>
-                    <div class="card-body">
-                        <p>${nginx.description}</p>
-                        <div class="alert alert-secondary mb-2">
-                            <strong>Requirements:</strong>
-                            <ul class="mb-0">
-                                ${nginx.requirements.map(r => `<li>${r}</li>`).join('')}
-                            </ul>
-                        </div>
-                        <div class="input-group">
-                            <input type="text" class="form-control font-monospace" value="${nginx.command}" id="nginxCmd" readonly>
-                            <button class="btn btn-outline-primary" onclick="copyCertCommand('nginxCmd')">
-                                <i class="bi bi-clipboard"></i> Copy
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            `;
-            
-            // Post-install steps
-            html += `
-                <div class="card">
-                    <div class="card-header">After Certificate Installation</div>
-                    <div class="card-body">
-                        <ol>
-                            ${inst.post_install.map(s => `<li>${s}</li>`).join('')}
-                        </ol>
-                    </div>
-                </div>
-            `;
-            
-            html += '</div>';
             resultDiv.innerHTML = html;
+            showToast('Certificate obtained successfully!', 'success');
+            
         } else {
-            resultDiv.innerHTML = `
+            let html = `
                 <div class="alert alert-danger">
-                    <i class="bi bi-exclamation-triangle"></i> ${result.error || 'Failed to generate instructions'}
+                    <i class="bi bi-exclamation-triangle"></i> <strong>Failed to obtain certificate:</strong><br>
+                    ${result.error}
                 </div>
             `;
+            
+            if (result.output) {
+                html += `
+                    <div class="card mt-3">
+                        <div class="card-header">Certbot Output</div>
+                        <div class="card-body">
+                            <pre class="mb-0" style="max-height: 300px; overflow-y: auto;">${escapeHtml(result.output)}</pre>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            html += `
+                <div class="mt-3">
+                    <button class="btn btn-primary" onclick="obtainCertificate()">
+                        <i class="bi bi-arrow-clockwise"></i> Try Again
+                    </button>
+                    <button class="btn btn-secondary" onclick="cancelObtainCertificate()">
+                        <i class="bi bi-x-circle"></i> Close
+                    </button>
+                </div>
+            `;
+            
+            resultDiv.innerHTML = html;
+            showToast('Failed to obtain certificate', 'error');
         }
     } catch (error) {
         resultDiv.innerHTML = `
             <div class="alert alert-danger">
                 <i class="bi bi-exclamation-triangle"></i> Error: ${error.message}
             </div>
+            <div class="mt-3">
+                <button class="btn btn-primary" onclick="obtainCertificate()">
+                    <i class="bi bi-arrow-clockwise"></i> Try Again
+                </button>
+                <button class="btn btn-secondary" onclick="cancelObtainCertificate()">
+                    <i class="bi bi-x-circle"></i> Close
+                </button>
+            </div>
         `;
+        showToast('Error obtaining certificate', 'error');
     }
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
 }
 
 // Copy certificate command to clipboard
@@ -754,10 +815,190 @@ function copyToClipboardFallback(element) {
     }
 }
 
-// Renew certificate
+// Renew certificate - Now with direct execution!
 async function renewCertificate() {
     const resultDiv = document.getElementById('renewalResult');
-    resultDiv.innerHTML = '<div class="alert alert-info"><span class="spinner-border"></span> Checking renewal status...</div>';
+    
+    // Show renewal options UI
+    let html = `
+        <div class="card">
+            <div class="card-header"><strong>Certificate Renewal Options</strong></div>
+            <div class="card-body">
+                <p class="text-muted">Choose how to renew your SSL certificate</p>
+                
+                <div class="mb-3">
+                    <label class="form-label"><strong>Renewal Type:</strong></label>
+                    <select class="form-control" id="renewalType">
+                        <option value="dry-run">Dry Run (Test Only - No Changes)</option>
+                        <option value="normal">Normal Renewal (Only if needed)</option>
+                        <option value="force">Force Renewal (Renew Now)</option>
+                    </select>
+                </div>
+                
+                <div id="renewalDescription" class="alert alert-info mb-3">
+                    <strong>Dry Run:</strong> Tests the renewal process without making any changes. Safe to run anytime.
+                </div>
+                
+                <div class="d-flex gap-2">
+                    <button class="btn btn-warning" onclick="executeRenewal()">
+                        <i class="bi bi-arrow-clockwise"></i> Execute Renewal
+                    </button>
+                    <button class="btn btn-primary" onclick="checkAutoRenewal()">
+                        <i class="bi bi-info-circle"></i> Check Auto-Renewal Status
+                    </button>
+                    <button class="btn btn-secondary" onclick="cancelRenewal()">
+                        <i class="bi bi-x-circle"></i> Cancel
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    resultDiv.innerHTML = html;
+    
+    // Add renewal type description updater
+    document.getElementById('renewalType').addEventListener('change', function() {
+        const type = this.value;
+        const descDiv = document.getElementById('renewalDescription');
+        
+        if (type === 'dry-run') {
+            descDiv.innerHTML = '<strong>Dry Run:</strong> Tests the renewal process without making any changes. Safe to run anytime.';
+            descDiv.className = 'alert alert-info mb-3';
+        } else if (type === 'normal') {
+            descDiv.innerHTML = '<strong>Normal Renewal:</strong> Renews certificates that are within 30 days of expiration. Certificates not due for renewal will be skipped.';
+            descDiv.className = 'alert alert-success mb-3';
+        } else if (type === 'force') {
+            descDiv.innerHTML = '<strong>Force Renewal:</strong> Forces renewal of all certificates regardless of expiration date. Use with caution due to rate limits.';
+            descDiv.className = 'alert alert-warning mb-3';
+        }
+    });
+}
+
+function cancelRenewal() {
+    document.getElementById('renewalResult').innerHTML = '';
+}
+
+async function executeRenewal() {
+    const resultDiv = document.getElementById('renewalResult');
+    const renewalType = document.getElementById('renewalType').value;
+    
+    const dry_run = (renewalType === 'dry-run');
+    const force = (renewalType === 'force');
+    
+    const actionText = dry_run ? 'Testing renewal (dry run)' : (force ? 'Force renewing certificates' : 'Renewing certificates');
+    
+    resultDiv.innerHTML = `
+        <div class="alert alert-info">
+            <span class="spinner-border"></span> ${actionText}...
+            <p class="mt-2 mb-0"><small>This may take up to 2 minutes. Please wait...</small></p>
+        </div>
+    `;
+    
+    try {
+        const response = await fetch('/admin/api/certbot/renew-certificate-execute', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ dry_run: dry_run, force: force })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            let html = `
+                <div class="alert alert-success">
+                    <i class="bi bi-check-circle"></i> <strong>${result.message}</strong>
+                </div>
+            `;
+            
+            if (result.output) {
+                html += `
+                    <div class="card mt-3">
+                        <div class="card-header">Certbot Output</div>
+                        <div class="card-body">
+                            <pre class="mb-0" style="max-height: 300px; overflow-y: auto;">${escapeHtml(result.output)}</pre>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            if (result.note) {
+                html += `
+                    <div class="alert alert-info mt-3">
+                        <i class="bi bi-info-circle"></i> ${result.note}
+                    </div>
+                `;
+            }
+            
+            html += `
+                <div class="mt-3">
+                    <button class="btn btn-primary" onclick="checkCertificateStatus()">
+                        <i class="bi bi-shield-check"></i> Verify Certificate
+                    </button>
+                    <button class="btn btn-secondary" onclick="cancelRenewal()">
+                        <i class="bi bi-x-circle"></i> Close
+                    </button>
+                </div>
+            `;
+            
+            resultDiv.innerHTML = html;
+            showToast('Renewal operation completed successfully!', 'success');
+            
+        } else {
+            let html = `
+                <div class="alert alert-danger">
+                    <i class="bi bi-exclamation-triangle"></i> <strong>Renewal failed:</strong><br>
+                    ${result.error}
+                </div>
+            `;
+            
+            if (result.output) {
+                html += `
+                    <div class="card mt-3">
+                        <div class="card-header">Certbot Output</div>
+                        <div class="card-body">
+                            <pre class="mb-0" style="max-height: 300px; overflow-y: auto;">${escapeHtml(result.output)}</pre>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            html += `
+                <div class="mt-3">
+                    <button class="btn btn-primary" onclick="renewCertificate()">
+                        <i class="bi bi-arrow-clockwise"></i> Try Again
+                    </button>
+                    <button class="btn btn-secondary" onclick="cancelRenewal()">
+                        <i class="bi bi-x-circle"></i> Close
+                    </button>
+                </div>
+            `;
+            
+            resultDiv.innerHTML = html;
+            showToast('Renewal operation failed', 'error');
+        }
+    } catch (error) {
+        resultDiv.innerHTML = `
+            <div class="alert alert-danger">
+                <i class="bi bi-exclamation-triangle"></i> Error: ${error.message}
+            </div>
+            <div class="mt-3">
+                <button class="btn btn-primary" onclick="renewCertificate()">
+                    <i class="bi bi-arrow-clockwise"></i> Try Again
+                </button>
+                <button class="btn btn-secondary" onclick="cancelRenewal()">
+                    <i class="bi bi-x-circle"></i> Close
+                </button>
+            </div>
+        `;
+        showToast('Error during renewal', 'error');
+    }
+}
+
+async function checkAutoRenewal() {
+    const resultDiv = document.getElementById('renewalResult');
+    resultDiv.innerHTML = '<div class="alert alert-info"><span class="spinner-border"></span> Checking automatic renewal status...</div>';
     
     try {
         const response = await fetch('/admin/api/certbot/renew-certificate', {
@@ -792,56 +1033,31 @@ async function renewCertificate() {
                 </div>
             `;
             
-            // Manual commands
-            const cmds = inst.manual_commands;
-            html += `
-                <div class="card mt-3">
-                    <div class="card-header"><strong>Manual Renewal Commands</strong></div>
-                    <div class="card-body">
-                        <p class="text-muted"><small>${inst.note}</small></p>
-                        
-                        <div class="mb-3">
-                            <label class="form-label"><strong>Dry Run Test (Safe - No Changes):</strong></label>
-                            <div class="input-group">
-                                <input type="text" class="form-control font-monospace" value="${cmds.dry_run_test}" id="dryRunCmd" readonly>
-                                <button class="btn btn-outline-primary" onclick="copyCertCommand('dryRunCmd')">
-                                    <i class="bi bi-clipboard"></i> Copy
-                                </button>
-                            </div>
-                            <small class="text-muted">Tests renewal without actually renewing the certificate</small>
-                        </div>
-                        
-                        <div class="mb-3">
-                            <label class="form-label"><strong>Force Renewal (Use with caution):</strong></label>
-                            <div class="input-group">
-                                <input type="text" class="form-control font-monospace" value="${cmds.force_renew}" id="forceRenewCmd" readonly>
-                                <button class="btn btn-outline-primary" onclick="copyCertCommand('forceRenewCmd')">
-                                    <i class="bi bi-clipboard"></i> Copy
-                                </button>
-                            </div>
-                            <small class="text-muted">Forces certificate renewal even if not due yet</small>
-                        </div>
-                        
-                        <div class="mb-3">
-                            <label class="form-label"><strong>Obtain New Certificate:</strong></label>
-                            <div class="input-group">
-                                <input type="text" class="form-control font-monospace" value="${cmds.obtain_new}" id="obtainNewCmd" readonly>
-                                <button class="btn btn-outline-primary" onclick="copyCertCommand('obtainNewCmd')">
-                                    <i class="bi bi-clipboard"></i> Copy
-                                </button>
-                            </div>
-                            <small class="text-muted">Obtains a brand new certificate</small>
-                        </div>
+            // Enable/disable buttons
+            if (timer.active) {
+                html += `
+                    <div class="mt-3">
+                        <button class="btn btn-danger" onclick="toggleAutoRenewal(false)">
+                            <i class="bi bi-stop-circle"></i> Disable Auto-Renewal
+                        </button>
+                        <button class="btn btn-secondary" onclick="cancelRenewal()">
+                            <i class="bi bi-x-circle"></i> Close
+                        </button>
                     </div>
-                </div>
-            `;
-            
-            // Enable timer instructions if not active
-            if (!timer.active) {
+                `;
+            } else {
                 html += `
                     <div class="alert alert-warning mt-3">
                         <i class="bi bi-exclamation-triangle"></i> <strong>Automatic renewal is not active!</strong>
-                        <p class="mt-2 mb-0">Enable it with: <code>sudo systemctl enable --now certbot.timer</code></p>
+                        <p class="mt-2 mb-0">Certificates will not be automatically renewed.</p>
+                    </div>
+                    <div class="mt-3">
+                        <button class="btn btn-success" onclick="toggleAutoRenewal(true)">
+                            <i class="bi bi-play-circle"></i> Enable Auto-Renewal
+                        </button>
+                        <button class="btn btn-secondary" onclick="cancelRenewal()">
+                            <i class="bi bi-x-circle"></i> Close
+                        </button>
                     </div>
                 `;
             }
@@ -852,6 +1068,11 @@ async function renewCertificate() {
                 <div class="alert alert-danger">
                     <i class="bi bi-exclamation-triangle"></i> ${result.error || 'Failed to check renewal status'}
                 </div>
+                <div class="mt-3">
+                    <button class="btn btn-secondary" onclick="cancelRenewal()">
+                        <i class="bi bi-x-circle"></i> Close
+                    </button>
+                </div>
             `;
         }
     } catch (error) {
@@ -859,7 +1080,65 @@ async function renewCertificate() {
             <div class="alert alert-danger">
                 <i class="bi bi-exclamation-triangle"></i> Error checking renewal: ${error.message}
             </div>
+            <div class="mt-3">
+                <button class="btn btn-secondary" onclick="cancelRenewal()">
+                    <i class="bi bi-x-circle"></i> Close
+                </button>
+            </div>
         `;
+    }
+}
+
+async function toggleAutoRenewal(enable) {
+    const resultDiv = document.getElementById('renewalResult');
+    const action = enable ? 'Enabling' : 'Disabling';
+    
+    resultDiv.innerHTML = `
+        <div class="alert alert-info">
+            <span class="spinner-border"></span> ${action} automatic certificate renewal...
+        </div>
+    `;
+    
+    try {
+        const response = await fetch('/admin/api/certbot/enable-auto-renewal', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ enable: enable })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showToast(result.message, 'success');
+            // Refresh the auto-renewal status
+            checkAutoRenewal();
+        } else {
+            resultDiv.innerHTML = `
+                <div class="alert alert-danger">
+                    <i class="bi bi-exclamation-triangle"></i> ${result.error}
+                </div>
+                <div class="mt-3">
+                    <button class="btn btn-secondary" onclick="checkAutoRenewal()">
+                        <i class="bi bi-arrow-clockwise"></i> Refresh Status
+                    </button>
+                </div>
+            `;
+            showToast('Failed to toggle auto-renewal', 'error');
+        }
+    } catch (error) {
+        resultDiv.innerHTML = `
+            <div class="alert alert-danger">
+                <i class="bi bi-exclamation-triangle"></i> Error: ${error.message}
+            </div>
+            <div class="mt-3">
+                <button class="btn btn-secondary" onclick="checkAutoRenewal()">
+                    <i class="bi bi-arrow-clockwise"></i> Refresh Status
+                </button>
+            </div>
+        `;
+        showToast('Error toggling auto-renewal', 'error');
     }
 }
 
