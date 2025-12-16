@@ -1892,8 +1892,18 @@ function updateEASMonitorDisplay(status) {
     const runningStatus = document.getElementById('eas-running-status');
     if (runningStatus) {
         if (running) {
-            const sourceInfo = monitorCount > 0 ? ` (${monitorCount} source${monitorCount !== 1 ? 's' : ''})` : '';
-            runningStatus.innerHTML = `<span style="color: #28a745;">✅ Active${sourceInfo}</span>`;
+            // CRITICAL FIX: Validate monitor_count before displaying to prevent contradictory messages
+            const monitorCount = status.monitor_count || 0;
+            const activeSources = status.active_sources || 0;
+            
+            // Defensive validation
+            if (monitorCount > 0) {
+                const sourceInfo = ` (${monitorCount} source${monitorCount !== 1 ? 's' : ''})`;
+                runningStatus.innerHTML = `<span style="color: #28a745;">✅ Active${sourceInfo}</span>`;
+            } else {
+                // Running but no monitors? Show warning
+                runningStatus.innerHTML = '<span style="color: #ffc107;">⚠️ Running (no sources configured)</span>';
+            }
         } else {
             runningStatus.innerHTML = '<span style="color: #6c757d;">⏸️ Stopped</span>';
         }
@@ -1941,16 +1951,28 @@ function updateEASMonitorDisplay(status) {
             easMonitorStartTime = null; // Reset start time when stopped
         } else if (!audioFlowing) {
             // Show more helpful message about why no audio
+            // CRITICAL FIX: Prevent contradictory messages by validating counts
             const activeSources = status.active_sources || 0;
             const monitorCount = status.monitor_count || 0;
-            if (monitorCount > 0 && activeSources === 0) {
-                bufferStatus.innerHTML = `⚠️ No audio flowing (${monitorCount} source${monitorCount !== 1 ? 's' : ''} configured but not streaming)`;
-            } else if (monitorCount === 0) {
-                bufferStatus.innerHTML = '⚠️ No audio sources configured - configure sources in Audio Settings';
-            } else {
+            
+            // Defensive validation: if we have conflicting data, show generic message
+            if (monitorCount > 0 && activeSources > monitorCount) {
+                logger.warning(`Invalid state: active_sources (${activeSources}) > monitor_count (${monitorCount})`);
                 bufferStatus.innerHTML = '⚠️ No audio flowing - check audio sources';
+                bufferStatus.className = 'text-warning d-block mt-1';
+            } else if (monitorCount > 0 && activeSources === 0) {
+                // Sources exist but none are streaming audio
+                bufferStatus.innerHTML = `⚠️ No audio flowing (${monitorCount} source${monitorCount !== 1 ? 's' : ''} configured but not streaming)`;
+                bufferStatus.className = 'text-warning d-block mt-1';
+            } else if (monitorCount === 0) {
+                // No monitors configured at all
+                bufferStatus.innerHTML = '⚠️ No audio sources configured - configure sources in Audio Settings';
+                bufferStatus.className = 'text-warning d-block mt-1';
+            } else {
+                // Catch-all for unexpected states
+                bufferStatus.innerHTML = '⚠️ No audio flowing - check audio sources';
+                bufferStatus.className = 'text-warning d-block mt-1';
             }
-            bufferStatus.className = 'text-warning d-block mt-1';
             easMonitorStartTime = null; // Reset if no audio
         } else {
             // Use server-side wall clock runtime if available for accurate warmup detection

@@ -113,8 +113,12 @@ def register_eas_monitor_routes(app: Flask, logger_instance) -> None:
 
             # HANDLE MULTI-MONITOR AGGREGATED FORMAT
             # If status has a "monitors" key, it's aggregated stats from MultiMonitorManager
-            # Extract the first monitor's detailed stats for UI display
+            # Preserve aggregated fields while extracting detailed stats from first monitor
+            aggregated_status = None
             if "monitors" in status and isinstance(status["monitors"], dict):
+                # Save the aggregated status before extracting individual monitor stats
+                aggregated_status = status.copy()
+                
                 monitors_dict = status["monitors"]
                 if monitors_dict:
                     # Get the first monitor's stats (usually there's only one or two)
@@ -126,10 +130,14 @@ def register_eas_monitor_routes(app: Flask, logger_instance) -> None:
                         # Verify it's a dict before copying
                         if isinstance(first_monitor_stats, dict):
                             logger.debug(f"Using stats from monitor '{first_monitor_key}' for UI display")
-                            # Use the individual monitor's stats, but keep aggregated running status
+                            # Use the individual monitor's stats
                             status = first_monitor_stats.copy()
-                            # Override with aggregated running status (any monitor running = system running)
-                            status["running"] = shared_metrics.get("eas_monitor", {}).get("running", False)
+                            # CRITICAL: Preserve aggregated fields that UI needs
+                            status["running"] = aggregated_status.get("running", False)
+                            status["monitor_count"] = aggregated_status.get("monitor_count", 0)
+                            status["active_sources"] = aggregated_status.get("active_sources", 0)
+                            status["audio_flowing"] = aggregated_status.get("audio_flowing", False)
+                            status["source_names"] = aggregated_status.get("source_names", [])
                         else:
                             logger.warning(f"Monitor '{first_monitor_key}' stats is not a dict: {type(first_monitor_stats)}")
                     else:
@@ -145,6 +153,11 @@ def register_eas_monitor_routes(app: Flask, logger_instance) -> None:
                 "source_sample_rate": status.get("source_sample_rate"),
                 "resample_ratio": status.get("resample_ratio"),
                 "health_percentage": status.get("health_percentage", 0),
+                
+                # Multi-monitor aggregated fields (CRITICAL for UI logic)
+                "monitor_count": status.get("monitor_count", 0),
+                "active_sources": status.get("active_sources", 0),
+                "source_names": status.get("source_names", []),
 
                 # Streaming decoder metrics
                 "samples_processed": status.get("samples_processed", 0),
