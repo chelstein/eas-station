@@ -57,6 +57,55 @@
         </div>
     </div>
 
+    <!-- Icecast Streaming Status -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="bi bi-broadcast"></i> Icecast Streaming Server
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3 text-center">
+                            <div id="icecast-status-indicator" class="health-score-circle" style="width: 100px; height: 100px; font-size: 24px;">
+                                <i class="bi bi-hourglass"></i>
+                            </div>
+                            <p class="mt-2 text-muted" id="icecast-status-text">Checking...</p>
+                        </div>
+                        <div class="col-md-9">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="stat-box">
+                                        <h3 id="icecast-listeners" class="text-primary">--</h3>
+                                        <p class="text-muted">Current Listeners</p>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="stat-box">
+                                        <h3 id="icecast-sources" class="text-primary">--</h3>
+                                        <p class="text-muted">Active Sources</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row mt-3">
+                                <div class="col-md-12">
+                                    <p><strong>Server:</strong> <span id="icecast-server">--</span></p>
+                                    <p><strong>Status:</strong> <span id="icecast-detailed-status">--</span></p>
+                                    <div id="icecast-issues" style="display: none;" class="alert alert-warning mt-2">
+                                        <strong>Issues:</strong>
+                                        <ul id="icecast-issues-list" class="mb-0"></ul>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Source Health Details -->
     <div class="row mb-4">
         <div class="col-md-12">
@@ -362,10 +411,87 @@ async function updateDashboard() {
         // Update charts
         updateCharts(data.source_health);
 
+        // Update Icecast status
+        updateIcecastStatus();
+
     } catch (error) {
         console.error('Error updating dashboard:', error);
         document.getElementById('health-score-value').textContent = 'ERR';
         document.getElementById('health-score-circle').className = 'health-score-circle failed';
+    }
+}
+
+async function updateIcecastStatus() {
+    try {
+        const response = await fetch('/api/health/icecast');
+        const data = await response.json();
+        
+        const indicator = document.getElementById('icecast-status-indicator');
+        const statusText = document.getElementById('icecast-status-text');
+        const listenersEl = document.getElementById('icecast-listeners');
+        const sourcesEl = document.getElementById('icecast-sources');
+        const serverEl = document.getElementById('icecast-server');
+        const detailedStatusEl = document.getElementById('icecast-detailed-status');
+        const issuesDiv = document.getElementById('icecast-issues');
+        const issuesList = document.getElementById('icecast-issues-list');
+        
+        // Update status indicator
+        indicator.className = 'health-score-circle';
+        
+        if (!data.enabled) {
+            // Disabled
+            indicator.classList.add('degraded');
+            indicator.innerHTML = '<i class="bi bi-dash-circle"></i>';
+            statusText.textContent = 'Disabled';
+            listenersEl.textContent = '--';
+            sourcesEl.textContent = '--';
+            serverEl.textContent = 'Not configured';
+            detailedStatusEl.textContent = 'Icecast streaming is disabled';
+            issuesDiv.style.display = 'none';
+        } else if (data.running) {
+            // Running
+            indicator.classList.add('healthy');
+            indicator.innerHTML = '<i class="bi bi-check-circle"></i>';
+            statusText.textContent = 'Running';
+            listenersEl.textContent = data.listeners !== undefined ? data.listeners : '--';
+            sourcesEl.textContent = data.sources !== undefined ? data.sources : '--';
+            serverEl.textContent = `${data.server}:${data.port}`;
+            detailedStatusEl.textContent = data.message || 'Server is running';
+            
+            // Show issues if any
+            if (data.issues && data.issues.length > 0) {
+                issuesDiv.style.display = 'block';
+                issuesList.innerHTML = data.issues.map(issue => `<li>${issue}</li>`).join('');
+            } else {
+                issuesDiv.style.display = 'none';
+            }
+        } else {
+            // Not running/error
+            indicator.classList.add('failed');
+            indicator.innerHTML = '<i class="bi bi-x-circle"></i>';
+            statusText.textContent = 'Offline';
+            listenersEl.textContent = '--';
+            sourcesEl.textContent = '--';
+            serverEl.textContent = data.server ? `${data.server}:${data.port}` : '--';
+            detailedStatusEl.textContent = data.error || data.message || 'Server is not reachable';
+            
+            // Show issues if any
+            if (data.issues && data.issues.length > 0) {
+                issuesDiv.style.display = 'block';
+                issuesList.innerHTML = data.issues.map(issue => `<li>${issue}</li>`).join('');
+            } else {
+                issuesDiv.style.display = 'none';
+            }
+        }
+    } catch (error) {
+        console.error('Error updating Icecast status:', error);
+        const indicator = document.getElementById('icecast-status-indicator');
+        const statusText = document.getElementById('icecast-status-text');
+        
+        indicator.className = 'health-score-circle failed';
+        indicator.innerHTML = '<i class="bi bi-exclamation-triangle"></i>';
+        statusText.textContent = 'Error';
+        document.getElementById('icecast-detailed-status').textContent = 'Failed to check status';
     }
 }
 
