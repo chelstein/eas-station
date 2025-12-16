@@ -42,7 +42,9 @@ logger = logging.getLogger(__name__)
 hardware_bp = Blueprint('hardware', __name__)
 
 
-@hardware_bp.route('/admin/hardware')
+# Routes are relative to blueprint's url_prefix='/admin'
+# e.g., route '/hardware' becomes '/admin/hardware'
+@hardware_bp.route('/hardware')
 @require_permission('admin')
 def hardware_settings_page():
     """Display hardware settings configuration page."""
@@ -60,7 +62,7 @@ def hardware_settings_page():
         return redirect(url_for('admin.index'))
 
 
-@hardware_bp.route('/admin/hardware/update', methods=['POST'])
+@hardware_bp.route('/hardware/update', methods=['POST'])
 @require_permission('admin')
 def update_hardware():
     """Update hardware settings from form submission."""
@@ -154,7 +156,7 @@ def update_hardware():
             return redirect(url_for('hardware.hardware_settings_page'))
 
 
-@hardware_bp.route('/admin/hardware/restart-services', methods=['POST'])
+@hardware_bp.route('/hardware/restart-services', methods=['POST'])
 @require_permission('admin')
 def restart_hardware_services():
     """Restart hardware-related services to apply new settings."""

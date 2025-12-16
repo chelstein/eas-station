@@ -7,6 +7,12 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **Hardware Settings Route 404** - Fixed hardware blueprint route registration issue
+  - Removed `/admin` prefix from hardware route decorators (blueprint already has `url_prefix='/admin'`)
+  - Fixed `/admin/hardware` returning 404 error (same issue as certbot/icecast)
+  - All three routes now work: `/admin/hardware`, `/admin/hardware/update`, `/admin/hardware/restart-services`
+  - Critical fix as LED control page now redirects users to hardware settings
+  - VERSION bumped to 2.31.3 (bug fix)
 - **Removed Duplicate LED Sign Settings** - Eliminated redundant configuration UI from LED control page
   - Removed serial port configuration section (serial mode, baud rate) from `/led_control` page
   - Removed duplicate connection type information text
