@@ -6,6 +6,20 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+### Added
+- **Icecast Admin Page** - New dedicated admin page for Icecast streaming configuration
+  - Created `/webapp/admin/icecast.py` blueprint with comprehensive Icecast management routes
+  - Created `/templates/admin/icecast.html` template with configuration and diagnostics sections
+  - Added routes for settings management, connection testing, and real-time status monitoring
+  - Includes GET/PUT `/api/admin/icecast/settings` for reading and updating Icecast configuration
+  - Includes POST `/api/admin/icecast/test-connection` for testing Icecast connectivity
+  - Includes GET `/api/admin/icecast/status` for retrieving streaming status and listener counts
+  - Uses existing IcecastSettings database model and helper functions
+  - Follows established admin page patterns with Bootstrap 5 styling and theme support
+  - Protected with `@require_permission('system.configure')` decorator
+  - Integrated into admin blueprint registration in `/webapp/admin/__init__.py`
+  - VERSION bumped to 2.28.0 (new feature)
+
 ### Changed
 - **Documentation Update** - Comprehensive review and updates across all documentation
   - Updated all main architecture documents with current timestamps (2025-12-16)
