@@ -7,6 +7,15 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **Screen Renderer Connection Error Logging** - Reduced log spam from expected connection failures
+  - Changed screen_renderer.py to log connection errors at DEBUG level instead of ERROR
+  - Connection refused errors are expected when web service isn't running (hardware-only mode)
+  - Prevents log spam while still showing unexpected errors
+  - VERSION bumped to 2.34.2 (bug fix: logging level adjustment)
+
+## [2.34.1]
+
+### Fixed
 - **Audio/Icecast Error Logging Fixes** - Resolved excessive error logging and JSON parsing issues
   - Fixed JSON parsing error in websocket audio_monitoring_update caused by improper bytes decoding from Redis
   - Added proper UTF-8 decoding for Redis hgetall() values (redis-py 7.x returns bytes)
