@@ -6,6 +6,22 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+### Changed
+- **Documentation Update** - Comprehensive review and updates across all documentation
+  - Updated all main architecture documents with current timestamps (2025-12-16)
+  - Updated INDEX.md statistics: 92 total files (was 47), 12 guides (was 6), 18 architecture docs (was 10), 19 troubleshooting guides (was 10)
+  - Updated SYSTEM_ARCHITECTURE.md, THEORY_OF_OPERATION.md, DATA_FLOW_SEQUENCES.md with current information
+  - Updated DIAGRAMS.md to reflect complete visual documentation coverage
+  - Enhanced README.md with detailed systemd service architecture diagrams
+  - Added comprehensive technology stack section to README.md with all versions
+  - Updated README.md architecture diagrams to show systemd services (eas-station-web, eas-station-poller, eas-station-sdr, etc.)
+  - Added FastAPI 0.124.2 badge to README.md technology badges
+  - Updated Bootstrap version to 5.3.0 in badges
+  - Updated Redis version to 7.1 in badges
+  - Enhanced documentation navigation diagram with troubleshooting branch
+  - All service references now accurately reflect systemd-based deployment
+  - VERSION bumped to 2.27.27 (documentation update)
+
 ### Fixed
 - **RBDS Extraction Not Working** - Fixed RBDS decoder checking wrong sample rate
   - Bug: Checked `self.config.sample_rate` (final audio rate, 48kHz) instead of `self._intermediate_rate` (FM multiplex rate, 250kHz)
