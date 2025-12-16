@@ -45,6 +45,27 @@ logger = logging.getLogger(__name__)
 certbot_bp = Blueprint('certbot', __name__)
 
 
+def _restart_nginx_safe():
+    """Safely restart nginx, logging any errors but not raising exceptions.
+    
+    This is used in exception handlers where we want to ensure nginx is running
+    even if the main operation failed.
+    """
+    try:
+        result = subprocess.run(
+            ['sudo', 'systemctl', 'start', 'nginx'],
+            capture_output=True,
+            text=True,
+            timeout=30
+        )
+        if result.returncode != 0:
+            logger.error(f"Failed to restart nginx: {result.stderr}")
+        else:
+            logger.info("nginx restarted successfully")
+    except Exception as e:
+        logger.error(f"Exception while restarting nginx: {e}")
+
+
 # Routes are relative to blueprint's url_prefix='/admin'
 # e.g., route '/certbot' becomes '/admin/certbot'
 @certbot_bp.route('/certbot')
@@ -118,8 +139,9 @@ def update_settings():
         if 'domain_name' in data and data['domain_name']:
             domain = data['domain_name'].strip()
             # Allow alphanumeric, dots, and hyphens only (standard domain format)
-            if not re.match(r'^[a-zA-Z0-9\.\-]+$', domain):
-                raise BadRequest("Invalid domain name. Only alphanumeric characters, dots, and hyphens allowed.")
+            # Prevent consecutive dots and dots at start/end
+            if not re.match(r'^[a-zA-Z0-9]([a-zA-Z0-9\-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]*[a-zA-Z0-9])?)*$', domain):
+                raise BadRequest("Invalid domain name. Only alphanumeric characters, dots, and hyphens allowed. No consecutive dots or dots at start/end.")
             # Prevent localhost and internal IPs
             if domain.lower() in ['localhost', '127.0.0.1', '0.0.0.0']:
                 raise BadRequest("Cannot use localhost or loopback addresses for SSL certificates")
@@ -209,7 +231,7 @@ def renew_certificate():
 
         # SECURITY: Validate domain name (defense in depth)
         domain = settings.domain_name.strip()
-        if not re.match(r'^[a-zA-Z0-9\.\-]+$', domain):
+        if not re.match(r'^[a-zA-Z0-9]([a-zA-Z0-9\-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]*[a-zA-Z0-9])?)*$', domain):
             logger.error(f"Invalid domain name in database: {domain}")
             return jsonify({
                 "success": False,
@@ -326,7 +348,7 @@ def obtain_certificate():
 
         # SECURITY: Validate domain name (defense in depth)
         domain = settings.domain_name.strip()
-        if not re.match(r'^[a-zA-Z0-9\.\-]+$', domain):
+        if not re.match(r'^[a-zA-Z0-9]([a-zA-Z0-9\-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]*[a-zA-Z0-9])?)*$', domain):
             logger.error(f"Invalid domain name in database: {domain}")
             return jsonify({
                 "success": False,
@@ -461,14 +483,14 @@ def obtain_certificate():
 
         except subprocess.TimeoutExpired:
             # Make sure to restart nginx
-            subprocess.run(['sudo', 'systemctl', 'start', 'nginx'], capture_output=True, timeout=30)
+            _restart_nginx_safe()
             return jsonify({
                 "success": False,
                 "error": "Certificate acquisition command timed out after 120 seconds"
             }), 500
         except Exception as e:
             # Make sure to restart nginx
-            subprocess.run(['sudo', 'systemctl', 'start', 'nginx'], capture_output=True, timeout=30)
+            _restart_nginx_safe()
             return jsonify({
                 "success": False,
                 "error": f"Failed to run certbot: {str(e)}"
@@ -506,10 +528,10 @@ def test_domain():
 
         # SECURITY: Validate domain name to prevent SSRF
         domain = domain.strip()
-        if not re.match(r'^[a-zA-Z0-9\.\-]+$', domain):
+        if not re.match(r'^[a-zA-Z0-9]([a-zA-Z0-9\-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]*[a-zA-Z0-9])?)*$', domain):
             return jsonify({
                 "success": False,
-                "error": "Invalid domain name. Only alphanumeric characters, dots, and hyphens allowed."
+                "error": "Invalid domain name. Only alphanumeric characters, dots, and hyphens allowed. No consecutive dots or dots at start/end."
             }), 400
 
         # Prevent localhost and internal IPs
