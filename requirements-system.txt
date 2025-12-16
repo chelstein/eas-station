@@ -1,2 +1,2 @@
-smartmontools
 smartmontools  # Required for NVMe/SSD SMART monitoring
+icecast2  # Required for audio streaming - installed by default
