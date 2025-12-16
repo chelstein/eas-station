@@ -122,11 +122,6 @@ class AudioSourceAdapter(ABC):
             max_queue_size=2000  # ~180s buffer at 44100Hz with 4096 samples/chunk
         )
         
-        # On-demand legacy queue for backward compatibility
-        # Only created when get_audio_chunk() is first called to avoid wasting resources
-        self._legacy_subscriber_id = f"legacy-{config.name}"
-        self._audio_queue = None  # Will be created on first get_audio_chunk() call
-        
         self._last_metrics_update = 0.0
         self._start_time = 0.0
         # Waveform buffer for visualization (stores last 2048 samples)
@@ -217,28 +212,6 @@ class AudioSourceAdapter(ABC):
             self._stop_capture()
         except Exception as e:
             logger.error(f"Error stopping capture for {self.config.name}: {e}")
-
-        # Clear queue
-        while not self._audio_queue.empty():
-            try:
-                self._audio_queue.get_nowait()
-            except queue.Empty:
-                break
-
-    def get_audio_chunk(self, timeout: float = 1.0) -> Optional[np.ndarray]:
-        """Get the next audio chunk from the queue.
-        
-        NOTE: This method uses the legacy subscriber queue which receives
-        independent copies from the per-source broadcast queue. Multiple
-        consumers calling this method will each get their own copy of audio.
-        
-        For new code, prefer using get_broadcast_queue().subscribe() directly
-        to create an independent subscription with its own queue.
-        """
-        try:
-            return self._audio_queue.get(timeout=timeout)
-        except queue.Empty:
-            return None
 
     def get_broadcast_queue(self) -> BroadcastQueue:
         """Get this source's broadcast queue for subscribing to audio.
