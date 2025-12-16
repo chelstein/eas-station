@@ -7,6 +7,18 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Added
+- **Unified EAS Monitor Architecture (V3)** - Complete redesign of EAS monitoring system for efficiency
+  - Created `/app_core/audio/eas_monitor_v3.py` with unified single-threaded architecture
+  - `UnifiedEASMonitorService` class replaces multi-monitor architecture (1 thread instead of N threads)
+  - `SourceWatcher` class provides lightweight per-source audio subscribers (no separate threads)
+  - `HealthTracker` class provides centralized health tracking for all sources
+  - Auto-discovery automatically finds and monitors running audio sources (no manual lifecycle management)
+  - Single shared StreamingSAMEDecoder processes audio from all sources
+  - Updated `/eas_monitoring_service.py` initialize_eas_monitor() to use UnifiedEASMonitorService
+  - Maintains backward-compatible status API format (no webapp changes needed)
+  - Benefits: Reduced CPU/memory usage, simpler codebase, no status aggregation overhead
+  - Kept existing `/app_core/audio/eas_monitor.py` for backward compatibility
+  - VERSION bumped to 2.29.0 (new feature)
 - **Icecast Admin Page** - New dedicated admin page for Icecast streaming configuration
   - Created `/webapp/admin/icecast.py` blueprint with comprehensive Icecast management routes
   - Created `/templates/admin/icecast.html` template with configuration and diagnostics sections
