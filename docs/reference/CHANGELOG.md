@@ -6,6 +6,19 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+### Fixed
+- **Certbot/SSL Certificate Management Security Fix** - Removed sudo calls from web interface
+  - Removed all `sudo certbot` subprocess calls from web application for security compliance
+  - Web interface now provides copy-paste commands instead of executing privileged operations
+  - Added systemd timer status checking for automatic certificate renewal
+  - Updated UI to display certificate acquisition instructions with multiple methods (standalone, nginx, webroot)
+  - Added copy-to-clipboard functionality for certificate management commands
+  - Provides clear guidance on manual certificate operations via command line
+  - Fixes "no new privileges" flag error when attempting sudo from web app
+  - Maintains certificate status checking functionality (read-only operations)
+  - Addresses security concern of web application having elevated privileges
+  - VERSION bumped to 2.33.1 (bug fix + security improvement)
+
 ### Added
 - **Icecast Password Management Improvements** - Transformed password handling to read-only display with regenerate option
   - Password fields now read-only to prevent user errors and mismatches with Icecast server

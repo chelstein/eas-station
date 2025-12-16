@@ -208,11 +208,10 @@ def get_certificate_status():
 @certbot_bp.route('/api/certbot/renew-certificate', methods=['POST'])
 @require_permission('system.configure')
 def renew_certificate():
-    """Trigger manual certificate renewal.
+    """Check renewal timer status and provide renewal instructions.
     
-    SECURITY NOTE: This endpoint runs certbot commands with elevated privileges.
-    Access is restricted to system.configure permission.
-    Domain validation prevents command injection.
+    Certificate renewal is handled automatically by systemd timer (certbot.timer).
+    This endpoint provides status and manual renewal instructions.
     """
     try:
         settings = get_certbot_settings()
@@ -257,73 +256,84 @@ def renew_certificate():
                 "error": f"Failed to check certbot installation: {str(e)}"
             }), 500
 
-        logger.info(f"Attempting certificate renewal for domain: {domain}")
-
-        # Run certbot renew with dry-run first to test
-        # SECURITY: Using subprocess.run with list arguments prevents shell injection
-        cmd = ['sudo', 'certbot', 'renew', '--dry-run', '--non-interactive']
-        if settings.staging:
-            cmd.append('--staging')
-
+        # Check certbot.timer status
+        timer_info = {
+            'enabled': False,
+            'active': False,
+            'next_run': 'Unknown'
+        }
+        
         try:
+            # Check if timer is enabled
             result = subprocess.run(
-                cmd,
+                ['systemctl', 'is-enabled', 'certbot.timer'],
                 capture_output=True,
                 text=True,
-                timeout=60
+                timeout=5
             )
-
-            if result.returncode == 0:
-                return jsonify({
-                    "success": True,
-                    "message": "Dry-run renewal successful. Certificate is valid and renewal would succeed.",
-                    "output": result.stdout[-500:] if result.stdout else "",  # Last 500 chars
-                })
-            else:
-                # Check for specific error messages
-                error_output = result.stderr if result.stderr else result.stdout if result.stdout else ""
-                
-                # Detect sudo privilege issues
-                if "no new privileges" in error_output.lower() or "sudo" in error_output.lower():
-                    return jsonify({
-                        "success": False,
-                        "error": "Permission error: Cannot run certbot with sudo from web interface",
-                        "details": "Certificate renewal is designed to run via systemd timer (certbot.timer). "
-                                 "To test renewal, use the command line: 'sudo certbot renew --dry-run' or "
-                                 "check the systemd timer status: 'systemctl status certbot.timer'",
-                        "output": error_output[-500:],
-                    }), 500
-                
-                return jsonify({
-                    "success": False,
-                    "error": "Dry-run renewal failed",
-                    "output": error_output[-500:],
-                }), 500
-
-        except subprocess.TimeoutExpired:
-            return jsonify({
-                "success": False,
-                "error": "Certificate renewal command timed out after 60 seconds"
-            }), 500
+            timer_info['enabled'] = (result.returncode == 0)
+            
+            # Check if timer is active
+            result = subprocess.run(
+                ['systemctl', 'is-active', 'certbot.timer'],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            timer_info['active'] = (result.stdout.strip() == 'active')
+            
+            # Get next run time
+            if timer_info['active']:
+                result = subprocess.run(
+                    ['systemctl', 'status', 'certbot.timer'],
+                    capture_output=True,
+                    text=True,
+                    timeout=5
+                )
+                for line in result.stdout.split('\n'):
+                    if 'Trigger:' in line:
+                        timer_info['next_run'] = line.split('Trigger:')[1].strip()
+                        break
         except Exception as e:
-            return jsonify({
-                "success": False,
-                "error": f"Failed to run certbot: {str(e)}"
-            }), 500
+            logger.warning(f"Could not check certbot.timer status: {e}")
+
+        # Build response with instructions
+        staging_flag = '--staging' if settings.staging else ''
+        instructions = {
+            'timer_status': timer_info,
+            'manual_commands': {
+                'dry_run_test': f'sudo certbot renew --dry-run {staging_flag}'.strip(),
+                'force_renew': f'sudo certbot renew --force-renewal {staging_flag}'.strip(),
+                'obtain_new': f'sudo certbot certonly --standalone -d {domain} --email {settings.email} {staging_flag}'.strip()
+            },
+            'note': 'Certificate operations require root privileges and must be run from the command line.'
+        }
+
+        if timer_info['active']:
+            message = f"Certbot automatic renewal is active. Next run: {timer_info['next_run']}"
+        elif timer_info['enabled']:
+            message = "Certbot timer is enabled but not currently active. Start it with: sudo systemctl start certbot.timer"
+        else:
+            message = "Certbot timer is not enabled. Enable it with: sudo systemctl enable --now certbot.timer"
+
+        return jsonify({
+            "success": True,
+            "message": message,
+            "instructions": instructions
+        })
 
     except Exception as exc:
-        logger.error(f"Failed to renew certificate: {exc}")
+        logger.error(f"Failed to check renewal status: {exc}")
         return jsonify({"success": False, "error": str(exc)}), 500
 
 
 @certbot_bp.route('/api/certbot/obtain-certificate', methods=['POST'])
 @require_permission('system.configure')
 def obtain_certificate():
-    """Obtain a new SSL certificate from Let's Encrypt.
+    """Provide instructions for obtaining a new SSL certificate.
     
-    SECURITY NOTE: This endpoint runs certbot commands with elevated privileges.
-    Access is restricted to system.configure permission.
-    Domain validation prevents command injection.
+    Certificate acquisition requires root privileges and must be done via command line.
+    This endpoint validates settings and provides the correct command to run.
     """
     try:
         settings = get_certbot_settings()
@@ -383,121 +393,61 @@ def obtain_certificate():
                 "error": f"Failed to check certbot installation: {str(e)}"
             }), 500
 
-        logger.info(f"Attempting to obtain certificate for domain: {domain}")
-
-        # Build certbot command
-        # SECURITY: Using subprocess.run with list arguments prevents shell injection
-        cmd = [
-            'sudo', 'certbot', 'certonly',
-            '--standalone',
-            '--non-interactive',
-            '--agree-tos',
-            '--email', email,
-            '-d', domain
-        ]
+        # Build command instructions
+        staging_flag = '--staging' if settings.staging else ''
         
-        if settings.staging:
-            cmd.append('--staging')
+        # Method 1: Standalone (requires stopping nginx)
+        standalone_cmd = f"sudo systemctl stop nginx && sudo certbot certonly --standalone --non-interactive --agree-tos --email {email} -d {domain} {staging_flag} && sudo systemctl start nginx".strip()
+        
+        # Method 2: Nginx plugin (no downtime)
+        nginx_cmd = f"sudo certbot --nginx --non-interactive --agree-tos --email {email} -d {domain} {staging_flag}".strip()
+        
+        # Method 3: Webroot (if nginx is serving files)
+        webroot_cmd = f"sudo certbot certonly --webroot -w /var/www/html --non-interactive --agree-tos --email {email} -d {domain} {staging_flag}".strip()
 
-        try:
-            # Stop nginx temporarily for standalone mode
-            logger.info("Stopping nginx for standalone certificate acquisition...")
-            stop_result = subprocess.run(
-                ['sudo', 'systemctl', 'stop', 'nginx'],
-                capture_output=True,
-                text=True,
-                timeout=30
-            )
-            
-            if stop_result.returncode != 0:
-                logger.warning(f"Failed to stop nginx: {stop_result.stderr}")
-                # Continue anyway - certbot might work with webroot
+        instructions = {
+            'domain': domain,
+            'email': email,
+            'staging': settings.staging,
+            'methods': {
+                'standalone': {
+                    'name': 'Standalone (Recommended)',
+                    'command': standalone_cmd,
+                    'description': 'Temporarily stops nginx, obtains certificate, then restarts nginx',
+                    'requirements': ['Port 80 must be accessible from internet', 'Root/sudo access']
+                },
+                'nginx': {
+                    'name': 'Nginx Plugin (No Downtime)',
+                    'command': nginx_cmd,
+                    'description': 'Uses nginx plugin to obtain and configure certificate automatically',
+                    'requirements': ['Nginx must be running', 'Domain must be configured in nginx', 'Root/sudo access']
+                },
+                'webroot': {
+                    'name': 'Webroot (Alternative)',
+                    'command': webroot_cmd,
+                    'description': 'Uses existing web server without stopping it',
+                    'requirements': ['Nginx serving files from /var/www/html', 'Root/sudo access']
+                }
+            },
+            'post_install': [
+                'Certificate will be saved to: /etc/letsencrypt/live/{domain}/',
+                'Update nginx configuration to use the new certificate',
+                'Restart nginx: sudo systemctl restart nginx',
+                'Verify certificate status on this page'
+            ],
+            'note': 'Certificate acquisition requires root privileges and cannot be performed from the web interface for security reasons.'
+        }
 
-            # Run certbot
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=120
-            )
+        logger.info(f"Generated certificate acquisition instructions for domain: {domain}")
 
-            # Restart nginx
-            logger.info("Restarting nginx...")
-            start_result = subprocess.run(
-                ['sudo', 'systemctl', 'start', 'nginx'],
-                capture_output=True,
-                text=True,
-                timeout=30
-            )
-            
-            if start_result.returncode != 0:
-                logger.error(f"Failed to restart nginx: {start_result.stderr}")
-
-            if result.returncode == 0:
-                logger.info(f"Successfully obtained certificate for {domain}")
-                return jsonify({
-                    "success": True,
-                    "message": f"SSL certificate obtained successfully for {domain}. You may need to update your nginx configuration to use the new certificate.",
-                    "output": result.stdout[-1000:] if result.stdout else "",  # Last 1000 chars
-                })
-            else:
-                logger.error(f"Failed to obtain certificate: {result.stderr}")
-                
-                # Check for specific error messages
-                error_output = result.stderr if result.stderr else result.stdout if result.stdout else ""
-                
-                # Detect sudo privilege issues
-                if "no new privileges" in error_output.lower() or ("sudo" in error_output.lower() and "prevent" in error_output.lower()):
-                    return jsonify({
-                        "success": False,
-                        "error": "Permission error: Cannot run certbot with sudo from web interface",
-                        "details": "Certificate acquisition requires elevated privileges. "
-                                 "Please run manually: 'sudo certbot certonly --standalone -d YOUR_DOMAIN' or "
-                                 "ensure the web application has proper permissions.",
-                        "output": error_output[-1000:],
-                    }), 500
-                
-                # Detect port 80 already in use
-                if "address already in use" in error_output.lower() or "port 80" in error_output.lower():
-                    return jsonify({
-                        "success": False,
-                        "error": "Port 80 is already in use",
-                        "details": "nginx or another service is using port 80. Try stopping nginx first or use the webroot method.",
-                        "output": error_output[-1000:],
-                    }), 500
-                
-                # Detect domain validation failures
-                if "challenge" in error_output.lower() or "validation" in error_output.lower():
-                    return jsonify({
-                        "success": False,
-                        "error": "Domain validation failed",
-                        "details": "Let's Encrypt could not validate your domain. Ensure port 80 is accessible from the internet and DNS is correctly configured.",
-                        "output": error_output[-1000:],
-                    }), 500
-                
-                return jsonify({
-                    "success": False,
-                    "error": "Failed to obtain certificate from Let's Encrypt",
-                    "output": error_output[-1000:],
-                }), 500
-
-        except subprocess.TimeoutExpired:
-            # Make sure to restart nginx
-            _restart_nginx_safe()
-            return jsonify({
-                "success": False,
-                "error": "Certificate acquisition command timed out after 120 seconds"
-            }), 500
-        except Exception as e:
-            # Make sure to restart nginx
-            _restart_nginx_safe()
-            return jsonify({
-                "success": False,
-                "error": f"Failed to run certbot: {str(e)}"
-            }), 500
+        return jsonify({
+            "success": True,
+            "message": f"Certificate acquisition instructions prepared for {domain}",
+            "instructions": instructions
+        })
 
     except Exception as exc:
-        logger.error(f"Failed to obtain certificate: {exc}")
+        logger.error(f"Failed to generate certificate instructions: {exc}")
         return jsonify({"success": False, "error": str(exc)}), 500
 
 
