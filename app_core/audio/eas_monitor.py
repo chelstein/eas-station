@@ -620,6 +620,13 @@ class EASMonitor:
 
                 self._decoder.process_samples(samples)
                 self._samples_processed += len(samples)
+                
+                # CRITICAL FIX: Prevent CPU hammering by sleeping briefly after processing audio
+                # Without this sleep, the loop spins at maximum speed when audio is flowing,
+                # consuming 100% CPU. A 10ms sleep reduces CPU usage dramatically while still
+                # processing audio in near-realtime (chunk_size is typically 4096 samples at
+                # 16kHz = 256ms of audio, so 10ms sleep is only 4% overhead).
+                time.sleep(0.01)  # 10ms sleep to prevent CPU spinning
 
             except Exception as e:
                 logger.error(f"Error in monitor loop for '{self.source_name}': {e}", exc_info=True)
