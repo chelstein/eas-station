@@ -6,6 +6,15 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+### Changed
+- **Environment Variables Cleanup** - Removed redundant settings that are now managed via dedicated admin pages
+  - Removed 'gpio' category from environment variables (now managed via `/admin/hardware`)
+  - Removed 'icecast' category from environment variables (now managed via `/admin/icecast`)
+  - Removed duplicate 'notifications' category that contained SDR/audio settings
+  - GPIO, OLED, LED, VFD, and Icecast settings exclusively managed through database-backed admin UIs
+  - Cleaner environment configuration focused on core application settings
+  - VERSION bumped to 2.31.0 (feature enhancement)
+
 ### Added
 - **Certbot/SSL Admin Tab** - Moved SSL certificate management into Admin Panel as dedicated tab
   - Added SSL/Certbot tab to `/templates/admin.html` with nested Configuration and Certificate Status tabs
@@ -16,7 +25,7 @@ tracks releases under the 2.x series.
   - Auto-loads settings when tab is opened
   - VERSION remains 2.30.0 (UI improvement)
 
-### Changed
+### Changed (Previous)
 - **Environment Variables Cleanup** - Removed Certbot configuration from environment variables
   - Removed DOMAIN_NAME, SSL_EMAIL, and CERTBOT_STAGING from `/webapp/admin/environment.py`
   - Removed entire 'https' section from environment variable management

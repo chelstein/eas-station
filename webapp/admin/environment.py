@@ -421,79 +421,7 @@ ENV_CATEGORIES = {
             },
         ],
     },
-    'gpio': {
-        'name': 'GPIO Control',
-        'icon': 'fa-microchip',
-        'description': 'GPIO relay activation settings',
-        'variables': [
-            {
-                'key': 'EAS_GPIO_PIN',
-                'label': 'Primary Pin (BCM GPIO Number)',
-                'type': 'number',
-                'description': (
-                    'BCM GPIO pin number for relay control (e.g., GPIO 17 = BCM pin 17, physical pin 11). '
-                    'Leave empty to disable GPIO completely. Pins 2, 3, 4, and 14 are reserved for the Argon OLED enclosure.'
-                ),
-                'placeholder': 'e.g., 17',
-                'min': 2,
-                'max': 27,
-                'disallow': sorted(ARGON_OLED_RESERVED_BCM),
-            },
-            {
-                'key': 'EAS_GPIO_ACTIVE_STATE',
-                'label': 'Primary Pin Active State',
-                'type': 'select',
-                'options': ['HIGH', 'LOW'],
-                'default': 'HIGH',
-                'description': 'Electrical state when the primary pin is activated (HIGH = 3.3V, LOW = 0V)',
-                'category': 'gpio_enabled',
-            },
-            {
-                'key': 'EAS_GPIO_HOLD_SECONDS',
-                'label': 'Primary Pin Hold Duration',
-                'type': 'number',
-                'default': '5',
-                'description': 'How long to keep the primary pin activated (in seconds)',
-                'min': 1,
-                'max': 300,
-                'category': 'gpio_enabled',
-            },
-            {
-                'key': 'EAS_GPIO_WATCHDOG_SECONDS',
-                'label': 'Primary Pin Watchdog Timeout',
-                'type': 'number',
-                'default': '300',
-                'description': 'Maximum time the primary pin can stay active before automatic safety shutdown (in seconds)',
-                'min': 5,
-                'max': 3600,
-                'category': 'gpio_enabled',
-            },
-            {
-                'key': 'GPIO_ADDITIONAL_PINS',
-                'label': 'Additional GPIO Pins',
-                'type': 'gpio_pin_builder',
-                'description': (
-                    'Configure additional GPIO pins beyond the primary pin. '
-                    'Click "Add Pin" to configure each additional relay or output. '
-                    'Pins 2, 3, 4, and 14 are reserved for the Argon OLED enclosure and are unavailable.'
-                ),
-                'category': 'gpio_enabled',
-            },
-            {
-                'key': 'GPIO_PIN_BEHAVIOR_MATRIX',
-                'label': 'Pin Behavior Matrix',
-                'type': 'textarea',
-                'rows': 4,
-                'description': (
-                    'JSON object that maps BCM GPIO pin numbers to lists of behaviors. '
-                    'Use the GPIO Pin Map page (System → GPIO Pin Map) to edit this value. '
-                    'Example: {"17": ["duration_of_alert"], "18": ["playout"]}'
-                ),
-                'placeholder': '{"17": ["duration_of_alert"], "18": ["playout"]}',
-                'category': 'gpio_enabled',
-            },
-        ],
-    },
+
     'tts': {
         'name': 'Text-to-Speech',
         'icon': 'fa-volume-up',
@@ -527,45 +455,7 @@ ENV_CATEGORIES = {
             },
         ],
     },
-    'notifications': {
-        'name': 'Notifications',
-        'icon': 'fa-envelope',
-        'description': 'Email and SMS alerts',
-        'variables': [
-            {
-                'key': 'ENABLE_EMAIL_NOTIFICATIONS',
-                'label': 'Capture Mode',
-                'type': 'select',
-                'options': ['iq', 'pcm'],
-                'default': 'pcm',
-                'description': 'Audio capture format: IQ (complex samples for analysis) or PCM (audio for decoding)',
-            },
-            {
-                'key': 'RADIO_CAPTURE_DURATION',
-                'label': 'Capture Duration (seconds)',
-                'type': 'number',
-                'default': '30',
-                'description': 'Duration to capture when SAME burst is detected',
-                'min': 5,
-                'max': 300,
-            },
-            {
-                'key': 'RADIO_CAPTURE_DIR',
-                'label': 'Capture Directory',
-                'type': 'text',
-                'default': '/opt/eas-station/radio_captures',
-                'description': 'Directory to store captured radio audio files',
-            },
-            {
-                'key': 'SDR_ARGS',
-                'label': 'SDR Arguments',
-                'type': 'text',
-                'default': 'driver=airspy',
-                'description': 'SoapySDR device arguments (e.g., driver=airspy or driver=rtlsdr)',
-                'placeholder': 'driver=airspy',
-            },
-        ],
-    },
+
     'zigbee': {
         'name': 'Zigbee Module',
         'icon': 'fa-broadcast-tower',
@@ -677,68 +567,7 @@ ENV_CATEGORIES = {
         'variables': [
         ],
     },
-    'icecast': {
-        'name': 'Icecast Streaming',
-        'icon': 'fa-podcast',
-        'description': 'Icecast server configuration for audio streaming',
-        'variables': [
-            {
-                'key': 'ICECAST_ENABLED',
-                'label': 'Enable Icecast Streaming',
-                'type': 'select',
-                'options': ['true', 'false'],
-                'default': 'true',
-                'description': 'Enable automatic Icecast streaming for all audio sources',
-            },
-            {
-                'key': 'ICECAST_INTERNAL_URL',
-                'label': 'Internal Connection URL',
-                'type': 'text',
-                'default': 'http://localhost:8000',
-                'description': 'Internal Icecast URL for service-to-service connections. Format: http://server:port',
-                'placeholder': 'http://localhost:8000',
-                'category': 'icecast_enabled',
-            },
-            {
-                'key': 'ICECAST_PUBLIC_URL',
-                'label': 'Public Connection URL',
-                'type': 'text',
-                'description': 'CRITICAL: Public URL for stream access by remote listeners. Format: http://hostname:port (e.g., http://207.148.11.5:8001 or http://easstation.com:8001)',
-                'placeholder': 'http://207.148.11.5:8001',
-                'category': 'icecast_enabled',
-            },
-            {
-                'key': 'ICECAST_LOCATION',
-                'label': 'Station Location',
-                'type': 'text',
-                'default': 'EAS Monitoring Station',
-                'description': 'Location name shown in Icecast stream metadata',
-                'category': 'icecast_enabled',
-            },
-            {
-                'key': 'ICECAST_MAX_CLIENTS',
-                'label': 'Max Listeners',
-                'type': 'number',
-                'default': '100',
-                'description': 'Maximum concurrent stream listeners',
-                'min': 1,
-                'max': 10000,
-                'category': 'icecast_enabled',
-            },
-            {
-                'key': 'ICECAST_CONFIG',
-                'label': 'Icecast Authentication',
-                'type': 'textarea',
-                'rows': 8,
-                'description': 'JSON object containing Icecast credentials: source_password, relay_password, admin_user, admin_password, admin_email',
-                'placeholder': '{"source_password": "eas_station_source_password", "relay_password": "changeme_relay", "admin_user": "admin", "admin_password": "changeme_admin", "admin_email": "admin@example.com"}',
-                'default': '{"source_password": "eas_station_source_password", "relay_password": "changeme_relay", "admin_user": "admin", "admin_password": "changeme_admin", "admin_email": "admin@example.com"}',
-                'sensitive': True,
-                'required': True,
-                'category': 'icecast_enabled',
-            },
-        ],
-    },
+
 }
 
 
