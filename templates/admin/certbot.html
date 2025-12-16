@@ -347,6 +347,29 @@
             </div>
         </div>
 
+        <!-- Certificate Acquisition -->
+        <div class="diagnostics-card">
+            <h4>Obtain SSL Certificate</h4>
+            <p class="text-muted">Request a new SSL certificate from Let's Encrypt</p>
+            
+            <div class="security-warning">
+                <i class="bi bi-exclamation-triangle-fill"></i>
+                <strong>Important:</strong> This will:
+                <ul class="mb-0 mt-2">
+                    <li>Temporarily stop nginx to obtain the certificate</li>
+                    <li>Contact Let's Encrypt servers for validation</li>
+                    <li>Require port 80 to be accessible from the internet</li>
+                    <li>Count against Let's Encrypt rate limits (5 per week per domain in production)</li>
+                </ul>
+            </div>
+            
+            <div id="obtainCertResult"></div>
+            
+            <button type="button" class="btn btn-success btn-test" onclick="obtainCertificate()">
+                <i class="bi bi-shield-lock"></i> Obtain Certificate
+            </button>
+        </div>
+
         <!-- Domain Testing -->
         <div class="diagnostics-card">
             <h4>Domain Validation</h4>
@@ -508,7 +531,8 @@ async function testDomain() {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-            }
+            },
+            body: JSON.stringify({})  // Send empty JSON object
         });
         
         const result = await response.json();
@@ -569,6 +593,66 @@ async function testDomain() {
     }
 }
 
+// Obtain certificate
+async function obtainCertificate() {
+    const resultDiv = document.getElementById('obtainCertResult');
+    
+    // Confirm action
+    if (!confirm('This will obtain a new SSL certificate from Let\'s Encrypt.\n\n' +
+                 'nginx will be temporarily stopped during acquisition.\n' +
+                 'This action counts against rate limits.\n\n' +
+                 'Continue?')) {
+        return;
+    }
+    
+    resultDiv.innerHTML = '<div class="alert alert-info"><span class="spinner-border"></span> Obtaining certificate from Let\'s Encrypt... This may take up to 2 minutes.</div>';
+    
+    try {
+        const response = await fetch('/admin/api/certbot/obtain-certificate', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({})
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            resultDiv.innerHTML = `
+                <div class="alert alert-success">
+                    <i class="bi bi-check-circle"></i> ${result.message}
+                    ${result.output ? `<pre class="mt-2 mb-0" style="max-height: 300px; overflow-y: auto;">${result.output}</pre>` : ''}
+                </div>
+            `;
+            // Refresh certificate status
+            setTimeout(() => checkCertificateStatus(), 2000);
+        } else {
+            let errorHtml = `
+                <div class="alert alert-danger">
+                    <i class="bi bi-exclamation-triangle"></i> <strong>${result.error}</strong>
+            `;
+            
+            if (result.details) {
+                errorHtml += `<div class="mt-2">${result.details}</div>`;
+            }
+            
+            if (result.output) {
+                errorHtml += `<pre class="mt-2 mb-0" style="max-height: 300px; overflow-y: auto;">${result.output}</pre>`;
+            }
+            
+            errorHtml += '</div>';
+            resultDiv.innerHTML = errorHtml;
+        }
+    } catch (error) {
+        resultDiv.innerHTML = `
+            <div class="alert alert-danger">
+                <i class="bi bi-exclamation-triangle"></i> Error obtaining certificate: ${error.message}
+            </div>
+        `;
+    }
+}
+
 // Renew certificate
 async function renewCertificate() {
     const resultDiv = document.getElementById('renewalResult');
@@ -592,12 +676,21 @@ async function renewCertificate() {
                 </div>
             `;
         } else {
-            resultDiv.innerHTML = `
+            let errorHtml = `
                 <div class="alert alert-danger">
-                    <i class="bi bi-exclamation-triangle"></i> ${result.error}
-                    ${result.output ? `<pre class="mt-2 mb-0" style="max-height: 200px; overflow-y: auto;">${result.output}</pre>` : ''}
-                </div>
+                    <i class="bi bi-exclamation-triangle"></i> <strong>${result.error}</strong>
             `;
+            
+            if (result.details) {
+                errorHtml += `<div class="mt-2">${result.details}</div>`;
+            }
+            
+            if (result.output) {
+                errorHtml += `<pre class="mt-2 mb-0" style="max-height: 200px; overflow-y: auto;">${result.output}</pre>`;
+            }
+            
+            errorHtml += '</div>';
+            resultDiv.innerHTML = errorHtml;
         }
     } catch (error) {
         resultDiv.innerHTML = `

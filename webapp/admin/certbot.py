@@ -258,10 +258,24 @@ def renew_certificate():
                     "output": result.stdout[-500:] if result.stdout else "",  # Last 500 chars
                 })
             else:
+                # Check for specific error messages
+                error_output = result.stderr if result.stderr else result.stdout if result.stdout else ""
+                
+                # Detect sudo privilege issues
+                if "no new privileges" in error_output.lower() or "sudo" in error_output.lower():
+                    return jsonify({
+                        "success": False,
+                        "error": "Permission error: Cannot run certbot with sudo from web interface",
+                        "details": "Certificate renewal is designed to run via systemd timer (certbot.timer). "
+                                 "To test renewal, use the command line: 'sudo certbot renew --dry-run' or "
+                                 "check the systemd timer status: 'systemctl status certbot.timer'",
+                        "output": error_output[-500:],
+                    }), 500
+                
                 return jsonify({
                     "success": False,
                     "error": "Dry-run renewal failed",
-                    "output": result.stderr[-500:] if result.stderr else result.stdout[-500:] if result.stdout else "",
+                    "output": error_output[-500:],
                 }), 500
 
         except subprocess.TimeoutExpired:
@@ -280,6 +294,191 @@ def renew_certificate():
         return jsonify({"success": False, "error": str(exc)}), 500
 
 
+@certbot_bp.route('/api/certbot/obtain-certificate', methods=['POST'])
+@require_permission('system.configure')
+def obtain_certificate():
+    """Obtain a new SSL certificate from Let's Encrypt.
+    
+    SECURITY NOTE: This endpoint runs certbot commands with elevated privileges.
+    Access is restricted to system.configure permission.
+    Domain validation prevents command injection.
+    """
+    try:
+        settings = get_certbot_settings()
+
+        if not settings.enabled:
+            return jsonify({
+                "success": False,
+                "error": "Certbot is not enabled in settings"
+            }), 400
+
+        if not settings.domain_name:
+            return jsonify({
+                "success": False,
+                "error": "Domain name is not configured"
+            }), 400
+
+        if not settings.email:
+            return jsonify({
+                "success": False,
+                "error": "Email address is not configured"
+            }), 400
+
+        # SECURITY: Validate domain name (defense in depth)
+        domain = settings.domain_name.strip()
+        if not re.match(r'^[a-zA-Z0-9\.\-]+$', domain):
+            logger.error(f"Invalid domain name in database: {domain}")
+            return jsonify({
+                "success": False,
+                "error": "Invalid domain name in configuration"
+            }), 500
+
+        # SECURITY: Validate email
+        email = settings.email.strip()
+        if not re.match(r'^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$', email):
+            logger.error(f"Invalid email in database: {email}")
+            return jsonify({
+                "success": False,
+                "error": "Invalid email address in configuration"
+            }), 500
+
+        # Check if certbot is installed
+        try:
+            result = subprocess.run(
+                ['which', 'certbot'],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            if result.returncode != 0:
+                return jsonify({
+                    "success": False,
+                    "error": "Certbot is not installed on this system"
+                }), 500
+        except Exception as e:
+            return jsonify({
+                "success": False,
+                "error": f"Failed to check certbot installation: {str(e)}"
+            }), 500
+
+        logger.info(f"Attempting to obtain certificate for domain: {domain}")
+
+        # Build certbot command
+        # SECURITY: Using subprocess.run with list arguments prevents shell injection
+        cmd = [
+            'sudo', 'certbot', 'certonly',
+            '--standalone',
+            '--non-interactive',
+            '--agree-tos',
+            '--email', email,
+            '-d', domain
+        ]
+        
+        if settings.staging:
+            cmd.append('--staging')
+
+        try:
+            # Stop nginx temporarily for standalone mode
+            logger.info("Stopping nginx for standalone certificate acquisition...")
+            stop_result = subprocess.run(
+                ['sudo', 'systemctl', 'stop', 'nginx'],
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
+            
+            if stop_result.returncode != 0:
+                logger.warning(f"Failed to stop nginx: {stop_result.stderr}")
+                # Continue anyway - certbot might work with webroot
+
+            # Run certbot
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=120
+            )
+
+            # Restart nginx
+            logger.info("Restarting nginx...")
+            start_result = subprocess.run(
+                ['sudo', 'systemctl', 'start', 'nginx'],
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
+            
+            if start_result.returncode != 0:
+                logger.error(f"Failed to restart nginx: {start_result.stderr}")
+
+            if result.returncode == 0:
+                logger.info(f"Successfully obtained certificate for {domain}")
+                return jsonify({
+                    "success": True,
+                    "message": f"SSL certificate obtained successfully for {domain}. You may need to update your nginx configuration to use the new certificate.",
+                    "output": result.stdout[-1000:] if result.stdout else "",  # Last 1000 chars
+                })
+            else:
+                logger.error(f"Failed to obtain certificate: {result.stderr}")
+                
+                # Check for specific error messages
+                error_output = result.stderr if result.stderr else result.stdout if result.stdout else ""
+                
+                # Detect sudo privilege issues
+                if "no new privileges" in error_output.lower() or ("sudo" in error_output.lower() and "prevent" in error_output.lower()):
+                    return jsonify({
+                        "success": False,
+                        "error": "Permission error: Cannot run certbot with sudo from web interface",
+                        "details": "Certificate acquisition requires elevated privileges. "
+                                 "Please run manually: 'sudo certbot certonly --standalone -d YOUR_DOMAIN' or "
+                                 "ensure the web application has proper permissions.",
+                        "output": error_output[-1000:],
+                    }), 500
+                
+                # Detect port 80 already in use
+                if "address already in use" in error_output.lower() or "port 80" in error_output.lower():
+                    return jsonify({
+                        "success": False,
+                        "error": "Port 80 is already in use",
+                        "details": "nginx or another service is using port 80. Try stopping nginx first or use the webroot method.",
+                        "output": error_output[-1000:],
+                    }), 500
+                
+                # Detect domain validation failures
+                if "challenge" in error_output.lower() or "validation" in error_output.lower():
+                    return jsonify({
+                        "success": False,
+                        "error": "Domain validation failed",
+                        "details": "Let's Encrypt could not validate your domain. Ensure port 80 is accessible from the internet and DNS is correctly configured.",
+                        "output": error_output[-1000:],
+                    }), 500
+                
+                return jsonify({
+                    "success": False,
+                    "error": "Failed to obtain certificate from Let's Encrypt",
+                    "output": error_output[-1000:],
+                }), 500
+
+        except subprocess.TimeoutExpired:
+            # Make sure to restart nginx
+            subprocess.run(['sudo', 'systemctl', 'start', 'nginx'], capture_output=True, timeout=30)
+            return jsonify({
+                "success": False,
+                "error": "Certificate acquisition command timed out after 120 seconds"
+            }), 500
+        except Exception as e:
+            # Make sure to restart nginx
+            subprocess.run(['sudo', 'systemctl', 'start', 'nginx'], capture_output=True, timeout=30)
+            return jsonify({
+                "success": False,
+                "error": f"Failed to run certbot: {str(e)}"
+            }), 500
+
+    except Exception as exc:
+        logger.error(f"Failed to obtain certificate: {exc}")
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+
 @certbot_bp.route('/api/certbot/test-domain', methods=['POST'])
 @require_permission('system.configure')
 def test_domain():
@@ -289,7 +488,13 @@ def test_domain():
     Domain validation prevents SSRF attacks.
     """
     try:
-        data = request.get_json() if request.is_json else {}
+        # Handle both JSON and form data, and empty requests
+        data = {}
+        if request.is_json:
+            data = request.get_json() or {}
+        elif request.form:
+            data = request.form.to_dict()
+        
         settings = get_certbot_settings()
         domain = data.get('domain_name', settings.domain_name)
 

@@ -7,6 +7,16 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **Certbot Certificate Acquisition Issues** - Fixed missing functionality and errors in SSL certificate management
+  - Fixed 400 Bad Request error in `/api/certbot/test-domain` endpoint (was not handling empty JSON body)
+  - Added missing `/api/certbot/obtain-certificate` endpoint for initial certificate acquisition
+  - Added "Obtain SSL Certificate" UI section in Certificate Status tab with confirmation dialog
+  - Improved error messages for sudo privilege issues (NoNewPrivileges systemd setting)
+  - Added specific error handling for port conflicts, validation failures, and permission errors
+  - Enhanced frontend to display detailed error messages with helpful guidance
+  - Addresses issue where users couldn't obtain initial certificates through web UI
+  - VERSION bumped to 2.31.2 (bug fix)
+
 - **CRITICAL: EAS Monitor Buffer Starvation** - Fixed monitor bouncing between healthy and starved states
   - Increased EAS monitor read timeout from 0.1s to 1.0s in `app_core/audio/eas_monitor_v3.py`
   - Root cause: Monitor requested 1600 samples but timeout fired before accumulating enough chunks
