@@ -7,27 +7,17 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
-- **Icecast Admin Page UI Issues** - Fixed unreadable buttons and alerts in dark mode
-  - Fixed unreadable buttons and alerts in Icecast admin page for dark mode
-  - Improved theme compatibility for status badges and alerts with proper light/dark mode support
-  - Fixed button contrast and visibility in password display groups
-  - Added proper color variables for alerts and status badges that work in both themes
-
-### Added
-- **Icecast Health Monitoring** - Added comprehensive Icecast status tracking
-  - Added Icecast server status to health dashboard with real-time monitoring
-  - Added real-time Icecast status indicator on admin page (shows running/offline status)
-  - Added `/api/health/icecast` endpoint for monitoring Icecast server health
-  - Added Icecast status to system health checks (`/api/health/system`)
-  - Display current listeners and active sources on health dashboard
-  - Auto-refresh server status on Icecast admin page load
-  - Added `collect_icecast_status()` function to system_health module
-  - Shows server connection status, listener count, and source count
-
-### Changed
-- Updated system health endpoint to include Icecast status in overall health assessment
-- Enhanced Icecast health monitoring with detailed status information and issue reporting
-- VERSION bumped to 2.33.1 (bug fix + feature enhancement)
+- **Certbot/SSL Certificate Management Security Fix** - Removed sudo calls from web interface
+  - Removed all `sudo certbot` subprocess calls from web application for security compliance
+  - Web interface now provides copy-paste commands instead of executing privileged operations
+  - Added systemd timer status checking for automatic certificate renewal
+  - Updated UI to display certificate acquisition instructions with multiple methods (standalone, nginx, webroot)
+  - Added copy-to-clipboard functionality for certificate management commands
+  - Provides clear guidance on manual certificate operations via command line
+  - Fixes "no new privileges" flag error when attempting sudo from web app
+  - Maintains certificate status checking functionality (read-only operations)
+  - Addresses security concern of web application having elevated privileges
+  - VERSION bumped to 2.33.1 (bug fix + security improvement)
 
 ### Added
 - **Icecast Password Management Improvements** - Transformed password handling to read-only display with regenerate option
