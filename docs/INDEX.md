@@ -163,16 +163,16 @@ docs/
 
 | Metric | Value |
 |--------|-------|
-| Total Documentation Files | 47 |
-| Essential User Guides | 6 |
-| Architecture Documents | 10 |
-| Troubleshooting Guides | 10 |
-| Security Documents | 4 |
-| Reference Materials | 5 |
-| Total Directories | 13 |
+| Total Documentation Files | 92 |
+| Essential User Guides | 12 |
+| Architecture Documents | 18 |
+| Troubleshooting Guides | 19 |
+| Security Documents | 5 |
+| Reference Materials | 7 |
+| Total Directories | 16 |
 
 ---
 
-**Last Updated**: 2025-12-02
-**Version**: 4.3 (Moved root-level docs, fixed broken links)
+**Last Updated**: 2025-12-16
+**Version**: 4.4 (Updated documentation statistics, enhanced accuracy)
 **For questions or contributions, see the [Contributing Guide](process/CONTRIBUTING)**

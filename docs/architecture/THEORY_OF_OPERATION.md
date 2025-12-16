@@ -359,3 +359,8 @@ When deploying or evaluating the system:
 6. **Validate Verification Loop** – Upload the generated WAV to the decoder lab to confirm headers decode as issued.
 
 Refer back to this document whenever you need a grounded explanation of what happens between CAP ingestion and verified broadcast.
+
+---
+
+**Last Updated:** 2025-12-16
+**Related Documents:** [System Architecture](SYSTEM_ARCHITECTURE), [Data Flow Sequences](DATA_FLOW_SEQUENCES), [Diagrams Index](../reference/DIAGRAMS)

@@ -5,14 +5,15 @@
 
 [![Python](https://img.shields.io/badge/Python-3.11%20|%203.12%20|%203.13-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
 [![Flask](https://img.shields.io/badge/Flask-3.1.2-000000?style=flat-square&logo=flask&logoColor=white)](https://flask.palletsprojects.com/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.124.2-009688?style=flat-square&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![SQLAlchemy](https://img.shields.io/badge/SQLAlchemy-2.0.45-CA2C39?style=flat-square&logo=sqlalchemy&logoColor=white)](https://www.sqlalchemy.org/)
 [![PostgreSQL + PostGIS](https://img.shields.io/badge/PostgreSQL%20%2B%20PostGIS-17%20%2F%203.4-0093D0?style=flat-square&logo=postgresql&logoColor=white)](https://www.postgresql.org/)
-[![Redis](https://img.shields.io/badge/Redis-7-DC382D?style=flat-square&logo=redis&logoColor=white)](https://redis.io/)
+[![Redis](https://img.shields.io/badge/Redis-7.1-DC382D?style=flat-square&logo=redis&logoColor=white)](https://redis.io/)
 
 [![Systemd](https://img.shields.io/badge/Systemd-Services-33A9DC?style=flat-square&logo=linux&logoColor=white)](https://systemd.io/)
 [![Gunicorn](https://img.shields.io/badge/Gunicorn-23.0-499848?style=flat-square&logo=gunicorn&logoColor=white)](https://gunicorn.org/)
 [![Nginx](https://img.shields.io/badge/Nginx-Latest-009639?style=flat-square&logo=nginx&logoColor=white)](https://nginx.org/)
-[![Bootstrap](https://img.shields.io/badge/Bootstrap-5.3-7952B3?style=flat-square&logo=bootstrap&logoColor=white)](https://getbootstrap.com/)
+[![Bootstrap](https://img.shields.io/badge/Bootstrap-5.3.0-7952B3?style=flat-square&logo=bootstrap&logoColor=white)](https://getbootstrap.com/)
 [![Leaflet](https://img.shields.io/badge/Leaflet-1.9.4-199900?style=flat-square&logo=leaflet&logoColor=white)](https://leafletjs.com/)
 
 > **A professional Emergency Alert System (EAS) platform for monitoring, broadcasting, and verifying NOAA and IPAWS alerts**
@@ -40,29 +41,63 @@ EAS Station is a software-defined drop-in replacement for commercial EAS encoder
 
 ## 🏗️ Architecture
 
-**Separated Service Design** - Modern, reliable, production-grade architecture:
+**Separated Systemd Service Design** - Modern, reliable, production-grade architecture:
 
 ```mermaid
-graph LR
-    A[Alert Sources<br/>NOAA/IPAWS] --> P[Poller Service]
-    P --> DB[(PostgreSQL<br/>PostGIS)]
-    DB --> W[Web Service<br/>Flask]
-    DB --> AS[Audio Service<br/>SAME Encoder]
-    AS --> TX[Transmitter]
-    W --> UI[Web Browser]
+graph TB
+    subgraph External["External Sources"]
+        NOAA[NOAA Weather<br/>CAP Feeds]
+        IPAWS[FEMA IPAWS<br/>CAP Feeds]
+        RF[RF Signals<br/>162 MHz]
+    end
 
-    style A fill:#3b82f6,color:#fff
+    subgraph Services["Systemd Services"]
+        POLL[eas-station-poller<br/>Alert Polling]
+        WEB[eas-station-web<br/>Flask + Gunicorn]
+        SDR[eas-station-sdr<br/>SDR Hardware]
+        AUDIO[eas-station-audio<br/>EAS Monitoring]
+        HW[eas-station-hardware<br/>GPIO/Displays]
+    end
+
+    subgraph Infrastructure["Infrastructure"]
+        DB[(PostgreSQL 17<br/>+ PostGIS 3.4)]
+        REDIS[(Redis 7<br/>Cache + IPC)]
+        NGINX[nginx<br/>HTTPS Proxy]
+    end
+
+    subgraph Output["Outputs"]
+        TX[FM Transmitter]
+        UI[Web Browser]
+        LED[LED Signs]
+    end
+
+    NOAA --> POLL
+    IPAWS --> POLL
+    RF --> SDR
+    
+    POLL --> DB
+    WEB --> DB
+    WEB --> REDIS
+    SDR --> REDIS
+    AUDIO --> REDIS
+    
+    NGINX --> WEB
+    WEB --> UI
+    HW --> TX
+    HW --> LED
+    
+    style External fill:#3b82f6,color:#fff
     style DB fill:#8b5cf6,color:#fff
-    style W fill:#10b981,color:#fff
-    style AS fill:#f59e0b,color:#000
+    style WEB fill:#10b981,color:#fff
+    style AUDIO fill:#f59e0b,color:#000
     style UI fill:#6366f1,color:#fff
 ```
 
 **Benefits:**
-- ✅ **Reliable** - Services isolated (web crashes don't affect audio)
-- ✅ **Simple** - No complex worker coordination
-- ✅ **Fast** - Dedicated resources per service
-- ✅ **Debuggable** - Separate logs, independent restart
+- ✅ **Reliable** - Services isolated (web crashes don't affect audio/SDR)
+- ✅ **Simple** - No container orchestration, standard systemd
+- ✅ **Fast** - Direct hardware access, dedicated resources per service
+- ✅ **Debuggable** - Separate logs via journalctl, independent restart
 
 ### Project Structure
 
@@ -220,18 +255,21 @@ If you encounter any package availability issues on Trixie, the installer will a
 ```mermaid
 graph TD
     START{What do you<br/>want to do?}
-    START -->|Install & Setup| SETUP[📖 Quick Start Guide]
-    START -->|Configure Hardware| HW[📡 SDR Setup<br/>🎧 Audio Setup]
-    START -->|Daily Operations| OPS[📘 User Guide<br/>🛠️ Admin Guide]
-    START -->|Development| DEV[💻 Developer Guide<br/>🎨 Frontend Docs]
+    START -->|Install & Setup| SETUP[📖 Quick Start Guide<br/>Installation]
+    START -->|Configure Hardware| HW[📡 SDR Setup<br/>🎧 Audio Sources<br/>🔌 GPIO/Displays]
+    START -->|Daily Operations| OPS[📘 User Guide<br/>🛠️ Admin Interface<br/>📊 Monitoring]
+    START -->|Development| DEV[💻 Developer Guide<br/>🏗️ Architecture<br/>🎨 Frontend Docs]
+    START -->|Troubleshooting| TROUBLE[🔧 SDR Issues<br/>🌐 Network/504<br/>🗄️ Database]
 
-    SETUP --> DOCS[📚 Full Documentation]
+    SETUP --> DOCS[📚 Full Documentation<br/>92 Documents]
     HW --> DOCS
     OPS --> DOCS
     DEV --> DOCS
+    TROUBLE --> DOCS
 
     style START fill:#3b82f6,color:#fff
     style DOCS fill:#10b981,color:#fff
+    style TROUBLE fill:#f59e0b,color:#000
 ```
 
 ### Quick Links
@@ -262,21 +300,52 @@ EAS Station exposes a comprehensive REST API for automation and integrations:
 
 ```mermaid
 graph TB
-    A[Alert Sources<br/>NOAA, IPAWS] -->|CAP XML| B[Alert Poller]
-    B -->|Store| C[(PostgreSQL<br/>+ PostGIS)]
-    C -->|Query| D[Web Application<br/>Flask]
-    C -->|Trigger| E[Broadcast Service<br/>SAME Encoder]
-    E -->|Audio| F[Transmitter]
-    E -->|Verify| G[SDR Receiver]
-    D -->|Control| E
-    D -->|Monitor| G
-    D -->|Display| H[Web Browser]
+    subgraph External["External Sources"]
+        SRC[Alert Sources<br/>NOAA, IPAWS]
+        RF[RF Signals<br/>SDR Receivers]
+    end
 
-    style A fill:#3b82f6,color:#fff
-    style C fill:#8b5cf6,color:#fff
-    style D fill:#10b981,color:#fff
-    style E fill:#f59e0b,color:#000
-    style H fill:#6366f1,color:#fff
+    subgraph Services["Systemd Services"]
+        POLL[Alert Poller<br/>Unified CAP Polling]
+        WEB[Web Application<br/>Flask + FastAPI]
+        SDR_SVC[SDR Service<br/>Radio Hardware]
+        AUDIO_SVC[Audio Service<br/>EAS Monitoring]
+        HW_SVC[Hardware Service<br/>GPIO/Displays]
+    end
+
+    subgraph Infrastructure["Infrastructure"]
+        DB[(PostgreSQL 17<br/>+ PostGIS 3.4)]
+        REDIS[(Redis 7<br/>Cache + Pub/Sub)]
+        NGINX[nginx<br/>HTTPS + Proxy]
+    end
+
+    subgraph Output["Outputs"]
+        TX[FM Transmitter<br/>GPIO Control]
+        UI[Web Browser<br/>HTTPS]
+        LED[LED Signs<br/>RS-232]
+        STREAM[Audio Streams<br/>Icecast]
+    end
+
+    SRC -->|CAP XML| POLL
+    RF --> SDR_SVC
+    
+    POLL -->|Store Alerts| DB
+    WEB -->|Query Data| DB
+    WEB -->|Commands| REDIS
+    SDR_SVC -->|Metrics| REDIS
+    AUDIO_SVC -->|Decode| REDIS
+    
+    NGINX -->|Reverse Proxy| WEB
+    WEB --> UI
+    HW_SVC -->|Relay Control| TX
+    HW_SVC -->|Messages| LED
+    SDR_SVC -->|Demod Audio| STREAM
+    
+    style External fill:#3b82f6,color:#fff
+    style DB fill:#8b5cf6,color:#fff
+    style WEB fill:#10b981,color:#fff
+    style AUDIO_SVC fill:#f59e0b,color:#000
+    style UI fill:#6366f1,color:#fff
 ```
 
 ### Core Components
@@ -284,10 +353,13 @@ graph TB
 | Component | Technology | Purpose |
 |-----------|-----------|---------|
 | **Web Application** | Flask 3.1 + FastAPI 0.124 + Bootstrap 5 | User interface and REST API |
-| **Alert Poller** | Python async | CAP feed monitoring |
-| **Database** | PostgreSQL 17 + PostGIS 3.4 | Spatial data storage |
-| **Broadcast Engine** | Python + ALSA | SAME encoding and audio |
-| **SDR Service** | RTL-SDR/Airspy | Transmission verification |
+| **Alert Poller** | Python asyncio | Unified NOAA/IPAWS CAP monitoring |
+| **Database** | PostgreSQL 17 + PostGIS 3.4 | Spatial data storage and queries |
+| **SDR Service** | SoapySDR + RTL-SDR/Airspy | Radio reception and demodulation |
+| **Audio Service** | Python + ALSA | EAS decoding and monitoring |
+| **Hardware Service** | RPi.GPIO + lgpio | GPIO relay, OLED, VFD, LED control |
+| **Web Server** | Gunicorn 23.0 + nginx | WSGI server + HTTPS termination |
+| **Cache & IPC** | Redis 7 | Real-time metrics and pub/sub messaging |
 
 ## 🎯 Use Cases
 
@@ -633,6 +705,76 @@ See [NOTICE](NOTICE) file for complete terms.
 | **IPAWS** | https://www.fema.gov/emergency-managers/practitioners/integrated-public-alert-warning-system |
 | **FCC Part 11** | https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-11 |
 | **PostGIS** | https://postgis.net/documentation/ |
+
+---
+
+## 🛠️ Technology Stack
+
+<details>
+<summary><strong>Click to expand complete technology stack</strong></summary>
+
+### Backend Framework
+- **Flask 3.1.2** - Primary web framework for UI and REST API
+- **FastAPI 0.124.2** - Modern async API framework (parallel deployment)
+- **Gunicorn 23.0** - Production WSGI server
+- **Uvicorn 0.38.0** - ASGI server with WebSocket support
+- **nginx** - HTTPS termination and reverse proxy
+
+### Database & Caching
+- **PostgreSQL 17** - Primary relational database
+- **PostGIS 3.4** - Geographic/spatial data extension
+- **SQLAlchemy 2.0.45** - Python ORM and database toolkit
+- **GeoAlchemy2 0.18.1** - PostGIS integration for SQLAlchemy
+- **Alembic 1.17.2** - Database migration management
+- **Redis 7.1** - Cache, pub/sub messaging, and IPC
+
+### Frontend
+- **Bootstrap 5.3.0** - Responsive UI framework
+- **Leaflet 1.9.4** - Interactive mapping library
+- **Chart.js** - Data visualization and metrics
+- **Socket.IO** - Real-time bidirectional communication
+- **Jinja2 3.1.6** - Template rendering engine
+
+### Audio & SDR
+- **SoapySDR** - Software-defined radio abstraction layer
+- **RTL-SDR / Airspy** - Radio receiver hardware support
+- **ALSA** - Advanced Linux Sound Architecture
+- **Icecast** - Audio streaming server
+- **numpy** - Audio signal processing
+- **scipy** - Digital signal processing
+
+### Hardware Integration
+- **RPi.GPIO / lgpio** - Raspberry Pi GPIO control
+- **pyserial** - Serial port communication (LED signs, VFD)
+- **smbus2** - I2C bus interface (OLED displays)
+
+### Alert Processing
+- **lxml** - Fast XML parsing for CAP feeds
+- **requests 2.32.5** - Synchronous HTTP client
+- **httpx 0.28.1** - Async HTTP client with connection pooling
+- **certifi 2025.11.12** - Updated CA bundle for SSL/TLS
+- **pytz 2025.2** - Timezone handling
+
+### System & Monitoring
+- **psutil 7.1.3** - System resource monitoring
+- **python-dotenv 1.2.1** - Environment variable management
+- **Systemd** - Service orchestration and management
+- **journalctl** - Centralized logging
+
+### Development & Testing
+- **pytest** - Testing framework
+- **black** - Code formatting
+- **flake8** - Linting
+- **mypy** - Static type checking
+
+### Python Runtime
+- **Python 3.11 / 3.12 / 3.13** - Tested on all three versions
+- **Debian 12 (Bookworm)** - Primary target OS
+- **Debian 13 (Trixie)** - Fully supported
+- **Ubuntu 22.04+** - Compatible
+- **Raspberry Pi OS** - Optimized support
+
+</details>
 
 ---
 

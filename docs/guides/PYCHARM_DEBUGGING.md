@@ -728,7 +728,7 @@ cd eas-station
 sudo ./install.sh
 ```
 
-See [QUICKSTART-BARE-METAL.md](../QUICKSTART-BARE-METAL.md) for detailed installation instructions.
+See [QUICKSTART-BARE-METAL.md](../installation/QUICKSTART-BARE-METAL.md) for detailed installation instructions.
 
 ### Skill Level
 
