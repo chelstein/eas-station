@@ -45,27 +45,6 @@ logger = logging.getLogger(__name__)
 certbot_bp = Blueprint('certbot', __name__)
 
 
-def _restart_nginx_safe():
-    """Safely restart nginx, logging any errors but not raising exceptions.
-    
-    This is used in exception handlers where we want to ensure nginx is running
-    even if the main operation failed.
-    """
-    try:
-        result = subprocess.run(
-            ['sudo', 'systemctl', 'start', 'nginx'],
-            capture_output=True,
-            text=True,
-            timeout=30
-        )
-        if result.returncode != 0:
-            logger.error(f"Failed to restart nginx: {result.stderr}")
-        else:
-            logger.info("nginx restarted successfully")
-    except Exception as e:
-        logger.error(f"Exception while restarting nginx: {e}")
-
-
 # Routes are relative to blueprint's url_prefix='/admin'
 # e.g., route '/certbot' becomes '/admin/certbot'
 @certbot_bp.route('/certbot')
@@ -265,32 +244,32 @@ def renew_certificate():
         
         try:
             # Check if timer is enabled
-            result = subprocess.run(
+            enabled_result = subprocess.run(
                 ['systemctl', 'is-enabled', 'certbot.timer'],
                 capture_output=True,
                 text=True,
                 timeout=5
             )
-            timer_info['enabled'] = (result.returncode == 0)
+            timer_info['enabled'] = (enabled_result.returncode == 0)
             
             # Check if timer is active
-            result = subprocess.run(
+            active_result = subprocess.run(
                 ['systemctl', 'is-active', 'certbot.timer'],
                 capture_output=True,
                 text=True,
                 timeout=5
             )
-            timer_info['active'] = (result.stdout.strip() == 'active')
+            timer_info['active'] = (active_result.stdout.strip() == 'active')
             
             # Get next run time
             if timer_info['active']:
-                result = subprocess.run(
+                status_result = subprocess.run(
                     ['systemctl', 'status', 'certbot.timer'],
                     capture_output=True,
                     text=True,
                     timeout=5
                 )
-                for line in result.stdout.split('\n'):
+                for line in status_result.stdout.split('\n'):
                     if 'Trigger:' in line:
                         timer_info['next_run'] = line.split('Trigger:')[1].strip()
                         break

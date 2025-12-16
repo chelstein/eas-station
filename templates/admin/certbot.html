@@ -712,11 +712,39 @@ function copyCertCommand(elementId) {
     const input = document.getElementById(elementId);
     input.select();
     input.setSelectionRange(0, 99999); // For mobile
-    navigator.clipboard.writeText(input.value).then(() => {
-        showToast('Command copied to clipboard', 'success');
-    }).catch(() => {
-        showToast('Failed to copy command', 'error');
-    });
+    
+    // Try modern clipboard API first
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(input.value).then(() => {
+            showToast('Command copied to clipboard', 'success');
+        }).catch((err) => {
+            // Fallback to deprecated execCommand
+            if (copyToClipboardFallback(input)) {
+                showToast('Command copied to clipboard', 'success');
+            } else {
+                showToast('Failed to copy. Please copy manually.', 'error');
+            }
+        });
+    } else {
+        // Browser doesn't support clipboard API, use fallback
+        if (copyToClipboardFallback(input)) {
+            showToast('Command copied to clipboard', 'success');
+        } else {
+            showToast('Please copy the command manually', 'warning');
+        }
+    }
+}
+
+// Fallback clipboard copy using deprecated execCommand
+function copyToClipboardFallback(element) {
+    try {
+        element.select();
+        const successful = document.execCommand('copy');
+        return successful;
+    } catch (err) {
+        console.error('Fallback copy failed:', err);
+        return false;
+    }
 }
 
 // Renew certificate
