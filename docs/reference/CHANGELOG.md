@@ -7,29 +7,23 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
-- **Hardware Settings Route 404** - Fixed hardware blueprint route registration issue
-  - Removed `/admin` prefix from hardware route decorators (blueprint already has `url_prefix='/admin'`)
-  - Fixed `/admin/hardware` returning 404 error (same issue as certbot/icecast)
-  - All three routes now work: `/admin/hardware`, `/admin/hardware/update`, `/admin/hardware/restart-services`
-  - Critical fix as LED control page now redirects users to hardware settings
-  - VERSION bumped to 2.31.3 (bug fix)
-- **Removed Duplicate LED Sign Settings** - Eliminated redundant configuration UI from LED control page
-  - Removed serial port configuration section (serial mode, baud rate) from `/led_control` page
-  - Removed duplicate connection type information text
-  - Updated connection info to link to `/admin/hardware` for all configuration
-  - LED configuration now exclusively in `/admin/hardware` → LED Sign tab
-  - LED control page now focused only on operational controls (sending messages, effects)
-  - Simplified user experience - one location for all hardware configuration
-  - VERSION bumped to 2.31.2 (bug fix)
-- **Blueprint Route Registration Bug** - Fixed double URL prefix causing 404 errors on certbot and icecast pages
-  - Fixed certbot routes: removed `/admin` prefix from route decorators (blueprint already has `url_prefix='/admin'`)
-  - Fixed icecast routes: removed `/admin` prefix from route decorators (blueprint already has `url_prefix='/admin'`)
-  - Updated API paths in templates: `/api/admin/certbot/*` → `/admin/api/certbot/*`
-  - Updated API paths in templates: `/api/admin/icecast/*` → `/admin/api/icecast/*`
-  - Fixed JavaScript "Unexpected token '<'" errors caused by 404 HTML responses
-  - Corrected blueprint registration documentation comments
-  - `/admin/certbot` and `/admin/icecast` now return correct pages instead of 404
-  - VERSION bumped to 2.31.1 (bug fix)
+- **CRITICAL: EAS Monitor Buffer Starvation** - Fixed monitor bouncing between healthy and starved states
+  - Increased EAS monitor read timeout from 0.1s to 1.0s in `app_core/audio/eas_monitor_v3.py`
+  - Root cause: Monitor requested 1600 samples but timeout fired before accumulating enough chunks
+  - Reduced "no audio" sleep from 50ms to 20ms to check more frequently and prevent queue buildup
+  - Prevents vicious cycle: timeout → sleep 50ms → audio builds up → queue fills → drops → repeat
+  - Eliminates false "no audio sources" errors when sources are actually running
+  - Prevents missed emergency alerts due to audio starvation
+  - VERSION bumped to 2.31.1 (critical bug fix)
+
+- **Removed All Legacy Audio Queue Code** - Eliminated wasted resources and 24,000+ dropped chunks
+  - Removed controller broadcast queue (`_broadcast_queue`) and subscription (`controller-legacy`)
+  - Removed broadcast pump thread and `_broadcast_pump_loop()` method - sources already publish directly
+  - Removed `get_audio_chunk()` and `get_broadcast_queue()` methods from AudioIngestController
+  - Removed unused legacy source queues (`_legacy_subscriber_id`, `_audio_queue`) from AudioSourceAdapter
+  - Clean architecture: Audio Source → BroadcastQueue → Subscribers (EAS Monitor, Icecast)
+  - No more redundant copying, no more unused queue drops, cleaner logs
+  - EAS monitor and Icecast subscribe directly to source broadcast queues
 
 ### Changed
 - **Environment Variables Cleanup** - Removed redundant settings that are now managed via dedicated admin pages

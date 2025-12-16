@@ -117,16 +117,10 @@ class AudioSourceAdapter(ABC):
         # Per-source BroadcastQueue for non-destructive audio distribution
         # This allows multiple consumers (Icecast, web streaming, monitoring) to
         # receive audio from this source independently without competing for chunks.
-        # CRITICAL FIX: Previously all consumers called get_audio_chunk() which
-        # destructively removed from a shared queue - now each subscribes independently.
         self._source_broadcast = BroadcastQueue(
             name=f"source-{config.name}",
             max_queue_size=2000  # ~180s buffer at 44100Hz with 4096 samples/chunk
         )
-        
-        # Legacy queue for backward compatibility - subscribers get independent copies
-        self._legacy_subscriber_id = f"legacy-{config.name}"
-        self._audio_queue = self._source_broadcast.subscribe(self._legacy_subscriber_id)
         
         self._last_metrics_update = 0.0
         self._start_time = 0.0
@@ -218,28 +212,6 @@ class AudioSourceAdapter(ABC):
             self._stop_capture()
         except Exception as e:
             logger.error(f"Error stopping capture for {self.config.name}: {e}")
-
-        # Clear queue
-        while not self._audio_queue.empty():
-            try:
-                self._audio_queue.get_nowait()
-            except queue.Empty:
-                break
-
-    def get_audio_chunk(self, timeout: float = 1.0) -> Optional[np.ndarray]:
-        """Get the next audio chunk from the queue.
-        
-        NOTE: This method uses the legacy subscriber queue which receives
-        independent copies from the per-source broadcast queue. Multiple
-        consumers calling this method will each get their own copy of audio.
-        
-        For new code, prefer using get_broadcast_queue().subscribe() directly
-        to create an independent subscription with its own queue.
-        """
-        try:
-            return self._audio_queue.get(timeout=timeout)
-        except queue.Empty:
-            return None
 
     def get_broadcast_queue(self) -> BroadcastQueue:
         """Get this source's broadcast queue for subscribing to audio.
@@ -471,26 +443,6 @@ class AudioIngestController:
         self._monitor_thread: Optional[threading.Thread] = None
         self._flask_app = flask_app  # Store Flask app for app context in background threads
 
-        # Broadcast queue for pub/sub audio distribution
-        # CRITICAL: Increased to 2000 to prevent EAS monitor from missing chunks
-        # At 44100Hz: 200 chunks = 18.6 seconds (TOO SMALL - caused missed alerts)
-        # At 44100Hz: 2000 chunks = 186 seconds (safe buffer)
-        # NOTE: The broadcast queue is for MONITORING only (EAS monitor gets the active source)
-        # Icecast streams read directly from their own sources, NOT from the broadcast queue
-        self._broadcast_queue = BroadcastQueue(name="audio-ingest-broadcast", max_queue_size=2000)
-
-        # Subscribe to our own broadcast for backward compatibility with get_audio_chunk()
-        self._controller_subscription = self._broadcast_queue.subscribe("controller-legacy")
-
-        # Start broadcast pump thread to publish audio from sources to broadcast queue
-        self._pump_stop = threading.Event()
-        self._pump_thread = threading.Thread(
-            target=self._broadcast_pump_loop,
-            name="AudioBroadcastPump",
-            daemon=True,
-        )
-        self._pump_thread.start()
-
         if enable_monitor:
             self._monitor_thread = threading.Thread(
                 target=self._monitor_loop,
@@ -543,31 +495,6 @@ class AudioIngestController:
         with self._lock:
             for source in self._sources.values():
                 source.stop()
-
-    def get_audio_chunk(self, timeout: float = 1.0) -> Optional[np.ndarray]:
-        """
-        Get audio from the highest priority active source.
-
-        DEPRECATED: New code should use get_broadcast_queue() and subscribe instead.
-        This method is maintained for backward compatibility and pulls from the
-        controller's own subscription to the broadcast queue.
-        """
-        try:
-            return self._controller_subscription.get(timeout=timeout)
-        except queue.Empty:
-            return None
-
-    def get_broadcast_queue(self) -> BroadcastQueue:
-        """
-        Get the broadcast queue for subscribing to audio.
-
-        Subscribers receive independent copies of all audio chunks without
-        affecting other consumers (EAS monitor, Icecast, web streaming, etc).
-
-        Returns:
-            BroadcastQueue instance for subscribing
-        """
-        return self._broadcast_queue
 
     def get_active_sample_rate(self) -> Optional[int]:
         """Return the current active source sample rate (or first configured rate)."""
@@ -656,12 +583,6 @@ class AudioIngestController:
         """Cleanup all sources and threads."""
         self.stop_all()
 
-        # Stop broadcast pump
-        self._pump_stop.set()
-        if self._pump_thread and self._pump_thread.is_alive():
-            self._pump_thread.join(timeout=2.0)
-            self._pump_thread = None
-
         # Stop health monitor
         self._monitor_stop.set()
         if self._monitor_thread and self._monitor_thread.is_alive():
@@ -671,88 +592,6 @@ class AudioIngestController:
         with self._lock:
             self._sources.clear()
             self._active_source = None
-
-    def _broadcast_pump_loop(self) -> None:
-        """
-        Broadcast pump loop - reads from highest priority source and publishes to broadcast queue.
-
-        This allows multiple consumers (EAS monitor, Icecast, web streaming) to receive
-        independent copies of audio without competing for chunks.
-        """
-        logger.info("Broadcast pump started")
-
-        last_status_log = 0.0
-        status_log_interval = 10.0  # Log status every 10 seconds
-        chunks_published_since_log = 0
-        chunks_none_since_log = 0
-
-        while not self._pump_stop.is_set():
-            try:
-                # Find the best active source based on priority
-                with self._lock:
-                    active_sources = [
-                        (name, source) for name, source in self._sources.items()
-                        if source.status == AudioSourceStatus.RUNNING and source.config.enabled
-                    ]
-
-                current_time = time.time()
-
-                # Periodic status logging
-                if current_time - last_status_log >= status_log_interval:
-                    with self._lock:
-                        total_sources = len(self._sources)
-                        running_sources = len(active_sources)
-
-                    broadcast_stats = self._broadcast_queue.get_stats()
-
-                    subscriber_ids = broadcast_stats.get('subscriber_ids', [])
-                    logger.info(
-                        f"Broadcast pump status: {running_sources}/{total_sources} sources running, "
-                        f"{broadcast_stats['subscribers']} subscribers {subscriber_ids}, "
-                        f"{chunks_published_since_log} chunks published (last {status_log_interval}s), "
-                        f"{chunks_none_since_log} empty reads, "
-                        f"total published: {broadcast_stats['published_chunks']}, "
-                        f"dropped: {broadcast_stats['dropped_chunks']}"
-                    )
-
-                    last_status_log = current_time
-                    chunks_published_since_log = 0
-                    chunks_none_since_log = 0
-
-                if not active_sources:
-                    # No active sources, sleep and retry
-                    time.sleep(0.1)
-                    continue
-
-                # Sort by priority (lower number = higher priority)
-                active_sources.sort(key=lambda x: x[1].config.priority)
-                best_source_name, best_source = active_sources[0]
-
-                # Update active source if changed
-                with self._lock:
-                    if self._active_source != best_source_name:
-                        self._active_source = best_source_name
-                        logger.info(f"Broadcast pump switched to audio source: {best_source_name}")
-
-                # Get chunk from source (this is still destructive on the source's queue)
-                chunk = best_source.get_audio_chunk(timeout=0.5)
-
-                if chunk is not None:
-                    chunks_published_since_log += 1
-                    # Publish to broadcast queue - all subscribers get a copy
-                    # NOTE: Broadcast queue is for MONITORING only (EAS monitor)
-                    # Audio is NOT resampled - published at the active source's native rate
-                    delivered = self._broadcast_queue.publish(chunk)
-                    if delivered == 0:
-                        logger.warning("No subscribers to receive audio chunk")
-                else:
-                    chunks_none_since_log += 1
-
-            except Exception as e:
-                logger.error(f"Error in broadcast pump loop: {e}", exc_info=True)
-                time.sleep(0.1)
-
-        logger.info("Broadcast pump stopped")
 
     def _monitor_loop(self) -> None:
         """Background monitor that auto-recovers unhealthy sources."""
