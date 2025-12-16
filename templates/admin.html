@@ -623,6 +623,11 @@
                             <i class="fas fa-snowflake"></i> Snow Emergency
                         </button>
                     </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="ssl-certbot-tab" data-bs-toggle="tab" data-bs-target="#ssl-certbot" type="button" role="tab">
+                            <i class="fas fa-lock"></i> SSL / Certbot
+                        </button>
+                    </li>
                 </ul>
             </div>
             <div class="tab-content" id="adminTabContent">
@@ -2072,6 +2077,234 @@
                                     <small class="text-muted d-block ms-4">(Reference URL from issue)</small>
                                 </li>
                             </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SSL/Certbot Tab -->
+                <div class="tab-pane fade" id="ssl-certbot" role="tabpanel">
+                    <div class="mb-4">
+                        <h4 class="mb-2"><i class="fas fa-lock text-primary"></i> SSL Certificate / Certbot Management</h4>
+                        <p class="text-muted">Configure Let's Encrypt SSL certificates for secure HTTPS access</p>
+                    </div>
+
+                    <!-- Inner tabs for Configuration and Diagnostics -->
+                    <ul class="nav nav-pills mb-3" id="certbot-tabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="certbot-config-tab" data-bs-toggle="pill" data-bs-target="#certbot-configuration" type="button" role="tab">
+                                <i class="fas fa-cog"></i> Configuration
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="certbot-status-tab" data-bs-toggle="pill" data-bs-target="#certbot-diagnostics" type="button" role="tab">
+                                <i class="fas fa-shield-alt"></i> Certificate Status
+                            </button>
+                        </li>
+                    </ul>
+
+                    <div class="tab-content" id="certbot-tab-content">
+                        <!-- Configuration Tab -->
+                        <div class="tab-pane fade show active" id="certbot-configuration" role="tabpanel">
+                            <form id="certbotSettingsForm">
+                                <!-- General Settings -->
+                                <div class="card mb-3">
+                                    <div class="card-header">
+                                        <h5 class="mb-0">General Settings</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="mb-3">
+                                            <label for="certbot-enabled" class="form-label">Certbot Enabled</label>
+                                            <select class="form-select" id="certbot-enabled" name="enabled">
+                                                <option value="false">Disabled</option>
+                                                <option value="true">Enabled</option>
+                                            </select>
+                                            <div class="form-text">Enable or disable automatic SSL certificate management</div>
+                                        </div>
+
+                                        <div class="mb-3">
+                                            <label for="certbot-domain" class="form-label">Domain Name *</label>
+                                            <input type="text" class="form-control" id="certbot-domain" name="domain_name" required>
+                                            <div class="form-text">Fully qualified domain name for SSL certificate (e.g., eas.example.com)</div>
+                                        </div>
+
+                                        <div class="mb-3">
+                                            <label for="certbot-email" class="form-label">Email Address *</label>
+                                            <input type="email" class="form-control" id="certbot-email" name="email" required>
+                                            <div class="form-text">Email for certificate expiration notifications and account recovery</div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Certificate Settings -->
+                                <div class="card mb-3">
+                                    <div class="card-header">
+                                        <h5 class="mb-0">Certificate Settings</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="mb-3">
+                                            <label for="certbot-staging" class="form-label">Use Staging Server</label>
+                                            <select class="form-select" id="certbot-staging" name="staging">
+                                                <option value="false">Production (Real Certificates)</option>
+                                                <option value="true">Staging (Testing Only)</option>
+                                            </select>
+                                            <div class="form-text">Use Let's Encrypt staging server for testing to avoid rate limits. Staging certificates are not trusted by browsers.</div>
+                                        </div>
+
+                                        <div class="alert alert-warning">
+                                            <i class="fas fa-exclamation-triangle"></i>
+                                            <strong>Important:</strong> Production certificates have rate limits (5 per week per domain). Use staging mode for testing.
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Renewal Settings -->
+                                <div class="card mb-3">
+                                    <div class="card-header">
+                                        <h5 class="mb-0">Auto-Renewal Settings</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="mb-3">
+                                            <label for="certbot-auto-renew" class="form-label">Auto-Renewal Enabled</label>
+                                            <select class="form-select" id="certbot-auto-renew" name="auto_renew_enabled">
+                                                <option value="true">Enabled</option>
+                                                <option value="false">Disabled</option>
+                                            </select>
+                                            <div class="form-text">Automatically renew certificates before expiration</div>
+                                        </div>
+
+                                        <div class="mb-3">
+                                            <label for="certbot-renew-days" class="form-label">Renew Days Before Expiry</label>
+                                            <input type="number" class="form-control" id="certbot-renew-days" name="renew_days_before_expiry" value="30" min="1" max="90" required>
+                                            <div class="form-text">How many days before expiration to renew (default: 30 days)</div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="d-flex gap-2">
+                                    <button type="submit" class="btn btn-primary">
+                                        <i class="fas fa-save"></i> Save Settings
+                                    </button>
+                                    <button type="button" class="btn btn-secondary" onclick="loadCertbotSettings()">
+                                        <i class="fas fa-undo"></i> Reset
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+
+                        <!-- Diagnostics Tab -->
+                        <div class="tab-pane fade" id="certbot-diagnostics" role="tabpanel">
+                            <!-- Certificate Status -->
+                            <div class="card mb-3">
+                                <div class="card-header">
+                                    <h5 class="mb-0">Certificate Status</h5>
+                                </div>
+                                <div class="card-body">
+                                    <p class="text-muted">Current SSL certificate information and validity</p>
+                                    
+                                    <div id="certificateStatus">
+                                        <div class="alert alert-info">
+                                            <i class="fas fa-info-circle"></i> Click "Check Certificate Status" to view certificate information
+                                        </div>
+                                    </div>
+
+                                    <div class="row g-3" id="certInfoGrid" style="display: none;">
+                                        <div class="col-md-4">
+                                            <div class="card">
+                                                <div class="card-body">
+                                                    <div class="text-muted small">Certificate Type</div>
+                                                    <div class="fw-bold" id="certType">-</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <div class="card">
+                                                <div class="card-body">
+                                                    <div class="text-muted small">Domain</div>
+                                                    <div class="fw-bold" id="certDomain">-</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <div class="card">
+                                                <div class="card-body">
+                                                    <div class="text-muted small">Issuer</div>
+                                                    <div class="fw-bold" id="certIssuer">-</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <div class="card">
+                                                <div class="card-body">
+                                                    <div class="text-muted small">Valid Until</div>
+                                                    <div class="fw-bold" id="certExpiry">-</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <div class="card">
+                                                <div class="card-body">
+                                                    <div class="text-muted small">Days Remaining</div>
+                                                    <div class="fw-bold" id="certDaysRemaining">-</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <div class="card">
+                                                <div class="card-body">
+                                                    <div class="text-muted small">Status</div>
+                                                    <div class="fw-bold" id="certStatus">-</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="d-flex gap-2 mt-3">
+                                        <button type="button" class="btn btn-primary" onclick="checkCertbotCertificateStatus()">
+                                            <i class="fas fa-shield-alt"></i> Check Certificate Status
+                                        </button>
+                                        <button type="button" class="btn btn-secondary" onclick="downloadCertbotCertificate()">
+                                            <i class="fas fa-download"></i> Download Certificate
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Domain Testing -->
+                            <div class="card mb-3">
+                                <div class="card-header">
+                                    <h5 class="mb-0">Domain Validation</h5>
+                                </div>
+                                <div class="card-body">
+                                    <p class="text-muted">Test domain DNS resolution and HTTP accessibility for Let's Encrypt</p>
+                                    
+                                    <div id="domainTestResult"></div>
+                                    
+                                    <button type="button" class="btn btn-primary" onclick="testCertbotDomain()">
+                                        <i class="fas fa-globe"></i> Test Domain
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Certificate Renewal -->
+                            <div class="card mb-3">
+                                <div class="card-header">
+                                    <h5 class="mb-0">Certificate Renewal</h5>
+                                </div>
+                                <div class="card-body">
+                                    <p class="text-muted">Manually trigger certificate renewal (dry-run test)</p>
+                                    
+                                    <div class="alert alert-info">
+                                        <i class="fas fa-info-circle"></i>
+                                        <strong>Note:</strong> This performs a dry-run test only. It verifies renewal would succeed without actually renewing the certificate.
+                                    </div>
+                                    
+                                    <div id="renewalResult"></div>
+                                    
+                                    <button type="button" class="btn btn-warning" onclick="renewCertbotCertificate()">
+                                        <i class="fas fa-sync-alt"></i> Test Renewal (Dry Run)
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -7298,5 +7531,220 @@
         }
 
         // ==================== End Zone Catalog Management ====================
+
+        // ==================== Certbot/SSL Management ====================
+        
+        // Load certbot settings when tab is opened
+        document.addEventListener('DOMContentLoaded', function() {
+            const sslTab = document.getElementById('ssl-certbot-tab');
+            if (sslTab) {
+                sslTab.addEventListener('shown.bs.tab', function() {
+                    loadCertbotSettings();
+                });
+            }
+        });
+
+        async function loadCertbotSettings() {
+            try {
+                const response = await fetch('/api/admin/certbot/settings');
+                const data = await response.json();
+                
+                if (data.success && data.settings) {
+                    const s = data.settings;
+                    document.getElementById('certbot-enabled').value = s.enabled ? 'true' : 'false';
+                    document.getElementById('certbot-domain').value = s.domain_name || '';
+                    document.getElementById('certbot-email').value = s.email || '';
+                    document.getElementById('certbot-staging').value = s.staging ? 'true' : 'false';
+                    document.getElementById('certbot-auto-renew').value = s.auto_renew_enabled ? 'true' : 'false';
+                    document.getElementById('certbot-renew-days').value = s.renew_days_before_expiry || 30;
+                }
+            } catch (error) {
+                console.error('Error loading certbot settings:', error);
+                showToast('Error loading certbot settings', 'danger');
+            }
+        }
+
+        // Form submission
+        if (document.getElementById('certbotSettingsForm')) {
+            document.getElementById('certbotSettingsForm').addEventListener('submit', async function(e) {
+                e.preventDefault();
+                
+                const formData = new FormData(this);
+                const data = Object.fromEntries(formData.entries());
+                
+                try {
+                    const response = await fetch('/api/admin/certbot/settings', {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(data)
+                    });
+                    
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                        showToast(result.message || 'Settings updated successfully', 'success');
+                    } else {
+                        showToast(result.error || 'Failed to update settings', 'danger');
+                    }
+                } catch (error) {
+                    showToast('Error updating settings: ' + error.message, 'danger');
+                }
+            });
+        }
+
+        // Check certificate status
+        async function checkCertbotCertificateStatus() {
+            const statusDiv = document.getElementById('certificateStatus');
+            const certInfoGrid = document.getElementById('certInfoGrid');
+            
+            statusDiv.innerHTML = '<div class="alert alert-info"><span class="spinner-border spinner-border-sm"></span> Checking certificate status...</div>';
+            certInfoGrid.style.display = 'none';
+            
+            try {
+                const response = await fetch('/api/admin/certbot/certificate-status');
+                const result = await response.json();
+                
+                if (!result.success) {
+                    statusDiv.innerHTML = `<div class="alert alert-danger"><i class="fas fa-exclamation-triangle"></i> ${result.error}</div>`;
+                    return;
+                }
+                
+                const cert = result.certificate;
+                
+                if (!cert.installed) {
+                    statusDiv.innerHTML = `<div class="alert alert-warning"><i class="fas fa-exclamation-circle"></i> No SSL certificate installed</div>`;
+                    return;
+                }
+                
+                // Update certificate info display
+                document.getElementById('certType').textContent = cert.type === 'letsencrypt' ? "Let's Encrypt" : cert.type;
+                document.getElementById('certDomain').textContent = cert.domain || 'N/A';
+                document.getElementById('certIssuer').textContent = cert.issuer || 'N/A';
+                
+                if (cert.valid_until) {
+                    const expiryDate = new Date(cert.valid_until);
+                    document.getElementById('certExpiry').textContent = expiryDate.toLocaleDateString();
+                } else {
+                    document.getElementById('certExpiry').textContent = 'N/A';
+                }
+                
+                document.getElementById('certDaysRemaining').textContent = cert.days_remaining !== null ? cert.days_remaining : 'N/A';
+                
+                // Status badge
+                let statusHtml = '';
+                if (cert.valid) {
+                    if (cert.days_remaining > 30) {
+                        statusHtml = '<span class="badge bg-success">Valid</span>';
+                    } else {
+                        statusHtml = '<span class="badge bg-warning">Expiring Soon</span>';
+                    }
+                } else {
+                    statusHtml = '<span class="badge bg-danger">Expired</span>';
+                }
+                document.getElementById('certStatus').innerHTML = statusHtml;
+                
+                // Show success message
+                statusDiv.innerHTML = `<div class="alert alert-success"><i class="fas fa-check-circle"></i> Certificate information loaded successfully</div>`;
+                certInfoGrid.style.display = 'flex';
+                
+            } catch (error) {
+                statusDiv.innerHTML = `<div class="alert alert-danger"><i class="fas fa-exclamation-triangle"></i> Error checking certificate status: ${error.message}</div>`;
+            }
+        }
+
+        // Test domain
+        async function testCertbotDomain() {
+            const resultDiv = document.getElementById('domainTestResult');
+            resultDiv.innerHTML = '<div class="alert alert-info"><span class="spinner-border spinner-border-sm"></span> Testing domain...</div>';
+            
+            try {
+                const response = await fetch('/api/admin/certbot/test-domain', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+                
+                const result = await response.json();
+                
+                if (!result.results) {
+                    resultDiv.innerHTML = `<div class="alert alert-danger"><i class="fas fa-exclamation-triangle"></i> ${result.error || 'Failed to test domain'}</div>`;
+                    return;
+                }
+                
+                const dns = result.results.dns_resolution;
+                const http = result.results.http_accessible;
+                
+                let html = '';
+                
+                // DNS result
+                if (dns.success) {
+                    html += `<div class="alert alert-success"><i class="fas fa-check-circle"></i> <strong>DNS Resolution:</strong> ${dns.message}</div>`;
+                } else {
+                    html += `<div class="alert alert-danger"><i class="fas fa-exclamation-triangle"></i> <strong>DNS Resolution:</strong> ${dns.error}</div>`;
+                }
+                
+                // HTTP result
+                if (http.success) {
+                    html += `<div class="alert alert-success"><i class="fas fa-check-circle"></i> <strong>HTTP Accessibility:</strong> ${http.message}</div>`;
+                } else {
+                    html += `<div class="alert alert-danger"><i class="fas fa-exclamation-triangle"></i> <strong>HTTP Accessibility:</strong> ${http.error}</div>`;
+                }
+                
+                resultDiv.innerHTML = html;
+                
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="alert alert-danger"><i class="fas fa-exclamation-triangle"></i> Error testing domain: ${error.message}</div>`;
+            }
+        }
+
+        // Renew certificate
+        async function renewCertbotCertificate() {
+            const resultDiv = document.getElementById('renewalResult');
+            resultDiv.innerHTML = '<div class="alert alert-info"><span class="spinner-border spinner-border-sm"></span> Testing certificate renewal...</div>';
+            
+            try {
+                const response = await fetch('/api/admin/certbot/renew-certificate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    resultDiv.innerHTML = `
+                        <div class="alert alert-success">
+                            <i class="fas fa-check-circle"></i> ${result.message}
+                            ${result.output ? `<pre class="mt-2 mb-0" style="max-height: 200px; overflow-y: auto;">${result.output}</pre>` : ''}
+                        </div>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="alert alert-danger">
+                            <i class="fas fa-exclamation-triangle"></i> ${result.error}
+                            ${result.output ? `<pre class="mt-2 mb-0" style="max-height: 200px; overflow-y: auto;">${result.output}</pre>` : ''}
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="alert alert-danger"><i class="fas fa-exclamation-triangle"></i> Error testing renewal: ${error.message}</div>`;
+            }
+        }
+
+        // Download certificate
+        async function downloadCertbotCertificate() {
+            try {
+                window.location.href = '/api/admin/certbot/download-certificate?type=fullchain';
+                showToast('Downloading certificate...', 'info');
+            } catch (error) {
+                showToast('Error downloading certificate: ' + error.message, 'danger');
+            }
+        }
+
+        // ==================== End Certbot/SSL Management ====================
     </script>
 {% endblock %}

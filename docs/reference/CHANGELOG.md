@@ -7,9 +7,35 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Added
+- **Certbot/SSL Admin Tab** - Moved SSL certificate management into Admin Panel as dedicated tab
+  - Added SSL/Certbot tab to `/templates/admin.html` with nested Configuration and Certificate Status tabs
+  - Integrated certbot functionality into admin panel (no longer separate navbar entry)
+  - Removed `/templates/admin/certbot.html` standalone page dependency
+  - Added JavaScript functions for certbot management in admin.html
+  - Maintains all existing API endpoints (`/api/admin/certbot/*`)
+  - Auto-loads settings when tab is opened
+  - VERSION remains 2.30.0 (UI improvement)
+
+### Changed
+- **Environment Variables Cleanup** - Removed Certbot configuration from environment variables
+  - Removed DOMAIN_NAME, SSL_EMAIL, and CERTBOT_STAGING from `/webapp/admin/environment.py`
+  - Removed entire 'https' section from environment variable management
+  - Settings now exclusively managed through database (cleaner architecture)
+  - Migration `20251216_add_certbot_settings.py` imports env vars on first run for backward compatibility
+
+### Removed
+- **SSL Certificate Viewer from Security Settings** - Eliminated duplicate certificate viewer
+  - Removed SSL Certificate Status section from `/templates/security_settings.html`
+  - Removed `loadSSLCertificateStatus()` JavaScript function and event listeners
+  - Certificate viewing now unified in Admin Panel → SSL/Certbot tab
+  - Cleaner security page focused on MFA and authentication
+- **Navbar Certbot Entry** - Removed standalone certbot link from navigation menu
+  - Removed `/admin/certbot` link from `/templates/components/navbar.html`
+  - Consolidates admin functions in Admin Panel tab interface
+
+### Added (Previous Features)
 - **Certbot/SSL Admin Page** - New dedicated admin page for SSL certificate management
   - Created `/webapp/admin/certbot.py` blueprint with comprehensive Certbot/Let's Encrypt management routes
-  - Created `/templates/admin/certbot.html` template with configuration and diagnostics sections
   - Created `/app_core/certbot_settings.py` helper functions for database settings management
   - Added `CertbotSettings` database model to store certificate configuration
   - Added database migration `20251216_add_certbot_settings.py` to create certbot_settings table
