@@ -10,7 +10,7 @@
             <p class="text-muted mb-0">Real-time status of receivers, RadioManager, and audio pipeline.</p>
         </div>
         <div class="btn-group mt-3 mt-md-0">
-            <a href="/settings/radio" class="btn btn-outline-secondary">
+            <a href="/admin/radio" class="btn btn-outline-secondary">
                 <i class="fas fa-arrow-left"></i> Back to Settings
             </a>
             <button class="btn btn-primary" id="refreshBtn">
@@ -222,7 +222,7 @@ sudo systemctl restart eas-station</code></pre>
                                 <li>Check that "Loaded Instances" matches "Database Receivers" above</li>
                                 <li>Verify "With Sample Data" is greater than 0</li>
                                 <li>Open browser console (F12) and check for JavaScript errors</li>
-                                <li>Verify auto-refresh checkbox is enabled on /settings/radio page</li>
+                                <li>Verify auto-refresh checkbox is enabled on /admin/radio page</li>
                                 <li>Test the spectrum endpoint directly: <code>/api/radio/spectrum/1</code></li>
                             </ul>
                         </div>
@@ -402,7 +402,7 @@ sudo systemctl restart eas-station</code></pre>
                     <div class="alert alert-warning" role="alert">
                         <i class="fas fa-exclamation-triangle me-2"></i>
                         <strong>No receivers configured.</strong>
-                        Add a receiver at <a href="/settings/radio">/settings/radio</a> to get started.
+                        Add a receiver at <a href="/admin/radio">/admin/radio</a> to get started.
                     </div>
                 `;
             }

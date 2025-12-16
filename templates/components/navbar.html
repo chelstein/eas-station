@@ -191,12 +191,12 @@
                         <ul class="dropdown-menu" aria-labelledby="hardwareDropdown">
                             <li><h6 class="dropdown-header">Radio & Audio</h6></li>
                             <li>
-                                <a class="dropdown-item" href="{{ url_for('radio_settings') }}">
+                                <a class="dropdown-item" href="/admin/radio">
                                     <i class="fas fa-signal"></i> SDR Receivers
                                 </a>
                             </li>
                             <li>
-                                <a class="dropdown-item" href="{{ url_for('audio_settings') }}">
+                                <a class="dropdown-item" href="/admin/audio-sources">
                                     <i class="fas fa-stream"></i> Audio Streams
                                 </a>
                             </li>
@@ -235,7 +235,7 @@
                                 </a>
                             </li>
                             <li>
-                                <a class="dropdown-item" href="/settings/environment">
+                                <a class="dropdown-item" href="/admin/environment">
                                     <i class="fas fa-cog"></i> Environment Variables
                                 </a>
                             </li>
@@ -245,7 +245,7 @@
                                 </a>
                             </li>
                             <li>
-                                <a class="dropdown-item" href="/settings/alert-feeds">
+                                <a class="dropdown-item" href="/admin/alert-feeds">
                                     <i class="fas fa-rss"></i> Alert Sources
                                 </a>
                             </li>
@@ -271,7 +271,7 @@
                             <li><h6 class="dropdown-header">Hardware & Network</h6></li>
                             {% if can_view_gpio %}
                             <li>
-                                <a class="dropdown-item" href="/settings/network">
+                                <a class="dropdown-item" href="/admin/network">
                                     <i class="fas fa-wifi"></i> WiFi & Network
                                 </a>
                             </li>
@@ -286,7 +286,7 @@
                                 </a>
                             </li>
                             <li>
-                                <a class="dropdown-item" href="/settings/zigbee">
+                                <a class="dropdown-item" href="/admin/zigbee">
                                     <i class="fas fa-home"></i> Zigbee Smart Home
                                 </a>
                             </li>

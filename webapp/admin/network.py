@@ -77,11 +77,11 @@ def call_hardware_service(endpoint, method='GET', data=None):
         }
 
 
-@network_bp.route('/settings/network')
+@network_bp.route('/admin/network')
 @require_permission('system.configure')
 def network_settings():
     """Render the network configuration page."""
-    return render_template('settings/network.html')
+    return render_template('admin/network.html')
 
 
 @network_bp.route('/api/network/status')

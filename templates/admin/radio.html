@@ -48,7 +48,7 @@
             </div>
             <div>
                 <strong>Looking for internet streams?</strong> HTTP/M3U stream sources are now configured through the
-                <a href="/settings/audio" class="alert-link">Audio Sources</a> page. This page is exclusively for SDR hardware configuration.
+                <a href="/admin/audio-sources" class="alert-link">Audio Sources</a> page. This page is exclusively for SDR hardware configuration.
             </div>
         </div>
     </div>
@@ -895,7 +895,7 @@
                         <a class="btn btn-sm btn-outline-primary" href="/audio-monitor" target="_blank" rel="noopener">
                             <i class="fas fa-headphones"></i> Full Monitor
                         </a>
-                        <a class="btn btn-sm btn-outline-secondary" href="/settings/audio" target="_blank" rel="noopener">
+                        <a class="btn btn-sm btn-outline-secondary" href="/admin/audio-sources" target="_blank" rel="noopener">
                             <i class="fas fa-sliders-h"></i> Audio Settings
                         </a>
                     </div>
@@ -2611,7 +2611,7 @@
     // Run Diagnostics
     runDiagnosticsBtn?.addEventListener('click', () => {
         // Navigate to the full diagnostics page
-        window.location.href = '/settings/radio/diagnostics';
+        window.location.href = '/admin/radio/diagnostics';
     });
 
     // Legacy diagnostics modal handler (kept for backwards compatibility)
