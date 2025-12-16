@@ -1957,7 +1957,7 @@ function updateEASMonitorDisplay(status) {
             
             // Defensive validation: if we have conflicting data, show generic message
             if (monitorCount > 0 && activeSources > monitorCount) {
-                logger.warning(`Invalid state: active_sources (${activeSources}) > monitor_count (${monitorCount})`);
+                console.warn(`Invalid state: active_sources (${activeSources}) > monitor_count (${monitorCount})`);
                 bufferStatus.innerHTML = '⚠️ No audio flowing - check audio sources';
                 bufferStatus.className = 'text-warning d-block mt-1';
             } else if (monitorCount > 0 && activeSources === 0) {

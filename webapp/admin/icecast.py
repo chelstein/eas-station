@@ -253,6 +253,16 @@ def get_status():
                 content = response.text
                 
                 try:
+                    # SECURITY: Basic validation before regex parsing
+                    # Only parse XML-like responses from trusted Icecast server
+                    content_stripped = content.strip()
+                    if not (content_stripped.startswith('<?xml') or content_stripped.startswith('<icestats')):
+                        logger.warning(f"Icecast stats response doesn't look like valid XML: {content_stripped[:100]}")
+                        return jsonify({
+                            "success": False,
+                            "error": "Invalid XML response from Icecast server"
+                        })
+                    
                     # Use simple regex-based parsing for the two stats we need
                     # This is sufficient and more lightweight than xml.etree.ElementTree
                     # for extracting just 2 simple numeric values from well-formed Icecast XML
