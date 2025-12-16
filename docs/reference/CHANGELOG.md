@@ -6,6 +6,17 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+### Fixed
+- **Blueprint Route Registration Bug** - Fixed double URL prefix causing 404 errors on certbot and icecast pages
+  - Fixed certbot routes: removed `/admin` prefix from route decorators (blueprint already has `url_prefix='/admin'`)
+  - Fixed icecast routes: removed `/admin` prefix from route decorators (blueprint already has `url_prefix='/admin'`)
+  - Updated API paths in templates: `/api/admin/certbot/*` → `/admin/api/certbot/*`
+  - Updated API paths in templates: `/api/admin/icecast/*` → `/admin/api/icecast/*`
+  - Fixed JavaScript "Unexpected token '<'" errors caused by 404 HTML responses
+  - Corrected blueprint registration documentation comments
+  - `/admin/certbot` and `/admin/icecast` now return correct pages instead of 404
+  - VERSION bumped to 2.31.1 (bug fix)
+
 ### Changed
 - **Environment Variables Cleanup** - Removed redundant settings that are now managed via dedicated admin pages
   - Removed 'gpio' category from environment variables (now managed via `/admin/hardware`)
