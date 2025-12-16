@@ -177,8 +177,12 @@ class IcecastStreamer:
             True if started successfully
         """
         if not self._stop_event.is_set():
-            logger.warning("IcecastStreamer already running")
+            logger.warning(f"IcecastStreamer already running for mount {self.config.mount}")
             return False
+
+        logger.info(f"Starting Icecast streaming for mount {self.config.mount}")
+        logger.info(f"Target: {self.config.server}:{self.config.port}/{self.config.mount}")
+        logger.info(f"Format: {self.config.format.value}, Bitrate: {self.config.bitrate}kbps, Sample rate: {self.config.sample_rate}Hz")
 
         self._stop_event.clear()
         self._start_time = time.time()
@@ -201,7 +205,9 @@ class IcecastStreamer:
             self._audio_queue = None
 
         # Start FFmpeg encoder
+        logger.info(f"Initializing FFmpeg encoder for mount {self.config.mount}...")
         if not self._start_ffmpeg():
+            logger.error(f"Failed to start FFmpeg encoder for mount {self.config.mount}")
             return False
 
         self._last_write_time = time.time()
@@ -214,12 +220,12 @@ class IcecastStreamer:
         )
         self._feeder_thread.start()
 
-        logger.info(f"Started Icecast streaming to {self.config.server}:{self.config.port}")
+        logger.info(f"✓ Icecast streaming started successfully for {self.config.server}:{self.config.port}/{self.config.mount}")
         return True
 
     def stop(self) -> None:
         """Stop streaming."""
-        logger.info(f"Stopping Icecast streamer for mount {self.config.mount}")
+        logger.info(f"Stopping Icecast streamer for mount {self.config.mount}...")
         self._stop_event.set()
 
         # Unsubscribe from broadcast queue
@@ -235,7 +241,7 @@ class IcecastStreamer:
         # Stop FFmpeg
         if self._ffmpeg_process:
             try:
-                logger.debug(f"Terminating FFmpeg process for mount {self.config.mount}")
+                logger.debug(f"Terminating FFmpeg process for mount {self.config.mount} (PID: {self._ffmpeg_process.pid})")
                 self._ffmpeg_process.terminate()
                 self._ffmpeg_process.wait(timeout=5.0)
                 logger.info(f"FFmpeg process terminated successfully for mount {self.config.mount}")
@@ -270,7 +276,13 @@ class IcecastStreamer:
         if pending_thread and pending_thread.is_alive():
             pending_thread.join(timeout=2.0)
 
-        logger.info(f"Stopped Icecast streamer for mount {self.config.mount}")
+        logger.info(f"✓ Icecast streamer stopped for mount {self.config.mount}")
+        
+        # Log final statistics
+        uptime = time.time() - self._start_time if self._start_time > 0 else 0
+        if uptime > 0:
+            bitrate = (self._bytes_sent * 8 / 1000) / uptime
+            logger.info(f"Final stats: Uptime: {uptime:.1f}s, Bytes: {self._bytes_sent:,}, Bitrate: {bitrate:.1f}kbps, Reconnects: {self._reconnect_count}")
 
     def _read_ffmpeg_stderr(self) -> None:
         """Read and log FFmpeg stderr output to prevent buffer blocking."""
@@ -300,6 +312,8 @@ class IcecastStreamer:
     def _start_ffmpeg(self) -> bool:
         """Start FFmpeg encoder and Icecast streamer."""
         try:
+            logger.info(f"Configuring FFmpeg for Icecast mount: {self.config.mount}")
+            
             # Build Icecast URL with properly encoded credentials
             # URL-encode the password to handle special characters like @, :, /, etc.
             from urllib.parse import quote
@@ -316,6 +330,8 @@ class IcecastStreamer:
                 f"icecast://source:{encoded_password}@"
                 f"{self.config.server}:{self.config.port}/{mount_path}"
             )
+
+            logger.info(f"Connecting to Icecast: {self.config.server}:{self.config.port}/{mount_path}")
 
             # FFmpeg command to encode and stream
             cmd = [
@@ -334,12 +350,14 @@ class IcecastStreamer:
                     '-b:a', f'{self.config.bitrate}k',
                     '-f', 'mp3',
                 ])
+                logger.debug(f"Encoder: MP3 @ {self.config.bitrate}kbps")
             elif self.config.format == StreamFormat.OGG:
                 cmd.extend([
                     '-acodec', 'libvorbis',
                     '-b:a', f'{self.config.bitrate}k',
                     '-f', 'ogg',
                 ])
+                logger.debug(f"Encoder: OGG Vorbis @ {self.config.bitrate}kbps")
 
             stream_name = self._stream_name or "EAS Station"
             stream_description = self._stream_description or stream_name
@@ -363,7 +381,8 @@ class IcecastStreamer:
                 icecast_url
             ])
 
-            logger.info(f"Starting FFmpeg Icecast streamer for mount {self.config.mount}: {' '.join(cmd[:10])}...")
+            logger.info(f"Starting FFmpeg Icecast streamer for mount {self.config.mount}")
+            logger.debug(f"FFmpeg command: {' '.join(cmd[:15])}... (credentials hidden)")
 
             self._ffmpeg_process = subprocess.Popen(
                 cmd,
@@ -381,12 +400,14 @@ class IcecastStreamer:
             )
             self._stderr_reader_thread.start()
 
-            logger.info(f"FFmpeg process started successfully for mount {self.config.mount} (PID: {self._ffmpeg_process.pid})")
+            logger.info(f"✓ FFmpeg process started for mount {self.config.mount} (PID: {self._ffmpeg_process.pid})")
+            logger.info(f"Stream metadata: {stream_name} - {stream_description}")
             return True
 
         except Exception as e:
             self._last_error = str(e)
-            logger.error(f"Failed to start FFmpeg Icecast streamer: {e}")
+            logger.error(f"✗ Failed to start FFmpeg Icecast streamer for mount {self.config.mount}: {e}")
+            logger.exception("FFmpeg startup exception details:")
             return False
 
     def _start_ffmpeg_with_adaptive_backoff(self) -> bool:
