@@ -16,6 +16,15 @@ tracks releases under the 2.x series.
   - Prevents missed emergency alerts due to audio starvation
   - VERSION bumped to 2.31.1 (critical bug fix)
 
+- **Removed All Legacy Audio Queue Code** - Eliminated wasted resources and 24,000+ dropped chunks
+  - Removed controller broadcast queue (`_broadcast_queue`) and subscription (`controller-legacy`)
+  - Removed broadcast pump thread and `_broadcast_pump_loop()` method - sources already publish directly
+  - Removed `get_audio_chunk()` and `get_broadcast_queue()` methods from AudioIngestController
+  - Removed unused legacy source queues (`_legacy_subscriber_id`, `_audio_queue`) from AudioSourceAdapter
+  - Clean architecture: Audio Source → BroadcastQueue → Subscribers (EAS Monitor, Icecast)
+  - No more redundant copying, no more unused queue drops, cleaner logs
+  - EAS monitor and Icecast subscribe directly to source broadcast queues
+
 ### Changed
 - **Environment Variables Cleanup** - Removed redundant settings that are now managed via dedicated admin pages
   - Removed 'gpio' category from environment variables (now managed via `/admin/hardware`)
