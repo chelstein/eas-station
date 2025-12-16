@@ -117,16 +117,15 @@ class AudioSourceAdapter(ABC):
         # Per-source BroadcastQueue for non-destructive audio distribution
         # This allows multiple consumers (Icecast, web streaming, monitoring) to
         # receive audio from this source independently without competing for chunks.
-        # CRITICAL FIX: Previously all consumers called get_audio_chunk() which
-        # destructively removed from a shared queue - now each subscribes independently.
         self._source_broadcast = BroadcastQueue(
             name=f"source-{config.name}",
             max_queue_size=2000  # ~180s buffer at 44100Hz with 4096 samples/chunk
         )
         
-        # Legacy queue for backward compatibility - subscribers get independent copies
+        # On-demand legacy queue for backward compatibility
+        # Only created when get_audio_chunk() is first called to avoid wasting resources
         self._legacy_subscriber_id = f"legacy-{config.name}"
-        self._audio_queue = self._source_broadcast.subscribe(self._legacy_subscriber_id)
+        self._audio_queue = None  # Will be created on first get_audio_chunk() call
         
         self._last_metrics_update = 0.0
         self._start_time = 0.0
