@@ -736,8 +736,12 @@ function copyCertCommand(elementId) {
 }
 
 // Fallback clipboard copy using deprecated execCommand
-// Note: execCommand('copy') is deprecated but necessary for older browsers
-// and environments that don't support the modern Clipboard API (e.g., non-HTTPS contexts)
+// Note: execCommand('copy') has been deprecated since 2015 but is maintained here
+// for backwards compatibility with:
+// - Older browsers (pre-2017 Chrome/Firefox/Safari)
+// - Non-HTTPS contexts where Clipboard API is unavailable
+// - Enterprise environments with restricted JavaScript APIs
+// This fallback can be removed when all target browsers support Clipboard API (navigator.clipboard)
 function copyToClipboardFallback(element) {
     try {
         element.select();

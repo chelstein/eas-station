@@ -277,13 +277,13 @@ def renew_certificate():
             logger.warning(f"Could not check certbot.timer status: {e}")
 
         # Build response with instructions
-        staging_flag = '--staging' if settings.staging else ''
+        staging_flag = ' --staging' if settings.staging else ''
         instructions = {
             'timer_status': timer_info,
             'manual_commands': {
-                'dry_run_test': f'sudo certbot renew --dry-run {staging_flag}'.strip(),
-                'force_renew': f'sudo certbot renew --force-renewal {staging_flag}'.strip(),
-                'obtain_new': f'sudo certbot certonly --standalone -d {domain} --email {settings.email} {staging_flag}'.strip()
+                'dry_run_test': f'sudo certbot renew --dry-run{staging_flag}',
+                'force_renew': f'sudo certbot renew --force-renewal{staging_flag}',
+                'obtain_new': f'sudo certbot certonly --standalone -d {domain} --email {settings.email}{staging_flag}'
             },
             'note': 'Certificate operations require root privileges and must be run from the command line.'
         }
@@ -373,16 +373,16 @@ def obtain_certificate():
             }), 500
 
         # Build command instructions
-        staging_flag = '--staging' if settings.staging else ''
+        staging_flag = ' --staging' if settings.staging else ''
         
         # Method 1: Standalone (requires stopping nginx)
-        standalone_cmd = f"sudo systemctl stop nginx && sudo certbot certonly --standalone --non-interactive --agree-tos --email {email} -d {domain} {staging_flag} && sudo systemctl start nginx".strip()
+        standalone_cmd = f"sudo systemctl stop nginx && sudo certbot certonly --standalone --non-interactive --agree-tos --email {email} -d {domain}{staging_flag} && sudo systemctl start nginx"
         
         # Method 2: Nginx plugin (no downtime)
-        nginx_cmd = f"sudo certbot --nginx --non-interactive --agree-tos --email {email} -d {domain} {staging_flag}".strip()
+        nginx_cmd = f"sudo certbot --nginx --non-interactive --agree-tos --email {email} -d {domain}{staging_flag}"
         
         # Method 3: Webroot (if nginx is serving files)
-        webroot_cmd = f"sudo certbot certonly --webroot -w /var/www/html --non-interactive --agree-tos --email {email} -d {domain} {staging_flag}".strip()
+        webroot_cmd = f"sudo certbot certonly --webroot -w /var/www/html --non-interactive --agree-tos --email {email} -d {domain}{staging_flag}"
 
         instructions = {
             'domain': domain,
