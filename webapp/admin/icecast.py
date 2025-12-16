@@ -43,7 +43,9 @@ logger = logging.getLogger(__name__)
 icecast_bp = Blueprint('icecast', __name__)
 
 
-@icecast_bp.route('/admin/icecast')
+# Routes are relative to blueprint's url_prefix='/admin'
+# e.g., route '/icecast' becomes '/admin/icecast'
+@icecast_bp.route('/icecast')
 @require_permission('system.configure')
 def icecast_settings_page():
     """Display Icecast settings configuration page."""
@@ -60,7 +62,7 @@ def icecast_settings_page():
         return redirect(url_for('admin.index'))
 
 
-@icecast_bp.route('/api/admin/icecast/settings', methods=['GET'])
+@icecast_bp.route('/api/icecast/settings', methods=['GET'])
 @require_permission('system.configure')
 def get_settings():
     """Get current Icecast settings."""
@@ -75,7 +77,7 @@ def get_settings():
         return jsonify({"success": False, "error": str(exc)}), 500
 
 
-@icecast_bp.route('/api/admin/icecast/settings', methods=['PUT'])
+@icecast_bp.route('/api/icecast/settings', methods=['PUT'])
 @require_permission('system.configure')
 def update_settings():
     """Update Icecast settings."""
@@ -149,7 +151,7 @@ def update_settings():
         return jsonify({"success": False, "error": str(exc)}), 500
 
 
-@icecast_bp.route('/api/admin/icecast/test-connection', methods=['POST'])
+@icecast_bp.route('/api/icecast/test-connection', methods=['POST'])
 @require_permission('system.configure')
 def test_connection():
     """Test connection to Icecast server.
@@ -258,7 +260,7 @@ def test_connection():
         return jsonify({"success": False, "error": str(exc)}), 500
 
 
-@icecast_bp.route('/api/admin/icecast/status', methods=['GET'])
+@icecast_bp.route('/api/icecast/status', methods=['GET'])
 @require_permission('system.configure')
 def get_status():
     """Get current Icecast streaming status.
@@ -370,9 +372,13 @@ def get_status():
 def register_icecast_routes(app, logger):
     """Register Icecast admin routes with the Flask app.
     
-    Note: Routes defined with absolute paths (starting with '/') in the blueprint
-    are not affected by the url_prefix parameter. This follows the pattern used
-    in hardware.py for consistency.
+    Routes are registered with url_prefix='/admin', so Flask combines them:
+    - Blueprint route '/icecast' becomes '/admin/icecast'
+    - Blueprint route '/api/icecast/settings' becomes '/admin/api/icecast/settings'
+    
+    IMPORTANT: Do NOT add '/admin' prefix to route decorators above, as Flask
+    will combine url_prefix with the route path, resulting in doubled paths
+    like '/admin/admin/icecast' which will cause 404 errors.
     """
     app.register_blueprint(icecast_bp, url_prefix='/admin')
     logger.info("Icecast admin routes registered")

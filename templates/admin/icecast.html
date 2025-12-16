@@ -412,7 +412,7 @@ document.getElementById('icecastSettingsForm').addEventListener('submit', async 
     const data = Object.fromEntries(formData.entries());
     
     try {
-        const response = await fetch('/api/admin/icecast/settings', {
+        const response = await fetch('/admin/api/icecast/settings', {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
@@ -438,7 +438,7 @@ async function testConnection() {
     resultDiv.innerHTML = '<div class="alert alert-info"><span class="spinner-border"></span> Testing connection...</div>';
     
     try {
-        const response = await fetch('/api/admin/icecast/test-connection', {
+        const response = await fetch('/admin/api/icecast/test-connection', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -484,7 +484,7 @@ async function refreshStatus() {
     statsGrid.style.display = 'none';
     
     try {
-        const response = await fetch('/api/admin/icecast/status');
+        const response = await fetch('/admin/api/icecast/status');
         const result = await response.json();
         
         if (!result.success) {

@@ -45,7 +45,9 @@ logger = logging.getLogger(__name__)
 certbot_bp = Blueprint('certbot', __name__)
 
 
-@certbot_bp.route('/admin/certbot')
+# Routes are relative to blueprint's url_prefix='/admin'
+# e.g., route '/certbot' becomes '/admin/certbot'
+@certbot_bp.route('/certbot')
 @require_permission('system.configure')
 def certbot_settings_page():
     """Display Certbot/SSL certificate settings configuration page."""
@@ -62,7 +64,7 @@ def certbot_settings_page():
         return redirect(url_for('admin.index'))
 
 
-@certbot_bp.route('/api/admin/certbot/settings', methods=['GET'])
+@certbot_bp.route('/api/certbot/settings', methods=['GET'])
 @require_permission('system.configure')
 def get_settings():
     """Get current Certbot settings."""
@@ -77,7 +79,7 @@ def get_settings():
         return jsonify({"success": False, "error": str(exc)}), 500
 
 
-@certbot_bp.route('/api/admin/certbot/settings', methods=['PUT'])
+@certbot_bp.route('/api/certbot/settings', methods=['PUT'])
 @require_permission('system.configure')
 def update_settings():
     """Update Certbot settings."""
@@ -157,7 +159,7 @@ def update_settings():
         return jsonify({"success": False, "error": str(exc)}), 500
 
 
-@certbot_bp.route('/api/admin/certbot/certificate-status', methods=['GET'])
+@certbot_bp.route('/api/certbot/certificate-status', methods=['GET'])
 @require_permission('system.configure')
 def get_certificate_status():
     """Get current SSL certificate status and information."""
@@ -181,7 +183,7 @@ def get_certificate_status():
         return jsonify({"success": False, "error": str(exc)}), 500
 
 
-@certbot_bp.route('/api/admin/certbot/renew-certificate', methods=['POST'])
+@certbot_bp.route('/api/certbot/renew-certificate', methods=['POST'])
 @require_permission('system.configure')
 def renew_certificate():
     """Trigger manual certificate renewal.
@@ -278,7 +280,7 @@ def renew_certificate():
         return jsonify({"success": False, "error": str(exc)}), 500
 
 
-@certbot_bp.route('/api/admin/certbot/test-domain', methods=['POST'])
+@certbot_bp.route('/api/certbot/test-domain', methods=['POST'])
 @require_permission('system.configure')
 def test_domain():
     """Test domain DNS resolution and HTTP accessibility.
@@ -368,7 +370,7 @@ def test_domain():
         return jsonify({"success": False, "error": str(exc)}), 500
 
 
-@certbot_bp.route('/api/admin/certbot/download-certificate', methods=['GET'])
+@certbot_bp.route('/api/certbot/download-certificate', methods=['GET'])
 @require_permission('system.configure')
 def download_certificate():
     """Download the current SSL certificate.
@@ -432,9 +434,13 @@ def download_certificate():
 def register_certbot_routes(app, logger):
     """Register Certbot admin routes with the Flask app.
     
-    Note: Routes defined with absolute paths (starting with '/') in the blueprint
-    are not affected by the url_prefix parameter. This follows the pattern used
-    in icecast.py for consistency.
+    Routes are registered with url_prefix='/admin', so Flask combines them:
+    - Blueprint route '/certbot' becomes '/admin/certbot'
+    - Blueprint route '/api/certbot/settings' becomes '/admin/api/certbot/settings'
+    
+    IMPORTANT: Do NOT add '/admin' prefix to route decorators above, as Flask
+    will combine url_prefix with the route path, resulting in doubled paths
+    like '/admin/admin/certbot' which will cause 404 errors.
     """
     app.register_blueprint(certbot_bp, url_prefix='/admin')
     logger.info("Certbot admin routes registered")
