@@ -22,6 +22,8 @@ from __future__ import annotations
 """System health snapshot helpers shared across route modules."""
 
 import os
+import re
+import requests
 import smtplib
 import threading
 from datetime import datetime
@@ -223,6 +225,180 @@ def collect_audio_path_status(logger=None) -> Dict[str, Any]:
         "last_activity": last_activity,
         "issues": issues,
     }
+
+
+def collect_icecast_status(logger=None) -> Dict[str, Any]:
+    """Check the health and status of the Icecast streaming server.
+    
+    Returns:
+        Dictionary with Icecast status information including:
+        - enabled: Whether Icecast streaming is enabled
+        - running: Whether the Icecast server is reachable
+        - status: Overall status (disabled, ok, degraded, error)
+        - server: Server hostname
+        - port: Server port
+        - listeners: Number of current listeners (if available)
+        - sources: Number of active sources (if available)
+        - issues: List of any issues detected
+        - error: Error message if server is unreachable
+    """
+    effective_logger = logger or _resolve_logger()
+    
+    try:
+        from app_core.icecast_settings import get_icecast_settings
+        settings = get_icecast_settings()
+    except Exception as exc:
+        effective_logger.error(f"Failed to load Icecast settings: {exc}")
+        return {
+            "enabled": False,
+            "running": False,
+            "status": "error",
+            "issues": ["Failed to load Icecast configuration"],
+            "error": str(exc)
+        }
+    
+    if not settings.enabled:
+        return {
+            "enabled": False,
+            "running": False,
+            "status": "disabled",
+            "issues": [],
+        }
+    
+    issues: List[str] = []
+    server = settings.server or 'localhost'
+    port = settings.port or 8000
+    
+    # SECURITY: Validate server hostname (defense in depth)
+    # Allow only valid hostnames: alphanumeric, dots, hyphens (not at start/end)
+    # This regex allows localhost, IP addresses, and proper domain names
+    if not re.match(r'^[a-zA-Z0-9]([a-zA-Z0-9\.\-]*[a-zA-Z0-9])?$', server):
+        effective_logger.error(f"Invalid Icecast server hostname: {server}")
+        return {
+            "enabled": True,
+            "running": False,
+            "status": "error",
+            "server": server,
+            "port": port,
+            "issues": ["Invalid server hostname in configuration"],
+            "error": "Invalid server hostname"
+        }
+    
+    # Try to get stats from Icecast server
+    stats_url = f"http://{server}:{port}/admin/stats.xml"
+    
+    try:
+        # SECURITY: Disable redirects to prevent redirect-based SSRF
+        # NOTE: verify=False for internal/localhost connections (Icecast typically on same host)
+        # In production with external servers, this should be verify=True
+        response = requests.get(
+            stats_url,
+            auth=(settings.admin_user, settings.admin_password) if settings.admin_user and settings.admin_password else None,
+            timeout=3,
+            allow_redirects=False,  # SSRF prevention
+            verify=False  # Internal connection - external servers should use verify=True
+        )
+        
+        if response.status_code == 200:
+            # Parse stats from XML response
+            content = response.text
+            
+            try:
+                # SECURITY: Basic validation before regex parsing
+                content_stripped = content.strip()
+                if not (content_stripped.startswith('<?xml') or content_stripped.startswith('<icestats')):
+                    effective_logger.warning(f"Icecast stats response doesn't look like valid XML")
+                    issues.append("Received invalid response from Icecast server")
+                    total_listeners = 0
+                    total_sources = 0
+                else:
+                    # Use simple regex-based parsing
+                    listeners_match = re.search(r'<listeners>(\d+)</listeners>', content)
+                    total_listeners = int(listeners_match.group(1)) if listeners_match else 0
+                    
+                    sources_match = re.search(r'<sources>(\d+)</sources>', content)
+                    total_sources = int(sources_match.group(1)) if sources_match else 0
+                
+                return {
+                    "enabled": True,
+                    "running": True,
+                    "status": "ok" if not issues else "degraded",
+                    "server": server,
+                    "port": port,
+                    "listeners": total_listeners,
+                    "sources": total_sources,
+                    "issues": issues,
+                }
+            except (ValueError, AttributeError) as parse_err:
+                effective_logger.warning(f"Failed to parse Icecast stats: {parse_err}")
+                issues.append("Unable to parse server statistics")
+                return {
+                    "enabled": True,
+                    "running": True,
+                    "status": "degraded",
+                    "server": server,
+                    "port": port,
+                    "listeners": 0,
+                    "sources": 0,
+                    "issues": issues,
+                }
+        elif response.status_code == 401:
+            issues.append("Authentication failed - check admin credentials")
+            return {
+                "enabled": True,
+                "running": True,
+                "status": "degraded",
+                "server": server,
+                "port": port,
+                "issues": issues,
+                "error": "Authentication failed"
+            }
+        else:
+            issues.append(f"Server returned status code {response.status_code}")
+            return {
+                "enabled": True,
+                "running": False,
+                "status": "error",
+                "server": server,
+                "port": port,
+                "issues": issues,
+                "error": f"HTTP {response.status_code}"
+            }
+            
+    except requests.exceptions.Timeout:
+        issues.append("Connection timeout - server may be unreachable")
+        return {
+            "enabled": True,
+            "running": False,
+            "status": "error",
+            "server": server,
+            "port": port,
+            "issues": issues,
+            "error": "Connection timeout"
+        }
+    except requests.exceptions.ConnectionError as conn_err:
+        issues.append(f"Cannot connect to server at {server}:{port}")
+        return {
+            "enabled": True,
+            "running": False,
+            "status": "error",
+            "server": server,
+            "port": port,
+            "issues": issues,
+            "error": f"Connection refused"
+        }
+    except Exception as req_exc:
+        effective_logger.error(f"Error checking Icecast status: {req_exc}")
+        issues.append(f"Error checking server: {str(req_exc)}")
+        return {
+            "enabled": True,
+            "running": False,
+            "status": "error",
+            "server": server,
+            "port": port,
+            "issues": issues,
+            "error": str(req_exc)
+        }
 
 
 def start_health_alert_worker(app, logger):
@@ -475,6 +651,7 @@ class HealthAlertWorker:
 
 __all__ = [
     "collect_audio_path_status",
+    "collect_icecast_status",
     "collect_receiver_health_snapshot",
     "get_system_health",
     "start_health_alert_worker",

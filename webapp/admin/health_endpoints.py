@@ -186,10 +186,69 @@ def api_redis_health():
         }), 500
 
 
+@health_bp.route('/api/health/icecast', methods=['GET'])
+def api_icecast_health():
+    """
+    Check Icecast streaming server health.
+
+    Returns:
+        200: Icecast healthy or disabled
+        503: Icecast enabled but not reachable
+        500: Error checking Icecast
+    """
+    try:
+        from app_core.system_health import collect_icecast_status
+        
+        icecast_status = collect_icecast_status(logger)
+        
+        # If disabled, return 200 with disabled status
+        if not icecast_status.get('enabled'):
+            return jsonify({
+                'status': 'disabled',
+                'message': 'Icecast streaming is disabled',
+                'healthy': True,  # Disabled is considered "healthy" (not an error)
+                **icecast_status
+            })
+        
+        # If enabled but not running, return 503
+        if not icecast_status.get('running'):
+            return jsonify({
+                'status': 'unavailable',
+                'message': 'Icecast server is not reachable',
+                'healthy': False,
+                **icecast_status
+            }), 503
+        
+        # If running but has issues, return degraded status
+        if icecast_status.get('issues'):
+            return jsonify({
+                'status': 'degraded',
+                'message': 'Icecast server is running but has issues',
+                'healthy': True,  # Running but degraded
+                **icecast_status
+            })
+        
+        # All good
+        return jsonify({
+            'status': 'healthy',
+            'message': 'Icecast server is running normally',
+            'healthy': True,
+            **icecast_status
+        })
+
+    except Exception as e:
+        logger.error(f"Error checking Icecast health: {e}", exc_info=True)
+        return jsonify({
+            'status': 'error',
+            'message': str(e),
+            'healthy': False
+        }), 500
+
+
 @health_bp.route('/api/health/system', methods=['GET'])
 def api_system_health():
     """
-    Overall system health check (app + audio-service + Redis).
+    Overall system health check (app + audio-service + Redis + Icecast).
 
     Returns:
         200: All systems healthy
@@ -197,9 +256,12 @@ def api_system_health():
         500: Error checking health
     """
     try:
+        from app_core.system_health import collect_icecast_status
+        
         results = {
             'redis': {'healthy': False},
             'audio_service': {'healthy': False},
+            'icecast': {'healthy': True, 'enabled': False},  # Default to healthy when disabled
             'app': {'healthy': True}  # If we're responding, app is up
         }
 
@@ -230,8 +292,37 @@ def api_system_health():
             logger.warning(f"Audio-service health check failed: {e}")
             results['audio_service']['error'] = str(e)
 
-        # Calculate overall status
-        all_healthy = all(results[service]['healthy'] for service in results)
+        # Check Icecast
+        try:
+            icecast_status = collect_icecast_status(logger)
+            results['icecast'] = {
+                'healthy': icecast_status.get('status') in ['ok', 'disabled'],
+                'enabled': icecast_status.get('enabled', False),
+                'running': icecast_status.get('running', False),
+                'status': icecast_status.get('status', 'unknown'),
+            }
+            if icecast_status.get('server'):
+                results['icecast']['server'] = icecast_status['server']
+            if icecast_status.get('port'):
+                results['icecast']['port'] = icecast_status['port']
+            if icecast_status.get('listeners') is not None:
+                results['icecast']['listeners'] = icecast_status['listeners']
+            if icecast_status.get('sources') is not None:
+                results['icecast']['sources'] = icecast_status['sources']
+            if icecast_status.get('issues'):
+                results['icecast']['issues'] = icecast_status['issues']
+        except Exception as e:
+            logger.warning(f"Icecast health check failed: {e}")
+            results['icecast']['error'] = str(e)
+            results['icecast']['healthy'] = True  # Don't fail overall health if Icecast check fails
+
+        # Calculate overall status (Icecast doesn't affect overall health when disabled)
+        critical_services = ['redis', 'audio_service', 'app']
+        all_healthy = all(results[service]['healthy'] for service in critical_services)
+        
+        # Include Icecast in health if it's enabled
+        if results['icecast'].get('enabled'):
+            all_healthy = all_healthy and results['icecast']['healthy']
 
         status_code = 200 if all_healthy else 503
 
