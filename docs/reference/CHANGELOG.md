@@ -16,6 +16,11 @@ tracks releases under the 2.x series.
   - Eliminates confusion about where to configure serial-to-ethernet converter network settings
   - Users can now configure all LED sign settings (IP, port, serial mode, baud rate) in one location
 
+- **Admin Role Assignment Fix Script** - Added utility script to fix users without roles
+  - Created `scripts/fix_admin_roles.py` to assign admin role to users created before roles were initialized
+  - Script ensures roles/permissions are initialized and assigns admin role to any user without a role
+  - Run with: `python3 scripts/fix_admin_roles.py`
+
 ### Enhanced
 - **SSL/Certbot Management Simplified** - Consolidated duplicate SSL configuration interfaces
   - Simplified SSL tab in admin page to show certificate status overview only
@@ -24,12 +29,28 @@ tracks releases under the 2.x series.
   - Advanced features (certificate acquisition, renewal testing, domain validation) remain at dedicated Certbot page
   - Clearer separation: quick status in admin page, full management in Certbot page
 
+- **User Creation Role Assignment** - Improved role initialization during first user creation
+  - First user creation now explicitly calls `initialize_default_roles_and_permissions()` before assigning role
+  - Ensures admin role exists before attempting to assign it to new users
+  - Provides better error message if role initialization fails
+
 ### Fixed
 - **Hardware Settings Permission Issue** - Fixed "permission denied" error accessing advanced hardware settings
   - Changed `/admin/hardware` permission from `'admin'` (superuser only) to `'system.configure'` (regular admins)
   - Updated navbar to show Hardware Settings link only to users with `system.configure` permission
   - Separated hardware navigation: GPIO/Zigbee for `gpio.view`, Hardware Settings for `system.configure`
   - Eliminated confusion caused by two hardware configuration locations
+
+- **Zone Catalog Permission Errors** - Fixed 403 permission_denied on Zone Catalog page
+  - Changed all zone routes from non-existent `'admin.settings'` to `'system.configure'`
+  - Zone catalog now accessible to users with system.configure permission
+  - Fixed: Zone info endpoint, zone management page, zone search, zone upload, zone reload
+
+- **Admin Users Created Without Roles** - Fixed critical issue where admin users show "No Role"
+  - Admin users created during setup or via UI were not getting admin role assigned
+  - Added role initialization check before first user creation
+  - Created fix script for existing installations with users that have no roles
+  - Users now properly assigned admin role with full permissions
 
 ## [2.34.2]
 

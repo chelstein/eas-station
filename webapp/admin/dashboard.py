@@ -227,6 +227,15 @@ def admin_users():
     if existing:
         return jsonify({'error': 'Username already exists.'}), 400
 
+    # Ensure roles and permissions are initialized before creating first user
+    if creating_first_user:
+        from app_core.auth.roles import initialize_default_roles_and_permissions
+        try:
+            initialize_default_roles_and_permissions()
+            db.session.flush()  # Flush to ensure roles are available
+        except Exception as e:
+            current_app.logger.warning(f"Error initializing roles (may already exist): {e}")
+
     # Get the admin role to assign to the new user
     admin_role = Role.query.filter_by(name='admin').first()
     if not admin_role:
