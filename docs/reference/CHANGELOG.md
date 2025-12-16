@@ -28,6 +28,20 @@ tracks releases under the 2.x series.
 ## [2.34.0]
 
 ### Added
+- **Full Web UI for Certbot Operations** - Complete SSL certificate management through web interface
+  - Added `/api/certbot/obtain-certificate-execute` endpoint to directly obtain SSL certificates
+  - Added `/api/certbot/renew-certificate-execute` endpoint to directly renew certificates  
+  - Added `/api/certbot/enable-auto-renewal` endpoint to manage systemd timer
+  - Users can now obtain, renew, and manage SSL certificates entirely through the web UI
+  - Supports standalone, nginx plugin, and webroot certificate acquisition methods
+  - Supports dry-run testing, normal renewal, and forced renewal
+  - Real-time feedback with certbot output displayed in the UI
+  - Enable/disable automatic renewal with one click
+  - Added SSL Certificates link to Settings dropdown in navigation menu
+  - Eliminates need for CLI usage - fully web-based certificate management
+  - VERSION bumped to 2.35.0 (feature: web-based certbot execution)
+
+### Enhanced
 - **Icecast Auto-Installation** - Icecast2 now installed by default during bare metal installation
   - Added `icecast2` package to install.sh BASE_PACKAGES array
   - Icecast2 service automatically enabled and started during installation
@@ -36,7 +50,6 @@ tracks releases under the 2.x series.
   - Provides helpful guidance if Icecast fails to start (password configuration needed)
   - **CRITICAL**: Icecast is REQUIRED for audio streaming functionality - no longer optional
   - Addresses issue where users couldn't get Icecast working because it wasn't installed
-  - VERSION bumped to 2.34.0 (feature: required dependency auto-install)
 
 ### Enhanced
 - **Comprehensive Icecast Logging** - Greatly improved logging for Icecast streaming operations

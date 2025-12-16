@@ -44,6 +44,55 @@ logger = logging.getLogger(__name__)
 # Create Blueprint for certbot routes
 certbot_bp = Blueprint('certbot', __name__)
 
+# Precompile regex patterns for better performance
+DOMAIN_PATTERN = re.compile(r'^[a-zA-Z0-9]([a-zA-Z0-9\-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]*[a-zA-Z0-9])?)*$')
+EMAIL_PATTERN = re.compile(r'^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$')
+
+
+def _ensure_nginx_running():
+    """Ensure nginx is running, attempt to start it if not.
+    
+    This is a safety function called in exception handlers to ensure
+    nginx is not left in a stopped state after certificate operations.
+    
+    Returns:
+        bool: True if nginx is running or successfully started, False otherwise
+    """
+    try:
+        # Check if nginx is already running
+        result = subprocess.run(
+            ['systemctl', 'is-active', 'nginx'],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        
+        if result.stdout.strip() == 'active':
+            return True
+        
+        # Try to start nginx
+        logger.warning("Nginx not running, attempting to start...")
+        start_result = subprocess.run(
+            ['sudo', 'systemctl', 'start', 'nginx'],
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
+        
+        if start_result.returncode == 0:
+            logger.info("Successfully started nginx")
+            return True
+        else:
+            logger.error(f"Failed to start nginx: {start_result.stderr}")
+            return False
+            
+    except subprocess.TimeoutExpired:
+        logger.error("Timeout while checking/starting nginx")
+        return False
+    except Exception as e:
+        logger.error(f"Error ensuring nginx is running: {e}")
+        return False
+
 
 # Routes are relative to blueprint's url_prefix='/admin'
 # e.g., route '/certbot' becomes '/admin/certbot'
@@ -119,7 +168,7 @@ def update_settings():
             domain = data['domain_name'].strip()
             # Allow alphanumeric, dots, and hyphens only (standard domain format)
             # Prevent consecutive dots and dots at start/end
-            if not re.match(r'^[a-zA-Z0-9]([a-zA-Z0-9\-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]*[a-zA-Z0-9])?)*$', domain):
+            if not DOMAIN_PATTERN.match(domain):
                 raise BadRequest("Invalid domain name. Only alphanumeric characters, dots, and hyphens allowed. No consecutive dots or dots at start/end.")
             # Prevent localhost and internal IPs
             if domain.lower() in ['localhost', '127.0.0.1', '0.0.0.0']:
@@ -129,7 +178,7 @@ def update_settings():
         # SECURITY: Validate email format
         if 'email' in data and data['email']:
             email = data['email'].strip()
-            if not re.match(r'^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$', email):
+            if not EMAIL_PATTERN.match(email):
                 raise BadRequest("Invalid email address format")
             data['email'] = email
 
@@ -209,7 +258,7 @@ def renew_certificate():
 
         # SECURITY: Validate domain name (defense in depth)
         domain = settings.domain_name.strip()
-        if not re.match(r'^[a-zA-Z0-9]([a-zA-Z0-9\-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]*[a-zA-Z0-9])?)*$', domain):
+        if not DOMAIN_PATTERN.match(domain):
             logger.error(f"Invalid domain name in database: {domain}")
             return jsonify({
                 "success": False,
@@ -337,7 +386,7 @@ def obtain_certificate():
 
         # SECURITY: Validate domain name (defense in depth)
         domain = settings.domain_name.strip()
-        if not re.match(r'^[a-zA-Z0-9]([a-zA-Z0-9\-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]*[a-zA-Z0-9])?)*$', domain):
+        if not DOMAIN_PATTERN.match(domain):
             logger.error(f"Invalid domain name in database: {domain}")
             return jsonify({
                 "success": False,
@@ -346,7 +395,7 @@ def obtain_certificate():
 
         # SECURITY: Validate email
         email = settings.email.strip()
-        if not re.match(r'^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$', email):
+        if not EMAIL_PATTERN.match(email):
             logger.error(f"Invalid email in database: {email}")
             return jsonify({
                 "success": False,
@@ -468,7 +517,7 @@ def test_domain():
 
         # SECURITY: Validate domain name to prevent SSRF
         domain = domain.strip()
-        if not re.match(r'^[a-zA-Z0-9]([a-zA-Z0-9\-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]*[a-zA-Z0-9])?)*$', domain):
+        if not DOMAIN_PATTERN.match(domain):
             return jsonify({
                 "success": False,
                 "error": "Invalid domain name. Only alphanumeric characters, dots, and hyphens allowed. No consecutive dots or dots at start/end."
@@ -534,6 +583,427 @@ def test_domain():
 
     except Exception as exc:
         logger.error(f"Failed to test domain: {exc}")
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+
+@certbot_bp.route('/api/certbot/obtain-certificate-execute', methods=['POST'])
+@require_permission('system.configure')
+def obtain_certificate_execute():
+    """Execute certbot to obtain a new SSL certificate.
+    
+    This endpoint actually runs certbot with the configured settings.
+    Requires proper system permissions to execute certbot.
+    """
+    try:
+        data = request.get_json() if request.is_json else request.form.to_dict()
+        method = data.get('method', 'standalone')  # standalone, nginx, or webroot
+        
+        settings = get_certbot_settings()
+
+        if not settings.enabled:
+            return jsonify({
+                "success": False,
+                "error": "Certbot is not enabled in settings"
+            }), 400
+
+        if not settings.domain_name:
+            return jsonify({
+                "success": False,
+                "error": "Domain name is not configured"
+            }), 400
+
+        if not settings.email:
+            return jsonify({
+                "success": False,
+                "error": "Email address is not configured"
+            }), 400
+
+        # SECURITY: Validate domain name (defense in depth)
+        domain = settings.domain_name.strip()
+        if not DOMAIN_PATTERN.match(domain):
+            logger.error(f"Invalid domain name in database: {domain}")
+            return jsonify({
+                "success": False,
+                "error": "Invalid domain name in configuration"
+            }), 500
+
+        # SECURITY: Validate email
+        email = settings.email.strip()
+        if not EMAIL_PATTERN.match(email):
+            logger.error(f"Invalid email in database: {email}")
+            return jsonify({
+                "success": False,
+                "error": "Invalid email address in configuration"
+            }), 500
+
+        # SECURITY: Validate method
+        if method not in ['standalone', 'nginx', 'webroot']:
+            return jsonify({
+                "success": False,
+                "error": "Invalid method. Must be 'standalone', 'nginx', or 'webroot'"
+            }), 400
+
+        # Check if certbot is installed
+        try:
+            result = subprocess.run(
+                ['which', 'certbot'],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            if result.returncode != 0:
+                return jsonify({
+                    "success": False,
+                    "error": "Certbot is not installed on this system"
+                }), 500
+        except Exception as e:
+            return jsonify({
+                "success": False,
+                "error": f"Failed to check certbot installation: {str(e)}"
+            }), 500
+
+        # Build certbot command based on method
+        staging_flag = ['--staging'] if settings.staging else []
+        
+        if method == 'standalone':
+            # Stop nginx, run certbot, start nginx
+            try:
+                # Stop nginx
+                logger.info("Stopping nginx for standalone certificate acquisition")
+                stop_result = subprocess.run(
+                    ['sudo', 'systemctl', 'stop', 'nginx'],
+                    capture_output=True,
+                    text=True,
+                    timeout=10
+                )
+                if stop_result.returncode != 0:
+                    return jsonify({
+                        "success": False,
+                        "error": f"Failed to stop nginx: {stop_result.stderr}"
+                    }), 500
+
+                # Run certbot
+                logger.info(f"Running certbot for domain: {domain}")
+                certbot_cmd = [
+                    'sudo', 'certbot', 'certonly', '--standalone',
+                    '--non-interactive', '--agree-tos',
+                    '--email', email,
+                    '-d', domain
+                ] + staging_flag
+                
+                certbot_result = subprocess.run(
+                    certbot_cmd,
+                    capture_output=True,
+                    text=True,
+                    timeout=120
+                )
+                
+                # Always restart nginx, even if certbot failed
+                logger.info("Restarting nginx")
+                start_result = subprocess.run(
+                    ['sudo', 'systemctl', 'start', 'nginx'],
+                    capture_output=True,
+                    text=True,
+                    timeout=10
+                )
+                if start_result.returncode != 0:
+                    logger.error(f"Failed to restart nginx: {start_result.stderr}")
+                
+                if certbot_result.returncode != 0:
+                    return jsonify({
+                        "success": False,
+                        "error": f"Certbot failed: {certbot_result.stderr}",
+                        "output": certbot_result.stdout
+                    }), 500
+                
+                logger.info(f"Successfully obtained certificate for {domain}")
+                return jsonify({
+                    "success": True,
+                    "message": f"Successfully obtained SSL certificate for {domain}",
+                    "output": certbot_result.stdout,
+                    "note": "Certificate installed. You may need to restart nginx to use the new certificate."
+                })
+                
+            except subprocess.TimeoutExpired:
+                # Ensure nginx is restarted even on timeout
+                _ensure_nginx_running()
+                return jsonify({
+                    "success": False,
+                    "error": "Certbot operation timed out"
+                }), 500
+            except Exception as e:
+                # Ensure nginx is restarted on any error
+                _ensure_nginx_running()
+                logger.error(f"Certbot execution failed: {e}")
+                return jsonify({
+                    "success": False,
+                    "error": f"Failed to execute certbot: {str(e)}"
+                }), 500
+                
+        elif method == 'nginx':
+            # Use nginx plugin (no downtime)
+            certbot_cmd = [
+                'sudo', 'certbot', '--nginx',
+                '--non-interactive', '--agree-tos',
+                '--email', email,
+                '-d', domain
+            ] + staging_flag
+            
+            try:
+                result = subprocess.run(
+                    certbot_cmd,
+                    capture_output=True,
+                    text=True,
+                    timeout=120
+                )
+                
+                if result.returncode != 0:
+                    return jsonify({
+                        "success": False,
+                        "error": f"Certbot failed: {result.stderr}",
+                        "output": result.stdout
+                    }), 500
+                
+                logger.info(f"Successfully obtained certificate for {domain} using nginx plugin")
+                return jsonify({
+                    "success": True,
+                    "message": f"Successfully obtained and configured SSL certificate for {domain}",
+                    "output": result.stdout
+                })
+                
+            except subprocess.TimeoutExpired:
+                return jsonify({
+                    "success": False,
+                    "error": "Certbot operation timed out"
+                }), 500
+            except Exception as e:
+                logger.error(f"Certbot execution failed: {e}")
+                return jsonify({
+                    "success": False,
+                    "error": f"Failed to execute certbot: {str(e)}"
+                }), 500
+                
+        elif method == 'webroot':
+            # Use webroot method
+            certbot_cmd = [
+                'sudo', 'certbot', 'certonly', '--webroot',
+                '-w', '/var/www/html',
+                '--non-interactive', '--agree-tos',
+                '--email', email,
+                '-d', domain
+            ] + staging_flag
+            
+            try:
+                result = subprocess.run(
+                    certbot_cmd,
+                    capture_output=True,
+                    text=True,
+                    timeout=120
+                )
+                
+                if result.returncode != 0:
+                    return jsonify({
+                        "success": False,
+                        "error": f"Certbot failed: {result.stderr}",
+                        "output": result.stdout
+                    }), 500
+                
+                logger.info(f"Successfully obtained certificate for {domain} using webroot")
+                return jsonify({
+                    "success": True,
+                    "message": f"Successfully obtained SSL certificate for {domain}",
+                    "output": result.stdout,
+                    "note": "Certificate installed. You may need to configure nginx to use the new certificate."
+                })
+                
+            except subprocess.TimeoutExpired:
+                return jsonify({
+                    "success": False,
+                    "error": "Certbot operation timed out"
+                }), 500
+            except Exception as e:
+                logger.error(f"Certbot execution failed: {e}")
+                return jsonify({
+                    "success": False,
+                    "error": f"Failed to execute certbot: {str(e)}"
+                }), 500
+
+    except Exception as exc:
+        logger.error(f"Failed to obtain certificate: {exc}")
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+
+@certbot_bp.route('/api/certbot/renew-certificate-execute', methods=['POST'])
+@require_permission('system.configure')
+def renew_certificate_execute():
+    """Execute certbot renewal operation.
+    
+    This endpoint actually runs certbot renew with the configured settings.
+    """
+    try:
+        data = request.get_json() if request.is_json else {}
+        dry_run = data.get('dry_run', False)
+        force = data.get('force', False)
+        
+        settings = get_certbot_settings()
+
+        if not settings.enabled:
+            return jsonify({
+                "success": False,
+                "error": "Certbot is not enabled in settings"
+            }), 400
+
+        # Check if certbot is installed
+        try:
+            result = subprocess.run(
+                ['which', 'certbot'],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            if result.returncode != 0:
+                return jsonify({
+                    "success": False,
+                    "error": "Certbot is not installed on this system"
+                }), 500
+        except Exception as e:
+            return jsonify({
+                "success": False,
+                "error": f"Failed to check certbot installation: {str(e)}"
+            }), 500
+
+        # Build certbot renew command
+        staging_flag = ['--staging'] if settings.staging else []
+        certbot_cmd = ['sudo', 'certbot', 'renew']
+        
+        if dry_run:
+            certbot_cmd.append('--dry-run')
+        
+        if force:
+            certbot_cmd.append('--force-renewal')
+        
+        certbot_cmd.extend(staging_flag)
+        
+        try:
+            logger.info(f"Running certbot renewal (dry_run={dry_run}, force={force})")
+            result = subprocess.run(
+                certbot_cmd,
+                capture_output=True,
+                text=True,
+                timeout=120
+            )
+            
+            if result.returncode != 0:
+                return jsonify({
+                    "success": False,
+                    "error": f"Certbot renew failed: {result.stderr}",
+                    "output": result.stdout
+                }), 500
+            
+            action = "tested (dry run)" if dry_run else ("force renewed" if force else "renewed")
+            logger.info(f"Successfully {action} certificate")
+            
+            return jsonify({
+                "success": True,
+                "message": f"Certificate successfully {action}",
+                "output": result.stdout,
+                "note": "Certificate renewal completed. Nginx will automatically use the new certificate on next reload." if not dry_run else "Dry run completed successfully. No changes were made."
+            })
+            
+        except subprocess.TimeoutExpired:
+            return jsonify({
+                "success": False,
+                "error": "Certbot renewal operation timed out"
+            }), 500
+        except Exception as e:
+            logger.error(f"Certbot renewal failed: {e}")
+            return jsonify({
+                "success": False,
+                "error": f"Failed to execute certbot renewal: {str(e)}"
+            }), 500
+
+    except Exception as exc:
+        logger.error(f"Failed to renew certificate: {exc}")
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+
+@certbot_bp.route('/api/certbot/enable-auto-renewal', methods=['POST'])
+@require_permission('system.configure')
+def enable_auto_renewal():
+    """Enable or disable the certbot.timer for automatic certificate renewal."""
+    try:
+        data = request.get_json() if request.is_json else {}
+        enable = data.get('enable', True)
+        
+        if enable:
+            # Enable and start the timer
+            try:
+                result = subprocess.run(
+                    ['sudo', 'systemctl', 'enable', '--now', 'certbot.timer'],
+                    capture_output=True,
+                    text=True,
+                    timeout=10
+                )
+                
+                if result.returncode != 0:
+                    return jsonify({
+                        "success": False,
+                        "error": f"Failed to enable certbot timer: {result.stderr}"
+                    }), 500
+                
+                logger.info("Enabled and started certbot.timer for automatic renewal")
+                return jsonify({
+                    "success": True,
+                    "message": "Automatic certificate renewal enabled and started"
+                })
+                
+            except subprocess.TimeoutExpired:
+                return jsonify({
+                    "success": False,
+                    "error": "Operation timed out"
+                }), 500
+            except Exception as e:
+                logger.error(f"Failed to enable certbot timer: {e}")
+                return jsonify({
+                    "success": False,
+                    "error": f"Failed to enable automatic renewal: {str(e)}"
+                }), 500
+        else:
+            # Stop and disable the timer
+            try:
+                result = subprocess.run(
+                    ['sudo', 'systemctl', 'disable', '--now', 'certbot.timer'],
+                    capture_output=True,
+                    text=True,
+                    timeout=10
+                )
+                
+                if result.returncode != 0:
+                    return jsonify({
+                        "success": False,
+                        "error": f"Failed to disable certbot timer: {result.stderr}"
+                    }), 500
+                
+                logger.info("Disabled and stopped certbot.timer")
+                return jsonify({
+                    "success": True,
+                    "message": "Automatic certificate renewal disabled"
+                })
+                
+            except subprocess.TimeoutExpired:
+                return jsonify({
+                    "success": False,
+                    "error": "Operation timed out"
+                }), 500
+            except Exception as e:
+                logger.error(f"Failed to disable certbot timer: {e}")
+                return jsonify({
+                    "success": False,
+                    "error": f"Failed to disable automatic renewal: {str(e)}"
+                }), 500
+
+    except Exception as exc:
+        logger.error(f"Failed to manage certbot timer: {exc}")
         return jsonify({"success": False, "error": str(exc)}), 500
 
 
