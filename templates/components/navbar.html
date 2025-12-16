@@ -269,22 +269,27 @@
                             <li><hr class="dropdown-divider"></li>
                             {% endif %}
                             <li><h6 class="dropdown-header">Hardware & Network</h6></li>
-                            {% if can_view_gpio %}
+                            {% if can_view_gpio or can_manage_config %}
                             <li>
                                 <a class="dropdown-item" href="/admin/network">
                                     <i class="fas fa-wifi"></i> WiFi & Network
                                 </a>
                             </li>
+                            {% if can_manage_config %}
                             <li>
                                 <a class="dropdown-item" href="/admin/hardware">
                                     <i class="fas fa-sliders"></i> Hardware Settings
                                 </a>
                             </li>
+                            {% endif %}
+                            {% if can_view_gpio %}
                             <li>
                                 <a class="dropdown-item" href="/admin/gpio">
                                     <i class="fas fa-microchip"></i> GPIO & Relays
                                 </a>
                             </li>
+                            {% endif %}
+                            {% if can_view_gpio or can_manage_config %}
                             <li>
                                 <a class="dropdown-item" href="/admin/zigbee">
                                     <i class="fas fa-home"></i> Zigbee Smart Home

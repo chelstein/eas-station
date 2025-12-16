@@ -45,7 +45,7 @@ hardware_bp = Blueprint('hardware', __name__)
 # Routes are relative to blueprint's url_prefix='/admin'
 # e.g., route '/hardware' becomes '/admin/hardware'
 @hardware_bp.route('/hardware')
-@require_permission('admin')
+@require_permission('system.configure')
 def hardware_settings_page():
     """Display hardware settings configuration page."""
     try:
@@ -63,7 +63,7 @@ def hardware_settings_page():
 
 
 @hardware_bp.route('/hardware/update', methods=['POST'])
-@require_permission('admin')
+@require_permission('system.configure')
 def update_hardware():
     """Update hardware settings from form submission."""
     try:
@@ -157,7 +157,7 @@ def update_hardware():
 
 
 @hardware_bp.route('/hardware/restart-services', methods=['POST'])
-@require_permission('admin')
+@require_permission('system.configure')
 def restart_hardware_services():
     """Restart hardware-related services to apply new settings."""
     try:

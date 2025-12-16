@@ -6,6 +6,31 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.36.0]
+
+### Added
+- **LED Sign IP Address Configuration** - Added IP address and port fields to admin Hardware tab
+  - Added `led_ip_address` and `led_port` input fields in admin.html Hardware Integrations tab
+  - Updated `/api/led/serial_config` endpoint to save IP address and port to both LEDSignStatus and HardwareSettings tables
+  - JavaScript now loads and saves LED IP/port configuration along with serial settings
+  - Eliminates confusion about where to configure serial-to-ethernet converter network settings
+  - Users can now configure all LED sign settings (IP, port, serial mode, baud rate) in one location
+
+### Enhanced
+- **SSL/Certbot Management Simplified** - Consolidated duplicate SSL configuration interfaces
+  - Simplified SSL tab in admin page to show certificate status overview only
+  - Removed duplicate configuration form from admin.html SSL tab
+  - Added prominent link to advanced Certbot management page at `/admin/certbot`
+  - Advanced features (certificate acquisition, renewal testing, domain validation) remain at dedicated Certbot page
+  - Clearer separation: quick status in admin page, full management in Certbot page
+
+### Fixed
+- **Hardware Settings Permission Issue** - Fixed "permission denied" error accessing advanced hardware settings
+  - Changed `/admin/hardware` permission from `'admin'` (superuser only) to `'system.configure'` (regular admins)
+  - Updated navbar to show Hardware Settings link only to users with `system.configure` permission
+  - Separated hardware navigation: GPIO/Zigbee for `gpio.view`, Hardware Settings for `system.configure`
+  - Eliminated confusion caused by two hardware configuration locations
+
 ## [2.34.2]
 
 ### Fixed
