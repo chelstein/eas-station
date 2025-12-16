@@ -45,6 +45,8 @@ logger = logging.getLogger(__name__)
 certbot_bp = Blueprint('certbot', __name__)
 
 
+# Routes are relative to blueprint's url_prefix='/admin'
+# e.g., route '/certbot' becomes '/admin/certbot'
 @certbot_bp.route('/certbot')
 @require_permission('system.configure')
 def certbot_settings_page():
@@ -432,9 +434,13 @@ def download_certificate():
 def register_certbot_routes(app, logger):
     """Register Certbot admin routes with the Flask app.
     
-    Routes are registered with url_prefix='/admin', so:
-    - /certbot becomes /admin/certbot
-    - /api/certbot/* becomes /admin/api/certbot/*
+    Routes are registered with url_prefix='/admin', so Flask combines them:
+    - Blueprint route '/certbot' becomes '/admin/certbot'
+    - Blueprint route '/api/certbot/settings' becomes '/admin/api/certbot/settings'
+    
+    IMPORTANT: Do NOT add '/admin' prefix to route decorators above, as Flask
+    will combine url_prefix with the route path, resulting in doubled paths
+    like '/admin/admin/certbot' which will cause 404 errors.
     """
     app.register_blueprint(certbot_bp, url_prefix='/admin')
     logger.info("Certbot admin routes registered")

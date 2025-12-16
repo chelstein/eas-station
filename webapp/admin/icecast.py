@@ -43,6 +43,8 @@ logger = logging.getLogger(__name__)
 icecast_bp = Blueprint('icecast', __name__)
 
 
+# Routes are relative to blueprint's url_prefix='/admin'
+# e.g., route '/icecast' becomes '/admin/icecast'
 @icecast_bp.route('/icecast')
 @require_permission('system.configure')
 def icecast_settings_page():
@@ -370,9 +372,13 @@ def get_status():
 def register_icecast_routes(app, logger):
     """Register Icecast admin routes with the Flask app.
     
-    Routes are registered with url_prefix='/admin', so:
-    - /icecast becomes /admin/icecast
-    - /api/icecast/* becomes /admin/api/icecast/*
+    Routes are registered with url_prefix='/admin', so Flask combines them:
+    - Blueprint route '/icecast' becomes '/admin/icecast'
+    - Blueprint route '/api/icecast/settings' becomes '/admin/api/icecast/settings'
+    
+    IMPORTANT: Do NOT add '/admin' prefix to route decorators above, as Flask
+    will combine url_prefix with the route path, resulting in doubled paths
+    like '/admin/admin/icecast' which will cause 404 errors.
     """
     app.register_blueprint(icecast_bp, url_prefix='/admin')
     logger.info("Icecast admin routes registered")
