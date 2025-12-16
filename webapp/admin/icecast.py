@@ -109,7 +109,6 @@ def update_settings():
         
         # SECURITY: Validate server hostname to prevent SSRF
         if 'server' in data and data['server']:
-            import re
             if not re.match(r'^[a-zA-Z0-9\.\-]+$', data['server']):
                 raise BadRequest("Invalid server hostname. Only alphanumeric characters, dots, and hyphens allowed.")
         
@@ -177,7 +176,6 @@ def test_connection():
         # SECURITY: Validate server hostname to prevent SSRF attacks
         # Allow localhost, IP addresses, and domain names only
         # Reject URLs, paths, and suspicious characters
-        import re
         if not re.match(r'^[a-zA-Z0-9\.\-]+$', server):
             return jsonify({
                 "success": False,
@@ -279,7 +277,6 @@ def get_status():
             })
         
         # SECURITY: Validate server hostname (defense in depth)
-        import re
         server = settings.server or 'localhost'
         if not re.match(r'^[a-zA-Z0-9\.\-]+$', server):
             logger.error(f"Invalid Icecast server hostname in database: {server}")
