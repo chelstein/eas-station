@@ -244,7 +244,7 @@ class SourceWatcher:
             subscriber_id=subscriber_id,
             source_sample_rate=source_sample_rate,
             target_sample_rate=target_sample_rate,
-            read_timeout=0.1  # Short timeout for responsive polling
+            read_timeout=1.0  # Increased from 0.1s to 1.0s - give time to accumulate samples
         )
         
         logger.info(
@@ -570,11 +570,11 @@ class UnifiedEASMonitorService:
                 self._current_source_context = None
                 
                 # Sleep briefly to prevent CPU spinning
-                # If we processed audio, sleep less; if no audio, sleep more
+                # Reduced sleep when no audio to check more frequently and prevent queue buildup
                 if any_audio_processed:
                     time.sleep(0.01)  # 10ms when audio flowing
                 else:
-                    time.sleep(0.05)  # 50ms when no audio
+                    time.sleep(0.01)  # Reduced from 50ms to 10ms - check more frequently!
             
             except Exception as e:
                 logger.error(f"Error in unified monitor loop: {e}", exc_info=True)

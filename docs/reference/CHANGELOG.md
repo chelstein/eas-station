@@ -6,6 +6,16 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+### Fixed
+- **CRITICAL: EAS Monitor Buffer Starvation** - Fixed monitor bouncing between healthy and starved states
+  - Increased EAS monitor read timeout from 0.1s to 1.0s in `app_core/audio/eas_monitor_v3.py`
+  - Root cause: Monitor requested 1600 samples but timeout fired before accumulating enough chunks
+  - Reduced "no audio" sleep from 50ms to 10ms to check more frequently and prevent queue buildup
+  - Prevents vicious cycle: timeout → sleep 50ms → audio builds up → queue fills → drops → repeat
+  - Eliminates false "no audio sources" errors when sources are actually running
+  - Prevents missed emergency alerts due to audio starvation
+  - VERSION bumped to 2.31.1 (critical bug fix)
+
 ### Changed
 - **Environment Variables Cleanup** - Removed redundant settings that are now managed via dedicated admin pages
   - Removed 'gpio' category from environment variables (now managed via `/admin/hardware`)
