@@ -44,6 +44,55 @@ logger = logging.getLogger(__name__)
 # Create Blueprint for certbot routes
 certbot_bp = Blueprint('certbot', __name__)
 
+# Precompile regex patterns for better performance
+DOMAIN_PATTERN = re.compile(r'^[a-zA-Z0-9]([a-zA-Z0-9\-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]*[a-zA-Z0-9])?)*$')
+EMAIL_PATTERN = re.compile(r'^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$')
+
+
+def _ensure_nginx_running():
+    """Ensure nginx is running, attempt to start it if not.
+    
+    This is a safety function called in exception handlers to ensure
+    nginx is not left in a stopped state after certificate operations.
+    
+    Returns:
+        bool: True if nginx is running or successfully started, False otherwise
+    """
+    try:
+        # Check if nginx is already running
+        result = subprocess.run(
+            ['systemctl', 'is-active', 'nginx'],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        
+        if result.stdout.strip() == 'active':
+            return True
+        
+        # Try to start nginx
+        logger.warning("Nginx not running, attempting to start...")
+        start_result = subprocess.run(
+            ['sudo', 'systemctl', 'start', 'nginx'],
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
+        
+        if start_result.returncode == 0:
+            logger.info("Successfully started nginx")
+            return True
+        else:
+            logger.error(f"Failed to start nginx: {start_result.stderr}")
+            return False
+            
+    except subprocess.TimeoutExpired:
+        logger.error("Timeout while checking/starting nginx")
+        return False
+    except Exception as e:
+        logger.error(f"Error ensuring nginx is running: {e}")
+        return False
+
 
 # Routes are relative to blueprint's url_prefix='/admin'
 # e.g., route '/certbot' becomes '/admin/certbot'
@@ -119,7 +168,7 @@ def update_settings():
             domain = data['domain_name'].strip()
             # Allow alphanumeric, dots, and hyphens only (standard domain format)
             # Prevent consecutive dots and dots at start/end
-            if not re.match(r'^[a-zA-Z0-9]([a-zA-Z0-9\-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]*[a-zA-Z0-9])?)*$', domain):
+            if not DOMAIN_PATTERN.match(domain):
                 raise BadRequest("Invalid domain name. Only alphanumeric characters, dots, and hyphens allowed. No consecutive dots or dots at start/end.")
             # Prevent localhost and internal IPs
             if domain.lower() in ['localhost', '127.0.0.1', '0.0.0.0']:
@@ -129,7 +178,7 @@ def update_settings():
         # SECURITY: Validate email format
         if 'email' in data and data['email']:
             email = data['email'].strip()
-            if not re.match(r'^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$', email):
+            if not EMAIL_PATTERN.match(email):
                 raise BadRequest("Invalid email address format")
             data['email'] = email
 
@@ -209,7 +258,7 @@ def renew_certificate():
 
         # SECURITY: Validate domain name (defense in depth)
         domain = settings.domain_name.strip()
-        if not re.match(r'^[a-zA-Z0-9]([a-zA-Z0-9\-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]*[a-zA-Z0-9])?)*$', domain):
+        if not DOMAIN_PATTERN.match(domain):
             logger.error(f"Invalid domain name in database: {domain}")
             return jsonify({
                 "success": False,
@@ -337,7 +386,7 @@ def obtain_certificate():
 
         # SECURITY: Validate domain name (defense in depth)
         domain = settings.domain_name.strip()
-        if not re.match(r'^[a-zA-Z0-9]([a-zA-Z0-9\-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]*[a-zA-Z0-9])?)*$', domain):
+        if not DOMAIN_PATTERN.match(domain):
             logger.error(f"Invalid domain name in database: {domain}")
             return jsonify({
                 "success": False,
@@ -346,7 +395,7 @@ def obtain_certificate():
 
         # SECURITY: Validate email
         email = settings.email.strip()
-        if not re.match(r'^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$', email):
+        if not EMAIL_PATTERN.match(email):
             logger.error(f"Invalid email in database: {email}")
             return jsonify({
                 "success": False,
@@ -468,7 +517,7 @@ def test_domain():
 
         # SECURITY: Validate domain name to prevent SSRF
         domain = domain.strip()
-        if not re.match(r'^[a-zA-Z0-9]([a-zA-Z0-9\-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]*[a-zA-Z0-9])?)*$', domain):
+        if not DOMAIN_PATTERN.match(domain):
             return jsonify({
                 "success": False,
                 "error": "Invalid domain name. Only alphanumeric characters, dots, and hyphens allowed. No consecutive dots or dots at start/end."
@@ -571,7 +620,7 @@ def obtain_certificate_execute():
 
         # SECURITY: Validate domain name (defense in depth)
         domain = settings.domain_name.strip()
-        if not re.match(r'^[a-zA-Z0-9]([a-zA-Z0-9\-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]*[a-zA-Z0-9])?)*$', domain):
+        if not DOMAIN_PATTERN.match(domain):
             logger.error(f"Invalid domain name in database: {domain}")
             return jsonify({
                 "success": False,
@@ -580,7 +629,7 @@ def obtain_certificate_execute():
 
         # SECURITY: Validate email
         email = settings.email.strip()
-        if not re.match(r'^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$', email):
+        if not EMAIL_PATTERN.match(email):
             logger.error(f"Invalid email in database: {email}")
             return jsonify({
                 "success": False,
@@ -677,14 +726,14 @@ def obtain_certificate_execute():
                 
             except subprocess.TimeoutExpired:
                 # Ensure nginx is restarted even on timeout
-                subprocess.run(['sudo', 'systemctl', 'start', 'nginx'], capture_output=True, timeout=10)
+                _ensure_nginx_running()
                 return jsonify({
                     "success": False,
                     "error": "Certbot operation timed out"
                 }), 500
             except Exception as e:
                 # Ensure nginx is restarted on any error
-                subprocess.run(['sudo', 'systemctl', 'start', 'nginx'], capture_output=True, timeout=10)
+                _ensure_nginx_running()
                 logger.error(f"Certbot execution failed: {e}")
                 return jsonify({
                     "success": False,
