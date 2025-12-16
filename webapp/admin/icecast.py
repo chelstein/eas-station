@@ -63,7 +63,7 @@ def _get_env_file_path() -> Path:
     return project_root / '.env'
 
 
-def _update_icecast_config_file(source_password: str, admin_password: str, relay_password: str = None) -> tuple[bool, str]:
+def _update_icecast_config_file(source_password: str, admin_password: str) -> tuple[bool, str]:
     """Update Icecast server configuration file with new passwords.
     
     This function handles:
@@ -75,13 +75,10 @@ def _update_icecast_config_file(source_password: str, admin_password: str, relay
     Args:
         source_password: New source password
         admin_password: New admin password
-        relay_password: New relay password (optional)
         
     Returns:
         Tuple of (success: bool, message: str)
     """
-    import xml.etree.ElementTree as ET
-    
     # Common Icecast configuration file locations
     config_paths = [
         Path('/etc/icecast2/icecast.xml'),
@@ -133,17 +130,6 @@ def _update_icecast_config_file(source_password: str, admin_password: str, relay
                 admin_pw_elem = ET.SubElement(auth, 'admin-password')
                 admin_pw_elem.text = admin_password
                 updated_fields.append('admin-password (created)')
-            
-            # Update relay password if provided
-            if relay_password:
-                relay_pw_elem = auth.find('relay-password')
-                if relay_pw_elem is not None:
-                    relay_pw_elem.text = relay_password
-                    updated_fields.append('relay-password')
-                else:
-                    relay_pw_elem = ET.SubElement(auth, 'relay-password')
-                    relay_pw_elem.text = relay_password
-                    updated_fields.append('relay-password (created)')
         else:
             logger.warning(f"No authentication section found in {icecast_config}")
             return False, f"Invalid Icecast config at {icecast_config} - no authentication section found"

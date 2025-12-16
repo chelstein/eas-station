@@ -641,15 +641,14 @@ async function copyPassword(fieldId) {
         showToast('Password copied to clipboard', 'success');
     } catch (err) {
         // If Clipboard API fails, show password for manual copying
-        const message = `Password: ${password}\n\nPlease copy this password manually (Ctrl+C / Cmd+C)`;
         showToast('Please copy the password manually', 'warning');
         
-        // Also try to select the field so user can easily copy
+        // Try to select the field so user can easily copy
         field.type = 'text';
         field.select();
         field.focus();
         
-        // Show a prompt as last resort
+        // Show a prompt as last resort with the password
         prompt('Copy this password:', password);
     }
 }
