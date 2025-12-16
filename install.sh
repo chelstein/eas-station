@@ -1193,6 +1193,7 @@ BASE_PACKAGES=(
     ffmpeg
     espeak
     libespeak-ng1
+    icecast2
     ca-certificates
     libusb-1.0-0
     libusb-1.0-0-dev
@@ -1628,6 +1629,32 @@ echo_progress "Enabling and starting Redis service..."
 systemctl enable redis-server > /dev/null 2>&1
 systemctl start redis-server
 echo_success "Redis configured and running"
+
+echo_step "Icecast Streaming Server Configuration"
+
+# Setup Icecast
+echo_progress "Enabling and starting Icecast2 service..."
+echo_info "Icecast2 is REQUIRED for audio streaming functionality"
+
+# Enable Icecast2
+systemctl enable icecast2 > /dev/null 2>&1
+
+# Start Icecast2
+systemctl start icecast2 2>/dev/null || {
+    echo_warning "Icecast2 failed to start (may need password configuration)"
+    echo_info "Passwords will be auto-configured via web interface"
+}
+
+# Check if Icecast is running
+if systemctl is-active --quiet icecast2; then
+    echo_success "Icecast2 configured and running"
+    # Get Icecast port
+    ICECAST_PORT=$(grep -o '<port>[0-9]*</port>' /etc/icecast2/icecast.xml 2>/dev/null | head -1 | grep -o '[0-9]*' || echo "8000")
+    echo_info "Icecast server listening on port: ${BOLD}$ICECAST_PORT${NC}"
+else
+    echo_warning "Icecast2 installed but not running - will be configured via web UI"
+    echo_info "Configure at: /admin/icecast after logging in"
+fi
 
 echo_step "Create Configuration File"
 

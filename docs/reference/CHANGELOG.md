@@ -6,6 +6,39 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+### Added
+- **Icecast Auto-Installation** - Icecast2 now installed by default during bare metal installation
+  - Added `icecast2` package to install.sh BASE_PACKAGES array
+  - Icecast2 service automatically enabled and started during installation
+  - Added detailed installation status logging for Icecast setup
+  - Shows Icecast port information during install (default: 8000)
+  - Provides helpful guidance if Icecast fails to start (password configuration needed)
+  - **CRITICAL**: Icecast is REQUIRED for audio streaming functionality - no longer optional
+  - Addresses issue where users couldn't get Icecast working because it wasn't installed
+  - VERSION bumped to 2.34.0 (feature: required dependency auto-install)
+
+### Enhanced
+- **Comprehensive Icecast Logging** - Greatly improved logging for Icecast streaming operations
+  - Added detailed startup logging with server, port, mount, format, and bitrate info
+  - Added connection status logging when FFmpeg connects to Icecast
+  - Added comprehensive shutdown logging with final statistics (uptime, bytes, bitrate, reconnects)
+  - Added FFmpeg process ID (PID) logging for easier troubleshooting
+  - Added error logging with stack traces for FFmpeg startup failures
+  - Improved log messages with ✓/✗ symbols for better readability
+  - All log messages now include mount point for multi-stream debugging
+  - Makes it much easier to diagnose Icecast connection and streaming issues
+
+### Fixed
+- **Removed Duplicate Icecast Settings** - Consolidated all Icecast configuration to single location
+  - Removed entire Icecast settings section from `/settings/audio` page (lines 131-252 HTML)
+  - Removed all Icecast JavaScript functions from audio.html (300+ lines)
+  - **All Icecast settings now managed exclusively at `/admin/icecast`**
+  - Eliminates confusion from having same settings in multiple locations
+  - Cleaner UI with single source of truth for Icecast configuration
+  - Addresses new requirement to consolidate settings to one spot
+
+## [2.33.1]
+
 ### Fixed
 - **Certbot/SSL Certificate Management Security Fix** - Removed sudo calls from web interface
   - Removed all `sudo certbot` subprocess calls from web application for security compliance

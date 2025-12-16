@@ -605,6 +605,7 @@ BASE_PACKAGES=(
     ffmpeg
     espeak
     libespeak-ng1
+    icecast2
     libusb-1.0-0
     libusb-1.0-0-dev
     python3-numpy
