@@ -1770,6 +1770,25 @@ cp "$INSTALL_DIR/systemd/"*.timer /etc/systemd/system/ 2>/dev/null || true
 systemctl daemon-reload
 echo_success "Systemd service files installed"
 
+echo_step "Sudoers Configuration"
+
+# Install sudoers configuration for certbot/nginx management
+echo_progress "Installing sudoers configuration for SSL certificate management..."
+if [ -f "$INSTALL_DIR/config/sudoers-eas-station" ]; then
+    cp "$INSTALL_DIR/config/sudoers-eas-station" /etc/sudoers.d/eas-station
+    chmod 0440 /etc/sudoers.d/eas-station
+
+    # Validate sudoers syntax
+    if visudo -c -f /etc/sudoers.d/eas-station &>/dev/null; then
+        echo_success "Sudoers configuration installed and validated"
+    else
+        echo_error "Invalid sudoers syntax - removing file"
+        rm -f /etc/sudoers.d/eas-station
+    fi
+else
+    echo_warning "Sudoers configuration file not found (config/sudoers-eas-station)"
+fi
+
 echo_step "Nginx Web Server Configuration"
 
 # Configure nginx
