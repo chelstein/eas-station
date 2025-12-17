@@ -6,6 +6,36 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+### Fixed
+- **RBAC User Management** - User roles now display correctly in user management page
+  - Fixed backend `AdminUser.to_safe_dict()` to return `role_name` instead of `role`
+  - Users with assigned roles now show role badges (Admin, Operator, Viewer, etc.)
+  - Fixes "No Role" appearing for all users even when roles were assigned
+
+- **Icecast Connection Test** - Fixed 400 Bad Request error when testing Icecast connection
+  - Improved `test-connection` endpoint to handle empty JSON request bodies gracefully
+  - Added better error logging for connection test failures
+
+- **Icecast Configuration Warnings** - Fixed Icecast server startup warnings
+  - Added `server_hostname`, `server_location`, `admin_contact` fields to IcecastSettings model
+  - Created database migration to add new fields
+  - Added UI fields in Icecast admin page to configure server information
+  - Fixes warnings: "hostname not configured", "location not configured", "admin contact not configured"
+
+### Added
+- **Environment Variables UI** - Added missing environment variables to frontend configuration
+  - **Redis Category**: `REDIS_HOST`, `REDIS_PORT`, `REDIS_DB` for granular Redis server configuration
+  - **TTS Category**: `EAS_TTS_PROVIDER`, `AZURE_OPENAI_CONFIG` for text-to-speech provider settings
+  - **Certbot Category**: `DOMAIN_NAME`, `SSL_EMAIL`, `CERTBOT_STAGING` for SSL certificate management
+  - **EAS Category**: `EAS_SCAN_INTERVAL`, `MAX_CONCURRENT_EAS_SCANS` for audio scanning configuration
+  - **System Category**: `TZ` (timezone), `BACKUP_DIR`, `WEB_ACCESS_LOG` for system settings
+  - All environment variables from `.env.example` now have corresponding UI fields
+
+- **Database Migration** - `20251217_add_icecast_server_info.py` for Icecast server information fields
+
+### Changed
+- Icecast admin page now includes Server Information section for hostname, location, and admin contact
+
 ### Added
 - **TTS Settings Database Migration** - Moved TTS configuration from environment variables to database
   - Created `TTSSettings` database model for persisting TTS configuration
