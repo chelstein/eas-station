@@ -332,7 +332,7 @@ loadHardwareLedAdapterConfig() - line 4995
 - Smaller initial page load
 - No functionality regressions
 
-**Version Bump**: 2.37.2 → 2.38.0 (minor version for feature completion)
+**Version Bump** (upon Phase 2 completion): 2.37.2 → 2.38.0 (minor version for feature completion)
 
 ---
 
