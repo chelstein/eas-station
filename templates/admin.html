@@ -6543,6 +6543,12 @@
         //   - initializeUserManagement(), loadUserAccounts()
         //   - handleUserPasswordReset(), handleUserDeletion(), formatUserTimestamp()
         // 
+        // /static/js/admin/alert-management.js - Alert management operations
+        //   - initializeAlertManagement(), loadAdminAlerts(), renderAdminAlertList()
+        //   - openEditAlert(), deleteAlert(), promptDeleteAlert(), submitAlertEdit()
+        //   - markExpiredAlerts(), clearExpiredAlerts()
+        //   - renderSeverityBadge(), renderUrgencyBadge(), renderCertaintyBadge(), renderStatusBadge()
+        // 
         // /static/js/admin/operations.js - System operations
         //   - runOneClickBackup(), runOneClickUpgrade(), refreshOperationStatus()
         //   - manualImportAlert(), optimizeDatabase(), checkDatabaseHealth()
@@ -6568,6 +6574,7 @@
     <script src="{{ url_for('static', filename='js/admin/utilities.js') }}"></script>
     <!-- Load feature modules -->
     <script src="{{ url_for('static', filename='js/admin/user-management.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/admin/alert-management.js') }}"></script>
     <script src="{{ url_for('static', filename='js/admin/operations.js') }}"></script>
     <script src="{{ url_for('static', filename='js/admin/snow-emergency.js') }}"></script>
     <script src="{{ url_for('static', filename='js/admin/zone-catalog.js') }}"></script>
