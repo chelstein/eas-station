@@ -7,6 +7,13 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **Icecast and Certbot Service Startup** - Fixed issue where external services weren't being started during update
+  - `update.sh` now ensures `icecast2` service is enabled and running after update
+  - `update.sh` now ensures `certbot.timer` is enabled and running after update
+  - Resolves "Icecast not starting" and "CertBot not working" issues
+  - Services are checked and started if not already running
+  - Provides clear feedback about service status during update
+
 - **Icecast and Certbot Database Initialization** - Added defensive error handling to prevent app crashes
   - Icecast and Certbot settings modules now gracefully handle missing database tables
   - App can now start successfully even if database migrations haven't run yet
