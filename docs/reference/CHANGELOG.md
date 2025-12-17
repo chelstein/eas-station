@@ -7,6 +7,16 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **Admin Page Tab Structure** - Fixed critically broken HTML structure preventing tabs from loading
+  - Moved System Settings sub-tabs (Location, Alerts, Snow Emergency) inside system-settings tab-pane
+  - Moved Security sub-tab (User Management) inside security tab-pane
+  - Added proper tab-content containers for sub-tabs (systemTabContent, securityTabContent)
+  - Removed improper comment claiming sub-tabs should be top-level (they must be nested for Bootstrap)
+  - Closed all unclosed divs in Security tab structure
+  - Fixed Operations tab starting inside Security tab's unclosed divs
+  - All 6 main tabs and 7 sub-tabs now load correctly
+  - Validates with balanced Jinja2 template syntax
+
 - **Admin Page Tab Navigation** - Fixed broken tab structure preventing tabs from loading
   - Fixed JavaScript event listener for Zone Catalog tab (ID mismatch: `zones-tab` → `zones-subtab`, event: `shown.bs.tab` → `shown.bs.pill`)
   - Fixed JavaScript event listener for Snow Emergency tab (ID mismatch: `snow-emergencies-tab` → `snow-subtab`, event: `shown.bs.tab` → `shown.bs.pill`)
