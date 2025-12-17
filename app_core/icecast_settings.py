@@ -83,6 +83,12 @@ def update_icecast_settings(data: Dict[str, Any]) -> IcecastSettings:
         settings.external_port = int(data['external_port']) if data['external_port'] else None
     if 'public_hostname' in data:
         settings.public_hostname = str(data['public_hostname']) if data['public_hostname'] else None
+    if 'server_hostname' in data:
+        settings.server_hostname = str(data['server_hostname']) if data['server_hostname'] else None
+    if 'server_location' in data:
+        settings.server_location = str(data['server_location']) if data['server_location'] else None
+    if 'admin_contact' in data:
+        settings.admin_contact = str(data['admin_contact']) if data['admin_contact'] else None
     if 'source_password' in data:
         settings.source_password = str(data['source_password'])
     if 'admin_user' in data:
