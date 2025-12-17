@@ -49,6 +49,7 @@ INFRASTRUCTURE_SERVICES = [
     'nginx.service',
     'postgresql.service',
     'redis-server.service',
+    'icecast2.service',
     'certbot.service',
     'certbot.timer',
 ]

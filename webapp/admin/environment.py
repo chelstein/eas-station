@@ -422,40 +422,6 @@ ENV_CATEGORIES = {
         ],
     },
 
-    'tts': {
-        'name': 'Text-to-Speech',
-        'icon': 'fa-volume-up',
-        'description': 'TTS provider configuration',
-        'variables': [
-            {
-                'key': 'EAS_TTS_PROVIDER',
-                'label': 'TTS Provider',
-                'type': 'select',
-                'options': ['', 'azure_openai', 'azure', 'pyttsx3'],
-                'default': '',
-                'description': 'Text-to-speech provider (leave empty to disable)',
-            },
-            {
-                'key': 'AZURE_OPENAI_CONFIG',
-                'label': 'Azure OpenAI Configuration',
-                'type': 'json',
-                'rows': 6,
-                'description': 'JSON object containing Azure OpenAI settings: endpoint, key, model, voice, speed',
-                'placeholder': '{"endpoint": "https://your-resource.openai.azure.com/openai/deployments/YOUR_DEPLOYMENT/audio/speech?api-version=2025-03-01-preview", "key": "your-api-key", "model": "tts-1", "voice": "alloy", "speed": 1.0}',
-                'default': '{"endpoint": "", "key": "", "model": "tts-1", "voice": "alloy", "speed": 1.0}',
-                'sensitive': True,
-                'category': 'azure_openai',
-                'json_schema': {
-                    'endpoint': {'type': 'text', 'label': 'Endpoint URL', 'placeholder': 'https://me-mho3uvw9-northcentralus.openai.azure.com/openai/deployments/tts-hd/audio/speech?api-version=2025-03-01-preview'},
-                    'key': {'type': 'password', 'label': 'API Key', 'placeholder': 'REPLACE_WITH_YOUR_KEY'},
-                    'model': {'type': 'text', 'label': 'Model', 'placeholder': 'tts-1'},
-                    'voice': {'type': 'select', 'label': 'Voice', 'options': ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer']},
-                    'speed': {'type': 'number', 'label': 'Speed', 'min': 0.25, 'max': 4.0, 'step': 0.05, 'placeholder': '1.05'},
-                },
-            },
-        ],
-    },
-
     'zigbee': {
         'name': 'Zigbee Module',
         'icon': 'fa-broadcast-tower',
@@ -759,8 +725,24 @@ def get_environment_variables():
 
             # Mask sensitive values
             if var_config.get('sensitive') and current_value:
-                var_data['value'] = '••••••••'
-                var_data['has_value'] = True
+                # For JSON type with json_schema, mask individual sensitive fields
+                if var_config.get('type') == 'json' and var_config.get('json_schema'):
+                    try:
+                        json_obj = json.loads(current_value)
+                        # Mask password fields in the JSON
+                        for field_key, field_def in var_config.get('json_schema', {}).items():
+                            if field_def.get('type') == 'password' and json_obj.get(field_key):
+                                json_obj[field_key] = '••••••••'
+                        var_data['value'] = json.dumps(json_obj)
+                        var_data['has_value'] = True
+                    except (json.JSONDecodeError, TypeError):
+                        # If JSON parsing fails, fall back to masking entire value
+                        var_data['value'] = '••••••••'
+                        var_data['has_value'] = True
+                else:
+                    # For non-JSON sensitive fields, mask the entire value
+                    var_data['value'] = '••••••••'
+                    var_data['has_value'] = True
             else:
                 var_data['value'] = current_value
                 # has_value is True if key exists in .env or has non-empty value
@@ -810,9 +792,32 @@ def update_environment_variables():
                         logger.debug(f'Found variable {key} in category configuration')
 
                         # Don't update if it's a masked sensitive value
-                        if var_config.get('sensitive') and value == '••••••••':
-                            logger.debug(f'Skipping masked sensitive value for {key}')
-                            continue
+                        if var_config.get('sensitive'):
+                            # For JSON fields with password subfields, unmask them
+                            if var_config.get('type') == 'json' and var_config.get('json_schema') and value:
+                                try:
+                                    new_json = json.loads(value)
+                                    # Get current value to preserve masked password fields
+                                    current_value = env_vars.get(key, '')
+                                    if current_value:
+                                        try:
+                                            current_json = json.loads(current_value)
+                                            # Check each password field
+                                            for field_key, field_def in var_config.get('json_schema', {}).items():
+                                                if field_def.get('type') == 'password':
+                                                    # If new value is masked, preserve current value
+                                                    if new_json.get(field_key) == '••••••••' and current_json.get(field_key):
+                                                        new_json[field_key] = current_json[field_key]
+                                                        logger.debug(f'Preserved masked password field {field_key} in {key}')
+                                            value = json.dumps(new_json)
+                                        except (json.JSONDecodeError, TypeError):
+                                            logger.warning(f'Could not parse current JSON value for {key}')
+                                except (json.JSONDecodeError, TypeError):
+                                    logger.warning(f'Could not parse new JSON value for {key}')
+                            elif value == '••••••••':
+                                # Non-JSON masked value - skip update
+                                logger.debug(f'Skipping masked sensitive value for {key}')
+                                continue
 
                         # Validate required fields
                         if var_config.get('required') and not value:
