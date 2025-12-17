@@ -95,7 +95,7 @@ def parse_changelog(changelog_path: Path, current_version: str = None) -> List[C
 
     # Regex patterns
     version_pattern = re.compile(
-        r"^##\s+\[?(\d+\.\d+\.\d+[^\]]*)\]?\s*(?:-\s*(\d{4}-\d{2}-\d{2}))?",
+        r"^##\s+\[?(Unreleased|\d+\.\d+\.\d+[^\]]*)\]?\s*(?:-\s*(\d{4}-\d{2}-\d{2}))?",
         re.MULTILINE
     )
     section_pattern = re.compile(r"^###\s+(Added|Fixed|Changed|Removed|Deprecated|Security)\s*$", re.MULTILINE)
@@ -116,7 +116,15 @@ def parse_changelog(changelog_path: Path, current_version: str = None) -> List[C
             # Start new entry
             version = version_match.group(1)
             date = version_match.group(2)
-            is_current = (current_version and version == current_version)
+            
+            # Treat "Unreleased" as the current version
+            if version == "Unreleased":
+                is_current = True
+                # Use current_version for display if available
+                if current_version:
+                    version = current_version
+            else:
+                is_current = (current_version and version == current_version)
 
             current_entry = ChangelogEntry(version, date, is_current)
             current_section = None
