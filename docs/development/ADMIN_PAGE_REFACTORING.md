@@ -75,7 +75,7 @@ The admin page (`templates/admin.html`) is a **monolithic 7,453-line file** that
 10. ✅ Fixed duplicate declaration errors (adminAlerts, renderQueryDetails)
 
 **Results**:
-- **File size reduction**: 12KB CSS + ~120KB JavaScript now cached separately
+- **File size reduction**: 12KB CSS + 132KB JavaScript now cached separately
 - **Browser caching**: CSS and 9 JavaScript modules cached independently from HTML
 - **Maintainability**: Code now in dedicated, modular, easier-to-edit files
 - **Line count**: Reduced by 5,418 lines (73% reduction from original 7,461)
