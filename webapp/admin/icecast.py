@@ -307,12 +307,16 @@ def test_connection():
     6. Only accessible with system.configure permission
     """
     try:
-        data = request.get_json() if request.is_json else {}
+        # Handle empty request body gracefully
+        try:
+            data = request.get_json(force=True, silent=True) or {}
+        except Exception:
+            data = {}
         
         # Get settings from request or use current settings
         settings = get_icecast_settings()
         server = data.get('server', settings.server)
-        port = data.get('port', settings.port)
+        port = int(data.get('port', settings.port))
         admin_user = data.get('admin_user', settings.admin_user)
         admin_password = data.get('admin_password', settings.admin_password)
         
@@ -397,7 +401,7 @@ def test_connection():
             }), 500
 
     except Exception as exc:
-        logger.error(f"Failed to test Icecast connection: {exc}")
+        logger.error(f"Failed to test Icecast connection: {exc}", exc_info=True)
         return jsonify({"success": False, "error": str(exc)}), 500
 
 

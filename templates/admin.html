@@ -579,33 +579,18 @@
             <div class="container-fluid">
                 <ul class="nav nav-tabs" id="adminTabs" role="tablist">
                     <li class="nav-item" role="presentation">
-                        <button class="nav-link active" id="location-tab" data-bs-toggle="tab" data-bs-target="#location-settings" type="button" role="tab">
-                            <i class="fas fa-map-marker-alt"></i> Location
+                        <button class="nav-link active" id="data-tab" data-bs-toggle="tab" data-bs-target="#data-management" type="button" role="tab">
+                            <i class="fas fa-database"></i> Data
                         </button>
                     </li>
                     <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="alerts-tab" data-bs-toggle="tab" data-bs-target="#alerts-mgmt" type="button" role="tab">
-                            <i class="fas fa-bell"></i> Alerts
+                        <button class="nav-link" id="system-tab" data-bs-toggle="tab" data-bs-target="#system-settings" type="button" role="tab">
+                            <i class="fas fa-cog"></i> System
                         </button>
                     </li>
                     <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="upload-tab" data-bs-toggle="tab" data-bs-target="#boundary-upload" type="button" role="tab">
-                            <i class="fas fa-upload"></i> Boundaries
-                        </button>
-                    </li>
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="zones-tab" data-bs-toggle="tab" data-bs-target="#zone-catalog" type="button" role="tab">
-                            <i class="fas fa-map-marked-alt"></i> Zone Catalog
-                        </button>
-                    </li>
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="manage-tab" data-bs-toggle="tab" data-bs-target="#manage" type="button" role="tab">
-                            <i class="fas fa-tasks"></i> Manage Data
-                        </button>
-                    </li>
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="operations-tab" data-bs-toggle="tab" data-bs-target="#operations" type="button" role="tab">
-                            <i class="fas fa-cogs"></i> Operations
+                        <button class="nav-link" id="services-tab" data-bs-toggle="tab" data-bs-target="#services" type="button" role="tab">
+                            <i class="fas fa-server"></i> Services
                         </button>
                     </li>
                     <li class="nav-item" role="presentation">
@@ -614,20 +599,46 @@
                         </button>
                     </li>
                     <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="users-tab" data-bs-toggle="tab" data-bs-target="#user-management" type="button" role="tab">
-                            <i class="fas fa-users"></i> Users
+                        <button class="nav-link" id="security-tab" data-bs-toggle="tab" data-bs-target="#security" type="button" role="tab">
+                            <i class="fas fa-shield-alt"></i> Security
                         </button>
                     </li>
                     <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="snow-emergencies-tab" data-bs-toggle="tab" data-bs-target="#snow-emergencies" type="button" role="tab">
-                            <i class="fas fa-snowflake"></i> Snow Emergency
+                        <button class="nav-link" id="operations-tab" data-bs-toggle="tab" data-bs-target="#operations" type="button" role="tab">
+                            <i class="fas fa-tools"></i> Operations
                         </button>
                     </li>
                 </ul>
             </div>
             <div class="tab-content" id="adminTabContent">
-                <!-- Boundary Upload Tab (was incorrectly named location-settings) -->
-                <div class="tab-pane fade" id="boundary-upload" role="tabpanel">
+                <!-- DATA MANAGEMENT TAB -->
+                <div class="tab-pane fade show active" id="data-management" role="tabpanel">
+                    <div class="container-fluid mt-4">
+                        <h3><i class="fas fa-database"></i> Data Management</h3>
+                        <p class="text-muted mb-4">Manage boundaries, zones, and geographic data</p>
+                        
+                        <!-- Sub-navigation for Data tab -->
+                        <ul class="nav nav-pills mb-4" id="dataTabs" role="tablist">
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link active" id="boundaries-subtab" data-bs-toggle="pill" data-bs-target="#boundary-upload" type="button" role="tab">
+                                    <i class="fas fa-upload"></i> Boundaries
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="zones-subtab" data-bs-toggle="pill" data-bs-target="#zone-catalog" type="button" role="tab">
+                                    <i class="fas fa-map-marked-alt"></i> Zone Catalog
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="manage-subtab" data-bs-toggle="pill" data-bs-target="#manage" type="button" role="tab">
+                                    <i class="fas fa-tasks"></i> Manage
+                                </button>
+                            </li>
+                        </ul>
+                        
+                        <div class="tab-content">
+                            <!-- Boundaries sub-tab content -->
+                            <div class="tab-pane fade show active" id="boundary-upload" role="tabpanel">
                     <form id="uploadForm" enctype="multipart/form-data" class="mt-4">
                         <div class="row">
                             <div class="col-md-6">
@@ -741,11 +752,12 @@
                             </form>
                             <div id="shapefileUploadStatus" class="mt-3"></div>
                         </div>
-                    </div>
-                </div>
-
-                <!-- Zone Catalog Tab -->
-                <div class="tab-pane fade" id="zone-catalog" role="tabpanel">
+                                </div>
+                            </div>
+                            <!-- End of Boundaries sub-tab -->
+                            
+                            <!-- Zones Catalog sub-tab -->
+                            <div class="tab-pane fade" id="zone-catalog" role="tabpanel">
                     <!-- Page Header -->
                     <div class="mb-4">
                         <h4 class="mb-2"><i class="fas fa-map-marked-alt text-primary"></i> NOAA Zone Catalog Management</h4>
@@ -863,62 +875,12 @@
                                 </div>
                             </div>
                         </div>
+                        </div>
                     </div>
                 </div>
-
-                <!-- Preview Tab -->
-                <div class="tab-pane fade" id="preview" role="tabpanel">
-                    <!-- Page Header -->
-                    <div class="mb-4">
-                        <h4 class="mb-2"><i class="fas fa-eye text-info"></i> Preview Data Extraction</h4>
-                        <p class="text-muted">Preview what data will be extracted from your GeoJSON file before uploading.</p>
-                    </div>
-                    <form id="previewForm" enctype="multipart/form-data" class="mt-4">
-                        <div class="row">
-                            <div class="col-md-6">
-                                <div class="mb-3">
-                                    <label for="previewBoundaryType" class="form-label fw-bold">Boundary Type</label>
-                                    <select id="previewBoundaryType" name="boundary_type" class="form-select" required>
-                                        <option value="">Select boundary type...</option>
-                                        <option value="electric">⚡ Electric Providers</option>
-                                        <option value="villages">🏘️ Villages</option>
-                                        <option value="school">🏫 School Districts</option>
-                                        <option value="fire">🔥 Fire Districts</option>
-                                        <option value="ems">🚑 EMS Districts</option>
-                                        <option value="township">🏘️ Townships</option>
-                                        <option value="telephone">📞 Telephone Providers</option>
-                                        <option value="railroads">🚆 Railroads</option>
-                                        <option value="rivers">🌊 Rivers & Streams</option>
-                                        <option value="waterbodies">💧 Lakes & Ponds</option>
-                                        <option value="county">🗺️ County Outlines</option>
-                                        <option value="custom">➕ Custom Type…</option>
-                                    </select>
-                                </div>
-                                <div class="mb-3" id="customPreviewBoundaryTypeWrapper" style="display: none;">
-                                    <label for="customPreviewBoundaryType" class="form-label fw-bold">Custom Type Name</label>
-                                    <input type="text" id="customPreviewBoundaryType" class="form-control" placeholder="e.g. Rivers">
-                                    <div class="form-text">Provide a descriptive name; the system will handle the identifier.</div>
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="mb-3">
-                                    <label for="previewFile" class="form-label fw-bold">GeoJSON File</label>
-                                    <input type="file" id="previewFile" name="file" class="form-control" accept=".geojson,.json" required>
-                                    <div class="form-text">Preview data extraction before uploading</div>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="d-grid gap-2 d-md-flex">
-                            <button type="button" class="btn btn-info" onclick="previewExtraction()">
-                                <i class="fas fa-eye"></i> Preview Extraction
-                            </button>
-                        </div>
-                    </form>
-                    <!-- Preview Results -->
-                    <div id="previewResults" class="mt-4"></div>
-                </div>
-
-                <!-- Manage Tab -->
+                <!-- End of Zones Catalog sub-tab -->
+                
+                <!-- Manage Data sub-tab -->
                 <div class="tab-pane fade" id="manage" role="tabpanel">
                     <!-- Page Header -->
                     <div class="mb-4">
@@ -1057,10 +1019,122 @@
                                 <span class="badge badge-pill badge-soft-warning">Counts refresh live</span>
                             </div>
                         </div>
+                        </div>
                     </div>
                 </div>
-
-                <!-- Operations Tab -->
+                <!-- End of Manage Data sub-tab -->
+                
+                        </div>
+                    </div>
+                </div>
+                <!-- END DATA MANAGEMENT TAB -->
+                
+                <!-- SYSTEM SETTINGS TAB -->
+                <div class="tab-pane fade" id="system-settings" role="tabpanel">
+                    <div class="container-fluid mt-4">
+                        <h3><i class="fas fa-cog"></i> System Settings</h3>
+                        <p class="text-muted mb-4">Configure station location, network, and system parameters</p>
+                        
+                        <!-- Sub-navigation for System tab -->
+                        <ul class="nav nav-pills mb-4" id="systemTabs" role="tablist">
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link active" id="location-subtab" data-bs-toggle="pill" data-bs-target="#location-settings" type="button" role="tab">
+                                    <i class="fas fa-map-marker-alt"></i> Location
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="alerts-subtab" data-bs-toggle="pill" data-bs-target="#alerts-mgmt" type="button" role="tab">
+                                    <i class="fas fa-bell"></i> Alerts
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="snow-subtab" data-bs-toggle="pill" data-bs-target="#snow-emergencies" type="button" role="tab">
+                                    <i class="fas fa-snowflake"></i> Snow Emergency
+                                </button>
+                            </li>
+                        </ul>
+                        
+                        <div class="tab-content">
+                            <!-- Location sub-tab will go here -->
+                            
+                <!-- SERVICES TAB -->
+                <div class="tab-pane fade" id="services" role="tabpanel">
+                    <div class="container-fluid mt-4">
+                        <h3><i class="fas fa-server"></i> Services</h3>
+                        <p class="text-muted mb-4">Manage streaming, SSL certificates, TTS, and integrations</p>
+                        
+                        <div class="row g-4">
+                            <div class="col-md-6 col-lg-3">
+                                <div class="card h-100">
+                                    <div class="card-body text-center">
+                                        <i class="fas fa-broadcast-tower fa-3x text-primary mb-3"></i>
+                                        <h5 class="card-title">Icecast Streaming</h5>
+                                        <p class="card-text text-muted">Configure audio streaming server</p>
+                                        <a href="/admin/icecast" class="btn btn-primary w-100">
+                                            <i class="fas fa-cog"></i> Configure
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6 col-lg-3">
+                                <div class="card h-100">
+                                    <div class="card-body text-center">
+                                        <i class="fas fa-lock fa-3x text-success mb-3"></i>
+                                        <h5 class="card-title">SSL Certificates</h5>
+                                        <p class="card-text text-muted">Manage Let's Encrypt certificates</p>
+                                        <a href="/admin/certbot" class="btn btn-success w-100">
+                                            <i class="fas fa-certificate"></i> Manage
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6 col-lg-3">
+                                <div class="card h-100">
+                                    <div class="card-body text-center">
+                                        <i class="fas fa-volume-up fa-3x text-info mb-3"></i>
+                                        <h5 class="card-title">Text-to-Speech</h5>
+                                        <p class="card-text text-muted">Configure TTS providers</p>
+                                        <a href="/admin/tts" class="btn btn-info w-100">
+                                            <i class="fas fa-microphone"></i> Configure
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6 col-lg-3">
+                                <div class="card h-100">
+                                    <div class="card-body text-center">
+                                        <i class="fas fa-sitemap fa-3x text-warning mb-3"></i>
+                                        <h5 class="card-title">Zigbee Module</h5>
+                                        <p class="card-text text-muted">Zigbee coordinator settings</p>
+                                        <a href="/admin/zigbee" class="btn btn-warning w-100">
+                                            <i class="fas fa-network-wired"></i> Configure
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- SECURITY TAB -->
+                <div class="tab-pane fade" id="security" role="tabpanel">
+                    <div class="container-fluid mt-4">
+                        <h3><i class="fas fa-shield-alt"></i> Security</h3>
+                        <p class="text-muted mb-4">Manage users, roles, and security monitoring</p>
+                        
+                        <!-- Sub-navigation for Security tab -->
+                        <ul class="nav nav-pills mb-4" id="securityTabs" role="tablist">
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link active" id="users-subtab" data-bs-toggle="pill" data-bs-target="#user-management" type="button" role="tab">
+                                    <i class="fas fa-users"></i> Users & Roles
+                                </button>
+                            </li>
+                        </ul>
+                        
+                        <div class="tab-content">
+                            <!-- User management sub-tab will go here -->
+                
+                <!-- Operations Tab (keeping as-is for now) -->
                 <div class="tab-pane fade" id="operations" role="tabpanel">
                     <!-- Page Header -->
                     <div class="mb-4">

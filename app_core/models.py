@@ -242,7 +242,7 @@ class AdminUser(db.Model):
             "is_active": self.is_active,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "last_login_at": self.last_login_at.isoformat() if self.last_login_at else None,
-            "role": self.role.name if self.role else None,
+            "role_name": self.role.name if self.role else None,
             "role_id": self.role_id,
             "mfa_enabled": self.mfa_enabled,
             "mfa_enrolled_at": self.mfa_enrolled_at.isoformat() if self.mfa_enrolled_at else None,
@@ -799,6 +799,11 @@ class IcecastSettings(db.Model):
     stream_format = db.Column(db.String(10), nullable=False, default='mp3')  # mp3 or ogg
     stream_public = db.Column(db.Boolean, nullable=False, default=False)  # List in directory
 
+    # Server Info (for Icecast XML config)
+    server_hostname = db.Column(db.String(255), nullable=True)  # Server hostname for Icecast config
+    server_location = db.Column(db.String(255), nullable=True)  # Server location
+    admin_contact = db.Column(db.String(255), nullable=True)  # Admin contact email
+
     # Metadata
     updated_at = db.Column(db.DateTime, nullable=True, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -820,6 +825,9 @@ class IcecastSettings(db.Model):
             "stream_bitrate": self.stream_bitrate,
             "stream_format": self.stream_format,
             "stream_public": self.stream_public,
+            "server_hostname": self.server_hostname,
+            "server_location": self.server_location,
+            "admin_contact": self.admin_contact,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
 
