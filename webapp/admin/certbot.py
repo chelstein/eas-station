@@ -27,6 +27,7 @@ import re
 import socket
 import subprocess
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Dict
 
 from flask import Blueprint, flash, jsonify, redirect, render_template, request, url_for, send_file
@@ -40,6 +41,18 @@ from app_core.certbot_settings import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Certbot writable directories configuration
+# In containerized/sandboxed environments, /var/log/letsencrypt, /etc/letsencrypt,
+# and /var/lib/letsencrypt may be read-only. Use writable directories instead.
+CERTBOT_BASE_DIR = Path(__file__).parent.parent.parent / 'certbot_data'
+CERTBOT_CONFIG_DIR = CERTBOT_BASE_DIR / 'config'
+CERTBOT_WORK_DIR = CERTBOT_BASE_DIR / 'work'
+CERTBOT_LOGS_DIR = CERTBOT_BASE_DIR / 'logs'
+
+# Ensure directories exist
+for directory in [CERTBOT_CONFIG_DIR, CERTBOT_WORK_DIR, CERTBOT_LOGS_DIR]:
+    directory.mkdir(parents=True, exist_ok=True)
 
 # Create Blueprint for certbot routes
 certbot_bp = Blueprint('certbot', __name__)
@@ -327,12 +340,17 @@ def renew_certificate():
 
         # Build response with instructions
         staging_flag = ' --staging' if settings.staging else ''
+        dir_flags = (
+            f" --config-dir {CERTBOT_CONFIG_DIR} "
+            f"--work-dir {CERTBOT_WORK_DIR} "
+            f"--logs-dir {CERTBOT_LOGS_DIR}"
+        )
         instructions = {
             'timer_status': timer_info,
             'manual_commands': {
-                'dry_run_test': f'certbot renew --dry-run{staging_flag}',
-                'force_renew': f'certbot renew --force-renewal{staging_flag}',
-                'obtain_new': f'certbot certonly --standalone -d {domain} --email {settings.email}{staging_flag}'
+                'dry_run_test': f'certbot renew --dry-run{staging_flag}{dir_flags}',
+                'force_renew': f'certbot renew --force-renewal{staging_flag}{dir_flags}',
+                'obtain_new': f'certbot certonly --standalone -d {domain} --email {settings.email}{staging_flag}{dir_flags}'
             },
             'note': 'Certificate operations are executed from within the application container.'
         }
@@ -423,25 +441,30 @@ def obtain_certificate():
 
         # Build command instructions
         staging_flag = ' --staging' if settings.staging else ''
-        
+        dir_flags = (
+            f" --config-dir {CERTBOT_CONFIG_DIR} "
+            f"--work-dir {CERTBOT_WORK_DIR} "
+            f"--logs-dir {CERTBOT_LOGS_DIR}"
+        )
+
         # Method 1: Standalone (requires stopping nginx)
         standalone_cmd = (
             f"systemctl stop nginx && "
             f"certbot certonly --standalone --non-interactive --agree-tos "
-            f"--email {email} -d {domain}{staging_flag} && "
+            f"--email {email} -d {domain}{staging_flag}{dir_flags} && "
             f"systemctl start nginx"
         )
-        
+
         # Method 2: Nginx plugin (no downtime)
         nginx_cmd = (
             f"certbot --nginx --non-interactive --agree-tos "
-            f"--email {email} -d {domain}{staging_flag}"
+            f"--email {email} -d {domain}{staging_flag}{dir_flags}"
         )
-        
+
         # Method 3: Webroot (if nginx is serving files)
         webroot_cmd = (
             f"certbot certonly --webroot -w /var/www/html "
-            f"--non-interactive --agree-tos --email {email} -d {domain}{staging_flag}"
+            f"--non-interactive --agree-tos --email {email} -d {domain}{staging_flag}{dir_flags}"
         )
 
         instructions = {
@@ -688,7 +711,10 @@ def obtain_certificate_execute():
                     'sudo', 'certbot', 'certonly', '--standalone',
                     '--non-interactive', '--agree-tos',
                     '--email', email,
-                    '-d', domain
+                    '-d', domain,
+                    '--config-dir', str(CERTBOT_CONFIG_DIR),
+                    '--work-dir', str(CERTBOT_WORK_DIR),
+                    '--logs-dir', str(CERTBOT_LOGS_DIR)
                 ] + staging_flag
                 
                 certbot_result = subprocess.run(
@@ -746,7 +772,10 @@ def obtain_certificate_execute():
                 'sudo', 'certbot', '--nginx',
                 '--non-interactive', '--agree-tos',
                 '--email', email,
-                '-d', domain
+                '-d', domain,
+                '--config-dir', str(CERTBOT_CONFIG_DIR),
+                '--work-dir', str(CERTBOT_WORK_DIR),
+                '--logs-dir', str(CERTBOT_LOGS_DIR)
             ] + staging_flag
             
             try:
@@ -790,7 +819,10 @@ def obtain_certificate_execute():
                 '-w', '/var/www/html',
                 '--non-interactive', '--agree-tos',
                 '--email', email,
-                '-d', domain
+                '-d', domain,
+                '--config-dir', str(CERTBOT_CONFIG_DIR),
+                '--work-dir', str(CERTBOT_WORK_DIR),
+                '--logs-dir', str(CERTBOT_LOGS_DIR)
             ] + staging_flag
             
             try:
@@ -874,14 +906,19 @@ def renew_certificate_execute():
 
         # Build certbot renew command
         staging_flag = ['--staging'] if settings.staging else []
-        certbot_cmd = ['sudo', 'certbot', 'renew']
-        
+        certbot_cmd = [
+            'sudo', 'certbot', 'renew',
+            '--config-dir', str(CERTBOT_CONFIG_DIR),
+            '--work-dir', str(CERTBOT_WORK_DIR),
+            '--logs-dir', str(CERTBOT_LOGS_DIR)
+        ]
+
         if dry_run:
             certbot_cmd.append('--dry-run')
-        
+
         if force:
             certbot_cmd.append('--force-renewal')
-        
+
         certbot_cmd.extend(staging_flag)
         
         try:
@@ -1026,17 +1063,17 @@ def download_certificate():
                 "error": "Invalid certificate type. Must be 'fullchain', 'cert', or 'chain'"
             }), 400
 
-        # Find certificate directory
-        letsencrypt_dir = '/etc/letsencrypt/live'
-        if not os.path.exists(letsencrypt_dir):
+        # Find certificate directory (use custom config directory)
+        letsencrypt_dir = CERTBOT_CONFIG_DIR / 'live'
+        if not letsencrypt_dir.exists():
             return jsonify({
                 "success": False,
                 "error": "Let's Encrypt certificate directory not found"
             }), 404
 
         # Find first domain directory
-        domains = [d for d in os.listdir(letsencrypt_dir)
-                   if os.path.isdir(os.path.join(letsencrypt_dir, d)) and d != 'README']
+        domains = [d.name for d in letsencrypt_dir.iterdir()
+                   if d.is_dir() and d.name != 'README']
 
         if not domains:
             return jsonify({
@@ -1046,9 +1083,9 @@ def download_certificate():
 
         domain = domains[0]
         cert_file = f"{cert_type}.pem"
-        cert_path = os.path.join(letsencrypt_dir, domain, cert_file)
+        cert_path = letsencrypt_dir / domain / cert_file
 
-        if not os.path.exists(cert_path):
+        if not cert_path.exists():
             return jsonify({
                 "success": False,
                 "error": f"Certificate file not found: {cert_file}"
@@ -1057,7 +1094,7 @@ def download_certificate():
         logger.info(f"Certificate download requested: {cert_type}.pem for domain {domain}")
 
         return send_file(
-            cert_path,
+            str(cert_path),
             as_attachment=True,
             download_name=f"{domain}-{cert_file}",
             mimetype='application/x-pem-file'

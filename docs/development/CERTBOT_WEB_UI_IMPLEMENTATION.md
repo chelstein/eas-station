@@ -121,6 +121,24 @@ Implemented full web-based SSL certificate management, eliminating the need for 
 
 ## Technical Architecture
 
+### Writable Directories Configuration
+
+**Problem:** In containerized/sandboxed environments, the default certbot directories (`/etc/letsencrypt`, `/var/lib/letsencrypt`, `/var/log/letsencrypt`) may be read-only, causing errors like:
+```
+[Errno 30] Read-only file system: '/var/log/letsencrypt/.certbot.lock'
+```
+
+**Solution:** Configure certbot to use writable directories under the project root:
+- `certbot_data/config` - Certbot configuration and certificates (--config-dir)
+- `certbot_data/work` - Working files and temporary data (--work-dir)
+- `certbot_data/logs` - Log files (--logs-dir)
+
+These directories are:
+- Created automatically on application startup
+- Added to `.gitignore` to prevent committing private keys
+- Used consistently across all certbot commands
+- Referenced in systemd service file for automated renewal
+
 ### Request Flow
 
 ```
@@ -130,7 +148,7 @@ JavaScript sends POST to /admin/api/certbot/obtain-certificate-execute
     ↓
 Backend validates settings and domain
     ↓
-Backend constructs certbot command
+Backend constructs certbot command with custom directories
     ↓
 subprocess.run() executes certbot with sudo
     ↓

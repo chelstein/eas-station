@@ -18,6 +18,9 @@ logs/
 static/eas_messages/
 *.sqlite3
 
+# Certbot certificates and data (contains private keys)
+certbot_data/
+
 # Docker Compose override files (site-specific)
 docker-compose.override.yml
 
