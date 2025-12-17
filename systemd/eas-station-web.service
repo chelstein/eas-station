@@ -73,7 +73,10 @@ ReadWritePaths=/opt/eas-station /var/log/eas-station
 DeviceAllow=/dev/gpiochip0 rw
 DeviceAllow=/dev/gpiochip4 rw
 DeviceAllow=/dev/i2c-1 rw
-CapabilityBoundingSet=
+# Required capabilities for sudo to work (certbot/nginx management)
+# CAP_SETUID and CAP_SETGID allow sudo to change user/group IDs
+# CAP_AUDIT_WRITE allows sudo to write audit records
+CapabilityBoundingSet=CAP_SETUID CAP_SETGID CAP_AUDIT_WRITE
 
 # Resource limits
 LimitNOFILE=65536
