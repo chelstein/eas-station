@@ -7237,7 +7237,7 @@
             initializeSnowMermaid();
             const snowTab = document.getElementById('snow-subtab');
             if (snowTab) {
-                snowTab.addEventListener('shown.bs.pill', function() {
+                snowTab.addEventListener('shown.bs.tab', function() {
                     initializeSnowMermaid();
                     refreshSnowEmergencyAdmin();
                 });
@@ -7249,7 +7249,7 @@
         // Load zone info when zone catalog sub-tab is shown
         const zoneTab = document.getElementById('zones-subtab');
         if (zoneTab) {
-            zoneTab.addEventListener('shown.bs.pill', function() {
+            zoneTab.addEventListener('shown.bs.tab', function() {
                 refreshZoneInfo();
             });
         }
