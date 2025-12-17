@@ -609,8 +609,8 @@ async function obtainCertificate() {
                     </select>
                 </div>
                 
-                <div id="methodDescription" class="alert alert-info mb-3">
-                    <strong>Standalone Method:</strong> Temporarily stops nginx, obtains certificate, then restarts nginx. Requires port 80 to be accessible from the internet.
+                <div id="methodDescription" class="alert alert-warning mb-3">
+                    <strong>Standalone Method:</strong> Temporarily stops nginx, obtains certificate, then restarts nginx. Requires port 80 to be accessible from the internet.<br><br><strong><i class="bi bi-exclamation-triangle"></i> Note:</strong> Since nginx is stopped during this process, you will temporarily lose connection to this page. The page will automatically attempt to reconnect when nginx restarts.
                 </div>
                 
                 <div class="d-flex gap-2">
@@ -633,8 +633,8 @@ async function obtainCertificate() {
         const descDiv = document.getElementById('methodDescription');
         
         if (method === 'standalone') {
-            descDiv.innerHTML = '<strong>Standalone Method:</strong> Temporarily stops nginx, obtains certificate, then restarts nginx. Requires port 80 to be accessible from the internet.';
-            descDiv.className = 'alert alert-info mb-3';
+            descDiv.innerHTML = '<strong>Standalone Method:</strong> Temporarily stops nginx, obtains certificate, then restarts nginx. Requires port 80 to be accessible from the internet.<br><br><strong><i class="bi bi-exclamation-triangle"></i> Note:</strong> Since nginx is stopped during this process, you will temporarily lose connection to this page. The page will automatically attempt to reconnect when nginx restarts.';
+            descDiv.className = 'alert alert-warning mb-3';
         } else if (method === 'nginx') {
             descDiv.innerHTML = '<strong>Nginx Plugin:</strong> Uses nginx plugin to obtain and configure certificate automatically. No downtime required. Nginx must be running and domain must be configured.';
             descDiv.className = 'alert alert-success mb-3';
@@ -652,14 +652,25 @@ function cancelObtainCertificate() {
 async function executeObtainCertificate() {
     const resultDiv = document.getElementById('obtainCertResult');
     const method = document.getElementById('certMethod').value;
-    
-    resultDiv.innerHTML = `
-        <div class="alert alert-info">
-            <span class="spinner-border"></span> Obtaining SSL certificate using ${method} method...
-            <p class="mt-2 mb-0"><small>This may take up to 2 minutes. Please wait...</small></p>
-        </div>
-    `;
-    
+
+    // Special message for standalone mode - warn about expected connection loss
+    if (method === 'standalone') {
+        resultDiv.innerHTML = `
+            <div class="alert alert-warning">
+                <span class="spinner-border spinner-border-sm"></span> <strong>Obtaining SSL certificate using standalone method...</strong>
+                <p class="mt-2 mb-0"><small>Nginx is being stopped to free port 80 for Let's Encrypt verification.</small></p>
+                <p class="mb-0"><small><strong>Connection will be lost temporarily</strong> - this is expected. The page will automatically reconnect when nginx restarts (up to 2 minutes).</small></p>
+            </div>
+        `;
+    } else {
+        resultDiv.innerHTML = `
+            <div class="alert alert-info">
+                <span class="spinner-border spinner-border-sm"></span> Obtaining SSL certificate using ${method} method...
+                <p class="mt-2 mb-0"><small>This may take up to 2 minutes. Please wait...</small></p>
+            </div>
+        `;
+    }
+
     try {
         const response = await fetch('/admin/api/certbot/obtain-certificate-execute', {
             method: 'POST',
@@ -668,16 +679,16 @@ async function executeObtainCertificate() {
             },
             body: JSON.stringify({ method: method })
         });
-        
+
         const result = await response.json();
-        
+
         if (result.success) {
             let html = `
                 <div class="alert alert-success">
                     <i class="bi bi-check-circle"></i> <strong>${result.message}</strong>
                 </div>
             `;
-            
+
             if (result.output) {
                 html += `
                     <div class="card mt-3">
@@ -688,7 +699,7 @@ async function executeObtainCertificate() {
                     </div>
                 `;
             }
-            
+
             if (result.note) {
                 html += `
                     <div class="alert alert-info mt-3">
@@ -696,7 +707,7 @@ async function executeObtainCertificate() {
                     </div>
                 `;
             }
-            
+
             html += `
                 <div class="mt-3">
                     <button class="btn btn-primary" onclick="checkCertificateStatus()">
@@ -707,10 +718,10 @@ async function executeObtainCertificate() {
                     </button>
                 </div>
             `;
-            
+
             resultDiv.innerHTML = html;
             showToast('Certificate obtained successfully!', 'success');
-            
+
         } else {
             let html = `
                 <div class="alert alert-danger">
@@ -718,7 +729,7 @@ async function executeObtainCertificate() {
                     ${result.error}
                 </div>
             `;
-            
+
             if (result.output) {
                 html += `
                     <div class="card mt-3">
@@ -729,7 +740,7 @@ async function executeObtainCertificate() {
                     </div>
                 `;
             }
-            
+
             html += `
                 <div class="mt-3">
                     <button class="btn btn-primary" onclick="obtainCertificate()">
@@ -740,26 +751,125 @@ async function executeObtainCertificate() {
                     </button>
                 </div>
             `;
-            
+
             resultDiv.innerHTML = html;
             showToast('Failed to obtain certificate', 'error');
         }
     } catch (error) {
-        resultDiv.innerHTML = `
-            <div class="alert alert-danger">
-                <i class="bi bi-exclamation-triangle"></i> Error: ${error.message}
-            </div>
-            <div class="mt-3">
-                <button class="btn btn-primary" onclick="obtainCertificate()">
-                    <i class="bi bi-arrow-clockwise"></i> Try Again
-                </button>
-                <button class="btn btn-secondary" onclick="cancelObtainCertificate()">
-                    <i class="bi bi-x-circle"></i> Close
-                </button>
-            </div>
-        `;
-        showToast('Error obtaining certificate', 'error');
+        // For standalone method, "Failed to fetch" is expected because nginx stops
+        if (method === 'standalone' && error.message.includes('Failed to fetch')) {
+            resultDiv.innerHTML = `
+                <div class="alert alert-info">
+                    <span class="spinner-border spinner-border-sm"></span> <strong>Connection lost (expected)</strong>
+                    <p class="mt-2 mb-0">Nginx was stopped for certificate acquisition. Waiting for nginx to restart...</p>
+                    <p class="mb-0"><small>Attempting to reconnect... <span id="reconnectAttempt">1</span>/20</small></p>
+                </div>
+            `;
+
+            // Start polling to check when server is back
+            waitForServerReconnect(resultDiv);
+        } else {
+            resultDiv.innerHTML = `
+                <div class="alert alert-danger">
+                    <i class="bi bi-exclamation-triangle"></i> <strong>Error:</strong> ${error.message}
+                    <p class="mt-2 mb-0"><small>This may indicate a network issue or server error. Check your connection and try again.</small></p>
+                </div>
+                <div class="mt-3">
+                    <button class="btn btn-primary" onclick="obtainCertificate()">
+                        <i class="bi bi-arrow-clockwise"></i> Try Again
+                    </button>
+                    <button class="btn btn-secondary" onclick="cancelObtainCertificate()">
+                        <i class="bi bi-x-circle"></i> Close
+                    </button>
+                </div>
+            `;
+            showToast('Error obtaining certificate', 'error');
+        }
     }
+}
+
+// Wait for server to come back online after standalone certificate acquisition
+async function waitForServerReconnect(resultDiv) {
+    const maxAttempts = 20;
+    const delayMs = 3000;  // 3 seconds between attempts
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        // Update attempt counter
+        const attemptSpan = document.getElementById('reconnectAttempt');
+        if (attemptSpan) {
+            attemptSpan.textContent = attempt;
+        }
+
+        try {
+            // Simple health check - just try to fetch the cert status endpoint
+            const response = await fetch('/admin/api/certbot/status', {
+                method: 'GET',
+                cache: 'no-store'
+            });
+
+            if (response.ok) {
+                // Server is back! Check if certificate was obtained successfully
+                const status = await response.json();
+
+                if (status.certificate && status.certificate.valid) {
+                    resultDiv.innerHTML = `
+                        <div class="alert alert-success">
+                            <i class="bi bi-check-circle"></i> <strong>Reconnected! Certificate obtained successfully.</strong>
+                            <p class="mt-2 mb-0">SSL certificate is now installed for: <strong>${status.certificate.domains ? status.certificate.domains.join(', ') : 'your domain'}</strong></p>
+                            <p class="mb-0"><small>Expires: ${status.certificate.expires_at || 'unknown'}</small></p>
+                        </div>
+                        <div class="mt-3">
+                            <button class="btn btn-primary" onclick="checkCertificateStatus()">
+                                <i class="bi bi-shield-check"></i> View Full Certificate Details
+                            </button>
+                            <button class="btn btn-secondary" onclick="cancelObtainCertificate()">
+                                <i class="bi bi-x-circle"></i> Close
+                            </button>
+                        </div>
+                    `;
+                    showToast('Certificate obtained successfully!', 'success');
+                } else {
+                    // Server is back but certificate may have failed
+                    resultDiv.innerHTML = `
+                        <div class="alert alert-warning">
+                            <i class="bi bi-exclamation-triangle"></i> <strong>Reconnected!</strong>
+                            <p class="mt-2 mb-0">Server is back online, but the certificate status is unclear. Please verify the certificate manually.</p>
+                        </div>
+                        <div class="mt-3">
+                            <button class="btn btn-primary" onclick="checkCertificateStatus()">
+                                <i class="bi bi-shield-check"></i> Check Certificate Status
+                            </button>
+                            <button class="btn btn-secondary" onclick="cancelObtainCertificate()">
+                                <i class="bi bi-x-circle"></i> Close
+                            </button>
+                        </div>
+                    `;
+                    showToast('Reconnected - please verify certificate', 'warning');
+                }
+                return;
+            }
+        } catch (e) {
+            // Still waiting - server not yet back
+        }
+
+        // Wait before next attempt
+        await new Promise(resolve => setTimeout(resolve, delayMs));
+    }
+
+    // Max attempts reached - server didn't come back
+    resultDiv.innerHTML = `
+        <div class="alert alert-danger">
+            <i class="bi bi-exclamation-triangle"></i> <strong>Connection timeout</strong>
+            <p class="mt-2 mb-0">Could not reconnect to the server after ${maxAttempts} attempts. The server may still be processing or encountered an error.</p>
+            <p class="mb-0"><small>Please refresh the page manually to check the certificate status.</small></p>
+        </div>
+        <div class="mt-3">
+            <button class="btn btn-primary" onclick="location.reload()">
+                <i class="bi bi-arrow-clockwise"></i> Refresh Page
+            </button>
+        </div>
+    `;
+    showToast('Connection timeout - please refresh', 'error');
 }
 
 function escapeHtml(text) {

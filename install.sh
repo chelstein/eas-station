@@ -1789,6 +1789,15 @@ else
     echo_warning "Sudoers configuration file not found (config/sudoers-eas-station)"
 fi
 
+# Create certbot data directories with proper permissions
+# These directories must be writable by both the eas-station user and root (for certbot via sudo)
+echo_progress "Creating certbot data directories..."
+CERTBOT_DATA_DIR="$INSTALL_DIR/certbot_data"
+mkdir -p "$CERTBOT_DATA_DIR/config" "$CERTBOT_DATA_DIR/work" "$CERTBOT_DATA_DIR/logs"
+chmod -R 777 "$CERTBOT_DATA_DIR"
+chown -R "$SERVICE_USER:$SERVICE_USER" "$CERTBOT_DATA_DIR"
+echo_success "Certbot data directories created"
+
 echo_step "Nginx Web Server Configuration"
 
 # Configure nginx

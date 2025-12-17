@@ -723,6 +723,17 @@ if [ -d "$INSTALL_DIR/systemd" ]; then
         echo_warning "Sudoers configuration file not found (config/sudoers-eas-station)"
     fi
 
+    # Fix certbot data directories permissions
+    # These directories must be writable by both the eas-station user and root (for certbot via sudo)
+    echo_progress "Fixing certbot data directories permissions..."
+    CERTBOT_DATA_DIR="$INSTALL_DIR/certbot_data"
+    mkdir -p "$CERTBOT_DATA_DIR/config" "$CERTBOT_DATA_DIR/work" "$CERTBOT_DATA_DIR/logs"
+    chmod -R 777 "$CERTBOT_DATA_DIR"
+    chown -R "$SERVICE_USER:$SERVICE_USER" "$CERTBOT_DATA_DIR"
+    # Remove any stale lock files that can cause permission errors
+    find "$CERTBOT_DATA_DIR" -name ".certbot.lock" -delete 2>/dev/null || true
+    echo_success "Certbot data directories configured"
+
     # Ensure hardware access groups exist (for services that use SupplementaryGroups)
     echo_progress "Ensuring hardware access groups exist..."
     HARDWARE_GROUPS="gpio i2c spi audio plugdev dialout"
