@@ -7,6 +7,19 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **SSL Certificate Management - Sudo Permission Errors** - Fixed container permission errors when obtaining SSL certificates
+  - Removed `sudo` prefix from all `systemctl` and `certbot` commands in `webapp/admin/certbot.py`
+  - Commands now run directly since container already has proper permissions
+  - Fixes error: "The 'no new privileges' flag is set, which prevents sudo from running as root"
+  - Updated user-facing instructions to not include `sudo` in examples
+  - Certificate operations now work correctly in containers with `no-new-privileges:true` security flag
+
+- **SSL Certificate Management - Duplicate Locations** - Consolidated SSL certificate management to single location
+  - Removed SSL/Certbot tab from Admin panel (`/admin` page)
+  - Removed SSL Certificates menu item from Settings dropdown in navbar
+  - All SSL certificate management now accessible only through dedicated page at `/admin/certbot`
+  - Eliminates confusion from having two different places to manage SSL certificates
+
 - **Template Syntax Errors** - Fixed missing closing tags in Jinja2 templates
   - **navbar.html**: Added missing `{% endblock %}` for `show_settings_hardware` block
   - **audio_detail.html**: Added missing `{% endblock %}` to close content block before scripts block
