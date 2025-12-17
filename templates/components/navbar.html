@@ -1,31 +1,31 @@
 <!-- Modern, Clean Navigation Component -->
-{% set is_authenticated = current_user is defined and current_user and current_user.is_authenticated %}
-{% set can_view_alerts = has_permission('alerts.view') %}
-{% set can_view_logs = has_permission('logs.view') %}
-{% set can_manage_analytics = has_permission('analytics_manage') %}
-{% set can_view_eas = has_permission('eas.view') %}
-{% set can_manage_receivers = has_permission('receivers.view') %}
-{% set can_view_gpio = has_permission('gpio.view') %}
-{% set can_view_system_config = has_permission('system.view_config') %}
-{% set can_manage_config = has_permission('system.configure') %}
-{% set can_export_alerts = has_permission('alerts.export') %}
-{% set can_manage_users = has_permission('system.manage_users') %}
-{% set can_view_users = has_permission('system.view_users') or can_manage_users %}
+{%- set is_authenticated = current_user is defined and current_user and current_user.is_authenticated -%}
+{%- set can_view_alerts = has_permission('alerts.view') -%}
+{%- set can_view_logs = has_permission('logs.view') -%}
+{%- set can_manage_analytics = has_permission('analytics_manage') -%}
+{%- set can_view_eas = has_permission('eas.view') -%}
+{%- set can_manage_receivers = has_permission('receivers.view') -%}
+{%- set can_view_gpio = has_permission('gpio.view') -%}
+{%- set can_view_system_config = has_permission('system.view_config') -%}
+{%- set can_manage_config = has_permission('system.configure') -%}
+{%- set can_export_alerts = has_permission('alerts.export') -%}
+{%- set can_manage_users = has_permission('system.manage_users') -%}
+{%- set can_view_users = has_permission('system.view_users') or can_manage_users -%}
 
-{% set show_broadcast_workflow = can_view_eas %}
-{% set show_broadcast_outputs = can_view_eas %}
-{% set show_broadcast_inputs = can_manage_receivers %}
-{% set show_broadcast_dropdown = show_broadcast_workflow or show_broadcast_outputs or show_broadcast_inputs %}
+{%- set show_broadcast_workflow = can_view_eas -%}
+{%- set show_broadcast_outputs = can_view_eas -%}
+{%- set show_broadcast_inputs = can_manage_receivers -%}
+{%- set show_broadcast_dropdown = show_broadcast_workflow or show_broadcast_outputs or show_broadcast_inputs -%}
 
-{% set show_settings_configuration = can_view_system_config or can_manage_config %}
-{% set show_settings_hardware = can_view_gpio %}
-{% set show_settings_security = can_manage_users or can_view_users %}
-{% set show_settings_dropdown = show_settings_configuration or show_settings_hardware or show_settings_security %}
+{%- set show_settings_configuration = can_view_system_config or can_manage_config -%}
+{%- set show_settings_hardware = can_view_gpio -%}
+{%- set show_settings_security = can_manage_users or can_view_users -%}
+{%- set show_settings_dropdown = show_settings_configuration or show_settings_hardware or show_settings_security -%}
 
-{% set show_alerts_radio_section = is_authenticated and (can_view_alerts or can_manage_receivers or can_view_logs) %}
-{% set show_tools_testing = is_authenticated and (can_manage_receivers or can_view_alerts) %}
-{% set show_tools_data = is_authenticated and (can_export_alerts or can_manage_config) %}
-{% set show_tools_analytics = is_authenticated and (can_manage_analytics or can_view_logs or can_view_alerts or can_manage_config) %}
+{%- set show_alerts_radio_section = is_authenticated and (can_view_alerts or can_manage_receivers or can_view_logs) -%}
+{%- set show_tools_testing = is_authenticated and (can_manage_receivers or can_view_alerts) -%}
+{%- set show_tools_data = is_authenticated and (can_export_alerts or can_manage_config) -%}
+{%- set show_tools_analytics = is_authenticated and (can_manage_analytics or can_view_logs or can_view_alerts or can_manage_config) -%}
 
 <nav class="navbar navbar-expand-lg sticky-top shadow-sm">
     <div class="container-fluid">
