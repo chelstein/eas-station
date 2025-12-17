@@ -6549,6 +6549,11 @@
         //   - markExpiredAlerts(), clearExpiredAlerts()
         //   - renderSeverityBadge(), renderUrgencyBadge(), renderCertaintyBadge(), renderStatusBadge()
         // 
+        // /static/js/admin/hardware-settings.js - Hardware configuration
+        //   - initializeHardwareSettings(), saveLedSignSettings()
+        //   - saveLedAdapterConfig(), loadLedAdapterConfig()
+        //   - saveHardwareLedAdapterConfig(), loadHardwareLedAdapterConfig()
+        // 
         // /static/js/admin/operations.js - System operations
         //   - runOneClickBackup(), runOneClickUpgrade(), refreshOperationStatus()
         //   - manualImportAlert(), optimizeDatabase(), checkDatabaseHealth()
@@ -6575,6 +6580,7 @@
     <!-- Load feature modules -->
     <script src="{{ url_for('static', filename='js/admin/user-management.js') }}"></script>
     <script src="{{ url_for('static', filename='js/admin/alert-management.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/admin/hardware-settings.js') }}"></script>
     <script src="{{ url_for('static', filename='js/admin/operations.js') }}"></script>
     <script src="{{ url_for('static', filename='js/admin/snow-emergency.js') }}"></script>
     <script src="{{ url_for('static', filename='js/admin/zone-catalog.js') }}"></script>
