@@ -762,12 +762,12 @@ function togglePasswordVisibility(fieldId) {
     
     if (field.type === 'password') {
         field.type = 'text';
-        icon.classList.remove('fa-eye');
-        icon.classList.add('fa-eye-slash');
+        icon.classList.remove('fas', 'fa-eye');
+        icon.classList.add('fas', 'fa-eye-slash');
     } else {
         field.type = 'password';
-        icon.classList.remove('fa-eye-slash');
-        icon.classList.add('fa-eye');
+        icon.classList.remove('fas', 'fa-eye-slash');
+        icon.classList.add('fas', 'fa-eye');
     }
 }
 
