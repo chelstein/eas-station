@@ -1,0 +1,449 @@
+/* Admin Page - Theme-Aware Styles */
+.admin-header {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: white;
+    padding: 2rem 0;
+    margin-bottom: 0.5rem;
+    box-shadow: 0 4px 20px var(--shadow-color);
+}
+
+.tab-content {
+    padding: 1.5rem 2rem 2rem 2rem;
+    background: var(--surface-color);
+    color: var(--text-color);
+}
+
+/* Cards and panels need proper backgrounds */
+.card {
+    background: var(--surface-color);
+    border-color: var(--border-color);
+    color: var(--text-color);
+}
+
+.card-header {
+    background: var(--bg-color);
+    border-color: var(--border-color);
+    color: var(--text-color);
+}
+
+.card-body {
+    background: var(--surface-color);
+    color: var(--text-color);
+}
+
+/* Nav tabs need proper styling */
+.nav-tabs {
+    border-color: var(--border-color);
+    background: var(--bg-color);
+}
+
+.nav-tabs .nav-link {
+    color: var(--text-secondary);
+    border: none;
+    padding: 1rem 1.25rem;
+    transition: all 0.2s ease;
+}
+
+.nav-tabs .nav-link:hover {
+    color: var(--text-color);
+    background: var(--surface-color);
+}
+
+.nav-tabs .nav-link.active {
+    background: var(--surface-color);
+    color: var(--primary-color);
+    border-bottom: 3px solid var(--primary-color);
+}
+
+.form-control, .form-select {
+    background-color: var(--surface-color);
+    border: 1px solid var(--border-color);
+    color: var(--text-color);
+    border-radius: 8px;
+    transition: all 0.2s ease;
+}
+
+.form-control:focus, .form-select:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2);
+    background-color: var(--surface-color);
+    color: var(--text-color);
+}
+
+.form-control::placeholder {
+    color: var(--text-muted);
+}
+
+.form-label {
+    color: var(--text-color);
+    font-weight: 500;
+}
+
+.form-text {
+    color: var(--text-muted);
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1.5rem;
+    margin: 1.5rem 0;
+}
+
+.stat-card {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: white;
+    padding: 1.5rem;
+    border-radius: 16px;
+    text-align: center;
+    transition: box-shadow 0.3s ease, transform 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.stat-card::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -30%;
+    width: 80%;
+    height: 150%;
+    background: radial-gradient(circle, rgba(255,255,255,0.12) 0%, transparent 60%);
+    pointer-events: none;
+}
+
+.stat-card:hover {
+    box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+    transform: translateY(-3px);
+}
+
+.stat-number {
+    font-size: 2.25rem;
+    font-weight: 800;
+    margin-bottom: 0.5rem;
+    position: relative;
+}
+
+.stat-label {
+    font-size: 0.9rem;
+    opacity: 0.9;
+    font-weight: 500;
+    position: relative;
+}
+
+.operation-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1.5rem;
+    margin: 1.5rem 0;
+}
+
+/* Alert styles - theme-aware */
+.alert-custom {
+    border-radius: 8px;
+    border: none;
+    padding: 1rem;
+    margin: 1rem 0;
+    box-shadow: 0 2px 10px var(--shadow-color);
+}
+
+.alert-success-custom {
+    background: color-mix(in srgb, var(--success-color) 12%, var(--surface-color));
+    border-left: 4px solid var(--success-color);
+    color: var(--text-color);
+}
+
+.alert-danger-custom {
+    background: color-mix(in srgb, var(--danger-color) 12%, var(--surface-color));
+    border-left: 4px solid var(--danger-color);
+    color: var(--text-color);
+}
+
+.alert-warning-custom {
+    background: color-mix(in srgb, var(--warning-color) 12%, var(--surface-color));
+    border-left: 4px solid var(--warning-color);
+    color: var(--text-color);
+}
+
+.alert-info-custom {
+    background: color-mix(in srgb, var(--info-color) 12%, var(--surface-color));
+    border-left: 4px solid var(--info-color);
+    color: var(--text-color);
+}
+
+/* Standard Bootstrap alerts - fix colors */
+.alert-info {
+    background: color-mix(in srgb, var(--info-color) 15%, var(--surface-color));
+    border-color: var(--info-color);
+    color: var(--text-color);
+}
+
+.alert-warning {
+    background: color-mix(in srgb, var(--warning-color) 15%, var(--surface-color));
+    border-color: var(--warning-color);
+    color: var(--text-color);
+}
+
+.alert-success {
+    background: color-mix(in srgb, var(--success-color) 15%, var(--surface-color));
+    border-color: var(--success-color);
+    color: var(--text-color);
+}
+
+.alert-danger {
+    background: color-mix(in srgb, var(--danger-color) 15%, var(--surface-color));
+    border-color: var(--danger-color);
+    color: var(--text-color);
+}
+
+.loading-spinner {
+    display: inline-block;
+    width: 1rem;
+    height: 1rem;
+    border: 2px solid transparent;
+    border-top: 2px solid currentColor;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+.modal-content {
+    background: var(--surface-color);
+    border: 1px solid var(--border-color);
+    border-radius: 15px;
+    box-shadow: 0 20px 60px var(--shadow-color);
+    color: var(--text-color);
+}
+
+.modal-header {
+    border-bottom: 1px solid var(--border-color);
+    background: linear-gradient(135deg, #eb3349, #f45c43);
+    color: white;
+    border-radius: 15px 15px 0 0;
+}
+
+.modal-body {
+    background: var(--surface-color);
+    color: var(--text-color);
+}
+
+.modal-footer {
+    background: var(--surface-color);
+    border-color: var(--border-color);
+}
+
+.preview-container {
+    max-height: 400px;
+    overflow-y: auto;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 1rem;
+    background: var(--bg-color);
+}
+
+.preview-item {
+    background: var(--surface-color);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 0.75rem;
+    margin-bottom: 0.5rem;
+    color: var(--text-color);
+}
+
+.keyboard-shortcuts {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background: var(--dark-color);
+    color: white;
+    padding: 0.5rem 1rem;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    opacity: 0.7;
+    transition: opacity 0.3s ease;
+}
+
+.keyboard-shortcuts:hover {
+    opacity: 1;
+}
+
+.mini-stat {
+    background: var(--bg-color);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 0.75rem 1rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 600;
+    color: var(--text-color);
+}
+
+.mini-stat .value {
+    font-size: 1.15rem;
+    color: var(--primary-color);
+}
+
+.boundary-empty-state {
+    border: 2px dashed var(--border-color);
+    border-radius: 12px;
+    padding: 2rem;
+    background: var(--bg-color);
+    text-align: center;
+    color: var(--text-muted);
+}
+
+.boundary-empty-state i {
+    font-size: 2rem;
+    color: var(--info-color);
+}
+
+.badge-pill {
+    border-radius: 999px;
+    padding: 0.35rem 0.75rem;
+}
+
+.manage-card {
+    background: var(--surface-color);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    box-shadow: 0 4px 12px var(--shadow-color);
+}
+
+.manage-card .card-header {
+    background: var(--bg-color);
+    border-color: var(--border-color);
+    color: var(--text-color);
+}
+
+.manage-card .card-body {
+    background: var(--surface-color);
+    color: var(--text-color);
+}
+
+.hint-box {
+    background: var(--bg-color);
+    border: 1px dashed var(--border-color);
+    border-radius: 12px;
+    padding: 0.75rem 0.9rem;
+    color: var(--text-color);
+}
+
+.boundary-chip {
+    background: var(--surface-color);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    padding: 0.6rem 0.75rem;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    color: var(--text-color);
+}
+
+.boundary-chip:hover {
+    border-color: var(--primary-color);
+    box-shadow: 0 4px 12px var(--shadow-color);
+}
+
+.boundary-chip .badge-soft {
+    background: color-mix(in srgb, var(--primary-color) 15%, transparent);
+    color: var(--primary-color);
+}
+
+.boundary-scroll {
+    max-height: 240px;
+    overflow-y: auto;
+}
+
+.badge-soft-success {
+    background: color-mix(in srgb, var(--success-color) 15%, transparent);
+    color: var(--success-color);
+}
+
+.badge-soft-info {
+    background: color-mix(in srgb, var(--info-color) 15%, transparent);
+    color: var(--info-color);
+}
+
+.badge-soft-warning {
+    background: color-mix(in srgb, var(--warning-color) 15%, transparent);
+    color: var(--warning-color);
+}
+
+.mermaid-snow-map {
+    min-height: 240px;
+    background: var(--bg-color);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    padding: 0.75rem;
+}
+
+.snow-history {
+    background: var(--bg-color);
+    border: 1px dashed var(--border-color);
+    border-radius: 8px;
+    padding: 0.5rem 0.75rem;
+    color: var(--text-color);
+}
+
+.snow-history summary {
+    cursor: pointer;
+    color: var(--text-color);
+}
+
+.snow-policy-note {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
+
+/* Text utilities */
+.text-muted {
+    color: var(--text-muted) !important;
+}
+
+/* Table styles */
+.table {
+    color: var(--text-color);
+}
+
+.table thead th {
+    background: var(--bg-color);
+    border-color: var(--border-color);
+    color: var(--text-color);
+}
+
+.table td, .table th {
+    border-color: var(--border-color);
+}
+
+.table-striped tbody tr:nth-of-type(odd) {
+    background: color-mix(in srgb, var(--bg-color) 50%, transparent);
+}
+
+/* Code blocks */
+code {
+    background: var(--bg-color);
+    color: var(--danger-color);
+    padding: 0.15rem 0.4rem;
+    border-radius: 4px;
+}
+
+/* List groups */
+.list-group-item {
+    background: var(--surface-color);
+    border-color: var(--border-color);
+    color: var(--text-color);
+}
+
+@media (max-width: 768px) {
+    .stats-grid, .operation-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media print {
+    .keyboard-shortcuts {
+        display: none !important;
+    }
+}

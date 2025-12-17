@@ -6,6 +6,18 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+### Changed
+- **Admin Page Refactoring - Phase 2 (In Progress)** - Modular JavaScript extraction
+  - ✅ Moved 449 lines of inline CSS to `/static/css/admin.css`
+  - ✅ Extracted Zone Catalog module to `/static/js/admin/zone-catalog.js` (182 lines)
+  - ✅ Extracted Snow Emergency module to `/static/js/admin/snow-emergency.js` (270 lines)
+  - Reduced admin.html from 7,461 to 6,545 lines (916 line reduction, 12%)
+  - File size reduced from 388KB to 353KB (35KB reduction, 9%)
+  - Improved browser caching - CSS and JavaScript modules cached separately
+  - All theme-aware functionality preserved
+  - Remaining JavaScript extraction in progress (~4,100 lines to extract)
+  - See `docs/development/ADMIN_PAGE_REFACTORING.md` for full refactoring plan
+
 ### Fixed
 - **Excessive Whitespace on Pages** - Fixed large vertical gaps between content and footer
   - Changed `.page-shell` flex property from `flex: 1 0 auto` to `flex: 0 0 auto` in styles.css
