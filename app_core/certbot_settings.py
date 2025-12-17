@@ -19,11 +19,14 @@ Repository: https://github.com/KR8MER/eas-station
 
 """Helper functions for Certbot settings management."""
 
+import logging
 from typing import Dict, Any
 from flask import current_app
 
 from .extensions import db
 from .models import CertbotSettings
+
+logger = logging.getLogger(__name__)
 
 
 def get_certbot_settings() -> CertbotSettings:
@@ -31,12 +34,31 @@ def get_certbot_settings() -> CertbotSettings:
 
     Returns the single CertbotSettings row (id=1), creating it with defaults if needed.
     """
-    settings = CertbotSettings.query.get(1)
-    if settings is None:
-        settings = CertbotSettings(id=1)
-        db.session.add(settings)
-        db.session.commit()
-    return settings
+    try:
+        settings = CertbotSettings.query.get(1)
+        if settings is None:
+            settings = CertbotSettings(id=1)
+            db.session.add(settings)
+            db.session.commit()
+        return settings
+    except Exception as e:
+        # Table might not exist yet (migrations not run)
+        # Create it and try again
+        try:
+            db.create_all()
+            settings = CertbotSettings.query.get(1)
+            if settings is None:
+                settings = CertbotSettings(id=1)
+                db.session.add(settings)
+                db.session.commit()
+            return settings
+        except Exception as create_error:
+            # Still failing - return default instance without persisting
+            # This allows the app to start even if database is unavailable
+            logger.error(f"Failed to get Certbot settings from database: {e}")
+            logger.error(f"Failed to create table: {create_error}")
+            # Return a non-persistent default instance
+            return CertbotSettings(id=1)
 
 
 def update_certbot_settings(data: Dict[str, Any]) -> CertbotSettings:
@@ -64,7 +86,13 @@ def update_certbot_settings(data: Dict[str, Any]) -> CertbotSettings:
     if 'renew_days_before_expiry' in data:
         settings.renew_days_before_expiry = int(data['renew_days_before_expiry'])
 
-    db.session.commit()
+    try:
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Failed to commit Certbot settings: {e}")
+        raise
+    
     return settings
 
 

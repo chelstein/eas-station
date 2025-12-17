@@ -19,11 +19,14 @@ Repository: https://github.com/KR8MER/eas-station
 
 """Helper functions for Icecast settings management."""
 
+import logging
 from typing import Dict, Any
 from flask import current_app
 
 from .extensions import db
 from .models import IcecastSettings
+
+logger = logging.getLogger(__name__)
 
 
 def get_icecast_settings() -> IcecastSettings:
@@ -31,12 +34,31 @@ def get_icecast_settings() -> IcecastSettings:
 
     Returns the single IcecastSettings row (id=1), creating it with defaults if needed.
     """
-    settings = IcecastSettings.query.get(1)
-    if settings is None:
-        settings = IcecastSettings(id=1)
-        db.session.add(settings)
-        db.session.commit()
-    return settings
+    try:
+        settings = IcecastSettings.query.get(1)
+        if settings is None:
+            settings = IcecastSettings(id=1)
+            db.session.add(settings)
+            db.session.commit()
+        return settings
+    except Exception as e:
+        # Table might not exist yet (migrations not run)
+        # Create it and try again
+        try:
+            db.create_all()
+            settings = IcecastSettings.query.get(1)
+            if settings is None:
+                settings = IcecastSettings(id=1)
+                db.session.add(settings)
+                db.session.commit()
+            return settings
+        except Exception as create_error:
+            # Still failing - return default instance without persisting
+            # This allows the app to start even if database is unavailable
+            logger.error(f"Failed to get Icecast settings from database: {e}")
+            logger.error(f"Failed to create table: {create_error}")
+            # Return a non-persistent default instance
+            return IcecastSettings(id=1)
 
 
 def update_icecast_settings(data: Dict[str, Any]) -> IcecastSettings:
@@ -82,7 +104,13 @@ def update_icecast_settings(data: Dict[str, Any]) -> IcecastSettings:
     if 'stream_public' in data:
         settings.stream_public = bool(data['stream_public'])
 
-    db.session.commit()
+    try:
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Failed to commit Icecast settings: {e}")
+        raise
+    
     return settings
 
 

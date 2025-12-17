@@ -7,6 +7,28 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **Template Syntax Errors** - Fixed missing closing tags in Jinja2 templates
+  - **navbar.html**: Added missing `{% endblock %}` for `show_settings_hardware` block
+  - **audio_detail.html**: Added missing `{% endblock %}` to close content block before scripts block
+  - These were causing Jinja2 TemplateSyntaxError: "Unexpected end of template"
+  - Website would show template errors instead of loading properly
+  - These were pre-existing issues in the templates, not introduced by recent changes
+  - All 89 templates in the repository now have balanced blocks
+
+- **Icecast and Certbot Service Startup** - Fixed issue where external services weren't being started during update
+  - `update.sh` now ensures `icecast2` service is enabled and running after update
+  - `update.sh` now ensures `certbot.timer` is enabled and running after update
+  - Resolves "Icecast not starting" and "CertBot not working" issues
+  - Services are checked and started if not already running
+  - Provides clear feedback about service status during update
+
+- **Icecast and Certbot Database Initialization** - Added defensive error handling to prevent app crashes
+  - Icecast and Certbot settings modules now gracefully handle missing database tables
+  - App can now start successfully even if database migrations haven't run yet
+  - Tables are automatically created if missing during first access
+  - Improved database commit error handling with rollback in settings update functions
+  - Resolves issue where app would crash on startup if migrations failed or weren't run
+
 - **Template Error on Alerts Page** - Fixed 500 error when loading alerts page
   - Added missing `is_expired` Jinja2 template filter registration in app.py
   - Filter checks if an alert has expired based on its expiration datetime

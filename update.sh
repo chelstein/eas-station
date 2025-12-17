@@ -877,6 +877,51 @@ echo_progress "Reloading systemd daemon to pick up any service file changes..."
 systemctl daemon-reload
 echo_success "Systemd daemon reloaded"
 
+# Ensure external services (icecast2, certbot.timer) are enabled and running
+echo_progress "Ensuring external services are enabled..."
+
+# Start icecast2 if it's installed and not running
+if command -v icecast2 &> /dev/null || systemctl list-unit-files | grep -q icecast2; then
+    echo_info "Icecast2 is installed - ensuring it's enabled and running..."
+    if systemctl enable icecast2 2>&1 | grep -E "Created|enabled" || true; then
+        echo_success "Icecast2 service enabled"
+    fi
+    if systemctl is-active --quiet icecast2 2>/dev/null; then
+        echo_success "Icecast2 already running"
+    else
+        if systemctl start icecast2 2>&1; then
+            echo_success "Icecast2 started"
+        else
+            echo_warning "Failed to start icecast2 - check 'sudo systemctl status icecast2'"
+        fi
+    fi
+else
+    echo_info "Icecast2 not installed - skipping (audio streaming will not work)"
+fi
+
+# Enable and start certbot.timer if certbot is installed
+if command -v certbot &> /dev/null; then
+    echo_info "Certbot is installed - ensuring timer is enabled..."
+    if [ -f "/etc/systemd/system/certbot.timer" ] || [ -f "/lib/systemd/system/certbot.timer" ]; then
+        if systemctl enable certbot.timer 2>&1 | grep -E "Created|enabled" || true; then
+            echo_success "Certbot timer enabled"
+        fi
+        if systemctl is-active --quiet certbot.timer 2>/dev/null; then
+            echo_success "Certbot timer already running"
+        else
+            if systemctl start certbot.timer 2>&1; then
+                echo_success "Certbot timer started"
+            else
+                echo_warning "Failed to start certbot.timer - SSL auto-renewal may not work"
+            fi
+        fi
+    else
+        echo_info "Certbot timer service file not found - using system default"
+    fi
+else
+    echo_info "Certbot not installed - skipping (SSL auto-renewal will not work)"
+fi
+
 # Ensure nginx is running (may have been stopped or never started)
 echo_progress "Ensuring nginx web server is running..."
 NGINX_STATUS="ok"
