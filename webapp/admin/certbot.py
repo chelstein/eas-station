@@ -61,7 +61,7 @@ def _ensure_nginx_running():
     try:
         # Check if nginx is already running
         result = subprocess.run(
-            ['systemctl', 'is-active', 'nginx'],
+            ['sudo', 'systemctl', 'is-active', 'nginx'],
             capture_output=True,
             text=True,
             timeout=5
@@ -73,7 +73,7 @@ def _ensure_nginx_running():
         # Try to start nginx
         logger.warning("Nginx not running, attempting to start...")
         start_result = subprocess.run(
-            ['systemctl', 'start', 'nginx'],
+            ['sudo', 'systemctl', 'start', 'nginx'],
             capture_output=True,
             text=True,
             timeout=10
@@ -294,7 +294,7 @@ def renew_certificate():
         try:
             # Check if timer is enabled
             enabled_result = subprocess.run(
-                ['systemctl', 'is-enabled', 'certbot.timer'],
+                ['sudo', 'systemctl', 'is-enabled', 'certbot.timer'],
                 capture_output=True,
                 text=True,
                 timeout=5
@@ -303,7 +303,7 @@ def renew_certificate():
             
             # Check if timer is active
             active_result = subprocess.run(
-                ['systemctl', 'is-active', 'certbot.timer'],
+                ['sudo', 'systemctl', 'is-active', 'certbot.timer'],
                 capture_output=True,
                 text=True,
                 timeout=5
@@ -313,7 +313,7 @@ def renew_certificate():
             # Get next run time
             if timer_info['active']:
                 status_result = subprocess.run(
-                    ['systemctl', 'status', 'certbot.timer'],
+                    ['sudo', 'systemctl', 'status', 'certbot.timer'],
                     capture_output=True,
                     text=True,
                     timeout=5
@@ -671,7 +671,7 @@ def obtain_certificate_execute():
                 # Stop nginx
                 logger.info("Stopping nginx for standalone certificate acquisition")
                 stop_result = subprocess.run(
-                    ['systemctl', 'stop', 'nginx'],
+                    ['sudo', 'systemctl', 'stop', 'nginx'],
                     capture_output=True,
                     text=True,
                     timeout=10
@@ -685,7 +685,7 @@ def obtain_certificate_execute():
                 # Run certbot
                 logger.info(f"Running certbot for domain: {domain}")
                 certbot_cmd = [
-                    'certbot', 'certonly', '--standalone',
+                    'sudo', 'certbot', 'certonly', '--standalone',
                     '--non-interactive', '--agree-tos',
                     '--email', email,
                     '-d', domain
@@ -701,7 +701,7 @@ def obtain_certificate_execute():
                 # Always restart nginx, even if certbot failed
                 logger.info("Restarting nginx")
                 start_result = subprocess.run(
-                    ['systemctl', 'start', 'nginx'],
+                    ['sudo', 'systemctl', 'start', 'nginx'],
                     capture_output=True,
                     text=True,
                     timeout=10
@@ -743,7 +743,7 @@ def obtain_certificate_execute():
         elif method == 'nginx':
             # Use nginx plugin (no downtime)
             certbot_cmd = [
-                'certbot', '--nginx',
+                'sudo', 'certbot', '--nginx',
                 '--non-interactive', '--agree-tos',
                 '--email', email,
                 '-d', domain
@@ -786,7 +786,7 @@ def obtain_certificate_execute():
         elif method == 'webroot':
             # Use webroot method
             certbot_cmd = [
-                'certbot', 'certonly', '--webroot',
+                'sudo', 'certbot', 'certonly', '--webroot',
                 '-w', '/var/www/html',
                 '--non-interactive', '--agree-tos',
                 '--email', email,
@@ -874,7 +874,7 @@ def renew_certificate_execute():
 
         # Build certbot renew command
         staging_flag = ['--staging'] if settings.staging else []
-        certbot_cmd = ['certbot', 'renew']
+        certbot_cmd = ['sudo', 'certbot', 'renew']
         
         if dry_run:
             certbot_cmd.append('--dry-run')
@@ -939,7 +939,7 @@ def enable_auto_renewal():
             # Enable and start the timer
             try:
                 result = subprocess.run(
-                    ['systemctl', 'enable', '--now', 'certbot.timer'],
+                    ['sudo', 'systemctl', 'enable', '--now', 'certbot.timer'],
                     capture_output=True,
                     text=True,
                     timeout=10
@@ -972,7 +972,7 @@ def enable_auto_renewal():
             # Stop and disable the timer
             try:
                 result = subprocess.run(
-                    ['systemctl', 'disable', '--now', 'certbot.timer'],
+                    ['sudo', 'systemctl', 'disable', '--now', 'certbot.timer'],
                     capture_output=True,
                     text=True,
                     timeout=10
