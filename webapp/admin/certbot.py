@@ -505,7 +505,7 @@ def obtain_certificate():
 
         # Method 3: Webroot (if nginx is serving files)
         webroot_cmd = (
-            f"certbot certonly --webroot -w /var/www/html "
+            f"certbot certonly --webroot -w /var/www/certbot "
             f"--non-interactive --agree-tos --email {email} -d {domain}{staging_flag}{dir_flags}"
         )
 
@@ -530,7 +530,7 @@ def obtain_certificate():
                     'name': 'Webroot (Alternative)',
                     'command': webroot_cmd,
                     'description': 'Uses existing web server without stopping it',
-                    'requirements': ['Nginx serving files from /var/www/html']
+                    'requirements': ['Nginx serving ACME challenges from /var/www/certbot']
                 }
             },
             'post_install': [
@@ -861,7 +861,7 @@ def obtain_certificate_execute():
             # Use webroot method
             certbot_cmd = [
                 'sudo', 'certbot', 'certonly', '--webroot',
-                '-w', '/var/www/html',
+                '-w', '/var/www/certbot',
                 '--non-interactive', '--agree-tos',
                 '--email', email,
                 '-d', domain,
