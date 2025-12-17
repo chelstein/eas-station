@@ -37,6 +37,9 @@ tracks releases under the 2.x series.
 ### Fixed
 - **Excessive Whitespace on Pages** - Fixed large vertical gaps between content and footer
   - Changed `.page-shell` flex property from `flex: 1 0 auto` to `flex: 0 0 auto` in styles.css
+  - Reduced `--layout-padding-bottom` from 2.5rem to 1rem (60% reduction)
+  - Reduced `--footer-margin-top` from 60px to 20px (67% reduction)
+  - Total vertical gap reduced from ~100px to ~36px for more compact, modern layout
   - Page shell now only takes the space it needs instead of expanding to fill viewport height
   - Footer now appears immediately after content without excessive gaps
   - Affects all pages including admin, GPIO control, services, and other low-content pages
