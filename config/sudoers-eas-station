@@ -6,10 +6,8 @@
 # Required for the web UI to manage SSL certificates and system services
 
 # Certbot certificate management
-eas-station ALL=(ALL) NOPASSWD: /usr/bin/certbot certonly --standalone *
-eas-station ALL=(ALL) NOPASSWD: /usr/bin/certbot certonly --webroot *
-eas-station ALL=(ALL) NOPASSWD: /usr/bin/certbot --nginx *
-eas-station ALL=(ALL) NOPASSWD: /usr/bin/certbot renew *
+# Allow all certbot commands since it's a trusted system tool that requires root
+eas-station ALL=(ALL) NOPASSWD: /usr/bin/certbot
 
 # Nginx service management (required for standalone certbot mode)
 eas-station ALL=(ALL) NOPASSWD: /usr/bin/systemctl stop nginx
@@ -29,3 +27,4 @@ eas-station ALL=(ALL) NOPASSWD: /usr/bin/systemctl is-active certbot.timer
 eas-station ALL=(ALL) NOPASSWD: /usr/bin/systemctl status certbot.timer
 eas-station ALL=(ALL) NOPASSWD: /usr/bin/systemctl enable --now certbot.timer
 eas-station ALL=(ALL) NOPASSWD: /usr/bin/systemctl disable --now certbot.timer
+
