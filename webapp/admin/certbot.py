@@ -26,6 +26,7 @@ import os
 import re
 import socket
 import subprocess
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict
@@ -146,6 +147,25 @@ def _ensure_nginx_running():
         return False
     except Exception as e:
         logger.error(f"Error ensuring nginx is running: {e}")
+        return False
+
+
+def _check_nginx_status():
+    """Check if nginx is currently running.
+    
+    Returns:
+        bool: True if nginx is active, False otherwise
+    """
+    try:
+        result = subprocess.run(
+            ['sudo', 'systemctl', 'is-active', 'nginx'],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        return result.stdout.strip() == 'active'
+    except Exception as e:
+        logger.warning(f"Could not check nginx status: {e}")
         return False
 
 
@@ -514,22 +534,22 @@ def obtain_certificate():
             'email': email,
             'staging': settings.staging,
             'methods': {
-                'standalone': {
-                    'name': 'Standalone (Recommended)',
-                    'command': standalone_cmd,
-                    'description': 'Temporarily stops nginx, obtains certificate, then restarts nginx',
-                    'requirements': ['Port 80 must be accessible from internet']
-                },
                 'nginx': {
-                    'name': 'Nginx Plugin (No Downtime)',
+                    'name': 'Nginx Plugin (Recommended - No Downtime)',
                     'command': nginx_cmd,
-                    'description': 'Uses nginx plugin to obtain and configure certificate automatically',
-                    'requirements': ['Nginx must be running', 'Domain must be configured in nginx']
+                    'description': 'Uses nginx plugin to obtain and configure certificate automatically without stopping the web server',
+                    'requirements': ['Nginx must be running', 'Domain must be configured in nginx and accessible on port 80']
+                },
+                'standalone': {
+                    'name': 'Standalone (Alternative)',
+                    'command': standalone_cmd,
+                    'description': 'Temporarily stops nginx, obtains certificate, then restarts nginx. Causes brief downtime.',
+                    'requirements': ['Port 80 must be accessible from internet', 'Nginx can be temporarily stopped']
                 },
                 'webroot': {
-                    'name': 'Webroot (Alternative)',
+                    'name': 'Webroot (Advanced)',
                     'command': webroot_cmd,
-                    'description': 'Uses existing web server without stopping it',
+                    'description': 'Uses existing web server without stopping it, requires webroot directory configured',
                     'requirements': ['Nginx serving ACME challenges from /var/www/certbot']
                 }
             },
@@ -661,7 +681,7 @@ def obtain_certificate_execute():
     """
     try:
         data = request.get_json() if request.is_json else request.form.to_dict()
-        method = data.get('method', 'standalone')  # standalone, nginx, or webroot
+        method = data.get('method', 'nginx')  # nginx (default), standalone, or webroot
         
         settings = get_certbot_settings()
 
@@ -750,11 +770,26 @@ def obtain_certificate_execute():
                         "error": f"Failed to stop nginx: {stop_result.stderr}"
                     }), 500
 
-                # Run certbot
+                # Wait for port 80 to be released
+                logger.info("Waiting for port 80 to be released...")
+                time.sleep(2)
+                
+                # Verify nginx is actually stopped
+                if _check_nginx_status():
+                    logger.error("Nginx is still active after stop command")
+                    return jsonify({
+                        "success": False,
+                        "error": "Nginx is still running after stop command. Please check system logs."
+                    }), 500
+                logger.info("Nginx confirmed stopped, port 80 should be available")
+
+                # Run certbot with explicit port binding
                 logger.info(f"Running certbot for domain: {domain}")
                 certbot_cmd = [
                     'sudo', 'certbot', 'certonly', '--standalone',
                     '--non-interactive', '--agree-tos',
+                    '--preferred-challenges', 'http',
+                    '--http-01-port', '80',
                     '--email', email,
                     '-d', domain,
                     '--config-dir', str(CERTBOT_CONFIG_DIR),
@@ -781,10 +816,26 @@ def obtain_certificate_execute():
                     logger.error(f"Failed to restart nginx: {start_result.stderr}")
                 
                 if certbot_result.returncode != 0:
+                    error_msg = certbot_result.stderr
+                    
+                    # Check for common permission errors and provide helpful messages
+                    if "Permission denied" in error_msg or "Errno 13" in error_msg:
+                        error_msg = (
+                            "Permission error: Certbot standalone mode requires root privileges to bind to port 80. "
+                            "Try using the 'nginx' plugin method instead, which doesn't require stopping nginx or "
+                            "binding to privileged ports. Original error: " + error_msg
+                        )
+                    elif "port 80" in error_msg.lower() or "address already in use" in error_msg.lower():
+                        error_msg = (
+                            "Port 80 is already in use. Another process may be using it. "
+                            "Try using the 'nginx' plugin method instead. Original error: " + error_msg
+                        )
+                    
                     return jsonify({
                         "success": False,
-                        "error": f"Certbot failed: {certbot_result.stderr}",
-                        "output": certbot_result.stdout
+                        "error": f"Certbot failed: {error_msg}",
+                        "output": certbot_result.stdout,
+                        "suggestion": "Consider using the 'nginx' plugin method which doesn't require stopping nginx or binding to port 80."
                     }), 500
                 
                 logger.info(f"Successfully obtained certificate for {domain}")
@@ -813,6 +864,13 @@ def obtain_certificate_execute():
                 
         elif method == 'nginx':
             # Use nginx plugin (no downtime)
+            # First check if nginx is running
+            if not _check_nginx_status():
+                return jsonify({
+                    "success": False,
+                    "error": "Nginx must be running to use the nginx plugin. Start nginx or use the standalone method instead."
+                }), 400
+                
             certbot_cmd = [
                 'sudo', 'certbot', '--nginx',
                 '--non-interactive', '--agree-tos',

@@ -6,6 +6,19 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+### Fixed
+- **Certbot Port 80 Permission Error** - Fixed certbot standalone mode failing to bind to port 80
+  - Changed default certificate acquisition method from `standalone` to `nginx` plugin
+  - Nginx plugin doesn't require stopping nginx or binding to privileged ports
+  - Added port 80 availability check before running standalone mode
+  - Added 2-second delay after stopping nginx to ensure port 80 is released
+  - Added explicit HTTP-01 challenge configuration for standalone mode
+  - Added nginx running check before attempting nginx plugin method
+  - Updated UI to reflect nginx plugin as recommended method (no downtime)
+  - Improved error messages to guide users when port binding fails
+  - Standalone method still available but requires manual selection
+  - Fixes: "PermissionError: [Errno 13] Permission denied" when binding to port 80
+
 ### Changed
 - **Admin Page Refactoring Phase 2 Complete** - Completed modularization of admin.html JavaScript
   - Moved final inline function `sanitizeBoundaryTypeInput` to core.js module
