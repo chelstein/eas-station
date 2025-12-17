@@ -181,12 +181,51 @@ except OperationalError as e:
 - [ ] **CHANGELOG updated** – Add entry to `docs/reference/CHANGELOG.md` under `[Unreleased]`
 - [ ] **Documentation updated** – `templates/help.html`, `templates/about.html` if features changed
 - [ ] **Bug screenshots checked** – Reference `/bugs` directory if fixing a bug
+- [ ] **Template syntax validated** – If `.html` files changed, verify balanced Jinja2 blocks (if/endif, for/endfor, block/endblock, with/endwith)
 - [ ] PEP 8 style (4 spaces, snake_case)
 - [ ] Uses existing logger only
 - [ ] Specific exception handling with rollback
 - [ ] No secrets or `.env` file committed
 - [ ] Templates extend `base.html` with theme support
 - [ ] Commit message follows format
+
+**Template Validation Command** (run if templates changed):
+```python
+python3 << 'EOF'
+import re
+from pathlib import Path
+
+def check_template(filepath):
+    with open(filepath, 'r') as f:
+        content = f.read()
+    
+    blocks = {
+        'if': (r'{%\s*if\s+', r'{%\s*endif\s*%}'),
+        'for': (r'{%\s*for\s+', r'{%\s*endfor\s*%}'),
+        'block': (r'{%\s*block\s+', r'{%\s*endblock\s*%}'),
+        'with': (r'{%\s*with\s+', r'{%\s*endwith\s*%}'),
+    }
+    
+    for name, (start_pattern, end_pattern) in blocks.items():
+        starts = len(re.findall(start_pattern, content))
+        ends = len(re.findall(end_pattern, content))
+        if starts != ends:
+            print(f"❌ {filepath}: {name} blocks unbalanced ({starts} starts, {ends} ends)")
+            return False
+    return True
+
+changed_ok = True
+for template in Path('templates').rglob('*.html'):
+    if not check_template(template):
+        changed_ok = False
+
+if changed_ok:
+    print("✅ All templates have balanced Jinja2 blocks")
+else:
+    print("\n⚠️  Fix template syntax errors before committing!")
+    exit(1)
+EOF
+```
 
 **Remember**: Check existing patterns first. Consistency > perfection.
 

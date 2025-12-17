@@ -1345,6 +1345,46 @@ Before committing code, verify:
 - [ ] **Version incremented properly** – Bug fix (+0.0.1) or feature (+0.1.0) in `/VERSION` file
 - [ ] **Documentation updated** – If features changed, update `templates/help.html` and `templates/about.html`
 - [ ] **Bug screenshots checked** – If fixing a bug, verified screenshot in `/bugs` directory
+- [ ] **Template syntax validated** – If any `.html` template files changed, verify balanced Jinja2 blocks:
+  ```python
+  # Run this check before committing template changes
+  python3 << 'EOF'
+  import re
+  from pathlib import Path
+  
+  def check_template(filepath):
+      with open(filepath, 'r') as f:
+          content = f.read()
+      
+      # Check critical block types that must be balanced
+      blocks = {
+          'if': (r'{%\s*if\s+', r'{%\s*endif\s*%}'),
+          'for': (r'{%\s*for\s+', r'{%\s*endfor\s*%}'),
+          'block': (r'{%\s*block\s+', r'{%\s*endblock\s*%}'),
+          'with': (r'{%\s*with\s+', r'{%\s*endwith\s*%}'),
+      }
+      
+      for name, (start_pattern, end_pattern) in blocks.items():
+          starts = len(re.findall(start_pattern, content))
+          ends = len(re.findall(end_pattern, content))
+          if starts != ends:
+              print(f"❌ {filepath}: {name} blocks unbalanced ({starts} starts, {ends} ends)")
+              return False
+      return True
+  
+  # Check changed templates
+  changed_ok = True
+  for template in Path('templates').rglob('*.html'):
+      if not check_template(template):
+          changed_ok = False
+  
+  if changed_ok:
+      print("✅ All templates have balanced Jinja2 blocks")
+  else:
+      print("\n⚠️  Fix template syntax errors before committing!")
+      exit(1)
+  EOF
+  ```
 - [ ] Follows Python PEP 8 style (4-space indentation)
 - [ ] Uses existing logger, not new logger instance
 - [ ] Includes proper error handling with specific exceptions
