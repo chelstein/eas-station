@@ -10,7 +10,7 @@ tracks releases under the 2.x series.
 - **Admin HTML Template Structure** - Completed refactoring of admin.html template structure
   - Removed 5 incorrectly placed closing tags and comments after setup mode section (lines 128-132)
   - Fixed improper div nesting that was closing containers prematurely before {% else %} block
-  - Removed duplicate closing `</div>` tag in manage data section (line 577)
+  - Removed duplicate closing `</div>` tag in manage data section
   - Template now has proper Jinja2 block structure with balanced opening/closing tags
   - Fixes whitespace and rendering issues introduced during previous refactoring
   - Template validation confirms all Jinja2 blocks (if/endif, for/endfor, block/endblock, with/endwith) are balanced
