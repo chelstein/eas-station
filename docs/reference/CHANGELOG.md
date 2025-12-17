@@ -7,10 +7,20 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Added
+- **TTS Settings Database Migration** - Moved TTS configuration from environment variables to database
+  - Created `TTSSettings` database model for persisting TTS configuration
+  - Added dedicated TTS settings page at `/admin/tts` with user-friendly UI
+  - Link added to admin panel Operations tab for easy access
+  - Settings now stored in database and survive reboots/updates reliably
+  - Supports Azure OpenAI, Azure Cognitive Services, and pyttsx3 providers
+  - Falls back to environment variables if database migration hasn't run yet
+  - Removed TTS settings from environment configuration page to avoid confusion
+
 - **Admin Panel Links** - Added missing administrative page links to Operations tab
   - Added link to SSL/TLS Certificates page (`/admin/certbot`)
   - Added link to Icecast Streaming page (`/admin/icecast`)
   - Added link to Zone Catalog Management page (`/admin/zones`)
+  - Added link to Text-to-Speech page (`/admin/tts`)
   - All major admin tools now accessible from the main admin panel
 
 - **Icecast Logs** - Added Icecast service logs to system logs viewer

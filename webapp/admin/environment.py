@@ -422,40 +422,6 @@ ENV_CATEGORIES = {
         ],
     },
 
-    'tts': {
-        'name': 'Text-to-Speech',
-        'icon': 'fa-volume-up',
-        'description': 'TTS provider configuration',
-        'variables': [
-            {
-                'key': 'EAS_TTS_PROVIDER',
-                'label': 'TTS Provider',
-                'type': 'select',
-                'options': ['', 'azure_openai', 'azure', 'pyttsx3'],
-                'default': '',
-                'description': 'Text-to-speech provider (leave empty to disable)',
-            },
-            {
-                'key': 'AZURE_OPENAI_CONFIG',
-                'label': 'Azure OpenAI Configuration',
-                'type': 'json',
-                'rows': 6,
-                'description': 'JSON object containing Azure OpenAI settings: endpoint, key, model, voice, speed',
-                'placeholder': '{"endpoint": "https://your-resource.openai.azure.com/openai/deployments/YOUR_DEPLOYMENT/audio/speech?api-version=2025-03-01-preview", "key": "your-api-key", "model": "tts-1", "voice": "alloy", "speed": 1.0}',
-                'default': '{"endpoint": "", "key": "", "model": "tts-1", "voice": "alloy", "speed": 1.0}',
-                'sensitive': True,
-                'category': 'azure_openai',
-                'json_schema': {
-                    'endpoint': {'type': 'text', 'label': 'Endpoint URL', 'placeholder': 'https://me-mho3uvw9-northcentralus.openai.azure.com/openai/deployments/tts-hd/audio/speech?api-version=2025-03-01-preview'},
-                    'key': {'type': 'password', 'label': 'API Key', 'placeholder': 'REPLACE_WITH_YOUR_KEY'},
-                    'model': {'type': 'text', 'label': 'Model', 'placeholder': 'tts-1'},
-                    'voice': {'type': 'select', 'label': 'Voice', 'options': ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer']},
-                    'speed': {'type': 'number', 'label': 'Speed', 'min': 0.25, 'max': 4.0, 'step': 0.05, 'placeholder': '1.05'},
-                },
-            },
-        ],
-    },
-
     'zigbee': {
         'name': 'Zigbee Module',
         'icon': 'fa-broadcast-tower',

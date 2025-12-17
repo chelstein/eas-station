@@ -41,6 +41,7 @@ from .zones import zones_bp
 from .hardware import hardware_bp
 from .icecast import register_icecast_routes
 from .certbot import register_certbot_routes
+from .tts import register_tts_routes
 
 
 def register(app, logger):
@@ -67,6 +68,7 @@ def register(app, logger):
     logger.info("Hardware settings routes registered")
     register_icecast_routes(app, logger)  # Icecast streaming configuration
     register_certbot_routes(app, logger)  # Certbot/SSL certificate management
+    register_tts_routes(app, logger)  # Text-to-Speech configuration
 
     # Note: Audio controller initialization removed for separated architecture.
     # In separated architecture, audio processing runs in dedicated audio-service process.

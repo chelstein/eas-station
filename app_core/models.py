@@ -860,6 +860,44 @@ class CertbotSettings(db.Model):
         }
 
 
+class TTSSettings(db.Model):
+    """Text-to-Speech configuration stored in database.
+
+    Replaces environment variables for TTS configuration.
+    All settings are stored in a single row (id=1).
+    """
+    __tablename__ = "tts_settings"
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    # General Settings
+    enabled = db.Column(db.Boolean, nullable=False, default=False)
+    provider = db.Column(db.String(50), nullable=False, default='')  # '', 'azure_openai', 'azure', 'pyttsx3'
+
+    # Azure OpenAI Settings
+    azure_openai_endpoint = db.Column(db.String(500), nullable=True)
+    azure_openai_key = db.Column(db.String(500), nullable=True)
+    azure_openai_model = db.Column(db.String(100), nullable=False, default='tts-1')
+    azure_openai_voice = db.Column(db.String(50), nullable=False, default='alloy')
+    azure_openai_speed = db.Column(db.Float, nullable=False, default=1.0)
+
+    # Metadata
+    updated_at = db.Column(db.DateTime, nullable=True, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def to_dict(self):
+        """Convert model to dictionary."""
+        return {
+            "enabled": self.enabled,
+            "provider": self.provider,
+            "azure_openai_endpoint": self.azure_openai_endpoint,
+            "azure_openai_key": self.azure_openai_key,
+            "azure_openai_model": self.azure_openai_model,
+            "azure_openai_voice": self.azure_openai_voice,
+            "azure_openai_speed": self.azure_openai_speed,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+
 class RadioReceiver(db.Model):
     """Persistent configuration for SDR hardware receivers.
 
