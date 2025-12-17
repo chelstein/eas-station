@@ -7,6 +7,15 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **Admin HTML Template Structure** - Completed refactoring of admin.html template structure
+  - Removed 5 incorrectly placed closing tags and comments after setup mode section (lines 128-132)
+  - Fixed improper div nesting that was closing containers prematurely before {% else %} block
+  - Removed duplicate closing `</div>` tag in manage data section (line 577)
+  - Template now has proper Jinja2 block structure with balanced opening/closing tags
+  - Fixes whitespace and rendering issues introduced during previous refactoring
+  - Template validation confirms all Jinja2 blocks (if/endif, for/endfor, block/endblock, with/endwith) are balanced
+
+### Fixed
 - **Admin Page Excessive White Space** - Removed redundant container wrappers and spacing
   - Removed redundant `container-fluid` wrapper in regular (non-setup) mode
   - Removed `py-2` padding from main container (reduces top spacing)
