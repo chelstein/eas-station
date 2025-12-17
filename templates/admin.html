@@ -1054,8 +1054,13 @@
                             </li>
                         </ul>
                         
-                        <div class="tab-content">
-                            <!-- Location sub-tab will go here -->
+                        <!-- Note: System Settings sub-tabs (location-settings, alerts-mgmt, snow-emergencies) 
+                             are defined as top-level tab-panes below, not nested here. This allows them 
+                             to be reused and prevents nesting complexity. The data-bs-toggle="pill" 
+                             navigation above will find them by ID in the main adminTabContent container. -->
+                    </div>
+                </div>
+                <!-- END SYSTEM SETTINGS TAB -->
                             
                 <!-- SERVICES TAB -->
                 <div class="tab-pane fade" id="services" role="tabpanel">
@@ -7225,9 +7230,9 @@
         // Initialize snow emergency editor when the tab is shown
         document.addEventListener('DOMContentLoaded', function() {
             initializeSnowMermaid();
-            const snowTab = document.getElementById('snow-emergencies-tab');
+            const snowTab = document.getElementById('snow-subtab');
             if (snowTab) {
-                snowTab.addEventListener('shown.bs.tab', function() {
+                snowTab.addEventListener('shown.bs.pill', function() {
                     initializeSnowMermaid();
                     refreshSnowEmergencyAdmin();
                 });
@@ -7236,10 +7241,10 @@
 
         // ==================== Zone Catalog Management ====================
 
-        // Load zone info when zone catalog tab is shown
-        const zoneTab = document.getElementById('zones-tab');
+        // Load zone info when zone catalog sub-tab is shown
+        const zoneTab = document.getElementById('zones-subtab');
         if (zoneTab) {
-            zoneTab.addEventListener('shown.bs.tab', function() {
+            zoneTab.addEventListener('shown.bs.pill', function() {
                 refreshZoneInfo();
             });
         }
