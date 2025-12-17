@@ -755,25 +755,24 @@ def obtain_certificate_execute():
                 logger.info("Waiting for port 80 to be released...")
                 time.sleep(2)
                 
-                # Verify port 80 is actually free
+                # Verify port 80 is actually free by checking if nginx is stopped
                 try:
-                    test_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                    test_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-                    test_sock.bind(('', 80))
-                    test_sock.close()
-                    logger.info("Port 80 is available")
-                except OSError as e:
-                    logger.error(f"Port 80 is still in use after stopping nginx: {e}")
-                    # Try to start nginx back up
-                    subprocess.run(
-                        ['sudo', 'systemctl', 'start', 'nginx'],
+                    check_result = subprocess.run(
+                        ['sudo', 'systemctl', 'is-active', 'nginx'],
                         capture_output=True,
-                        timeout=10
+                        text=True,
+                        timeout=5
                     )
-                    return jsonify({
-                        "success": False,
-                        "error": f"Port 80 is still in use after stopping nginx. Another process may be using it. Error: {str(e)}"
-                    }), 500
+                    if check_result.stdout.strip() == 'active':
+                        logger.error("Nginx is still active after stop command")
+                        return jsonify({
+                            "success": False,
+                            "error": "Nginx is still running after stop command. Please check system logs."
+                        }), 500
+                    logger.info("Nginx confirmed stopped, port 80 should be available")
+                except Exception as e:
+                    logger.warning(f"Could not verify nginx stopped: {e}")
+                    # Continue anyway, certbot will fail if port is in use
 
                 # Run certbot with explicit port binding
                 logger.info(f"Running certbot for domain: {domain}")
@@ -808,10 +807,26 @@ def obtain_certificate_execute():
                     logger.error(f"Failed to restart nginx: {start_result.stderr}")
                 
                 if certbot_result.returncode != 0:
+                    error_msg = certbot_result.stderr
+                    
+                    # Check for common permission errors and provide helpful messages
+                    if "Permission denied" in error_msg or "Errno 13" in error_msg:
+                        error_msg = (
+                            "Permission error: Certbot standalone mode requires root privileges to bind to port 80. "
+                            "Try using the 'nginx' plugin method instead, which doesn't require stopping nginx or "
+                            "binding to privileged ports. Original error: " + error_msg
+                        )
+                    elif "port 80" in error_msg.lower() or "address already in use" in error_msg.lower():
+                        error_msg = (
+                            "Port 80 is already in use. Another process may be using it. "
+                            "Try using the 'nginx' plugin method instead. Original error: " + error_msg
+                        )
+                    
                     return jsonify({
                         "success": False,
-                        "error": f"Certbot failed: {certbot_result.stderr}",
-                        "output": certbot_result.stdout
+                        "error": f"Certbot failed: {error_msg}",
+                        "output": certbot_result.stdout,
+                        "suggestion": "Consider using the 'nginx' plugin method which doesn't require stopping nginx or binding to port 80."
                     }), 500
                 
                 logger.info(f"Successfully obtained certificate for {domain}")
