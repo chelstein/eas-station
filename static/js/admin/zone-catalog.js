@@ -79,7 +79,14 @@ async function refreshZoneInfo() {
         const response = await fetch('/admin/zones/info');
         const data = await response.json();
         
-        if (response.ok && data.success) {
+        if (response.ok) {
+            // Check for error in response data
+            if (data.error) {
+                console.error('Zone info request failed:', data.error);
+                showToast('Failed to load zone info: ' + data.error, 'danger');
+                return;
+            }
+            
             // Update zone count displays
             const dbCountEl = document.getElementById('zone-db-count');
             if (dbCountEl) {
