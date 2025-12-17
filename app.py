@@ -39,7 +39,6 @@ import os
 import math
 import re
 import secrets
-import psutil
 import threading
 import time
 from typing import Any, Dict, List, Optional, Tuple, Union
@@ -59,6 +58,7 @@ from app_utils import (
     set_location_timezone,
     utc_now,
 )
+from app_utils.time import is_alert_expired
 from app_utils.assets import get_shield_logo_data
 from app_utils.eas import (
     P_DIGIT_MEANINGS,
@@ -648,6 +648,12 @@ def _inject_global_vars_wrapper():
 def shields_escape_filter(text):
     """Wrapper for shields_escape to work with app.template_filter decorator."""
     return shields_escape(text)
+
+
+@app.template_filter('is_expired')
+def is_expired_filter(expires_dt):
+    """Check if an alert has expired based on its expiration datetime."""
+    return is_alert_expired(expires_dt)
 
 
 # =============================================================================
