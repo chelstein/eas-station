@@ -58,7 +58,7 @@ The admin page (`templates/admin.html`) is a **monolithic 7,453-line file** that
 
 ### Phase 2: Extract JavaScript & CSS (IN PROGRESS)
 
-**Status**: CSS extraction completed December 2024, JavaScript extraction in progress
+**Status**: Completed December 2024, CSS extraction completed, JavaScript extraction 52% complete (8 of 11 modules)
 
 **Goal**: Reduce file size and improve maintainability by extracting inline code
 
@@ -78,20 +78,23 @@ The admin page (`templates/admin.html`) is a **monolithic 7,453-line file** that
 
 **Remaining Work**:
 1. Extract JavaScript to modular files:
-   - `/static/js/admin/core.js` - Shared utilities, tab switching, global variables (framework created)
-   - `/static/js/admin/boundary-management.js` - Boundary upload, GeoJSON, Shapefile (~800 lines)
-   - `/static/js/admin/zone-catalog.js` - Zone management, search, upload (~200 lines)
-   - `/static/js/admin/user-management.js` - User CRUD, password management (~300 lines)
-   - `/static/js/admin/alert-management.js` - Alert editing, deletion, filtering (~400 lines)
-   - `/static/js/admin/location-settings.js` - Location config, SAME codes (~600 lines)
-   - `/static/js/admin/hardware-settings.js` - LED signs, GPIO, hardware integrations (~300 lines)
-   - `/static/js/admin/eas-generator.js` - EAS message generation, SAME encoding (~800 lines)
-   - `/static/js/admin/operations.js` - Backups, upgrades, manual operations (~400 lines)
-   - `/static/js/admin/snow-emergency.js` - Snow emergency management (~300 lines)
-   - Remaining shared functions and utilities (~1,900 lines)
-2. Update admin.html to load external JavaScript files
-3. Preserve all Jinja2 template variable dependencies
-4. Test thoroughly to ensure no broken functionality
+   - ✅ `/static/js/admin/core.js` - Shared utilities, tab switching, global variables (163 lines)
+   - ✅ `/static/js/admin/utilities.js` - Confirmations, status messages, formatting (240 lines)
+   - ✅ `/static/js/admin/zone-catalog.js` - Zone management, search, upload (182 lines)
+   - ✅ `/static/js/admin/snow-emergency.js` - Snow emergency management (263 lines)
+   - ✅ `/static/js/admin/user-management.js` - User CRUD, password management (280 lines)
+   - ✅ `/static/js/admin/alert-management.js` - Alert editing, deletion, filtering (513 lines)
+   - ✅ `/static/js/admin/hardware-settings.js` - LED signs, GPIO, hardware (160 lines)
+   - ✅ `/static/js/admin/operations.js` - Backups, upgrades, manual operations (580 lines)
+   - ⏳ `/static/js/admin/boundary-management.js` - Boundary upload, GeoJSON, Shapefile (~800 lines)
+   - ⏳ `/static/js/admin/location-settings.js` - Location config, SAME codes, FIPS (~600 lines)
+   - ⏳ `/static/js/admin/eas-generator.js` - EAS generation, SAME encoding (~800 lines)
+2. ✅ Update admin.html to load external JavaScript files (8 modules loaded)
+3. ⏳ Preserve all Jinja2 template variable dependencies
+4. ⏳ Remove extracted inline functions (cleanup phase)
+5. ⏳ Test thoroughly to ensure no broken functionality
+
+**Progress**: 8 of 11 modules extracted (~2,380 of ~4,580 lines, 52% complete)
 
 **Challenges Identified**:
 - **Dependency complexity**: 188 JavaScript functions with extensive interdependencies
