@@ -19,11 +19,14 @@ Repository: https://github.com/KR8MER/eas-station
 
 """Helper functions for Icecast settings management."""
 
+import logging
 from typing import Dict, Any
 from flask import current_app
 
 from .extensions import db
 from .models import IcecastSettings
+
+logger = logging.getLogger(__name__)
 
 
 def get_icecast_settings() -> IcecastSettings:
@@ -52,8 +55,6 @@ def get_icecast_settings() -> IcecastSettings:
         except Exception as create_error:
             # Still failing - return default instance without persisting
             # This allows the app to start even if database is unavailable
-            import logging
-            logger = logging.getLogger(__name__)
             logger.error(f"Failed to get Icecast settings from database: {e}")
             logger.error(f"Failed to create table: {create_error}")
             # Return a non-persistent default instance
@@ -69,11 +70,7 @@ def update_icecast_settings(data: Dict[str, Any]) -> IcecastSettings:
     Returns:
         Updated IcecastSettings object
     """
-    try:
-        settings = get_icecast_settings()
-    except Exception:
-        # get_icecast_settings already handles errors
-        settings = get_icecast_settings()
+    settings = get_icecast_settings()
 
     # Update fields if provided
     if 'enabled' in data:
@@ -111,8 +108,6 @@ def update_icecast_settings(data: Dict[str, Any]) -> IcecastSettings:
         db.session.commit()
     except Exception as e:
         db.session.rollback()
-        import logging
-        logger = logging.getLogger(__name__)
         logger.error(f"Failed to commit Icecast settings: {e}")
         raise
     

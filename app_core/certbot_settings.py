@@ -19,11 +19,14 @@ Repository: https://github.com/KR8MER/eas-station
 
 """Helper functions for Certbot settings management."""
 
+import logging
 from typing import Dict, Any
 from flask import current_app
 
 from .extensions import db
 from .models import CertbotSettings
+
+logger = logging.getLogger(__name__)
 
 
 def get_certbot_settings() -> CertbotSettings:
@@ -52,8 +55,6 @@ def get_certbot_settings() -> CertbotSettings:
         except Exception as create_error:
             # Still failing - return default instance without persisting
             # This allows the app to start even if database is unavailable
-            import logging
-            logger = logging.getLogger(__name__)
             logger.error(f"Failed to get Certbot settings from database: {e}")
             logger.error(f"Failed to create table: {create_error}")
             # Return a non-persistent default instance
@@ -69,11 +70,7 @@ def update_certbot_settings(data: Dict[str, Any]) -> CertbotSettings:
     Returns:
         Updated CertbotSettings object
     """
-    try:
-        settings = get_certbot_settings()
-    except Exception:
-        # get_certbot_settings already handles errors
-        settings = get_certbot_settings()
+    settings = get_certbot_settings()
 
     # Update fields if provided
     if 'enabled' in data:
@@ -93,8 +90,6 @@ def update_certbot_settings(data: Dict[str, Any]) -> CertbotSettings:
         db.session.commit()
     except Exception as e:
         db.session.rollback()
-        import logging
-        logger = logging.getLogger(__name__)
         logger.error(f"Failed to commit Certbot settings: {e}")
         raise
     
