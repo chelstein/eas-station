@@ -629,14 +629,14 @@ async function obtainCertificate() {
                 <div class="mb-3">
                     <label class="form-label"><strong>Method:</strong></label>
                     <select class="form-control" id="certMethod">
-                        <option value="standalone">Standalone (Recommended) - Temporarily stops nginx</option>
-                        <option value="nginx">Nginx Plugin - No downtime required</option>
+                        <option value="nginx">Nginx Plugin (Recommended) - No downtime required</option>
+                        <option value="standalone">Standalone - Temporarily stops nginx</option>
                         <option value="webroot">Webroot - Uses existing web server</option>
                     </select>
                 </div>
                 
-                <div id="methodDescription" class="alert alert-warning mb-3">
-                    <strong>Standalone Method:</strong> Temporarily stops nginx, obtains certificate, then restarts nginx. Requires port 80 to be accessible from the internet.<br><br><strong><i class="bi bi-exclamation-triangle"></i> Note:</strong> Since nginx is stopped during this process, you will temporarily lose connection to this page. The page will automatically attempt to reconnect when nginx restarts.
+                <div id="methodDescription" class="alert alert-success mb-3">
+                    <strong>Nginx Plugin:</strong> Uses nginx plugin to obtain and configure certificate automatically. No downtime required. Nginx must be running and domain must be configured.
                 </div>
                 
                 <div class="d-flex gap-2">
@@ -662,7 +662,7 @@ async function obtainCertificate() {
             descDiv.innerHTML = '<strong>Standalone Method:</strong> Temporarily stops nginx, obtains certificate, then restarts nginx. Requires port 80 to be accessible from the internet.<br><br><strong><i class="bi bi-exclamation-triangle"></i> Note:</strong> Since nginx is stopped during this process, you will temporarily lose connection to this page. The page will automatically attempt to reconnect when nginx restarts.';
             descDiv.className = 'alert alert-warning mb-3';
         } else if (method === 'nginx') {
-            descDiv.innerHTML = '<strong>Nginx Plugin:</strong> Uses nginx plugin to obtain and configure certificate automatically. No downtime required. Nginx must be running and domain must be configured.';
+            descDiv.innerHTML = '<strong>Nginx Plugin (Recommended):</strong> Uses nginx plugin to obtain and configure certificate automatically. No downtime required. Nginx must be running and domain must be configured.';
             descDiv.className = 'alert alert-success mb-3';
         } else if (method === 'webroot') {
             descDiv.innerHTML = '<strong>Webroot Method:</strong> Uses existing web server without stopping it. Nginx must be serving files from /var/www/html.';
