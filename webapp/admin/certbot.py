@@ -50,9 +50,61 @@ CERTBOT_CONFIG_DIR = CERTBOT_BASE_DIR / 'config'
 CERTBOT_WORK_DIR = CERTBOT_BASE_DIR / 'work'
 CERTBOT_LOGS_DIR = CERTBOT_BASE_DIR / 'logs'
 
-# Ensure directories exist
-for directory in [CERTBOT_CONFIG_DIR, CERTBOT_WORK_DIR, CERTBOT_LOGS_DIR]:
-    directory.mkdir(parents=True, exist_ok=True)
+
+def _ensure_certbot_directories():
+    """Ensure certbot directories exist with proper permissions.
+
+    Creates directories if they don't exist and sets permissions to allow
+    both the web app user and root (via sudo) to write to them.
+    Also removes stale lock files that can cause permission errors.
+    """
+    for directory in [CERTBOT_CONFIG_DIR, CERTBOT_WORK_DIR, CERTBOT_LOGS_DIR]:
+        try:
+            directory.mkdir(parents=True, exist_ok=True)
+            # Set permissions to 0o777 so both eas-station user and root can write
+            directory.chmod(0o777)
+        except PermissionError:
+            # Directory might already exist with different ownership
+            # Try using sudo to fix permissions
+            try:
+                subprocess.run(
+                    ['sudo', 'mkdir', '-p', str(directory)],
+                    capture_output=True,
+                    timeout=5
+                )
+                subprocess.run(
+                    ['sudo', 'chmod', '777', str(directory)],
+                    capture_output=True,
+                    timeout=5
+                )
+            except Exception as e:
+                logger.warning(f"Could not create/chmod directory {directory}: {e}")
+        except Exception as e:
+            logger.warning(f"Error setting up directory {directory}: {e}")
+
+    # Remove stale lock files that can cause "Permission denied" errors
+    # Lock files are created by certbot and can get stuck if a previous run was interrupted
+    for lock_file in CERTBOT_BASE_DIR.rglob('.certbot.lock'):
+        try:
+            lock_file.unlink()
+            logger.info(f"Removed stale lock file: {lock_file}")
+        except PermissionError:
+            # Try with sudo
+            try:
+                subprocess.run(
+                    ['sudo', 'rm', '-f', str(lock_file)],
+                    capture_output=True,
+                    timeout=5
+                )
+                logger.info(f"Removed stale lock file with sudo: {lock_file}")
+            except Exception as e:
+                logger.warning(f"Could not remove lock file {lock_file}: {e}")
+        except Exception as e:
+            logger.warning(f"Error removing lock file {lock_file}: {e}")
+
+
+# Ensure directories exist at module load time
+_ensure_certbot_directories()
 
 # Create Blueprint for certbot routes
 certbot_bp = Blueprint('certbot', __name__)
@@ -685,9 +737,12 @@ def obtain_certificate_execute():
                 "error": f"Failed to check certbot installation: {str(e)}"
             }), 500
 
+        # Ensure certbot directories exist with proper permissions and clean up stale locks
+        _ensure_certbot_directories()
+
         # Build certbot command based on method
         staging_flag = ['--staging'] if settings.staging else []
-        
+
         if method == 'standalone':
             # Stop nginx, run certbot, start nginx
             try:
