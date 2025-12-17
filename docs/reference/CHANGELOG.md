@@ -7,11 +7,13 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
-- **Navbar Template Syntax Error** - Fixed missing `{% endif %}` in Settings dropdown
-  - Added missing closing tag for `show_settings_hardware` block at line 300
-  - Was causing Jinja2 TemplateSyntaxError: "Unexpected end of template"
-  - Website would show template error instead of loading properly
-  - This was a pre-existing issue in the template, not introduced by recent changes
+- **Template Syntax Errors** - Fixed missing closing tags in Jinja2 templates
+  - **navbar.html**: Added missing `{% endblock %}` for `show_settings_hardware` block
+  - **audio_detail.html**: Added missing `{% endblock %}` to close content block before scripts block
+  - These were causing Jinja2 TemplateSyntaxError: "Unexpected end of template"
+  - Website would show template errors instead of loading properly
+  - These were pre-existing issues in the templates, not introduced by recent changes
+  - All 89 templates in the repository now have balanced blocks
 
 - **Icecast and Certbot Service Startup** - Fixed issue where external services weren't being started during update
   - `update.sh` now ensures `icecast2` service is enabled and running after update
