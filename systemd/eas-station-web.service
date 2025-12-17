@@ -60,7 +60,10 @@ TimeoutStartSec=300
 TimeoutStopSec=30
 
 # Security settings
-NoNewPrivileges=true
+# NoNewPrivileges disabled to allow sudo for certbot/nginx management
+# The web UI needs to run certbot and control nginx service for SSL certificates
+# Sudoers configuration limits which commands can be run (see /etc/sudoers.d/eas-station)
+NoNewPrivileges=false
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true

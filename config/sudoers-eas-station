@@ -1,0 +1,31 @@
+# EAS Station sudoers configuration
+# This file should be installed to: /etc/sudoers.d/eas-station
+# Install with: sudo cp config/sudoers-eas-station /etc/sudoers.d/eas-station && sudo chmod 440 /etc/sudoers.d/eas-station
+#
+# Allows the eas-station user to run specific commands without password
+# Required for the web UI to manage SSL certificates and system services
+
+# Certbot certificate management
+eas-station ALL=(ALL) NOPASSWD: /usr/bin/certbot certonly --standalone *
+eas-station ALL=(ALL) NOPASSWD: /usr/bin/certbot certonly --webroot *
+eas-station ALL=(ALL) NOPASSWD: /usr/bin/certbot --nginx *
+eas-station ALL=(ALL) NOPASSWD: /usr/bin/certbot renew *
+
+# Nginx service management (required for standalone certbot mode)
+eas-station ALL=(ALL) NOPASSWD: /usr/bin/systemctl stop nginx
+eas-station ALL=(ALL) NOPASSWD: /usr/bin/systemctl start nginx
+eas-station ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart nginx
+eas-station ALL=(ALL) NOPASSWD: /usr/bin/systemctl reload nginx
+eas-station ALL=(ALL) NOPASSWD: /usr/bin/systemctl is-active nginx
+eas-station ALL=(ALL) NOPASSWD: /usr/bin/systemctl status nginx
+
+# Certbot timer management (for automatic renewal)
+eas-station ALL=(ALL) NOPASSWD: /usr/bin/systemctl enable certbot.timer
+eas-station ALL=(ALL) NOPASSWD: /usr/bin/systemctl disable certbot.timer
+eas-station ALL=(ALL) NOPASSWD: /usr/bin/systemctl start certbot.timer
+eas-station ALL=(ALL) NOPASSWD: /usr/bin/systemctl stop certbot.timer
+eas-station ALL=(ALL) NOPASSWD: /usr/bin/systemctl is-enabled certbot.timer
+eas-station ALL=(ALL) NOPASSWD: /usr/bin/systemctl is-active certbot.timer
+eas-station ALL=(ALL) NOPASSWD: /usr/bin/systemctl status certbot.timer
+eas-station ALL=(ALL) NOPASSWD: /usr/bin/systemctl enable --now certbot.timer
+eas-station ALL=(ALL) NOPASSWD: /usr/bin/systemctl disable --now certbot.timer

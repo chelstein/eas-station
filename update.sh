@@ -706,6 +706,23 @@ if [ -d "$INSTALL_DIR/systemd" ]; then
     systemctl daemon-reload
     echo_success "Service files updated"
 
+    # Update sudoers configuration for certbot/nginx management
+    echo_progress "Updating sudoers configuration for SSL certificate management..."
+    if [ -f "$INSTALL_DIR/config/sudoers-eas-station" ]; then
+        cp "$INSTALL_DIR/config/sudoers-eas-station" /etc/sudoers.d/eas-station
+        chmod 0440 /etc/sudoers.d/eas-station
+
+        # Validate sudoers syntax
+        if visudo -c -f /etc/sudoers.d/eas-station &>/dev/null; then
+            echo_success "Sudoers configuration updated and validated"
+        else
+            echo_error "Invalid sudoers syntax - removing file"
+            rm -f /etc/sudoers.d/eas-station
+        fi
+    else
+        echo_warning "Sudoers configuration file not found (config/sudoers-eas-station)"
+    fi
+
     # Ensure hardware access groups exist (for services that use SupplementaryGroups)
     echo_progress "Ensuring hardware access groups exist..."
     HARDWARE_GROUPS="gpio i2c spi audio plugdev dialout"
