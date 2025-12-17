@@ -579,33 +579,18 @@
             <div class="container-fluid">
                 <ul class="nav nav-tabs" id="adminTabs" role="tablist">
                     <li class="nav-item" role="presentation">
-                        <button class="nav-link active" id="location-tab" data-bs-toggle="tab" data-bs-target="#location-settings" type="button" role="tab">
-                            <i class="fas fa-map-marker-alt"></i> Location
+                        <button class="nav-link active" id="data-tab" data-bs-toggle="tab" data-bs-target="#data-management" type="button" role="tab">
+                            <i class="fas fa-database"></i> Data
                         </button>
                     </li>
                     <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="alerts-tab" data-bs-toggle="tab" data-bs-target="#alerts-mgmt" type="button" role="tab">
-                            <i class="fas fa-bell"></i> Alerts
+                        <button class="nav-link" id="system-tab" data-bs-toggle="tab" data-bs-target="#system-settings" type="button" role="tab">
+                            <i class="fas fa-cog"></i> System
                         </button>
                     </li>
                     <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="upload-tab" data-bs-toggle="tab" data-bs-target="#boundary-upload" type="button" role="tab">
-                            <i class="fas fa-upload"></i> Boundaries
-                        </button>
-                    </li>
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="zones-tab" data-bs-toggle="tab" data-bs-target="#zone-catalog" type="button" role="tab">
-                            <i class="fas fa-map-marked-alt"></i> Zone Catalog
-                        </button>
-                    </li>
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="manage-tab" data-bs-toggle="tab" data-bs-target="#manage" type="button" role="tab">
-                            <i class="fas fa-tasks"></i> Manage Data
-                        </button>
-                    </li>
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="operations-tab" data-bs-toggle="tab" data-bs-target="#operations" type="button" role="tab">
-                            <i class="fas fa-cogs"></i> Operations
+                        <button class="nav-link" id="services-tab" data-bs-toggle="tab" data-bs-target="#services" type="button" role="tab">
+                            <i class="fas fa-server"></i> Services
                         </button>
                     </li>
                     <li class="nav-item" role="presentation">
@@ -614,20 +599,46 @@
                         </button>
                     </li>
                     <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="users-tab" data-bs-toggle="tab" data-bs-target="#user-management" type="button" role="tab">
-                            <i class="fas fa-users"></i> Users
+                        <button class="nav-link" id="security-tab" data-bs-toggle="tab" data-bs-target="#security" type="button" role="tab">
+                            <i class="fas fa-shield-alt"></i> Security
                         </button>
                     </li>
                     <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="snow-emergencies-tab" data-bs-toggle="tab" data-bs-target="#snow-emergencies" type="button" role="tab">
-                            <i class="fas fa-snowflake"></i> Snow Emergency
+                        <button class="nav-link" id="operations-tab" data-bs-toggle="tab" data-bs-target="#operations" type="button" role="tab">
+                            <i class="fas fa-tools"></i> Operations
                         </button>
                     </li>
                 </ul>
             </div>
             <div class="tab-content" id="adminTabContent">
-                <!-- Boundary Upload Tab (was incorrectly named location-settings) -->
-                <div class="tab-pane fade" id="boundary-upload" role="tabpanel">
+                <!-- DATA MANAGEMENT TAB -->
+                <div class="tab-pane fade show active" id="data-management" role="tabpanel">
+                    <div class="container-fluid mt-4">
+                        <h3><i class="fas fa-database"></i> Data Management</h3>
+                        <p class="text-muted mb-4">Manage boundaries, zones, and geographic data</p>
+                        
+                        <!-- Sub-navigation for Data tab -->
+                        <ul class="nav nav-pills mb-4" id="dataTabs" role="tablist">
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link active" id="boundaries-subtab" data-bs-toggle="pill" data-bs-target="#boundary-upload" type="button" role="tab">
+                                    <i class="fas fa-upload"></i> Boundaries
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="zones-subtab" data-bs-toggle="pill" data-bs-target="#zone-catalog" type="button" role="tab">
+                                    <i class="fas fa-map-marked-alt"></i> Zone Catalog
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="manage-subtab" data-bs-toggle="pill" data-bs-target="#manage" type="button" role="tab">
+                                    <i class="fas fa-tasks"></i> Manage
+                                </button>
+                            </li>
+                        </ul>
+                        
+                        <div class="tab-content">
+                            <!-- Boundaries sub-tab content -->
+                            <div class="tab-pane fade show active" id="boundary-upload" role="tabpanel">
                     <form id="uploadForm" enctype="multipart/form-data" class="mt-4">
                         <div class="row">
                             <div class="col-md-6">
