@@ -97,6 +97,8 @@ The admin page (`templates/admin.html`) is a **monolithic 7,453-line file** that
 
 **Progress**: 8 of 11 modules extracted and cleaned (2,381 lines extracted + 851 lines cleaned = 3,232 lines processed out of ~3,940 total inline JS = 82% Phase 2 complete)
 
+**Detailed Remaining Work**: See `docs/development/ADMIN_REFACTORING_PHASE2_REMAINING.md` for complete extraction guide with function lists, dependencies, and testing checklist.
+
 **Challenges Identified**:
 - **Dependency complexity**: 188 JavaScript functions with extensive interdependencies
 - **Template variables**: Many functions rely on Jinja2-rendered data (EAS_EVENT_CODES, EAS_FIPS_TREE, etc.)

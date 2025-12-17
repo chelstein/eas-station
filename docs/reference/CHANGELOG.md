@@ -37,6 +37,9 @@ tracks releases under the 2.x series.
 ### Fixed
 - **Excessive Whitespace on Pages** - Fixed large vertical gaps between content and footer
   - Changed `.page-shell` flex property from `flex: 1 0 auto` to `flex: 0 0 auto` in styles.css
+  - Reduced `--layout-padding-bottom` from 2.5rem to 1rem (60% reduction)
+  - Reduced `--footer-margin-top` from 60px to 20px (67% reduction)
+  - Total vertical gap reduced from ~100px to ~36px for more compact, modern layout
   - Page shell now only takes the space it needs instead of expanding to fill viewport height
   - Footer now appears immediately after content without excessive gaps
   - Affects all pages including admin, GPIO control, services, and other low-content pages
@@ -85,6 +88,15 @@ tracks releases under the 2.x series.
   - Fixes warnings: "hostname not configured", "location not configured", "admin contact not configured"
 
 ### Added
+- **Admin Page Refactoring Phase 2 Completion Guide** - Created detailed extraction roadmap
+  - Documented 80 remaining inline functions across 3 modules
+  - Complete function lists with line numbers and dependencies
+  - Step-by-step extraction process guide
+  - Comprehensive testing checklist for each module
+  - Load order requirements and risk assessment
+  - Time estimates: 6-8 hours to complete Phase 2
+  - See `docs/development/ADMIN_REFACTORING_PHASE2_REMAINING.md` for details
+
 - **Admin Page Refactoring Documentation** - Created comprehensive refactoring roadmap
   - Documented current state: 7,453 lines, 388KB file size
   - Analysis: 67.5% JavaScript (5,034 lines, 150+ functions), 26.4% HTML, 6.0% CSS
