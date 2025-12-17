@@ -67,9 +67,22 @@ window.AdminCore.init = function(config) {
  */
 window.escapeHtmlAdmin = function(str) {
     if (str === null || str === undefined) return '';
+    if (typeof str !== 'string') return str;
     const div = document.createElement('div');
     div.textContent = str;
     return div.innerHTML;
+};
+
+/**
+ * Show status message (for operations like backup/upgrade)
+ */
+window.showStatus = function(message, type = 'info', duration = 5000) {
+    // Use showToast if available, otherwise console log
+    if (typeof window.showToast === 'function') {
+        window.showToast(message, type, duration);
+    } else {
+        console.log(`[${type}] ${message}`);
+    }
 };
 
 /**

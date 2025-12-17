@@ -2,7 +2,7 @@
  * Zone Catalog Management Module
  * Handles zone catalog upload, search, and information display
  * 
- * Dependencies: showToast(), escapeHtmlAdmin() from core or global scope
+ * Dependencies (loaded from core.js): showToast(), escapeHtmlAdmin()
  */
 
 // ==================== Zone Catalog Management ====================

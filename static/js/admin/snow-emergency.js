@@ -2,8 +2,8 @@
  * Snow Emergency Management Module
  * Handles snow emergency level management and visualization
  * 
- * Dependencies: showToast(), showConfirmation() from global scope
- * Requires: Mermaid.js for diagram rendering
+ * Dependencies (loaded from core.js): showToast(), showStatus(), showConfirmation(), escapeHtmlAdmin()
+ * External libraries: Mermaid.js for diagram rendering
  */
 
 // ===== SNOW EMERGENCY ADMIN FUNCTIONS =====
@@ -248,13 +248,6 @@ function formatSnowTimestamp(timestamp) {
     } catch (err) {
         return timestamp;
     }
-}
-
-function escapeHtmlAdmin(text) {
-    if (!text) return '';
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
 }
 
 // Initialize snow emergency editor when the tab is shown
