@@ -90,12 +90,12 @@ The admin page (`templates/admin.html`) is a **monolithic 7,453-line file** that
 7. ✅ `/static/js/admin/hardware-settings.js` - LED signs, GPIO, hardware (160 lines)
 8. ✅ `/static/js/admin/operations.js` - Backups, upgrades, manual operations (580 lines)
 
-**Remaining Modules to Extract** (~1,560 lines, 27% remaining):
+**Remaining Modules to Extract** (~1,560 lines estimated, 33% of extraction work remaining):
 - ⏳ `/static/js/admin/boundary-management.js` - Boundary upload, GeoJSON, Shapefile (~660 lines)
 - ⏳ `/static/js/admin/location-settings.js` - Location config, SAME codes, FIPS (~500 lines)
 - ⏳ `/static/js/admin/eas-generator.js` - EAS generation, SAME encoding (~400 lines)
 
-**Progress**: 8 of 11 modules extracted and cleaned (~3,230 of ~4,790 lines, 67% code complete + 851 lines cleaned = 85% total work done)
+**Progress**: 8 of 11 modules extracted and cleaned (2,381 lines extracted + 851 lines cleaned = 3,232 lines processed out of ~3,940 total inline JS = 82% Phase 2 complete)
 
 **Challenges Identified**:
 - **Dependency complexity**: 188 JavaScript functions with extensive interdependencies

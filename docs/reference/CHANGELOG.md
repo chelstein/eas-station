@@ -9,7 +9,7 @@ tracks releases under the 2.x series.
 ### Fixed
 - **JavaScript Duplicate Declaration Errors** - Fixed console errors from duplicate function declarations
   - Removed 851 lines of duplicate inline JavaScript code from admin.html
-  - Cleaned up alert management inline code (variables and 380 lines of functions)
+  - Cleaned up alert management inline code (variables and 385 lines of functions)
   - Cleaned up operations inline code (466 lines of functions including helpers)
   - External modules now load without conflicts with inline code
   - Fixes errors: "Identifier 'adminAlerts' has already been declared" and "Identifier 'renderQueryDetails' has already been declared"
