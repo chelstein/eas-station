@@ -6,6 +6,17 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+### Changed
+- **Admin Page Refactoring - Phase 2 (Partial)** - Extracted CSS to external file
+  - Moved 449 lines of inline CSS to `/static/css/admin.css`
+  - Reduced admin.html from 7,461 to 7,011 lines (450 line reduction)
+  - Improved browser caching - CSS now cached separately from page
+  - Admin page loads external stylesheet via `<link>` tag
+  - All theme-aware CSS variables preserved and functional
+  - Maintains full compatibility with all 11 built-in themes
+  - JavaScript extraction deferred to future phase (requires careful dependency management)
+  - See `docs/development/ADMIN_PAGE_REFACTORING.md` for full Phase 2 plan
+
 ### Fixed
 - **Excessive Whitespace on Pages** - Fixed large vertical gaps between content and footer
   - Changed `.page-shell` flex property from `flex: 1 0 auto` to `flex: 0 0 auto` in styles.css
