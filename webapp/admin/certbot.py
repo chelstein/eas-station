@@ -26,6 +26,7 @@ import os
 import re
 import socket
 import subprocess
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict
@@ -146,6 +147,25 @@ def _ensure_nginx_running():
         return False
     except Exception as e:
         logger.error(f"Error ensuring nginx is running: {e}")
+        return False
+
+
+def _check_nginx_status():
+    """Check if nginx is currently running.
+    
+    Returns:
+        bool: True if nginx is active, False otherwise
+    """
+    try:
+        result = subprocess.run(
+            ['sudo', 'systemctl', 'is-active', 'nginx'],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        return result.stdout.strip() == 'active'
+    except Exception as e:
+        logger.warning(f"Could not check nginx status: {e}")
         return False
 
 
@@ -751,28 +771,17 @@ def obtain_certificate_execute():
                     }), 500
 
                 # Wait for port 80 to be released
-                import time
                 logger.info("Waiting for port 80 to be released...")
                 time.sleep(2)
                 
-                # Verify port 80 is actually free by checking if nginx is stopped
-                try:
-                    check_result = subprocess.run(
-                        ['sudo', 'systemctl', 'is-active', 'nginx'],
-                        capture_output=True,
-                        text=True,
-                        timeout=5
-                    )
-                    if check_result.stdout.strip() == 'active':
-                        logger.error("Nginx is still active after stop command")
-                        return jsonify({
-                            "success": False,
-                            "error": "Nginx is still running after stop command. Please check system logs."
-                        }), 500
-                    logger.info("Nginx confirmed stopped, port 80 should be available")
-                except Exception as e:
-                    logger.warning(f"Could not verify nginx stopped: {e}")
-                    # Continue anyway, certbot will fail if port is in use
+                # Verify nginx is actually stopped
+                if _check_nginx_status():
+                    logger.error("Nginx is still active after stop command")
+                    return jsonify({
+                        "success": False,
+                        "error": "Nginx is still running after stop command. Please check system logs."
+                    }), 500
+                logger.info("Nginx confirmed stopped, port 80 should be available")
 
                 # Run certbot with explicit port binding
                 logger.info(f"Running certbot for domain: {domain}")
@@ -856,20 +865,11 @@ def obtain_certificate_execute():
         elif method == 'nginx':
             # Use nginx plugin (no downtime)
             # First check if nginx is running
-            try:
-                nginx_check = subprocess.run(
-                    ['sudo', 'systemctl', 'is-active', 'nginx'],
-                    capture_output=True,
-                    text=True,
-                    timeout=5
-                )
-                if nginx_check.stdout.strip() != 'active':
-                    return jsonify({
-                        "success": False,
-                        "error": "Nginx must be running to use the nginx plugin. Start nginx or use the standalone method instead."
-                    }), 400
-            except Exception as e:
-                logger.warning(f"Could not check nginx status: {e}")
+            if not _check_nginx_status():
+                return jsonify({
+                    "success": False,
+                    "error": "Nginx must be running to use the nginx plugin. Start nginx or use the standalone method instead."
+                }), 400
                 
             certbot_cmd = [
                 'sudo', 'certbot', '--nginx',
