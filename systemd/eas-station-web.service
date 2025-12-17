@@ -67,7 +67,14 @@ NoNewPrivileges=false
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/opt/eas-station /var/log/eas-station
+# ReadWritePaths for:
+# - /opt/eas-station: Application directory
+# - /var/log/eas-station: Application logs
+# - /var/www: Required for certbot webroot method (ACME challenge)
+# - /run: Required for nginx -t (certbot nginx plugin)
+# - /etc/nginx: Required for certbot nginx plugin to modify config
+# - /etc/letsencrypt: Standard Let's Encrypt directory (if used)
+ReadWritePaths=/opt/eas-station /var/log/eas-station /var/www /run /etc/nginx /etc/letsencrypt
 
 # GPIO device access for OLED button on Pi 5
 DeviceAllow=/dev/gpiochip0 rw

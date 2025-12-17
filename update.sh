@@ -734,6 +734,14 @@ if [ -d "$INSTALL_DIR/systemd" ]; then
     find "$CERTBOT_DATA_DIR" -name ".certbot.lock" -delete 2>/dev/null || true
     echo_success "Certbot data directories configured"
 
+    # Ensure ACME challenge directory exists for certbot webroot method
+    # Path matches nginx config: location /.well-known/acme-challenge/ { root /var/www/certbot; }
+    echo_progress "Ensuring ACME challenge directory exists..."
+    mkdir -p /var/www/certbot/.well-known/acme-challenge
+    chmod -R 755 /var/www/certbot
+    chown -R www-data:www-data /var/www/certbot 2>/dev/null || chown -R root:root /var/www/certbot
+    echo_success "ACME challenge directory configured"
+
     # Ensure hardware access groups exist (for services that use SupplementaryGroups)
     echo_progress "Ensuring hardware access groups exist..."
     HARDWARE_GROUPS="gpio i2c spi audio plugdev dialout"
