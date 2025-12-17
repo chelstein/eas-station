@@ -57,50 +57,40 @@ def _ensure_certbot_directories():
     Creates directories if they don't exist and sets permissions to allow
     both the web app user and root (via sudo) to write to them.
     Also removes stale lock files that can cause permission errors.
-    """
-    for directory in [CERTBOT_CONFIG_DIR, CERTBOT_WORK_DIR, CERTBOT_LOGS_DIR]:
-        try:
-            directory.mkdir(parents=True, exist_ok=True)
-            # Set permissions to 0o777 so both eas-station user and root can write
-            directory.chmod(0o777)
-        except PermissionError:
-            # Directory might already exist with different ownership
-            # Try using sudo to fix permissions
-            try:
-                subprocess.run(
-                    ['sudo', 'mkdir', '-p', str(directory)],
-                    capture_output=True,
-                    timeout=5
-                )
-                subprocess.run(
-                    ['sudo', 'chmod', '777', str(directory)],
-                    capture_output=True,
-                    timeout=5
-                )
-            except Exception as e:
-                logger.warning(f"Could not create/chmod directory {directory}: {e}")
-        except Exception as e:
-            logger.warning(f"Error setting up directory {directory}: {e}")
 
-    # Remove stale lock files that can cause "Permission denied" errors
-    # Lock files are created by certbot and can get stuck if a previous run was interrupted
-    for lock_file in CERTBOT_BASE_DIR.rglob('.certbot.lock'):
-        try:
-            lock_file.unlink()
-            logger.info(f"Removed stale lock file: {lock_file}")
-        except PermissionError:
-            # Try with sudo
-            try:
-                subprocess.run(
-                    ['sudo', 'rm', '-f', str(lock_file)],
-                    capture_output=True,
-                    timeout=5
-                )
-                logger.info(f"Removed stale lock file with sudo: {lock_file}")
-            except Exception as e:
-                logger.warning(f"Could not remove lock file {lock_file}: {e}")
-        except Exception as e:
-            logger.warning(f"Error removing lock file {lock_file}: {e}")
+    Uses sudo for all operations since certbot runs as root and creates
+    root-owned files that the web app user cannot modify.
+    """
+    # Always use sudo to ensure we can fix root-owned directories/files
+    try:
+        # Create directories with sudo
+        for directory in [CERTBOT_CONFIG_DIR, CERTBOT_WORK_DIR, CERTBOT_LOGS_DIR]:
+            subprocess.run(
+                ['sudo', 'mkdir', '-p', str(directory)],
+                capture_output=True,
+                timeout=5
+            )
+
+        # Fix permissions on the entire certbot_data directory tree
+        subprocess.run(
+            ['sudo', 'chmod', '-R', '777', str(CERTBOT_BASE_DIR)],
+            capture_output=True,
+            timeout=10
+        )
+
+        # Remove ALL .certbot.lock files (they're root-owned, need sudo)
+        # Use find command which handles the case where files don't exist
+        subprocess.run(
+            ['sudo', 'find', str(CERTBOT_BASE_DIR), '-name', '.certbot.lock', '-delete'],
+            capture_output=True,
+            timeout=10
+        )
+
+        logger.info(f"Certbot directories configured: {CERTBOT_BASE_DIR}")
+    except subprocess.TimeoutExpired:
+        logger.warning("Timeout while configuring certbot directories")
+    except Exception as e:
+        logger.warning(f"Error configuring certbot directories: {e}")
 
 
 # Ensure directories exist at module load time
@@ -1157,6 +1147,64 @@ def download_certificate():
 
     except Exception as exc:
         logger.error(f"Failed to download certificate: {exc}")
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+
+@certbot_bp.route('/api/certbot/logs', methods=['GET'])
+@require_permission('system.configure')
+def get_certbot_logs():
+    """Get certbot log file contents.
+
+    Returns the last N lines of the certbot log file for debugging.
+    """
+    try:
+        lines = request.args.get('lines', 100, type=int)
+        # Limit to prevent abuse
+        lines = min(lines, 1000)
+
+        log_file = CERTBOT_LOGS_DIR / 'letsencrypt.log'
+
+        if not log_file.exists():
+            return jsonify({
+                "success": True,
+                "log": "",
+                "message": "No log file found. Logs will appear after running certbot."
+            })
+
+        # Read the log file
+        try:
+            with open(log_file, 'r') as f:
+                all_lines = f.readlines()
+                # Get last N lines
+                log_lines = all_lines[-lines:] if len(all_lines) > lines else all_lines
+                log_content = ''.join(log_lines)
+        except PermissionError:
+            # Try with sudo cat
+            result = subprocess.run(
+                ['sudo', 'cat', str(log_file)],
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+            if result.returncode == 0:
+                all_lines = result.stdout.splitlines(keepends=True)
+                log_lines = all_lines[-lines:] if len(all_lines) > lines else all_lines
+                log_content = ''.join(log_lines)
+            else:
+                return jsonify({
+                    "success": False,
+                    "error": f"Cannot read log file: {result.stderr}"
+                }), 500
+
+        return jsonify({
+            "success": True,
+            "log": log_content,
+            "log_file": str(log_file),
+            "lines_returned": len(log_content.splitlines())
+        })
+
+    except Exception as exc:
+        logger.error(f"Failed to read certbot logs: {exc}")
         return jsonify({"success": False, "error": str(exc)}), 500
 
 

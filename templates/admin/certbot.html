@@ -344,6 +344,32 @@
                 <button type="button" class="btn btn-secondary" onclick="downloadCertificate()">
                     <i class="bi bi-download"></i> Download Certificate
                 </button>
+                <button type="button" class="btn btn-outline-secondary" onclick="viewCertbotLogs()">
+                    <i class="bi bi-file-text"></i> View Logs
+                </button>
+            </div>
+
+            <!-- Log viewer modal -->
+            <div class="modal fade" id="logModal" tabindex="-1" aria-labelledby="logModalLabel" aria-hidden="true">
+                <div class="modal-dialog modal-xl">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="logModalLabel"><i class="bi bi-file-text"></i> Certbot Logs</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div id="logContent" style="max-height: 500px; overflow-y: auto;">
+                                <pre class="mb-0" style="white-space: pre-wrap; word-wrap: break-word; font-size: 0.85em;"></pre>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                            <button type="button" class="btn btn-primary" onclick="viewCertbotLogs()">
+                                <i class="bi bi-arrow-clockwise"></i> Refresh
+                            </button>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -876,6 +902,35 @@ function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+}
+
+// View certbot logs
+async function viewCertbotLogs() {
+    const logContent = document.querySelector('#logContent pre');
+    logContent.textContent = 'Loading logs...';
+
+    // Show the modal
+    const modal = new bootstrap.Modal(document.getElementById('logModal'));
+    modal.show();
+
+    try {
+        const response = await fetch('/admin/api/certbot/logs?lines=200');
+        const result = await response.json();
+
+        if (result.success) {
+            if (result.log) {
+                logContent.textContent = result.log;
+                // Scroll to bottom
+                document.getElementById('logContent').scrollTop = document.getElementById('logContent').scrollHeight;
+            } else {
+                logContent.textContent = result.message || 'No logs available yet. Logs will appear after running certbot.';
+            }
+        } else {
+            logContent.textContent = 'Error loading logs: ' + (result.error || 'Unknown error');
+        }
+    } catch (error) {
+        logContent.textContent = 'Error loading logs: ' + error.message;
+    }
 }
 
 // Copy certificate command to clipboard
