@@ -7,6 +7,13 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **Icecast and Certbot Database Initialization** - Added defensive error handling to prevent app crashes
+  - Icecast and Certbot settings modules now gracefully handle missing database tables
+  - App can now start successfully even if database migrations haven't run yet
+  - Tables are automatically created if missing during first access
+  - Improved database commit error handling with rollback in settings update functions
+  - Resolves issue where app would crash on startup if migrations failed or weren't run
+
 - **Template Error on Alerts Page** - Fixed 500 error when loading alerts page
   - Added missing `is_expired` Jinja2 template filter registration in app.py
   - Filter checks if an alert has expired based on its expiration datetime
