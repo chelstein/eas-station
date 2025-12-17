@@ -6,7 +6,26 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+### Added
+- **Admin Panel Links** - Added missing administrative page links to Operations tab
+  - Added link to SSL/TLS Certificates page (`/admin/certbot`)
+  - Added link to Icecast Streaming page (`/admin/icecast`)
+  - Added link to Zone Catalog Management page (`/admin/zones`)
+  - All major admin tools now accessible from the main admin panel
+
+- **Icecast Logs** - Added Icecast service logs to system logs viewer
+  - `icecast2.service` now appears in log service dropdown
+  - Allows viewing Icecast streaming server logs through the web interface
+  - Updated `app_core/config/services.py` to include icecast in INFRASTRUCTURE_SERVICES
+
 ### Fixed
+- **TTS Configuration Persistence** - Fixed Azure OpenAI TTS settings not surviving reboots/updates
+  - Fixed JSON builder showing bullet characters (`••••••••`) instead of actual API key values
+  - Backend now properly masks only password fields within JSON configs, preserving JSON structure
+  - When saving, masked password values are preserved from existing config instead of being overwritten
+  - TTS settings now correctly persist across application restarts and updates
+  - Fixes "Invalid JSON: Unexpected token '•'" errors in environment settings
+
 - **SSL Certificate Management - Sudo Permission Errors** - Fixed container permission errors when obtaining SSL certificates
   - Removed `sudo` prefix from all `systemctl` and `certbot` commands in `webapp/admin/certbot.py`
   - Commands now run directly since container already has proper permissions

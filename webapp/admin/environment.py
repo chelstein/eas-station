@@ -759,8 +759,24 @@ def get_environment_variables():
 
             # Mask sensitive values
             if var_config.get('sensitive') and current_value:
-                var_data['value'] = '••••••••'
-                var_data['has_value'] = True
+                # For JSON type with json_schema, mask individual sensitive fields
+                if var_config.get('type') == 'json' and var_config.get('json_schema'):
+                    try:
+                        json_obj = json.loads(current_value)
+                        # Mask password fields in the JSON
+                        for field_key, field_def in var_config.get('json_schema', {}).items():
+                            if field_def.get('type') == 'password' and json_obj.get(field_key):
+                                json_obj[field_key] = '••••••••'
+                        var_data['value'] = json.dumps(json_obj)
+                        var_data['has_value'] = True
+                    except (json.JSONDecodeError, TypeError):
+                        # If JSON parsing fails, fall back to masking entire value
+                        var_data['value'] = '••••••••'
+                        var_data['has_value'] = True
+                else:
+                    # For non-JSON sensitive fields, mask the entire value
+                    var_data['value'] = '••••••••'
+                    var_data['has_value'] = True
             else:
                 var_data['value'] = current_value
                 # has_value is True if key exists in .env or has non-empty value
@@ -810,9 +826,32 @@ def update_environment_variables():
                         logger.debug(f'Found variable {key} in category configuration')
 
                         # Don't update if it's a masked sensitive value
-                        if var_config.get('sensitive') and value == '••••••••':
-                            logger.debug(f'Skipping masked sensitive value for {key}')
-                            continue
+                        if var_config.get('sensitive'):
+                            # For JSON fields with password subfields, unmask them
+                            if var_config.get('type') == 'json' and var_config.get('json_schema') and value:
+                                try:
+                                    new_json = json.loads(value)
+                                    # Get current value to preserve masked password fields
+                                    current_value = env_vars.get(key, '')
+                                    if current_value:
+                                        try:
+                                            current_json = json.loads(current_value)
+                                            # Check each password field
+                                            for field_key, field_def in var_config.get('json_schema', {}).items():
+                                                if field_def.get('type') == 'password':
+                                                    # If new value is masked, preserve current value
+                                                    if new_json.get(field_key) == '••••••••' and current_json.get(field_key):
+                                                        new_json[field_key] = current_json[field_key]
+                                                        logger.debug(f'Preserved masked password field {field_key} in {key}')
+                                            value = json.dumps(new_json)
+                                        except (json.JSONDecodeError, TypeError):
+                                            logger.warning(f'Could not parse current JSON value for {key}')
+                                except (json.JSONDecodeError, TypeError):
+                                    logger.warning(f'Could not parse new JSON value for {key}')
+                            elif value == '••••••••':
+                                # Non-JSON masked value - skip update
+                                logger.debug(f'Skipping masked sensitive value for {key}')
+                                continue
 
                         # Validate required fields
                         if var_config.get('required') and not value:
