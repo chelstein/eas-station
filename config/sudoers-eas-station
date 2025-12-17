@@ -9,6 +9,16 @@
 # Allow all certbot commands since it's a trusted system tool that requires root
 eas-station ALL=(ALL) NOPASSWD: /usr/bin/certbot
 
+# Certbot data directory management
+# These commands are needed to fix permissions on root-owned files created by certbot
+# Using broader patterns since sudoers globbing is limited
+eas-station ALL=(ALL) NOPASSWD: /usr/bin/mkdir -p /opt/eas-station/certbot_data/config
+eas-station ALL=(ALL) NOPASSWD: /usr/bin/mkdir -p /opt/eas-station/certbot_data/work
+eas-station ALL=(ALL) NOPASSWD: /usr/bin/mkdir -p /opt/eas-station/certbot_data/logs
+eas-station ALL=(ALL) NOPASSWD: /usr/bin/chmod -R 777 /opt/eas-station/certbot_data
+eas-station ALL=(ALL) NOPASSWD: /usr/bin/find /opt/eas-station/certbot_data -name .certbot.lock -delete
+eas-station ALL=(ALL) NOPASSWD: /usr/bin/cat /opt/eas-station/certbot_data/logs/letsencrypt.log
+
 # Nginx service management (required for standalone certbot mode)
 eas-station ALL=(ALL) NOPASSWD: /usr/bin/systemctl stop nginx
 eas-station ALL=(ALL) NOPASSWD: /usr/bin/systemctl start nginx
