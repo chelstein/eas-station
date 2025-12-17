@@ -13,7 +13,7 @@ tracks releases under the 2.x series.
   - Link added to admin panel Operations tab for easy access
   - Settings now stored in database and survive reboots/updates reliably
   - Supports Azure OpenAI, Azure Cognitive Services, and pyttsx3 providers
-  - Falls back to environment variables if database migration hasn't run yet
+  - Database is the only source - no fallback to environment variables
   - Removed TTS settings from environment configuration page to avoid confusion
 
 - **Admin Panel Links** - Added missing administrative page links to Operations tab

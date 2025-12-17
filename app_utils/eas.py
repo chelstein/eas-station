@@ -108,7 +108,10 @@ def load_eas_config(base_path: Optional[str] = None) -> Dict[str, object]:
     gpio_configs = load_gpio_pin_configs_from_env(oled_enabled=OLED_ENABLED)
     gpio_behavior_matrix = load_gpio_behavior_matrix_from_env(oled_enabled=OLED_ENABLED)
 
-    # Load TTS configuration from database (falls back to environment variables if table doesn't exist)
+    # Load TTS configuration from database only
+    from app_core.tts_settings import get_tts_settings
+    tts_settings = get_tts_settings()
+    
     tts_provider = ''
     azure_openai_endpoint = ''
     azure_openai_key = ''
@@ -116,70 +119,16 @@ def load_eas_config(base_path: Optional[str] = None) -> Dict[str, object]:
     azure_openai_voice = 'alloy'
     azure_openai_speed = 1.0
     
-    try:
-        # Try to load from database first
-        from app_core.tts_settings import get_tts_settings
-        tts_settings = get_tts_settings()
+    if tts_settings.enabled and tts_settings.provider:
+        tts_provider = tts_settings.provider.strip().lower()
         
-        if tts_settings.enabled and tts_settings.provider:
-            tts_provider = tts_settings.provider.strip().lower()
-            
-            # Load Azure OpenAI settings if provider is azure_openai
-            if tts_provider == 'azure_openai':
-                azure_openai_endpoint = (tts_settings.azure_openai_endpoint or '').strip()
-                azure_openai_key = (tts_settings.azure_openai_key or '').strip()
-                azure_openai_model = (tts_settings.azure_openai_model or 'tts-1').strip()
-                azure_openai_voice = (tts_settings.azure_openai_voice or 'alloy').strip()
-                azure_openai_speed = tts_settings.azure_openai_speed or 1.0
-    except Exception as e:
-        # Fall back to environment variables if database is not available
-        if has_app_context():
-            current_app.logger.info(f"TTS settings not available from database, using environment variables: {e}")
-        
-        # Parse Azure OpenAI configuration from JSON or individual env vars
-        # Supports both:
-        # 1. AZURE_OPENAI_CONFIG (JSON): {"endpoint": "...", "key": "...", "model": "tts-1", "voice": "alloy", "speed": 1.05}
-        # 2. Individual env vars: AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_KEY, etc. (backward compatibility)
-        # JSON config takes precedence if both are present
-        azure_openai_config = {}
-        azure_openai_config_str = os.getenv('AZURE_OPENAI_CONFIG', '').strip()
-        if azure_openai_config_str:
-            try:
-                azure_openai_config = json.loads(azure_openai_config_str)
-            except json.JSONDecodeError:
-                if has_app_context():
-                    current_app.logger.warning(
-                        'AZURE_OPENAI_CONFIG is not valid JSON, falling back to individual env vars'
-                    )
-        
-        # Extract Azure OpenAI settings with fallback to individual env vars
-        azure_openai_endpoint = (
-            azure_openai_config.get('endpoint') or 
-            os.getenv('AZURE_OPENAI_ENDPOINT') or ''
-        ).strip()
-        azure_openai_key = (
-            azure_openai_config.get('key') or 
-            os.getenv('AZURE_OPENAI_KEY') or ''
-        ).strip()
-        azure_openai_voice = (
-            azure_openai_config.get('voice') or 
-            os.getenv('AZURE_OPENAI_VOICE') or 'alloy'
-        ).strip()
-        azure_openai_model = (
-            azure_openai_config.get('model') or 
-            os.getenv('AZURE_OPENAI_MODEL') or 'tts-1'
-        ).strip()
-        
-        # Parse speed with fallback
-        try:
-            azure_openai_speed = float(
-                azure_openai_config.get('speed') or 
-                os.getenv('AZURE_OPENAI_SPEED') or 1.0
-            )
-        except (ValueError, TypeError):
-            azure_openai_speed = 1.0
-        
-        tts_provider = (os.getenv('EAS_TTS_PROVIDER') or '').strip().lower()
+        # Load Azure OpenAI settings if provider is azure_openai
+        if tts_provider == 'azure_openai':
+            azure_openai_endpoint = (tts_settings.azure_openai_endpoint or '').strip()
+            azure_openai_key = (tts_settings.azure_openai_key or '').strip()
+            azure_openai_model = (tts_settings.azure_openai_model or 'tts-1').strip()
+            azure_openai_voice = (tts_settings.azure_openai_voice or 'alloy').strip()
+            azure_openai_speed = tts_settings.azure_openai_speed or 1.0
 
     config: Dict[str, object] = {
         'enabled': os.getenv('EAS_BROADCAST_ENABLED', 'false').lower() == 'true',
