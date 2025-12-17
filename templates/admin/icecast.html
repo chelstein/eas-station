@@ -266,12 +266,12 @@
     <!-- Server Status Indicator -->
     <div class="alert alert-info" id="server-status-banner" style="display: none;">
         <div class="d-flex align-items-center">
-            <i class="bi bi-info-circle me-2"></i>
+            <i class="fas fa-info-circle me-2"></i>
             <div class="flex-grow-1">
                 <strong>Server Status:</strong> <span id="server-status-message">Checking...</span>
             </div>
             <button type="button" class="btn btn-sm btn-outline-secondary" onclick="checkServerStatus()">
-                <i class="bi bi-arrow-clockwise"></i> Refresh
+                <i class="fas fa-sync-alt"></i> Refresh
             </button>
         </div>
     </div>
@@ -337,11 +337,11 @@
             <div class="form-section">
                 <h4>Authentication</h4>
                 <div class="alert alert-info mb-3">
-                    <i class="bi bi-info-circle"></i> <strong>Passwords are auto-generated during installation for security.</strong><br>
+                    <i class="fas fa-info-circle"></i> <strong>Passwords are auto-generated during installation for security.</strong><br>
                     You can view, copy, or regenerate them below.
                 </div>
                 <div class="alert alert-warning mb-3">
-                    <i class="bi bi-exclamation-triangle"></i> <strong>Important:</strong> If you installed Icecast server separately, 
+                    <i class="fas fa-exclamation-triangle"></i> <strong>Important:</strong> If you installed Icecast server separately, 
                     it may still have default passwords (like "changeme_admin"). Use the "Regenerate All Passwords" button 
                     to sync passwords between EAS Station and the Icecast server configuration.
                 </div>
@@ -352,10 +352,10 @@
                         <input type="password" class="form-control password-display" id="source_password" 
                                value="{{ settings.source_password }}" readonly>
                         <button type="button" class="btn btn-outline-secondary btn-sm" onclick="togglePasswordVisibility('source_password')" title="Show/Hide Password">
-                            <i class="bi bi-eye" id="source_password-icon"></i>
+                            <i class="fas fa-eye" id="source_password-icon"></i>
                         </button>
                         <button type="button" class="btn btn-outline-secondary btn-sm" onclick="copyPassword('source_password')" title="Copy to Clipboard">
-                            <i class="bi bi-clipboard"></i>
+                            <i class="fas fa-clipboard"></i>
                         </button>
                     </div>
                     <div class="form-text">Password for connecting audio sources to Icecast (auto-generated)</div>
@@ -375,10 +375,10 @@
                             <input type="password" class="form-control password-display" id="admin_password" 
                                    value="{{ settings.admin_password or '' }}" readonly>
                             <button type="button" class="btn btn-outline-secondary btn-sm" onclick="togglePasswordVisibility('admin_password')" title="Show/Hide Password">
-                                <i class="bi bi-eye" id="admin_password-icon"></i>
+                                <i class="fas fa-eye" id="admin_password-icon"></i>
                             </button>
                             <button type="button" class="btn btn-outline-secondary btn-sm" onclick="copyPassword('admin_password')" title="Copy to Clipboard">
-                                <i class="bi bi-clipboard"></i>
+                                <i class="fas fa-clipboard"></i>
                             </button>
                         </div>
                         <div class="form-text">Admin interface password (auto-generated, optional)</div>
@@ -387,10 +387,10 @@
 
                 <div class="mt-3">
                     <button type="button" class="btn btn-warning" onclick="regeneratePasswords()">
-                        <i class="bi bi-arrow-clockwise"></i> Regenerate All Passwords
+                        <i class="fas fa-sync-alt"></i> Regenerate All Passwords
                     </button>
                     <small class="text-muted d-block mt-2">
-                        <i class="bi bi-exclamation-triangle"></i> Regenerating passwords will:<br>
+                        <i class="fas fa-exclamation-triangle"></i> Regenerating passwords will:<br>
                         • Update the .env file<br>
                         • Update Icecast server configuration (/etc/icecast2/icecast.xml)<br>
                         • Restart the Icecast service<br>
@@ -403,7 +403,7 @@
             <div class="form-section">
                 <h4>Server Information</h4>
                 <div class="alert alert-info mb-3">
-                    <i class="bi bi-info-circle"></i> <strong>Note:</strong> These settings configure the Icecast server's identity and contact information.
+                    <i class="fas fa-info-circle"></i> <strong>Note:</strong> These settings configure the Icecast server's identity and contact information.
                 </div>
                 
                 <div class="mb-3">
@@ -493,10 +493,10 @@
 
             <div class="d-flex gap-2">
                 <button type="submit" class="btn btn-primary">
-                    <i class="bi bi-save"></i> Save Settings
+                    <i class="fas fa-save"></i> Save Settings
                 </button>
                 <button type="button" class="btn btn-secondary" onclick="window.location.reload()">
-                    <i class="bi bi-arrow-clockwise"></i> Reset
+                    <i class="fas fa-sync-alt"></i> Reset
                 </button>
             </div>
         </form>
@@ -511,7 +511,7 @@
             <div id="connectionTestResult"></div>
             
             <button type="button" class="btn btn-primary btn-test" onclick="testConnection()">
-                <i class="bi bi-wifi"></i> Test Connection
+                <i class="fas fa-wifi"></i> Test Connection
             </button>
         </div>
 
@@ -521,7 +521,7 @@
             
             <div id="streamingStatus">
                 <div class="alert alert-info">
-                    <i class="bi bi-info-circle"></i> Click "Refresh Status" to check current streaming status
+                    <i class="fas fa-info-circle"></i> Click "Refresh Status" to check current streaming status
                 </div>
             </div>
 
@@ -537,7 +537,7 @@
             </div>
             
             <button type="button" class="btn btn-primary btn-test" onclick="refreshStatus()">
-                <i class="bi bi-arrow-clockwise"></i> Refresh Status
+                <i class="fas fa-sync-alt"></i> Refresh Status
             </button>
         </div>
     </div>
@@ -562,15 +562,15 @@ async function checkServerStatus() {
         
         if (!data.enabled) {
             banner.className = 'alert alert-warning';
-            message.innerHTML = '<i class="bi bi-dash-circle"></i> Icecast streaming is disabled';
+            message.innerHTML = '<i class="fas fa-minus-circle"></i> Icecast streaming is disabled';
         } else if (data.running) {
             banner.className = 'alert alert-success';
             const listeners = data.listeners !== undefined ? data.listeners : 0;
             const sources = data.sources !== undefined ? data.sources : 0;
-            message.innerHTML = `<i class="bi bi-check-circle"></i> Server running at ${data.server}:${data.port} - ${listeners} listener(s), ${sources} source(s)`;
+            message.innerHTML = `<i class="fas fa-check-circle"></i> Server running at ${data.server}:${data.port} - ${listeners} listener(s), ${sources} source(s)`;
         } else {
             banner.className = 'alert alert-danger';
-            message.innerHTML = `<i class="bi bi-x-circle"></i> Cannot reach server: ${data.error || 'Unknown error'}`;
+            message.innerHTML = `<i class="fas fa-times-circle"></i> Cannot reach server: ${data.error || 'Unknown error'}`;
         }
     } catch (error) {
         console.error('Error checking server status:', error);
@@ -579,7 +579,7 @@ async function checkServerStatus() {
         
         banner.style.display = 'block';
         banner.className = 'alert alert-danger';
-        message.innerHTML = `<i class="bi bi-exclamation-triangle"></i> Error checking server status`;
+        message.innerHTML = `<i class="fas fa-exclamation-triangle"></i> Error checking server status`;
     }
 }
 
@@ -648,7 +648,7 @@ async function testConnection() {
         if (result.success) {
             resultDiv.innerHTML = `
                 <div class="alert alert-success">
-                    <i class="bi bi-check-circle"></i> ${result.message}
+                    <i class="fas fa-check-circle"></i> ${result.message}
                     ${result.details ? `
                         <ul class="mt-2 mb-0">
                             <li>Server: ${result.details.server}:${result.details.port}</li>
@@ -660,7 +660,7 @@ async function testConnection() {
         } else {
             resultDiv.innerHTML = `
                 <div class="alert alert-danger">
-                    <i class="bi bi-exclamation-triangle"></i> ${result.error}
+                    <i class="fas fa-exclamation-triangle"></i> ${result.error}
                 </div>
             `;
         }
@@ -670,7 +670,7 @@ async function testConnection() {
     } catch (error) {
         resultDiv.innerHTML = `
             <div class="alert alert-danger">
-                <i class="bi bi-exclamation-triangle"></i> Error testing connection: ${error.message}
+                <i class="fas fa-exclamation-triangle"></i> Error testing connection: ${error.message}
             </div>
         `;
     }
@@ -691,7 +691,7 @@ async function refreshStatus() {
         if (!result.success) {
             statusDiv.innerHTML = `
                 <div class="alert alert-danger">
-                    <i class="bi bi-exclamation-triangle"></i> ${result.error}
+                    <i class="fas fa-exclamation-triangle"></i> ${result.error}
                 </div>
             `;
             // Update server status banner
@@ -702,7 +702,7 @@ async function refreshStatus() {
         if (!result.enabled) {
             statusDiv.innerHTML = `
                 <div class="alert alert-warning">
-                    <i class="bi bi-exclamation-circle"></i> Icecast streaming is disabled
+                    <i class="fas fa-exclamation-circle"></i> Icecast streaming is disabled
                 </div>
             `;
             // Update server status banner
@@ -713,7 +713,7 @@ async function refreshStatus() {
         if (!result.server_reachable) {
             statusDiv.innerHTML = `
                 <div class="alert alert-danger">
-                    <i class="bi bi-exclamation-triangle"></i> Cannot reach Icecast server
+                    <i class="fas fa-exclamation-triangle"></i> Cannot reach Icecast server
                     ${result.error ? `<br><small>${result.error}</small>` : ''}
                 </div>
             `;
@@ -725,7 +725,7 @@ async function refreshStatus() {
         // Show success status
         statusDiv.innerHTML = `
             <div class="alert alert-success">
-                <i class="bi bi-check-circle"></i> Icecast server is running at ${result.server}:${result.port}
+                <i class="fas fa-check-circle"></i> Icecast server is running at ${result.server}:${result.port}
             </div>
         `;
         
@@ -742,7 +742,7 @@ async function refreshStatus() {
     } catch (error) {
         statusDiv.innerHTML = `
             <div class="alert alert-danger">
-                <i class="bi bi-exclamation-triangle"></i> Error checking status: ${error.message}
+                <i class="fas fa-exclamation-triangle"></i> Error checking status: ${error.message}
             </div>
         `;
     }
@@ -762,12 +762,12 @@ function togglePasswordVisibility(fieldId) {
     
     if (field.type === 'password') {
         field.type = 'text';
-        icon.classList.remove('bi-eye');
-        icon.classList.add('bi-eye-slash');
+        icon.classList.remove('fa-eye');
+        icon.classList.add('fa-eye-slash');
     } else {
         field.type = 'password';
-        icon.classList.remove('bi-eye-slash');
-        icon.classList.add('bi-eye');
+        icon.classList.remove('fa-eye-slash');
+        icon.classList.add('fa-eye');
     }
 }
 

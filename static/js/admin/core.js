@@ -156,6 +156,22 @@ window.formatDurationMinutesLabel = function(minutes) {
 };
 
 /**
+ * Sanitize boundary type input to create safe identifiers
+ */
+window.sanitizeBoundaryTypeInput = function(value) {
+    if (!value) {
+        return '';
+    }
+    return value
+        .toString()
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '_')
+        .replace(/_+/g, '_')
+        .replace(/^_+|_+$/g, '');
+};
+
+/**
  * Initialize on DOMContentLoaded
  */
 document.addEventListener('DOMContentLoaded', function() {

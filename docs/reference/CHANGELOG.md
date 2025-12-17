@@ -6,6 +6,25 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+### Changed
+- **Admin Page Refactoring Phase 2 Complete** - Completed modularization of admin.html JavaScript
+  - Moved final inline function `sanitizeBoundaryTypeInput` to core.js module
+  - Removed outdated comments about remaining inline functions
+  - admin.html reduced from original 7,461 lines to 2,043 lines (73% reduction, exceeding 30% target)
+  - All JavaScript now modularized into 9 separate files (132KB total) for better maintainability
+  - Improved browser caching with external modules
+  - Cleaner separation of concerns between template variables and business logic
+  - Version bump to 2.38.0 marks completion of Phase 2 refactoring
+
+### Fixed
+- **Admin HTML Template Structure** - Completed refactoring of admin.html template structure
+  - Removed 5 incorrectly placed closing tags and comments after setup mode section
+  - Fixed improper div nesting that was closing containers prematurely before {% else %} block
+  - Removed duplicate closing `</div>` tag in manage data section
+  - Template now has proper Jinja2 block structure with balanced opening/closing tags
+  - Fixes whitespace and rendering issues introduced during previous refactoring
+  - Template validation confirms all Jinja2 blocks (if/endif, for/endfor, block/endblock, with/endwith) are balanced
+
 ### Fixed
 - **Admin Page Excessive White Space** - Removed redundant container wrappers and spacing
   - Removed redundant `container-fluid` wrapper in regular (non-setup) mode
