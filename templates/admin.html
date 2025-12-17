@@ -6531,9 +6531,32 @@
 
 
         // ===== EXTRACTED MODULES =====
-        // Snow Emergency functions moved to /static/js/admin/snow-emergency.js
-        // Zone Catalog functions moved to /static/js/admin/zone-catalog.js
-        // See those files for: refreshZoneInfo(), searchZones(), snow emergency management
+        // Functions have been extracted to modular JavaScript files:
+        // 
+        // /static/js/admin/core.js - Core utilities and global state
+        // /static/js/admin/utilities.js - Shared helpers (confirmations, status, formatting)
+        //   - setupKeyboardShortcuts(), switchTab(), showConfirmation()
+        //   - showMultiStepConfirmation(), showStatus()
+        //   - formatDateTimeDisplay(), isoToLocalInputValue(), localInputToIso(), setInputValue()
+        // 
+        // /static/js/admin/user-management.js - User CRUD operations
+        //   - initializeUserManagement(), loadUserAccounts()
+        //   - handleUserPasswordReset(), handleUserDeletion(), formatUserTimestamp()
+        // 
+        // /static/js/admin/operations.js - System operations
+        //   - runOneClickBackup(), runOneClickUpgrade(), refreshOperationStatus()
+        //   - manualImportAlert(), optimizeDatabase(), checkDatabaseHealth()
+        //   - openEnvEditor(), saveEnvConfig(), recalculateIntersections(), triggerCAPPoll()
+        //   - truncate(), formatOperationTimestamp(), setOperationIndicator()
+        // 
+        // /static/js/admin/snow-emergency.js - Snow emergency management
+        //   - refreshZoneInfo(), searchZones(), snow emergency functions
+        // 
+        // /static/js/admin/zone-catalog.js - Zone catalog management  
+        //   - Zone search, upload, reload functions
+        //
+        // NOTE: Some function definitions remain inline below for backward compatibility
+        // during the refactoring process. They will be removed in a future cleanup pass.
 
 
 
@@ -6542,7 +6565,10 @@
     <!-- Admin Page Modular JavaScript -->
     <!-- Load core utilities first (provides shared functions) -->
     <script src="{{ url_for('static', filename='js/admin/core.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/admin/utilities.js') }}"></script>
     <!-- Load feature modules -->
+    <script src="{{ url_for('static', filename='js/admin/user-management.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/admin/operations.js') }}"></script>
     <script src="{{ url_for('static', filename='js/admin/snow-emergency.js') }}"></script>
     <script src="{{ url_for('static', filename='js/admin/zone-catalog.js') }}"></script>
 {% endblock %}
