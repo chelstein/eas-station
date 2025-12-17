@@ -13,6 +13,12 @@
     color: var(--text-color);
 }
 
+/* Prevent compounding padding on nested tab-content (sub-tabs) */
+.tab-content .tab-content {
+    padding: 0;
+    background: transparent;
+}
+
 /* Cards and panels need proper backgrounds */
 .card {
     background: var(--surface-color);
