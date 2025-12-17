@@ -7,6 +7,19 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **Admin Page Excessive White Space** - Removed redundant container wrappers and spacing
+  - Removed redundant `container-fluid` wrapper in regular (non-setup) mode
+  - Removed `py-2` padding from main container (reduces top spacing)
+  - Removed `mt-4` top margin from all tab content containers (Data, System, Services, Security tabs)
+  - Changed tab-content CSS padding from `1rem 1.5rem 1.5rem 1.5rem` to consistent `1.5rem`
+  - Fixed improper div nesting between setup mode and regular mode sections
+  - Tabs now render inside card-header with `p-0 border-0` for seamless integration
+  - Tab content now renders inside card-body with `p-0` to avoid double padding
+  - Cleaned up closing div comments for better code clarity
+  - Results in much tighter, cleaner admin interface without excessive vertical gaps
+  - References bug file: `/bugs/whitespace.html`
+
+### Fixed
 - **JavaScript Duplicate Declaration Errors** - Fixed console errors from duplicate function declarations
   - Removed 851 lines of duplicate inline JavaScript code from admin.html
   - Cleaned up alert management inline code (variables and 385 lines of functions)

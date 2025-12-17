@@ -7,7 +7,7 @@
 {% endblock %}
 
 {% block content %}
-<div class="container-fluid py-2">
+<div class="container-fluid">
     <!-- Admin Header -->
     <div class="admin-header">
         <div class="container-fluid">
@@ -125,13 +125,13 @@
                     </div>
                 </div>
             </div>
-            <!-- End of Main Admin Interface card (setup mode) -->
+            <!-- End of card-body (setup mode) -->
         </div>
-        <!-- End of container-fluid for admin interface (setup mode) -->
+        <!-- End of Main Admin Interface card (setup mode) -->
     </div>
-    <!-- End of container-fluid py-4 (setup mode) -->
+    <!-- End of container-fluid (setup mode) -->
             {% else %}
-            <div class="container-fluid">
+            <div class="card-header p-0 border-0">
                 <ul class="nav nav-tabs" id="adminTabs" role="tablist">
                     <li class="nav-item" role="presentation">
                         <button class="nav-link active" id="data-tab" data-bs-toggle="tab" data-bs-target="#data-management" type="button" role="tab">
@@ -165,10 +165,11 @@
                     </li>
                 </ul>
             </div>
-            <div class="tab-content" id="adminTabContent">
+            <div class="card-body p-0">
+                <div class="tab-content" id="adminTabContent">
                 <!-- DATA MANAGEMENT TAB -->
                 <div class="tab-pane fade show active" id="data-management" role="tabpanel">
-                    <div class="container-fluid mt-4">
+                    <div class="container-fluid">
                         <h3><i class="fas fa-database"></i> Data Management</h3>
                         <p class="text-muted mb-4">Manage boundaries, zones, and geographic data</p>
                         
@@ -585,7 +586,7 @@
                 
                 <!-- SYSTEM SETTINGS TAB -->
                 <div class="tab-pane fade" id="system-settings" role="tabpanel">
-                    <div class="container-fluid mt-4">
+                    <div class="container-fluid">
                         <h3><i class="fas fa-cog"></i> System Settings</h3>
                         <p class="text-muted mb-4">Configure station location, network, and system parameters</p>
                         
@@ -1085,7 +1086,7 @@
 
                 <!-- SERVICES TAB -->
                 <div class="tab-pane fade" id="services" role="tabpanel">
-                    <div class="container-fluid mt-4">
+                    <div class="container-fluid">
                         <h3><i class="fas fa-server"></i> Services</h3>
                         <p class="text-muted mb-4">Manage streaming, SSL certificates, TTS, and integrations</p>
                         
@@ -1144,7 +1145,7 @@
                 
                 <!-- SECURITY TAB -->
                 <div class="tab-pane fade" id="security" role="tabpanel">
-                    <div class="container-fluid mt-4">
+                    <div class="container-fluid">
                         <h3><i class="fas fa-shield-alt"></i> Security</h3>
                         <p class="text-muted mb-4">Manage users, roles, and security monitoring</p>
                         
@@ -1775,8 +1776,14 @@
                 </div>
 
                 <!-- SSL/Certbot Tab -->
+                </div>
+                <!-- End of tab-content -->
             </div>
-            <!-- End of tab-content -->
+            <!-- End of card-body -->
+        </div>
+        <!-- End of Main Admin Interface card (regular mode) -->
+    </div>
+    <!-- End of container-fluid (regular mode) -->
             {% endif %}
 
         <!-- Operation Status -->
