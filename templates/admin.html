@@ -575,6 +575,11 @@
                     </div>
                 </div>
             </div>
+            <!-- End of Main Admin Interface card (setup mode) -->
+        </div>
+        <!-- End of container-fluid for admin interface (setup mode) -->
+    </div>
+    <!-- End of container-fluid py-4 (setup mode) -->
             {% else %}
             <div class="container-fluid">
                 <ul class="nav nav-tabs" id="adminTabs" role="tablist">
@@ -874,7 +879,6 @@
                                     </div>
                                 </div>
                             </div>
-                        </div>
                         </div>
                     </div>
                 </div>
@@ -2223,15 +2227,10 @@
                 <!-- SSL/Certbot Tab -->
             </div>
             <!-- End of tab-content -->
-            </div>
-            <!-- End of tab container -->
             {% endif %}
-        </div>
-        <!-- End of admin cards -->
 
         <!-- Operation Status -->
         <div id="operationStatus" class="mt-3" style="display: none;"></div>
-    </div>
 
     {% if not setup_mode %}
     <!-- Confirmation Modal -->
@@ -2420,7 +2419,6 @@
         <i class="fas fa-keyboard"></i> Alt+1-8: Switch Tabs | Alt+R: Refresh | Alt+H: Help
     </div>
     {% endif %}
-</div>
 {% endblock %}
 
 {% block scripts %}
@@ -7237,7 +7235,7 @@
             initializeSnowMermaid();
             const snowTab = document.getElementById('snow-subtab');
             if (snowTab) {
-                snowTab.addEventListener('shown.bs.pill', function() {
+                snowTab.addEventListener('shown.bs.tab', function() {
                     initializeSnowMermaid();
                     refreshSnowEmergencyAdmin();
                 });
@@ -7249,7 +7247,7 @@
         // Load zone info when zone catalog sub-tab is shown
         const zoneTab = document.getElementById('zones-subtab');
         if (zoneTab) {
-            zoneTab.addEventListener('shown.bs.pill', function() {
+            zoneTab.addEventListener('shown.bs.tab', function() {
                 refreshZoneInfo();
             });
         }

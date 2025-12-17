@@ -7,6 +7,16 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **Admin Page Visual White Space** - Fixed rendering issues caused by unbalanced HTML structure
+  - Removed 3 extra closing div tags causing layout problems
+  - Fixed zone catalog section with 1 redundant closing div
+  - Corrected improper div closing between setup_mode and normal mode conditional blocks
+  - Fixed container-fluid divs closing in wrong conditional branches
+  - All 612 div tags now perfectly balanced (612 opening, 612 closing)
+  - Changed JavaScript event listeners from `shown.bs.pill` to `shown.bs.tab` for Bootstrap 5 compatibility
+  - Zone Catalog tab now loads data when clicked
+  - Snow Emergencies tab now loads data when clicked
+
 - **Admin Page Tab Structure** - Fixed critically broken HTML structure preventing tabs from loading
   - Moved System Settings sub-tabs (Location, Alerts, Snow Emergency) inside system-settings tab-pane
   - Moved Security sub-tab (User Management) inside security tab-pane
