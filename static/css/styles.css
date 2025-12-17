@@ -1063,8 +1063,8 @@ small,
 
 /* Page Shell */
 .page-shell {
-    /* Flex fill keeps the footer anchored without leaving large empty gaps */
-    flex: 1 0 auto;
+    /* Take only the space needed, preventing excessive whitespace gaps */
+    flex: 0 0 auto;
     display: flex;
     flex-direction: column;
     padding: var(--layout-padding-top) 0 var(--layout-padding-bottom);
