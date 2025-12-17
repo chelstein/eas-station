@@ -7,15 +7,22 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Changed
-- **Admin Page Refactoring - Phase 2 (In Progress)** - Modular JavaScript extraction
+- **Admin Page Refactoring - Phase 2 (Major Progress)** - Modular JavaScript extraction
   - ✅ Moved 449 lines of inline CSS to `/static/css/admin.css`
-  - ✅ Extracted Zone Catalog module to `/static/js/admin/zone-catalog.js` (182 lines)
-  - ✅ Extracted Snow Emergency module to `/static/js/admin/snow-emergency.js` (270 lines)
-  - Reduced admin.html from 7,461 to 6,545 lines (916 line reduction, 12%)
-  - File size reduced from 388KB to 353KB (35KB reduction, 9%)
-  - Improved browser caching - CSS and JavaScript modules cached separately
-  - All theme-aware functionality preserved
-  - Remaining JavaScript extraction in progress (~4,100 lines to extract)
+  - ✅ Extracted 8 JavaScript modules (~2,380 lines total):
+    - `/static/js/admin/core.js` (163 lines) - Global state and utilities
+    - `/static/js/admin/utilities.js` (240 lines) - Confirmations, status, formatting
+    - `/static/js/admin/zone-catalog.js` (182 lines) - Zone management
+    - `/static/js/admin/snow-emergency.js` (263 lines) - Snow emergency operations
+    - `/static/js/admin/user-management.js` (280 lines) - User CRUD operations
+    - `/static/js/admin/alert-management.js` (513 lines) - Alert editing and display
+    - `/static/js/admin/hardware-settings.js` (160 lines) - LED and GPIO config
+    - `/static/js/admin/operations.js` (580 lines) - Backup, upgrade, manual imports
+  - All modules loaded in correct dependency order in admin.html
+  - Improved browser caching - CSS and 8 JavaScript modules cached separately
+  - All theme-aware functionality preserved across modules
+  - Remaining modules to extract: Boundary Management, Location Settings, EAS Generator (~2,200 lines)
+  - admin.html reduced from 7,461 lines to 6,587 lines (874 line reduction)
   - See `docs/development/ADMIN_PAGE_REFACTORING.md` for full refactoring plan
 
 ### Fixed
