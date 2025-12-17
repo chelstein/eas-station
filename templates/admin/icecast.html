@@ -399,6 +399,38 @@
                 </div>
             </div>
 
+            <!-- Server Information -->
+            <div class="form-section">
+                <h4>Server Information</h4>
+                <div class="alert alert-info mb-3">
+                    <i class="bi bi-info-circle"></i> <strong>Note:</strong> These settings configure the Icecast server's identity and contact information.
+                </div>
+                
+                <div class="mb-3">
+                    <label for="server_hostname" class="form-label">Server Hostname</label>
+                    <input type="text" class="form-control" id="server_hostname" name="server_hostname" 
+                           value="{{ settings.server_hostname or '' }}" 
+                           placeholder="stream.example.com">
+                    <div class="form-text">Public hostname for Icecast server (prevents "localhost" warnings in logs)</div>
+                </div>
+
+                <div class="mb-3">
+                    <label for="server_location" class="form-label">Server Location</label>
+                    <input type="text" class="form-control" id="server_location" name="server_location" 
+                           value="{{ settings.server_location or '' }}" 
+                           placeholder="Earth">
+                    <div class="form-text">Geographic location of the Icecast server</div>
+                </div>
+
+                <div class="mb-3">
+                    <label for="admin_contact" class="form-label">Admin Contact Email</label>
+                    <input type="email" class="form-control" id="admin_contact" name="admin_contact" 
+                           value="{{ settings.admin_contact or '' }}" 
+                           placeholder="admin@example.com">
+                    <div class="form-text">Contact email for server administrator</div>
+                </div>
+            </div>
+
             <!-- Stream Settings -->
             <div class="form-section">
                 <h4>Stream Settings</h4>
