@@ -10,7 +10,7 @@ tracks releases under the 2.x series.
 - **Admin Page Refactoring Phase 2 Complete** - Completed modularization of admin.html JavaScript
   - Moved final inline function `sanitizeBoundaryTypeInput` to core.js module
   - Removed outdated comments about remaining inline functions
-  - admin.html reduced from 5,736 lines to 2,028 lines (64% reduction, exceeding 30% target)
+  - admin.html reduced from 5,736 lines to 2,043 lines (64% reduction, exceeding 30% target)
   - All JavaScript now modularized into 9 separate files for better maintainability
   - Improved browser caching with external modules
   - Cleaner separation of concerns between template variables and business logic
