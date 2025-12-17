@@ -7,6 +7,13 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **Admin Page Tab Navigation** - Fixed broken tab structure preventing tabs from loading
+  - Fixed JavaScript event listener for Zone Catalog tab (ID mismatch: `zones-tab` → `zones-subtab`, event: `shown.bs.tab` → `shown.bs.pill`)
+  - Fixed JavaScript event listener for Snow Emergency tab (ID mismatch: `snow-emergencies-tab` → `snow-subtab`, event: `shown.bs.tab` → `shown.bs.pill`)
+  - Fixed System Settings tab structure by removing confusing empty `<div class="tab-content">` that caused nesting issues
+  - All 6 main tabs (Data, System, Services, Hardware, Security, Operations) now load correctly
+  - All 7 sub-tabs now function properly
+
 - **RBAC User Management** - User roles now display correctly in user management page
   - Fixed backend `AdminUser.to_safe_dict()` to return `role_name` instead of `role`
   - Users with assigned roles now show role badges (Admin, Operator, Viewer, etc.)
@@ -23,6 +30,12 @@ tracks releases under the 2.x series.
   - Fixes warnings: "hostname not configured", "location not configured", "admin contact not configured"
 
 ### Added
+- **Admin Page Refactoring Documentation** - Created comprehensive refactoring roadmap
+  - Documented current state: 7,453 lines, 388KB file size
+  - Analysis: 67.5% JavaScript (5,034 lines, 150+ functions), 26.4% HTML, 6.0% CSS
+  - Phased refactoring plan (Phase 1 complete, Phase 2-3 planned)
+  - See `docs/development/ADMIN_PAGE_REFACTORING.md` for details
+
 - **Environment Variables UI** - Added missing environment variables to frontend configuration
   - **Redis Category**: `REDIS_HOST`, `REDIS_PORT`, `REDIS_DB` for granular Redis server configuration
   - **TTS Category**: `EAS_TTS_PROVIDER`, `AZURE_OPENAI_CONFIG` for text-to-speech provider settings
