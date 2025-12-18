@@ -9,6 +9,16 @@ tracks releases under the 2.x series.
 ### Added
 
 ### Fixed
+- **Certificate Installation Not Working** - Fixed SSL certificate installation failures
+  - Replaced fragile Python string `.replace()` with robust `sed` commands for nginx config updates
+  - Fixed nginx reload/restart logic after certificate acquisition
+  - Added proper nginx status checking before reload
+  - Fixed field name mismatch: JavaScript expected `expires_at` but backend returned `valid_until`
+  - Fixed domain display: JavaScript expected `domains` array but backend returned `domain` string
+  - Enhanced frontend to show installation status with detailed feedback
+  - Installation now properly comments out self-signed cert and uncomments Let's Encrypt cert
+  - Addresses: "This still isn't installing certificates" - CN still showing localhost instead of domain
+  
 - **Certbot Certificate Installation** - Fixed automatic certificate installation after acquisition
   - Fixed missing `require_auth` import causing Error 500 on install endpoint
   - Added automatic certificate installation after successful certificate acquisition
