@@ -1075,6 +1075,23 @@ async function executeObtainCertificate() {
     }
 }
 
+// Helper function to format certificate info for display
+function formatCertificateDisplay(certificate) {
+    const domainDisplay = certificate.domain || 'your domain';
+    
+    let expiryDisplay = 'unknown';
+    if (certificate.valid_until) {
+        try {
+            const expiryDate = new Date(certificate.valid_until);
+            expiryDisplay = expiryDate.toLocaleDateString() + ' ' + expiryDate.toLocaleTimeString();
+        } catch (e) {
+            expiryDisplay = certificate.valid_until;
+        }
+    }
+    
+    return { domainDisplay, expiryDisplay };
+}
+
 // Wait for server to come back online after standalone certificate acquisition
 async function waitForServerReconnect(resultDiv) {
     const maxAttempts = 20;
@@ -1099,19 +1116,8 @@ async function waitForServerReconnect(resultDiv) {
                 const status = await response.json();
 
                 if (status.certificate && status.certificate.valid) {
-                    // Format domain - handle both string and array
-                    const domainDisplay = status.certificate.domain || 'your domain';
-                    
-                    // Format expiry date - use valid_until field from ssl_utils.py
-                    let expiryDisplay = 'unknown';
-                    if (status.certificate.valid_until) {
-                        try {
-                            const expiryDate = new Date(status.certificate.valid_until);
-                            expiryDisplay = expiryDate.toLocaleDateString() + ' ' + expiryDate.toLocaleTimeString();
-                        } catch (e) {
-                            expiryDisplay = status.certificate.valid_until;
-                        }
-                    }
+                    // Format certificate display info
+                    const { domainDisplay, expiryDisplay } = formatCertificateDisplay(status.certificate);
                     
                     // Check if we're on HTTP and need to redirect to HTTPS
                     const isHttp = window.location.protocol === 'http:';
@@ -1148,6 +1154,7 @@ async function waitForServerReconnect(resultDiv) {
                             
                             if (countdown <= 0) {
                                 clearInterval(window.httpsRedirectInterval);
+                                window.httpsRedirectInterval = null;
                                 redirectToHttps();
                             }
                         }, 1000);
@@ -1222,8 +1229,10 @@ function redirectToHttps() {
         window.httpsRedirectInterval = null;
     }
     
-    // Build HTTPS URL
-    const httpsUrl = window.location.href.replace('http://', 'https://');
+    // Build HTTPS URL properly using URL constructor
+    const currentUrl = new URL(window.location.href);
+    currentUrl.protocol = 'https:';
+    const httpsUrl = currentUrl.href;
     
     // Show toast notification
     showToast('Redirecting to HTTPS...', 'info');
