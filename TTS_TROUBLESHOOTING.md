@@ -133,6 +133,26 @@ https://myresource.openai.azure.com/openai/deployments/tts-hd/audio/speech?api-v
 - Environment variables are completely ignored
 - All configuration must be via web UI at `/admin/tts`
 
+### Issue 6: TTS settings not taking effect (FIXED)
+
+**Problem:**
+You configured TTS via the web UI, but the broadcast builder still doesn't use TTS.
+
+**Root Cause (FIXED as of this commit):**
+The EAS config was loaded once at app startup and cached. Even after updating TTS settings in the database via `/admin/tts`, the broadcast builder used the stale cached config.
+
+**Solution:**
+The code now reloads TTS configuration fresh from the database each time audio is generated. Changes to TTS settings take effect immediately without requiring an app restart.
+
+**Fixed Files:**
+- `webapp/eas/workflow.py:232-242` - Workflow builder now reloads config
+- `webapp/admin/audio.py:756-764` - Admin audio builder now reloads config
+
+**Verification:**
+1. Update TTS settings at `/admin/tts`
+2. Generate a test alert immediately
+3. TTS should work with the new settings (no restart needed)
+
 ---
 
 ## Testing TTS Configuration
