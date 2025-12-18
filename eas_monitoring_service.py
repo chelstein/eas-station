@@ -879,7 +879,7 @@ def main():
                     # Use unique subscriber ID per connection
                     # Note: Each source has its own broadcast queue (architecture change)
                     subscriber_id = f"web-stream-{source_name}-{threading.current_thread().ident}"
-                    if not hasattr(adapter, 'get_broadcast_queue'):
+                    if not (hasattr(adapter, 'get_broadcast_queue') and callable(getattr(adapter, 'get_broadcast_queue', None))):
                         logger.error(f"Audio source '{source_name}' does not support broadcast queue")
                         return jsonify({'error': f'Audio source "{source_name}" does not support streaming'}), 500
                     

@@ -98,8 +98,8 @@ def _ensure_nginx_log_permissions():
             timeout=5
         )
         
-        # Set permissions to allow group writing (664 = rw-rw-r--, secure yet functional)
-        # Owner and group (www-data) can write, others can read
+        # Set permissions to allow group writing (664 = rw-rw-r--)
+        # Owner and group (www-data) can read/write, others can only read
         subprocess.run(
             ['sudo', 'chmod', '664', '/var/log/nginx/error.log'],
             capture_output=True,
