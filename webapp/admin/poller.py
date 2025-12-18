@@ -18,13 +18,13 @@ Repository: https://github.com/KR8MER/eas-station
 """
 
 from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash
-from flask_login import login_required
 from sqlalchemy.exc import SQLAlchemyError
 import logging
 
 from app_core.extensions import db
 from app_core.models import PollerSettings
-from app_core.decorators import permission_required
+from app_core.auth.decorators import require_auth
+from app_core.auth.roles import require_permission
 
 logger = logging.getLogger(__name__)
 
@@ -32,8 +32,8 @@ poller_bp = Blueprint('poller', __name__, url_prefix='/admin/poller')
 
 
 @poller_bp.route('/', methods=['GET'])
-@login_required
-@permission_required('settings.manage')
+@require_auth
+@require_permission('settings.manage')
 def poller_settings():
     """Display poller configuration settings page."""
     try:
@@ -60,8 +60,8 @@ def poller_settings():
 
 
 @poller_bp.route('/update', methods=['POST'])
-@login_required
-@permission_required('settings.manage')
+@require_auth
+@require_permission('settings.manage')
 def update_poller_settings():
     """Update poller configuration settings."""
     try:
@@ -114,8 +114,8 @@ def update_poller_settings():
 
 
 @poller_bp.route('/status', methods=['GET'])
-@login_required
-@permission_required('settings.view')
+@require_auth
+@require_permission('settings.view')
 def poller_status():
     """Get current poller settings as JSON."""
     try:
