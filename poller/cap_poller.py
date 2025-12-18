@@ -172,6 +172,8 @@ from app_utils.location_settings import (
 )
 print(f"[CAP_POLLER] Importing app_utils.optimized_parsing...")
 from app_utils.optimized_parsing import json_loads, json_dumps, parse_xml_string, get_element_tree_module
+print(f"[CAP_POLLER] Importing app_core.models...")
+from app_core.models import PollerSettings
 print(f"[CAP_POLLER] All app module imports complete!")
 
 # Use optimized XML parser (lxml if available, else xml.etree.ElementTree)
@@ -2623,7 +2625,6 @@ class CAPPoller:
             # Check poller settings for detailed logging (query once per poll cycle)
             log_fetched_alerts = False
             try:
-                from app_core.models import PollerSettings
                 poller_settings = PollerSettings.query.first()
                 log_fetched_alerts = poller_settings.log_fetched_alerts if poller_settings else False
             except Exception:
@@ -2885,7 +2886,6 @@ def main():
                     poller_enabled = True
                     db_interval = interval  # Default to current interval
                     try:
-                        from app_core.models import PollerSettings
                         poller_settings = PollerSettings.query.first()
                         if poller_settings:
                             poller_enabled = poller_settings.enabled
@@ -2895,7 +2895,7 @@ def main():
                                 interval = db_interval
                     except Exception as e:
                         # If PollerSettings table doesn't exist yet or query fails, use args
-                        logger.debug(f"Could not read poller settings from database: {e}")
+                        logger.debug(f"Failed to read poller settings from database, using command line arguments: {e}")
                     
                     # Sleep before polling (except on first iteration) to prevent CPU hammering
                     # This ensures we always wait between polls, even if a poll completes very quickly
