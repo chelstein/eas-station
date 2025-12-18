@@ -110,25 +110,46 @@ def load_eas_config(base_path: Optional[str] = None) -> Dict[str, object]:
 
     # Load TTS configuration from database only
     from app_core.tts_settings import get_tts_settings
-    tts_settings = get_tts_settings()
-    
+    import logging
+    load_logger = logging.getLogger('eas.config')
+
     tts_provider = ''
     azure_openai_endpoint = ''
     azure_openai_key = ''
     azure_openai_model = 'tts-1'
     azure_openai_voice = 'alloy'
     azure_openai_speed = 1.0
-    
-    if tts_settings.enabled and tts_settings.provider:
-        tts_provider = tts_settings.provider.strip().lower()
-        
-        # Load Azure OpenAI settings if provider is azure_openai
-        if tts_provider == 'azure_openai':
-            azure_openai_endpoint = (tts_settings.azure_openai_endpoint or '').strip()
-            azure_openai_key = (tts_settings.azure_openai_key or '').strip()
-            azure_openai_model = (tts_settings.azure_openai_model or 'tts-1').strip()
-            azure_openai_voice = (tts_settings.azure_openai_voice or 'alloy').strip()
-            azure_openai_speed = tts_settings.azure_openai_speed or 1.0
+
+    try:
+        tts_settings = get_tts_settings()
+
+        load_logger.debug(f"TTS settings from DB: enabled={tts_settings.enabled}, provider='{tts_settings.provider}'")
+
+        if not tts_settings.enabled:
+            load_logger.info("TTS is disabled in database settings")
+        elif not tts_settings.provider:
+            load_logger.warning("TTS is enabled but provider is empty in database settings")
+        else:
+            tts_provider = tts_settings.provider.strip().lower()
+            load_logger.info(f"TTS enabled with provider: {tts_provider}")
+
+            # Load Azure OpenAI settings if provider is azure_openai
+            if tts_provider == 'azure_openai':
+                azure_openai_endpoint = (tts_settings.azure_openai_endpoint or '').strip()
+                azure_openai_key = (tts_settings.azure_openai_key or '').strip()
+                azure_openai_model = (tts_settings.azure_openai_model or 'tts-1').strip()
+                azure_openai_voice = (tts_settings.azure_openai_voice or 'alloy').strip()
+                azure_openai_speed = tts_settings.azure_openai_speed or 1.0
+
+                load_logger.info(f"Azure OpenAI TTS config loaded: endpoint={'<set>' if azure_openai_endpoint else '<MISSING>'}, key={'<set>' if azure_openai_key else '<MISSING>'}")
+
+                if not azure_openai_endpoint:
+                    load_logger.error("Azure OpenAI TTS enabled but endpoint is empty!")
+                if not azure_openai_key:
+                    load_logger.error("Azure OpenAI TTS enabled but API key is empty!")
+    except Exception as exc:
+        load_logger.error(f"Failed to load TTS settings from database: {exc}")
+        load_logger.exception("TTS settings load error details:")
 
     config: Dict[str, object] = {
         'enabled': os.getenv('EAS_BROADCAST_ENABLED', 'false').lower() == 'true',
