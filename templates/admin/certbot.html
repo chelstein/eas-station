@@ -1075,6 +1075,26 @@ async function executeObtainCertificate() {
     }
 }
 
+// Helper function to format certificate info for display
+// Returns HTML-escaped values safe for insertion into innerHTML
+function formatCertificateDisplay(certificate) {
+    const domainRaw = certificate.domain || 'your domain';
+    const domainDisplay = escapeHtml(domainRaw);
+    
+    let expiryDisplay = 'unknown';
+    if (certificate.valid_until) {
+        try {
+            const expiryDate = new Date(certificate.valid_until);
+            const formatted = expiryDate.toLocaleDateString() + ' ' + expiryDate.toLocaleTimeString();
+            expiryDisplay = escapeHtml(formatted);
+        } catch (e) {
+            expiryDisplay = escapeHtml(certificate.valid_until);
+        }
+    }
+    
+    return { domainDisplay, expiryDisplay, domainRaw };
+}
+
 // Wait for server to come back online after standalone certificate acquisition
 async function waitForServerReconnect(resultDiv) {
     const maxAttempts = 20;
@@ -1099,36 +1119,104 @@ async function waitForServerReconnect(resultDiv) {
                 const status = await response.json();
 
                 if (status.certificate && status.certificate.valid) {
-                    // Format domain - handle both string and array
-                    const domainDisplay = status.certificate.domain || 'your domain';
+                    // Format certificate display info (returns escaped HTML-safe values)
+                    const { domainDisplay, expiryDisplay, domainRaw } = formatCertificateDisplay(status.certificate);
                     
-                    // Format expiry date - use valid_until field from ssl_utils.py
-                    let expiryDisplay = 'unknown';
-                    if (status.certificate.valid_until) {
-                        try {
-                            const expiryDate = new Date(status.certificate.valid_until);
-                            expiryDisplay = expiryDate.toLocaleDateString() + ' ' + expiryDate.toLocaleTimeString();
-                        } catch (e) {
-                            expiryDisplay = status.certificate.valid_until;
+                    // Check if we're on HTTP and need to redirect to HTTPS
+                    const isHttp = window.location.protocol === 'http:';
+                    
+                    if (isHttp) {
+                        // Show success message with HTTPS redirect countdown
+                        resultDiv.innerHTML = `
+                            <div class="alert alert-success">
+                                <i class="bi bi-check-circle"></i> <strong>Reconnected! Certificate obtained successfully.</strong>
+                                <p class="mt-2 mb-0">SSL certificate is now installed for: <strong>${domainDisplay}</strong></p>
+                                <p class="mb-0"><small>Expires: ${expiryDisplay}</small></p>
+                                <hr>
+                                <p class="mb-0"><i class="bi bi-arrow-right-circle"></i> Redirecting to HTTPS in <strong><span id="httpsRedirectCountdown">5</span></strong> seconds...</p>
+                            </div>
+                            <div class="mt-3">
+                                <button class="btn btn-primary" onclick="redirectToHttps()">
+                                    <i class="bi bi-shield-lock"></i> Go to HTTPS Now
+                                </button>
+                                <button class="btn btn-secondary" onclick="cancelHttpsRedirect()">
+                                    <i class="bi bi-x-circle"></i> Cancel Redirect
+                                </button>
+                            </div>
+                        `;
+                        showToast('Certificate installed - redirecting to HTTPS...', 'success');
+                        
+                        // Start countdown and auto-redirect to HTTPS
+                        let countdown = 5;
+                        window.httpsRedirectInterval = setInterval(() => {
+                            countdown--;
+                            const countdownSpan = document.getElementById('httpsRedirectCountdown');
+                            if (countdownSpan) {
+                                countdownSpan.textContent = countdown;
+                            }
+                            
+                            if (countdown <= 0) {
+                                clearInterval(window.httpsRedirectInterval);
+                                window.httpsRedirectInterval = null;
+                                redirectToHttps();
+                            }
+                        }, 1000);
+                    } else {
+                        // Already on HTTPS, check for domain mismatch
+                        const currentHostname = window.location.hostname;
+                        const currentHostnameEscaped = escapeHtml(currentHostname);
+                        const certDomain = status.certificate.domain;
+                        const domainMismatch = certDomain && currentHostname !== certDomain;
+                        
+                        if (domainMismatch) {
+                            // Certificate domain doesn't match current hostname
+                            // domainDisplay and expiryDisplay are already escaped by formatCertificateDisplay
+                            resultDiv.innerHTML = `
+                                <div class="alert alert-warning">
+                                    <i class="bi bi-exclamation-triangle"></i> <strong>Certificate domain mismatch!</strong>
+                                    <p class="mt-2 mb-0">Certificate is installed for: <strong>${domainDisplay}</strong></p>
+                                    <p class="mb-0">But you're accessing via: <strong>${currentHostnameEscaped}</strong></p>
+                                    <p class="mb-0"><small>Expires: ${expiryDisplay}</small></p>
+                                    <hr>
+                                    <p class="mb-2"><i class="bi bi-info-circle"></i> <strong>To fix this:</strong></p>
+                                    <ul class="mb-0">
+                                        <li>Access the site using: <strong>${domainDisplay}</strong></li>
+                                        <li>Or obtain a new certificate for: <strong>${currentHostnameEscaped}</strong></li>
+                                    </ul>
+                                </div>
+                                <div class="mt-3">
+                                    <button class="btn btn-primary" onclick="redirectToCertDomain('${domainRaw}')">
+                                        <i class="bi bi-arrow-right-circle"></i> Go to ${domainDisplay}
+                                    </button>
+                                    <button class="btn btn-secondary" onclick="checkCertificateStatus()">
+                                        <i class="bi bi-shield-check"></i> Check Certificate Details
+                                    </button>
+                                    <button class="btn btn-secondary" onclick="cancelObtainCertificate()">
+                                        <i class="bi bi-x-circle"></i> Close
+                                    </button>
+                                </div>
+                            `;
+                            showToast('Certificate domain mismatch detected', 'warning');
+                        } else {
+                            // Certificate matches, show success
+                            resultDiv.innerHTML = `
+                                <div class="alert alert-success">
+                                    <i class="bi bi-check-circle"></i> <strong>Certificate obtained successfully.</strong>
+                                    <p class="mt-2 mb-0">SSL certificate is now installed for: <strong>${domainDisplay}</strong></p>
+                                    <p class="mb-0"><small>Expires: ${expiryDisplay}</small></p>
+                                </div>
+                                <div class="mt-3">
+                                    <button class="btn btn-primary" onclick="checkCertificateStatus()">
+                                        <i class="bi bi-shield-check"></i> View Full Certificate Details
+                                    </button>
+                                    <button class="btn btn-secondary" onclick="cancelObtainCertificate()">
+                                        <i class="bi bi-x-circle"></i> Close
+                                    </button>
+                                </div>
+                            `;
+                            showToast('Certificate obtained successfully!', 'success');
                         }
                     }
-                    
-                    resultDiv.innerHTML = `
-                        <div class="alert alert-success">
-                            <i class="bi bi-check-circle"></i> <strong>Reconnected! Certificate obtained successfully.</strong>
-                            <p class="mt-2 mb-0">SSL certificate is now installed for: <strong>${domainDisplay}</strong></p>
-                            <p class="mb-0"><small>Expires: ${expiryDisplay}</small></p>
-                        </div>
-                        <div class="mt-3">
-                            <button class="btn btn-primary" onclick="checkCertificateStatus()">
-                                <i class="bi bi-shield-check"></i> View Full Certificate Details
-                            </button>
-                            <button class="btn btn-secondary" onclick="cancelObtainCertificate()">
-                                <i class="bi bi-x-circle"></i> Close
-                            </button>
-                        </div>
-                    `;
-                    showToast('Certificate obtained successfully!', 'success');
                 } else {
                     // Server is back but certificate may have failed
                     resultDiv.innerHTML = `
@@ -1173,9 +1261,128 @@ async function waitForServerReconnect(resultDiv) {
     showToast('Connection timeout - please refresh', 'error');
 }
 
+// Redirect to HTTPS version of current page
+function redirectToHttps() {
+    // Clear any active redirect countdown
+    if (window.httpsRedirectInterval) {
+        clearInterval(window.httpsRedirectInterval);
+        window.httpsRedirectInterval = null;
+    }
+    
+    // Build HTTPS URL properly using URL constructor
+    const currentUrl = new URL(window.location.href);
+    currentUrl.protocol = 'https:';
+    const httpsUrl = currentUrl.href;
+    
+    // Show toast notification
+    showToast('Redirecting to HTTPS...', 'info');
+    
+    // Redirect after a short delay to allow toast to show
+    setTimeout(() => {
+        window.location.href = httpsUrl;
+    }, 500);
+}
+
+// Redirect to certificate domain with proper URL construction
+function redirectToCertDomain(domain) {
+    try {
+        // Clear any active redirect countdown
+        if (window.httpsRedirectInterval) {
+            clearInterval(window.httpsRedirectInterval);
+            window.httpsRedirectInterval = null;
+        }
+        
+        // Build URL with certificate domain (keep current path and query)
+        const currentUrl = new URL(window.location.href);
+        currentUrl.protocol = 'https:';
+        currentUrl.hostname = domain;
+        
+        // Show toast notification (escape domain for safety)
+        const domainEscaped = escapeHtml(domain);
+        showToast(`Redirecting to ${domainEscaped}...`, 'info');
+        
+        // Redirect after a short delay to allow toast to show
+        setTimeout(() => {
+            window.location.href = currentUrl.href;
+        }, 500);
+    } catch (e) {
+        showToast('Invalid domain - cannot redirect', 'error');
+        console.error('Failed to redirect to cert domain:', e);
+    }
+}
+
+// Cancel automatic HTTPS redirect
+async function cancelHttpsRedirect() {
+    // Clear the countdown interval
+    if (window.httpsRedirectInterval) {
+        clearInterval(window.httpsRedirectInterval);
+        window.httpsRedirectInterval = null;
+    }
+    
+    // Fetch current certificate status to show success without redirect
+    const resultDiv = document.getElementById('obtainCertResult');
+    
+    // Guard clause - return early if element doesn't exist
+    if (!resultDiv) {
+        console.error('obtainCertResult element not found');
+        return;
+    }
+    
+    try {
+        const response = await fetch('/admin/api/certbot/status', {
+            method: 'GET',
+            cache: 'no-store'
+        });
+        
+        if (response.ok) {
+            const status = await response.json();
+            
+            if (status.certificate && status.certificate.valid) {
+                const { domainDisplay, expiryDisplay } = formatCertificateDisplay(status.certificate);
+                
+                resultDiv.innerHTML = `
+                    <div class="alert alert-success">
+                        <i class="bi bi-check-circle"></i> <strong>Certificate obtained successfully.</strong>
+                        <p class="mt-2 mb-0">SSL certificate is now installed for: <strong>${domainDisplay}</strong></p>
+                        <p class="mb-0"><small>Expires: ${expiryDisplay}</small></p>
+                        <hr>
+                        <p class="mb-0"><small><i class="bi bi-info-circle"></i> You can manually switch to HTTPS by changing the URL from http:// to https://</small></p>
+                    </div>
+                    <div class="mt-3">
+                        <button class="btn btn-primary" onclick="redirectToHttps()">
+                            <i class="bi bi-shield-lock"></i> Go to HTTPS
+                        </button>
+                        <button class="btn btn-secondary" onclick="checkCertificateStatus()">
+                            <i class="bi bi-shield-check"></i> Check Certificate Status
+                        </button>
+                        <button class="btn btn-secondary" onclick="cancelObtainCertificate()">
+                            <i class="bi bi-x-circle"></i> Close
+                        </button>
+                    </div>
+                `;
+            } else {
+                // Fallback - just clear if certificate status unclear
+                resultDiv.innerHTML = '';
+            }
+        } else {
+            // Fallback - just clear if fetch fails
+            resultDiv.innerHTML = '';
+        }
+    } catch (e) {
+        // Fallback - just clear if error
+        resultDiv.innerHTML = '';
+    }
+    
+    showToast('HTTPS redirect cancelled - staying on HTTP', 'info');
+}
+
 function escapeHtml(text) {
+    // Handle null, undefined, or falsy values
+    if (!text && text !== 0) {
+        return '';
+    }
     const div = document.createElement('div');
-    div.textContent = text;
+    div.textContent = String(text);
     return div.innerHTML;
 }
 
