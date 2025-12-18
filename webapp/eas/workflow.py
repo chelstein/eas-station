@@ -291,6 +291,7 @@ def register_workflow_routes(bp, logger, eas_config) -> None:
             )
         except Exception as exc:
             workflow_logger.error('Manual EAS generation failed: %s', exc)
+            workflow_logger.exception('Manual EAS generation exception details:')
             return jsonify({'error': 'Failed to generate manual EAS package.'}), 500
 
         if not components:

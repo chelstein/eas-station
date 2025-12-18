@@ -8,6 +8,17 @@ tracks releases under the 2.x series.
 
 ### Added
 - **Certbot Status Route Alias** - Added `/admin/api/certbot/status` endpoint as alias for `/admin/api/certbot/certificate-status` for frontend compatibility
+- **TTS Debugging Logging** - Added comprehensive logging to help diagnose Broadcast Builder TTS issues
+  - EASAudioGenerator now logs TTS provider configuration at initialization
+  - Logs when message text is empty (would prevent TTS generation)
+  - Logs when attempting TTS generation with character count
+  - Logs TTS generation success with sample count
+  - Logs TTS synthesis failures ALWAYS (even when no error details available)
+  - Logs when TTS is disabled (include_tts=False)
+  - Logs when provider is not configured
+  - Added full exception stack traces to workflow error logging
+  - Helps identify configuration vs. runtime issues in Broadcast Builder
+  - Addresses issues: "Broadcast Builder is not generating TTS audio" and "Errors in the broadcast builder aren't being logged"
 
 ### Fixed
 - **AudioIngestController.get_broadcast_queue() Error** - Fixed AttributeError in eas_monitoring_service.py

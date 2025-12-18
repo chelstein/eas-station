@@ -938,6 +938,18 @@ class EASAudioGenerator:
         self.sample_rate = int(config.get('sample_rate', 16000))
         self.output_dir = str(config.get('output_dir'))
         _ensure_directory(self.output_dir)
+        
+        # Log TTS configuration for debugging
+        tts_provider = config.get('tts_provider', '')
+        if tts_provider:
+            logger.info(f"EASAudioGenerator: TTS provider '{tts_provider}' configured")
+            if tts_provider == 'azure_openai':
+                endpoint = config.get('azure_openai_endpoint', '')
+                key = config.get('azure_openai_key', '')
+                logger.info(f"Azure OpenAI config: endpoint={'<set>' if endpoint else '<MISSING>'}, key={'<set>' if key else '<MISSING>'}")
+        else:
+            logger.info("EASAudioGenerator: No TTS provider configured")
+        
         self.tts_engine = TTSEngine(config, logger, self.sample_rate)
 
     def build_files(
@@ -994,6 +1006,8 @@ class EASAudioGenerator:
         if message_text:
             preview = message_text.replace('\n', ' ')
             self.logger.debug('Alert narration preview: %s', preview[:240])
+        else:
+            self.logger.warning('No message text for TTS narration - message_text is empty or None')
 
         # Check for embedded audio from IPAWS CAP resources FIRST
         # This allows originators to provide pre-recorded audio messages
@@ -1025,7 +1039,14 @@ class EASAudioGenerator:
             provider = 'ipaws_embedded'
         else:
             # Fall back to TTS generation
-            voice_samples = self.tts_engine.generate(message_text)
+            if message_text:
+                self.logger.info(f"Attempting TTS generation with provider '{provider}' for {len(message_text)} characters of text")
+                voice_samples = self.tts_engine.generate(message_text)
+                if not voice_samples:
+                    self.logger.error(f"TTS engine returned no samples. Provider: '{provider}', Last error: {self.tts_engine.last_error}")
+            else:
+                self.logger.warning("Skipping TTS generation - no message text available")
+                voice_samples = None
 
         if voice_samples:
             # Normalize audio to match SAME/AFSK amplitude
@@ -1221,33 +1242,54 @@ class EASAudioGenerator:
         tts_samples: List[int] = []
         tts_warning: Optional[str] = None
         provider = self.tts_engine.provider
+        
         if include_tts:
-            voiceover = self.tts_engine.generate(message_text)
-            if voiceover:
-                # Normalize TTS audio to match SAME/AFSK amplitude
-                # Reduced to 70% of SAME amplitude to prevent clipping/distortion
-                normalized_voiceover = _normalize_audio_amplitude(voiceover, amplitude * 0.7)
-                tts_samples.extend(normalized_voiceover)
+            if not message_text:
+                if self.logger:
+                    self.logger.warning("TTS requested but no message text available for narration")
+                tts_warning = 'No message text available for TTS narration.'
             else:
-                error_detail = self.tts_engine.last_error
-                if provider == 'azure':
-                    base_message = 'Azure Speech is configured but synthesis failed.'
-                    tts_warning = f"{base_message} {error_detail}" if error_detail else base_message
-                elif provider == 'azure_openai':
-                    base_message = 'Azure OpenAI TTS is configured but synthesis failed.'
-                    tts_warning = f"{base_message} {error_detail}" if error_detail else base_message
-                elif provider == 'pyttsx3':
-                    base_message = 'pyttsx3 is configured but synthesis failed.'
-                    tts_warning = f"{base_message} {error_detail}" if error_detail else base_message
-                elif provider:
-                    base_message = f'TTS provider "{provider}" is configured but synthesis failed.'
-                    tts_warning = f"{base_message} {error_detail}" if error_detail else base_message
+                if self.logger:
+                    self.logger.info(f"Generating TTS with provider '{provider}' for {len(message_text)} characters")
+                    
+                voiceover = self.tts_engine.generate(message_text)
+                
+                if voiceover:
+                    # Normalize TTS audio to match SAME/AFSK amplitude
+                    # Reduced to 70% of SAME amplitude to prevent clipping/distortion
+                    normalized_voiceover = _normalize_audio_amplitude(voiceover, amplitude * 0.7)
+                    tts_samples.extend(normalized_voiceover)
+                    if self.logger:
+                        self.logger.info(f"TTS generation successful: {len(tts_samples)} samples generated")
                 else:
-                    tts_warning = 'No TTS provider configured; supply narration manually.'
+                    error_detail = self.tts_engine.last_error
+                    if provider == 'azure':
+                        base_message = 'Azure Speech is configured but synthesis failed.'
+                        tts_warning = f"{base_message} {error_detail}" if error_detail else base_message
+                    elif provider == 'azure_openai':
+                        base_message = 'Azure OpenAI TTS is configured but synthesis failed.'
+                        tts_warning = f"{base_message} {error_detail}" if error_detail else base_message
+                    elif provider == 'pyttsx3':
+                        base_message = 'pyttsx3 is configured but synthesis failed.'
+                        tts_warning = f"{base_message} {error_detail}" if error_detail else base_message
+                    elif provider:
+                        base_message = f'TTS provider "{provider}" is configured but synthesis failed.'
+                        tts_warning = f"{base_message} {error_detail}" if error_detail else base_message
+                    else:
+                        tts_warning = 'No TTS provider configured; supply narration manually.'
 
-                # Log the TTS failure for debugging
-                if self.logger and error_detail:
-                    self.logger.error(f"TTS synthesis failed with provider '{provider}': {error_detail}")
+                    # Log the TTS failure for debugging - ALWAYS log, not just when error_detail exists
+                    if self.logger:
+                        if provider:
+                            if error_detail:
+                                self.logger.error(f"TTS synthesis failed with provider '{provider}': {error_detail}")
+                            else:
+                                self.logger.error(f"TTS synthesis failed with provider '{provider}': No error details available")
+                        else:
+                            self.logger.warning("TTS synthesis skipped: No TTS provider configured")
+        else:
+            if self.logger:
+                self.logger.info("TTS narration disabled for this broadcast (include_tts=False)")
 
         eom_header = build_eom_header(self.config)
         eom_bits = encode_same_bits(eom_header, include_preamble=True)
