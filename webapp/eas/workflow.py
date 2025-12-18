@@ -241,6 +241,29 @@ def register_workflow_routes(bp, logger, eas_config) -> None:
         )
         manual_config['sample_rate'] = sample_rate
 
+        # Log TTS configuration status to SystemLog for debugging
+        # This helps diagnose why TTS might not work in Broadcast Builder
+        tts_provider_loaded = manual_config.get('tts_provider', '')
+        if include_tts:
+            try:
+                db.session.add(
+                    SystemLog(
+                        level='DEBUG',
+                        message='Broadcast Builder: TTS configuration loaded',
+                        module='eas.workflow',
+                        details={
+                            'tts_provider': tts_provider_loaded or '(not configured)',
+                            'azure_openai_endpoint': '<set>' if manual_config.get('azure_openai_endpoint') else '<not set>',
+                            'azure_openai_key': '<set>' if manual_config.get('azure_openai_key') else '<not set>',
+                            'include_tts_requested': include_tts,
+                        },
+                    )
+                )
+                db.session.commit()
+            except Exception as log_exc:
+                workflow_logger.debug(f'Failed to log TTS config to SystemLog: {log_exc}')
+                db.session.rollback()
+
         alert_object = SimpleNamespace(
             identifier=identifier,
             event=event_name or event_code,

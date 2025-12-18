@@ -7,6 +7,18 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **Broadcast Builder TTS Not Using Database Settings** - Fixed SQLAlchemy session caching issue
+  - Added `db.session.expire_all()` before loading TTS settings to force fresh database read
+  - TTS settings configured via /admin/tts were not being seen by Broadcast Builder
+  - The SQLAlchemy session was returning cached/stale data instead of current database values
+  - This caused TTS to appear as "not configured" in Broadcast Builder even though it worked on the test page
+  - Addresses: "TTS works on config page test but not in Broadcast Builder"
+
+- **TTS Configuration Logging to SystemLog** - Added diagnostic logging visible in web UI
+  - Broadcast Builder now logs TTS configuration status to SystemLog when TTS is requested
+  - Shows tts_provider, endpoint status, and key status in System Logs (/logs)
+  - Makes debugging TTS issues easier without needing systemd journal access
+
 - **TTS "No Provider Configured" Error Reporting** - Fixed silent TTS failure when no provider is configured
   - `TTSEngine.generate()` now sets `last_error` when no TTS provider is configured
   - This ensures `tts_warning` is properly populated in Broadcast Builder

@@ -33,10 +33,20 @@ def get_tts_settings() -> TTSSettings:
     """Get TTS settings from database.
 
     Returns the single TTSSettings row (id=1), creating it with defaults if needed.
+    
+    NOTE: We expire the session first to ensure we get fresh data from the database,
+    not a cached version. This is important because TTS settings can be updated
+    via /admin/tts while the app is running, and the Broadcast Builder needs
+    to see those changes immediately.
     """
     try:
+        # Expire all objects to force a fresh read from database
+        # This ensures we see any changes made via /admin/tts
+        db.session.expire_all()
+        
         settings = TTSSettings.query.get(1)
         if settings is None:
+            logger.info("TTS settings row not found, creating default")
             settings = TTSSettings(id=1)
             db.session.add(settings)
             db.session.commit()
@@ -44,6 +54,7 @@ def get_tts_settings() -> TTSSettings:
     except Exception as e:
         # Table might not exist yet (migrations not run)
         # Create it and try again
+        logger.warning(f"First attempt to get TTS settings failed: {e}")
         try:
             db.create_all()
             settings = TTSSettings.query.get(1)
@@ -57,6 +68,7 @@ def get_tts_settings() -> TTSSettings:
             # This allows the app to start even if database is unavailable
             logger.error(f"Failed to get TTS settings from database: {e}")
             logger.error(f"Failed to create table: {create_error}")
+            logger.error("Returning default TTS settings (enabled=False, provider='')")
             # Return a non-persistent default instance
             return TTSSettings(id=1)
 

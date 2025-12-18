@@ -123,7 +123,8 @@ def load_eas_config(base_path: Optional[str] = None) -> Dict[str, object]:
     try:
         tts_settings = get_tts_settings()
 
-        load_logger.debug(f"TTS settings from DB: enabled={tts_settings.enabled}, provider='{tts_settings.provider}'")
+        # Always log TTS settings at INFO level for debugging
+        load_logger.info(f"TTS settings from DB: enabled={tts_settings.enabled}, provider='{tts_settings.provider}'")
 
         if not tts_settings.enabled:
             load_logger.info("TTS is disabled in database settings")
