@@ -9,6 +9,13 @@ tracks releases under the 2.x series.
 ### Added
 
 ### Fixed
+- **Certificate Domain Mismatch Detection** - Added detection and helpful message for certificate domain mismatches
+  - Detects when user accesses site via hostname that doesn't match certificate domain
+  - Shows clear warning with current hostname vs certificate domain
+  - Provides actionable solutions: access via correct domain or obtain new certificate
+  - Adds button to redirect to correct domain automatically
+  - Addresses: "Im on the https page. The certificate isnt being loaded properly"
+  
 - **HTTPS Redirect After Certificate Installation** - Fixed missing HTTPS redirect after successful certificate installation
   - Added automatic 5-second countdown redirect from HTTP to HTTPS after certificate is installed
   - Certificate installation now properly switches user to secure HTTPS connection

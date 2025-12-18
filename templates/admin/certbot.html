@@ -1159,23 +1159,58 @@ async function waitForServerReconnect(resultDiv) {
                             }
                         }, 1000);
                     } else {
-                        // Already on HTTPS, just show success
-                        resultDiv.innerHTML = `
-                            <div class="alert alert-success">
-                                <i class="bi bi-check-circle"></i> <strong>Certificate obtained successfully.</strong>
-                                <p class="mt-2 mb-0">SSL certificate is now installed for: <strong>${domainDisplay}</strong></p>
-                                <p class="mb-0"><small>Expires: ${expiryDisplay}</small></p>
-                            </div>
-                            <div class="mt-3">
-                                <button class="btn btn-primary" onclick="checkCertificateStatus()">
-                                    <i class="bi bi-shield-check"></i> View Full Certificate Details
-                                </button>
-                                <button class="btn btn-secondary" onclick="cancelObtainCertificate()">
-                                    <i class="bi bi-x-circle"></i> Close
-                                </button>
-                            </div>
-                        `;
-                        showToast('Certificate obtained successfully!', 'success');
+                        // Already on HTTPS, check for domain mismatch
+                        const currentHostname = window.location.hostname;
+                        const certDomain = status.certificate.domain;
+                        const domainMismatch = certDomain && currentHostname !== certDomain;
+                        
+                        if (domainMismatch) {
+                            // Certificate domain doesn't match current hostname
+                            resultDiv.innerHTML = `
+                                <div class="alert alert-warning">
+                                    <i class="bi bi-exclamation-triangle"></i> <strong>Certificate domain mismatch!</strong>
+                                    <p class="mt-2 mb-0">Certificate is installed for: <strong>${domainDisplay}</strong></p>
+                                    <p class="mb-0">But you're accessing via: <strong>${currentHostname}</strong></p>
+                                    <p class="mb-0"><small>Expires: ${expiryDisplay}</small></p>
+                                    <hr>
+                                    <p class="mb-2"><i class="bi bi-info-circle"></i> <strong>To fix this:</strong></p>
+                                    <ul class="mb-0">
+                                        <li>Access the site using: <strong>${domainDisplay}</strong></li>
+                                        <li>Or obtain a new certificate for: <strong>${currentHostname}</strong></li>
+                                    </ul>
+                                </div>
+                                <div class="mt-3">
+                                    <button class="btn btn-primary" onclick="window.location.href='https://${escapeHtml(domainDisplay)}' + window.location.pathname">
+                                        <i class="bi bi-arrow-right-circle"></i> Go to ${escapeHtml(domainDisplay)}
+                                    </button>
+                                    <button class="btn btn-secondary" onclick="checkCertificateStatus()">
+                                        <i class="bi bi-shield-check"></i> Check Certificate Details
+                                    </button>
+                                    <button class="btn btn-secondary" onclick="cancelObtainCertificate()">
+                                        <i class="bi bi-x-circle"></i> Close
+                                    </button>
+                                </div>
+                            `;
+                            showToast('Certificate domain mismatch detected', 'warning');
+                        } else {
+                            // Certificate matches, show success
+                            resultDiv.innerHTML = `
+                                <div class="alert alert-success">
+                                    <i class="bi bi-check-circle"></i> <strong>Certificate obtained successfully.</strong>
+                                    <p class="mt-2 mb-0">SSL certificate is now installed for: <strong>${domainDisplay}</strong></p>
+                                    <p class="mb-0"><small>Expires: ${expiryDisplay}</small></p>
+                                </div>
+                                <div class="mt-3">
+                                    <button class="btn btn-primary" onclick="checkCertificateStatus()">
+                                        <i class="bi bi-shield-check"></i> View Full Certificate Details
+                                    </button>
+                                    <button class="btn btn-secondary" onclick="cancelObtainCertificate()">
+                                        <i class="bi bi-x-circle"></i> Close
+                                    </button>
+                                </div>
+                            `;
+                            showToast('Certificate obtained successfully!', 'success');
+                        }
                     }
                 } else {
                     // Server is back but certificate may have failed
