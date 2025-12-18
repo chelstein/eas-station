@@ -152,11 +152,21 @@
             <button type="submit" class="btn btn-primary">
                 <i class="bi bi-save"></i> Save Settings
             </button>
+            <button type="button" class="btn btn-success" id="testTtsBtn">
+                <i class="bi bi-volume-up"></i> Test TTS
+            </button>
             <button type="button" class="btn btn-secondary" onclick="window.location.reload()">
                 <i class="bi bi-arrow-clockwise"></i> Reset
             </button>
         </div>
     </form>
+</div>
+
+<!-- Test Result Modal/Alert -->
+<div id="testResultAlert" class="alert mt-3" style="display: none;" role="alert">
+    <h5 id="testResultTitle"></h5>
+    <p id="testResultMessage"></p>
+    <div id="testResultDetails"></div>
 </div>
 
 <script>
@@ -203,6 +213,98 @@ document.getElementById('ttsSettingsForm').addEventListener('submit', async func
         }
     } catch (error) {
         showToast('Error updating settings: ' + error.message, 'error');
+    }
+});
+
+// Test TTS button handler
+document.getElementById('testTtsBtn').addEventListener('click', async function() {
+    const btn = this;
+    const originalHtml = btn.innerHTML;
+    
+    // Disable button and show loading
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Testing...';
+    
+    // Hide previous test results
+    document.getElementById('testResultAlert').style.display = 'none';
+    
+    try {
+        const response = await fetch('/admin/api/tts/test', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                message: 'This is a test of the text to speech system. If you can hear this, your TTS configuration is working correctly.'
+            })
+        });
+        
+        const result = await response.json();
+        
+        // Show result
+        const alertDiv = document.getElementById('testResultAlert');
+        const titleDiv = document.getElementById('testResultTitle');
+        const messageDiv = document.getElementById('testResultMessage');
+        const detailsDiv = document.getElementById('testResultDetails');
+        
+        if (result.success) {
+            alertDiv.className = 'alert alert-success mt-3';
+            titleDiv.innerHTML = '<i class="bi bi-check-circle"></i> TTS Test Successful';
+            messageDiv.textContent = result.message;
+            
+            if (result.details) {
+                detailsDiv.innerHTML = `
+                    <hr>
+                    <strong>Details:</strong>
+                    <ul class="mb-0">
+                        <li>Provider: ${result.details.provider}</li>
+                        <li>Voice: ${result.details.voice}</li>
+                        <li>Duration: ${result.details.duration_seconds} seconds</li>
+                        <li>Samples: ${result.details.samples}</li>
+                        <li>Sample Rate: ${result.details.sample_rate} Hz</li>
+                    </ul>
+                `;
+            }
+            
+            showToast('TTS test successful!', 'success');
+        } else {
+            alertDiv.className = 'alert alert-danger mt-3';
+            titleDiv.innerHTML = '<i class="bi bi-x-circle"></i> TTS Test Failed';
+            messageDiv.textContent = result.error;
+            
+            if (result.details) {
+                detailsDiv.innerHTML = `
+                    <hr>
+                    <strong>Details:</strong>
+                    <ul class="mb-0">
+                        <li>Provider: ${result.details.provider}</li>
+                        <li>${result.details.message}</li>
+                    </ul>
+                `;
+            }
+            
+            showToast(result.error, 'error');
+        }
+        
+        alertDiv.style.display = 'block';
+        
+    } catch (error) {
+        const alertDiv = document.getElementById('testResultAlert');
+        const titleDiv = document.getElementById('testResultTitle');
+        const messageDiv = document.getElementById('testResultMessage');
+        const detailsDiv = document.getElementById('testResultDetails');
+        
+        alertDiv.className = 'alert alert-danger mt-3';
+        titleDiv.innerHTML = '<i class="bi bi-x-circle"></i> TTS Test Failed';
+        messageDiv.textContent = 'Error testing TTS: ' + error.message;
+        detailsDiv.innerHTML = '';
+        alertDiv.style.display = 'block';
+        
+        showToast('Error testing TTS: ' + error.message, 'error');
+    } finally {
+        // Re-enable button
+        btn.disabled = false;
+        btn.innerHTML = originalHtml;
     }
 });
 

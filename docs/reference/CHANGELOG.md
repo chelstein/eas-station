@@ -6,6 +6,18 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+### Added
+- **TTS Test Function** - Added ability to test TTS configuration from admin page
+  - New "Test TTS" button on `/admin/tts` configuration page
+  - New API endpoint `/admin/api/tts/test` to generate test audio
+  - Test uses sample message to verify TTS engine works correctly
+  - Shows detailed success information (duration, samples, voice used)
+  - Shows detailed error messages on failure with troubleshooting hints
+  - Test results displayed in color-coded alert box (green=success, red=failure)
+  - Logs test attempts and results to system logs
+  - Allows users to verify TTS settings before generating actual alerts
+  - Addresses request: "Can we add a method to test the TTS in the configuration page?"
+
 ### Fixed
 - **TTS Not Working - Missing Logging** - Added comprehensive logging for TTS failures
   - Added detailed error messages when TTS credentials are missing from database
