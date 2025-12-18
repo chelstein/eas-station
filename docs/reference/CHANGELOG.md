@@ -7,6 +7,14 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **Install/Update Scripts Webroot Directory Ownership** - Fixed webroot directory permissions in install.sh and update.sh
+  - Changed ownership from www-data:www-data to root:root in both scripts
+  - Ensures certbot (runs as root) can write challenge files during initial setup
+  - Previously would fail on first webroot certificate attempt after fresh install
+  - Now consistent with runtime `_ensure_webroot_directory()` function
+  - Added explanatory comments about root:root ownership requirement
+  - Addresses: Webroot permission errors on fresh installations
+
 - **Certbot Webroot Permission Issues** - Fixed webroot directory permissions for certbot
   - Added `_ensure_webroot_directory()` function to create `/var/www/certbot` with proper permissions
   - Webroot directory now owned by root:root with 755 permissions (certbot writes as root, nginx reads as www-data)

@@ -52,7 +52,7 @@ CERTBOT_WORK_DIR = CERTBOT_BASE_DIR / 'work'
 CERTBOT_LOGS_DIR = CERTBOT_BASE_DIR / 'logs'
 
 
-# Removed _ensure_nginx_log_permissions() function
+# Removed _ensure_nginx_log_permissions() function (v2.38.10)
 # The nginx plugin has fundamental permission issues that cannot be reliably solved
 # by changing file permissions. The nginx plugin runs 'nginx -t' which may execute
 # in a different security context (AppArmor, SELinux, etc.) that prevents write access
@@ -940,9 +940,6 @@ def obtain_certificate_execute():
                     "success": False,
                     "error": "Nginx must be running to use the nginx plugin. Start nginx or use the standalone method instead."
                 }), 400
-            
-            # Warn about permission issues
-            logger.warning("Using nginx plugin - this method often fails due to permission issues with /var/log/nginx/error.log")
                 
             certbot_cmd = [
                 'sudo', 'certbot', '--nginx',
@@ -956,6 +953,7 @@ def obtain_certificate_execute():
             
             try:
                 logger.info(f"Running certbot with nginx plugin for domain: {domain}")
+                logger.warning("Using nginx plugin - this method often fails due to permission issues with /var/log/nginx/error.log")
                 result = subprocess.run(
                     certbot_cmd,
                     capture_output=True,
@@ -964,17 +962,18 @@ def obtain_certificate_execute():
                 )
                 
                 if result.returncode != 0:
-                    error_msg = result.stderr
-                    logger.error(f"Certbot nginx plugin failed: {result.stderr}")
+                    original_error = result.stderr
+                    logger.error(f"Certbot nginx plugin failed: {original_error}")
                     logger.error(f"Certbot stdout: {result.stdout}")
                     
                     # Check for permission errors and provide helpful guidance
-                    if "Permission denied" in error_msg or "/var/log/nginx/error.log" in error_msg:
+                    error_msg = original_error
+                    if "Permission denied" in original_error or "/var/log/nginx/error.log" in original_error:
                         error_msg = (
                             "Nginx plugin failed due to permission issues with /var/log/nginx/error.log. "
                             "This is a known limitation of the nginx plugin when running in certain environments. "
                             "Please use the 'standalone' or 'webroot' method instead. "
-                            f"Original error: {error_msg}"
+                            f"Original error: {original_error}"
                         )
                     
                     return jsonify({
