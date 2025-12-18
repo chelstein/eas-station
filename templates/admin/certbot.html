@@ -724,6 +724,12 @@ function cancelObtainCertificate() {
 async function installCertificate() {
     const resultDiv = document.getElementById('obtainCertResult');
     
+    if (!resultDiv) {
+        console.error('obtainCertResult element not found');
+        showToast('UI error: Result container not found', 'error');
+        return;
+    }
+    
     resultDiv.innerHTML = `
         <div class="alert alert-info">
             <span class="spinner-border spinner-border-sm"></span> Installing certificate and configuring nginx...

@@ -1389,6 +1389,7 @@ def get_certbot_logs():
 
 
 @certbot_bp.route('/api/certbot/install-certificate', methods=['POST'])
+@require_auth
 @require_permission('system.configure')
 def install_certificate():
     """Install obtained certificate by creating symlink and updating nginx configuration.
@@ -1522,7 +1523,6 @@ def install_certificate():
             )
 
             # Also handle if lines are already uncommented but pointing to wrong domain
-            import re
             nginx_config = re.sub(
                 r'ssl_certificate /etc/letsencrypt/live/[^/]+/fullchain\.pem;',
                 f'ssl_certificate /etc/letsencrypt/live/{domain}/fullchain.pem;',
