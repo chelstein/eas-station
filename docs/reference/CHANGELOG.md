@@ -6,6 +6,17 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+### Fixed
+- **Certbot Nginx Plugin Permission Issues** - Fixed fundamental implementation flaw with nginx plugin
+  - Removed nginx plugin as default method (caused permission errors with `/var/log/nginx/error.log`)
+  - Changed default to standalone mode (same as used in install.sh - proven to work)
+  - Reordered methods: Standalone (recommended), Webroot (no downtime), Nginx (not recommended)
+  - Removed `_ensure_nginx_log_permissions()` function (didn't solve the fundamental issue)
+  - Nginx plugin runs `nginx -t` which may execute in different security context (AppArmor, SELinux)
+  - Even with chmod 666, certbot's nginx test can't write to error.log in some environments
+  - Added clear warning messages when nginx plugin fails with permission errors
+  - Addresses: "Error while running nginx -c /etc/nginx/nginx.conf -t" - Permission denied on /var/log/nginx/error.log
+
 ### Added
 - **TTS Audio Playback on Test** - TTS configuration page now plays audio after successful test
   - Audio player appears with controls after TTS test completes

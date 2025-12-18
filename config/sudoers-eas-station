@@ -19,12 +19,12 @@ eas-station ALL=(ALL) NOPASSWD: /usr/bin/chmod -R 777 /opt/eas-station/certbot_d
 eas-station ALL=(ALL) NOPASSWD: /usr/bin/find /opt/eas-station/certbot_data -name .certbot.lock -delete
 eas-station ALL=(ALL) NOPASSWD: /usr/bin/cat /opt/eas-station/certbot_data/logs/letsencrypt.log
 
-# Nginx log directory management (required for certbot nginx plugin)
-# Certbot's nginx plugin runs 'nginx -t' which requires write access to /var/log/nginx/error.log
-# These commands ensure the log directory and files have proper permissions
-# NOTE: Using 666 permissions on log files is intentional - certbot's nginx plugin runs
-# nginx -t in an unpredictable security context. The /var/log/nginx directory (755) provides
-# access control. This matches the existing approach in webapp/admin/certbot.py.
+# Nginx log directory management (DEPRECATED - not actively used)
+# Certbot's nginx plugin has fundamental permission issues that cannot be reliably solved.
+# We recommend using standalone or webroot modes instead of the nginx plugin.
+# These sudoers entries are kept for backward compatibility and troubleshooting,
+# but the nginx plugin is no longer the recommended method due to permission issues
+# with nginx -t running in different security contexts (AppArmor, SELinux, etc.)
 eas-station ALL=(ALL) NOPASSWD: /usr/bin/mkdir -p /var/log/nginx
 eas-station ALL=(ALL) NOPASSWD: /usr/bin/chmod 755 /var/log/nginx
 eas-station ALL=(ALL) NOPASSWD: /usr/bin/touch /var/log/nginx/error.log

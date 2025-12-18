@@ -52,71 +52,12 @@ CERTBOT_WORK_DIR = CERTBOT_BASE_DIR / 'work'
 CERTBOT_LOGS_DIR = CERTBOT_BASE_DIR / 'logs'
 
 
-def _ensure_nginx_log_permissions():
-    """Ensure nginx log directory exists and has proper permissions.
-    
-    The certbot nginx plugin runs 'nginx -t' to test the config, which requires
-    nginx to be able to write to /var/log/nginx/error.log. This function ensures
-    the log directory and files have proper permissions for the www-data user.
-    
-    When certbot runs 'nginx -t', it may run nginx in a different security context
-    than the normal nginx service, so we need to ensure the log files are widely
-    writable (666) to allow the config test to succeed.
-    
-    Returns:
-        bool: True if successful, False otherwise
-    """
-    try:
-        # Ensure /var/log/nginx directory exists
-        subprocess.run(
-            ['sudo', 'mkdir', '-p', '/var/log/nginx'],
-            capture_output=True,
-            timeout=5
-        )
-        
-        # Set directory permissions to allow writing (755)
-        subprocess.run(
-            ['sudo', 'chmod', '755', '/var/log/nginx'],
-            capture_output=True,
-            timeout=5
-        )
-        
-        # Create error.log and access.log if they don't exist
-        for log_file in ['error.log', 'access.log']:
-            log_path = f'/var/log/nginx/{log_file}'
-            subprocess.run(
-                ['sudo', 'touch', log_path],
-                capture_output=True,
-                timeout=5
-            )
-            
-            # Set ownership to www-data:adm (standard nginx log ownership)
-            subprocess.run(
-                ['sudo', 'chown', 'www-data:adm', log_path],
-                capture_output=True,
-                timeout=5
-            )
-            
-            # Set permissions to 666 (rw-rw-rw-)
-            # This allows nginx config test to open the log file regardless of
-            # what user/security context it runs under. The /var/log/nginx directory
-            # itself is 755, so only users who can access the directory can read/write
-            # the log files. This is necessary for certbot's nginx plugin to work.
-            subprocess.run(
-                ['sudo', 'chmod', '666', log_path],
-                capture_output=True,
-                timeout=5
-            )
-        
-        logger.info("Nginx log directory and permissions configured successfully")
-        return True
-        
-    except subprocess.TimeoutExpired:
-        logger.warning("Timeout while configuring nginx log permissions")
-        return False
-    except Exception as e:
-        logger.warning(f"Error configuring nginx log permissions: {e}")
-        return False
+# Removed _ensure_nginx_log_permissions() function
+# The nginx plugin has fundamental permission issues that cannot be reliably solved
+# by changing file permissions. The nginx plugin runs 'nginx -t' which may execute
+# in a different security context (AppArmor, SELinux, etc.) that prevents write access
+# to /var/log/nginx/error.log even with permissive file permissions.
+# Use standalone or webroot modes instead.
 
 
 def _ensure_certbot_directories():
@@ -608,23 +549,23 @@ def obtain_certificate():
             'email': email,
             'staging': settings.staging,
             'methods': {
-                'nginx': {
-                    'name': 'Nginx Plugin (Recommended - No Downtime)',
-                    'command': nginx_cmd,
-                    'description': 'Uses nginx plugin to obtain and configure certificate automatically without stopping the web server',
-                    'requirements': ['Nginx must be running', 'Domain must be configured in nginx and accessible on port 80']
-                },
                 'standalone': {
-                    'name': 'Standalone (Alternative)',
+                    'name': 'Standalone (Recommended - Most Reliable)',
                     'command': standalone_cmd,
-                    'description': 'Temporarily stops nginx, obtains certificate, then restarts nginx. Causes brief downtime.',
+                    'description': 'Temporarily stops nginx, obtains certificate, then restarts nginx. Causes brief downtime (~10 seconds).',
                     'requirements': ['Port 80 must be accessible from internet', 'Nginx can be temporarily stopped']
                 },
                 'webroot': {
-                    'name': 'Webroot (Advanced)',
+                    'name': 'Webroot (No Downtime Alternative)',
                     'command': webroot_cmd,
-                    'description': 'Uses existing web server without stopping it, requires webroot directory configured',
-                    'requirements': ['Nginx serving ACME challenges from /var/www/certbot']
+                    'description': 'Uses existing web server without stopping it. Requires webroot directory to be configured.',
+                    'requirements': ['Nginx serving ACME challenges from /var/www/certbot', 'Webroot directory exists and is writable']
+                },
+                'nginx': {
+                    'name': 'Nginx Plugin (Not Recommended - Permission Issues)',
+                    'command': nginx_cmd,
+                    'description': 'Uses nginx plugin but often fails due to permission issues when testing nginx configuration. Only use if standalone and webroot fail.',
+                    'requirements': ['Nginx must be running', 'Domain must be configured in nginx', 'Nginx must have write access to /var/log/nginx/error.log']
                 }
             },
             'post_install': [
@@ -755,7 +696,7 @@ def obtain_certificate_execute():
     """
     try:
         data = request.get_json() if request.is_json else request.form.to_dict()
-        method = data.get('method', 'nginx')  # nginx (default), standalone, or webroot
+        method = data.get('method', 'standalone')  # standalone (default - most reliable), webroot, or nginx
         
         settings = get_certbot_settings()
 
@@ -944,7 +885,7 @@ def obtain_certificate_execute():
                 }), 500
                 
         elif method == 'nginx':
-            # Use nginx plugin (no downtime)
+            # Use nginx plugin (not recommended due to permission issues)
             # First check if nginx is running
             if not _check_nginx_status():
                 return jsonify({
@@ -952,10 +893,8 @@ def obtain_certificate_execute():
                     "error": "Nginx must be running to use the nginx plugin. Start nginx or use the standalone method instead."
                 }), 400
             
-            # Ensure nginx log directory has proper permissions for certbot
-            # The nginx plugin runs 'nginx -t' which requires write access to error.log
-            logger.info("Ensuring nginx log directory has proper permissions...")
-            _ensure_nginx_log_permissions()
+            # Warn about permission issues
+            logger.warning("Using nginx plugin - this method often fails due to permission issues with /var/log/nginx/error.log")
                 
             certbot_cmd = [
                 'sudo', 'certbot', '--nginx',
@@ -977,13 +916,24 @@ def obtain_certificate_execute():
                 )
                 
                 if result.returncode != 0:
-                    error_msg = f"Certbot failed: {result.stderr}"
+                    error_msg = result.stderr
                     logger.error(f"Certbot nginx plugin failed: {result.stderr}")
                     logger.error(f"Certbot stdout: {result.stdout}")
+                    
+                    # Check for permission errors and provide helpful guidance
+                    if "Permission denied" in error_msg or "/var/log/nginx/error.log" in error_msg:
+                        error_msg = (
+                            "Nginx plugin failed due to permission issues with /var/log/nginx/error.log. "
+                            "This is a known limitation of the nginx plugin when running in certain environments. "
+                            "Please use the 'standalone' or 'webroot' method instead. "
+                            f"Original error: {error_msg}"
+                        )
+                    
                     return jsonify({
                         "success": False,
                         "error": error_msg,
-                        "output": result.stdout
+                        "output": result.stdout,
+                        "suggestion": "Use the 'standalone' method (most reliable) or 'webroot' method (no downtime) instead."
                     }), 500
                 
                 logger.info(f"Successfully obtained certificate for {domain} using nginx plugin")
