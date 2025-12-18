@@ -292,10 +292,76 @@ def register_workflow_routes(bp, logger, eas_config) -> None:
         except Exception as exc:
             workflow_logger.error('Manual EAS generation failed: %s', exc)
             workflow_logger.exception('Manual EAS generation exception details:')
+            # Log to SystemLog for visibility in UI
+            try:
+                db.session.add(
+                    SystemLog(
+                        level='ERROR',
+                        message='Broadcast Builder: EAS generation failed',
+                        module='eas.workflow',
+                        details={
+                            'identifier': identifier,
+                            'event_code': event_code,
+                            'error': str(exc),
+                            'error_type': type(exc).__name__,
+                        },
+                    )
+                )
+                db.session.commit()
+            except Exception as log_exc:
+                workflow_logger.error(f'Failed to log error to SystemLog: {log_exc}')
+                db.session.rollback()
             return jsonify({'error': 'Failed to generate manual EAS package.'}), 500
 
         if not components:
             return jsonify({'error': 'Manual EAS package contained no audio components.'}), 500
+
+        # Log TTS warnings to SystemLog for visibility in UI
+        tts_warning = components.get('tts_warning')
+        tts_provider = components.get('tts_provider')
+        if tts_warning:
+            workflow_logger.warning(f'TTS synthesis issue: {tts_warning}')
+            try:
+                db.session.add(
+                    SystemLog(
+                        level='WARNING',
+                        message='Broadcast Builder: TTS synthesis failed or unavailable',
+                        module='eas.workflow',
+                        details={
+                            'identifier': identifier,
+                            'event_code': event_code,
+                            'tts_provider': tts_provider,
+                            'tts_warning': tts_warning,
+                            'include_tts_requested': include_tts,
+                        },
+                    )
+                )
+                db.session.commit()
+            except Exception as log_exc:
+                workflow_logger.error(f'Failed to log TTS warning to SystemLog: {log_exc}')
+                db.session.rollback()
+        elif include_tts and not components.get('tts_samples'):
+            # TTS was requested but no samples were generated and no warning was set
+            workflow_logger.warning('TTS was requested but no audio was generated (no warning message available)')
+            try:
+                db.session.add(
+                    SystemLog(
+                        level='WARNING',
+                        message='Broadcast Builder: TTS was requested but no audio was generated',
+                        module='eas.workflow',
+                        details={
+                            'identifier': identifier,
+                            'event_code': event_code,
+                            'tts_provider': tts_provider or 'none',
+                            'include_tts_requested': include_tts,
+                            'message_text_length': len(components.get('message_text', '') or ''),
+                        },
+                    )
+                )
+                db.session.commit()
+            except Exception as log_exc:
+                workflow_logger.error(f'Failed to log TTS issue to SystemLog: {log_exc}')
+                db.session.rollback()
 
         def _safe_base(value: str) -> str:
             cleaned = re.sub(r'[^A-Za-z0-9]+', '_', value).strip('_')
