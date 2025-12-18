@@ -112,10 +112,10 @@
 
             <div class="mb-3">
                 <label for="azure_openai_key" class="form-label">API Key *</label>
-                <input type="password" class="form-control" id="azure_openai_key" name="azure_openai_key" 
+                <input type="text" class="form-control" id="azure_openai_key" name="azure_openai_key" 
                        value="{{ settings.azure_openai_key or '' }}" 
                        placeholder="Enter your Azure OpenAI API key">
-                <div class="form-text">Your Azure OpenAI API key (stored securely)</div>
+                <div class="form-text">Your Azure OpenAI API key (stored in database)</div>
             </div>
 
             <div class="row">

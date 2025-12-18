@@ -52,6 +52,69 @@ CERTBOT_WORK_DIR = CERTBOT_BASE_DIR / 'work'
 CERTBOT_LOGS_DIR = CERTBOT_BASE_DIR / 'logs'
 
 
+def _ensure_nginx_log_permissions():
+    """Ensure nginx log directory exists and has proper permissions.
+    
+    The certbot nginx plugin runs 'nginx -t' to test the config, which requires
+    nginx to be able to write to /var/log/nginx/error.log. This function ensures
+    the log directory and files have proper permissions for the www-data user.
+    
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    try:
+        # Ensure /var/log/nginx directory exists
+        subprocess.run(
+            ['sudo', 'mkdir', '-p', '/var/log/nginx'],
+            capture_output=True,
+            timeout=5
+        )
+        
+        # Set ownership to www-data (nginx user)
+        subprocess.run(
+            ['sudo', 'chown', '-R', 'www-data:www-data', '/var/log/nginx'],
+            capture_output=True,
+            timeout=5
+        )
+        
+        # Set permissions to allow writing
+        subprocess.run(
+            ['sudo', 'chmod', '-R', '755', '/var/log/nginx'],
+            capture_output=True,
+            timeout=5
+        )
+        
+        # Create error.log if it doesn't exist
+        subprocess.run(
+            ['sudo', 'touch', '/var/log/nginx/error.log'],
+            capture_output=True,
+            timeout=5
+        )
+        
+        # Ensure error.log is writable by www-data
+        subprocess.run(
+            ['sudo', 'chown', 'www-data:www-data', '/var/log/nginx/error.log'],
+            capture_output=True,
+            timeout=5
+        )
+        
+        subprocess.run(
+            ['sudo', 'chmod', '644', '/var/log/nginx/error.log'],
+            capture_output=True,
+            timeout=5
+        )
+        
+        logger.info("Nginx log directory and permissions configured successfully")
+        return True
+        
+    except subprocess.TimeoutExpired:
+        logger.warning("Timeout while configuring nginx log permissions")
+        return False
+    except Exception as e:
+        logger.warning(f"Error configuring nginx log permissions: {e}")
+        return False
+
+
 def _ensure_certbot_directories():
     """Ensure certbot directories exist with proper permissions.
 
@@ -784,7 +847,7 @@ def obtain_certificate_execute():
                 logger.info("Nginx confirmed stopped, port 80 should be available")
 
                 # Run certbot with explicit port binding
-                logger.info(f"Running certbot for domain: {domain}")
+                logger.info(f"Running certbot standalone for domain: {domain}")
                 certbot_cmd = [
                     'sudo', 'certbot', 'certonly', '--standalone',
                     '--non-interactive', '--agree-tos',
@@ -796,6 +859,8 @@ def obtain_certificate_execute():
                     '--work-dir', str(CERTBOT_WORK_DIR),
                     '--logs-dir', str(CERTBOT_LOGS_DIR)
                 ] + staging_flag
+                
+                logger.info(f"Certbot command: {' '.join(certbot_cmd)}")
                 
                 certbot_result = subprocess.run(
                     certbot_cmd,
@@ -817,6 +882,11 @@ def obtain_certificate_execute():
                 
                 if certbot_result.returncode != 0:
                     error_msg = certbot_result.stderr
+                    
+                    # Log the full error for debugging
+                    logger.error(f"Certbot standalone failed with return code {certbot_result.returncode}")
+                    logger.error(f"Certbot stderr: {error_msg}")
+                    logger.error(f"Certbot stdout: {certbot_result.stdout}")
                     
                     # Check for common permission errors and provide helpful messages
                     if "Permission denied" in error_msg or "Errno 13" in error_msg:
@@ -870,6 +940,11 @@ def obtain_certificate_execute():
                     "success": False,
                     "error": "Nginx must be running to use the nginx plugin. Start nginx or use the standalone method instead."
                 }), 400
+            
+            # Ensure nginx log directory has proper permissions for certbot
+            # The nginx plugin runs 'nginx -t' which requires write access to error.log
+            logger.info("Ensuring nginx log directory has proper permissions...")
+            _ensure_nginx_log_permissions()
                 
             certbot_cmd = [
                 'sudo', 'certbot', '--nginx',
@@ -882,6 +957,7 @@ def obtain_certificate_execute():
             ] + staging_flag
             
             try:
+                logger.info(f"Running certbot with nginx plugin for domain: {domain}")
                 result = subprocess.run(
                     certbot_cmd,
                     capture_output=True,
@@ -890,9 +966,12 @@ def obtain_certificate_execute():
                 )
                 
                 if result.returncode != 0:
+                    error_msg = f"Certbot failed: {result.stderr}"
+                    logger.error(f"Certbot nginx plugin failed: {result.stderr}")
+                    logger.error(f"Certbot stdout: {result.stdout}")
                     return jsonify({
                         "success": False,
-                        "error": f"Certbot failed: {result.stderr}",
+                        "error": error_msg,
                         "output": result.stdout
                     }), 500
                 
@@ -904,12 +983,13 @@ def obtain_certificate_execute():
                 })
                 
             except subprocess.TimeoutExpired:
+                logger.error("Certbot nginx plugin operation timed out")
                 return jsonify({
                     "success": False,
                     "error": "Certbot operation timed out"
                 }), 500
             except Exception as e:
-                logger.error(f"Certbot execution failed: {e}")
+                logger.error(f"Certbot nginx plugin execution failed: {e}")
                 return jsonify({
                     "success": False,
                     "error": f"Failed to execute certbot: {str(e)}"
@@ -929,6 +1009,7 @@ def obtain_certificate_execute():
             ] + staging_flag
             
             try:
+                logger.info(f"Running certbot webroot method for domain: {domain}")
                 result = subprocess.run(
                     certbot_cmd,
                     capture_output=True,
@@ -937,6 +1018,8 @@ def obtain_certificate_execute():
                 )
                 
                 if result.returncode != 0:
+                    logger.error(f"Certbot webroot failed: {result.stderr}")
+                    logger.error(f"Certbot stdout: {result.stdout}")
                     return jsonify({
                         "success": False,
                         "error": f"Certbot failed: {result.stderr}",
@@ -952,12 +1035,13 @@ def obtain_certificate_execute():
                 })
                 
             except subprocess.TimeoutExpired:
+                logger.error("Certbot webroot operation timed out")
                 return jsonify({
                     "success": False,
                     "error": "Certbot operation timed out"
                 }), 500
             except Exception as e:
-                logger.error(f"Certbot execution failed: {e}")
+                logger.error(f"Certbot webroot execution failed: {e}")
                 return jsonify({
                     "success": False,
                     "error": f"Failed to execute certbot: {str(e)}"
@@ -1026,6 +1110,7 @@ def renew_certificate_execute():
         
         try:
             logger.info(f"Running certbot renewal (dry_run={dry_run}, force={force})")
+            logger.info(f"Certbot renewal command: {' '.join(certbot_cmd)}")
             result = subprocess.run(
                 certbot_cmd,
                 capture_output=True,
@@ -1034,6 +1119,8 @@ def renew_certificate_execute():
             )
             
             if result.returncode != 0:
+                logger.error(f"Certbot renewal failed: {result.stderr}")
+                logger.error(f"Certbot stdout: {result.stdout}")
                 return jsonify({
                     "success": False,
                     "error": f"Certbot renew failed: {result.stderr}",
