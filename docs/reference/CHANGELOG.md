@@ -7,6 +7,29 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Added
+- **Broadcast Builder TTS Logging to SystemLog** - TTS errors and warnings now visible in System Logs UI
+  - Logs TTS synthesis failures to SystemLog database table (visible in web UI under System Logs)
+  - Logs when TTS is requested but no audio is generated
+  - Includes provider name, warning message, and event details in log entries
+  - Makes TTS debugging much easier without needing systemd journal access
+  - Addresses: "TTS isn't working in broadcast builder, and I'm not seeing logs"
+
+### Fixed
+- **Certbot Nginx Permission Error** - Fixed nginx log permissions for certbot nginx plugin
+  - Changed `/var/log/nginx/error.log` permissions from 640 to 666 to allow certbot's `nginx -t` to succeed
+  - Set ownership to `www-data:adm` (standard nginx log ownership)
+  - Creates both error.log and access.log with proper permissions
+  - Certbot runs `nginx -t` in a different security context, requiring more permissive log file access
+  - Addresses error: `open() "/var/log/nginx/error.log" failed (13: Permission denied)`
+
+- **Broadcast Builder Exception Logging** - EAS generation failures now logged to SystemLog
+  - Exceptions during broadcast generation are now logged to SystemLog database
+  - Includes error type, message, identifier, and event code for debugging
+  - Makes debugging broadcast builder issues easier through web UI
+
+## [Version 2.38.5 and earlier]
+
+### Added
 - **Certbot Status Route Alias** - Added `/admin/api/certbot/status` endpoint as alias for `/admin/api/certbot/certificate-status` for frontend compatibility
 - **TTS Debugging Logging** - Added comprehensive logging to help diagnose Broadcast Builder TTS issues
   - EASAudioGenerator now logs TTS provider configuration at initialization
@@ -30,12 +53,6 @@ tracks releases under the 2.x series.
   - Added safety check with `hasattr()` before calling `get_broadcast_queue()`
   - No longer directly accesses private `_sources` attribute
   - Addresses error: `'AudioIngestController' object has no attribute 'get_broadcast_queue'`
-
-- **Certbot Nginx Permission Error** - Improved nginx log permissions for certbot nginx plugin
-  - Changed `/var/log/nginx/error.log` permissions from 644 to 664 for security and compatibility
-  - Uses 664 (owner+group writable) instead of 666 (world-writable) for better security
-  - Ensures certbot nginx plugin can run `nginx -t` without permission denied errors
-  - Addresses error: `open() "/var/log/nginx/error.log" failed (13: Permission denied)`
 
 - **TTS Azure OpenAI Endpoint Validation** - Made endpoint validation less strict
   - Changed to only require `/deployments/` path instead of full `/audio/speech` path
