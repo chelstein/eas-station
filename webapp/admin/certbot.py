@@ -1388,6 +1388,244 @@ def get_certbot_logs():
         return jsonify({"success": False, "error": str(exc)}), 500
 
 
+@certbot_bp.route('/api/certbot/install-certificate', methods=['POST'])
+@require_permission('system.configure')
+def install_certificate():
+    """Install obtained certificate by creating symlink and updating nginx configuration.
+    
+    This endpoint:
+    1. Creates symlink from custom certbot location to standard /etc/letsencrypt location
+    2. Updates nginx configuration to use the Let's Encrypt certificates
+    3. Reloads nginx to apply changes
+    """
+    try:
+        settings = get_certbot_settings()
+
+        if not settings.enabled:
+            return jsonify({
+                "success": False,
+                "error": "Certbot is not enabled in settings"
+            }), 400
+
+        if not settings.domain_name:
+            return jsonify({
+                "success": False,
+                "error": "Domain name is not configured"
+            }), 400
+
+        # SECURITY: Validate domain name
+        domain = settings.domain_name.strip()
+        if not DOMAIN_PATTERN.match(domain):
+            logger.error(f"Invalid domain name in database: {domain}")
+            return jsonify({
+                "success": False,
+                "error": "Invalid domain name in configuration"
+            }), 500
+
+        # Check if certificate exists in custom location
+        cert_dir = CERTBOT_CONFIG_DIR / 'live' / domain
+        if not cert_dir.exists():
+            return jsonify({
+                "success": False,
+                "error": f"Certificate not found for domain {domain}. Please obtain a certificate first."
+            }), 404
+
+        # Verify certificate files exist
+        required_files = ['fullchain.pem', 'privkey.pem']
+        for cert_file in required_files:
+            if not (cert_dir / cert_file).exists():
+                return jsonify({
+                    "success": False,
+                    "error": f"Certificate file missing: {cert_file}"
+                }), 404
+
+        # Create symlink from custom location to standard location
+        standard_letsencrypt_dir = Path('/etc/letsencrypt')
+        standard_live_dir = standard_letsencrypt_dir / 'live'
+        standard_domain_dir = standard_live_dir / domain
+
+        try:
+            # Create /etc/letsencrypt/live if it doesn't exist
+            subprocess.run(
+                ['sudo', 'mkdir', '-p', str(standard_live_dir)],
+                capture_output=True,
+                timeout=5
+            )
+
+            # Remove existing symlink or directory if it exists
+            if standard_domain_dir.exists() or standard_domain_dir.is_symlink():
+                subprocess.run(
+                    ['sudo', 'rm', '-rf', str(standard_domain_dir)],
+                    capture_output=True,
+                    timeout=5
+                )
+
+            # Create symlink from /etc/letsencrypt/live/domain to custom location
+            subprocess.run(
+                ['sudo', 'ln', '-s', str(cert_dir), str(standard_domain_dir)],
+                capture_output=True,
+                timeout=5
+            )
+
+            logger.info(f"Created symlink: {standard_domain_dir} -> {cert_dir}")
+
+        except subprocess.TimeoutExpired:
+            return jsonify({
+                "success": False,
+                "error": "Timeout while creating certificate symlink"
+            }), 500
+        except Exception as e:
+            logger.error(f"Failed to create symlink: {e}")
+            return jsonify({
+                "success": False,
+                "error": f"Failed to create certificate symlink: {str(e)}"
+            }), 500
+
+        # Update nginx configuration
+        nginx_config_path = Path('/etc/nginx/sites-available/eas-station')
+        
+        try:
+            # Read current config with sudo
+            result = subprocess.run(
+                ['sudo', 'cat', str(nginx_config_path)],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            
+            if result.returncode != 0:
+                return jsonify({
+                    "success": False,
+                    "error": f"Failed to read nginx configuration: {result.stderr}"
+                }), 500
+
+            nginx_config = result.stdout
+
+            # Comment out self-signed certificate lines
+            nginx_config = nginx_config.replace(
+                'ssl_certificate /etc/ssl/certs/eas-station-selfsigned.crt;',
+                '# ssl_certificate /etc/ssl/certs/eas-station-selfsigned.crt;'
+            )
+            nginx_config = nginx_config.replace(
+                'ssl_certificate_key /etc/ssl/private/eas-station-selfsigned.key;',
+                '# ssl_certificate_key /etc/ssl/private/eas-station-selfsigned.key;'
+            )
+
+            # Uncomment Let's Encrypt certificate lines and update domain
+            nginx_config = nginx_config.replace(
+                f'# ssl_certificate /etc/letsencrypt/live/your-domain.com/fullchain.pem;',
+                f'ssl_certificate /etc/letsencrypt/live/{domain}/fullchain.pem;'
+            )
+            nginx_config = nginx_config.replace(
+                f'# ssl_certificate_key /etc/letsencrypt/live/your-domain.com/privkey.pem;',
+                f'ssl_certificate_key /etc/letsencrypt/live/{domain}/privkey.pem;'
+            )
+
+            # Also handle if lines are already uncommented but pointing to wrong domain
+            import re
+            nginx_config = re.sub(
+                r'ssl_certificate /etc/letsencrypt/live/[^/]+/fullchain\.pem;',
+                f'ssl_certificate /etc/letsencrypt/live/{domain}/fullchain.pem;',
+                nginx_config
+            )
+            nginx_config = re.sub(
+                r'ssl_certificate_key /etc/letsencrypt/live/[^/]+/privkey\.pem;',
+                f'ssl_certificate_key /etc/letsencrypt/live/{domain}/privkey.pem;',
+                nginx_config
+            )
+
+            # Write updated config with sudo
+            write_result = subprocess.run(
+                ['sudo', 'tee', str(nginx_config_path)],
+                input=nginx_config,
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+
+            if write_result.returncode != 0:
+                return jsonify({
+                    "success": False,
+                    "error": f"Failed to write nginx configuration: {write_result.stderr}"
+                }), 500
+
+            logger.info(f"Updated nginx configuration to use Let's Encrypt certificate for {domain}")
+
+        except subprocess.TimeoutExpired:
+            return jsonify({
+                "success": False,
+                "error": "Timeout while updating nginx configuration"
+            }), 500
+        except Exception as e:
+            logger.error(f"Failed to update nginx config: {e}")
+            return jsonify({
+                "success": False,
+                "error": f"Failed to update nginx configuration: {str(e)}"
+            }), 500
+
+        # Test nginx configuration
+        try:
+            test_result = subprocess.run(
+                ['sudo', 'nginx', '-t'],
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+
+            if test_result.returncode != 0:
+                logger.error(f"Nginx configuration test failed: {test_result.stderr}")
+                return jsonify({
+                    "success": False,
+                    "error": f"Nginx configuration test failed: {test_result.stderr}",
+                    "note": "Certificate files created but nginx config has errors. Please check manually."
+                }), 500
+
+        except subprocess.TimeoutExpired:
+            return jsonify({
+                "success": False,
+                "error": "Timeout while testing nginx configuration"
+            }), 500
+
+        # Reload nginx to apply changes
+        try:
+            reload_result = subprocess.run(
+                ['sudo', 'systemctl', 'reload', 'nginx'],
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+
+            if reload_result.returncode != 0:
+                return jsonify({
+                    "success": False,
+                    "error": f"Failed to reload nginx: {reload_result.stderr}"
+                }), 500
+
+            logger.info("Nginx reloaded successfully with new certificate")
+
+        except subprocess.TimeoutExpired:
+            return jsonify({
+                "success": False,
+                "error": "Timeout while reloading nginx"
+            }), 500
+
+        return jsonify({
+            "success": True,
+            "message": f"Certificate installed successfully for {domain}",
+            "details": {
+                "domain": domain,
+                "cert_path": str(cert_dir),
+                "symlink_path": str(standard_domain_dir),
+                "nginx_config": str(nginx_config_path)
+            },
+            "note": "Nginx has been reloaded. Your site should now be using the Let's Encrypt certificate."
+        })
+
+    except Exception as exc:
+        logger.error(f"Failed to install certificate: {exc}")
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+
 def register_certbot_routes(app, logger):
     """Register Certbot admin routes with the Flask app.
     
