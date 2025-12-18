@@ -183,35 +183,48 @@ class TTSEngine:
         if requests is None:
             self._remember_error("requests library not installed.")
             if self.logger:
-                self.logger.warning("requests library not installed; skipping TTS voiceover.")
+                self.logger.error("TTS FAILED: requests library not installed. Install with: pip install requests")
             return None
 
         endpoint = (self.config.get("azure_openai_endpoint") or "").strip()
         api_key = (self.config.get("azure_openai_key") or "").strip()
 
         if not endpoint or not api_key:
-            self._remember_error("Azure OpenAI TTS credentials are missing.")
+            # Provide detailed logging about what's missing
+            missing_items = []
+            if not endpoint:
+                missing_items.append("endpoint URL")
+            if not api_key:
+                missing_items.append("API key")
+            
+            error_msg = f"Azure OpenAI TTS credentials are missing: {', '.join(missing_items)}"
+            self._remember_error(error_msg)
             if self.logger:
-                self.logger.warning("Azure OpenAI TTS credentials not configured; skipping TTS voiceover.")
+                self.logger.error(f"TTS FAILED: {error_msg}")
+                self.logger.error("Configure TTS at /admin/tts in the web UI")
+                self.logger.error(f"Current config - endpoint: {'<set>' if endpoint else '<MISSING>'}, key: {'<set>' if api_key else '<MISSING>'}")
             return None
 
         # Log endpoint for debugging
         if self.logger:
-            self.logger.debug(f"Azure OpenAI TTS endpoint: {endpoint}")
+            self.logger.info(f"TTS: Using Azure OpenAI endpoint: {endpoint[:50]}...")
 
         # Validate endpoint format and provide helpful hints
         if self.logger:
             if 'azure.com' in endpoint.lower():
                 if '/audio/speech' not in endpoint:
                     self.logger.error(
-                        f"Azure OpenAI endpoint is incomplete: {endpoint}\n"
+                        f"TTS FAILED: Azure OpenAI endpoint is incomplete: {endpoint}\n"
                         "Expected full format: https://YOUR_RESOURCE.openai.azure.com/openai/deployments/YOUR_DEPLOYMENT/audio/speech?api-version=2024-02-15-preview\n"
-                        "Your endpoint should include '/openai/deployments/YOUR_DEPLOYMENT/audio/speech?api-version=...'"
+                        "Your endpoint should include '/openai/deployments/YOUR_DEPLOYMENT/audio/speech?api-version=...'\n"
+                        "Fix this at /admin/tts in the web UI"
                     )
+                    self._remember_error("Azure OpenAI endpoint is incomplete - missing /audio/speech path")
+                    return None
             elif 'api.openai.com' in endpoint.lower():
                 if endpoint != 'https://api.openai.com/v1/audio/speech':
                     self.logger.warning(
-                        "OpenAI endpoint may be incorrect. "
+                        "TTS: OpenAI endpoint may be incorrect. "
                         "Expected: https://api.openai.com/v1/audio/speech"
                     )
 
@@ -228,14 +241,17 @@ class TTSEngine:
             if deployment_match:
                 deployment_name = deployment_match.group(1)
                 if self.logger:
-                    self.logger.debug(f"Extracted deployment name from endpoint: {deployment_name}")
+                    self.logger.info(f"TTS: Extracted deployment name from endpoint: {deployment_name}")
             else:
                 if self.logger:
                     self.logger.error(
-                        f"Could not extract deployment name from Azure endpoint: {endpoint}\n"
+                        f"TTS FAILED: Could not extract deployment name from Azure endpoint: {endpoint}\n"
                         f"The endpoint must include '/deployments/YOUR_DEPLOYMENT/' in the path.\n"
-                        f"Using configured model name '{model}' instead, which may cause errors if it doesn't match the deployment."
+                        f"Using configured model name '{model}' instead, which may cause errors if it doesn't match the deployment.\n"
+                        f"Fix this at /admin/tts in the web UI"
                     )
+                self._remember_error("Could not extract deployment name from endpoint URL")
+                return None
 
         # Use deployment name as model for Azure, or configured model for OpenAI
         api_model = deployment_name if deployment_name else model

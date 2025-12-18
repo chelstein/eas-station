@@ -6,7 +6,55 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+### Added
+- **TTS Test Function** - Added ability to test TTS configuration from admin page
+  - New "Test TTS" button on `/admin/tts` configuration page
+  - New API endpoint `/admin/api/tts/test` to generate test audio
+  - Test uses sample message to verify TTS engine works correctly
+  - Shows detailed success information (duration, samples, voice used)
+  - Shows detailed error messages on failure with troubleshooting hints
+  - Test results displayed in color-coded alert box (green=success, red=failure)
+  - Logs test attempts and results to system logs
+  - Allows users to verify TTS settings before generating actual alerts
+  - Addresses request: "Can we add a method to test the TTS in the configuration page?"
+
 ### Fixed
+- **TTS Not Working - Missing Logging** - Added comprehensive logging for TTS failures
+  - Added detailed error messages when TTS credentials are missing from database
+  - Changed log level from WARNING to ERROR for critical TTS failures
+  - Added logging showing which credentials are missing (endpoint, API key, etc.)
+  - Added logging when Azure OpenAI endpoint format is invalid
+  - Added logging when deployment name cannot be extracted from endpoint URL
+  - Added logging showing TTS configuration status at startup
+  - Logs now guide users to configure TTS at `/admin/tts` in web UI
+  - Fixed: Users can now see why TTS fails in system logs instead of silent failures
+  - Addresses issue where "all variables are populated" but no logs explain failures
+
+- **TTS API Key Masking Issue** - Removed password masking from API key field
+  - Changed API key input from `type="password"` to `type="text"` in `/admin/tts`
+  - Users can now see the actual API key value they're entering
+  - Prevents browser auto-fill and password manager interference
+  - Fixes issue where masked field prevented users from verifying correct key entry
+  - API keys are still stored securely in database, just visible in UI for easier configuration
+
+- **Certbot Not Working - Missing Logging** - Added comprehensive logging for Certbot failures
+  - Added detailed error logging for all certbot operations (obtain, renew, standalone, nginx, webroot)
+  - Added logging of full certbot commands being executed
+  - Added logging of both stdout and stderr from certbot failures
+  - Added logging showing which method (standalone/nginx/webroot) is being used
+  - Logs now show exact certbot return codes and error messages
+  - Addresses issue where certbot failures had no logs explaining what went wrong
+
+- **Certbot Nginx Plugin Permission Error** - Fixed nginx log permission issue for certbot
+  - Fixed: `open() "/var/log/nginx/error.log" failed (13: Permission denied)`
+  - Added `_ensure_nginx_log_permissions()` function to create and fix log directory permissions
+  - Creates `/var/log/nginx` directory with proper ownership (www-data:www-data)
+  - Sets directory permissions to 755 and log file permissions to 644
+  - Creates `error.log` file if it doesn't exist before running certbot
+  - Function called automatically before certbot nginx plugin execution
+  - Certbot nginx plugin now works without permission errors
+  - Fixes issue where certbot's `nginx -t` config test failed due to log file permissions
+
 - **Certbot Port 80 Permission Error** - Fixed certbot standalone mode failing to bind to port 80
   - Changed default certificate acquisition method from `standalone` to `nginx` plugin
   - Nginx plugin doesn't require stopping nginx or binding to privileged ports
