@@ -1299,17 +1299,7 @@ async function cancelHttpsRedirect() {
             const status = await response.json();
             
             if (status.certificate && status.certificate.valid) {
-                const domainDisplay = status.certificate.domain || 'your domain';
-                
-                let expiryDisplay = 'unknown';
-                if (status.certificate.valid_until) {
-                    try {
-                        const expiryDate = new Date(status.certificate.valid_until);
-                        expiryDisplay = expiryDate.toLocaleDateString() + ' ' + expiryDate.toLocaleTimeString();
-                    } catch (e) {
-                        expiryDisplay = status.certificate.valid_until;
-                    }
-                }
+                const { domainDisplay, expiryDisplay } = formatCertificateDisplay(status.certificate);
                 
                 resultDiv.innerHTML = `
                     <div class="alert alert-success">
