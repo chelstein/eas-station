@@ -227,6 +227,26 @@ else
     USE_WHIPTAIL=true
 fi
 
+# Update sudoers configuration to allow passwordless sudo for update operations
+# This must be done BEFORE any sudo -u eas-station commands are executed
+echo_progress "Updating sudoers configuration for passwordless operations..."
+if [ -f "$INSTALL_DIR/config/sudoers-eas-station" ]; then
+    cp "$INSTALL_DIR/config/sudoers-eas-station" /etc/sudoers.d/eas-station
+    chmod 0440 /etc/sudoers.d/eas-station
+    
+    # Validate sudoers syntax
+    if visudo -c -f /etc/sudoers.d/eas-station &>/dev/null; then
+        echo_success "Sudoers configuration updated and validated"
+    else
+        echo_error "Invalid sudoers syntax - removing file"
+        rm -f /etc/sudoers.d/eas-station
+        echo_error "Update will prompt for passwords - this is not normal"
+    fi
+else
+    echo_warning "Sudoers configuration file not found (config/sudoers-eas-station)"
+    echo_warning "Update may prompt for passwords"
+fi
+
 # Get current version info
 cd "$INSTALL_DIR"
 CURRENT_BRANCH=""
