@@ -19,6 +19,18 @@ eas-station ALL=(ALL) NOPASSWD: /usr/bin/chmod -R 777 /opt/eas-station/certbot_d
 eas-station ALL=(ALL) NOPASSWD: /usr/bin/find /opt/eas-station/certbot_data -name .certbot.lock -delete
 eas-station ALL=(ALL) NOPASSWD: /usr/bin/cat /opt/eas-station/certbot_data/logs/letsencrypt.log
 
+# Nginx log directory management (required for certbot nginx plugin)
+# Certbot's nginx plugin runs 'nginx -t' which requires write access to /var/log/nginx/error.log
+# These commands ensure the log directory and files have proper permissions
+eas-station ALL=(ALL) NOPASSWD: /usr/bin/mkdir -p /var/log/nginx
+eas-station ALL=(ALL) NOPASSWD: /usr/bin/chmod 755 /var/log/nginx
+eas-station ALL=(ALL) NOPASSWD: /usr/bin/touch /var/log/nginx/error.log
+eas-station ALL=(ALL) NOPASSWD: /usr/bin/touch /var/log/nginx/access.log
+eas-station ALL=(ALL) NOPASSWD: /usr/bin/chown www-data\:adm /var/log/nginx/error.log
+eas-station ALL=(ALL) NOPASSWD: /usr/bin/chown www-data\:adm /var/log/nginx/access.log
+eas-station ALL=(ALL) NOPASSWD: /usr/bin/chmod 666 /var/log/nginx/error.log
+eas-station ALL=(ALL) NOPASSWD: /usr/bin/chmod 666 /var/log/nginx/access.log
+
 # Nginx service management (required for standalone certbot mode)
 eas-station ALL=(ALL) NOPASSWD: /usr/bin/systemctl stop nginx
 eas-station ALL=(ALL) NOPASSWD: /usr/bin/systemctl start nginx

@@ -169,9 +169,15 @@ class TTSEngine:
         if provider == "pyttsx3":
             return self._generate_pyttsx3_voiceover(text)
 
-        if provider and self.logger:
-            self.logger.warning('Unknown TTS provider "%s"; skipping voiceover.', provider)
+        if provider:
+            if self.logger:
+                self.logger.warning('Unknown TTS provider "%s"; skipping voiceover.', provider)
             self._remember_error(f'Unknown TTS provider "{provider}".')
+        else:
+            # No provider configured - set error so callers know why TTS was skipped
+            self._remember_error('No TTS provider configured. Configure TTS at /admin/tts in the web UI.')
+            if self.logger:
+                self.logger.info('No TTS provider configured; skipping voiceover.')
 
         return None
 

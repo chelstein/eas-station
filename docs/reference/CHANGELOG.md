@@ -6,7 +6,21 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
-### Added
+### Fixed
+- **TTS "No Provider Configured" Error Reporting** - Fixed silent TTS failure when no provider is configured
+  - `TTSEngine.generate()` now sets `last_error` when no TTS provider is configured
+  - This ensures `tts_warning` is properly populated in Broadcast Builder
+  - Previously, when no TTS provider was set, the engine returned None without setting an error
+  - This caused the message "TTS was requested but no audio was generated" with no explanation
+  - Now displays helpful message: "No TTS provider configured. Configure TTS at /admin/tts in the web UI."
+  - Addresses: "TTS was requested but no audio was generated" without explanation
+
+- **Certbot Nginx Log Permission Sudoers** - Added missing sudo permissions for nginx log management
+  - Added sudoers entries for `/var/log/nginx` directory creation and permission commands
+  - Certbot's nginx plugin runs `nginx -t` which requires write access to log files
+  - Added: mkdir, chmod, touch, chown commands for `/var/log/nginx/error.log` and `access.log`
+  - Fixes error: `open() "/var/log/nginx/error.log" failed (13: Permission denied)` when running certbot
+
 - **Broadcast Builder TTS Logging to SystemLog** - TTS errors and warnings now visible in System Logs UI
   - Logs TTS synthesis failures to SystemLog database table (visible in web UI under System Logs)
   - Logs when TTS is requested but no audio is generated
