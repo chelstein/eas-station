@@ -1119,8 +1119,8 @@ async function waitForServerReconnect(resultDiv) {
                 const status = await response.json();
 
                 if (status.certificate && status.certificate.valid) {
-                    // Format certificate display info
-                    const { domainDisplay, expiryDisplay } = formatCertificateDisplay(status.certificate);
+                    // Format certificate display info (returns escaped HTML-safe values)
+                    const { domainDisplay, expiryDisplay, domainRaw } = formatCertificateDisplay(status.certificate);
                     
                     // Check if we're on HTTP and need to redirect to HTTPS
                     const isHttp = window.location.protocol === 'http:';
@@ -1185,7 +1185,7 @@ async function waitForServerReconnect(resultDiv) {
                                     </ul>
                                 </div>
                                 <div class="mt-3">
-                                    <button class="btn btn-primary" onclick="redirectToCertDomain('${escapeHtml(certDomain)}')">
+                                    <button class="btn btn-primary" onclick="redirectToCertDomain('${domainRaw}')">
                                         <i class="bi bi-arrow-right-circle"></i> Go to ${domainDisplay}
                                     </button>
                                     <button class="btn btn-secondary" onclick="checkCertificateStatus()">
@@ -1377,8 +1377,12 @@ async function cancelHttpsRedirect() {
 }
 
 function escapeHtml(text) {
+    // Handle null, undefined, or falsy values
+    if (!text && text !== 0) {
+        return '';
+    }
     const div = document.createElement('div');
-    div.textContent = text;
+    div.textContent = String(text);
     return div.innerHTML;
 }
 
