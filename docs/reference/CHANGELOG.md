@@ -7,11 +7,23 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Added
+- **Poller Settings Admin Page** - New database-based poller configuration interface
+  - Created `/admin/poller` page for managing alert poller settings
+  - Added `enabled` and `poll_interval_sec` fields to `PollerSettings` model
+  - Poller now reads configuration from database instead of environment variables
+  - Dynamic interval updates without service restart (checked each poll cycle)
+  - Poller can be enabled/disabled via admin UI
+  - Links to existing `/logs?type=polling&limit=100` for viewing polling logs
+  - Added navigation link in Settings dropdown menu
+  - Database migration: `20251218_add_poller_settings.py`
+  - Replaces `POLL_INTERVAL_SEC` environment variable with database setting
+  - Default interval: 120 seconds (recommended for IPAWS/FEMA feeds)
+
 - **Poller Detailed Logging** - Added database-based setting to log detailed alert information
   - New `PollerSettings` model with `log_fetched_alerts` boolean field
   - When enabled, logs full alert details: ID, event, sent/effective/expires times, urgency/severity/certainty, area, and headline
   - Helps debug missing or filtered alerts
-  - Configured via Admin → Poller Settings (UI to be added)
+  - Configured via Admin → Poller Settings
   - Queried once per poll cycle for efficiency
   - Database migration required: `alembic upgrade head`
 

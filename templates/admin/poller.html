@@ -1,0 +1,248 @@
+{% extends "base.html" %}
+
+{% block title %}Poller Settings - EAS Station{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-3">
+        <div class="col-12">
+            <h2><i class="fas fa-satellite-dish"></i> Alert Poller Settings</h2>
+            <p class="text-muted">Configure CAP alert polling behavior and view polling logs</p>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-8">
+            <!-- Poller Configuration Card -->
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-cog"></i> Poller Configuration</h5>
+                </div>
+                <div class="card-body">
+                    <form id="pollerSettingsForm">
+                        <!-- Enabled/Disabled -->
+                        <div class="mb-3">
+                            <label for="enabled" class="form-label">
+                                <i class="fas fa-power-off"></i> Poller Status
+                                <span class="text-muted">(Enable or disable alert polling)</span>
+                            </label>
+                            <select class="form-select" id="enabled" name="enabled" required>
+                                <option value="true" {% if settings.enabled %}selected{% endif %}>Enabled</option>
+                                <option value="false" {% if not settings.enabled %}selected{% endif %}>Disabled</option>
+                            </select>
+                            <div class="form-text">
+                                When disabled, the poller service will not fetch alerts from CAP feeds.
+                            </div>
+                        </div>
+
+                        <!-- Poll Interval -->
+                        <div class="mb-3">
+                            <label for="poll_interval_sec" class="form-label">
+                                <i class="fas fa-clock"></i> Poll Interval (seconds)
+                                <span class="text-muted">(Time between poll attempts)</span>
+                            </label>
+                            <input type="number" class="form-control" id="poll_interval_sec" 
+                                   name="poll_interval_sec" min="30" max="3600" 
+                                   value="{{ settings.poll_interval_sec }}" required>
+                            <div class="form-text">
+                                Minimum: 30 seconds. Recommended: 120 seconds (IPAWS), 300 seconds (NOAA).
+                                <br><strong>Note:</strong> Changes take effect on the next poll cycle (no restart required).
+                            </div>
+                        </div>
+
+                        <!-- Log Fetched Alerts -->
+                        <div class="mb-3">
+                            <label for="log_fetched_alerts" class="form-label">
+                                <i class="fas fa-file-alt"></i> Detailed Alert Logging
+                                <span class="text-muted">(Log detailed information about fetched alerts)</span>
+                            </label>
+                            <select class="form-select" id="log_fetched_alerts" name="log_fetched_alerts" required>
+                                <option value="true" {% if settings.log_fetched_alerts %}selected{% endif %}>Enabled</option>
+                                <option value="false" {% if not settings.log_fetched_alerts %}selected{% endif %}>Disabled</option>
+                            </select>
+                            <div class="form-text">
+                                When enabled, poller logs detailed information about each alert including ID, event type, 
+                                urgency/severity/certainty, area description, and headline. Useful for debugging.
+                            </div>
+                        </div>
+
+                        <!-- Save Button -->
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save"></i> Save Settings
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Service Control Card -->
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-server"></i> Service Status</h5>
+                </div>
+                <div class="card-body">
+                    <p class="mb-3">
+                        <i class="fas fa-info-circle"></i> Settings changes take effect on the next poll cycle automatically.
+                    </p>
+                    <div class="alert alert-info mb-0">
+                        <i class="fas fa-check-circle"></i> <strong>Good News:</strong> 
+                        The poller service reads settings from the database each poll cycle, so changes to the 
+                        poll interval and enabled status take effect immediately without restarting the service.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Info Sidebar -->
+        <div class="col-lg-4">
+            <!-- Current Settings Summary -->
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-info-circle"></i> Current Settings</h5>
+                </div>
+                <div class="card-body">
+                    <ul class="list-unstyled mb-0">
+                        <li class="mb-2">
+                            <strong>Status:</strong>
+                            <span class="badge bg-{{ 'success' if settings.enabled else 'danger' }}" id="statusBadge">
+                                {{ 'Enabled' if settings.enabled else 'Disabled' }}
+                            </span>
+                        </li>
+                        <li class="mb-2">
+                            <strong>Poll Interval:</strong>
+                            <span id="intervalDisplay">{{ settings.poll_interval_sec }}</span> seconds
+                        </li>
+                        <li class="mb-2">
+                            <strong>Detailed Logging:</strong>
+                            <span class="badge bg-{{ 'info' if settings.log_fetched_alerts else 'secondary' }}" id="loggingBadge">
+                                {{ 'Enabled' if settings.log_fetched_alerts else 'Disabled' }}
+                            </span>
+                        </li>
+                        <li class="mb-0">
+                            <strong>Last Updated:</strong>
+                            <small class="text-muted" id="lastUpdated">
+                                {{ settings.updated_at.strftime('%Y-%m-%d %H:%M:%S') if settings.updated_at else 'Never' }}
+                            </small>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- View Logs Card -->
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-file-alt"></i> Polling Logs</h5>
+                </div>
+                <div class="card-body">
+                    <p class="mb-3">View detailed polling activity and troubleshoot issues.</p>
+                    <div class="d-grid gap-2">
+                        <a href="/logs?type=polling&limit=100" class="btn btn-outline-primary">
+                            <i class="fas fa-satellite-dish"></i> Polling Logs
+                        </a>
+                        <a href="/logs?type=polling_debug&limit=100" class="btn btn-outline-secondary">
+                            <i class="fas fa-bug"></i> Debug Logs
+                        </a>
+                        <a href="/logs?type=system&limit=100" class="btn btn-outline-info">
+                            <i class="fas fa-cog"></i> System Logs
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Help Card -->
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-question-circle"></i> Help</h5>
+                </div>
+                <div class="card-body">
+                    <h6>Where Are Alerts Stored?</h6>
+                    <p class="small mb-3">
+                        Polled alerts are stored in the <code>cap_alerts</code> database table and can be viewed at:
+                    </p>
+                    <ul class="small mb-3">
+                        <li><a href="/alerts"><strong>/alerts</strong></a> - View all alerts</li>
+                        <li><a href="/stats"><strong>/stats</strong></a> - Alert statistics</li>
+                        <li><a href="/logs?type=polling&limit=100"><strong>/logs?type=polling</strong></a> - Polling activity</li>
+                    </ul>
+                    
+                    <h6>Poll Interval Guidelines</h6>
+                    <ul class="small mb-3">
+                        <li><strong>IPAWS/FEMA:</strong> 120 seconds (2 minutes)</li>
+                        <li><strong>NOAA Weather:</strong> 300 seconds (5 minutes)</li>
+                        <li><strong>Minimum:</strong> 30 seconds</li>
+                    </ul>
+                    <h6>Troubleshooting</h6>
+                    <p class="small mb-0">
+                        If alerts are not appearing:
+                    </p>
+                    <ol class="small mb-0">
+                        <li>Check that poller is enabled</li>
+                        <li>Review polling logs for errors</li>
+                        <li>Verify service is running</li>
+                        <li>Check database connectivity</li>
+                    </ol>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('pollerSettingsForm');
+    
+    form.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(form);
+        const submitBtn = form.querySelector('button[type="submit"]');
+        const originalBtnText = submitBtn.innerHTML;
+        
+        // Disable button and show loading state
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+        
+        try {
+            const response = await fetch('/admin/poller/update', {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-CSRF-Token': window.CSRF_TOKEN
+                }
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                showToast('Poller settings saved successfully', 'success');
+                
+                // Update sidebar display
+                const settings = data.settings;
+                document.getElementById('statusBadge').textContent = settings.enabled ? 'Enabled' : 'Disabled';
+                document.getElementById('statusBadge').className = 'badge bg-' + (settings.enabled ? 'success' : 'danger');
+                
+                document.getElementById('intervalDisplay').textContent = settings.poll_interval_sec;
+                
+                document.getElementById('loggingBadge').textContent = settings.log_fetched_alerts ? 'Enabled' : 'Disabled';
+                document.getElementById('loggingBadge').className = 'badge bg-' + (settings.log_fetched_alerts ? 'info' : 'secondary');
+                
+                if (settings.updated_at) {
+                    const updatedDate = new Date(settings.updated_at);
+                    document.getElementById('lastUpdated').textContent = updatedDate.toLocaleString();
+                }
+            } else {
+                showToast(data.error || 'Failed to save settings', 'danger');
+            }
+        } catch (error) {
+            console.error('Error saving settings:', error);
+            showToast('Error saving settings', 'danger');
+        } finally {
+            // Re-enable button
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalBtnText;
+        }
+    });
+});
+</script>
+{% endblock %}

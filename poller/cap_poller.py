@@ -172,6 +172,8 @@ from app_utils.location_settings import (
 )
 print(f"[CAP_POLLER] Importing app_utils.optimized_parsing...")
 from app_utils.optimized_parsing import json_loads, json_dumps, parse_xml_string, get_element_tree_module
+print(f"[CAP_POLLER] Importing app_core.models...")
+from app_core.models import PollerSettings
 print(f"[CAP_POLLER] All app module imports complete!")
 
 # Use optimized XML parser (lxml if available, else xml.etree.ElementTree)
@@ -2623,7 +2625,6 @@ class CAPPoller:
             # Check poller settings for detailed logging (query once per poll cycle)
             log_fetched_alerts = False
             try:
-                from app_core.models import PollerSettings
                 poller_settings = PollerSettings.query.first()
                 log_fetched_alerts = poller_settings.log_fetched_alerts if poller_settings else False
             except Exception:
@@ -2867,13 +2868,13 @@ def main():
             stats = poller.fix_existing_geometry()
             print(json_dumps(stats, indent=2))
         elif args.continuous:
-            # Enforce minimum interval to prevent excessive CPU usage
+            # Read initial interval from args, but will dynamically update from DB
             interval = max(30, args.interval)
             if interval != args.interval:
                 logger.warning(
                     f"Interval {args.interval}s is below minimum; using {interval}s to prevent excessive CPU usage"
                 )
-            logger.info(f"Running continuously with {interval} second intervals")
+            logger.info(f"Running continuously with {interval} second intervals (will update from database settings)")
             
             consecutive_errors = 0
             max_backoff = 300  # Maximum 5 minutes between retries
@@ -2881,6 +2882,21 @@ def main():
             
             while True:
                 try:
+                    # Check poller settings from database for dynamic configuration
+                    poller_enabled = True
+                    db_interval = interval  # Default to current interval
+                    try:
+                        poller_settings = PollerSettings.query.first()
+                        if poller_settings:
+                            poller_enabled = poller_settings.enabled
+                            db_interval = max(30, poller_settings.poll_interval_sec)  # Enforce minimum
+                            if db_interval != interval:
+                                logger.info(f"Poll interval updated from database: {interval}s → {db_interval}s")
+                                interval = db_interval
+                    except Exception as e:
+                        # If PollerSettings table doesn't exist yet or query fails, use args
+                        logger.debug(f"Failed to read poller settings from database, using command line arguments: {e}")
+                    
                     # Sleep before polling (except on first iteration) to prevent CPU hammering
                     # This ensures we always wait between polls, even if a poll completes very quickly
                     if not first_iteration:
@@ -2894,6 +2910,12 @@ def main():
                             logger.info(f"Waiting {interval} seconds before next poll...")
                             time.sleep(interval)
                     first_iteration = False
+                    
+                    # Check if poller is enabled before polling
+                    if not poller_enabled:
+                        logger.info("Poller disabled in database settings, skipping poll cycle")
+                        consecutive_errors = 0
+                        continue
                     
                     stats = poller.poll_and_process()
                     print(json_dumps(stats, indent=2))

@@ -916,6 +916,13 @@ class PollerSettings(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
 
+    # Poller Configuration
+    enabled = db.Column(db.Boolean, nullable=False, default=True)
+    # When enabled, the poller service will fetch alerts from CAP feeds
+    
+    poll_interval_sec = db.Column(db.Integer, nullable=False, default=120)
+    # Seconds between polls (minimum: 30, recommended: 120 for IPAWS, 300 for NOAA)
+
     # Logging Settings
     log_fetched_alerts = db.Column(db.Boolean, nullable=False, default=False)
     # When enabled, poller logs detailed information about each alert fetched
@@ -928,6 +935,8 @@ class PollerSettings(db.Model):
     def to_dict(self):
         """Convert model to dictionary."""
         return {
+            "enabled": self.enabled,
+            "poll_interval_sec": self.poll_interval_sec,
             "log_fetched_alerts": self.log_fetched_alerts,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
