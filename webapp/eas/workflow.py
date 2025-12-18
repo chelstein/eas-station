@@ -303,9 +303,15 @@ def register_workflow_routes(bp, logger, eas_config) -> None:
         generator = EASAudioGenerator(manual_config, logger=workflow_logger)
 
         # For RWT events, respect user's TTS choice if they explicitly enabled it
-        # By default, RWT disables TTS and attention tones per EAS specification
-        # But if user explicitly requests TTS (include_tts=True for RWT), honor that choice
-        force_rwt_defaults = not include_tts if event_code == 'RWT' else True
+        # By default (force_rwt_defaults=True), RWT disables TTS and attention tones per EAS spec
+        # If user explicitly requests TTS for RWT (include_tts=True), set force_rwt_defaults=False
+        # to honor their choice. For non-RWT events, force_rwt_defaults has no effect.
+        if event_code == 'RWT' and include_tts:
+            # User wants TTS for RWT - override the default RWT behavior
+            force_rwt_defaults = False
+        else:
+            # Use default behavior (RWT disables TTS, other events keep user's choice)
+            force_rwt_defaults = True
 
         try:
             components = generator.build_manual_components(

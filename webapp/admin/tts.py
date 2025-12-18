@@ -192,7 +192,7 @@ def test_tts():
                 wav_file.setsampwidth(2)  # 16-bit
                 wav_file.setframerate(16000)
                 # Convert samples to bytes (16-bit signed integers)
-                audio_bytes = struct.pack('<' + 'h' * len(samples), *samples)
+                audio_bytes = struct.pack(f'<{len(samples)}h', *samples)
                 wav_file.writeframes(audio_bytes)
             
             wav_buffer.seek(0)

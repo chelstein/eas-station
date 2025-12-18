@@ -282,7 +282,7 @@ document.getElementById('testTtsBtn').addEventListener('click', async function()
                 try {
                     await audioElement.play();
                 } catch (playError) {
-                    console.log('Auto-play blocked, user can click play button');
+                    console.log('Auto-play blocked by browser:', playError.message || playError);
                 }
             }
             
