@@ -9,6 +9,13 @@ tracks releases under the 2.x series.
 ### Added
 
 ### Fixed
+- **Certbot Certificate Installation** - Fixed automatic certificate installation after acquisition
+  - Fixed missing `require_auth` import causing Error 500 on install endpoint
+  - Added automatic certificate installation after successful certificate acquisition
+  - Created `_install_certificate_internal()` helper function to reduce code duplication
+  - Standalone and webroot methods now automatically install certificates after obtaining them
+  - Certificate symlink creation, nginx configuration update, and reload all happen automatically
+  - Addresses: "certbot isnt installing certificate" - certificates now install immediately after acquisition
 - **Poller Settings Navigation** - Moved poller settings link from navbar to admin page
   - Removed standalone navbar link in Settings dropdown
   - Added poller settings card to admin.html configuration section
