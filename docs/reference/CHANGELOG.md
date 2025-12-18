@@ -12,13 +12,17 @@ tracks releases under the 2.x series.
 ### Fixed
 - **AudioIngestController.get_broadcast_queue() Error** - Fixed AttributeError in eas_monitoring_service.py
   - Method was removed in refactor but code still called it
+  - Added public methods `get_source()`, `get_all_sources()` to AudioIngestController for proper access
   - Changed to iterate through sources and get broadcast queue from each source
   - Fixed metrics collection to aggregate broadcast queue stats from all audio sources
   - Fixed web audio streaming to get broadcast queue from source adapter instead of controller
+  - Added safety check with `hasattr()` before calling `get_broadcast_queue()`
+  - No longer directly accesses private `_sources` attribute
   - Addresses error: `'AudioIngestController' object has no attribute 'get_broadcast_queue'`
 
 - **Certbot Nginx Permission Error** - Improved nginx log permissions for certbot nginx plugin
-  - Changed `/var/log/nginx/error.log` permissions from 644 to 666 for broader compatibility
+  - Changed `/var/log/nginx/error.log` permissions from 644 to 664 for security and compatibility
+  - Uses 664 (owner+group writable) instead of 666 (world-writable) for better security
   - Ensures certbot nginx plugin can run `nginx -t` without permission denied errors
   - Addresses error: `open() "/var/log/nginx/error.log" failed (13: Permission denied)`
 

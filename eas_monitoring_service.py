@@ -417,7 +417,7 @@ def initialize_audio_controller(app):
             except Exception as e:
                 logger.error(f"Error loading source '{db_config.name}': {e}", exc_info=True)
 
-        logger.info(f"Loaded {len(_audio_controller._sources)} audio source configurations")
+        logger.info(f"Loaded {len(_audio_controller.get_all_sources())} audio source configurations")
 
         # Start auto-start sources
         auto_start_sources = [db_config for db_config in saved_configs if db_config.enabled and db_config.auto_start]
@@ -602,7 +602,7 @@ def collect_metrics():
                 except Exception as e:
                     logger.error(f"Error getting streaming stats: {e}")
 
-            for name, source in _audio_controller._sources.items():
+            for name, source in _audio_controller.get_all_sources().items():
                 try:
                     metrics_obj = getattr(source, "metrics", None)
                     source_stats: Dict[str, Any] = {
@@ -640,7 +640,7 @@ def collect_metrics():
             # Note: Each source has its own broadcast queue (architecture change)
             try:
                 broadcast_queues = {}
-                for name, source in _audio_controller._sources.items():
+                for name, source in _audio_controller.get_all_sources().items():
                     if hasattr(source, 'get_broadcast_queue'):
                         bq = source.get_broadcast_queue()
                         if bq:
@@ -753,10 +753,10 @@ def main():
             logger.info("Checking audio sources for Icecast streaming...")
 
             # Log status of all sources for diagnostics
-            total_sources = len(audio_controller._sources)
+            total_sources = len(audio_controller.get_all_sources())
             logger.info(f"Total configured sources: {total_sources}")
 
-            for source_name, source_adapter in audio_controller._sources.items():
+            for source_name, source_adapter in audio_controller.get_all_sources().items():
                 status_str = source_adapter.status.name if hasattr(source_adapter.status, 'name') else str(source_adapter.status)
                 logger.info(f"Source '{source_name}' status: {status_str}")
 
@@ -879,6 +879,10 @@ def main():
                     # Use unique subscriber ID per connection
                     # Note: Each source has its own broadcast queue (architecture change)
                     subscriber_id = f"web-stream-{source_name}-{threading.current_thread().ident}"
+                    if not hasattr(adapter, 'get_broadcast_queue'):
+                        logger.error(f"Audio source '{source_name}' does not support broadcast queue")
+                        return jsonify({'error': f'Audio source "{source_name}" does not support streaming'}), 500
+                    
                     broadcast_queue = adapter.get_broadcast_queue()
                     subscription_queue = broadcast_queue.subscribe(subscriber_id)
 
@@ -956,7 +960,7 @@ def main():
                     if not _audio_controller:
                         return jsonify({'error': 'Audio controller not initialized'}), 503
                     
-                    adapter = _audio_controller._sources.get(source_name)
+                    adapter = _audio_controller.get_source(source_name)
                     if not adapter:
                         return jsonify({'error': f'Audio source "{source_name}" not found'}), 404
                     
