@@ -906,6 +906,33 @@ class TTSSettings(db.Model):
         }
 
 
+class PollerSettings(db.Model):
+    """Alert poller configuration stored in database.
+
+    Replaces environment variables for poller configuration.
+    All settings are stored in a single row (id=1).
+    """
+    __tablename__ = "poller_settings"
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    # Logging Settings
+    log_fetched_alerts = db.Column(db.Boolean, nullable=False, default=False)
+    # When enabled, poller logs detailed information about each alert fetched
+    # including full ID, event type, sent/effective/expires times, urgency/severity/certainty,
+    # area description, and headline. Useful for debugging missing alerts.
+
+    # Metadata
+    updated_at = db.Column(db.DateTime, nullable=True, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def to_dict(self):
+        """Convert model to dictionary."""
+        return {
+            "log_fetched_alerts": self.log_fetched_alerts,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+
 class RadioReceiver(db.Model):
     """Persistent configuration for SDR hardware receivers.
 

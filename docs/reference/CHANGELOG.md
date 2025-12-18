@@ -6,6 +6,15 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+### Added
+- **Poller Detailed Logging** - Added database-based setting to log detailed alert information
+  - New `PollerSettings` model with `log_fetched_alerts` boolean field
+  - When enabled, logs full alert details: ID, event, sent/effective/expires times, urgency/severity/certainty, area, and headline
+  - Helps debug missing or filtered alerts
+  - Configured via Admin → Poller Settings (UI to be added)
+  - Queried once per poll cycle for efficiency
+  - Database migration required: `alembic upgrade head`
+
 ### Fixed
 - **Update Script Password Prompts** - Fixed update.sh asking for eas-station user password
   - Added `root ALL=(eas-station) NOPASSWD: ALL` to sudoers configuration

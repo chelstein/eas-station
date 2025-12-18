@@ -2620,12 +2620,45 @@ class CAPPoller:
                 self.logger.warning(f"Fetch errors occurred: {error_summary}")
                 self.log_system_event('ERROR', f"CAP polling encountered errors: {error_summary}", stats)
 
+            # Check poller settings for detailed logging (query once per poll cycle)
+            log_fetched_alerts = False
+            try:
+                from app_core.models import PollerSettings
+                poller_settings = PollerSettings.query.first()
+                log_fetched_alerts = poller_settings.log_fetched_alerts if poller_settings else False
+            except Exception:
+                # If PollerSettings table doesn't exist yet or query fails, default to False
+                pass
+
             for alert_data in alerts_data:
                 props = alert_data.get('properties', {})
                 event = props.get('event', 'Unknown')
                 alert_id = props.get('identifier', 'No ID')
 
                 self.logger.info(f"Processing alert: {event} (ID: {alert_id[:20] if alert_id!='No ID' else 'No ID'}...)")
+
+                # Log detailed alert information if enabled in database settings (helps debug missing alerts)
+                if log_fetched_alerts:
+                    sent = props.get('sent', 'Unknown')
+                    expires = props.get('expires', 'Unknown')
+                    effective = props.get('effective', 'Unknown')
+                    urgency = props.get('urgency', 'Unknown')
+                    severity = props.get('severity', 'Unknown')
+                    certainty = props.get('certainty', 'Unknown')
+                    area_desc = props.get('areaDesc', 'Unknown')
+                    headline = props.get('headline', '')
+                    
+                    self.logger.info(f"  ├─ Full ID: {alert_id}")
+                    self.logger.info(f"  ├─ Event: {event}")
+                    self.logger.info(f"  ├─ Sent: {sent}")
+                    self.logger.info(f"  ├─ Effective: {effective}")
+                    self.logger.info(f"  ├─ Expires: {expires}")
+                    self.logger.info(f"  ├─ Urgency: {urgency} | Severity: {severity} | Certainty: {certainty}")
+                    self.logger.info(f"  ├─ Area: {area_desc}")
+                    if headline:
+                        self.logger.info(f"  └─ Headline: {headline}")
+                    else:
+                        self.logger.info(f"  └─ (No headline)")
 
                 relevance = self.get_alert_relevance_details(alert_data)
                 log_entry = relevance.get('log') or {}
