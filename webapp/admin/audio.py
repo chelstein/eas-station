@@ -58,6 +58,7 @@ from app_core.eas_storage import (
 from app_utils import utc_now
 from app_utils.eas import (
     EASAudioGenerator,
+    load_eas_config,
     PRIMARY_ORIGINATORS,
     build_same_header,
     describe_same_header,
@@ -752,7 +753,10 @@ def admin_manual_eas_generate():
     sent_dt = datetime.now(timezone.utc)
     expires_dt = sent_dt + timedelta(minutes=duration_minutes)
 
-    manual_config = dict(audio_bp.eas_config)
+    # Reload EAS config fresh to get latest TTS settings from database
+    # (TTS settings can be updated via /admin/tts while app is running)
+    fresh_config = load_eas_config(current_app.root_path)
+    manual_config = dict(fresh_config)
     manual_config['enabled'] = True
     manual_config['originator'] = originator[:3].upper()
     manual_config['station_id'] = station_id.upper().ljust(8)[:8]
