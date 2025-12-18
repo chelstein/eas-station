@@ -6,6 +6,17 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+### Added
+- **TTS Audio Playback on Test** - TTS configuration page now plays audio after successful test
+  - Audio player appears with controls after TTS test completes
+  - Automatically plays the generated audio (if browser allows)
+  - Allows users to hear the TTS output directly in the UI
+
+- **RWT TTS Override Option** - Quick RWT now respects the TTS toggle setting
+  - Added `force_rwt_defaults` parameter to `build_manual_components()`
+  - When user explicitly enables TTS for RWT in Broadcast Builder, it is honored
+  - By default, RWT still disables TTS per EAS specification
+
 ### Fixed
 - **Broadcast Builder TTS Warning for RWT Events** - Fixed misleading TTS warning for Required Weekly Test
   - RWT events intentionally disable TTS (per EAS specification - RWT should only have SAME header and EOM tones)

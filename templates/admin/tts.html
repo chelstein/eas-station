@@ -167,6 +167,9 @@
     <h5 id="testResultTitle"></h5>
     <p id="testResultMessage"></p>
     <div id="testResultDetails"></div>
+    <div id="testAudioPlayer" style="display: none; margin-top: 1rem;">
+        <audio id="ttsAudioElement" controls style="width: 100%;"></audio>
+    </div>
 </div>
 
 <script>
@@ -246,6 +249,11 @@ document.getElementById('testTtsBtn').addEventListener('click', async function()
         const titleDiv = document.getElementById('testResultTitle');
         const messageDiv = document.getElementById('testResultMessage');
         const detailsDiv = document.getElementById('testResultDetails');
+        const audioPlayerDiv = document.getElementById('testAudioPlayer');
+        const audioElement = document.getElementById('ttsAudioElement');
+        
+        // Hide audio player by default
+        audioPlayerDiv.style.display = 'none';
         
         if (result.success) {
             alertDiv.className = 'alert alert-success mt-3';
@@ -264,6 +272,18 @@ document.getElementById('testTtsBtn').addEventListener('click', async function()
                         <li>Sample Rate: ${result.details.sample_rate} Hz</li>
                     </ul>
                 `;
+            }
+            
+            // If audio data is included, show the audio player
+            if (result.audio_data && result.audio_type) {
+                audioElement.src = `data:${result.audio_type};base64,${result.audio_data}`;
+                audioPlayerDiv.style.display = 'block';
+                // Auto-play the audio
+                try {
+                    await audioElement.play();
+                } catch (playError) {
+                    console.log('Auto-play blocked, user can click play button');
+                }
             }
             
             showToast('TTS test successful!', 'success');
@@ -293,11 +313,13 @@ document.getElementById('testTtsBtn').addEventListener('click', async function()
         const titleDiv = document.getElementById('testResultTitle');
         const messageDiv = document.getElementById('testResultMessage');
         const detailsDiv = document.getElementById('testResultDetails');
+        const audioPlayerDiv = document.getElementById('testAudioPlayer');
         
         alertDiv.className = 'alert alert-danger mt-3';
         titleDiv.innerHTML = '<i class="bi bi-x-circle"></i> TTS Test Failed';
         messageDiv.textContent = 'Error testing TTS: ' + error.message;
         detailsDiv.innerHTML = '';
+        audioPlayerDiv.style.display = 'none';
         alertDiv.style.display = 'block';
         
         showToast('Error testing TTS: ' + error.message, 'error');

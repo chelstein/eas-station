@@ -1181,6 +1181,7 @@ class EASAudioGenerator:
         include_tts: bool = True,
         silence_between_headers: float = 1.0,
         silence_after_header: float = 1.0,
+        force_rwt_defaults: bool = True,
     ) -> Dict[str, object]:
         # Extract event code from SAME header to detect RWT (Required Weekly Test)
         # Header format: ZCZC-ORG-EEE-PSSCCC-... where EEE is the event code
@@ -1190,13 +1191,14 @@ class EASAudioGenerator:
             if len(parts) > 2:
                 event_code = parts[2].strip().upper()
 
-        # For RWT (Required Weekly Test), disable TTS and attention tones
-        # RWT should only have SAME header and EOM tones
-        if event_code == 'RWT':
+        # For RWT (Required Weekly Test), optionally disable TTS and attention tones
+        # By default (force_rwt_defaults=True), RWT only has SAME header and EOM tones
+        # Set force_rwt_defaults=False to allow TTS and attention tones for RWT
+        if event_code == 'RWT' and force_rwt_defaults:
             include_tts = False
             tone_profile = 'none'
             if self.logger:
-                self.logger.info("RWT detected: disabling TTS narration and attention tones")
+                self.logger.info("RWT detected: disabling TTS narration and attention tones (use force_rwt_defaults=False to override)")
 
         amplitude = 0.7 * 32767
         same_bits = encode_same_bits(header, include_preamble=True)

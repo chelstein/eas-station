@@ -302,6 +302,11 @@ def register_workflow_routes(bp, logger, eas_config) -> None:
 
         generator = EASAudioGenerator(manual_config, logger=workflow_logger)
 
+        # For RWT events, respect user's TTS choice if they explicitly enabled it
+        # By default, RWT disables TTS and attention tones per EAS specification
+        # But if user explicitly requests TTS (include_tts=True for RWT), honor that choice
+        force_rwt_defaults = not include_tts if event_code == 'RWT' else True
+
         try:
             components = generator.build_manual_components(
                 alert_object,
@@ -309,6 +314,7 @@ def register_workflow_routes(bp, logger, eas_config) -> None:
                 tone_profile=tone_profile,
                 tone_duration=tone_seconds,
                 include_tts=include_tts,
+                force_rwt_defaults=force_rwt_defaults,
             )
         except Exception as exc:
             workflow_logger.error('Manual EAS generation failed: %s', exc)
