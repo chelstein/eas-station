@@ -1180,7 +1180,7 @@ async function waitForServerReconnect(resultDiv) {
                                     </ul>
                                 </div>
                                 <div class="mt-3">
-                                    <button class="btn btn-primary" onclick="window.location.href='https://${escapeHtml(domainDisplay)}' + window.location.pathname">
+                                    <button class="btn btn-primary" onclick="redirectToCertDomain('${escapeHtml(certDomain)}')">
                                         <i class="bi bi-arrow-right-circle"></i> Go to ${escapeHtml(domainDisplay)}
                                     </button>
                                     <button class="btn btn-secondary" onclick="checkCertificateStatus()">
@@ -1278,6 +1278,33 @@ function redirectToHttps() {
     }, 500);
 }
 
+// Redirect to certificate domain with proper URL construction
+function redirectToCertDomain(domain) {
+    try {
+        // Clear any active redirect countdown
+        if (window.httpsRedirectInterval) {
+            clearInterval(window.httpsRedirectInterval);
+            window.httpsRedirectInterval = null;
+        }
+        
+        // Build URL with certificate domain (keep current path and query)
+        const currentUrl = new URL(window.location.href);
+        currentUrl.protocol = 'https:';
+        currentUrl.hostname = domain;
+        
+        // Show toast notification
+        showToast(`Redirecting to ${domain}...`, 'info');
+        
+        // Redirect after a short delay to allow toast to show
+        setTimeout(() => {
+            window.location.href = currentUrl.href;
+        }, 500);
+    } catch (e) {
+        showToast('Invalid domain - cannot redirect', 'error');
+        console.error('Failed to redirect to cert domain:', e);
+    }
+}
+
 // Cancel automatic HTTPS redirect
 async function cancelHttpsRedirect() {
     // Clear the countdown interval
@@ -1288,6 +1315,12 @@ async function cancelHttpsRedirect() {
     
     // Fetch current certificate status to show success without redirect
     const resultDiv = document.getElementById('obtainCertResult');
+    
+    // Guard clause - return early if element doesn't exist
+    if (!resultDiv) {
+        console.error('obtainCertResult element not found');
+        return;
+    }
     
     try {
         const response = await fetch('/admin/api/certbot/status', {
