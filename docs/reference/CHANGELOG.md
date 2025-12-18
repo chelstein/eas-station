@@ -7,6 +7,14 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **Certbot Webroot Permission Issues** - Fixed webroot directory permissions for certbot
+  - Added `_ensure_webroot_directory()` function to create `/var/www/certbot` with proper permissions
+  - Webroot directory now owned by root:root with 755 permissions (certbot writes as root, nginx reads as www-data)
+  - Previously owned by www-data with 755, preventing root (certbot) from writing challenge files
+  - Added sudoers entries for webroot directory creation and permission management
+  - Added better error messages for permission and path errors in webroot mode
+  - Addresses: "PermissionError: [Errno 13] Permission denied: '/var/www/certbot/.well-known/acme-challenge/...'"
+
 - **Certbot Nginx Plugin Permission Issues** - Fixed fundamental implementation flaw with nginx plugin
   - Removed nginx plugin as default method (caused permission errors with `/var/log/nginx/error.log`)
   - Changed default to standalone mode (same as used in install.sh - proven to work)

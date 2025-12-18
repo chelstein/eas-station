@@ -60,6 +60,54 @@ CERTBOT_LOGS_DIR = CERTBOT_BASE_DIR / 'logs'
 # Use standalone or webroot modes instead.
 
 
+def _ensure_webroot_directory():
+    """Ensure webroot directory exists with proper permissions for certbot.
+    
+    The webroot directory must be writable by root (certbot runs as root via sudo)
+    and readable by nginx (www-data) to serve the ACME challenge files.
+    
+    Certbot creates challenge files as root, then nginx serves them to Let's Encrypt.
+    
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    try:
+        webroot_path = '/var/www/certbot'
+        challenge_path = '/var/www/certbot/.well-known/acme-challenge'
+        
+        # Create directories with sudo (certbot runs as root)
+        subprocess.run(
+            ['sudo', 'mkdir', '-p', challenge_path],
+            capture_output=True,
+            timeout=5
+        )
+        
+        # Set ownership to root:root (certbot needs to write as root)
+        subprocess.run(
+            ['sudo', 'chown', '-R', 'root:root', webroot_path],
+            capture_output=True,
+            timeout=5
+        )
+        
+        # Set permissions to 755 (owner=rwx, group=rx, other=rx)
+        # This allows root to write, and www-data (nginx) to read
+        subprocess.run(
+            ['sudo', 'chmod', '-R', '755', webroot_path],
+            capture_output=True,
+            timeout=5
+        )
+        
+        logger.info(f"Webroot directory configured: {webroot_path}")
+        return True
+        
+    except subprocess.TimeoutExpired:
+        logger.warning("Timeout while configuring webroot directory")
+        return False
+    except Exception as e:
+        logger.warning(f"Error configuring webroot directory: {e}")
+        return False
+
+
 def _ensure_certbot_directories():
     """Ensure certbot directories exist with proper permissions.
 
@@ -958,6 +1006,14 @@ def obtain_certificate_execute():
                 
         elif method == 'webroot':
             # Use webroot method
+            # Ensure webroot directory exists with proper permissions
+            logger.info("Ensuring webroot directory exists and has proper permissions...")
+            if not _ensure_webroot_directory():
+                return jsonify({
+                    "success": False,
+                    "error": "Failed to configure webroot directory. Check logs for details."
+                }), 500
+            
             certbot_cmd = [
                 'sudo', 'certbot', 'certonly', '--webroot',
                 '-w', '/var/www/certbot',
@@ -979,11 +1035,27 @@ def obtain_certificate_execute():
                 )
                 
                 if result.returncode != 0:
+                    error_msg = result.stderr
                     logger.error(f"Certbot webroot failed: {result.stderr}")
                     logger.error(f"Certbot stdout: {result.stdout}")
+                    
+                    # Check for common permission/path errors
+                    if "Permission denied" in error_msg or "Errno 13" in error_msg:
+                        error_msg = (
+                            "Permission error accessing webroot directory. "
+                            "The webroot directory must be accessible by both root (certbot) and www-data (nginx). "
+                            f"Original error: {error_msg}"
+                        )
+                    elif "No such file or directory" in error_msg or "Errno 2" in error_msg:
+                        error_msg = (
+                            "Webroot directory not found or inaccessible. "
+                            "Ensure /var/www/certbot exists and nginx is configured to serve .well-known/acme-challenge. "
+                            f"Original error: {error_msg}"
+                        )
+                    
                     return jsonify({
                         "success": False,
-                        "error": f"Certbot failed: {result.stderr}",
+                        "error": f"Certbot failed: {error_msg}",
                         "output": result.stdout
                     }), 500
                 
