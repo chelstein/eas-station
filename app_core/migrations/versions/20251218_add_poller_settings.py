@@ -19,21 +19,30 @@ depends_on = None
 
 def upgrade():
     """Add poller_settings table with enabled and poll_interval_sec fields."""
-    # Create poller_settings table
-    op.create_table(
-        'poller_settings',
-        sa.Column('id', sa.Integer(), nullable=False),
-        sa.Column('enabled', sa.Boolean(), nullable=False, server_default='true'),
-        sa.Column('poll_interval_sec', sa.Integer(), nullable=False, server_default='120'),
-        sa.Column('log_fetched_alerts', sa.Boolean(), nullable=False, server_default='false'),
-        sa.Column('updated_at', sa.DateTime(), nullable=True, server_default=sa.text('CURRENT_TIMESTAMP')),
-        sa.PrimaryKeyConstraint('id')
-    )
-    
-    # Insert default settings
+    from sqlalchemy import inspect
+
+    # Get database connection
+    conn = op.get_bind()
+    inspector = inspect(conn)
+
+    # Check if table already exists
+    if 'poller_settings' not in inspector.get_table_names():
+        # Create poller_settings table
+        op.create_table(
+            'poller_settings',
+            sa.Column('id', sa.Integer(), nullable=False),
+            sa.Column('enabled', sa.Boolean(), nullable=False, server_default='true'),
+            sa.Column('poll_interval_sec', sa.Integer(), nullable=False, server_default='120'),
+            sa.Column('log_fetched_alerts', sa.Boolean(), nullable=False, server_default='false'),
+            sa.Column('updated_at', sa.DateTime(), nullable=True, server_default=sa.text('CURRENT_TIMESTAMP')),
+            sa.PrimaryKeyConstraint('id')
+        )
+
+    # Ensure default settings row exists (idempotent insert)
     op.execute("""
         INSERT INTO poller_settings (id, enabled, poll_interval_sec, log_fetched_alerts, updated_at)
         VALUES (1, true, 120, false, CURRENT_TIMESTAMP)
+        ON CONFLICT (id) DO NOTHING
     """)
 
 
