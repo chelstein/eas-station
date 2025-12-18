@@ -43,7 +43,7 @@ def get_certbot_config() -> Dict:
 def get_ssl_certificate_info() -> Dict:
     """
     Get information about the installed SSL certificate.
-    
+
     Returns:
         dict: Certificate information including type, validity, domain, issuer, etc.
     """
@@ -57,12 +57,34 @@ def get_ssl_certificate_info() -> Dict:
         'valid_until': None,
         'days_remaining': None,
         'self_signed': False,
-        'error': None
+        'error': None,
+        'needs_installation': False  # True if cert exists but isn't installed
     }
-    
-    # Check for Let's Encrypt certificate
-    letsencrypt_dir = '/etc/letsencrypt/live'
-    if os.path.exists(letsencrypt_dir) and os.path.isdir(letsencrypt_dir):
+
+    # Check for Let's Encrypt certificate in multiple locations
+    # First check the standard location, then check custom certbot directory
+    letsencrypt_dirs = [
+        '/etc/letsencrypt/live',  # Standard Let's Encrypt location
+        '/opt/eas-station/certbot_data/config/live',  # Custom certbot config location
+    ]
+
+    letsencrypt_dir = None
+    for check_dir in letsencrypt_dirs:
+        if os.path.exists(check_dir) and os.path.isdir(check_dir):
+            # Check if there are any domain directories
+            try:
+                domains = [d for d in os.listdir(check_dir)
+                          if os.path.isdir(os.path.join(check_dir, d)) and d != 'README']
+                if domains:
+                    letsencrypt_dir = check_dir
+                    # If found in custom location but not in standard, mark as needing installation
+                    if check_dir != '/etc/letsencrypt/live':
+                        cert_info['needs_installation'] = True
+                    break
+            except Exception:
+                continue
+
+    if letsencrypt_dir:
         # Find the first domain directory
         try:
             domains = [d for d in os.listdir(letsencrypt_dir) 

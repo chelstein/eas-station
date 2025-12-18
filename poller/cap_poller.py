@@ -2581,6 +2581,7 @@ class CAPPoller:
             'timezone': self.location_settings['timezone'],
             'sources': [], 'duplicates_filtered': 0,
             'poll_run_id': poll_run_id,
+            'fetched_alerts': [],  # List of alerts that were fetched (for visibility)
         }
 
         debug_records: List[Dict[str, Any]] = []
@@ -2635,8 +2636,21 @@ class CAPPoller:
                 props = alert_data.get('properties', {})
                 event = props.get('event', 'Unknown')
                 alert_id = props.get('identifier', 'No ID')
+                area_desc = props.get('areaDesc', 'Unknown area')
+                headline = props.get('headline', '')
 
                 self.logger.info(f"Processing alert: {event} (ID: {alert_id[:20] if alert_id!='No ID' else 'No ID'}...)")
+
+                # Track this alert in fetched_alerts for visibility (even if filtered)
+                alert_summary = {
+                    'identifier': alert_id[:50] + '...' if len(alert_id) > 50 else alert_id,
+                    'event': event,
+                    'area': area_desc[:100] + '...' if len(area_desc) > 100 else area_desc,
+                    'headline': headline[:150] + '...' if len(headline) > 150 else headline,
+                    'sent': props.get('sent', 'Unknown'),
+                    'status': 'pending',  # Will be updated based on processing
+                    'reason': None,
+                }
 
                 # Log detailed alert information if enabled in database settings (helps debug missing alerts)
                 if log_fetched_alerts:
@@ -2679,8 +2693,24 @@ class CAPPoller:
                     debug_records.append(debug_entry)
 
                 if not relevance.get('is_relevant'):
-                    self.logger.info(f"• Filtered out (not specific to {self.county_upper})")
+                    # Log detailed info about filtered alert so user can see what was fetched
+                    ugc_codes = relevance.get('ugc_codes', [])
+                    same_codes = relevance.get('same_codes', [])
+                    self.logger.info(f"╔═ FILTERED ALERT (not stored) ═══════════════════════════════")
+                    self.logger.info(f"║ Event: {event}")
+                    self.logger.info(f"║ ID: {alert_id[:60]}{'...' if len(alert_id) > 60 else ''}")
+                    self.logger.info(f"║ Area: {area_desc[:80]}{'...' if len(area_desc) > 80 else ''}")
+                    self.logger.info(f"║ Alert UGC codes: {', '.join(ugc_codes[:5]) if ugc_codes else 'None'}")
+                    self.logger.info(f"║ Alert SAME codes: {', '.join(same_codes[:5]) if same_codes else 'None'}")
+                    self.logger.info(f"║ Reason: Not relevant to {self.county_upper} - no matching location codes")
+                    self.logger.info(f"╚═══════════════════════════════════════════════════════════════")
                     stats['alerts_filtered'] += 1
+                    # Track filtered alert for visibility
+                    alert_summary['status'] = 'filtered'
+                    alert_summary['reason'] = f"Not relevant to {self.county_upper} - no matching location codes"
+                    alert_summary['ugc_codes'] = ugc_codes[:5] if ugc_codes else []
+                    alert_summary['same_codes'] = same_codes[:5] if same_codes else []
+                    stats['fetched_alerts'].append(alert_summary)
                     if self._debug_records_enabled and 'debug_entry' in locals():
                         debug_entry.setdefault('notes', []).append('Filtered out by strict location rules')
                     continue
@@ -2718,11 +2748,18 @@ class CAPPoller:
                         self.logger.info(
                             f"Saved new {self.location_name} alert: {alert.event if alert else parsed['event']} - Sent: {format_local_datetime(parsed.get('sent'))}"
                         )
+                        # Track saved new alert
+                        alert_summary['status'] = 'saved_new'
+                        alert_summary['reason'] = 'New alert saved to database (SAME code match)'
                     else:
                         stats['alerts_updated'] += 1
                         self.logger.info(
                             f"Updated {self.location_name} alert: {alert.event if alert else parsed['event']} - Sent: {format_local_datetime(parsed.get('sent'))}"
                         )
+                        # Track updated alert
+                        alert_summary['status'] = 'updated'
+                        alert_summary['reason'] = 'Existing alert updated in database'
+                    stats['fetched_alerts'].append(alert_summary)
 
                     if self._debug_records_enabled:
                         debug_entry['was_saved'] = bool(alert)
@@ -2733,9 +2770,20 @@ class CAPPoller:
 
                 else:
                     # UGC/Zone match only: Broadcast but don't store or calculate boundaries
-                    self.logger.info(
-                        f"Broadcast-only alert (UGC match): {event} - Sent: {format_local_datetime(parsed.get('sent'))}"
-                    )
+                    ugc_codes = relevance.get('ugc_codes', [])
+                    self.logger.info(f"╔═ BROADCAST-ONLY ALERT (not stored) ═══════════════════════════")
+                    self.logger.info(f"║ Event: {event}")
+                    self.logger.info(f"║ ID: {alert_id[:60]}{'...' if len(alert_id) > 60 else ''}")
+                    self.logger.info(f"║ Area: {area_desc[:80]}{'...' if len(area_desc) > 80 else ''}")
+                    self.logger.info(f"║ Matched UGC codes: {', '.join(ugc_codes[:5]) if ugc_codes else 'None'}")
+                    self.logger.info(f"║ Sent: {format_local_datetime(parsed.get('sent'))}")
+                    self.logger.info(f"║ Reason: UGC zone match only - broadcast to displays but no SAME code match for storage")
+                    self.logger.info(f"╚═══════════════════════════════════════════════════════════════")
+                    # Track broadcast-only alert
+                    alert_summary['status'] = 'broadcast_only'
+                    alert_summary['reason'] = 'UGC/Zone match - broadcast to displays but not stored'
+                    alert_summary['ugc_codes'] = ugc_codes[:5] if ugc_codes else []
+                    stats['fetched_alerts'].append(alert_summary)
                     if self._debug_records_enabled:
                         debug_entry.setdefault('notes', []).append('Broadcast-only (UGC match, no storage)')
                         debug_entry['was_saved'] = False
@@ -2763,13 +2811,23 @@ class CAPPoller:
             })
 
             stats['execution_time_ms'] = int((time.time() - start) * 1000)
-            self.logger.info(
-                f"Polling cycle completed: {stats['alerts_accepted']} accepted, {stats['alerts_new']} new, "
-                f"{stats['alerts_updated']} updated, {stats['alerts_filtered']} filtered, "
-                f"{stats['duplicates_filtered']} duplicates skipped"
-            )
+
+            # Log poll summary with location info for debugging
+            self.logger.info("═══════════════════════════════════════════════════════════════")
+            self.logger.info(f"POLL SUMMARY for {self.location_name}")
+            self.logger.info(f"  Fetched: {stats['alerts_fetched']} | Accepted: {stats['alerts_accepted']} | "
+                           f"New: {stats['alerts_new']} | Updated: {stats['alerts_updated']} | "
+                           f"Filtered: {stats['alerts_filtered']}")
+            if stats['alerts_filtered'] > 0:
+                zone_codes = self.location_settings.get('zone_codes', [])
+                storage_zone_codes = self.location_settings.get('storage_zone_codes', [])
+                self.logger.info(f"  Your UGC Zone codes: {', '.join(zone_codes[:5]) if zone_codes else 'None configured'}")
+                self.logger.info(f"  Your SAME/Storage codes: {', '.join(storage_zone_codes[:5]) if storage_zone_codes else 'None configured'}")
+                self.logger.info(f"  (Alerts must match your zone codes to be accepted/stored)")
             if stats['sources']:
-                self.logger.info("Polling sources: %s", ", ".join(stats['sources']))
+                self.logger.info(f"  Sources: {', '.join(stats['sources'])}")
+            self.logger.info("═══════════════════════════════════════════════════════════════")
+
             self.log_system_event('INFO', f"CAP polling successful: {stats['alerts_new']} new alerts", stats)
 
         except Exception as e:
