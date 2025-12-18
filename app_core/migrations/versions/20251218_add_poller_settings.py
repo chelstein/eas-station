@@ -26,7 +26,9 @@ def upgrade():
     inspector = inspect(conn)
 
     # Check if table already exists
-    if 'poller_settings' not in inspector.get_table_names():
+    table_exists = 'poller_settings' in inspector.get_table_names()
+
+    if not table_exists:
         # Create poller_settings table
         op.create_table(
             'poller_settings',
@@ -37,6 +39,25 @@ def upgrade():
             sa.Column('updated_at', sa.DateTime(), nullable=True, server_default=sa.text('CURRENT_TIMESTAMP')),
             sa.PrimaryKeyConstraint('id')
         )
+    else:
+        # Table exists, check and add missing columns
+        columns = {col['name'] for col in inspector.get_columns('poller_settings')}
+
+        if 'enabled' not in columns:
+            op.add_column('poller_settings',
+                sa.Column('enabled', sa.Boolean(), nullable=False, server_default='true'))
+
+        if 'poll_interval_sec' not in columns:
+            op.add_column('poller_settings',
+                sa.Column('poll_interval_sec', sa.Integer(), nullable=False, server_default='120'))
+
+        if 'log_fetched_alerts' not in columns:
+            op.add_column('poller_settings',
+                sa.Column('log_fetched_alerts', sa.Boolean(), nullable=False, server_default='false'))
+
+        if 'updated_at' not in columns:
+            op.add_column('poller_settings',
+                sa.Column('updated_at', sa.DateTime(), nullable=True, server_default=sa.text('CURRENT_TIMESTAMP')))
 
     # Ensure default settings row exists (idempotent insert)
     op.execute("""
