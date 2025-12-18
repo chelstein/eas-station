@@ -7,6 +7,36 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Added
+
+### Fixed
+- **Poller Settings Navigation** - Moved poller settings link from navbar to admin page
+  - Removed standalone navbar link in Settings dropdown
+  - Added poller settings card to admin.html configuration section
+  - Changed permissions from `settings.manage` to `system.configure` for consistency
+  - Poller settings now accessible via Admin Panel → System Settings → Poller Settings
+  - Fixes permission access issue
+
+- **Certbot Certificate Installation** - Fixed certificate installation after successful acquisition
+  - Added `/admin/api/certbot/install-certificate` endpoint to install obtained certificates
+  - Creates symlink from `/opt/eas-station/certbot_data/config/live/` to `/etc/letsencrypt/live/`
+  - Automatically updates nginx configuration to use Let's Encrypt certificates
+  - Comments out self-signed certificate configuration
+  - Reloads nginx to apply changes
+  - Added "Install Certificate" button after successful certificate acquisition
+  - Addresses: "It obtained a certificate... It failed to install it"
+
+- **Certificate Display Formatting** - Improved certificate information presentation
+  - Enhanced certificate info grid with better visual hierarchy and spacing
+  - Added icons for each field (certificate, globe, shield, calendar, hourglass, status)
+  - Improved hover effects with border color change and subtle lift
+  - Highlighted Days Remaining and Status fields with gradient background
+  - Larger, bolder text for certificate values for better readability
+  - Better certificate type formatting (shows "Self-Signed", "Let's Encrypt", etc.)
+  - Addresses: Certificate display readability improvement request
+
+## [2.39.0] - Previous Release
+
+### Added
 - **Poller Settings Admin Page** - New database-based poller configuration interface
   - Created `/admin/poller` page for managing alert poller settings
   - Added `enabled` and `poll_interval_sec` fields to `PollerSettings` model
