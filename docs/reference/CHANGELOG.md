@@ -9,6 +9,14 @@ tracks releases under the 2.x series.
 ### Added
 
 ### Fixed
+- **HTTPS Redirect After Certificate Installation** - Fixed missing HTTPS redirect after successful certificate installation
+  - Added automatic 5-second countdown redirect from HTTP to HTTPS after certificate is installed
+  - Certificate installation now properly switches user to secure HTTPS connection
+  - Added "Go to HTTPS Now" button for immediate redirect
+  - Added "Cancel Redirect" button to prevent automatic redirect if needed
+  - Fixes issue where user remained on HTTP after successful certificate installation, making buttons non-functional
+  - Addresses: "Still not working..." - certificate installed but page stayed on HTTP
+  
 - **Certificate Installation Not Working** - Fixed SSL certificate installation failures
   - Replaced fragile Python string `.replace()` with robust `sed` commands for nginx config updates
   - Fixed nginx reload/restart logic after certificate acquisition

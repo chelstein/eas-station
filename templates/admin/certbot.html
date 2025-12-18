@@ -1113,22 +1113,63 @@ async function waitForServerReconnect(resultDiv) {
                         }
                     }
                     
-                    resultDiv.innerHTML = `
-                        <div class="alert alert-success">
-                            <i class="bi bi-check-circle"></i> <strong>Reconnected! Certificate obtained successfully.</strong>
-                            <p class="mt-2 mb-0">SSL certificate is now installed for: <strong>${domainDisplay}</strong></p>
-                            <p class="mb-0"><small>Expires: ${expiryDisplay}</small></p>
-                        </div>
-                        <div class="mt-3">
-                            <button class="btn btn-primary" onclick="checkCertificateStatus()">
-                                <i class="bi bi-shield-check"></i> View Full Certificate Details
-                            </button>
-                            <button class="btn btn-secondary" onclick="cancelObtainCertificate()">
-                                <i class="bi bi-x-circle"></i> Close
-                            </button>
-                        </div>
-                    `;
-                    showToast('Certificate obtained successfully!', 'success');
+                    // Check if we're on HTTP and need to redirect to HTTPS
+                    const isHttp = window.location.protocol === 'http:';
+                    
+                    if (isHttp) {
+                        // Show success message with HTTPS redirect countdown
+                        resultDiv.innerHTML = `
+                            <div class="alert alert-success">
+                                <i class="bi bi-check-circle"></i> <strong>Reconnected! Certificate obtained successfully.</strong>
+                                <p class="mt-2 mb-0">SSL certificate is now installed for: <strong>${domainDisplay}</strong></p>
+                                <p class="mb-0"><small>Expires: ${expiryDisplay}</small></p>
+                                <hr>
+                                <p class="mb-0"><i class="bi bi-arrow-right-circle"></i> Redirecting to HTTPS in <strong><span id="httpsRedirectCountdown">5</span></strong> seconds...</p>
+                            </div>
+                            <div class="mt-3">
+                                <button class="btn btn-primary" onclick="redirectToHttps()">
+                                    <i class="bi bi-shield-lock"></i> Go to HTTPS Now
+                                </button>
+                                <button class="btn btn-secondary" onclick="cancelHttpsRedirect()">
+                                    <i class="bi bi-x-circle"></i> Cancel Redirect
+                                </button>
+                            </div>
+                        `;
+                        showToast('Certificate installed - redirecting to HTTPS...', 'success');
+                        
+                        // Start countdown and auto-redirect to HTTPS
+                        let countdown = 5;
+                        window.httpsRedirectInterval = setInterval(() => {
+                            countdown--;
+                            const countdownSpan = document.getElementById('httpsRedirectCountdown');
+                            if (countdownSpan) {
+                                countdownSpan.textContent = countdown;
+                            }
+                            
+                            if (countdown <= 0) {
+                                clearInterval(window.httpsRedirectInterval);
+                                redirectToHttps();
+                            }
+                        }, 1000);
+                    } else {
+                        // Already on HTTPS, just show success
+                        resultDiv.innerHTML = `
+                            <div class="alert alert-success">
+                                <i class="bi bi-check-circle"></i> <strong>Certificate obtained successfully.</strong>
+                                <p class="mt-2 mb-0">SSL certificate is now installed for: <strong>${domainDisplay}</strong></p>
+                                <p class="mb-0"><small>Expires: ${expiryDisplay}</small></p>
+                            </div>
+                            <div class="mt-3">
+                                <button class="btn btn-primary" onclick="checkCertificateStatus()">
+                                    <i class="bi bi-shield-check"></i> View Full Certificate Details
+                                </button>
+                                <button class="btn btn-secondary" onclick="cancelObtainCertificate()">
+                                    <i class="bi bi-x-circle"></i> Close
+                                </button>
+                            </div>
+                        `;
+                        showToast('Certificate obtained successfully!', 'success');
+                    }
                 } else {
                     // Server is back but certificate may have failed
                     resultDiv.innerHTML = `
@@ -1171,6 +1212,38 @@ async function waitForServerReconnect(resultDiv) {
         </div>
     `;
     showToast('Connection timeout - please refresh', 'error');
+}
+
+// Redirect to HTTPS version of current page
+function redirectToHttps() {
+    // Clear any active redirect countdown
+    if (window.httpsRedirectInterval) {
+        clearInterval(window.httpsRedirectInterval);
+    }
+    
+    // Build HTTPS URL
+    const httpsUrl = window.location.href.replace('http://', 'https://');
+    
+    // Show toast notification
+    showToast('Redirecting to HTTPS...', 'info');
+    
+    // Redirect after a short delay to allow toast to show
+    setTimeout(() => {
+        window.location.href = httpsUrl;
+    }, 500);
+}
+
+// Cancel automatic HTTPS redirect
+function cancelHttpsRedirect() {
+    // Clear the countdown interval
+    if (window.httpsRedirectInterval) {
+        clearInterval(window.httpsRedirectInterval);
+    }
+    
+    // Clear the result div
+    document.getElementById('obtainCertResult').innerHTML = '';
+    
+    showToast('HTTPS redirect cancelled', 'info');
 }
 
 function escapeHtml(text) {
