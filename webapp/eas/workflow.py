@@ -352,7 +352,7 @@ def register_workflow_routes(bp, logger, eas_config) -> None:
                         details={
                             'identifier': identifier,
                             'event_code': event_code,
-                            'tts_provider': tts_provider or 'none',
+                            'tts_provider': tts_provider if tts_provider else 'not_configured',
                             'include_tts_requested': include_tts,
                             'message_text_length': len(components.get('message_text', '') or ''),
                         },
