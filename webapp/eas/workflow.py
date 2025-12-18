@@ -340,6 +340,8 @@ def register_workflow_routes(bp, logger, eas_config) -> None:
         # Log TTS warnings to SystemLog for visibility in UI
         tts_warning = components.get('tts_warning')
         tts_provider = components.get('tts_provider')
+        tts_enabled = components.get('tts_enabled', include_tts)  # Actual TTS state (may differ from request if RWT)
+        
         if tts_warning:
             workflow_logger.warning(f'TTS synthesis issue: {tts_warning}')
             try:
@@ -354,6 +356,7 @@ def register_workflow_routes(bp, logger, eas_config) -> None:
                             'tts_provider': tts_provider,
                             'tts_warning': tts_warning,
                             'include_tts_requested': include_tts,
+                            'tts_enabled': tts_enabled,
                         },
                     )
                 )
@@ -361,20 +364,23 @@ def register_workflow_routes(bp, logger, eas_config) -> None:
             except Exception as log_exc:
                 workflow_logger.error(f'Failed to log TTS warning to SystemLog: {log_exc}')
                 db.session.rollback()
-        elif include_tts and not components.get('tts_samples'):
-            # TTS was requested but no samples were generated and no warning was set
-            workflow_logger.warning('TTS was requested but no audio was generated (no warning message available)')
+        elif tts_enabled and not components.get('tts_samples'):
+            # TTS was enabled but no samples were generated and no warning was set
+            # Include provider info in the log message for easier debugging
+            provider_info = f"provider='{tts_provider}'" if tts_provider else "provider=NOT_CONFIGURED"
+            workflow_logger.warning(f'Broadcast Builder: TTS was requested but no audio was generated ({provider_info})')
             try:
                 db.session.add(
                     SystemLog(
                         level='WARNING',
-                        message='Broadcast Builder: TTS was requested but no audio was generated',
+                        message=f'Broadcast Builder: TTS was requested but no audio was generated ({provider_info})',
                         module='eas.workflow',
                         details={
                             'identifier': identifier,
                             'event_code': event_code,
                             'tts_provider': tts_provider if tts_provider else 'not_configured',
                             'include_tts_requested': include_tts,
+                            'tts_enabled': tts_enabled,
                             'message_text_length': len(components.get('message_text', '') or ''),
                         },
                     )
@@ -383,6 +389,9 @@ def register_workflow_routes(bp, logger, eas_config) -> None:
             except Exception as log_exc:
                 workflow_logger.error(f'Failed to log TTS issue to SystemLog: {log_exc}')
                 db.session.rollback()
+        elif include_tts and not tts_enabled:
+            # TTS was requested but was disabled (e.g., for RWT)
+            workflow_logger.info(f'Broadcast Builder: TTS was requested but disabled for event_code={event_code}')
 
         def _safe_base(value: str) -> str:
             cleaned = re.sub(r'[^A-Za-z0-9]+', '_', value).strip('_')

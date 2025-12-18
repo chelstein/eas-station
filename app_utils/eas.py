@@ -1332,6 +1332,7 @@ class EASAudioGenerator:
             'tts_samples': tts_samples,
             'tts_warning': tts_warning,
             'tts_provider': provider or None,
+            'tts_enabled': include_tts,  # Actual TTS state (may differ from request if RWT)
             'eom_header': eom_header,
             'eom_samples': eom_samples,
             'composite_samples': composite_samples,

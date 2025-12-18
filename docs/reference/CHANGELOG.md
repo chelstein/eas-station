@@ -7,8 +7,15 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **Broadcast Builder TTS Warning for RWT Events** - Fixed misleading TTS warning for Required Weekly Test
+  - RWT events intentionally disable TTS (per EAS specification - RWT should only have SAME header and EOM tones)
+  - Previously, the warning "TTS was requested but no audio was generated" appeared even for RWT
+  - Now correctly detects when TTS was disabled by the system (vs. failed) and only logs for actual failures
+  - Added `tts_enabled` field to components to track actual TTS state after event-specific overrides
+  - Addresses: "TTS was requested but no audio was generated" for RWT events
+
 - **Broadcast Builder TTS Not Using Database Settings** - Fixed SQLAlchemy session caching issue
-  - Added `db.session.expire_all()` before loading TTS settings to force fresh database read
+  - Added `db.session.refresh()` after loading TTS settings to force fresh database read
   - TTS settings configured via /admin/tts were not being seen by Broadcast Builder
   - The SQLAlchemy session was returning cached/stale data instead of current database values
   - This caused TTS to appear as "not configured" in Broadcast Builder even though it worked on the test page
@@ -16,7 +23,7 @@ tracks releases under the 2.x series.
 
 - **TTS Configuration Logging to SystemLog** - Added diagnostic logging visible in web UI
   - Broadcast Builder now logs TTS configuration status to SystemLog when TTS is requested
-  - Shows tts_provider, endpoint status, and key status in System Logs (/logs)
+  - Shows tts_provider in System Logs (/logs)
   - Makes debugging TTS issues easier without needing systemd journal access
 
 - **TTS "No Provider Configured" Error Reporting** - Fixed silent TTS failure when no provider is configured
