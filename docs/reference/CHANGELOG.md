@@ -31,10 +31,11 @@ tracks releases under the 2.x series.
   - No longer directly accesses private `_sources` attribute
   - Addresses error: `'AudioIngestController' object has no attribute 'get_broadcast_queue'`
 
-- **Certbot Nginx Permission Error** - Improved nginx log permissions for certbot nginx plugin
-  - Changed `/var/log/nginx/error.log` permissions from 644 to 664 for security and compatibility
-  - Uses 664 (owner+group writable) instead of 666 (world-writable) for better security
-  - Ensures certbot nginx plugin can run `nginx -t` without permission denied errors
+- **Certbot Nginx Permission Error** - Fixed nginx log permissions for certbot nginx plugin
+  - Changed `/var/log/nginx/error.log` permissions from 640 to 666 to allow certbot's `nginx -t` to succeed
+  - Set ownership to `www-data:adm` (standard nginx log ownership)
+  - Creates both error.log and access.log with proper permissions
+  - Certbot runs `nginx -t` in a different security context, requiring more permissive log file access
   - Addresses error: `open() "/var/log/nginx/error.log" failed (13: Permission denied)`
 
 - **TTS Azure OpenAI Endpoint Validation** - Made endpoint validation less strict

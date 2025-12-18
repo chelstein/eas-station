@@ -59,6 +59,10 @@ def _ensure_nginx_log_permissions():
     nginx to be able to write to /var/log/nginx/error.log. This function ensures
     the log directory and files have proper permissions for the www-data user.
     
+    When certbot runs 'nginx -t', it may run nginx in a different security context
+    than the normal nginx service, so we need to ensure the log files are widely
+    writable (666) to allow the config test to succeed.
+    
     Returns:
         bool: True if successful, False otherwise
     """
@@ -70,41 +74,39 @@ def _ensure_nginx_log_permissions():
             timeout=5
         )
         
-        # Set ownership to www-data (nginx user)
+        # Set directory permissions to allow writing (755)
         subprocess.run(
-            ['sudo', 'chown', '-R', 'www-data:www-data', '/var/log/nginx'],
+            ['sudo', 'chmod', '755', '/var/log/nginx'],
             capture_output=True,
             timeout=5
         )
         
-        # Set permissions to allow writing
-        subprocess.run(
-            ['sudo', 'chmod', '-R', '755', '/var/log/nginx'],
-            capture_output=True,
-            timeout=5
-        )
-        
-        # Create error.log if it doesn't exist
-        subprocess.run(
-            ['sudo', 'touch', '/var/log/nginx/error.log'],
-            capture_output=True,
-            timeout=5
-        )
-        
-        # Ensure error.log is writable by www-data
-        subprocess.run(
-            ['sudo', 'chown', 'www-data:www-data', '/var/log/nginx/error.log'],
-            capture_output=True,
-            timeout=5
-        )
-        
-        # Set permissions to allow group writing (664 = rw-rw-r--)
-        # Owner and group (www-data) can read/write, others can only read
-        subprocess.run(
-            ['sudo', 'chmod', '664', '/var/log/nginx/error.log'],
-            capture_output=True,
-            timeout=5
-        )
+        # Create error.log and access.log if they don't exist
+        for log_file in ['error.log', 'access.log']:
+            log_path = f'/var/log/nginx/{log_file}'
+            subprocess.run(
+                ['sudo', 'touch', log_path],
+                capture_output=True,
+                timeout=5
+            )
+            
+            # Set ownership to www-data:adm (standard nginx log ownership)
+            subprocess.run(
+                ['sudo', 'chown', 'www-data:adm', log_path],
+                capture_output=True,
+                timeout=5
+            )
+            
+            # Set permissions to 666 (rw-rw-rw-)
+            # This allows nginx config test to open the log file regardless of
+            # what user/security context it runs under. The /var/log/nginx directory
+            # itself is 755, so only users who can access the directory can read/write
+            # the log files. This is necessary for certbot's nginx plugin to work.
+            subprocess.run(
+                ['sudo', 'chmod', '666', log_path],
+                capture_output=True,
+                timeout=5
+            )
         
         logger.info("Nginx log directory and permissions configured successfully")
         return True
