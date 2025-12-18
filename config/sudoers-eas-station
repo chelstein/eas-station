@@ -32,6 +32,7 @@ eas-station ALL=(ALL) NOPASSWD: /usr/bin/chmod -R 755 /var/www/certbot
 # These sudoers entries are kept for backward compatibility and troubleshooting,
 # but the nginx plugin is no longer the recommended method due to permission issues
 # with nginx -t running in different security contexts (AppArmor, SELinux, etc.)
+# PLANNED REMOVAL: Consider removing these entries in version 3.0.0 or later
 eas-station ALL=(ALL) NOPASSWD: /usr/bin/mkdir -p /var/log/nginx
 eas-station ALL=(ALL) NOPASSWD: /usr/bin/chmod 755 /var/log/nginx
 eas-station ALL=(ALL) NOPASSWD: /usr/bin/touch /var/log/nginx/error.log

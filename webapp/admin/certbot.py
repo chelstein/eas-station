@@ -52,7 +52,7 @@ CERTBOT_WORK_DIR = CERTBOT_BASE_DIR / 'work'
 CERTBOT_LOGS_DIR = CERTBOT_BASE_DIR / 'logs'
 
 
-# Removed _ensure_nginx_log_permissions() function (v2.38.10)
+# Removed _ensure_nginx_log_permissions() function (removed in this version)
 # The nginx plugin has fundamental permission issues that cannot be reliably solved
 # by changing file permissions. The nginx plugin runs 'nginx -t' which may execute
 # in a different security context (AppArmor, SELinux, etc.) that prevents write access
@@ -953,13 +953,15 @@ def obtain_certificate_execute():
             
             try:
                 logger.info(f"Running certbot with nginx plugin for domain: {domain}")
-                logger.warning("Using nginx plugin - this method often fails due to permission issues with /var/log/nginx/error.log")
-                result = subprocess.run(
+                # Note: User has been warned about permission issues in UI
+                # Only log once per execution attempt to avoid log noise
+                if result := subprocess.run(
                     certbot_cmd,
                     capture_output=True,
                     text=True,
                     timeout=120
-                )
+                ):
+                    pass  # Process result below
                 
                 if result.returncode != 0:
                     original_error = result.stderr
