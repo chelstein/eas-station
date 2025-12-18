@@ -6,6 +6,33 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+### Fixed
+- **Install/Update Scripts Webroot Directory Ownership** - Fixed webroot directory permissions in install.sh and update.sh
+  - Changed ownership from www-data:www-data to root:root in both scripts
+  - Ensures certbot (runs as root) can write challenge files during initial setup
+  - Previously would fail on first webroot certificate attempt after fresh install
+  - Now consistent with runtime `_ensure_webroot_directory()` function
+  - Added explanatory comments about root:root ownership requirement
+  - Addresses: Webroot permission errors on fresh installations
+
+- **Certbot Webroot Permission Issues** - Fixed webroot directory permissions for certbot
+  - Added `_ensure_webroot_directory()` function to create `/var/www/certbot` with proper permissions
+  - Webroot directory now owned by root:root with 755 permissions (certbot writes as root, nginx reads as www-data)
+  - Previously owned by www-data with 755, preventing root (certbot) from writing challenge files
+  - Added sudoers entries for webroot directory creation and permission management
+  - Added better error messages for permission and path errors in webroot mode
+  - Addresses: "PermissionError: [Errno 13] Permission denied: '/var/www/certbot/.well-known/acme-challenge/...'"
+
+- **Certbot Nginx Plugin Permission Issues** - Fixed fundamental implementation flaw with nginx plugin
+  - Removed nginx plugin as default method (caused permission errors with `/var/log/nginx/error.log`)
+  - Changed default to standalone mode (same as used in install.sh - proven to work)
+  - Reordered methods: Standalone (recommended), Webroot (no downtime), Nginx (not recommended)
+  - Removed `_ensure_nginx_log_permissions()` function (didn't solve the fundamental issue)
+  - Nginx plugin runs `nginx -t` which may execute in different security context (AppArmor, SELinux)
+  - Even with chmod 666, certbot's nginx test can't write to error.log in some environments
+  - Added clear warning messages when nginx plugin fails with permission errors
+  - Addresses: "Error while running nginx -c /etc/nginx/nginx.conf -t" - Permission denied on /var/log/nginx/error.log
+
 ### Added
 - **TTS Audio Playback on Test** - TTS configuration page now plays audio after successful test
   - Audio player appears with controls after TTS test completes

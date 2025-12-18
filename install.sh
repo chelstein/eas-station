@@ -1801,11 +1801,13 @@ echo_success "Certbot data directories created"
 # Create ACME challenge directory for certbot webroot method
 # This allows Let's Encrypt to verify domain ownership via HTTP-01 challenge
 # Path matches nginx config: location /.well-known/acme-challenge/ { root /var/www/certbot; }
+# IMPORTANT: Must be owned by root:root (certbot runs as root) with 755 permissions
+# This allows certbot to write challenge files as root, and nginx to read them as www-data
 echo_progress "Creating ACME challenge directory..."
 mkdir -p /var/www/certbot/.well-known/acme-challenge
+chown -R root:root /var/www/certbot
 chmod -R 755 /var/www/certbot
-chown -R www-data:www-data /var/www/certbot 2>/dev/null || chown -R root:root /var/www/certbot
-echo_success "ACME challenge directory created"
+echo_success "ACME challenge directory created (root:root 755)"
 
 echo_step "Nginx Web Server Configuration"
 

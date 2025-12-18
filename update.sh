@@ -736,11 +736,13 @@ if [ -d "$INSTALL_DIR/systemd" ]; then
 
     # Ensure ACME challenge directory exists for certbot webroot method
     # Path matches nginx config: location /.well-known/acme-challenge/ { root /var/www/certbot; }
+    # IMPORTANT: Must be owned by root:root (certbot runs as root) with 755 permissions
+    # This allows certbot to write challenge files as root, and nginx to read them as www-data
     echo_progress "Ensuring ACME challenge directory exists..."
     mkdir -p /var/www/certbot/.well-known/acme-challenge
+    chown -R root:root /var/www/certbot
     chmod -R 755 /var/www/certbot
-    chown -R www-data:www-data /var/www/certbot 2>/dev/null || chown -R root:root /var/www/certbot
-    echo_success "ACME challenge directory configured"
+    echo_success "ACME challenge directory configured (root:root 755)"
 
     # Ensure hardware access groups exist (for services that use SupplementaryGroups)
     echo_progress "Ensuring hardware access groups exist..."
