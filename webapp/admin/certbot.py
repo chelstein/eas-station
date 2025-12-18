@@ -318,11 +318,11 @@ def _install_certificate_internal(domain: str) -> Dict[str, Any]:
 
         # Uncomment Let's Encrypt certificate lines and update domain
         nginx_config = nginx_config.replace(
-            f'# ssl_certificate /etc/letsencrypt/live/your-domain.com/fullchain.pem;',
+            '# ssl_certificate /etc/letsencrypt/live/your-domain.com/fullchain.pem;',
             f'ssl_certificate /etc/letsencrypt/live/{domain}/fullchain.pem;'
         )
         nginx_config = nginx_config.replace(
-            f'# ssl_certificate_key /etc/letsencrypt/live/your-domain.com/privkey.pem;',
+            '# ssl_certificate_key /etc/letsencrypt/live/your-domain.com/privkey.pem;',
             f'ssl_certificate_key /etc/letsencrypt/live/{domain}/privkey.pem;'
         )
 
@@ -398,10 +398,11 @@ def _install_certificate_internal(domain: str) -> Dict[str, Any]:
             }
         }
 
-    except subprocess.TimeoutExpired:
+    except subprocess.TimeoutExpired as e:
+        logger.error(f"Timeout during certificate installation: {e.cmd}")
         return {
             "success": False,
-            "error": "Timeout during certificate installation"
+            "error": f"Timeout during certificate installation (command: {' '.join(str(c) for c in e.cmd) if hasattr(e, 'cmd') else 'unknown'})"
         }
     except Exception as e:
         logger.error(f"Failed to install certificate: {e}")
