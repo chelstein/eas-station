@@ -543,6 +543,36 @@ async function checkCertificateStatus() {
             `;
             return;
         }
+
+        // Check if certificate exists but needs to be installed (symlink/nginx not configured)
+        if (cert.needs_installation) {
+            statusDiv.innerHTML = `
+                <div class="alert alert-warning">
+                    <i class="bi bi-exclamation-triangle"></i> <strong>Certificate obtained but not installed!</strong>
+                    <p class="mt-2 mb-0">A Let's Encrypt certificate for <strong>${escapeHtml(cert.domain)}</strong> exists but hasn't been installed yet.</p>
+                    <p class="mb-0">Nginx is still using the self-signed certificate.</p>
+                    <hr>
+                    <p class="mb-0"><i class="bi bi-info-circle"></i> Click <strong>Install Certificate</strong> below to configure nginx to use the Let's Encrypt certificate.</p>
+                </div>
+                <div class="mt-3">
+                    <button class="btn btn-success" onclick="installCertificate()">
+                        <i class="bi bi-download"></i> Install Certificate Now
+                    </button>
+                </div>
+            `;
+            certInfoGrid.style.display = 'grid';
+            // Still populate the cert info
+            document.getElementById('certType').textContent = "Let's Encrypt (Not Installed)";
+            document.getElementById('certDomain').textContent = cert.domain || 'N/A';
+            document.getElementById('certIssuer').textContent = cert.issuer || 'N/A';
+            if (cert.valid_until) {
+                const expiryDate = new Date(cert.valid_until);
+                document.getElementById('certExpiry').textContent = expiryDate.toLocaleDateString();
+            }
+            document.getElementById('certDaysRemaining').textContent = cert.days_remaining !== null ? cert.days_remaining : 'N/A';
+            document.getElementById('certStatus').innerHTML = '<span class="status-badge warning">Needs Installation</span>';
+            return;
+        }
         
         // Update certificate info display
         const certType = cert.type === 'letsencrypt' ? "Let's Encrypt" : (cert.type === 'self-signed' ? 'Self-Signed' : cert.type || 'Unknown');
@@ -1178,18 +1208,22 @@ async function waitForServerReconnect(resultDiv) {
                                     <p class="mb-0">But you're accessing via: <strong>${currentHostnameEscaped}</strong></p>
                                     <p class="mb-0"><small>Expires: ${expiryDisplay}</small></p>
                                     <hr>
-                                    <p class="mb-2"><i class="bi bi-info-circle"></i> <strong>To fix this:</strong></p>
-                                    <ul class="mb-0">
-                                        <li>Access the site using: <strong>${domainDisplay}</strong></li>
-                                        <li>Or obtain a new certificate for: <strong>${currentHostnameEscaped}</strong></li>
-                                    </ul>
+                                    <p class="mb-2"><i class="bi bi-info-circle"></i> <strong>To obtain a certificate for ${currentHostnameEscaped}:</strong></p>
+                                    <ol class="mb-0">
+                                        <li>Go to the <strong>Configuration</strong> tab above</li>
+                                        <li>Set <strong>Domain Name</strong> to: <code>${currentHostnameEscaped}</code></li>
+                                        <li>Enter your <strong>Email Address</strong> for certificate notifications</li>
+                                        <li>Click <strong>Save Settings</strong></li>
+                                        <li>Return to <strong>Certificate Status</strong> tab and click <strong>Obtain Certificate Now</strong></li>
+                                    </ol>
+                                    <p class="mt-2 mb-0"><small><i class="bi bi-exclamation-circle"></i> <strong>Note:</strong> Your DNS must point ${currentHostnameEscaped} to this server, and port 80 must be accessible from the internet.</small></p>
                                 </div>
                                 <div class="mt-3">
+                                    <button class="btn btn-success" onclick="document.querySelector('[data-tab=configuration]').click()">
+                                        <i class="bi bi-gear"></i> Go to Configuration
+                                    </button>
                                     <button class="btn btn-primary" onclick="redirectToCertDomain('${domainRaw}')">
                                         <i class="bi bi-arrow-right-circle"></i> Go to ${domainDisplay}
-                                    </button>
-                                    <button class="btn btn-secondary" onclick="checkCertificateStatus()">
-                                        <i class="bi bi-shield-check"></i> Check Certificate Details
                                     </button>
                                     <button class="btn btn-secondary" onclick="cancelObtainCertificate()">
                                         <i class="bi bi-x-circle"></i> Close

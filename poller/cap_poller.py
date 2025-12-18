@@ -2581,6 +2581,7 @@ class CAPPoller:
             'timezone': self.location_settings['timezone'],
             'sources': [], 'duplicates_filtered': 0,
             'poll_run_id': poll_run_id,
+            'fetched_alerts': [],  # List of alerts that were fetched (for visibility)
         }
 
         debug_records: List[Dict[str, Any]] = []
@@ -2635,8 +2636,21 @@ class CAPPoller:
                 props = alert_data.get('properties', {})
                 event = props.get('event', 'Unknown')
                 alert_id = props.get('identifier', 'No ID')
+                area_desc = props.get('areaDesc', 'Unknown area')
+                headline = props.get('headline', '')
 
                 self.logger.info(f"Processing alert: {event} (ID: {alert_id[:20] if alert_id!='No ID' else 'No ID'}...)")
+
+                # Track this alert in fetched_alerts for visibility (even if filtered)
+                alert_summary = {
+                    'identifier': alert_id[:50] + '...' if len(alert_id) > 50 else alert_id,
+                    'event': event,
+                    'area': area_desc[:100] + '...' if len(area_desc) > 100 else area_desc,
+                    'headline': headline[:150] + '...' if len(headline) > 150 else headline,
+                    'sent': props.get('sent', 'Unknown'),
+                    'status': 'pending',  # Will be updated based on processing
+                    'reason': None,
+                }
 
                 # Log detailed alert information if enabled in database settings (helps debug missing alerts)
                 if log_fetched_alerts:
@@ -2681,6 +2695,10 @@ class CAPPoller:
                 if not relevance.get('is_relevant'):
                     self.logger.info(f"• Filtered out (not specific to {self.county_upper})")
                     stats['alerts_filtered'] += 1
+                    # Track filtered alert for visibility
+                    alert_summary['status'] = 'filtered'
+                    alert_summary['reason'] = f"Not relevant to {self.county_upper} - no matching location codes"
+                    stats['fetched_alerts'].append(alert_summary)
                     if self._debug_records_enabled and 'debug_entry' in locals():
                         debug_entry.setdefault('notes', []).append('Filtered out by strict location rules')
                     continue
@@ -2718,11 +2736,18 @@ class CAPPoller:
                         self.logger.info(
                             f"Saved new {self.location_name} alert: {alert.event if alert else parsed['event']} - Sent: {format_local_datetime(parsed.get('sent'))}"
                         )
+                        # Track saved new alert
+                        alert_summary['status'] = 'saved_new'
+                        alert_summary['reason'] = 'New alert saved to database (SAME code match)'
                     else:
                         stats['alerts_updated'] += 1
                         self.logger.info(
                             f"Updated {self.location_name} alert: {alert.event if alert else parsed['event']} - Sent: {format_local_datetime(parsed.get('sent'))}"
                         )
+                        # Track updated alert
+                        alert_summary['status'] = 'updated'
+                        alert_summary['reason'] = 'Existing alert updated in database'
+                    stats['fetched_alerts'].append(alert_summary)
 
                     if self._debug_records_enabled:
                         debug_entry['was_saved'] = bool(alert)
@@ -2736,6 +2761,10 @@ class CAPPoller:
                     self.logger.info(
                         f"Broadcast-only alert (UGC match): {event} - Sent: {format_local_datetime(parsed.get('sent'))}"
                     )
+                    # Track broadcast-only alert
+                    alert_summary['status'] = 'broadcast_only'
+                    alert_summary['reason'] = 'UGC/Zone match - broadcast to displays but not stored'
+                    stats['fetched_alerts'].append(alert_summary)
                     if self._debug_records_enabled:
                         debug_entry.setdefault('notes', []).append('Broadcast-only (UGC match, no storage)')
                         debug_entry['was_saved'] = False
