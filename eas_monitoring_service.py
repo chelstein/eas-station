@@ -636,11 +636,18 @@ def collect_metrics():
 
             metrics["audio_controller"] = controller_stats
 
-            # Get broadcast queue stats
+            # Get broadcast queue stats from all sources
+            # Note: Each source has its own broadcast queue (architecture change)
             try:
-                broadcast_queue = _audio_controller.get_broadcast_queue()
-                if broadcast_queue:
-                    metrics["broadcast_queue"] = _sanitize_value(broadcast_queue.get_stats())
+                broadcast_queues = {}
+                for name, source in _audio_controller._sources.items():
+                    if hasattr(source, 'get_broadcast_queue'):
+                        bq = source.get_broadcast_queue()
+                        if bq:
+                            broadcast_queues[name] = _sanitize_value(bq.get_stats())
+                
+                if broadcast_queues:
+                    metrics["broadcast_queues"] = broadcast_queues
             except Exception as e:
                 logger.error(f"Error getting broadcast queue stats: {e}")
 
@@ -870,8 +877,9 @@ def main():
 
                     # Subscribe to BroadcastQueue for non-competitive audio access
                     # Use unique subscriber ID per connection
+                    # Note: Each source has its own broadcast queue (architecture change)
                     subscriber_id = f"web-stream-{source_name}-{threading.current_thread().ident}"
-                    broadcast_queue = _audio_controller.get_broadcast_queue()
+                    broadcast_queue = adapter.get_broadcast_queue()
                     subscription_queue = broadcast_queue.subscribe(subscriber_id)
 
                     try:

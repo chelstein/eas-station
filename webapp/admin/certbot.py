@@ -98,8 +98,9 @@ def _ensure_nginx_log_permissions():
             timeout=5
         )
         
+        # Set permissions to allow writing (666 = rw-rw-rw-, more permissive to avoid permission issues)
         subprocess.run(
-            ['sudo', 'chmod', '644', '/var/log/nginx/error.log'],
+            ['sudo', 'chmod', '666', '/var/log/nginx/error.log'],
             capture_output=True,
             timeout=5
         )
@@ -369,6 +370,13 @@ def get_certificate_status():
     except Exception as exc:
         logger.error(f"Failed to get certificate status: {exc}")
         return jsonify({"success": False, "error": str(exc)}), 500
+
+
+@certbot_bp.route('/api/certbot/status', methods=['GET'])
+@require_permission('system.configure')
+def get_status():
+    """Alias for certificate-status endpoint for frontend compatibility."""
+    return get_certificate_status()
 
 
 @certbot_bp.route('/api/certbot/renew-certificate', methods=['POST'])

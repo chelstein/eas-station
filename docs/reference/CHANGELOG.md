@@ -7,6 +7,32 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Added
+- **Certbot Status Route Alias** - Added `/admin/api/certbot/status` endpoint as alias for `/admin/api/certbot/certificate-status` for frontend compatibility
+
+### Fixed
+- **AudioIngestController.get_broadcast_queue() Error** - Fixed AttributeError in eas_monitoring_service.py
+  - Method was removed in refactor but code still called it
+  - Changed to iterate through sources and get broadcast queue from each source
+  - Fixed metrics collection to aggregate broadcast queue stats from all audio sources
+  - Fixed web audio streaming to get broadcast queue from source adapter instead of controller
+  - Addresses error: `'AudioIngestController' object has no attribute 'get_broadcast_queue'`
+
+- **Certbot Nginx Permission Error** - Improved nginx log permissions for certbot nginx plugin
+  - Changed `/var/log/nginx/error.log` permissions from 644 to 666 for broader compatibility
+  - Ensures certbot nginx plugin can run `nginx -t` without permission denied errors
+  - Addresses error: `open() "/var/log/nginx/error.log" failed (13: Permission denied)`
+
+- **TTS Azure OpenAI Endpoint Validation** - Made endpoint validation less strict
+  - Changed to only require `/deployments/` path instead of full `/audio/speech` path
+  - Now shows warning instead of error if `/audio/speech` is missing
+  - Allows Microsoft Azure-provided endpoints that may have different formats
+  - Addresses error: `Azure OpenAI endpoint is incomplete - missing /audio/speech path`
+
+- **.env File Parsing Error** - Fixed python-dotenv parsing error on line 17
+  - Changed AZURE_OPENAI_CONFIG from single-quoted to escaped double-quoted JSON
+  - Changed LOCATION_CONFIG from single-quoted to escaped double-quoted JSON
+  - Addresses warning: `python-dotenv could not parse statement starting at line 17`
+
 - **TTS Test Function** - Added ability to test TTS configuration from admin page
   - New "Test TTS" button on `/admin/tts` configuration page
   - New API endpoint `/admin/api/tts/test` to generate test audio
@@ -18,7 +44,6 @@ tracks releases under the 2.x series.
   - Allows users to verify TTS settings before generating actual alerts
   - Addresses request: "Can we add a method to test the TTS in the configuration page?"
 
-### Fixed
 - **TTS Not Working - Missing Logging** - Added comprehensive logging for TTS failures
   - Added detailed error messages when TTS credentials are missing from database
   - Changed log level from WARNING to ERROR for critical TTS failures
