@@ -21,7 +21,11 @@ from __future__ import annotations
 
 """Text-to-Speech settings management routes."""
 
+import base64
 import logging
+import struct
+import wave
+import io
 from typing import Any, Dict
 
 from flask import Blueprint, flash, jsonify, redirect, render_template, request, url_for
@@ -177,13 +181,28 @@ def test_tts():
         samples = tts_engine.generate(test_message)
         
         if samples:
-            # Success!
+            # Success! Convert samples to WAV and encode as base64
             duration_seconds = len(samples) / 16000
             logger.info(f"TTS test successful: Generated {len(samples)} samples ({duration_seconds:.2f} seconds)")
+            
+            # Convert samples to WAV format for playback
+            wav_buffer = io.BytesIO()
+            with wave.open(wav_buffer, 'wb') as wav_file:
+                wav_file.setnchannels(1)  # Mono
+                wav_file.setsampwidth(2)  # 16-bit
+                wav_file.setframerate(16000)
+                # Convert samples to bytes (16-bit signed integers)
+                audio_bytes = struct.pack(f'<{len(samples)}h', *samples)
+                wav_file.writeframes(audio_bytes)
+            
+            wav_buffer.seek(0)
+            audio_base64 = base64.b64encode(wav_buffer.read()).decode('utf-8')
             
             return jsonify({
                 "success": True,
                 "message": f"TTS test successful! Generated {duration_seconds:.2f} seconds of audio.",
+                "audio_data": audio_base64,
+                "audio_type": "audio/wav",
                 "details": {
                     "provider": settings.provider,
                     "voice": settings.azure_openai_voice if settings.provider == 'azure_openai' else 'default',

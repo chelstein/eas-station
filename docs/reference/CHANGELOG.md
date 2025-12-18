@@ -7,6 +7,50 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Added
+- **TTS Audio Playback on Test** - TTS configuration page now plays audio after successful test
+  - Audio player appears with controls after TTS test completes
+  - Automatically plays the generated audio (if browser allows)
+  - Allows users to hear the TTS output directly in the UI
+
+- **RWT TTS Override Option** - Quick RWT now respects the TTS toggle setting
+  - Added `force_rwt_defaults` parameter to `build_manual_components()`
+  - When user explicitly enables TTS for RWT in Broadcast Builder, it is honored
+  - By default, RWT still disables TTS per EAS specification
+
+### Fixed
+- **Broadcast Builder TTS Warning for RWT Events** - Fixed misleading TTS warning for Required Weekly Test
+  - RWT events intentionally disable TTS (per EAS specification - RWT should only have SAME header and EOM tones)
+  - Previously, the warning "TTS was requested but no audio was generated" appeared even for RWT
+  - Now correctly detects when TTS was disabled by the system (vs. failed) and only logs for actual failures
+  - Added `tts_enabled` field to components to track actual TTS state after event-specific overrides
+  - Addresses: "TTS was requested but no audio was generated" for RWT events
+
+- **Broadcast Builder TTS Not Using Database Settings** - Fixed SQLAlchemy session caching issue
+  - Added `db.session.refresh()` after loading TTS settings to force fresh database read
+  - TTS settings configured via /admin/tts were not being seen by Broadcast Builder
+  - The SQLAlchemy session was returning cached/stale data instead of current database values
+  - This caused TTS to appear as "not configured" in Broadcast Builder even though it worked on the test page
+  - Addresses: "TTS works on config page test but not in Broadcast Builder"
+
+- **TTS Configuration Logging to SystemLog** - Added diagnostic logging visible in web UI
+  - Broadcast Builder now logs TTS configuration status to SystemLog when TTS is requested
+  - Shows tts_provider in System Logs (/logs)
+  - Makes debugging TTS issues easier without needing systemd journal access
+
+- **TTS "No Provider Configured" Error Reporting** - Fixed silent TTS failure when no provider is configured
+  - `TTSEngine.generate()` now sets `last_error` when no TTS provider is configured
+  - This ensures `tts_warning` is properly populated in Broadcast Builder
+  - Previously, when no TTS provider was set, the engine returned None without setting an error
+  - This caused the message "TTS was requested but no audio was generated" with no explanation
+  - Now displays helpful message: "No TTS provider configured. Configure TTS at /admin/tts in the web UI."
+  - Addresses: "TTS was requested but no audio was generated" without explanation
+
+- **Certbot Nginx Log Permission Sudoers** - Added missing sudo permissions for nginx log management
+  - Added sudoers entries for `/var/log/nginx` directory creation and permission commands
+  - Certbot's nginx plugin runs `nginx -t` which requires write access to log files
+  - Added: mkdir, chmod, touch, chown commands for `/var/log/nginx/error.log` and `access.log`
+  - Fixes error: `open() "/var/log/nginx/error.log" failed (13: Permission denied)` when running certbot
+
 - **Broadcast Builder TTS Logging to SystemLog** - TTS errors and warnings now visible in System Logs UI
   - Logs TTS synthesis failures to SystemLog database table (visible in web UI under System Logs)
   - Logs when TTS is requested but no audio is generated
