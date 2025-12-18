@@ -94,23 +94,107 @@ except OperationalError as e:
 ## 🔒 Security
 
 **Critical Rules**:
-1. NEVER commit `.env` file (contains secrets)
-2. NEVER hardcode credentials (use environment variables)
+1. NEVER commit secrets or API keys
+2. NEVER hardcode credentials (store in database settings models)
 3. ALWAYS validate user input (especially file uploads)
 4. ALWAYS use parameterized queries (prevent SQL injection)
 
 **See**: [Security Guidelines](../../docs/development/AGENTS.md#security-guidelines) | [Security Docs](../../docs/security/SECURITY.md)
 
+## ⚙️ Configuration System
 
-**Persistent Environment**: Config stored in `/app-config/.env` volume, survives container rebuilds and Git pulls
+**CRITICAL**: ALL configuration is now database-based. Environment variables have been REMOVED.
 
-**Adding Environment Variables** - Update ALL these files:
-1. `.env.example` - Documentation and defaults
-2. `stack.env` - bare metal deployment defaults
-4. `webapp/admin/environment.py` - **REQUIRED** for web UI access
-5. `app_utils/setup_wizard.py` - If part of initial setup
+### Database-Based Settings (ONLY Way to Configure)
 
-**Variable Types**: Use `select` with `['false', 'true']` for boolean values, NOT text inputs. This prevents user input errors.
+**Settings Models in `app_core/models.py`**:
+- `LocationSettings` - Geographic configuration
+- `HardwareSettings` - GPIO, OLED, LED, VFD settings
+- `IcecastSettings` - Audio streaming configuration
+- `CertbotSettings` - SSL certificate management
+- `TTSSettings` - Text-to-speech configuration
+- `PollerSettings` - Alert poller configuration
+
+**Pattern for New Configurable Features**:
+1. **Create Database Model** in `app_core/models.py`:
+   ```python
+   class MySettings(db.Model):
+       __tablename__ = "my_settings"
+       id = db.Column(db.Integer, primary_key=True)
+       enabled = db.Column(db.Boolean, nullable=False, default=False)
+       updated_at = db.Column(db.DateTime, nullable=True, default=datetime.utcnow, onupdate=datetime.utcnow)
+       
+       def to_dict(self):
+           return {
+               "enabled": self.enabled, 
+               "updated_at": self.updated_at.isoformat() if self.updated_at else None
+           }
+   ```
+
+2. **Create Admin UI** in `webapp/admin/my_feature.py`:
+   - GET route to display settings form
+   - POST route to save settings to database
+   - Use dropdowns/radio buttons for boolean values (NOT text inputs)
+
+3. **Add Navigation** in `templates/base.html`:
+   - Add link to appropriate dropdown menu (Settings, Admin, etc.)
+
+4. **Create Database Migration**:
+   ```bash
+   cd /opt/eas-station
+   source venv/bin/activate
+   alembic revision --autogenerate -m "Add my_settings table"
+   alembic upgrade head
+   ```
+
+5. **Read Settings in Code**:
+   ```python
+   from app_core.models import MySettings
+   
+   settings = MySettings.query.first()
+   if not settings:
+       # Create default settings if none exist
+       settings = MySettings(enabled=False)
+       db.session.add(settings)
+       db.session.commit()
+   
+   if settings.enabled:
+       logger.info("Feature enabled")
+   ```
+
+**Form Input Standards**:
+- ✅ Boolean fields: Use `<select>` dropdown or radio buttons
+- ❌ NEVER use text input for true/false/yes/no/enabled/disabled
+- ✅ Example:
+  ```html
+  <select name="enabled" class="form-select">
+      <option value="true" {% if settings.enabled %}selected{% endif %}>Enabled</option>
+      <option value="false" {% if not settings.enabled %}selected{% endif %}>Disabled</option>
+  </select>
+  ```
+
+### Sudoers Configuration (System Administration)
+
+**CRITICAL**: `update.sh` runs as root and executes commands as `eas-station` user without password prompts.
+
+**Issue**: `sudo -u eas-station <command>` asks for password (which often doesn't exist).
+
+**Solution**: `/etc/sudoers.d/eas-station` must include:
+```bash
+# Allow root to run any command as eas-station user without password
+root ALL=(eas-station) NOPASSWD: ALL
+```
+
+**Syntax Rules**:
+- ✅ Escape colons: `chown root\:root` (not `root:root`)
+- ✅ Validate: `visudo -c -f /etc/sudoers.d/eas-station`
+- ✅ Permissions: `chmod 0440 /etc/sudoers.d/eas-station`
+- ❌ Never deploy without syntax validation!
+
+**When to Update**:
+- Source: `config/sudoers-eas-station`
+- `install.sh` copies during initial install
+- `update.sh` updates early (before any `sudo -u` commands)
 
 
 ## 📚 Documentation
@@ -133,7 +217,7 @@ except OperationalError as e:
 **Anti-Patterns to AVOID**:
 - ❌ Bare `except:` statements (catch specific exceptions)
 - ❌ Creating new loggers with `logging.getLogger(__name__)`
-- ❌ Hardcoded paths (use environment variables)
+- ❌ Hardcoded paths or credentials (use database settings)
 - ❌ Committed commented-out code (delete instead)
 - ❌ Mutable default arguments (use `None` and check)
 
@@ -185,7 +269,7 @@ except OperationalError as e:
 - [ ] PEP 8 style (4 spaces, snake_case)
 - [ ] Uses existing logger only
 - [ ] Specific exception handling with rollback
-- [ ] No secrets or `.env` file committed
+- [ ] No secrets or credentials committed
 - [ ] Templates extend `base.html` with theme support
 - [ ] Commit message follows format
 

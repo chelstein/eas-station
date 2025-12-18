@@ -6,7 +6,23 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+### Added
+- **Poller Detailed Logging** - Added database-based setting to log detailed alert information
+  - New `PollerSettings` model with `log_fetched_alerts` boolean field
+  - When enabled, logs full alert details: ID, event, sent/effective/expires times, urgency/severity/certainty, area, and headline
+  - Helps debug missing or filtered alerts
+  - Configured via Admin → Poller Settings (UI to be added)
+  - Queried once per poll cycle for efficiency
+  - Database migration required: `alembic upgrade head`
+
 ### Fixed
+- **Update Script Password Prompts** - Fixed update.sh asking for eas-station user password
+  - Added `root ALL=(eas-station) NOPASSWD: ALL` to sudoers configuration
+  - Allows root to run commands as eas-station user without password prompt
+  - Update.sh now installs/updates sudoers file early in update process
+  - Fixed pre-existing sudoers syntax errors (escaped colons in chown commands)
+  - Addresses: "The update script is asking for eas-stations password"
+
 - **Install/Update Scripts Webroot Directory Ownership** - Fixed webroot directory permissions in install.sh and update.sh
   - Changed ownership from www-data:www-data to root:root in both scripts
   - Ensures certbot (runs as root) can write challenge files during initial setup

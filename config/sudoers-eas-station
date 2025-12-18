@@ -4,6 +4,12 @@
 #
 # Allows the eas-station user to run specific commands without password
 # Required for the web UI to manage SSL certificates and system services
+# Also allows root to run commands as eas-station without password (for update.sh)
+
+# Allow root to run any command as eas-station user without password
+# This is required for update.sh which runs as root and needs to execute
+# git, pip, python, and alembic commands as the eas-station user
+root ALL=(eas-station) NOPASSWD: ALL
 
 # Certbot certificate management
 # Allow all certbot commands since it's a trusted system tool that requires root
@@ -23,7 +29,7 @@ eas-station ALL=(ALL) NOPASSWD: /usr/bin/cat /opt/eas-station/certbot_data/logs/
 # Certbot runs as root and needs to write challenge files to /var/www/certbot
 # Nginx (www-data) needs to read these files to serve them to Let's Encrypt
 eas-station ALL=(ALL) NOPASSWD: /usr/bin/mkdir -p /var/www/certbot/.well-known/acme-challenge
-eas-station ALL=(ALL) NOPASSWD: /usr/bin/chown -R root:root /var/www/certbot
+eas-station ALL=(ALL) NOPASSWD: /usr/bin/chown -R root\:root /var/www/certbot
 eas-station ALL=(ALL) NOPASSWD: /usr/bin/chmod -R 755 /var/www/certbot
 
 # Nginx log directory management (DEPRECATED - not actively used)
@@ -37,8 +43,8 @@ eas-station ALL=(ALL) NOPASSWD: /usr/bin/mkdir -p /var/log/nginx
 eas-station ALL=(ALL) NOPASSWD: /usr/bin/chmod 755 /var/log/nginx
 eas-station ALL=(ALL) NOPASSWD: /usr/bin/touch /var/log/nginx/error.log
 eas-station ALL=(ALL) NOPASSWD: /usr/bin/touch /var/log/nginx/access.log
-eas-station ALL=(ALL) NOPASSWD: /usr/bin/chown www-data:adm /var/log/nginx/error.log
-eas-station ALL=(ALL) NOPASSWD: /usr/bin/chown www-data:adm /var/log/nginx/access.log
+eas-station ALL=(ALL) NOPASSWD: /usr/bin/chown www-data\:adm /var/log/nginx/error.log
+eas-station ALL=(ALL) NOPASSWD: /usr/bin/chown www-data\:adm /var/log/nginx/access.log
 eas-station ALL=(ALL) NOPASSWD: /usr/bin/chmod 666 /var/log/nginx/error.log
 eas-station ALL=(ALL) NOPASSWD: /usr/bin/chmod 666 /var/log/nginx/access.log
 

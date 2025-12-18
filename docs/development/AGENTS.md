@@ -771,6 +771,61 @@ When adding validation:
 }
 ```
 
+### ⚠️ IMPORTANT: Environment Variables Being Phased Out
+
+**CRITICAL UPDATE (2025-01)**: The project is transitioning AWAY from environment variables toward database-based settings. 
+
+**DO NOT add new environment variables.** Instead:
+
+1. **Create a Settings Model** in `app_core/models.py`:
+   ```python
+   class PollerSettings(db.Model):
+       """Alert poller configuration stored in database."""
+       __tablename__ = "poller_settings"
+       
+       id = db.Column(db.Integer, primary_key=True)
+       log_fetched_alerts = db.Column(db.Boolean, nullable=False, default=False)
+       updated_at = db.Column(db.DateTime, nullable=True, default=datetime.utcnow, onupdate=datetime.utcnow)
+       
+       def to_dict(self):
+           return {
+               "log_fetched_alerts": self.log_fetched_alerts,
+               "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+           }
+   ```
+
+2. **Create an Admin UI** in `webapp/admin/` (e.g., `poller.py`):
+   - GET route to display settings form
+   - POST route to save settings to database
+   - Add navigation link in `templates/base.html`
+
+3. **Read Settings from Database** in your code:
+   ```python
+   from app_core.models import PollerSettings
+   
+   settings = PollerSettings.query.first()
+   if settings and settings.log_fetched_alerts:
+       logger.info("Detailed logging enabled")
+   ```
+
+4. **Create Database Migration** using Alembic:
+   ```bash
+   cd /opt/eas-station
+   source venv/bin/activate
+   alembic revision --autogenerate -m "Add poller_settings table"
+   alembic upgrade head
+   ```
+
+**Existing Settings Models:**
+- `LocationSettings` - Geographic configuration
+- `HardwareSettings` - GPIO, OLED, LED, VFD settings
+- `IcecastSettings` - Audio streaming configuration
+- `CertbotSettings` - SSL certificate management
+- `TTSSettings` - Text-to-speech configuration
+- `PollerSettings` - Alert poller configuration (NEW)
+
+Follow these patterns when adding new configurable features.
+
 ### Input Validation Best Practices
 
 **ALWAYS add validation attributes to prevent invalid input.**
@@ -1324,6 +1379,52 @@ For quick navigation and understanding of the codebase structure, refer to the c
 - [Systemd Service Management](https://www.freedesktop.org/software/systemd/man/systemd.service.html)
 - [Systemd Unit Files](https://www.freedesktop.org/software/systemd/man/systemd.unit.html)
 - [PostgreSQL Administration](https://www.postgresql.org/docs/current/admin.html)
+
+### Sudoers Configuration for Update Scripts
+
+**CRITICAL**: The `update.sh` script runs as root and needs to execute commands as the `eas-station` user without password prompts.
+
+**Problem**: When root tries to run `sudo -u eas-station <command>`, it will ask for the eas-station user's password (which often doesn't exist).
+
+**Solution**: The `/etc/sudoers.d/eas-station` file must include:
+
+```bash
+# Allow root to run any command as eas-station user without password
+# This is required for update.sh which runs as root and needs to execute
+# git, pip, python, and alembic commands as the eas-station user
+root ALL=(eas-station) NOPASSWD: ALL
+```
+
+**Important Syntax Rules:**
+- ✅ Escape colons in chown commands: `chown root\:root` (not `root:root`)
+- ✅ Always validate with `visudo -c -f /etc/sudoers.d/eas-station`
+- ✅ Set permissions to 0440: `chmod 0440 /etc/sudoers.d/eas-station`
+- ❌ Never deploy without testing syntax - invalid sudoers files can break sudo!
+
+**When to Update:**
+1. The `config/sudoers-eas-station` file is the source of truth
+2. `install.sh` copies it to `/etc/sudoers.d/eas-station` during initial install
+3. `update.sh` updates it early in the update process (before any sudo -u commands)
+4. Always test with `visudo -c` before deploying
+
+**Example from update.sh:**
+```bash
+# Update sudoers configuration to allow passwordless sudo for update operations
+# This must be done BEFORE any sudo -u eas-station commands are executed
+echo_progress "Updating sudoers configuration for passwordless operations..."
+if [ -f "$INSTALL_DIR/config/sudoers-eas-station" ]; then
+    cp "$INSTALL_DIR/config/sudoers-eas-station" /etc/sudoers.d/eas-station
+    chmod 0440 /etc/sudoers.d/eas-station
+    
+    # Validate sudoers syntax
+    if visudo -c -f /etc/sudoers.d/eas-station &>/dev/null; then
+        echo_success "Sudoers configuration updated and validated"
+    else
+        echo_error "Invalid sudoers syntax - removing file"
+        rm -f /etc/sudoers.d/eas-station
+    fi
+fi
+```
 
 ---
 
