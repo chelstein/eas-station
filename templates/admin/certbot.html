@@ -1076,20 +1076,23 @@ async function executeObtainCertificate() {
 }
 
 // Helper function to format certificate info for display
+// Returns HTML-escaped values safe for insertion into innerHTML
 function formatCertificateDisplay(certificate) {
-    const domainDisplay = certificate.domain || 'your domain';
+    const domainRaw = certificate.domain || 'your domain';
+    const domainDisplay = escapeHtml(domainRaw);
     
     let expiryDisplay = 'unknown';
     if (certificate.valid_until) {
         try {
             const expiryDate = new Date(certificate.valid_until);
-            expiryDisplay = expiryDate.toLocaleDateString() + ' ' + expiryDate.toLocaleTimeString();
+            const formatted = expiryDate.toLocaleDateString() + ' ' + expiryDate.toLocaleTimeString();
+            expiryDisplay = escapeHtml(formatted);
         } catch (e) {
-            expiryDisplay = certificate.valid_until;
+            expiryDisplay = escapeHtml(certificate.valid_until);
         }
     }
     
-    return { domainDisplay, expiryDisplay };
+    return { domainDisplay, expiryDisplay, domainRaw };
 }
 
 // Wait for server to come back online after standalone certificate acquisition
@@ -1161,27 +1164,29 @@ async function waitForServerReconnect(resultDiv) {
                     } else {
                         // Already on HTTPS, check for domain mismatch
                         const currentHostname = window.location.hostname;
+                        const currentHostnameEscaped = escapeHtml(currentHostname);
                         const certDomain = status.certificate.domain;
                         const domainMismatch = certDomain && currentHostname !== certDomain;
                         
                         if (domainMismatch) {
                             // Certificate domain doesn't match current hostname
+                            // domainDisplay and expiryDisplay are already escaped by formatCertificateDisplay
                             resultDiv.innerHTML = `
                                 <div class="alert alert-warning">
                                     <i class="bi bi-exclamation-triangle"></i> <strong>Certificate domain mismatch!</strong>
                                     <p class="mt-2 mb-0">Certificate is installed for: <strong>${domainDisplay}</strong></p>
-                                    <p class="mb-0">But you're accessing via: <strong>${currentHostname}</strong></p>
+                                    <p class="mb-0">But you're accessing via: <strong>${currentHostnameEscaped}</strong></p>
                                     <p class="mb-0"><small>Expires: ${expiryDisplay}</small></p>
                                     <hr>
                                     <p class="mb-2"><i class="bi bi-info-circle"></i> <strong>To fix this:</strong></p>
                                     <ul class="mb-0">
                                         <li>Access the site using: <strong>${domainDisplay}</strong></li>
-                                        <li>Or obtain a new certificate for: <strong>${currentHostname}</strong></li>
+                                        <li>Or obtain a new certificate for: <strong>${currentHostnameEscaped}</strong></li>
                                     </ul>
                                 </div>
                                 <div class="mt-3">
                                     <button class="btn btn-primary" onclick="redirectToCertDomain('${escapeHtml(certDomain)}')">
-                                        <i class="bi bi-arrow-right-circle"></i> Go to ${escapeHtml(domainDisplay)}
+                                        <i class="bi bi-arrow-right-circle"></i> Go to ${domainDisplay}
                                     </button>
                                     <button class="btn btn-secondary" onclick="checkCertificateStatus()">
                                         <i class="bi bi-shield-check"></i> Check Certificate Details
@@ -1292,8 +1297,9 @@ function redirectToCertDomain(domain) {
         currentUrl.protocol = 'https:';
         currentUrl.hostname = domain;
         
-        // Show toast notification
-        showToast(`Redirecting to ${domain}...`, 'info');
+        // Show toast notification (escape domain for safety)
+        const domainEscaped = escapeHtml(domain);
+        showToast(`Redirecting to ${domainEscaped}...`, 'info');
         
         // Redirect after a short delay to allow toast to show
         setTimeout(() => {
