@@ -33,7 +33,7 @@ poller_bp = Blueprint('poller', __name__, url_prefix='/admin/poller')
 
 @poller_bp.route('/', methods=['GET'])
 @require_auth
-@require_permission('settings.manage')
+@require_permission('system.configure')
 def poller_settings():
     """Display poller configuration settings page."""
     try:
@@ -61,7 +61,7 @@ def poller_settings():
 
 @poller_bp.route('/update', methods=['POST'])
 @require_auth
-@require_permission('settings.manage')
+@require_permission('system.configure')
 def update_poller_settings():
     """Update poller configuration settings."""
     try:
@@ -115,7 +115,7 @@ def update_poller_settings():
 
 @poller_bp.route('/status', methods=['GET'])
 @require_auth
-@require_permission('settings.view')
+@require_permission('system.view_config')
 def poller_status():
     """Get current poller settings as JSON."""
     try:
