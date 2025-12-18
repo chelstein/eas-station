@@ -1034,22 +1034,23 @@ def obtain_certificate_execute():
                 )
                 
                 if result.returncode != 0:
-                    error_msg = result.stderr
-                    logger.error(f"Certbot webroot failed: {result.stderr}")
+                    original_error = result.stderr
+                    logger.error(f"Certbot webroot failed: {original_error}")
                     logger.error(f"Certbot stdout: {result.stdout}")
                     
-                    # Check for common permission/path errors
-                    if "Permission denied" in error_msg or "Errno 13" in error_msg:
+                    # Check for common permission/path errors and provide helpful guidance
+                    error_msg = original_error
+                    if "Permission denied" in original_error or "Errno 13" in original_error:
                         error_msg = (
                             "Permission error accessing webroot directory. "
                             "The webroot directory must be accessible by both root (certbot) and www-data (nginx). "
-                            f"Original error: {error_msg}"
+                            f"Original error: {original_error}"
                         )
-                    elif "No such file or directory" in error_msg or "Errno 2" in error_msg:
+                    elif "No such file or directory" in original_error or "Errno 2" in original_error:
                         error_msg = (
                             "Webroot directory not found or inaccessible. "
                             "Ensure /var/www/certbot exists and nginx is configured to serve .well-known/acme-challenge. "
-                            f"Original error: {error_msg}"
+                            f"Original error: {original_error}"
                         )
                     
                     return jsonify({
