@@ -42,6 +42,7 @@ from .hardware import hardware_bp
 from .icecast import register_icecast_routes
 from .certbot import register_certbot_routes
 from .tts import register_tts_routes
+from .poller import poller_bp
 
 
 def register(app, logger):
@@ -69,6 +70,8 @@ def register(app, logger):
     register_icecast_routes(app, logger)  # Icecast streaming configuration
     register_certbot_routes(app, logger)  # Certbot/SSL certificate management
     register_tts_routes(app, logger)  # Text-to-Speech configuration
+    app.register_blueprint(poller_bp)  # Poller settings management
+    logger.info("Poller settings routes registered")
 
     # Note: Audio controller initialization removed for separated architecture.
     # In separated architecture, audio processing runs in dedicated audio-service process.

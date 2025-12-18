@@ -2867,13 +2867,13 @@ def main():
             stats = poller.fix_existing_geometry()
             print(json_dumps(stats, indent=2))
         elif args.continuous:
-            # Enforce minimum interval to prevent excessive CPU usage
+            # Read initial interval from args, but will dynamically update from DB
             interval = max(30, args.interval)
             if interval != args.interval:
                 logger.warning(
                     f"Interval {args.interval}s is below minimum; using {interval}s to prevent excessive CPU usage"
                 )
-            logger.info(f"Running continuously with {interval} second intervals")
+            logger.info(f"Running continuously with {interval} second intervals (will update from database settings)")
             
             consecutive_errors = 0
             max_backoff = 300  # Maximum 5 minutes between retries
@@ -2881,6 +2881,22 @@ def main():
             
             while True:
                 try:
+                    # Check poller settings from database for dynamic configuration
+                    poller_enabled = True
+                    db_interval = interval  # Default to current interval
+                    try:
+                        from app_core.models import PollerSettings
+                        poller_settings = PollerSettings.query.first()
+                        if poller_settings:
+                            poller_enabled = poller_settings.enabled
+                            db_interval = max(30, poller_settings.poll_interval_sec)  # Enforce minimum
+                            if db_interval != interval:
+                                logger.info(f"Poll interval updated from database: {interval}s → {db_interval}s")
+                                interval = db_interval
+                    except Exception as e:
+                        # If PollerSettings table doesn't exist yet or query fails, use args
+                        logger.debug(f"Could not read poller settings from database: {e}")
+                    
                     # Sleep before polling (except on first iteration) to prevent CPU hammering
                     # This ensures we always wait between polls, even if a poll completes very quickly
                     if not first_iteration:
@@ -2894,6 +2910,12 @@ def main():
                             logger.info(f"Waiting {interval} seconds before next poll...")
                             time.sleep(interval)
                     first_iteration = False
+                    
+                    # Check if poller is enabled before polling
+                    if not poller_enabled:
+                        logger.info("Poller disabled in database settings, skipping poll cycle")
+                        consecutive_errors = 0
+                        continue
                     
                     stats = poller.poll_and_process()
                     print(json_dumps(stats, indent=2))
