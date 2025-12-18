@@ -212,15 +212,25 @@ class TTSEngine:
         # Validate endpoint format and provide helpful hints
         if self.logger:
             if 'azure.com' in endpoint.lower():
-                if '/audio/speech' not in endpoint:
+                # Check if endpoint has deployment path - this is the critical part
+                if '/deployments/' not in endpoint:
                     self.logger.error(
-                        f"TTS FAILED: Azure OpenAI endpoint is incomplete: {endpoint}\n"
-                        "Expected full format: https://YOUR_RESOURCE.openai.azure.com/openai/deployments/YOUR_DEPLOYMENT/audio/speech?api-version=2024-02-15-preview\n"
+                        f"TTS FAILED: Azure OpenAI endpoint is missing deployment path: {endpoint}\n"
+                        "Expected format: https://YOUR_RESOURCE.openai.azure.com/openai/deployments/YOUR_DEPLOYMENT/audio/speech?api-version=...\n"
                         "Your endpoint should include '/openai/deployments/YOUR_DEPLOYMENT/audio/speech?api-version=...'\n"
                         "Fix this at /admin/tts in the web UI"
                     )
-                    self._remember_error("Azure OpenAI endpoint is incomplete - missing /audio/speech path")
+                    self._remember_error("Azure OpenAI endpoint is missing deployment path")
                     return None
+                # If it has /deployments/ but not /audio/speech, log a warning
+                # (some endpoints may work without the full path)
+                elif '/audio/speech' not in endpoint:
+                    self.logger.warning(
+                        f"TTS: Azure endpoint may be incomplete. Endpoint: {endpoint}\n"
+                        "Expected full path includes /audio/speech\n"
+                        "If TTS fails, ensure your endpoint includes:\n"
+                        "https://YOUR_RESOURCE.openai.azure.com/openai/deployments/YOUR_DEPLOYMENT/audio/speech?api-version=..."
+                    )
             elif 'api.openai.com' in endpoint.lower():
                 if endpoint != 'https://api.openai.com/v1/audio/speech':
                     self.logger.warning(

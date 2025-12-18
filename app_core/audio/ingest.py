@@ -546,6 +546,27 @@ class AudioIngestController:
         with self._lock:
             return list(self._sources.keys())
 
+    def get_source(self, name: str) -> Optional[AudioSourceAdapter]:
+        """Get a specific audio source adapter by name.
+        
+        Args:
+            name: Source name to retrieve
+            
+        Returns:
+            AudioSourceAdapter if found, None otherwise
+        """
+        with self._lock:
+            return self._sources.get(name)
+
+    def get_all_sources(self) -> Dict[str, AudioSourceAdapter]:
+        """Get all audio source adapters.
+        
+        Returns:
+            Dictionary mapping source names to AudioSourceAdapter instances
+        """
+        with self._lock:
+            return dict(self._sources)  # Return a copy to prevent external modification
+
     def ensure_source_running(
         self,
         name: str,
