@@ -248,13 +248,11 @@ def register_workflow_routes(bp, logger, eas_config) -> None:
             try:
                 db.session.add(
                     SystemLog(
-                        level='DEBUG',
+                        level='INFO',
                         message='Broadcast Builder: TTS configuration loaded',
                         module='eas.workflow',
                         details={
                             'tts_provider': tts_provider_loaded or '(not configured)',
-                            'azure_openai_endpoint': '<set>' if manual_config.get('azure_openai_endpoint') else '<not set>',
-                            'azure_openai_key': '<set>' if manual_config.get('azure_openai_key') else '<not set>',
                             'include_tts_requested': include_tts,
                         },
                     )
