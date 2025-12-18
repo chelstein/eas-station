@@ -287,70 +287,65 @@ def _install_certificate_internal(domain: str) -> Dict[str, Any]:
 
         logger.info(f"Created symlink: {standard_domain_dir} -> {cert_dir}")
 
-        # Update nginx configuration
+        # Update nginx configuration using sed (more reliable than Python string replacement)
         nginx_config_path = Path('/etc/nginx/sites-available/eas-station')
         
-        # Read current config with sudo
-        result = subprocess.run(
-            ['sudo', 'cat', str(nginx_config_path)],
+        # Comment out self-signed certificate line
+        sed_result = subprocess.run(
+            ['sudo', 'sed', '-i', 
+             's|^\\s*ssl_certificate /etc/ssl/certs/eas-station-selfsigned.crt;|    # ssl_certificate /etc/ssl/certs/eas-station-selfsigned.crt;|g',
+             str(nginx_config_path)],
             capture_output=True,
             text=True,
             timeout=5
         )
         
-        if result.returncode != 0:
-            return {
-                "success": False,
-                "error": f"Failed to read nginx configuration: {result.stderr}"
-            }
-
-        nginx_config = result.stdout
-
-        # Comment out self-signed certificate lines
-        nginx_config = nginx_config.replace(
-            'ssl_certificate /etc/ssl/certs/eas-station-selfsigned.crt;',
-            '# ssl_certificate /etc/ssl/certs/eas-station-selfsigned.crt;'
-        )
-        nginx_config = nginx_config.replace(
-            'ssl_certificate_key /etc/ssl/private/eas-station-selfsigned.key;',
-            '# ssl_certificate_key /etc/ssl/private/eas-station-selfsigned.key;'
-        )
-
-        # Uncomment Let's Encrypt certificate lines and update domain
-        nginx_config = nginx_config.replace(
-            '# ssl_certificate /etc/letsencrypt/live/your-domain.com/fullchain.pem;',
-            f'ssl_certificate /etc/letsencrypt/live/{domain}/fullchain.pem;'
-        )
-        nginx_config = nginx_config.replace(
-            '# ssl_certificate_key /etc/letsencrypt/live/your-domain.com/privkey.pem;',
-            f'ssl_certificate_key /etc/letsencrypt/live/{domain}/privkey.pem;'
-        )
-
-        # Also handle if lines are already uncommented but pointing to wrong domain
-        nginx_config = re.sub(
-            r'ssl_certificate /etc/letsencrypt/live/[^/]+/fullchain\.pem;',
-            f'ssl_certificate /etc/letsencrypt/live/{domain}/fullchain.pem;',
-            nginx_config
-        )
-        nginx_config = re.sub(
-            r'ssl_certificate_key /etc/letsencrypt/live/[^/]+/privkey\.pem;',
-            f'ssl_certificate_key /etc/letsencrypt/live/{domain}/privkey.pem;',
-            nginx_config
-        )
-
-        # Write updated config with sudo
-        write_result = subprocess.run(
-            ['sudo', 'tee', str(nginx_config_path)],
-            input=nginx_config,
+        if sed_result.returncode != 0:
+            logger.warning(f"Failed to comment self-signed cert line: {sed_result.stderr}")
+        
+        # Comment out self-signed key line
+        sed_result = subprocess.run(
+            ['sudo', 'sed', '-i',
+             's|^\\s*ssl_certificate_key /etc/ssl/private/eas-station-selfsigned.key;|    # ssl_certificate_key /etc/ssl/private/eas-station-selfsigned.key;|g',
+             str(nginx_config_path)],
             capture_output=True,
             text=True,
-            timeout=10
+            timeout=5
         )
-
-        if write_result.returncode != 0:
+        
+        if sed_result.returncode != 0:
+            logger.warning(f"Failed to comment self-signed key line: {sed_result.stderr}")
+        
+        # Uncomment and update Let's Encrypt certificate line
+        sed_result = subprocess.run(
+            ['sudo', 'sed', '-i',
+             f's|^\\s*#\\s*ssl_certificate /etc/letsencrypt/live/.*\\.pem;|    ssl_certificate /etc/letsencrypt/live/{domain}/fullchain.pem;|g',
+             str(nginx_config_path)],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        
+        if sed_result.returncode != 0:
             return {
                 "success": False,
-                "error": f"Failed to write nginx configuration: {write_result.stderr}"
+                "error": f"Failed to update Let's Encrypt certificate line: {sed_result.stderr}"
+            }
+        
+        # Uncomment and update Let's Encrypt key line  
+        sed_result = subprocess.run(
+            ['sudo', 'sed', '-i',
+             f's|^\\s*#\\s*ssl_certificate_key /etc/letsencrypt/live/.*\\.pem;|    ssl_certificate_key /etc/letsencrypt/live/{domain}/privkey.pem;|g',
+             str(nginx_config_path)],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        
+        if sed_result.returncode != 0:
+            return {
+                "success": False,
+                "error": f"Failed to update Let's Encrypt key line: {sed_result.stderr}"
             }
 
         logger.info(f"Updated nginx configuration to use Let's Encrypt certificate for {domain}")
@@ -371,21 +366,53 @@ def _install_certificate_internal(domain: str) -> Dict[str, Any]:
                 "note": "Certificate files created but nginx config has errors. Please check manually."
             }
 
-        # Reload nginx to apply changes
-        reload_result = subprocess.run(
-            ['sudo', 'systemctl', 'reload', 'nginx'],
-            capture_output=True,
-            text=True,
-            timeout=10
-        )
-
-        if reload_result.returncode != 0:
-            return {
-                "success": False,
-                "error": f"Failed to reload nginx: {reload_result.stderr}"
-            }
-
-        logger.info("Nginx reloaded successfully with new certificate")
+        # Check if nginx is running before attempting reload
+        nginx_running = _check_nginx_status()
+        
+        if nginx_running:
+            # Nginx is running - use reload (graceful, no downtime)
+            logger.info("Reloading nginx to apply certificate changes")
+            reload_result = subprocess.run(
+                ['sudo', 'systemctl', 'reload', 'nginx'],
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+            
+            if reload_result.returncode != 0:
+                # Reload failed, try restart as fallback
+                logger.warning(f"Nginx reload failed: {reload_result.stderr}, attempting restart")
+                restart_result = subprocess.run(
+                    ['sudo', 'systemctl', 'restart', 'nginx'],
+                    capture_output=True,
+                    text=True,
+                    timeout=10
+                )
+                
+                if restart_result.returncode != 0:
+                    return {
+                        "success": False,
+                        "error": f"Failed to reload/restart nginx: {restart_result.stderr}"
+                    }
+                logger.info("Nginx restarted successfully with new certificate")
+            else:
+                logger.info("Nginx reloaded successfully with new certificate")
+        else:
+            # Nginx is not running - start it
+            logger.warning("Nginx not running, starting it with new certificate configuration")
+            start_result = subprocess.run(
+                ['sudo', 'systemctl', 'start', 'nginx'],
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+            
+            if start_result.returncode != 0:
+                return {
+                    "success": False,
+                    "error": f"Failed to start nginx: {start_result.stderr}"
+                }
+            logger.info("Nginx started successfully with new certificate")
         
         return {
             "success": True,

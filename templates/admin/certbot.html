@@ -898,33 +898,116 @@ async function executeObtainCertificate() {
                 `;
             }
 
-            if (result.note) {
+            // Check if certificate was already installed automatically
+            if (result.installation) {
+                // Certificate was automatically installed!
                 html += `
-                    <div class="alert alert-info mt-3">
-                        <i class="bi bi-info-circle"></i> ${result.note}
+                    <div class="alert alert-success mt-3">
+                        <i class="bi bi-check-circle-fill"></i> <strong>Certificate Installed!</strong>
+                        <p class="mt-2 mb-0">The SSL certificate has been automatically installed and nginx has been configured.</p>
+                    </div>
+                `;
+                
+                if (result.installation.domain) {
+                    html += `
+                        <div class="card mt-3">
+                            <div class="card-header">Installation Details</div>
+                            <div class="card-body">
+                                <dl class="row mb-0">
+                                    <dt class="col-sm-4">Domain:</dt>
+                                    <dd class="col-sm-8">${result.installation.domain}</dd>
+                                    <dt class="col-sm-4">Certificate Path:</dt>
+                                    <dd class="col-sm-8"><code>${result.installation.cert_path || 'N/A'}</code></dd>
+                                    <dt class="col-sm-4">Symlink Path:</dt>
+                                    <dd class="col-sm-8"><code>${result.installation.symlink_path || 'N/A'}</code></dd>
+                                    <dt class="col-sm-4">Nginx Config:</dt>
+                                    <dd class="col-sm-8"><code>${result.installation.nginx_config || 'N/A'}</code></dd>
+                                </dl>
+                            </div>
+                        </div>
+                    `;
+                }
+                
+                html += `
+                    <div class="mt-3 d-flex gap-2">
+                        <button class="btn btn-primary" onclick="checkCertificateStatus()">
+                            <i class="bi bi-shield-check"></i> Verify Certificate Status
+                        </button>
+                        <button class="btn btn-success" onclick="location.reload()">
+                            <i class="bi bi-arrow-clockwise"></i> Reload Page
+                        </button>
+                        <button class="btn btn-secondary" onclick="cancelObtainCertificate()">
+                            <i class="bi bi-x-circle"></i> Close
+                        </button>
+                    </div>
+                `;
+            } else if (result.installation_error) {
+                // Certificate obtained but installation failed
+                html += `
+                    <div class="alert alert-danger mt-3">
+                        <i class="bi bi-exclamation-triangle"></i> <strong>Installation Failed:</strong> ${result.installation_error}
+                    </div>
+                `;
+                
+                if (result.note) {
+                    html += `
+                        <div class="alert alert-info mt-3">
+                            <i class="bi bi-info-circle"></i> ${result.note}
+                        </div>
+                    `;
+                }
+                
+                html += `
+                    <div class="mt-3 d-flex gap-2">
+                        <button class="btn btn-success" onclick="installCertificate()">
+                            <i class="bi bi-download"></i> Retry Installation
+                        </button>
+                        <button class="btn btn-primary" onclick="checkCertificateStatus()">
+                            <i class="bi bi-shield-check"></i> Check Status
+                        </button>
+                        <button class="btn btn-secondary" onclick="cancelObtainCertificate()">
+                            <i class="bi bi-x-circle"></i> Close
+                        </button>
+                    </div>
+                `;
+            } else {
+                // Old flow - certificate obtained but installation not attempted (shouldn't happen with current code)
+                if (result.note) {
+                    html += `
+                        <div class="alert alert-info mt-3">
+                            <i class="bi bi-info-circle"></i> ${result.note}
+                        </div>
+                    `;
+                }
+                
+                html += `
+                    <div class="alert alert-warning mt-3">
+                        <i class="bi bi-exclamation-triangle"></i> <strong>Next Step:</strong> Install the certificate to configure nginx to use it.
+                    </div>
+                    <div class="mt-3 d-flex gap-2">
+                        <button class="btn btn-success" onclick="installCertificate()">
+                            <i class="bi bi-download"></i> Install Certificate
+                        </button>
+                        <button class="btn btn-primary" onclick="checkCertificateStatus()">
+                            <i class="bi bi-shield-check"></i> Check Status
+                        </button>
+                        <button class="btn btn-secondary" onclick="cancelObtainCertificate()">
+                            <i class="bi bi-x-circle"></i> Close
+                        </button>
                     </div>
                 `;
             }
 
-            html += `
-                <div class="alert alert-warning mt-3">
-                    <i class="bi bi-exclamation-triangle"></i> <strong>Next Step:</strong> Install the certificate to configure nginx to use it.
-                </div>
-                <div class="mt-3 d-flex gap-2">
-                    <button class="btn btn-success" onclick="installCertificate()">
-                        <i class="bi bi-download"></i> Install Certificate
-                    </button>
-                    <button class="btn btn-primary" onclick="checkCertificateStatus()">
-                        <i class="bi bi-shield-check"></i> Check Status
-                    </button>
-                    <button class="btn btn-secondary" onclick="cancelObtainCertificate()">
-                        <i class="bi bi-x-circle"></i> Close
-                    </button>
-                </div>
-            `;
-
             resultDiv.innerHTML = html;
-            showToast('Certificate obtained successfully!', 'success');
+            
+            // Show appropriate toast message
+            if (result.installation) {
+                showToast('Certificate obtained and installed successfully!', 'success');
+            } else if (result.installation_error) {
+                showToast('Certificate obtained but installation failed', 'warning');
+            } else {
+                showToast('Certificate obtained successfully!', 'success');
+            }
 
         } else {
             let html = `
@@ -1016,11 +1099,25 @@ async function waitForServerReconnect(resultDiv) {
                 const status = await response.json();
 
                 if (status.certificate && status.certificate.valid) {
+                    // Format domain - handle both string and array
+                    const domainDisplay = status.certificate.domain || 'your domain';
+                    
+                    // Format expiry date - use valid_until field from ssl_utils.py
+                    let expiryDisplay = 'unknown';
+                    if (status.certificate.valid_until) {
+                        try {
+                            const expiryDate = new Date(status.certificate.valid_until);
+                            expiryDisplay = expiryDate.toLocaleDateString() + ' ' + expiryDate.toLocaleTimeString();
+                        } catch (e) {
+                            expiryDisplay = status.certificate.valid_until;
+                        }
+                    }
+                    
                     resultDiv.innerHTML = `
                         <div class="alert alert-success">
                             <i class="bi bi-check-circle"></i> <strong>Reconnected! Certificate obtained successfully.</strong>
-                            <p class="mt-2 mb-0">SSL certificate is now installed for: <strong>${status.certificate.domains ? status.certificate.domains.join(', ') : 'your domain'}</strong></p>
-                            <p class="mb-0"><small>Expires: ${status.certificate.expires_at || 'unknown'}</small></p>
+                            <p class="mt-2 mb-0">SSL certificate is now installed for: <strong>${domainDisplay}</strong></p>
+                            <p class="mb-0"><small>Expires: ${expiryDisplay}</small></p>
                         </div>
                         <div class="mt-3">
                             <button class="btn btn-primary" onclick="checkCertificateStatus()">
