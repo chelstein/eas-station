@@ -437,47 +437,7 @@ function updateAudioSourcesFromRealtime(sources) {
 }
 
 function updateSourcePlayer(source) {
-    // Dynamically update audio player when stream state changes
-    const audioEl = document.getElementById(`audio-${source.name}`);
-    if (!audioEl || source.status !== 'running') {
-        return;
-    }
-
-    // Check if Icecast URL availability has changed
-    const currentIcecastUrl = audioEl.dataset.icecastUrl || '';
-    const newIcecastUrl = source.icecast_url || '';
-    
-    if (currentIcecastUrl !== newIcecastUrl) {
-        // Icecast URL changed - update the data attribute
-        audioEl.dataset.icecastUrl = newIcecastUrl;
-        
-        // Determine if we should switch sources
-        const wasPlaying = !audioEl.paused && audioEl.currentTime > 0;
-        const preferIcecast = shouldUseIcecastStream(audioEl);
-        const currentStreamType = audioEl.dataset.streamType || '';
-        
-        // Switch if preference changed
-        if (preferIcecast && currentStreamType !== 'icecast' && newIcecastUrl) {
-            // Switching to Icecast stream
-            audioEl.dataset.streamType = 'icecast';
-            audioEl.src = newIcecastUrl;
-            audioEl.dataset.suppressPauseMessage = '1';
-            audioEl.load();
-            
-            if (wasPlaying) {
-                audioEl.play().catch(err => {
-                    // Could not resume playback after switch to Icecast
-                });
-            }
-        } else if (!preferIcecast && currentStreamType === 'icecast') {
-            // Switching to proxy stream
-            switchToProxyStream(audioEl, source.name, {
-                autoplay: wasPlaying,
-                reason: 'Icecast stream no longer available',
-                notify: true
-            });
-        }
-    }
+    // Audio player remains on Flask MP3 stream - no dynamic switching
 }
 
 function updateMetricsOnly() {
@@ -600,9 +560,7 @@ function renderAudioSources(fullRender = true) {
                                 id="audio-${source.name}"
                                 preload="none"
                                 data-source-name="${escapeHtml(source.name)}"
-                                data-icecast-url="${source.icecast_url ? escapeHtml(source.icecast_url) : ''}"
-                                data-proxy-url="/api/audio/stream/${encodeURIComponent(source.name)}"
-                                data-initial-stream-type="${source.icecast_url ? 'icecast' : 'flask-proxy'}">
+                                src="/api/audio/stream/${encodeURIComponent(source.name)}">
                                 Your browser does not support the audio element.
                             </audio>
                             <div class="audio-player-status small mt-2 text-muted" id="player-status-${source.name}"></div>
@@ -1008,9 +966,6 @@ function initializeAudioPlayers(playingStates = {}, currentTimes = {}) {
         const isNewPlayer = audioEl.dataset.handlersBound !== '1';
 
         audioEl.dataset.sourceName = source.name;
-        if (!audioEl.dataset.proxyUrl) {
-            audioEl.dataset.proxyUrl = `/api/audio/stream/${encodeURIComponent(source.name)}`;
-        }
 
         bindAudioPlayerEvents(audioEl);
 
@@ -1021,44 +976,29 @@ function initializeAudioPlayers(playingStates = {}, currentTimes = {}) {
         }
 
         const wasPlaying = Boolean(playingStates[source.name]);
-        const preferIcecast = shouldUseIcecastStream(audioEl);
 
-        if (preferIcecast) {
-            const icecastUrl = audioEl.dataset.icecastUrl;
-            audioEl.dataset.streamType = 'icecast';
-
-            if (icecastUrl && audioEl.src !== icecastUrl) {
-                audioEl.src = icecastUrl;
-                audioEl.dataset.suppressPauseMessage = '1';
-                audioEl.load();
-            }
-
-            setPlayerStatus(source.name, 'Ready. Press play to listen.', 'muted');
-
-            if (wasPlaying) {
-                const resumeTime = currentTimes[source.name] || 0;
-                if (resumeTime > 0 && !Number.isNaN(resumeTime)) {
-                    try {
-                        audioEl.currentTime = resumeTime;
-                    } catch (err) {
-                        // Unable to restore playback position
-                    }
-                }
-
-                audioEl.play().catch(err => {
-                    // Could not auto-resume playback
-                });
-            }
-
-            return;
+        // Simple: Always use Flask MP3 stream
+        if (!audioEl.src || audioEl.src === '') {
+            audioEl.src = `/api/audio/stream/${encodeURIComponent(source.name)}`;
+            audioEl.load();
         }
 
-        // Always use secure HTTPS proxy for web playback
-        switchToProxyStream(audioEl, source.name, {
-            autoplay: wasPlaying,
-            reason: '',
-            notify: !wasPlaying
-        });
+        setPlayerStatus(source.name, 'Ready. Press play to listen.', 'muted');
+
+        if (wasPlaying) {
+            const resumeTime = currentTimes[source.name] || 0;
+            if (resumeTime > 0 && !Number.isNaN(resumeTime)) {
+                try {
+                    audioEl.currentTime = resumeTime;
+                } catch (err) {
+                    // Unable to restore playback position
+                }
+            }
+
+            audioEl.play().catch(err => {
+                // Could not auto-resume playback
+            });
+        }
     });
 }
 
@@ -1077,7 +1017,7 @@ function bindAudioPlayerEvents(audioEl) {
     audioEl.addEventListener('playing', () => {
         audioEl.dataset.fallbackRetries = '0';
         clearStreamRecoveryTimer(audioEl);
-        setPlayerStatus(sourceName, `${labelForStreamType(audioEl.dataset.streamType)} playing.`, 'success');
+        setPlayerStatus(sourceName, 'Audio playing.', 'success');
     });
 
     audioEl.addEventListener('waiting', () => {
@@ -1109,47 +1049,6 @@ function bindAudioPlayerEvents(audioEl) {
     audioEl.dataset.handlersBound = '1';
 }
 
-function shouldUseIcecastStream(audioEl) {
-    // Use Flask MP3 proxy for web playback (Icecast has mounting issues)
-    // Flask proxy now streams MP3 at 128 kbps instead of WAV
-    return false;
-}
-
-function switchToProxyStream(audioEl, sourceName, options = {}) {
-    const { autoplay = false, reason = '', notify = true } = options;
-    const proxyUrl = audioEl.dataset.proxyUrl || `/api/audio/stream/${encodeURIComponent(sourceName)}`;
-
-    audioEl.dataset.streamType = 'https-stream';
-
-    const finalUrl = appendCacheBuster(proxyUrl);
-    if (audioEl.src !== finalUrl) {
-        audioEl.src = finalUrl;
-    }
-    audioEl.dataset.suppressPauseMessage = '1';
-    audioEl.load();
-
-    if (notify) {
-        setPlayerStatus(sourceName, 'Ready. Press play to listen.', 'muted');
-    }
-
-    if (autoplay) {
-        const playPromise = audioEl.play();
-        if (playPromise && typeof playPromise.then === 'function') {
-            playPromise.then(() => {
-                setPlayerStatus(sourceName, 'Streaming.', 'success');
-            }).catch(err => {
-                // Autoplay blocked - user interaction required
-                setPlayerStatus(sourceName, 'Ready. Press play to listen.', 'muted');
-            });
-        }
-    }
-}
-
-function appendCacheBuster(url) {
-    const separator = url.includes('?') ? '&' : '?';
-    return `${url}${separator}ts=${Date.now()}`;
-}
-
 function clearStreamRecoveryTimer(audioEl) {
     const timerId = audioEl.dataset.stallTimerId ? parseInt(audioEl.dataset.stallTimerId, 10) : null;
     if (timerId) {
@@ -1163,15 +1062,20 @@ function scheduleStreamRecovery(audioEl, sourceName) {
 
     const wasPlaying = !audioEl.paused;
     // Use 12 second timeout to allow network/server time to recover naturally
-    // This prevents aggressive reconnection loops that worsen the problem
     const timeoutMs = 12000;
 
     const timerId = window.setTimeout(() => {
         audioEl.dataset.stallTimerId = '';
 
-        // Reconnect to HTTPS stream
+        // Reconnect stream with cache buster
         setPlayerStatus(sourceName, 'Reconnecting to stream…', 'warning');
-        switchToProxyStream(audioEl, sourceName, { autoplay: wasPlaying, notify: false });
+        const cacheBuster = `?ts=${Date.now()}`;
+        audioEl.src = `/api/audio/stream/${encodeURIComponent(sourceName)}${cacheBuster}`;
+        audioEl.load();
+        
+        if (wasPlaying) {
+            audioEl.play().catch(() => {});
+        }
     }, timeoutMs);
 
     audioEl.dataset.stallTimerId = String(timerId);
@@ -1198,55 +1102,39 @@ function setPlayerStatus(sourceName, message, level = 'muted') {
     statusEl.textContent = message || '';
 }
 
-function labelForStreamType(streamType) {
-    // Web audio always uses HTTPS streaming
-    return 'Audio';
-}
-
 function onAudioPlaybackError(event) {
     const audioEl = event.currentTarget;
     const sourceName = audioEl.dataset.sourceName || 'unknown';
-    const streamType = audioEl.dataset.streamType || audioEl.dataset.initialStreamType || 'unknown';
     const error = audioEl.error;
 
-    console.warn(`Audio playback error for ${sourceName} (${streamType})`, error);
+    console.warn(`Audio playback error for ${sourceName}`, error);
 
-    // Debounce: Don't retry if we recently had an error (increased to 10 seconds)
-    // This prevents rapid reconnection loops that can overwhelm the server
+    // Debounce: Don't retry if we recently had an error
     const lastErrorTime = parseInt(audioEl.dataset.lastErrorTime || '0', 10);
     const now = Date.now();
     if (now - lastErrorTime < 10000) {
-        // Debouncing error recovery
-        return;
+        return; // Debouncing
     }
     audioEl.dataset.lastErrorTime = String(now);
 
-    if (streamType === 'icecast') {
+    const retries = parseInt(audioEl.dataset.fallbackRetries || '0', 10);
+
+    if (retries < 3) {  // Allow 3 retries with exponential backoff
+        audioEl.dataset.fallbackRetries = String(retries + 1);
         const wasPlaying = !audioEl.paused;
-        setPlayerStatus(sourceName, 'Icecast stream failed. Switching to secure fallback…', 'warning');
-        switchToProxyStream(audioEl, sourceName, {
-            autoplay: wasPlaying,
-            notify: false
-        });
-        return;
-    }
+        setPlayerStatus(sourceName, `Reconnecting (attempt ${retries + 1}/3)…`, 'warning');
 
-    if (streamType === 'flask-proxy') {
-        const retries = parseInt(audioEl.dataset.fallbackRetries || '0', 10);
-
-        if (retries < 3) {  // Allow 3 retries with exponential backoff
-            audioEl.dataset.fallbackRetries = String(retries + 1);
-            const wasPlaying = !audioEl.paused;
-            setPlayerStatus(sourceName, `Reconnecting to secure stream (attempt ${retries + 1}/3)…`, 'warning');
-
-            // Use exponential backoff: 3s, 6s, 12s
-            const backoffMs = 3000 * Math.pow(2, retries);
-            setTimeout(() => {
-                switchToProxyStream(audioEl, sourceName, {
-                    autoplay: wasPlaying,
-                    notify: false
-                });
-            }, backoffMs);
+        // Use exponential backoff: 3s, 6s, 12s
+        const backoffMs = 3000 * Math.pow(2, retries);
+        setTimeout(() => {
+            const cacheBuster = `?ts=${Date.now()}`;
+            audioEl.src = `/api/audio/stream/${encodeURIComponent(sourceName)}${cacheBuster}`;
+            audioEl.load();
+            
+            if (wasPlaying) {
+                audioEl.play().catch(() => {});
+            }
+        }, backoffMs);
 
             return;
         }

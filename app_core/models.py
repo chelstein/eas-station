@@ -1002,8 +1002,9 @@ class EASSettings(db.Model):
     attention_tone_seconds = db.Column(db.Integer, nullable=False, default=8)
     # Duration of the attention tone in seconds (1-25)
 
-    sample_rate = db.Column(db.Integer, nullable=False, default=44100)
-    # Audio sample rate: 8000, 16000, 22050, 44100, 48000
+    sample_rate = db.Column(db.Integer, nullable=False, default=16000)
+    # Audio sample rate for GENERATED EAS alerts: 8000, 16000, 22050, 44100, 48000
+    # NOTE: 16kHz is optimal for EAS - lower CPU overhead, adequate quality for SAME tones/voice
 
     audio_player = db.Column(db.String(255), nullable=False, default='aplay')
     # Command to play audio (aplay, paplay, etc.)

@@ -830,11 +830,14 @@
                                     <label for="easSampleRate" class="form-label fw-bold">Audio Sample Rate</label>
                                     <select class="form-select" id="easSampleRate" name="sample_rate">
                                         <option value="8000">8000 Hz</option>
-                                        <option value="16000">16000 Hz</option>
+                                        <option value="16000" selected>16000 Hz (Recommended - Low CPU)</option>
                                         <option value="22050">22050 Hz</option>
-                                        <option value="44100" selected>44100 Hz (Recommended)</option>
-                                        <option value="48000">48000 Hz</option>
+                                        <option value="44100">44100 Hz (High CPU)</option>
+                                        <option value="48000">48000 Hz (High CPU)</option>
                                     </select>
+                                    <small class="form-text text-muted">
+                                        For generated EAS alerts. Lower rates save CPU. 16kHz is optimal for SAME tones and voice narration.
+                                    </small>
                                 </div>
 
                                 <!-- Audio Settings -->
@@ -2064,7 +2067,7 @@
             originator: {{ eas_originator|tojson }},
             stationId: {{ eas_station_id|tojson }},
             attentionSeconds: {{ eas_attention_seconds|default(8)|tojson }},
-            sampleRate: {{ eas_sample_rate|default(44100)|tojson }},
+            sampleRate: {{ eas_sample_rate|default(16000)|tojson }},
             ttsProvider: {{ eas_tts_provider|tojson }},
             defaultSameCodes: {{ eas_default_same_codes|tojson }},
         };
