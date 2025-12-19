@@ -49,6 +49,7 @@ from app_core.location import (
 )
 from app_core.models import (
     CAPAlert,
+    EASSettings,
     Intersection,
     LEDMessage,
     SystemLog,
@@ -1346,6 +1347,119 @@ def mark_expired():
         db.session.rollback()
         current_app.logger.error("Error marking expired alerts: %s", exc)
         return jsonify({"error": str(exc)}), 500
+
+
+# ============================================================================
+# EAS Settings Routes
+# ============================================================================
+
+def _ensure_eas_settings_record() -> EASSettings:
+    """Ensure there is a single EASSettings row (id=1)."""
+    settings = EASSettings.query.get(1)
+    if not settings:
+        settings = EASSettings(id=1)
+        db.session.add(settings)
+        db.session.commit()
+    return settings
+
+
+@maintenance_bp.route("/admin/eas_settings", methods=["GET", "PUT"])
+def admin_eas_settings():
+    """Get or update EAS broadcast settings."""
+    try:
+        if request.method == "GET":
+            settings = _ensure_eas_settings_record()
+            return jsonify({"settings": settings.to_dict()})
+
+        # PUT - Update settings
+        payload = request.get_json(silent=True) or {}
+
+        settings = _ensure_eas_settings_record()
+
+        # Update broadcast enabled
+        if "broadcast_enabled" in payload:
+            settings.broadcast_enabled = bool(payload["broadcast_enabled"])
+
+        # Update originator
+        if "originator" in payload:
+            originator = str(payload["originator"]).strip().upper()[:8]
+            if originator in ("WXR", "EAS", "PEP", "CIV"):
+                settings.originator = originator
+
+        # Update station ID
+        if "station_id" in payload:
+            station_id = str(payload["station_id"]).strip().upper()[:8]
+            if station_id:
+                settings.station_id = station_id
+
+        # Update output directory
+        if "output_dir" in payload:
+            output_dir = str(payload["output_dir"]).strip()
+            if output_dir:
+                settings.output_dir = output_dir
+
+        # Update attention tone seconds
+        if "attention_tone_seconds" in payload:
+            try:
+                tone_sec = int(payload["attention_tone_seconds"])
+                if 1 <= tone_sec <= 25:
+                    settings.attention_tone_seconds = tone_sec
+            except (TypeError, ValueError):
+                pass
+
+        # Update sample rate
+        if "sample_rate" in payload:
+            try:
+                sample_rate = int(payload["sample_rate"])
+                if sample_rate in (8000, 16000, 22050, 44100, 48000):
+                    settings.sample_rate = sample_rate
+            except (TypeError, ValueError):
+                pass
+
+        # Update audio player
+        if "audio_player" in payload:
+            audio_player = str(payload["audio_player"]).strip()
+            if audio_player:
+                settings.audio_player = audio_player
+
+        # Update authorized FIPS codes
+        if "authorized_fips_codes" in payload:
+            fips = payload["authorized_fips_codes"]
+            if isinstance(fips, list):
+                settings.authorized_fips_codes = [
+                    str(code).strip() for code in fips if str(code).strip()
+                ]
+            elif isinstance(fips, str):
+                settings.authorized_fips_codes = [
+                    code.strip() for code in fips.split(",") if code.strip()
+                ]
+
+        # Update authorized event codes
+        if "authorized_event_codes" in payload:
+            events = payload["authorized_event_codes"]
+            if isinstance(events, list):
+                settings.authorized_event_codes = [
+                    str(code).strip().upper() for code in events if str(code).strip()
+                ]
+            elif isinstance(events, str):
+                settings.authorized_event_codes = [
+                    code.strip().upper() for code in events.split(",") if code.strip()
+                ]
+
+        db.session.commit()
+
+        current_app.logger.info("EAS settings updated")
+
+        return jsonify({
+            "success": True,
+            "message": "EAS settings updated",
+            "settings": settings.to_dict()
+        })
+
+    except Exception as exc:
+        db.session.rollback()
+        current_app.logger.error("Error processing EAS settings: %s", exc)
+        return jsonify({"error": f"Failed to process EAS settings: {exc}"}), 500
 
 
 __all__ = [

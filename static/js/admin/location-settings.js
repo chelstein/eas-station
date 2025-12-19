@@ -871,6 +871,197 @@ function updateZoneCounts() {
 
 // ==================== End Zone Search Functionality ====================
 
+// ==================== EAS Settings Functionality ====================
+
+let easSettingsCache = null;
+
+/**
+ * Initialize EAS settings form handlers
+ */
+function initEasSettings() {
+    const form = document.getElementById('easSettingsForm');
+    if (!form) {
+        return;
+    }
+
+    // Load initial EAS settings
+    loadEasSettings();
+
+    // Form submission handler
+    form.addEventListener('submit', handleEasSettingsSubmit);
+
+    // Reset button handler
+    const resetBtn = document.getElementById('resetEasSettings');
+    if (resetBtn) {
+        resetBtn.addEventListener('click', function() {
+            if (easSettingsCache) {
+                populateEasForm(easSettingsCache);
+                if (typeof showToast === 'function') {
+                    showToast('Form reset to saved values', 'info');
+                }
+            }
+        });
+    }
+}
+
+/**
+ * Load EAS settings from API
+ */
+async function loadEasSettings() {
+    try {
+        const response = await fetch('/admin/eas_settings', {
+            headers: {
+                'X-CSRF-Token': window.CSRF_TOKEN || ''
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+
+        const data = await response.json();
+        if (data.settings) {
+            easSettingsCache = data.settings;
+            populateEasForm(data.settings);
+        }
+    } catch (error) {
+        console.error('Error loading EAS settings:', error);
+    }
+}
+
+/**
+ * Populate the EAS settings form with data
+ * @param {Object} settings - EAS settings object
+ */
+function populateEasForm(settings) {
+    const enabledCheckbox = document.getElementById('easBroadcastEnabled');
+    const originatorSelect = document.getElementById('easOriginator');
+    const stationIdInput = document.getElementById('easStationId');
+    const sampleRateSelect = document.getElementById('easSampleRate');
+    const attentionToneInput = document.getElementById('easAttentionTone');
+    const audioPlayerInput = document.getElementById('easAudioPlayer');
+    const outputDirInput = document.getElementById('easOutputDir');
+    const authorizedFipsTextarea = document.getElementById('easAuthorizedFips');
+    const authorizedEventsTextarea = document.getElementById('easAuthorizedEvents');
+
+    if (enabledCheckbox) {
+        enabledCheckbox.checked = settings.broadcast_enabled || false;
+    }
+    if (originatorSelect) {
+        originatorSelect.value = settings.originator || 'WXR';
+    }
+    if (stationIdInput) {
+        stationIdInput.value = settings.station_id || 'EASNODES';
+    }
+    if (sampleRateSelect) {
+        sampleRateSelect.value = String(settings.sample_rate || 22050);
+    }
+    if (attentionToneInput) {
+        attentionToneInput.value = settings.attention_tone_seconds || 8;
+    }
+    if (audioPlayerInput) {
+        audioPlayerInput.value = settings.audio_player || 'aplay';
+    }
+    if (outputDirInput) {
+        outputDirInput.value = settings.output_dir || 'static/eas_messages';
+    }
+    if (authorizedFipsTextarea) {
+        authorizedFipsTextarea.value = (settings.authorized_fips_codes || []).join('\n');
+    }
+    if (authorizedEventsTextarea) {
+        authorizedEventsTextarea.value = (settings.authorized_event_codes || []).join('\n');
+    }
+}
+
+/**
+ * Handle EAS settings form submission
+ * @param {Event} e - Submit event
+ */
+async function handleEasSettingsSubmit(e) {
+    e.preventDefault();
+
+    const form = e.target;
+    const statusEl = document.getElementById('easSettingsStatus');
+    const submitBtn = form.querySelector('button[type="submit"]');
+
+    // Disable submit button during request
+    if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+    }
+
+    if (statusEl) {
+        statusEl.textContent = 'Saving...';
+        statusEl.className = 'text-muted small ms-3';
+    }
+
+    // Collect form data
+    const payload = {
+        broadcast_enabled: document.getElementById('easBroadcastEnabled')?.checked || false,
+        originator: document.getElementById('easOriginator')?.value || 'WXR',
+        station_id: document.getElementById('easStationId')?.value?.trim().toUpperCase() || 'EASNODES',
+        sample_rate: parseInt(document.getElementById('easSampleRate')?.value, 10) || 22050,
+        attention_tone_seconds: parseInt(document.getElementById('easAttentionTone')?.value, 10) || 8,
+        audio_player: document.getElementById('easAudioPlayer')?.value?.trim() || 'aplay',
+        output_dir: document.getElementById('easOutputDir')?.value?.trim() || 'static/eas_messages',
+        authorized_fips_codes: parseNewlineValues(document.getElementById('easAuthorizedFips')?.value || ''),
+        authorized_event_codes: parseNewlineValues(document.getElementById('easAuthorizedEvents')?.value || '')
+    };
+
+    try {
+        const response = await fetch('/admin/eas_settings', {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': window.CSRF_TOKEN || ''
+            },
+            body: JSON.stringify(payload)
+        });
+
+        const result = await response.json();
+
+        if (response.ok && result.success) {
+            if (statusEl) {
+                statusEl.textContent = '✓ EAS settings saved successfully';
+                statusEl.className = 'text-success small ms-3';
+            }
+            if (typeof showToast === 'function') {
+                showToast('EAS settings saved successfully', 'success');
+            }
+            // Update cache
+            if (result.settings) {
+                easSettingsCache = result.settings;
+            }
+        } else {
+            const errorMsg = result.error || 'Failed to save EAS settings';
+            if (statusEl) {
+                statusEl.textContent = '✗ ' + errorMsg;
+                statusEl.className = 'text-danger small ms-3';
+            }
+            if (typeof showToast === 'function') {
+                showToast(errorMsg, 'danger');
+            }
+        }
+    } catch (error) {
+        console.error('Error saving EAS settings:', error);
+        if (statusEl) {
+            statusEl.textContent = '✗ Network error: ' + error.message;
+            statusEl.className = 'text-danger small ms-3';
+        }
+        if (typeof showToast === 'function') {
+            showToast('Network error: ' + error.message, 'danger');
+        }
+    } finally {
+        // Re-enable submit button
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<i class="fas fa-save"></i> Save EAS Settings';
+        }
+    }
+}
+
+// ==================== End EAS Settings Functionality ====================
+
 // Export functions to window for global access
 window.handleLocationSettingsSubmit = handleLocationSettingsSubmit;
 window.addFipsCode = addFipsCode;
@@ -879,6 +1070,8 @@ window.loadLocationReference = loadLocationReference;
 window.initLocationSettings = initLocationSettings;
 window.selectZoneResult = selectZoneResult;
 window.updateZoneCounts = updateZoneCounts;
+window.initEasSettings = initEasSettings;
+window.loadEasSettings = loadEasSettings;
 
 // Initialize on DOMContentLoaded
 document.addEventListener('DOMContentLoaded', function() {
@@ -888,4 +1081,5 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     initLocationSettings();
     initZoneSearch();
+    initEasSettings();
 });

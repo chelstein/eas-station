@@ -857,6 +857,107 @@
                             </div>
                         </div>
                     </form>
+
+                    <!-- EAS Broadcast Settings Section -->
+                    <div class="mt-5 pt-4 border-top">
+                        <h4 class="mb-3"><i class="fas fa-broadcast-tower text-warning"></i> EAS Broadcast Settings</h4>
+                        <p class="text-muted mb-4">Configure the Emergency Alert System encoder settings for SAME/EAS audio generation.</p>
+
+                        <form id="easSettingsForm">
+                            <div class="row g-3">
+                                <!-- Master Enable -->
+                                <div class="col-12">
+                                    <div class="card border-warning">
+                                        <div class="card-body">
+                                            <div class="form-check form-switch">
+                                                <input class="form-check-input" type="checkbox" id="easBroadcastEnabled" name="broadcast_enabled">
+                                                <label class="form-check-label fw-bold" for="easBroadcastEnabled">
+                                                    <i class="fas fa-power-off me-2"></i> Enable EAS Broadcasting
+                                                </label>
+                                            </div>
+                                            <small class="text-muted">When enabled, the system can generate SAME/EAS audio for alerts.</small>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Station Identity -->
+                                <div class="col-md-4">
+                                    <label for="easOriginator" class="form-label fw-bold">Originator Code</label>
+                                    <select class="form-select" id="easOriginator" name="originator">
+                                        <option value="WXR">WXR - Weather Radio</option>
+                                        <option value="EAS">EAS - Emergency Alert System</option>
+                                        <option value="PEP">PEP - Primary Entry Point</option>
+                                        <option value="CIV">CIV - Civil Authority</option>
+                                    </select>
+                                    <small class="text-muted">Identifies who is originating the alert</small>
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="easStationId" class="form-label fw-bold">Station ID (Callsign)</label>
+                                    <input type="text" class="form-control" id="easStationId" name="station_id" maxlength="8" placeholder="EASNODES" style="text-transform: uppercase;">
+                                    <small class="text-muted">8-character SAME callsign identifier</small>
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="easSampleRate" class="form-label fw-bold">Audio Sample Rate</label>
+                                    <select class="form-select" id="easSampleRate" name="sample_rate">
+                                        <option value="8000">8000 Hz</option>
+                                        <option value="16000">16000 Hz</option>
+                                        <option value="22050">22050 Hz (Recommended)</option>
+                                        <option value="44100">44100 Hz</option>
+                                        <option value="48000">48000 Hz</option>
+                                    </select>
+                                </div>
+
+                                <!-- Audio Settings -->
+                                <div class="col-md-4">
+                                    <label for="easAttentionTone" class="form-label fw-bold">Attention Tone Duration</label>
+                                    <div class="input-group">
+                                        <input type="number" class="form-control" id="easAttentionTone" name="attention_tone_seconds" min="1" max="25" value="8">
+                                        <span class="input-group-text">seconds</span>
+                                    </div>
+                                    <small class="text-muted">Duration of the attention tone (1-25 seconds)</small>
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="easAudioPlayer" class="form-label fw-bold">Audio Player Command</label>
+                                    <input type="text" class="form-control" id="easAudioPlayer" name="audio_player" placeholder="aplay">
+                                    <small class="text-muted">Command to play audio (aplay, paplay, etc.)</small>
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="easOutputDir" class="form-label fw-bold">Output Directory</label>
+                                    <input type="text" class="form-control" id="easOutputDir" name="output_dir" placeholder="static/eas_messages">
+                                    <small class="text-muted">Directory for generated EAS audio files</small>
+                                </div>
+
+                                <!-- Authorized Areas -->
+                                <div class="col-md-6">
+                                    <label for="easAuthorizedFips" class="form-label fw-bold">
+                                        Authorized FIPS Codes
+                                        <i class="fas fa-info-circle text-primary ms-1" data-bs-toggle="tooltip" title="FIPS codes authorized for manual EAS broadcasts"></i>
+                                    </label>
+                                    <textarea class="form-control" id="easAuthorizedFips" name="authorized_fips_codes" rows="3" placeholder="039137&#10;039003"></textarea>
+                                    <small class="text-muted">One FIPS code per line (PSSCCC format)</small>
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="easAuthorizedEvents" class="form-label fw-bold">
+                                        Authorized Event Codes
+                                        <i class="fas fa-info-circle text-primary ms-1" data-bs-toggle="tooltip" title="Event codes authorized for manual broadcasts"></i>
+                                    </label>
+                                    <textarea class="form-control" id="easAuthorizedEvents" name="authorized_event_codes" rows="3" placeholder="RWT&#10;RMT&#10;DMO"></textarea>
+                                    <small class="text-muted">One event code per line (e.g., RWT, RMT, DMO)</small>
+                                </div>
+
+                                <!-- Save Button -->
+                                <div class="col-12 d-flex align-items-center">
+                                    <button type="submit" class="btn btn-warning">
+                                        <i class="fas fa-save"></i> Save EAS Settings
+                                    </button>
+                                    <button type="button" class="btn btn-outline-secondary ms-2" id="resetEasSettings">
+                                        <i class="fas fa-undo"></i> Reset Changes
+                                    </button>
+                                    <span class="text-muted small ms-3" id="easSettingsStatus"></span>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
                 </div>
 
                 <!-- Alert Management Tab -->
