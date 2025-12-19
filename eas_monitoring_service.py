@@ -474,6 +474,7 @@ def initialize_auto_streaming(app, audio_controller):
         with app.app_context():
             from app_core.audio.icecast_auto_config import get_icecast_auto_config
             from app_core.audio.auto_streaming import AutoStreamingService
+            from app_core.audio.stream_profiles import StreamFormat
 
             auto_config = get_icecast_auto_config()
 
@@ -483,13 +484,17 @@ def initialize_auto_streaming(app, audio_controller):
 
             logger.info(f"Initializing Icecast auto-streaming: {auto_config.server}:{auto_config.port}")
 
+            # Map format string to enum
+            stream_format = StreamFormat.MP3 if auto_config.stream_format.lower() == 'mp3' else StreamFormat.OGG
+
             _auto_streaming_service = AutoStreamingService(
                 icecast_server=auto_config.server,
                 icecast_port=auto_config.port,
                 icecast_password=auto_config.source_password,
                 icecast_admin_user=auto_config.admin_user,
                 icecast_admin_password=auto_config.admin_password,
-                default_bitrate=128,
+                default_bitrate=auto_config.stream_bitrate,  # Use configured bitrate from database/env
+                default_format=stream_format,  # Use configured format from database/env
                 enabled=True,
                 audio_controller=audio_controller
             )

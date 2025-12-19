@@ -7,6 +7,13 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **CRITICAL: Icecast Bitrate Configuration** - Fixed auto-discovered streams using wrong bitrate
+  - Auto-streaming service was hardcoded to 128kbps instead of using configured bitrate
+  - Added `stream_bitrate` and `stream_format` fields to `IcecastAutoConfig`
+  - Now reads bitrate and format from database IcecastSettings or environment variables
+  - Auto-discovered SDR streams now use the same bitrate as manually configured streams
+  - Ensures consistent stream quality across all sources
+
 - **CRITICAL: SDR Not Mounting on Icecast** - Fixed race condition preventing SDR audio streams from mounting
   - Auto-streaming service was only checking for RUNNING sources at startup
   - SDR sources may still be STARTING (async initialization), causing them to be skipped
