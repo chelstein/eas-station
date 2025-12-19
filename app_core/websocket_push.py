@@ -125,7 +125,7 @@ def _safe_emit(socketio, event_name, data):
     This ensures no inf, nan, or other invalid JSON values are sent to clients.
     """
     sanitized_data = _sanitize_for_json(data)
-    _safe_emit(socketio, event_name, sanitized_data)
+    socketio.emit(event_name, sanitized_data)
 
 _push_thread = None
 _stop_event = threading.Event()

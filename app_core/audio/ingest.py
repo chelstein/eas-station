@@ -117,9 +117,10 @@ class AudioSourceAdapter(ABC):
         # Per-source BroadcastQueue for non-destructive audio distribution
         # This allows multiple consumers (Icecast, web streaming, monitoring) to
         # receive audio from this source independently without competing for chunks.
+        # CRITICAL: EAS monitor CANNOT drop packets - larger queue prevents drops during processing spikes
         self._source_broadcast = BroadcastQueue(
             name=f"source-{config.name}",
-            max_queue_size=2000  # ~180s buffer at 44100Hz with 4096 samples/chunk
+            max_queue_size=5000  # ~425s buffer at 48kHz with 4096 samples/chunk (~7 minutes)
         )
         
         self._last_metrics_update = 0.0

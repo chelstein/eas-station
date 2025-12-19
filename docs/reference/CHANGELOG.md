@@ -7,6 +7,19 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **WebSocket Infinite Recursion** - Fixed "maximum recursion depth exceeded" errors in websocket updates
+  - `_safe_emit()` was calling itself recursively instead of calling `socketio.emit()`
+  - Fixes crashes in audio_monitoring_update and system_health_update
+  - WebSocket events now emit properly without stack overflow
+
+- **EAS Monitor Packet Drops** - Fixed critical issue where EAS monitor drops audio chunks
+  - Reduced sleep from 10ms to 1ms when audio flowing to prevent queue buildup
+  - EAS monitor now reads ~1000x/second, far exceeding audio production rate (~12 chunks/sec at 48kHz)
+  - Increased broadcast queue size from 2000 to 5000 chunks (~7 minutes buffer at 48kHz)
+  - Prevents missing emergency alerts due to dropped audio packets
+  - Fixes "Subscriber 'eas-unified-WNCI' queue full" errors with thousands of drops
+  - Note: Audio is correctly downsampled from source rate (48kHz) to decoder rate (16kHz)
+
 - **Stream Sample Rate Detection** - Fixed FFmpeg not detecting actual stream sample rate
   - Changed FFmpeg log level from 'error' to 'info' to capture stream metadata
   - Stream sample rate (e.g., 48kHz) is now properly detected from FFmpeg output instead of defaulting to 44.1kHz

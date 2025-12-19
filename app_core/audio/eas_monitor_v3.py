@@ -569,13 +569,15 @@ class UnifiedEASMonitorService:
                 # Clear source context
                 self._current_source_context = None
                 
-                # Sleep briefly to prevent CPU spinning
-                # Reduced both sleep times to prevent queue buildup (was 10ms/50ms)
-                # Small difference maintained for slight CPU savings when no audio
+                # Sleep briefly to prevent CPU spinning, but minimize delay when audio flows
+                # CRITICAL: EAS monitor cannot drop packets - keep sleep minimal
                 if any_audio_processed:
-                    time.sleep(0.01)  # 10ms when audio flowing
+                    # Audio flowing: minimal sleep to prevent CPU spin but stay responsive
+                    # At 48kHz with 4096 sample chunks = 85ms/chunk, we need to read faster than this
+                    time.sleep(0.001)  # 1ms - allows ~1000 reads/sec, far exceeding audio rate
                 else:
-                    time.sleep(0.02)  # 20ms when no audio (reduced from 50ms)
+                    # No audio: longer sleep to save CPU when idle
+                    time.sleep(0.01)  # 10ms when no audio available
             
             except Exception as e:
                 logger.error(f"Error in unified monitor loop: {e}", exc_info=True)
