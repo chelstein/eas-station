@@ -31,6 +31,7 @@ This service pushes multiple event types at different intervals:
 
 import json
 import logging
+import math
 import threading
 import time
 from typing import TYPE_CHECKING, Any, Dict, Optional
@@ -40,6 +41,91 @@ if TYPE_CHECKING:
     from flask_socketio import SocketIO
 
 logger = logging.getLogger(__name__)
+
+
+def _sanitize_float(value: float) -> float:
+    """Sanitize float values to be JSON-safe (no inf/nan, convert numpy types)."""
+    import numpy as np
+    
+    # Handle None values
+    if value is None:
+        return -120.0
+    
+    # Convert numpy types to regular Python float first
+    if isinstance(value, (np.floating, np.integer)):
+        value = float(value)
+    
+    # Handle non-numeric types
+    try:
+        value = float(value)
+    except (TypeError, ValueError):
+        return -120.0
+    
+    if math.isinf(value):
+        return -120.0 if value < 0 else 120.0
+    if math.isnan(value):
+        return -120.0
+    return value
+
+
+def _sanitize_for_json(obj):
+    """
+    Recursively sanitize objects to be JSON-safe.
+    
+    Converts inf, -inf, nan to valid numbers.
+    Handles nested dicts, lists, and numpy types.
+    """
+    if obj is None:
+        return None
+    
+    if isinstance(obj, bool):
+        return obj
+    
+    if isinstance(obj, (int, str)):
+        return obj
+    
+    if isinstance(obj, float):
+        if math.isinf(obj):
+            return -120.0 if obj < 0 else 120.0
+        if math.isnan(obj):
+            return -120.0
+        return obj
+    
+    # Handle numpy types
+    try:
+        import numpy as np
+        if isinstance(obj, np.floating):
+            value = float(obj)
+            if math.isinf(value):
+                return -120.0 if value < 0 else 120.0
+            if math.isnan(value):
+                return -120.0
+            return value
+        if isinstance(obj, np.integer):
+            return int(obj)
+        if isinstance(obj, np.bool_):
+            return bool(obj)
+    except ImportError:
+        pass
+    
+    if isinstance(obj, dict):
+        return {key: _sanitize_for_json(value) for key, value in obj.items()}
+    
+    if isinstance(obj, (list, tuple)):
+        return [_sanitize_for_json(item) for item in obj]
+    
+    # Fallback: convert to string
+    return str(obj)
+
+
+def _safe_emit(socketio, event_name, data):
+    """
+    Safely emit WebSocket event with sanitized data.
+    
+    This ensures no inf, nan, or other invalid JSON values are sent to clients.
+    """
+    sanitized_data = _sanitize_for_json(data)
+    _safe_emit(socketio, event_name, sanitized_data)
 
 _push_thread = None
 _stop_event = threading.Event()
@@ -298,7 +384,7 @@ def _emit_audio_monitoring_update(app: 'Flask', socketio: 'SocketIO', config_cac
             for source_name, source_data in redis_sources.items():
                 config_lookup_name = source_name.replace("redis-", "", 1) if source_name.startswith("redis-") else source_name
                 config = config_cache.get(config_lookup_name)
-                # Use 'or' to handle None values from Redis
+                # Use _sanitize_float to handle None, inf, nan values from Redis
                 peak_db = source_data.get('peak_level_db')
                 rms_db = source_data.get('rms_level_db')
                 buffer_util = source_data.get('buffer_utilization')
@@ -311,11 +397,11 @@ def _emit_audio_monitoring_update(app: 'Flask', socketio: 'SocketIO', config_cac
                     'timestamp': source_data.get('timestamp', redis_metrics.get('timestamp', time.time())),
                     'sample_rate': source_data.get('sample_rate'),
                     'channels': source_data.get('channels') or 2,
-                    'peak_level_db': float(peak_db) if peak_db is not None else -120.0,
-                    'rms_level_db': float(rms_db) if rms_db is not None else -120.0,
+                    'peak_level_db': _sanitize_float(peak_db) if peak_db is not None else -120.0,
+                    'rms_level_db': _sanitize_float(rms_db) if rms_db is not None else -120.0,
                     'frames_captured': source_data.get('frames_captured') or 0,
                     'silence_detected': bool(source_data.get('silence_detected', False)),
-                    'buffer_utilization': float(buffer_util) if buffer_util is not None else 0.0,
+                    'buffer_utilization': _sanitize_float(buffer_util) if buffer_util is not None else 0.0,
                 })
 
             for name, data in redis_sources.items():
@@ -343,7 +429,7 @@ def _emit_audio_monitoring_update(app: 'Flask', socketio: 'SocketIO', config_cac
 
         eas_monitor_status = redis_metrics.get('eas_monitor')
 
-    socketio.emit('audio_monitoring_update', {
+    _safe_emit(socketio, 'audio_monitoring_update', {
         'audio_metrics': {
             'live_metrics': source_metrics,
             'total_sources': len(source_metrics),
@@ -366,7 +452,7 @@ def _emit_system_health_update(app: 'Flask', socketio: 'SocketIO') -> None:
     status = health_data.get('status', 'unknown')
     status_summary = health_data.get('status_summary', '')
 
-    socketio.emit('system_health_update', {
+    _safe_emit(socketio, 'system_health_update', {
         'status': status,
         'status_summary': status_summary,
         'timestamp': time.time(),
@@ -392,7 +478,7 @@ def _emit_audio_sources_update(app: 'Flask', socketio: 'SocketIO') -> None:
                 'auto_start': source.auto_start,
             })
 
-        socketio.emit('audio_sources_update', {
+        _safe_emit(socketio, 'audio_sources_update', {
             'sources': source_list,
             'total': len(source_list),
             'active_count': sum(1 for s in source_list if s.get('enabled')),
@@ -439,7 +525,7 @@ def _emit_audio_health_update(app: 'Flask', socketio: 'SocketIO') -> None:
                 'eas_monitor_running': eas_monitor.get('running', False),
             }
 
-        socketio.emit('audio_health_update', {
+        _safe_emit(socketio, 'audio_health_update', {
             **health_data,
             'timestamp': time.time(),
         })
@@ -453,7 +539,7 @@ def _emit_operation_status_update(app: 'Flask', socketio: 'SocketIO') -> None:
 
     try:
         status = get_operation_status()
-        socketio.emit('operation_status_update', {
+        _safe_emit(socketio, 'operation_status_update', {
             **status,
             'timestamp': time.time(),
         })
@@ -487,7 +573,7 @@ def _emit_ipaws_status_update(app: 'Flask', socketio: 'SocketIO') -> None:
             except Exception:
                 pass
 
-        socketio.emit('ipaws_status_update', {
+        _safe_emit(socketio, 'ipaws_status_update', {
             **status_data,
             'timestamp': time.time(),
         })
@@ -515,7 +601,7 @@ def _emit_gpio_status_update(app: 'Flask', socketio: 'SocketIO') -> None:
                 'enabled': pin.enabled,
             })
 
-        socketio.emit('gpio_status_update', {
+        _safe_emit(socketio, 'gpio_status_update', {
             'pins': pin_states,
             'total': len(pin_states),
             'timestamp': time.time(),
@@ -543,7 +629,7 @@ def _emit_led_status_update(app: 'Flask', socketio: 'SocketIO') -> None:
                 'brightness': getattr(config, 'brightness', 100),
             })
 
-        socketio.emit('led_status_update', {
+        _safe_emit(socketio, 'led_status_update', {
             'leds': led_status,
             'total': len(led_status),
             'timestamp': time.time(),
@@ -571,7 +657,7 @@ def _emit_analytics_update(app: 'Flask', socketio: 'SocketIO') -> None:
             CAPAlert.received_at >= yesterday
         ).scalar() or 0
 
-        socketio.emit('analytics_update', {
+        _safe_emit(socketio, 'analytics_update', {
             'total_alerts': total_alerts,
             'total_messages': total_messages,
             'recent_alerts_24h': recent_alerts,
@@ -603,7 +689,7 @@ def _emit_snow_emergency_update(app: 'Flask', socketio: 'SocketIO') -> None:
                 'end_time': emergency.end_time.isoformat() if emergency.end_time else None,
             })
 
-        socketio.emit('snow_emergency_update', {
+        _safe_emit(socketio, 'snow_emergency_update', {
             'emergencies': emergencies,
             'active_count': len(emergencies),
             'timestamp': time.time(),
@@ -628,7 +714,7 @@ def _emit_radio_status_update(app: 'Flask', socketio: 'SocketIO') -> None:
                 'enabled': receiver.enabled,
             })
 
-        socketio.emit('radio_status_update', {
+        _safe_emit(socketio, 'radio_status_update', {
             'receivers': receiver_list,
             'total': len(receiver_list),
             'timestamp': time.time(),
@@ -670,7 +756,7 @@ def _emit_logs_update(app: 'Flask', socketio: 'SocketIO') -> None:
         logs.sort(key=lambda x: x['timestamp'] or '', reverse=True)
         logs = logs[:25]
 
-        socketio.emit('logs_update', {
+        _safe_emit(socketio, 'logs_update', {
             'logs': logs,
             'count': len(logs),
             'timestamp': time.time(),
