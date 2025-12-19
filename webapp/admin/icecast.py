@@ -27,6 +27,7 @@ import re
 import requests
 import secrets
 import subprocess
+import tempfile
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any, Dict
@@ -146,12 +147,31 @@ def _update_icecast_config_file(source_password: str, admin_password: str, admin
             logger.warning(f"No authentication section found in {icecast_config}")
             return False, f"Invalid Icecast config at {icecast_config} - no authentication section found"
         
-        # Write back to file (may require root permissions)
+        # Write back to file (requires root permissions)
         try:
             # Preserve XML formatting
             ET.indent(tree, space='  ')
-            tree.write(icecast_config, encoding='utf-8', xml_declaration=True)
-            
+
+            # Write to a temp file first, then use sudo to copy
+            tmp_path = None
+            try:
+                with tempfile.NamedTemporaryFile(mode='wb', suffix='.xml', delete=False) as tmp:
+                    tree.write(tmp, encoding='utf-8', xml_declaration=True)
+                    tmp_path = tmp.name
+
+                # Use sudo to copy temp file to actual config location
+                subprocess.run(
+                    ['sudo', 'cp', tmp_path, str(icecast_config)],
+                    check=True,
+                    capture_output=True,
+                    timeout=10,
+                    text=True
+                )
+            finally:
+                # Clean up temp file
+                if tmp_path and os.path.exists(tmp_path):
+                    os.unlink(tmp_path)
+
             logger.info(f"Updated Icecast config: {', '.join(updated_fields)}")
             
             # Restart Icecast service
@@ -182,11 +202,15 @@ def _update_icecast_config_file(source_password: str, admin_password: str, admin
                 return True, (f"Icecast configuration updated at {icecast_config} ({', '.join(updated_fields)}), "
                             "but service restart timed out. Please check: sudo systemctl status icecast2")
                 
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Failed to write Icecast config with sudo: {e.stderr}")
+            return False, (f"Failed to update {icecast_config} (sudo required). "
+                          f"Error: {e.stderr or 'Permission denied'}. "
+                          f"Please update manually or check sudoers configuration.")
         except PermissionError:
             logger.error(f"Permission denied writing to {icecast_config}")
             return False, (f"Permission denied writing to {icecast_config}. "
-                          f"Manual update required with sudo: "
-                          f"source-password={source_password}, admin-password={admin_password}")
+                          f"Manual update required with sudo.")
     
     except ET.ParseError as e:
         logger.error(f"Failed to parse Icecast config: {e}")
