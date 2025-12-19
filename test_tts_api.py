@@ -179,7 +179,7 @@ def test_api_call(endpoint, api_key, model, voice, speed):
                 try:
                     error_data = response.json()
                     print(f"   Response: {json.dumps(error_data, indent=2)}")
-                except:
+                except (json.JSONDecodeError, ValueError):
                     print(f"   Response: {response.text[:500]}")
                 return False
             else:
@@ -197,7 +197,7 @@ def test_api_call(endpoint, api_key, model, voice, speed):
             try:
                 error_data = response.json()
                 print(f"   Error details: {json.dumps(error_data, indent=2)}")
-            except:
+            except (json.JSONDecodeError, ValueError):
                 print(f"   Error details: {response.text[:500]}")
 
             # Provide specific guidance based on status code
