@@ -722,6 +722,15 @@ class CAPPoller:
                 self.logger.info(f"📋 Zone codes: {sorted(self.zone_codes)}")
                 self.logger.info(f"🔢 SAME/FIPS codes: {sorted(self.same_codes)}")
                 self.logger.info(f"💾 Storage zone codes: {sorted(self.storage_zone_codes)}")
+
+                # Rebuild NOAA endpoints if zone codes changed
+                if old_zone_codes != new_zone_codes:
+                    new_noaa_endpoints = self._build_batched_noaa_endpoints(list(new_zone_codes))
+                    # Keep IPAWS endpoints, replace NOAA endpoints
+                    ipaws_endpoints = [ep for ep in self.cap_endpoints if 'fema.gov' in ep or 'IPAWS' in ep]
+                    self.cap_endpoints = ipaws_endpoints + new_noaa_endpoints
+                    self.logger.info(f"🌐 Rebuilt NOAA endpoints: {len(new_noaa_endpoints)} endpoint(s) for {len(new_zone_codes)} zone(s)")
+
                 return True
 
             return False
