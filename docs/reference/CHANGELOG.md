@@ -6,6 +6,16 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+### Fixed
+- **IMPROVED: EAS Monitor Logging** - Enhanced diagnostic information in eas-service logs
+  - Added `audio_flowing` status indicator (✅ or ⚠️) for immediate visual feedback
+  - Added `samples_per_second` throughput metric to monitor processing rate
+  - Added `time_since_last_audio` to detect connectivity issues
+  - Added `alerts_detected` count for monitoring alert detection activity
+  - Changed log format from basic "running/samples/health" to comprehensive operational status
+  - Helps operators quickly diagnose issues like audio not flowing vs. processing problems
+  - Example new format: `📊 EAS Monitor Status: ⚠️ audio_flowing=False, samples=0 (0/sec), health=0.0%, time_since_audio=45.2s, alerts=0`
+
 ### Added
 - **24/7/365 Audio Subsystem Reliability** - Major improvements for continuous operation
   - Enhanced FFmpeg reconnection with 30-second timeout and HTTP error retry (4xx, 5xx)
