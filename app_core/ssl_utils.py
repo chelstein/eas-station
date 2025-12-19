@@ -103,9 +103,16 @@ def get_ssl_certificate_info() -> Dict:
             matching_domains = []
             if configured_domain:
                 for d in all_domains:
-                    # Match exact domain or domain-#### pattern
-                    if d == configured_domain or d.startswith(f"{configured_domain}-"):
+                    # Match exact domain or domain-#### pattern (certbot numbered variants)
+                    # Example: example.com or example.com-0001
+                    # Do NOT match: example.com.test or example.com-backup
+                    if d == configured_domain:
                         matching_domains.append(d)
+                    elif d.startswith(f"{configured_domain}-"):
+                        # Verify the suffix is a number (certbot style)
+                        suffix = d[len(configured_domain)+1:]  # Everything after "domain-"
+                        if suffix.isdigit():
+                            matching_domains.append(d)
             
             # If no matches or no configured domain, use all domains
             if not matching_domains:

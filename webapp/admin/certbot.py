@@ -257,9 +257,16 @@ def _install_certificate_internal(domain: str) -> Dict[str, Any]:
         try:
             for entry in live_dir.iterdir():
                 if entry.is_dir() and entry.name != 'README':
-                    # Match exact domain or domain-#### pattern
-                    if entry.name == domain or entry.name.startswith(f"{domain}-"):
+                    # Match exact domain or domain-#### pattern (certbot numbered variants)
+                    # Example: example.com or example.com-0001
+                    # Do NOT match: example.com.test or example.com-backup
+                    if entry.name == domain:
                         matching_dirs.append(entry)
+                    elif entry.name.startswith(f"{domain}-"):
+                        # Verify the suffix is a number (certbot style)
+                        suffix = entry.name[len(domain)+1:]  # Everything after "domain-"
+                        if suffix.isdigit():
+                            matching_dirs.append(entry)
         except Exception as e:
             return {
                 "success": False,
@@ -273,7 +280,9 @@ def _install_certificate_internal(domain: str) -> Dict[str, Any]:
             }
         
         # Use the most recently modified directory (latest certificate)
-        cert_dir = max(matching_dirs, key=lambda p: p.stat().st_mtime)
+        # Cache stat results for performance
+        dirs_with_mtime = [(d, d.stat().st_mtime) for d in matching_dirs]
+        cert_dir = max(dirs_with_mtime, key=lambda x: x[1])[0]
         logger.info(f"Using certificate directory: {cert_dir}")
         
         fullchain_path = cert_dir / 'fullchain.pem'
