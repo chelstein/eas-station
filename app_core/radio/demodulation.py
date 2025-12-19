@@ -293,14 +293,14 @@ class FMDemodulator:
             and self._intermediate_rate >= 76000  # Minimum for 38kHz subcarrier
         )
 
-        # Design audio filters at intermediate rate for better performance
-        # Calculate adaptive tap count based on intermediate rate
-        # Rule of thumb: taps ≈ 4 * sample_rate / transition_bandwidth
-        # For 16 kHz cutoff with 2 kHz transition, at 250 kHz: ~500 taps
-        audio_filter_taps = self._calculate_filter_taps(16000.0, self._intermediate_rate)
-        self._lpr_filter = self._design_fir_lowpass(16000.0, self._intermediate_rate, taps=audio_filter_taps)
-        self._dsb_filter = self._design_fir_lowpass(16000.0, self._intermediate_rate, taps=audio_filter_taps)
-        self._pilot_filter = self._design_fir_bandpass(18500.0, 19500.0, self._intermediate_rate, taps=audio_filter_taps)
+        # Design audio filters for ORIGINAL sample rate since stereo/pilot detection
+        # happens BEFORE decimation on the raw multiplex signal
+        # CRITICAL FIX: Filters must match the sample rate of the signal they're applied to
+        # The multiplex signal is at config.sample_rate, not intermediate_rate
+        audio_filter_taps = self._calculate_filter_taps(16000.0, config.sample_rate)
+        self._lpr_filter = self._design_fir_lowpass(16000.0, config.sample_rate, taps=audio_filter_taps)
+        self._dsb_filter = self._design_fir_lowpass(16000.0, config.sample_rate, taps=audio_filter_taps)
+        self._pilot_filter = self._design_fir_bandpass(18500.0, 19500.0, config.sample_rate, taps=audio_filter_taps)
 
         # Stereo carrier tracking state
         self._pilot_phase = 0.0
@@ -309,10 +309,15 @@ class FMDemodulator:
 
         # RBDS decoder state
         self._rbds_decoder = RBDSDecoder()
-        self._rbds_enabled = config.enable_rbds and self._intermediate_rate >= 50000
-        rbds_filter_taps = self._calculate_filter_taps(3000.0, self._intermediate_rate)
-        self._rbds_bandpass = self._design_fir_bandpass(54000.0, 60000.0, self._intermediate_rate, taps=rbds_filter_taps)
-        self._rbds_lowpass = self._design_fir_lowpass(2400.0, self._intermediate_rate, taps=rbds_filter_taps)
+        # RBDS requires sample rate >= 114 kHz (Nyquist for 57 kHz subcarrier)
+        # Use original sample_rate since RBDS extraction happens BEFORE decimation
+        self._rbds_enabled = config.enable_rbds and config.sample_rate >= 114000
+        # CRITICAL FIX: Design RBDS filters for ORIGINAL sample rate, not intermediate rate
+        # The multiplex signal (where RBDS is extracted from) is at the original SDR sample rate
+        # RBDS subcarrier is at 57 kHz, so bandpass extracts 54-60 kHz region
+        rbds_filter_taps = self._calculate_filter_taps(3000.0, config.sample_rate)
+        self._rbds_bandpass = self._design_fir_bandpass(54000.0, 60000.0, config.sample_rate, taps=rbds_filter_taps)
+        self._rbds_lowpass = self._design_fir_lowpass(2400.0, config.sample_rate, taps=rbds_filter_taps)
         self._rbds_symbol_rate = 1187.5
         self._rbds_target_rate = self._rbds_symbol_rate * 4.0
         self._rbds_symbol_phase = 0.0
@@ -421,8 +426,8 @@ class FMDemodulator:
                 logger.debug(f"Stereo pilot detected: strength={stereo_pilot_strength:.2f}")
 
         # RBDS extraction (if enabled) - RBDS subcarrier at 57 kHz needs sample rate > 114 kHz
-        # NOTE: Check intermediate_rate (not final audio sample_rate) since RBDS is in the FM multiplex
-        if self._rbds_enabled and self._intermediate_rate >= 114000:
+        # NOTE: Check original sample_rate since RBDS extraction happens BEFORE decimation
+        if self._rbds_enabled:
             # Extract RBDS from multiplex signal before decimation destroys the 57kHz subcarrier
             # Create sample indices for RBDS timing recovery
             sample_indices = np.arange(len(multiplex), dtype=np.float64) + self._sample_index
@@ -635,9 +640,10 @@ class FMDemodulator:
         # Extract L+R (mono) using lowpass filter
         lpr = np.convolve(multiplex, self._lpr_filter, mode="same")
 
-        # Generate 38 kHz carrier using time at intermediate rate
+        # Generate 38 kHz carrier using time at ORIGINAL sample rate
+        # CRITICAL FIX: The multiplex signal is at original SDR rate, not intermediate rate
         # The carrier must be coherent with the 19 kHz pilot (doubled)
-        time = sample_indices / float(self._intermediate_rate)
+        time = sample_indices / float(self.config.sample_rate)
 
         # Try to extract pilot tone and lock to it for better carrier coherence
         # For now, use a synthetic carrier (can be improved with PLL later)
@@ -664,14 +670,17 @@ class FMDemodulator:
             return None
 
         rbds_band = np.convolve(multiplex, self._rbds_bandpass, mode="same")
-        # Use intermediate rate for RBDS processing
-        time = sample_indices / float(self._intermediate_rate)
+        # CRITICAL FIX: Use ORIGINAL sample rate for time calculation
+        # The multiplex signal is at the original SDR sample rate, not intermediate rate
+        # This ensures the 57 kHz carrier for RBDS demodulation is at the correct frequency
+        time = sample_indices / float(self.config.sample_rate)
         baseband = rbds_band * np.exp(-1j * 2.0 * np.pi * 57000.0 * time)
         baseband_real = np.convolve(baseband.real, self._rbds_lowpass, mode="same")
 
+        # CRITICAL FIX: Resample from ORIGINAL sample rate, not intermediate rate
         resampled = self._resample(
             baseband_real,
-            self._intermediate_rate,
+            self.config.sample_rate,  # Original SDR sample rate
             int(self._rbds_target_rate),
         )
 
