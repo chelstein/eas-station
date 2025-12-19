@@ -175,6 +175,19 @@ function initFipsStateDropdown() {
         stateSelect.remove(1);
     }
 
+    // Add "Nationwide" special option at the top
+    const nationwideOption = document.createElement('option');
+    nationwideOption.value = '_NATIONWIDE_';
+    nationwideOption.textContent = '★ NATIONWIDE (All US)';
+    nationwideOption.classList.add('fw-bold');
+    stateSelect.appendChild(nationwideOption);
+
+    // Add separator
+    const separator = document.createElement('option');
+    separator.disabled = true;
+    separator.textContent = '── States ──';
+    stateSelect.appendChild(separator);
+
     // Add state options from EAS_FIPS_TREE
     const states = window.EAS_FIPS_TREE || [];
     states.forEach(state => {
@@ -223,6 +236,14 @@ function populateCountyDropdown(stateAbbr) {
         return;
     }
 
+    // Handle special "Nationwide" selection
+    if (stateAbbr === '_NATIONWIDE_') {
+        countySelect.innerHTML = '<option value="000000">000000 ★ Nationwide (All United States)</option>';
+        countySelect.disabled = false;
+        countySelect.removeAttribute('disabled');
+        return;
+    }
+
     // Find state data
     const states = window.EAS_FIPS_TREE || [];
     const stateData = states.find(s => s && s.abbr === stateAbbr);
@@ -236,8 +257,23 @@ function populateCountyDropdown(stateAbbr) {
     // Add placeholder option
     const placeholder = document.createElement('option');
     placeholder.value = '';
-    placeholder.textContent = 'Select a county…';
+    placeholder.textContent = 'Select a county or entire state…';
     countySelect.appendChild(placeholder);
+
+    // Add "Entire State" option at the top
+    if (stateData.statewide_code) {
+        const stateOption = document.createElement('option');
+        stateOption.value = stateData.statewide_code;
+        stateOption.textContent = `${stateData.statewide_code} ★ Entire ${stateData.name || stateAbbr}`;
+        stateOption.classList.add('fw-bold');
+        countySelect.appendChild(stateOption);
+    }
+
+    // Add separator
+    const separator = document.createElement('option');
+    separator.disabled = true;
+    separator.textContent = '── Counties ──';
+    countySelect.appendChild(separator);
 
     // Add county options
     let optionCount = 0;
