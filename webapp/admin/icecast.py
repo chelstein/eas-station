@@ -65,13 +65,7 @@ def _get_env_file_path() -> Path:
 
 
 def _update_icecast_config_file(source_password: str, admin_password: str, admin_user: str = 'admin') -> tuple[bool, str]:
-    """Update Icecast server configuration file with new credentials.
-
-    This function handles:
-    1. Finding the Icecast config file
-    2. Parsing and updating XML credentials (source-password, admin-user, admin-password)
-    3. Writing the config file (may require sudo)
-    4. Restarting the Icecast service
+    """Update Icecast server configuration file with new credentials using sed.
 
     Args:
         source_password: New source password
@@ -81,143 +75,33 @@ def _update_icecast_config_file(source_password: str, admin_password: str, admin
     Returns:
         Tuple of (success: bool, message: str)
     """
-    # Common Icecast configuration file locations
-    config_paths = [
-        Path('/etc/icecast2/icecast.xml'),
-        Path('/etc/icecast.xml'),
-        Path('/usr/local/etc/icecast.xml'),
-        Path('/opt/icecast/etc/icecast.xml'),
-    ]
-    
-    icecast_config = None
-    for config_path in config_paths:
-        if config_path.exists():
-            icecast_config = config_path
-            break
-    
-    if not icecast_config:
-        logger.warning("Icecast configuration file not found in common locations")
-        return False, ("Icecast configuration file not found. "
-                      "Please manually update passwords in /etc/icecast2/icecast.xml and restart: "
-                      "sudo systemctl restart icecast2")
-    
+    config_file = '/etc/icecast2/icecast.xml'
+
+    if not Path(config_file).exists():
+        return False, f"Icecast config not found at {config_file}"
+
     try:
-        # Parse XML configuration
-        tree = ET.parse(icecast_config)
-        root = tree.getroot()
-        
-        updated_fields = []
-        
-        # Update authentication section
-        auth = root.find('.//authentication')
-        if auth is not None:
-            # Update source password
-            source_pw_elem = auth.find('source-password')
-            if source_pw_elem is not None:
-                source_pw_elem.text = source_password
-                updated_fields.append('source-password')
-            else:
-                # Create if missing
-                source_pw_elem = ET.SubElement(auth, 'source-password')
-                source_pw_elem.text = source_password
-                updated_fields.append('source-password (created)')
+        # Use sed to update passwords in-place (simple and reliable)
+        sed_commands = [
+            f"sudo sed -i 's|<source-password>.*</source-password>|<source-password>{source_password}</source-password>|' {config_file}",
+            f"sudo sed -i 's|<admin-user>.*</admin-user>|<admin-user>{admin_user}</admin-user>|' {config_file}",
+            f"sudo sed -i 's|<admin-password>.*</admin-password>|<admin-password>{admin_password}</admin-password>|' {config_file}",
+        ]
 
-            # Update admin user
-            admin_user_elem = auth.find('admin-user')
-            if admin_user_elem is not None:
-                admin_user_elem.text = admin_user
-                updated_fields.append('admin-user')
-            else:
-                # Create if missing
-                admin_user_elem = ET.SubElement(auth, 'admin-user')
-                admin_user_elem.text = admin_user
-                updated_fields.append('admin-user (created)')
+        for cmd in sed_commands:
+            subprocess.run(cmd, shell=True, check=True, capture_output=True, timeout=10)
 
-            # Update admin password
-            admin_pw_elem = auth.find('admin-password')
-            if admin_pw_elem is not None:
-                admin_pw_elem.text = admin_password
-                updated_fields.append('admin-password')
-            else:
-                # Create if missing
-                admin_pw_elem = ET.SubElement(auth, 'admin-password')
-                admin_pw_elem.text = admin_password
-                updated_fields.append('admin-password (created)')
-        else:
-            logger.warning(f"No authentication section found in {icecast_config}")
-            return False, f"Invalid Icecast config at {icecast_config} - no authentication section found"
-        
-        # Write back to file (requires root permissions)
-        try:
-            # Preserve XML formatting
-            ET.indent(tree, space='  ')
+        # Restart Icecast
+        subprocess.run(['sudo', 'systemctl', 'restart', 'icecast2'], check=True, capture_output=True, timeout=10)
 
-            # Write to a temp file first, then use sudo to copy
-            tmp_path = None
-            try:
-                with tempfile.NamedTemporaryFile(mode='wb', suffix='.xml', delete=False) as tmp:
-                    tree.write(tmp, encoding='utf-8', xml_declaration=True)
-                    tmp_path = tmp.name
+        return True, "Icecast config updated and service restarted"
 
-                # Use sudo to copy temp file to actual config location
-                subprocess.run(
-                    ['sudo', 'cp', tmp_path, str(icecast_config)],
-                    check=True,
-                    capture_output=True,
-                    timeout=10,
-                    text=True
-                )
-            finally:
-                # Clean up temp file
-                if tmp_path and os.path.exists(tmp_path):
-                    os.unlink(tmp_path)
-
-            logger.info(f"Updated Icecast config: {', '.join(updated_fields)}")
-            
-            # Restart Icecast service
-            try:
-                # Try different service names
-                for service_name in ['icecast2', 'icecast']:
-                    try:
-                        result = subprocess.run(
-                            ['sudo', 'systemctl', 'restart', service_name], 
-                            check=True, 
-                            capture_output=True, 
-                            timeout=10,
-                            text=True
-                        )
-                        return True, f"Icecast configuration updated ({', '.join(updated_fields)}) and service '{service_name}' restarted successfully"
-                    except subprocess.CalledProcessError:
-                        continue  # Try next service name
-                
-                # If we get here, all service names failed
-                return True, (f"Icecast configuration updated at {icecast_config} ({', '.join(updated_fields)}), "
-                            "but service restart failed. Please restart manually: "
-                            "sudo systemctl restart icecast2")
-                
-            except FileNotFoundError:
-                return True, (f"Icecast configuration updated at {icecast_config} ({', '.join(updated_fields)}), "
-                            "but systemctl not found. Please restart Icecast manually")
-            except subprocess.TimeoutExpired:
-                return True, (f"Icecast configuration updated at {icecast_config} ({', '.join(updated_fields)}), "
-                            "but service restart timed out. Please check: sudo systemctl status icecast2")
-                
-        except subprocess.CalledProcessError as e:
-            logger.error(f"Failed to write Icecast config with sudo: {e.stderr}")
-            return False, (f"Failed to update {icecast_config} (sudo required). "
-                          f"Error: {e.stderr or 'Permission denied'}. "
-                          f"Please update manually or check sudoers configuration.")
-        except PermissionError:
-            logger.error(f"Permission denied writing to {icecast_config}")
-            return False, (f"Permission denied writing to {icecast_config}. "
-                          f"Manual update required with sudo.")
-    
-    except ET.ParseError as e:
-        logger.error(f"Failed to parse Icecast config: {e}")
-        return False, f"Failed to parse Icecast config at {icecast_config}: {e}"
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Failed to update Icecast config: {e.stderr}")
+        return False, f"Failed to update config: {e.stderr or 'Permission denied'}"
     except Exception as e:
         logger.error(f"Error updating Icecast config: {e}")
-        return False, f"Error updating Icecast config: {e}"
+        return False, str(e)
 
 
 # Routes are relative to blueprint's url_prefix='/admin'
@@ -310,11 +194,24 @@ def update_settings():
         settings = update_icecast_settings(data)
         invalidate_icecast_settings_cache()
 
-        logger.info(f"Icecast settings updated successfully")
+        # Update Icecast XML config and restart service
+        config_success, config_message = _update_icecast_config_file(
+            settings.source_password,
+            settings.admin_password,
+            settings.admin_user or 'admin'
+        )
+
+        logger.info(f"Icecast settings updated successfully. Config update: {config_message}")
+
+        if config_success:
+            message = "Icecast settings updated and service restarted successfully."
+        else:
+            message = f"Icecast settings updated. Note: {config_message}"
 
         return jsonify({
             "success": True,
-            "message": "Icecast settings updated successfully. Restart audio services for changes to take effect.",
+            "message": message,
+            "config_updated": config_success,
             "settings": settings.to_dict(),
         })
 
