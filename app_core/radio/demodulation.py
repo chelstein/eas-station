@@ -312,6 +312,10 @@ class FMDemodulator:
         # RBDS requires sample rate >= 114 kHz (Nyquist for 57 kHz subcarrier)
         # Use original sample_rate since RBDS extraction happens BEFORE decimation
         self._rbds_enabled = config.enable_rbds and config.sample_rate >= 114000
+        logger.info(
+            f"RBDS configuration: config.enable_rbds={config.enable_rbds}, "
+            f"sample_rate={config.sample_rate}Hz, _rbds_enabled={self._rbds_enabled}"
+        )
         # CRITICAL FIX: Design RBDS filters for ORIGINAL sample rate, not intermediate rate
         # The multiplex signal (where RBDS is extracted from) is at the original SDR sample rate
         # RBDS subcarrier is at 57 kHz, so bandpass extracts 54-60 kHz region
@@ -432,6 +436,10 @@ class FMDemodulator:
             # Create sample indices for RBDS timing recovery
             sample_indices = np.arange(len(multiplex), dtype=np.float64) + self._sample_index
             self._sample_index += len(multiplex)
+
+            # Log RBDS extraction activity periodically (every ~5 seconds at 2.5MHz/25k samples)
+            if self._sample_index % (self.config.sample_rate * 5) < len(multiplex):
+                logger.info(f"RBDS extraction active: sample_index={self._sample_index}, multiplex_len={len(multiplex)}")
 
             # Extract RBDS data - this processes the 57 kHz subcarrier
             try:
@@ -711,9 +719,15 @@ class FMDemodulator:
 
     def _extract_rbds(self, multiplex: np.ndarray, sample_indices: np.ndarray) -> Optional[RBDSData]:
         if not self._rbds_enabled or len(multiplex) == 0:
+            logger.debug(f"RBDS extraction skipped: enabled={self._rbds_enabled}, multiplex_len={len(multiplex)}")
             return None
 
         rbds_band = np.convolve(multiplex, self._rbds_bandpass, mode="same")
+
+        # Log RBDS signal strength for diagnostics
+        rbds_rms = np.sqrt(np.mean(rbds_band ** 2))
+        if rbds_rms > 0.001:  # Only log if there's measurable signal
+            logger.debug(f"RBDS band signal RMS: {rbds_rms:.6f}")
         # CRITICAL FIX: Use ORIGINAL sample rate for time calculation
         # The multiplex signal is at the original SDR sample rate, not intermediate rate
         # This ensures the 57 kHz carrier for RBDS demodulation is at the correct frequency
@@ -752,20 +766,29 @@ class FMDemodulator:
 
         if bits:
             self._rbds_bit_buffer.extend(bits)
+            # Periodically log bit buffer status at INFO level for visibility
+            if len(self._rbds_bit_buffer) % 520 == 0:  # ~20 blocks worth
+                logger.info(f"RBDS processing: {len(self._rbds_bit_buffer)} bits in buffer, {len(bits)} new bits")
 
         return self._decode_rbds_groups()
 
     def _decode_rbds_groups(self) -> Optional[RBDSData]:
         changed = False
+        blocks_checked = 0
+        blocks_valid = 0
         while len(self._rbds_bit_buffer) >= 26:
             block_bits = self._rbds_bit_buffer[:26]
             block_type, data_word = self._decode_rbds_block(block_bits)
+            blocks_checked += 1
 
             if block_type is None:
                 del self._rbds_bit_buffer[0]
                 self._rbds_expected_block = None
                 self._rbds_partial_group.clear()
                 continue
+
+            blocks_valid += 1
+            logger.debug(f"RBDS block detected: type={block_type}, data=0x{data_word:04X}")
 
             if self._rbds_expected_block is None:
                 if block_type != "A":
@@ -791,10 +814,15 @@ class FMDemodulator:
             del self._rbds_bit_buffer[:26]
 
             if self._rbds_expected_block >= 4:
+                logger.info(f"RBDS complete group decoded: {[hex(w) for w in self._rbds_partial_group]}")
                 group_changed = self._rbds_decoder.process_group(tuple(self._rbds_partial_group))
                 changed = group_changed or changed
                 self._rbds_partial_group = []
                 self._rbds_expected_block = None
+
+        # Log summary of block decoding attempts
+        if blocks_checked > 100:
+            logger.debug(f"RBDS blocks: {blocks_valid}/{blocks_checked} valid ({100*blocks_valid/blocks_checked:.1f}%)")
 
         if changed:
             return self._rbds_decoder.get_current_data()
