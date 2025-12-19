@@ -85,7 +85,10 @@ class RedisSDRSourceAdapter(AudioSourceAdapter):
 
         # Get RBDS and de-emphasis settings from device_params
         # CRITICAL FIX: Enable RBDS extraction for FM broadcast stations
-        enable_rbds = self.config.device_params.get('enable_rbds', False)
+        # Check both 'enable_rbds' and 'rbds_enabled' keys for compatibility
+        # (eas_monitoring_service uses 'rbds_enabled', older configs may use 'enable_rbds')
+        enable_rbds = self.config.device_params.get('enable_rbds', False) or \
+                      self.config.device_params.get('rbds_enabled', False)
         deemphasis_us = self.config.device_params.get('deemphasis_us', 75.0)  # 75μs for North America
 
         from app_core.radio.demodulation import create_demodulator, DemodulatorConfig
@@ -103,8 +106,12 @@ class RedisSDRSourceAdapter(AudioSourceAdapter):
         logger.info(
             f"Created {demod_mode} demodulator: "
             f"{self._iq_sample_rate}Hz IQ → {self.config.sample_rate}Hz audio "
-            f"(stereo={'yes' if stereo_enabled else 'no'}, rbds={'yes' if enable_rbds else 'no'})"
+            f"(stereo={'yes' if stereo_enabled else 'no'}, rbds={'yes' if enable_rbds else 'no'}, "
+            f"deemphasis={deemphasis_us}μs)"
         )
+        # Debug: Log the actual RBDS enabled state from demodulator
+        if hasattr(self._demodulator, '_rbds_enabled'):
+            logger.info(f"Demodulator RBDS enabled: {self._demodulator._rbds_enabled}")
 
     def _start_capture(self) -> None:
         """Start Redis subscription and audio processing."""
@@ -351,6 +358,7 @@ class RedisSDRSourceAdapter(AudioSourceAdapter):
                 # Extract RBDS/RDS data if available
                 if status.rbds_data:
                     rbds = status.rbds_data
+                    logger.debug(f"RBDS data received: PS={rbds.ps_name}, PI={rbds.pi_code}, PTY={rbds.pty}")
                     # Add all RBDS fields to metadata for frontend display
                     if rbds.ps_name:
                         self.metrics.metadata['rbds_ps_name'] = rbds.ps_name

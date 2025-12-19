@@ -450,36 +450,80 @@ class FMDemodulator:
         target_rate = self.config.audio_sample_rate
         decim = max(1, self.config.sample_rate // target_rate)
 
+        # Stereo decoding - must happen BEFORE decimation destroys the 38 kHz subcarrier
+        # The L-R difference signal is modulated at 38 kHz (double the 19 kHz pilot)
+        stereo_audio = None
+        if self._stereo_enabled and stereo_pilot_locked and self.config.sample_rate >= 76000:
+            # Create sample indices for stereo decoding (carrier generation)
+            stereo_sample_indices = np.arange(len(multiplex), dtype=np.float64)
+            try:
+                stereo_audio = self._decode_stereo(multiplex, stereo_sample_indices)
+                if stereo_audio is not None:
+                    logger.debug(f"Stereo decoded: {len(stereo_audio)} samples, shape {stereo_audio.shape}")
+            except Exception as e:
+                logger.warning(f"Stereo decoding error: {e}", exc_info=True)
+                stereo_audio = None
+
         # CRITICAL FIX: Use proper resampling to exact target rate instead of simple decimation
         # Simple decimation produces wrong sample rate: e.g., 2.5MHz / 52 = 48,077 Hz (not 48,000 Hz)
         # This causes "chipmunk" audio when played back at declared rate
-        if decim > 1:
-            # First decimate to get close to target rate (fast, low quality)
-            audio = fast_decimate(multiplex, decim)
-            # Calculate actual intermediate rate after decimation
-            intermediate_rate = self.config.sample_rate // decim
-            logger.debug(
-                f"FM demod: IQ {self.config.sample_rate}Hz → decim {decim}x → "
-                f"{intermediate_rate}Hz → resample → {target_rate}Hz"
-            )
+        if stereo_audio is not None:
+            # We have stereo audio - decimate and resample both channels
+            if decim > 1:
+                # Decimate each channel separately
+                left = fast_decimate(stereo_audio[:, 0], decim)
+                right = fast_decimate(stereo_audio[:, 1], decim)
+                intermediate_rate = self.config.sample_rate // decim
+                logger.debug(
+                    f"FM stereo demod: IQ {self.config.sample_rate}Hz → decim {decim}x → "
+                    f"{intermediate_rate}Hz → resample → {target_rate}Hz"
+                )
+            else:
+                left = stereo_audio[:, 0]
+                right = stereo_audio[:, 1]
+                intermediate_rate = self.config.sample_rate
+
+            # Scale to audio levels
+            deviation_hz = self.FM_DEVIATION_HZ.get(self.config.modulation_type, self.DEFAULT_DEVIATION_HZ)
+            scale_factor = self.config.sample_rate / (2.0 * deviation_hz * decim)
+            left = left * scale_factor
+            right = right * scale_factor
+
+            # Resample to exact target rate
+            if intermediate_rate != target_rate:
+                left = self._resample(left, intermediate_rate, target_rate)
+                right = self._resample(right, intermediate_rate, target_rate)
+
+            audio = np.column_stack((left, right))
         else:
-            audio = multiplex
-            intermediate_rate = self.config.sample_rate
-            logger.debug(f"FM demod: No decimation needed, {intermediate_rate}Hz → {target_rate}Hz")
+            # Mono audio path
+            if decim > 1:
+                # First decimate to get close to target rate (fast, low quality)
+                audio = fast_decimate(multiplex, decim)
+                # Calculate actual intermediate rate after decimation
+                intermediate_rate = self.config.sample_rate // decim
+                logger.debug(
+                    f"FM demod: IQ {self.config.sample_rate}Hz → decim {decim}x → "
+                    f"{intermediate_rate}Hz → resample → {target_rate}Hz"
+                )
+            else:
+                audio = multiplex
+                intermediate_rate = self.config.sample_rate
+                logger.debug(f"FM demod: No decimation needed, {intermediate_rate}Hz → {target_rate}Hz")
 
-        # Scale to audio levels BEFORE resampling (at intermediate rate)
-        # For 75 kHz deviation: phase_diff_per_sample = 2π × 75000 / sample_rate
-        # We scale by sample_rate / (2 × deviation × decimation_factor) to normalize
-        deviation_hz = self.FM_DEVIATION_HZ.get(self.config.modulation_type, self.DEFAULT_DEVIATION_HZ)
-        audio = audio * (self.config.sample_rate / (2.0 * deviation_hz * decim))
+            # Scale to audio levels BEFORE resampling (at intermediate rate)
+            # For 75 kHz deviation: phase_diff_per_sample = 2π × 75000 / sample_rate
+            # We scale by sample_rate / (2 × deviation × decimation_factor) to normalize
+            deviation_hz = self.FM_DEVIATION_HZ.get(self.config.modulation_type, self.DEFAULT_DEVIATION_HZ)
+            audio = audio * (self.config.sample_rate / (2.0 * deviation_hz * decim))
 
-        # Now resample from intermediate_rate to exact target_rate
-        # This ensures audio is at the EXACT sample rate expected by downstream consumers
-        if intermediate_rate != target_rate:
-            audio = self._resample(audio, intermediate_rate, target_rate)
-            logger.debug(
-                f"Resampled {len(audio)} samples from {intermediate_rate}Hz to {target_rate}Hz"
-            )
+            # Now resample from intermediate_rate to exact target_rate
+            # This ensures audio is at the EXACT sample rate expected by downstream consumers
+            if intermediate_rate != target_rate:
+                audio = self._resample(audio, intermediate_rate, target_rate)
+                logger.debug(
+                    f"Resampled {len(audio)} samples from {intermediate_rate}Hz to {target_rate}Hz"
+                )
 
         # Clamp to prevent overflow
         audio = np.clip(audio, -1.5, 1.5)

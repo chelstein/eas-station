@@ -263,7 +263,11 @@ def sync_radio_receiver_audio_sources(app):
                 'receiver_modulation': modulation,
                 'iq_sample_rate': receiver.sample_rate,
                 'demod_mode': receiver.modulation_type or 'FM',
+                # RBDS and demodulation settings - use both key names for compatibility
+                'enable_rbds': bool(receiver.enable_rbds),
                 'rbds_enabled': bool(receiver.enable_rbds),
+                'stereo_enabled': bool(receiver.stereo_enabled),
+                'deemphasis_us': float(receiver.deemphasis_us or 75.0),  # 75μs for North America
                 'squelch_enabled': bool(receiver.squelch_enabled),
                 'squelch_threshold_db': silence_threshold,
                 'squelch_open_ms': int(receiver.squelch_open_ms or 150),
