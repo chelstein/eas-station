@@ -7,6 +7,15 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **CRITICAL: SDR Not Mounting on Icecast** - Fixed race condition preventing SDR audio streams from mounting
+  - Auto-streaming service was only checking for RUNNING sources at startup
+  - SDR sources may still be STARTING (async initialization), causing them to be skipped
+  - Added auto-discovery loop to `AutoStreamingService._monitor_loop()` that:
+    * Periodically discovers new RUNNING sources every 10 seconds
+    * Automatically adds them to Icecast streaming
+    * Removes streams for stopped/removed sources
+  - Eliminates manual intervention or service restart to mount SDR streams
+  - Fixes "cuts out after 6 seconds" issue caused by unmounted streams timing out
 - **IMPROVED: EAS Monitor Logging** - Enhanced diagnostic information in eas-service logs
   - Added `audio_flowing` status indicator (✅ or ⚠️) for immediate visual feedback
   - Added `samples_per_second` throughput metric to monitor processing rate

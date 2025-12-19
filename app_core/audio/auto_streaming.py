@@ -310,11 +310,36 @@ class AutoStreamingService:
         return self.enabled and bool(self.icecast_password)
 
     def _monitor_loop(self) -> None:
-        """Monitor active streams and handle reconnections."""
+        """Monitor active streams, discover new sources, and handle reconnections."""
         logger.debug("Auto-streaming monitor loop started")
 
         while not self._stop_event.is_set():
             try:
+                # Auto-discover RUNNING sources and add them to streaming
+                if self.audio_controller:
+                    from .ingest import AudioSourceStatus
+                    
+                    all_sources = self.audio_controller.get_all_sources()
+                    
+                    for source_name, source_adapter in all_sources.items():
+                        # Skip if already streaming
+                        with self._lock:
+                            if source_name in self._streamers:
+                                continue
+                        
+                        # Only add sources that are RUNNING
+                        if source_adapter.status == AudioSourceStatus.RUNNING:
+                            try:
+                                if self.add_source(source_name, source_adapter):
+                                    logger.info(
+                                        f"Auto-discovered and added source '{source_name}' "
+                                        "to Icecast streaming"
+                                    )
+                            except Exception as e:
+                                logger.debug(
+                                    f"Failed to add auto-discovered source '{source_name}': {e}"
+                                )
+
                 with self._lock:
                     # Check health of all streamers
                     for source_name, streamer in list(self._streamers.items()):
@@ -324,6 +349,18 @@ class AutoStreamingService:
                                 f"Streamer for {source_name} stopped unexpectedly"
                             )
                             # Could implement auto-restart here if needed
+                    
+                    # Remove streamers for sources that no longer exist or are not running
+                    if self.audio_controller:
+                        all_sources = self.audio_controller.get_all_sources()
+                        for source_name in list(self._streamers.keys()):
+                            source_adapter = all_sources.get(source_name)
+                            if not source_adapter or source_adapter.status != AudioSourceStatus.RUNNING:
+                                logger.info(
+                                    f"Removing Icecast stream for '{source_name}' "
+                                    "(source stopped or removed)"
+                                )
+                                self.remove_source(source_name)
 
                 # Sleep for monitoring interval
                 time.sleep(10.0)
