@@ -495,6 +495,85 @@
             }
             return 'Custom County';
         }
+
+        function addCountyCode(input) {
+            const normalized = normalizeFips(input);
+            if (!normalized) {
+                alert('Invalid FIPS code. Enter exactly 6 digits.');
+                return;
+            }
+            if (rwtBroadcastCodes.includes(normalized)) {
+                alert('County already added.');
+                return;
+            }
+            if (rwtBroadcastCodes.length >= 31) {
+                alert('Maximum of 31 SAME locations allowed per FCC regulations.');
+                return;
+            }
+            rwtBroadcastCodes.push(normalized);
+            renderCountyList();
+            renderScheduleCountyList();
+            countyCodeInput.value = '';
+            stateSelect.value = '';
+            countySelect.value = '';
+            countySelect.disabled = true;
+            addCountyFromPickerBtn.disabled = true;
+        }
+
+        function removeCountyCode(code) {
+            rwtBroadcastCodes = rwtBroadcastCodes.filter(c => c !== code);
+            renderCountyList();
+            renderScheduleCountyList();
+        }
+
+        function renderCountyList() {
+            if (!countyListEl) return;
+            
+            if (rwtBroadcastCodes.length === 0) {
+                countyListEl.innerHTML = '';
+                countyEmptyState.style.display = 'block';
+                return;
+            }
+            
+            countyEmptyState.style.display = 'none';
+            countyListEl.innerHTML = rwtBroadcastCodes.map(code => {
+                const description = describeSameCode(code);
+                return `
+                    <span class="badge bg-primary d-inline-flex align-items-center gap-2">
+                        <code class="text-white">${code}</code>
+                        <span>${description}</span>
+                        <button type="button" class="btn-close btn-close-white" 
+                                style="font-size: 0.7rem; padding: 0;" 
+                                onclick="removeCountyCode('${code}')" 
+                                aria-label="Remove ${code}"></button>
+                    </span>
+                `;
+            }).join('');
+        }
+
+        function renderScheduleCountyList() {
+            if (!scheduleCountyListEl) return;
+            
+            if (rwtBroadcastCodes.length === 0) {
+                scheduleCountyListEl.innerHTML = '';
+                scheduleCountyEmptyState.style.display = 'block';
+                return;
+            }
+            
+            scheduleCountyEmptyState.style.display = 'none';
+            scheduleCountyListEl.innerHTML = rwtBroadcastCodes.map(code => {
+                const description = describeSameCode(code);
+                return `
+                    <span class="badge bg-secondary d-inline-flex align-items-center gap-2 mb-1 me-1">
+                        <code>${code}</code>
+                        <span>${description}</span>
+                    </span>
+                `;
+            }).join('');
+        }
+
+        // Make removeCountyCode available globally for onclick handlers
+        window.removeCountyCode = removeCountyCode;
     });
 </script>
 {% endblock %}
