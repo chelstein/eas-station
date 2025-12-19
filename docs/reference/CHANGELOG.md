@@ -7,7 +7,33 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
-- **Audio Source Form Consistency** - Removed sample rate field from user-facing audio sources page
+- **EAS Sample Rate Default** - Changed from 22.05kHz to 16kHz (optimal for CPU efficiency)
+  - 16kHz is optimal for SAME decoder - adequate quality, lower CPU overhead
+  - Frontend fallback changed from 44.1kHz to 16kHz to match backend
+  - Admin UI now shows "16000 Hz (Recommended - Low CPU)" with help text
+  - Database migration and model updated to use 16kHz default
+
+- **Audio Streaming Complexity** - Removed ~150 lines of dead code
+  - Removed Icecast priority switching logic (always returned false)
+  - Removed `shouldUseIcecastStream()`, `switchToProxyStream()`, `labelForStreamType()` functions
+  - Simplified audio element to use `/api/audio/stream/{source}` directly
+  - Removed unused data attributes: `icecast-url`, `proxy-url`, `initial-stream-type`, `stream-type`
+  - Simplified error recovery to cache-busted URL reload only
+
+### Added
+- **NEW: EAS Decoder Audio Stream** - Listen to exactly what the decoder processes
+  - New `/api/eas/decoder-stream` endpoint streams 16kHz resampled audio
+  - "Listen to EAS Decoder Feed" button added to Audio Monitoring page
+  - Critical for debugging why alerts aren't being detected
+  - Streams MP3 at 64kbps (16kHz sample rate, same as decoder input)
+  - Uses ffmpeg for real-time MP3 encoding with non-blocking I/O
+
+### Changed
+- EAS Settings sample rate default: 22.05kHz → 16kHz
+- Audio player initialization simplified (no more stream type detection)
+- Stream recovery uses inline cache-busted reload instead of helper function
+
+**Audio Source Form Consistency** - Removed sample rate field from user-facing audio sources page
   - Sample rate field removed from `/templates/audio_sources.html` to match admin page
   - Prevents confusion where UI shows non-functional sample rate input
   - Form now shows 3 fields in one row (channels, silence threshold, silence duration)

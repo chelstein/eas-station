@@ -44,7 +44,7 @@ def upgrade():
             # Audio Generation
             sa.Column('output_dir', sa.String(255), nullable=False, server_default='static/eas_messages'),
             sa.Column('attention_tone_seconds', sa.Integer(), nullable=False, server_default='8'),
-            sa.Column('sample_rate', sa.Integer(), nullable=False, server_default='22050'),
+            sa.Column('sample_rate', sa.Integer(), nullable=False, server_default='16000'),
             sa.Column('audio_player', sa.String(255), nullable=False, server_default='aplay'),
             # Authorized Broadcast Areas
             sa.Column('authorized_fips_codes', JSONB(), nullable=False, server_default='[]'),
@@ -79,7 +79,7 @@ def upgrade():
 
         if 'sample_rate' not in columns:
             op.add_column('eas_settings',
-                sa.Column('sample_rate', sa.Integer(), nullable=False, server_default='22050'))
+                sa.Column('sample_rate', sa.Integer(), nullable=False, server_default='16000'))
 
         if 'audio_player' not in columns:
             op.add_column('eas_settings',
