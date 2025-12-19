@@ -944,6 +944,80 @@ class PollerSettings(db.Model):
         }
 
 
+class EASSettings(db.Model):
+    """EAS Broadcast configuration stored in database.
+
+    Replaces environment variables for EAS encoder/broadcast configuration.
+    All settings are stored in a single row (id=1).
+    """
+    __tablename__ = "eas_settings"
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    # ========================================================================
+    # EAS Broadcast Enable/Disable
+    # ========================================================================
+    broadcast_enabled = db.Column(db.Boolean, nullable=False, default=False)
+    # Master switch for EAS broadcast functionality
+
+    # ========================================================================
+    # Station Identity
+    # ========================================================================
+    originator = db.Column(db.String(8), nullable=False, default='WXR')
+    # Originator code: WXR (Weather Radio), EAS, PEP, CIV
+
+    station_id = db.Column(db.String(8), nullable=False, default='EASNODES')
+    # 8-character SAME callsign identifier
+
+    # ========================================================================
+    # Audio Generation Settings
+    # ========================================================================
+    output_dir = db.Column(db.String(255), nullable=False, default='static/eas_messages')
+    # Directory for generated EAS audio files
+
+    attention_tone_seconds = db.Column(db.Integer, nullable=False, default=8)
+    # Duration of the attention tone in seconds (1-25)
+
+    sample_rate = db.Column(db.Integer, nullable=False, default=22050)
+    # Audio sample rate: 8000, 16000, 22050, 44100, 48000
+
+    audio_player = db.Column(db.String(255), nullable=False, default='aplay')
+    # Command to play audio (aplay, paplay, etc.)
+
+    # ========================================================================
+    # Authorized Broadcast Areas
+    # ========================================================================
+    authorized_fips_codes = db.Column(JSONB, nullable=False, default=list)
+    # FIPS codes authorized for manual EAS broadcasts
+
+    authorized_event_codes = db.Column(JSONB, nullable=False, default=list)
+    # Event codes authorized for manual broadcasts (RWT, RMT, etc.)
+
+    # ========================================================================
+    # Metadata
+    # ========================================================================
+    updated_at = db.Column(
+        db.DateTime(timezone=True),
+        default=utc_now,
+        onupdate=utc_now,
+    )
+
+    def to_dict(self):
+        """Convert model to dictionary."""
+        return {
+            "broadcast_enabled": self.broadcast_enabled,
+            "originator": self.originator,
+            "station_id": self.station_id,
+            "output_dir": self.output_dir,
+            "attention_tone_seconds": self.attention_tone_seconds,
+            "sample_rate": self.sample_rate,
+            "audio_player": self.audio_player,
+            "authorized_fips_codes": list(self.authorized_fips_codes or []),
+            "authorized_event_codes": list(self.authorized_event_codes or []),
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+
 class RadioReceiver(db.Model):
     """Persistent configuration for SDR hardware receivers.
 

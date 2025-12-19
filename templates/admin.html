@@ -656,7 +656,7 @@
                                 <div class="mt-3" id="locationSelectedFips">
                                     <p class="text-muted small mb-0">No SAME / FIPS counties selected yet.</p>
                                 </div>
-                                <input type="hidden" id="locationFipsCodes" name="fips_codes">
+                                <input type="hidden" id="locationFipsCodes" name="fips_codes" value="{{ (location_settings.fips_codes or []) | join(',') }}">
                                 <small class="text-muted d-block mt-2">Select up to 31 SAME location codes to monitor. The nationwide code (000000) is automatically included and required for nationwide alerts.</small>
                             </div>
                             <div class="col-12">
@@ -738,37 +738,78 @@
                                 </div>
                             </div>
 
-                            <div class="col-md-6">
-                                <label for="locationZoneCodes" class="form-label fw-bold">
-                                    NOAA Zone / UGC Codes (All Monitored)
-                                    <i class="fas fa-info-circle text-primary ms-1" data-bs-toggle="tooltip" title="All zones to monitor for EAS broadcasting, including your county and adjoining counties"></i>
-                                </label>
-                                <textarea class="form-control" id="locationZoneCodes" name="zone_codes" rows="3" placeholder="OHZ003&#10;OHC137&#10;OHZ009&#10;OHC063">{{ (location_settings.zone_codes or []) | join('\n') }}</textarea>
-                                <small class="text-muted">
-                                    <strong>For EAS Broadcasting:</strong> Include your county + adjoining counties.
-                                    Format: One code per line (e.g., OHZ003, OHC137).
-                                    <a href="#alertProcessingHelp" data-bs-toggle="collapse" class="text-decoration-none">Learn more</a>
-                                </small>
+                            <!-- Zone Search Panel -->
+                            <div class="col-12">
+                                <div class="card border-primary-subtle mb-3">
+                                    <div class="card-header bg-primary-subtle">
+                                        <h6 class="mb-0">
+                                            <i class="fas fa-search me-2"></i> Zone Lookup
+                                            <small class="text-muted ms-2">Search NOAA zones and click to add</small>
+                                        </h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="row g-2">
+                                            <div class="col-md-8">
+                                                <input type="text" class="form-control" id="locationZoneSearch" placeholder="Search by zone code, state, or county name (e.g., OHZ003, Ohio, Cuyahoga)...">
+                                            </div>
+                                            <div class="col-md-4">
+                                                <div class="btn-group w-100" role="group">
+                                                    <button type="button" class="btn btn-outline-primary" id="addToBroadcastZonesBtn" disabled title="Add selected zone to broadcast zones">
+                                                        <i class="fas fa-broadcast-tower"></i> Add to Broadcast
+                                                    </button>
+                                                    <button type="button" class="btn btn-outline-success" id="addToStorageZonesBtn" disabled title="Add selected zone to storage zones">
+                                                        <i class="fas fa-database"></i> Add to Storage
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div id="locationZoneSearchResults" class="mt-2" style="max-height: 200px; overflow-y: auto;">
+                                            <p class="text-muted small mb-0">Enter at least 2 characters to search zones</p>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
 
                             <div class="col-md-6">
-                                <label for="locationStorageZoneCodes" class="form-label fw-bold">
-                                    Storage Zone Codes (Local County Only)
-                                    <i class="fas fa-info-circle text-success ms-1" data-bs-toggle="tooltip" title="Only your local county zones - determines which alerts get stored and have boundaries calculated"></i>
-                                </label>
-                                <textarea class="form-control" id="locationStorageZoneCodes" name="storage_zone_codes" rows="3" placeholder="OHZ003&#10;OHC137">{{ (location_settings.storage_zone_codes or []) | join('\n') }}</textarea>
-                                <small class="text-muted">
-                                    <strong>For Geographic Storage:</strong> ONLY your local county zones.
-                                    Determines which alerts are saved to database and have boundaries calculated.
-                                    <a href="#alertProcessingHelp" data-bs-toggle="collapse" class="text-decoration-none">Learn more</a>
-                                </small>
+                                <div class="card h-100 border-primary">
+                                    <div class="card-header bg-primary text-white">
+                                        <i class="fas fa-broadcast-tower me-2"></i>
+                                        <strong>Broadcast Zones</strong>
+                                        <span class="badge bg-light text-primary ms-2" id="broadcastZoneCount">0</span>
+                                    </div>
+                                    <div class="card-body">
+                                        <label for="locationZoneCodes" class="form-label small text-muted">
+                                            All zones to monitor for EAS broadcasting (your county + adjoining)
+                                        </label>
+                                        <textarea class="form-control" id="locationZoneCodes" name="zone_codes" rows="4" placeholder="OHZ003&#10;OHC137&#10;OHZ009&#10;OHC063">{{ (location_settings.zone_codes or []) | join('\n') }}</textarea>
+                                        <small class="text-muted">
+                                            Alerts matching these zones trigger EAS broadcast.
+                                            <a href="#alertProcessingHelp" data-bs-toggle="collapse" class="text-decoration-none">Learn more</a>
+                                        </small>
+                                    </div>
+                                </div>
                             </div>
 
-                            <div class="col-md-12">
-                                <label for="locationAreaTerms" class="form-label fw-bold">Area Match Keywords <span class="badge bg-secondary">Deprecated</span></label>
-                                <textarea class="form-control" id="locationAreaTerms" name="area_terms" rows="2" placeholder="Names that indicate a relevant alert">{{ (location_settings.area_terms or []) | join('\n') }}</textarea>
-                                <small class="text-muted">This field is deprecated and retained only for backwards compatibility. Use SAME/FIPS codes and zone codes instead.</small>
+                            <div class="col-md-6">
+                                <div class="card h-100 border-success">
+                                    <div class="card-header bg-success text-white">
+                                        <i class="fas fa-database me-2"></i>
+                                        <strong>Storage Zones</strong>
+                                        <span class="badge bg-light text-success ms-2" id="storageZoneCount">0</span>
+                                    </div>
+                                    <div class="card-body">
+                                        <label for="locationStorageZoneCodes" class="form-label small text-muted">
+                                            Only your local county zones (determines what gets saved)
+                                        </label>
+                                        <textarea class="form-control" id="locationStorageZoneCodes" name="storage_zone_codes" rows="4" placeholder="OHZ003&#10;OHC137">{{ (location_settings.storage_zone_codes or []) | join('\n') }}</textarea>
+                                        <small class="text-muted">
+                                            Alerts matching these zones are stored with boundary calculations.
+                                            <a href="#alertProcessingHelp" data-bs-toggle="collapse" class="text-decoration-none">Learn more</a>
+                                        </small>
+                                    </div>
+                                </div>
                             </div>
+
                             <div class="col-12">
                                 <div class="card border-secondary-subtle shadow-sm mt-2" id="locationReferenceCard">
                                     <div class="card-body">
@@ -805,16 +846,6 @@
                                 <input type="number" class="form-control" id="locationMapZoom" name="map_default_zoom" value="{{ location_settings.map_default_zoom | default('9') }}">
                             </div>
 
-                            <div class="col-12 mt-3">
-                                <div class="alert alert-info d-flex align-items-start" role="alert">
-                                    <i class="fas fa-microchip me-3 mt-1"></i>
-                                    <div>
-                                        <strong>LED Sign Settings Moved:</strong> LED sign configuration has been moved to the
-                                        <a href="#" onclick="document.getElementById('hardware-tab').click(); return false;" class="alert-link">Hardware Integrations</a> tab.
-                                    </div>
-                                </div>
-                            </div>
-
                             <div class="col-12 d-flex align-items-center">
                                 <button type="submit" class="btn btn-primary">
                                     <i class="fas fa-save"></i> Save Location Settings
@@ -826,6 +857,135 @@
                             </div>
                         </div>
                     </form>
+
+                    <!-- EAS Broadcast Settings Section -->
+                    <div class="mt-5 pt-4 border-top">
+                        <h4 class="mb-3"><i class="fas fa-broadcast-tower text-warning"></i> EAS Broadcast Settings</h4>
+                        <p class="text-muted mb-4">Configure the Emergency Alert System encoder settings for SAME/EAS audio generation.</p>
+
+                        <form id="easSettingsForm">
+                            <div class="row g-3">
+                                <!-- Master Enable -->
+                                <div class="col-12">
+                                    <div class="card border-warning">
+                                        <div class="card-body">
+                                            <div class="form-check form-switch">
+                                                <input class="form-check-input" type="checkbox" id="easBroadcastEnabled" name="broadcast_enabled">
+                                                <label class="form-check-label fw-bold" for="easBroadcastEnabled">
+                                                    <i class="fas fa-power-off me-2"></i> Enable EAS Broadcasting
+                                                </label>
+                                            </div>
+                                            <small class="text-muted">When enabled, the system can generate SAME/EAS audio for alerts.</small>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Station Identity -->
+                                <div class="col-md-4">
+                                    <label for="easOriginator" class="form-label fw-bold">Originator Code</label>
+                                    <select class="form-select" id="easOriginator" name="originator">
+                                        <option value="WXR">WXR - Weather Radio</option>
+                                        <option value="EAS">EAS - Emergency Alert System</option>
+                                        <option value="PEP">PEP - Primary Entry Point</option>
+                                        <option value="CIV">CIV - Civil Authority</option>
+                                    </select>
+                                    <small class="text-muted">Identifies who is originating the alert</small>
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="easStationId" class="form-label fw-bold">Station ID (Callsign)</label>
+                                    <input type="text" class="form-control" id="easStationId" name="station_id" maxlength="8" placeholder="EASNODES" style="text-transform: uppercase;">
+                                    <small class="text-muted">8-character SAME callsign identifier</small>
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="easSampleRate" class="form-label fw-bold">Audio Sample Rate</label>
+                                    <select class="form-select" id="easSampleRate" name="sample_rate">
+                                        <option value="8000">8000 Hz</option>
+                                        <option value="16000">16000 Hz</option>
+                                        <option value="22050">22050 Hz (Recommended)</option>
+                                        <option value="44100">44100 Hz</option>
+                                        <option value="48000">48000 Hz</option>
+                                    </select>
+                                </div>
+
+                                <!-- Audio Settings -->
+                                <div class="col-md-4">
+                                    <label for="easAttentionTone" class="form-label fw-bold">Attention Tone Duration</label>
+                                    <div class="input-group">
+                                        <input type="number" class="form-control" id="easAttentionTone" name="attention_tone_seconds" min="1" max="25" value="8">
+                                        <span class="input-group-text">seconds</span>
+                                    </div>
+                                    <small class="text-muted">Duration of the attention tone (1-25 seconds)</small>
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="easAudioPlayer" class="form-label fw-bold">Audio Player Command</label>
+                                    <input type="text" class="form-control" id="easAudioPlayer" name="audio_player" placeholder="aplay">
+                                    <small class="text-muted">Command to play audio (aplay, paplay, etc.)</small>
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="easOutputDir" class="form-label fw-bold">Output Directory</label>
+                                    <input type="text" class="form-control" id="easOutputDir" name="output_dir" placeholder="static/eas_messages">
+                                    <small class="text-muted">Directory for generated EAS audio files</small>
+                                </div>
+
+                                <!-- Authorized FIPS with Builder -->
+                                <div class="col-12">
+                                    <div class="card border-warning-subtle">
+                                        <div class="card-header bg-warning-subtle">
+                                            <h6 class="mb-0">
+                                                <i class="fas fa-map-marker-alt me-2"></i> Authorized Broadcast Counties
+                                                <span class="badge bg-warning text-dark ms-2" id="easAuthorizedFipsCount">0</span>
+                                            </h6>
+                                        </div>
+                                        <div class="card-body">
+                                            <p class="text-muted small mb-3">Select counties authorized for manual EAS broadcasts and RWT tests. This shared list is also used by the Weekly Test scheduler.</p>
+                                            <div class="row g-2 align-items-end mb-3">
+                                                <div class="col-md-4">
+                                                    <label for="easFipsState" class="form-label small text-muted mb-1">State or Territory</label>
+                                                    <select class="form-select" id="easFipsState">
+                                                        <option value="">Select state or territory…</option>
+                                                    </select>
+                                                </div>
+                                                <div class="col-md-5">
+                                                    <label for="easFipsCounty" class="form-label small text-muted mb-1">County / Area</label>
+                                                    <select class="form-select" id="easFipsCounty" disabled>
+                                                        <option value="">Select a state first…</option>
+                                                    </select>
+                                                </div>
+                                                <div class="col-md-3">
+                                                    <button type="button" class="btn btn-outline-warning w-100" id="easAddFipsBtn">
+                                                        <i class="fas fa-plus"></i> Add County
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            <div id="easSelectedFips" class="mb-2">
+                                                <p class="text-muted small mb-0">No broadcast counties selected yet.</p>
+                                            </div>
+                                            <input type="hidden" id="easAuthorizedFipsCodes" name="authorized_fips_codes">
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="easAuthorizedEvents" class="form-label fw-bold">
+                                        Authorized Event Codes
+                                        <i class="fas fa-info-circle text-primary ms-1" data-bs-toggle="tooltip" title="Event codes authorized for manual broadcasts"></i>
+                                    </label>
+                                    <textarea class="form-control" id="easAuthorizedEvents" name="authorized_event_codes" rows="3" placeholder="RWT&#10;RMT&#10;DMO"></textarea>
+                                    <small class="text-muted">One event code per line (e.g., RWT, RMT, DMO)</small>
+                                </div>
+
+                                <!-- Save Button -->
+                                <div class="col-12 d-flex align-items-center">
+                                    <button type="submit" class="btn btn-warning">
+                                        <i class="fas fa-save"></i> Save EAS Settings
+                                    </button>
+                                    <button type="button" class="btn btn-outline-secondary ms-2" id="resetEasSettings">
+                                        <i class="fas fa-undo"></i> Reset Changes
+                                    </button>
+                                    <span class="text-muted small ms-3" id="easSettingsStatus"></span>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
                 </div>
 
                 <!-- Alert Management Tab -->
@@ -2053,4 +2213,5 @@
     <script src="{{ url_for('static', filename='js/admin/operations.js') }}"></script>
     <script src="{{ url_for('static', filename='js/admin/snow-emergency.js') }}"></script>
     <script src="{{ url_for('static', filename='js/admin/zone-catalog.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/admin/location-settings.js') }}"></script>
 {% endblock %}
