@@ -83,12 +83,18 @@ class RedisSDRSourceAdapter(AudioSourceAdapter):
         # NFM (Narrow FM for NOAA, public safety) is mono only
         stereo_enabled = (demod_mode == 'WFM' or demod_mode == 'FM')
 
+        # DEBUG: Log all device_params to trace RBDS config
+        logger.info(f"Device params for demodulator: {self.config.device_params}")
+
         # Get RBDS and de-emphasis settings from device_params
         # CRITICAL FIX: Enable RBDS extraction for FM broadcast stations
         # Check both 'enable_rbds' and 'rbds_enabled' keys for compatibility
         # (eas_monitoring_service uses 'rbds_enabled', older configs may use 'enable_rbds')
-        enable_rbds = self.config.device_params.get('enable_rbds', False) or \
-                      self.config.device_params.get('rbds_enabled', False)
+        enable_rbds_key1 = self.config.device_params.get('enable_rbds', False)
+        enable_rbds_key2 = self.config.device_params.get('rbds_enabled', False)
+        enable_rbds = bool(enable_rbds_key1) or bool(enable_rbds_key2)
+        logger.info(f"RBDS config: enable_rbds={enable_rbds_key1}, rbds_enabled={enable_rbds_key2}, final={enable_rbds}")
+
         deemphasis_us = self.config.device_params.get('deemphasis_us', 75.0)  # 75μs for North America
 
         from app_core.radio.demodulation import create_demodulator, DemodulatorConfig
