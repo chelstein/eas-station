@@ -686,6 +686,49 @@ class CAPPoller:
         self.logger.info(f"🔢 SAME/FIPS codes: {sorted(self.same_codes)}")
         self.logger.info(f"💾 Storage zone codes: {sorted(self.storage_zone_codes)}")
 
+    def _reload_location_settings(self) -> bool:
+        """Reload location settings from database to pick up changes made via admin UI.
+
+        Returns True if settings changed, False otherwise.
+        """
+        try:
+            new_settings = self._load_location_settings()
+
+            # Check if anything relevant changed
+            old_zone_codes = self.zone_codes
+            old_same_codes = self.same_codes
+            old_storage_zone_codes = self.storage_zone_codes
+
+            new_zone_codes = set(new_settings.get('zone_codes', []))
+            fips_codes, _ = sanitize_fips_codes(new_settings.get('fips_codes'))
+            new_same_codes = {code for code in fips_codes if code}
+            new_storage_zone_codes = set(new_settings.get('storage_zone_codes', []))
+
+            changed = (
+                old_zone_codes != new_zone_codes or
+                old_same_codes != new_same_codes or
+                old_storage_zone_codes != new_storage_zone_codes
+            )
+
+            if changed:
+                self.location_settings = new_settings
+                self.location_name = f"{new_settings['county_name']}, {new_settings['state_code']}".strip(', ')
+                self.county_upper = new_settings['county_name'].upper()
+                self.zone_codes = new_zone_codes
+                self.same_codes = new_same_codes
+                self.storage_zone_codes = new_storage_zone_codes
+
+                self.logger.info("🔄 Location settings reloaded from database")
+                self.logger.info(f"📋 Zone codes: {sorted(self.zone_codes)}")
+                self.logger.info(f"🔢 SAME/FIPS codes: {sorted(self.same_codes)}")
+                self.logger.info(f"💾 Storage zone codes: {sorted(self.storage_zone_codes)}")
+                return True
+
+            return False
+        except Exception as e:
+            self.logger.warning(f"Failed to reload location settings: {e}")
+            return False
+
     # ---------- NOAA API Batching ----------
     def _build_batched_noaa_endpoints(self, zone_codes: List[str], max_url_length: int = 2000) -> List[str]:
         """Build batched NOAA API endpoints by combining zone codes.
@@ -2570,6 +2613,9 @@ class CAPPoller:
         poll_start_utc = utc_now()
         poll_start_local = local_now()
         poll_run_id = uuid.uuid4().hex
+
+        # Reload location settings to pick up any changes from admin UI
+        self._reload_location_settings()
 
         stats = {
             'alerts_fetched': 0, 'alerts_new': 0, 'alerts_updated': 0,

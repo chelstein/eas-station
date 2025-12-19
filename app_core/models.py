@@ -651,6 +651,7 @@ class LocationSettings(db.Model):
             "timezone": self.timezone,
             "fips_codes": list(self.fips_codes or []),
             "zone_codes": list(self.zone_codes or []),
+            "storage_zone_codes": list(self.storage_zone_codes or []),
             "area_terms": list(self.area_terms or []),
             "map_center_lat": self.map_center_lat,
             "map_center_lng": self.map_center_lng,
