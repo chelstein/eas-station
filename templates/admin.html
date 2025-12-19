@@ -2088,6 +2088,9 @@
                 EAS_STATE_BY_FIPS[state.state_fips] = state;
             }
         });
+        // Expose to window for external modules (location-settings.js)
+        window.EAS_FIPS_TREE = EAS_FIPS_TREE;
+        window.EAS_FIPS_LOOKUP = EAS_FIPS_LOOKUP;
         // Global variables
         let confirmationModal;
         let currentOperation = null;
