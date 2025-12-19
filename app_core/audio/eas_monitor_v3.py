@@ -85,7 +85,7 @@ import numpy as np
 
 from app_utils import utc_now
 from .streaming_same_decoder import StreamingSAMEDecoder
-from .resampling_adapter import ResamplingBroadcastAdapter
+from .broadcast_adapter import BroadcastAudioAdapter  # Changed from ResamplingBroadcastAdapter
 from .broadcast_queue import BroadcastQueue
 
 logger = logging.getLogger(__name__)
@@ -220,36 +220,34 @@ class SourceWatcher:
     def __init__(
         self,
         source_name: str,
-        broadcast_queue: BroadcastQueue,
-        source_sample_rate: int,
-        target_sample_rate: int = 16000
+        eas_broadcast_queue: BroadcastQueue,  # Now expects 16kHz queue directly
     ):
         """
         Initialize source watcher.
         
+        ARCHITECTURAL FIX: Now receives pre-resampled 16kHz audio from dedicated EAS queue.
+        No more resampling needed - eliminates conversion bottleneck and reduces memory by 3x.
+        
         Args:
             source_name: Name of the audio source
-            broadcast_queue: Source's broadcast queue to subscribe to
-            source_sample_rate: Source audio sample rate (e.g., 48000)
-            target_sample_rate: Target sample rate for decoder (16000 for SAME)
+            eas_broadcast_queue: Source's 16kHz EAS broadcast queue (pre-resampled)
         """
         self.source_name = source_name
-        self.source_sample_rate = source_sample_rate
-        self.target_sample_rate = target_sample_rate
+        self.source_sample_rate = 16000  # Always 16kHz now
+        self.target_sample_rate = 16000
         
-        # Create resampling adapter to subscribe to broadcast queue
+        # Subscribe directly to 16kHz queue - no resampling needed!
         subscriber_id = f"eas-unified-{source_name}"
-        self._adapter = ResamplingBroadcastAdapter(
-            broadcast_queue=broadcast_queue,
+        self._adapter = BroadcastAudioAdapter(
+            broadcast_queue=eas_broadcast_queue,
             subscriber_id=subscriber_id,
-            source_sample_rate=source_sample_rate,
-            target_sample_rate=target_sample_rate,
-            read_timeout=1.0  # Increased from 0.1s to 1.0s - give time to accumulate samples
+            sample_rate=16000,
+            read_timeout=1.0
         )
         
         logger.info(
             f"SourceWatcher initialized for '{source_name}': "
-            f"{source_sample_rate}Hz -> {target_sample_rate}Hz"
+            f"16kHz pre-resampled queue (no conversion needed)"
         )
     
     def read_audio(self, num_samples: int) -> Optional[np.ndarray]:
@@ -451,22 +449,20 @@ class UnifiedEASMonitorService:
     def _add_watcher(self, source_name: str, source_adapter) -> None:
         """Add a watcher for a new source (called with lock held)."""
         try:
-            # Get source's broadcast queue and sample rate
-            broadcast_queue = source_adapter.get_broadcast_queue()
-            source_sample_rate = source_adapter.config.sample_rate
+            # ARCHITECTURAL FIX: Get the 16kHz EAS broadcast queue
+            # This queue contains pre-resampled audio, eliminating conversion bottleneck
+            eas_broadcast_queue = source_adapter.get_eas_broadcast_queue()
             
-            # Create watcher
+            # Create watcher - no longer needs source sample rate!
             watcher = SourceWatcher(
                 source_name=source_name,
-                broadcast_queue=broadcast_queue,
-                source_sample_rate=int(source_sample_rate),
-                target_sample_rate=self._target_sample_rate
+                eas_broadcast_queue=eas_broadcast_queue,
             )
             
             self._watchers[source_name] = watcher
             self._health_tracker.register_source(source_name)
             
-            logger.info(f"✅ Added watcher for source '{source_name}'")
+            logger.info(f"✅ Added watcher for source '{source_name}' (16kHz pre-resampled queue)")
         
         except Exception as e:
             logger.error(f"Failed to add watcher for '{source_name}': {e}", exc_info=True)

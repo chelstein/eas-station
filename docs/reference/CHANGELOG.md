@@ -6,6 +6,16 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+### Changed
+- **EAS Monitor Architecture** - Major architectural improvement: resample BEFORE queueing
+  - Audio now resampled from source rate (48kHz) to 16kHz BEFORE entering EAS queue
+  - EAS monitor receives pre-resampled 16kHz audio directly (no conversion needed)
+  - Eliminates resampling bottleneck that caused packet drops
+  - Reduces queue memory usage by 3x (16kHz vs 48kHz samples)
+  - 5000 chunk queue at 16kHz = ~500 seconds (~8 minutes) of buffering
+  - Removed ResamplingBroadcastAdapter dependency - no longer needed
+  - Each audio source now has two queues: native rate for streaming, 16kHz for EAS
+
 ### Fixed
 - **WebSocket Infinite Recursion** - Fixed "maximum recursion depth exceeded" errors in websocket updates
   - `_safe_emit()` was calling itself recursively instead of calling `socketio.emit()`
