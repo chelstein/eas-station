@@ -7,6 +7,11 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **SDR Receiver Restart Command** - Added status information to restart response
+  - SDR service now returns receiver status (locked, signal_strength, running) after restart
+  - Webapp restart endpoint properly displays post-restart receiver state
+  - Fixes incomplete restart command implementation in Redis command queue
+
 - **Audio Source Form Bug** - Fixed JavaScript error when adding audio stream sources
   - Removed reference to non-existent `sampleRate` form field in `addAudioSource()` function
   - Error: "Cannot read properties of null (reading 'value')" at audio_monitoring.js:1177
