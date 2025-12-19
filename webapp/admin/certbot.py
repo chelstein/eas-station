@@ -271,12 +271,13 @@ def _install_certificate_internal(domain: str) -> Dict[str, Any]:
         )
 
         # Remove existing symlink or directory if it exists
-        if standard_domain_dir.exists() or standard_domain_dir.is_symlink():
-            subprocess.run(
-                ['sudo', 'rm', '-rf', str(standard_domain_dir)],
-                capture_output=True,
-                timeout=5
-            )
+        # Use sudo rm -rf directly (won't error if path doesn't exist)
+        # Avoid using Path.exists() which requires read permission on /etc/letsencrypt
+        subprocess.run(
+            ['sudo', 'rm', '-rf', str(standard_domain_dir)],
+            capture_output=True,
+            timeout=5
+        )
 
         # Create symlink from /etc/letsencrypt/live/domain to custom location
         subprocess.run(
