@@ -104,6 +104,9 @@ def _update_icecast_config_file(source_password: str, admin_password: str, admin
             tmp.write(content)
             tmp_path = tmp.name
 
+        # Make temp file readable by root for sudo cp
+        os.chmod(tmp_path, 0o644)
+
         # Copy temp file to config location with sudo
         result = subprocess.run(
             ['sudo', '/usr/bin/cp', tmp_path, config_file],
