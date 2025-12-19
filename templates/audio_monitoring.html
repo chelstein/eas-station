@@ -1165,11 +1165,10 @@ function onAudioPlaybackError(event) {
             }
         }, backoffMs);
 
-            return;
-        }
-
-        setPlayerStatus(sourceName, 'Unable to connect to audio stream. Please refresh the page or check the source.', 'danger');
+        return;
     }
+
+    setPlayerStatus(sourceName, 'Unable to connect to audio stream. Please refresh the page or check the source.', 'danger');
 }
 
 function getSourceIcon(type) {

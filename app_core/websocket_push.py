@@ -298,6 +298,11 @@ def _emit_audio_monitoring_update(app: 'Flask', socketio: 'SocketIO', config_cac
             for source_name, source_data in redis_sources.items():
                 config_lookup_name = source_name.replace("redis-", "", 1) if source_name.startswith("redis-") else source_name
                 config = config_cache.get(config_lookup_name)
+                # Use 'or' to handle None values from Redis
+                peak_db = source_data.get('peak_level_db')
+                rms_db = source_data.get('rms_level_db')
+                buffer_util = source_data.get('buffer_utilization')
+                
                 source_metrics.append({
                     'source_id': config_lookup_name,
                     'source_name': config_lookup_name,
@@ -305,12 +310,12 @@ def _emit_audio_monitoring_update(app: 'Flask', socketio: 'SocketIO', config_cac
                     'source_status': source_data.get('status', 'unknown'),
                     'timestamp': source_data.get('timestamp', redis_metrics.get('timestamp', time.time())),
                     'sample_rate': source_data.get('sample_rate'),
-                    'channels': source_data.get('channels', 2),
-                    'peak_level_db': float(source_data.get('peak_level_db', -120.0)),
-                    'rms_level_db': float(source_data.get('rms_level_db', -120.0)),
-                    'frames_captured': source_data.get('frames_captured', 0),
+                    'channels': source_data.get('channels') or 2,
+                    'peak_level_db': float(peak_db) if peak_db is not None else -120.0,
+                    'rms_level_db': float(rms_db) if rms_db is not None else -120.0,
+                    'frames_captured': source_data.get('frames_captured') or 0,
                     'silence_detected': bool(source_data.get('silence_detected', False)),
-                    'buffer_utilization': float(source_data.get('buffer_utilization', 0.0)),
+                    'buffer_utilization': float(buffer_util) if buffer_util is not None else 0.0,
                 })
 
             for name, data in redis_sources.items():
