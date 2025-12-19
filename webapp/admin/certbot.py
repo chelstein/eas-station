@@ -279,12 +279,6 @@ def _install_certificate_internal(domain: str) -> Dict[str, Any]:
         fullchain_path = cert_dir / 'fullchain.pem'
         privkey_path = cert_dir / 'privkey.pem'
 
-        if not cert_dir.exists():
-            return {
-                "success": False,
-                "error": f"Certificate directory not found: {cert_dir}"
-            }
-
         # Verify certificate files exist
         if not fullchain_path.exists():
             return {
