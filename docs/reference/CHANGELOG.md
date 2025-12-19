@@ -6,6 +6,14 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+### Fixed
+- **Stream Sample Rate Detection** - Fixed FFmpeg not detecting actual stream sample rate
+  - Changed FFmpeg log level from 'error' to 'info' to capture stream metadata
+  - Stream sample rate (e.g., 48kHz) is now properly detected from FFmpeg output instead of defaulting to 44.1kHz
+  - Prevents streams from sounding slow due to incorrect playback sample rate
+  - Improved stderr logging to only show warnings/errors, not every info line
+  - Fixes issue where streams would play at wrong speed when native rate differs from config
+
 ### Removed
 - **Waveform Monitor from SDR/Radio Admin Page** - Removed non-functional waveform/waterfall spectrum display
   - Removed waveform monitor card UI (lines 249-267)
