@@ -757,8 +757,10 @@ class CAPPoller:
             List of batched endpoint URLs
         """
         if not zone_codes:
+            self.logger.warning("_build_batched_noaa_endpoints called with empty zone_codes - no NOAA endpoints will be created!")
             return []
-        
+
+        self.logger.info(f"Building NOAA endpoints for zone codes: {zone_codes}")
         base_url = "https://api.weather.gov/alerts/active?zone="
         base_len = len(base_url)
         
@@ -782,13 +784,17 @@ class CAPPoller:
         # Add final batch
         if current_batch:
             endpoints.append(base_url + ",".join(current_batch))
-        
+
         # Log batching info when multiple zones are combined into fewer requests
         if len(zone_codes) > 1 and len(endpoints) < len(zone_codes):
             self.logger.info(
                 f"Batched {len(zone_codes)} zone codes into {len(endpoints)} API request(s) to reduce rate limiting"
             )
-        
+
+        # Log the generated endpoints
+        for ep in endpoints:
+            self.logger.info(f"Generated NOAA endpoint: {ep}")
+
         return endpoints
 
     # ---------- Engine with retry ----------
@@ -1511,8 +1517,11 @@ class CAPPoller:
         for endpoint in self.cap_endpoints:
             try:
                 self.logger.info(f"Fetching alerts from: {endpoint}")
+                self.logger.info(f"  -> Making HTTP GET request...")
                 response = self.session.get(endpoint, timeout=timeout)
-                
+                self.logger.info(f"  -> Response status: {response.status_code}")
+                self.logger.info(f"  -> Response headers: Content-Type={response.headers.get('Content-Type', 'N/A')}, Content-Length={response.headers.get('Content-Length', 'N/A')}")
+
                 # Check for rate limiting before raising for other status codes
                 if response.status_code == 429:
                     retry_after = response.headers.get('Retry-After', 'unknown')
@@ -1531,8 +1540,44 @@ class CAPPoller:
                 response.raise_for_status()
                 features = self._parse_feed_payload(response)
                 self.logger.info(f"Retrieved {len(features)} alerts from {endpoint}")
+
+                # Determine endpoint type for logging
+                if 'tdl.apps.fema.gov' in endpoint:
+                    endpoint_type = "IPAWS-STAGING"
+                elif 'apps.fema.gov' in endpoint:
+                    endpoint_type = "IPAWS"
+                elif 'weather.gov' in endpoint:
+                    endpoint_type = "NOAA"
+                else:
+                    endpoint_type = "CUSTOM"
+
+                # Log summary of what was fetched from this endpoint
+                self.logger.info(f"=" * 60)
+                self.logger.info(f"ENDPOINT: {endpoint_type}")
+                self.logger.info(f"URL: {endpoint}")
+                self.logger.info(f"ALERTS RETURNED: {len(features)}")
+                if features:
+                    for i, feat in enumerate(features[:10]):  # Show first 10
+                        props = feat.get('properties', {})
+                        event = props.get('event', 'Unknown')
+                        identifier = props.get('identifier') or props.get('id') or 'No ID'
+                        geocode = props.get('geocode', {}) or {}
+                        ugc_codes = geocode.get('UGC', []) or []
+                        same_codes = geocode.get('SAME', []) or []
+                        self.logger.info(f"  [{i+1}] [{endpoint_type}] {event}")
+                        self.logger.info(f"      ID: {identifier[:50]}{'...' if len(identifier) > 50 else ''}")
+                        self.logger.info(f"      UGC: {ugc_codes[:5]}{'...' if len(ugc_codes) > 5 else ''}")
+                        self.logger.info(f"      SAME: {same_codes[:5]}{'...' if len(same_codes) > 5 else ''}")
+                    if len(features) > 10:
+                        self.logger.info(f"  ... and {len(features) - 10} more alerts from {endpoint_type}")
+                else:
+                    self.logger.info(f"  (no alerts from {endpoint_type})")
+                self.logger.info(f"=" * 60)
                 for alert in features:
                     props = alert.get('properties', {})
+                    # Track which endpoint this alert came from
+                    props['_fetch_endpoint'] = endpoint
+                    props['_fetch_endpoint_type'] = endpoint_type
 
                     # NOAA API uses 'id' field, IPAWS/CAP uses 'identifier' - check both
                     identifier = (props.get('identifier') or props.get('id') or '').strip()
@@ -1740,6 +1785,23 @@ class CAPPoller:
                 area_desc_raw = '; '.join(area_desc_raw)
             area_desc_upper = area_desc_raw.upper()
             result['area_desc'] = area_desc_raw
+
+            # DEBUG: Log the matching comparison with endpoint source
+            endpoint_type = properties.get('_fetch_endpoint_type', 'UNKNOWN')
+            fetch_endpoint = properties.get('_fetch_endpoint', 'UNKNOWN')
+            self.logger.info(f"  MATCHING CHECK for: {event}")
+            self.logger.info(f"    Source endpoint: [{endpoint_type}] {fetch_endpoint}")
+            self.logger.info(f"    Alert UGC codes: {normalized_ugc}")
+            self.logger.info(f"    Alert SAME codes: {normalized_same}")
+            self.logger.info(f"    Our zone codes: {sorted(self.zone_codes)}")
+            self.logger.info(f"    Our SAME codes: {sorted(self.same_codes)}")
+            self.logger.info(f"    Our storage zones: {sorted(self.storage_zone_codes)}")
+
+            # Check for matches
+            ugc_intersection = set(normalized_ugc) & self.zone_codes
+            same_intersection = set(normalized_same) & self.same_codes
+            self.logger.info(f"    UGC intersection: {ugc_intersection if ugc_intersection else 'NONE'}")
+            self.logger.info(f"    SAME intersection: {same_intersection if same_intersection else 'NONE'}")
 
             for same in normalized_same:
                 if same in self.same_codes:
@@ -2664,18 +2726,26 @@ class CAPPoller:
                 f"Starting alert polling cycle [NOAA + IPAWS]{endpoint_summary} for {self.location_name} at {format_local_datetime(poll_start_utc)}"
             )
 
-            # Log first endpoint being polled for visibility
-            if self.cap_endpoints:
-                first_endpoint = self.cap_endpoints[0]
-                if 'tdl.apps.fema.gov' in first_endpoint:
+            # Log ALL endpoints being polled for debugging
+            self.logger.info("=" * 70)
+            self.logger.info("POLL CYCLE DEBUG INFO")
+            self.logger.info("=" * 70)
+            self.logger.info(f"Configured zone codes: {sorted(self.zone_codes)}")
+            self.logger.info(f"Configured SAME/FIPS codes: {sorted(self.same_codes)}")
+            self.logger.info(f"Storage zone codes: {sorted(self.storage_zone_codes)}")
+            self.logger.info("-" * 70)
+            self.logger.info(f"Polling {len(self.cap_endpoints)} endpoint(s):")
+            for idx, endpoint in enumerate(self.cap_endpoints, 1):
+                if 'tdl.apps.fema.gov' in endpoint:
                     env_marker = " [STAGING/TDL]"
-                elif 'apps.fema.gov' in first_endpoint:
-                    env_marker = " [PRODUCTION]"
-                elif 'weather.gov' in first_endpoint:
+                elif 'apps.fema.gov' in endpoint:
+                    env_marker = " [IPAWS PRODUCTION]"
+                elif 'weather.gov' in endpoint:
                     env_marker = " [NOAA Weather]"
                 else:
                     env_marker = ""
-                self.logger.info(f"Polling: {first_endpoint}{env_marker}")
+                self.logger.info(f"  [{idx}] {endpoint}{env_marker}")
+            self.logger.info("=" * 70)
 
             alerts_data = self.fetch_cap_alerts()
             stats['alerts_fetched'] = len(alerts_data)
@@ -2708,8 +2778,9 @@ class CAPPoller:
                 alert_id = props.get('identifier', 'No ID')
                 area_desc = props.get('areaDesc', 'Unknown area')
                 headline = props.get('headline', '')
+                endpoint_type = props.get('_fetch_endpoint_type', 'UNKNOWN')
 
-                self.logger.info(f"Processing alert: {event} (ID: {alert_id[:20] if alert_id!='No ID' else 'No ID'}...)")
+                self.logger.info(f"Processing alert from [{endpoint_type}]: {event} (ID: {alert_id[:20] if alert_id!='No ID' else 'No ID'}...)")
 
                 # Track this alert in fetched_alerts for visibility (even if filtered)
                 alert_summary = {
@@ -2889,18 +2960,40 @@ class CAPPoller:
 
             # Log poll summary with location info for debugging
             self.logger.info("═══════════════════════════════════════════════════════════════")
-            self.logger.info(f"POLL SUMMARY for {self.location_name}")
-            self.logger.info(f"  Fetched: {stats['alerts_fetched']} | Accepted: {stats['alerts_accepted']} | "
-                           f"New: {stats['alerts_new']} | Updated: {stats['alerts_updated']} | "
-                           f"Filtered: {stats['alerts_filtered']}")
-            if stats['alerts_filtered'] > 0:
-                zone_codes = self.location_settings.get('zone_codes', [])
-                storage_zone_codes = self.location_settings.get('storage_zone_codes', [])
-                self.logger.info(f"  Your UGC Zone codes: {', '.join(zone_codes[:5]) if zone_codes else 'None configured'}")
-                self.logger.info(f"  Your SAME/Storage codes: {', '.join(storage_zone_codes[:5]) if storage_zone_codes else 'None configured'}")
-                self.logger.info(f"  (Alerts must match your zone codes to be accepted/stored)")
+            self.logger.info(f"POLL CYCLE COMPLETE - {self.location_name}")
+            self.logger.info("═══════════════════════════════════════════════════════════════")
+            self.logger.info(f"ENDPOINTS POLLED: {len(self.cap_endpoints)}")
+            for ep in self.cap_endpoints:
+                if 'weather.gov' in ep:
+                    self.logger.info(f"  [NOAA] {ep}")
+                elif 'fema.gov' in ep:
+                    self.logger.info(f"  [IPAWS] {ep}")
+                else:
+                    self.logger.info(f"  [CUSTOM] {ep}")
+            self.logger.info("-" * 63)
+            self.logger.info(f"RESULTS:")
+            self.logger.info(f"  Total fetched from all endpoints: {stats['alerts_fetched']}")
+            self.logger.info(f"  Accepted (matched your location): {stats['alerts_accepted']}")
+            self.logger.info(f"  New (saved to database):          {stats['alerts_new']}")
+            self.logger.info(f"  Updated (existing alert):         {stats['alerts_updated']}")
+            self.logger.info(f"  Filtered (not your location):     {stats['alerts_filtered']}")
+            self.logger.info("-" * 63)
+            if stats['alerts_fetched'] == 0:
+                self.logger.warning("NO ALERTS FETCHED! This could mean:")
+                self.logger.warning("  - No active alerts in the zones you're polling")
+                self.logger.warning("  - Network/API connectivity issues")
+                self.logger.warning("  - Check endpoints above to verify correct zone codes")
+            elif stats['alerts_accepted'] == 0 and stats['alerts_fetched'] > 0:
+                self.logger.warning(f"ALERTS FETCHED BUT NONE MATCHED YOUR LOCATION!")
+                self.logger.warning(f"  Your zone codes: {sorted(self.zone_codes)}")
+                self.logger.warning(f"  Your SAME codes: {sorted(self.same_codes)}")
+                self.logger.warning(f"  Check if alerts match your configured zones above")
+            self.logger.info(f"YOUR CONFIGURATION:")
+            self.logger.info(f"  Zone codes (for polling): {sorted(self.zone_codes)}")
+            self.logger.info(f"  SAME/FIPS codes (for matching): {sorted(self.same_codes)}")
+            self.logger.info(f"  Storage zones (for saving): {sorted(self.storage_zone_codes)}")
             if stats['sources']:
-                self.logger.info(f"  Sources: {', '.join(stats['sources'])}")
+                self.logger.info(f"  Sources seen: {', '.join(stats['sources'])}")
             self.logger.info("═══════════════════════════════════════════════════════════════")
 
             self.log_system_event('INFO', f"CAP polling successful: {stats['alerts_new']} new alerts", stats)
