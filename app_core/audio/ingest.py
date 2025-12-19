@@ -121,17 +121,19 @@ class AudioSourceAdapter(ABC):
         # 24/7/365 RELIABILITY: Increased buffer to handle network hiccups and temporary slowdowns
         self._source_broadcast = BroadcastQueue(
             name=f"source-{config.name}",
-            max_queue_size=10000  # ~850s buffer at 48kHz with 4096 samples/chunk (~14 minutes)
+            max_queue_size=10000  # ~853s buffer (14.2 min) at any sample rate
+                                  # At 48kHz: 10000 chunks × 4096 samples = 40.96M samples / 48kHz = 853s
                                   # Handles temporary network issues, consumer slowdowns, GC pauses
         )
         
         # Separate 16kHz broadcast queue for EAS monitor
         # ARCHITECTURAL FIX: Resample BEFORE queueing to reduce memory and eliminate conversion bottleneck
-        # At 16kHz: same 10000 chunk buffer = ~2560s (~42 minutes) - massive headroom for continuous operation
+        # At 16kHz: same 10000 chunk buffer = ~853s (14.2 min) - resampling preserves duration
         # 24/7/365 RELIABILITY: This buffer must NEVER drop packets for EAS monitoring
         self._eas_broadcast = BroadcastQueue(
             name=f"eas-{config.name}",
-            max_queue_size=10000  # At 16kHz with 1600 sample chunks = ~1000s buffer (16+ minutes)
+            max_queue_size=10000  # ~853s buffer (14.2 min) at 16kHz
+                                  # 10000 chunks × 1365 samples (resampled) = 13.65M / 16kHz = 853s
                                   # Ensures EAS monitor never starves even during system load spikes
         )
         

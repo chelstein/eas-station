@@ -923,7 +923,7 @@ class StreamSourceAdapter(AudioSourceAdapter):
             '-reconnect_on_network_error', '1',
             '-reconnect_on_http_error', '4xx,5xx',  # Retry on HTTP errors
             '-reconnect_delay_max', '10',  # Increased from 5 for better backoff
-            '-timeout', '30000000',  # 30 second timeout in microseconds (initial connection)
+            '-timeout', '30000000',  # 30 seconds in microseconds (FFmpeg expects microseconds, not seconds)
             '-fflags', '+genpts+discardcorrupt',  # Generate PTS and discard corrupt packets
             '-analyzeduration', '5000000',  # 5 seconds to analyze stream
             '-probesize', '2000000',  # 2MB probe size for stream detection

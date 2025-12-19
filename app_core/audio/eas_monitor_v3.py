@@ -598,9 +598,14 @@ class UnifiedEASMonitorService:
         decoder_stats = self._decoder.get_stats()
         
         # Calculate aggregate metrics
-        if uptime > 0 and total_samples > 0:
+        # CRITICAL FIX: Divide by active_sources, not len(all_health)
+        # If we have 2 sources configured but only 1 is running, we should expect
+        # 16k samples/sec, not 32k samples/sec. This prevents false "below expected rate" warnings.
+        if uptime > 0 and total_samples > 0 and active_sources > 0:
             samples_per_second = total_samples / uptime
-            health_percentage = min(1.0, samples_per_second / (self._target_sample_rate * len(all_health)))
+            # Expected rate = sample_rate × number of ACTIVE sources (not configured sources)
+            expected_rate = self._target_sample_rate * active_sources
+            health_percentage = min(1.0, samples_per_second / expected_rate)
         else:
             samples_per_second = 0
             health_percentage = 0.0
