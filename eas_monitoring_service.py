@@ -881,7 +881,7 @@ def main():
                     """
                     import queue as queue_module
                     import subprocess
-                    import select
+                    import os
 
                     # Source configuration
                     source_sample_rate = adapter.config.sample_rate
@@ -932,12 +932,15 @@ def main():
                         
                         logger.debug(f"MP3 stream '{subscriber_id}' started with ffmpeg encoding")
                         
-                        # Make stdout non-blocking
-                        import fcntl
-                        import os
-                        fd = ffmpeg_process.stdout.fileno()
-                        flags = fcntl.fcntl(fd, fcntl.F_GETFL)
-                        fcntl.fcntl(fd, fcntl.F_SETFL, flags | os.O_NONBLOCK)
+                        # Make stdout non-blocking (Unix-specific, but EAS station runs on Linux)
+                        try:
+                            import fcntl
+                            fd = ffmpeg_process.stdout.fileno()
+                            flags = fcntl.fcntl(fd, fcntl.F_GETFL)
+                            fcntl.fcntl(fd, fcntl.F_SETFL, flags | os.O_NONBLOCK)
+                        except ImportError:
+                            # fcntl not available (Windows), use blocking I/O
+                            logger.warning("fcntl not available, using blocking I/O for MP3 stream")
                         
                         silence_duration = 0.05
                         silence_samples = int(stream_sample_rate * stream_channels * silence_duration)
