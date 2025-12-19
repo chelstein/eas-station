@@ -7,6 +7,19 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **WebSocket Parse Errors** - Fixed malformed JSON causing repeated WebSocket disconnects
+  - `_sanitize_float()` now properly handles None values (returns -120.0)
+  - `_sanitize_bool()` now properly handles None values (returns False)
+  - WebSocket audio metrics emission now safely handles None values from Redis
+  - Prevents `float(None)` TypeErrors that were causing JSON serialization failures
+  - Fixes "parse error" WebSocket disconnects on all pages (audio-monitor, audio-sources, interactive map)
+  
+- **Audio Metrics JSON Error** - Fixed "No number after minus sign" JSON parsing error
+  - Error occurred at position 135 when API returned malformed numeric values
+  - Added comprehensive None/null handling to `_sanitize_float()` function
+  - Added type conversion fallback with try/except to handle edge cases
+  - Metrics API endpoint now returns valid JSON even with null/invalid Redis data
+
 - **EAS Sample Rate Default** - Changed from 22.05kHz to 16kHz (optimal for CPU efficiency)
   - 16kHz is optimal for SAME decoder - adequate quality, lower CPU overhead
   - Frontend fallback changed from 44.1kHz to 16kHz to match backend

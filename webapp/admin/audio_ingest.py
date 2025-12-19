@@ -436,9 +436,19 @@ def _sanitize_float(value: float) -> float:
     import math
     import numpy as np
 
+    # Handle None values
+    if value is None:
+        return -120.0
+    
     # Convert numpy types to regular Python float first
     if isinstance(value, (np.floating, np.integer)):
         value = float(value)
+    
+    # Handle non-numeric types
+    try:
+        value = float(value)
+    except (TypeError, ValueError):
+        return -120.0
 
     if math.isinf(value):
         return -120.0 if value < 0 else 120.0
@@ -451,6 +461,10 @@ def _sanitize_bool(value) -> bool:
     """Sanitize boolean values to be JSON-safe (convert numpy bool_ types)."""
     import numpy as np
 
+    # Handle None values
+    if value is None:
+        return False
+    
     # Convert numpy bool_ to Python bool
     if isinstance(value, np.bool_):
         return bool(value)
