@@ -17,6 +17,26 @@ tracks releases under the 2.x series.
   - Added detailed connection logging with success rates
 
 ### Fixed
+- **CRITICAL: EAS Decoder False Health Warnings** - Fixed incorrect "below expected rate" alerts
+  - Health calculation was dividing by total configured sources instead of active sources
+  - Example: 2 sources configured, 1 running → expected 32k samples/sec but got 16k → showed 50% health
+  - Resulted in misleading "⚠️ Processing at 19.6% of expected rate" when actually at 100%
+  - Fixed `eas_monitor_v3.py` line 603 to divide by `active_sources` only
+  - Now correctly shows ~100% health when receiving expected rate from active sources
+  - Eliminates false alarms when subset of configured sources are running
+
+- **IMPROVED: Buffer Utilization Display Logic** - Fixed misleading low utilization warnings
+  - Low buffer utilization (0-20%) is actually GOOD for real-time streaming (consumers keeping up)
+  - Previous logic incorrectly showed warnings for <1% utilization
+  - Implemented tiered interpretation system:
+    * 0-20%: "✓ Real-time streaming" (IDEAL - consumers keeping up with producers)
+    * 20-80%: "✓ Buffering X%" (OK - normal buffered operation)
+    * 80-95%: "⚠️ WARNING: Buffer filling up" (consumers falling behind)
+    * >95%: "🔴 CRITICAL: Buffer nearly full" (about to drop packets)
+  - Added audio flow validation (frames > 0, peak > -100dB) before showing warnings
+  - Improved diagnostics distinguishing "stream connecting" from "truly broken"
+  - Eliminates false warnings when system is operating optimally
+
 - **CRITICAL: Second Stream Not Working** - Fixed multi-stream audio source issue
   - StreamSourceAdapter was setting `_had_data_activity=False` causing capture loop to sleep during connection
   - Network streams need 5-10 seconds to establish HTTP connection before audio flows
