@@ -7,6 +7,14 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **SSL Certificate Installation - Production Cert Not Applied** - Fixed issue where production certificates wouldn't replace staging certificates
+  - Root cause: When obtaining a second cert for the same domain (e.g., switching from staging to production), certbot creates a new directory with suffix (e.g., `example.com-0001`)
+  - `_install_certificate_internal()` was looking for exact domain match (`example.com`), finding the old staging cert instead
+  - `get_ssl_certificate_info()` was using first alphabetical domain directory, often returning staging cert info
+  - Fix: Both functions now find ALL matching domain directories (exact match + numbered variants) and use the most recently modified one
+  - Also improved sed regex patterns to only match direct `.pem` certificate paths, preserving nginx include statements
+  - Resolves issue where clicking "Install" reported success but nginx continued using staging/self-signed cert
+
 - **RWT Schedule Configuration Page Load Error** - Fixed JavaScript "ReferenceError: renderCountyList is not defined"
   - Added missing `renderCountyList()` function to render county chips in editor panel
   - Added missing `renderScheduleCountyList()` function to render county chips in schedule preview

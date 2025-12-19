@@ -43,6 +43,9 @@ def get_certbot_config() -> Dict:
 def get_ssl_certificate_info() -> Dict:
     """
     Get information about the installed SSL certificate.
+    
+    Checks the configured domain from certbot settings and reports on the
+    most recently created certificate for that domain.
 
     Returns:
         dict: Certificate information including type, validity, domain, issuer, etc.
@@ -60,6 +63,10 @@ def get_ssl_certificate_info() -> Dict:
         'error': None,
         'needs_installation': False  # True if cert exists but isn't installed
     }
+    
+    # Get configured domain from certbot settings
+    config = get_certbot_config()
+    configured_domain = config.get('domain_name', '')
 
     # Check for Let's Encrypt certificate in multiple locations
     # First check the standard location, then check custom certbot directory
@@ -85,12 +92,31 @@ def get_ssl_certificate_info() -> Dict:
                 continue
 
     if letsencrypt_dir:
-        # Find the first domain directory
+        # Find domain directories matching configured domain
+        # Certbot may create domain-0001, domain-0002, etc. when obtaining
+        # multiple certs for the same domain (e.g., switching staging to production)
         try:
-            domains = [d for d in os.listdir(letsencrypt_dir) 
-                      if os.path.isdir(os.path.join(letsencrypt_dir, d)) and d != 'README']
-            if domains:
-                domain = domains[0]  # Use first domain
+            all_domains = [d for d in os.listdir(letsencrypt_dir) 
+                          if os.path.isdir(os.path.join(letsencrypt_dir, d)) and d != 'README']
+            
+            # If a specific domain is configured, find matching directories
+            matching_domains = []
+            if configured_domain:
+                for d in all_domains:
+                    # Match exact domain or domain-#### pattern
+                    if d == configured_domain or d.startswith(f"{configured_domain}-"):
+                        matching_domains.append(d)
+            
+            # If no matches or no configured domain, use all domains
+            if not matching_domains:
+                matching_domains = all_domains
+            
+            if matching_domains:
+                # Use the most recently modified domain directory (latest certificate)
+                domain_paths = [(d, os.path.join(letsencrypt_dir, d)) for d in matching_domains]
+                # Sort by modification time, most recent first
+                domain_paths.sort(key=lambda x: os.path.getmtime(x[1]), reverse=True)
+                domain = domain_paths[0][0]  # Use most recent domain
                 cert_path = os.path.join(letsencrypt_dir, domain, 'fullchain.pem')
                 
                 if os.path.exists(cert_path):
