@@ -16,6 +16,17 @@ tracks releases under the 2.x series.
     * Removes streams for stopped/removed sources
   - Eliminates manual intervention or service restart to mount SDR streams
   - Fixes "cuts out after 6 seconds" issue caused by unmounted streams timing out
+  
+- **IMPROVED: Demodulator Error Handling** - Added protective error handling to prevent silent failures
+  - Added try-except wrapper around `_create_demodulator()` in RedisSDRSourceAdapter
+  - Demodulator creation failures now log detailed error messages
+  - Failures properly propagate to prevent sources from starting with broken configuration
+  - Helps diagnose RBDS-related initialization issues
+
+- **REDUCED: Excessive RBDS Logging** - Reduced log spam from RBDS configuration
+  - Changed device_params and RBDS config logging from INFO to DEBUG level
+  - Prevents log flooding during normal operation
+  - Retains detailed logging for troubleshooting when needed
 - **IMPROVED: EAS Monitor Logging** - Enhanced diagnostic information in eas-service logs
   - Added `audio_flowing` status indicator (✅ or ⚠️) for immediate visual feedback
   - Added `samples_per_second` throughput metric to monitor processing rate

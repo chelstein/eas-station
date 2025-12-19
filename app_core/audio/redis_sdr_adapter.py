@@ -73,51 +73,56 @@ class RedisSDRSourceAdapter(AudioSourceAdapter):
 
     def _create_demodulator(self) -> None:
         """Create or recreate demodulator with current settings."""
-        demod_mode = self.config.device_params.get('demod_mode', 'FM')
+        try:
+            demod_mode = self.config.device_params.get('demod_mode', 'FM')
 
-        # Normalize modulation type to uppercase for consistent handling
-        demod_mode = demod_mode.upper()
+            # Normalize modulation type to uppercase for consistent handling
+            demod_mode = demod_mode.upper()
 
-        # Determine stereo support based on modulation type
-        # WFM (Wide FM for FM broadcast) supports stereo
-        # NFM (Narrow FM for NOAA, public safety) is mono only
-        stereo_enabled = (demod_mode == 'WFM' or demod_mode == 'FM')
+            # Determine stereo support based on modulation type
+            # WFM (Wide FM for FM broadcast) supports stereo
+            # NFM (Narrow FM for NOAA, public safety) is mono only
+            stereo_enabled = (demod_mode == 'WFM' or demod_mode == 'FM')
 
-        # DEBUG: Log all device_params to trace RBDS config
-        logger.info(f"Device params for demodulator: {self.config.device_params}")
+            # Get RBDS and de-emphasis settings from device_params
+            # CRITICAL FIX: Enable RBDS extraction for FM broadcast stations
+            # Check both 'enable_rbds' and 'rbds_enabled' keys for compatibility
+            # (eas_monitoring_service uses 'rbds_enabled', older configs may use 'enable_rbds')
+            enable_rbds_key1 = self.config.device_params.get('enable_rbds', False)
+            enable_rbds_key2 = self.config.device_params.get('rbds_enabled', False)
+            enable_rbds = bool(enable_rbds_key1) or bool(enable_rbds_key2)
 
-        # Get RBDS and de-emphasis settings from device_params
-        # CRITICAL FIX: Enable RBDS extraction for FM broadcast stations
-        # Check both 'enable_rbds' and 'rbds_enabled' keys for compatibility
-        # (eas_monitoring_service uses 'rbds_enabled', older configs may use 'enable_rbds')
-        enable_rbds_key1 = self.config.device_params.get('enable_rbds', False)
-        enable_rbds_key2 = self.config.device_params.get('rbds_enabled', False)
-        enable_rbds = bool(enable_rbds_key1) or bool(enable_rbds_key2)
-        logger.info(f"RBDS config: enable_rbds={enable_rbds_key1}, rbds_enabled={enable_rbds_key2}, final={enable_rbds}")
+            deemphasis_us = self.config.device_params.get('deemphasis_us', 75.0)  # 75μs for North America
 
-        deemphasis_us = self.config.device_params.get('deemphasis_us', 75.0)  # 75μs for North America
+            from app_core.radio.demodulation import create_demodulator, DemodulatorConfig
 
-        from app_core.radio.demodulation import create_demodulator, DemodulatorConfig
+            demod_config = DemodulatorConfig(
+                modulation_type=demod_mode,
+                sample_rate=self._iq_sample_rate,  # IQ sample rate from SDR
+                audio_sample_rate=self.config.sample_rate,  # Audio output rate (e.g., 44100)
+                stereo_enabled=stereo_enabled,
+                deemphasis_us=deemphasis_us,
+                enable_rbds=enable_rbds,
+            )
 
-        demod_config = DemodulatorConfig(
-            modulation_type=demod_mode,
-            sample_rate=self._iq_sample_rate,  # IQ sample rate from SDR
-            audio_sample_rate=self.config.sample_rate,  # Audio output rate (e.g., 44100)
-            stereo_enabled=stereo_enabled,
-            deemphasis_us=deemphasis_us,
-            enable_rbds=enable_rbds,
-        )
-
-        self._demodulator = create_demodulator(demod_config)
-        logger.info(
-            f"Created {demod_mode} demodulator: "
-            f"{self._iq_sample_rate}Hz IQ → {self.config.sample_rate}Hz audio "
-            f"(stereo={'yes' if stereo_enabled else 'no'}, rbds={'yes' if enable_rbds else 'no'}, "
-            f"deemphasis={deemphasis_us}μs)"
-        )
-        # Debug: Log the actual RBDS enabled state from demodulator
-        if hasattr(self._demodulator, '_rbds_enabled'):
-            logger.info(f"Demodulator RBDS enabled: {self._demodulator._rbds_enabled}")
+            self._demodulator = create_demodulator(demod_config)
+            logger.info(
+                f"✅ Created {demod_mode} demodulator: "
+                f"{self._iq_sample_rate}Hz IQ → {self.config.sample_rate}Hz audio "
+                f"(stereo={'yes' if stereo_enabled else 'no'}, rbds={'yes' if enable_rbds else 'no'}, "
+                f"deemphasis={deemphasis_us}μs)"
+            )
+            # Debug: Log the actual RBDS enabled state from demodulator
+            if hasattr(self._demodulator, '_rbds_enabled'):
+                logger.debug(f"Demodulator RBDS enabled: {self._demodulator._rbds_enabled}")
+                
+        except Exception as e:
+            logger.error(
+                f"❌ Failed to create demodulator for {self._receiver_id}: {e}",
+                exc_info=True
+            )
+            # Re-raise to prevent source from starting with broken demodulator
+            raise RuntimeError(f"Demodulator creation failed: {e}") from e
 
     def _start_capture(self) -> None:
         """Start Redis subscription and audio processing."""
