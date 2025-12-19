@@ -117,9 +117,18 @@ class AudioSourceAdapter(ABC):
         # Per-source BroadcastQueue for non-destructive audio distribution
         # This allows multiple consumers (Icecast, web streaming, monitoring) to
         # receive audio from this source independently without competing for chunks.
+        # CRITICAL: EAS monitor CANNOT drop packets - larger queue prevents drops during processing spikes
         self._source_broadcast = BroadcastQueue(
             name=f"source-{config.name}",
-            max_queue_size=2000  # ~180s buffer at 44100Hz with 4096 samples/chunk
+            max_queue_size=5000  # ~425s buffer at 48kHz with 4096 samples/chunk (~7 minutes)
+        )
+        
+        # Separate 16kHz broadcast queue for EAS monitor
+        # ARCHITECTURAL FIX: Resample BEFORE queueing to reduce memory and eliminate conversion bottleneck
+        # At 16kHz: same 5000 chunk buffer = ~1280s (~21 minutes) - much more headroom
+        self._eas_broadcast = BroadcastQueue(
+            name=f"eas-{config.name}",
+            max_queue_size=5000  # At 16kHz with 1600 sample chunks = ~500s buffer
         )
         
         self._last_metrics_update = 0.0
@@ -224,6 +233,18 @@ class AudioSourceAdapter(ABC):
             BroadcastQueue instance for this source
         """
         return self._source_broadcast
+    
+    def get_eas_broadcast_queue(self) -> BroadcastQueue:
+        """
+        Get the 16kHz EAS broadcast queue for this source.
+        
+        ARCHITECTURAL FIX: This queue contains pre-resampled 16kHz audio,
+        eliminating the need for EAS monitor to resample and reducing queue memory by 3x.
+        
+        Returns:
+            BroadcastQueue instance with 16kHz audio for EAS monitoring
+        """
+        return self._eas_broadcast
 
     def _capture_loop(self) -> None:
         """Main capture loop running in separate thread."""
@@ -240,6 +261,12 @@ class AudioSourceAdapter(ABC):
                     # This enables multiple consumers (Icecast, web streaming, controller pump)
                     # to receive audio without competing for chunks.
                     self._source_broadcast.publish(audio_chunk)
+                    
+                    # ARCHITECTURAL FIX: Resample to 16kHz and publish to EAS queue
+                    # This eliminates resampling bottleneck and reduces queue memory by 3x
+                    eas_chunk = self._resample_for_eas(audio_chunk)
+                    if eas_chunk is not None:
+                        self._eas_broadcast.publish(eas_chunk)
                 else:
                     # No decoded audio chunk available
                     # Only sleep if source had no data activity (prevents busy loops on truly idle sources)
@@ -255,6 +282,45 @@ class AudioSourceAdapter(ABC):
                 break
 
         logger.debug(f"Capture loop stopped for {self.config.name}")
+    
+    def _resample_for_eas(self, audio_chunk: np.ndarray) -> Optional[np.ndarray]:
+        """
+        Resample audio chunk to 16kHz for EAS decoder.
+        
+        ARCHITECTURAL FIX: Resample BEFORE queueing to reduce memory and eliminate bottleneck.
+        
+        Args:
+            audio_chunk: Audio at source sample rate (e.g., 48kHz)
+            
+        Returns:
+            Resampled audio at 16kHz, or None if error
+        """
+        try:
+            # Convert to mono if stereo
+            if audio_chunk.ndim == 2:
+                audio_chunk = audio_chunk.mean(axis=1)
+            elif audio_chunk.ndim > 2:
+                audio_chunk = audio_chunk.flatten()
+            
+            # If already at 16kHz, pass through
+            if self.config.sample_rate == 16000:
+                return audio_chunk.astype(np.float32)
+            
+            # Resample using linear interpolation (fast and good enough for EAS)
+            source_rate = self.config.sample_rate
+            target_rate = 16000
+            ratio = target_rate / source_rate
+            
+            old_indices = np.arange(len(audio_chunk))
+            new_length = max(1, int(len(audio_chunk) * ratio))
+            new_indices = np.linspace(0, len(audio_chunk) - 1, new_length)
+            resampled = np.interp(new_indices, old_indices, audio_chunk).astype(np.float32)
+            
+            return resampled
+            
+        except Exception as e:
+            logger.error(f"Error resampling audio for EAS: {e}")
+            return None
 
     def _update_metrics(self, audio_chunk: np.ndarray) -> None:
         """Update real-time metrics from audio chunk."""

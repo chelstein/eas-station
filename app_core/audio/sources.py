@@ -892,7 +892,7 @@ class StreamSourceAdapter(AudioSourceAdapter):
         cmd = [
             'ffmpeg',
             '-hide_banner',
-            '-loglevel', 'error',
+            '-loglevel', 'info',  # Need 'info' level to detect stream sample rate from metadata
             '-nostdin',
             '-user_agent', 'EAS-Station/1.0',
             '-headers', 'Icy-MetaData:1\r\n',
@@ -1099,8 +1099,11 @@ class StreamSourceAdapter(AudioSourceAdapter):
                                 # Update metrics to reflect actual sample rate
                                 self.metrics.sample_rate = rate
                 
-                # Log all stderr for debugging
-                logger.warning(f"{self.config.name}: FFmpeg stderr: {text}")
+                # Log errors and warnings, but debug for normal info
+                if 'error' in text.lower() or 'warning' in text.lower():
+                    logger.warning(f"{self.config.name}: FFmpeg: {text}")
+                else:
+                    logger.debug(f"{self.config.name}: FFmpeg: {text}")
         except Exception as exc:
             logger.debug(f"{self.config.name}: stderr pump stopped: {exc}")
 
