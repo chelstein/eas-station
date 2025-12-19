@@ -33,7 +33,7 @@ from pathlib import Path
 from flask import Blueprint, flash, jsonify, redirect, render_template, request, current_app, url_for
 from werkzeug.exceptions import BadRequest
 
-from app_core.location import get_location_settings, _derive_county_zone_codes_from_fips
+from app_core.location import get_location_settings
 from app_core.auth.roles import require_permission
 from app_utils.pi_pinout import ARGON_OLED_RESERVED_BCM, ARGON_OLED_RESERVED_PHYSICAL
 
@@ -308,33 +308,6 @@ ENV_CATEGORIES = {
             },
         ],
     },
-    'location': {
-        'name': 'Location',
-        'icon': 'fa-map-marker-alt',
-        'description': 'Default location and coverage area',
-        'variables': [
-            {
-                'key': 'LOCATION_CONFIG',
-                'label': 'Location Configuration',
-                'type': 'json',
-                'rows': 10,
-                'description': 'JSON object containing all location settings: timezone, county_name, state_code, zone_codes, fips_codes, storage_zone_codes, map_center_lat, map_center_lng, map_zoom',
-                'placeholder': '{"timezone": "America/New_York", "county_name": "Putnam County", "state_code": "OH", "zone_codes": "OHZ016,OHC137", "fips_codes": "039137", "storage_zone_codes": "", "map_center_lat": 41.0195, "map_center_lng": -84.1190, "map_zoom": 9}',
-                'default': '{"timezone": "America/New_York", "county_name": "", "state_code": "", "zone_codes": "", "fips_codes": "", "storage_zone_codes": "", "map_center_lat": null, "map_center_lng": null, "map_zoom": 9}',
-                'json_schema': {
-                    'timezone': {'type': 'text', 'label': 'Timezone', 'placeholder': 'America/New_York'},
-                    'county_name': {'type': 'text', 'label': 'County Name', 'placeholder': 'Putnam County'},
-                    'state_code': {'type': 'text', 'label': 'State Code', 'maxlength': 2, 'placeholder': 'OH'},
-                    'zone_codes': {'type': 'text', 'label': 'Zone Codes', 'placeholder': 'OHZ016,OHC137'},
-                    'fips_codes': {'type': 'text', 'label': 'FIPS Codes', 'placeholder': '039137'},
-                    'storage_zone_codes': {'type': 'text', 'label': 'Storage Zone Codes', 'placeholder': ''},
-                    'map_center_lat': {'type': 'number', 'label': 'Map Center Latitude', 'step': 0.0001, 'placeholder': '41.0195'},
-                    'map_center_lng': {'type': 'number', 'label': 'Map Center Longitude', 'step': 0.0001, 'placeholder': '-84.1190'},
-                    'map_zoom': {'type': 'number', 'label': 'Map Zoom Level', 'min': 1, 'max': 20, 'placeholder': '9'},
-                },
-            },
-        ],
-    },
     'eas': {
         'name': 'EAS Broadcast',
         'icon': 'fa-broadcast-tower',
@@ -404,71 +377,12 @@ ENV_CATEGORIES = {
                 'category': 'eas_enabled',
             },
             {
-                'key': 'EAS_MANUAL_FIPS_CODES',
-                'label': 'Authorized FIPS Codes',
-                'type': 'text',
-                'description': 'Comma-separated FIPS codes authorized for manual EAS broadcasts (format: PSSCCC)',
-                'placeholder': '039137,039003',
-                'category': 'eas_enabled',
-            },
-            {
                 'key': 'EAS_MANUAL_EVENT_CODES',
                 'label': 'Authorized Event Codes',
                 'type': 'textarea',
                 'description': 'Comma-separated event codes for manual broadcasts',
                 'placeholder': 'RWT,DMO,SVR',
                 'category': 'eas_enabled',
-            },
-        ],
-    },
-
-    'zigbee': {
-        'name': 'Zigbee Module',
-        'icon': 'fa-broadcast-tower',
-        'description': 'Argon Industria V5 Zigbee Module',
-        'variables': [
-            {
-                'key': 'ZIGBEE_ENABLED',
-                'label': 'Enable Zigbee Module',
-                'type': 'select',
-                'options': ['false', 'true'],
-                'default': 'false',
-                'description': 'Enable the Argon Industria V5 Zigbee coordinator module.',
-            },
-            {
-                'key': 'ZIGBEE_PORT',
-                'label': 'Serial Port',
-                'type': 'text',
-                'description': 'Serial port for Zigbee module (UART connection). Leave empty to auto-detect.',
-                'placeholder': '/dev/ttyAMA0',
-                'category': 'zigbee_enabled',
-            },
-            {
-                'key': 'ZIGBEE_BAUDRATE',
-                'label': 'Baud Rate',
-                'type': 'select',
-                'options': ['9600', '19200', '38400', '57600', '115200'],
-                'default': '115200',
-                'description': 'Serial communication speed (115200 is standard for Zigbee coordinators)',
-                'category': 'zigbee_enabled',
-            },
-            {
-                'key': 'ZIGBEE_CHANNEL',
-                'label': 'Zigbee Channel',
-                'type': 'number',
-                'default': '15',
-                'min': 11,
-                'max': 26,
-                'description': 'Zigbee radio channel (11-26). Channel 15 is recommended to avoid WiFi interference.',
-                'category': 'zigbee_enabled',
-            },
-            {
-                'key': 'ZIGBEE_PAN_ID',
-                'label': 'PAN ID',
-                'type': 'text',
-                'description': 'Personal Area Network ID (leave empty for auto-generated)',
-                'placeholder': '0x1A62',
-                'category': 'zigbee_enabled',
             },
         ],
     },
@@ -526,14 +440,6 @@ ENV_CATEGORIES = {
             },
         ],
     },
-    'system': {
-        'name': 'System',
-        'icon': 'fa-cog',
-        'description': 'System and deployment settings',
-        'variables': [
-        ],
-    },
-
 }
 
 
@@ -842,24 +748,6 @@ def update_environment_variables():
             old_value = env_vars.get(key, '')
             env_vars[key] = str(value)
             logger.debug(f'Updated {key}: {len(old_value)} chars -> {len(str(value))} chars')
-
-        # Auto-populate zone codes from FIPS codes if zone codes are empty
-        fips_codes_raw = env_vars.get("EAS_MANUAL_FIPS_CODES", "").strip()
-        zone_codes_raw = env_vars.get("DEFAULT_ZONE_CODES", "").strip()
-
-        if fips_codes_raw and not zone_codes_raw:
-            try:
-                # Parse FIPS codes (comma-separated)
-                fips_list = [code.strip() for code in fips_codes_raw.split(",") if code.strip()]
-
-                # Derive zone codes from FIPS
-                derived_zones = _derive_county_zone_codes_from_fips(fips_list)
-
-                if derived_zones:
-                    env_vars["DEFAULT_ZONE_CODES"] = ",".join(derived_zones)
-                    logger.info(f"Auto-derived {len(derived_zones)} zone codes from {len(fips_list)} FIPS codes")
-            except Exception as zone_exc:
-                logger.warning(f"Failed to auto-derive zone codes from FIPS: {zone_exc}")
 
         # Write to .env file
         env_path = get_env_file_path()

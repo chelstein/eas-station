@@ -7,6 +7,29 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **RWT FIPS Code Consistency** - Fixed confusion between alert filtering codes and RWT broadcast codes
+  - Quick RWT and "Load Default Codes" now use `RWTScheduleConfig.same_codes` (broadcast coverage area)
+  - Removed incorrect fallback to `LocationSettings.fips_codes` (which are for filtering incoming alerts)
+  - `LocationSettings.fips_codes` can include nationwide (000000) and statewide codes for alert filtering
+  - `RWTScheduleConfig.same_codes` should only include local broadcast area counties
+  - Resolves issue where Quick RWT showed different codes than Weekly RWT configuration
+  - Updated UI labels and help text to clearly distinguish "broadcast codes" vs "alert filtering codes"
+
+### Changed
+- **Environment Variable Cleanup** - Removed unused/database-migrated environment variables from admin interface
+  - Removed `EAS_MANUAL_FIPS_CODES` from EAS section (now use RWT Schedule page in database)
+  - RWT broadcast codes are now exclusively managed via RWTScheduleConfig.same_codes
+  - Kept core EAS settings (EAS_BROADCAST_ENABLED, EAS_ORIGINATOR, EAS_STATION_ID) which are still used by install scripts and core code
+  - Kept polling settings (POLL_INTERVAL_SEC, CAP_TIMEOUT, NOAA_USER_AGENT) which are still actively used
+  - All configuration remains available via environment variables for backwards compatibility and install scripts
+
+### Improved
+- **RWT Configuration UI Clarity** - Better organization of FIPS code configuration flow
+  - RWT Schedule page now clearly labeled as "RWT Broadcast Coverage Area"
+  - Added explanatory alerts distinguishing broadcast codes from alert filtering codes
+  - Updated Broadcast Builder warning to direct users to RWT configuration page
+  - Improved help text throughout to explain the purpose of each FIPS code configuration
+
 - **Certificate Installation Sudo Permission** - Fixed SSL certificate installation failing with password prompt
   - Added `/usr/bin/tee` to sudoers for writing SSL snippet file to `/etc/nginx/snippets/ssl-letsencrypt.conf`
   - Added `/usr/bin/mkdir -p /etc/nginx/snippets` to sudoers for creating snippets directory
