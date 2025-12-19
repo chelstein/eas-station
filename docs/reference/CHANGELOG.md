@@ -6,13 +6,56 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+### Added
+- **24/7/365 Audio Subsystem Reliability** - Major improvements for continuous operation
+  - Enhanced FFmpeg reconnection with 30-second timeout and HTTP error retry (4xx, 5xx)
+  - Increased buffer sizes: 10000 chunks (~14 minutes at all sample rates due to resampling)
+  - Added connection tracking: attempts, success rate, and last connection time
+  - Improved FFmpeg command with `-fflags +discardcorrupt` to handle corrupt packets
+  - 128KB FFmpeg buffer (up from 64KB) for better network stream performance
+  - Reduced restart delay from 3s to 2s for faster recovery
+  - Added detailed connection logging with success rates
+
+### Fixed
+- **CRITICAL: EAS Decoder False Health Warnings** - Fixed incorrect "below expected rate" alerts
+  - Health calculation was dividing by total configured sources instead of active sources
+  - Example: 2 sources configured, 1 running → expected 32k samples/sec but got 16k → showed 50% health
+  - Resulted in misleading "⚠️ Processing at 19.6% of expected rate" when actually at 100%
+  - Fixed `eas_monitor_v3.py` line 603 to divide by `active_sources` only
+  - Now correctly shows ~100% health when receiving expected rate from active sources
+  - Eliminates false alarms when subset of configured sources are running
+
+- **IMPROVED: Buffer Utilization Display Logic** - Fixed misleading low utilization warnings
+  - Low buffer utilization (0-20%) is actually GOOD for real-time streaming (consumers keeping up)
+  - Previous logic incorrectly showed warnings for <1% utilization
+  - Implemented tiered interpretation system:
+    * 0-20%: "✓ Real-time streaming" (IDEAL - consumers keeping up with producers)
+    * 20-80%: "✓ Buffering X%" (OK - normal buffered operation)
+    * 80-95%: "⚠️ WARNING: Buffer filling up" (consumers falling behind)
+    * >95%: "🔴 CRITICAL: Buffer nearly full" (about to drop packets)
+  - Added audio flow validation (frames > 0, peak > -100dB) before showing warnings
+  - Improved diagnostics distinguishing "stream connecting" from "truly broken"
+  - Eliminates false warnings when system is operating optimally
+
+- **CRITICAL: Second Stream Not Working** - Fixed multi-stream audio source issue
+  - StreamSourceAdapter was setting `_had_data_activity=False` causing capture loop to sleep during connection
+  - Network streams need 5-10 seconds to establish HTTP connection before audio flows
+  - Changed to set `_had_data_activity=True` for stream sources to prevent excessive sleeping
+  - Added comprehensive comments explaining FFmpeg connection phases (DNS, TCP, HTTP, stream)
+  - Capture loop now polls frequently during initial connection instead of sleeping 50ms
+  - Fixes "No audio data flowing" error when adding second stream (WIMT issue)
+  - All streams now properly initialize regardless of startup order
+  - Health monitoring still detects broken streams via metrics updates and process checks
+
 ### Changed
 - **EAS Monitor Architecture** - Major architectural improvement: resample BEFORE queueing
   - Audio now resampled from source rate (48kHz) to 16kHz BEFORE entering EAS queue
   - EAS monitor receives pre-resampled 16kHz audio directly (no conversion needed)
   - Eliminates resampling bottleneck that caused packet drops
   - Reduces queue memory usage by 3x (16kHz vs 48kHz samples)
-  - 5000 chunk queue at 16kHz = ~500 seconds (~8 minutes) of buffering
+  - 10000 chunk queue provides ~14 minutes of buffering (same duration at all rates due to resampling)
+  - At 48kHz: 10000 chunks × 4096 samples = 40.96M samples / 48kHz = 853 seconds
+  - At 16kHz: 10000 chunks × 1365 samples = 13.65M samples / 16kHz = 853 seconds
   - Removed ResamplingBroadcastAdapter dependency - no longer needed
   - Each audio source now has two queues: native rate for streaming, 16kHz for EAS
 
@@ -25,7 +68,8 @@ tracks releases under the 2.x series.
 - **EAS Monitor Packet Drops** - Fixed critical issue where EAS monitor drops audio chunks
   - Reduced sleep from 10ms to 1ms when audio flowing to prevent queue buildup
   - EAS monitor now reads ~1000x/second, far exceeding audio production rate (~12 chunks/sec at 48kHz)
-  - Increased broadcast queue size from 2000 to 5000 chunks (~7 minutes buffer at 48kHz)
+  - Increased broadcast queue size from 5000 to 10000 chunks (~14 minutes buffer) for 24/7 reliability
+  - Queue duration stays constant across sample rates due to resampling (853 seconds)
   - Prevents missing emergency alerts due to dropped audio packets
   - Fixes "Subscriber 'eas-unified-WNCI' queue full" errors with thousands of drops
   - Note: Audio is correctly downsampled from source rate (48kHz) to decoder rate (16kHz)

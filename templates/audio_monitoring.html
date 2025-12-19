@@ -658,19 +658,35 @@ function renderAudioSources(fullRender = true) {
                             <small class="text-muted">
                                 ${(() => {
                                     const util = source.metrics.buffer_utilization || 0;
-                                    if (util < 0.01) {
-                                        // Provide specific diagnostic messages
+                                    // BUFFER UTILIZATION INTERPRETATION:
+                                    // Low utilization (0-20%) = GOOD! Consumers keeping up, real-time operation
+                                    // Medium (20-80%) = OK, some buffering but not concerning
+                                    // High (80-95%) = WARNING, consumers falling behind
+                                    // Very high (>95%) = CRITICAL, about to drop packets
+                                    
+                                    // Check if audio is actually flowing (frames > 0 and not all silent)
+                                    const framesCapture = source.metrics.frames_captured || 0;
+                                    const peakDb = source.metrics.peak_level_db || -120;
+                                    const audioActuallyFlowing = framesCapture > 0 && peakDb > -100;
+                                    
+                                    if (!audioActuallyFlowing) {
+                                        // No audio flowing - check why
                                         if (source.status !== 'running') {
                                             return '⚠️ Source not started - click Start button to begin streaming';
-                                        } else if (source.type === 'http_stream') {
-                                            return '⚠️ Stream not responding - check URL and network connectivity';
+                                        } else if (source.type === 'stream' || source.type === 'http_stream') {
+                                            return '⚠️ Stream connecting or not responding - check URL and network connectivity';
                                         } else {
                                             return '⚠️ No audio data flowing - check source configuration';
                                         }
                                     } else if (util > 0.95) {
-                                        return '⚠️ Buffer nearly full - consumers may be slow';
+                                        return '🔴 CRITICAL: Buffer nearly full - consumers cannot keep up!';
+                                    } else if (util > 0.80) {
+                                        return '⚠️ WARNING: Buffer filling up - consumers falling behind';
+                                    } else if (util > 0.20) {
+                                        return `✓ Buffering ${(util * 100).toFixed(1)}% - normal operation`;
                                     } else {
-                                        return '✓ Data flowing normally';
+                                        // Low utilization is GOOD for real-time streaming
+                                        return `✓ Real-time streaming (${(util * 100).toFixed(1)}% buffered)`;
                                     }
                                 })()}
                             </small>
