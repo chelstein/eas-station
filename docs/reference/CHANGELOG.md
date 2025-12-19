@@ -7,13 +7,20 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
-- **CRITICAL: Web Audio Bandwidth Waste** - Fixed 10-20x bandwidth waste from uncompressed WAV streaming
-  - Web browser playback now prefers Icecast compressed streams (MP3/OGG at ~128 kbps)
-  - Previously: MP3 sources were decoded and re-streamed as WAV (~705 kbps for mono 44.1kHz)
-  - WAV proxy retained as fallback when Icecast unavailable
-  - Saves ~10x bandwidth and reduces server CPU load
-  - Updated UI to show when compressed vs fallback WAV streaming is active
+- **CRITICAL: 10x Bandwidth Reduction** - Flask proxy now streams MP3 instead of WAV
+  - Implemented real-time MP3 encoding using ffmpeg subprocess
+  - Bandwidth: ~705 kbps WAV → ~128 kbps MP3 (5.5x reduction for mono 44.1kHz)
+  - Web browser playback uses Flask MP3 proxy (Icecast has mounting issues)
+  - PCM audio piped to ffmpeg for libmp3lame encoding at 128 kbps
+  - Non-blocking I/O for low latency streaming
   
+- **HTTP Stream Sample Rate Auto-Detection** - Removed manual sample rate input
+  - Sample rate field removed from audio source configuration form
+  - FFmpeg automatically detects native stream sample rate from metadata
+  - Dynamic config update when FFmpeg reports detected rate via stderr
+  - Prevents user from selecting wrong sample rate and breaking playback
+  - Validates detected rates within 8kHz-192kHz range
+
 - **HTTP Stream Sample Rate Detection** - Fixed slow/fast playback from sample rate mismatches
   - Added FFmpeg stderr parsing to detect actual stream sample rate (e.g., "44100 Hz", "48000 Hz")
   - Dynamically updates `config.sample_rate` when FFmpeg reports different native rate
@@ -21,7 +28,14 @@ tracks releases under the 2.x series.
   - Validates detected rates are within 8kHz-192kHz range
   - Logs when config sample rate differs from detected stream rate
 
-- **RWT FIPS Code Consistency** - Fixed confusion between alert filtering codes and RWT broadcast codes
+### Changed
+- **Web Audio Streaming** - Switched from WAV to MP3 encoding
+  - Flask proxy now uses ffmpeg subprocess for real-time MP3 encoding
+  - Streams at 128 kbps MP3 instead of ~705 kbps uncompressed WAV
+  - Maintains native sample rate (no resampling except for EAS decoder)
+  - Icecast bypassed due to mounting issues - Flask MP3 provides same bandwidth efficiency
+
+- **Audio Source Configuration** - Simplified stream setup
   - Quick RWT and "Load Default Codes" now use `RWTScheduleConfig.same_codes` (broadcast coverage area)
   - Removed incorrect fallback to `LocationSettings.fips_codes` (which are for filtering incoming alerts)
   - `LocationSettings.fips_codes` can include nationwide (000000) and statewide codes for alert filtering

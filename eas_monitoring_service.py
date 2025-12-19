@@ -822,24 +822,193 @@ def main():
             
             @stream_app.route('/api/audio/stream/<source_name>')
             def stream_audio(source_name):
-                """Stream live audio at native sample rate for accurate playback.
+                """Stream live audio for web browser playback.
                 
-                CRITICAL: Audio is streamed at the source's native sample rate to prevent
-                pitch/speed mismatch issues. No resampling is performed for web playback.
+                CURRENT: Streams uncompressed WAV at native sample rate (~705 kbps for 44.1kHz mono)
+                TODO: Implement MP3 encoding to reduce bandwidth by ~10x (~128 kbps)
                 
-                - Uses source's native sample rate (e.g., 32kHz, 44.1kHz, 48kHz)
-                - Mono output to reduce bandwidth (50% reduction)
-                - Uncompressed PCM = ZERO latency (critical for real-time monitoring)
-                - EAS decoder gets separately resampled 16kHz feed (ResamplingBroadcastAdapter)
+                BANDWIDTH ISSUE:
+                - WAV: 44100 Hz * 16 bit * 1 channel = 705 kbps (uncompressed)
+                - MP3: 128 kbps (compressed, 5.5x smaller)
+                - Opus: 64-96 kbps (compressed, 7-11x smaller)
                 
-                VU meters get levels from /api/audio/metrics (published to Redis every 5s).
+                IMPLEMENTATION OPTIONS:
+                1. Use ffmpeg subprocess to encode PCM→MP3 in real-time:
+                   ffmpeg -f s16le -ar {rate} -ac 1 -i pipe:0 -c:a libmp3lame -b:a 128k -f mp3 pipe:1
+                   
+                2. Use pydub + ffmpeg (requires ffmpeg system package):
+                   from pydub import AudioSegment
+                   segment = AudioSegment(data, sample_width=2, frame_rate=rate, channels=1)
+                   mp3_data = segment.export(format="mp3", bitrate="128k")
+                   
+                3. Use lameenc library (pure Python bindings to libmp3lame):
+                   import lameenc
+                   encoder = lameenc.Encoder()
+                   encoder.set_bit_rate(128)
+                   encoder.set_in_sample_rate(rate)
+                   encoder.set_channels(1)
+                   encoder.set_quality(2)  # 0=best, 9=worst
+                   mp3_data = encoder.encode(pcm_data)
+                   
+                CURRENT STATE:
+                - Using WAV until Icecast mounting issues are resolved
+                - Icecast has MP3 encoding but streams aren't mounting correctly
+                - Flask proxy provides guaranteed compatibility but uses more bandwidth
+                
+                Args:
+                    source_name: Name of the audio source to stream
+                
+                Returns:
+                    Response: Streaming WAV audio (currently) or MP3 (future)
                 """
                 import struct
                 import io
                 import numpy as np
                 from app_core.audio.ingest import AudioSourceStatus
                 
-                def generate_wav_stream(adapter, source_name):
+                def generate_mp3_stream(adapter, source_name):
+                    """Generator that yields MP3 chunks at native sample rate.
+                    
+                    Uses ffmpeg subprocess to encode PCM to MP3 in real-time.
+                    Reduces bandwidth by ~10x compared to uncompressed WAV.
+                    
+                    Architecture:
+                    - Read PCM audio from BroadcastQueue subscription
+                    - Pipe to ffmpeg stdin as raw PCM (s16le format)
+                    - ffmpeg encodes to MP3 at 128 kbps
+                    - Read MP3 chunks from ffmpeg stdout
+                    - Stream to browser
+                    """
+                    import queue as queue_module
+                    import subprocess
+                    import select
+
+                    # Source configuration
+                    source_sample_rate = adapter.config.sample_rate
+                    stream_sample_rate = source_sample_rate
+                    stream_channels = 1
+                    
+                    # Validate source sample rate
+                    if source_sample_rate <= 0:
+                        logger.error(f"Invalid source sample rate: {source_sample_rate} Hz. Using 44100 Hz as fallback.")
+                        source_sample_rate = 44100
+                        stream_sample_rate = 44100
+                    
+                    logger.info(
+                        f"MP3 stream for {source_name}: {stream_sample_rate}Hz @ 128kbps (compressed)"
+                    )
+
+                    # Subscribe to BroadcastQueue
+                    subscriber_id = f"web-stream-mp3-{source_name}-{threading.current_thread().ident}"
+                    if not (hasattr(adapter, 'get_broadcast_queue') and callable(getattr(adapter, 'get_broadcast_queue', None))):
+                        logger.error(f"Audio source '{source_name}' does not support broadcast queue")
+                        raise RuntimeError(f'Audio source "{source_name}" does not support streaming')
+                    
+                    broadcast_queue = adapter.get_broadcast_queue()
+                    subscription_queue = broadcast_queue.subscribe(subscriber_id)
+
+                    # Start ffmpeg process for MP3 encoding
+                    ffmpeg_cmd = [
+                        'ffmpeg',
+                        '-f', 's16le',  # Input format: signed 16-bit little-endian PCM
+                        '-ar', str(stream_sample_rate),  # Input sample rate
+                        '-ac', str(stream_channels),  # Input channels
+                        '-i', 'pipe:0',  # Read from stdin
+                        '-c:a', 'libmp3lame',  # MP3 encoder
+                        '-b:a', '128k',  # Bitrate: 128 kbps
+                        '-f', 'mp3',  # Output format
+                        '-',  # Write to stdout
+                    ]
+                    
+                    ffmpeg_process = None
+                    try:
+                        ffmpeg_process = subprocess.Popen(
+                            ffmpeg_cmd,
+                            stdin=subprocess.PIPE,
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE,
+                            bufsize=0  # Unbuffered for low latency
+                        )
+                        
+                        logger.debug(f"MP3 stream '{subscriber_id}' started with ffmpeg encoding")
+                        
+                        # Make stdout non-blocking
+                        import fcntl
+                        import os
+                        fd = ffmpeg_process.stdout.fileno()
+                        flags = fcntl.fcntl(fd, fcntl.F_GETFL)
+                        fcntl.fcntl(fd, fcntl.F_SETFL, flags | os.O_NONBLOCK)
+                        
+                        silence_duration = 0.05
+                        silence_samples = int(stream_sample_rate * stream_channels * silence_duration)
+
+                        while _running and ffmpeg_process.poll() is None:
+                            try:
+                                # Read audio chunk from subscription queue
+                                audio_chunk = subscription_queue.get(timeout=0.2)
+                                
+                                if audio_chunk is None:
+                                    # Yield silence to keep stream alive
+                                    silence_chunk = np.zeros(silence_samples, dtype=np.int16)
+                                    pcm_data = silence_chunk.tobytes()
+                                else:
+                                    # Convert audio to PCM
+                                    if not isinstance(audio_chunk, np.ndarray):
+                                        audio_chunk = np.array(audio_chunk, dtype=np.float32)
+
+                                    # Convert to mono if needed
+                                    if audio_chunk.ndim == 2 and stream_channels == 1:
+                                        audio_chunk = np.mean(audio_chunk, axis=1)
+                                    elif audio_chunk.ndim == 1:
+                                        pass
+                                    else:
+                                        audio_chunk = audio_chunk.flatten()
+
+                                    # Convert to int16 PCM
+                                    pcm_data = (np.clip(audio_chunk, -1.0, 1.0) * 32767).astype(np.int16).tobytes()
+                                
+                                # Write PCM to ffmpeg stdin
+                                if ffmpeg_process.stdin:
+                                    try:
+                                        ffmpeg_process.stdin.write(pcm_data)
+                                        ffmpeg_process.stdin.flush()
+                                    except BrokenPipeError:
+                                        break
+                                
+                                # Read MP3 output from ffmpeg stdout (non-blocking)
+                                try:
+                                    mp3_chunk = ffmpeg_process.stdout.read(4096)
+                                    if mp3_chunk:
+                                        yield mp3_chunk
+                                except (BlockingIOError, IOError):
+                                    pass  # No data available yet
+                                    
+                            except queue_module.Empty:
+                                # No audio available, continue
+                                pass
+                            except Exception as e:
+                                logger.error(f"Error in MP3 stream generator: {e}")
+                                break
+                                
+                    finally:
+                        # Clean up
+                        broadcast_queue.unsubscribe(subscriber_id)
+                        if ffmpeg_process:
+                            if ffmpeg_process.stdin:
+                                try:
+                                    ffmpeg_process.stdin.close()
+                                except:
+                                    pass
+                            try:
+                                ffmpeg_process.terminate()
+                                ffmpeg_process.wait(timeout=2)
+                            except:
+                                try:
+                                    ffmpeg_process.kill()
+                                except:
+                                    pass
+                        logger.debug(f"MP3 stream '{subscriber_id}' ended")
+                
                     """Generator that yields WAV chunks at native sample rate.
 
                     Uses BroadcastQueue subscription to avoid competing with other audio consumers
@@ -971,17 +1140,17 @@ def main():
                         }), 503
                     
                     return Response(
-                        stream_with_context(generate_wav_stream(adapter, source_name)),
-                        mimetype='audio/wav',
+                        stream_with_context(generate_mp3_stream(adapter, source_name)),
+                        mimetype='audio/mpeg',
                         headers={
-                            'Content-Disposition': f'inline; filename="{source_name}.wav"',
+                            'Content-Disposition': f'inline; filename="{source_name}.mp3"',
                             'Cache-Control': 'no-cache, no-store, must-revalidate',
                             'Pragma': 'no-cache',
                             'Expires': '0',
                             'X-Content-Type-Options': 'nosniff',
                             'Access-Control-Allow-Origin': '*',
-                            'Accept-Ranges': 'none',  # Disable seeking/range requests
-                            'Connection': 'keep-alive',  # Keep connection alive
+                            'Accept-Ranges': 'none',
+                            'Connection': 'keep-alive',
                         }
                     )
                 except Exception as exc:
