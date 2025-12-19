@@ -1,7 +1,7 @@
 """Add EAS settings
 
 Revision ID: 20251219_add_eas_settings
-Revises: 20251218_add_poller_settings
+Revises: 20251218_merge_icecast_and_poller
 Create Date: 2025-12-19
 
 """
@@ -12,7 +12,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 
 # revision identifiers, used by Alembic.
 revision = '20251219_add_eas_settings'
-down_revision = '20251218_add_poller_settings'
+down_revision = '20251218_merge_icecast_and_poller'
 branch_labels = None
 depends_on = None
 
