@@ -352,6 +352,8 @@ def _install_certificate_internal(domain: str) -> Dict[str, Any]:
         logger.info(f"Updated nginx configuration to use Let's Encrypt certificate for {domain}")
 
         # Test nginx configuration
+        # Note: nginx -t may fail with permission errors on log files even when config is valid
+        # We'll try the test but proceed with reload anyway since reload will fail safely if config is bad
         test_result = subprocess.run(
             ['sudo', 'nginx', '-t'],
             capture_output=True,
@@ -360,12 +362,18 @@ def _install_certificate_internal(domain: str) -> Dict[str, Any]:
         )
 
         if test_result.returncode != 0:
-            logger.error(f"Nginx configuration test failed: {test_result.stderr}")
-            return {
-                "success": False,
-                "error": f"Nginx configuration test failed: {test_result.stderr}",
-                "note": "Certificate files created but nginx config has errors. Please check manually."
-            }
+            # Check if it's just a log file permission error (config syntax was OK)
+            stderr = test_result.stderr or ''
+            if 'syntax is ok' in stderr and 'Permission denied' in stderr and '/var/log' in stderr:
+                logger.warning(f"Nginx config syntax OK but log file permission issue: {stderr}")
+                # Proceed anyway - the reload will fail safely if there's a real problem
+            else:
+                logger.error(f"Nginx configuration test failed: {stderr}")
+                return {
+                    "success": False,
+                    "error": f"Nginx configuration test failed: {stderr}",
+                    "note": "Certificate files created but nginx config has errors. Please check manually."
+                }
 
         # Check if nginx is running before attempting reload
         nginx_running = _check_nginx_status()
