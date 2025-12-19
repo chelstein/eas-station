@@ -17,11 +17,15 @@ tracks releases under the 2.x series.
 
 ### Changed
 - **Environment Variable Cleanup** - Removed deprecated environment variables from admin interface
-  - Removed `LOCATION_CONFIG` from environment settings (use Location Settings page in database)
-  - Removed `EAS_MANUAL_FIPS_CODES` from environment settings (use RWT Schedule page in database)
-  - All location and RWT broadcast configuration is now exclusively database-based
-  - Environment variables page no longer shows deprecated location/FIPS variables
-  - Cleaned up legacy code paths and environment variable fallbacks
+  - Removed entire `Location` category (use Location Settings page in database)
+  - Removed entire `EAS Broadcast` category (use EAS Settings page in database)
+  - Removed entire `Alert Polling` category (use Poller Settings page in database)
+  - Removed entire `Zigbee Module` category (use Hardware Settings page in database)
+  - Removed empty `System` category
+  - All configuration is now exclusively database-based through admin pages
+  - Environment variables page now only shows core app settings (database, redis, notifications, performance)
+  - Removed auto-populate zone codes logic that referenced removed FIPS variables
+  - Removed `_derive_county_zone_codes_from_fips` import that is no longer needed
 
 ### Improved
 - **RWT Configuration UI Clarity** - Better organization of FIPS code configuration flow

@@ -33,7 +33,7 @@ from pathlib import Path
 from flask import Blueprint, flash, jsonify, redirect, render_template, request, current_app, url_for
 from werkzeug.exceptions import BadRequest
 
-from app_core.location import get_location_settings, _derive_county_zone_codes_from_fips
+from app_core.location import get_location_settings
 from app_core.auth.roles import require_permission
 from app_utils.pi_pinout import ARGON_OLED_RESERVED_BCM, ARGON_OLED_RESERVED_PHYSICAL
 
@@ -253,190 +253,6 @@ ENV_CATEGORIES = {
             },
         ],
     },
-    'polling': {
-        'name': 'Alert Polling',
-        'icon': 'fa-satellite',
-        'description': 'CAP feed polling configuration',
-        'variables': [
-            {
-                'key': 'POLL_INTERVAL_SEC',
-                'label': 'Poll Interval (seconds)',
-                'type': 'number',
-                'default': '180',
-                'description': 'How often to check for new alerts',
-                'min': 60,
-                'max': 3600,
-            },
-            {
-                'key': 'CAP_TIMEOUT',
-                'label': 'Request Timeout (seconds)',
-                'type': 'number',
-                'default': '30',
-                'description': 'HTTP timeout for CAP feed requests',
-                'min': 10,
-                'max': 120,
-            },
-            {
-                'key': 'NOAA_USER_AGENT',
-                'label': 'NOAA User Agent',
-                'type': 'text',
-                'required': True,
-                'default': 'EAS Station (+https://github.com/KR8MER/eas-station; support@easstation.com)',
-                'description': 'User agent string for NOAA API compliance (Format: "AppName/Version (contact info)")',
-            },
-            {
-                'key': 'CAP_ENDPOINTS',
-                'label': 'CAP Feed URLs',
-                'type': 'textarea',
-                'description': 'Comma-separated list of custom CAP feed URLs (optional)',
-                'placeholder': 'https://example.com/cap/feed1, https://example.com/cap/feed2',
-            },
-            {
-                'key': 'IPAWS_CAP_FEED_URLS',
-                'label': 'IPAWS Feed URLs',
-                'type': 'textarea',
-                'description': 'Comma-separated list of IPAWS CAP feed URLs (optional)',
-            },
-            {
-                'key': 'IPAWS_DEFAULT_LOOKBACK_HOURS',
-                'label': 'IPAWS Lookback Hours',
-                'type': 'number',
-                'default': '12',
-                'description': 'Hours to look back when fetching IPAWS alerts',
-                'min': 1,
-                'max': 72,
-            },
-        ],
-    },
-    'eas': {
-        'name': 'EAS Broadcast',
-        'icon': 'fa-broadcast-tower',
-        'description': 'SAME/EAS encoder configuration',
-        'variables': [
-            {
-                'key': 'EAS_BROADCAST_ENABLED',
-                'label': 'Enable EAS Broadcasting',
-                'type': 'select',
-                'options': ['false', 'true'],
-                'default': 'false',
-                'description': 'Enable SAME/EAS audio generation',
-            },
-            {
-                'key': 'EAS_ORIGINATOR',
-                'label': 'Originator Code',
-                'type': 'select',
-                'options': ['WXR', 'EAS', 'PEP', 'CIV'],
-                'default': 'WXR',
-                'description': 'EAS originator code: WXR (Weather), EAS (Broadcast), PEP (Primary Entry Point), CIV (Civil Authority)',
-                'category': 'eas_enabled',
-            },
-            {
-                'key': 'EAS_STATION_ID',
-                'label': 'Station ID',
-                'type': 'text',
-                'default': 'EASNODES',
-                'description': 'Your station callsign or identifier (8 characters max, uppercase letters/numbers/forward slash only)',
-                'maxlength': 8,
-                'pattern': '^[A-Z0-9/]{1,8}$',
-                'title': 'Must contain only uppercase letters (A-Z), numbers (0-9), and forward slash (/). No hyphens or lowercase letters.',
-                'category': 'eas_enabled',
-            },
-            {
-                'key': 'EAS_OUTPUT_DIR',
-                'label': 'Output Directory',
-                'type': 'text',
-                'default': 'static/eas_messages',
-                'description': 'Directory for generated EAS audio files',
-                'category': 'eas_enabled',
-            },
-            {
-                'key': 'EAS_ATTENTION_TONE_SECONDS',
-                'label': 'Attention Tone Duration',
-                'type': 'number',
-                'default': '8',
-                'description': 'Attention tone length in seconds',
-                'min': 1,
-                'max': 60,
-                'category': 'eas_enabled',
-            },
-            {
-                'key': 'EAS_SAMPLE_RATE',
-                'label': 'Audio Sample Rate',
-                'type': 'select',
-                'options': ['8000', '16000', '22050', '44100', '48000'],
-                'default': '44100',
-                'description': 'Audio sample rate in Hz',
-                'category': 'eas_enabled',
-            },
-            {
-                'key': 'EAS_AUDIO_PLAYER',
-                'label': 'Audio Player Command',
-                'type': 'text',
-                'default': 'aplay',
-                'description': 'Command to play audio files',
-                'category': 'eas_enabled',
-            },
-            {
-                'key': 'EAS_MANUAL_EVENT_CODES',
-                'label': 'Authorized Event Codes',
-                'type': 'textarea',
-                'description': 'Comma-separated event codes for manual broadcasts',
-                'placeholder': 'RWT,DMO,SVR',
-                'category': 'eas_enabled',
-            },
-        ],
-    },
-
-    'zigbee': {
-        'name': 'Zigbee Module',
-        'icon': 'fa-broadcast-tower',
-        'description': 'Argon Industria V5 Zigbee Module',
-        'variables': [
-            {
-                'key': 'ZIGBEE_ENABLED',
-                'label': 'Enable Zigbee Module',
-                'type': 'select',
-                'options': ['false', 'true'],
-                'default': 'false',
-                'description': 'Enable the Argon Industria V5 Zigbee coordinator module.',
-            },
-            {
-                'key': 'ZIGBEE_PORT',
-                'label': 'Serial Port',
-                'type': 'text',
-                'description': 'Serial port for Zigbee module (UART connection). Leave empty to auto-detect.',
-                'placeholder': '/dev/ttyAMA0',
-                'category': 'zigbee_enabled',
-            },
-            {
-                'key': 'ZIGBEE_BAUDRATE',
-                'label': 'Baud Rate',
-                'type': 'select',
-                'options': ['9600', '19200', '38400', '57600', '115200'],
-                'default': '115200',
-                'description': 'Serial communication speed (115200 is standard for Zigbee coordinators)',
-                'category': 'zigbee_enabled',
-            },
-            {
-                'key': 'ZIGBEE_CHANNEL',
-                'label': 'Zigbee Channel',
-                'type': 'number',
-                'default': '15',
-                'min': 11,
-                'max': 26,
-                'description': 'Zigbee radio channel (11-26). Channel 15 is recommended to avoid WiFi interference.',
-                'category': 'zigbee_enabled',
-            },
-            {
-                'key': 'ZIGBEE_PAN_ID',
-                'label': 'PAN ID',
-                'type': 'text',
-                'description': 'Personal Area Network ID (leave empty for auto-generated)',
-                'placeholder': '0x1A62',
-                'category': 'zigbee_enabled',
-            },
-        ],
-    },
     'notifications': {
         'name': 'Notifications',
         'icon': 'fa-envelope',
@@ -491,14 +307,6 @@ ENV_CATEGORIES = {
             },
         ],
     },
-    'system': {
-        'name': 'System',
-        'icon': 'fa-cog',
-        'description': 'System and deployment settings',
-        'variables': [
-        ],
-    },
-
 }
 
 
@@ -807,24 +615,6 @@ def update_environment_variables():
             old_value = env_vars.get(key, '')
             env_vars[key] = str(value)
             logger.debug(f'Updated {key}: {len(old_value)} chars -> {len(str(value))} chars')
-
-        # Auto-populate zone codes from FIPS codes if zone codes are empty
-        fips_codes_raw = env_vars.get("EAS_MANUAL_FIPS_CODES", "").strip()
-        zone_codes_raw = env_vars.get("DEFAULT_ZONE_CODES", "").strip()
-
-        if fips_codes_raw and not zone_codes_raw:
-            try:
-                # Parse FIPS codes (comma-separated)
-                fips_list = [code.strip() for code in fips_codes_raw.split(",") if code.strip()]
-
-                # Derive zone codes from FIPS
-                derived_zones = _derive_county_zone_codes_from_fips(fips_list)
-
-                if derived_zones:
-                    env_vars["DEFAULT_ZONE_CODES"] = ",".join(derived_zones)
-                    logger.info(f"Auto-derived {len(derived_zones)} zone codes from {len(fips_list)} FIPS codes")
-            except Exception as zone_exc:
-                logger.warning(f"Failed to auto-derive zone codes from FIPS: {zone_exc}")
 
         # Write to .env file
         env_path = get_env_file_path()
