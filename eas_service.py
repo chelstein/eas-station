@@ -254,7 +254,33 @@ def collect_eas_metrics() -> Dict[str, Any]:
             eas_stats = _eas_monitor.get_status()
             if eas_stats:
                 metrics["eas_monitor"] = _sanitize_value(eas_stats)
-                logger.info(f"📊 Collected EAS monitor stats: running={eas_stats.get('running')}, samples={eas_stats.get('samples_processed', 0):,}, health={eas_stats.get('health_percentage', 0):.1%}")
+                
+                # Format diagnostic log message with key operational metrics
+                audio_flowing = eas_stats.get('audio_flowing', False)
+                samples_processed = eas_stats.get('samples_processed', 0)
+                samples_per_sec = eas_stats.get('samples_per_second', 0)
+                health_pct = eas_stats.get('health_percentage', 0)
+                time_since_audio = eas_stats.get('time_since_last_audio', float('inf'))
+                alerts_detected = eas_stats.get('alerts_detected', 0)
+                
+                # Create status indicator
+                status_icon = "✅" if audio_flowing else "⚠️"
+                
+                # Format time_since_audio for display
+                if time_since_audio == float('inf') or time_since_audio >= 999999:
+                    time_display = "unknown"
+                else:
+                    time_display = f"{time_since_audio:.1f}s"
+                
+                logger.info(
+                    f"📊 EAS Monitor Status: {status_icon} "
+                    f"audio_flowing={audio_flowing}, "
+                    f"samples={samples_processed:,} "
+                    f"({samples_per_sec:,}/sec), "
+                    f"health={health_pct:.1%}, "
+                    f"time_since_audio={time_display}, "
+                    f"alerts={alerts_detected}"
+                )
             else:
                 logger.warning("EAS monitor returned no stats")
                 metrics["eas_monitor"] = {
