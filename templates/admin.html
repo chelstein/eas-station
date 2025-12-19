@@ -656,7 +656,7 @@
                                 <div class="mt-3" id="locationSelectedFips">
                                     <p class="text-muted small mb-0">No SAME / FIPS counties selected yet.</p>
                                 </div>
-                                <input type="hidden" id="locationFipsCodes" name="fips_codes">
+                                <input type="hidden" id="locationFipsCodes" name="fips_codes" value="{{ (location_settings.fips_codes or []) | join(',') }}">
                                 <small class="text-muted d-block mt-2">Select up to 31 SAME location codes to monitor. The nationwide code (000000) is automatically included and required for nationwide alerts.</small>
                             </div>
                             <div class="col-12">
@@ -764,11 +764,6 @@
                                 </small>
                             </div>
 
-                            <div class="col-md-12">
-                                <label for="locationAreaTerms" class="form-label fw-bold">Area Match Keywords <span class="badge bg-secondary">Deprecated</span></label>
-                                <textarea class="form-control" id="locationAreaTerms" name="area_terms" rows="2" placeholder="Names that indicate a relevant alert">{{ (location_settings.area_terms or []) | join('\n') }}</textarea>
-                                <small class="text-muted">This field is deprecated and retained only for backwards compatibility. Use SAME/FIPS codes and zone codes instead.</small>
-                            </div>
                             <div class="col-12">
                                 <div class="card border-secondary-subtle shadow-sm mt-2" id="locationReferenceCard">
                                     <div class="card-body">
@@ -803,16 +798,6 @@
                             <div class="col-md-4">
                                 <label for="locationMapZoom" class="form-label fw-bold">Map Default Zoom</label>
                                 <input type="number" class="form-control" id="locationMapZoom" name="map_default_zoom" value="{{ location_settings.map_default_zoom | default('9') }}">
-                            </div>
-
-                            <div class="col-12 mt-3">
-                                <div class="alert alert-info d-flex align-items-start" role="alert">
-                                    <i class="fas fa-microchip me-3 mt-1"></i>
-                                    <div>
-                                        <strong>LED Sign Settings Moved:</strong> LED sign configuration has been moved to the
-                                        <a href="#" onclick="document.getElementById('hardware-tab').click(); return false;" class="alert-link">Hardware Integrations</a> tab.
-                                    </div>
-                                </div>
                             </div>
 
                             <div class="col-12 d-flex align-items-center">
@@ -2053,4 +2038,5 @@
     <script src="{{ url_for('static', filename='js/admin/operations.js') }}"></script>
     <script src="{{ url_for('static', filename='js/admin/snow-emergency.js') }}"></script>
     <script src="{{ url_for('static', filename='js/admin/zone-catalog.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/admin/location-settings.js') }}"></script>
 {% endblock %}
