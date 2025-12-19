@@ -7,6 +7,12 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **Audio Source Form Consistency** - Removed sample rate field from user-facing audio sources page
+  - Sample rate field removed from `/templates/audio_sources.html` to match admin page
+  - Prevents confusion where UI shows non-functional sample rate input
+  - Form now shows 3 fields in one row (channels, silence threshold, silence duration)
+  - Consistent with admin page where sample rate was already removed
+
 - **SDR Receiver Restart Command** - Added status information to restart response
   - SDR service now returns receiver status (locked, signal_strength, running) after restart
   - Webapp restart endpoint properly displays post-restart receiver state
