@@ -757,8 +757,10 @@ class CAPPoller:
             List of batched endpoint URLs
         """
         if not zone_codes:
+            self.logger.warning("_build_batched_noaa_endpoints called with empty zone_codes - no NOAA endpoints will be created!")
             return []
-        
+
+        self.logger.info(f"Building NOAA endpoints for zone codes: {zone_codes}")
         base_url = "https://api.weather.gov/alerts/active?zone="
         base_len = len(base_url)
         
@@ -782,13 +784,17 @@ class CAPPoller:
         # Add final batch
         if current_batch:
             endpoints.append(base_url + ",".join(current_batch))
-        
+
         # Log batching info when multiple zones are combined into fewer requests
         if len(zone_codes) > 1 and len(endpoints) < len(zone_codes):
             self.logger.info(
                 f"Batched {len(zone_codes)} zone codes into {len(endpoints)} API request(s) to reduce rate limiting"
             )
-        
+
+        # Log the generated endpoints
+        for ep in endpoints:
+            self.logger.info(f"Generated NOAA endpoint: {ep}")
+
         return endpoints
 
     # ---------- Engine with retry ----------
