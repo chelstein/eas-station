@@ -927,14 +927,42 @@
                                     <small class="text-muted">Directory for generated EAS audio files</small>
                                 </div>
 
-                                <!-- Authorized Areas -->
-                                <div class="col-md-6">
-                                    <label for="easAuthorizedFips" class="form-label fw-bold">
-                                        Authorized FIPS Codes
-                                        <i class="fas fa-info-circle text-primary ms-1" data-bs-toggle="tooltip" title="FIPS codes authorized for manual EAS broadcasts"></i>
-                                    </label>
-                                    <textarea class="form-control" id="easAuthorizedFips" name="authorized_fips_codes" rows="3" placeholder="039137&#10;039003"></textarea>
-                                    <small class="text-muted">One FIPS code per line (PSSCCC format)</small>
+                                <!-- Authorized FIPS with Builder -->
+                                <div class="col-12">
+                                    <div class="card border-warning-subtle">
+                                        <div class="card-header bg-warning-subtle">
+                                            <h6 class="mb-0">
+                                                <i class="fas fa-map-marker-alt me-2"></i> Authorized Broadcast Counties
+                                                <span class="badge bg-warning text-dark ms-2" id="easAuthorizedFipsCount">0</span>
+                                            </h6>
+                                        </div>
+                                        <div class="card-body">
+                                            <p class="text-muted small mb-3">Select counties authorized for manual EAS broadcasts and RWT tests. This shared list is also used by the Weekly Test scheduler.</p>
+                                            <div class="row g-2 align-items-end mb-3">
+                                                <div class="col-md-4">
+                                                    <label for="easFipsState" class="form-label small text-muted mb-1">State or Territory</label>
+                                                    <select class="form-select" id="easFipsState">
+                                                        <option value="">Select state or territory…</option>
+                                                    </select>
+                                                </div>
+                                                <div class="col-md-5">
+                                                    <label for="easFipsCounty" class="form-label small text-muted mb-1">County / Area</label>
+                                                    <select class="form-select" id="easFipsCounty" disabled>
+                                                        <option value="">Select a state first…</option>
+                                                    </select>
+                                                </div>
+                                                <div class="col-md-3">
+                                                    <button type="button" class="btn btn-outline-warning w-100" id="easAddFipsBtn">
+                                                        <i class="fas fa-plus"></i> Add County
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            <div id="easSelectedFips" class="mb-2">
+                                                <p class="text-muted small mb-0">No broadcast counties selected yet.</p>
+                                            </div>
+                                            <input type="hidden" id="easAuthorizedFipsCodes" name="authorized_fips_codes">
+                                        </div>
+                                    </div>
                                 </div>
                                 <div class="col-md-6">
                                     <label for="easAuthorizedEvents" class="form-label fw-bold">
