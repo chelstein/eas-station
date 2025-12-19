@@ -206,6 +206,12 @@ class AdminUser(db.Model):
         self.salt = "pbkdf2"
 
     def check_password(self, password: str) -> bool:
+        """Check password and flag for upgrade if using legacy format.
+
+        Note: If using legacy SHA256 format, the password is upgraded in-place
+        but NOT committed. The caller is responsible for committing the session
+        after a successful authentication flow to avoid mid-request commits.
+        """
         if self.password_hash is None:
             return False
 
@@ -217,15 +223,11 @@ class AdminUser(db.Model):
                     return False
                 hashed = hashlib.sha256(salt_bytes + password.encode("utf-8")).hexdigest()
                 if hashed == self.password_hash:
-                    # Upgrade to new password hash format
+                    # Upgrade to new password hash format in-place
+                    # The session commit happens in the authentication flow,
+                    # not here, to avoid race conditions with other requests
                     self.set_password(password)
-                    try:
-                        db.session.add(self)
-                        db.session.commit()
-                        _log_info(f"Upgraded password hash for user {self.username} to pbkdf2 format")
-                    except Exception as exc:
-                        db.session.rollback()
-                        _log_warning(f"Failed to persist password hash upgrade for user {self.username}: {exc}")
+                    _log_info(f"Password hash for user {self.username} upgraded to pbkdf2 format (pending commit)")
                     return True
             return False
 

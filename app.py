@@ -25,7 +25,9 @@ Flask-based CAP ingestion, SAME encoding, broadcast, and verification system
 Author: KR8MER Amateur Radio Emergency Communications
 Description: Multi-source alert aggregation with FCC-compliant SAME encoding, PostGIS spatial intelligence,
              SDR verification, and LED signage integration
-Version: 2.7.2 - Restores SDR audio monitors on-demand to eliminate 503 playback errors
+
+Version is read dynamically from the VERSION file at runtime.
+See app.config['SYSTEM_VERSION'] for current version.
 """
 
 # =============================================================================
@@ -601,7 +603,29 @@ def not_found_error(error):
 
 @app.errorhandler(500)
 def internal_error(error):
-    """Enhanced 500 error page"""
+    """Enhanced 500 error page with detailed logging for debugging."""
+    import traceback
+
+    # Log the error with full traceback for debugging
+    logger.error(
+        "Internal server error on %s %s: %s",
+        request.method,
+        request.path,
+        error,
+        exc_info=True,
+    )
+
+    # Log additional context that may help debugging
+    try:
+        logger.error(
+            "Request context - Remote addr: %s, User agent: %s, Referrer: %s",
+            request.remote_addr,
+            request.user_agent.string[:100] if request.user_agent else "N/A",
+            request.referrer[:100] if request.referrer else "N/A",
+        )
+    except Exception:
+        pass  # Don't let logging errors mask the original error
+
     if hasattr(db, 'session') and db.session:
         db.session.rollback()
 

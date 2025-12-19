@@ -38,6 +38,8 @@ class LoginRateLimiter:
     LOCKOUT_DURATION = timedelta(minutes=15)  # How long to lock out after max attempts
     ATTEMPT_WINDOW = timedelta(minutes=5)  # Time window to count attempts
     CLEANUP_INTERVAL = 300  # Cleanup every 5 minutes (in seconds)
+    MAX_TRACKED_IPS = 10000  # Maximum IPs to track to prevent memory exhaustion
+    UNKNOWN_IP_PLACEHOLDER = "unknown"  # Placeholder for missing IP addresses
 
     def __init__(self):
         """Initialize the rate limiter with thread-safe storage."""
@@ -46,30 +48,44 @@ class LoginRateLimiter:
         self._lock = threading.Lock()
         self._cleanup_timer: Optional[threading.Timer] = None
         self._running = False
-    
+
+    def _normalize_ip(self, ip_address: str) -> str:
+        """Normalize IP address, using placeholder for missing/invalid IPs.
+
+        This ensures rate limiting still applies even when IP cannot be determined,
+        preventing bypass attacks through proxy misconfiguration.
+        """
+        if not ip_address or not ip_address.strip():
+            return self.UNKNOWN_IP_PLACEHOLDER
+        return ip_address.strip()
+
     def record_failed_attempt(self, ip_address: str) -> None:
         """
         Record a failed login attempt for an IP address.
-        
+
         Args:
             ip_address: The IP address making the attempt
         """
-        if not ip_address:
-            return
+        ip_address = self._normalize_ip(ip_address)
         
         with self._lock:
             now = datetime.utcnow()
-            
+
+            # Memory bounds protection: if we're tracking too many IPs,
+            # clean up aggressively before adding more
+            if len(self._attempts) >= self.MAX_TRACKED_IPS:
+                self._cleanup_oldest_entries_unlocked(now)
+
             # Add this attempt
             self._attempts[ip_address].append(now)
-            
+
             # Clean up old attempts outside the window
             cutoff = now - self.ATTEMPT_WINDOW
             self._attempts[ip_address] = [
                 attempt for attempt in self._attempts[ip_address]
                 if attempt > cutoff
             ]
-            
+
             # If max attempts reached, lock out
             if len(self._attempts[ip_address]) >= self.MAX_ATTEMPTS:
                 self._lockouts[ip_address] = now
@@ -77,16 +93,15 @@ class LoginRateLimiter:
     def is_locked_out(self, ip_address: str) -> Tuple[bool, int]:
         """
         Check if an IP address is currently locked out.
-        
+
         Args:
             ip_address: The IP address to check
-            
+
         Returns:
             Tuple of (is_locked_out, seconds_remaining)
         """
-        if not ip_address:
-            return False, 0
-        
+        ip_address = self._normalize_ip(ip_address)
+
         with self._lock:
             now = datetime.utcnow()
             
@@ -109,19 +124,18 @@ class LoginRateLimiter:
     def clear_attempts(self, ip_address: str) -> None:
         """
         Clear failed attempts for an IP address (call on successful login).
-        
+
         Args:
             ip_address: The IP address to clear
         """
-        if not ip_address:
-            return
-        
+        ip_address = self._normalize_ip(ip_address)
+
         with self._lock:
             if ip_address in self._attempts:
                 self._attempts[ip_address] = []
             if ip_address in self._lockouts:
                 del self._lockouts[ip_address]
-    
+
     def get_remaining_attempts(self, ip_address: str) -> int:
         """
         Get the number of remaining attempts before lockout.
@@ -132,8 +146,7 @@ class LoginRateLimiter:
         Returns:
             Number of remaining attempts
         """
-        if not ip_address:
-            return self.MAX_ATTEMPTS
+        ip_address = self._normalize_ip(ip_address)
 
         with self._lock:
             now = datetime.utcnow()
@@ -160,8 +173,7 @@ class LoginRateLimiter:
         Returns:
             Number of attempts in the time window
         """
-        if not ip_address:
-            return 0
+        ip_address = self._normalize_ip(ip_address)
 
         with self._lock:
             now = datetime.utcnow()
@@ -176,7 +188,49 @@ class LoginRateLimiter:
                 return len(recent_attempts)
 
             return 0
-    
+
+    def _cleanup_oldest_entries_unlocked(self, now: datetime) -> None:
+        """Clean up oldest entries when memory bounds are reached.
+
+        This method must be called while holding self._lock.
+        It aggressively removes the oldest half of tracked IPs to prevent
+        memory exhaustion during distributed brute-force attacks.
+        """
+        # First, do a normal cleanup of expired entries
+        cutoff = now - self.ATTEMPT_WINDOW
+
+        # Remove expired lockouts
+        expired_lockouts = [
+            ip for ip, lockout_time in self._lockouts.items()
+            if now > lockout_time + self.LOCKOUT_DURATION
+        ]
+        for ip in expired_lockouts:
+            del self._lockouts[ip]
+            if ip in self._attempts:
+                del self._attempts[ip]
+
+        # Remove entries with no recent attempts
+        for ip in list(self._attempts.keys()):
+            self._attempts[ip] = [
+                attempt for attempt in self._attempts[ip]
+                if attempt > cutoff
+            ]
+            if not self._attempts[ip]:
+                del self._attempts[ip]
+
+        # If still over limit, remove oldest half by most recent attempt time
+        if len(self._attempts) >= self.MAX_TRACKED_IPS:
+            # Sort IPs by most recent attempt (oldest first)
+            ips_by_recency = sorted(
+                self._attempts.keys(),
+                key=lambda ip: max(self._attempts[ip]) if self._attempts[ip] else now
+            )
+            # Remove oldest half
+            to_remove = ips_by_recency[:len(ips_by_recency) // 2]
+            for ip in to_remove:
+                del self._attempts[ip]
+                self._lockouts.pop(ip, None)
+
     def cleanup_old_entries(self) -> None:
         """
         Clean up expired lockouts and old attempts.

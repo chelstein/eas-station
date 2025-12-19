@@ -99,7 +99,7 @@ def get_systemd_logs(service: str, lines: int = 100, priority: str = None, since
             # Try to get current user for helpful message
             try:
                 current_user = pwd.getpwuid(os.getuid()).pw_name
-            except:
+            except (KeyError, OSError):
                 current_user = 'www-data'
             
             return {
