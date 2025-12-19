@@ -39,6 +39,8 @@ Benefits over file-based approach:
 """
 
 import json
+import math
+import os
 import time
 import logging
 import threading
@@ -50,6 +52,56 @@ from app_core.redis_client import get_redis_client as _get_central_redis_client
 from app_core.config.redis_config import RedisChannels, RedisTimeouts
 
 logger = logging.getLogger(__name__)
+
+
+def _sanitize_for_json(obj: Any) -> Any:
+    """
+    Recursively sanitize objects to be JSON-safe.
+    
+    Converts inf, -inf, nan to valid numbers.
+    Handles nested dicts, lists, and numpy types.
+    """
+    if obj is None:
+        return None
+    
+    if isinstance(obj, bool):
+        return obj
+    
+    if isinstance(obj, (int, str)):
+        return obj
+    
+    if isinstance(obj, float):
+        if math.isinf(obj):
+            return -120.0 if obj < 0 else 120.0
+        if math.isnan(obj):
+            return -120.0
+        return obj
+    
+    # Handle numpy types
+    try:
+        import numpy as np
+        if isinstance(obj, np.floating):
+            value = float(obj)
+            if math.isinf(value):
+                return -120.0 if value < 0 else 120.0
+            if math.isnan(value):
+                return -120.0
+            return value
+        if isinstance(obj, np.integer):
+            return int(obj)
+        if isinstance(obj, np.bool_):
+            return bool(obj)
+    except ImportError:
+        pass
+    
+    if isinstance(obj, dict):
+        return {key: _sanitize_for_json(value) for key, value in obj.items()}
+    
+    if isinstance(obj, (list, tuple)):
+        return [_sanitize_for_json(item) for item in obj]
+    
+    # Fallback: convert to string
+    return str(obj)
 
 # Redis keys (from centralized config)
 MASTER_LOCK_KEY = RedisChannels.MASTER_LOCK_KEY
@@ -225,6 +277,9 @@ def write_shared_metrics(metrics: Dict[str, Any]):
         # Add metadata
         metrics["_heartbeat"] = time.time()
         metrics["_master_pid"] = os.getpid()
+
+        # Sanitize metrics to remove inf/nan values before serialization
+        metrics = _sanitize_for_json(metrics)
 
         # Serialize nested dicts to JSON strings
         # Redis hashes only support flat key-value pairs

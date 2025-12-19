@@ -7,6 +7,21 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **JSON Syntax Error in Audio Metrics API** - Fixed "No number after minus sign in JSON" error
+  - Root cause: Redis stored `-inf`, `inf`, `NaN` values were not sanitized before JSON serialization
+  - Error manifested as: `SyntaxError: No number after minus sign in JSON at position 135`
+  - WebSocket repeatedly disconnected with "parse error" due to malformed JSON
+  - Applied `_sanitize_float()` to all Redis metric values in `/api/audio/metrics` endpoint (lines 1827-1829)
+  - Applied `_sanitize_float()` to all Redis metric values in `/api/audio/metrics/latest` endpoint (lines 1944-1947)
+  - Applied `_sanitize_float()` to all Redis metric values in `/api/audio/health/dashboard` endpoint (lines 2389-2414)
+  - Applied `_sanitize_float()` to all Redis metric values in `/api/audio/health/metrics` endpoint (lines 2474-2479)
+  - Added `_sanitize_for_json()` function to `worker_coordinator_redis.py` to sanitize metrics before Redis storage
+  - Added `_sanitize_float()` function to `websocket_push.py` to sanitize WebSocket emissions
+  - Applied sanitization to all WebSocket audio monitoring updates
+  - All infinite and NaN values now converted to valid JSON-safe numbers (-120.0 for -inf, 120.0 for +inf, -120.0 for NaN)
+  - Fixes console errors showing repeated WebSocket disconnects on all audio monitoring pages
+  - Audio monitoring UI, VU meters, and real-time updates now function correctly
+
 - **Audio Monitoring JavaScript Errors** - Fixed syntax error and undefined function
   - Removed extra closing brace `}` in `onAudioPlaybackError()` function
   - Fixed incorrect indentation causing `return;` statement to be outside control flow

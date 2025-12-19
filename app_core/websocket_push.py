@@ -31,6 +31,7 @@ This service pushes multiple event types at different intervals:
 
 import json
 import logging
+import math
 import threading
 import time
 from typing import TYPE_CHECKING, Any, Dict, Optional
@@ -40,6 +41,31 @@ if TYPE_CHECKING:
     from flask_socketio import SocketIO
 
 logger = logging.getLogger(__name__)
+
+
+def _sanitize_float(value: float) -> float:
+    """Sanitize float values to be JSON-safe (no inf/nan, convert numpy types)."""
+    import numpy as np
+    
+    # Handle None values
+    if value is None:
+        return -120.0
+    
+    # Convert numpy types to regular Python float first
+    if isinstance(value, (np.floating, np.integer)):
+        value = float(value)
+    
+    # Handle non-numeric types
+    try:
+        value = float(value)
+    except (TypeError, ValueError):
+        return -120.0
+    
+    if math.isinf(value):
+        return -120.0 if value < 0 else 120.0
+    if math.isnan(value):
+        return -120.0
+    return value
 
 _push_thread = None
 _stop_event = threading.Event()
@@ -298,7 +324,7 @@ def _emit_audio_monitoring_update(app: 'Flask', socketio: 'SocketIO', config_cac
             for source_name, source_data in redis_sources.items():
                 config_lookup_name = source_name.replace("redis-", "", 1) if source_name.startswith("redis-") else source_name
                 config = config_cache.get(config_lookup_name)
-                # Use 'or' to handle None values from Redis
+                # Use _sanitize_float to handle None, inf, nan values from Redis
                 peak_db = source_data.get('peak_level_db')
                 rms_db = source_data.get('rms_level_db')
                 buffer_util = source_data.get('buffer_utilization')
@@ -311,11 +337,11 @@ def _emit_audio_monitoring_update(app: 'Flask', socketio: 'SocketIO', config_cac
                     'timestamp': source_data.get('timestamp', redis_metrics.get('timestamp', time.time())),
                     'sample_rate': source_data.get('sample_rate'),
                     'channels': source_data.get('channels') or 2,
-                    'peak_level_db': float(peak_db) if peak_db is not None else -120.0,
-                    'rms_level_db': float(rms_db) if rms_db is not None else -120.0,
+                    'peak_level_db': _sanitize_float(peak_db) if peak_db is not None else -120.0,
+                    'rms_level_db': _sanitize_float(rms_db) if rms_db is not None else -120.0,
                     'frames_captured': source_data.get('frames_captured') or 0,
                     'silence_detected': bool(source_data.get('silence_detected', False)),
-                    'buffer_utilization': float(buffer_util) if buffer_util is not None else 0.0,
+                    'buffer_utilization': _sanitize_float(buffer_util) if buffer_util is not None else 0.0,
                 })
 
             for name, data in redis_sources.items():
