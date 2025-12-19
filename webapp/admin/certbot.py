@@ -230,9 +230,10 @@ def _install_certificate_internal(domain: str) -> Dict[str, Any]:
     """Internal helper to install a certificate after it's been obtained.
 
     Simplified approach:
-    1. Verify certificate files exist
-    2. Write an nginx SSL snippet pointing directly to the cert files
-    3. Reload nginx
+    1. Find the most recent certificate directory for the domain
+    2. Verify certificate files exist
+    3. Write an nginx SSL snippet pointing directly to the cert files
+    4. Reload nginx
 
     Args:
         domain: Domain name for the certificate
@@ -241,16 +242,55 @@ def _install_certificate_internal(domain: str) -> Dict[str, Any]:
         Dict with 'success' boolean and either 'message' or 'error' string
     """
     try:
-        # Check if certificate exists in custom location
-        cert_dir = CERTBOT_CONFIG_DIR / 'live' / domain
-        fullchain_path = cert_dir / 'fullchain.pem'
-        privkey_path = cert_dir / 'privkey.pem'
-
-        if not cert_dir.exists():
+        # Find certificate directory - certbot may create domain-0001, domain-0002, etc.
+        # when obtaining multiple certs for the same domain (e.g., switching staging to production)
+        live_dir = CERTBOT_CONFIG_DIR / 'live'
+        
+        if not live_dir.exists():
+            return {
+                "success": False,
+                "error": f"Certificate directory not found: {live_dir}"
+            }
+        
+        # Find all directories matching the domain (including numbered variants)
+        matching_dirs = []
+        try:
+            for entry in live_dir.iterdir():
+                if entry.is_dir() and entry.name != 'README':
+                    # Match exact domain or domain-#### pattern (certbot numbered variants)
+                    # Example: example.com or example.com-0001
+                    # Do NOT match: example.com.test or example.com-backup
+                    if entry.name == domain:
+                        matching_dirs.append(entry)
+                    elif entry.name.startswith(f"{domain}-"):
+                        # Verify the suffix is a number (certbot style)
+                        suffix = entry.name[len(domain)+1:]  # Everything after "domain-"
+                        if suffix.isdigit():
+                            matching_dirs.append(entry)
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"Error reading certificate directory: {str(e)}"
+            }
+        
+        if not matching_dirs:
             return {
                 "success": False,
                 "error": f"Certificate not found for domain {domain}. Run 'Obtain Certificate' first."
             }
+        
+        # Use the most recently modified directory (latest certificate)
+        if len(matching_dirs) == 1:
+            # Optimization: Skip stat() calls if only one directory
+            cert_dir = matching_dirs[0]
+        else:
+            # Cache stat results for performance
+            dirs_with_mtime = [(d, d.stat().st_mtime) for d in matching_dirs]
+            cert_dir = max(dirs_with_mtime, key=lambda x: x[1])[0]
+        logger.info(f"Using certificate directory: {cert_dir}")
+        
+        fullchain_path = cert_dir / 'fullchain.pem'
+        privkey_path = cert_dir / 'privkey.pem'
 
         # Verify certificate files exist
         if not fullchain_path.exists():
@@ -302,9 +342,10 @@ ssl_certificate_key {privkey_path};
             # Comment out self-signed cert lines if present
             's|^\\(\\s*\\)ssl_certificate /etc/ssl/|\\1# ssl_certificate /etc/ssl/|g',
             's|^\\(\\s*\\)ssl_certificate_key /etc/ssl/|\\1# ssl_certificate_key /etc/ssl/|g',
-            # Comment out any existing letsencrypt lines
-            's|^\\(\\s*\\)ssl_certificate.*letsencrypt|\\1# ssl_certificate_DISABLED letsencrypt|g',
-            's|^\\(\\s*\\)ssl_certificate_key.*letsencrypt|\\1# ssl_certificate_key_DISABLED letsencrypt|g',
+            # Comment out any existing direct letsencrypt certificate path lines
+            # Use \\.pem to match only direct certificate file paths, not include statements
+            's|^\\(\\s*\\)ssl_certificate.*/letsencrypt/.*\\.pem|\\1# ssl_certificate_DISABLED /letsencrypt/|g',
+            's|^\\(\\s*\\)ssl_certificate_key.*/letsencrypt/.*\\.pem|\\1# ssl_certificate_key_DISABLED /letsencrypt/|g',
         ]
 
         for sed_cmd in sed_commands:
