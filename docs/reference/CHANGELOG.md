@@ -7,6 +7,12 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **Audio Source Form Bug** - Fixed JavaScript error when adding audio stream sources
+  - Removed reference to non-existent `sampleRate` form field in `addAudioSource()` function
+  - Error: "Cannot read properties of null (reading 'value')" at audio_monitoring.js:1177
+  - Sample rate now properly defaults to 44100 Hz on backend, auto-detected for streams
+  - Resolves issue preventing users from adding HTTP/M3U stream sources
+
 - **CRITICAL: 10x Bandwidth Reduction** - Flask proxy now streams MP3 instead of WAV
   - Implemented real-time MP3 encoding using ffmpeg subprocess
   - Bandwidth: ~705 kbps WAV → ~128 kbps MP3 (5.5x reduction for mono 44.1kHz)
