@@ -85,7 +85,10 @@ class RedisSDRSourceAdapter(AudioSourceAdapter):
 
         # Get RBDS and de-emphasis settings from device_params
         # CRITICAL FIX: Enable RBDS extraction for FM broadcast stations
-        enable_rbds = self.config.device_params.get('enable_rbds', False)
+        # Check both 'enable_rbds' and 'rbds_enabled' keys for compatibility
+        # (eas_monitoring_service uses 'rbds_enabled', older configs may use 'enable_rbds')
+        enable_rbds = self.config.device_params.get('enable_rbds', False) or \
+                      self.config.device_params.get('rbds_enabled', False)
         deemphasis_us = self.config.device_params.get('deemphasis_us', 75.0)  # 75μs for North America
 
         from app_core.radio.demodulation import create_demodulator, DemodulatorConfig
