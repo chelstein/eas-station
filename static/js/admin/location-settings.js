@@ -240,17 +240,26 @@ function populateCountyDropdown(stateAbbr) {
     countySelect.appendChild(placeholder);
 
     // Add county options
+    let optionCount = 0;
     stateData.counties.forEach(county => {
         if (!county || !county.code || !county.name) {
             return;
         }
         const option = document.createElement('option');
         option.value = county.code;
-        option.textContent = `${county.name} (${county.code})`;
+        option.textContent = `${county.code} ${county.name}`;
         countySelect.appendChild(option);
+        optionCount++;
     });
 
-    countySelect.disabled = false;
+    // Enable the dropdown - use both methods for cross-browser compatibility
+    if (optionCount > 0) {
+        countySelect.disabled = false;
+        countySelect.removeAttribute('disabled');
+    } else {
+        countySelect.innerHTML = '<option value="">No counties available</option>';
+        countySelect.disabled = true;
+    }
 }
 
 /**
