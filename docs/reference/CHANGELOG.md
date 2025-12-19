@@ -7,6 +7,14 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **RWT Schedule Configuration Page Load Error** - Fixed JavaScript "ReferenceError: renderCountyList is not defined"
+  - Added missing `renderCountyList()` function to render county chips in editor panel
+  - Added missing `renderScheduleCountyList()` function to render county chips in schedule preview
+  - Added missing `addCountyCode()` function to handle adding counties to the broadcast list
+  - Added missing `removeCountyCode()` function to handle removing counties from the broadcast list
+  - Page now loads correctly without JavaScript errors
+  - County management functionality is now fully operational
+
 - **Separated RWT broadcast codes from alert listener codes** - RWT Schedule page now maintains its own list of broadcast coverage codes (RWTScheduleConfig.same_codes) completely independent from alert filtering codes (LocationSettings.fips_codes). This allows users to listen for nationwide/statewide alerts without broadcasting RWT to those areas. (Issue: listener list for FIPS codes and RWT list were the same)
 
 - **Audio Monitoring JavaScript Errors** - Fixed syntax error and undefined function
