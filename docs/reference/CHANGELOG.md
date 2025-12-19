@@ -7,6 +7,8 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **Separated RWT broadcast codes from alert listener codes** - RWT Schedule page now maintains its own list of broadcast coverage codes (RWTScheduleConfig.same_codes) completely independent from alert filtering codes (LocationSettings.fips_codes). This allows users to listen for nationwide/statewide alerts without broadcasting RWT to those areas. (Issue: listener list for FIPS codes and RWT list were the same)
+
 - **Audio Monitoring JavaScript Errors** - Fixed syntax error and undefined function
   - Removed extra closing brace `}` in `onAudioPlaybackError()` function
   - Fixed incorrect indentation causing `return;` statement to be outside control flow
