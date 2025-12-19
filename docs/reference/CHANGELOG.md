@@ -7,6 +7,29 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **RWT FIPS Code Consistency** - Fixed confusion between alert filtering codes and RWT broadcast codes
+  - Quick RWT and "Load Default Codes" now use `RWTScheduleConfig.same_codes` (broadcast coverage area)
+  - Removed incorrect fallback to `LocationSettings.fips_codes` (which are for filtering incoming alerts)
+  - `LocationSettings.fips_codes` can include nationwide (000000) and statewide codes for alert filtering
+  - `RWTScheduleConfig.same_codes` should only include local broadcast area counties
+  - Resolves issue where Quick RWT showed different codes than Weekly RWT configuration
+  - Updated UI labels and help text to clearly distinguish "broadcast codes" vs "alert filtering codes"
+
+### Changed
+- **Environment Variable Cleanup** - Removed deprecated environment variables from admin interface
+  - Removed `LOCATION_CONFIG` from environment settings (use Location Settings page in database)
+  - Removed `EAS_MANUAL_FIPS_CODES` from environment settings (use RWT Schedule page in database)
+  - All location and RWT broadcast configuration is now exclusively database-based
+  - Environment variables page no longer shows deprecated location/FIPS variables
+  - Cleaned up legacy code paths and environment variable fallbacks
+
+### Improved
+- **RWT Configuration UI Clarity** - Better organization of FIPS code configuration flow
+  - RWT Schedule page now clearly labeled as "RWT Broadcast Coverage Area"
+  - Added explanatory alerts distinguishing broadcast codes from alert filtering codes
+  - Updated Broadcast Builder warning to direct users to RWT configuration page
+  - Improved help text throughout to explain the purpose of each FIPS code configuration
+
 - **Certificate Installation Sudo Permission** - Fixed SSL certificate installation failing with password prompt
   - Added `/usr/bin/tee` to sudoers for writing SSL snippet file to `/etc/nginx/snippets/ssl-letsencrypt.conf`
   - Added `/usr/bin/mkdir -p /etc/nginx/snippets` to sudoers for creating snippets directory

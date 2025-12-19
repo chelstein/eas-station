@@ -632,36 +632,19 @@ def _compose_message_text(alert: object) -> str:
 def manual_default_same_codes() -> List[str]:
     """Return the default SAME/FIPS codes for manual broadcast generation.
     
-    This returns codes for WHERE TO BROADCAST (RWT, manual activations),
-    NOT codes for filtering incoming alerts (LocationSettings.fips_codes).
+    Returns codes for WHERE TO BROADCAST (RWT, manual activations).
+    These are loaded from RWTScheduleConfig.same_codes (broadcast coverage area).
     
-    Priority order:
-    1. EAS_MANUAL_FIPS_CODES environment variable (legacy)
-    2. RWTScheduleConfig.same_codes (primary source - broadcast coverage area)
-    3. Empty list (user must configure)
-    
-    Note: We intentionally do NOT fall back to LocationSettings.fips_codes because
-    those codes are for FILTERING incoming alerts (can include nationwide 000000,
-    statewide codes, etc.) and should NOT be used for broadcast targeting.
+    Note: These codes are for BROADCASTING, not for filtering incoming alerts.
+    LocationSettings.fips_codes are for filtering (can include nationwide/statewide),
+    while RWT broadcast codes should only include local coverage area counties.
     """
 
-    # 1. Check environment variable (legacy support)
-    raw = os.getenv('EAS_MANUAL_FIPS_CODES', '')
+    # Use RWTScheduleConfig.same_codes (broadcast coverage area)
     codes: List[str] = []
-    if raw:
-        for token in re.split(r'[\s,]+', raw.upper()):
-            token = token.strip()
-            if not token or token in MANUAL_FIPS_ENV_TOKENS:
-                continue
-            digits = re.sub(r'[^0-9]', '', token)
-            if digits:
-                codes.append(digits.zfill(6)[:6])
-        return codes[:31]
-
-    # 2. Use RWTScheduleConfig.same_codes (broadcast coverage area)
     if has_app_context():
         try:
-            from app_core.models import RWTScheduleConfig  # Imported lazily to avoid circular import
+            from app_core.models import RWTScheduleConfig
             from app_core.extensions import db
 
             config = RWTScheduleConfig.query.first()
@@ -672,14 +655,13 @@ def manual_default_same_codes() -> List[str]:
                     if digits:
                         codes.append(digits.zfill(6)[:6])
                 return codes[:31]
-        except Exception as exc:  # pragma: no cover - defensive
+        except Exception as exc:
             if current_app:
                 current_app.logger.warning(
                     "Failed to load RWT broadcast SAME codes: %s", exc
                 )
 
-    # 3. Return empty list - user should configure RWT broadcast codes
-    # We do NOT fall back to hardcoded defaults or LocationSettings.fips_codes
+    # Return empty list - user should configure RWT broadcast codes
     return []
 
 

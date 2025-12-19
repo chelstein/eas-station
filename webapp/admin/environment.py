@@ -308,33 +308,6 @@ ENV_CATEGORIES = {
             },
         ],
     },
-    'location': {
-        'name': 'Location',
-        'icon': 'fa-map-marker-alt',
-        'description': 'Default location and coverage area',
-        'variables': [
-            {
-                'key': 'LOCATION_CONFIG',
-                'label': 'Location Configuration',
-                'type': 'json',
-                'rows': 10,
-                'description': 'JSON object containing all location settings: timezone, county_name, state_code, zone_codes, fips_codes, storage_zone_codes, map_center_lat, map_center_lng, map_zoom',
-                'placeholder': '{"timezone": "America/New_York", "county_name": "Putnam County", "state_code": "OH", "zone_codes": "OHZ016,OHC137", "fips_codes": "039137", "storage_zone_codes": "", "map_center_lat": 41.0195, "map_center_lng": -84.1190, "map_zoom": 9}',
-                'default': '{"timezone": "America/New_York", "county_name": "", "state_code": "", "zone_codes": "", "fips_codes": "", "storage_zone_codes": "", "map_center_lat": null, "map_center_lng": null, "map_zoom": 9}',
-                'json_schema': {
-                    'timezone': {'type': 'text', 'label': 'Timezone', 'placeholder': 'America/New_York'},
-                    'county_name': {'type': 'text', 'label': 'County Name', 'placeholder': 'Putnam County'},
-                    'state_code': {'type': 'text', 'label': 'State Code', 'maxlength': 2, 'placeholder': 'OH'},
-                    'zone_codes': {'type': 'text', 'label': 'Zone Codes', 'placeholder': 'OHZ016,OHC137'},
-                    'fips_codes': {'type': 'text', 'label': 'FIPS Codes', 'placeholder': '039137'},
-                    'storage_zone_codes': {'type': 'text', 'label': 'Storage Zone Codes', 'placeholder': ''},
-                    'map_center_lat': {'type': 'number', 'label': 'Map Center Latitude', 'step': 0.0001, 'placeholder': '41.0195'},
-                    'map_center_lng': {'type': 'number', 'label': 'Map Center Longitude', 'step': 0.0001, 'placeholder': '-84.1190'},
-                    'map_zoom': {'type': 'number', 'label': 'Map Zoom Level', 'min': 1, 'max': 20, 'placeholder': '9'},
-                },
-            },
-        ],
-    },
     'eas': {
         'name': 'EAS Broadcast',
         'icon': 'fa-broadcast-tower',
@@ -401,14 +374,6 @@ ENV_CATEGORIES = {
                 'type': 'text',
                 'default': 'aplay',
                 'description': 'Command to play audio files',
-                'category': 'eas_enabled',
-            },
-            {
-                'key': 'EAS_MANUAL_FIPS_CODES',
-                'label': 'Authorized FIPS Codes',
-                'type': 'text',
-                'description': 'Comma-separated FIPS codes authorized for manual EAS broadcasts (format: PSSCCC)',
-                'placeholder': '039137,039003',
                 'category': 'eas_enabled',
             },
             {
