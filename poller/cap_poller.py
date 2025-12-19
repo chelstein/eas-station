@@ -1535,9 +1535,22 @@ class CAPPoller:
                 features = self._parse_feed_payload(response)
                 self.logger.info(f"Retrieved {len(features)} alerts from {endpoint}")
 
+                # Determine endpoint type for logging
+                if 'tdl.apps.fema.gov' in endpoint:
+                    endpoint_type = "IPAWS-STAGING"
+                elif 'apps.fema.gov' in endpoint:
+                    endpoint_type = "IPAWS"
+                elif 'weather.gov' in endpoint:
+                    endpoint_type = "NOAA"
+                else:
+                    endpoint_type = "CUSTOM"
+
                 # Log summary of what was fetched from this endpoint
+                self.logger.info(f"=" * 60)
+                self.logger.info(f"ENDPOINT: {endpoint_type}")
+                self.logger.info(f"URL: {endpoint}")
+                self.logger.info(f"ALERTS RETURNED: {len(features)}")
                 if features:
-                    self.logger.info(f"  -> Alerts from this endpoint:")
                     for i, feat in enumerate(features[:10]):  # Show first 10
                         props = feat.get('properties', {})
                         event = props.get('event', 'Unknown')
@@ -1545,16 +1558,20 @@ class CAPPoller:
                         geocode = props.get('geocode', {}) or {}
                         ugc_codes = geocode.get('UGC', []) or []
                         same_codes = geocode.get('SAME', []) or []
-                        self.logger.info(f"     [{i+1}] {event}")
-                        self.logger.info(f"         ID: {identifier[:50]}{'...' if len(identifier) > 50 else ''}")
-                        self.logger.info(f"         UGC: {ugc_codes[:5]}{'...' if len(ugc_codes) > 5 else ''}")
-                        self.logger.info(f"         SAME: {same_codes[:5]}{'...' if len(same_codes) > 5 else ''}")
+                        self.logger.info(f"  [{i+1}] [{endpoint_type}] {event}")
+                        self.logger.info(f"      ID: {identifier[:50]}{'...' if len(identifier) > 50 else ''}")
+                        self.logger.info(f"      UGC: {ugc_codes[:5]}{'...' if len(ugc_codes) > 5 else ''}")
+                        self.logger.info(f"      SAME: {same_codes[:5]}{'...' if len(same_codes) > 5 else ''}")
                     if len(features) > 10:
-                        self.logger.info(f"     ... and {len(features) - 10} more alerts")
+                        self.logger.info(f"  ... and {len(features) - 10} more alerts from {endpoint_type}")
                 else:
-                    self.logger.info(f"  -> No alerts returned from this endpoint")
+                    self.logger.info(f"  (no alerts from {endpoint_type})")
+                self.logger.info(f"=" * 60)
                 for alert in features:
                     props = alert.get('properties', {})
+                    # Track which endpoint this alert came from
+                    props['_fetch_endpoint'] = endpoint
+                    props['_fetch_endpoint_type'] = endpoint_type
 
                     # NOAA API uses 'id' field, IPAWS/CAP uses 'identifier' - check both
                     identifier = (props.get('identifier') or props.get('id') or '').strip()
@@ -1763,8 +1780,11 @@ class CAPPoller:
             area_desc_upper = area_desc_raw.upper()
             result['area_desc'] = area_desc_raw
 
-            # DEBUG: Log the matching comparison
+            # DEBUG: Log the matching comparison with endpoint source
+            endpoint_type = properties.get('_fetch_endpoint_type', 'UNKNOWN')
+            fetch_endpoint = properties.get('_fetch_endpoint', 'UNKNOWN')
             self.logger.info(f"  MATCHING CHECK for: {event}")
+            self.logger.info(f"    Source endpoint: [{endpoint_type}] {fetch_endpoint}")
             self.logger.info(f"    Alert UGC codes: {normalized_ugc}")
             self.logger.info(f"    Alert SAME codes: {normalized_same}")
             self.logger.info(f"    Our zone codes: {sorted(self.zone_codes)}")
@@ -2752,8 +2772,9 @@ class CAPPoller:
                 alert_id = props.get('identifier', 'No ID')
                 area_desc = props.get('areaDesc', 'Unknown area')
                 headline = props.get('headline', '')
+                endpoint_type = props.get('_fetch_endpoint_type', 'UNKNOWN')
 
-                self.logger.info(f"Processing alert: {event} (ID: {alert_id[:20] if alert_id!='No ID' else 'No ID'}...)")
+                self.logger.info(f"Processing alert from [{endpoint_type}]: {event} (ID: {alert_id[:20] if alert_id!='No ID' else 'No ID'}...)")
 
                 # Track this alert in fetched_alerts for visibility (even if filtered)
                 alert_summary = {
