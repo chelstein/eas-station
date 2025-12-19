@@ -241,12 +241,12 @@ function populateCountyDropdown(stateAbbr) {
 
     // Add county options
     stateData.counties.forEach(county => {
-        if (!county || !county.same || !county.name) {
+        if (!county || !county.code || !county.name) {
             return;
         }
         const option = document.createElement('option');
-        option.value = county.same;
-        option.textContent = `${county.name} (${county.same})`;
+        option.value = county.code;
+        option.textContent = `${county.name} (${county.code})`;
         countySelect.appendChild(option);
     });
 

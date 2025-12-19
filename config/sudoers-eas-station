@@ -48,6 +48,17 @@ eas-station ALL=(ALL) NOPASSWD: /usr/bin/chown www-data\:adm /var/log/nginx/acce
 eas-station ALL=(ALL) NOPASSWD: /usr/bin/chmod 666 /var/log/nginx/error.log
 eas-station ALL=(ALL) NOPASSWD: /usr/bin/chmod 666 /var/log/nginx/access.log
 
+# Certificate installation (required for installing certificates after obtaining them)
+# These commands are used by _install_certificate_internal() in webapp/admin/certbot.py
+# Note: Domain names are validated in Python before being passed to these commands
+eas-station ALL=(ALL) NOPASSWD: /usr/bin/mkdir -p /etc/letsencrypt
+eas-station ALL=(ALL) NOPASSWD: /usr/bin/mkdir -p /etc/letsencrypt/live
+eas-station ALL=(ALL) NOPASSWD: /usr/bin/rm -rf /etc/letsencrypt/live/*
+eas-station ALL=(ALL) NOPASSWD: /usr/bin/ln -s * /etc/letsencrypt/live/*
+eas-station ALL=(ALL) NOPASSWD: /usr/bin/sed -i * /etc/nginx/sites-available/eas-station
+eas-station ALL=(ALL) NOPASSWD: /usr/sbin/nginx -t
+eas-station ALL=(ALL) NOPASSWD: /usr/sbin/nginx
+
 # Nginx service management (required for standalone certbot mode)
 eas-station ALL=(ALL) NOPASSWD: /usr/bin/systemctl stop nginx
 eas-station ALL=(ALL) NOPASSWD: /usr/bin/systemctl start nginx
