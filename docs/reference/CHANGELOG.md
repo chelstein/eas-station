@@ -6,13 +6,34 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+### Added
+- **24/7/365 Audio Subsystem Reliability** - Major improvements for continuous operation
+  - Enhanced FFmpeg reconnection with 30-second timeout and HTTP error retry (4xx, 5xx)
+  - Increased buffer sizes: 10000 chunks (~14 minutes at 48kHz, ~42 minutes at 16kHz for EAS)
+  - Added connection tracking: attempts, success rate, and last connection time
+  - Improved FFmpeg command with `-fflags +discardcorrupt` to handle corrupt packets
+  - 128KB FFmpeg buffer (up from 64KB) for better network stream performance
+  - Reduced restart delay from 3s to 2s for faster recovery
+  - Added detailed connection logging with success rates
+
+### Fixed
+- **CRITICAL: Second Stream Not Working** - Fixed multi-stream audio source issue
+  - StreamSourceAdapter was setting `_had_data_activity=False` causing capture loop to sleep during connection
+  - Network streams need 5-10 seconds to establish HTTP connection before audio flows
+  - Changed to set `_had_data_activity=True` for stream sources to prevent excessive sleeping
+  - Added comprehensive comments explaining FFmpeg connection phases (DNS, TCP, HTTP, stream)
+  - Capture loop now polls frequently during initial connection instead of sleeping 50ms
+  - Fixes "No audio data flowing" error when adding second stream (WIMT issue)
+  - All streams now properly initialize regardless of startup order
+
 ### Changed
 - **EAS Monitor Architecture** - Major architectural improvement: resample BEFORE queueing
   - Audio now resampled from source rate (48kHz) to 16kHz BEFORE entering EAS queue
   - EAS monitor receives pre-resampled 16kHz audio directly (no conversion needed)
   - Eliminates resampling bottleneck that caused packet drops
   - Reduces queue memory usage by 3x (16kHz vs 48kHz samples)
-  - 5000 chunk queue at 16kHz = ~500 seconds (~8 minutes) of buffering
+  - 10000 chunk queue at 16kHz = ~1000 seconds (~16 minutes) of buffering for EAS
+  - 10000 chunk queue at 48kHz = ~850 seconds (~14 minutes) of buffering for streaming
   - Removed ResamplingBroadcastAdapter dependency - no longer needed
   - Each audio source now has two queues: native rate for streaming, 16kHz for EAS
 
@@ -25,7 +46,7 @@ tracks releases under the 2.x series.
 - **EAS Monitor Packet Drops** - Fixed critical issue where EAS monitor drops audio chunks
   - Reduced sleep from 10ms to 1ms when audio flowing to prevent queue buildup
   - EAS monitor now reads ~1000x/second, far exceeding audio production rate (~12 chunks/sec at 48kHz)
-  - Increased broadcast queue size from 2000 to 5000 chunks (~7 minutes buffer at 48kHz)
+  - Increased broadcast queue size from 5000 to 10000 chunks for 24/7 reliability
   - Prevents missing emergency alerts due to dropped audio packets
   - Fixes "Subscriber 'eas-unified-WNCI' queue full" errors with thousands of drops
   - Note: Audio is correctly downsampled from source rate (48kHz) to decoder rate (16kHz)

@@ -118,17 +118,21 @@ class AudioSourceAdapter(ABC):
         # This allows multiple consumers (Icecast, web streaming, monitoring) to
         # receive audio from this source independently without competing for chunks.
         # CRITICAL: EAS monitor CANNOT drop packets - larger queue prevents drops during processing spikes
+        # 24/7/365 RELIABILITY: Increased buffer to handle network hiccups and temporary slowdowns
         self._source_broadcast = BroadcastQueue(
             name=f"source-{config.name}",
-            max_queue_size=5000  # ~425s buffer at 48kHz with 4096 samples/chunk (~7 minutes)
+            max_queue_size=10000  # ~850s buffer at 48kHz with 4096 samples/chunk (~14 minutes)
+                                  # Handles temporary network issues, consumer slowdowns, GC pauses
         )
         
         # Separate 16kHz broadcast queue for EAS monitor
         # ARCHITECTURAL FIX: Resample BEFORE queueing to reduce memory and eliminate conversion bottleneck
-        # At 16kHz: same 5000 chunk buffer = ~1280s (~21 minutes) - much more headroom
+        # At 16kHz: same 10000 chunk buffer = ~2560s (~42 minutes) - massive headroom for continuous operation
+        # 24/7/365 RELIABILITY: This buffer must NEVER drop packets for EAS monitoring
         self._eas_broadcast = BroadcastQueue(
             name=f"eas-{config.name}",
-            max_queue_size=5000  # At 16kHz with 1600 sample chunks = ~500s buffer
+            max_queue_size=10000  # At 16kHz with 1600 sample chunks = ~1000s buffer (16+ minutes)
+                                  # Ensures EAS monitor never starves even during system load spikes
         )
         
         self._last_metrics_update = 0.0
