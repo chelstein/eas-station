@@ -998,7 +998,7 @@ function populateEasForm(settings) {
         stationIdInput.value = settings.station_id || 'EASNODES';
     }
     if (sampleRateSelect) {
-        sampleRateSelect.value = String(settings.sample_rate || 22050);
+        sampleRateSelect.value = String(settings.sample_rate || 44100);
     }
     if (attentionToneInput) {
         attentionToneInput.value = settings.attention_tone_seconds || 8;
@@ -1041,7 +1041,7 @@ async function handleEasSettingsSubmit(e) {
         broadcast_enabled: document.getElementById('easBroadcastEnabled')?.checked || false,
         originator: document.getElementById('easOriginator')?.value || 'WXR',
         station_id: document.getElementById('easStationId')?.value?.trim().toUpperCase() || 'EASNODES',
-        sample_rate: parseInt(document.getElementById('easSampleRate')?.value, 10) || 22050,
+        sample_rate: parseInt(document.getElementById('easSampleRate')?.value, 10) || 44100,
         attention_tone_seconds: parseInt(document.getElementById('easAttentionTone')?.value, 10) || 8,
         audio_player: document.getElementById('easAudioPlayer')?.value?.trim() || 'aplay',
         output_dir: document.getElementById('easOutputDir')?.value?.trim() || 'static/eas_messages',
