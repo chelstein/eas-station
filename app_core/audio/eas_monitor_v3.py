@@ -654,23 +654,28 @@ class UnifiedEASMonitorService:
             health_percentage = 0.0
         
         # Build per-source status (for monitors dict compatibility)
+        # CRITICAL: Capture watcher count and names while holding lock to prevent race condition
         monitors_status = {}
         with self._watchers_lock:
+            # Capture these while lock is held - prevents race with _discover_sources()
+            monitor_count = len(self._watchers)
+            source_names = list(self._watchers.keys())
+
             for source_name, watcher in self._watchers.items():
                 health = all_health.get(source_name)
                 if health:
                     time_since_audio = (
-                        time.time() - health.last_audio_time 
-                        if health.last_audio_time > 0 
+                        time.time() - health.last_audio_time
+                        if health.last_audio_time > 0
                         else 999999
                     )
-                    
+
                     source_samples_per_sec = (
-                        health.samples_processed / uptime 
-                        if uptime > 0 
+                        health.samples_processed / uptime
+                        if uptime > 0
                         else 0
                     )
-                    
+
                     monitors_status[source_name] = {
                         "running": self._running,
                         "mode": "unified-streaming",
@@ -685,8 +690,9 @@ class UnifiedEASMonitorService:
                         "sample_rate": self._target_sample_rate,
                         "source_sample_rate": watcher.source_sample_rate,
                     }
-        
+
         # Return status in MultiMonitorManager-compatible format
+        # Use captured values to avoid race condition with _discover_sources()
         return {
             "running": self._running,
             "mode": "unified-streaming",
@@ -695,11 +701,11 @@ class UnifiedEASMonitorService:
             "runtime_seconds": total_samples / self._target_sample_rate if total_samples > 0 else 0,
             "samples_per_second": int(samples_per_second),
             "alerts_detected": self._total_alerts_detected,
-            "monitor_count": len(self._watchers),
+            "monitor_count": monitor_count,  # Use captured value
             "active_sources": active_sources,
             "audio_flowing": active_sources > 0,
             "health_percentage": health_percentage,
-            "source_names": list(self._watchers.keys()),
+            "source_names": source_names,  # Use captured value
             "monitors": monitors_status,
             "decoder_synced": decoder_stats.get('synced', False),
             "decoder_in_message": decoder_stats.get('in_message', False),
