@@ -635,7 +635,7 @@ function escapeHtml(str) {
 // ==================== Zone Search Functionality ====================
 
 let selectedZone = null;
-let zoneSearchTimeout = null;
+let locationZoneSearchTimeout = null;
 
 /**
  * Initialize zone search functionality
@@ -653,7 +653,7 @@ function initZoneSearch() {
 
     // Search input handler with debouncing
     searchInput.addEventListener('input', function(e) {
-        clearTimeout(zoneSearchTimeout);
+        clearTimeout(locationZoneSearchTimeout);
         const query = e.target.value.trim();
 
         if (query.length < 2) {
@@ -664,7 +664,7 @@ function initZoneSearch() {
             return;
         }
 
-        zoneSearchTimeout = setTimeout(() => searchZonesForLocation(query), 300);
+        locationZoneSearchTimeout = setTimeout(() => searchZonesForLocation(query), 300);
     });
 
     // Add to broadcast zones button
