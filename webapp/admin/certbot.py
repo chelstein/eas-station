@@ -280,9 +280,13 @@ def _install_certificate_internal(domain: str) -> Dict[str, Any]:
             }
         
         # Use the most recently modified directory (latest certificate)
-        # Cache stat results for performance
-        dirs_with_mtime = [(d, d.stat().st_mtime) for d in matching_dirs]
-        cert_dir = max(dirs_with_mtime, key=lambda x: x[1])[0]
+        if len(matching_dirs) == 1:
+            # Optimization: Skip stat() calls if only one directory
+            cert_dir = matching_dirs[0]
+        else:
+            # Cache stat results for performance
+            dirs_with_mtime = [(d, d.stat().st_mtime) for d in matching_dirs]
+            cert_dir = max(dirs_with_mtime, key=lambda x: x[1])[0]
         logger.info(f"Using certificate directory: {cert_dir}")
         
         fullchain_path = cert_dir / 'fullchain.pem'

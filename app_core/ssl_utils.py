@@ -120,11 +120,20 @@ def get_ssl_certificate_info() -> Dict:
             
             if matching_domains:
                 # Use the most recently modified domain directory (latest certificate)
-                domain_paths = [(d, os.path.join(letsencrypt_dir, d)) for d in matching_domains]
-                # Sort by modification time, most recent first
-                domain_paths.sort(key=lambda x: os.path.getmtime(x[1]), reverse=True)
-                domain = domain_paths[0][0]  # Use most recent domain
-                cert_path = os.path.join(letsencrypt_dir, domain, 'fullchain.pem')
+                if len(matching_domains) == 1:
+                    # Optimization: Skip stat() calls if only one directory
+                    domain = matching_domains[0]
+                    cert_path = os.path.join(letsencrypt_dir, domain, 'fullchain.pem')
+                else:
+                    # Cache modification times to avoid repeated syscalls during sort
+                    domain_paths = [
+                        (d, os.path.join(letsencrypt_dir, d), os.path.getmtime(os.path.join(letsencrypt_dir, d)))
+                        for d in matching_domains
+                    ]
+                    # Sort by modification time, most recent first
+                    domain_paths.sort(key=lambda x: x[2], reverse=True)
+                    domain = domain_paths[0][0]  # Use most recent domain
+                    cert_path = domain_paths[0][1]  # Use cached path
                 
                 if os.path.exists(cert_path):
                     cert_info['installed'] = True
