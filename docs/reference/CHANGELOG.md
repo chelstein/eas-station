@@ -7,6 +7,33 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **CRITICAL: Icecast Bitrate Configuration** - Fixed auto-discovered streams using wrong bitrate
+  - Auto-streaming service was hardcoded to 128kbps instead of using configured bitrate
+  - Added `stream_bitrate` and `stream_format` fields to `IcecastAutoConfig`
+  - Now reads bitrate and format from database IcecastSettings or environment variables
+  - Auto-discovered SDR streams now use the same bitrate as manually configured streams
+  - Ensures consistent stream quality across all sources
+
+- **CRITICAL: SDR Not Mounting on Icecast** - Fixed race condition preventing SDR audio streams from mounting
+  - Auto-streaming service was only checking for RUNNING sources at startup
+  - SDR sources may still be STARTING (async initialization), causing them to be skipped
+  - Added auto-discovery loop to `AutoStreamingService._monitor_loop()` that:
+    * Periodically discovers new RUNNING sources every 10 seconds
+    * Automatically adds them to Icecast streaming
+    * Removes streams for stopped/removed sources
+  - Eliminates manual intervention or service restart to mount SDR streams
+  - Fixes "cuts out after 6 seconds" issue caused by unmounted streams timing out
+  
+- **IMPROVED: Demodulator Error Handling** - Added protective error handling to prevent silent failures
+  - Added try-except wrapper around `_create_demodulator()` in RedisSDRSourceAdapter
+  - Demodulator creation failures now log detailed error messages
+  - Failures properly propagate to prevent sources from starting with broken configuration
+  - Helps diagnose RBDS-related initialization issues
+
+- **REDUCED: Excessive RBDS Logging** - Reduced log spam from RBDS configuration
+  - Changed device_params and RBDS config logging from INFO to DEBUG level
+  - Prevents log flooding during normal operation
+  - Retains detailed logging for troubleshooting when needed
 - **IMPROVED: EAS Monitor Logging** - Enhanced diagnostic information in eas-service logs
   - Added `audio_flowing` status indicator (✅ or ⚠️) for immediate visual feedback
   - Added `samples_per_second` throughput metric to monitor processing rate

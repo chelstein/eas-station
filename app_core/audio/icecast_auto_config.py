@@ -46,6 +46,8 @@ class IcecastAutoConfig:
         self.public_hostname = None  # Public hostname/IP for browser access
         self.admin_user = None
         self.admin_password = None
+        self.stream_bitrate = 128  # Default bitrate in kbps
+        self.stream_format = "mp3"  # Default format
 
         self._detect_config()
 
@@ -97,13 +99,18 @@ class IcecastAutoConfig:
                 # Get public hostname for browser access
                 self.public_hostname = settings.public_hostname
 
+                # Get stream settings (bitrate and format)
+                self.stream_bitrate = settings.stream_bitrate or 128
+                self.stream_format = settings.stream_format or 'mp3'
+
                 self.enabled = True
 
                 logger.info(
                     f"Icecast auto-configuration enabled from database: "
                     f"server={self.server}, port={self.port}, "
                     f"external_port={self.external_port}, "
-                    f"public_hostname={self.public_hostname or 'localhost (WARNING: may not work remotely)'}"
+                    f"public_hostname={self.public_hostname or 'localhost (WARNING: may not work remotely)'}, "
+                    f"bitrate={self.stream_bitrate}kbps, format={self.stream_format}"
                 )
                 return
 
@@ -159,13 +166,27 @@ class IcecastAutoConfig:
                                   os.environ.get('PUBLIC_HOSTNAME') or \
                                   os.environ.get('SERVER_NAME')
 
+            # Get stream settings (bitrate and format)
+            bitrate_str = os.environ.get('ICECAST_BITRATE', '128')
+            try:
+                self.stream_bitrate = int(bitrate_str)
+            except ValueError:
+                logger.warning(f"Invalid ICECAST_BITRATE '{bitrate_str}', using default 128kbps")
+                self.stream_bitrate = 128
+            
+            self.stream_format = os.environ.get('ICECAST_FORMAT', 'mp3').lower()
+            if self.stream_format not in ('mp3', 'ogg'):
+                logger.warning(f"Invalid ICECAST_FORMAT '{self.stream_format}', using default 'mp3'")
+                self.stream_format = 'mp3'
+
             self.enabled = True
 
             logger.info(
                 f"Icecast auto-configuration enabled from environment: "
                 f"server={self.server}, port={self.port}, "
                 f"external_port={self.external_port}, "
-                f"public_hostname={self.public_hostname or 'localhost (WARNING: may not work remotely)'}"
+                f"public_hostname={self.public_hostname or 'localhost (WARNING: may not work remotely)'}, "
+                f"bitrate={self.stream_bitrate}kbps, format={self.stream_format}"
             )
 
         except Exception as e:
