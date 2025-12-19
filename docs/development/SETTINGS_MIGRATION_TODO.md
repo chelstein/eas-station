@@ -18,26 +18,61 @@ Move all environment variable configuration to database-backed settings pages wi
   - Database table: `icecast_settings`
   - UI: Managed in database
 
+- **Poller Settings** (v2.39.0)
+  - Poll interval configuration
+  - Enable/disable polling
+  - Detailed logging toggle
+  - Database table: `poller_settings`
+  - UI: Admin Panel → System Settings
+
+- **TTS Settings** (v2.38.0)
+  - Azure OpenAI TTS configuration
+  - ElevenLabs API settings
+  - Voice selection
+  - Database table: `tts_settings`
+  - UI: Admin Panel → TTS Settings
+
+- **EAS Broadcast Settings** (v2.40.0)
+  - Broadcast enable/disable
+  - Originator code (WXR, CIV, PEP, EAS)
+  - Station ID (call sign)
+  - Authorized broadcast FIPS codes (with FIPS builder UI)
+  - Authorized event codes
+  - Attention tone duration
+  - Audio sample rate
+  - Audio player configuration
+  - Output directory
+  - Database table: `eas_settings`
+  - UI: Admin Panel → EAS Broadcast Settings
+  - Migration: `20251219_add_eas_settings.py`
+
+- **Location Settings** (v2.40.0)
+  - Storage zone codes now properly saved
+  - Zone lookup with add-to-broadcast/storage functionality
+  - Color-coded cards (blue=broadcast, green=storage)
+  - FIPS builder for county selection
+  - Consolidated configuration interface
+
 ## TODO - Environment Variables to Migrate
 
 ### High Priority
 
-1. **Location Settings**
-   - SAME codes (location)
-   - County FIPS codes
-   - Default latitude/longitude
-   - Coverage radius
-   - Create: `location_settings` table
-   - UI: `/admin/location`
+1. ~~**Location Settings**~~ ✅ Completed v2.40.0
+   - ~~SAME codes (location)~~
+   - ~~County FIPS codes~~
+   - ~~Default latitude/longitude~~
+   - ~~Coverage radius~~
+   - Database table: `location_settings`
+   - UI: Admin Panel → Location Settings
 
-2. **Alert Polling Settings**
-   - Poll interval
-   - CAP timeout
-   - NOAA user agent
-   - CAP endpoints
-   - IPAWS feed URLs
-   - Create: `polling_settings` table
-   - UI: `/admin/polling`
+2. ~~**Alert Polling Settings**~~ ✅ Completed v2.39.0
+   - ~~Poll interval~~
+   - ~~CAP timeout~~
+   - ~~NOAA user agent~~
+   - ~~CAP endpoints~~
+   - ~~IPAWS feed URLs~~
+   - Database table: `poller_settings`
+   - UI: Admin Panel → Poller Settings
 
 3. **Notification Settings** (Email/SMS)
    - Enable email notifications
@@ -48,12 +83,12 @@ Move all environment variable configuration to database-backed settings pages wi
 
 ### Medium Priority
 
-4. **TTS Settings** (Text-to-Speech)
-   - ElevenLabs API keys
-   - Azure OpenAI settings
-   - Voice selection
-   - Create: `tts_settings` table
-   - UI: `/admin/tts`
+4. ~~**TTS Settings**~~ ✅ Completed v2.38.0
+   - ~~ElevenLabs API keys~~
+   - ~~Azure OpenAI settings~~
+   - ~~Voice selection~~
+   - Database table: `tts_settings`
+   - UI: Admin Panel → TTS Settings
 
 5. **Security Settings**
    - SECRET_KEY
@@ -199,9 +234,10 @@ These can have database overrides but .env as default.
 ## Timeline
 
 - **Phase 1** (Completed): Hardware Settings ✅
-- **Phase 2** (Q1 2025): Location, Polling, Notifications
-- **Phase 3** (Q2 2025): TTS, Security, SSL
-- **Phase 4** (Q3 2025): Performance, SDR, Zigbee
+- **Phase 2** (Completed): Location, Polling, TTS ✅
+- **Phase 2.5** (Completed): EAS Broadcast Settings ✅
+- **Phase 3** (In Progress): Notifications, Security, SSL
+- **Phase 4** (Planned): Performance, SDR, Zigbee
 
 ## Notes
 

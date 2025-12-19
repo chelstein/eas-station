@@ -635,7 +635,7 @@ function escapeHtml(str) {
 // ==================== Zone Search Functionality ====================
 
 let selectedZone = null;
-let zoneSearchTimeout = null;
+let locationZoneSearchTimeout = null;
 
 /**
  * Initialize zone search functionality
@@ -653,7 +653,7 @@ function initZoneSearch() {
 
     // Search input handler with debouncing
     searchInput.addEventListener('input', function(e) {
-        clearTimeout(zoneSearchTimeout);
+        clearTimeout(locationZoneSearchTimeout);
         const query = e.target.value.trim();
 
         if (query.length < 2) {
@@ -664,7 +664,7 @@ function initZoneSearch() {
             return;
         }
 
-        zoneSearchTimeout = setTimeout(() => searchZonesForLocation(query), 300);
+        locationZoneSearchTimeout = setTimeout(() => searchZonesForLocation(query), 300);
     });
 
     // Add to broadcast zones button
@@ -874,7 +874,6 @@ function updateZoneCounts() {
 // ==================== EAS Settings Functionality ====================
 
 let easSettingsCache = null;
-let easFipsSelection = [];
 
 /**
  * Initialize EAS settings form handlers
@@ -884,9 +883,6 @@ function initEasSettings() {
     if (!form) {
         return;
     }
-
-    // Initialize EAS FIPS builder
-    initEasFipsBuilder();
 
     // Load initial EAS settings
     loadEasSettings();
@@ -905,180 +901,6 @@ function initEasSettings() {
                 }
             }
         });
-    }
-}
-
-/**
- * Initialize EAS FIPS builder (state/county dropdowns)
- */
-function initEasFipsBuilder() {
-    const stateSelect = document.getElementById('easFipsState');
-    const countySelect = document.getElementById('easFipsCounty');
-    const addBtn = document.getElementById('easAddFipsBtn');
-
-    if (!stateSelect) {
-        return;
-    }
-
-    // Populate state dropdown
-    const states = window.EAS_FIPS_TREE || [];
-    states.forEach(state => {
-        if (!state || !state.abbr || !state.name) {
-            return;
-        }
-        const option = document.createElement('option');
-        option.value = state.abbr;
-        option.textContent = `${state.name} (${state.abbr})`;
-        stateSelect.appendChild(option);
-    });
-
-    // Handle state selection change
-    stateSelect.addEventListener('change', function() {
-        populateEasFipsCountyDropdown(this.value);
-    });
-
-    // Handle add button
-    if (addBtn) {
-        addBtn.addEventListener('click', function() {
-            const selectedCode = countySelect?.value;
-            const selectedText = countySelect?.options[countySelect.selectedIndex]?.textContent;
-
-            if (!selectedCode) {
-                if (typeof showToast === 'function') {
-                    showToast('Please select a county to add', 'warning');
-                }
-                return;
-            }
-
-            addEasFipsCode(selectedCode, selectedText);
-            countySelect.value = '';
-        });
-    }
-}
-
-/**
- * Populate EAS county dropdown based on selected state
- * @param {string} stateAbbr - State abbreviation
- */
-function populateEasFipsCountyDropdown(stateAbbr) {
-    const countySelect = document.getElementById('easFipsCounty');
-    if (!countySelect) {
-        return;
-    }
-
-    countySelect.innerHTML = '';
-
-    if (!stateAbbr) {
-        countySelect.innerHTML = '<option value="">Select a state first…</option>';
-        countySelect.disabled = true;
-        return;
-    }
-
-    const states = window.EAS_FIPS_TREE || [];
-    const stateData = states.find(s => s && s.abbr === stateAbbr);
-
-    if (!stateData || !stateData.counties || stateData.counties.length === 0) {
-        countySelect.innerHTML = '<option value="">No counties found</option>';
-        countySelect.disabled = true;
-        return;
-    }
-
-    const placeholder = document.createElement('option');
-    placeholder.value = '';
-    placeholder.textContent = 'Select a county…';
-    countySelect.appendChild(placeholder);
-
-    stateData.counties.forEach(county => {
-        if (!county || !county.same || !county.name) {
-            return;
-        }
-        const option = document.createElement('option');
-        option.value = county.same;
-        option.textContent = `${county.name} (${county.same})`;
-        countySelect.appendChild(option);
-    });
-
-    countySelect.disabled = false;
-}
-
-/**
- * Add a FIPS code to EAS authorized list
- * @param {string} code - FIPS code
- * @param {string} label - Display label
- */
-function addEasFipsCode(code, label) {
-    if (easFipsSelection.some(item => item.code === code)) {
-        if (typeof showToast === 'function') {
-            showToast('This county is already selected', 'warning');
-        }
-        return;
-    }
-
-    if (easFipsSelection.length >= 31) {
-        if (typeof showToast === 'function') {
-            showToast('Maximum of 31 FIPS codes allowed', 'warning');
-        }
-        return;
-    }
-
-    easFipsSelection.push({ code, label });
-    renderEasFipsSelection();
-    updateEasFipsHiddenInput();
-}
-
-/**
- * Remove a FIPS code from EAS authorized list
- * @param {string} code - FIPS code to remove
- */
-function removeEasFipsCode(code) {
-    easFipsSelection = easFipsSelection.filter(item => item.code !== code);
-    renderEasFipsSelection();
-    updateEasFipsHiddenInput();
-}
-
-/**
- * Render the EAS FIPS selection chips
- */
-function renderEasFipsSelection() {
-    const container = document.getElementById('easSelectedFips');
-    const countEl = document.getElementById('easAuthorizedFipsCount');
-
-    if (countEl) {
-        countEl.textContent = easFipsSelection.length;
-    }
-
-    if (!container) {
-        return;
-    }
-
-    if (easFipsSelection.length === 0) {
-        container.innerHTML = '<p class="text-muted small mb-0">No broadcast counties selected yet.</p>';
-        return;
-    }
-
-    let html = '<div class="d-flex flex-wrap gap-2">';
-    easFipsSelection.forEach(item => {
-        const lookup = window.EAS_FIPS_LOOKUP || {};
-        const countyName = lookup[item.code] || item.label || item.code;
-        html += `
-            <span class="badge bg-warning text-dark d-flex align-items-center gap-2">
-                <code>${item.code}</code>
-                <span>${countyName}</span>
-                <button type="button" class="btn-close" style="font-size: 0.6em;" onclick="removeEasFipsCode('${item.code}')" title="Remove"></button>
-            </span>
-        `;
-    });
-    html += '</div>';
-    container.innerHTML = html;
-}
-
-/**
- * Update the hidden EAS FIPS codes input
- */
-function updateEasFipsHiddenInput() {
-    const hiddenInput = document.getElementById('easAuthorizedFipsCodes');
-    if (hiddenInput) {
-        hiddenInput.value = easFipsSelection.map(item => item.code).join(',');
     }
 }
 
@@ -1145,22 +967,6 @@ function populateEasForm(settings) {
     if (authorizedEventsTextarea) {
         authorizedEventsTextarea.value = (settings.authorized_event_codes || []).join('\n');
     }
-
-    // Populate EAS FIPS selection from settings
-    easFipsSelection = [];
-    const lookup = window.EAS_FIPS_LOOKUP || {};
-    if (settings.authorized_fips_codes && Array.isArray(settings.authorized_fips_codes)) {
-        settings.authorized_fips_codes.forEach(code => {
-            if (code) {
-                easFipsSelection.push({
-                    code: code,
-                    label: lookup[code] || code
-                });
-            }
-        });
-    }
-    renderEasFipsSelection();
-    updateEasFipsHiddenInput();
 }
 
 /**
@@ -1185,7 +991,7 @@ async function handleEasSettingsSubmit(e) {
         statusEl.className = 'text-muted small ms-3';
     }
 
-    // Collect form data
+    // Collect form data (FIPS codes are now managed in Location Settings)
     const payload = {
         broadcast_enabled: document.getElementById('easBroadcastEnabled')?.checked || false,
         originator: document.getElementById('easOriginator')?.value || 'WXR',
@@ -1194,7 +1000,6 @@ async function handleEasSettingsSubmit(e) {
         attention_tone_seconds: parseInt(document.getElementById('easAttentionTone')?.value, 10) || 8,
         audio_player: document.getElementById('easAudioPlayer')?.value?.trim() || 'aplay',
         output_dir: document.getElementById('easOutputDir')?.value?.trim() || 'static/eas_messages',
-        authorized_fips_codes: easFipsSelection.map(item => item.code),
         authorized_event_codes: parseNewlineValues(document.getElementById('easAuthorizedEvents')?.value || '')
     };
 
@@ -1262,8 +1067,6 @@ window.selectZoneResult = selectZoneResult;
 window.updateZoneCounts = updateZoneCounts;
 window.initEasSettings = initEasSettings;
 window.loadEasSettings = loadEasSettings;
-window.addEasFipsCode = addEasFipsCode;
-window.removeEasFipsCode = removeEasFipsCode;
 
 // Initialize on DOMContentLoaded
 document.addEventListener('DOMContentLoaded', function() {

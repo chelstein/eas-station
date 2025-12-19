@@ -7,15 +7,44 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Added
+- **EAS Broadcast Settings Admin Page** - New database-based EAS configuration interface
+  - Created EAS Broadcast Settings section in Admin Panel for managing EAS broadcast configuration
+  - Added `EASSettings` model with all EAS broadcast parameters stored in database
+  - Moved EAS settings from environment variables to database:
+    - `broadcast_enabled` - Enable/disable EAS broadcasting
+    - `originator` - Originator code (WXR, CIV, PEP, EAS)
+    - `station_id` - Station call sign identifier
+    - `authorized_fips_codes` - FIPS codes authorized for broadcast (JSONB array)
+    - `authorized_event_codes` - Event codes authorized for broadcast (JSONB array)
+    - `attention_tone_seconds` - Attention tone duration
+    - `sample_rate` - Audio sample rate
+    - `audio_player` - Audio playback command
+    - `output_dir` - EAS message output directory
+  - Added FIPS builder UI for authorized broadcast counties (same UI pattern as location settings)
+  - Database migration: `20251219_add_eas_settings.py`
+  - API endpoints: `GET/PUT /admin/eas_settings`
+  - Replaces environment variables: `EAS_BROADCAST_ENABLED`, `EAS_ORIGINATOR`, `EAS_STATION_ID`, etc.
+
+- **Zone Lookup Feature for Location Settings** - Interactive zone search and selection
+  - Added zone search panel with debounced search functionality
+  - Search by zone code, state code, or county name
+  - Click to add zones to either Broadcast or Storage categories
+  - Color-coded cards: blue for Broadcast zones, green for Storage zones
+  - Zone count badges show number of selected zones
+  - Integrated with existing zone catalog API endpoints
 
 ### Fixed
-- **Alert Polling Not Saving Alerts** - Fixed configuration error preventing alerts from being saved to database
-  - Corrected `DEFAULT_STORAGE_ZONE_CODES` to include OHZ016 (Putnam County zone)
-  - Previously OHZ016 was in `zone_codes` (for receiving alerts) but not in `storage_zone_codes` (for saving)
-  - This caused alerts to be fetched and logged as "BROADCAST ONLY" but never saved to database
-  - Users would see "Fetched: 1 | New: 0 | Updated: 0" despite relevant alerts being available
-  - Now OHZ016 alerts will be properly saved to database with boundary calculations
-  - Fixes: "polling, polling debug and filtering is not working... It's doing nothing with it"
+- **Storage Zone Codes Not Saving** - Fixed location settings form not saving storage zone codes
+  - Created dedicated `location-settings.js` JavaScript module for proper form handling
+  - Storage zone codes now correctly included in form submission payload
+  - Consolidated location settings JavaScript from fragmented inline scripts
+  - Addresses: "The Storage Zone Codes (Local County Only) are not being saved"
+
+- **Removed Deprecated Fields** - Cleaned up location settings page
+  - Removed deprecated "Area Terms" field (keywords for filtering)
+  - Removed LED sign notification reference
+  - Streamlined location settings form with only relevant fields
+
 
 - **Certificate Domain Mismatch Detection** - Added detection and helpful message for certificate domain mismatches
   - Detects when user accesses site via hostname that doesn't match certificate domain
