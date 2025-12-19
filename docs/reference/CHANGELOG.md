@@ -7,6 +7,20 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **CRITICAL: Web Audio Bandwidth Waste** - Fixed 10-20x bandwidth waste from uncompressed WAV streaming
+  - Web browser playback now prefers Icecast compressed streams (MP3/OGG at ~128 kbps)
+  - Previously: MP3 sources were decoded and re-streamed as WAV (~705 kbps for mono 44.1kHz)
+  - WAV proxy retained as fallback when Icecast unavailable
+  - Saves ~10x bandwidth and reduces server CPU load
+  - Updated UI to show when compressed vs fallback WAV streaming is active
+  
+- **HTTP Stream Sample Rate Detection** - Fixed slow/fast playback from sample rate mismatches
+  - Added FFmpeg stderr parsing to detect actual stream sample rate (e.g., "44100 Hz", "48000 Hz")
+  - Dynamically updates `config.sample_rate` when FFmpeg reports different native rate
+  - Prevents pitch/speed issues caused by WAV header sample rate not matching FFmpeg output
+  - Validates detected rates are within 8kHz-192kHz range
+  - Logs when config sample rate differs from detected stream rate
+
 - **RWT FIPS Code Consistency** - Fixed confusion between alert filtering codes and RWT broadcast codes
   - Quick RWT and "Load Default Codes" now use `RWTScheduleConfig.same_codes` (broadcast coverage area)
   - Removed incorrect fallback to `LocationSettings.fips_codes` (which are for filtering incoming alerts)
@@ -38,6 +52,14 @@ tracks releases under the 2.x series.
   - Certificates can now be installed trivially after being obtained
 
 ### Added
+- **EAS Decoder Monitor Settings Model** - Database model for configurable EAS decoder audio tap
+  - Created `EASDecoderMonitorSettings` table to control decoder monitoring stream
+  - Allows listening to 16 kHz resampled audio fed to SAME decoder
+  - Verifies decoder receives correctly resampled audio
+  - Configurable enable/disable and stream name
+  - Migration: `20251219_add_eas_decoder_monitor_settings.py`
+  - TODO: Implement actual streaming endpoint for decoder tap
+
 - **EAS Broadcast Settings Admin Page** - New database-based EAS configuration interface
   - Created EAS Broadcast Settings section in Admin Panel for managing EAS broadcast configuration
   - Added `EASSettings` model with all EAS broadcast parameters stored in database

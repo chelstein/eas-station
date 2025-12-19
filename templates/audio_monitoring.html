@@ -607,14 +607,16 @@ function renderAudioSources(fullRender = true) {
                             </audio>
                             <div class="audio-player-status small mt-2 text-muted" id="player-status-${source.name}"></div>
                             <small class="text-muted d-block mt-1">
-                                <i class="fas fa-info-circle"></i> Secure HTTPS Streaming
-                                <span class="d-block small text-muted mt-1">Audio is streamed directly from the server over HTTPS.</span>
+                                <i class="fas fa-info-circle"></i> Compressed Streaming (MP3/OGG)
+                                <span class="d-block small text-muted mt-1">Audio uses compressed format to save bandwidth (10x more efficient than uncompressed WAV).</span>
                                 ${source.icecast_url ? `
                                     <a href="${escapeHtml(source.icecast_url)}" target="_blank" class="d-inline-flex align-items-center gap-1 text-primary mt-1">
                                         <i class="fas fa-external-link-alt"></i>
                                         <span>Open in external player (VLC, Winamp, etc.)</span>
                                     </a>
-                                ` : ''}
+                                ` : `
+                                    <span class="d-block small text-warning mt-1">⚠️ Using fallback WAV stream (high bandwidth). Enable Icecast for compressed streaming.</span>
+                                ` }
                             </small>
                         ` : `
                             <div class="alert alert-secondary mb-0">
@@ -1114,10 +1116,11 @@ function bindAudioPlayerEvents(audioEl) {
 }
 
 function shouldUseIcecastStream(audioEl) {
-    // Web audio playback ALWAYS uses the secure HTTPS proxy stream
-    // Icecast is for external players only (VLC, Winamp, etc.)
-    // This prevents mixed-content errors and provides consistent HTTPS streaming
-    return false;
+    // Web audio should prefer Icecast compressed streams (MP3/OGG) to save bandwidth
+    // WAV streaming uses ~10x more bandwidth than compressed formats
+    // Only fall back to Flask WAV proxy if Icecast URL is not available
+    const icecastUrl = audioEl.dataset.icecastUrl || '';
+    return icecastUrl.trim().length > 0;
 }
 
 function switchToProxyStream(audioEl, sourceName, options = {}) {
