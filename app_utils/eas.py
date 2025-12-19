@@ -630,8 +630,22 @@ def _compose_message_text(alert: object) -> str:
 
 
 def manual_default_same_codes() -> List[str]:
-    """Return the default SAME/FIPS codes for manual generation templates."""
+    """Return the default SAME/FIPS codes for manual broadcast generation.
+    
+    This returns codes for WHERE TO BROADCAST (RWT, manual activations),
+    NOT codes for filtering incoming alerts (LocationSettings.fips_codes).
+    
+    Priority order:
+    1. EAS_MANUAL_FIPS_CODES environment variable (legacy)
+    2. RWTScheduleConfig.same_codes (primary source - broadcast coverage area)
+    3. Empty list (user must configure)
+    
+    Note: We intentionally do NOT fall back to LocationSettings.fips_codes because
+    those codes are for FILTERING incoming alerts (can include nationwide 000000,
+    statewide codes, etc.) and should NOT be used for broadcast targeting.
+    """
 
+    # 1. Check environment variable (legacy support)
     raw = os.getenv('EAS_MANUAL_FIPS_CODES', '')
     codes: List[str] = []
     if raw:
@@ -642,36 +656,31 @@ def manual_default_same_codes() -> List[str]:
             digits = re.sub(r'[^0-9]', '', token)
             if digits:
                 codes.append(digits.zfill(6)[:6])
+        return codes[:31]
 
-    if not codes and has_app_context():
+    # 2. Use RWTScheduleConfig.same_codes (broadcast coverage area)
+    if has_app_context():
         try:
-            from app_core.location import get_location_settings  # Imported lazily to avoid circular import
+            from app_core.models import RWTScheduleConfig  # Imported lazily to avoid circular import
+            from app_core.extensions import db
 
-            settings = get_location_settings()
-            stored_codes = settings.get('fips_codes') or settings.get('same_codes') or []
-            for value in stored_codes:
-                digits = re.sub(r'[^0-9]', '', str(value))
-                if digits:
-                    codes.append(digits.zfill(6)[:6])
+            config = RWTScheduleConfig.query.first()
+            if config and config.same_codes:
+                stored_codes = config.same_codes or []
+                for value in stored_codes:
+                    digits = re.sub(r'[^0-9]', '', str(value))
+                    if digits:
+                        codes.append(digits.zfill(6)[:6])
+                return codes[:31]
         except Exception as exc:  # pragma: no cover - defensive
             if current_app:
                 current_app.logger.warning(
-                    "Failed to load location-based SAME defaults: %s", exc
+                    "Failed to load RWT broadcast SAME codes: %s", exc
                 )
 
-    if not codes:
-        # Default to Ohio counties: Allen, Defiance, Hancock, Henry, Paulding, Van Wert, Wood
-        codes = [
-            '039003',  # Allen County, OH
-            '039039',  # Defiance County, OH
-            '039063',  # Hancock County, OH
-            '039069',  # Henry County, OH
-            '039125',  # Paulding County, OH
-            '039161',  # Van Wert County, OH
-            '039173',  # Wood County, OH
-        ]
-
-    return codes[:31]
+    # 3. Return empty list - user should configure RWT broadcast codes
+    # We do NOT fall back to hardcoded defaults or LocationSettings.fips_codes
+    return []
 
 
 def _generate_tone(freqs: Iterable[float], duration: float, sample_rate: int, amplitude: float) -> List[int]:
