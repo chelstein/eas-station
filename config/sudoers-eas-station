@@ -87,3 +87,6 @@ eas-station ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart icecast2
 eas-station ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart icecast
 eas-station ALL=(ALL) NOPASSWD: /usr/bin/systemctl status icecast2
 eas-station ALL=(ALL) NOPASSWD: /usr/bin/systemctl status icecast
+
+# Audio service management (required to reload Icecast credentials after password change)
+eas-station ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart eas-station-audio
