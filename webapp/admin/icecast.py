@@ -80,35 +80,33 @@ def _update_icecast_config_file(source_password: str, admin_password: str, admin
     if not Path(config_file).exists():
         return False, f"Icecast config not found at {config_file}"
 
-    errors = []
-
     try:
-        # Update source password
+        # Read the current config
+        with open(config_file, 'r') as f:
+            content = f.read()
+
+        # Replace passwords using regex
+        content = re.sub(r'<source-password>.*?</source-password>',
+                        f'<source-password>{source_password}</source-password>', content)
+        content = re.sub(r'<admin-user>.*?</admin-user>',
+                        f'<admin-user>{admin_user}</admin-user>', content)
+        content = re.sub(r'<admin-password>.*?</admin-password>',
+                        f'<admin-password>{admin_password}</admin-password>', content)
+
+        # Write to temp file then copy with sudo (avoids ProtectSystem restrictions)
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.xml', delete=False) as tmp:
+            tmp.write(content)
+            tmp_path = tmp.name
+
+        # Copy temp file to config location with sudo
         result = subprocess.run(
-            ['sudo', '/usr/bin/sed', '-i', f's|<source-password>.*</source-password>|<source-password>{source_password}</source-password>|', config_file],
+            ['sudo', '/usr/bin/cp', tmp_path, config_file],
             capture_output=True, timeout=10
         )
-        if result.returncode != 0:
-            errors.append(f"source-password: {result.stderr.decode('utf-8', errors='replace')}")
+        os.unlink(tmp_path)  # Clean up temp file
 
-        # Update admin user
-        result = subprocess.run(
-            ['sudo', '/usr/bin/sed', '-i', f's|<admin-user>.*</admin-user>|<admin-user>{admin_user}</admin-user>|', config_file],
-            capture_output=True, timeout=10
-        )
         if result.returncode != 0:
-            errors.append(f"admin-user: {result.stderr.decode('utf-8', errors='replace')}")
-
-        # Update admin password
-        result = subprocess.run(
-            ['sudo', '/usr/bin/sed', '-i', f's|<admin-password>.*</admin-password>|<admin-password>{admin_password}</admin-password>|', config_file],
-            capture_output=True, timeout=10
-        )
-        if result.returncode != 0:
-            errors.append(f"admin-password: {result.stderr.decode('utf-8', errors='replace')}")
-
-        if errors:
-            return False, f"sed failed: {'; '.join(errors)}"
+            return False, f"Failed to copy config: {result.stderr.decode('utf-8', errors='replace')}"
 
         # Restart Icecast service
         result = subprocess.run(['sudo', '/usr/bin/systemctl', 'restart', 'icecast2'], capture_output=True, timeout=10)
@@ -119,7 +117,6 @@ def _update_icecast_config_file(source_password: str, admin_password: str, admin
         result = subprocess.run(['sudo', '/usr/bin/systemctl', 'restart', 'eas-station-audio'], capture_output=True, timeout=30)
         if result.returncode != 0:
             logger.warning(f"Failed to restart audio service: {result.stderr.decode('utf-8', errors='replace')}")
-            # Don't fail overall - audio service might not exist
 
         return True, "Icecast config updated and services restarted"
 
