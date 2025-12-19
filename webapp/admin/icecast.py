@@ -63,19 +63,20 @@ def _get_env_file_path() -> Path:
     return project_root / '.env'
 
 
-def _update_icecast_config_file(source_password: str, admin_password: str) -> tuple[bool, str]:
-    """Update Icecast server configuration file with new passwords.
-    
+def _update_icecast_config_file(source_password: str, admin_password: str, admin_user: str = 'admin') -> tuple[bool, str]:
+    """Update Icecast server configuration file with new credentials.
+
     This function handles:
     1. Finding the Icecast config file
-    2. Parsing and updating XML passwords
+    2. Parsing and updating XML credentials (source-password, admin-user, admin-password)
     3. Writing the config file (may require sudo)
     4. Restarting the Icecast service
-    
+
     Args:
         source_password: New source password
         admin_password: New admin password
-        
+        admin_user: Admin username (default: 'admin')
+
     Returns:
         Tuple of (success: bool, message: str)
     """
@@ -119,7 +120,18 @@ def _update_icecast_config_file(source_password: str, admin_password: str) -> tu
                 source_pw_elem = ET.SubElement(auth, 'source-password')
                 source_pw_elem.text = source_password
                 updated_fields.append('source-password (created)')
-            
+
+            # Update admin user
+            admin_user_elem = auth.find('admin-user')
+            if admin_user_elem is not None:
+                admin_user_elem.text = admin_user
+                updated_fields.append('admin-user')
+            else:
+                # Create if missing
+                admin_user_elem = ET.SubElement(auth, 'admin-user')
+                admin_user_elem.text = admin_user
+                updated_fields.append('admin-user (created)')
+
             # Update admin password
             admin_pw_elem = auth.find('admin-password')
             if admin_pw_elem is not None:
@@ -421,6 +433,10 @@ def regenerate_passwords():
         # Update database
         settings = get_icecast_settings()
         settings.source_password = new_source_password
+        # Ensure admin_user is set when updating admin_password
+        # This fixes auth failures where admin_password is set but admin_user is None
+        if not settings.admin_user:
+            settings.admin_user = 'admin'
         settings.admin_password = new_admin_password
         db.session.commit()
         
@@ -445,21 +461,26 @@ def regenerate_passwords():
                 new_lines.append(line)
                 continue
             
-            # Update password variables
+            # Update password and user variables
             if '=' in stripped:
                 key = stripped.split('=', 1)[0].strip()
                 if key == 'ICECAST_SOURCE_PASSWORD':
                     new_lines.append(f"{key}={new_source_password}\n")
+                    processed_keys.add(key)
+                elif key == 'ICECAST_ADMIN_USER':
+                    new_lines.append(f"{key}={settings.admin_user}\n")
                     processed_keys.add(key)
                 elif key == 'ICECAST_ADMIN_PASSWORD':
                     new_lines.append(f"{key}={new_admin_password}\n")
                     processed_keys.add(key)
                 else:
                     new_lines.append(line)
-        
+
         # Add new variables if they weren't in the file
         if 'ICECAST_SOURCE_PASSWORD' not in processed_keys:
             new_lines.append(f"ICECAST_SOURCE_PASSWORD={new_source_password}\n")
+        if 'ICECAST_ADMIN_USER' not in processed_keys:
+            new_lines.append(f"ICECAST_ADMIN_USER={settings.admin_user}\n")
         if 'ICECAST_ADMIN_PASSWORD' not in processed_keys:
             new_lines.append(f"ICECAST_ADMIN_PASSWORD={new_admin_password}\n")
         
@@ -469,8 +490,9 @@ def regenerate_passwords():
         
         # Update Icecast server configuration file
         config_success, config_message = _update_icecast_config_file(
-            new_source_password, 
-            new_admin_password
+            new_source_password,
+            new_admin_password,
+            settings.admin_user
         )
         
         # Invalidate cached settings
