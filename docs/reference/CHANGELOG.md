@@ -6,7 +6,27 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+### Removed
+- **Waveform Monitor from SDR/Radio Admin Page** - Removed non-functional waveform/waterfall spectrum display
+  - Removed waveform monitor card UI (lines 249-267)
+  - Removed ~440 lines of JavaScript code for spectrum visualization
+  - Removed functions: createWaveformCanvas, getWaterfallColor, drawSpectrumGraph, drawWaterfall, updateWaveform, updateAllWaveforms, startWaveformRefresh, stopWaveformRefresh
+  - Feature was not working and displayed "Waiting for data..." indefinitely
+  - Radio receivers table and configuration functionality remain intact
+
 ### Fixed
+- **EAS Decoder Stream 404 Error** - Fixed missing nginx proxy for `/api/eas/decoder-stream` endpoint
+  - Added nginx proxy configuration for EAS decoder audio stream (port 5002)
+  - Users can now listen to the 16kHz decoder feed without 404 errors
+  - Matches existing `/api/audio/stream/` proxy configuration with streaming-optimized settings
+
+- **Decoder Health Status Bouncing** - Fixed conflicting monitor status causing UI to flicker
+  - Root cause: When extracting first monitor's stats, per-source metrics were used instead of aggregated values
+  - Backend now preserves aggregated `samples_processed`, `samples_per_second`, `health_percentage` from parent status
+  - Prevents frontend from seeing "0 samples" when first source is idle but other sources are active
+  - Frontend hysteresis logic now works correctly with consistent aggregated metrics
+  - Fixes "No audio flowing" warnings appearing despite active sources
+
 - **RWT Schedule Configuration Page Load Error** - Fixed JavaScript "ReferenceError: renderCountyList is not defined"
   - Added missing `renderCountyList()` function to render county chips in editor panel
   - Added missing `renderScheduleCountyList()` function to render county chips in schedule preview
