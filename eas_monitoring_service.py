@@ -293,9 +293,12 @@ def sync_radio_receiver_audio_sources(app):
             freq_display = f"{receiver.frequency_hz/1e6:.3f} MHz" if receiver.frequency_hz else "Unknown"
             description = f"SDR monitor for {receiver.display_name} · {freq_display}"
             
+            # DEBUG: Log RBDS setting being synced
+            logger.info(f"Syncing receiver '{receiver.identifier}': enable_rbds={receiver.enable_rbds}")
+
             # Check if audio source exists
             db_config = AudioSourceConfigDB.query.filter_by(name=source_name).first()
-            
+
             if db_config is None:
                 # Create new audio source
                 logger.info(f"Creating audio source for receiver '{receiver.identifier}': {source_name}")
@@ -312,13 +315,20 @@ def sync_radio_receiver_audio_sources(app):
                 created += 1
             else:
                 # Update existing audio source if config changed
-                if (db_config.config_params or {}) != config_params:
-                    logger.info(f"Updating audio source for receiver '{receiver.identifier}': {source_name}")
+                existing_params = db_config.config_params or {}
+                existing_rbds = existing_params.get('device_params', {}).get('enable_rbds', 'NOT_SET')
+                new_rbds = config_params.get('device_params', {}).get('enable_rbds', 'NOT_SET')
+                logger.debug(f"Comparing configs for '{receiver.identifier}': existing_rbds={existing_rbds}, new_rbds={new_rbds}")
+
+                if existing_params != config_params:
+                    logger.info(f"Updating audio source for receiver '{receiver.identifier}': {source_name} (rbds: {existing_rbds} -> {new_rbds})")
                     db_config.config_params = config_params
                     db_config.enabled = True
                     db_config.auto_start = receiver.auto_start
                     db_config.description = description
                     updated += 1
+                else:
+                    logger.debug(f"No config change for '{receiver.identifier}' (rbds={new_rbds})")
         
         if created > 0 or updated > 0:
             db.session.commit()
@@ -464,6 +474,7 @@ def initialize_auto_streaming(app, audio_controller):
         with app.app_context():
             from app_core.audio.icecast_auto_config import get_icecast_auto_config
             from app_core.audio.auto_streaming import AutoStreamingService
+            from app_core.audio.stream_profiles import StreamFormat
 
             auto_config = get_icecast_auto_config()
 
@@ -473,13 +484,17 @@ def initialize_auto_streaming(app, audio_controller):
 
             logger.info(f"Initializing Icecast auto-streaming: {auto_config.server}:{auto_config.port}")
 
+            # Map format string to enum
+            stream_format = StreamFormat.MP3 if auto_config.stream_format.lower() == 'mp3' else StreamFormat.OGG
+
             _auto_streaming_service = AutoStreamingService(
                 icecast_server=auto_config.server,
                 icecast_port=auto_config.port,
                 icecast_password=auto_config.source_password,
                 icecast_admin_user=auto_config.admin_user,
                 icecast_admin_password=auto_config.admin_password,
-                default_bitrate=128,
+                default_bitrate=auto_config.stream_bitrate,  # Use configured bitrate from database/env
+                default_format=stream_format,  # Use configured format from database/env
                 enabled=True,
                 audio_controller=audio_controller
             )

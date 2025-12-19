@@ -402,6 +402,9 @@ def _emit_audio_monitoring_update(app: 'Flask', socketio: 'SocketIO', config_cac
                     'frames_captured': source_data.get('frames_captured') or 0,
                     'silence_detected': bool(source_data.get('silence_detected', False)),
                     'buffer_utilization': _sanitize_float(buffer_util) if buffer_util is not None else 0.0,
+                    'metrics': {
+                        'metadata': source_data.get('metadata')
+                    },
                 })
 
             for name, data in redis_sources.items():

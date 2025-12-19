@@ -312,12 +312,37 @@ class FMDemodulator:
         # RBDS requires sample rate >= 114 kHz (Nyquist for 57 kHz subcarrier)
         # Use original sample_rate since RBDS extraction happens BEFORE decimation
         self._rbds_enabled = config.enable_rbds and config.sample_rate >= 114000
-        # CRITICAL FIX: Design RBDS filters for ORIGINAL sample rate, not intermediate rate
-        # The multiplex signal (where RBDS is extracted from) is at the original SDR sample rate
-        # RBDS subcarrier is at 57 kHz, so bandpass extracts 54-60 kHz region
-        rbds_filter_taps = self._calculate_filter_taps(3000.0, config.sample_rate)
-        self._rbds_bandpass = self._design_fir_bandpass(54000.0, 60000.0, config.sample_rate, taps=rbds_filter_taps)
-        self._rbds_lowpass = self._design_fir_lowpass(2400.0, config.sample_rate, taps=rbds_filter_taps)
+        logger.info(
+            f"RBDS configuration: config.enable_rbds={config.enable_rbds}, "
+            f"sample_rate={config.sample_rate}Hz, _rbds_enabled={self._rbds_enabled}"
+        )
+        # RBDS extraction needs to work at a practical sample rate for filter design
+        # The 57 kHz RBDS subcarrier needs rate > 114 kHz, so we use ~250 kHz intermediate rate
+        # This is the same rate used for stereo processing
+        self._rbds_intermediate_rate = self._intermediate_rate
+
+        # Design RBDS decimation filter to preserve the 57 kHz subcarrier
+        # Cutoff at 70 kHz (above RBDS) with anti-aliasing margin
+        if config.sample_rate > self._rbds_intermediate_rate * 2:
+            self._rbds_decim_factor = config.sample_rate // self._rbds_intermediate_rate
+            # Ensure we don't decimate below Nyquist for 60 kHz
+            while (config.sample_rate // self._rbds_decim_factor) < 130000 and self._rbds_decim_factor > 1:
+                self._rbds_decim_factor -= 1
+            self._rbds_intermediate_rate = config.sample_rate // self._rbds_decim_factor
+            rbds_decim_cutoff = 70000.0  # Above RBDS at 57 kHz
+            rbds_decim_taps = min(1024, max(128, config.sample_rate // 10000))
+            self._rbds_decim_filter = self._design_fir_lowpass(rbds_decim_cutoff, config.sample_rate, taps=rbds_decim_taps)
+            logger.info(f"RBDS decimation: {config.sample_rate}Hz -> {self._rbds_intermediate_rate}Hz ({self._rbds_decim_factor}x)")
+        else:
+            self._rbds_decim_factor = 1
+            self._rbds_decim_filter = None
+
+        # Now design RBDS filters for the intermediate rate (much more practical)
+        # RBDS subcarrier is at 57 kHz, bandpass extracts 54-60 kHz region
+        rbds_filter_taps = self._calculate_filter_taps(3000.0, self._rbds_intermediate_rate)
+        self._rbds_bandpass = self._design_fir_bandpass(54000.0, 60000.0, self._rbds_intermediate_rate, taps=rbds_filter_taps)
+        self._rbds_lowpass = self._design_fir_lowpass(2400.0, self._rbds_intermediate_rate, taps=rbds_filter_taps)
+        logger.info(f"RBDS filters designed for {self._rbds_intermediate_rate}Hz: {rbds_filter_taps} taps")
         self._rbds_symbol_rate = 1187.5
         self._rbds_target_rate = self._rbds_symbol_rate * 4.0
         self._rbds_symbol_phase = 0.0
@@ -432,6 +457,10 @@ class FMDemodulator:
             # Create sample indices for RBDS timing recovery
             sample_indices = np.arange(len(multiplex), dtype=np.float64) + self._sample_index
             self._sample_index += len(multiplex)
+
+            # Log RBDS extraction activity periodically (every ~5 seconds at 2.5MHz/25k samples)
+            if self._sample_index % (self.config.sample_rate * 5) < len(multiplex):
+                logger.info(f"RBDS extraction active: sample_index={self._sample_index}, multiplex_len={len(multiplex)}")
 
             # Extract RBDS data - this processes the 57 kHz subcarrier
             try:
@@ -711,20 +740,41 @@ class FMDemodulator:
 
     def _extract_rbds(self, multiplex: np.ndarray, sample_indices: np.ndarray) -> Optional[RBDSData]:
         if not self._rbds_enabled or len(multiplex) == 0:
+            logger.debug(f"RBDS extraction skipped: enabled={self._rbds_enabled}, multiplex_len={len(multiplex)}")
             return None
 
-        rbds_band = np.convolve(multiplex, self._rbds_bandpass, mode="same")
-        # CRITICAL FIX: Use ORIGINAL sample rate for time calculation
-        # The multiplex signal is at the original SDR sample rate, not intermediate rate
-        # This ensures the 57 kHz carrier for RBDS demodulation is at the correct frequency
-        time = sample_indices / float(self.config.sample_rate)
+        # Step 1: Decimate to intermediate rate for practical filter design
+        # High sample rates (2.5 MHz) require too many taps for narrow 54-60 kHz bandpass
+        if self._rbds_decim_filter is not None and self._rbds_decim_factor > 1:
+            # Apply anti-aliasing filter and decimate
+            filtered = np.convolve(multiplex, self._rbds_decim_filter, mode="same")
+            rbds_signal = fast_decimate(filtered.astype(np.float32), self._rbds_decim_factor)
+            rbds_rate = self._rbds_intermediate_rate
+            # Adjust sample indices for decimated signal
+            rbds_sample_indices = sample_indices[::self._rbds_decim_factor][:len(rbds_signal)]
+        else:
+            rbds_signal = multiplex
+            rbds_rate = self.config.sample_rate
+            rbds_sample_indices = sample_indices[:len(rbds_signal)]
+
+        # Step 2: Bandpass filter for 54-60 kHz RBDS subcarrier (now at practical rate)
+        rbds_band = np.convolve(rbds_signal, self._rbds_bandpass, mode="same")
+
+        # Log RBDS signal strength for diagnostics
+        rbds_rms = np.sqrt(np.mean(rbds_band ** 2))
+        if rbds_rms > 0.001:  # Only log if there's measurable signal
+            logger.debug(f"RBDS band signal RMS: {rbds_rms:.6f} at {rbds_rate}Hz")
+
+        # Step 3: Mix down to baseband using 57 kHz carrier
+        # Use the RBDS intermediate rate for time calculation
+        time = rbds_sample_indices / float(self.config.sample_rate)
         baseband = rbds_band * np.exp(-1j * 2.0 * np.pi * 57000.0 * time)
         baseband_real = np.convolve(baseband.real, self._rbds_lowpass, mode="same")
 
-        # CRITICAL FIX: Resample from ORIGINAL sample rate, not intermediate rate
+        # Step 4: Resample from intermediate rate to RBDS symbol processing rate
         resampled = self._resample(
             baseband_real,
-            self.config.sample_rate,  # Original SDR sample rate
+            rbds_rate,  # Intermediate rate after decimation
             int(self._rbds_target_rate),
         )
 
@@ -752,14 +802,20 @@ class FMDemodulator:
 
         if bits:
             self._rbds_bit_buffer.extend(bits)
+            # Periodically log bit buffer status at INFO level for visibility
+            if len(self._rbds_bit_buffer) % 520 == 0:  # ~20 blocks worth
+                logger.info(f"RBDS processing: {len(self._rbds_bit_buffer)} bits in buffer, {len(bits)} new bits")
 
         return self._decode_rbds_groups()
 
     def _decode_rbds_groups(self) -> Optional[RBDSData]:
         changed = False
+        blocks_checked = 0
+        blocks_valid = 0
         while len(self._rbds_bit_buffer) >= 26:
             block_bits = self._rbds_bit_buffer[:26]
             block_type, data_word = self._decode_rbds_block(block_bits)
+            blocks_checked += 1
 
             if block_type is None:
                 del self._rbds_bit_buffer[0]
@@ -767,9 +823,13 @@ class FMDemodulator:
                 self._rbds_partial_group.clear()
                 continue
 
+            blocks_valid += 1
+            logger.debug(f"RBDS block detected: type={block_type}, data=0x{data_word:04X}")
+
             if self._rbds_expected_block is None:
                 if block_type != "A":
-                    del self._rbds_bit_buffer[0]
+                    # Valid block but not A - consume it to maintain sync
+                    del self._rbds_bit_buffer[:26]
                     continue
                 self._rbds_partial_group = [data_word]
                 self._rbds_expected_block = 1
@@ -780,10 +840,17 @@ class FMDemodulator:
             expected = sequence[self._rbds_expected_block]
             if expected == "C" and block_type == "C":
                 pass
+            elif block_type == "A":
+                # New group starting - use this A block to start fresh
+                del self._rbds_bit_buffer[:26]
+                self._rbds_partial_group = [data_word]
+                self._rbds_expected_block = 1
+                continue
             elif expected != block_type:
+                # Valid block but wrong type - consume it to maintain sync
                 self._rbds_expected_block = None
                 self._rbds_partial_group.clear()
-                del self._rbds_bit_buffer[0]
+                del self._rbds_bit_buffer[:26]
                 continue
 
             self._rbds_partial_group.append(data_word)
@@ -791,10 +858,15 @@ class FMDemodulator:
             del self._rbds_bit_buffer[:26]
 
             if self._rbds_expected_block >= 4:
+                logger.info(f"RBDS complete group decoded: {[hex(w) for w in self._rbds_partial_group]}")
                 group_changed = self._rbds_decoder.process_group(tuple(self._rbds_partial_group))
                 changed = group_changed or changed
                 self._rbds_partial_group = []
                 self._rbds_expected_block = None
+
+        # Log summary of block decoding attempts
+        if blocks_checked > 100:
+            logger.debug(f"RBDS blocks: {blocks_valid}/{blocks_checked} valid ({100*blocks_valid/blocks_checked:.1f}%)")
 
         if changed:
             return self._rbds_decoder.get_current_data()
