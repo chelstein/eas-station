@@ -828,7 +828,8 @@ class FMDemodulator:
 
             if self._rbds_expected_block is None:
                 if block_type != "A":
-                    del self._rbds_bit_buffer[0]
+                    # Valid block but not A - consume it to maintain sync
+                    del self._rbds_bit_buffer[:26]
                     continue
                 self._rbds_partial_group = [data_word]
                 self._rbds_expected_block = 1
@@ -839,10 +840,17 @@ class FMDemodulator:
             expected = sequence[self._rbds_expected_block]
             if expected == "C" and block_type == "C":
                 pass
+            elif block_type == "A":
+                # New group starting - use this A block to start fresh
+                del self._rbds_bit_buffer[:26]
+                self._rbds_partial_group = [data_word]
+                self._rbds_expected_block = 1
+                continue
             elif expected != block_type:
+                # Valid block but wrong type - consume it to maintain sync
                 self._rbds_expected_block = None
                 self._rbds_partial_group.clear()
-                del self._rbds_bit_buffer[0]
+                del self._rbds_bit_buffer[:26]
                 continue
 
             self._rbds_partial_group.append(data_word)
