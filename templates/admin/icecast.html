@@ -619,9 +619,11 @@ document.getElementById('icecastSettingsForm').addEventListener('submit', async 
         });
         
         const result = await response.json();
-        
+
         if (result.success) {
             showToast(result.message || 'Settings updated successfully', 'success');
+            // Refresh server status to show connection works
+            setTimeout(checkServerStatus, 1000);
         } else {
             showToast(result.error || 'Failed to update settings', 'error');
         }
@@ -836,6 +838,9 @@ async function regeneratePasswords() {
                     document.getElementById('admin_password').value = result.passwords.admin_password;
                 }
             }
+
+            // Refresh server status to show connection works
+            setTimeout(checkServerStatus, 2000);
         } else {
             showToast(result.error || 'Failed to regenerate passwords', 'error');
         }
