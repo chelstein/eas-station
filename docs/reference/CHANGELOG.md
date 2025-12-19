@@ -7,6 +7,14 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **Audio Monitoring JavaScript Errors** - Fixed syntax error and undefined function
+  - Removed extra closing brace `}` in `onAudioPlaybackError()` function
+  - Fixed incorrect indentation causing `return;` statement to be outside control flow
+  - JavaScript brace balance now correct (557 open, 557 close)
+  - Fixes "Uncaught SyntaxError: Unexpected token '}'" error at line 1848
+  - Fixes "Uncaught ReferenceError: renderAudioSources is not defined" error
+  - All audio monitoring pages now load without JavaScript errors
+
 - **WebSocket Parse Errors** - Fixed malformed JSON causing repeated WebSocket disconnects
   - `_sanitize_float()` now properly handles None values (returns -120.0)
   - `_sanitize_bool()` now properly handles None values (returns False)
