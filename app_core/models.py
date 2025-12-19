@@ -544,6 +544,8 @@ class PollHistory(db.Model):
     execution_time_ms = db.Column(db.Integer)
     error_message = db.Column(db.Text)
     data_source = db.Column(db.String(64))
+    # JSON field for additional details (endpoints polled, zone config, etc.)
+    details = db.Column(db.JSON)
 
 
 class PollDebugRecord(db.Model):

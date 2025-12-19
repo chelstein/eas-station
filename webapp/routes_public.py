@@ -1345,8 +1345,33 @@ def register(app: Flask, logger) -> None:
                 .limit(limit)
                 .all()
             )
-            logs_data = [
-                {
+            logs_data = []
+            for log in logs_result:
+                # Merge basic info with detailed info from JSON field
+                details = {
+                    'execution_time_ms': log.execution_time_ms,
+                    'error': log.error_message,
+                    'data_source': log.data_source,
+                    'alerts_fetched': log.alerts_fetched,
+                    'alerts_new': log.alerts_new,
+                    'alerts_updated': log.alerts_updated,
+                }
+                # Add endpoint/config details if available
+                if log.details:
+                    details.update(log.details)
+
+                # Build more informative message
+                msg_parts = [f"Status: {log.status}"]
+                msg_parts.append(f"Fetched: {log.alerts_fetched}")
+                if log.details:
+                    accepted = log.details.get('alerts_accepted', 0)
+                    filtered = log.details.get('alerts_filtered', 0)
+                    msg_parts.append(f"Accepted: {accepted}")
+                    msg_parts.append(f"Filtered: {filtered}")
+                msg_parts.append(f"New: {log.alerts_new}")
+                msg_parts.append(f"Updated: {log.alerts_updated}")
+
+                logs_data.append({
                     'timestamp': log.timestamp,
                     'level': 'ERROR'
                     if log.error_message
@@ -1354,21 +1379,9 @@ def register(app: Flask, logger) -> None:
                     if (log.status or '').lower() == 'success'
                     else 'INFO',
                     'module': f"Alert Polling ({log.data_source or 'UNKNOWN'})",
-                    'message': (
-                        f"Status: {log.status} | Fetched: {log.alerts_fetched} | "
-                        f"New: {log.alerts_new} | Updated: {log.alerts_updated}"
-                    ),
-                    'details': {
-                        'execution_time_ms': log.execution_time_ms,
-                        'error': log.error_message,
-                        'data_source': log.data_source,
-                        'alerts_fetched': log.alerts_fetched,
-                        'alerts_new': log.alerts_new,
-                        'alerts_updated': log.alerts_updated,
-                    },
-                }
-                for log in logs_result
-            ]
+                    'message': ' | '.join(msg_parts),
+                    'details': details,
+                })
 
         elif log_type == 'polling_debug':
             log_type_name = "Polling Debug Logs"

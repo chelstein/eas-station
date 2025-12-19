@@ -242,6 +242,8 @@ try:
         execution_time_ms = db.Column(db.Integer)
         status = db.Column(db.String(20))
         error_message = db.Column(db.Text)
+        data_source = db.Column(db.String(64))
+        details = db.Column(JSON)
 
     FLASK_MODELS_AVAILABLE = True
 
@@ -341,6 +343,7 @@ except Exception as e:
         status = Column(String(20))
         error_message = Column(Text)
         data_source = Column(String(64))
+        details = Column(JSON)
 
     class PollDebugRecord(Base):
         __tablename__ = 'poll_debug_records'
@@ -2650,6 +2653,19 @@ class CAPPoller:
             except Exception:
                 self.logger.debug("poll_history missing; file-only log")
                 return
+            # Build details dict with endpoint and config info for frontend visibility
+            poll_details = {
+                'endpoints_polled': stats.get('endpoints_polled', []),
+                'configured_zone_codes': stats.get('configured_zone_codes', []),
+                'configured_same_codes': stats.get('configured_same_codes', []),
+                'configured_storage_zones': stats.get('configured_storage_zones', []),
+                'alerts_filtered': stats.get('alerts_filtered', 0),
+                'alerts_accepted': stats.get('alerts_accepted', 0),
+                'duplicates_filtered': stats.get('duplicates_filtered', 0),
+                'poll_time_utc': stats.get('poll_time_utc'),
+                'poll_time_local': stats.get('poll_time_local'),
+                'timezone': stats.get('timezone'),
+            }
             rec = PollHistory(
                 timestamp=utc_now(),
                 alerts_fetched=stats.get('alerts_fetched', 0),
@@ -2659,6 +2675,7 @@ class CAPPoller:
                 status=stats.get('status', 'UNKNOWN'),
                 error_message=stats.get('error_message'),
                 data_source=summarise_sources(stats.get('sources', [])),
+                details=poll_details,
             )
             self.db_session.add(rec)
             self.db_session.commit()
@@ -2703,6 +2720,19 @@ class CAPPoller:
         # Reload location settings to pick up any changes from admin UI
         self._reload_location_settings()
 
+        # Build endpoint info for logging
+        endpoints_info = []
+        for ep in self.cap_endpoints:
+            if 'tdl.apps.fema.gov' in ep:
+                ep_type = "IPAWS-STAGING"
+            elif 'apps.fema.gov' in ep:
+                ep_type = "IPAWS"
+            elif 'weather.gov' in ep:
+                ep_type = "NOAA"
+            else:
+                ep_type = "CUSTOM"
+            endpoints_info.append({'type': ep_type, 'url': ep})
+
         stats = {
             'alerts_fetched': 0, 'alerts_new': 0, 'alerts_updated': 0,
             'alerts_filtered': 0, 'alerts_accepted': 0, 'intersections_calculated': 0,
@@ -2714,6 +2744,11 @@ class CAPPoller:
             'sources': [], 'duplicates_filtered': 0,
             'poll_run_id': poll_run_id,
             'fetched_alerts': [],  # List of alerts that were fetched (for visibility)
+            # Endpoint and config info for frontend visibility
+            'endpoints_polled': endpoints_info,
+            'configured_zone_codes': sorted(self.zone_codes),
+            'configured_same_codes': sorted(self.same_codes),
+            'configured_storage_zones': sorted(self.storage_zone_codes),
         }
 
         debug_records: List[Dict[str, Any]] = []
