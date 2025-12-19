@@ -85,7 +85,7 @@ def _update_icecast_config_file(source_password: str, admin_password: str, admin
     try:
         # Update source password
         result = subprocess.run(
-            ['sudo', 'sed', '-i', f's|<source-password>.*</source-password>|<source-password>{source_password}</source-password>|', config_file],
+            ['sudo', '/usr/bin/sed', '-i', f's|<source-password>.*</source-password>|<source-password>{source_password}</source-password>|', config_file],
             capture_output=True, timeout=10
         )
         if result.returncode != 0:
@@ -93,7 +93,7 @@ def _update_icecast_config_file(source_password: str, admin_password: str, admin
 
         # Update admin user
         result = subprocess.run(
-            ['sudo', 'sed', '-i', f's|<admin-user>.*</admin-user>|<admin-user>{admin_user}</admin-user>|', config_file],
+            ['sudo', '/usr/bin/sed', '-i', f's|<admin-user>.*</admin-user>|<admin-user>{admin_user}</admin-user>|', config_file],
             capture_output=True, timeout=10
         )
         if result.returncode != 0:
@@ -101,7 +101,7 @@ def _update_icecast_config_file(source_password: str, admin_password: str, admin
 
         # Update admin password
         result = subprocess.run(
-            ['sudo', 'sed', '-i', f's|<admin-password>.*</admin-password>|<admin-password>{admin_password}</admin-password>|', config_file],
+            ['sudo', '/usr/bin/sed', '-i', f's|<admin-password>.*</admin-password>|<admin-password>{admin_password}</admin-password>|', config_file],
             capture_output=True, timeout=10
         )
         if result.returncode != 0:
@@ -111,12 +111,12 @@ def _update_icecast_config_file(source_password: str, admin_password: str, admin
             return False, f"sed failed: {'; '.join(errors)}"
 
         # Restart Icecast service
-        result = subprocess.run(['sudo', 'systemctl', 'restart', 'icecast2'], capture_output=True, timeout=10)
+        result = subprocess.run(['sudo', '/usr/bin/systemctl', 'restart', 'icecast2'], capture_output=True, timeout=10)
         if result.returncode != 0:
             return False, f"Config updated but failed to restart icecast2: {result.stderr.decode('utf-8', errors='replace')}"
 
         # Restart audio service so it picks up new credentials
-        result = subprocess.run(['sudo', 'systemctl', 'restart', 'eas-station-audio'], capture_output=True, timeout=30)
+        result = subprocess.run(['sudo', '/usr/bin/systemctl', 'restart', 'eas-station-audio'], capture_output=True, timeout=30)
         if result.returncode != 0:
             logger.warning(f"Failed to restart audio service: {result.stderr.decode('utf-8', errors='replace')}")
             # Don't fail overall - audio service might not exist
