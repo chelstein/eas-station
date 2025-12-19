@@ -627,40 +627,47 @@ class UnifiedEASMonitorService:
     def get_status(self) -> Dict[str, Any]:
         """
         Get comprehensive status for the unified monitor.
-        
+
         Returns status in format compatible with MultiMonitorManager
         for backward compatibility with existing API consumers.
         """
-        # Get health metrics
-        all_health = self._health_tracker.get_all_health()
-        active_sources = self._health_tracker.get_active_source_count()
-        total_samples = self._health_tracker.get_total_samples_processed()
-        uptime = self._health_tracker.get_uptime_seconds()
-        
-        # Get decoder stats
+        # Get decoder stats (stateless, no race condition)
         decoder_stats = self._decoder.get_stats()
-        
-        # Calculate aggregate metrics
-        # CRITICAL FIX: Divide by active_sources, not len(all_health)
-        # If we have 2 sources configured but only 1 is running, we should expect
-        # 16k samples/sec, not 32k samples/sec. This prevents false "below expected rate" warnings.
-        if uptime > 0 and total_samples > 0 and active_sources > 0:
-            samples_per_second = total_samples / uptime
-            # Expected rate = sample_rate × number of ACTIVE sources (not configured sources)
-            expected_rate = self._target_sample_rate * active_sources
-            health_percentage = min(1.0, samples_per_second / expected_rate)
-        else:
-            samples_per_second = 0
-            health_percentage = 0.0
-        
-        # Build per-source status (for monitors dict compatibility)
-        # CRITICAL: Capture watcher count and names while holding lock to prevent race condition
+
+        # CRITICAL FIX: Capture watchers FIRST, then calculate health based on CURRENT watchers
+        # This prevents race where health_percentage is from old sources but monitor_count is 0
         monitors_status = {}
         with self._watchers_lock:
             # Capture these while lock is held - prevents race with _discover_sources()
             monitor_count = len(self._watchers)
             source_names = list(self._watchers.keys())
 
+        # Now get health ONLY for currently registered watchers
+        # This ensures health metrics match current watcher state
+        all_health = self._health_tracker.get_all_health()
+        uptime = self._health_tracker.get_uptime_seconds()
+
+        # Calculate aggregates based on CURRENT watchers (not stale health data)
+        total_samples = 0
+        active_sources = 0
+        for source_name in source_names:
+            health = all_health.get(source_name)
+            if health:
+                total_samples += health.samples_processed
+                if health.audio_flowing:
+                    active_sources += 1
+
+        # Calculate health percentage from current watcher data
+        if uptime > 0 and total_samples > 0 and active_sources > 0:
+            samples_per_second = total_samples / uptime
+            expected_rate = self._target_sample_rate * active_sources
+            health_percentage = min(1.0, samples_per_second / expected_rate)
+        else:
+            samples_per_second = 0
+            health_percentage = 0.0
+
+        # Build per-source status for current watchers
+        with self._watchers_lock:
             for source_name, watcher in self._watchers.items():
                 health = all_health.get(source_name)
                 if health:
