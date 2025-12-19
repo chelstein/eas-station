@@ -133,11 +133,22 @@ def register_eas_monitor_routes(app: Flask, logger_instance) -> None:
                             # Use the individual monitor's stats
                             status = first_monitor_stats.copy()
                             # CRITICAL: Preserve aggregated fields that UI needs
+                            # These fields must come from aggregated_status, not individual monitor
                             status["running"] = aggregated_status.get("running", False)
                             status["monitor_count"] = aggregated_status.get("monitor_count", 0)
                             status["active_sources"] = aggregated_status.get("active_sources", 0)
                             status["audio_flowing"] = aggregated_status.get("audio_flowing", False)
                             status["source_names"] = aggregated_status.get("source_names", [])
+                            # CRITICAL FIX: Use aggregated samples/rate, not per-source values
+                            status["samples_processed"] = aggregated_status.get("samples_processed", 0)
+                            status["samples_per_second"] = aggregated_status.get("samples_per_second", 0)
+                            status["wall_clock_runtime_seconds"] = aggregated_status.get("wall_clock_runtime_seconds", 0)
+                            status["runtime_seconds"] = aggregated_status.get("runtime_seconds", 0)
+                            status["health_percentage"] = aggregated_status.get("health_percentage", 0)
+                            status["alerts_detected"] = aggregated_status.get("alerts_detected", 0)
+                            status["decoder_synced"] = aggregated_status.get("decoder_synced", False)
+                            status["decoder_in_message"] = aggregated_status.get("decoder_in_message", False)
+                            status["decoder_bytes_decoded"] = aggregated_status.get("decoder_bytes_decoded", 0)
                         else:
                             logger.warning(f"Monitor '{first_monitor_key}' stats is not a dict: {type(first_monitor_stats)}")
                     else:
