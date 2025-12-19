@@ -81,3 +81,9 @@ eas-station ALL=(ALL) NOPASSWD: /usr/bin/systemctl status certbot.timer
 eas-station ALL=(ALL) NOPASSWD: /usr/bin/systemctl enable --now certbot.timer
 eas-station ALL=(ALL) NOPASSWD: /usr/bin/systemctl disable --now certbot.timer
 
+# Icecast configuration management (required for password regeneration from web UI)
+eas-station ALL=(ALL) NOPASSWD: /usr/bin/cp * /etc/icecast2/icecast.xml
+eas-station ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart icecast2
+eas-station ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart icecast
+eas-station ALL=(ALL) NOPASSWD: /usr/bin/systemctl status icecast2
+eas-station ALL=(ALL) NOPASSWD: /usr/bin/systemctl status icecast
