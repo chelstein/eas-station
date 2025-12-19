@@ -738,30 +738,76 @@
                                 </div>
                             </div>
 
-                            <div class="col-md-6">
-                                <label for="locationZoneCodes" class="form-label fw-bold">
-                                    NOAA Zone / UGC Codes (All Monitored)
-                                    <i class="fas fa-info-circle text-primary ms-1" data-bs-toggle="tooltip" title="All zones to monitor for EAS broadcasting, including your county and adjoining counties"></i>
-                                </label>
-                                <textarea class="form-control" id="locationZoneCodes" name="zone_codes" rows="3" placeholder="OHZ003&#10;OHC137&#10;OHZ009&#10;OHC063">{{ (location_settings.zone_codes or []) | join('\n') }}</textarea>
-                                <small class="text-muted">
-                                    <strong>For EAS Broadcasting:</strong> Include your county + adjoining counties.
-                                    Format: One code per line (e.g., OHZ003, OHC137).
-                                    <a href="#alertProcessingHelp" data-bs-toggle="collapse" class="text-decoration-none">Learn more</a>
-                                </small>
+                            <!-- Zone Search Panel -->
+                            <div class="col-12">
+                                <div class="card border-primary-subtle mb-3">
+                                    <div class="card-header bg-primary-subtle">
+                                        <h6 class="mb-0">
+                                            <i class="fas fa-search me-2"></i> Zone Lookup
+                                            <small class="text-muted ms-2">Search NOAA zones and click to add</small>
+                                        </h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="row g-2">
+                                            <div class="col-md-8">
+                                                <input type="text" class="form-control" id="locationZoneSearch" placeholder="Search by zone code, state, or county name (e.g., OHZ003, Ohio, Cuyahoga)...">
+                                            </div>
+                                            <div class="col-md-4">
+                                                <div class="btn-group w-100" role="group">
+                                                    <button type="button" class="btn btn-outline-primary" id="addToBroadcastZonesBtn" disabled title="Add selected zone to broadcast zones">
+                                                        <i class="fas fa-broadcast-tower"></i> Add to Broadcast
+                                                    </button>
+                                                    <button type="button" class="btn btn-outline-success" id="addToStorageZonesBtn" disabled title="Add selected zone to storage zones">
+                                                        <i class="fas fa-database"></i> Add to Storage
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div id="locationZoneSearchResults" class="mt-2" style="max-height: 200px; overflow-y: auto;">
+                                            <p class="text-muted small mb-0">Enter at least 2 characters to search zones</p>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
 
                             <div class="col-md-6">
-                                <label for="locationStorageZoneCodes" class="form-label fw-bold">
-                                    Storage Zone Codes (Local County Only)
-                                    <i class="fas fa-info-circle text-success ms-1" data-bs-toggle="tooltip" title="Only your local county zones - determines which alerts get stored and have boundaries calculated"></i>
-                                </label>
-                                <textarea class="form-control" id="locationStorageZoneCodes" name="storage_zone_codes" rows="3" placeholder="OHZ003&#10;OHC137">{{ (location_settings.storage_zone_codes or []) | join('\n') }}</textarea>
-                                <small class="text-muted">
-                                    <strong>For Geographic Storage:</strong> ONLY your local county zones.
-                                    Determines which alerts are saved to database and have boundaries calculated.
-                                    <a href="#alertProcessingHelp" data-bs-toggle="collapse" class="text-decoration-none">Learn more</a>
-                                </small>
+                                <div class="card h-100 border-primary">
+                                    <div class="card-header bg-primary text-white">
+                                        <i class="fas fa-broadcast-tower me-2"></i>
+                                        <strong>Broadcast Zones</strong>
+                                        <span class="badge bg-light text-primary ms-2" id="broadcastZoneCount">0</span>
+                                    </div>
+                                    <div class="card-body">
+                                        <label for="locationZoneCodes" class="form-label small text-muted">
+                                            All zones to monitor for EAS broadcasting (your county + adjoining)
+                                        </label>
+                                        <textarea class="form-control" id="locationZoneCodes" name="zone_codes" rows="4" placeholder="OHZ003&#10;OHC137&#10;OHZ009&#10;OHC063">{{ (location_settings.zone_codes or []) | join('\n') }}</textarea>
+                                        <small class="text-muted">
+                                            Alerts matching these zones trigger EAS broadcast.
+                                            <a href="#alertProcessingHelp" data-bs-toggle="collapse" class="text-decoration-none">Learn more</a>
+                                        </small>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <div class="card h-100 border-success">
+                                    <div class="card-header bg-success text-white">
+                                        <i class="fas fa-database me-2"></i>
+                                        <strong>Storage Zones</strong>
+                                        <span class="badge bg-light text-success ms-2" id="storageZoneCount">0</span>
+                                    </div>
+                                    <div class="card-body">
+                                        <label for="locationStorageZoneCodes" class="form-label small text-muted">
+                                            Only your local county zones (determines what gets saved)
+                                        </label>
+                                        <textarea class="form-control" id="locationStorageZoneCodes" name="storage_zone_codes" rows="4" placeholder="OHZ003&#10;OHC137">{{ (location_settings.storage_zone_codes or []) | join('\n') }}</textarea>
+                                        <small class="text-muted">
+                                            Alerts matching these zones are stored with boundary calculations.
+                                            <a href="#alertProcessingHelp" data-bs-toggle="collapse" class="text-decoration-none">Learn more</a>
+                                        </small>
+                                    </div>
+                                </div>
                             </div>
 
                             <div class="col-12">

@@ -632,12 +632,253 @@ function escapeHtml(str) {
     return div.innerHTML;
 }
 
+// ==================== Zone Search Functionality ====================
+
+let selectedZone = null;
+let zoneSearchTimeout = null;
+
+/**
+ * Initialize zone search functionality
+ */
+function initZoneSearch() {
+    const searchInput = document.getElementById('locationZoneSearch');
+    const addToBroadcastBtn = document.getElementById('addToBroadcastZonesBtn');
+    const addToStorageBtn = document.getElementById('addToStorageZonesBtn');
+    const broadcastTextarea = document.getElementById('locationZoneCodes');
+    const storageTextarea = document.getElementById('locationStorageZoneCodes');
+
+    if (!searchInput) {
+        return;
+    }
+
+    // Search input handler with debouncing
+    searchInput.addEventListener('input', function(e) {
+        clearTimeout(zoneSearchTimeout);
+        const query = e.target.value.trim();
+
+        if (query.length < 2) {
+            document.getElementById('locationZoneSearchResults').innerHTML =
+                '<p class="text-muted small mb-0">Enter at least 2 characters to search zones</p>';
+            selectedZone = null;
+            updateZoneAddButtons();
+            return;
+        }
+
+        zoneSearchTimeout = setTimeout(() => searchZonesForLocation(query), 300);
+    });
+
+    // Add to broadcast zones button
+    if (addToBroadcastBtn) {
+        addToBroadcastBtn.addEventListener('click', function() {
+            if (selectedZone && broadcastTextarea) {
+                addZoneToTextarea(broadcastTextarea, selectedZone.zone_code);
+                updateZoneCounts();
+                if (typeof showToast === 'function') {
+                    showToast(`Added ${selectedZone.zone_code} to broadcast zones`, 'success');
+                }
+            }
+        });
+    }
+
+    // Add to storage zones button
+    if (addToStorageBtn) {
+        addToStorageBtn.addEventListener('click', function() {
+            if (selectedZone && storageTextarea) {
+                addZoneToTextarea(storageTextarea, selectedZone.zone_code);
+                updateZoneCounts();
+                if (typeof showToast === 'function') {
+                    showToast(`Added ${selectedZone.zone_code} to storage zones`, 'success');
+                }
+            }
+        });
+    }
+
+    // Update zone counts on textarea change
+    if (broadcastTextarea) {
+        broadcastTextarea.addEventListener('input', updateZoneCounts);
+    }
+    if (storageTextarea) {
+        storageTextarea.addEventListener('input', updateZoneCounts);
+    }
+
+    // Initial zone count update
+    updateZoneCounts();
+}
+
+/**
+ * Search zones via API
+ * @param {string} query - Search query
+ */
+async function searchZonesForLocation(query) {
+    const resultsDiv = document.getElementById('locationZoneSearchResults');
+    if (!resultsDiv) {
+        return;
+    }
+
+    resultsDiv.innerHTML = '<p class="text-muted small mb-0"><i class="fas fa-spinner fa-spin"></i> Searching...</p>';
+
+    try {
+        const response = await fetch(`/admin/zones/search?q=${encodeURIComponent(query)}`);
+        const data = await response.json();
+
+        if (response.ok && data.zones) {
+            if (data.zones.length === 0) {
+                resultsDiv.innerHTML = '<p class="text-muted small mb-0">No zones found</p>';
+                selectedZone = null;
+                updateZoneAddButtons();
+            } else {
+                renderZoneSearchResults(data.zones, resultsDiv);
+            }
+        } else {
+            resultsDiv.innerHTML = '<p class="text-danger small mb-0">Error loading results</p>';
+            selectedZone = null;
+            updateZoneAddButtons();
+        }
+    } catch (error) {
+        console.error('Zone search error:', error);
+        resultsDiv.innerHTML = '<p class="text-danger small mb-0">Error: ' + escapeHtml(error.message) + '</p>';
+        selectedZone = null;
+        updateZoneAddButtons();
+    }
+}
+
+/**
+ * Render zone search results
+ * @param {Array} zones - Array of zone objects
+ * @param {HTMLElement} container - Container element
+ */
+function renderZoneSearchResults(zones, container) {
+    let html = '<div class="list-group list-group-flush">';
+    zones.slice(0, 20).forEach((zone, index) => {
+        const isSelected = selectedZone && selectedZone.zone_code === zone.zone_code;
+        const selectedClass = isSelected ? 'active' : '';
+        const typeLabel = zone.zone_code.includes('C') ? 'County' : 'Forecast';
+        const typeBadge = zone.zone_code.includes('C') ? 'bg-info' : 'bg-success';
+
+        html += `
+            <button type="button" class="list-group-item list-group-item-action py-2 ${selectedClass}"
+                    onclick="selectZoneResult(${index})" data-zone-index="${index}">
+                <div class="d-flex w-100 justify-content-between align-items-center">
+                    <div>
+                        <span class="badge bg-primary me-2">${escapeHtml(zone.zone_code)}</span>
+                        <span class="badge ${typeBadge} me-2">${typeLabel}</span>
+                        <strong>${escapeHtml(zone.name)}</strong>, ${escapeHtml(zone.state_code)}
+                    </div>
+                    <small class="text-muted">
+                        ${zone.cwa ? 'CWA: ' + escapeHtml(zone.cwa) : ''}
+                    </small>
+                </div>
+            </button>
+        `;
+    });
+
+    if (zones.length > 20) {
+        html += `<div class="list-group-item text-muted small">...and ${zones.length - 20} more results</div>`;
+    }
+
+    html += '</div>';
+    container.innerHTML = html;
+
+    // Store zones for selection
+    window._locationZoneSearchResults = zones;
+}
+
+/**
+ * Select a zone from search results
+ * @param {number} index - Index of selected zone
+ */
+function selectZoneResult(index) {
+    const zones = window._locationZoneSearchResults || [];
+    if (index >= 0 && index < zones.length) {
+        selectedZone = zones[index];
+
+        // Update visual selection
+        const buttons = document.querySelectorAll('#locationZoneSearchResults .list-group-item');
+        buttons.forEach((btn, i) => {
+            if (i === index) {
+                btn.classList.add('active');
+            } else {
+                btn.classList.remove('active');
+            }
+        });
+
+        updateZoneAddButtons();
+    }
+}
+
+/**
+ * Update the enabled state of add zone buttons
+ */
+function updateZoneAddButtons() {
+    const addToBroadcastBtn = document.getElementById('addToBroadcastZonesBtn');
+    const addToStorageBtn = document.getElementById('addToStorageZonesBtn');
+
+    if (addToBroadcastBtn) {
+        addToBroadcastBtn.disabled = !selectedZone;
+    }
+    if (addToStorageBtn) {
+        addToStorageBtn.disabled = !selectedZone;
+    }
+}
+
+/**
+ * Add a zone code to a textarea if not already present
+ * @param {HTMLTextAreaElement} textarea - Target textarea
+ * @param {string} zoneCode - Zone code to add
+ */
+function addZoneToTextarea(textarea, zoneCode) {
+    if (!textarea || !zoneCode) {
+        return;
+    }
+
+    const currentCodes = parseNewlineValues(textarea.value);
+    const normalizedCode = zoneCode.trim().toUpperCase();
+
+    if (currentCodes.includes(normalizedCode)) {
+        if (typeof showToast === 'function') {
+            showToast(`${normalizedCode} is already in the list`, 'warning');
+        }
+        return;
+    }
+
+    // Add the new code
+    currentCodes.push(normalizedCode);
+    textarea.value = currentCodes.join('\n');
+
+    // Trigger change event
+    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
+/**
+ * Update zone count badges
+ */
+function updateZoneCounts() {
+    const broadcastTextarea = document.getElementById('locationZoneCodes');
+    const storageTextarea = document.getElementById('locationStorageZoneCodes');
+    const broadcastCountEl = document.getElementById('broadcastZoneCount');
+    const storageCountEl = document.getElementById('storageZoneCount');
+
+    if (broadcastTextarea && broadcastCountEl) {
+        const count = parseNewlineValues(broadcastTextarea.value).length;
+        broadcastCountEl.textContent = count;
+    }
+
+    if (storageTextarea && storageCountEl) {
+        const count = parseNewlineValues(storageTextarea.value).length;
+        storageCountEl.textContent = count;
+    }
+}
+
+// ==================== End Zone Search Functionality ====================
+
 // Export functions to window for global access
 window.handleLocationSettingsSubmit = handleLocationSettingsSubmit;
 window.addFipsCode = addFipsCode;
 window.removeFipsCode = removeFipsCode;
 window.loadLocationReference = loadLocationReference;
 window.initLocationSettings = initLocationSettings;
+window.selectZoneResult = selectZoneResult;
+window.updateZoneCounts = updateZoneCounts;
 
 // Initialize on DOMContentLoaded
 document.addEventListener('DOMContentLoaded', function() {
@@ -646,4 +887,5 @@ document.addEventListener('DOMContentLoaded', function() {
         return;
     }
     initLocationSettings();
+    initZoneSearch();
 });
