@@ -101,6 +101,7 @@ class SourceHealth:
     source_name: str
     last_audio_time: float = 0.0
     consecutive_empty_reads: int = 0
+    consecutive_successful_reads: int = 0  # Track recovery from no-audio state
     samples_processed: int = 0
     audio_flowing: bool = False
     last_error: Optional[str] = None
@@ -110,15 +111,22 @@ class SourceHealth:
 class HealthTracker:
     """
     Centralized health tracking for all monitored audio sources.
-    
+
     Tracks per-source health metrics and provides aggregated health status.
     Thread-safe for concurrent updates from monitor thread.
+
+    Uses hysteresis to prevent state bouncing:
+    - Requires RECOVERY_THRESHOLD consecutive successful reads before marking as flowing
+    - Requires TIMEOUT_THRESHOLD seconds without audio before marking as not flowing
     """
-    
+
+    # Hysteresis thresholds to prevent rapid state changes
+    RECOVERY_THRESHOLD = 10  # Consecutive successful reads needed to recover from not-flowing state
+
     def __init__(self, audio_timeout_seconds: float = 5.0):
         """
         Initialize health tracker.
-        
+
         Args:
             audio_timeout_seconds: Time without audio before marking source unhealthy
         """
@@ -142,26 +150,60 @@ class HealthTracker:
                 logger.debug(f"Unregistered source '{source_name}' from health tracker")
     
     def update_audio_received(self, source_name: str, sample_count: int) -> None:
-        """Record that audio was received from a source."""
+        """
+        Record that audio was received from a source.
+
+        Uses hysteresis to prevent rapid state changes:
+        - If already flowing: keeps flowing state
+        - If not flowing: requires RECOVERY_THRESHOLD consecutive successful reads
+          before transitioning back to flowing state
+        """
         with self._lock:
             if source_name in self._sources:
                 health = self._sources[source_name]
                 health.last_audio_time = time.time()
                 health.consecutive_empty_reads = 0
                 health.samples_processed += sample_count
-                health.audio_flowing = True
+
+                # Apply hysteresis when recovering from not-flowing state
+                if health.audio_flowing:
+                    # Already flowing - keep it that way
+                    health.consecutive_successful_reads = 0  # Reset recovery counter
+                else:
+                    # Not currently flowing - count consecutive successful reads
+                    health.consecutive_successful_reads += 1
+                    if health.consecutive_successful_reads >= self.RECOVERY_THRESHOLD:
+                        # Enough consecutive successful reads - mark as flowing
+                        health.audio_flowing = True
+                        logger.info(
+                            f"Source '{source_name}' audio flowing restored after "
+                            f"{health.consecutive_successful_reads} consecutive successful reads"
+                        )
+                        health.consecutive_successful_reads = 0
     
     def update_no_audio(self, source_name: str) -> None:
-        """Record that no audio was available from a source."""
+        """
+        Record that no audio was available from a source.
+
+        Marks source as not flowing if audio timeout is exceeded.
+        Resets recovery counter since we need consecutive successful reads.
+        """
         with self._lock:
             if source_name in self._sources:
                 health = self._sources[source_name]
                 health.consecutive_empty_reads += 1
-                
+                health.consecutive_successful_reads = 0  # Reset recovery counter
+
                 # Check if audio timeout exceeded
                 if health.last_audio_time > 0:
                     time_since_audio = time.time() - health.last_audio_time
                     if time_since_audio > self._audio_timeout_seconds:
+                        if health.audio_flowing:
+                            # Transitioning from flowing to not flowing
+                            logger.warning(
+                                f"Source '{source_name}' audio stopped flowing "
+                                f"(no audio for {time_since_audio:.1f}s, {health.consecutive_empty_reads} empty reads)"
+                            )
                         health.audio_flowing = False
     
     def update_error(self, source_name: str, error_msg: str) -> None:
@@ -172,6 +214,7 @@ class HealthTracker:
                 health.error_count += 1
                 health.last_error = error_msg
                 health.consecutive_empty_reads = 0
+                health.consecutive_successful_reads = 0  # Reset recovery counter on error
     
     def get_source_health(self, source_name: str) -> Optional[SourceHealth]:
         """Get health metrics for a specific source."""
