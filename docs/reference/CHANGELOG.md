@@ -7,6 +7,16 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **WebSocket Parse Errors (Complete Fix)** - Fixed remaining WebSocket disconnects
+  - Previous fix only sanitized `audio_monitoring_update` event
+  - Issue: ALL 12 WebSocket event types need sanitization, not just one
+  - Added `_safe_emit()` wrapper function that sanitizes ALL WebSocket emissions
+  - Added `_sanitize_for_json()` recursive sanitization to websocket_push.py
+  - Replaced all 12 `socketio.emit()` calls with `_safe_emit(socketio, ...)`
+  - Events sanitized: audio_monitoring_update, system_health_update, audio_sources_update, audio_health_update, operation_status_update, ipaws_status_update, gpio_status_update, led_status_update, analytics_update, snow_emergency_update, radio_status_update, logs_update
+  - WebSocket connections now remain stable across all pages and event types
+  - Version bumped to 2.41.7
+
 - **JSON Syntax Error in Audio Metrics API** - Fixed "No number after minus sign in JSON" error
   - Root cause: Redis stored `-inf`, `inf`, `NaN` values were not sanitized before JSON serialization
   - Error manifested as: `SyntaxError: No number after minus sign in JSON at position 135`
