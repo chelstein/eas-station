@@ -363,16 +363,16 @@
 
                 <div class="row">
                     <div class="col-md-6 mb-3">
-                        <label for="admin_user" class="form-label">Admin Username</label>
-                        <input type="text" class="form-control" id="admin_user" name="admin_user" 
-                               value="{{ settings.admin_user or '' }}" autocomplete="username">
-                        <div class="form-text">Admin interface username (optional)</div>
+                        <label for="admin_user" class="form-label">Admin Username *</label>
+                        <input type="text" class="form-control" id="admin_user" name="admin_user"
+                               value="{{ settings.admin_user or 'admin' }}" autocomplete="username">
+                        <div class="form-text">Username for Icecast admin interface (required for status checks)</div>
                     </div>
 
                     <div class="col-md-6 mb-3">
-                        <label for="admin_password" class="form-label">Admin Password</label>
+                        <label for="admin_password" class="form-label">Admin Password *</label>
                         <div class="password-display-group">
-                            <input type="password" class="form-control password-display" id="admin_password" 
+                            <input type="password" class="form-control password-display" id="admin_password"
                                    value="{{ settings.admin_password or '' }}" readonly>
                             <button type="button" class="btn btn-outline-secondary btn-sm" onclick="togglePasswordVisibility('admin_password')" title="Show/Hide Password">
                                 <i class="fas fa-eye" id="admin_password-icon"></i>
@@ -381,7 +381,7 @@
                                 <i class="fas fa-clipboard"></i>
                             </button>
                         </div>
-                        <div class="form-text">Admin interface password (auto-generated, optional)</div>
+                        <div class="form-text">Password for Icecast admin interface (auto-generated)</div>
                     </div>
                 </div>
 
