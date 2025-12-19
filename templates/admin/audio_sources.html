@@ -156,17 +156,15 @@
                                 <option value="file">File (for testing)</option>
                             </select>
                         </div>
-                        <div class="col-md-6">
-                            <label for="sampleRate" class="form-label">Sample Rate (Hz) <span class="text-danger">*</span></label>
-                            <input type="number" class="form-control" id="sampleRate" name="sample_rate" value="22050" min="8000" max="192000" step="1" required>
-                            <small class="form-text text-muted">22050 Hz recommended for radio streams</small>
-                        </div>
+                        <!-- Sample rate removed - auto-detected from HTTP streams by FFmpeg -->
+                        <!-- Note: For ALSA/PulseAudio sources, a default 44100 Hz is used -->
                         <div class="col-md-6">
                             <label for="channels" class="form-label">Channels <span class="text-danger">*</span></label>
                             <select class="form-select" id="channels" name="channels">
                                 <option value="1" selected>Mono (1)</option>
                                 <option value="2">Stereo (2)</option>
                             </select>
+                            <small class="form-text text-muted">Mono recommended for most sources</small>
                         </div>
                         <div class="col-md-6">
                             <label for="silenceThreshold" class="form-label">Silence Threshold (dBFS)</label>

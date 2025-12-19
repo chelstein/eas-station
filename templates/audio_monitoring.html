@@ -607,14 +607,10 @@ function renderAudioSources(fullRender = true) {
                             </audio>
                             <div class="audio-player-status small mt-2 text-muted" id="player-status-${source.name}"></div>
                             <small class="text-muted d-block mt-1">
-                                <i class="fas fa-info-circle"></i> Secure HTTPS Streaming
-                                <span class="d-block small text-muted mt-1">Audio is streamed directly from the server over HTTPS.</span>
-                                ${source.icecast_url ? `
-                                    <a href="${escapeHtml(source.icecast_url)}" target="_blank" class="d-inline-flex align-items-center gap-1 text-primary mt-1">
-                                        <i class="fas fa-external-link-alt"></i>
-                                        <span>Open in external player (VLC, Winamp, etc.)</span>
-                                    </a>
-                                ` : ''}
+                                <i class="fas fa-info-circle"></i> MP3 Streaming @ 128 kbps
+                                <span class="d-block small text-muted mt-1">
+                                    Audio compressed to MP3 format (10x more efficient than WAV).
+                                </span>
                             </small>
                         ` : `
                             <div class="alert alert-secondary mb-0">
@@ -1114,9 +1110,8 @@ function bindAudioPlayerEvents(audioEl) {
 }
 
 function shouldUseIcecastStream(audioEl) {
-    // Web audio playback ALWAYS uses the secure HTTPS proxy stream
-    // Icecast is for external players only (VLC, Winamp, etc.)
-    // This prevents mixed-content errors and provides consistent HTTPS streaming
+    // Use Flask MP3 proxy for web playback (Icecast has mounting issues)
+    // Flask proxy now streams MP3 at 128 kbps instead of WAV
     return false;
 }
 

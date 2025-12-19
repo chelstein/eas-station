@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+
+{% block title %}EAS Decoder Monitor - Admin - EAS Station{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <h2 class="text-gradient mb-3">
+                <i class="fas fa-headphones-alt me-2"></i>EAS Decoder Monitor
+            </h2>
+            <p class="text-muted">
+                Configure audio monitoring tap for the EAS decoder to verify 16 kHz resampled input.
+            </p>
+        </div>
+    </div>
+
+    <div class="row mt-4">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="h5 mb-0">Decoder Monitor Settings</h4>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i>
+                        <strong>What is this?</strong> The EAS decoder monitor provides a way to listen to the actual
+                        16 kHz resampled audio fed to the SAME decoder. This helps verify that:
+                        <ul class="mb-0 mt-2">
+                            <li>Audio is being correctly resampled to 16 kHz for decoding</li>
+                            <li>Audio quality is sufficient for SAME header detection</li>
+                            <li>No distortion or clipping in the decoder input path</li>
+                        </ul>
+                    </div>
+
+                    <form id="decoder-monitor-form">
+                        <div class="mb-3">
+                            <label for="enabled" class="form-label">Enable Decoder Monitor</label>
+                            <select id="enabled" name="enabled" class="form-select" required>
+                                <option value="false">Disabled</option>
+                                <option value="true">Enabled</option>
+                            </select>
+                            <div class="form-text">
+                                When enabled, creates a monitoring stream of the 16 kHz audio fed to the EAS decoder.
+                                This stream can be accessed on the Audio Monitoring page.
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="stream_name" class="form-label">Stream Name</label>
+                            <input type="text" id="stream_name" name="stream_name" class="form-control" 
+                                   placeholder="eas-decoder-monitor" required>
+                            <div class="form-text">
+                                Name for the decoder monitoring stream (appears in audio sources list).
+                            </div>
+                        </div>
+
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save"></i> Save Settings
+                            </button>
+                            <button type="button" class="btn btn-secondary" onclick="loadSettings()">
+                                <i class="fas fa-sync"></i> Reload
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card">
+                <div class="card-header bg-info text-white">
+                    <h4 class="h5 mb-0">Technical Details</h4>
+                </div>
+                <div class="card-body">
+                    <h6>Sample Rate</h6>
+                    <p class="small">The EAS decoder expects audio at exactly <strong>16,000 Hz</strong> (16 kHz) for SAME header detection.</p>
+
+                    <h6>Resampling</h6>
+                    <p class="small">Audio sources typically run at 32-48 kHz. The <code>ResamplingBroadcastAdapter</code> converts this to 16 kHz using linear interpolation.</p>
+
+                    <h6>Monitoring Stream</h6>
+                    <p class="small">The decoder monitor taps into the resampled audio stream, providing a separate monitoring output at 16 kHz.</p>
+
+                    <h6>Bandwidth</h6>
+                    <p class="small">At 16 kHz mono, the uncompressed stream uses ~256 kbps (16-bit PCM).</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let currentSettings = {};
+
+async function loadSettings() {
+    try {
+        const response = await fetch('/api/admin/eas_decoder_monitor/settings');
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
+        currentSettings = await response.json();
+        
+        // Populate form
+        document.getElementById('enabled').value = currentSettings.enabled ? 'true' : 'false';
+        document.getElementById('stream_name').value = currentSettings.stream_name || 'eas-decoder-monitor';
+        
+        showToast('Settings loaded', 'success');
+    } catch (error) {
+        console.error('Error loading settings:', error);
+        showToast(`Error loading settings: ${error.message}`, 'danger');
+    }
+}
+
+async function saveSettings(event) {
+    event.preventDefault();
+    
+    const formData = new FormData(event.target);
+    const data = {
+        enabled: formData.get('enabled') === 'true',
+        stream_name: formData.get('stream_name')
+    };
+    
+    try {
+        const response = await fetch('/api/admin/eas_decoder_monitor/settings', {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(data)
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Failed to save settings');
+        }
+        
+        const result = await response.json();
+        showToast('Settings saved successfully', 'success');
+        
+        // Reload to show updated values
+        await loadSettings();
+    } catch (error) {
+        console.error('Error saving settings:', error);
+        showToast(`Error saving settings: ${error.message}`, 'danger');
+    }
+}
+
+// Initialize
+document.addEventListener('DOMContentLoaded', function() {
+    loadSettings();
+    document.getElementById('decoder-monitor-form').addEventListener('submit', saveSettings);
+});
+</script>
+{% endblock %}

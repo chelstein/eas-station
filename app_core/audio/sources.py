@@ -1054,18 +1054,53 @@ class StreamSourceAdapter(AudioSourceAdapter):
             logger.info(f"{self.config.name}: FFmpeg decoder restarted successfully")
 
     def _stderr_pump(self, process: subprocess.Popen) -> None:
-        """Continuously drain FFmpeg stderr so it never blocks."""
+        """Continuously drain FFmpeg stderr and detect actual stream sample rate.
+        
+        CRITICAL: When preserve_native_rate=True, FFmpeg outputs audio at the stream's
+        native sample rate. We must detect this from stderr to ensure WAV headers match.
+        """
         stderr = process.stderr
         if stderr is None:
             return
 
+        detected_sample_rate = None
+        preserve_native = self.config.device_params.get('preserve_native_rate', True)
+        
         try:
             for raw_line in iter(stderr.readline, b''):
                 if not raw_line:
                     break
                 text = raw_line.decode('utf-8', errors='replace').strip()
-                if text:
-                    logger.warning(f"{self.config.name}: FFmpeg stderr: {text}")
+                if not text:
+                    continue
+                    
+                # Parse FFmpeg output to detect actual stream sample rate
+                # Example: "Stream #0:0: Audio: mp3, 44100 Hz, stereo, fltp, 128 kb/s"
+                # Example: "Stream #0:0: Audio: aac, 48000 Hz, stereo, fltp"
+                if preserve_native and detected_sample_rate is None and 'Audio:' in text and 'Hz' in text:
+                    import re
+                    # Match sample rate in Hz (e.g., "44100 Hz", "48000 Hz")
+                    match = re.search(r'(\d+)\s*Hz', text)
+                    if match:
+                        rate = int(match.group(1))
+                        if 8000 <= rate <= 192000:  # Sanity check
+                            detected_sample_rate = rate
+                            logger.info(
+                                f"{self.config.name}: Detected stream native sample rate: {rate} Hz "
+                                f"(config was {self.config.sample_rate} Hz)"
+                            )
+                            # Update config to match FFmpeg's actual output
+                            if self.config.sample_rate != rate:
+                                logger.warning(
+                                    f"{self.config.name}: Updating config.sample_rate from {self.config.sample_rate} "
+                                    f"to detected {rate} Hz to match FFmpeg output"
+                                )
+                                self.config.sample_rate = rate
+                                # Update metrics to reflect actual sample rate
+                                self.metrics.sample_rate = rate
+                
+                # Log all stderr for debugging
+                logger.warning(f"{self.config.name}: FFmpeg stderr: {text}")
         except Exception as exc:
             logger.debug(f"{self.config.name}: stderr pump stopped: {exc}")
 

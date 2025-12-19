@@ -947,6 +947,27 @@ class PollerSettings(db.Model):
         }
 
 
+class EASDecoderMonitorSettings(db.Model):
+    """EAS Decoder Monitor Settings - configurable tap to listen to decoder input.
+    
+    Allows listening to the actual 16 kHz resampled audio fed to the EAS decoder
+    to verify sample rate and audio quality.
+    """
+    __tablename__ = "eas_decoder_monitor_settings"
+
+    id = db.Column(db.Integer, primary_key=True)
+    enabled = db.Column(db.Boolean, nullable=False, default=False)
+    stream_name = db.Column(db.String(255), nullable=False, default="eas-decoder-monitor")
+    updated_at = db.Column(db.DateTime, nullable=True, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            "enabled": self.enabled,
+            "stream_name": self.stream_name,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+
 class EASSettings(db.Model):
     """EAS Broadcast configuration stored in database.
 
