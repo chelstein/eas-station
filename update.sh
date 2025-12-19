@@ -908,7 +908,7 @@ elif [ -f "$INSTALL_DIR/venv/bin/python" ]; then
     echo_warning "Alembic not found - using db.create_all() fallback"
     echo_progress "Creating any missing database tables..."
     echo ""
-    
+
     set +e
     sudo -u "$SERVICE_USER" "$INSTALL_DIR/venv/bin/python" -c "
 from app import app, db
@@ -918,7 +918,7 @@ with app.app_context():
 "
     DB_EXIT_CODE=$?
     set -e
-    
+
     echo ""
     if [ $DB_EXIT_CODE -eq 0 ]; then
         echo_success "Database tables created"
@@ -928,6 +928,30 @@ with app.app_context():
 else
     echo_warning "Python environment not found - skipping database migrations"
 fi
+
+# Add any new columns that may not be in Alembic migrations yet
+echo_progress "Ensuring latest schema changes are applied..."
+set +e
+sudo -u "$SERVICE_USER" "$INSTALL_DIR/venv/bin/python" -c "
+from app import app
+from app_core.extensions import db
+from sqlalchemy import text
+
+with app.app_context():
+    # Add details column to poll_history if it doesn't exist
+    result = db.session.execute(text('''
+        SELECT column_name FROM information_schema.columns
+        WHERE table_name = 'poll_history' AND column_name = 'details'
+    ''')).fetchone()
+    if not result:
+        db.session.execute(text('ALTER TABLE poll_history ADD COLUMN details JSONB'))
+        db.session.commit()
+        print('Added poll_history.details column')
+    else:
+        print('poll_history.details column already exists')
+" 2>&1 | grep -E "Added|already exists|error" || true
+set -e
+echo_success "Schema updates complete"
 
 # Restart services with updated code
 echo_step "Restarting Services"
