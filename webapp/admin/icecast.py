@@ -310,11 +310,24 @@ def update_settings():
         settings = update_icecast_settings(data)
         invalidate_icecast_settings_cache()
 
-        logger.info(f"Icecast settings updated successfully")
+        # Update Icecast XML config and restart service
+        config_success, config_message = _update_icecast_config_file(
+            settings.source_password,
+            settings.admin_password,
+            settings.admin_user or 'admin'
+        )
+
+        logger.info(f"Icecast settings updated successfully. Config update: {config_message}")
+
+        if config_success:
+            message = "Icecast settings updated and service restarted successfully."
+        else:
+            message = f"Icecast settings updated. Note: {config_message}"
 
         return jsonify({
             "success": True,
-            "message": "Icecast settings updated successfully. Restart audio services for changes to take effect.",
+            "message": message,
+            "config_updated": config_success,
             "settings": settings.to_dict(),
         })
 
