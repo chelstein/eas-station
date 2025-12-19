@@ -2960,18 +2960,40 @@ class CAPPoller:
 
             # Log poll summary with location info for debugging
             self.logger.info("═══════════════════════════════════════════════════════════════")
-            self.logger.info(f"POLL SUMMARY for {self.location_name}")
-            self.logger.info(f"  Fetched: {stats['alerts_fetched']} | Accepted: {stats['alerts_accepted']} | "
-                           f"New: {stats['alerts_new']} | Updated: {stats['alerts_updated']} | "
-                           f"Filtered: {stats['alerts_filtered']}")
-            if stats['alerts_filtered'] > 0:
-                zone_codes = self.location_settings.get('zone_codes', [])
-                storage_zone_codes = self.location_settings.get('storage_zone_codes', [])
-                self.logger.info(f"  Your UGC Zone codes: {', '.join(zone_codes[:5]) if zone_codes else 'None configured'}")
-                self.logger.info(f"  Your SAME/Storage codes: {', '.join(storage_zone_codes[:5]) if storage_zone_codes else 'None configured'}")
-                self.logger.info(f"  (Alerts must match your zone codes to be accepted/stored)")
+            self.logger.info(f"POLL CYCLE COMPLETE - {self.location_name}")
+            self.logger.info("═══════════════════════════════════════════════════════════════")
+            self.logger.info(f"ENDPOINTS POLLED: {len(self.cap_endpoints)}")
+            for ep in self.cap_endpoints:
+                if 'weather.gov' in ep:
+                    self.logger.info(f"  [NOAA] {ep}")
+                elif 'fema.gov' in ep:
+                    self.logger.info(f"  [IPAWS] {ep}")
+                else:
+                    self.logger.info(f"  [CUSTOM] {ep}")
+            self.logger.info("-" * 63)
+            self.logger.info(f"RESULTS:")
+            self.logger.info(f"  Total fetched from all endpoints: {stats['alerts_fetched']}")
+            self.logger.info(f"  Accepted (matched your location): {stats['alerts_accepted']}")
+            self.logger.info(f"  New (saved to database):          {stats['alerts_new']}")
+            self.logger.info(f"  Updated (existing alert):         {stats['alerts_updated']}")
+            self.logger.info(f"  Filtered (not your location):     {stats['alerts_filtered']}")
+            self.logger.info("-" * 63)
+            if stats['alerts_fetched'] == 0:
+                self.logger.warning("NO ALERTS FETCHED! This could mean:")
+                self.logger.warning("  - No active alerts in the zones you're polling")
+                self.logger.warning("  - Network/API connectivity issues")
+                self.logger.warning("  - Check endpoints above to verify correct zone codes")
+            elif stats['alerts_accepted'] == 0 and stats['alerts_fetched'] > 0:
+                self.logger.warning(f"ALERTS FETCHED BUT NONE MATCHED YOUR LOCATION!")
+                self.logger.warning(f"  Your zone codes: {sorted(self.zone_codes)}")
+                self.logger.warning(f"  Your SAME codes: {sorted(self.same_codes)}")
+                self.logger.warning(f"  Check if alerts match your configured zones above")
+            self.logger.info(f"YOUR CONFIGURATION:")
+            self.logger.info(f"  Zone codes (for polling): {sorted(self.zone_codes)}")
+            self.logger.info(f"  SAME/FIPS codes (for matching): {sorted(self.same_codes)}")
+            self.logger.info(f"  Storage zones (for saving): {sorted(self.storage_zone_codes)}")
             if stats['sources']:
-                self.logger.info(f"  Sources: {', '.join(stats['sources'])}")
+                self.logger.info(f"  Sources seen: {', '.join(stats['sources'])}")
             self.logger.info("═══════════════════════════════════════════════════════════════")
 
             self.log_system_event('INFO', f"CAP polling successful: {stats['alerts_new']} new alerts", stats)
