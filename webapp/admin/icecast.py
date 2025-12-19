@@ -81,9 +81,15 @@ def _update_icecast_config_file(source_password: str, admin_password: str, admin
         return False, f"Icecast config not found at {config_file}"
 
     try:
-        # Read the current config
-        with open(config_file, 'r') as f:
-            content = f.read()
+        # Read the current config using sudo (ProtectSystem blocks direct read)
+        result = subprocess.run(
+            ['sudo', '/usr/bin/cat', config_file],
+            capture_output=True, timeout=10
+        )
+        if result.returncode != 0:
+            return False, f"Failed to read config: {result.stderr.decode('utf-8', errors='replace')}"
+
+        content = result.stdout.decode('utf-8')
 
         # Replace passwords using regex
         content = re.sub(r'<source-password>.*?</source-password>',
@@ -93,7 +99,7 @@ def _update_icecast_config_file(source_password: str, admin_password: str, admin
         content = re.sub(r'<admin-password>.*?</admin-password>',
                         f'<admin-password>{admin_password}</admin-password>', content)
 
-        # Write to temp file then copy with sudo (avoids ProtectSystem restrictions)
+        # Write to temp file then copy with sudo
         with tempfile.NamedTemporaryFile(mode='w', suffix='.xml', delete=False) as tmp:
             tmp.write(content)
             tmp_path = tmp.name
