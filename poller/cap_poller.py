@@ -930,6 +930,9 @@ class CAPPoller:
         settings: Dict[str, Any] = dict(defaults)
 
         try:
+            # Expire cached objects to ensure we read fresh data from database
+            # This is important when the web app has updated settings
+            self.db_session.expire_all()
             record = self.db_session.query(LocationSettings).order_by(LocationSettings.id).first()
             if record:
                 fips_codes, _ = sanitize_fips_codes(record.fips_codes or defaults['fips_codes'])
@@ -1769,25 +1772,37 @@ class CAPPoller:
                         )
                         return result
 
+            # Check ALL matching UGC codes - if ANY match storage_zone_codes, store the alert
+            matched_zone_ugcs: List[str] = []
+            matched_storage_ugcs: List[str] = []
             for ugc in normalized_ugc:
                 if ugc in self.zone_codes:
-                    # Check if this UGC code is in storage_zone_codes (local county)
-                    is_storage_ugc = ugc in self.storage_zone_codes
-                    if is_storage_ugc:
-                        message = f"✓ Alert ACCEPTED by UGC: {event} ({ugc}) [STORAGE+BROADCAST]"
-                    else:
-                        message = f"✓ Alert ACCEPTED by UGC: {event} ({ugc}) [BROADCAST ONLY - no storage/boundaries]"
-                    result.update(
-                        {
-                            'is_relevant': True,
-                            'is_storage_relevant': is_storage_ugc,
-                            'reason': 'UGC_MATCH',
-                            'matched_ugc': ugc,
-                            'relevance_matches': [ugc],
-                            'log': {'level': 'info', 'message': message},
-                        }
-                    )
-                    return result
+                    matched_zone_ugcs.append(ugc)
+                    if ugc in self.storage_zone_codes:
+                        matched_storage_ugcs.append(ugc)
+
+            if matched_zone_ugcs:
+                # Determine storage relevance: True if ANY matched UGC is in storage_zone_codes
+                is_storage_relevant = len(matched_storage_ugcs) > 0
+                # Use the first storage match for logging, or first zone match if no storage match
+                primary_ugc = matched_storage_ugcs[0] if matched_storage_ugcs else matched_zone_ugcs[0]
+                if is_storage_relevant:
+                    message = f"✓ Alert ACCEPTED by UGC: {event} ({primary_ugc}) [STORAGE+BROADCAST]"
+                    if len(matched_storage_ugcs) > 1:
+                        message += f" (+{len(matched_storage_ugcs) - 1} more storage zones)"
+                else:
+                    message = f"✓ Alert ACCEPTED by UGC: {event} ({primary_ugc}) [BROADCAST ONLY - no storage/boundaries]"
+                result.update(
+                    {
+                        'is_relevant': True,
+                        'is_storage_relevant': is_storage_relevant,
+                        'reason': 'UGC_MATCH',
+                        'matched_ugc': primary_ugc,
+                        'relevance_matches': matched_storage_ugcs if matched_storage_ugcs else matched_zone_ugcs,
+                        'log': {'level': 'info', 'message': message},
+                    }
+                )
+                return result
 
             message = (
                 f"✗ REJECT (not specific enough for {self.county_upper}): {event} - {area_desc_upper}"
@@ -2825,19 +2840,24 @@ class CAPPoller:
 
                 else:
                     # UGC/Zone match only: Broadcast but don't store or calculate boundaries
-                    ugc_codes = relevance.get('ugc_codes', [])
+                    # This happens when UGC codes match zone_codes but none match storage_zone_codes
+                    matched_ugcs = relevance.get('relevance_matches', [])
+                    alert_same_codes = relevance.get('same_codes', [])
                     self.logger.info(f"╔═ BROADCAST-ONLY ALERT (not stored) ═══════════════════════════")
                     self.logger.info(f"║ Event: {event}")
                     self.logger.info(f"║ ID: {alert_id[:60]}{'...' if len(alert_id) > 60 else ''}")
                     self.logger.info(f"║ Area: {area_desc[:80]}{'...' if len(area_desc) > 80 else ''}")
-                    self.logger.info(f"║ Matched UGC codes: {', '.join(ugc_codes[:5]) if ugc_codes else 'None'}")
+                    self.logger.info(f"║ Matched UGC codes: {', '.join(matched_ugcs[:5]) if matched_ugcs else 'None'}")
+                    self.logger.info(f"║ Alert SAME codes: {', '.join(alert_same_codes[:5]) if alert_same_codes else 'None'}")
+                    self.logger.info(f"║ Your SAME codes: {', '.join(sorted(self.same_codes)[:5]) if self.same_codes else 'None configured'}")
+                    self.logger.info(f"║ Your storage zones: {', '.join(sorted(self.storage_zone_codes)[:5]) if self.storage_zone_codes else 'None configured'}")
                     self.logger.info(f"║ Sent: {format_local_datetime(parsed.get('sent'))}")
-                    self.logger.info(f"║ Reason: UGC zone match only - broadcast to displays but no SAME code match for storage")
+                    self.logger.info(f"║ Reason: Matched zone_codes for broadcast, but no match in SAME or storage_zone_codes")
                     self.logger.info(f"╚═══════════════════════════════════════════════════════════════")
                     # Track broadcast-only alert
                     alert_summary['status'] = 'broadcast_only'
                     alert_summary['reason'] = 'UGC/Zone match - broadcast to displays but not stored'
-                    alert_summary['ugc_codes'] = ugc_codes[:5] if ugc_codes else []
+                    alert_summary['ugc_codes'] = matched_ugcs[:5] if matched_ugcs else []
                     stats['fetched_alerts'].append(alert_summary)
                     if self._debug_records_enabled:
                         debug_entry.setdefault('notes', []).append('Broadcast-only (UGC match, no storage)')
