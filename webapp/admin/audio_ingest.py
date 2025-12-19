@@ -1824,9 +1824,9 @@ def api_get_audio_metrics():
                             'timestamp': source_data.get('timestamp', redis_metrics.get('timestamp', time.time())),
                             'sample_rate': source_data.get('sample_rate'),
                             'channels': source_data.get('channels', 2),
-                            'peak_level_db': source_data.get('peak_level_db', -120.0),
-                            'rms_level_db': source_data.get('rms_level_db', -120.0),
-                            'buffer_utilization': source_data.get('buffer_utilization', 0.0),
+                            'peak_level_db': _sanitize_float(source_data.get('peak_level_db', -120.0)),
+                            'rms_level_db': _sanitize_float(source_data.get('rms_level_db', -120.0)),
+                            'buffer_utilization': _sanitize_float(source_data.get('buffer_utilization', 0.0)),
                             'frames_captured': source_data.get('frames_captured', 0),
                             'silence_detected': source_data.get('silence_detected', False),
                             'redis_mode': True,
@@ -1941,10 +1941,10 @@ def api_get_audio_metrics_latest():
 
                 if source_data:
                     response = jsonify({
-                        'peak_level_db': source_data.get('peak_level_db', -120.0),
-                        'rms_level_db': source_data.get('rms_level_db', -120.0),
-                        'peak_level_linear': _db_to_linear(source_data.get('peak_level_db', -120.0)),
-                        'rms_level_linear': _db_to_linear(source_data.get('rms_level_db', -120.0)),
+                        'peak_level_db': _sanitize_float(source_data.get('peak_level_db', -120.0)),
+                        'rms_level_db': _sanitize_float(source_data.get('rms_level_db', -120.0)),
+                        'peak_level_linear': _db_to_linear(_sanitize_float(source_data.get('peak_level_db', -120.0))),
+                        'rms_level_linear': _db_to_linear(_sanitize_float(source_data.get('rms_level_db', -120.0))),
                         'silence_detected': source_data.get('silence_detected', False),
                         'active_source': active_source,
                         'source_status': source_data.get('status', 'unknown'),
@@ -2386,8 +2386,8 @@ def api_get_health_dashboard():
                     for source_name, source_data in redis_sources.items():
                         status = source_data.get('status', 'unknown')
                         silence_detected = source_data.get('silence_detected', True)
-                        peak_level_db = source_data.get('peak_level_db', -120.0)
-                        rms_level_db = source_data.get('rms_level_db', -120.0)
+                        peak_level_db = _sanitize_float(source_data.get('peak_level_db', -120.0))
+                        rms_level_db = _sanitize_float(source_data.get('rms_level_db', -120.0))
 
                         # Determine health status
                         if status == 'running':
@@ -2411,7 +2411,7 @@ def api_get_health_dashboard():
                             'peak_level_db': peak_level_db,
                             'rms_level_db': rms_level_db,
                             'is_silent': silence_detected,
-                            'buffer_fill_percentage': source_data.get('buffer_utilization', 0.0) * 100,
+                            'buffer_fill_percentage': _sanitize_float(source_data.get('buffer_utilization', 0.0)) * 100,
                             'restart_count': source_data.get('restart_count', 0),
                             'error_message': source_data.get('error_message'),
                         }
@@ -2471,12 +2471,12 @@ def api_get_health_metrics():
                         metrics_list.append({
                             'source_name': source_name,
                             'timestamp': source_data.get('timestamp', time.time()),
-                            'peak_level_db': source_data.get('peak_level_db', -120.0),
-                            'rms_level_db': source_data.get('rms_level_db', -120.0),
+                            'peak_level_db': _sanitize_float(source_data.get('peak_level_db', -120.0)),
+                            'rms_level_db': _sanitize_float(source_data.get('rms_level_db', -120.0)),
                             'sample_rate': source_data.get('sample_rate', 0),
                             'frames_captured': source_data.get('frames_captured', 0),
                             'silence_detected': source_data.get('silence_detected', True),
-                            'buffer_utilization': source_data.get('buffer_utilization', 0.0) * 100,
+                            'buffer_utilization': _sanitize_float(source_data.get('buffer_utilization', 0.0)) * 100,
                         })
 
             except Exception as e:
