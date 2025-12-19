@@ -287,34 +287,31 @@
                         </select>
                     </div>
                     <div id="sourceTypeConfig"></div>
+                    <!-- Sample rate removed - auto-detected from HTTP streams by FFmpeg -->
+                    <!-- For ALSA/PulseAudio sources, backend defaults to 44100 Hz -->
                     <div class="row">
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label for="sampleRate" class="form-label">Sample Rate (Hz)</label>
-                                <input type="number" class="form-control" id="sampleRate" value="44100">
-                            </div>
-                        </div>
-                        <div class="col-md-6">
+                        <div class="col-md-4">
                             <div class="mb-3">
                                 <label for="channels" class="form-label">Channels</label>
                                 <select class="form-select" id="channels">
                                     <option value="1" selected>Mono (1)</option>
                                     <option value="2">Stereo (2)</option>
                                 </select>
+                                <small class="form-text text-muted">Mono recommended for most sources</small>
                             </div>
                         </div>
-                    </div>
-                    <div class="row">
-                        <div class="col-md-6">
+                        <div class="col-md-4">
                             <div class="mb-3">
                                 <label for="silenceThreshold" class="form-label">Silence Threshold (dB)</label>
                                 <input type="number" class="form-control" id="silenceThreshold" value="-60" step="0.1">
+                                <small class="form-text text-muted">Audio level below which silence is detected</small>
                             </div>
                         </div>
-                        <div class="col-md-6">
+                        <div class="col-md-4">
                             <div class="mb-3">
                                 <label for="silenceDuration" class="form-label">Silence Duration (s)</label>
                                 <input type="number" class="form-control" id="silenceDuration" value="5" step="0.1">
+                                <small class="form-text text-muted">How long silence must persist before alert</small>
                             </div>
                         </div>
                     </div>

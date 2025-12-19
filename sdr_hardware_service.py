@@ -897,10 +897,16 @@ def process_commands(redis_client):
                         receiver.stop()
                         time.sleep(0.5)
                         receiver.start()
+                        status = {
+                            "locked": getattr(receiver, 'locked', False),
+                            "signal_strength": getattr(receiver, 'signal_strength', 0),
+                            "running": getattr(receiver, 'running', False)
+                        }
                         result = {
                             "command_id": command_id,
                             "success": True,
-                            "message": f"Receiver {receiver_id} restarted"
+                            "message": f"Receiver {receiver_id} restarted",
+                            "status": status
                         }
                     except Exception as e:
                         result = {

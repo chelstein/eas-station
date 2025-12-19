@@ -7,6 +7,23 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **Audio Source Form Consistency** - Removed sample rate field from user-facing audio sources page
+  - Sample rate field removed from `/templates/audio_sources.html` to match admin page
+  - Prevents confusion where UI shows non-functional sample rate input
+  - Form now shows 3 fields in one row (channels, silence threshold, silence duration)
+  - Consistent with admin page where sample rate was already removed
+
+- **SDR Receiver Restart Command** - Added status information to restart response
+  - SDR service now returns receiver status (locked, signal_strength, running) after restart
+  - Webapp restart endpoint properly displays post-restart receiver state
+  - Fixes incomplete restart command implementation in Redis command queue
+
+- **Audio Source Form Bug** - Fixed JavaScript error when adding audio stream sources
+  - Removed reference to non-existent `sampleRate` form field in `addAudioSource()` function
+  - Error: "Cannot read properties of null (reading 'value')" at audio_monitoring.js:1177
+  - Sample rate now properly defaults to 44100 Hz on backend, auto-detected for streams
+  - Resolves issue preventing users from adding HTTP/M3U stream sources
+
 - **CRITICAL: 10x Bandwidth Reduction** - Flask proxy now streams MP3 instead of WAV
   - Implemented real-time MP3 encoding using ffmpeg subprocess
   - Bandwidth: ~705 kbps WAV → ~128 kbps MP3 (5.5x reduction for mono 44.1kHz)

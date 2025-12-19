@@ -1174,7 +1174,7 @@ function updateSourceTypeConfig() {
 async function addAudioSource() {
     const sourceType = document.getElementById('sourceType').value;
     const sourceName = document.getElementById('sourceName').value;
-    const sampleRate = parseInt(document.getElementById('sampleRate').value);
+    // Sample rate omitted - backend defaults to 44100 Hz for ALSA/PulseAudio, auto-detected by FFmpeg for streams
     const channels = parseInt(document.getElementById('channels').value);
     const silenceThreshold = parseFloat(document.getElementById('silenceThreshold').value);
     const silenceDuration = parseFloat(document.getElementById('silenceDuration').value);
@@ -1233,7 +1233,7 @@ async function addAudioSource() {
     const requestBody = {
         type: sourceType,
         name: sourceName,
-        sample_rate: sampleRate,
+        // sample_rate omitted - backend defaults to 44100 Hz for ALSA/PulseAudio, auto-detected by FFmpeg for streams
         channels: channels,
         silence_threshold_db: silenceThreshold,
         silence_duration_seconds: silenceDuration,
