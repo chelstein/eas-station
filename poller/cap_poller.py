@@ -1511,8 +1511,11 @@ class CAPPoller:
         for endpoint in self.cap_endpoints:
             try:
                 self.logger.info(f"Fetching alerts from: {endpoint}")
+                self.logger.info(f"  -> Making HTTP GET request...")
                 response = self.session.get(endpoint, timeout=timeout)
-                
+                self.logger.info(f"  -> Response status: {response.status_code}")
+                self.logger.info(f"  -> Response headers: Content-Type={response.headers.get('Content-Type', 'N/A')}, Content-Length={response.headers.get('Content-Length', 'N/A')}")
+
                 # Check for rate limiting before raising for other status codes
                 if response.status_code == 429:
                     retry_after = response.headers.get('Retry-After', 'unknown')
@@ -1531,6 +1534,25 @@ class CAPPoller:
                 response.raise_for_status()
                 features = self._parse_feed_payload(response)
                 self.logger.info(f"Retrieved {len(features)} alerts from {endpoint}")
+
+                # Log summary of what was fetched from this endpoint
+                if features:
+                    self.logger.info(f"  -> Alerts from this endpoint:")
+                    for i, feat in enumerate(features[:10]):  # Show first 10
+                        props = feat.get('properties', {})
+                        event = props.get('event', 'Unknown')
+                        identifier = props.get('identifier') or props.get('id') or 'No ID'
+                        geocode = props.get('geocode', {}) or {}
+                        ugc_codes = geocode.get('UGC', []) or []
+                        same_codes = geocode.get('SAME', []) or []
+                        self.logger.info(f"     [{i+1}] {event}")
+                        self.logger.info(f"         ID: {identifier[:50]}{'...' if len(identifier) > 50 else ''}")
+                        self.logger.info(f"         UGC: {ugc_codes[:5]}{'...' if len(ugc_codes) > 5 else ''}")
+                        self.logger.info(f"         SAME: {same_codes[:5]}{'...' if len(same_codes) > 5 else ''}")
+                    if len(features) > 10:
+                        self.logger.info(f"     ... and {len(features) - 10} more alerts")
+                else:
+                    self.logger.info(f"  -> No alerts returned from this endpoint")
                 for alert in features:
                     props = alert.get('properties', {})
 
@@ -1740,6 +1762,20 @@ class CAPPoller:
                 area_desc_raw = '; '.join(area_desc_raw)
             area_desc_upper = area_desc_raw.upper()
             result['area_desc'] = area_desc_raw
+
+            # DEBUG: Log the matching comparison
+            self.logger.info(f"  MATCHING CHECK for: {event}")
+            self.logger.info(f"    Alert UGC codes: {normalized_ugc}")
+            self.logger.info(f"    Alert SAME codes: {normalized_same}")
+            self.logger.info(f"    Our zone codes: {sorted(self.zone_codes)}")
+            self.logger.info(f"    Our SAME codes: {sorted(self.same_codes)}")
+            self.logger.info(f"    Our storage zones: {sorted(self.storage_zone_codes)}")
+
+            # Check for matches
+            ugc_intersection = set(normalized_ugc) & self.zone_codes
+            same_intersection = set(normalized_same) & self.same_codes
+            self.logger.info(f"    UGC intersection: {ugc_intersection if ugc_intersection else 'NONE'}")
+            self.logger.info(f"    SAME intersection: {same_intersection if same_intersection else 'NONE'}")
 
             for same in normalized_same:
                 if same in self.same_codes:
@@ -2664,18 +2700,26 @@ class CAPPoller:
                 f"Starting alert polling cycle [NOAA + IPAWS]{endpoint_summary} for {self.location_name} at {format_local_datetime(poll_start_utc)}"
             )
 
-            # Log first endpoint being polled for visibility
-            if self.cap_endpoints:
-                first_endpoint = self.cap_endpoints[0]
-                if 'tdl.apps.fema.gov' in first_endpoint:
+            # Log ALL endpoints being polled for debugging
+            self.logger.info("=" * 70)
+            self.logger.info("POLL CYCLE DEBUG INFO")
+            self.logger.info("=" * 70)
+            self.logger.info(f"Configured zone codes: {sorted(self.zone_codes)}")
+            self.logger.info(f"Configured SAME/FIPS codes: {sorted(self.same_codes)}")
+            self.logger.info(f"Storage zone codes: {sorted(self.storage_zone_codes)}")
+            self.logger.info("-" * 70)
+            self.logger.info(f"Polling {len(self.cap_endpoints)} endpoint(s):")
+            for idx, endpoint in enumerate(self.cap_endpoints, 1):
+                if 'tdl.apps.fema.gov' in endpoint:
                     env_marker = " [STAGING/TDL]"
-                elif 'apps.fema.gov' in first_endpoint:
-                    env_marker = " [PRODUCTION]"
-                elif 'weather.gov' in first_endpoint:
+                elif 'apps.fema.gov' in endpoint:
+                    env_marker = " [IPAWS PRODUCTION]"
+                elif 'weather.gov' in endpoint:
                     env_marker = " [NOAA Weather]"
                 else:
                     env_marker = ""
-                self.logger.info(f"Polling: {first_endpoint}{env_marker}")
+                self.logger.info(f"  [{idx}] {endpoint}{env_marker}")
+            self.logger.info("=" * 70)
 
             alerts_data = self.fetch_cap_alerts()
             stats['alerts_fetched'] = len(alerts_data)
