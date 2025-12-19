@@ -6,6 +6,14 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+### Fixed
+- **Certificate Installation Sudo Permission** - Fixed SSL certificate installation failing with password prompt
+  - Added `/usr/bin/tee` to sudoers for writing SSL snippet file to `/etc/nginx/snippets/ssl-letsencrypt.conf`
+  - Added `/usr/bin/mkdir -p /etc/nginx/snippets` to sudoers for creating snippets directory
+  - Added `/usr/bin/grep` to sudoers for checking nginx configuration
+  - Resolves: "Failed to write SSL snippet: sudo: a terminal is required to read the password"
+  - Certificates can now be installed trivially after being obtained
+
 ### Added
 - **EAS Broadcast Settings Admin Page** - New database-based EAS configuration interface
   - Created EAS Broadcast Settings section in Admin Panel for managing EAS broadcast configuration

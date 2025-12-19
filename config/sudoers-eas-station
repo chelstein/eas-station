@@ -53,9 +53,12 @@ eas-station ALL=(ALL) NOPASSWD: /usr/bin/chmod 666 /var/log/nginx/access.log
 # Note: Domain names are validated in Python before being passed to these commands
 eas-station ALL=(ALL) NOPASSWD: /usr/bin/mkdir -p /etc/letsencrypt
 eas-station ALL=(ALL) NOPASSWD: /usr/bin/mkdir -p /etc/letsencrypt/live
+eas-station ALL=(ALL) NOPASSWD: /usr/bin/mkdir -p /etc/nginx/snippets
 eas-station ALL=(ALL) NOPASSWD: /usr/bin/rm -rf /etc/letsencrypt/live/*
 eas-station ALL=(ALL) NOPASSWD: /usr/bin/ln -s * /etc/letsencrypt/live/*
+eas-station ALL=(ALL) NOPASSWD: /usr/bin/tee /etc/nginx/snippets/ssl-letsencrypt.conf
 eas-station ALL=(ALL) NOPASSWD: /usr/bin/sed -i * /etc/nginx/sites-available/eas-station
+eas-station ALL=(ALL) NOPASSWD: /usr/bin/grep -q * /etc/nginx/sites-available/eas-station
 eas-station ALL=(ALL) NOPASSWD: /usr/sbin/nginx -t
 eas-station ALL=(ALL) NOPASSWD: /usr/sbin/nginx
 
