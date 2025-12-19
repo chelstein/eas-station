@@ -6,6 +6,19 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+### Added
+- **RBDS and Stereo Path Verification** - Comprehensive verification tools and documentation
+  - Added `tools/analyze_rbds_stereo_code.py` - Static code analyzer for RBDS/stereo paths
+  - Added `tools/trace_rbds_stereo_path.py` - Runtime tracer for signal flow (requires numpy)
+  - Added `tools/validate_rbds_stereo_config.py` - Database configuration validator
+  - Added `docs/audio/RBDS_STEREO_PATH_VERIFICATION.md` - Complete path documentation
+  - Verified all filters use correct sample rate (original SDR rate, not decimated)
+  - Verified carrier generation uses correct phase timing
+  - Verified RBDS extraction at 57 kHz subcarrier with differential BPSK
+  - Verified stereo decoding at 38 kHz subcarrier with L+R/L-R matrix
+  - Verified metadata propagation from demodulator to frontend
+  - All paths confirmed working correctly with no issues detected
+
 ### Fixed
 - **CRITICAL: Icecast Bitrate Configuration** - Fixed auto-discovered streams using wrong bitrate
   - Auto-streaming service was hardcoded to 128kbps instead of using configured bitrate
