@@ -32,7 +32,7 @@ DEFAULT_ZONE_CODES = os.getenv("DEFAULT_ZONE_CODES", "OHZ016,OHC137")
 DEFAULT_FIPS_CODES = os.getenv("DEFAULT_FIPS_CODES", "039137")
 # Storage codes: UGC/zone codes that should trigger alert storage + boundary calculation
 # (in addition to FIPS codes). This allows distinguishing local county from adjoining counties.
-DEFAULT_STORAGE_ZONE_CODES = os.getenv("DEFAULT_STORAGE_ZONE_CODES", "OHZ003,OHC137")
+DEFAULT_STORAGE_ZONE_CODES = os.getenv("DEFAULT_STORAGE_ZONE_CODES", "OHZ016,OHC137")
 DEFAULT_MAP_CENTER_LAT = float(os.getenv("DEFAULT_MAP_CENTER_LAT", "41.0195"))
 DEFAULT_MAP_CENTER_LNG = float(os.getenv("DEFAULT_MAP_CENTER_LNG", "-84.1190"))
 DEFAULT_MAP_ZOOM = int(os.getenv("DEFAULT_MAP_ZOOM", "9"))

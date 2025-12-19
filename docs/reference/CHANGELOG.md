@@ -9,6 +9,14 @@ tracks releases under the 2.x series.
 ### Added
 
 ### Fixed
+- **Alert Polling Not Saving Alerts** - Fixed configuration error preventing alerts from being saved to database
+  - Corrected `DEFAULT_STORAGE_ZONE_CODES` to include OHZ016 (Putnam County zone)
+  - Previously OHZ016 was in `zone_codes` (for receiving alerts) but not in `storage_zone_codes` (for saving)
+  - This caused alerts to be fetched and logged as "BROADCAST ONLY" but never saved to database
+  - Users would see "Fetched: 1 | New: 0 | Updated: 0" despite relevant alerts being available
+  - Now OHZ016 alerts will be properly saved to database with boundary calculations
+  - Fixes: "polling, polling debug and filtering is not working... It's doing nothing with it"
+
 - **Certificate Domain Mismatch Detection** - Added detection and helpful message for certificate domain mismatches
   - Detects when user accesses site via hostname that doesn't match certificate domain
   - Shows clear warning with current hostname vs certificate domain
