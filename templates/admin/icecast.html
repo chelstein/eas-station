@@ -431,6 +431,22 @@
                 </div>
             </div>
 
+            <!-- Server Limits -->
+            <div class="form-section">
+                <h4>Server Limits</h4>
+                <div class="alert alert-info mb-3">
+                    <i class="fas fa-info-circle"></i> <strong>Note:</strong> These settings control server capacity limits.
+                </div>
+                
+                <div class="mb-3">
+                    <label for="max_sources" class="form-label">Maximum Concurrent Sources</label>
+                    <input type="number" class="form-control" id="max_sources" name="max_sources" 
+                           value="{{ settings.max_sources if settings.max_sources is not none else '' }}" 
+                           min="0" placeholder="0">
+                    <div class="form-text">Maximum number of concurrent audio sources that can connect (0 = unlimited, leave empty for default of 2)</div>
+                </div>
+            </div>
+
             <!-- Stream Settings -->
             <div class="form-section">
                 <h4>Stream Settings</h4>

@@ -109,6 +109,8 @@ def update_icecast_settings(data: Dict[str, Any]) -> IcecastSettings:
         settings.stream_format = str(data['stream_format'])
     if 'stream_public' in data:
         settings.stream_public = bool(data['stream_public'])
+    if 'max_sources' in data:
+        settings.max_sources = int(data['max_sources']) if data['max_sources'] not in (None, '', 'None') else None
 
     try:
         db.session.commit()

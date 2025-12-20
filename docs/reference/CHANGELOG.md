@@ -6,6 +6,15 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+### Added
+- **Icecast Source Limit Configuration** - Made maximum concurrent sources configurable
+  - Added `max_sources` field to `IcecastSettings` database model
+  - Web UI field at `/admin/icecast` to configure max concurrent audio sources
+  - Supports 0 for unlimited sources, or positive integer for specific limit
+  - Updates `/etc/icecast2/icecast.xml` `<sources>` limit automatically
+  - Default behavior: If not set (null), Icecast uses its default of 2 sources
+  - File: `app_core/models.py`, `webapp/admin/icecast.py`, `templates/admin/icecast.html`
+
 ### Fixed
 - **CRITICAL: SDR Audio Source Startup Failure** - Fixed `ModuleNotFoundError: No module named 'app_core.radio.rbds'`
   - Root cause: `FMDemodulator._init_rbds_state()` was trying to import `RBDSDecoder` from non-existent `.rbds` module
