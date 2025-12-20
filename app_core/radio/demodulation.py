@@ -359,6 +359,9 @@ class FMDemodulator:
         # Process RBDS every 10th chunk instead of every chunk to maintain audio continuity
         self._rbds_process_counter: int = 0
         self._rbds_process_interval: int = 10  # Process every 10th chunk (~10% CPU overhead)
+        # CRITICAL FIX: Persist last valid RBDS data to display metadata between processing cycles
+        # Without this, RBDS data is None 9 out of 10 times, preventing metadata display
+        self._last_rbds_data: Optional[RBDSData] = None
 
     def _calculate_filter_taps(self, cutoff_hz: float, sample_rate: int, transition_bw_ratio: float = 0.125) -> int:
         """Calculate appropriate number of filter taps for given parameters.
@@ -478,6 +481,8 @@ class FMDemodulator:
                 try:
                     rbds_data = self._extract_rbds(multiplex, sample_indices)
                     if rbds_data:
+                        # Persist valid RBDS data for display between processing cycles
+                        self._last_rbds_data = rbds_data
                         # Only log when RBDS data actually changes (not every demodulation cycle)
                         # This prevents CPU hammering from excessive logging
                         rbds_str = f"PS='{rbds_data.ps_name}' RT='{rbds_data.radio_text}' PTY={rbds_data.pty} PI={rbds_data.pi_code}"
@@ -486,6 +491,10 @@ class FMDemodulator:
                             self._last_logged_rbds = rbds_str
                 except Exception as e:
                     logger.warning(f"RBDS extraction error: {e}", exc_info=True)
+            
+            # Use last valid RBDS data even when skipping processing this cycle
+            # This ensures metadata continues to display between update cycles
+            rbds_data = self._last_rbds_data
 
         # Calculate decimation factor for audio downsampling
         target_rate = self.config.audio_sample_rate

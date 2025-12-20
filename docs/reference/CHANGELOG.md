@@ -7,6 +7,15 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **CRITICAL: RBDS Metadata Not Displaying** - Fixed RBDS metadata not showing in UI
+  - Root cause: RBDS data was None 9 out of 10 chunks due to throttling (only processed every 10th chunk)
+  - Frontend checks `if status.rbds_data:` which is False when None
+  - **Solution**: Persist last valid RBDS data in demodulator (`_last_rbds_data`)
+  - Return persisted data on skipped processing cycles instead of None
+  - RBDS metadata now continuously displays (PS name, radio text, PTY, PI code)
+  - Still only processes heavy convolutions every 10th chunk (maintains audio fix)
+  - File: `app_core/radio/demodulation.py` - Added `_last_rbds_data` persistence
+
 - **CRITICAL: SDR Audio Cutouts Fixed** - Fixed 5-6 second audio cutouts in SDR monitor streams
   - Root cause: RBDS processing performing 3 heavy convolutions on every audio chunk
   - RBDS decimation filter (`np.convolve` with up to 1024 taps on 2.5MHz signal) was blocking audio thread
