@@ -329,8 +329,9 @@ class RBDSWorker:
         self._rbds_mm_out_rail = 0.0
         self._rbds_mm_out = 0.0
         # State for timing error calculation (need last 2 symbols)
-        self._rbds_mm_last_out = [0.0, 0.0]  # Last 2 output values
-        self._rbds_mm_last_rail = [0.0, 0.0]  # Last 2 rail values
+        self._rbds_mm_last_out = [complex(0.0), complex(0.0)]  # Last 2 output values
+        self._rbds_mm_last_rail = [complex(1.0), complex(1.0)]  # Last 2 rail values
+        self._rbds_mm_i_residual = 0.0  # Residual sample position from previous chunk
 
         # Costas loop state
         self._rbds_costas_phase = 0.0
@@ -535,6 +536,7 @@ class RBDSWorker:
         """M&M symbol timing with proper state continuity across calls.
 
         Uses linear interpolation and maintains state for continuous processing.
+        CRITICAL: Tracks residual position to maintain timing across chunk boundaries.
         """
         n = len(samples)
         if n < 32:
@@ -542,106 +544,134 @@ class RBDSWorker:
 
         sps = 16  # samples per symbol at 19kHz
         mu = self._rbds_mm_mu
-        samples_real = np.real(samples)
-        samples_imag = np.imag(samples)
 
-        # Pre-allocate output (estimate ~n/sps symbols)
+        # Pre-extract real/imag to avoid repeated attribute access
+        samples_real = samples.real
+        samples_imag = samples.imag
+
+        # Pre-allocate output array (faster than list append)
         max_symbols = n // sps + 10
-        symbols_out = []
+        out_array = np.empty(max_symbols, dtype=np.complex64)
+        n_out = 0
 
         # Initialize with state from previous call
-        prev_out = list(self._rbds_mm_last_out)  # [out[-2], out[-1]]
-        prev_rail = list(self._rbds_mm_last_rail)  # [rail[-2], rail[-1]]
+        prev_out_0, prev_out_1 = self._rbds_mm_last_out
+        prev_rail_0, prev_rail_1 = self._rbds_mm_last_rail
 
-        i_in = 0.0
+        # CRITICAL: Start from residual position from previous chunk
+        i_in = self._rbds_mm_i_residual
 
-        while i_in + 1 < n and len(symbols_out) < max_symbols:
-            # Linear interpolation between adjacent samples
+        while i_in < n - 1 and n_out < max_symbols:
             idx = int(i_in)
             frac = i_in - idx
 
             if idx + 1 >= n:
                 break
 
-            # Interpolate
-            re = samples_real[idx] * (1 - frac) + samples_real[idx + 1] * frac
-            im = samples_imag[idx] * (1 - frac) + samples_imag[idx + 1] * frac
-            out_sample = complex(re, im)
+            # Linear interpolation
+            re = samples_real[idx] + frac * (samples_real[idx + 1] - samples_real[idx])
+            im = samples_imag[idx] + frac * (samples_imag[idx + 1] - samples_imag[idx])
 
-            # Hard decision (rail)
-            rail_sample = complex(
-                1.0 if re > 0 else -1.0,
-                1.0 if im > 0 else -1.0
-            )
+            # Hard decision (rail) - use simple comparison
+            rail_re = 1.0 if re > 0 else -1.0
+            rail_im = 1.0 if im > 0 else -1.0
 
-            # M&M timing error detector using previous 2 symbols
-            # Error = (rail[n] - rail[n-2]) * conj(out[n-1]) - (out[n] - out[n-2]) * conj(rail[n-1])
-            x_term = (rail_sample - prev_rail[0]) * np.conj(prev_out[1])
-            y_term = (out_sample - prev_out[0]) * np.conj(prev_rail[1])
-            mm_val = np.real(y_term - x_term)
+            # M&M timing error (simplified - avoid complex conjugate overhead)
+            # For BPSK, we only care about real part anyway
+            mm_val = ((re - prev_out_0.real) * prev_rail_1.real -
+                      (rail_re - prev_rail_0.real) * prev_out_1.real)
 
             # Update timing with clamping
             mu += 0.01 * mm_val
-            mu = max(-0.5, min(0.5, mu))
+            if mu > 0.5:
+                mu = 0.5
+            elif mu < -0.5:
+                mu = -0.5
 
-            # Shift history
-            prev_out[0], prev_out[1] = prev_out[1], out_sample
-            prev_rail[0], prev_rail[1] = prev_rail[1], rail_sample
+            # Store output
+            out_sample = complex(re, im)
+            out_array[n_out] = out_sample
+            n_out += 1
 
-            symbols_out.append(out_sample)
+            # Shift history (avoid creating new complex objects)
+            prev_out_0 = prev_out_1
+            prev_out_1 = out_sample
+            prev_rail_0 = prev_rail_1
+            prev_rail_1 = complex(rail_re, rail_im)
 
             # Advance by one symbol period
             i_in += sps + mu
 
         # Save state for next call
         self._rbds_mm_mu = mu
-        self._rbds_mm_last_out = prev_out
-        self._rbds_mm_last_rail = prev_rail
+        self._rbds_mm_last_out = [prev_out_0, prev_out_1]
+        self._rbds_mm_last_rail = [prev_rail_0, prev_rail_1]
+        # Save residual: how far past the end of this chunk we are
+        self._rbds_mm_i_residual = i_in - n if i_in >= n else 0.0
 
-        if len(symbols_out) == 0:
-            return np.array([], dtype=np.complex64)
-        return np.array(symbols_out, dtype=np.complex64)
+        return out_array[:n_out] if n_out > 0 else np.array([], dtype=np.complex64)
 
     def _costas_pysdr(self, samples: np.ndarray) -> np.ndarray:
         """Costas loop - PySDR parameters (alpha=8.0, beta=0.02).
 
-        OPTIMIZED: Uses math.cos/sin instead of np.exp for 10x speedup.
+        Uses numba JIT when available, otherwise optimized Python with GIL yields.
         """
         n = len(samples)
         if n == 0:
             return samples
 
+        # Use JIT-compiled version if numba is available (50-100x faster)
+        if _NUMBA_AVAILABLE and n > 50:
+            samples_f64 = samples.astype(np.complex128)
+            out_real, out_imag, phase, freq = _costas_loop_numba(
+                samples_f64.real.astype(np.float64),
+                samples_f64.imag.astype(np.float64),
+                self._rbds_costas_phase,
+                self._rbds_costas_freq,
+                8.0,  # alpha - PySDR value
+                0.02  # beta - PySDR value
+            )
+            self._rbds_costas_phase = phase
+            self._rbds_costas_freq = freq
+            return (out_real + 1j * out_imag).astype(np.complex64)
+
+        # Pure Python fallback with GIL yields to prevent audio stalling
         phase = self._rbds_costas_phase
         freq = self._rbds_costas_freq
-        # PySDR parameters - MUCH faster lock than our previous values!
         alpha = 8.0
         beta = 0.02
-        two_pi = 2.0 * math.pi
+        two_pi = 6.283185307179586  # Avoid repeated 2*pi calculation
 
-        out = np.zeros(n, dtype=np.complex64)
-        samples_real = np.real(samples)
-        samples_imag = np.imag(samples)
+        out = np.empty(n, dtype=np.complex64)
+        samples_real = samples.real
+        samples_imag = samples.imag
 
-        for i in range(n):
-            # OPTIMIZED: Use math.cos/sin instead of np.exp (10x faster)
-            cos_phase = math.cos(phase)
-            sin_phase = math.sin(phase)
+        # Process in batches to yield GIL
+        batch_size = 128
+        for batch_start in range(0, n, batch_size):
+            batch_end = min(batch_start + batch_size, n)
+            for i in range(batch_start, batch_end):
+                cos_phase = math.cos(phase)
+                sin_phase = math.sin(phase)
 
-            # Complex multiply by exp(-j*phase): rotate backwards
-            out_real = samples_real[i] * cos_phase + samples_imag[i] * sin_phase
-            out_imag = samples_imag[i] * cos_phase - samples_real[i] * sin_phase
-            out[i] = complex(out_real, out_imag)
+                s_re = samples_real[i]
+                s_im = samples_imag[i]
+                out_real = s_re * cos_phase + s_im * sin_phase
+                out_imag = s_im * cos_phase - s_re * sin_phase
+                out[i] = complex(out_real, out_imag)
 
-            # BPSK phase error
-            error = out_real * out_imag
-            freq += beta * error
-            phase += freq + alpha * error
+                error = out_real * out_imag
+                freq += beta * error
+                phase += freq + alpha * error
 
-            # Wrap phase efficiently
-            if phase >= two_pi:
-                phase -= two_pi
-            elif phase < 0:
-                phase += two_pi
+                # Wrap phase
+                while phase >= two_pi:
+                    phase -= two_pi
+                while phase < 0:
+                    phase += two_pi
+
+            # Yield GIL between batches
+            time.sleep(0)
 
         self._rbds_costas_phase = phase
         self._rbds_costas_freq = freq
