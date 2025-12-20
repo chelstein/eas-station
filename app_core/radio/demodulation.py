@@ -919,6 +919,14 @@ class RBDSWorker:
         # Calculate syndrome
         syndrome = self._crc_syndrome(data, checkword)
 
+        # Debug: log syndrome periodically to see what values we're getting
+        if hasattr(self, '_syndrome_log_count'):
+            self._syndrome_log_count += 1
+        else:
+            self._syndrome_log_count = 0
+        if self._syndrome_log_count % 100 == 0:
+            logger.debug("RBDS syndrome: 0x%03X (offsets: A=0x0FC B=0x198 C=0x168 D=0x1B4)", syndrome)
+
         for block_type, offset in offsets.items():
             if syndrome == offset:
                 return block_type, data
