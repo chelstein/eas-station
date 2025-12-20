@@ -176,6 +176,22 @@ def get_vfd_settings() -> Dict[str, Any]:
     }
 
 
+def get_zigbee_settings() -> Dict[str, Any]:
+    """Get Zigbee coordinator-specific settings.
+
+    Returns:
+        Dictionary with Zigbee configuration
+    """
+    settings = get_hardware_settings()
+    return {
+        'enabled': settings.zigbee_enabled,
+        'port': settings.zigbee_port,
+        'baudrate': settings.zigbee_baudrate,
+        'channel': settings.zigbee_channel,
+        'pan_id': settings.zigbee_pan_id,
+    }
+
+
 __all__ = [
     'get_hardware_settings',
     'update_hardware_settings',
@@ -184,4 +200,5 @@ __all__ = [
     'get_oled_settings',
     'get_led_settings',
     'get_vfd_settings',
+    'get_zigbee_settings',
 ]

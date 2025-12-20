@@ -33,6 +33,7 @@ import requests
 from flask import Blueprint, jsonify, render_template
 from app_core.auth.decorators import require_permission
 from app_core.extensions import get_redis_client
+from app_core.hardware_settings import get_zigbee_settings
 
 zigbee_bp = Blueprint('zigbee', __name__)
 
@@ -79,16 +80,8 @@ def call_hardware_service(endpoint, method='GET', data=None):
 
 
 def get_zigbee_config():
-    """Get Zigbee configuration from environment."""
-    import os
-
-    return {
-        'enabled': os.getenv('ZIGBEE_ENABLED', 'false').lower() in ('true', '1', 'yes'),
-        'port': os.getenv('ZIGBEE_PORT', '/dev/ttyAMA0'),
-        'baudrate': int(os.getenv('ZIGBEE_BAUDRATE', '115200')),
-        'channel': int(os.getenv('ZIGBEE_CHANNEL', '15')),
-        'pan_id': os.getenv('ZIGBEE_PAN_ID', '0x1A62'),
-    }
+    """Get Zigbee configuration from database."""
+    return get_zigbee_settings()
 
 
 @zigbee_bp.route('/admin/zigbee')
@@ -230,7 +223,7 @@ def get_zigbee_diagnostics():
         if not config['enabled']:
             diagnostics['recommendations'].append({
                 'level': 'info',
-                'message': 'Zigbee is disabled. Enable via ZIGBEE_ENABLED environment variable.'
+                'message': 'Zigbee is disabled. Enable in Hardware Settings > Zigbee tab.'
             })
         elif config['enabled'] and not port_test.get('success'):
             diagnostics['recommendations'].append({

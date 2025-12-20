@@ -721,6 +721,15 @@ class HardwareSettings(db.Model):
     vfd_baudrate = db.Column(db.Integer, nullable=False, default=38400)
 
     # ========================================================================
+    # Zigbee Coordinator Settings
+    # ========================================================================
+    zigbee_enabled = db.Column(db.Boolean, nullable=False, default=False)
+    zigbee_port = db.Column(db.String(100), nullable=False, default='/dev/ttyAMA0')
+    zigbee_baudrate = db.Column(db.Integer, nullable=False, default=115200)
+    zigbee_channel = db.Column(db.Integer, nullable=False, default=15)
+    zigbee_pan_id = db.Column(db.String(20), nullable=False, default='0x1A62')
+
+    # ========================================================================
     # Metadata
     # ========================================================================
     updated_at = db.Column(
@@ -768,6 +777,12 @@ class HardwareSettings(db.Model):
             "vfd_enabled": self.vfd_enabled,
             "vfd_port": self.vfd_port,
             "vfd_baudrate": self.vfd_baudrate,
+            # Zigbee
+            "zigbee_enabled": self.zigbee_enabled,
+            "zigbee_port": self.zigbee_port,
+            "zigbee_baudrate": self.zigbee_baudrate,
+            "zigbee_channel": self.zigbee_channel,
+            "zigbee_pan_id": self.zigbee_pan_id,
             # Metadata
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
