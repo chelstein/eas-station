@@ -890,29 +890,38 @@ class RBDSWorker:
                 if block_type is not None:
                     logger.debug("RBDS presync: found %s=0x%04X (need A→B)", block_type, data_word)
 
-                if block_type == "A" and len(self._rbds_bit_buffer) >= 52:
-                    # Found potential A - verify B follows at exactly +26 bits
-                    next_block_bits = list(self._rbds_bit_buffer)[26:52]
-                    next_type, next_data = self._decode_rbds_block(next_block_bits)
-                    if next_type == "B":
-                        # Confirmed A→B sequence - synchronized!
-                        self._rbds_synchronized = True
-                        self._rbds_blocks_total = 0
-                        self._rbds_blocks_bad = 0
-                        self._rbds_block_counter = 0  # 0=A, 1=B, 2=C, 3=D
-                        self._rbds_partial_group = []
-                        logger.info("RBDS SYNCHRONIZED! A=0x%04X B=0x%04X", data_word, next_data)
-                        # Don't consume bits yet - let synced mode process them
-                        continue
-                    else:
-                        # A found but B didn't follow - log for diagnostics
-                        if next_type is not None:
-                            logger.debug("RBDS presync: A=0x%04X but next is %s=0x%04X (not B)",
-                                        data_word, next_type, next_data)
+                if block_type == "A":
+                    # Found potential A block - need to verify B follows
+                    if len(self._rbds_bit_buffer) >= 52:
+                        # Have enough bits to check for B at +26
+                        next_block_bits = list(self._rbds_bit_buffer)[26:52]
+                        next_type, next_data = self._decode_rbds_block(next_block_bits)
+                        if next_type == "B":
+                            # Confirmed A→B sequence - synchronized!
+                            self._rbds_synchronized = True
+                            self._rbds_blocks_total = 0
+                            self._rbds_blocks_bad = 0
+                            self._rbds_block_counter = 0  # 0=A, 1=B, 2=C, 3=D
+                            self._rbds_partial_group = []
+                            logger.info("RBDS SYNCHRONIZED! A=0x%04X B=0x%04X", data_word, next_data)
+                            # Don't consume bits yet - let synced mode process them
+                            continue
                         else:
-                            logger.debug("RBDS presync: A=0x%04X but next block CRC failed", data_word)
+                            # A found but B didn't follow - this A is false positive
+                            if next_type is not None:
+                                logger.debug("RBDS presync: A=0x%04X but next is %s=0x%04X (not B)",
+                                            data_word, next_type, next_data)
+                            else:
+                                logger.debug("RBDS presync: A=0x%04X but next block CRC failed", data_word)
+                            # Shift by 1 and keep searching
+                            del self._rbds_bit_buffer[0]
+                            continue
+                    else:
+                        # Found A but not enough bits to verify B - WAIT for more bits
+                        logger.debug("RBDS presync: found A=0x%04X, waiting for more bits to verify B", data_word)
+                        return None  # Don't shift, wait for more bits
 
-                # Not synced yet - shift by 1 bit and keep searching
+                # Not A or A didn't sync - shift by 1 bit and keep searching
                 del self._rbds_bit_buffer[0]
                 continue
 
