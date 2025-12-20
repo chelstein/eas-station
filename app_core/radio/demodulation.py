@@ -890,8 +890,8 @@ class RBDSWorker:
                 else:
                     del self._rbds_bit_buffer[0]
 
-                self._rbds_expected_block = None
-                self._rbds_partial_group.clear()
+                # DON'T reset group state on CRC failure - only shift bits and keep looking
+                # Group state should only reset when we find a valid block that's out of sequence
                 continue
 
             self._rbds_consecutive_crc_failures = 0
@@ -900,18 +900,30 @@ class RBDSWorker:
 
             if self._rbds_expected_block is None:
                 if block_type != "A":
+                    logger.debug("RBDS: found %s but need A to start group, discarding", block_type)
                     del self._rbds_bit_buffer[:26]
                     continue
                 self._rbds_partial_group = [data_word]
                 self._rbds_expected_block = 1
+                logger.debug("RBDS: started group with A=0x%04X, expecting B", data_word)
             else:
                 expected_types = {1: ["B"], 2: ["C", "C'"], 3: ["D"]}
+                expected_names = {1: "B", 2: "C/C'", 3: "D"}
                 if block_type not in expected_types.get(self._rbds_expected_block, []):
+                    logger.debug(
+                        "RBDS: expected %s but got %s, resetting group",
+                        expected_names.get(self._rbds_expected_block, "?"), block_type
+                    )
                     self._rbds_expected_block = None
                     self._rbds_partial_group.clear()
+                    del self._rbds_bit_buffer[:26]
                     continue
                 self._rbds_partial_group.append(data_word)
                 self._rbds_expected_block += 1
+                logger.debug(
+                    "RBDS: got %s=0x%04X, group progress: %d/4",
+                    block_type, data_word, len(self._rbds_partial_group)
+                )
 
             del self._rbds_bit_buffer[:26]
 
