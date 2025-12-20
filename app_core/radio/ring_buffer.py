@@ -262,17 +262,33 @@ class SDRRingBuffer:
             Complex64 numpy array of samples, or None if timeout/no data
         """
         # Wait for data if buffer is empty
-        if self.fill_level < num_samples:
-            self._data_available.clear()
-            if not self._data_available.wait(timeout=timeout):
-                # Timeout - check if we have any data at all
-                if self.fill_level == 0:
+        # 24/7 RELIABILITY: Use short wait loop instead of single long wait to avoid
+        # race condition where producer sets event between fill_level check and clear()
+        available = self.fill_level
+
+        if available == 0:
+            # Buffer completely empty - wait for producer to signal data
+            deadline = time.time() + timeout
+            while available == 0:
+                remaining = deadline - time.time()
+                if remaining <= 0:
+                    # Timeout with no data
                     with self._stats_lock:
                         self._stats.underflow_count += 1
                     return None
-        
-        # Read available samples (up to requested amount)
-        available = self.fill_level
+
+                self._data_available.clear()
+                # Re-check after clear to catch race with producer
+                available = self.fill_level
+                if available > 0:
+                    break
+
+                # Wait with short intervals for responsive shutdown
+                wait_time = min(remaining, 0.01)  # 10ms max per wait
+                self._data_available.wait(timeout=wait_time)
+                available = self.fill_level
+
+        # Have data - read what's available (may be less than requested, that's OK)
         if available == 0:
             return None
         
