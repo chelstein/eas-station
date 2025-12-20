@@ -27,8 +27,8 @@
 
     .hardware-tabs {
         display: flex;
-        border-bottom: 2px solid var(--border-color);
-        margin-bottom: 2rem;
+        border-bottom: 1px solid var(--border-color);
+        margin-bottom: 0;
         gap: 0;
         flex-wrap: wrap;
     }
@@ -44,6 +44,18 @@
         color: var(--text-secondary);
     }
 
+    .hardware-tab:first-child {
+        border-radius: var(--radius-sm) 0 0 0;
+    }
+
+    .hardware-tab:last-child {
+        border-radius: 0 var(--radius-sm) 0 0;
+    }
+
+    .hardware-tab i {
+        margin-right: 0.5rem;
+    }
+
     .hardware-tab:hover {
         background: var(--surface-color);
         color: var(--text-color);
@@ -52,34 +64,70 @@
     .hardware-tab.active {
         background: var(--surface-color);
         color: var(--primary-color);
-        border-bottom: 2px solid var(--surface-color);
-        margin-bottom: -2px;
+        border-bottom: 1px solid var(--surface-color);
+        margin-bottom: -1px;
         position: relative;
         z-index: 1;
     }
 
     .hardware-tab-content {
         display: none;
+        padding: 1.5rem;
+        background: var(--surface-color);
+        border: 1px solid var(--border-color);
+        border-top: none;
+        border-radius: 0 0 var(--radius-md) var(--radius-md);
     }
 
     .hardware-tab-content.active {
         display: block;
     }
 
+    .page-header {
+        background: linear-gradient(135deg, var(--primary-color), #4f46e5);
+        color: white;
+        padding: 1.5rem 2rem;
+        border-radius: var(--radius-lg);
+        margin-bottom: 1.5rem;
+        box-shadow: var(--shadow-md);
+    }
+
+    .page-header h1 {
+        color: white;
+        margin: 0;
+        font-size: 1.75rem;
+    }
+
+    .page-header p {
+        color: rgba(255, 255, 255, 0.85);
+        margin: 0.5rem 0 0 0;
+    }
+
     .form-section {
-        margin-bottom: 2rem;
+        margin-bottom: 1.5rem;
         padding: 1.5rem;
         border: 1px solid var(--border-color);
         border-radius: var(--radius-md);
-        background: var(--surface-color);
+        background: var(--bg-color);
+        box-shadow: var(--shadow-sm);
     }
 
     .form-section h4 {
         margin-top: 0;
-        margin-bottom: 1rem;
+        margin-bottom: 1.25rem;
+        padding-bottom: 0.75rem;
+        border-bottom: 2px solid var(--primary-color);
         color: var(--text-color);
         font-size: 1.125rem;
         font-weight: 600;
+    }
+
+    .form-section .row {
+        margin-bottom: 0.5rem;
+    }
+
+    .form-section .row > [class*="col-"] {
+        margin-bottom: 1rem;
     }
 
     .pin-reserved-warning {
@@ -249,18 +297,19 @@
     }
 
     .btn-restart-services {
-        background: var(--danger-color);
+        background: rgba(255, 255, 255, 0.2);
         color: white;
-        border: none;
+        border: 1px solid rgba(255, 255, 255, 0.3);
         padding: 0.5rem 1rem;
         border-radius: var(--radius-md);
         cursor: pointer;
         font-weight: 500;
         transition: all 0.2s;
+        backdrop-filter: blur(4px);
     }
 
     .btn-restart-services:hover {
-        opacity: 0.9;
+        background: rgba(255, 255, 255, 0.3);
         transform: translateY(-1px);
     }
 
@@ -271,6 +320,17 @@
         border-radius: var(--radius-md);
         margin-bottom: 1.5rem;
         color: var(--text-color);
+    }
+
+    .action-buttons {
+        margin-top: 2rem;
+        padding: 1.5rem;
+        background: var(--bg-color);
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius-md);
+        display: flex;
+        gap: 1rem;
+        justify-content: flex-start;
     }
 
     .form-label {
@@ -323,35 +383,35 @@
 
 {% block content %}
 <div class="hardware-container mt-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
+    <div class="page-header d-flex justify-content-between align-items-center">
         <div>
-            <h1>Hardware Settings</h1>
-            <p class="text-muted">Configure GPIO, displays, and other hardware peripherals</p>
+            <h1><i class="fas fa-cogs"></i> Hardware Settings</h1>
+            <p>Configure GPIO, displays, and other hardware peripherals</p>
         </div>
         <button class="btn-restart-services" onclick="restartServices()">
-            <i class="bi bi-arrow-clockwise"></i> Restart Services
+            <i class="fas fa-sync-alt"></i> Restart Services
         </button>
     </div>
 
     <div class="save-notice">
-        <i class="bi bi-info-circle"></i> <strong>Note:</strong> Settings are saved to the database. After saving changes, restart services for them to take effect.
+        <i class="fas fa-info-circle"></i> <strong>Note:</strong> Settings are saved to the database. After saving changes, restart services for them to take effect.
     </div>
 
     <div class="hardware-tabs">
         <div class="hardware-tab active" onclick="switchTab('gpio')">
-            GPIO / Relays
+            <i class="fas fa-microchip"></i> GPIO / Relays
         </div>
         <div class="hardware-tab" onclick="switchTab('oled')">
-            OLED Display
+            <i class="fas fa-tv"></i> OLED Display
         </div>
         <div class="hardware-tab" onclick="switchTab('led')">
-            LED Sign
+            <i class="fas fa-sign"></i> LED Sign
         </div>
         <div class="hardware-tab" onclick="switchTab('vfd')">
-            VFD Display
+            <i class="fas fa-desktop"></i> VFD Display
         </div>
         <div class="hardware-tab" onclick="switchTab('zigbee')">
-            Zigbee
+            <i class="fas fa-broadcast-tower"></i> Zigbee
         </div>
     </div>
 
@@ -704,9 +764,9 @@
             </div>
         </div>
 
-        <div class="mt-4">
+        <div class="action-buttons">
             <button type="submit" class="btn btn-primary btn-lg">
-                <i class="bi bi-save"></i> Save Settings
+                <i class="fas fa-save"></i> Save Settings
             </button>
             <a href="{{ url_for('index') }}" class="btn btn-secondary btn-lg">
                 Cancel
