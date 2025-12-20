@@ -399,3 +399,242 @@ sdr-service:
   shm_size: '512mb'  # Increase for higher sample rates
   mem_limit: 1g       # Limit total memory
 ```
+
+## Icecast Streaming Architecture
+
+### Overview
+
+After SDR samples are demodulated to PCM audio, they are streamed to Icecast for network distribution. The streaming pipeline uses FFmpeg to encode audio (MP3/OGG) and push to Icecast server.
+
+**CRITICAL**: The FFmpeg `-re` flag behavior is **source-dependent** and must be configured correctly to prevent stalling or incorrect resampling.
+
+### FFmpeg `-re` Flag: Source-Specific Behavior
+
+The `-re` flag in FFmpeg means "read input at native frame rate" and is designed for **file playback** simulation. Its use depends entirely on the audio source type:
+
+#### SDR Sources (Live Hardware Capture)
+
+**DO NOT use `-re` flag**
+
+- **Why**: Audio is already captured in real-time by SDR hardware
+- **Problem if used**: Creates fatal backpressure in the pipe buffer
+  - FFmpeg throttles stdin reads to exactly real-time rate (e.g., 44.1kHz)
+  - Audio chunks arrive faster than FFmpeg consumes them
+  - Pipe buffer (64KB) fills up in <1 second
+  - `stdin.write()` blocks, freezing the feed loop
+  - Audio queue fills, stream stalls completely after 5-6 seconds
+- **Symptom**: "Buffering..." message in player, never recovers
+- **Solution**: Remove `-re` flag, let FFmpeg consume stdin as fast as available
+
+**Flow without `-re` (CORRECT for SDR)**:
+```
+SDR Hardware → IQ Samples → Demodulator → PCM Audio → 
+  Feed Loop → FFmpeg stdin → Encoder → Icecast
+  (no throttling, natural buffer pace)
+```
+
+#### HTTP/Stream Sources (Network Streams)
+
+**DO use `-re` flag**
+
+- **Why**: Remote streams need throttling for correct resampling
+- **Problem if omitted**: FFmpeg processes too fast, resampling is incorrect
+  - Network stream arrives at network speed (can be faster than real-time)
+  - Without `-re`, FFmpeg decodes/resamples at maximum CPU speed
+  - Timing relationships are lost, resampling produces wrong output
+- **Solution**: Use `-re` flag to maintain proper timing
+
+**Flow with `-re` (CORRECT for HTTP streams)**:
+```
+HTTP Stream → FFmpeg (with -re) → Decode → Resample → 
+  PCM Audio → Feed Loop → FFmpeg stdin → Encoder → Icecast
+  (throttled to real-time, correct resampling)
+```
+
+### Implementation
+
+The conditional logic in `app_core/audio/icecast_output.py`:
+
+```python
+def _start_ffmpeg(self) -> bool:
+    # Determine if -re flag should be used based on source type
+    use_re_flag = False
+    source_type_name = type(self.audio_source).__name__
+    
+    # Network stream sources NEED -re flag
+    if source_type_name in ('StreamSourceAdapter', 'IcecastIngestSource', 'HTTPIngestSource'):
+        use_re_flag = True
+        logger.debug(f"Using -re flag for {source_type_name} (network stream)")
+    
+    # SDR sources must NOT use -re flag
+    elif 'SDR' in source_type_name or 'sdr' in source_type_name.lower():
+        use_re_flag = False
+        logger.debug(f"NOT using -re flag for {source_type_name} (live hardware)")
+    
+    # Fallback: check AudioSourceConfig.source_type enum
+    elif hasattr(self.audio_source, 'config'):
+        from .ingest import AudioSourceType
+        config = self.audio_source.config
+        if hasattr(config, 'source_type'):
+            if config.source_type == AudioSourceType.SDR:
+                use_re_flag = False
+            elif config.source_type == AudioSourceType.STREAM:
+                use_re_flag = True
+    
+    # Build FFmpeg command with conditional -re flag
+    cmd = ['ffmpeg']
+    if use_re_flag:
+        cmd.append('-re')
+    cmd.extend(['-f', 's16le', '-ar', str(sample_rate), ...])
+```
+
+### Source Type Detection
+
+**Priority order:**
+
+1. **Class name pattern matching**:
+   - `StreamSourceAdapter` → use `-re`
+   - `RedisSDRSourceAdapter` → no `-re`
+   - `IcecastIngestSource` → use `-re`
+   - `HTTPIngestSource` → use `-re`
+
+2. **AudioSourceConfig.source_type enum**:
+   - `AudioSourceType.STREAM` → use `-re`
+   - `AudioSourceType.SDR` → no `-re`
+
+3. **Default fallback**: No `-re` (safer, prevents stalling)
+
+### Buffer Architecture
+
+Understanding the buffer chain helps diagnose issues:
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    SDR → Icecast Pipeline                            │
+└─────────────────────────────────────────────────────────────────────┘
+
+1. redis_sdr_adapter._audio_chunk_queue
+   Queue, maxsize=100 chunks (~5 seconds)
+   
+2. BroadcastQueue._source_broadcast  
+   maxsize=10000 chunks (~14 minutes)
+   Uses put_nowait() - drops chunks if full
+   
+3. IcecastStreamer._audio_queue
+   Subscription to BroadcastQueue
+   Independent queue per Icecast stream
+   
+4. IcecastStreamer._feed_loop.buffer
+   deque, maxlen=600 chunks (~30 seconds)
+   Local buffer before FFmpeg
+   
+5. FFmpeg stdin pipe
+   OS buffer, ~64KB
+   BLOCKS if full (problem with -re flag)
+   
+6. FFmpeg encoder
+   Internal buffers
+   
+7. Icecast mount
+   Network streaming
+```
+
+### Troubleshooting Streaming Issues
+
+#### Symptom: Stalling after 5-6 seconds
+
+**Diagnosis**: `-re` flag on SDR source
+
+```bash
+# Check source type
+grep "Using -re flag\|NOT using -re" /var/log/eas-station/audio-service.log
+
+# Should see:
+# "NOT using -re flag for RedisSDRSourceAdapter (live hardware)"
+```
+
+**Fix**: Ensure conditional logic detects SDR source correctly
+
+#### Symptom: Incorrect resampling on HTTP streams
+
+**Diagnosis**: Missing `-re` flag on network stream
+
+```bash
+# Check source type
+grep "Using -re flag\|NOT using -re" /var/log/eas-station/audio-service.log
+
+# Should see:
+# "Using -re flag for StreamSourceAdapter (network stream)"
+```
+
+**Fix**: Ensure conditional logic detects stream source correctly
+
+#### Symptom: Buffer overflow warnings
+
+```bash
+# Check buffer health
+redis-cli GET "sdr:ring_buffer:{receiver_id}"
+
+# Look for:
+# "fill_percentage": >80%
+# "overflow_count": >0
+```
+
+**Causes**:
+- Downstream processing too slow
+- Network congestion (Icecast streaming)
+- CPU throttling
+
+**Solutions**:
+- Check network bandwidth
+- Monitor CPU usage
+- Reduce number of concurrent streams
+- Increase buffer sizes
+
+### Performance Considerations
+
+#### CPU Usage
+
+- **Without `-re`**: FFmpeg encodes as fast as possible
+  - Higher burst CPU usage
+  - Lower average CPU (finishes encoding faster)
+  - Better for SDR (no blocking)
+  
+- **With `-re`**: FFmpeg throttles to real-time
+  - Steady CPU usage
+  - Slightly higher average CPU
+  - Required for HTTP streams (correct resampling)
+
+#### Network Bandwidth
+
+- Each Icecast stream: ~128kbps (MP3) or ~64-96kbps (OGG)
+- Multiple SDR receivers = multiple streams
+- Consider bandwidth limits on shared networks
+
+#### Memory Usage
+
+- Each IcecastStreamer: ~100MB peak
+- Buffer memory: ~50MB per stream
+- Monitor with: `docker stats`
+
+### Best Practices
+
+1. **Always check logs** for `-re` flag usage during startup
+2. **Test SDR streams** for >60 seconds continuously
+3. **Verify HTTP stream audio quality** after any changes
+4. **Monitor buffer health** via Redis metrics
+5. **Use appropriate bitrates** (128kbps for MP3, 96kbps for OGG)
+6. **Limit concurrent streams** based on available resources
+
+### Related Files
+
+- `app_core/audio/icecast_output.py` - FFmpeg streaming logic
+- `app_core/audio/redis_sdr_adapter.py` - SDR demodulation
+- `app_core/audio/sources.py` - HTTP stream sources
+- `app_core/audio/auto_streaming.py` - Stream management
+- `docs/audio/AUDIO_MONITORING.md` - Audio monitoring guide
+
+### Version History
+
+- **v2.42.5**: Removed `-re` flag (broke HTTP streams)
+- **v2.42.6**: Added conditional `-re` flag based on source type (current)
