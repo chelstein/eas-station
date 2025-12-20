@@ -182,12 +182,13 @@ This was caused by incorrect use of FFmpeg `-re` flag for live hardware capture.
    # "NOT using -re flag for RedisSDRSourceAdapter (live hardware)"
    ```
 
-2. **Check version** (fixed in v2.42.6):
+2. **Check version** (fixed in current development version):
    ```bash
    cat /opt/eas-station/VERSION
+   # Should be >= 2.42.6
    ```
    
-   If version < 2.42.6, update:
+   If using older version, update:
    ```bash
    cd /opt/eas-station
    git pull

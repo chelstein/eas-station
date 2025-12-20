@@ -49,6 +49,7 @@ import requests
 from requests import exceptions as requests_exceptions
 
 from .stream_profiles import StreamFormat
+from .ingest import AudioSourceType  # For source type detection in conditional -re flag logic
 
 logger = logging.getLogger(__name__)
 
@@ -367,7 +368,6 @@ class IcecastStreamer:
                 logger.debug(f"NOT using -re flag for {source_type_name} (live hardware capture)")
             # Check audio source config if available
             elif hasattr(self.audio_source, 'config'):
-                from .ingest import AudioSourceType
                 config = self.audio_source.config
                 if hasattr(config, 'source_type'):
                     if config.source_type == AudioSourceType.SDR:
