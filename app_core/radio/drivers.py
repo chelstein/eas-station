@@ -1465,9 +1465,12 @@ class _SoapySDRReceiver(ReceiverInterface):
             if num_samples == 0:
                 return None
 
-            # Read from ring buffer with short timeout
-            # This is the consumer that drains the producer (USB read thread)
-            samples = self._ring_buffer.read(num_samples, timeout=0.01)
+            # Read from ring buffer with sufficient timeout for continuous streaming
+            # CRITICAL: 10ms timeout was too short and caused audio gaps when the
+            # consumer (audio pipeline) ran slightly faster than the producer (USB read).
+            # 100ms timeout allows time for the USB read thread to fill the buffer,
+            # ensuring continuous audio flow. This matches the ring buffer's default.
+            samples = self._ring_buffer.read(num_samples, timeout=0.1)
             return samples
 
         # Fallback to sample buffer if ring buffer not available
