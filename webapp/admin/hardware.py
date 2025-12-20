@@ -88,7 +88,7 @@ def update_hardware():
         bool_fields = [
             'gpio_enabled', 'oled_enabled', 'oled_default_invert',
             'oled_button_active_high', 'screens_auto_start',
-            'led_enabled', 'vfd_enabled',
+            'led_enabled', 'vfd_enabled', 'zigbee_enabled',
         ]
         for field in bool_fields:
             if field in data:
@@ -103,6 +103,7 @@ def update_hardware():
             'oled_rotate', 'oled_contrast', 'oled_button_gpio',
             'oled_scroll_speed', 'oled_scroll_fps',
             'led_port', 'led_baudrate', 'vfd_baudrate',
+            'zigbee_baudrate', 'zigbee_channel',
         ]
         for field in int_fields:
             if field in data and data[field] is not None:

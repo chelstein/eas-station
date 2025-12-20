@@ -265,6 +265,9 @@
                 <div class="hardware-tab" onclick="switchTab('vfd')">
                     VFD Display
                 </div>
+                <div class="hardware-tab" onclick="switchTab('zigbee')">
+                    Zigbee
+                </div>
             </div>
 
             <form id="hardwareForm" method="POST" action="{{ url_for('hardware.update_hardware') }}">
@@ -546,6 +549,73 @@
                                 </select>
                             </div>
                         </div>
+                    </div>
+                </div>
+
+                <!-- ZIGBEE TAB -->
+                <div id="zigbee-tab" class="hardware-tab-content">
+                    <div class="form-section">
+                        <h4>Zigbee Coordinator</h4>
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" id="zigbee_enabled" name="zigbee_enabled" value="true" {% if settings.zigbee_enabled %}checked{% endif %}>
+                            <label class="form-check-label" for="zigbee_enabled">
+                                Enable Zigbee Coordinator
+                            </label>
+                        </div>
+                        <p class="text-muted">
+                            Control Zigbee-compatible devices such as warning lights, sirens, and sensors.
+                            Requires a compatible Zigbee coordinator (e.g., CC2531, CC2652, or SLZB-06).
+                        </p>
+                    </div>
+
+                    <div class="form-section">
+                        <h4>Serial Port Configuration</h4>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <label for="zigbee_port" class="form-label">Serial Port</label>
+                                <input type="text" class="form-control font-monospace" id="zigbee_port" name="zigbee_port" value="{{ settings.zigbee_port }}" placeholder="/dev/ttyAMA0">
+                                <small class="form-text text-muted">
+                                    Common ports: /dev/ttyAMA0, /dev/ttyUSB0, /dev/ttyACM0
+                                </small>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="zigbee_baudrate" class="form-label">Baud Rate</label>
+                                <select class="form-select" id="zigbee_baudrate" name="zigbee_baudrate">
+                                    <option value="38400" {% if settings.zigbee_baudrate == 38400 %}selected{% endif %}>38400</option>
+                                    <option value="57600" {% if settings.zigbee_baudrate == 57600 %}selected{% endif %}>57600</option>
+                                    <option value="115200" {% if settings.zigbee_baudrate == 115200 %}selected{% endif %}>115200</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-section">
+                        <h4>Network Settings</h4>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <label for="zigbee_channel" class="form-label">Channel (11-26)</label>
+                                <input type="number" class="form-control" id="zigbee_channel" name="zigbee_channel" value="{{ settings.zigbee_channel }}" min="11" max="26">
+                                <small class="form-text text-muted">
+                                    Zigbee channel (11-26). Channel 15 is commonly used.
+                                </small>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="zigbee_pan_id" class="form-label">PAN ID</label>
+                                <input type="text" class="form-control font-monospace" id="zigbee_pan_id" name="zigbee_pan_id" value="{{ settings.zigbee_pan_id }}" placeholder="0x1A62">
+                                <small class="form-text text-muted">
+                                    Personal Area Network ID in hex format (e.g., 0x1A62)
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-section">
+                        <h4>Zigbee Devices</h4>
+                        <p class="text-muted">
+                            After enabling and configuring the Zigbee coordinator, visit the
+                            <a href="{{ url_for('zigbee.zigbee_settings') }}">Zigbee Devices</a> page
+                            to view connected devices and diagnostics.
+                        </p>
                     </div>
                 </div>
 
