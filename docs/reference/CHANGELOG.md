@@ -7,6 +7,27 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **CRITICAL: Hardware Integrations Database Migration Complete** - Fixed ALL hardware settings to use database exclusively
+  - **OLED Display**: Removed `OLED_ENABLED` module constant, checks database dynamically in `initialise_oled_display()`
+  - **LED Sign**: Removed all environment variable parsing (`LED_SIGN_IP`, `LED_SIGN_PORT`), uses HardwareSettings database
+  - **VFD Display**: Removed all environment variable usage (`VFD_PORT`, `VFD_BAUDRATE`), uses HardwareSettings database
+  - **GPIO Controller**: Removed `OLED_ENABLED` import, dynamically checks database for OLED enabled status
+  - **Hardware Service**: Removed all environment variable fallbacks, always uses database settings
+  - **Display State Publishing**: Now checks database settings AND controller existence before showing "enabled"
+  - **LED Routes**: Removed all `os.getenv()` calls, uses `get_led_settings()` from database
+  - **System Controls**: Dynamically checks OLED enabled status from database instead of module constant
+  - **EAS Utils**: Dynamically checks OLED enabled status from database instead of module constant
+  - **Environment Validation**: Deprecated GPIO_PIN_BEHAVIOR_MATRIX validation (now uses database)
+  - **Fixed "400 Bad Request: Unknown variable: GPIO_PIN_BEHAVIOR_MATRIX"** error
+  - **Environment variables for hardware are NOW DEPRECATED**: Use `/admin/hardware` instead
+    - ❌ `GPIO_ENABLED`, `GPIO_PIN_MAP`, `GPIO_PIN_BEHAVIOR_MATRIX`
+    - ❌ `OLED_ENABLED`, `LED_SIGN_IP`, `LED_SIGN_PORT`
+    - ❌ `VFD_PORT`, `VFD_BAUDRATE`
+  - All hardware settings must be configured via the web UI at `/admin/hardware`
+  - Changes require hardware service restart to take effect: `systemctl restart eas-station-hardware.service`
+  - Files: `app_core/oled.py`, `app_core/led.py`, `app_core/vfd.py`, `hardware_service.py`, 
+    `webapp/routes_led.py`, `webapp/routes/system_controls.py`, `app_utils/eas.py`, `webapp/admin/environment.py`
+
 - **Hardware Settings Page Improvements** - Fixed multiple issues with the hardware settings page
   - Fixed "None" parsing error in number input fields (oled_contrast field was rendering `value="None"` as string)
   - Fixed heading hierarchy accessibility issue (changed h4 to h3 to follow h1 → h3 → h4 structure)
