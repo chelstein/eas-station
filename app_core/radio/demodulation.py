@@ -928,6 +928,18 @@ class RBDSWorker:
                     logger.debug("RBDS: found %s but need A to start group, discarding", block_type)
                     del self._rbds_bit_buffer[:26]
                     continue
+                # ALWAYS verify A→B before starting a group (continuous sync verification)
+                if len(self._rbds_bit_buffer) >= 52:
+                    next_block_bits = list(self._rbds_bit_buffer)[26:52]
+                    next_type, _ = self._decode_rbds_block(next_block_bits)
+                    if next_type != "B":
+                        # Timing has drifted - lose sync and re-acquire
+                        logger.debug("RBDS: A not followed by B, re-syncing")
+                        self._rbds_synchronized = False
+                        del self._rbds_bit_buffer[0]
+                        continue
+                else:
+                    return None  # Wait for more bits to verify B
                 self._rbds_partial_group = [data_word]
                 self._rbds_expected_block = 1
                 logger.debug("RBDS: started group with A=0x%04X, expecting B", data_word)
@@ -936,12 +948,14 @@ class RBDSWorker:
                 expected_names = {1: "B", 2: "C/C'", 3: "D"}
                 if block_type not in expected_types.get(self._rbds_expected_block, []):
                     logger.debug(
-                        "RBDS: expected %s but got %s, resetting group",
+                        "RBDS: expected %s but got %s, losing sync",
                         expected_names.get(self._rbds_expected_block, "?"), block_type
                     )
+                    # Unexpected block means we've drifted - lose sync
+                    self._rbds_synchronized = False
                     self._rbds_expected_block = None
                     self._rbds_partial_group.clear()
-                    del self._rbds_bit_buffer[:26]
+                    del self._rbds_bit_buffer[0]  # Shift by 1 to search for new sync
                     continue
                 self._rbds_partial_group.append(data_word)
                 self._rbds_expected_block += 1
