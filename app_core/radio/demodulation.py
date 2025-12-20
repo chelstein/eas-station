@@ -864,122 +864,134 @@ class RBDSWorker:
     def _decode_rbds_groups(self) -> Optional[RBDSData]:
         """Decode RBDS groups from bit buffer.
 
-        Uses PySDR-style synchronization:
-        - Presync: Search bit-by-bit for A block, verify B follows at +26 bits
-        - Synced: Advance by exactly 26 bits per block, track error rate
-        - Lose sync only after sustained high error rate (>70% bad blocks)
+        Uses the proven python-radio/PySDR approach:
+        - Two-stage presync: find any valid block, verify second at correct spacing
+        - Synced: count exactly 26 bits per block, track error rate
+        - Based on: https://github.com/ChrisDev8/python-radio/blob/main/decoder.py
         """
         changed = False
-        iterations = 0
-        max_iterations = 100
 
-        # Initialize error tracking if not present
-        if not hasattr(self, '_rbds_blocks_total'):
-            self._rbds_blocks_total = 0
-            self._rbds_blocks_bad = 0
+        # Syndrome values and block position mapping (from RDS standard)
+        syndromes = [383, 14, 303, 663, 748]  # A, B, C, C', D
+        offset_pos = [0, 1, 2, 2, 3]  # Block position for each syndrome
+        offset_word = [252, 408, 360, 848, 436]  # For CRC verification
 
-        while len(self._rbds_bit_buffer) >= 26 and iterations < max_iterations:
-            iterations += 1
+        # Initialize state if not present
+        if not hasattr(self, '_rbds_reg'):
+            self._rbds_reg = 0
+            self._rbds_synced = False
+            self._rbds_presync = False
+            self._rbds_lastseen_offset = 0
+            self._rbds_lastseen_offset_counter = 0
+            self._rbds_bit_counter = 0
+            self._rbds_block_bit_counter = 0
+            self._rbds_block_number = 0
+            self._rbds_wrong_blocks = 0
+            self._rbds_blocks_counter = 0
+            self._rbds_group_data = [0, 0, 0, 0]
+            self._rbds_group_good = 0
 
-            # === PRESYNC MODE: Search for A→B sequence ===
-            if not self._rbds_synchronized:
-                block_bits = self._rbds_bit_buffer[:26]
-                block_type, data_word = self._decode_rbds_block(block_bits)
+        # Process bits one at a time (python-radio approach)
+        while self._rbds_bit_buffer:
+            bit = self._rbds_bit_buffer.pop(0)
+            self._rbds_reg = ((self._rbds_reg << 1) | bit) & 0x3FFFFFF  # 26-bit register
+            self._rbds_bit_counter += 1
 
-                # Log ANY valid block found during presync (for diagnostics)
-                if block_type is not None:
-                    logger.debug("RBDS presync: found %s=0x%04X (need A→B)", block_type, data_word)
+            if not self._rbds_synced:
+                # === PRESYNC: Look for valid syndrome ===
+                syndrome = self._calc_syndrome(self._rbds_reg, 26)
 
-                if block_type == "A":
-                    # Found potential A block - need to verify B follows
-                    if len(self._rbds_bit_buffer) >= 52:
-                        # Have enough bits to check for B at +26
-                        next_block_bits = list(self._rbds_bit_buffer)[26:52]
-                        next_type, next_data = self._decode_rbds_block(next_block_bits)
-                        if next_type == "B":
-                            # Confirmed A→B sequence - synchronized!
-                            self._rbds_synchronized = True
-                            self._rbds_blocks_total = 0
-                            self._rbds_blocks_bad = 0
-                            self._rbds_block_counter = 0  # 0=A, 1=B, 2=C, 3=D
-                            self._rbds_partial_group = []
-                            logger.info("RBDS SYNCHRONIZED! A=0x%04X B=0x%04X", data_word, next_data)
-                            # Don't consume bits yet - let synced mode process them
-                            continue
+                for j in range(5):
+                    if syndrome == syndromes[j]:
+                        if not self._rbds_presync:
+                            # First valid block found - remember it
+                            self._rbds_lastseen_offset = j
+                            self._rbds_lastseen_offset_counter = self._rbds_bit_counter
+                            self._rbds_presync = True
+                            logger.debug("RBDS presync: first block type %d at bit %d",
+                                        j, self._rbds_bit_counter)
                         else:
-                            # A found but B didn't follow - this A is false positive
-                            if next_type is not None:
-                                logger.debug("RBDS presync: A=0x%04X but next is %s=0x%04X (not B)",
-                                            data_word, next_type, next_data)
+                            # Second valid block - check spacing
+                            if offset_pos[self._rbds_lastseen_offset] >= offset_pos[j]:
+                                block_distance = offset_pos[j] + 4 - offset_pos[self._rbds_lastseen_offset]
                             else:
-                                logger.debug("RBDS presync: A=0x%04X but next block CRC failed", data_word)
-                            # Shift by 1 and keep searching
-                            del self._rbds_bit_buffer[0]
-                            continue
-                    else:
-                        # Found A but not enough bits to verify B - WAIT for more bits
-                        logger.debug("RBDS presync: found A=0x%04X, waiting for more bits to verify B", data_word)
-                        return None  # Don't shift, wait for more bits
+                                block_distance = offset_pos[j] - offset_pos[self._rbds_lastseen_offset]
 
-                # Not A or A didn't sync - shift by 1 bit and keep searching
-                del self._rbds_bit_buffer[0]
-                continue
+                            expected_bits = block_distance * 26
+                            actual_bits = self._rbds_bit_counter - self._rbds_lastseen_offset_counter
 
-            # === SYNCED MODE: Fixed 26-bit block boundaries ===
-            block_bits = self._rbds_bit_buffer[:26]
-            block_type, data_word = self._decode_rbds_block(block_bits)
-            expected_block = self._rbds_block_counter
-
-            # Always advance by exactly 26 bits (PySDR approach)
-            del self._rbds_bit_buffer[:26]
-            self._rbds_blocks_total += 1
-
-            # Check if this block is valid
-            expected_types = {0: ["A"], 1: ["B"], 2: ["C", "C'"], 3: ["D"]}
-            expected_names = {0: "A", 1: "B", 2: "C/C'", 3: "D"}
-
-            good_block = False
-            if block_type is not None and block_type in expected_types.get(expected_block, []):
-                good_block = True
-                if expected_block == 0:
-                    self._rbds_partial_group = [data_word]
-                else:
-                    self._rbds_partial_group.append(data_word)
-                logger.debug("RBDS block %d/%d: %s=0x%04X (good)",
-                            expected_block + 1, 4, block_type, data_word)
+                            if expected_bits != actual_bits:
+                                # Wrong spacing - false positive, reset presync
+                                self._rbds_presync = False
+                                logger.debug("RBDS presync: spacing mismatch (expected %d, got %d)",
+                                            expected_bits, actual_bits)
+                            else:
+                                # Correct spacing - SYNCED!
+                                self._rbds_synced = True
+                                self._rbds_wrong_blocks = 0
+                                self._rbds_blocks_counter = 0
+                                self._rbds_block_bit_counter = 0
+                                self._rbds_block_number = (j + 1) % 4
+                                self._rbds_group_good = 0
+                                logger.info("RBDS SYNCHRONIZED at bit %d", self._rbds_bit_counter)
+                        break
             else:
-                self._rbds_blocks_bad += 1
-                if block_type is not None:
-                    logger.debug("RBDS block %d/%d: expected %s got %s=0x%04X (bad)",
-                                expected_block + 1, 4, expected_names[expected_block],
-                                block_type, data_word)
+                # === SYNCED: Process blocks at 26-bit intervals ===
+                if self._rbds_block_bit_counter < 25:
+                    self._rbds_block_bit_counter += 1
                 else:
-                    logger.debug("RBDS block %d/%d: CRC failed (bad)", expected_block + 1, 4)
+                    # Complete block received - verify CRC
+                    dataword = (self._rbds_reg >> 10) & 0xFFFF
+                    checkword = self._rbds_reg & 0x3FF
+                    block_crc = self._calc_syndrome(dataword, 16)
 
-            # Advance block counter
-            self._rbds_block_counter = (self._rbds_block_counter + 1) % 4
+                    good_block = False
+                    block_num = self._rbds_block_number
 
-            # Process complete group (if we have 4 good blocks)
-            if self._rbds_block_counter == 0:  # Just finished block D
-                if len(self._rbds_partial_group) == 4:
-                    group_changed = self._rbds_decoder.process_group(tuple(self._rbds_partial_group))
-                    changed = group_changed or changed
-                    logger.debug("RBDS group complete: A=%04X B=%04X C=%04X D=%04X",
-                                *self._rbds_partial_group)
-                self._rbds_partial_group = []
+                    if block_num == 2:
+                        # Block C can be C or C' - try both
+                        if (checkword ^ offset_word[2]) == block_crc:
+                            good_block = True
+                        elif (checkword ^ offset_word[3]) == block_crc:
+                            good_block = True
+                    else:
+                        offset_idx = [0, 1, 2, 4][block_num]  # A=0, B=1, C=2, D=4
+                        if (checkword ^ offset_word[offset_idx]) == block_crc:
+                            good_block = True
 
-            # Check sync quality every 50 blocks (PySDR approach)
-            if self._rbds_blocks_total >= 50:
-                error_rate = self._rbds_blocks_bad / self._rbds_blocks_total
-                if error_rate > 0.70:  # >70% bad blocks = lose sync
-                    logger.warning("RBDS SYNC LOST: %d/%d bad blocks (%.0f%%)",
-                                  self._rbds_blocks_bad, self._rbds_blocks_total, error_rate * 100)
-                    self._rbds_synchronized = False
-                else:
-                    logger.debug("RBDS sync OK: %d/%d bad blocks (%.0f%%)",
-                                self._rbds_blocks_bad, self._rbds_blocks_total, error_rate * 100)
-                self._rbds_blocks_total = 0
-                self._rbds_blocks_bad = 0
+                    if good_block:
+                        self._rbds_group_data[block_num] = dataword
+                        if block_num == 0:
+                            self._rbds_group_good = 1
+                        elif self._rbds_group_good > 0:
+                            self._rbds_group_good += 1
+                    else:
+                        self._rbds_wrong_blocks += 1
+                        self._rbds_group_good = 0  # Invalidate current group
+
+                    # Check for complete group
+                    if block_num == 3 and self._rbds_group_good == 4:
+                        group_changed = self._rbds_decoder.process_group(tuple(self._rbds_group_data))
+                        changed = changed or group_changed
+                        logger.info("RBDS group: A=%04X B=%04X C=%04X D=%04X",
+                                   *self._rbds_group_data)
+
+                    self._rbds_block_bit_counter = 0
+                    self._rbds_block_number = (self._rbds_block_number + 1) % 4
+                    self._rbds_blocks_counter += 1
+
+                    # Check sync quality every 50 blocks
+                    if self._rbds_blocks_counter >= 50:
+                        if self._rbds_wrong_blocks > 35:
+                            logger.warning("RBDS SYNC LOST: %d/50 bad blocks",
+                                          self._rbds_wrong_blocks)
+                            self._rbds_synced = False
+                            self._rbds_presync = False
+                        else:
+                            logger.debug("RBDS sync OK: %d/50 bad blocks",
+                                        self._rbds_wrong_blocks)
+                        self._rbds_blocks_counter = 0
+                        self._rbds_wrong_blocks = 0
 
         # Enforce buffer limit
         if len(self._rbds_bit_buffer) > 6000:
