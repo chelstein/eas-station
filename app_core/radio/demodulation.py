@@ -26,8 +26,10 @@ Supports FM (wideband and narrowband), AM, and includes stereo decoding and RBDS
 """
 
 import logging
+import math
 import queue
 import threading
+import time
 from dataclasses import dataclass
 from typing import List, Optional, Tuple
 
@@ -43,7 +45,10 @@ try:
     _NUMBA_AVAILABLE = True
     logger.info("Numba JIT compilation available - FM demodulation will use optimized code paths")
 except ImportError:
-    logger.info("Numba not available - FM demodulation will use pure NumPy (slower)")
+    logger.warning(
+        "Numba not available - RBDS processing will use pure Python (much slower). "
+        "Install with: pip install numba"
+    )
     # Create a no-op decorator for when numba isn't available
     def jit(*args, **kwargs):
         def decorator(func):
@@ -438,6 +443,10 @@ class RBDSWorker:
                         len(self._rbds_bit_buffer),
                         self._rbds_consecutive_crc_failures
                     )
+
+                # Yield GIL after processing each sample to let audio thread run
+                # Critical when Numba isn't available and RBDS processing is slow
+                time.sleep(0)
             except Exception as e:
                 logger.warning(f"RBDS processing error: {e}", exc_info=True)
 
@@ -531,25 +540,38 @@ class RBDSWorker:
             self._rbds_costas_freq = freq
             return out_real + 1j * out_imag
         else:
-            # Pure Python fallback
+            # Pure Python fallback - optimized to reduce GIL contention
+            # Use math module for scalar trig (10x faster than numpy for scalars)
             out = np.empty(n, dtype=np.complex128)
             phase = self._rbds_costas_phase
             freq = self._rbds_costas_freq
             alpha = self._rbds_costas_alpha
             beta = self._rbds_costas_beta
-            two_pi = 2.0 * np.pi
+            two_pi = 2.0 * math.pi
 
-            for i in range(n):
-                cos_phase = np.cos(phase)
-                sin_phase = np.sin(phase)
-                s = samples[i]
-                out[i] = complex(s.real * cos_phase + s.imag * sin_phase,
-                                s.imag * cos_phase - s.real * sin_phase)
-                error = out[i].real * out[i].imag
-                freq += beta * error
-                phase += freq + alpha * error
-                if phase >= two_pi or phase < 0:
-                    phase = phase % two_pi
+            # Process in batches to yield GIL periodically for audio thread
+            batch_size = 256
+            samples_real = samples.real
+            samples_imag = samples.imag
+
+            for batch_start in range(0, n, batch_size):
+                batch_end = min(batch_start + batch_size, n)
+                for i in range(batch_start, batch_end):
+                    cos_phase = math.cos(phase)
+                    sin_phase = math.sin(phase)
+                    s_real = samples_real[i]
+                    s_imag = samples_imag[i]
+                    out_real = s_real * cos_phase + s_imag * sin_phase
+                    out_imag = s_imag * cos_phase - s_real * sin_phase
+                    out[i] = complex(out_real, out_imag)
+                    error = out_real * out_imag
+                    freq += beta * error
+                    phase += freq + alpha * error
+                    if phase >= two_pi or phase < 0:
+                        phase = phase % two_pi
+
+                # Yield GIL between batches to let audio thread run
+                time.sleep(0)
 
             self._rbds_costas_phase = phase
             self._rbds_costas_freq = freq
