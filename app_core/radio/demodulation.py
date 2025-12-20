@@ -324,14 +324,11 @@ class RBDSWorker:
         self._rbds_samples_per_symbol = 16
         self._rbds_target_rate = self._rbds_symbol_rate * self._rbds_samples_per_symbol
 
-        # M&M clock recovery state
-        self._rbds_mm_mu = 0.0
-        self._rbds_mm_out_rail = 0.0
-        self._rbds_mm_out = 0.0
-        # State for timing error calculation (need last 2 symbols)
-        self._rbds_mm_last_out = [complex(0.0), complex(0.0)]  # Last 2 output values
-        self._rbds_mm_last_rail = [complex(1.0), complex(1.0)]  # Last 2 rail values
-        self._rbds_mm_i_residual = 0.0  # Residual sample position from previous chunk
+        # M&M clock recovery state (python-radio style)
+        self._rbds_mm_mu = 0.01  # Initial mu estimate
+        self._rbds_mm_out_prev = complex(0.0)
+        self._rbds_mm_rail_prev = complex(0.0)
+        self._rbds_mm_rail_prev2 = complex(0.0)
 
         # Costas loop state
         self._rbds_costas_phase = 0.0
@@ -572,83 +569,86 @@ class RBDSWorker:
         return self._decode_rbds_groups()
 
     def _mm_timing_pysdr(self, samples: np.ndarray) -> np.ndarray:
-        """M&M symbol timing with proper state continuity across calls.
-
-        Uses linear interpolation and maintains state for continuous processing.
-        CRITICAL: Tracks residual position to maintain timing across chunk boundaries.
+        """M&M symbol timing using reference python-radio interpolation method.
+        
+        Based on: https://github.com/ChrisDev8/python-radio/blob/main/decoder.py
+        Uses 16x upsampling and mu-based interpolation for symbol timing recovery.
         """
         n = len(samples)
         if n < 32:
             return samples
 
         sps = 16  # samples per symbol at 19kHz
+        
+        # Upsample by 16x for interpolation (reference method)
+        try:
+            from scipy import signal as scipy_signal
+            samples_interpolated = scipy_signal.resample_poly(samples, 16, 1)
+        except ImportError:
+            # Fallback: linear interpolation
+            old_len = len(samples)
+            new_len = old_len * 16
+            old_indices = np.arange(old_len)
+            new_indices = np.linspace(0, old_len - 1, new_len)
+            real_interp = np.interp(new_indices, old_indices, samples.real)
+            imag_interp = np.interp(new_indices, old_indices, samples.imag)
+            samples_interpolated = (real_interp + 1j * imag_interp).astype(np.complex64)
+        
+        # Initialize state
         mu = self._rbds_mm_mu
-
-        # Pre-extract real/imag to avoid repeated attribute access
-        samples_real = samples.real
-        samples_imag = samples.imag
-
-        # Pre-allocate output array (faster than list append)
-        max_symbols = n // sps + 10
-        out_array = np.empty(max_symbols, dtype=np.complex64)
-        n_out = 0
-
-        # Initialize with state from previous call
-        prev_out_0, prev_out_1 = self._rbds_mm_last_out
-        prev_rail_0, prev_rail_1 = self._rbds_mm_last_rail
-
-        # CRITICAL: Start from residual position from previous chunk
-        i_in = self._rbds_mm_i_residual
-
-        while i_in < n - 1 and n_out < max_symbols:
-            idx = int(i_in)
-            frac = i_in - idx
-
-            if idx + 1 >= n:
+        i_in = 0
+        out_list = []
+        out_rail_prev = complex(0, 0)
+        out_prev = complex(0, 0)
+        out_rail_prev2 = complex(0, 0)
+        
+        # Load previous state for continuity
+        if hasattr(self, '_rbds_mm_out_prev'):
+            out_prev = self._rbds_mm_out_prev
+            out_rail_prev = self._rbds_mm_rail_prev
+            out_rail_prev2 = self._rbds_mm_rail_prev2
+        
+        while i_in < n and i_in * 16 + int(mu * 16) < len(samples_interpolated):
+            # Grab interpolated sample at current mu position
+            idx = i_in * 16 + int(mu * 16)
+            if idx >= len(samples_interpolated):
                 break
-
-            # Linear interpolation
-            re = samples_real[idx] + frac * (samples_real[idx + 1] - samples_real[idx])
-            im = samples_imag[idx] + frac * (samples_imag[idx + 1] - samples_imag[idx])
-
-            # Hard decision (rail) - use simple comparison
-            rail_re = 1.0 if re > 0 else -1.0
-            rail_im = 1.0 if im > 0 else -1.0
-
-            # M&M timing error (simplified - avoid complex conjugate overhead)
-            # For BPSK, we only care about real part anyway
-            mm_val = ((re - prev_out_0.real) * prev_rail_1.real -
-                      (rail_re - prev_rail_0.real) * prev_out_1.real)
-
-            # Update timing with clamping
-            mu += 0.01 * mm_val
-            if mu > 0.5:
-                mu = 0.5
-            elif mu < -0.5:
-                mu = -0.5
-
-            # Store output
-            out_sample = complex(re, im)
-            out_array[n_out] = out_sample
-            n_out += 1
-
-            # Shift history (avoid creating new complex objects)
-            prev_out_0 = prev_out_1
-            prev_out_1 = out_sample
-            prev_rail_0 = prev_rail_1
-            prev_rail_1 = complex(rail_re, rail_im)
-
-            # Advance by one symbol period
-            i_in += sps + mu
-
+                
+            out_current = samples_interpolated[idx]
+            
+            # Hard decision (rail)
+            out_rail_current = complex(
+                1.0 if np.real(out_current) > 0 else -1.0,
+                1.0 if np.imag(out_current) > 0 else -1.0
+            )
+            
+            # M&M timing error formula from reference
+            if len(out_list) >= 2:
+                x = (out_rail_current - out_rail_prev2) * np.conj(out_prev)
+                y = (out_current - out_prev) * np.conj(out_rail_prev)
+                mm_val = np.real(y - x)
+                mu += sps + 0.01 * mm_val
+            else:
+                mu += sps
+            
+            out_list.append(out_current)
+            
+            # Update history
+            out_rail_prev2 = out_rail_prev
+            out_rail_prev = out_rail_current
+            out_prev = out_current
+            
+            # Advance input index
+            i_in += int(np.floor(mu))
+            mu = mu - np.floor(mu)  # Keep fractional part
+        
         # Save state for next call
         self._rbds_mm_mu = mu
-        self._rbds_mm_last_out = [prev_out_0, prev_out_1]
-        self._rbds_mm_last_rail = [prev_rail_0, prev_rail_1]
-        # Save residual: how far past the end of this chunk we are
-        self._rbds_mm_i_residual = i_in - n if i_in >= n else 0.0
-
-        return out_array[:n_out] if n_out > 0 else np.array([], dtype=np.complex64)
+        self._rbds_mm_out_prev = out_prev
+        self._rbds_mm_rail_prev = out_rail_prev
+        self._rbds_mm_rail_prev2 = out_rail_prev2
+        
+        return np.array(out_list, dtype=np.complex64) if out_list else np.array([], dtype=np.complex64) if n_out > 0 else np.array([], dtype=np.complex64)
 
     def _costas_pysdr(self, samples: np.ndarray) -> np.ndarray:
         """Costas loop for BPSK carrier/phase synchronization.
