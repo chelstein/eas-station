@@ -352,6 +352,9 @@ def publish_display_state():
         return
 
     try:
+        # Import hardware settings helpers
+        from app_core.hardware_settings import get_oled_settings, get_led_settings, get_vfd_settings
+        
         state = {
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "oled": {
@@ -377,10 +380,16 @@ def publish_display_state():
             },
         }
 
-        # Get OLED state
+        # Get OLED state from database and module
         try:
+            oled_settings = get_oled_settings()
+            oled_enabled_in_db = oled_settings.get('enabled', False)
+            
+            # Import after getting settings to avoid circular imports
             import app_core.oled as oled_module
-            if oled_module.oled_controller:
+            
+            # Only show as enabled if both database setting is true AND controller exists
+            if oled_enabled_in_db and oled_module.oled_controller:
                 state["oled"]["enabled"] = True
                 state["oled"]["width"] = oled_module.oled_controller.width
                 state["oled"]["height"] = oled_module.oled_controller.height
@@ -410,22 +419,31 @@ def publish_display_state():
                         state["oled"]["preview_image"] = preview_image
                 except Exception as e:
                     logger.debug(f"Failed to get OLED preview image: {e}")
-
         except Exception as e:
             logger.debug(f"Error getting OLED state: {e}")
 
-        # Get VFD state
+        # Get VFD state from database and module
         try:
+            vfd_settings = get_vfd_settings()
+            vfd_enabled_in_db = vfd_settings.get('enabled', False)
+            
             from app_core.vfd import vfd_controller
-            if vfd_controller:
+            
+            # Only show as enabled if both database setting is true AND controller exists
+            if vfd_enabled_in_db and vfd_controller:
                 state["vfd"]["enabled"] = True
         except Exception as e:
             logger.debug(f"Error getting VFD state: {e}")
 
-        # Get LED state
+        # Get LED state from database and module
         try:
+            led_settings = get_led_settings()
+            led_enabled_in_db = led_settings.get('enabled', False)
+            
             import app_core.led as led_module
-            if led_module.led_controller:
+            
+            # Only show as enabled if both database setting is true AND controller exists
+            if led_enabled_in_db and led_module.led_controller:
                 state["led"]["enabled"] = True
         except Exception as e:
             logger.debug(f"Error getting LED state: {e}")
