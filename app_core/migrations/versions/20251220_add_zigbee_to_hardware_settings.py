@@ -12,7 +12,7 @@ import os
 
 # revision identifiers, used by Alembic.
 revision = '20251220_add_zigbee_to_hardware_settings'
-down_revision = '20251219_add_eas_settings'
+down_revision = '20251219_eas_decoder_monitor'
 branch_labels = None
 depends_on = None
 
