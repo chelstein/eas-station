@@ -962,10 +962,10 @@ class ArgonOLEDController:
             return None
 
 
-# Load settings from database (with environment fallback)
+# Load settings from database (cached at module level but refreshed on controller init)
 _oled_settings = _get_settings_or_env()
 
-OLED_ENABLED = _oled_settings.get('enabled', False)
+# Module-level configuration (refreshed when initializing controller)
 OLED_WIDTH = max(16, _oled_settings.get('width', 128))
 OLED_HEIGHT = max(16, _oled_settings.get('height', 64))
 OLED_I2C_BUS = _oled_settings.get('i2c_bus', 1)
@@ -983,6 +983,8 @@ OLED_SCROLL_EFFECT = _oled_settings.get('scroll_effect', 'scroll_left')
 OLED_SCROLL_SPEED = max(1, _oled_settings.get('scroll_speed', 4))  # Pixels per frame (1-10)
 OLED_SCROLL_FPS = max(5, min(60, _oled_settings.get('scroll_fps', 30)))  # Frames per second (default 30 for smooth I2C updates)
 
+# IMPORTANT: Don't use OLED_ENABLED at module level - check in initialise_oled_display() instead
+# This allows settings to be changed without reimporting the module
 OLED_AVAILABLE = False
 oled_controller: Optional[ArgonOLEDController] = None
 oled_button_device: Optional[Button] = None
@@ -1005,7 +1007,17 @@ def ensure_oled_button(log: Optional[logging.Logger] = None):
             log.debug("gpiozero Button class unavailable; skipping OLED button setup")
         return None
 
-    if not OLED_ENABLED:
+    # Check if OLED is enabled in database settings
+    oled_enabled = False
+    if _SETTINGS_AVAILABLE:
+        try:
+            oled_settings = get_oled_settings()
+            oled_enabled = oled_settings.get('enabled', False)
+        except Exception as exc:
+            if log:
+                log.warning("Failed to check OLED enabled status: %s", exc)
+
+    if not oled_enabled:
         if log:
             log.debug("OLED button disabled because OLED module is disabled")
         return None
@@ -1069,8 +1081,18 @@ def initialise_oled_display(log: Optional[logging.Logger] = None) -> Optional[Ar
 
     logger_ref = log or logger
 
-    if not OLED_ENABLED:
-        logger_ref.debug("OLED display disabled via configuration")
+    # Check if OLED is enabled in database settings
+    oled_settings = {}
+    oled_enabled = False
+    if _SETTINGS_AVAILABLE:
+        try:
+            oled_settings = get_oled_settings()
+            oled_enabled = oled_settings.get('enabled', False)
+        except Exception as exc:
+            logger_ref.warning("Failed to load OLED settings from database: %s; using defaults", exc)
+
+    if not oled_enabled:
+        logger_ref.debug("OLED display disabled via configuration (enable in Admin > Hardware Settings)")
         OLED_AVAILABLE = False
         oled_controller = None
         return None
@@ -1086,16 +1108,26 @@ def initialise_oled_display(log: Optional[logging.Logger] = None) -> Optional[Ar
             OLED_AVAILABLE = True
             return oled_controller
 
+        # Get configuration from settings (refresh module-level vars)
+        width = max(16, oled_settings.get('width', 128))
+        height = max(16, oled_settings.get('height', 64))
+        i2c_bus = oled_settings.get('i2c_bus', 1)
+        i2c_address = oled_settings.get('i2c_address', 0x3C)
+        rotate = oled_settings.get('rotate', 0)
+        contrast = oled_settings.get('contrast')
+        font_path = oled_settings.get('font_path')
+        default_invert = oled_settings.get('default_invert', False)
+
         try:
             controller = ArgonOLEDController(
-                width=OLED_WIDTH,
-                height=OLED_HEIGHT,
-                i2c_bus=OLED_I2C_BUS,
-                i2c_address=OLED_I2C_ADDRESS,
-                rotate=OLED_ROTATE,
-                contrast=int(OLED_CONTRAST) if OLED_CONTRAST else None,
-                font_path=OLED_FONT_PATH,
-                default_invert=OLED_DEFAULT_INVERT,
+                width=width,
+                height=height,
+                i2c_bus=i2c_bus,
+                i2c_address=i2c_address,
+                rotate=rotate,
+                contrast=int(contrast) if contrast else None,
+                font_path=font_path,
+                default_invert=default_invert,
             )
         except Exception as exc:  # pragma: no cover - hardware specific
             logger_ref.error("Failed to initialise OLED display: %s", exc)
@@ -1107,10 +1139,10 @@ def initialise_oled_display(log: Optional[logging.Logger] = None) -> Optional[Ar
         OLED_AVAILABLE = True
         logger_ref.info(
             "OLED display initialised on I2C bus %s address 0x%02X (%sx%s)",
-            OLED_I2C_BUS,
-            OLED_I2C_ADDRESS,
-            OLED_WIDTH,
-            OLED_HEIGHT,
+            i2c_bus,
+            i2c_address,
+            width,
+            height,
         )
         return controller
 
@@ -1124,7 +1156,6 @@ __all__ = [
     "OLED_BUTTON_HOLD_SECONDS",
     "OLED_CONTRAST",
     "OLED_DEFAULT_INVERT",
-    "OLED_ENABLED",
     "OLED_FONT_PATH",
     "OLED_HEIGHT",
     "OLED_I2C_ADDRESS",

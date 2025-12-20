@@ -251,24 +251,28 @@ def initialize_gpio_controller(db_session=None):
             load_gpio_pin_configs_from_env,
             load_gpio_behavior_matrix_from_env,
         )
-        from app_core.oled import OLED_ENABLED
 
         # Try to load GPIO enabled flag from database first
         try:
-            from app_core.hardware_settings import get_gpio_settings
+            from app_core.hardware_settings import get_gpio_settings, get_oled_settings
             gpio_settings = get_gpio_settings()
             gpio_enabled = gpio_settings.get('enabled', False)
+            
+            # Check if OLED is enabled to avoid pin conflicts
+            oled_settings = get_oled_settings()
+            oled_enabled = oled_settings.get('enabled', False)
         except Exception:
-            # Fallback to environment variable if database not available
-            gpio_enabled = os.getenv("GPIO_ENABLED", "false").lower() in ("true", "1", "yes")
+            # Fallback if database not available
+            gpio_enabled = False
+            oled_enabled = False
 
         if not gpio_enabled:
             logger.info("GPIO controller disabled (enable in Admin > Hardware Settings)")
             return
 
         # Load GPIO pin configurations (from database with env fallback)
-        # Pass OLED_ENABLED to ensure reserved pins are only blocked when OLED is actually enabled
-        gpio_configs = load_gpio_pin_configs_from_env(logger, oled_enabled=OLED_ENABLED)
+        # Pass oled_enabled to ensure reserved pins are only blocked when OLED is actually enabled
+        gpio_configs = load_gpio_pin_configs_from_env(logger, oled_enabled=oled_enabled)
         if not gpio_configs:
             logger.info("No GPIO pins configured (configure in Admin > Hardware Settings)")
             return
@@ -287,7 +291,7 @@ def initialize_gpio_controller(db_session=None):
                 logger.error(f"Failed to add GPIO pin {config.pin}: {e}")
 
         # Load and configure GPIO behavior matrix
-        behavior_matrix = load_gpio_behavior_matrix_from_env(logger, oled_enabled=OLED_ENABLED)
+        behavior_matrix = load_gpio_behavior_matrix_from_env(logger, oled_enabled=oled_enabled)
         if behavior_matrix:
             gpio_behavior_manager = GPIOBehaviorManager(
                 controller=_gpio_controller,
