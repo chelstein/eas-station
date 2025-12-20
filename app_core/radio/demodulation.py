@@ -509,8 +509,10 @@ class RBDSWorker:
             return self._decode_rbds_groups()
 
         # Step 6: M&M Symbol Timing (FIRST per PySDR!)
+        n_before = len(x)
         x = self._mm_timing_pysdr(x)
         time.sleep(0)  # Yield GIL
+        logger.debug("RBDS M&M: %d samples -> %d symbols", n_before, len(x))
 
         if len(x) < 2:
             return self._decode_rbds_groups()
@@ -528,6 +530,13 @@ class RBDSWorker:
             # diff = 1 when symbols differ, 0 when same
             # Per EN 62106: different = bit 1, same = bit 0
             diff = (bits_raw[1:] != bits_raw[:-1]).astype(np.int8)
+            n_bits = len(diff)
+            n_ones = int(np.sum(diff))
+            if n_bits > 0:
+                logger.debug(
+                    "RBDS bits: %d new bits, %d ones (%.1f%%), buffer=%d",
+                    n_bits, n_ones, 100.0 * n_ones / n_bits, len(self._rbds_bit_buffer)
+                )
             self._rbds_bit_buffer.extend(diff.tolist())
 
         return self._decode_rbds_groups()
