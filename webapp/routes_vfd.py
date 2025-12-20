@@ -33,12 +33,11 @@ from PIL import Image
 from app_core.extensions import db
 from app_core.vfd import (
     VFD_AVAILABLE,
-    VFD_BAUDRATE,
-    VFD_PORT,
     VFDBrightness,
     ensure_vfd_tables,
     vfd_controller,
 )
+from app_core.hardware_settings import get_vfd_settings
 from app_core.models import VFDDisplay, VFDStatus
 from app_utils import utc_now
 
@@ -170,7 +169,12 @@ def register(app: Flask, logger) -> None:
             # Update database
             db_status = VFDStatus.query.first()
             if not db_status:
-                db_status = VFDStatus(port=VFD_PORT, baudrate=VFD_BAUDRATE)
+                # Get current VFD settings from database
+                vfd_settings = get_vfd_settings()
+                db_status = VFDStatus(
+                    port=vfd_settings.get('port', '/dev/ttyUSB0'),
+                    baudrate=vfd_settings.get('baudrate', 38400)
+                )
                 db.session.add(db_status)
 
             db_status.brightness_level = level
