@@ -393,8 +393,10 @@ class RBDSWorker:
         thread is NEVER blocked by RBDS processing.
         """
         try:
-            # Non-blocking put - if queue is full, samples are dropped
-            self._sample_queue.put_nowait(multiplex.copy())
+            # CRITICAL FIX: Pass reference only - don't copy in audio thread!
+            # The multiplex array is read-only for RBDS so sharing is safe.
+            # This prevents GIL contention that was causing audio stalling.
+            self._sample_queue.put_nowait(multiplex)
         except queue.Full:
             # This is expected and fine - RBDS is lower priority than audio
             pass
