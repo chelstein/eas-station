@@ -152,6 +152,102 @@ Run through this checklist before proceeding with detailed troubleshooting:
 
 ---
 
+### Issue: "SDR Stream Stalls After 5-6 Seconds"
+
+**Symptoms:**
+- Audio plays for 5-6 seconds then stops
+- Web player shows "Buffering..." and never recovers
+- Icecast mount point not visible or shows as disconnected
+- No errors in logs until timeout
+
+**Root Cause:**
+This was caused by incorrect use of FFmpeg `-re` flag for live hardware capture. The `-re` flag throttles stdin reads to real-time rate, which creates fatal backpressure when used with live SDR audio that's already real-time.
+
+**How the Bug Manifested:**
+1. SDR demodulates audio in real-time → PCM chunks
+2. Feed loop writes chunks to FFmpeg stdin
+3. FFmpeg with `-re` throttles stdin reads to exactly real-time rate
+4. Pipe buffer (64KB) fills in <1 second
+5. `stdin.write()` blocks, feed loop freezes
+6. Audio queue fills, stream dies after 5-6 seconds
+
+**Solutions:**
+
+1. **Verify `-re` flag is NOT used for SDR sources:**
+   ```bash
+   # Check audio-service logs during startup
+   grep "Using -re flag\|NOT using -re" /var/log/eas-station/audio-service.log
+   
+   # Should see for SDR sources:
+   # "NOT using -re flag for RedisSDRSourceAdapter (live hardware)"
+   ```
+
+2. **Check version** (fixed in current development version):
+   ```bash
+   cat /opt/eas-station/VERSION
+   # Should be >= 2.42.6
+   ```
+   
+   If using older version, update:
+   ```bash
+   cd /opt/eas-station
+   git pull
+   sudo ./update.sh
+   ```
+
+3. **Manual verification** of conditional logic:
+   ```python
+   # In app_core/audio/icecast_output.py, _start_ffmpeg() method
+   # Should have conditional logic to detect source type:
+   
+   use_re_flag = False
+   source_type_name = type(self.audio_source).__name__
+   
+   # SDR sources should NOT use -re
+   if 'SDR' in source_type_name or 'sdr' in source_type_name.lower():
+       use_re_flag = False
+       logger.debug(f"NOT using -re flag for {source_type_name}")
+   
+   # HTTP/Stream sources SHOULD use -re
+   elif source_type_name in ('StreamSourceAdapter', 'IcecastIngestSource'):
+       use_re_flag = True
+       logger.debug(f"Using -re flag for {source_type_name}")
+   ```
+
+4. **Test streaming duration:**
+   ```bash
+   # Play stream for 60+ seconds
+   mpv http://localhost:8000/sdr-{receiver-id}.mp3
+   
+   # Monitor for continuous playback without stalling
+   ```
+
+5. **Check Icecast mount status:**
+   ```bash
+   # Access Icecast admin page
+   http://localhost:8000/admin/
+   
+   # Verify mount point appears and shows "Connected"
+   # Should see: /sdr-{receiver-id}.mp3
+   ```
+
+**Why `-re` is Needed for HTTP Streams:**
+- HTTP/Icecast ingest sources need `-re` for correct resampling
+- Without `-re`, FFmpeg processes network streams too fast
+- Timing relationships are lost, causing incorrect audio resampling
+- This is CORRECT behavior for network sources, WRONG for SDR
+
+**Prevention:**
+- Always test SDR streams for >60 seconds after any FFmpeg changes
+- Monitor logs for `-re` flag usage during startup
+- Check Icecast mount points appear within 10 seconds of starting
+
+**Related Documentation:**
+- `docs/architecture/SDR_SERVICE_ARCHITECTURE.md` - Section "Icecast Streaming Architecture"
+- `docs/reference/CHANGELOG.md` - Version 2.42.5 and 2.42.6 entries
+
+---
+
 ### Issue: "Wrong Frequency / Not Tuning Correctly"
 
 **Symptoms:**
