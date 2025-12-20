@@ -30,7 +30,7 @@ import subprocess
 import tempfile
 import xml.etree.ElementTree as ET
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from flask import Blueprint, flash, jsonify, redirect, render_template, request, url_for
 from werkzeug.exceptions import BadRequest
@@ -64,13 +64,14 @@ def _get_env_file_path() -> Path:
     return project_root / '.env'
 
 
-def _update_icecast_config_file(source_password: str, admin_password: str, admin_user: str = 'admin') -> tuple[bool, str]:
-    """Update Icecast server configuration file with new credentials.
+def _update_icecast_config_file(source_password: str, admin_password: str, admin_user: str = 'admin', max_sources: Optional[int] = None) -> tuple[bool, str]:
+    """Update Icecast server configuration file with new credentials and limits.
 
     Args:
         source_password: New source password
         admin_password: New admin password
         admin_user: Admin username (default: 'admin')
+        max_sources: Maximum concurrent sources (None/0 = unlimited, positive int = limit)
 
     Returns:
         Tuple of (success: bool, message: str)
@@ -98,6 +99,42 @@ def _update_icecast_config_file(source_password: str, admin_password: str, admin
                         f'<admin-user>{admin_user}</admin-user>', content)
         content = re.sub(r'<admin-password>.*?</admin-password>',
                         f'<admin-password>{admin_password}</admin-password>', content)
+        
+        # Update max sources limit
+        if max_sources is not None:
+            # If max_sources is 0 or None, set unlimited (0)
+            sources_limit = 0 if max_sources == 0 else max_sources
+            
+            # Check if <limits> section exists
+            if '<limits>' in content:
+                # Check if <sources> tag exists within <limits>
+                if re.search(r'<limits>.*?<sources>\d+</sources>.*?</limits>', content, re.DOTALL):
+                    # Replace existing <sources> tag
+                    content = re.sub(
+                        r'(<limits>.*?)<sources>\d+</sources>(.*?</limits>)',
+                        rf'\1<sources>{sources_limit}</sources>\2',
+                        content,
+                        flags=re.DOTALL
+                    )
+                else:
+                    # Add <sources> tag inside existing <limits> section
+                    content = re.sub(
+                        r'(<limits>)',
+                        rf'\1\n        <sources>{sources_limit}</sources>',
+                        content
+                    )
+            else:
+                # Add entire <limits> section after <authentication> section
+                limits_section = f'''
+    <limits>
+        <sources>{sources_limit}</sources>
+    </limits>'''
+                # Insert after </authentication> closing tag
+                content = re.sub(
+                    r'(</authentication>)',
+                    rf'\1{limits_section}',
+                    content
+                )
 
         # Write to temp file then copy with sudo
         with tempfile.NamedTemporaryFile(mode='w', suffix='.xml', delete=False) as tmp:
@@ -187,7 +224,7 @@ def update_settings():
                     data[field] = bool(data[field])
 
         # Convert integer fields
-        int_fields = ['port', 'external_port', 'stream_bitrate']
+        int_fields = ['port', 'external_port', 'stream_bitrate', 'max_sources']
         for field in int_fields:
             if field in data and data[field] is not None:
                 if data[field] == '' or data[field] == 'None':
@@ -221,6 +258,11 @@ def update_settings():
             bitrate = data['stream_bitrate']
             if bitrate is not None and (bitrate < 8 or bitrate > 320):
                 raise BadRequest("Stream bitrate must be between 8 and 320 kbps")
+        
+        if 'max_sources' in data and data['max_sources'] is not None:
+            max_src = data['max_sources']
+            if max_src < 0:
+                raise BadRequest("Max sources must be 0 (unlimited) or a positive integer")
 
         # Update settings
         settings = update_icecast_settings(data)
@@ -230,7 +272,8 @@ def update_settings():
         config_success, config_message = _update_icecast_config_file(
             settings.source_password,
             settings.admin_password,
-            settings.admin_user or 'admin'
+            settings.admin_user or 'admin',
+            settings.max_sources
         )
 
         logger.info(f"Icecast settings updated successfully. Config update: {config_message}")
@@ -445,7 +488,8 @@ def regenerate_passwords():
         config_success, config_message = _update_icecast_config_file(
             new_source_password,
             new_admin_password,
-            settings.admin_user
+            settings.admin_user,
+            settings.max_sources
         )
         
         # Invalidate cached settings

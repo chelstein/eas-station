@@ -823,6 +823,9 @@ class IcecastSettings(db.Model):
     server_hostname = db.Column(db.String(255), nullable=True)  # Server hostname for Icecast config
     server_location = db.Column(db.String(255), nullable=True)  # Server location
     admin_contact = db.Column(db.String(255), nullable=True)  # Admin contact email
+    
+    # Server Limits
+    max_sources = db.Column(db.Integer, nullable=True)  # Max concurrent sources (None/0 = unlimited, default: 2)
 
     # Metadata
     updated_at = db.Column(db.DateTime, nullable=True, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -848,6 +851,7 @@ class IcecastSettings(db.Model):
             "server_hostname": self.server_hostname,
             "server_location": self.server_location,
             "admin_contact": self.admin_contact,
+            "max_sources": self.max_sources,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
 
