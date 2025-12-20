@@ -7,15 +7,25 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
-- **Hardware Settings Page Layout** - Improved visual appearance and theme compatibility
-  - Replaced all hardcoded colors with CSS variables for proper theme support
-  - Added proper dark mode support with theme-aware colors
-  - Improved layout with centered container and better spacing
-  - Enhanced tab styling to match application design system
-  - Updated form sections with cleaner backgrounds and borders
-  - Improved modal styling with proper theme variables
-  - Enhanced GPIO card hover effects and transitions
-  - Added better visual hierarchy and reduced clutter
+- **CRITICAL: RBDS Metadata Not Displaying** - Fixed RBDS metadata not showing in UI
+  - Root cause: RBDS data was None 9 out of 10 chunks due to throttling (only processed every 10th chunk)
+  - Frontend checks `if status.rbds_data:` which is False when None
+  - **Solution**: Persist last valid RBDS data in demodulator (`_last_rbds_data`)
+  - Return persisted data on skipped processing cycles instead of None
+  - RBDS metadata now continuously displays (PS name, radio text, PTY, PI code)
+  - Still only processes heavy convolutions every 10th chunk (maintains audio fix)
+  - File: `app_core/radio/demodulation.py` - Added `_last_rbds_data` persistence
+
+- **CRITICAL: SDR Audio Cutouts Fixed** - Fixed 5-6 second audio cutouts in SDR monitor streams
+  - Root cause: RBDS processing performing 3 heavy convolutions on every audio chunk
+  - RBDS decimation filter (`np.convolve` with up to 1024 taps on 2.5MHz signal) was blocking audio thread
+  - Two additional convolutions (bandpass and lowpass filters) added to blocking time
+  - Total processing time: 5-6+ seconds per chunk, causing complete audio dropout
+  - **Solution**: Reduced RBDS processing frequency from every chunk to every 10th chunk
+  - Audio now plays continuously without gaps
+  - RBDS metadata still updates (just less frequently - every ~1 second instead of ~100ms)
+  - Reduces CPU overhead from 100% to ~10% for RBDS extraction
+  - File: `app_core/radio/demodulation.py` - Added `_rbds_process_counter` and `_rbds_process_interval`
 
 ### Added
 - **RBDS and Stereo Path Verification** - Comprehensive verification tools and documentation
