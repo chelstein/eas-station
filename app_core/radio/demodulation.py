@@ -550,15 +550,15 @@ class RBDSWorker:
 
         if len(bits_raw) > 0:
             # CRITICAL: Prepend last symbol from previous chunk for continuity
-            # Use same comparison (> 0) as bits_raw for consistency
-            prev_sym = 1 if self._rbds_prev_symbol > 0 else 0
+            # Save last BIT value (not raw sample) for next chunk
+            prev_sym = int(self._rbds_prev_symbol)
             all_symbols = np.concatenate(([prev_sym], bits_raw))
 
             # Per EN 62106: different = 1, same = 0
             diff = (all_symbols[1:] != all_symbols[:-1]).astype(np.int8)
 
-            # Save last SAMPLE value for next chunk continuity
-            self._rbds_prev_symbol = float(np.real(x[-1]))
+            # Save last BIT value for next chunk continuity (0 or 1, not raw sample)
+            self._rbds_prev_symbol = float(bits_raw[-1])
 
             n_bits = len(diff)
             n_ones = int(np.sum(diff))
@@ -904,6 +904,14 @@ class RBDSWorker:
                 # Try normal polarity first, then inverted (180° phase ambiguity)
                 syndrome = self._calc_syndrome(self._rbds_reg, 26)
                 inv_syndrome = self._calc_syndrome(self._rbds_reg ^ 0x3FFFFFF, 26)
+
+                # Debug: Log syndromes periodically
+                if not hasattr(self, '_syndrome_debug_count'):
+                    self._syndrome_debug_count = 0
+                self._syndrome_debug_count += 1
+                if self._syndrome_debug_count % 1000 == 1:
+                    logger.debug("RBDS sync search: bit_counter=%d, syndrome=%d, inv_syndrome=%d, target syndromes=%s",
+                                self._rbds_bit_counter, syndrome, inv_syndrome, syndromes)
 
                 matched_j = None
                 for j in range(5):
