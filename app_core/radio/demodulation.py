@@ -967,9 +967,15 @@ class RBDSWorker:
 
         for block_type, offset in offsets.items():
             if syndrome == offset:
+                # Track normal match count for diagnostics
+                if not hasattr(self, '_normal_match_count'):
+                    self._normal_match_count = 0
+                    self._inverted_match_count = 0
+                self._normal_match_count += 1
                 return block_type, data
 
         # DIAGNOSTIC: Try inverted bits (different differential decode convention)
+        # This handles 180° Costas loop phase ambiguity where all symbols are inverted
         inverted_bits = [1 - b for b in bits]
         data_inv = 0
         for i in range(16):
@@ -981,13 +987,26 @@ class RBDSWorker:
 
         for block_type, offset in offsets.items():
             if syndrome_inv == offset:
-                logger.warning(
-                    "RBDS: INVERTED bits matched! block=%s data=0x%04X - "
-                    "differential decode polarity is WRONG!",
-                    block_type, data_inv
-                )
-                # Return the inverted result (caller should fix polarity)
+                # Track inverted match count for diagnostics
+                if not hasattr(self, '_inverted_match_count'):
+                    self._inverted_match_count = 0
+                    self._normal_match_count = 0
+                self._inverted_match_count += 1
+
+                # Only log warning periodically to avoid spam
+                if self._inverted_match_count <= 3 or self._inverted_match_count % 50 == 0:
+                    logger.warning(
+                        "RBDS: INVERTED bits matched! block=%s data=0x%04X "
+                        "(inverted:%d normal:%d) - Costas loop may have 180° phase offset",
+                        block_type, data_inv, self._inverted_match_count, self._normal_match_count
+                    )
+                # Return the inverted result - this is valid data from a phase-inverted Costas lock
                 return block_type, data_inv
+
+        # Track normal match for diagnostics (happens in the earlier loop)
+        if not hasattr(self, '_normal_match_count'):
+            self._normal_match_count = 0
+            self._inverted_match_count = 0
 
         # Debug: log syndrome periodically to see what values we're getting
         if hasattr(self, '_syndrome_log_count'):
@@ -2023,6 +2042,14 @@ class RBDSDecoder:
         a, b, c, d = group_data
         changed = False
 
+        # Log raw block values for debugging - helps diagnose data extraction issues
+        group_type = (b >> 12) & 0xF
+        version_b = bool((b >> 11) & 0x1)
+        logger.debug(
+            "RBDS group: A=%04X B=%04X C=%04X D=%04X (type=%d%s)",
+            a, b, c, d, group_type, "B" if version_b else "A"
+        )
+
         pi_code = f"{a:04X}"
         if self.pi_code != pi_code:
             self.pi_code = pi_code
@@ -2108,6 +2135,10 @@ class RBDSDecoder:
                 char = ' '
             pos = idx + offset
             if pos < len(self.ps_name) and self.ps_name[pos] != char:
+                logger.debug(
+                    "RBDS PS: pos=%d char='%s' (0x%02X) from D=0x%04X addr=%d",
+                    pos, char, char_code, chars, address
+                )
                 self.ps_name[pos] = char
                 updated = True
         return updated
