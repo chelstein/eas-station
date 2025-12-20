@@ -346,6 +346,7 @@ class RBDSWorker:
         self._rbds_prev_symbol: float = 1.0
         self._rbds_carrier_phase: float = 0.0
         self._rbds_consecutive_crc_failures: int = 0
+        self._rbds_synchronized: bool = False  # Require A→B confirmation before trusting data
 
         # Sample tracking for phase-continuous 57kHz carrier
         self._sample_index: int = 0
@@ -881,6 +882,9 @@ class RBDSWorker:
                     self._rbds_expected_block = None
                     self._rbds_partial_group.clear()
                     self._rbds_consecutive_crc_failures = 0
+                    if self._rbds_synchronized:
+                        logger.warning("RBDS SYNC LOST - too many CRC failures")
+                        self._rbds_synchronized = False
                     break
 
                 if consecutive_failures > 10:
@@ -895,6 +899,29 @@ class RBDSWorker:
             self._rbds_consecutive_crc_failures = 0
             consecutive_failures = 0
             logger.debug("RBDS block decoded: type=%s, data=0x%04X", block_type, data_word)
+
+            # SYNCHRONIZATION CHECK: Require A→B confirmation to avoid false positives
+            # Random bit positions have ~0.5% chance of false positive CRC match
+            if not self._rbds_synchronized:
+                if block_type == "A" and len(self._rbds_bit_buffer) >= 52:
+                    # Found potential A - check if B follows at exactly 26 bits
+                    next_block_bits = list(self._rbds_bit_buffer)[26:52]
+                    next_type, next_data = self._decode_rbds_block(next_block_bits)
+                    if next_type == "B":
+                        # Confirmed A→B sequence - we're synchronized!
+                        self._rbds_synchronized = True
+                        logger.info("RBDS SYNCHRONIZED! A=0x%04X B=0x%04X", data_word, next_data)
+                    else:
+                        # False positive A, shift by 1 bit and continue searching
+                        del self._rbds_bit_buffer[0]
+                        continue
+                elif block_type != "A":
+                    # Not A, not synchronized - keep searching for A
+                    del self._rbds_bit_buffer[0]
+                    continue
+                else:
+                    # Found A but not enough bits to verify B yet
+                    return None  # Wait for more bits
 
             if self._rbds_expected_block is None:
                 if block_type != "A":
