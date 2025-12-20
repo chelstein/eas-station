@@ -6,6 +6,19 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+### Fixed
+- **CRITICAL: RBDS Synchronization Fixed** - Replaced M&M clock recovery with working reference implementation
+  - Root cause: Timing recovery was using incorrect algorithm that prevented sync
+  - Implemented python-radio's interpolation-based M&M clock recovery with 16x upsampling
+  - Uses mu-based sample interpolation for precise symbol timing
+  - Maintains timing state (mu, rail history) across chunk boundaries for continuous streaming
+  - Differential decoding now correctly handles phase ambiguity
+  - RBDS should now properly synchronize and decode station info (PI, PS, RT)
+  - Reference: https://github.com/ChrisDev8/python-radio/blob/main/decoder.py
+  - File: `app_core/radio/demodulation.py`
+
+## [2.43.0] - 2024-12-20
+
 ### Added
 - **Icecast Source Limit Configuration** - Made maximum concurrent sources configurable
   - Added `max_sources` field to `IcecastSettings` database model
