@@ -521,6 +521,18 @@ class RBDSWorker:
         x = self._costas_pysdr(x)
         time.sleep(0)  # Yield GIL
 
+        # Log Costas frequency offset to check if it's locked
+        if hasattr(self, '_costas_log_count'):
+            self._costas_log_count += 1
+        else:
+            self._costas_log_count = 0
+        if self._costas_log_count % 50 == 0:
+            logger.debug(
+                "RBDS Costas: freq=%.3f Hz, phase=%.2f rad",
+                self._rbds_costas_freq * 1187.5 / (2 * np.pi),  # Convert to Hz
+                self._rbds_costas_phase
+            )
+
         # Step 8: BPSK demod + differential decode (EN 62106 standard)
         # Differential: d[i] = d[i-1] XOR a[i], so a[i] = d[i] XOR d[i-1]
         # Same symbols → bit 0, different symbols → bit 1
