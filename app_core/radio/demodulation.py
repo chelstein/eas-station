@@ -553,9 +553,9 @@ class RBDSWorker:
             prev_sym = 1 if self._rbds_prev_symbol >= 0 else 0
             all_symbols = np.concatenate(([prev_sym], bits_raw))
 
-            # diff = 1 when symbols differ, 0 when same
-            # Per EN 62106: different = bit 1, same = bit 0
-            diff = (all_symbols[1:] != all_symbols[:-1]).astype(np.int8)
+            # diff = 1 when symbols are same, 0 when different
+            # Confirmed via diagnostic: inverted bits match valid RBDS blocks
+            diff = (all_symbols[1:] == all_symbols[:-1]).astype(np.int8)
 
             # Save last SAMPLE value (not bit!) for next chunk
             # Must be actual sample value so >= 0 check works correctly
