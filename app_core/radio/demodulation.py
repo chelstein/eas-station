@@ -479,22 +479,28 @@ class FMDemodulator:
 
                 # Extract RBDS data - this processes the 57 kHz subcarrier
                 try:
-                    rbds_data = self._extract_rbds(multiplex, sample_indices)
-                    if rbds_data:
+                    current_rbds_data = self._extract_rbds(multiplex, sample_indices)
+                    if current_rbds_data:
                         # Persist valid RBDS data for display between processing cycles
-                        self._last_rbds_data = rbds_data
+                        self._last_rbds_data = current_rbds_data
+                        rbds_data = current_rbds_data
                         # Only log when RBDS data actually changes (not every demodulation cycle)
                         # This prevents CPU hammering from excessive logging
-                        rbds_str = f"PS='{rbds_data.ps_name}' RT='{rbds_data.radio_text}' PTY={rbds_data.pty} PI={rbds_data.pi_code}"
+                        rbds_str = f"PS='{current_rbds_data.ps_name}' RT='{current_rbds_data.radio_text}' PTY={current_rbds_data.pty} PI={current_rbds_data.pi_code}"
                         if rbds_str != self._last_logged_rbds:
                             logger.info(f"RBDS: {rbds_str}")
                             self._last_logged_rbds = rbds_str
+                    else:
+                        # No new data this cycle, use last valid
+                        rbds_data = self._last_rbds_data
                 except Exception as e:
                     logger.warning(f"RBDS extraction error: {e}", exc_info=True)
-            
-            # Use last valid RBDS data even when skipping processing this cycle
-            # This ensures metadata continues to display between update cycles
-            rbds_data = self._last_rbds_data
+                    # On error, use last valid data
+                    rbds_data = self._last_rbds_data
+            else:
+                # Skipping processing this cycle - use last valid RBDS data
+                # This ensures metadata continues to display between update cycles
+                rbds_data = self._last_rbds_data
 
         # Calculate decimation factor for audio downsampling
         target_rate = self.config.audio_sample_rate
