@@ -498,11 +498,20 @@ class RBDSWorker:
         decim = max(1, int(sample_rate / 25000))
         if decim > 1:
             x = x[::decim]
-            sample_rate = sample_rate / decim
+            sample_rate = int(sample_rate // decim)  # Keep as int
         time.sleep(0)  # Yield GIL
 
         # Step 5: Resample to exactly 19 kHz (16 samples per symbol)
-        x = self._resample(x, int(sample_rate), 19000)
+        # Log sample rates periodically for debugging
+        if not hasattr(self, '_rate_log_count'):
+            self._rate_log_count = 0
+        self._rate_log_count += 1
+        if self._rate_log_count % 100 == 1:
+            logger.debug(
+                "RBDS rates: input=%d, post-decim=%d, resampling %d->19000, samples=%d",
+                self._sample_rate, sample_rate, sample_rate, len(x)
+            )
+        x = self._resample(x, sample_rate, 19000)
         time.sleep(0)  # Yield GIL
 
         if len(x) < 48:  # Need enough samples for M&M
@@ -548,8 +557,9 @@ class RBDSWorker:
             # Per EN 62106: different = bit 1, same = bit 0
             diff = (all_symbols[1:] != all_symbols[:-1]).astype(np.int8)
 
-            # Save last symbol for next chunk
-            self._rbds_prev_symbol = float(bits_raw[-1])
+            # Save last SAMPLE value (not bit!) for next chunk
+            # Must be actual sample value so >= 0 check works correctly
+            self._rbds_prev_symbol = float(np.real(x[-1]))
 
             n_bits = len(diff)
             n_ones = int(np.sum(diff))
@@ -642,13 +652,20 @@ class RBDSWorker:
         return out_array[:n_out] if n_out > 0 else np.array([], dtype=np.complex64)
 
     def _costas_pysdr(self, samples: np.ndarray) -> np.ndarray:
-        """Costas loop - PySDR parameters (alpha=8.0, beta=0.02).
+        """Costas loop for BPSK carrier/phase synchronization.
+
+        Uses correct loop parameters derived from loop bandwidth equations.
+        alpha and beta are set in _init_rbds_state (0.132 and 0.00932).
 
         Uses numba JIT when available, otherwise optimized Python with GIL yields.
         """
         n = len(samples)
         if n == 0:
             return samples
+
+        # Use the correctly computed loop parameters from init
+        alpha = self._rbds_costas_alpha  # 0.132
+        beta = self._rbds_costas_beta    # 0.00932
 
         # Use JIT-compiled version if numba is available (50-100x faster)
         if _NUMBA_AVAILABLE and n > 50:
@@ -658,8 +675,8 @@ class RBDSWorker:
                 samples_f64.imag.astype(np.float64),
                 self._rbds_costas_phase,
                 self._rbds_costas_freq,
-                8.0,  # alpha - PySDR value
-                0.02  # beta - PySDR value
+                alpha,
+                beta
             )
             self._rbds_costas_phase = phase
             self._rbds_costas_freq = freq
@@ -668,8 +685,6 @@ class RBDSWorker:
         # Pure Python fallback with GIL yields to prevent audio stalling
         phase = self._rbds_costas_phase
         freq = self._rbds_costas_freq
-        alpha = 8.0
-        beta = 0.02
         two_pi = 6.283185307179586  # Avoid repeated 2*pi calculation
 
         out = np.empty(n, dtype=np.complex64)
@@ -928,7 +943,7 @@ class RBDSWorker:
             "D": 0x1B4,
         }
 
-        # Extract 16-bit data and 10-bit checkword
+        # Extract 16-bit data and 10-bit checkword (MSB first)
         data = 0
         for i in range(16):
             data = (data << 1) | bits[i]
@@ -940,17 +955,40 @@ class RBDSWorker:
         # Calculate syndrome
         syndrome = self._crc_syndrome(data, checkword)
 
+        for block_type, offset in offsets.items():
+            if syndrome == offset:
+                return block_type, data
+
+        # DIAGNOSTIC: Try inverted bits (different differential decode convention)
+        inverted_bits = [1 - b for b in bits]
+        data_inv = 0
+        for i in range(16):
+            data_inv = (data_inv << 1) | inverted_bits[i]
+        checkword_inv = 0
+        for i in range(16, 26):
+            checkword_inv = (checkword_inv << 1) | inverted_bits[i]
+        syndrome_inv = self._crc_syndrome(data_inv, checkword_inv)
+
+        for block_type, offset in offsets.items():
+            if syndrome_inv == offset:
+                logger.warning(
+                    "RBDS: INVERTED bits matched! block=%s data=0x%04X - "
+                    "differential decode polarity is WRONG!",
+                    block_type, data_inv
+                )
+                # Return the inverted result (caller should fix polarity)
+                return block_type, data_inv
+
         # Debug: log syndrome periodically to see what values we're getting
         if hasattr(self, '_syndrome_log_count'):
             self._syndrome_log_count += 1
         else:
             self._syndrome_log_count = 0
         if self._syndrome_log_count % 100 == 0:
-            logger.debug("RBDS syndrome: 0x%03X (offsets: A=0x0FC B=0x198 C=0x168 D=0x1B4)", syndrome)
-
-        for block_type, offset in offsets.items():
-            if syndrome == offset:
-                return block_type, data
+            logger.debug(
+                "RBDS syndrome: normal=0x%03X inverted=0x%03X (offsets: A=0x0FC B=0x198 C=0x168 D=0x1B4)",
+                syndrome, syndrome_inv
+            )
 
         return None, 0
 
