@@ -6,6 +6,17 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+### Fixed
+- **Hardware Settings Page Layout** - Improved visual appearance and theme compatibility
+  - Replaced all hardcoded colors with CSS variables for proper theme support
+  - Added proper dark mode support with theme-aware colors
+  - Improved layout with centered container and better spacing
+  - Enhanced tab styling to match application design system
+  - Updated form sections with cleaner backgrounds and borders
+  - Improved modal styling with proper theme variables
+  - Enhanced GPIO card hover effects and transitions
+  - Added better visual hierarchy and reduced clutter
+
 ### Added
 - **RBDS and Stereo Path Verification** - Comprehensive verification tools and documentation
   - Added `tools/analyze_rbds_stereo_code.py` - Static code analyzer for RBDS/stereo paths
