@@ -343,9 +343,13 @@ class IcecastStreamer:
             logger.info(f"Connecting to Icecast: {self.config.server}:{self.config.port}/{mount_path}")
 
             # FFmpeg command to encode and stream
+            # CRITICAL FIX: DO NOT use -re flag when reading from pipe!
+            # The -re flag throttles stdin reads to real-time rate, causing backpressure
+            # that blocks the feed loop and leads to audio stalling after 5-6 seconds.
+            # Audio is already captured in real-time by the SDR hardware/adapter,
+            # so FFmpeg should consume stdin as fast as possible without additional throttling.
             cmd = [
                 'ffmpeg',
-                '-re',  # CRITICAL: Read input at native frame rate (real-time streaming)
                 '-f', 's16le',  # Input: 16-bit PCM
                 '-ar', str(self.config.sample_rate),  # Sample rate
                 '-ac', str(max(1, int(self.config.channels))),
