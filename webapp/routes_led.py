@@ -39,6 +39,7 @@ from app_core.led import (
     Speed,
     ensure_led_tables,
 )
+from app_core.hardware_settings import get_led_settings
 from app_core.models import LEDMessage, LEDSignStatus
 from app_utils import utc_now
 
@@ -451,7 +452,9 @@ def register(app: Flask, logger) -> None:
             result = led_module.led_controller.set_brightness(brightness)
 
             if result:
-                ip_address = os.getenv("LED_SIGN_IP", "")
+                # Get IP from database settings
+                led_settings = get_led_settings()
+                ip_address = led_settings.get('ip_address', '')
                 status = LEDSignStatus.query.filter_by(sign_ip=ip_address).first()
                 if status:
                     status.brightness_level = brightness
@@ -520,7 +523,10 @@ def register(app: Flask, logger) -> None:
     @app.route("/api/led/status")
     def api_led_status():
         try:
-            from app_core.led import LED_SIGN_IP, LED_SIGN_PORT
+            # Get LED settings from database
+            led_settings = get_led_settings()
+            led_ip = led_settings.get('ip_address', '192.168.1.100')
+            led_port = led_settings.get('port', 10001)
 
             # Check if health check is requested (default: True for active monitoring)
             check_health = request.args.get('health_check', 'true').lower() == 'true'
@@ -530,8 +536,8 @@ def register(app: Flask, logger) -> None:
                 return jsonify({
                     "success": True,
                     "connected": False,
-                    "host": LED_SIGN_IP,
-                    "port": LED_SIGN_PORT,
+                    "host": led_ip,
+                    "port": led_port,
                     "error": "LED controller not available - check bridge connection",
                     "timestamp": utc_now().isoformat(),
                 })
@@ -549,12 +555,13 @@ def register(app: Flask, logger) -> None:
             })
         except Exception as exc:
             route_logger.error("Error retrieving LED status: %s", exc)
-            from app_core.led import LED_SIGN_IP, LED_SIGN_PORT
+            # Get LED settings from database for error response
+            led_settings = get_led_settings()
             return jsonify({
                 "success": False,
                 "connected": False,
-                "host": LED_SIGN_IP,
-                "port": LED_SIGN_PORT,
+                "host": led_settings.get('ip_address', '192.168.1.100'),
+                "port": led_settings.get('port', 10001),
                 "error": str(exc)
             })
 
@@ -735,17 +742,23 @@ def register(app: Flask, logger) -> None:
     def api_led_reconnect():
         """Attempt to reinitialize the LED controller connection."""
         try:
-            from app_core.led import LED_SIGN_IP, LED_SIGN_PORT, LEDSignController, get_location_settings
+            from app_core.led import LEDSignController
+            from app_core.location import get_location_settings
             import app_core.led as led_module
 
-            route_logger.info(f"Attempting to reconnect to LED sign at {LED_SIGN_IP}:{LED_SIGN_PORT}")
+            # Get LED settings from database
+            led_settings = get_led_settings()
+            led_ip = led_settings.get('ip_address', '192.168.1.100')
+            led_port = led_settings.get('port', 10001)
+
+            route_logger.info(f"Attempting to reconnect to LED sign at {led_ip}:{led_port}")
 
             # Try to create a new controller directly (bypass initialise_led_controller's checks)
             try:
                 settings = get_location_settings()
                 controller = LEDSignController(
-                    LED_SIGN_IP,
-                    LED_SIGN_PORT,
+                    led_ip,
+                    led_port,
                     location_settings=settings,
                 )
 
@@ -755,17 +768,17 @@ def register(app: Flask, logger) -> None:
                     led_module.led_controller = controller
                     led_module.LED_AVAILABLE = True
 
-                    route_logger.info(f"Successfully reconnected to LED sign at {LED_SIGN_IP}:{LED_SIGN_PORT}")
+                    route_logger.info(f"Successfully reconnected to LED sign at {led_ip}:{led_port}")
 
                     return jsonify({
                         "success": True,
-                        "message": f"Successfully connected to LED sign at {LED_SIGN_IP}:{LED_SIGN_PORT}",
+                        "message": f"Successfully connected to LED sign at {led_ip}:{led_port}",
                         "connected": True
                     })
                 else:
                     return jsonify({
                         "success": False,
-                        "error": f"Could not connect to LED sign at {LED_SIGN_IP}:{LED_SIGN_PORT}. Check bridge is powered on and configured as TCP Server on port {LED_SIGN_PORT}.",
+                        "error": f"Could not connect to LED sign at {led_ip}:{led_port}. Check bridge is powered on and configured as TCP Server on port {led_port}.",
                         "connected": False
                     })
 

@@ -220,8 +220,6 @@ def _ensure_vfd_tables_impl():
 __all__ = [
     "NoritakeVFDController",
     "VFD_AVAILABLE",
-    "VFD_BAUDRATE",
-    "VFD_PORT",
     "VFDBrightness",
     "VFDFont",
     "ensure_vfd_tables",

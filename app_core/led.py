@@ -230,8 +230,6 @@ __all__ = [
     "Font",
     "FontSize",
     "LED_AVAILABLE",
-    "LED_SIGN_IP",
-    "LED_SIGN_PORT",
     "MessagePriority",
     "SpecialFunction",
     "Speed",
