@@ -457,69 +457,57 @@ class RBDSWorker:
         if len(multiplex) == 0:
             return None
 
-        # Diagnostic: Log input signal
-        mpx_rms = np.sqrt(np.mean(multiplex ** 2))
+        # CRITICAL: Yield GIL frequently to prevent audio stalling
+        # Each heavy numpy operation can block other threads
 
         # Step 1: Decimate to intermediate rate
         if self._rbds_decim_filter is not None and self._rbds_decim_factor > 1:
             filtered = np.convolve(multiplex, self._rbds_decim_filter, mode="same")
+            time.sleep(0)  # Yield GIL
             rbds_signal = fast_decimate(filtered.astype(np.float32), self._rbds_decim_factor)
             rbds_rate = self._intermediate_rate
         else:
             rbds_signal = multiplex
             rbds_rate = self._sample_rate
+        time.sleep(0)  # Yield GIL
 
         # Step 2: Bandpass filter for 54-60 kHz RBDS subcarrier
         rbds_band = np.convolve(rbds_signal, self._rbds_bandpass, mode="same")
+        time.sleep(0)  # Yield GIL
+
+        # Check signal quality
         rbds_rms = np.sqrt(np.mean(rbds_band ** 2))
-
-        # Diagnostic: Log every 50th sample to avoid spam
-        if hasattr(self, '_diag_counter'):
-            self._diag_counter += 1
-        else:
-            self._diag_counter = 0
-
-        if self._diag_counter % 50 == 0:
-            logger.debug(
-                f"RBDS diag: mpx_rms={mpx_rms:.4f}, rbds_band_rms={rbds_rms:.6f}, "
-                f"rate={rbds_rate}Hz, samples={len(rbds_signal)}"
-            )
-
-        # Check signal quality - RBDS is typically -20 to -25dB below audio
-        if rbds_rms < mpx_rms * 0.005:  # Relaxed from 0.01
-            if self._diag_counter % 50 == 0:
-                logger.debug(f"RBDS signal too weak: {rbds_rms:.6f} < {mpx_rms * 0.005:.6f}")
+        mpx_rms = np.sqrt(np.mean(multiplex ** 2))
+        if rbds_rms < mpx_rms * 0.005:
             return self._decode_rbds_groups()
 
-        # Step 3: Mix to baseband using complex exponential
+        # Step 3: Mix to baseband
         num_samples = len(rbds_band)
         t = np.arange(num_samples, dtype=np.float64) / float(rbds_rate)
+        time.sleep(0)  # Yield GIL
         carrier = np.exp(-1j * (2.0 * np.pi * 57000.0 * t + self._rbds_carrier_phase))
+        time.sleep(0)  # Yield GIL
         baseband = rbds_band * carrier
         self._rbds_carrier_phase = (self._rbds_carrier_phase + 2.0 * np.pi * 57000.0 * num_samples / rbds_rate) % (2.0 * np.pi)
+        time.sleep(0)  # Yield GIL
 
         # Step 4: Lowpass filter
         baseband_filtered = np.convolve(baseband, self._rbds_lowpass, mode="same")
+        time.sleep(0)  # Yield GIL
 
         # Step 5: Resample to target rate (19 kHz)
         resampled = self._resample(baseband_filtered, rbds_rate, int(self._rbds_target_rate))
+        time.sleep(0)  # Yield GIL
 
         if len(resampled) < self._rbds_samples_per_symbol * 2:
             return self._decode_rbds_groups()
 
-        # Diagnostic: Log baseband signal
-        bb_rms = np.sqrt(np.mean(np.abs(resampled) ** 2))
-        if self._diag_counter % 50 == 0:
-            logger.debug(f"RBDS baseband: rms={bb_rms:.6f}, samples={len(resampled)}")
-
-        # Step 6: Costas loop for carrier phase/freq tracking
+        # Step 6: Costas loop - already has GIL yields in batches
         synced = self._costas_loop(resampled)
+        time.sleep(0)  # Yield GIL
 
-        # Step 7: M&M clock recovery to extract bits
+        # Step 7: M&M clock recovery
         bits = self._mm_clock_recovery(synced)
-
-        if self._diag_counter % 50 == 0:
-            logger.debug(f"RBDS bits extracted: {len(bits)}, buffer={len(self._rbds_bit_buffer)}")
 
         if bits:
             self._rbds_bit_buffer.extend(bits)
