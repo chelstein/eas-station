@@ -325,9 +325,12 @@ class RBDSWorker:
         self._rbds_target_rate = self._rbds_symbol_rate * self._rbds_samples_per_symbol
 
         # M&M clock recovery state
-        self._rbds_mm_mu = 0.01
+        self._rbds_mm_mu = 0.0
         self._rbds_mm_out_rail = 0.0
         self._rbds_mm_out = 0.0
+        # State for timing error calculation (need last 2 symbols)
+        self._rbds_mm_last_out = [0.0, 0.0]  # Last 2 output values
+        self._rbds_mm_last_rail = [0.0, 0.0]  # Last 2 rail values
 
         # Costas loop state
         self._rbds_costas_phase = 0.0
@@ -343,8 +346,9 @@ class RBDSWorker:
         self._rbds_carrier_phase: float = 0.0
         self._rbds_consecutive_crc_failures: int = 0
 
-        # Sample tracking
+        # Sample tracking for phase-continuous 57kHz carrier
         self._sample_index: int = 0
+        self._carrier_phase_57k: float = 0.0  # Phase of 57kHz carrier for mixing
 
     def _design_fir_lowpass(self, cutoff: float, sample_rate: int, taps: int = 101) -> np.ndarray:
         """Design FIR lowpass filter using windowed sinc method."""
@@ -455,69 +459,196 @@ class RBDSWorker:
         logger.info("RBDS worker thread exited (samples=%d, groups=%d)", samples_processed, groups_decoded)
 
     def _process_rbds(self, multiplex: np.ndarray) -> Optional[RBDSData]:
-        """Process multiplex samples to extract RBDS data."""
+        """Process multiplex samples to extract RBDS data.
+
+        Based on PySDR's working implementation:
+        https://pysdr.org/content/rds.html
+
+        Key insight: M&M timing FIRST, then Costas loop!
+        """
         if len(multiplex) == 0:
             return None
-
-        # CRITICAL: Yield GIL frequently to prevent audio stalling
-        # Each heavy numpy operation can block other threads
 
         # Step 1: Decimate to intermediate rate
         if self._rbds_decim_filter is not None and self._rbds_decim_factor > 1:
             filtered = np.convolve(multiplex, self._rbds_decim_filter, mode="same")
-            time.sleep(0)  # Yield GIL
-            rbds_signal = fast_decimate(filtered.astype(np.float32), self._rbds_decim_factor)
-            rbds_rate = self._intermediate_rate
+            x = fast_decimate(filtered.astype(np.float32), self._rbds_decim_factor)
+            sample_rate = self._intermediate_rate
         else:
-            rbds_signal = multiplex
-            rbds_rate = self._sample_rate
+            x = multiplex.astype(np.float32)
+            sample_rate = self._sample_rate
         time.sleep(0)  # Yield GIL
 
-        # Step 2: Bandpass filter for 54-60 kHz RBDS subcarrier
-        rbds_band = np.convolve(rbds_signal, self._rbds_bandpass, mode="same")
+        # Step 2: Frequency shift to baseband (-57 kHz) - PHASE CONTINUOUS
+        # CRITICAL FIX: Track carrier phase across calls to avoid discontinuities
+        n = len(x)
+        phase_increment = 2.0 * np.pi * 57000.0 / sample_rate
+        phases = self._carrier_phase_57k + phase_increment * np.arange(n, dtype=np.float64)
+        x = x * np.exp(-1j * phases)
+        # Update phase for next call (wrap to avoid precision loss)
+        self._carrier_phase_57k = (self._carrier_phase_57k + phase_increment * n) % (2.0 * np.pi)
         time.sleep(0)  # Yield GIL
 
-        # Check signal quality
-        rbds_rms = np.sqrt(np.mean(rbds_band ** 2))
-        mpx_rms = np.sqrt(np.mean(multiplex ** 2))
-        if rbds_rms < mpx_rms * 0.005:
+        # Step 3: Lowpass filter (7.5 kHz)
+        x = np.convolve(x, self._rbds_lowpass, mode='same')
+        time.sleep(0)  # Yield GIL
+
+        # Step 4: Decimate by 10 (if sample rate allows)
+        decim = max(1, int(sample_rate / 25000))
+        if decim > 1:
+            x = x[::decim]
+            sample_rate = sample_rate / decim
+        time.sleep(0)  # Yield GIL
+
+        # Step 5: Resample to exactly 19 kHz (16 samples per symbol)
+        x = self._resample(x, int(sample_rate), 19000)
+        time.sleep(0)  # Yield GIL
+
+        if len(x) < 48:  # Need enough samples for M&M
             return self._decode_rbds_groups()
 
-        # Step 3: Mix to baseband
-        num_samples = len(rbds_band)
-        t = np.arange(num_samples, dtype=np.float64) / float(rbds_rate)
-        time.sleep(0)  # Yield GIL
-        carrier = np.exp(-1j * (2.0 * np.pi * 57000.0 * t + self._rbds_carrier_phase))
-        time.sleep(0)  # Yield GIL
-        baseband = rbds_band * carrier
-        self._rbds_carrier_phase = (self._rbds_carrier_phase + 2.0 * np.pi * 57000.0 * num_samples / rbds_rate) % (2.0 * np.pi)
+        # Step 6: M&M Symbol Timing (FIRST per PySDR!)
+        x = self._mm_timing_pysdr(x)
         time.sleep(0)  # Yield GIL
 
-        # Step 4: Lowpass filter
-        baseband_filtered = np.convolve(baseband, self._rbds_lowpass, mode="same")
-        time.sleep(0)  # Yield GIL
-
-        # Step 5: Resample to target rate (19 kHz)
-        resampled = self._resample(baseband_filtered, rbds_rate, int(self._rbds_target_rate))
-        time.sleep(0)  # Yield GIL
-
-        if len(resampled) < self._rbds_samples_per_symbol * 2:
+        if len(x) < 2:
             return self._decode_rbds_groups()
 
-        # Step 6: Costas loop - already has GIL yields in batches
-        synced = self._costas_loop(resampled)
+        # Step 7: Costas Loop (SECOND per PySDR!)
+        x = self._costas_pysdr(x)
         time.sleep(0)  # Yield GIL
 
-        # Step 7: M&M clock recovery
-        bits = self._mm_clock_recovery(synced)
+        # Step 8: BPSK demod + differential decode (PySDR style)
+        bits_raw = (np.real(x) > 0).astype(int)
 
-        if bits:
+        if len(bits_raw) > 1:
+            # PySDR differential: (bits[1:] - bits[0:-1]) % 2
+            # This gives 1=transition, 0=no_transition
+            # RBDS standard: 1=no_change, 0=change, so invert
+            diff = (bits_raw[1:] - bits_raw[:-1]) % 2
+            bits = [1 - int(b) for b in diff]
             self._rbds_bit_buffer.extend(bits)
 
         return self._decode_rbds_groups()
 
+    def _mm_timing_pysdr(self, samples: np.ndarray) -> np.ndarray:
+        """M&M symbol timing with proper state continuity across calls.
+
+        Uses linear interpolation and maintains state for continuous processing.
+        """
+        n = len(samples)
+        if n < 32:
+            return samples
+
+        sps = 16  # samples per symbol at 19kHz
+        mu = self._rbds_mm_mu
+        samples_real = np.real(samples)
+        samples_imag = np.imag(samples)
+
+        # Pre-allocate output (estimate ~n/sps symbols)
+        max_symbols = n // sps + 10
+        symbols_out = []
+
+        # Initialize with state from previous call
+        prev_out = list(self._rbds_mm_last_out)  # [out[-2], out[-1]]
+        prev_rail = list(self._rbds_mm_last_rail)  # [rail[-2], rail[-1]]
+
+        i_in = 0.0
+
+        while i_in + 1 < n and len(symbols_out) < max_symbols:
+            # Linear interpolation between adjacent samples
+            idx = int(i_in)
+            frac = i_in - idx
+
+            if idx + 1 >= n:
+                break
+
+            # Interpolate
+            re = samples_real[idx] * (1 - frac) + samples_real[idx + 1] * frac
+            im = samples_imag[idx] * (1 - frac) + samples_imag[idx + 1] * frac
+            out_sample = complex(re, im)
+
+            # Hard decision (rail)
+            rail_sample = complex(
+                1.0 if re > 0 else -1.0,
+                1.0 if im > 0 else -1.0
+            )
+
+            # M&M timing error detector using previous 2 symbols
+            # Error = (rail[n] - rail[n-2]) * conj(out[n-1]) - (out[n] - out[n-2]) * conj(rail[n-1])
+            x_term = (rail_sample - prev_rail[0]) * np.conj(prev_out[1])
+            y_term = (out_sample - prev_out[0]) * np.conj(prev_rail[1])
+            mm_val = np.real(y_term - x_term)
+
+            # Update timing with clamping
+            mu += 0.01 * mm_val
+            mu = max(-0.5, min(0.5, mu))
+
+            # Shift history
+            prev_out[0], prev_out[1] = prev_out[1], out_sample
+            prev_rail[0], prev_rail[1] = prev_rail[1], rail_sample
+
+            symbols_out.append(out_sample)
+
+            # Advance by one symbol period
+            i_in += sps + mu
+
+        # Save state for next call
+        self._rbds_mm_mu = mu
+        self._rbds_mm_last_out = prev_out
+        self._rbds_mm_last_rail = prev_rail
+
+        if len(symbols_out) == 0:
+            return np.array([], dtype=np.complex64)
+        return np.array(symbols_out, dtype=np.complex64)
+
+    def _costas_pysdr(self, samples: np.ndarray) -> np.ndarray:
+        """Costas loop - PySDR parameters (alpha=8.0, beta=0.02).
+
+        OPTIMIZED: Uses math.cos/sin instead of np.exp for 10x speedup.
+        """
+        n = len(samples)
+        if n == 0:
+            return samples
+
+        phase = self._rbds_costas_phase
+        freq = self._rbds_costas_freq
+        # PySDR parameters - MUCH faster lock than our previous values!
+        alpha = 8.0
+        beta = 0.02
+        two_pi = 2.0 * math.pi
+
+        out = np.zeros(n, dtype=np.complex64)
+        samples_real = np.real(samples)
+        samples_imag = np.imag(samples)
+
+        for i in range(n):
+            # OPTIMIZED: Use math.cos/sin instead of np.exp (10x faster)
+            cos_phase = math.cos(phase)
+            sin_phase = math.sin(phase)
+
+            # Complex multiply by exp(-j*phase): rotate backwards
+            out_real = samples_real[i] * cos_phase + samples_imag[i] * sin_phase
+            out_imag = samples_imag[i] * cos_phase - samples_real[i] * sin_phase
+            out[i] = complex(out_real, out_imag)
+
+            # BPSK phase error
+            error = out_real * out_imag
+            freq += beta * error
+            phase += freq + alpha * error
+
+            # Wrap phase efficiently
+            if phase >= two_pi:
+                phase -= two_pi
+            elif phase < 0:
+                phase += two_pi
+
+        self._rbds_costas_phase = phase
+        self._rbds_costas_freq = freq
+        return out
+
     def _resample(self, signal: np.ndarray, from_rate: int, to_rate: int) -> np.ndarray:
-        """Resample signal."""
+        """Resample signal - handles both real and complex signals."""
         if from_rate == to_rate:
             return signal
         try:
@@ -532,7 +663,13 @@ class RBDSWorker:
             new_length = int(len(signal) * ratio)
             old_indices = np.arange(len(signal))
             new_indices = np.linspace(0, len(signal) - 1, new_length)
-            return np.interp(new_indices, old_indices, np.real(signal)).astype(signal.dtype)
+            # CRITICAL FIX: Handle complex signals properly
+            if np.iscomplexobj(signal):
+                real_resampled = np.interp(new_indices, old_indices, np.real(signal))
+                imag_resampled = np.interp(new_indices, old_indices, np.imag(signal))
+                return (real_resampled + 1j * imag_resampled).astype(signal.dtype)
+            else:
+                return np.interp(new_indices, old_indices, signal).astype(signal.dtype)
 
     def _costas_loop(self, samples: np.ndarray) -> np.ndarray:
         """Costas loop for BPSK frequency sync."""
