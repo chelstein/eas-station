@@ -432,10 +432,11 @@ class RBDSWorker:
                 # Periodic status logging (every 100 samples processed)
                 if samples_processed % 100 == 0:
                     logger.debug(
-                        "RBDS worker status: %d samples processed, %d groups decoded, buffer=%d bits",
+                        "RBDS worker status: %d samples processed, %d groups decoded, buffer=%d bits, crc_fails=%d",
                         samples_processed,
                         groups_decoded,
-                        len(self._rbds_bit_buffer)
+                        len(self._rbds_bit_buffer),
+                        self._rbds_consecutive_crc_failures
                     )
             except Exception as e:
                 logger.warning(f"RBDS processing error: {e}", exc_info=True)
@@ -588,7 +589,8 @@ class RBDSWorker:
             out_rail = out_rail_new
 
             symbol = 1.0 if out_new >= 0 else -1.0
-            bit = 0 if symbol == prev_symbol else 1
+            # RBDS differential decoding: "1" = same phase, "0" = phase change (EN 62106)
+            bit = 1 if symbol == prev_symbol else 0
             prev_symbol = symbol
             bits.append(bit)
 
@@ -646,6 +648,7 @@ class RBDSWorker:
 
             self._rbds_consecutive_crc_failures = 0
             consecutive_failures = 0
+            logger.debug("RBDS block decoded: type=%s, data=0x%04X", block_type, data_word)
 
             if self._rbds_expected_block is None:
                 if block_type != "A":
@@ -1547,8 +1550,9 @@ class FMDemodulator:
             out_rail = out_rail_new
 
             # Differential BPSK decode inline (avoid function call overhead)
+            # RBDS: "1" = same phase, "0" = phase change (EN 62106)
             symbol = 1.0 if out_new >= 0 else -1.0
-            bit = 0 if symbol == prev_symbol else 1
+            bit = 1 if symbol == prev_symbol else 0
             prev_symbol = symbol
             bits.append(bit)
 
