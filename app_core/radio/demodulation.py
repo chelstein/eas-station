@@ -354,6 +354,11 @@ class FMDemodulator:
         self._rbds_prev_symbol: float = 1.0
         # Track last logged RBDS data to avoid excessive logging (CPU hammer)
         self._last_logged_rbds: Optional[str] = None
+        # CRITICAL FIX: RBDS processing counter to reduce CPU load and prevent audio cutouts
+        # RBDS convolutions (3x with large filter sizes) block audio thread for 5-6+ seconds
+        # Process RBDS every 10th chunk instead of every chunk to maintain audio continuity
+        self._rbds_process_counter: int = 0
+        self._rbds_process_interval: int = 10  # Process every 10th chunk (~10% CPU overhead)
 
     def _calculate_filter_taps(self, cutoff_hz: float, sample_rate: int, transition_bw_ratio: float = 0.125) -> int:
         """Calculate appropriate number of filter taps for given parameters.
@@ -452,28 +457,36 @@ class FMDemodulator:
 
         # RBDS extraction (if enabled) - RBDS subcarrier at 57 kHz needs sample rate > 114 kHz
         # NOTE: Check original sample_rate since RBDS extraction happens BEFORE decimation
+        # CRITICAL FIX: Only process RBDS periodically to prevent audio cutouts
+        # The three heavy convolutions in RBDS extraction were blocking audio for 5-6+ seconds
         if self._rbds_enabled:
-            # Extract RBDS from multiplex signal before decimation destroys the 57kHz subcarrier
-            # Create sample indices for RBDS timing recovery
-            sample_indices = np.arange(len(multiplex), dtype=np.float64) + self._sample_index
-            self._sample_index += len(multiplex)
+            self._rbds_process_counter += 1
+            
+            # Only process RBDS every Nth chunk to reduce CPU load and prevent audio gaps
+            if self._rbds_process_counter >= self._rbds_process_interval:
+                self._rbds_process_counter = 0
+                
+                # Extract RBDS from multiplex signal before decimation destroys the 57kHz subcarrier
+                # Create sample indices for RBDS timing recovery
+                sample_indices = np.arange(len(multiplex), dtype=np.float64) + self._sample_index
+                self._sample_index += len(multiplex)
 
-            # Log RBDS extraction activity periodically (every ~5 seconds at 2.5MHz/25k samples)
-            if self._sample_index % (self.config.sample_rate * 5) < len(multiplex):
-                logger.info(f"RBDS extraction active: sample_index={self._sample_index}, multiplex_len={len(multiplex)}")
+                # Log RBDS extraction activity periodically (every ~5 seconds at 2.5MHz/25k samples)
+                if self._sample_index % (self.config.sample_rate * 5) < len(multiplex):
+                    logger.info(f"RBDS extraction active (every {self._rbds_process_interval} chunks): sample_index={self._sample_index}, multiplex_len={len(multiplex)}")
 
-            # Extract RBDS data - this processes the 57 kHz subcarrier
-            try:
-                rbds_data = self._extract_rbds(multiplex, sample_indices)
-                if rbds_data:
-                    # Only log when RBDS data actually changes (not every demodulation cycle)
-                    # This prevents CPU hammering from excessive logging
-                    rbds_str = f"PS='{rbds_data.ps_name}' RT='{rbds_data.radio_text}' PTY={rbds_data.pty} PI={rbds_data.pi_code}"
-                    if rbds_str != self._last_logged_rbds:
-                        logger.info(f"RBDS: {rbds_str}")
-                        self._last_logged_rbds = rbds_str
-            except Exception as e:
-                logger.warning(f"RBDS extraction error: {e}", exc_info=True)
+                # Extract RBDS data - this processes the 57 kHz subcarrier
+                try:
+                    rbds_data = self._extract_rbds(multiplex, sample_indices)
+                    if rbds_data:
+                        # Only log when RBDS data actually changes (not every demodulation cycle)
+                        # This prevents CPU hammering from excessive logging
+                        rbds_str = f"PS='{rbds_data.ps_name}' RT='{rbds_data.radio_text}' PTY={rbds_data.pty} PI={rbds_data.pi_code}"
+                        if rbds_str != self._last_logged_rbds:
+                            logger.info(f"RBDS: {rbds_str}")
+                            self._last_logged_rbds = rbds_str
+                except Exception as e:
+                    logger.warning(f"RBDS extraction error: {e}", exc_info=True)
 
         # Calculate decimation factor for audio downsampling
         target_rate = self.config.audio_sample_rate
