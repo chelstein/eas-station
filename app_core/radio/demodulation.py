@@ -519,16 +519,16 @@ class RBDSWorker:
         x = self._costas_pysdr(x)
         time.sleep(0)  # Yield GIL
 
-        # Step 8: BPSK demod + differential decode (PySDR style)
-        bits_raw = (np.real(x) > 0).astype(int)
+        # Step 8: BPSK demod + differential decode (EN 62106 standard)
+        # Differential: d[i] = d[i-1] XOR a[i], so a[i] = d[i] XOR d[i-1]
+        # Same symbols → bit 0, different symbols → bit 1
+        bits_raw = (np.real(x) > 0).astype(np.int8)
 
         if len(bits_raw) > 1:
-            # PySDR differential: (bits[1:] - bits[0:-1]) % 2
-            # This gives 1=transition, 0=no_transition
-            # RBDS standard: 1=no_change, 0=change, so invert
-            diff = (bits_raw[1:] - bits_raw[:-1]) % 2
-            bits = [1 - int(b) for b in diff]
-            self._rbds_bit_buffer.extend(bits)
+            # diff = 1 when symbols differ, 0 when same
+            # Per EN 62106: different = bit 1, same = bit 0
+            diff = (bits_raw[1:] != bits_raw[:-1]).astype(np.int8)
+            self._rbds_bit_buffer.extend(diff.tolist())
 
         return self._decode_rbds_groups()
 
