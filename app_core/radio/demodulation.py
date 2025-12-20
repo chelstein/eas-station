@@ -294,7 +294,7 @@ class RBDSWorker:
 
     def _init_rbds_state(self) -> None:
         """Initialize all RBDS processing state."""
-        from .rbds import RBDSDecoder
+        # RBDSDecoder is defined in this same file (no import needed)
         self._rbds_decoder = RBDSDecoder()
 
         # Decimation from sample_rate to intermediate_rate
