@@ -7,12 +7,14 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
-- **CRITICAL: VFD Import Error Fixed** - Fixed `ImportError: cannot import name 'VFD_BAUDRATE' from 'app_core.vfd'`
-  - Removed `VFD_PORT` and `VFD_BAUDRATE` from `app_core/vfd.py` `__all__` exports (not defined as module-level constants)
-  - Updated `webapp/routes_vfd.py` to use `get_vfd_settings()` from `app_core.hardware_settings` instead of importing constants
-  - VFD settings now properly retrieved from HardwareSettings database table
-  - Fixes Alembic migration failures and app startup crashes
-  - Files: `app_core/vfd.py`, `webapp/routes_vfd.py`
+- **CRITICAL: Hardware Module Import Errors Fixed** - Fixed `ImportError` crashes in VFD and LED modules
+  - **VFD**: Removed `VFD_PORT` and `VFD_BAUDRATE` from `app_core/vfd.py` `__all__` exports (not defined as module-level constants)
+  - **VFD Routes**: Updated `webapp/routes_vfd.py` to use `get_vfd_settings()` from `app_core.hardware_settings` instead of importing constants
+  - **LED**: Removed `LED_SIGN_IP` and `LED_SIGN_PORT` from `app_core/led.py` `__all__` exports (not defined as module-level constants)
+  - **LED Routes**: Updated `webapp/routes_led.py` to use `get_led_settings()` from `app_core.hardware_settings` in 4 locations
+  - All hardware settings now properly retrieved from HardwareSettings database table
+  - Fixes Alembic migration failures and app startup crashes with "cannot import name" errors
+  - Files: `app_core/vfd.py`, `app_core/led.py`, `webapp/routes_vfd.py`, `webapp/routes_led.py`
 
 - **CRITICAL: Hardware Integrations Database Migration Complete** - Fixed ALL hardware settings to use database exclusively
   - **OLED Display**: Removed `OLED_ENABLED` module constant, checks database dynamically in `initialise_oled_display()`
