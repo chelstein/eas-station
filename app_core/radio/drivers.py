@@ -1116,8 +1116,15 @@ class _SoapySDRReceiver(ReceiverInterface):
 
         retry_delay = self._retry_backoff
         consecutive_failures = 0
-        
+
         last_spectrum_time = 0
+
+        # Diagnostic counters for debugging playback issues
+        samples_produced = 0
+        reads_successful = 0
+        reads_empty = 0
+        last_stats_time = time.time()
+        stats_interval = 5.0  # Log stats every 5 seconds
 
         while self._running.is_set():
             if handle is None:
@@ -1216,6 +1223,7 @@ class _SoapySDRReceiver(ReceiverInterface):
                 self._timeout_backoff = 0.01
 
                 if result.ret > 0:
+                    reads_successful += 1
                     raw_samples = buffer[: result.ret]
 
                     # Early decimation to reduce sample rate BEFORE ring buffer
@@ -1250,6 +1258,7 @@ class _SoapySDRReceiver(ReceiverInterface):
                     # Write DECIMATED samples to ring buffer if enabled
                     # This provides overflow detection and backpressure monitoring
                     if self._ring_buffer is not None and decimated_samples is not None and len(decimated_samples) > 0:
+                        samples_produced += len(decimated_samples)
                         try:
                             written = self._ring_buffer.write(decimated_samples)
                             if written < len(decimated_samples):
@@ -1294,8 +1303,31 @@ class _SoapySDRReceiver(ReceiverInterface):
 
                     # 4. Process Capture (IQ recording) - use RAW samples for full bandwidth
                     self._process_capture(raw_samples)
-                    
+
+                    # 5. Periodic stats logging for debugging playback issues
+                    now = time.time()
+                    if now - last_stats_time >= stats_interval:
+                        fill_pct = 0.0
+                        if self._ring_buffer is not None:
+                            fill_pct = self._ring_buffer.fill_level / self._ring_buffer.size * 100
+
+                        samples_per_sec = samples_produced / (now - last_stats_time)
+                        self._interface_logger.info(
+                            "SDR stats for %s: %.1f kHz effective, %d reads, %d samples, "
+                            "buffer %.1f%% full, %.0f samples/sec",
+                            self.config.identifier,
+                            self._effective_sample_rate / 1000,
+                            reads_successful,
+                            samples_produced,
+                            fill_pct,
+                            samples_per_sec
+                        )
+                        samples_produced = 0
+                        reads_successful = 0
+                        last_stats_time = now
+
                 else:
+                    reads_empty += 1
                     self._update_status(locked=True, signal_strength=0.0)
 
             except Exception as exc:
@@ -1466,11 +1498,12 @@ class _SoapySDRReceiver(ReceiverInterface):
                 return None
 
             # Read from ring buffer with sufficient timeout for continuous streaming
-            # CRITICAL: 10ms timeout was too short and caused audio gaps when the
-            # consumer (audio pipeline) ran slightly faster than the producer (USB read).
-            # 100ms timeout allows time for the USB read thread to fill the buffer,
-            # ensuring continuous audio flow. This matches the ring buffer's default.
-            samples = self._ring_buffer.read(num_samples, timeout=0.1)
+            # CRITICAL: Short timeouts cause audio gaps when the consumer (audio pipeline)
+            # runs slightly faster than the producer (USB read). The timeout should be
+            # long enough to handle USB bus contention, system load spikes, and GC pauses.
+            # 500ms timeout provides headroom for real-world conditions while still
+            # allowing timely detection of actual hardware failures.
+            samples = self._ring_buffer.read(num_samples, timeout=0.5)
             return samples
 
         # Fallback to sample buffer if ring buffer not available

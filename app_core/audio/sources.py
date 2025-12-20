@@ -218,9 +218,13 @@ class SDRSourceAdapter(AudioSourceAdapter):
                 if self._receiver_config.stereo_enabled:
                     self.config.channels = 2
                     self.metrics.channels = 2
+
+                # Log demodulator configuration including RBDS status
                 logger.info(
                     f"Created {self._receiver_config.modulation_type} demodulator for receiver: {receiver_id} "
-                    f"(effective sample rate: {effective_rate} Hz)"
+                    f"(effective sample rate: {effective_rate} Hz, "
+                    f"stereo={self._receiver_config.stereo_enabled}, "
+                    f"enable_rbds={self._receiver_config.enable_rbds})"
                 )
 
         # Start IQ capture from the specified receiver
