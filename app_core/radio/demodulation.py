@@ -981,101 +981,94 @@ class RBDSWorker:
         return None
 
     def _decode_rbds_block(self, bits: List[int]) -> Tuple[Optional[str], int]:
-        """Decode a 26-bit RBDS block."""
+        """Decode a 26-bit RBDS block.
+
+        Uses the standard syndrome-based approach from PySDR and python-radio:
+        - Run CRC on all 26 bits
+        - Compare result to known syndrome values for each block type
+        """
         if len(bits) != 26:
             return None, 0
 
-        # CRC check offsets for each block type
-        offsets = {
-            "A": 0x0FC,
-            "B": 0x198,
-            "C": 0x168,
-            "C'": 0x350,
-            "D": 0x1B4,
+        # Syndrome values for each block type (from RDS standard)
+        # These are what calc_syndrome returns for valid blocks
+        syndromes = {
+            "A": 383,   # 0x17F
+            "B": 14,    # 0x00E
+            "C": 303,   # 0x12F
+            "C'": 663,  # 0x297
+            "D": 748,   # 0x2EC
         }
 
-        # Extract 16-bit data and 10-bit checkword (MSB first)
-        data = 0
-        for i in range(16):
-            data = (data << 1) | bits[i]
+        # Convert bits to 26-bit integer (MSB first)
+        block = 0
+        for b in bits:
+            block = (block << 1) | b
 
-        checkword = 0
-        for i in range(16, 26):
-            checkword = (checkword << 1) | bits[i]
+        # Extract 16-bit data word
+        data = block >> 10
 
-        # Calculate syndrome
-        syndrome = self._crc_syndrome(data, checkword)
+        # Calculate syndrome on full 26-bit block
+        syndrome = self._calc_syndrome(block, 26)
 
-        for block_type, offset in offsets.items():
-            if syndrome == offset:
-                # Track normal match count for diagnostics
+        for block_type, expected_syndrome in syndromes.items():
+            if syndrome == expected_syndrome:
                 if not hasattr(self, '_normal_match_count'):
                     self._normal_match_count = 0
                     self._inverted_match_count = 0
                 self._normal_match_count += 1
                 return block_type, data
 
-        # DIAGNOSTIC: Try inverted bits (different differential decode convention)
-        # This handles 180° Costas loop phase ambiguity where all symbols are inverted
-        inverted_bits = [1 - b for b in bits]
-        data_inv = 0
-        for i in range(16):
-            data_inv = (data_inv << 1) | inverted_bits[i]
-        checkword_inv = 0
-        for i in range(16, 26):
-            checkword_inv = (checkword_inv << 1) | inverted_bits[i]
-        syndrome_inv = self._crc_syndrome(data_inv, checkword_inv)
+        # Try inverted bits (handles 180° Costas loop phase ambiguity)
+        block_inv = 0
+        for b in bits:
+            block_inv = (block_inv << 1) | (1 - b)
+        data_inv = block_inv >> 10
+        syndrome_inv = self._calc_syndrome(block_inv, 26)
 
-        for block_type, offset in offsets.items():
-            if syndrome_inv == offset:
-                # Track inverted match count for diagnostics
+        for block_type, expected_syndrome in syndromes.items():
+            if syndrome_inv == expected_syndrome:
                 if not hasattr(self, '_inverted_match_count'):
                     self._inverted_match_count = 0
                     self._normal_match_count = 0
                 self._inverted_match_count += 1
-
-                # Only log warning periodically to avoid spam
                 if self._inverted_match_count <= 3 or self._inverted_match_count % 50 == 0:
                     logger.warning(
                         "RBDS: INVERTED bits matched! block=%s data=0x%04X "
-                        "(inverted:%d normal:%d) - Costas loop may have 180° phase offset",
+                        "(inverted:%d normal:%d)",
                         block_type, data_inv, self._inverted_match_count, self._normal_match_count
                     )
-                # Return the inverted result - this is valid data from a phase-inverted Costas lock
                 return block_type, data_inv
 
-        # Track normal match for diagnostics (happens in the earlier loop)
-        if not hasattr(self, '_normal_match_count'):
-            self._normal_match_count = 0
-            self._inverted_match_count = 0
-
-        # Debug: log syndrome periodically to see what values we're getting
-        if hasattr(self, '_syndrome_log_count'):
-            self._syndrome_log_count += 1
-        else:
+        # Debug: log syndrome periodically
+        if not hasattr(self, '_syndrome_log_count'):
             self._syndrome_log_count = 0
+        self._syndrome_log_count += 1
         if self._syndrome_log_count % 100 == 0:
             logger.debug(
-                "RBDS syndrome: normal=0x%03X inverted=0x%03X (offsets: A=0x0FC B=0x198 C=0x168 D=0x1B4)",
+                "RBDS syndrome: normal=%d inverted=%d (expected: A=383 B=14 C=303 C'=663 D=748)",
                 syndrome, syndrome_inv
             )
 
         return None, 0
 
-    def _crc_syndrome(self, data: int, checkword: int) -> int:
-        """Calculate CRC syndrome for RBDS.
+    def _calc_syndrome(self, x: int, mlen: int) -> int:
+        """Calculate syndrome for RDS block validation.
 
-        Uses CRC-10 with polynomial g(x) = x^10 + x^8 + x^7 + x^5 + x^4 + x^3 + 1
-        For LFSR implementation, we use the polynomial WITHOUT the x^10 term: 0x1B9
-        (The x^10 term is implicit in the shift operation)
+        This is the standard algorithm from the RDS specification (Annex B).
+        Uses polynomial g(x) = x^10 + x^8 + x^7 + x^5 + x^4 + x^3 + 1 = 0x5B9
         """
         reg = 0
-        for i in range(15, -1, -1):
-            bit = (data >> i) & 1
-            fb = (reg >> 9) ^ bit
-            reg = ((reg << 1) & 0x3FF) ^ (0x1B9 if fb else 0)
-
-        return reg ^ checkword
+        plen = 10
+        for ii in range(mlen, 0, -1):
+            reg = (reg << 1) | ((x >> (ii - 1)) & 0x01)
+            if reg & (1 << plen):
+                reg = reg ^ 0x5B9
+        for ii in range(plen, 0, -1):
+            reg = reg << 1
+            if reg & (1 << plen):
+                reg = reg ^ 0x5B9
+        return reg & ((1 << plen) - 1)
 
 
 class FMDemodulator:
