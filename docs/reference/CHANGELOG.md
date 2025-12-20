@@ -7,6 +7,13 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **CRITICAL: SDR Audio Source Startup Failure** - Fixed `ModuleNotFoundError: No module named 'app_core.radio.rbds'`
+  - Root cause: `FMDemodulator._init_rbds_state()` was trying to import `RBDSDecoder` from non-existent `.rbds` module
+  - `RBDSDecoder` class is defined in the same file (`app_core/radio/demodulation.py` line 1662)
+  - Removed incorrect import statement on line 297
+  - SDR audio sources now start correctly without module import errors
+  - Fixes "Audio source is error" message preventing audio monitoring
+  - File: `app_core/radio/demodulation.py`
 - **CRITICAL: Hardware Module Import Errors Fixed** - Fixed `ImportError` crashes in VFD and LED modules
   - **VFD**: Removed `VFD_PORT` and `VFD_BAUDRATE` from `app_core/vfd.py` `__all__` exports (not defined as module-level constants)
   - **VFD Routes**: Updated `webapp/routes_vfd.py` to use `get_vfd_settings()` from `app_core.hardware_settings` instead of importing constants
