@@ -544,21 +544,19 @@ class RBDSWorker:
 
         # Step 8: BPSK demod + differential decode (EN 62106 standard)
         # Differential: d[i] = d[i-1] XOR a[i], so a[i] = d[i] XOR d[i-1]
-        # Same symbols → bit 0, different symbols → bit 1
+        # Per EN 62106: different symbols → bit 1, same symbols → bit 0
         bits_raw = (np.real(x) > 0).astype(np.int8)
 
         if len(bits_raw) > 0:
             # CRITICAL: Prepend last symbol from previous chunk for continuity
-            # This ensures we don't lose/corrupt the first bit of each chunk
-            prev_sym = 1 if self._rbds_prev_symbol >= 0 else 0
+            # Use same comparison (> 0) as bits_raw for consistency
+            prev_sym = 1 if self._rbds_prev_symbol > 0 else 0
             all_symbols = np.concatenate(([prev_sym], bits_raw))
 
-            # diff = 1 when symbols are same, 0 when different
-            # Confirmed via diagnostic: inverted bits match valid RBDS blocks
-            diff = (all_symbols[1:] == all_symbols[:-1]).astype(np.int8)
+            # Per EN 62106: different = 1, same = 0
+            diff = (all_symbols[1:] != all_symbols[:-1]).astype(np.int8)
 
-            # Save last SAMPLE value (not bit!) for next chunk
-            # Must be actual sample value so >= 0 check works correctly
+            # Save last SAMPLE value for next chunk continuity
             self._rbds_prev_symbol = float(np.real(x[-1]))
 
             n_bits = len(diff)
