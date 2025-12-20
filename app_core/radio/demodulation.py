@@ -836,8 +836,9 @@ class RBDSWorker:
             out_rail = out_rail_new
 
             symbol = 1.0 if out_new >= 0 else -1.0
-            # RBDS differential decoding: "1" = same phase, "0" = phase change (EN 62106)
-            bit = 1 if symbol == prev_symbol else 0
+            # RBDS differential decoding: phase change = 1, no change = 0
+            # This matches python-radio: bits = (bits[1:] - bits[0:-1]) % 2
+            bit = 1 if symbol != prev_symbol else 0
             prev_symbol = symbol
             bits.append(bit)
 
@@ -1943,9 +1944,9 @@ class FMDemodulator:
             out_rail = out_rail_new
 
             # Differential BPSK decode inline (avoid function call overhead)
-            # RBDS: "1" = same phase, "0" = phase change (EN 62106)
+            # RBDS: phase change = 1, no change = 0 (matches python-radio)
             symbol = 1.0 if out_new >= 0 else -1.0
-            bit = 1 if symbol == prev_symbol else 0
+            bit = 1 if symbol != prev_symbol else 0
             prev_symbol = symbol
             bits.append(bit)
 
