@@ -312,33 +312,39 @@ class RBDSWorker:
         else:
             self._rbds_decim_filter = None
 
-        # Filter design at intermediate rate
-        # 19kHz pilot extraction (narrow bandpass around pilot)
-        self._pilot_filter = self._design_fir_bandpass(
-            18500.0, 19500.0, self._intermediate_rate, taps=127
-        )
-        # RBDS subcarrier extraction (54-60 kHz)
+        # RBDS filter design at intermediate rate
         rbds_filter_taps = min(101, max(31, int(self._intermediate_rate / 3000)))
         self._rbds_bandpass = self._design_fir_bandpass(
             54000.0, 60000.0, self._intermediate_rate, taps=rbds_filter_taps
         )
-        # Baseband lowpass (symbol rate is 1187.5 Hz, use ~2400 Hz cutoff)
-        self._rbds_lowpass = self._design_fir_lowpass(2400.0, self._intermediate_rate, taps=63)
+        self._rbds_lowpass = self._design_fir_lowpass(7500.0, self._intermediate_rate, taps=101)
 
-        # RBDS symbol timing - rate is exactly 19000/16 = 1187.5 Hz
+        # RBDS symbol timing
         self._rbds_symbol_rate = 1187.5
         self._rbds_samples_per_symbol = 16
-        self._rbds_target_rate = self._rbds_symbol_rate * self._rbds_samples_per_symbol  # 19000 Hz
+        self._rbds_target_rate = self._rbds_symbol_rate * self._rbds_samples_per_symbol
 
-        # Simple clock recovery state (no Costas loop needed - use pilot!)
-        self._rbds_mm_mu = 0.0
-        self._rbds_prev_symbol: float = 1.0
+        # M&M clock recovery state
+        self._rbds_mm_mu = 0.01
+        self._rbds_mm_out_rail = 0.0
+        self._rbds_mm_out = 0.0
+
+        # Costas loop state
+        self._rbds_costas_phase = 0.0
+        self._rbds_costas_freq = 0.0
+        self._rbds_costas_alpha = 0.132
+        self._rbds_costas_beta = 0.00932
 
         # Bit buffer and decoding
         self._rbds_bit_buffer: List[int] = []
         self._rbds_expected_block: Optional[int] = None
         self._rbds_partial_group: List[int] = []
+        self._rbds_prev_symbol: float = 1.0
+        self._rbds_carrier_phase: float = 0.0
         self._rbds_consecutive_crc_failures: int = 0
+
+        # Sample tracking
+        self._sample_index: int = 0
 
     def _design_fir_lowpass(self, cutoff: float, sample_rate: int, taps: int = 101) -> np.ndarray:
         """Design FIR lowpass filter using windowed sinc method."""
@@ -387,8 +393,10 @@ class RBDSWorker:
         thread is NEVER blocked by RBDS processing.
         """
         try:
-            # Non-blocking put - if queue is full, samples are dropped
-            self._sample_queue.put_nowait(multiplex.copy())
+            # CRITICAL FIX: Pass reference only - don't copy in audio thread!
+            # The multiplex array is read-only for RBDS so sharing is safe.
+            # This prevents GIL contention that was causing audio stalling.
+            self._sample_queue.put_nowait(multiplex)
         except queue.Full:
             # This is expected and fine - RBDS is lower priority than audio
             pass
@@ -447,67 +455,61 @@ class RBDSWorker:
         logger.info("RBDS worker thread exited (samples=%d, groups=%d)", samples_processed, groups_decoded)
 
     def _process_rbds(self, multiplex: np.ndarray) -> Optional[RBDSData]:
-        """Process multiplex samples to extract RBDS data.
-
-        Simplified approach using pilot-locked carrier recovery:
-        1. Extract 19kHz pilot from multiplex
-        2. Triple it to get phase-locked 57kHz carrier
-        3. Multiply RBDS band by carrier for coherent demodulation
-        4. Lowpass filter and sample at symbol rate
-        5. Differential decode
-
-        No Costas loop needed since carrier is locked to pilot!
-        """
+        """Process multiplex samples to extract RBDS data."""
         if len(multiplex) == 0:
             return None
 
-        # Step 1: Decimate to intermediate rate if needed
+        # CRITICAL: Yield GIL frequently to prevent audio stalling
+        # Each heavy numpy operation can block other threads
+
+        # Step 1: Decimate to intermediate rate
         if self._rbds_decim_filter is not None and self._rbds_decim_factor > 1:
             filtered = np.convolve(multiplex, self._rbds_decim_filter, mode="same")
-            signal = fast_decimate(filtered.astype(np.float32), self._rbds_decim_factor)
-            rate = self._intermediate_rate
+            time.sleep(0)  # Yield GIL
+            rbds_signal = fast_decimate(filtered.astype(np.float32), self._rbds_decim_factor)
+            rbds_rate = self._intermediate_rate
         else:
-            signal = multiplex
-            rate = self._sample_rate
+            rbds_signal = multiplex
+            rbds_rate = self._sample_rate
+        time.sleep(0)  # Yield GIL
 
-        # Step 2: Extract 19kHz stereo pilot
-        pilot = np.convolve(signal, self._pilot_filter, mode="same")
-        pilot_rms = np.sqrt(np.mean(pilot ** 2))
+        # Step 2: Bandpass filter for 54-60 kHz RBDS subcarrier
+        rbds_band = np.convolve(rbds_signal, self._rbds_bandpass, mode="same")
+        time.sleep(0)  # Yield GIL
 
-        if pilot_rms < 0.001:
-            # No pilot = mono station, likely no RBDS
-            return self._decode_rbds_groups()
-
-        # Step 3: Extract RBDS subcarrier (54-60 kHz)
-        rbds_band = np.convolve(signal, self._rbds_bandpass, mode="same")
+        # Check signal quality
         rbds_rms = np.sqrt(np.mean(rbds_band ** 2))
-
-        if rbds_rms < pilot_rms * 0.05:
-            # RBDS signal too weak relative to pilot
+        mpx_rms = np.sqrt(np.mean(multiplex ** 2))
+        if rbds_rms < mpx_rms * 0.005:
             return self._decode_rbds_groups()
 
-        # Step 4: Generate 57kHz carrier from pilot (triple the 19kHz)
-        # Cube the pilot: cos^3(x) contains cos(3x) term
-        # Normalize pilot first for consistent carrier amplitude
-        pilot_norm = pilot / (pilot_rms * np.sqrt(2) + 1e-10)
-        carrier_57k = pilot_norm ** 3  # Contains 57kHz component
+        # Step 3: Mix to baseband
+        num_samples = len(rbds_band)
+        t = np.arange(num_samples, dtype=np.float64) / float(rbds_rate)
+        time.sleep(0)  # Yield GIL
+        carrier = np.exp(-1j * (2.0 * np.pi * 57000.0 * t + self._rbds_carrier_phase))
+        time.sleep(0)  # Yield GIL
+        baseband = rbds_band * carrier
+        self._rbds_carrier_phase = (self._rbds_carrier_phase + 2.0 * np.pi * 57000.0 * num_samples / rbds_rate) % (2.0 * np.pi)
+        time.sleep(0)  # Yield GIL
 
-        # Step 5: Coherent demodulation - multiply RBDS by carrier
-        # This gives baseband BPSK signal
-        baseband = rbds_band * carrier_57k * 4.0  # Scale factor for cubed pilot
-
-        # Step 6: Lowpass filter to remove high frequency products
+        # Step 4: Lowpass filter
         baseband_filtered = np.convolve(baseband, self._rbds_lowpass, mode="same")
+        time.sleep(0)  # Yield GIL
 
-        # Step 7: Resample to symbol rate (1187.5 Hz * 16 = 19000 Hz)
-        resampled = self._resample(baseband_filtered, rate, int(self._rbds_target_rate))
+        # Step 5: Resample to target rate (19 kHz)
+        resampled = self._resample(baseband_filtered, rbds_rate, int(self._rbds_target_rate))
+        time.sleep(0)  # Yield GIL
 
-        if len(resampled) < 32:
+        if len(resampled) < self._rbds_samples_per_symbol * 2:
             return self._decode_rbds_groups()
 
-        # Step 8: Simple symbol sampling and differential decoding
-        # Sample at symbol centers (every 16 samples)
-        bits = self._simple_symbol_decode(resampled)
+        # Step 6: Costas loop - already has GIL yields in batches
+        synced = self._costas_loop(resampled)
+        time.sleep(0)  # Yield GIL
+
+        # Step 7: M&M clock recovery
+        bits = self._mm_clock_recovery(synced)
 
         if bits:
             self._rbds_bit_buffer.extend(bits)
@@ -520,6 +522,7 @@ class RBDSWorker:
             return signal
         try:
             from scipy import signal as scipy_signal
+            import math
             gcd = math.gcd(int(from_rate), int(to_rate))
             up = int(to_rate // gcd)
             down = int(from_rate // gcd)
@@ -530,57 +533,6 @@ class RBDSWorker:
             old_indices = np.arange(len(signal))
             new_indices = np.linspace(0, len(signal) - 1, new_length)
             return np.interp(new_indices, old_indices, np.real(signal)).astype(signal.dtype)
-
-    def _simple_symbol_decode(self, samples: np.ndarray) -> List[int]:
-        """Simple symbol sampling and differential decoding.
-
-        Much simpler than M&M clock recovery since we're already phase-locked
-        to the pilot. Just sample at symbol centers and differential decode.
-        """
-        n = len(samples)
-        if n < 32:
-            return []
-
-        sps = self._rbds_samples_per_symbol  # 16 samples per symbol
-        bits: List[int] = []
-
-        # Get real part (BPSK is real-valued after coherent demod)
-        real_samples = np.real(samples) if np.iscomplexobj(samples) else samples
-
-        # Simple early-late gate for timing adjustment
-        # Start at current timing offset
-        mu = self._rbds_mm_mu
-        i = int(mu * sps)
-
-        while i + sps < n:
-            # Sample at symbol center
-            center = i + sps // 2
-            if center >= n:
-                break
-
-            # Get symbol value
-            symbol_val = real_samples[center]
-            symbol = 1.0 if symbol_val >= 0 else -1.0
-
-            # Differential decode: "1" = same, "0" = change (per EN 62106)
-            bit = 1 if symbol == self._rbds_prev_symbol else 0
-            self._rbds_prev_symbol = symbol
-            bits.append(bit)
-
-            # Simple timing adjustment using early-late gate
-            if center > 0 and center < n - 1:
-                early = abs(real_samples[center - sps // 4]) if center >= sps // 4 else 0
-                late = abs(real_samples[center + sps // 4]) if center + sps // 4 < n else 0
-                timing_error = late - early
-                mu += 0.01 * timing_error  # Small adjustment
-                mu = max(-0.5, min(0.5, mu))  # Clamp
-
-            i += sps
-
-        # Save timing offset for next chunk
-        self._rbds_mm_mu = mu
-
-        return bits
 
     def _costas_loop(self, samples: np.ndarray) -> np.ndarray:
         """Costas loop for BPSK frequency sync."""
