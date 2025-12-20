@@ -449,14 +449,11 @@ class RBDSWorker:
     def _process_rbds(self, multiplex: np.ndarray) -> Optional[RBDSData]:
         """Process multiplex samples to extract RBDS data.
 
-        Simplified approach using pilot-locked carrier recovery:
+        Uses pilot-locked carrier recovery:
         1. Extract 19kHz pilot from multiplex
-        2. Triple it to get phase-locked 57kHz carrier
-        3. Multiply RBDS band by carrier for coherent demodulation
-        4. Lowpass filter and sample at symbol rate
-        5. Differential decode
-
-        No Costas loop needed since carrier is locked to pilot!
+        2. Use Hilbert transform to get analytical signal
+        3. Cube analytical signal for pure 57kHz carrier (no 19kHz leakage)
+        4. Coherent demodulation and symbol decoding
         """
         if len(multiplex) == 0:
             return None
@@ -474,43 +471,49 @@ class RBDSWorker:
         pilot = np.convolve(signal, self._pilot_filter, mode="same")
         pilot_rms = np.sqrt(np.mean(pilot ** 2))
 
-        if pilot_rms < 0.001:
-            # No pilot = mono station, likely no RBDS
+        if pilot_rms < 0.0001:
+            # No pilot - still try to decode existing buffer
             return self._decode_rbds_groups()
 
-        # Step 3: Extract RBDS subcarrier (54-60 kHz)
+        # Step 3: Extract RBDS subcarrier (54-60 kHz band)
         rbds_band = np.convolve(signal, self._rbds_bandpass, mode="same")
-        rbds_rms = np.sqrt(np.mean(rbds_band ** 2))
 
-        if rbds_rms < pilot_rms * 0.05:
-            # RBDS signal too weak relative to pilot
-            return self._decode_rbds_groups()
+        # Step 4: Generate 57kHz carrier from pilot using Hilbert transform
+        # Hilbert gives analytical signal: exp(j*ω*t)
+        # Cubing: exp(j*ω*t)³ = exp(j*3ω*t) = pure 57kHz!
+        # (Unlike cos³(x) which has 75% 19kHz contamination)
+        try:
+            from scipy.signal import hilbert
+            pilot_analytic = hilbert(pilot)
+            carrier_57k = np.real(pilot_analytic ** 3)
+            # Normalize carrier amplitude
+            carrier_rms = np.sqrt(np.mean(carrier_57k ** 2))
+            if carrier_rms > 0:
+                carrier_57k = carrier_57k / carrier_rms
+        except ImportError:
+            # Fallback: cube and hope lowpass removes 19kHz
+            # cos³(x) = (3cos(x) + cos(3x))/4, so scale by 4 for cos(3x) amplitude
+            pilot_norm = pilot / (pilot_rms + 1e-10)
+            carrier_57k = pilot_norm ** 3 * 4.0
 
-        # Step 4: Generate 57kHz carrier from pilot (triple the 19kHz)
-        # Cube the pilot: cos^3(x) contains cos(3x) term
-        # Normalize pilot first for consistent carrier amplitude
-        pilot_norm = pilot / (pilot_rms * np.sqrt(2) + 1e-10)
-        carrier_57k = pilot_norm ** 3  # Contains 57kHz component
+        # Step 5: Coherent demodulation - multiply RBDS by 57kHz carrier
+        baseband = rbds_band * carrier_57k
 
-        # Step 5: Coherent demodulation - multiply RBDS by carrier
-        # This gives baseband BPSK signal
-        baseband = rbds_band * carrier_57k * 4.0  # Scale factor for cubed pilot
-
-        # Step 6: Lowpass filter to remove high frequency products
+        # Step 6: Lowpass filter to get BPSK baseband
         baseband_filtered = np.convolve(baseband, self._rbds_lowpass, mode="same")
 
-        # Step 7: Resample to symbol rate (1187.5 Hz * 16 = 19000 Hz)
+        # Step 7: Resample to 19kHz (1187.5 Hz * 16 samples/symbol)
         resampled = self._resample(baseband_filtered, rate, int(self._rbds_target_rate))
 
         if len(resampled) < 32:
             return self._decode_rbds_groups()
 
-        # Step 8: Simple symbol sampling and differential decoding
-        # Sample at symbol centers (every 16 samples)
+        # Step 8: Symbol sampling and differential decoding
         bits = self._simple_symbol_decode(resampled)
 
         if bits:
             self._rbds_bit_buffer.extend(bits)
+            logger.debug(f"RBDS: extracted {len(bits)} bits, buffer now {len(self._rbds_bit_buffer)}")
 
         return self._decode_rbds_groups()
 
