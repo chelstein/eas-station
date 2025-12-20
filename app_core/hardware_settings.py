@@ -40,10 +40,19 @@ def get_hardware_settings() -> HardwareSettings:
         HardwareSettings instance (id=1)
     """
     global _settings_cache, _cache_dirty
+    from sqlalchemy import inspect
 
-    # Use cache if available and not dirty
+    # Check if cached object is still valid (attached to session)
     if _settings_cache is not None and not _cache_dirty:
-        return _settings_cache
+        try:
+            # Check if instance is detached from session
+            insp = inspect(_settings_cache)
+            if not insp.detached:
+                return _settings_cache
+        except Exception:
+            pass
+        # Cache is stale/detached, need to re-query
+        _cache_dirty = True
 
     # Query database
     settings = HardwareSettings.query.get(1)
