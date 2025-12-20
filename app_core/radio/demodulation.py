@@ -926,14 +926,17 @@ class RBDSWorker:
         return None, 0
 
     def _crc_syndrome(self, data: int, checkword: int) -> int:
-        """Calculate CRC syndrome for RBDS."""
-        # RBDS uses CRC-10 with generator polynomial x^10 + x^8 + x^7 + x^5 + x^4 + x^3 + 1
-        # Generator: 0x5B9
+        """Calculate CRC syndrome for RBDS.
+
+        Uses CRC-10 with polynomial g(x) = x^10 + x^8 + x^7 + x^5 + x^4 + x^3 + 1
+        For LFSR implementation, we use the polynomial WITHOUT the x^10 term: 0x1B9
+        (The x^10 term is implicit in the shift operation)
+        """
         reg = 0
         for i in range(15, -1, -1):
             bit = (data >> i) & 1
             fb = (reg >> 9) ^ bit
-            reg = ((reg << 1) & 0x3FF) ^ (0x5B9 if fb else 0)
+            reg = ((reg << 1) & 0x3FF) ^ (0x1B9 if fb else 0)
 
         return reg ^ checkword
 
