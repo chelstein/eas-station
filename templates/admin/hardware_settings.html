@@ -7,6 +7,22 @@
     .hardware-container {
         max-width: 1200px;
         margin: 0 auto;
+        padding: 0 1rem;
+    }
+
+    @media (max-width: 768px) {
+        .hardware-container {
+            padding: 0 0.5rem;
+        }
+
+        .hardware-tab {
+            padding: 0.75rem 1rem;
+            font-size: 0.9rem;
+        }
+
+        .gpio-pins-grid {
+            grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
+        }
     }
 
     .hardware-tabs {
@@ -281,6 +297,25 @@
 
     .form-check-label {
         color: var(--text-color);
+    }
+
+    .configured-pins-table h5 {
+        color: var(--text-color);
+        font-size: 1rem;
+        font-weight: 600;
+        margin-bottom: 1rem;
+    }
+
+    .hardware-container h1 {
+        color: var(--text-color);
+        font-size: 2rem;
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+    }
+
+    .hardware-container > .d-flex p {
+        color: var(--text-secondary);
+        margin: 0;
     }
 </style>
 {% endblock %}
