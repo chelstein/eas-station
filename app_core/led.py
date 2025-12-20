@@ -34,20 +34,16 @@ from .extensions import db
 from .location import get_location_settings
 from .models import LEDMessage, LEDSignStatus
 
-def _parse_led_network_config() -> Tuple[str, int]:
-    """Read LED sign network settings from the current environment."""
+# Import hardware settings helper
+try:
+    from app_core.hardware_settings import get_led_settings
+    _LED_SETTINGS_AVAILABLE = True
+except ImportError:
+    _LED_SETTINGS_AVAILABLE = False
 
-    ip_address = os.environ.get("LED_SIGN_IP", "").strip() or "192.168.1.100"
-
-    try:
-        port = int(str(os.environ.get("LED_SIGN_PORT", "10001")).strip())
-    except (TypeError, ValueError):
-        port = 10001
-
-    return ip_address, port
-
-
-LED_SIGN_IP, LED_SIGN_PORT = _parse_led_network_config()
+    def get_led_settings():
+        """Fallback when settings module not available."""
+        return {}
 
 LED_AVAILABLE = False
 led_controller = None
@@ -101,13 +97,35 @@ else:
         if LEDSignController is None:
             return None
 
+        # Get settings from database
+        led_settings = {}
+        if _LED_SETTINGS_AVAILABLE:
+            try:
+                led_settings = get_led_settings()
+            except Exception as exc:
+                logger.warning("Failed to load LED settings from database: %s; using defaults", exc)
+
+        # Check if LED is enabled in settings
+        if not led_settings.get('enabled', False):
+            logger.debug("LED sign disabled via configuration (enable in Admin > Hardware Settings)")
+            LED_AVAILABLE = False
+            led_controller = None
+            return None
+
+        # Get connection settings from database
+        connection_type = led_settings.get('connection_type', 'network')
+        
+        if connection_type == 'network':
+            ip_address = led_settings.get('ip_address', '192.168.1.100')
+            port = led_settings.get('port', 10001)
+        else:
+            # Serial connection - not yet fully implemented in LEDSignController
+            logger.warning("LED serial connection not yet fully supported, using network mode")
+            ip_address = led_settings.get('ip_address', '192.168.1.100')
+            port = led_settings.get('port', 10001)
+
         try:
             settings = get_location_settings()
-            ip_address, port = _parse_led_network_config()
-
-            # Refresh module-level values so downstream consumers see the updated config
-            globals()["LED_SIGN_IP"] = ip_address
-            globals()["LED_SIGN_PORT"] = port
 
             led_controller = LEDSignController(
                 ip_address,

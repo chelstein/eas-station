@@ -251,24 +251,28 @@ def initialize_gpio_controller(db_session=None):
             load_gpio_pin_configs_from_env,
             load_gpio_behavior_matrix_from_env,
         )
-        from app_core.oled import OLED_ENABLED
 
         # Try to load GPIO enabled flag from database first
         try:
-            from app_core.hardware_settings import get_gpio_settings
+            from app_core.hardware_settings import get_gpio_settings, get_oled_settings
             gpio_settings = get_gpio_settings()
             gpio_enabled = gpio_settings.get('enabled', False)
+            
+            # Check if OLED is enabled to avoid pin conflicts
+            oled_settings = get_oled_settings()
+            oled_enabled = oled_settings.get('enabled', False)
         except Exception:
-            # Fallback to environment variable if database not available
-            gpio_enabled = os.getenv("GPIO_ENABLED", "false").lower() in ("true", "1", "yes")
+            # Fallback if database not available
+            gpio_enabled = False
+            oled_enabled = False
 
         if not gpio_enabled:
             logger.info("GPIO controller disabled (enable in Admin > Hardware Settings)")
             return
 
         # Load GPIO pin configurations (from database with env fallback)
-        # Pass OLED_ENABLED to ensure reserved pins are only blocked when OLED is actually enabled
-        gpio_configs = load_gpio_pin_configs_from_env(logger, oled_enabled=OLED_ENABLED)
+        # Pass oled_enabled to ensure reserved pins are only blocked when OLED is actually enabled
+        gpio_configs = load_gpio_pin_configs_from_env(logger, oled_enabled=oled_enabled)
         if not gpio_configs:
             logger.info("No GPIO pins configured (configure in Admin > Hardware Settings)")
             return
@@ -287,7 +291,7 @@ def initialize_gpio_controller(db_session=None):
                 logger.error(f"Failed to add GPIO pin {config.pin}: {e}")
 
         # Load and configure GPIO behavior matrix
-        behavior_matrix = load_gpio_behavior_matrix_from_env(logger, oled_enabled=OLED_ENABLED)
+        behavior_matrix = load_gpio_behavior_matrix_from_env(logger, oled_enabled=oled_enabled)
         if behavior_matrix:
             gpio_behavior_manager = GPIOBehaviorManager(
                 controller=_gpio_controller,
@@ -348,6 +352,9 @@ def publish_display_state():
         return
 
     try:
+        # Import hardware settings helpers
+        from app_core.hardware_settings import get_oled_settings, get_led_settings, get_vfd_settings
+        
         state = {
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "oled": {
@@ -373,10 +380,16 @@ def publish_display_state():
             },
         }
 
-        # Get OLED state
+        # Get OLED state from database and module
         try:
+            oled_settings = get_oled_settings()
+            oled_enabled_in_db = oled_settings.get('enabled', False)
+            
+            # Import after getting settings to avoid circular imports
             import app_core.oled as oled_module
-            if oled_module.oled_controller:
+            
+            # Only show as enabled if both database setting is true AND controller exists
+            if oled_enabled_in_db and oled_module.oled_controller:
                 state["oled"]["enabled"] = True
                 state["oled"]["width"] = oled_module.oled_controller.width
                 state["oled"]["height"] = oled_module.oled_controller.height
@@ -406,22 +419,31 @@ def publish_display_state():
                         state["oled"]["preview_image"] = preview_image
                 except Exception as e:
                     logger.debug(f"Failed to get OLED preview image: {e}")
-
         except Exception as e:
             logger.debug(f"Error getting OLED state: {e}")
 
-        # Get VFD state
+        # Get VFD state from database and module
         try:
+            vfd_settings = get_vfd_settings()
+            vfd_enabled_in_db = vfd_settings.get('enabled', False)
+            
             from app_core.vfd import vfd_controller
-            if vfd_controller:
+            
+            # Only show as enabled if both database setting is true AND controller exists
+            if vfd_enabled_in_db and vfd_controller:
                 state["vfd"]["enabled"] = True
         except Exception as e:
             logger.debug(f"Error getting VFD state: {e}")
 
-        # Get LED state
+        # Get LED state from database and module
         try:
+            led_settings = get_led_settings()
+            led_enabled_in_db = led_settings.get('enabled', False)
+            
             import app_core.led as led_module
-            if led_module.led_controller:
+            
+            # Only show as enabled if both database setting is true AND controller exists
+            if led_enabled_in_db and led_module.led_controller:
                 state["led"]["enabled"] = True
         except Exception as e:
             logger.debug(f"Error getting LED state: {e}")

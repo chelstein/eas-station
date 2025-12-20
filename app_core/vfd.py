@@ -33,8 +33,16 @@ from sqlalchemy.exc import OperationalError
 from .extensions import db
 from .models import VFDDisplay, VFDStatus
 
-VFD_PORT = os.getenv("VFD_PORT", "/dev/ttyUSB0")
-VFD_BAUDRATE = int(os.getenv("VFD_BAUDRATE", "38400"))
+# Import hardware settings helper
+try:
+    from app_core.hardware_settings import get_vfd_settings
+    _VFD_SETTINGS_AVAILABLE = True
+except ImportError:
+    _VFD_SETTINGS_AVAILABLE = False
+
+    def get_vfd_settings():
+        """Fallback when settings module not available."""
+        return {}
 
 VFD_AVAILABLE = False
 vfd_controller = None
@@ -91,10 +99,29 @@ else:
         if NoritakeVFDController is None:
             return None
 
+        # Get settings from database
+        vfd_settings = {}
+        if _VFD_SETTINGS_AVAILABLE:
+            try:
+                vfd_settings = get_vfd_settings()
+            except Exception as exc:
+                logger.warning("Failed to load VFD settings from database: %s; using defaults", exc)
+
+        # Check if VFD is enabled in settings
+        if not vfd_settings.get('enabled', False):
+            logger.debug("VFD display disabled via configuration (enable in Admin > Hardware Settings)")
+            VFD_AVAILABLE = False
+            vfd_controller = None
+            return None
+
+        # Get port and baudrate from settings
+        vfd_port = vfd_settings.get('port', '/dev/ttyUSB0')
+        vfd_baudrate = vfd_settings.get('baudrate', 38400)
+
         try:
             vfd_controller = NoritakeVFDController(
-                port=VFD_PORT,
-                baudrate=VFD_BAUDRATE
+                port=vfd_port,
+                baudrate=vfd_baudrate
             )
 
             # Try to connect
@@ -102,7 +129,7 @@ else:
                 logger.info(
                     "VFD controller is unavailable (no active connection on %s). "
                     "VFD integration will remain disabled until the display is connected.",
-                    VFD_PORT
+                    vfd_port
                 )
                 VFD_AVAILABLE = False
                 vfd_controller = None
@@ -117,8 +144,8 @@ else:
         VFD_AVAILABLE = True
         logger.info(
             "VFD controller initialized successfully on %s at %s baud",
-            VFD_PORT,
-            VFD_BAUDRATE,
+            vfd_port,
+            vfd_baudrate,
         )
         return vfd_controller
 

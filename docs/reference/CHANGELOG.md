@@ -7,36 +7,27 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
-- **CRITICAL: Conditional FFmpeg `-re` Flag Based on Source Type** - Fixed incorrect resampling for HTTP streams
-  - Previous fix removed `-re` flag entirely, which broke HTTP/Icecast ingest source resampling
-  - **Root cause analysis**:
-    - SDR sources (live hardware): Audio already real-time, `-re` causes backpressure → stalling
-    - HTTP/Stream sources (network): Need `-re` for correct resampling, without it resampling is incorrect
-    - Both types use IcecastStreamer, so need conditional logic
-  - **Solution**: Conditionally apply `-re` flag based on source type
-    - `RedisSDRSourceAdapter`: NO `-re` flag (prevents stalling)
-    - `StreamSourceAdapter`, `IcecastIngestSource`, `HTTPIngestSource`: YES `-re` flag (correct resampling)
-    - Falls back to checking `AudioSourceConfig.source_type` enum (SDR vs STREAM)
-  - **Detection logic**:
-    1. Check class name for 'SDR' or stream-related names
-    2. Fall back to `AudioSourceConfig.source_type` if available
-    3. Log which mode is used for diagnostics
-  - SDR playback now works without stalling, HTTP streams maintain correct resampling
-  - File: `app_core/audio/icecast_output.py` - Added conditional `-re` flag logic (lines 345-393)
+- **CRITICAL: Hardware Integrations Database Migration Complete** - Fixed ALL hardware settings to use database exclusively
+  - **OLED Display**: Removed `OLED_ENABLED` module constant, checks database dynamically in `initialise_oled_display()`
+  - **LED Sign**: Removed all environment variable parsing (`LED_SIGN_IP`, `LED_SIGN_PORT`), uses HardwareSettings database
+  - **VFD Display**: Removed all environment variable usage (`VFD_PORT`, `VFD_BAUDRATE`), uses HardwareSettings database
+  - **GPIO Controller**: Removed `OLED_ENABLED` import, dynamically checks database for OLED enabled status
+  - **Hardware Service**: Removed all environment variable fallbacks, always uses database settings
+  - **Display State Publishing**: Now checks database settings AND controller existence before showing "enabled"
+  - **LED Routes**: Removed all `os.getenv()` calls, uses `get_led_settings()` from database
+  - **System Controls**: Dynamically checks OLED enabled status from database instead of module constant
+  - **EAS Utils**: Dynamically checks OLED enabled status from database instead of module constant
+  - **Environment Validation**: Deprecated GPIO_PIN_BEHAVIOR_MATRIX validation (now uses database)
+  - **Fixed "400 Bad Request: Unknown variable: GPIO_PIN_BEHAVIOR_MATRIX"** error
+  - **Environment variables for hardware are NOW DEPRECATED**: Use `/admin/hardware` instead
+    - ❌ `GPIO_ENABLED`, `GPIO_PIN_MAP`, `GPIO_PIN_BEHAVIOR_MATRIX`
+    - ❌ `OLED_ENABLED`, `LED_SIGN_IP`, `LED_SIGN_PORT`
+    - ❌ `VFD_PORT`, `VFD_BAUDRATE`
+  - All hardware settings must be configured via the web UI at `/admin/hardware`
+  - Changes require hardware service restart to take effect: `systemctl restart eas-station-hardware.service`
+  - Files: `app_core/oled.py`, `app_core/led.py`, `app_core/vfd.py`, `hardware_service.py`, 
+    `webapp/routes_led.py`, `webapp/routes/system_controls.py`, `app_utils/eas.py`, `webapp/admin/environment.py`
 
-- **CRITICAL: SDR Playback Stalling After 5-6 Seconds** - Fixed fatal FFmpeg `-re` flag causing audio stream to stall
-  - Root cause: FFmpeg `-re` flag throttles stdin reads to real-time rate (e.g., exactly 44.1kHz)
-  - This created backpressure when audio chunks arrived faster than FFmpeg consumed them
-  - Pipe buffer filled → `stdin.write()` blocked → feed loop stalled → audio queue filled → stream died
-  - Symptom: SDR playback would work for 5-6 seconds, then frontend shows "buffering" and never recovers
-  - **Solution**: Removed `-re` flag from FFmpeg command in Icecast streamer
-  - Audio is already captured in real-time by SDR hardware, no need for FFmpeg to throttle further
-  - Streams now run continuously without stalling
-  - Also fixes Icecast mount not appearing (mount never established due to stdin starvation)
-  - File: `app_core/audio/icecast_output.py` - Removed `-re` flag and added detailed comment explaining why
-  - **NOTE**: This fix was superseded by conditional logic in v2.42.6 to preserve HTTP stream functionality
-
-### Fixed
 - **Hardware Settings Page Improvements** - Fixed multiple issues with the hardware settings page
   - Fixed "None" parsing error in number input fields (oled_contrast field was rendering `value="None"` as string)
   - Fixed heading hierarchy accessibility issue (changed h4 to h3 to follow h1 → h3 → h4 structure)

@@ -63,16 +63,27 @@ def register(app: Flask, logger) -> None:
             # Get LED status from controller if available
             led_status = led_module.led_controller.get_status() if led_module.led_controller else None
 
-            # If controller isn't available, create status from environment
+            # If controller isn't available, create status from database settings
             if not led_status:
-                from app_core.led import LED_SIGN_IP, LED_SIGN_PORT
-                led_status = {
-                    'connected': False,
-                    'host': LED_SIGN_IP,
-                    'port': LED_SIGN_PORT,
-                    'model': 'Alpha 9120C',
-                    'protocol': 'M-Protocol',
-                }
+                from app_core.hardware_settings import get_led_settings
+                try:
+                    led_settings = get_led_settings()
+                    led_status = {
+                        'connected': False,
+                        'host': led_settings.get('ip_address', '192.168.1.100'),
+                        'port': led_settings.get('port', 10001),
+                        'model': 'Alpha 9120C',
+                        'protocol': 'M-Protocol',
+                    }
+                except Exception:
+                    # Fallback defaults if settings not available
+                    led_status = {
+                        'connected': False,
+                        'host': '192.168.1.100',
+                        'port': 10001,
+                        'model': 'Alpha 9120C',
+                        'protocol': 'M-Protocol',
+                    }
 
             try:
                 recent_messages = (
@@ -595,41 +606,41 @@ def register(app: Flask, logger) -> None:
     @app.route("/api/led/serial_config", methods=["GET", "POST"])
     def api_led_serial_config():
         """Get or set serial configuration for the LED sign adapter."""
-        import os
 
         if request.method == "GET":
-            # Return current serial configuration from database, falling back to environment
+            # Return current serial configuration from hardware settings database
             try:
                 ensure_led_tables()
-                status_record = LEDSignStatus.query.first()
-
-                if status_record and status_record.serial_mode and status_record.baud_rate:
-                    # Use database values if available
+                
+                # Get LED settings from HardwareSettings
+                from app_core.hardware_settings import get_led_settings
+                try:
+                    led_settings = get_led_settings()
                     config = {
-                        "serial_mode": status_record.serial_mode,
-                        "baud_rate": status_record.baud_rate,
-                        "led_sign_ip": os.getenv("LED_SIGN_IP", ""),
-                        "led_sign_port": int(os.getenv("LED_SIGN_PORT", "10001")),
+                        "serial_mode": led_settings.get('serial_mode', 'RS232'),
+                        "baud_rate": led_settings.get('baudrate', 9600),
+                        "led_sign_ip": led_settings.get('ip_address', ''),
+                        "led_sign_port": led_settings.get('port', 10001),
                     }
-                else:
-                    # Fall back to environment variables
+                except Exception:
+                    # Fallback defaults
                     config = {
-                        "serial_mode": os.getenv("LED_SERIAL_MODE", "RS232"),
-                        "baud_rate": int(os.getenv("LED_BAUD_RATE", "9600")),
-                        "led_sign_ip": os.getenv("LED_SIGN_IP", ""),
-                        "led_sign_port": int(os.getenv("LED_SIGN_PORT", "10001")),
+                        "serial_mode": "RS232",
+                        "baud_rate": 9600,
+                        "led_sign_ip": "",
+                        "led_sign_port": 10001,
                     }
 
                 return jsonify({"success": True, "config": config})
 
             except Exception as db_error:
                 route_logger.warning(f"Could not retrieve serial config from database: {db_error}")
-                # Fall back to environment variables on error
+                # Fallback defaults on error
                 config = {
-                    "serial_mode": os.getenv("LED_SERIAL_MODE", "RS232"),
-                    "baud_rate": int(os.getenv("LED_BAUD_RATE", "9600")),
-                    "led_sign_ip": os.getenv("LED_SIGN_IP", ""),
-                    "led_sign_port": int(os.getenv("LED_SIGN_PORT", "10001")),
+                    "serial_mode": "RS232",
+                    "baud_rate": 9600,
+                    "led_sign_ip": "",
+                    "led_sign_port": 10001,
                 }
                 return jsonify({"success": True, "config": config})
 

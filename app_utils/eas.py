@@ -57,10 +57,16 @@ from .gpio import (
     load_gpio_pin_configs_from_env,
 )
 
-try:
-    from app_core.oled import OLED_ENABLED
-except ImportError:
-    OLED_ENABLED = False
+
+def _get_oled_enabled_status():
+    """Get OLED enabled status from database."""
+    try:
+        from app_core.hardware_settings import get_oled_settings
+        oled_settings = get_oled_settings()
+        return oled_settings.get('enabled', False)
+    except Exception:
+        return False
+
 
 MANUAL_FIPS_ENV_TOKENS = {'ALL', 'ANY', 'US', 'USA', '*'}
 
@@ -105,8 +111,9 @@ def load_eas_config(base_path: Optional[str] = None) -> Dict[str, object]:
     else:
         web_subdir = 'eas_messages'
 
-    gpio_configs = load_gpio_pin_configs_from_env(oled_enabled=OLED_ENABLED)
-    gpio_behavior_matrix = load_gpio_behavior_matrix_from_env(oled_enabled=OLED_ENABLED)
+    oled_enabled = _get_oled_enabled_status()
+    gpio_configs = load_gpio_pin_configs_from_env(oled_enabled=oled_enabled)
+    gpio_behavior_matrix = load_gpio_behavior_matrix_from_env(oled_enabled=oled_enabled)
 
     # Load TTS configuration from database only
     from app_core.tts_settings import get_tts_settings
@@ -1362,7 +1369,8 @@ class EASBroadcaster:
             )
 
         if self.enabled:
-            gpio_configs = load_gpio_pin_configs_from_env(self.logger, oled_enabled=OLED_ENABLED)
+            oled_enabled = _get_oled_enabled_status()
+            gpio_configs = load_gpio_pin_configs_from_env(self.logger, oled_enabled=oled_enabled)
             if gpio_configs:
                 try:
                     gpio_logger = (

@@ -36,7 +36,6 @@ from flask import (
 from app_core.auth.roles import require_permission
 from app_core.extensions import db
 from app_core.models import GPIOActivationLog
-from app_core.oled import OLED_ENABLED
 from app_utils.gpio import (
     GPIOActivationType,
     GPIOBehavior,
@@ -46,6 +45,16 @@ from app_utils.gpio import (
 )
 from app_utils.pi_pinout import PIN_ROWS
 from app_utils.time import utc_now
+
+
+def _get_oled_enabled_status():
+    """Get OLED enabled status from database."""
+    try:
+        from app_core.hardware_settings import get_oled_settings
+        oled_settings = get_oled_settings()
+        return oled_settings.get('enabled', False)
+    except Exception:
+        return False
 
 
 def register(app: Flask, logger) -> None:
@@ -70,7 +79,8 @@ def register(app: Flask, logger) -> None:
     def _load_gpio_configuration(controller):
         """Load GPIO pin configurations from environment variables."""
 
-        configs = load_gpio_pin_configs_from_env(route_logger, oled_enabled=OLED_ENABLED)
+        oled_enabled = _get_oled_enabled_status()
+        configs = load_gpio_pin_configs_from_env(route_logger, oled_enabled=oled_enabled)
 
         for config in configs:
             try:
@@ -122,8 +132,9 @@ def register(app: Flask, logger) -> None:
         return entry
 
     def _build_pin_rows():
-        configs = load_gpio_pin_configs_from_env(route_logger, oled_enabled=OLED_ENABLED)
-        behavior_matrix = load_gpio_behavior_matrix_from_env(route_logger, oled_enabled=OLED_ENABLED)
+        oled_enabled = _get_oled_enabled_status()
+        configs = load_gpio_pin_configs_from_env(route_logger, oled_enabled=oled_enabled)
+        behavior_matrix = load_gpio_behavior_matrix_from_env(route_logger, oled_enabled=oled_enabled)
         config_map = {cfg.pin: cfg for cfg in configs}
 
         rows = []

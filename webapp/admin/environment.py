@@ -93,6 +93,12 @@ def _validate_reserved_pin_collection(field: str, raw: str) -> None:
 
 
 def _validate_behavior_matrix_reserved(raw: str) -> None:
+    """DEPRECATED: GPIO settings are now managed via database at /admin/hardware.
+    
+    This validation is kept for backward compatibility but should not be used
+    for new configurations. GPIO pin maps and behavior matrices are stored in
+    the HardwareSettings database table.
+    """
     raw = (raw or '').strip()
     if not raw:
         return
@@ -108,7 +114,7 @@ def _validate_behavior_matrix_reserved(raw: str) -> None:
         except (TypeError, ValueError):
             continue
         if pin in ARGON_OLED_RESERVED_BCM:
-            _raise_reserved_pin('GPIO_PIN_BEHAVIOR_MATRIX', pin)
+            _raise_reserved_pin('GPIO_PIN_BEHAVIOR_MATRIX (DEPRECATED - use /admin/hardware)', pin)
 
 
 def _find_ssl_material(filename: str) -> tuple[Path | None, List[Path], str | None]:
@@ -737,6 +743,9 @@ def update_environment_variables():
                 logger.error(f'Unknown variable attempted to be updated: {key}')
                 raise BadRequest(f'Unknown variable: {key}')
 
+            # DEPRECATED: Hardware settings (GPIO, OLED, LED, VFD) are now managed via
+            # the database at /admin/hardware. These validations are kept for backward
+            # compatibility but should not be used for new configurations.
             if key == 'EAS_GPIO_PIN':
                 _validate_reserved_pin(key, value)
             elif key == 'GPIO_ADDITIONAL_PINS':
