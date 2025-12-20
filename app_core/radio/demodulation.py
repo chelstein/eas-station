@@ -463,15 +463,17 @@ class FMDemodulator:
         # CRITICAL FIX: Only process RBDS periodically to prevent audio cutouts
         # The three heavy convolutions in RBDS extraction were blocking audio for 5-6+ seconds
         if self._rbds_enabled:
-            # Always increment sample index for accurate timing, even when skipping processing
-            sample_indices = np.arange(len(multiplex), dtype=np.float64) + self._sample_index
-            self._sample_index += len(multiplex)
-            
+            # Increment counter to track when to process RBDS
             self._rbds_process_counter += 1
             
             # Only process RBDS every Nth chunk to reduce CPU load and prevent audio gaps
             if self._rbds_process_counter >= self._rbds_process_interval:
                 self._rbds_process_counter = 0
+                
+                # CRITICAL FIX: Create sample_indices array ONLY when processing
+                # Creating large np.arange() arrays every chunk (even when skipping) was causing cutouts
+                sample_indices = np.arange(len(multiplex), dtype=np.float64) + self._sample_index
+                self._sample_index += len(multiplex)
                 
                 # Log RBDS extraction activity periodically (every ~5 seconds at 2.5MHz/25k samples)
                 if self._sample_index % (self.config.sample_rate * 5) < len(multiplex):
@@ -500,6 +502,8 @@ class FMDemodulator:
             else:
                 # Skipping processing this cycle - use last valid RBDS data
                 # This ensures metadata continues to display between update cycles
+                # Update sample index even when skipping to maintain timing accuracy
+                self._sample_index += len(multiplex)
                 rbds_data = self._last_rbds_data
 
         # Calculate decimation factor for audio downsampling
