@@ -946,8 +946,10 @@ class RBDSWorker:
                     block_crc = self._calc_syndrome(dataword, 16)
 
                     good_block = False
+                    final_dataword = dataword
                     block_num = self._rbds_block_number
 
+                    # Try normal polarity first
                     if block_num == 2:
                         # Block C can be C or C' - try both
                         if (checkword ^ offset_word[2]) == block_crc:
@@ -959,8 +961,28 @@ class RBDSWorker:
                         if (checkword ^ offset_word[offset_idx]) == block_crc:
                             good_block = True
 
+                    # Try inverted bits (180° Costas phase ambiguity)
+                    if not good_block:
+                        inv_reg = self._rbds_reg ^ 0x3FFFFFF  # Invert all 26 bits
+                        inv_dataword = (inv_reg >> 10) & 0xFFFF
+                        inv_checkword = inv_reg & 0x3FF
+                        inv_block_crc = self._calc_syndrome(inv_dataword, 16)
+
+                        if block_num == 2:
+                            if (inv_checkword ^ offset_word[2]) == inv_block_crc:
+                                good_block = True
+                                final_dataword = inv_dataword
+                            elif (inv_checkword ^ offset_word[3]) == inv_block_crc:
+                                good_block = True
+                                final_dataword = inv_dataword
+                        else:
+                            offset_idx = [0, 1, 2, 4][block_num]
+                            if (inv_checkword ^ offset_word[offset_idx]) == inv_block_crc:
+                                good_block = True
+                                final_dataword = inv_dataword
+
                     if good_block:
-                        self._rbds_group_data[block_num] = dataword
+                        self._rbds_group_data[block_num] = final_dataword
                         if block_num == 0:
                             self._rbds_group_good = 1
                         elif self._rbds_group_good > 0:
