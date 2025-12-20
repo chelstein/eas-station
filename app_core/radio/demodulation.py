@@ -872,10 +872,11 @@ class RBDSWorker:
         """
         changed = False
 
-        # Syndrome values and block position mapping (from RDS standard)
-        syndromes = [383, 14, 303, 663, 748]  # A, B, C, C', D
-        offset_pos = [0, 1, 2, 2, 3]  # Block position for each syndrome
-        offset_word = [252, 408, 360, 848, 436]  # For CRC verification
+        # Syndrome values and block position mapping (from python-radio)
+        # Order: A, B, C, D, C' (NOT A, B, C, C', D!)
+        syndromes = [383, 14, 303, 663, 748]  # A, B, C, D, C'
+        offset_pos = [0, 1, 2, 3, 2]  # A=0, B=1, C=2, D=3, C'=2 (same as C)
+        offset_word = [252, 408, 360, 436, 848]  # A, B, C, D, C'
 
         # Initialize state if not present
         if not hasattr(self, '_rbds_reg'):
@@ -900,42 +901,49 @@ class RBDSWorker:
 
             if not self._rbds_synced:
                 # === PRESYNC: Look for valid syndrome ===
+                # Try normal polarity first, then inverted (180° phase ambiguity)
                 syndrome = self._calc_syndrome(self._rbds_reg, 26)
+                inv_syndrome = self._calc_syndrome(self._rbds_reg ^ 0x3FFFFFF, 26)
 
+                matched_j = None
                 for j in range(5):
-                    if syndrome == syndromes[j]:
-                        if not self._rbds_presync:
-                            # First valid block found - remember it
-                            self._rbds_lastseen_offset = j
-                            self._rbds_lastseen_offset_counter = self._rbds_bit_counter
-                            self._rbds_presync = True
-                            logger.debug("RBDS presync: first block type %d at bit %d",
-                                        j, self._rbds_bit_counter)
-                        else:
-                            # Second valid block - check spacing
-                            if offset_pos[self._rbds_lastseen_offset] >= offset_pos[j]:
-                                block_distance = offset_pos[j] + 4 - offset_pos[self._rbds_lastseen_offset]
-                            else:
-                                block_distance = offset_pos[j] - offset_pos[self._rbds_lastseen_offset]
-
-                            expected_bits = block_distance * 26
-                            actual_bits = self._rbds_bit_counter - self._rbds_lastseen_offset_counter
-
-                            if expected_bits != actual_bits:
-                                # Wrong spacing - false positive, reset presync
-                                self._rbds_presync = False
-                                logger.debug("RBDS presync: spacing mismatch (expected %d, got %d)",
-                                            expected_bits, actual_bits)
-                            else:
-                                # Correct spacing - SYNCED!
-                                self._rbds_synced = True
-                                self._rbds_wrong_blocks = 0
-                                self._rbds_blocks_counter = 0
-                                self._rbds_block_bit_counter = 0
-                                self._rbds_block_number = (j + 1) % 4
-                                self._rbds_group_good = 0
-                                logger.info("RBDS SYNCHRONIZED at bit %d", self._rbds_bit_counter)
+                    if syndrome == syndromes[j] or inv_syndrome == syndromes[j]:
+                        matched_j = j
                         break
+
+                if matched_j is not None:
+                    j = matched_j
+                    if not self._rbds_presync:
+                        # First valid block found - remember it
+                        self._rbds_lastseen_offset = j
+                        self._rbds_lastseen_offset_counter = self._rbds_bit_counter
+                        self._rbds_presync = True
+                        logger.debug("RBDS presync: first block type %d at bit %d",
+                                    j, self._rbds_bit_counter)
+                    else:
+                        # Second valid block - check spacing
+                        if offset_pos[self._rbds_lastseen_offset] >= offset_pos[j]:
+                            block_distance = offset_pos[j] + 4 - offset_pos[self._rbds_lastseen_offset]
+                        else:
+                            block_distance = offset_pos[j] - offset_pos[self._rbds_lastseen_offset]
+
+                        expected_bits = block_distance * 26
+                        actual_bits = self._rbds_bit_counter - self._rbds_lastseen_offset_counter
+
+                        if expected_bits != actual_bits:
+                            # Wrong spacing - false positive, reset presync
+                            self._rbds_presync = False
+                            logger.debug("RBDS presync: spacing mismatch (expected %d, got %d)",
+                                        expected_bits, actual_bits)
+                        else:
+                            # Correct spacing - SYNCED!
+                            self._rbds_synced = True
+                            self._rbds_wrong_blocks = 0
+                            self._rbds_blocks_counter = 0
+                            self._rbds_block_bit_counter = 0
+                            self._rbds_block_number = (j + 1) % 4
+                            self._rbds_group_good = 0
+                            logger.info("RBDS SYNCHRONIZED at bit %d", self._rbds_bit_counter)
             else:
                 # === SYNCED: Process blocks at 26-bit intervals ===
                 if self._rbds_block_bit_counter < 25:
@@ -951,14 +959,16 @@ class RBDSWorker:
                     block_num = self._rbds_block_number
 
                     # Try normal polarity first
+                    # offset_word order: [A=0, B=1, C=2, D=3, C'=4]
                     if block_num == 2:
-                        # Block C can be C or C' - try both
+                        # Block C can be C or C' - try both (indices 2 and 4)
                         if (checkword ^ offset_word[2]) == block_crc:
                             good_block = True
-                        elif (checkword ^ offset_word[3]) == block_crc:
+                        elif (checkword ^ offset_word[4]) == block_crc:
                             good_block = True
                     else:
-                        offset_idx = [0, 1, 2, 4][block_num]  # A=0, B=1, C=2, D=4
+                        # A=0, B=1, D=3 (C is handled above)
+                        offset_idx = [0, 1, 2, 3][block_num]
                         if (checkword ^ offset_word[offset_idx]) == block_crc:
                             good_block = True
 
@@ -973,11 +983,11 @@ class RBDSWorker:
                             if (inv_checkword ^ offset_word[2]) == inv_block_crc:
                                 good_block = True
                                 final_dataword = inv_dataword
-                            elif (inv_checkword ^ offset_word[3]) == inv_block_crc:
+                            elif (inv_checkword ^ offset_word[4]) == inv_block_crc:
                                 good_block = True
                                 final_dataword = inv_dataword
                         else:
-                            offset_idx = [0, 1, 2, 4][block_num]
+                            offset_idx = [0, 1, 2, 3][block_num]
                             if (inv_checkword ^ offset_word[offset_idx]) == inv_block_crc:
                                 good_block = True
                                 final_dataword = inv_dataword
