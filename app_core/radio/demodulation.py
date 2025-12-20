@@ -526,10 +526,19 @@ class RBDSWorker:
         # Same symbols → bit 0, different symbols → bit 1
         bits_raw = (np.real(x) > 0).astype(np.int8)
 
-        if len(bits_raw) > 1:
+        if len(bits_raw) > 0:
+            # CRITICAL: Prepend last symbol from previous chunk for continuity
+            # This ensures we don't lose/corrupt the first bit of each chunk
+            prev_sym = 1 if self._rbds_prev_symbol >= 0 else 0
+            all_symbols = np.concatenate(([prev_sym], bits_raw))
+
             # diff = 1 when symbols differ, 0 when same
             # Per EN 62106: different = bit 1, same = bit 0
-            diff = (bits_raw[1:] != bits_raw[:-1]).astype(np.int8)
+            diff = (all_symbols[1:] != all_symbols[:-1]).astype(np.int8)
+
+            # Save last symbol for next chunk
+            self._rbds_prev_symbol = float(bits_raw[-1])
+
             n_bits = len(diff)
             n_ones = int(np.sum(diff))
             if n_bits > 0:
