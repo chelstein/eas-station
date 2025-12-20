@@ -1269,11 +1269,16 @@ class FMDemodulator:
 
         # RBDS extraction in separate thread (like SDR++)
         # Submit samples to worker (non-blocking) and get latest results
+        # 24/7 RELIABILITY: Wrap in try-except to ensure RBDS issues never affect audio
         if self._rbds_enabled and self._rbds_worker:
-            # Submit samples for processing - this is instant and never blocks
-            self._rbds_worker.submit_samples(multiplex)
-            # Get whatever RBDS data is available (may be from previous chunks)
-            rbds_data = self._rbds_worker.get_latest_data()
+            try:
+                # Submit samples for processing - this is instant and never blocks
+                self._rbds_worker.submit_samples(multiplex)
+                # Get whatever RBDS data is available (may be from previous chunks)
+                rbds_data = self._rbds_worker.get_latest_data()
+            except Exception as e:
+                # Log but don't let RBDS errors affect audio demodulation
+                logger.warning(f"RBDS error (audio unaffected): {e}")
 
         # Calculate decimation factor for audio downsampling
         target_rate = self.config.audio_sample_rate

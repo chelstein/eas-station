@@ -256,10 +256,20 @@ class AudioSourceAdapter(ABC):
         """Main capture loop running in separate thread."""
         logger.debug(f"Capture loop started for {self.config.name}")
 
+        # 24/7 RELIABILITY: Track consecutive errors for graceful degradation
+        # Don't break on single errors - only stop after persistent failures
+        consecutive_errors = 0
+        max_consecutive_errors = 50  # Allow up to 50 errors (~5 seconds at 10 errors/sec)
+        last_error_log_time = 0.0
+        error_log_interval = 1.0  # Rate-limit error logging to 1/second
+
         while not self._stop_event.is_set():
             try:
                 audio_chunk = self._read_audio_chunk()
                 if audio_chunk is not None:
+                    # Reset error counter on successful read
+                    consecutive_errors = 0
+
                     # Update metrics
                     self._update_metrics(audio_chunk)
 
@@ -267,7 +277,7 @@ class AudioSourceAdapter(ABC):
                     # This enables multiple consumers (Icecast, web streaming, controller pump)
                     # to receive audio without competing for chunks.
                     self._source_broadcast.publish(audio_chunk)
-                    
+
                     # ARCHITECTURAL FIX: Resample to 16kHz and publish to EAS queue
                     # This eliminates resampling bottleneck and reduces queue memory by 3x
                     eas_chunk = self._resample_for_eas(audio_chunk)
@@ -281,11 +291,30 @@ class AudioSourceAdapter(ABC):
                         time.sleep(0.05)  # 50ms sleep to prevent CPU spinning on idle sources
 
             except Exception as e:
-                logger.error(f"Error in capture loop for {self.config.name}: {e}")
-                self.status = AudioSourceStatus.ERROR
-                self.error_message = str(e)
-                self._last_error = str(e)
-                break
+                consecutive_errors += 1
+                current_time = time.time()
+
+                # Rate-limit error logging to avoid log spam
+                if current_time - last_error_log_time >= error_log_interval:
+                    logger.error(
+                        f"Error in capture loop for {self.config.name} "
+                        f"(consecutive: {consecutive_errors}/{max_consecutive_errors}): {e}",
+                        exc_info=(consecutive_errors == 1)  # Full traceback on first error only
+                    )
+                    last_error_log_time = current_time
+
+                # Only break after too many consecutive errors
+                if consecutive_errors >= max_consecutive_errors:
+                    logger.error(
+                        f"Too many consecutive errors ({consecutive_errors}) for {self.config.name}, stopping"
+                    )
+                    self.status = AudioSourceStatus.ERROR
+                    self.error_message = str(e)
+                    self._last_error = str(e)
+                    break
+
+                # Brief sleep before retry to prevent CPU spinning on persistent errors
+                time.sleep(0.01)
 
         logger.debug(f"Capture loop stopped for {self.config.name}")
     
