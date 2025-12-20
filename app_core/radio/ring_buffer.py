@@ -247,17 +247,21 @@ class SDRRingBuffer:
         
         return samples_to_write
     
-    def read(self, num_samples: int, timeout: float = 0.1) -> Optional["np.ndarray"]:
+    def read(self, num_samples: int, timeout: float = 0.5) -> Optional["np.ndarray"]:
         """Read samples from the ring buffer.
-        
+
         This method is called by the processing thread only. It reads up to
         num_samples from the buffer, waiting if necessary for data to become
         available.
-        
+
+        For real-time SDR streaming, the timeout should be long enough to handle
+        USB bus contention and system load spikes. 500ms is a reasonable default
+        that provides headroom while still detecting actual hardware failures.
+
         Args:
             num_samples: Maximum number of samples to read
-            timeout: Maximum time to wait for data (seconds)
-            
+            timeout: Maximum time to wait for data (seconds). Default 500ms.
+
         Returns:
             Complex64 numpy array of samples, or None if timeout/no data
         """
@@ -272,9 +276,18 @@ class SDRRingBuffer:
             while available == 0:
                 remaining = deadline - time.time()
                 if remaining <= 0:
-                    # Timeout with no data
+                    # Timeout with no data - this is a significant event for real-time audio
                     with self._stats_lock:
                         self._stats.underflow_count += 1
+                        underflow_count = self._stats.underflow_count
+
+                    # Log underflow warnings (rate-limited by caller)
+                    if underflow_count == 1 or underflow_count % 100 == 0:
+                        logger.warning(
+                            "Ring buffer underflow for %s after %.1fs timeout (total: %d). "
+                            "USB/SDR may not be keeping up.",
+                            self._identifier, timeout, underflow_count
+                        )
                     return None
 
                 self._data_available.clear()
@@ -284,7 +297,7 @@ class SDRRingBuffer:
                     break
 
                 # Wait with short intervals for responsive shutdown
-                wait_time = min(remaining, 0.01)  # 10ms max per wait
+                wait_time = min(remaining, 0.05)  # 50ms max per wait (was 10ms)
                 self._data_available.wait(timeout=wait_time)
                 available = self.fill_level
 

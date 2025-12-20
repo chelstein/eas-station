@@ -401,7 +401,9 @@ class RBDSWorker:
 
     def _worker_loop(self) -> None:
         """Main worker loop - processes RBDS samples from queue."""
-        logger.debug("RBDS worker loop started")
+        logger.info("RBDS worker thread started")
+        samples_processed = 0
+        groups_decoded = 0
 
         while not self._stop_event.is_set():
             try:
@@ -411,17 +413,34 @@ class RBDSWorker:
                 continue
 
             try:
+                samples_processed += 1
                 # Process RBDS - this can take as long as needed since we're in our own thread
                 rbds_data = self._process_rbds(multiplex)
 
                 if rbds_data:
+                    groups_decoded += 1
                     with self._data_lock:
                         self._latest_data = rbds_data
-                    logger.debug(f"RBDS: PS='{rbds_data.ps_name}' PI={rbds_data.pi_code}")
-            except Exception as e:
-                logger.warning(f"RBDS processing error: {e}")
+                    logger.info(
+                        "RBDS decoded: PS='%s' PI=%s (samples=%d, groups=%d)",
+                        rbds_data.ps_name,
+                        rbds_data.pi_code,
+                        samples_processed,
+                        groups_decoded
+                    )
 
-        logger.debug("RBDS worker loop exited")
+                # Periodic status logging (every 100 samples processed)
+                if samples_processed % 100 == 0:
+                    logger.debug(
+                        "RBDS worker status: %d samples processed, %d groups decoded, buffer=%d bits",
+                        samples_processed,
+                        groups_decoded,
+                        len(self._rbds_bit_buffer)
+                    )
+            except Exception as e:
+                logger.warning(f"RBDS processing error: {e}", exc_info=True)
+
+        logger.info("RBDS worker thread exited (samples=%d, groups=%d)", samples_processed, groups_decoded)
 
     def _process_rbds(self, multiplex: np.ndarray) -> Optional[RBDSData]:
         """Process multiplex samples to extract RBDS data."""
@@ -833,14 +852,27 @@ class FMDemodulator:
             # Create RBDS worker thread - all processing happens there
             self._rbds_worker = RBDSWorker(config.sample_rate, self._rbds_intermediate_rate)
             logger.info(
-                f"RBDS enabled: threaded processing at {self._rbds_intermediate_rate}Hz "
-                f"(sample_rate={config.sample_rate}Hz)"
+                "RBDS ENABLED: creating worker thread at %d Hz (input sample_rate=%d Hz)",
+                self._rbds_intermediate_rate,
+                config.sample_rate
             )
         else:
-            logger.info(
-                f"RBDS disabled: enable_rbds={config.enable_rbds}, "
-                f"sample_rate={config.sample_rate}Hz (need >= 114kHz)"
-            )
+            # Log clearly why RBDS is not enabled
+            if not config.enable_rbds:
+                logger.info(
+                    "RBDS DISABLED: enable_rbds=False in receiver config"
+                )
+            elif config.sample_rate < 114000:
+                logger.info(
+                    "RBDS DISABLED: sample_rate=%d Hz is below 114 kHz minimum",
+                    config.sample_rate
+                )
+            else:
+                logger.info(
+                    "RBDS DISABLED: enable_rbds=%s, sample_rate=%d Hz",
+                    config.enable_rbds,
+                    config.sample_rate
+                )
 
         # RBDS carrier phase tracking for coherent demodulation
         self._rbds_carrier_phase: float = 0.0
