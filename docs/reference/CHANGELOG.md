@@ -7,6 +7,18 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **RBDS Presync False Positives Fixed** - Removed inverted syndrome check from presync phase
+  - Root cause: Presync was checking both normal AND inverted syndromes, creating false positive matches
+  - False positives led to spacing mismatches and failed synchronization ("expected 78, got 24" errors)
+  - Differential decoding (line 841) already handles 180° Costas loop phase ambiguity
+  - Python-radio reference implementation only checks normal syndrome during presync
+  - Now matches proven working implementation: presync uses normal syndrome only
+  - Synced mode still checks both polarities for additional robustness
+  - Added polarity tracking: logs "NORMAL polarity" or "INVERTED polarity" when decoding blocks
+  - Added statistics: "RBDS sync OK: X/50 bad blocks, polarity: Y normal, Z inverted"
+  - Reference: https://github.com/ChrisDev8/python-radio/blob/main/decoder.py (lines 253-264)
+  - File: `app_core/radio/demodulation.py`
+
 - **CRITICAL: RBDS Synchronization Fixed** - Replaced M&M clock recovery with working reference implementation
   - Root cause: Timing recovery was using incorrect algorithm that prevented sync
   - Implemented python-radio's interpolation-based M&M clock recovery with 16x upsampling
