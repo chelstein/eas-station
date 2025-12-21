@@ -901,21 +901,21 @@ class RBDSWorker:
 
             if not self._rbds_synced:
                 # === PRESYNC: Look for valid syndrome ===
-                # Try normal polarity first, then inverted (180° phase ambiguity)
+                # Only check normal polarity during presync (matches python-radio)
+                # Differential decoding already handles 180° phase ambiguity
                 syndrome = self._calc_syndrome(self._rbds_reg, 26)
-                inv_syndrome = self._calc_syndrome(self._rbds_reg ^ 0x3FFFFFF, 26)
 
                 # Debug: Log syndromes periodically
                 if not hasattr(self, '_syndrome_debug_count'):
                     self._syndrome_debug_count = 0
                 self._syndrome_debug_count += 1
                 if self._syndrome_debug_count % 1000 == 1:
-                    logger.debug("RBDS sync search: bit_counter=%d, syndrome=%d, inv_syndrome=%d, target syndromes=%s",
-                                self._rbds_bit_counter, syndrome, inv_syndrome, syndromes)
+                    logger.debug("RBDS sync search: bit_counter=%d, syndrome=%d, target syndromes=%s",
+                                self._rbds_bit_counter, syndrome, syndromes)
 
                 matched_j = None
                 for j in range(5):
-                    if syndrome == syndromes[j] or inv_syndrome == syndromes[j]:
+                    if syndrome == syndromes[j]:
                         matched_j = j
                         break
 
@@ -926,7 +926,7 @@ class RBDSWorker:
                         self._rbds_lastseen_offset = j
                         self._rbds_lastseen_offset_counter = self._rbds_bit_counter
                         self._rbds_presync = True
-                        logger.debug("RBDS presync: first block type %d at bit %d",
+                        logger.debug("RBDS presync: first block type %d at bit %d (normal polarity)",
                                     j, self._rbds_bit_counter)
                     else:
                         # Second valid block - check spacing
@@ -965,6 +965,7 @@ class RBDSWorker:
                     good_block = False
                     final_dataword = dataword
                     block_num = self._rbds_block_number
+                    used_inverted = False
 
                     # Try normal polarity first
                     # offset_word order: [A=0, B=1, C=2, D=3, C'=4]
@@ -991,14 +992,36 @@ class RBDSWorker:
                             if (inv_checkword ^ offset_word[2]) == inv_block_crc:
                                 good_block = True
                                 final_dataword = inv_dataword
+                                used_inverted = True
                             elif (inv_checkword ^ offset_word[4]) == inv_block_crc:
                                 good_block = True
                                 final_dataword = inv_dataword
+                                used_inverted = True
                         else:
                             offset_idx = [0, 1, 2, 3][block_num]
                             if (inv_checkword ^ offset_word[offset_idx]) == inv_block_crc:
                                 good_block = True
                                 final_dataword = inv_dataword
+                                used_inverted = True
+
+                    if good_block:
+                        # Track polarity statistics
+                        if not hasattr(self, '_rbds_normal_blocks'):
+                            self._rbds_normal_blocks = 0
+                            self._rbds_inverted_blocks = 0
+                        
+                        if used_inverted:
+                            self._rbds_inverted_blocks += 1
+                            # Log first few inverted blocks
+                            if self._rbds_inverted_blocks <= 5:
+                                logger.warning("RBDS block decoded with INVERTED polarity (inverted:%d normal:%d)",
+                                             self._rbds_inverted_blocks, self._rbds_normal_blocks)
+                        else:
+                            self._rbds_normal_blocks += 1
+                            # Log first few normal blocks
+                            if self._rbds_normal_blocks <= 5:
+                                logger.info("RBDS block decoded with NORMAL polarity (inverted:%d normal:%d)",
+                                          self._rbds_inverted_blocks, self._rbds_normal_blocks)
 
                     if good_block:
                         self._rbds_group_data[block_num] = final_dataword
@@ -1029,8 +1052,13 @@ class RBDSWorker:
                             self._rbds_synced = False
                             self._rbds_presync = False
                         else:
-                            logger.debug("RBDS sync OK: %d/50 bad blocks",
-                                        self._rbds_wrong_blocks)
+                            # Log polarity statistics
+                            if hasattr(self, '_rbds_normal_blocks'):
+                                logger.info("RBDS sync OK: %d/50 bad blocks, polarity: %d normal, %d inverted",
+                                          self._rbds_wrong_blocks, self._rbds_normal_blocks, self._rbds_inverted_blocks)
+                            else:
+                                logger.debug("RBDS sync OK: %d/50 bad blocks",
+                                            self._rbds_wrong_blocks)
                         self._rbds_blocks_counter = 0
                         self._rbds_wrong_blocks = 0
 
