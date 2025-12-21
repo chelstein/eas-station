@@ -648,7 +648,7 @@ class RBDSWorker:
         self._rbds_mm_rail_prev = out_rail_prev
         self._rbds_mm_rail_prev2 = out_rail_prev2
         
-        return np.array(out_list, dtype=np.complex64) if out_list else np.array([], dtype=np.complex64) if n_out > 0 else np.array([], dtype=np.complex64)
+        return np.array(out_list, dtype=np.complex64) if out_list else np.array([], dtype=np.complex64)
 
     def _costas_pysdr(self, samples: np.ndarray) -> np.ndarray:
         """Costas loop for BPSK carrier/phase synchronization.

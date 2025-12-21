@@ -7,6 +7,14 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **CRITICAL: RBDS M&M Timing Return Statement Bug** - Fixed undefined variable causing RBDS processing failure
+  - Root cause: Line 651 referenced undefined variable `n_out` in ternary expression
+  - This caused M&M timing recovery function to crash, preventing RBDS bit extraction
+  - RBDS was stuck in presync mode because bits were never being processed correctly
+  - Simplified return statement to only check `out_list` variable
+  - RBDS should now properly extract bits and achieve synchronization
+  - File: `app_core/radio/demodulation.py` line 651
+
 - **RBDS Presync False Positives Fixed** - Removed inverted syndrome check from presync phase
   - Root cause: Presync was checking both normal AND inverted syndromes, creating false positive matches
   - False positives led to spacing mismatches and failed synchronization ("expected 78, got 24" errors)
