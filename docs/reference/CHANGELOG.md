@@ -7,6 +7,18 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **CRITICAL: RBDS Buffer Management Fixed** - Changed from buffer-draining to index-based bit processing
+  - Root cause: `_decode_rbds_groups()` was using `pop(0)` in a `while` loop, consuming ALL bits even during failed presync
+  - When presync found valid blocks but spacing verification failed, bits were already consumed and lost
+  - This caused constant `buffer=0` in logs and prevented synchronization from ever being achieved
+  - Changed to index-based processing (like python-radio reference) that preserves unprocessed bits
+  - Bits are only removed from buffer after successful processing or when buffer exceeds 6000 bit limit
+  - Failed presync attempts now preserve bits for retry instead of discarding them
+  - Added `_rbds_buffer_index` to track position in buffer without destroying data
+  - Improved logging: spacing mismatches now show which block types caused the mismatch
+  - Reference: https://github.com/ChrisDev8/python-radio/blob/main/decoder.py (lines 235-280)
+  - File: `app_core/radio/demodulation.py` method `_decode_rbds_groups()`
+
 - **CRITICAL: RBDS M&M Timing Return Statement Bug** - Fixed undefined variable causing RBDS processing failure
   - Root cause: Line 651 referenced undefined variable `n_out` in ternary expression
   - This caused M&M timing recovery function to crash, preventing RBDS bit extraction

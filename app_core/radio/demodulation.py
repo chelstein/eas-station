@@ -869,6 +869,10 @@ class RBDSWorker:
         - Two-stage presync: find any valid block, verify second at correct spacing
         - Synced: count exactly 26 bits per block, track error rate
         - Based on: https://github.com/ChrisDev8/python-radio/blob/main/decoder.py
+        
+        CRITICAL FIX: Use index-based processing instead of pop(0) to preserve bits
+        during failed presync attempts. This prevents the buffer from being drained
+        before synchronization is achieved.
         """
         changed = False
 
@@ -892,10 +896,18 @@ class RBDSWorker:
             self._rbds_blocks_counter = 0
             self._rbds_group_data = [0, 0, 0, 0]
             self._rbds_group_good = 0
+            self._rbds_buffer_index = 0  # Track where we are in the buffer
 
-        # Process bits one at a time (python-radio approach)
-        while self._rbds_bit_buffer:
-            bit = self._rbds_bit_buffer.pop(0)
+        # Process bits using index instead of pop(0) to preserve unprocessed bits
+        # This is critical for presync - when spacing fails, we don't lose the bits
+        buffer_len = len(self._rbds_bit_buffer)
+        bits_processed = 0
+        
+        while self._rbds_buffer_index < buffer_len:
+            bit = self._rbds_bit_buffer[self._rbds_buffer_index]
+            self._rbds_buffer_index += 1
+            bits_processed += 1
+            
             self._rbds_reg = ((self._rbds_reg << 1) | bit) & 0x3FFFFFF  # 26-bit register
             self._rbds_bit_counter += 1
 
@@ -939,10 +951,13 @@ class RBDSWorker:
                         actual_bits = self._rbds_bit_counter - self._rbds_lastseen_offset_counter
 
                         if expected_bits != actual_bits:
-                            # Wrong spacing - false positive, reset presync
+                            # Wrong spacing - false positive, reset presync and CONTINUE searching
+                            # Don't break - keep looking for valid blocks
                             self._rbds_presync = False
-                            logger.debug("RBDS presync: spacing mismatch (expected %d, got %d)",
-                                        expected_bits, actual_bits)
+                            logger.debug(
+                                "RBDS presync: spacing mismatch (expected %d, got %d) between block types %d and %d - resetting presync",
+                                expected_bits, actual_bits, self._rbds_lastseen_offset, j
+                            )
                         else:
                             # Correct spacing - SYNCED!
                             self._rbds_synced = True
@@ -1062,9 +1077,17 @@ class RBDSWorker:
                         self._rbds_blocks_counter = 0
                         self._rbds_wrong_blocks = 0
 
-        # Enforce buffer limit
+        # Clean up processed bits from buffer to prevent unbounded growth
+        # Remove bits we've successfully processed
+        if self._rbds_buffer_index > 0:
+            del self._rbds_bit_buffer[:self._rbds_buffer_index]
+            self._rbds_buffer_index = 0
+        
+        # Enforce maximum buffer limit (keep most recent bits)
         if len(self._rbds_bit_buffer) > 6000:
-            del self._rbds_bit_buffer[:len(self._rbds_bit_buffer) - 6000]
+            excess = len(self._rbds_bit_buffer) - 6000
+            del self._rbds_bit_buffer[:excess]
+            logger.debug("RBDS buffer limit: removed %d old bits, kept most recent 6000", excess)
 
         if changed:
             return self._rbds_decoder.get_current_data()
