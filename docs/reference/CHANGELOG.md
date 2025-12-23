@@ -7,6 +7,19 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **RBDS Debug Log Flooding Reduced** - Significantly reduced verbosity of RBDS debug logging
+  - Root cause: RBDS processing logged debug messages on EVERY sample batch processed (every few milliseconds)
+  - Line 522: "RBDS M&M: samples -> symbols" was logged for every batch
+  - Line 563-566: "RBDS bits: new bits, ones, buffer" was logged for every bit extraction
+  - Line 941: "RBDS presync: first block type" was logged at DEBUG level (now INFO)
+  - Line 957-960: "RBDS presync: spacing mismatch" was logged for every mismatch
+  - Solution: Changed high-frequency debug logs to only log every 500th call
+  - Solution: Changed presync milestone logs to INFO level (significant events)
+  - Solution: Changed spacing mismatch logs to only log every 100th occurrence
+  - Result: RBDS debug logging reduced by ~99.8% while maintaining visibility of important events
+  - Important milestones (sync, presync, errors) still logged at INFO/WARNING levels
+  - File: `app_core/radio/demodulation.py` lines 518-527, 560-572, 937-967
+
 - **CRITICAL: SDR Flask Audio Freeze After 5-6 Seconds** - Fixed audio streaming endpoint using broken MP3 encoder
   - Root cause: `stream_audio()` was calling `generate_mp3_stream()` which used ffmpeg subprocess for real-time MP3 encoding
   - ffmpeg subprocess had buffering issues causing the stream to stall after 5-6 seconds

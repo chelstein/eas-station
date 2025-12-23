@@ -519,7 +519,12 @@ class RBDSWorker:
         n_before = len(x)
         x = self._mm_timing_pysdr(x)
         time.sleep(0)  # Yield GIL
-        logger.debug("RBDS M&M: %d samples -> %d symbols", n_before, len(x))
+        # Reduced logging: only log M&M timing every 500th call to avoid log flooding
+        if not hasattr(self, '_mm_log_count'):
+            self._mm_log_count = 0
+        self._mm_log_count += 1
+        if self._mm_log_count % 500 == 1:
+            logger.debug("RBDS M&M: %d samples -> %d symbols (logged every 500 calls)", n_before, len(x))
 
         if len(x) < 2:
             return self._decode_rbds_groups()
@@ -559,11 +564,16 @@ class RBDSWorker:
 
             n_bits = len(diff)
             n_ones = int(np.sum(diff))
+            # Reduced logging: only log bit extraction every 500th call to avoid log flooding
             if n_bits > 0:
-                logger.debug(
-                    "RBDS bits: %d new bits, %d ones (%.1f%%), buffer=%d",
-                    n_bits, n_ones, 100.0 * n_ones / n_bits, len(self._rbds_bit_buffer)
-                )
+                if not hasattr(self, '_bits_log_count'):
+                    self._bits_log_count = 0
+                self._bits_log_count += 1
+                if self._bits_log_count % 500 == 1:
+                    logger.debug(
+                        "RBDS bits: %d new bits, %d ones (%.1f%%), buffer=%d (logged every 500 calls)",
+                        n_bits, n_ones, 100.0 * n_ones / n_bits, len(self._rbds_bit_buffer)
+                    )
             self._rbds_bit_buffer.extend(diff.tolist())
 
         return self._decode_rbds_groups()
@@ -938,7 +948,8 @@ class RBDSWorker:
                         self._rbds_lastseen_offset = j
                         self._rbds_lastseen_offset_counter = self._rbds_bit_counter
                         self._rbds_presync = True
-                        logger.debug("RBDS presync: first block type %d at bit %d (normal polarity)",
+                        # Changed to INFO level as this is a significant sync milestone
+                        logger.info("RBDS presync: first block type %d at bit %d (normal polarity)",
                                     j, self._rbds_bit_counter)
                     else:
                         # Second valid block - check spacing
@@ -954,10 +965,15 @@ class RBDSWorker:
                             # Wrong spacing - false positive, reset presync and CONTINUE searching
                             # Don't break - keep looking for valid blocks
                             self._rbds_presync = False
-                            logger.debug(
-                                "RBDS presync: spacing mismatch (expected %d, got %d) between block types %d and %d - resetting presync",
-                                expected_bits, actual_bits, self._rbds_lastseen_offset, j
-                            )
+                            # Reduced logging: only log spacing mismatches every 100th occurrence
+                            if not hasattr(self, '_spacing_mismatch_count'):
+                                self._spacing_mismatch_count = 0
+                            self._spacing_mismatch_count += 1
+                            if self._spacing_mismatch_count % 100 == 1:
+                                logger.debug(
+                                    "RBDS presync: spacing mismatch (expected %d, got %d) between block types %d and %d - resetting presync (logged every 100 mismatches)",
+                                    expected_bits, actual_bits, self._rbds_lastseen_offset, j
+                                )
                         else:
                             # Correct spacing - SYNCED!
                             self._rbds_synced = True
