@@ -997,18 +997,85 @@ class RBDSWorker:
                                     expected_bits, actual_bits
                                 )
                         else:
-                            # Correct spacing - SYNCED! (python-radio approach: immediate sync on first good match)
+                            # Correct spacing - SYNCED!
                             logger.info('RBDS SYNCHRONIZED at bit %d', self._rbds_bit_counter)
+                            
+                            # CRITICAL FIX: Process the current 26-bit block IMMEDIATELY before any
+                            # more bits shift in. The register contains a valid block right now.
+                            block_to_process = self._rbds_reg
+                            block_type_pos = offset_pos[j]  # Position 0-3 in the sequence
+                            
+                            # Extract dataword and checkword
+                            dataword = (block_to_process >> 10) & 0xFFFF
+                            checkword = block_to_process & 0x3FF
+                            block_crc = self._calc_syndrome(dataword, 16)
+                            
+                            # Verify CRC
+                            good_block = False
+                            final_dataword = dataword
+                            used_inverted = False
+                            
+                            # Try normal polarity
+                            if block_type_pos == 2:  # Block C can be C or C'
+                                if (checkword ^ offset_word[2]) == block_crc:
+                                    good_block = True
+                                elif (checkword ^ offset_word[4]) == block_crc:
+                                    good_block = True
+                            else:
+                                if (checkword ^ offset_word[block_type_pos]) == block_crc:
+                                    good_block = True
+                            
+                            # Try inverted polarity if normal failed
+                            if not good_block:
+                                inv_block = block_to_process ^ 0x3FFFFFF
+                                inv_dataword = (inv_block >> 10) & 0xFFFF
+                                inv_checkword = inv_block & 0x3FF
+                                inv_block_crc = self._calc_syndrome(inv_dataword, 16)
+                                
+                                if block_type_pos == 2:
+                                    if (inv_checkword ^ offset_word[2]) == inv_block_crc:
+                                        good_block = True
+                                        final_dataword = inv_dataword
+                                        used_inverted = True
+                                    elif (inv_checkword ^ offset_word[4]) == inv_block_crc:
+                                        good_block = True
+                                        final_dataword = inv_dataword
+                                        used_inverted = True
+                                else:
+                                    if (inv_checkword ^ offset_word[block_type_pos]) == inv_block_crc:
+                                        good_block = True
+                                        final_dataword = inv_dataword
+                                        used_inverted = True
+                            
+                            # Log result
+                            polarity = "inverted" if used_inverted else "normal"
+                            if good_block:
+                                logger.info("RBDS first synced block PASSED CRC: block_num=%d, dataword=0x%04X, polarity=%s",
+                                           block_type_pos, final_dataword, polarity)
+                            else:
+                                logger.warning("RBDS first synced block FAILED CRC: block_num=%d, expected_offset=%s, checkword=0x%03X, block_crc=%d",
+                                              block_type_pos, offset_word[block_type_pos], checkword, block_crc)
+                            
+                            # Now set up synced state for future blocks
                             self._rbds_synced = True
-                            self._rbds_wrong_blocks = 0
-                            self._rbds_blocks_counter = 0
-                            self._rbds_block_bit_counter = 0
-                            self._rbds_block_number = (offset_pos[j] + 1) % 4
+                            self._rbds_wrong_blocks = 0 if good_block else 1
+                            self._rbds_blocks_counter = 1  # We just processed one block
+                            self._rbds_block_bit_counter = 0  # Start counting for next block
+                            self._rbds_block_number = (block_type_pos + 1) % 4  # Next expected block
                             self._rbds_group_good = 0
-                            self._crc_check_count = 0
-                            self._rbds_normal_blocks = 0
-                            self._rbds_inverted_blocks = 0
-                            break  # Exit syndrome loop like python-radio does
+                            self._crc_check_count = 1  # We just did one CRC check
+                            self._rbds_normal_blocks = 1 if (good_block and not used_inverted) else 0
+                            self._rbds_inverted_blocks = 1 if (good_block and used_inverted) else 0
+                            
+                            # Store in group data if good
+                            if good_block:
+                                self._rbds_group_data[block_type_pos] = final_dataword
+                                if block_type_pos == 0:
+                                    self._rbds_group_good = 1
+                                elif self._rbds_group_good > 0:
+                                    self._rbds_group_good += 1
+                            
+                            break  # Exit presync loop
             else:
                 # === SYNCED: Process blocks at 26-bit intervals ===
                 if self._rbds_block_bit_counter < 25:
