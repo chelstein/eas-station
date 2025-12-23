@@ -962,9 +962,12 @@ class RBDSWorker:
                         actual_bits = self._rbds_bit_counter - self._rbds_lastseen_offset_counter
                         
                         if expected_bits != actual_bits:
-                            # Wrong spacing - reset presync completely (python-radio approach)
-                            # Don't try to be clever - just reset and start fresh
-                            self._rbds_presync = False
+                            # Wrong spacing - the first block was likely a false positive
+                            # CRITICAL FIX: Don't discard current block! It has valid syndrome,
+                            # so treat it as the new first block candidate.
+                            self._rbds_lastseen_offset = j
+                            self._rbds_lastseen_offset_counter = self._rbds_bit_counter
+                            # Keep presync=True since we have a new first block candidate
                             
                             # Reduced logging: only log spacing mismatches every 100th occurrence
                             if not hasattr(self, '_spacing_mismatch_count'):
@@ -972,7 +975,7 @@ class RBDSWorker:
                             self._spacing_mismatch_count += 1
                             if self._spacing_mismatch_count % 100 == 1:
                                 logger.debug(
-                                    "RBDS presync: spacing mismatch (expected %d, got %d) - resetting presync "
+                                    "RBDS presync: spacing mismatch (expected %d, got %d) - keeping current as first block "
                                     "(logged every 100 mismatches)",
                                     expected_bits, actual_bits
                                 )
