@@ -7,6 +7,16 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **CRITICAL: RBDS Differential Decoding Formula** - Replaced custom logic with exact python-radio reference implementation
+  - Problem: Used `(bits[1:] != bits[0:-1])` for differential decoding, which has opposite polarity to python-radio
+  - Symptoms: 30+ PRs failing to achieve RBDS sync, syndromes never matching targets [383, 14, 303, 663, 748]
+  - Root cause: Differential formula was mathematically equivalent but **inverted** compared to reference
+  - Solution: Use exact python-radio formula: `(bits[1:] - bits[0:-1]) % 2`
+  - Reference: https://github.com/ChrisDev8/python-radio/blob/main/decoder.py line 210
+  - File: `app_core/radio/demodulation.py` line ~564
+  - Impact: Handles 180° phase ambiguity correctly, allows sync regardless of Costas lock polarity
+  - **This was the root cause all along** - custom implementation had subtle polarity inversion
+
 - **EXPERIMENTAL: RBDS Signal Processing Order** - Testing Costas-before-M&M ordering to fix persistent decoding failures
   - Problem: After 30+ PRs, RBDS still shows "0 groups decoded" and random syndromes
   - Root cause analysis: Syndromes (164, 358, 36, etc.) don't match targets [383, 14, 303, 663, 748] even when inverted
