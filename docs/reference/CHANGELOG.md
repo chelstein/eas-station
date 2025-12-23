@@ -6,6 +6,13 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+### Removed
+- **Dead Code Cleanup**: Removed 394 lines of unused RBDS code from FMDemodulator class
+  - Removed `_extract_rbds()`, `_rbds_costas_loop()`, `_rbds_mm_clock_recovery()`, `_rbds_symbol_to_bit()`, `_decode_rbds_block()`, and `_rbds_crc()` methods
+  - Removed unused RBDS initialization constants (`_rbds_carrier_phase`, `_rbds_max_decode_iterations`, `_rbds_bit_buffer`, etc.)
+  - RBDSWorker thread-based implementation remains as the active RBDS processor
+  - No functional changes (removed code was never called)
+
 ### Fixed
 - **CRITICAL: RBDS Sync Lost Due to Incorrect Block Number Calculation** - Fixed block_number formula when presync confirms with C' block
   - Root cause: Formula used `block_number = (j + 1) % 4` where j is syndrome index (0-4)
