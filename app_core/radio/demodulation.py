@@ -1188,6 +1188,7 @@ class RBDSWorker:
                                    *self._rbds_group_data)
 
                     self._rbds_block_bit_counter = 0
+                    self._rbds_reg = 0  # CRITICAL: Reset register so next block starts clean
                     self._rbds_block_number = (self._rbds_block_number + 1) % 4
                     self._rbds_blocks_counter += 1
 
