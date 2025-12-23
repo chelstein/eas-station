@@ -557,7 +557,10 @@ class RBDSWorker:
             all_symbols = np.concatenate(([prev_sym], bits_raw))
 
             # Per EN 62106: different = 1, same = 0
-            diff = (all_symbols[1:] != all_symbols[:-1]).astype(np.int8)
+            # CRITICAL FIX ATTEMPT: Try INVERTED differential decoding
+            # Standard says: bit 1 = phase change, bit 0 = no change
+            # But maybe implementation needs: bit 0 = phase change, bit 1 = no change?
+            diff = (all_symbols[1:] == all_symbols[:-1]).astype(np.int8)  # INVERTED: same=1, different=0
 
             # Save last BIT value for next chunk continuity (0 or 1, not raw sample)
             self._rbds_prev_symbol = float(bits_raw[-1])
