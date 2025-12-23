@@ -7,6 +7,16 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **CRITICAL: RBDS Worker Thread Leak** - Fixed multiple RBDS worker threads being created without stopping old ones
+  - Root cause: When IQ sample rate changed in `redis_sdr_adapter.py`, new FMDemodulator created without stopping old one
+  - Old demodulator's RBDS worker thread continued running, creating orphaned threads
+  - Symptom: Logs showed repeated "RBDS worker thread started" messages, multiple threads processing simultaneously
+  - Solution: Added `stop()` method to FMDemodulator to properly stop RBDS worker thread
+  - Solution: Call `stop()` on old demodulator before creating new one in `_create_demodulator()`
+  - Solution: Call `stop()` on demodulator in `_stop_capture()` to clean up on shutdown
+  - Files: `app_core/radio/demodulation.py`, `app_core/audio/redis_sdr_adapter.py`
+  - Result: Only one RBDS worker thread runs at a time, no more thread leaks
+
 - **CRITICAL: RBDS Sync Immediately Lost After Achievement** - Fixed register reset corruption during sync transition
   - Root cause: When presync confirmed two blocks with correct 26-bit spacing, code incorrectly reset the shift register
   - The register contained a complete valid 26-bit block that had just passed CRC validation
