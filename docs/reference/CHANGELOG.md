@@ -7,6 +7,26 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **CRITICAL: SDR Flask Audio Freeze After 5-6 Seconds** - Fixed audio streaming endpoint using broken MP3 encoder
+  - Root cause: `stream_audio()` was calling `generate_mp3_stream()` which used ffmpeg subprocess for real-time MP3 encoding
+  - ffmpeg subprocess had buffering issues causing the stream to stall after 5-6 seconds
+  - WAV generator code existed (lines 1034-1148) but was NEVER CALLED - it was dead code after MP3 generator
+  - Created proper `generate_wav_stream()` function with WAV streaming logic
+  - Updated return statement to use WAV format (`audio/wav`) instead of MP3 (`audio/mpeg`)
+  - WAV streaming is more reliable and doesn't require ffmpeg subprocess overhead
+  - File: `eas_monitoring_service.py` lines 842-997
+
+- **CRITICAL: RBDS Not Working - Missing Constants** - Fixed undefined RBDS decoder constants in FMDemodulator
+  - Root cause: `_decode_rbds_groups()` method (line 1790) referenced undefined constants
+  - Constants used but never initialized in `__init__`: `_rbds_max_decode_iterations`, `_rbds_max_consecutive_failures`, `_rbds_bit_buffer_max_size`
+  - Also missing: `_rbds_bit_buffer`, `_rbds_expected_block`, `_rbds_partial_group`, `_rbds_consecutive_crc_failures`, `_rbds_decoder`
+  - Added all missing RBDS decoder state variables with proper initialization
+  - RBDS decoder now has both threaded (RBDSWorker - preferred) and synchronous paths working
+  - File: `app_core/radio/demodulation.py` lines 1338-1351
+
+## [2.43.4] - 2024-12-21
+
+### Fixed
 - **CRITICAL: RBDS Buffer Management Fixed** - Changed from buffer-draining to index-based bit processing
   - Root cause: `_decode_rbds_groups()` was using `pop(0)` in a `while` loop, consuming ALL bits even during failed presync
   - When presync found valid blocks but spacing verification failed, bits were already consumed and lost
