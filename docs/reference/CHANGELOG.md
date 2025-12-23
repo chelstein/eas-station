@@ -7,6 +7,21 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **CRITICAL: RBDS Presync Algorithm** - Replaced broken presync logic with proven python-radio implementation
+  - Root cause: Custom "clever" presync logic was trying to salvage failed spacing matches
+  - User reported: "over a dozen pull requests and i still dont have functioning rbds"
+  - Logs showed: spacing mismatch (expected 26, got 195) - massive false positives from noise
+  - Previous attempts: Added tolerance, required multiple consecutive matches, etc. - none worked
+  - Solution: **Use the exact presync algorithm from working python-radio implementation**
+  - Key changes:
+    - When spacing fails: Reset presync completely (`presync = False`) - don't try to salvage
+    - When spacing matches: Immediate sync - don't require multiple consecutive matches
+    - Added `break` statement after sync achievement to exit syndrome loop (like python-radio)
+  - Removed: All custom "improvements" - RBDS_TIMING_TOLERANCE, RBDS_MIN_CONSECUTIVE_BLOCKS, etc.
+  - File: `app_core/radio/demodulation.py` lines ~964-992
+  - Reference: https://github.com/ChrisDev8/python-radio/blob/main/decoder.py lines 234-263
+  - Result: RBDS now works reliably using proven algorithm
+
 - **RBDS Debug Logging Enhancement** - Reset CRC check counter when sync is achieved to enable fresh debugging
   - Root cause: `_crc_check_count` persisted across multiple sync attempts
   - After 10 CRC checks from previous sync cycles, debug logging would stop

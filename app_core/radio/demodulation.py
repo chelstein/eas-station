@@ -960,16 +960,11 @@ class RBDSWorker:
 
                         expected_bits = block_distance * 26
                         actual_bits = self._rbds_bit_counter - self._rbds_lastseen_offset_counter
-
+                        
                         if expected_bits != actual_bits:
-                            # Wrong spacing - false positive first block
-                            # CRITICAL FIX: Don't discard the current block! It has a valid syndrome,
-                            # so treat it as the new first block candidate.
-                            # This prevents throwing away legitimate RBDS blocks.
-                            self._rbds_lastseen_offset = j
-                            self._rbds_lastseen_offset_counter = self._rbds_bit_counter
-                            # Keep presync=True since we have a new first block candidate
-                            # (Don't set to False, which would discard this block)
+                            # Wrong spacing - reset presync completely (python-radio approach)
+                            # Don't try to be clever - just reset and start fresh
+                            self._rbds_presync = False
                             
                             # Reduced logging: only log spacing mismatches every 100th occurrence
                             if not hasattr(self, '_spacing_mismatch_count'):
@@ -977,38 +972,23 @@ class RBDSWorker:
                             self._spacing_mismatch_count += 1
                             if self._spacing_mismatch_count % 100 == 1:
                                 logger.debug(
-                                    "RBDS presync: spacing mismatch (expected %d, got %d) "
-                                    "between block types %d and %d - treating current as new first block "
+                                    "RBDS presync: spacing mismatch (expected %d, got %d) - resetting presync "
                                     "(logged every 100 mismatches)",
-                                    expected_bits, actual_bits, self._rbds_lastseen_offset, j
+                                    expected_bits, actual_bits
                                 )
                         else:
-                            # Correct spacing - SYNCED!
-                            # CRITICAL FIX: Do NOT reset the register when achieving sync!
-                            # The current register contains a complete valid block at bit position N.
-                            # As new bits shift in (via line 921), after 26 more bits the register
-                            # will naturally contain the next complete block at position N+1.
-                            # Resetting the register would break this alignment and cause sync loss.
+                            # Correct spacing - SYNCED! (python-radio approach: immediate sync on first good match)
+                            logger.info('RBDS SYNCHRONIZED at bit %d', self._rbds_bit_counter)
                             self._rbds_synced = True
                             self._rbds_wrong_blocks = 0
                             self._rbds_blocks_counter = 0
                             self._rbds_block_bit_counter = 0
-                            # CRITICAL FIX: Use offset_pos[j] instead of j directly
-                            # j is syndrome index (0-4), but block_number is position (0-3)
-                            # j=4 (C') maps to position 2, not 4!
                             self._rbds_block_number = (offset_pos[j] + 1) % 4
                             self._rbds_group_good = 0
-                            # Reset CRC check counter to enable debug logging for next 10 blocks
-                            # This helps diagnose issues after sync is achieved
                             self._crc_check_count = 0
-                            # Reset polarity counters for fresh statistics
                             self._rbds_normal_blocks = 0
                             self._rbds_inverted_blocks = 0
-                            logger.info("RBDS SYNCHRONIZED at bit %d after block type %d (pos %d), expecting position %d next", 
-                                       self._rbds_bit_counter, j, offset_pos[j], self._rbds_block_number)
-                            # DEBUG: Log the register state at sync for analysis
-                            logger.debug("RBDS sync register state: 0x%07X, dataword=0x%04X, checkword=0x%03X",
-                                        self._rbds_reg, (self._rbds_reg >> 10) & 0xFFFF, self._rbds_reg & 0x3FF)
+                            break  # Exit syndrome loop like python-radio does
             else:
                 # === SYNCED: Process blocks at 26-bit intervals ===
                 if self._rbds_block_bit_counter < 25:
