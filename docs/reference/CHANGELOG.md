@@ -7,6 +7,18 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **CRITICAL: RBDS Presync Algorithm Fixed** - Fixed presync logic to salvage valid blocks instead of discarding them
+  - Root cause: Despite documentation in `RBDS_PRESYNC_FIX_2024-12-23.md`, the fix was never actually applied
+  - Lines 964-978 were still discarding the current block when spacing validation failed
+  - This caused an infinite presync loop where valid RBDS blocks were thrown away before they could be paired up
+  - Symptoms: Logs showed "RBDS presync: first block type X" repeatedly but never "RBDS SYNCHRONIZED"
+  - Symptoms: 0 groups decoded after 1000+ samples processed despite valid RBDS signal
+  - Solution: When spacing validation fails, keep current block as new first block candidate
+  - Changed line 964-978: Instead of `self._rbds_presync = False`, update `_rbds_lastseen_offset` and keep presync=True
+  - This preserves valid syndrome matches, allowing decoder to eventually find two correctly-spaced blocks
+  - File: `app_core/radio/demodulation.py` lines 964-980
+  - Result: RBDS should now achieve synchronization and decode groups successfully
+
 - **CRITICAL: RBDS Presync Algorithm** - Replaced broken presync logic with proven python-radio implementation
   - Root cause: Custom "clever" presync logic was trying to salvage failed spacing matches
   - User reported: "over a dozen pull requests and i still dont have functioning rbds"
