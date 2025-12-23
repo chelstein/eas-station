@@ -6,6 +6,17 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+### Fixed
+- **RBDS Debug Logging Enhancement** - Reset CRC check counter when sync is achieved to enable fresh debugging
+  - Root cause: `_crc_check_count` persisted across multiple sync attempts
+  - After 10 CRC checks from previous sync cycles, debug logging would stop
+  - Made it impossible to diagnose why blocks weren't being decoded after achieving sync
+  - Solution: Reset `_crc_check_count = 0` when sync is achieved to enable debug output for next 10 blocks
+  - Solution: Reset polarity counters (`_rbds_normal_blocks`, `_rbds_inverted_blocks`) for fresh statistics
+  - Solution: Added INFO-level log for first synced block to confirm processing is occurring
+  - File: `app_core/radio/demodulation.py` lines ~1006, ~1018
+  - Result: Can now see CRC check details and polarity information after each sync achievement
+
 ### Removed
 - **Dead Code Cleanup**: Removed 394 lines of unused RBDS code from FMDemodulator class
   - Removed `_extract_rbds()`, `_rbds_costas_loop()`, `_rbds_mm_clock_recovery()`, `_rbds_symbol_to_bit()`, `_decode_rbds_block()`, and `_rbds_crc()` methods
