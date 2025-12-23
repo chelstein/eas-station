@@ -998,6 +998,12 @@ class RBDSWorker:
                             # j=4 (C') maps to position 2, not 4!
                             self._rbds_block_number = (offset_pos[j] + 1) % 4
                             self._rbds_group_good = 0
+                            # Reset CRC check counter to enable debug logging for next 10 blocks
+                            # This helps diagnose issues after sync is achieved
+                            self._crc_check_count = 0
+                            # Reset polarity counters for fresh statistics
+                            self._rbds_normal_blocks = 0
+                            self._rbds_inverted_blocks = 0
                             logger.info("RBDS SYNCHRONIZED at bit %d after block type %d (pos %d), expecting position %d next", 
                                        self._rbds_bit_counter, j, offset_pos[j], self._rbds_block_number)
                             # DEBUG: Log the register state at sync for analysis
@@ -1017,6 +1023,10 @@ class RBDSWorker:
                     if not hasattr(self, '_crc_check_count'):
                         self._crc_check_count = 0
                     self._crc_check_count += 1
+                    # Always log first block after sync to confirm we're processing
+                    if self._crc_check_count == 1:
+                        logger.info("RBDS processing first synced block: block_num=%d, bit_counter=%d",
+                                   self._rbds_block_number, self._rbds_bit_counter)
                     if self._crc_check_count <= 10:
                         logger.debug("RBDS CRC check #%d: block_num=%d, reg=0x%07X, dataword=0x%04X, checkword=0x%03X, block_crc=%d",
                                     self._crc_check_count, self._rbds_block_number, self._rbds_reg, 
