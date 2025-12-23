@@ -463,7 +463,9 @@ class RBDSWorker:
         Based on PySDR's working implementation:
         https://pysdr.org/content/rds.html
 
-        Key insight: M&M timing FIRST, then Costas loop!
+        CRITICAL: M&M timing FIRST, then Costas loop!
+        This order is essential - M&M must come BEFORE Costas to properly detect
+        symbol transitions. Reversing this order breaks synchronization.
         """
         if len(multiplex) == 0:
             return None
@@ -515,8 +517,24 @@ class RBDSWorker:
         if len(x) < 48:  # Need enough samples for processing
             return self._decode_rbds_groups()
 
-        # EXPERIMENTAL: Try Costas BEFORE M&M (opposite of PySDR)
-        # If phase offset confuses M&M timing, we should correct it first
+        # Step 6: M&M Symbol Timing Recovery (FIRST per PySDR standard)
+        # CRITICAL: M&M must come BEFORE Costas to properly detect symbol transitions
+        # Reference: https://pysdr.org/content/rds.html
+        n_before = len(x)
+        x = self._mm_timing_pysdr(x)
+        time.sleep(0)  # Yield GIL
+        # Reduced logging: only log M&M timing every 500th call to avoid log flooding
+        if not hasattr(self, '_mm_log_count'):
+            self._mm_log_count = 0
+        self._mm_log_count += 1
+        if self._mm_log_count % 500 == 1:
+            logger.debug("RBDS M&M: %d samples -> %d symbols (logged every 500 calls)", n_before, len(x))
+
+        if len(x) < 2:
+            return self._decode_rbds_groups()
+
+        # Step 7: Costas Loop for BPSK Phase Correction (SECOND per PySDR standard)
+        # Corrects carrier phase offset after symbol timing is recovered
         x = self._costas_pysdr(x)
         time.sleep(0)  # Yield GIL
         
@@ -531,17 +549,6 @@ class RBDSWorker:
                 self._rbds_costas_freq * 1187.5 / (2 * np.pi),  # Convert to Hz
                 self._rbds_costas_phase
             )
-
-        # Step 6: M&M Symbol Timing (AFTER Costas - experimental)
-        n_before = len(x)
-        x = self._mm_timing_pysdr(x)
-        time.sleep(0)  # Yield GIL
-        # Reduced logging: only log M&M timing every 500th call to avoid log flooding
-        if not hasattr(self, '_mm_log_count'):
-            self._mm_log_count = 0
-        self._mm_log_count += 1
-        if self._mm_log_count % 500 == 1:
-            logger.debug("RBDS M&M: %d samples -> %d symbols (logged every 500 calls)", n_before, len(x))
 
         if len(x) < 2:
             return self._decode_rbds_groups()

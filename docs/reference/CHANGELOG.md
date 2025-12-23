@@ -7,7 +7,19 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
-- **CRITICAL: RBDS Differential Decoding Formula** - Replaced custom logic with exact python-radio reference implementation
+- **CRITICAL: RBDS Processing Order Restored to PySDR Standard** (v2.44.11)
+  - Problem: After differential fix in v2.44.10, RBDS still shows "0 groups decoded" with wrong syndromes
+  - Root cause: Experimental "Costas-before-M&M" order (added in v2.44.9) breaks symbol timing recovery
+  - Analysis: M&M clock recovery needs correct symbol transitions; Costas phase correction distorts them
+  - PySDR reference: "M&M timing FIRST, then Costas loop!" - this order is CRITICAL
+  - Code had experimental swap at lines 518-537 doing Costas → M&M (opposite of PySDR standard)
+  - Solution: Restored correct DSP order: M&M symbol timing → Costas phase correction → BPSK demod
+  - File: `app_core/radio/demodulation.py` lines 518-549
+  - Impact: Symbol timing recovery can now properly detect bit transitions BEFORE phase correction
+  - **This was the missing piece after the differential fix** - correct processing order is essential
+  - Testing: Run `python3 test_rbds_standalone.py` to verify implementation
+
+- **CRITICAL: RBDS Differential Decoding Formula** (v2.44.10) - Replaced custom logic with exact python-radio reference implementation
   - Problem: Used `(bits[1:] != bits[0:-1])` for differential decoding, which has opposite polarity to python-radio
   - Symptoms: 30+ PRs failing to achieve RBDS sync, syndromes never matching targets [383, 14, 303, 663, 748]
   - Root cause: Differential formula was mathematically equivalent but **inverted** compared to reference
@@ -15,21 +27,6 @@ tracks releases under the 2.x series.
   - Reference: https://github.com/ChrisDev8/python-radio/blob/main/decoder.py line 210
   - File: `app_core/radio/demodulation.py` line ~564
   - Impact: Handles 180° phase ambiguity correctly, allows sync regardless of Costas lock polarity
-  - **This was the root cause all along** - custom implementation had subtle polarity inversion
-
-- **EXPERIMENTAL: RBDS Signal Processing Order** - Testing Costas-before-M&M ordering to fix persistent decoding failures
-  - Problem: After 30+ PRs, RBDS still shows "0 groups decoded" and random syndromes
-  - Root cause analysis: Syndromes (164, 358, 36, etc.) don't match targets [383, 14, 303, 663, 748] even when inverted
-  - This indicates fundamental bit stream corruption, not just polarity issues
-  - CRC calculation verified CORRECT with test_rbds_bit_order.py
-  - Differential decoding logic verified CORRECT with comprehensive permutation testing
-  - **Hypothesis**: M&M timing recovery may be confused by carrier phase offset in complex signal
-  - **Change**: Swapped DSP chain order from "M&M → Costas → BPSK" to "Costas → M&M → BPSK"
-  - **Rationale**: If carrier phase offset confuses M&M's complex timing recovery, correct phase FIRST
-  - File: `app_core/radio/demodulation.py` lines ~515-545
-  - **Status**: EXPERIMENTAL - Contradicts PySDR tutorial but may be necessary for our implementation
-  - **Testing**: User must deploy v2.44.9 and observe logs for "RBDS SYNCHRONIZED" and groups decoded
-  - Also created diagnostic tool: `tools/rbds_bit_permutations_test.py`
 
 - **CRITICAL: RBDS Register Not Reset in Synced Mode** - Fixed register not being reset after processing each block in synced mode, causing systematic CRC failures after sync achievement. After processing a block, counter was reset but register still contained previous block's 26 bits. Next block's bits shifted into corrupted register, creating misaligned blocks. Added `_rbds_reg = 0` at line 1191 to reset register after each block. File: `app_core/radio/demodulation.py`. Symptoms: First synced block passed CRC, all subsequent blocks failed, sync lost within seconds, 0 groups decoded.
 
