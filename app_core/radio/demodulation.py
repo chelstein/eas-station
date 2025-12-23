@@ -976,6 +976,10 @@ class RBDSWorker:
                                 )
                         else:
                             # Correct spacing - SYNCED!
+                            # CRITICAL FIX: Reset the register when achieving sync
+                            # The current register contains a complete valid block.
+                            # We need to start fresh with the next 26 bits for the next block.
+                            self._rbds_reg = 0
                             self._rbds_synced = True
                             self._rbds_wrong_blocks = 0
                             self._rbds_blocks_counter = 0
