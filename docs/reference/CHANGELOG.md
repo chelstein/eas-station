@@ -7,6 +7,20 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **EXPERIMENTAL: RBDS Signal Processing Order** - Testing Costas-before-M&M ordering to fix persistent decoding failures
+  - Problem: After 30+ PRs, RBDS still shows "0 groups decoded" and random syndromes
+  - Root cause analysis: Syndromes (164, 358, 36, etc.) don't match targets [383, 14, 303, 663, 748] even when inverted
+  - This indicates fundamental bit stream corruption, not just polarity issues
+  - CRC calculation verified CORRECT with test_rbds_bit_order.py
+  - Differential decoding logic verified CORRECT with comprehensive permutation testing
+  - **Hypothesis**: M&M timing recovery may be confused by carrier phase offset in complex signal
+  - **Change**: Swapped DSP chain order from "M&M → Costas → BPSK" to "Costas → M&M → BPSK"
+  - **Rationale**: If carrier phase offset confuses M&M's complex timing recovery, correct phase FIRST
+  - File: `app_core/radio/demodulation.py` lines ~515-545
+  - **Status**: EXPERIMENTAL - Contradicts PySDR tutorial but may be necessary for our implementation
+  - **Testing**: User must deploy v2.44.9 and observe logs for "RBDS SYNCHRONIZED" and groups decoded
+  - Also created diagnostic tool: `tools/rbds_bit_permutations_test.py`
+
 - **CRITICAL: RBDS Register Not Reset in Synced Mode** - Fixed register not being reset after processing each block in synced mode, causing systematic CRC failures after sync achievement. After processing a block, counter was reset but register still contained previous block's 26 bits. Next block's bits shifted into corrupted register, creating misaligned blocks. Added `_rbds_reg = 0` at line 1191 to reset register after each block. File: `app_core/radio/demodulation.py`. Symptoms: First synced block passed CRC, all subsequent blocks failed, sync lost within seconds, 0 groups decoded.
 
 - **CRITICAL: RBDS Presync Polarity Check** - Fixed presync to check both normal and inverted bit polarity
