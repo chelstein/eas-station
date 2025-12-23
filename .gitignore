@@ -48,3 +48,17 @@ bare-metal/scripts/*.iso
 # Development-only directories (not for ISO)
 bugs/
 tests/bug_reproductions/
+
+# Don't allow root clutter - keep docs in proper directories
+/*_FIX*.md
+/*_DIAGNOSTIC*.md
+/*_DEPLOYMENT*.md
+/*_APPLIED*.md
+/*_REMOVAL*.md
+/*_AUDIT*.md
+/*_SUMMARY*.md
+/APPLY_*.md
+/DEPLOY_*.sh
+/FIX_*.md
+/FIXES_*.md
+
