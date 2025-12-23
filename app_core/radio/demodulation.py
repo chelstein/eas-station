@@ -923,23 +923,39 @@ class RBDSWorker:
 
             if not self._rbds_synced:
                 # === PRESYNC: Look for valid syndrome ===
-                # Only check normal polarity during presync (matches python-radio)
-                # Differential decoding already handles 180° phase ambiguity
+                # Check BOTH normal and inverted polarity (Costas loop can lock with 180° phase ambiguity)
+                # CRITICAL FIX: Without inverted check, presync fails if Costas locked inverted
                 syndrome = self._calc_syndrome(self._rbds_reg, 26)
+                
+                # Also check inverted register (180° phase ambiguity)
+                inv_reg = self._rbds_reg ^ 0x3FFFFFF  # Invert all 26 bits
+                syndrome_inv = self._calc_syndrome(inv_reg, 26)
 
                 # Debug: Log syndromes periodically
                 if not hasattr(self, '_syndrome_debug_count'):
                     self._syndrome_debug_count = 0
                 self._syndrome_debug_count += 1
                 if self._syndrome_debug_count % 1000 == 1:
-                    logger.debug("RBDS sync search: bit_counter=%d, syndrome=%d, target syndromes=%s",
-                                self._rbds_bit_counter, syndrome, syndromes)
+                    logger.debug("RBDS sync search: bit_counter=%d, syndrome=%d/%d (normal/inverted), target syndromes=%s",
+                                self._rbds_bit_counter, syndrome, syndrome_inv, syndromes)
 
                 matched_j = None
+                used_inverted = False
+                
+                # Try normal polarity first
                 for j in range(5):
                     if syndrome == syndromes[j]:
                         matched_j = j
+                        used_inverted = False
                         break
+                
+                # Try inverted polarity if normal didn't match
+                if matched_j is None:
+                    for j in range(5):
+                        if syndrome_inv == syndromes[j]:
+                            matched_j = j
+                            used_inverted = True
+                            break
 
                 if matched_j is not None:
                     j = matched_j
@@ -948,9 +964,10 @@ class RBDSWorker:
                         self._rbds_lastseen_offset = j
                         self._rbds_lastseen_offset_counter = self._rbds_bit_counter
                         self._rbds_presync = True
-                        # Changed to INFO level as this is a significant sync milestone
-                        logger.info("RBDS presync: first block type %d at bit %d (normal polarity)",
-                                    j, self._rbds_bit_counter)
+                        # Log which polarity matched
+                        polarity = "inverted" if used_inverted else "normal"
+                        logger.info("RBDS presync: first block type %d at bit %d (%s polarity)",
+                                    j, self._rbds_bit_counter, polarity)
                     else:
                         # Second valid block - check spacing
                         if offset_pos[self._rbds_lastseen_offset] >= offset_pos[j]:
