@@ -891,13 +891,18 @@ class RBDSWorker:
         syndromes = [383, 14, 303, 663, 748]  # A, B, C, D, C'
         offset_pos = [0, 1, 2, 3, 2]  # A=0, B=1, C=2, D=3, C'=2 (same as C)
         offset_word = [252, 408, 360, 436, 848]  # A, B, C, D, C'
+        
+        # Presync tuning parameters
+        RBDS_TIMING_TOLERANCE = 2  # Allow ±2 bit timing jitter for spacing check
+        RBDS_MIN_CONSECUTIVE_BLOCKS = 3  # Require 3 consecutive good blocks for sync
 
         # Initialize state if not present
         if not hasattr(self, '_rbds_reg'):
             self._rbds_reg = 0
             self._rbds_synced = False
             self._rbds_presync = False
-            self._rbds_presync_good_count = 0  # Count consecutive good spacing matches
+            # Track consecutive blocks with correct spacing; need 3+ for reliable sync to avoid false positives from noise
+            self._rbds_presync_good_count = 0
             self._rbds_lastseen_offset = 0
             self._rbds_lastseen_offset_counter = 0
             self._rbds_bit_counter = 0
@@ -962,10 +967,10 @@ class RBDSWorker:
                         expected_bits = block_distance * 26
                         actual_bits = self._rbds_bit_counter - self._rbds_lastseen_offset_counter
                         
-                        # Allow +/- 2 bit tolerance for timing jitter
+                        # Allow timing tolerance for jitter
                         spacing_error = abs(actual_bits - expected_bits)
                         
-                        if spacing_error > 2:
+                        if spacing_error > RBDS_TIMING_TOLERANCE:
                             # Wrong spacing - reset presync count and treat current as new first block
                             self._rbds_lastseen_offset = j
                             self._rbds_lastseen_offset_counter = self._rbds_bit_counter
@@ -986,9 +991,9 @@ class RBDSWorker:
                             # Good spacing - increment count
                             self._rbds_presync_good_count += 1
                             
-                            # Require 3 consecutive good spacing matches before declaring sync
+                            # Require multiple consecutive good spacing matches before declaring sync
                             # This reduces false positives from random bit patterns
-                            if self._rbds_presync_good_count >= 3:
+                            if self._rbds_presync_good_count >= RBDS_MIN_CONSECUTIVE_BLOCKS:
                                 # SYNCED! We've seen 3+ consecutive blocks with correct spacing
                                 # CRITICAL FIX: Do NOT reset the register when achieving sync!
                                 # The current register contains a complete valid block at bit position N.
@@ -1022,7 +1027,7 @@ class RBDSWorker:
                                 self._rbds_lastseen_offset_counter = self._rbds_bit_counter
                                 if self._rbds_presync_good_count == 1:
                                     logger.debug("RBDS presync: good spacing match #%d, need %d more",
-                                               self._rbds_presync_good_count, 3 - self._rbds_presync_good_count)
+                                               self._rbds_presync_good_count, RBDS_MIN_CONSECUTIVE_BLOCKS - self._rbds_presync_good_count)
             else:
                 # === SYNCED: Process blocks at 26-bit intervals ===
                 if self._rbds_block_bit_counter < 25:
