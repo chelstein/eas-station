@@ -74,6 +74,11 @@ class RedisSDRSourceAdapter(AudioSourceAdapter):
     def _create_demodulator(self) -> None:
         """Create or recreate demodulator with current settings."""
         try:
+            # Stop old demodulator before creating new one to prevent RBDS thread leaks
+            if self._demodulator and hasattr(self._demodulator, 'stop'):
+                self._demodulator.stop()
+                self._demodulator = None
+
             demod_mode = self.config.device_params.get('demod_mode', 'FM')
 
             # Normalize modulation type to uppercase for consistent handling
@@ -293,6 +298,11 @@ class RedisSDRSourceAdapter(AudioSourceAdapter):
 
     def _stop_capture(self) -> None:
         """Stop Redis subscription."""
+        # Stop demodulator to clean up RBDS worker thread
+        if self._demodulator and hasattr(self._demodulator, 'stop'):
+            self._demodulator.stop()
+            self._demodulator = None
+
         if self._pubsub:
             try:
                 self._pubsub.unsubscribe()

@@ -2130,6 +2130,12 @@ class FMDemodulator:
                 value ^= polynomial << (bit - 10)
         return value & 0x3FF
 
+    def stop(self) -> None:
+        """Stop the demodulator and clean up resources."""
+        if self._rbds_worker:
+            self._rbds_worker.stop()
+            self._rbds_worker = None
+
 
 class AMDemodulator:
     """AM envelope demodulator."""
