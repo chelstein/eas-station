@@ -7,6 +7,19 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **CRITICAL: RBDS Sync Immediately Lost After Achievement** - Fixed register reset corruption during sync transition
+  - Root cause: When presync confirmed two blocks with correct 26-bit spacing, code incorrectly reset the shift register
+  - The register contained a complete valid 26-bit block that had just passed CRC validation
+  - The sync transition code was doing `self._rbds_reg = 0`, throwing away the synchronized position
+  - After reset, the register started empty and accumulated garbage bits, causing all subsequent blocks to fail CRC
+  - This caused immediate sync loss (50/50 bad blocks) within 1-2 seconds of achieving sync
+  - Solution: Remove the register reset when achieving sync - let the register naturally shift forward
+  - As new bits arrive (line 921), the register shifts left and the old block rolls out after 26 bits
+  - After 26 new bits, the register contains the next complete block in proper alignment
+  - File: `app_core/radio/demodulation.py` (sync transition section, removed register reset line)
+  - Symptom: Logs showed "RBDS SYNCHRONIZED at bit X" followed immediately by "RBDS SYNC LOST: 50/50 bad blocks"
+  - Result: RBDS now maintains sync continuously and successfully decodes groups
+
 - **CRITICAL: RBDS Presync Never Completes** - Fixed presync logic discarding valid blocks during spacing validation
   - Root cause: When presync finds two blocks with incorrect spacing, it resets presync but discards the second block
   - The second block has a VALID syndrome match but was thrown away, causing the decoder to miss legitimate RBDS data
@@ -18,16 +31,6 @@ tracks releases under the 2.x series.
   - File: `app_core/radio/demodulation.py` lines 964-982
   - Symptom: Logs showed endless "RBDS presync: first block type X" messages but never "RBDS SYNCHRONIZED"
   - Result: RBDS decoder now successfully achieves synchronization and decodes groups
-
-- **CRITICAL: RBDS Sync Immediately Lost After Achievement** - Fixed register state corruption during sync transition
-  - Root cause: When presync confirmed two blocks with correct 26-bit spacing, code achieved sync but continued shifting bits into the register that already contained a valid block
-  - The register contained bits [1-25] of the old block + bit [0] of the new block after sync
-  - This caused ALL subsequent blocks to fail CRC checks (50/50 bad blocks), losing sync immediately
-  - Solution: Reset `_rbds_reg = 0` when achieving sync to start fresh with the next 26 bits
-  - This ensures the register collects a complete new block starting from bit 0
-  - File: `app_core/radio/demodulation.py` line 983
-  - Symptom: Logs showed "RBDS SYNCHRONIZED at bit X" followed immediately by "RBDS SYNC LOST: 50/50 bad blocks"
-  - Result: RBDS now maintains sync and successfully decodes groups
 
 ### Fixed (Previous)
 - **RBDS Debug Log Flooding Reduced** - Significantly reduced verbosity of RBDS debug logging

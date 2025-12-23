@@ -984,10 +984,11 @@ class RBDSWorker:
                                 )
                         else:
                             # Correct spacing - SYNCED!
-                            # CRITICAL FIX: Reset the register when achieving sync
-                            # The current register contains a complete valid block.
-                            # We need to start fresh with the next 26 bits for the next block.
-                            self._rbds_reg = 0
+                            # CRITICAL FIX: Do NOT reset the register when achieving sync!
+                            # The current register contains a complete valid block at bit position N.
+                            # As new bits shift in (via line 921), after 26 more bits the register
+                            # will naturally contain the next complete block at position N+1.
+                            # Resetting the register would break this alignment and cause sync loss.
                             self._rbds_synced = True
                             self._rbds_wrong_blocks = 0
                             self._rbds_blocks_counter = 0
