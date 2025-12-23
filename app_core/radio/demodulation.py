@@ -557,10 +557,11 @@ class RBDSWorker:
             all_symbols = np.concatenate(([prev_sym], bits_raw))
 
             # Per EN 62106: different = 1, same = 0
-            # CRITICAL FIX ATTEMPT: Try INVERTED differential decoding
-            # Standard says: bit 1 = phase change, bit 0 = no change
-            # But maybe implementation needs: bit 0 = phase change, bit 1 = no change?
-            diff = (all_symbols[1:] == all_symbols[:-1]).astype(np.int8)  # INVERTED: same=1, different=0
+            diff = (all_symbols[1:] != all_symbols[:-1]).astype(np.int8)
+            
+            # DIAGNOSTIC: Try inverting all bits (0->1, 1->0)
+            # If Costas loop locked 180° inverted, ALL bits might be flipped
+            diff = 1 - diff  # Invert: 0->1, 1->0
 
             # Save last BIT value for next chunk continuity (0 or 1, not raw sample)
             self._rbds_prev_symbol = float(bits_raw[-1])
@@ -922,6 +923,8 @@ class RBDSWorker:
             bits_processed += 1
             
             self._rbds_reg = ((self._rbds_reg << 1) | bit) & 0x3FFFFFF  # 26-bit register
+            # DIAGNOSTIC: Try bit reversal within 26-bit blocks
+            # self._rbds_reg = ((bit << 25) | (self._rbds_reg >> 1)) & 0x3FFFFFF  # Reverse: shift right, insert at MSB
             self._rbds_bit_counter += 1
 
             if not self._rbds_synced:
