@@ -548,7 +548,10 @@ class RBDSWorker:
         # Step 8: BPSK demod + differential decode (EN 62106 standard)
         # Differential: d[i] = d[i-1] XOR a[i], so a[i] = d[i] XOR d[i-1]
         # Per EN 62106: different symbols → bit 1, same symbols → bit 0
-        bits_raw = (np.real(x) > 0).astype(np.int8)
+        
+        # DIAGNOSTIC: Try IMAGINARY axis instead of REAL axis
+        # If Costas locked 90° rotated, data might be on imaginary axis
+        bits_raw = (np.imag(x) > 0).astype(np.int8)  # TEST: Use imaginary instead of real
 
         if len(bits_raw) > 0:
             # CRITICAL: Prepend last symbol from previous chunk for continuity
@@ -558,10 +561,6 @@ class RBDSWorker:
 
             # Per EN 62106: different = 1, same = 0
             diff = (all_symbols[1:] != all_symbols[:-1]).astype(np.int8)
-            
-            # DIAGNOSTIC: Try inverting all bits (0->1, 1->0)
-            # If Costas loop locked 180° inverted, ALL bits might be flipped
-            diff = 1 - diff  # Invert: 0->1, 1->0
 
             # Save last BIT value for next chunk continuity (0 or 1, not raw sample)
             self._rbds_prev_symbol = float(bits_raw[-1])
