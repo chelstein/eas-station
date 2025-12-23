@@ -7,17 +7,20 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
-- **CRITICAL: RBDS Sync Lost Due to Block Timing Offset** - Fixed 26-bit timing offset causing immediate sync loss
-  - Root cause: When presync achieved synchronization, `_rbds_block_bit_counter` was set to 0
-  - The shift register already contained a complete valid 26-bit block that had just passed syndrome validation
-  - Synced mode then waited for 26 MORE bits before checking CRC, creating a 26-bit offset
-  - This caused all subsequent CRC checks to occur at wrong bit positions, resulting in 50/50 bad blocks
-  - Symptom: "RBDS SYNCHRONIZED at bit X" immediately followed by "RBDS SYNC LOST: 50/50 bad blocks" within 1-2 seconds
-  - Solution: Set `_rbds_block_bit_counter = 25` (not 0) when achieving sync
-  - Solution: Set `_rbds_block_number = j` (current block, not j+1) for immediate verification
-  - This causes the next iteration to immediately verify the block already in the register
-  - After verification, the counter resets to 0 and waits properly for the next 26-bit block
-  - File: `app_core/radio/demodulation.py` lines 995-1006 (sync achievement section)
+- **CRITICAL: RBDS Sync Lost Due to Incorrect Block Number Calculation** - Fixed block_number formula when presync confirms with C' block
+  - Root cause: Formula used `block_number = (j + 1) % 4` where j is syndrome index (0-4)
+  - Syndrome indices: j=0(A), j=1(B), j=2(C), j=3(D), j=4(C')
+  - Block positions: A(0) → B(1) → C/C'(2) → D(3) → A(0)...
+  - When j=4 (C'), formula gave block_number=1 (expecting B next)
+  - But after C' comes D (position 3), not B (position 1)!
+  - This caused all subsequent CRC checks to use wrong offset_word values
+  - Result: 50/50 bad blocks, immediate sync loss
+  - Symptom: "RBDS SYNCHRONIZED at bit X" followed by "RBDS SYNC LOST: 50/50 bad blocks" within 1-2 seconds
+  - Solution: Use `block_number = (offset_pos[j] + 1) % 4` instead
+  - This correctly maps syndrome index to block position using offset_pos array
+  - Works for all block types: A(0→1), B(1→2), C(2→3), D(3→0), C'(2→3)
+  - File: `app_core/radio/demodulation.py` line ~1000 (sync achievement)
+  - Note: python-radio reference implementation has same bug but rarely manifests
   - Result: RBDS maintains synchronization continuously and decodes groups successfully
 
 - **CRITICAL: RBDS Worker Thread Leak** - Fixed multiple RBDS worker threads being created without stopping old ones

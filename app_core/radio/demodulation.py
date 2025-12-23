@@ -989,19 +989,17 @@ class RBDSWorker:
                             # As new bits shift in (via line 921), after 26 more bits the register
                             # will naturally contain the next complete block at position N+1.
                             # Resetting the register would break this alignment and cause sync loss.
-                            #
-                            # SECOND CRITICAL FIX: Set block_bit_counter to 25 (not 0) so that
-                            # on the NEXT iteration, the synced mode will immediately check the CRC
-                            # of the block currently in the register. This prevents a 26-bit offset
-                            # that would cause immediate sync loss.
                             self._rbds_synced = True
                             self._rbds_wrong_blocks = 0
                             self._rbds_blocks_counter = 0
-                            self._rbds_block_bit_counter = 25  # Set to 25 so next iteration checks CRC
-                            self._rbds_block_number = j  # Current block type (will be checked on next iter)
+                            self._rbds_block_bit_counter = 0
+                            # CRITICAL FIX: Use offset_pos[j] instead of j directly
+                            # j is syndrome index (0-4), but block_number is position (0-3)
+                            # j=4 (C') maps to position 2, not 4!
+                            self._rbds_block_number = (offset_pos[j] + 1) % 4
                             self._rbds_group_good = 0
-                            logger.info("RBDS SYNCHRONIZED at bit %d, block type %d ready for verification", 
-                                       self._rbds_bit_counter, j)
+                            logger.info("RBDS SYNCHRONIZED at bit %d after block type %d (pos %d), expecting position %d next", 
+                                       self._rbds_bit_counter, j, offset_pos[j], self._rbds_block_number)
             else:
                 # === SYNCED: Process blocks at 26-bit intervals ===
                 if self._rbds_block_bit_counter < 25:
