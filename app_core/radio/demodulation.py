@@ -547,21 +547,22 @@ class RBDSWorker:
             return self._decode_rbds_groups()
 
         # Step 8: BPSK demod + differential decode (EN 62106 standard)
-        # Differential: d[i] = d[i-1] XOR a[i], so a[i] = d[i] XOR d[i-1]
-        # Per EN 62106: different symbols → bit 1, same symbols → bit 0
+        # RBDS differential decoding using python-radio algorithm
+        # Reference: https://github.com/ChrisDev8/python-radio/blob/main/decoder.py
+        # "Differential decoding, so that it doesn't matter whether our BPSK was 180 degrees rotated"
+        # Formula: bits = (bits[1:] - bits[0:-1]) % 2
         
         # BPSK demod: Extract symbols from REAL axis (after Costas phase correction)
-        # Use REAL axis - data should be here after proper Costas lock
         bits_raw = (np.real(x) > 0).astype(np.int8)
 
         if len(bits_raw) > 0:
             # CRITICAL: Prepend last symbol from previous chunk for continuity
-            # Save last BIT value (not raw sample) for next chunk
             prev_sym = int(self._rbds_prev_symbol)
             all_symbols = np.concatenate(([prev_sym], bits_raw))
 
-            # Per EN 62106: different = 1, same = 0
-            diff = (all_symbols[1:] != all_symbols[:-1]).astype(np.int8)
+            # Use python-radio's exact differential formula: (bits[1:] - bits[0:-1]) % 2
+            # This handles 180° phase ambiguity automatically
+            diff = (all_symbols[1:] - all_symbols[:-1]) % 2
 
             # Save last BIT value for next chunk continuity (0 or 1, not raw sample)
             self._rbds_prev_symbol = float(bits_raw[-1])
