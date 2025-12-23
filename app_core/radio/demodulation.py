@@ -1061,6 +1061,7 @@ class RBDSWorker:
                             self._rbds_wrong_blocks = 0 if good_block else 1
                             self._rbds_blocks_counter = 1  # We just processed one block
                             self._rbds_block_bit_counter = 0  # Start counting for next block
+                            self._rbds_reg = 0  # CRITICAL: Reset register so next block starts clean
                             self._rbds_block_number = (block_type_pos + 1) % 4  # Next expected block
                             self._rbds_group_good = 0
                             self._crc_check_count = 1  # We just did one CRC check
