@@ -7,6 +7,22 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **CRITICAL: RBDS Sync Lost Due to Incorrect Block Number Calculation** - Fixed block_number formula when presync confirms with C' block
+  - Root cause: Formula used `block_number = (j + 1) % 4` where j is syndrome index (0-4)
+  - Syndrome indices: j=0(A), j=1(B), j=2(C), j=3(D), j=4(C')
+  - Block positions: A(0) → B(1) → C/C'(2) → D(3) → A(0)...
+  - When j=4 (C'), formula gave block_number=1 (expecting B next)
+  - But after C' comes D (position 3), not B (position 1)!
+  - This caused all subsequent CRC checks to use wrong offset_word values
+  - Result: 50/50 bad blocks, immediate sync loss
+  - Symptom: "RBDS SYNCHRONIZED at bit X" followed by "RBDS SYNC LOST: 50/50 bad blocks" within 1-2 seconds
+  - Solution: Use `block_number = (offset_pos[j] + 1) % 4` instead
+  - This correctly maps syndrome index to block position using offset_pos array
+  - Works for all block types: A(0→1), B(1→2), C(2→3), D(3→0), C'(2→3)
+  - File: `app_core/radio/demodulation.py` line ~1000 (sync achievement)
+  - Note: python-radio reference implementation has same bug but rarely manifests
+  - Result: RBDS maintains synchronization continuously and decodes groups successfully
+
 - **CRITICAL: RBDS Worker Thread Leak** - Fixed multiple RBDS worker threads being created without stopping old ones
   - Root cause: When IQ sample rate changed in `redis_sdr_adapter.py`, new FMDemodulator created without stopping old one
   - Old demodulator's RBDS worker thread continued running, creating orphaned threads

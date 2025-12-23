@@ -993,9 +993,16 @@ class RBDSWorker:
                             self._rbds_wrong_blocks = 0
                             self._rbds_blocks_counter = 0
                             self._rbds_block_bit_counter = 0
-                            self._rbds_block_number = (j + 1) % 4
+                            # CRITICAL FIX: Use offset_pos[j] instead of j directly
+                            # j is syndrome index (0-4), but block_number is position (0-3)
+                            # j=4 (C') maps to position 2, not 4!
+                            self._rbds_block_number = (offset_pos[j] + 1) % 4
                             self._rbds_group_good = 0
-                            logger.info("RBDS SYNCHRONIZED at bit %d", self._rbds_bit_counter)
+                            logger.info("RBDS SYNCHRONIZED at bit %d after block type %d (pos %d), expecting position %d next", 
+                                       self._rbds_bit_counter, j, offset_pos[j], self._rbds_block_number)
+                            # DEBUG: Log the register state at sync for analysis
+                            logger.debug("RBDS sync register state: 0x%07X, dataword=0x%04X, checkword=0x%03X",
+                                        self._rbds_reg, (self._rbds_reg >> 10) & 0xFFFF, self._rbds_reg & 0x3FF)
             else:
                 # === SYNCED: Process blocks at 26-bit intervals ===
                 if self._rbds_block_bit_counter < 25:
@@ -1005,6 +1012,15 @@ class RBDSWorker:
                     dataword = (self._rbds_reg >> 10) & 0xFFFF
                     checkword = self._rbds_reg & 0x3FF
                     block_crc = self._calc_syndrome(dataword, 16)
+                    
+                    # DEBUG: Log CRC check details for first few blocks
+                    if not hasattr(self, '_crc_check_count'):
+                        self._crc_check_count = 0
+                    self._crc_check_count += 1
+                    if self._crc_check_count <= 10:
+                        logger.debug("RBDS CRC check #%d: block_num=%d, reg=0x%07X, dataword=0x%04X, checkword=0x%03X, block_crc=%d",
+                                    self._crc_check_count, self._rbds_block_number, self._rbds_reg, 
+                                    dataword, checkword, block_crc)
 
                     good_block = False
                     final_dataword = dataword
@@ -1073,9 +1089,18 @@ class RBDSWorker:
                             self._rbds_group_good = 1
                         elif self._rbds_group_good > 0:
                             self._rbds_group_good += 1
+                        # DEBUG: Log first few good blocks
+                        if hasattr(self, '_crc_check_count') and self._crc_check_count <= 10:
+                            logger.info("RBDS block PASSED CRC: block_num=%d, dataword=0x%04X, inverted=%s",
+                                       block_num, final_dataword, used_inverted)
                     else:
                         self._rbds_wrong_blocks += 1
                         self._rbds_group_good = 0  # Invalidate current group
+                        # DEBUG: Log first few failed blocks with details
+                        if hasattr(self, '_crc_check_count') and self._crc_check_count <= 10:
+                            expected_offset = offset_word[block_num] if block_num != 2 else f"{offset_word[2]} or {offset_word[4]}"
+                            logger.warning("RBDS block FAILED CRC: block_num=%d, expected_offset=%s, checkword=0x%03X, block_crc=%d",
+                                          block_num, expected_offset, checkword, block_crc)
 
                     # Check for complete group
                     if block_num == 3 and self._rbds_group_good == 4:
