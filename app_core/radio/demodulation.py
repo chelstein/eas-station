@@ -512,10 +512,27 @@ class RBDSWorker:
         x = self._resample(x, sample_rate, 19000)
         time.sleep(0)  # Yield GIL
 
-        if len(x) < 48:  # Need enough samples for M&M
+        if len(x) < 48:  # Need enough samples for processing
             return self._decode_rbds_groups()
 
-        # Step 6: M&M Symbol Timing (FIRST per PySDR!)
+        # EXPERIMENTAL: Try Costas BEFORE M&M (opposite of PySDR)
+        # If phase offset confuses M&M timing, we should correct it first
+        x = self._costas_pysdr(x)
+        time.sleep(0)  # Yield GIL
+        
+        # Log Costas frequency offset to check if it's locked
+        if hasattr(self, '_costas_log_count'):
+            self._costas_log_count += 1
+        else:
+            self._costas_log_count = 0
+        if self._costas_log_count % 50 == 0:
+            logger.debug(
+                "RBDS Costas: freq=%.3f Hz, phase=%.2f rad",
+                self._rbds_costas_freq * 1187.5 / (2 * np.pi),  # Convert to Hz
+                self._rbds_costas_phase
+            )
+
+        # Step 6: M&M Symbol Timing (AFTER Costas - experimental)
         n_before = len(x)
         x = self._mm_timing_pysdr(x)
         time.sleep(0)  # Yield GIL
@@ -529,25 +546,12 @@ class RBDSWorker:
         if len(x) < 2:
             return self._decode_rbds_groups()
 
-        # Step 7: Costas Loop (SECOND per PySDR!)
-        x = self._costas_pysdr(x)
-        time.sleep(0)  # Yield GIL
-
-        # Log Costas frequency offset to check if it's locked
-        if hasattr(self, '_costas_log_count'):
-            self._costas_log_count += 1
-        else:
-            self._costas_log_count = 0
-        if self._costas_log_count % 50 == 0:
-            logger.debug(
-                "RBDS Costas: freq=%.3f Hz, phase=%.2f rad",
-                self._rbds_costas_freq * 1187.5 / (2 * np.pi),  # Convert to Hz
-                self._rbds_costas_phase
-            )
-
         # Step 8: BPSK demod + differential decode (EN 62106 standard)
         # Differential: d[i] = d[i-1] XOR a[i], so a[i] = d[i] XOR d[i-1]
         # Per EN 62106: different symbols → bit 1, same symbols → bit 0
+        
+        # BPSK demod: Extract symbols from REAL axis (after Costas phase correction)
+        # Use REAL axis - data should be here after proper Costas lock
         bits_raw = (np.real(x) > 0).astype(np.int8)
 
         if len(bits_raw) > 0:
@@ -919,6 +923,8 @@ class RBDSWorker:
             bits_processed += 1
             
             self._rbds_reg = ((self._rbds_reg << 1) | bit) & 0x3FFFFFF  # 26-bit register
+            # DIAGNOSTIC: Try bit reversal within 26-bit blocks
+            # self._rbds_reg = ((bit << 25) | (self._rbds_reg >> 1)) & 0x3FFFFFF  # Reverse: shift right, insert at MSB
             self._rbds_bit_counter += 1
 
             if not self._rbds_synced:
