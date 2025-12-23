@@ -463,7 +463,9 @@ class RBDSWorker:
         Based on PySDR's working implementation:
         https://pysdr.org/content/rds.html
 
-        Key insight: M&M timing FIRST, then Costas loop!
+        CRITICAL: M&M timing FIRST, then Costas loop!
+        This order is essential - M&M must come BEFORE Costas to properly detect
+        symbol transitions. Reversing this order breaks synchronization.
         """
         if len(multiplex) == 0:
             return None

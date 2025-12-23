@@ -11,12 +11,13 @@ tracks releases under the 2.x series.
   - Problem: After differential fix in v2.44.10, RBDS still shows "0 groups decoded" with wrong syndromes
   - Root cause: Experimental "Costas-before-M&M" order (added in v2.44.9) breaks symbol timing recovery
   - Analysis: M&M clock recovery needs correct symbol transitions; Costas phase correction distorts them
-  - PySDR reference clearly states: "M&M timing FIRST, then Costas loop!" (docstring line 466)
-  - Code had experimental swap at lines 518-537 doing Costas → M&M (opposite of PySDR)
-  - Solution: Restored PySDR-standard order: M&M → Costas → BPSK demod
+  - PySDR reference: "M&M timing FIRST, then Costas loop!" - this order is CRITICAL
+  - Code had experimental swap at lines 518-537 doing Costas → M&M (opposite of PySDR standard)
+  - Solution: Restored correct DSP order: M&M symbol timing → Costas phase correction → BPSK demod
   - File: `app_core/radio/demodulation.py` lines 518-549
-  - Impact: Symbol timing recovery can now properly detect bit transitions before phase correction
-  - **This was the missing piece after the differential fix** - correct order is essential
+  - Impact: Symbol timing recovery can now properly detect bit transitions BEFORE phase correction
+  - **This was the missing piece after the differential fix** - correct processing order is essential
+  - Testing: Run `python3 test_rbds_standalone.py` to verify implementation
 
 - **CRITICAL: RBDS Differential Decoding Formula** (v2.44.10) - Replaced custom logic with exact python-radio reference implementation
   - Problem: Used `(bits[1:] != bits[0:-1])` for differential decoding, which has opposite polarity to python-radio
