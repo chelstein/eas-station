@@ -1337,6 +1337,18 @@ class FMDemodulator:
 
         # RBDS carrier phase tracking for coherent demodulation
         self._rbds_carrier_phase: float = 0.0
+        
+        # RBDS decoding constants (for the OLD synchronous decoder path)
+        # These are needed if _extract_rbds/_decode_rbds_groups are called directly
+        # (though RBDSWorker is preferred for non-blocking operation)
+        self._rbds_max_decode_iterations = 100  # Max blocks to decode per call
+        self._rbds_max_consecutive_failures = 200  # Clear buffer after this many CRC failures
+        self._rbds_bit_buffer_max_size = 6000  # Max bits to keep in buffer
+        self._rbds_bit_buffer: List[int] = []  # Bit buffer for synchronous decoder
+        self._rbds_expected_block: Optional[int] = None
+        self._rbds_partial_group: List[int] = []
+        self._rbds_consecutive_crc_failures: int = 0
+        self._rbds_decoder = RBDSDecoder()  # Decoder for synchronous path
 
     def _calculate_filter_taps(self, cutoff_hz: float, sample_rate: int, transition_bw_ratio: float = 0.125) -> int:
         """Calculate appropriate number of filter taps for given parameters.
