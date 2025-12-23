@@ -7,6 +7,16 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **CRITICAL: RBDS Presync Polarity Check** - Fixed presync to check both normal and inverted bit polarity
+  - Root cause: Presync only checked normal polarity, but Costas loop can lock with 180° phase ambiguity
+  - Symptoms: "RBDS sync search" logs showing syndrome values never matching targets [383, 14, 303, 663, 748]
+  - Symptoms: "0 groups decoded" repeatedly - decoder stuck in sync search, never achieving synchronization
+  - Symptoms: When Costas locks with inverted phase, all bits are inverted → syndromes don't match
+  - Analysis: Synced mode checks both polarities (lines 1023-1058), but presync only checked normal (line 926-928)
+  - Solution: Added inverted polarity checking to presync stage (matching synced behavior)
+  - File: `app_core/radio/demodulation.py` lines ~924-960
+  - Result: RBDS can now achieve sync regardless of Costas loop phase lock polarity
+
 - **CRITICAL: RBDS Worker Thread Restart Loop** - Fixed demodulator being recreated on startup, causing RBDS to never sync
   - Root cause: redis_sdr_adapter created demodulator with default 2.5MHz rate, then recreated when first Redis message arrived with actual 250kHz rate (after SDR decimation)
   - Effect: RBDS worker thread restarted before achieving synchronization (~1-5 seconds needed)
