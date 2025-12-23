@@ -7,6 +7,19 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **CRITICAL: RBDS Sync Lost Due to Block Timing Offset** - Fixed 26-bit timing offset causing immediate sync loss
+  - Root cause: When presync achieved synchronization, `_rbds_block_bit_counter` was set to 0
+  - The shift register already contained a complete valid 26-bit block that had just passed syndrome validation
+  - Synced mode then waited for 26 MORE bits before checking CRC, creating a 26-bit offset
+  - This caused all subsequent CRC checks to occur at wrong bit positions, resulting in 50/50 bad blocks
+  - Symptom: "RBDS SYNCHRONIZED at bit X" immediately followed by "RBDS SYNC LOST: 50/50 bad blocks" within 1-2 seconds
+  - Solution: Set `_rbds_block_bit_counter = 25` (not 0) when achieving sync
+  - Solution: Set `_rbds_block_number = j` (current block, not j+1) for immediate verification
+  - This causes the next iteration to immediately verify the block already in the register
+  - After verification, the counter resets to 0 and waits properly for the next 26-bit block
+  - File: `app_core/radio/demodulation.py` lines 995-1006 (sync achievement section)
+  - Result: RBDS maintains synchronization continuously and decodes groups successfully
+
 - **CRITICAL: RBDS Worker Thread Leak** - Fixed multiple RBDS worker threads being created without stopping old ones
   - Root cause: When IQ sample rate changed in `redis_sdr_adapter.py`, new FMDemodulator created without stopping old one
   - Old demodulator's RBDS worker thread continued running, creating orphaned threads
