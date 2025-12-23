@@ -7,6 +7,18 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **CRITICAL: RBDS Presync Never Completes** - Fixed presync logic discarding valid blocks during spacing validation
+  - Root cause: When presync finds two blocks with incorrect spacing, it resets presync but discards the second block
+  - The second block has a VALID syndrome match but was thrown away, causing the decoder to miss legitimate RBDS data
+  - This created an infinite loop: find block A → find block B → spacing wrong → discard B → find block C → repeat
+  - The decoder never accumulated two correctly-spaced blocks because valid blocks were being discarded
+  - Solution: When spacing validation fails, treat the current block as the new first block candidate
+  - Changed line 967: Instead of `self._rbds_presync = False`, keep presync=True and update first block to current
+  - This ensures valid syndrome matches are not lost, allowing the decoder to eventually find two correctly-spaced blocks
+  - File: `app_core/radio/demodulation.py` lines 964-982
+  - Symptom: Logs showed endless "RBDS presync: first block type X" messages but never "RBDS SYNCHRONIZED"
+  - Result: RBDS decoder now successfully achieves synchronization and decodes groups
+
 - **CRITICAL: RBDS Sync Immediately Lost After Achievement** - Fixed register state corruption during sync transition
   - Root cause: When presync confirmed two blocks with correct 26-bit spacing, code achieved sync but continued shifting bits into the register that already contained a valid block
   - The register contained bits [1-25] of the old block + bit [0] of the new block after sync

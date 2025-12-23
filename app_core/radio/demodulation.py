@@ -962,16 +962,24 @@ class RBDSWorker:
                         actual_bits = self._rbds_bit_counter - self._rbds_lastseen_offset_counter
 
                         if expected_bits != actual_bits:
-                            # Wrong spacing - false positive, reset presync and CONTINUE searching
-                            # Don't break - keep looking for valid blocks
-                            self._rbds_presync = False
+                            # Wrong spacing - false positive first block
+                            # CRITICAL FIX: Don't discard the current block! It has a valid syndrome,
+                            # so treat it as the new first block candidate.
+                            # This prevents throwing away legitimate RBDS blocks.
+                            self._rbds_lastseen_offset = j
+                            self._rbds_lastseen_offset_counter = self._rbds_bit_counter
+                            # Keep presync=True since we have a new first block candidate
+                            # (Don't set to False, which would discard this block)
+                            
                             # Reduced logging: only log spacing mismatches every 100th occurrence
                             if not hasattr(self, '_spacing_mismatch_count'):
                                 self._spacing_mismatch_count = 0
                             self._spacing_mismatch_count += 1
                             if self._spacing_mismatch_count % 100 == 1:
                                 logger.debug(
-                                    "RBDS presync: spacing mismatch (expected %d, got %d) between block types %d and %d - resetting presync (logged every 100 mismatches)",
+                                    "RBDS presync: spacing mismatch (expected %d, got %d) "
+                                    "between block types %d and %d - treating current as new first block "
+                                    "(logged every 100 mismatches)",
                                     expected_bits, actual_bits, self._rbds_lastseen_offset, j
                                 )
                         else:
