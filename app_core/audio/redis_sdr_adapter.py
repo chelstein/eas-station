@@ -159,10 +159,14 @@ class RedisSDRSourceAdapter(AudioSourceAdapter):
         except Exception as e:
             raise RuntimeError(f"Failed to connect to Redis: {e}") from e
 
-        # ALWAYS create demodulator at startup to avoid dropping initial audio
-        # Sample rate will be adjusted if first Redis message has different rate
-        self._create_demodulator()
-        logger.info(f"Pre-created demodulator for {self._receiver_id} (rate: {self._iq_sample_rate}Hz)")
+        # CRITICAL FIX: Don't create demodulator until first Redis message arrives
+        # Why: SDR service may use early decimation (2.5MHz -> 250kHz), and we won't
+        # know the actual sample rate until first message. Creating with wrong rate
+        # causes immediate recreation, which restarts RBDS worker and prevents sync.
+        # 
+        # The demodulator will be created in _redis_subscriber_thread when first
+        # message with actual sample rate is received (see line ~240).
+        logger.info(f"Waiting for first sample from {self._receiver_id} to determine IQ rate...")
 
         # Subscribe to Redis pub/sub channel
         self._pubsub = self._redis_client.pubsub(ignore_subscribe_messages=True)
@@ -237,16 +241,38 @@ class RedisSDRSourceAdapter(AudioSourceAdapter):
                     new_sample_rate = data.get('sample_rate', self._iq_sample_rate)
                     self._center_frequency = data.get('center_frequency', self._center_frequency)
 
-                    # Update demodulator if sample rate changed
-                    if new_sample_rate != self._iq_sample_rate:
-                        logger.info(
-                            f"IQ sample rate changed: {self._iq_sample_rate}Hz -> {new_sample_rate}Hz. "
-                            f"Recreating demodulator..."
-                        )
+                    # CRITICAL FIX: Create demodulator on first message, then only recreate for significant rate changes
+                    # This prevents the "restart loop" where demodulator is created with wrong default rate (2.5MHz),
+                    # then immediately recreated when first message arrives with actual rate (250kHz after decimation).
+                    # RBDS needs ~1-5 seconds to sync, so recreation before sync completes prevents RBDS from ever working.
+                    
+                    if self._demodulator is None:
+                        # First message - create demodulator with actual sample rate from SDR service
                         self._iq_sample_rate = new_sample_rate
-                        # Recreate demodulator with new sample rate
                         self._create_demodulator()
-                        logger.info(f"✅ Demodulator updated for rate {new_sample_rate}Hz")
+                        logger.info(
+                            f"✅ Created initial demodulator for {self._receiver_id} at {new_sample_rate}Hz "
+                            f"(rate from first Redis message)"
+                        )
+                    elif new_sample_rate != self._iq_sample_rate:
+                        # Sample rate changed - only recreate if difference is significant
+                        # Tolerance: 0.1% (well below SDR accuracy ±1 ppm = ±0.0001%)
+                        rate_diff_pct = abs(new_sample_rate - self._iq_sample_rate) / self._iq_sample_rate * 100.0
+                        
+                        if rate_diff_pct > 0.1:
+                            logger.warning(
+                                f"⚠️  IQ sample rate changed: {self._iq_sample_rate}Hz -> {new_sample_rate}Hz "
+                                f"({rate_diff_pct:.3f}% difference). Recreating demodulator (will disrupt RBDS sync)..."
+                            )
+                            self._iq_sample_rate = new_sample_rate
+                            self._create_demodulator()
+                            logger.info(f"✅ Demodulator recreated for new rate {new_sample_rate}Hz")
+                        else:
+                            # Minor variation - ignore to avoid disrupting RBDS
+                            logger.debug(
+                                f"IQ sample rate variation within tolerance: {self._iq_sample_rate}Hz -> "
+                                f"{new_sample_rate}Hz ({rate_diff_pct:.4f}%). Ignoring to preserve RBDS sync."
+                            )
 
                     # Decode IQ samples
                     encoded_samples = data.get('samples', '')

@@ -7,6 +7,16 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **CRITICAL: RBDS Worker Thread Restart Loop** - Fixed demodulator being recreated on startup, causing RBDS to never sync
+  - Root cause: redis_sdr_adapter created demodulator with default 2.5MHz rate, then recreated when first Redis message arrived with actual 250kHz rate (after SDR decimation)
+  - Effect: RBDS worker thread restarted before achieving synchronization (~1-5 seconds needed)
+  - Symptoms: Logs showed "RBDS worker thread exited" repeatedly with 0 groups decoded
+  - Symptoms: Sample rate changed from 2500000 Hz → 250000 Hz immediately after start
+  - Solution: Defer demodulator creation until first Redis message with actual sample rate arrives
+  - Solution: Add 0.1% tolerance for minor sample rate variations to prevent unnecessary recreation
+  - File: `app_core/audio/redis_sdr_adapter.py` lines ~154-275
+  - Result: Demodulator created once with correct rate, RBDS worker stays running and can achieve sync
+
 - **CRITICAL: RBDS Presync Algorithm Fixed** - Fixed presync logic to salvage valid blocks instead of discarding them
   - Root cause: Despite documentation in `RBDS_PRESYNC_FIX_2024-12-23.md`, the fix was never actually applied
   - Lines 964-978 were still discarding the current block when spacing validation failed
