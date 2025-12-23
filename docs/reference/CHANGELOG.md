@@ -6,6 +6,33 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+### Added
+- **RBDS Automatic Diagnostic Tool** (v2.44.12)
+  - Created comprehensive diagnostic tool after 35+ PRs of failed RBDS fixes
+  - Automatically detects all known RBDS implementation issues:
+    - DSP processing order (M&M must come before Costas)
+    - Differential decoding formula (modulo vs != operator)
+    - Bit buffer management (index-based vs pop)
+    - Register reset after block processing
+    - Polarity handling (normal and inverted)
+    - CRC logic correctness
+    - Presync spacing mismatch handling
+    - Common anti-patterns from previous failed fixes
+  - Can analyze both code implementation and runtime logs
+  - Usage: `python3 tools/rbds_auto_diagnostic.py`
+  - Log analysis: `journalctl -u eas-station-audio -n 1000 | python3 tools/rbds_auto_diagnostic.py --logs -`
+  - File: `tools/rbds_auto_diagnostic.py`
+  - **This should have been created before the first RBDS PR**
+
+### Changed
+- **Repository Cleanup** (v2.44.12)
+  - Moved 16 RBDS fix documentation files from root to `docs/archive/rbds-fixes/`
+  - Moved 6 deployment guides and scripts to archive
+  - Moved 5 redundant test scripts from root to `tools/` directory
+  - Cleaned up broken promises of "final" fixes
+  - Repository root now clean and professional
+  - Added archive README explaining what went wrong
+
 ### Fixed
 - **CRITICAL: RBDS Processing Order Restored to PySDR Standard** (v2.44.11)
   - Problem: After differential fix in v2.44.10, RBDS still shows "0 groups decoded" with wrong syndromes
