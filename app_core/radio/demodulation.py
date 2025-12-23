@@ -977,7 +977,9 @@ class RBDSWorker:
                             self._spacing_mismatch_count += 1
                             if self._spacing_mismatch_count % 100 == 1:
                                 logger.debug(
-                                    "RBDS presync: spacing mismatch (expected %d, got %d) between block types %d and %d - treating current as new first block (logged every 100 mismatches)",
+                                    "RBDS presync: spacing mismatch (expected %d, got %d) "
+                                    "between block types %d and %d - treating current as new first block "
+                                    "(logged every 100 mismatches)",
                                     expected_bits, actual_bits, self._rbds_lastseen_offset, j
                                 )
                         else:
