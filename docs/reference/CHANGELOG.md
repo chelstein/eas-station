@@ -7,16 +7,7 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
-- **CRITICAL: RBDS Register Corruption After Sync** - Fixed register not being reset when sync is achieved, causing ALL subsequent blocks to fail CRC
-  - Root cause: When presync achieves sync, register contains 26 bits of the valid block, but wasn't reset for next block
-  - Effect: Next block processing shifts NEW bits into register STILL CONTAINING old block bits → misaligned blocks → 100% CRC failures
-  - Symptoms: "RBDS SYNCHRONIZED" immediately followed by "RBDS SYNC LOST: 49/50 bad blocks"
-  - Symptoms: ALL blocks after sync fail CRC check (shown in user logs as CRC check #2-10+ all failing)
-  - Symptoms: 0 groups decoded despite achieving synchronization
-  - Analysis: This fix was documented in `RBDS_SYNC_FIX_2024-12-23.md` for version 2.43.7 but never actually applied to code
-  - Solution: Reset `_rbds_reg = 0` when sync is achieved (line 1064) so next block starts with clean register
-  - File: `app_core/radio/demodulation.py` line 1064
-  - Result: After sync, register properly accumulates 26 bits of each new block, CRC checks pass, groups decode successfully
+- **CRITICAL: RBDS Register Not Reset in Synced Mode** - Fixed register not being reset after processing each block in synced mode, causing systematic CRC failures after sync achievement. After processing a block, counter was reset but register still contained previous block's 26 bits. Next block's bits shifted into corrupted register, creating misaligned blocks. Added `_rbds_reg = 0` at line 1191 to reset register after each block. File: `app_core/radio/demodulation.py`. Symptoms: First synced block passed CRC, all subsequent blocks failed, sync lost within seconds, 0 groups decoded.
 
 - **CRITICAL: RBDS Presync Polarity Check** - Fixed presync to check both normal and inverted bit polarity
   - Root cause: Presync only checked normal polarity, but Costas loop can lock with 180° phase ambiguity
