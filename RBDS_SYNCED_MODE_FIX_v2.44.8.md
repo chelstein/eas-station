@@ -10,7 +10,7 @@
 
 ## Problem Statement
 
-User reported (100th RBDS fix attempt): "Still not working"
+User reported ongoing RBDS decoding issues after many previous fix attempts.
 
 **Logs showed the pattern:**
 ```
