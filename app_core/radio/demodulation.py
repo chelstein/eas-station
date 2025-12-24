@@ -871,11 +871,16 @@ class RBDSWorker:
             self._rbds_block_number = 0
             self._rbds_group_assembly_started = False
             self._rbds_bytes_array = bytearray(8)
+            self._rbds_global_bit_counter = 0  # CRITICAL: maintain across buffer clears
 
         # Process all bits in buffer (python-radio style)
         bits = self._rbds_bit_buffer
-        
+
         for i in range(len(bits)):
+            # Use global bit counter for spacing calculations
+            global_i = self._rbds_global_bit_counter
+            self._rbds_global_bit_counter += 1
+
             # Shift in next bit (python-radio uses numpy bitwise ops, we use Python ops)
             self._rbds_reg = ((self._rbds_reg << 1) | bits[i]) & 0x3FFFFFF
             
@@ -887,22 +892,28 @@ class RBDSWorker:
                         if not self._rbds_presync:
                             # First valid block found
                             self._rbds_lastseen_offset = j
-                            self._rbds_lastseen_offset_counter = i
+                            self._rbds_lastseen_offset_counter = global_i
                             self._rbds_presync = True
-                            logger.info(f"RBDS presync: first block type {j} at bit {i}")
+                            logger.info(f"RBDS presync: first block type {j} at bit {global_i}")
                         else:
                             # Second valid block - check spacing
                             if offset_pos[self._rbds_lastseen_offset] >= offset_pos[j]:
                                 block_distance = offset_pos[j] + 4 - offset_pos[self._rbds_lastseen_offset]
                             else:
                                 block_distance = offset_pos[j] - offset_pos[self._rbds_lastseen_offset]
-                            
-                            if (block_distance * 26) != (i - self._rbds_lastseen_offset_counter):
-                                # Wrong spacing - reset presync
-                                self._rbds_presync = False
+
+                            expected_spacing = block_distance * 26
+                            actual_spacing = global_i - self._rbds_lastseen_offset_counter
+
+                            if expected_spacing != actual_spacing:
+                                # Wrong spacing - reset presync and try current block as new first
+                                logger.debug(f"RBDS presync spacing mismatch: expected {expected_spacing}, got {actual_spacing}")
+                                self._rbds_lastseen_offset = j
+                                self._rbds_lastseen_offset_counter = global_i
+                                # Keep presync=True with new first block
                             else:
                                 # SYNC ACHIEVED!
-                                logger.info(f'RBDS SYNCHRONIZED at bit {i}')
+                                logger.info(f'RBDS SYNCHRONIZED at bit {global_i}')
                                 self._rbds_wrong_blocks_counter = 0
                                 self._rbds_blocks_counter = 0
                                 self._rbds_block_bit_counter = 0
