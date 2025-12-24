@@ -7,6 +7,17 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **Numba Not Available in Audio Service** (v2.44.16)
+  - Problem: "Numba not available - RBDS processing will use pure Python (much slower)"
+  - Root cause: Numba was in requirements-sdr.txt (SDR venv) but audio service uses main venv
+  - Audio service runs `eas_monitoring_service.py` with main venv at `/opt/eas-station/venv`
+  - SDR service runs with separate venv at `/opt/eas-station/venv-sdr`
+  - Solution: Added numba==0.60.0 to main requirements.txt
+  - File: `requirements.txt` line 96
+  - Impact: RBDS processing will use JIT-compiled code (10-100x faster)
+  - Testing: After update, check logs: `journalctl -u eas-station-audio.service | grep Numba`
+  - Expected: "Numba JIT compilation available - FM demodulation will use optimized code paths"
+
 - **Update Script Git Operations Failing** (v2.44.15)
   - Problem: Users must manually run `git fetch && git reset --hard` instead of using update.sh
   - Root cause: Git directory owned by root, not eas-station user, causing `sudo -u eas-station git` to fail silently
