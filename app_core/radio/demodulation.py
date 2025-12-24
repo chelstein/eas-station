@@ -660,16 +660,27 @@ class RBDSWorker:
             imag_interp = np.interp(new_indices, old_indices, samples.imag)
             samples_interpolated = (real_interp + 1j * imag_interp).astype(np.complex64)
 
-        sps = 16  # samples per symbol
+        sps = 16  # samples per symbol in interpolated space
         mu = self._rbds_mm_mu if hasattr(self, '_rbds_mm_mu') else 0.01
 
-        out = np.zeros(len(samples) + 10, dtype=np.complex64)
-        out_rail = np.zeros(len(samples) + 10, dtype=np.complex64)
-        i_in = 0  # input samples index
-        i_out = 2  # output index (let first two outputs be 0)
+        # Output should be ~len(samples)/16 symbols (downsampling from 16 sps to 1 sps)
+        # Allocate conservatively
+        max_out = len(samples) // 16 + 100
+        out = np.zeros(max_out, dtype=np.complex64)
+        out_rail = np.zeros(max_out, dtype=np.complex64)
+        i_in = 0  # input sample index (original sample space)
+        i_out = 2  # output symbol index (let first two outputs be 0)
 
-        while i_out < len(samples) and i_in + 16 < len(samples):
-            out[i_out] = samples_interpolated[i_in * 16 + int(mu * 16)]
+        # CRITICAL FIX: Check against interpolated array length, not original length
+        while i_out < max_out - 1:
+            # Calculate index into interpolated array
+            interp_idx = i_in * 16 + int(mu * 16)
+
+            # Boundary check: ensure we don't read past end of interpolated array
+            if interp_idx >= len(samples_interpolated) - 1:
+                break
+
+            out[i_out] = samples_interpolated[interp_idx]
             out_rail[i_out] = int(np.real(out[i_out]) > 0) + 1j * int(np.imag(out[i_out]) > 0)
             x = (out_rail[i_out] - out_rail[i_out - 2]) * np.conj(out[i_out - 1])
             y = (out[i_out] - out[i_out - 2]) * np.conj(out_rail[i_out - 1])
@@ -990,8 +1001,8 @@ class RBDSWorker:
                             self._rbds_bytes_array[self._rbds_block_number * 2] = (dataword >> 8) & 0xFF
                             self._rbds_bytes_array[self._rbds_block_number * 2 + 1] = dataword & 0xFF
                             self._rbds_group_good_blocks_counter += 1
-                            
-                            if self._rbds_group_good_blocks_counter == 5:  # python-radio uses 5, not 4
+
+                            if self._rbds_group_good_blocks_counter == 4:  # RBDS groups have 4 blocks (A,B,C,D)
                                 # Complete group received - decode it
                                 group_0 = self._rbds_bytes_array[1] | (self._rbds_bytes_array[0] << 8)
                                 group_1 = self._rbds_bytes_array[3] | (self._rbds_bytes_array[2] << 8)
