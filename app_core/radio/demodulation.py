@@ -334,23 +334,27 @@ class RBDSWorker:
         self._rbds_samples_per_symbol = 16
         self._rbds_target_rate = self._rbds_symbol_rate * self._rbds_samples_per_symbol
 
-        # M&M clock recovery state (python-radio style)
+        # M&M clock recovery state (Mueller & Müller algorithm)
         self._rbds_mm_mu = 0.01  # Initial mu estimate
-        self._rbds_mm_out_prev = complex(0.0)
-        self._rbds_mm_rail_prev = complex(0.0)
-        self._rbds_mm_rail_prev2 = complex(0.0)
+        self._rbds_mm_out_prev = complex(0.0)  # sample[n-1]
+        self._rbds_mm_out_prev2 = complex(0.0)  # sample[n-2] - needed for M&M error formula
+        self._rbds_mm_rail_prev = complex(0.0)  # decision[n-1]
 
         # Costas loop state
+        # Loop parameters calculated for 1% bandwidth, damping=0.707
+        # Old values (0.132, 0.00932) gave 20% bandwidth - way too wide!
         self._rbds_costas_phase = 0.0
         self._rbds_costas_freq = 0.0
-        self._rbds_costas_alpha = 0.132
-        self._rbds_costas_beta = 0.00932
+        self._rbds_costas_alpha = 0.026  # Was 0.132 - reduced for stable lock
+        self._rbds_costas_beta = 0.00035  # Was 0.00932 - reduced proportionally
 
         # Bit buffer and decoding
         self._rbds_bit_buffer: List[int] = []
         self._rbds_expected_block: Optional[int] = None
         self._rbds_partial_group: List[int] = []
-        self._rbds_prev_symbol: float = 1.0
+        # Previous symbol for differential decoding (0 or 1)
+        # Initialized to 0, but will be set by first actual symbol
+        self._rbds_prev_symbol: int = 0
         self._rbds_carrier_phase: float = 0.0
         self._rbds_consecutive_crc_failures: int = 0
         self._rbds_synchronized: bool = False  # Require A→B confirmation before trusting data
@@ -379,7 +383,9 @@ class RBDSWorker:
         h_low = np.sinc(2 * fc_low * (n - mid))
         h = h_high - h_low
         h *= np.blackman(taps)
-        h /= np.sum(np.abs(h))
+        # Normalize to unit gain at center frequency instead of sum(abs(h))
+        # sum(abs(h)) is wrong for bandpass (has negative coefficients)
+        h /= np.max(np.abs(h))
         return h.astype(np.float32)
 
     def _start(self) -> None:
@@ -581,15 +587,15 @@ class RBDSWorker:
 
         if len(bits_raw) > 0:
             # CRITICAL: Prepend last symbol from previous chunk for continuity
-            prev_sym = int(self._rbds_prev_symbol)
+            prev_sym = self._rbds_prev_symbol
             all_symbols = np.concatenate(([prev_sym], bits_raw))
 
             # Use python-radio's exact differential formula: (bits[1:] - bits[0:-1]) % 2
             # This handles 180° phase ambiguity automatically
             diff = (all_symbols[1:] - all_symbols[:-1]) % 2
 
-            # Save last BIT value for next chunk continuity (0 or 1, not raw sample)
-            self._rbds_prev_symbol = float(bits_raw[-1])
+            # Save last symbol value for next chunk continuity (0 or 1)
+            self._rbds_prev_symbol = int(bits_raw[-1])
 
             n_bits = len(diff)
             n_ones = int(np.sum(diff))
@@ -637,15 +643,15 @@ class RBDSWorker:
         mu = self._rbds_mm_mu
         i_in = 0
         out_list = []
-        out_rail_prev = complex(0, 0)
-        out_prev = complex(0, 0)
-        out_rail_prev2 = complex(0, 0)
-        
+        out_prev = complex(0, 0)  # sample[n-1]
+        out_prev2 = complex(0, 0)  # sample[n-2] - needed for M&M
+        out_rail_prev = complex(0, 0)  # decision[n-1]
+
         # Load previous state for continuity
         if hasattr(self, '_rbds_mm_out_prev'):
             out_prev = self._rbds_mm_out_prev
+            out_prev2 = self._rbds_mm_out_prev2
             out_rail_prev = self._rbds_mm_rail_prev
-            out_rail_prev2 = self._rbds_mm_rail_prev2
         
         while i_in < n and i_in * 16 + int(mu * 16) < len(samples_interpolated):
             # Grab interpolated sample at current mu position
@@ -654,28 +660,31 @@ class RBDSWorker:
                 break
                 
             out_current = samples_interpolated[idx]
-            
-            # Hard decision (rail)
+
+            # Hard decision (rail) - BPSK uses only real axis, imag is set to 0
+            # Old code incorrectly treated this as QPSK with independent I/Q decisions
             out_rail_current = complex(
                 1.0 if np.real(out_current) > 0 else -1.0,
-                1.0 if np.imag(out_current) > 0 else -1.0
+                0.0  # BPSK: imaginary component not used
             )
-            
-            # M&M timing error formula from reference
+
+            # Mueller & Müller timing error formula for BPSK
+            # Standard formula: error = real((sample[n] - sample[n-2]) * conj(decision[n-1]))
+            # Old formula was wrong: mixed samples and decisions incorrectly
             if len(out_list) >= 2:
-                x = (out_rail_current - out_rail_prev2) * np.conj(out_prev)
-                y = (out_current - out_prev) * np.conj(out_rail_prev)
-                mm_val = np.real(y - x)
-                mu += sps + 0.01 * mm_val
+                mm_val = np.real((out_current - out_prev2) * np.conj(out_rail_prev))
+                # Loop gain increased from 0.01 to 0.2 for faster convergence
+                # Old value was 10-20x too small, preventing lock
+                mu += sps + 0.2 * mm_val
             else:
                 mu += sps
-            
+
             out_list.append(out_current)
-            
-            # Update history
-            out_rail_prev2 = out_rail_prev
-            out_rail_prev = out_rail_current
+
+            # Update history - need to track sample[n-2] for M&M formula
+            out_prev2 = out_prev
             out_prev = out_current
+            out_rail_prev = out_rail_current
             
             # Advance input index
             i_in += int(np.floor(mu))
@@ -683,9 +692,9 @@ class RBDSWorker:
         
         # Save state for next call
         self._rbds_mm_mu = mu
-        self._rbds_mm_out_prev = out_prev
-        self._rbds_mm_rail_prev = out_rail_prev
-        self._rbds_mm_rail_prev2 = out_rail_prev2
+        self._rbds_mm_out_prev = out_prev  # sample[n-1]
+        self._rbds_mm_out_prev2 = out_prev2  # sample[n-2]
+        self._rbds_mm_rail_prev = out_rail_prev  # decision[n-1]
         
         return np.array(out_list, dtype=np.complex64) if out_list else np.array([], dtype=np.complex64)
 
