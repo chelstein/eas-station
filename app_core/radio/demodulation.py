@@ -1120,7 +1120,7 @@ class RBDSWorker:
                             self._rbds_synced = True
                             self._rbds_wrong_blocks = 0 if good_block else 1
                             self._rbds_blocks_counter = 1  # We just processed one block
-                            self._rbds_block_bit_counter = -1  # CRITICAL: Set to -1 so current bit (already processed) becomes bit 0
+                            self._rbds_block_bit_counter = -1  # CRITICAL: Set to -1 so next bit becomes bit 0 (counter 0) after increment
                             self._rbds_reg = 0  # CRITICAL: Reset register so next block starts clean
                             self._rbds_block_number = (block_type_pos + 1) % 4  # Next expected block
                             self._rbds_group_good = 0
@@ -1136,7 +1136,10 @@ class RBDSWorker:
                                 elif self._rbds_group_good > 0:
                                     self._rbds_group_good += 1
 
-                            break  # Exit presync loop
+                            # CRITICAL: Continue to next bit! The current bit was the last bit of the
+                            # sync block and has already been processed. We must NOT process it again
+                            # in synced mode, or it will become bit 0 of the next block (off by 1).
+                            continue  # Skip to next iteration of while loop
             else:
                 # === SYNCED: Process blocks at 26-bit intervals ===
                 # CRITICAL: process_complete_block flag ensures we check CRC with exactly 26 bits
