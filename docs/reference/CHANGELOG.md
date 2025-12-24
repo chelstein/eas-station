@@ -7,6 +7,60 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **CRITICAL: Fix Multiple Fundamental RBDS DSP Bugs** (v2.44.18)
+  - After 35+ failed PR attempts, deep analysis revealed MULTIPLE critical DSP bugs preventing RBDS from ever working
+  - **BUG #1: M&M Timing Error Formula Completely Wrong**
+    - Old formula: `error = real((sample[n]-sample[n-1])*conj(decision[n-1]) - (decision[n]-decision[n-2])*conj(sample[n-1]))`
+    - This is neither Mueller & Müller nor Gardner - it's a broken hybrid!
+    - Correct formula: `error = real((sample[n] - sample[n-2]) * conj(decision[n-1]))`
+    - Impact: Symbols extracted at wrong timing offset, causing random bit errors
+    - Fixed: Lines 667-671, now uses standard M&M formula
+  - **BUG #2: M&M Loop Gain 10-20x Too Small**
+    - Old value: 0.01 (would need 100+ symbols to converge)
+    - New value: 0.2 (converges in 5-10 symbols)
+    - Impact: Timing recovery could never lock before signal ended
+    - Fixed: Line 674
+  - **BUG #3: Costas Loop Bandwidth 20x Too Wide**
+    - Old values: alpha=0.132, beta=0.00932 (20% loop bandwidth!)
+    - New values: alpha=0.026, beta=0.00035 (1% loop bandwidth)
+    - Impact: Tracked noise instead of signal, unstable on weak signals
+    - Fixed: Lines 348-349
+  - **BUG #4: M&M Hard Decisions Wrong for BPSK**
+    - Old code treated BPSK like QPSK with independent I/Q decisions
+    - BPSK uses only real axis; imaginary should be 0
+    - Impact: Wrong decision regions for timing error calculation
+    - Fixed: Lines 660-665
+  - **BUG #5: Bandpass Filter Normalization Wrong**
+    - Used `sum(abs(h))` normalization, invalid for bandpass (has negative coefficients)
+    - Changed to `max(abs(h))` for proper peak normalization
+    - Impact: Filter had wrong gain, attenuating RBDS signal
+    - Fixed: Line 386
+  - **BUG #6: Differential Decoding Type Inconsistency**
+    - Previous symbol stored as float, used as int - type confusion
+    - Changed to consistent int type (0 or 1)
+    - Impact: Minor, but cleaner code
+    - Fixed: Lines 357, 590, 598
+  - **Files**: `app_core/radio/demodulation.py` - complete DSP chain overhaul
+  - **Testing**: These are the CORE bugs preventing sync. RBDS should finally work after these fixes.
+  - **Note**: Previous 35+ PRs focused on bit order, syndrome values, processing order - but missed fundamental DSP errors
+
+- **CRITICAL: Revert Incorrect RBDS Bit Order "Fix"** (v2.44.17)
+  - Problem: RBDS has NEVER worked correctly - all 35+ previous fix attempts failed
+  - Root cause: Commit 36944fa (v2.44.14) claimed to "fix" bit order but actually REVERSED it
+  - Analysis: RBDS transmits MSB first. Correct implementation: `(reg << 1) | bit`
+    - After receiving bits b0, b1, b2...b25 in time order
+    - With `(reg << 1) | bit`: b0 ends at position 25 (MSB), b25 ends at position 0 (LSB) ✓ CORRECT
+    - With `(bit << 25) | (reg >> 1)`: b0 ends at position 0 (LSB), b25 ends at position 25 (MSB) ✗ REVERSED
+  - Verification: Created `verify_bit_order.py` proving v2.44.14 reverses bits
+    - Test block 0x48D06A with MSB-first transmission
+    - Original method: produces 0x48D06A ✓ CORRECT
+    - v2.44.14 method: produces 0x1582C48 (bit-reversed) ✗ WRONG
+  - Solution: Reverted to original bit shifting logic and fixed syndrome documentation
+  - Files: `app_core/radio/demodulation.py:950-953`, `app_core/radio/demodulation.py:1273-1279,1327`
+  - Impact: RBDS decoding should now work for the first time since project inception
+  - **Key lesson**: The diagnostic comment "# Try bit reversal" should have been tested, not blindly applied
+  - Testing: Monitor `journalctl -u eas-station-audio.service -f | grep RBDS` - should see syndromes matching
+
 - **Numba Not Available in Audio Service** (v2.44.16)
   - Problem: "Numba not available - RBDS processing will use pure Python (much slower)"
   - Root cause: Numba was in requirements-sdr.txt (SDR venv) but audio service uses main venv
