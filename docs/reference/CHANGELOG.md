@@ -26,7 +26,7 @@ tracks releases under the 2.x series.
   - File: `app_core/radio/demodulation.py` - `_init_rbds_state()` and `_process_rbds()`
   - Impact: RBDS subcarrier now properly extracted before any filtering that would remove it
   - Hardware: Critical fix for Airspy R2 which only supports 2.5 MHz or 10 MHz sample rates
-  - Testing: Monitor with `journalctl -u eas-station-audio.service -f | grep RBDS` - should see sync achieve
+  - Testing: Monitor with `journalctl -u eas-station-audio.service -f | grep RBDS` - should see synchronization achieved
 
 ### Added
 - **RBDS Automatic Diagnostic Tool** (v2.44.12)

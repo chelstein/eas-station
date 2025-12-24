@@ -267,6 +267,10 @@ class RBDSWorker:
     into a queue; the worker processes them independently and publishes results.
     This ensures RBDS processing NEVER blocks the audio path.
     """
+    
+    # RBDS processing constants
+    RBDS_MIN_SAMPLE_RATE = 120000  # Minimum sample rate for 57 kHz subcarrier extraction (Hz)
+    RBDS_INTERMEDIATE_RATE = 25000  # Target rate after decimation before resampling (Hz)
 
     def __init__(self, sample_rate: int, intermediate_rate: int):
         """Initialize RBDS worker thread.
@@ -306,7 +310,7 @@ class RBDSWorker:
         # For Airspy after early decimation: sample_rate = 250 kHz
         # Bandpass filter to extract 57 kHz RBDS subcarrier (54-60 kHz range)
         # Only design bandpass if sample rate is high enough (need > 120 kHz for 60 kHz filter)
-        if self._sample_rate >= 120000:
+        if self._sample_rate >= self.RBDS_MIN_SAMPLE_RATE:
             rbds_filter_taps = min(101, max(31, int(self._sample_rate / 3000)))
             self._rbds_bandpass = self._design_fir_bandpass(
                 54000.0, 60000.0, self._sample_rate, taps=rbds_filter_taps
@@ -315,9 +319,10 @@ class RBDSWorker:
             # If sample rate too low, skip bandpass (RBDS won't work but won't crash)
             self._rbds_bandpass = None
             logger.warning(
-                "RBDS: Sample rate %d Hz too low for 57 kHz subcarrier extraction (need >120 kHz). "
+                "RBDS: Sample rate %d Hz too low for 57 kHz subcarrier extraction (need >%d Hz). "
                 "RBDS decoding will not work.", 
-                self._sample_rate
+                self._sample_rate,
+                self.RBDS_MIN_SAMPLE_RATE
             )
 
         # Lowpass filter for post-mixing (removes aliases, keeps baseband RBDS at 0-7.5 kHz)
@@ -487,7 +492,7 @@ class RBDSWorker:
         # Step 1: Bandpass filter to extract 57 kHz RBDS subcarrier (54-60 kHz)
         # CRITICAL: Do this BEFORE any decimation that would remove the 57 kHz signal!
         # The bandpass filter was designed but never used - now we use it correctly
-        if self._rbds_bandpass is not None and sample_rate >= 120000:
+        if self._rbds_bandpass is not None and sample_rate >= self.RBDS_MIN_SAMPLE_RATE:
             x = np.convolve(x, self._rbds_bandpass, mode='same')
             time.sleep(0)  # Yield GIL
 
@@ -505,9 +510,9 @@ class RBDSWorker:
         x = np.convolve(x, self._rbds_lowpass, mode='same')
         time.sleep(0)  # Yield GIL
 
-        # Step 4: Decimate to ~25 kHz to reduce processing load
+        # Step 4: Decimate to intermediate rate (~25 kHz) to reduce processing load
         # Now safe to decimate since we've already extracted and mixed down the RBDS signal
-        decim = max(1, int(sample_rate / 25000))
+        decim = max(1, int(sample_rate / self.RBDS_INTERMEDIATE_RATE))
         if decim > 1:
             x = x[::decim]
             sample_rate = int(sample_rate // decim)  # Keep as int
