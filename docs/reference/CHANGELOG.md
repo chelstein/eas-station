@@ -7,6 +7,15 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **Update Script Git Operations Failing** (v2.44.15)
+  - Problem: Users must manually run `git fetch && git reset --hard` instead of using update.sh
+  - Root cause: Git directory owned by root, not eas-station user, causing `sudo -u eas-station git` to fail silently
+  - Solution: Added ownership check and auto-correction before git operations
+  - Enhanced error messages to show actual git output when operations fail
+  - File: `update.sh` lines 341-390, 425-465
+  - Impact: update.sh will now detect and fix ownership issues automatically
+  - Testing: Run `sudo ./update.sh` and verify it completes without manual git commands
+
 - **CRITICAL: RBDS Bit Order Reversed** (v2.44.14)
   - Problem: RBDS achieves initial sync but then ALL subsequent blocks fail CRC checks
   - Root cause: Bits were being shifted LEFT (LSB first) instead of RIGHT (MSB first)
