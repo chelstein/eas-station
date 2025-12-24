@@ -537,6 +537,22 @@ class RBDSWorker:
         x = self._resample(x, sample_rate, 19000)
         time.sleep(0)  # Yield GIL
 
+        # CRITICAL: Buffer samples until we have enough for Costas loop to lock
+        # python-radio processes large buffers at once; we need to accumulate samples
+        # to give the Costas loop enough data to converge (at least 100-150 symbols)
+        if not hasattr(self, '_rbds_sample_buffer'):
+            self._rbds_sample_buffer = np.array([], dtype=np.complex64)
+
+        self._rbds_sample_buffer = np.concatenate([self._rbds_sample_buffer, x])
+
+        # Need at least 2000 samples at 19kHz (125 symbols at 16 sps) for Costas to lock
+        if len(self._rbds_sample_buffer) < 2000:
+            return self._decode_rbds_groups()
+
+        # Use buffered samples and clear buffer for next accumulation
+        x = self._rbds_sample_buffer
+        self._rbds_sample_buffer = np.array([], dtype=np.complex64)
+
         if len(x) < 48:  # Need enough samples for processing
             return self._decode_rbds_groups()
 
