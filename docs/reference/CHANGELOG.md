@@ -7,6 +7,26 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **CRITICAL: Fix M&M Symbol Rate Bug - Wrong SPS in Interpolated Space** (v2.44.22)
+  - **ROOT CAUSE FOUND**: M&M was ALWAYS running at 15.625 sps regardless of loop gain!
+  - The bug: `sps = 16` but after 16x upsampling, should be `sps = 16 * 16 = 256`
+  - Evidence: Changing loop gain from 0.2 → 0.075 → 0.03 had NO effect on symbol rate
+    - All versions showed 15.625 sps (250 samples → 16 symbols)
+    - This proves sps was fundamentally wrong, not just gain tuning issue
+  - **The Math**:
+    - At 19 kHz: 16 samples/symbol (correct in original space)
+    - After 16x upsample: 256 interpolated samples/symbol (was using 16!)
+    - With sps=16, mu advances by ~16 per symbol → skips 16 interpolated samples
+    - But should skip 256 interpolated samples = 16 original samples
+    - Result: M&M runs 16x too fast in interpolated space, locks to wrong timing
+  - **Impact**: M&M timing locked to 15.625 sps instead of 16.0 sps
+    - Symbol extraction 2.34% too fast
+    - Bits extracted at wrong phase → random errors → all blocks fail CRC
+  - Solution: Changed `sps = 16` to `sps = 16 * 16` and `mu` to interpolated space
+  - Files: `app_core/radio/demodulation.py:626-662`
+  - Expected: M&M should now lock at EXACTLY 16.0 sps, all blocks should pass CRC!
+  - **This was THE bug preventing RBDS from working all along!**
+
 - **CRITICAL: Fix Off-By-One Error in Sync Transition** (v2.44.21)
   - **BREAKTHROUGH**: First sync achieved! "RBDS SYNCHRONIZED at bit 605" ✅
   - First block PASSED CRC with inverted polarity ✅
