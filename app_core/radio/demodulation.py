@@ -545,8 +545,10 @@ class RBDSWorker:
 
         self._rbds_sample_buffer = np.concatenate([self._rbds_sample_buffer, x])
 
-        # Need at least 2000 samples at 19kHz (125 symbols at 16 sps) for Costas to lock
-        if len(self._rbds_sample_buffer) < 2000:
+        # Need at least 8000 samples at 19kHz (~500 symbols at 16 sps) for M&M to fully lock
+        # python-radio processes thousands of symbols at once - M&M loop gain 0.01 needs
+        # large batches to converge properly. 500 symbols should be sufficient.
+        if len(self._rbds_sample_buffer) < 8000:
             return self._decode_rbds_groups()
 
         # Use buffered samples and clear buffer for next accumulation
