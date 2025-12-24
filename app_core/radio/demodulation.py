@@ -615,7 +615,7 @@ class RBDSWorker:
 
     def _mm_timing_pysdr(self, samples: np.ndarray) -> np.ndarray:
         """M&M symbol timing using reference python-radio interpolation method.
-        
+
         Based on: https://github.com/ChrisDev8/python-radio/blob/main/decoder.py
         Uses 16x upsampling and mu-based interpolation for symbol timing recovery.
         """
@@ -623,22 +623,26 @@ class RBDSWorker:
         if n < 32:
             return samples
 
-        sps = 16  # samples per symbol at 19kHz
+        # CRITICAL: After 16x upsampling, sps in interpolated space is 16 * 16 = 256
+        # This was the bug causing 15.625 sps instead of 16.0 sps!
+        # At 19kHz, we have 16 samples per symbol. After 16x upsample, that's 256 interpolated samples per symbol.
+        sps = 16 * 16  # samples per symbol in INTERPOLATED space (was 16, which was wrong!)
+        upsample_factor = 16
         
         # Upsample by 16x for interpolation (reference method)
         try:
             from scipy import signal as scipy_signal
-            samples_interpolated = scipy_signal.resample_poly(samples, 16, 1)
+            samples_interpolated = scipy_signal.resample_poly(samples, upsample_factor, 1)
         except ImportError:
             # Fallback: linear interpolation
             old_len = len(samples)
-            new_len = old_len * 16
+            new_len = old_len * upsample_factor
             old_indices = np.arange(old_len)
             new_indices = np.linspace(0, old_len - 1, new_len)
             real_interp = np.interp(new_indices, old_indices, samples.real)
             imag_interp = np.interp(new_indices, old_indices, samples.imag)
             samples_interpolated = (real_interp + 1j * imag_interp).astype(np.complex64)
-        
+
         # Initialize state
         mu = self._rbds_mm_mu
         i_in = 0
@@ -652,10 +656,10 @@ class RBDSWorker:
             out_prev = self._rbds_mm_out_prev
             out_prev2 = self._rbds_mm_out_prev2
             out_rail_prev = self._rbds_mm_rail_prev
-        
-        while i_in < n and i_in * 16 + int(mu * 16) < len(samples_interpolated):
-            # Grab interpolated sample at current mu position
-            idx = i_in * 16 + int(mu * 16)
+
+        while i_in < n and i_in * upsample_factor + int(mu) < len(samples_interpolated):
+            # Grab interpolated sample at current mu position (mu is now in interpolated sample space)
+            idx = i_in * upsample_factor + int(mu)
             if idx >= len(samples_interpolated):
                 break
                 
