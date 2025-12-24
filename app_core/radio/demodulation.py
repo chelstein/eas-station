@@ -962,11 +962,23 @@ class RBDSWorker:
             bit = self._rbds_bit_buffer[self._rbds_buffer_index]
             self._rbds_buffer_index += 1
             bits_processed += 1
-            
+
+            # CRITICAL: In synced mode, check if we have a complete block BEFORE adding the next bit!
+            # This prevents adding a 27th bit which would shift out the first bit and cause CRC failures.
+            if self._rbds_synced and self._rbds_block_bit_counter == 25:
+                # We have 26 bits in the register - check CRC before adding the current bit
+                # (CRC check code will be here - for now just note the block is complete)
+                process_complete_block = True
+            else:
+                process_complete_block = False
+
             # RBDS transmits MSB first. For MSB-first transmission, shift left and add at LSB.
             # After receiving all 26 bits, bit 0 (first received, MSB) ends at position 25,
             # and bit 25 (last received, LSB) ends at position 0.
-            self._rbds_reg = ((self._rbds_reg << 1) | bit) & 0x3FFFFFF  # MSB first (CORRECT)
+            # CRITICAL: Only add bit if we're not about to process a complete block
+            if not process_complete_block:
+                self._rbds_reg = ((self._rbds_reg << 1) | bit) & 0x3FFFFFF  # MSB first (CORRECT)
+
             self._rbds_bit_counter += 1
 
             if not self._rbds_synced:
@@ -1127,10 +1139,9 @@ class RBDSWorker:
                             break  # Exit presync loop
             else:
                 # === SYNCED: Process blocks at 26-bit intervals ===
-                if self._rbds_block_bit_counter < 25:
-                    self._rbds_block_bit_counter += 1
-                else:
-                    # Complete block received - verify CRC
+                # CRITICAL: process_complete_block flag ensures we check CRC with exactly 26 bits
+                if process_complete_block:
+                    # Complete block received (26 bits in register) - verify CRC
                     dataword = (self._rbds_reg >> 10) & 0xFFFF
                     checkword = self._rbds_reg & 0x3FF
                     block_crc = self._calc_syndrome(dataword, 16)
@@ -1235,8 +1246,10 @@ class RBDSWorker:
                         logger.info("RBDS group: A=%04X B=%04X C=%04X D=%04X",
                                    *self._rbds_group_data)
 
+                    # Reset counter and register for next block
                     self._rbds_block_bit_counter = 0
-                    self._rbds_reg = 0  # CRITICAL: Reset register so next block starts clean
+                    # CRITICAL: Add current bit as bit 0 of next block (it was skipped earlier)
+                    self._rbds_reg = bit & 0x3FFFFFF
                     self._rbds_block_number = (self._rbds_block_number + 1) % 4
                     self._rbds_blocks_counter += 1
 
@@ -1257,6 +1270,10 @@ class RBDSWorker:
                                             self._rbds_wrong_blocks)
                         self._rbds_blocks_counter = 0
                         self._rbds_wrong_blocks = 0
+                else:
+                    # Still accumulating bits for current block - just increment counter
+                    # (bit was already added to register at line 980)
+                    self._rbds_block_bit_counter += 1
 
         # Clean up processed bits from buffer to prevent unbounded growth
         # Remove bits we've successfully processed
