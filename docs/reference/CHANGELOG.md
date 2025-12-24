@@ -7,6 +7,18 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **CRITICAL: Further Reduce M&M Loop Gain for Exact Symbol Lock** (v2.44.20)
+  - Problem: M&M still running 2.6% fast - 15.59 sps instead of 16.0 sps
+  - Evidence from production logs: "499 samples -> 32 symbols" = 15.59 sps
+  - Progress: Much better than v2.44.18 (15.625 sps) but still not exact
+  - Impact of timing error:
+    - Syndromes VERY close now (385 vs 383, off by only 2!)
+    - Presync finding blocks but spacing still wrong
+    - Timing error accumulates: "expected 78, got 30" spacing mismatches
+  - Solution: Further reduced loop gain 0.075 → 0.03 for exact 16.0 sps lock
+  - File: `app_core/radio/demodulation.py:680`
+  - Expected: M&M should produce exactly 16.0 samples/symbol, perfect syndrome matches
+
 - **CRITICAL: Tune M&M Loop Gain to Fix Symbol Rate** (v2.44.19)
   - Problem: M&M running 2.4% too fast - extracting symbols at 15.625 sps instead of 16 sps
   - Evidence from logs: "250 samples -> 16 symbols" = 15.625 samples/symbol (should be 16)
