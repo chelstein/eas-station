@@ -340,8 +340,9 @@ class RBDSWorker:
         # Pilot PLL state (2nd order PLL for phase tracking)
         self._pilot_pll_phase = 0.0  # Current phase estimate
         self._pilot_pll_freq = 2.0 * np.pi * 19000.0 / self._sample_rate  # Normalized frequency
-        self._pilot_pll_alpha = 0.05  # Loop filter proportional gain
-        self._pilot_pll_beta = 0.0005  # Loop filter integral gain
+        # Increased loop gains for faster acquisition (ωn ≈ 0.1, ζ ≈ 0.7)
+        self._pilot_pll_alpha = 0.14  # Loop filter proportional gain (2*ζ*ωn)
+        self._pilot_pll_beta = 0.01   # Loop filter integral gain (ωn^2)
 
         # 57 kHz carrier phase (derived from pilot × 3)
         self._carrier_phase_57k = 0.0
@@ -427,21 +428,31 @@ class RBDSWorker:
         freq = self._pilot_pll_freq
 
         for i in range(n):
-            # Generate local oscillator at current phase estimate
+            # Store current phase estimate
             pilot_phases[i] = phase
 
-            # Phase detector: multiply input by conjugate of local oscillator
-            # For real signals: error = input * sin(phase)
-            error = pilot_filtered[i] * np.sin(phase)
+            # Quadrature phase detector (correct for real-valued signals)
+            # Generate I and Q local oscillators
+            lo_i = np.cos(phase)
+            lo_q = np.sin(phase)
 
-            # 2nd order loop filter
+            # Mix with pilot signal
+            # After mixing: I contains cos(phase_error), Q contains sin(phase_error)
+            i_out = pilot_filtered[i] * lo_i
+            q_out = pilot_filtered[i] * lo_q
+
+            # Phase error: for small errors, sin(error) ≈ error
+            # Use quadrature channel as phase error (negated for correct sign)
+            error = q_out
+
+            # 2nd order loop filter with adjusted gains for real signal PLL
             freq += self._pilot_pll_beta * error
             phase += freq + self._pilot_pll_alpha * error
 
             # Wrap phase to [-π, π]
-            while phase > np.pi:
+            if phase > np.pi:
                 phase -= 2.0 * np.pi
-            while phase < -np.pi:
+            elif phase < -np.pi:
                 phase += 2.0 * np.pi
 
         # Save state for next call
@@ -564,14 +575,19 @@ class RBDSWorker:
         # This is why we had random spacing - fixed oscillator had random phase!
         pilot_phases = self._track_pilot_pll(multiplex)
 
-        # Log pilot tracking periodically
+        # Log pilot tracking periodically with diagnostics
         if not hasattr(self, '_pilot_log_count'):
             self._pilot_log_count = 0
         self._pilot_log_count += 1
         if self._pilot_log_count % 100 == 1:
             # Convert normalized freq back to Hz
             pilot_freq_hz = (self._pilot_pll_freq * sample_rate) / (2.0 * np.pi)
-            logger.info(f"RBDS Pilot PLL: freq={pilot_freq_hz:.1f} Hz, phase={self._pilot_pll_phase:.2f} rad")
+            # Check pilot signal strength
+            pilot_rms = np.sqrt(np.mean(multiplex ** 2))
+            pilot_filtered_sig = np.convolve(multiplex[:min(1000, len(multiplex))], self._pilot_bandpass, mode='same')
+            pilot_filtered_rms = np.sqrt(np.mean(pilot_filtered_sig ** 2))
+            logger.info(f"RBDS Pilot PLL: freq={pilot_freq_hz:.1f} Hz, phase={self._pilot_pll_phase:.2f} rad, "
+                       f"multiplex_rms={pilot_rms:.3f}, filtered_rms={pilot_filtered_rms:.3f}")
         time.sleep(0)  # Yield GIL
 
         # Step 2: Bandpass filter to extract 57 kHz RBDS subcarrier (54-60 kHz)
