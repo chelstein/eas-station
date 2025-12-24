@@ -614,21 +614,16 @@ class RBDSWorker:
         return self._decode_rbds_groups()
 
     def _mm_timing_pysdr(self, samples: np.ndarray) -> np.ndarray:
-        """M&M symbol timing using reference python-radio interpolation method.
+        """M&M symbol timing recovery using python-radio proven implementation.
 
-        Based on: https://github.com/ChrisDev8/python-radio/blob/main/decoder.py
-        Uses 16x upsampling and mu-based interpolation for symbol timing recovery.
+        This is the EXACT implementation from https://github.com/ChrisDev8/python-radio
+        which is known to work correctly for RBDS decoding.
         """
         n = len(samples)
         if n < 32:
             return samples
 
-        # Samples per symbol in ORIGINAL 19kHz space (NOT interpolated space)
-        # mu is fractional offset (0-1) in original sample space
-        # After upsampling 16x, mu*16 gives offset in interpolated space
-        sps = 16  # samples per symbol at 19kHz
-
-        # Upsample by 16x for interpolation (reference method)
+        # Upsample by 16x for interpolation (python-radio method)
         try:
             from scipy import signal as scipy_signal
             samples_interpolated = scipy_signal.resample_poly(samples, 16, 1)
@@ -642,138 +637,68 @@ class RBDSWorker:
             imag_interp = np.interp(new_indices, old_indices, samples.imag)
             samples_interpolated = (real_interp + 1j * imag_interp).astype(np.complex64)
 
-        # Initialize state
-        mu = self._rbds_mm_mu
-        i_in = 0
-        out_list = []
-        out_prev = complex(0, 0)  # sample[n-1]
-        out_prev2 = complex(0, 0)  # sample[n-2] - needed for M&M
-        out_rail_prev = complex(0, 0)  # decision[n-1]
+        sps = 16  # samples per symbol
+        mu = self._rbds_mm_mu if hasattr(self, '_rbds_mm_mu') else 0.01
 
-        # Load previous state for continuity
-        if hasattr(self, '_rbds_mm_out_prev'):
-            out_prev = self._rbds_mm_out_prev
-            out_prev2 = self._rbds_mm_out_prev2
-            out_rail_prev = self._rbds_mm_rail_prev
+        out = np.zeros(len(samples) + 10, dtype=np.complex64)
+        out_rail = np.zeros(len(samples) + 10, dtype=np.complex64)
+        i_in = 0  # input samples index
+        i_out = 2  # output index (let first two outputs be 0)
 
-        while i_in < n and i_in * 16 + int(mu * 16) < len(samples_interpolated):
-            # Grab interpolated sample: i_in is coarse position, mu is fractional (0-1)
-            # mu * 16 scales fractional position to interpolated space
-            idx = i_in * 16 + int(mu * 16)
-            if idx >= len(samples_interpolated):
-                break
-                
-            out_current = samples_interpolated[idx]
-
-            # Hard decision (rail) - BPSK uses only real axis, imag is set to 0
-            # Old code incorrectly treated this as QPSK with independent I/Q decisions
-            out_rail_current = complex(
-                1.0 if np.real(out_current) > 0 else -1.0,
-                0.0  # BPSK: imaginary component not used
-            )
-
-            # Mueller & Müller timing error formula for BPSK
-            # Standard formula: error = real((sample[n] - sample[n-2]) * conj(decision[n-1]))
-            # Old formula was wrong: mixed samples and decisions incorrectly
-            if len(out_list) >= 2:
-                mm_val = np.real((out_current - out_prev2) * np.conj(out_rail_prev))
-                # Loop gain tuning progression:
-                #   0.01 - too small, never locked
-                #   0.20 - too large, 15.625 sps (2.4% fast)
-                #   0.075 - still too large, 15.59 sps (2.6% fast)
-                # Syndromes getting close (385 vs 383), need exact 16.0 sps lock
-                mu += sps + 0.03 * mm_val
-            else:
-                mu += sps
-
-            out_list.append(out_current)
-
-            # Update history - need to track sample[n-2] for M&M formula
-            out_prev2 = out_prev
-            out_prev = out_current
-            out_rail_prev = out_rail_current
-            
-            # Advance input index
+        while i_out < len(samples) and i_in + 16 < len(samples):
+            out[i_out] = samples_interpolated[i_in * 16 + int(mu * 16)]
+            out_rail[i_out] = int(np.real(out[i_out]) > 0) + 1j * int(np.imag(out[i_out]) > 0)
+            x = (out_rail[i_out] - out_rail[i_out - 2]) * np.conj(out[i_out - 1])
+            y = (out[i_out] - out[i_out - 2]) * np.conj(out_rail[i_out - 1])
+            mm_val = np.real(y - x)
+            mu += sps + 0.01 * mm_val  # python-radio uses 0.01 loop gain
             i_in += int(np.floor(mu))
-            mu = mu - np.floor(mu)  # Keep fractional part
-        
+            mu = mu - np.floor(mu)
+            i_out += 1
+
         # Save state for next call
         self._rbds_mm_mu = mu
-        self._rbds_mm_out_prev = out_prev  # sample[n-1]
-        self._rbds_mm_out_prev2 = out_prev2  # sample[n-2]
-        self._rbds_mm_rail_prev = out_rail_prev  # decision[n-1]
-        
-        return np.array(out_list, dtype=np.complex64) if out_list else np.array([], dtype=np.complex64)
+
+        return out[2:i_out]
 
     def _costas_pysdr(self, samples: np.ndarray) -> np.ndarray:
         """Costas loop for BPSK carrier/phase synchronization.
 
-        Uses correct loop parameters derived from loop bandwidth equations.
-        alpha and beta are set in _init_rbds_state (0.132 and 0.00932).
-
-        Uses numba JIT when available, otherwise optimized Python with GIL yields.
+        This is the EXACT implementation from https://github.com/ChrisDev8/python-radio
+        which is known to work correctly for RBDS decoding.
         """
         n = len(samples)
         if n == 0:
             return samples
 
-        # Use the correctly computed loop parameters from init
-        alpha = self._rbds_costas_alpha  # 0.132
-        beta = self._rbds_costas_beta    # 0.00932
+        # python-radio uses these specific parameters
+        alpha = 4.25
+        beta = 0.0008
 
-        # Use JIT-compiled version if numba is available (50-100x faster)
-        if _NUMBA_AVAILABLE and n > 50:
-            samples_f64 = samples.astype(np.complex128)
-            out_real, out_imag, phase, freq = _costas_loop_numba(
-                samples_f64.real.astype(np.float64),
-                samples_f64.imag.astype(np.float64),
-                self._rbds_costas_phase,
-                self._rbds_costas_freq,
-                alpha,
-                beta
-            )
-            self._rbds_costas_phase = phase
-            self._rbds_costas_freq = freq
-            return (out_real + 1j * out_imag).astype(np.complex64)
+        phase = self._rbds_costas_phase if hasattr(self, '_rbds_costas_phase') else 0.0
+        freq = self._rbds_costas_freq if hasattr(self, '_rbds_costas_freq') else 0.0
 
-        # Pure Python fallback with GIL yields to prevent audio stalling
-        phase = self._rbds_costas_phase
-        freq = self._rbds_costas_freq
-        two_pi = 6.283185307179586  # Avoid repeated 2*pi calculation
+        out = np.zeros(n, dtype=np.complex64)
+        for i in range(n):
+            # Adjust the input sample by the inverse of the estimated phase offset
+            out[i] = samples[i] * np.exp(-1j * phase)
 
-        out = np.empty(n, dtype=np.complex64)
-        samples_real = samples.real
-        samples_imag = samples.imag
+            # Error formula for 2nd order Costas Loop (for BPSK)
+            error = np.real(out[i]) * np.imag(out[i])
 
-        # Process in batches to yield GIL
-        batch_size = 128
-        for batch_start in range(0, n, batch_size):
-            batch_end = min(batch_start + batch_size, n)
-            for i in range(batch_start, batch_end):
-                cos_phase = math.cos(phase)
-                sin_phase = math.sin(phase)
+            # Advance the loop (recalc phase and freq offset)
+            freq += beta * error
+            phase += freq + alpha * error
 
-                s_re = samples_real[i]
-                s_im = samples_imag[i]
-                out_real = s_re * cos_phase + s_im * sin_phase
-                out_imag = s_im * cos_phase - s_re * sin_phase
-                out[i] = complex(out_real, out_imag)
-
-                error = out_real * out_imag
-                freq += beta * error
-                phase += freq + alpha * error
-
-                # Wrap phase
-                while phase >= two_pi:
-                    phase -= two_pi
-                while phase < 0:
-                    phase += two_pi
-
-            # Yield GIL between batches
-            time.sleep(0)
+            # Adjust phase so it's always between 0 and 2pi
+            while phase >= 2 * np.pi:
+                phase -= 2 * np.pi
+            while phase < 0:
+                phase += 2 * np.pi
 
         self._rbds_costas_phase = phase
         self._rbds_costas_freq = freq
+
         return out
 
     def _resample(self, signal: np.ndarray, from_rate: int, to_rate: int) -> np.ndarray:
@@ -920,375 +845,152 @@ class RBDSWorker:
     def _decode_rbds_groups(self) -> Optional[RBDSData]:
         """Decode RBDS groups from bit buffer.
 
-        Uses the proven python-radio/PySDR approach:
-        - Two-stage presync: find any valid block, verify second at correct spacing
-        - Synced: count exactly 26 bits per block, track error rate
-        - Based on: https://github.com/ChrisDev8/python-radio/blob/main/decoder.py
+        This uses the EXACT synchronization logic from python-radio:
+        https://github.com/ChrisDev8/python-radio/blob/main/decoder.py
         
-        CRITICAL FIX: Use index-based processing instead of pop(0) to preserve bits
-        during failed presync attempts. This prevents the buffer from being drained
-        before synchronization is achieved.
+        Their code is proven to work, so we use it verbatim for sync logic.
         """
         changed = False
 
-        # Syndrome values and block position mapping (from python-radio)
-        # Order: A, B, C, D, C' (NOT A, B, C, C', D!)
-        syndromes = [383, 14, 303, 663, 748]  # A, B, C, D, C'
-        offset_pos = [0, 1, 2, 3, 2]  # A=0, B=1, C=2, D=3, C'=2 (same as C)
-        offset_word = [252, 408, 360, 436, 848]  # A, B, C, D, C'
+        # python-radio constants
+        syndrome = [383, 14, 303, 663, 748]
+        offset_pos = [0, 1, 2, 3, 2]
+        offset_word = [252, 408, 360, 436, 848]
 
         # Initialize state if not present
-        if not hasattr(self, '_rbds_reg'):
-            self._rbds_reg = 0
+        if not hasattr(self, '_rbds_synced'):
             self._rbds_synced = False
             self._rbds_presync = False
-            self._rbds_lastseen_offset = 0
+            self._rbds_wrong_blocks_counter = 0
+            self._rbds_blocks_counter = 0
+            self._rbds_group_good_blocks_counter = 0
+            self._rbds_reg = 0
             self._rbds_lastseen_offset_counter = 0
-            self._rbds_bit_counter = 0
+            self._rbds_lastseen_offset = 0
             self._rbds_block_bit_counter = 0
             self._rbds_block_number = 0
-            self._rbds_wrong_blocks = 0
-            self._rbds_blocks_counter = 0
-            self._rbds_group_data = [0, 0, 0, 0]
-            self._rbds_group_good = 0
-            self._rbds_buffer_index = 0  # Track where we are in the buffer
+            self._rbds_group_assembly_started = False
+            self._rbds_bytes_array = bytearray(8)
 
-        # Process bits using index instead of pop(0) to preserve unprocessed bits
-        # This is critical for presync - when spacing fails, we don't lose the bits
-        buffer_len = len(self._rbds_bit_buffer)
-        bits_processed = 0
+        # Process all bits in buffer (python-radio style)
+        bits = self._rbds_bit_buffer
         
-        while self._rbds_buffer_index < buffer_len:
-            bit = self._rbds_bit_buffer[self._rbds_buffer_index]
-            self._rbds_buffer_index += 1
-            bits_processed += 1
-
-            # CRITICAL: In synced mode, check if we have a complete block BEFORE adding the next bit!
-            # This prevents adding a 27th bit which would shift out the first bit and cause CRC failures.
-            if self._rbds_synced and self._rbds_block_bit_counter == 25:
-                # We have 26 bits in the register - check CRC before adding the current bit
-                # (CRC check code will be here - for now just note the block is complete)
-                process_complete_block = True
-            else:
-                process_complete_block = False
-
-            # RBDS transmits MSB first. For MSB-first transmission, shift left and add at LSB.
-            # After receiving all 26 bits, bit 0 (first received, MSB) ends at position 25,
-            # and bit 25 (last received, LSB) ends at position 0.
-            # CRITICAL: Only add bit if we're not about to process a complete block
-            if not process_complete_block:
-                self._rbds_reg = ((self._rbds_reg << 1) | bit) & 0x3FFFFFF  # MSB first (CORRECT)
-
-            self._rbds_bit_counter += 1
-
+        for i in range(len(bits)):
+            # Shift in next bit (python-radio uses numpy bitwise ops, we use Python ops)
+            self._rbds_reg = ((self._rbds_reg << 1) | bits[i]) & 0x3FFFFFF
+            
             if not self._rbds_synced:
-                # === PRESYNC: Look for valid syndrome ===
-                # Check BOTH normal and inverted polarity (Costas loop can lock with 180° phase ambiguity)
-                # CRITICAL FIX: Without inverted check, presync fails if Costas locked inverted
-                syndrome = self._calc_syndrome(self._rbds_reg, 26)
-                
-                # Also check inverted register (180° phase ambiguity)
-                inv_reg = self._rbds_reg ^ 0x3FFFFFF  # Invert all 26 bits
-                syndrome_inv = self._calc_syndrome(inv_reg, 26)
-
-                # Debug: Log syndromes periodically
-                if not hasattr(self, '_syndrome_debug_count'):
-                    self._syndrome_debug_count = 0
-                self._syndrome_debug_count += 1
-                if self._syndrome_debug_count % 1000 == 1:
-                    logger.debug("RBDS sync search: bit_counter=%d, syndrome=%d/%d (normal/inverted), target syndromes=%s",
-                                self._rbds_bit_counter, syndrome, syndrome_inv, syndromes)
-
-                matched_j = None
-                used_inverted = False
-                
-                # Try normal polarity first
+                # PRESYNC MODE (python-radio logic)
+                reg_syndrome = self._calc_syndrome(self._rbds_reg, 26)
                 for j in range(5):
-                    if syndrome == syndromes[j]:
-                        matched_j = j
-                        used_inverted = False
-                        break
-                
-                # Try inverted polarity if normal didn't match
-                if matched_j is None:
-                    for j in range(5):
-                        if syndrome_inv == syndromes[j]:
-                            matched_j = j
-                            used_inverted = True
-                            break
-
-                if matched_j is not None:
-                    j = matched_j
-                    if not self._rbds_presync:
-                        # First valid block found - remember it
-                        self._rbds_lastseen_offset = j
-                        self._rbds_lastseen_offset_counter = self._rbds_bit_counter
-                        self._rbds_presync = True
-                        # Log which polarity matched
-                        polarity = "inverted" if used_inverted else "normal"
-                        logger.info("RBDS presync: first block type %d at bit %d (%s polarity)",
-                                    j, self._rbds_bit_counter, polarity)
-                    else:
-                        # Second valid block - check spacing
-                        if offset_pos[self._rbds_lastseen_offset] >= offset_pos[j]:
-                            block_distance = offset_pos[j] + 4 - offset_pos[self._rbds_lastseen_offset]
-                        else:
-                            block_distance = offset_pos[j] - offset_pos[self._rbds_lastseen_offset]
-
-                        expected_bits = block_distance * 26
-                        actual_bits = self._rbds_bit_counter - self._rbds_lastseen_offset_counter
-                        
-                        if expected_bits != actual_bits:
-                            # Wrong spacing - the first block was likely a false positive
-                            # CRITICAL FIX: Don't discard current block! It has valid syndrome,
-                            # so treat it as the new first block candidate.
+                    if reg_syndrome == syndrome[j]:
+                        if not self._rbds_presync:
+                            # First valid block found
                             self._rbds_lastseen_offset = j
-                            self._rbds_lastseen_offset_counter = self._rbds_bit_counter
-                            # Keep presync=True since we have a new first block candidate
-                            
-                            # Reduced logging: only log spacing mismatches every 100th occurrence
-                            if not hasattr(self, '_spacing_mismatch_count'):
-                                self._spacing_mismatch_count = 0
-                            self._spacing_mismatch_count += 1
-                            if self._spacing_mismatch_count % 100 == 1:
-                                logger.debug(
-                                    "RBDS presync: spacing mismatch (expected %d, got %d) - "
-                                    "keeping current as first block (logged every 100 mismatches)",
-                                    expected_bits, actual_bits
-                                )
+                            self._rbds_lastseen_offset_counter = i
+                            self._rbds_presync = True
+                            logger.info(f"RBDS presync: first block type {j} at bit {i}")
                         else:
-                            # Correct spacing - SYNCED!
-                            logger.info('RBDS SYNCHRONIZED at bit %d', self._rbds_bit_counter)
-                            
-                            # CRITICAL FIX: Process the current 26-bit block IMMEDIATELY before any
-                            # more bits shift in. The register contains a valid block right now.
-                            block_to_process = self._rbds_reg
-                            block_type_pos = offset_pos[j]  # Position 0-3 in the sequence
-                            
-                            # Extract dataword and checkword
-                            dataword = (block_to_process >> 10) & 0xFFFF
-                            checkword = block_to_process & 0x3FF
-                            block_crc = self._calc_syndrome(dataword, 16)
-                            
-                            # Verify CRC
-                            good_block = False
-                            final_dataword = dataword
-                            used_inverted = False
-                            
-                            # Try normal polarity
-                            if block_type_pos == 2:  # Block C can be C or C'
-                                if (checkword ^ offset_word[2]) == block_crc:
-                                    good_block = True
-                                elif (checkword ^ offset_word[4]) == block_crc:
-                                    good_block = True
+                            # Second valid block - check spacing
+                            if offset_pos[self._rbds_lastseen_offset] >= offset_pos[j]:
+                                block_distance = offset_pos[j] + 4 - offset_pos[self._rbds_lastseen_offset]
                             else:
-                                if (checkword ^ offset_word[block_type_pos]) == block_crc:
-                                    good_block = True
+                                block_distance = offset_pos[j] - offset_pos[self._rbds_lastseen_offset]
                             
-                            # Try inverted polarity if normal failed
-                            if not good_block:
-                                inv_block = block_to_process ^ 0x3FFFFFF
-                                inv_dataword = (inv_block >> 10) & 0xFFFF
-                                inv_checkword = inv_block & 0x3FF
-                                inv_block_crc = self._calc_syndrome(inv_dataword, 16)
-                                
-                                if block_type_pos == 2:
-                                    if (inv_checkword ^ offset_word[2]) == inv_block_crc:
-                                        good_block = True
-                                        final_dataword = inv_dataword
-                                        used_inverted = True
-                                    elif (inv_checkword ^ offset_word[4]) == inv_block_crc:
-                                        good_block = True
-                                        final_dataword = inv_dataword
-                                        used_inverted = True
-                                else:
-                                    if (inv_checkword ^ offset_word[block_type_pos]) == inv_block_crc:
-                                        good_block = True
-                                        final_dataword = inv_dataword
-                                        used_inverted = True
-                            
-                            # Log result
-                            polarity = "inverted" if used_inverted else "normal"
-                            if good_block:
-                                logger.info("RBDS first synced block PASSED CRC: block_num=%d, dataword=0x%04X, polarity=%s",
-                                           block_type_pos, final_dataword, polarity)
+                            if (block_distance * 26) != (i - self._rbds_lastseen_offset_counter):
+                                # Wrong spacing - reset presync
+                                self._rbds_presync = False
                             else:
-                                logger.warning("RBDS first synced block FAILED CRC: block_num=%d, expected_offset=%s, checkword=0x%03X, block_crc=%d",
-                                              block_type_pos, offset_word[block_type_pos], checkword, block_crc)
-                            
-                            # Now set up synced state for future blocks
-                            self._rbds_synced = True
-                            self._rbds_wrong_blocks = 0 if good_block else 1
-                            self._rbds_blocks_counter = 1  # We just processed one block
-                            self._rbds_block_bit_counter = -1  # CRITICAL: Set to -1 so next bit becomes bit 0 (counter 0) after increment
-                            self._rbds_reg = 0  # CRITICAL: Reset register so next block starts clean
-                            self._rbds_block_number = (block_type_pos + 1) % 4  # Next expected block
-                            self._rbds_group_good = 0
-                            self._crc_check_count = 1  # We just did one CRC check
-                            self._rbds_normal_blocks = 1 if (good_block and not used_inverted) else 0
-                            self._rbds_inverted_blocks = 1 if (good_block and used_inverted) else 0
-
-                            # Store in group data if good
-                            if good_block:
-                                self._rbds_group_data[block_type_pos] = final_dataword
-                                if block_type_pos == 0:
-                                    self._rbds_group_good = 1
-                                elif self._rbds_group_good > 0:
-                                    self._rbds_group_good += 1
-
-                            # CRITICAL: Continue to next bit! The current bit was the last bit of the
-                            # sync block and has already been processed. We must NOT process it again
-                            # in synced mode, or it will become bit 0 of the next block (off by 1).
-                            continue  # Skip to next iteration of while loop
+                                # SYNC ACHIEVED!
+                                logger.info(f'RBDS SYNCHRONIZED at bit {i}')
+                                self._rbds_wrong_blocks_counter = 0
+                                self._rbds_blocks_counter = 0
+                                self._rbds_block_bit_counter = 0
+                                self._rbds_block_number = (j + 1) % 4
+                                self._rbds_group_assembly_started = False
+                                self._rbds_synced = True
+                        break  # Syndrome found, exit j loop
+            
             else:
-                # === SYNCED: Process blocks at 26-bit intervals ===
-                # CRITICAL: process_complete_block flag ensures we check CRC with exactly 26 bits
-                if process_complete_block:
-                    # Complete block received (26 bits in register) - verify CRC
-                    dataword = (self._rbds_reg >> 10) & 0xFFFF
-                    checkword = self._rbds_reg & 0x3FF
-                    block_crc = self._calc_syndrome(dataword, 16)
-                    
-                    # DEBUG: Log CRC check details for first few blocks
-                    if not hasattr(self, '_crc_check_count'):
-                        self._crc_check_count = 0
-                    self._crc_check_count += 1
-                    # Always log first block after sync to confirm we're processing
-                    if self._crc_check_count == 1:
-                        logger.info("RBDS processing first synced block: block_num=%d, bit_counter=%d",
-                                   self._rbds_block_number, self._rbds_bit_counter)
-                    if self._crc_check_count <= 10:
-                        logger.debug("RBDS CRC check #%d: block_num=%d, reg=0x%07X, dataword=0x%04X, checkword=0x%03X, block_crc=%d",
-                                    self._crc_check_count, self._rbds_block_number, self._rbds_reg, 
-                                    dataword, checkword, block_crc)
-
+                # SYNCED MODE (python-radio logic)
+                if self._rbds_block_bit_counter < 25:
+                    self._rbds_block_bit_counter += 1
+                else:
+                    # Complete 26-bit block received - check CRC
                     good_block = False
-                    final_dataword = dataword
-                    block_num = self._rbds_block_number
-                    used_inverted = False
-
-                    # Try normal polarity first
-                    # offset_word order: [A=0, B=1, C=2, D=3, C'=4]
-                    if block_num == 2:
-                        # Block C can be C or C' - try both (indices 2 and 4)
-                        if (checkword ^ offset_word[2]) == block_crc:
+                    dataword = (self._rbds_reg >> 10) & 0xFFFF
+                    block_calculated_crc = self._calc_syndrome(dataword, 16)
+                    checkword = self._rbds_reg & 0x3FF
+                    
+                    if self._rbds_block_number == 2:
+                        # Block C can be C or C' offset word
+                        block_received_crc = checkword ^ offset_word[self._rbds_block_number]
+                        if block_received_crc == block_calculated_crc:
                             good_block = True
-                        elif (checkword ^ offset_word[4]) == block_crc:
-                            good_block = True
-                    else:
-                        # A=0, B=1, D=3 (C is handled above)
-                        offset_idx = [0, 1, 2, 3][block_num]
-                        if (checkword ^ offset_word[offset_idx]) == block_crc:
-                            good_block = True
-
-                    # Try inverted bits (180° Costas phase ambiguity)
-                    if not good_block:
-                        inv_reg = self._rbds_reg ^ 0x3FFFFFF  # Invert all 26 bits
-                        inv_dataword = (inv_reg >> 10) & 0xFFFF
-                        inv_checkword = inv_reg & 0x3FF
-                        inv_block_crc = self._calc_syndrome(inv_dataword, 16)
-
-                        if block_num == 2:
-                            if (inv_checkword ^ offset_word[2]) == inv_block_crc:
-                                good_block = True
-                                final_dataword = inv_dataword
-                                used_inverted = True
-                            elif (inv_checkword ^ offset_word[4]) == inv_block_crc:
-                                good_block = True
-                                final_dataword = inv_dataword
-                                used_inverted = True
                         else:
-                            offset_idx = [0, 1, 2, 3][block_num]
-                            if (inv_checkword ^ offset_word[offset_idx]) == inv_block_crc:
+                            block_received_crc = checkword ^ offset_word[4]
+                            if block_received_crc == block_calculated_crc:
                                 good_block = True
-                                final_dataword = inv_dataword
-                                used_inverted = True
-
-                    if good_block:
-                        # Track polarity statistics
-                        if not hasattr(self, '_rbds_normal_blocks'):
-                            self._rbds_normal_blocks = 0
-                            self._rbds_inverted_blocks = 0
-                        
-                        if used_inverted:
-                            self._rbds_inverted_blocks += 1
-                            # Log first few inverted blocks
-                            if self._rbds_inverted_blocks <= 5:
-                                logger.warning("RBDS block decoded with INVERTED polarity (inverted:%d normal:%d)",
-                                             self._rbds_inverted_blocks, self._rbds_normal_blocks)
-                        else:
-                            self._rbds_normal_blocks += 1
-                            # Log first few normal blocks
-                            if self._rbds_normal_blocks <= 5:
-                                logger.info("RBDS block decoded with NORMAL polarity (inverted:%d normal:%d)",
-                                          self._rbds_inverted_blocks, self._rbds_normal_blocks)
-
-                    if good_block:
-                        self._rbds_group_data[block_num] = final_dataword
-                        if block_num == 0:
-                            self._rbds_group_good = 1
-                        elif self._rbds_group_good > 0:
-                            self._rbds_group_good += 1
-                        # DEBUG: Log first few good blocks
-                        if hasattr(self, '_crc_check_count') and self._crc_check_count <= 10:
-                            logger.info("RBDS block PASSED CRC: block_num=%d, dataword=0x%04X, inverted=%s",
-                                       block_num, final_dataword, used_inverted)
+                            else:
+                                self._rbds_wrong_blocks_counter += 1
+                                good_block = False
                     else:
-                        self._rbds_wrong_blocks += 1
-                        self._rbds_group_good = 0  # Invalidate current group
-                        # DEBUG: Log first few failed blocks with details
-                        if hasattr(self, '_crc_check_count') and self._crc_check_count <= 10:
-                            expected_offset = offset_word[block_num] if block_num != 2 else f"{offset_word[2]} or {offset_word[4]}"
-                            logger.warning("RBDS block FAILED CRC: block_num=%d, expected_offset=%s, checkword=0x%03X, block_crc=%d",
-                                          block_num, expected_offset, checkword, block_crc)
-
-                    # Check for complete group
-                    if block_num == 3 and self._rbds_group_good == 4:
-                        group_changed = self._rbds_decoder.process_group(tuple(self._rbds_group_data))
-                        changed = changed or group_changed
-                        logger.info("RBDS group: A=%04X B=%04X C=%04X D=%04X",
-                                   *self._rbds_group_data)
-
-                    # Reset counter and register for next block
+                        block_received_crc = checkword ^ offset_word[self._rbds_block_number]
+                        if block_received_crc == block_calculated_crc:
+                            good_block = True
+                        else:
+                            self._rbds_wrong_blocks_counter += 1
+                            good_block = False
+                    
+                    # Group assembly (python-radio logic)
+                    if self._rbds_block_number == 0 and good_block:
+                        self._rbds_group_assembly_started = True
+                        self._rbds_group_good_blocks_counter = 1
+                        self._rbds_bytes_array = bytearray(8)
+                    
+                    if self._rbds_group_assembly_started:
+                        if not good_block:
+                            self._rbds_group_assembly_started = False
+                        else:
+                            # Store dataword bytes
+                            self._rbds_bytes_array[self._rbds_block_number * 2] = (dataword >> 8) & 0xFF
+                            self._rbds_bytes_array[self._rbds_block_number * 2 + 1] = dataword & 0xFF
+                            self._rbds_group_good_blocks_counter += 1
+                            
+                            if self._rbds_group_good_blocks_counter == 5:  # python-radio uses 5, not 4
+                                # Complete group received - decode it
+                                group_0 = self._rbds_bytes_array[1] | (self._rbds_bytes_array[0] << 8)
+                                group_1 = self._rbds_bytes_array[3] | (self._rbds_bytes_array[2] << 8)
+                                group_2 = self._rbds_bytes_array[5] | (self._rbds_bytes_array[4] << 8)
+                                group_3 = self._rbds_bytes_array[7] | (self._rbds_bytes_array[6] << 8)
+                                
+                                group_type = (group_1 >> 12) & 0xF
+                                program_identification = group_0
+                                
+                                # Update our RBDSData decoder
+                                self._rbds_decoder.process_group((group_0, group_1, group_2, group_3))
+                                changed = True
+                                
+                                logger.info(f"RBDS group: PI=0x{program_identification:04X} type={group_type}")
+                    
+                    # Reset for next block
                     self._rbds_block_bit_counter = 0
-                    # CRITICAL: Add current bit as bit 0 of next block (it was skipped earlier)
-                    self._rbds_reg = bit & 0x3FFFFFF
                     self._rbds_block_number = (self._rbds_block_number + 1) % 4
                     self._rbds_blocks_counter += 1
-
+                    
                     # Check sync quality every 50 blocks
-                    if self._rbds_blocks_counter >= 50:
-                        if self._rbds_wrong_blocks > 35:
-                            logger.warning("RBDS SYNC LOST: %d/50 bad blocks",
-                                          self._rbds_wrong_blocks)
+                    if self._rbds_blocks_counter == 50:
+                        if self._rbds_wrong_blocks_counter > 35:
+                            logger.info(f"RBDS SYNC LOST ({self._rbds_wrong_blocks_counter} bad blocks on {self._rbds_blocks_counter} total)")
                             self._rbds_synced = False
                             self._rbds_presync = False
                         else:
-                            # Log polarity statistics
-                            if hasattr(self, '_rbds_normal_blocks'):
-                                logger.info("RBDS sync OK: %d/50 bad blocks, polarity: %d normal, %d inverted",
-                                          self._rbds_wrong_blocks, self._rbds_normal_blocks, self._rbds_inverted_blocks)
-                            else:
-                                logger.debug("RBDS sync OK: %d/50 bad blocks",
-                                            self._rbds_wrong_blocks)
+                            logger.info(f"RBDS sync OK ({self._rbds_wrong_blocks_counter} bad blocks on {self._rbds_blocks_counter} total)")
                         self._rbds_blocks_counter = 0
-                        self._rbds_wrong_blocks = 0
-                else:
-                    # Still accumulating bits for current block - just increment counter
-                    # (bit was already added to register at line 980)
-                    self._rbds_block_bit_counter += 1
+                        self._rbds_wrong_blocks_counter = 0
 
-        # Clean up processed bits from buffer to prevent unbounded growth
-        # Remove bits we've successfully processed
-        if self._rbds_buffer_index > 0:
-            del self._rbds_bit_buffer[:self._rbds_buffer_index]
-            self._rbds_buffer_index = 0
-        
-        # Enforce maximum buffer limit (keep most recent bits)
-        if len(self._rbds_bit_buffer) > 6000:
-            excess = len(self._rbds_bit_buffer) - 6000
-            del self._rbds_bit_buffer[:excess]
-            logger.debug("RBDS buffer limit: removed %d old bits, kept most recent 6000", excess)
+        # Clear the bit buffer after processing
+        self._rbds_bit_buffer.clear()
 
         if changed:
             return self._rbds_decoder.get_current_data()
