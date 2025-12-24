@@ -673,9 +673,10 @@ class RBDSWorker:
             # Old formula was wrong: mixed samples and decisions incorrectly
             if len(out_list) >= 2:
                 mm_val = np.real((out_current - out_prev2) * np.conj(out_rail_prev))
-                # Loop gain increased from 0.01 to 0.2 for faster convergence
-                # Old value was 10-20x too small, preventing lock
-                mu += sps + 0.2 * mm_val
+                # Loop gain tuning: 0.01 too small (never locked), 0.2 too large (oscillates)
+                # Logs show M&M running 2.4% fast (250 samples->16 symbols = 15.625 sps, expect 16)
+                # Reduced to 0.075 for stable lock without oscillation
+                mu += sps + 0.075 * mm_val
             else:
                 mu += sps
 

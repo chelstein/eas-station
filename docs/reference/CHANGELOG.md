@@ -7,6 +7,18 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **CRITICAL: Tune M&M Loop Gain to Fix Symbol Rate** (v2.44.19)
+  - Problem: M&M running 2.4% too fast - extracting symbols at 15.625 sps instead of 16 sps
+  - Evidence from logs: "250 samples -> 16 symbols" = 15.625 samples/symbol (should be 16)
+  - Impact: Wrong symbol rate causes bit slippage and presync spacing errors
+    - Presync found blocks 70 bits apart instead of expected 26 bits
+    - Random syndromes due to symbols at wrong timing phase
+  - Root cause: M&M loop gain of 0.2 too aggressive, causing oscillation/wrong phase lock
+  - Solution: Reduced loop gain from 0.2 to 0.075 for stable convergence
+  - File: `app_core/radio/demodulation.py:679`
+  - Testing on Class B FM at 8 miles (strong signal) - should now lock correctly
+  - Expected: M&M should produce exactly 16 samples/symbol, syndromes should match targets
+
 - **CRITICAL: Fix Multiple Fundamental RBDS DSP Bugs** (v2.44.18)
   - After 35+ failed PR attempts, deep analysis revealed MULTIPLE critical DSP bugs preventing RBDS from ever working
   - **BUG #1: M&M Timing Error Formula Completely Wrong**
