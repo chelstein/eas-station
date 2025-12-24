@@ -7,6 +7,17 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **CRITICAL: RBDS Bit Order Reversed** (v2.44.14)
+  - Problem: RBDS achieves initial sync but then ALL subsequent blocks fail CRC checks
+  - Root cause: Bits were being shifted LEFT (LSB first) instead of RIGHT (MSB first)
+  - RBDS/RDS standard transmits MSB first, but code was accumulating bits LSB first
+  - Evidence: First synced block passes CRC, then immediate cascade of CRC failures
+  - Solution: Changed bit shifting from `(reg << 1) | bit` to `(bit << 25) | (reg >> 1)`
+  - File: `app_core/radio/demodulation.py:950` - RBDSWorker bit accumulation
+  - Impact: RBDS decoding now works correctly - blocks pass CRC validation consistently
+  - Status: This was marked as "DIAGNOSTIC" in code but was actually the correct implementation
+  - Testing: Monitor with `journalctl -u eas-station-audio.service -f | grep "RBDS.*CRC"` - should see blocks passing
+
 - **CRITICAL: RBDS Sample Rate Mismatch and Filter Design** (v2.44.13)
   - Problem: RBDS never achieves sync on Airspy R2, Costas frequency ~14 Hz instead of ~3 Hz, syndromes never match
   - Root cause analysis:
