@@ -623,20 +623,19 @@ class RBDSWorker:
         if n < 32:
             return samples
 
-        # CRITICAL: After 16x upsampling, sps in interpolated space is 16 * 16 = 256
-        # This was the bug causing 15.625 sps instead of 16.0 sps!
-        # At 19kHz, we have 16 samples per symbol. After 16x upsample, that's 256 interpolated samples per symbol.
-        sps = 16 * 16  # samples per symbol in INTERPOLATED space (was 16, which was wrong!)
-        upsample_factor = 16
-        
+        # Samples per symbol in ORIGINAL 19kHz space (NOT interpolated space)
+        # mu is fractional offset (0-1) in original sample space
+        # After upsampling 16x, mu*16 gives offset in interpolated space
+        sps = 16  # samples per symbol at 19kHz
+
         # Upsample by 16x for interpolation (reference method)
         try:
             from scipy import signal as scipy_signal
-            samples_interpolated = scipy_signal.resample_poly(samples, upsample_factor, 1)
+            samples_interpolated = scipy_signal.resample_poly(samples, 16, 1)
         except ImportError:
             # Fallback: linear interpolation
             old_len = len(samples)
-            new_len = old_len * upsample_factor
+            new_len = old_len * 16
             old_indices = np.arange(old_len)
             new_indices = np.linspace(0, old_len - 1, new_len)
             real_interp = np.interp(new_indices, old_indices, samples.real)
@@ -657,9 +656,10 @@ class RBDSWorker:
             out_prev2 = self._rbds_mm_out_prev2
             out_rail_prev = self._rbds_mm_rail_prev
 
-        while i_in < n and i_in * upsample_factor + int(mu) < len(samples_interpolated):
-            # Grab interpolated sample at current mu position (mu is now in interpolated sample space)
-            idx = i_in * upsample_factor + int(mu)
+        while i_in < n and i_in * 16 + int(mu * 16) < len(samples_interpolated):
+            # Grab interpolated sample: i_in is coarse position, mu is fractional (0-1)
+            # mu * 16 scales fractional position to interpolated space
+            idx = i_in * 16 + int(mu * 16)
             if idx >= len(samples_interpolated):
                 break
                 
@@ -962,11 +962,23 @@ class RBDSWorker:
             bit = self._rbds_bit_buffer[self._rbds_buffer_index]
             self._rbds_buffer_index += 1
             bits_processed += 1
-            
+
+            # CRITICAL: In synced mode, check if we have a complete block BEFORE adding the next bit!
+            # This prevents adding a 27th bit which would shift out the first bit and cause CRC failures.
+            if self._rbds_synced and self._rbds_block_bit_counter == 25:
+                # We have 26 bits in the register - check CRC before adding the current bit
+                # (CRC check code will be here - for now just note the block is complete)
+                process_complete_block = True
+            else:
+                process_complete_block = False
+
             # RBDS transmits MSB first. For MSB-first transmission, shift left and add at LSB.
             # After receiving all 26 bits, bit 0 (first received, MSB) ends at position 25,
             # and bit 25 (last received, LSB) ends at position 0.
-            self._rbds_reg = ((self._rbds_reg << 1) | bit) & 0x3FFFFFF  # MSB first (CORRECT)
+            # CRITICAL: Only add bit if we're not about to process a complete block
+            if not process_complete_block:
+                self._rbds_reg = ((self._rbds_reg << 1) | bit) & 0x3FFFFFF  # MSB first (CORRECT)
+
             self._rbds_bit_counter += 1
 
             if not self._rbds_synced:
@@ -1127,10 +1139,9 @@ class RBDSWorker:
                             break  # Exit presync loop
             else:
                 # === SYNCED: Process blocks at 26-bit intervals ===
-                if self._rbds_block_bit_counter < 25:
-                    self._rbds_block_bit_counter += 1
-                else:
-                    # Complete block received - verify CRC
+                # CRITICAL: process_complete_block flag ensures we check CRC with exactly 26 bits
+                if process_complete_block:
+                    # Complete block received (26 bits in register) - verify CRC
                     dataword = (self._rbds_reg >> 10) & 0xFFFF
                     checkword = self._rbds_reg & 0x3FF
                     block_crc = self._calc_syndrome(dataword, 16)
@@ -1235,8 +1246,10 @@ class RBDSWorker:
                         logger.info("RBDS group: A=%04X B=%04X C=%04X D=%04X",
                                    *self._rbds_group_data)
 
+                    # Reset counter and register for next block
                     self._rbds_block_bit_counter = 0
-                    self._rbds_reg = 0  # CRITICAL: Reset register so next block starts clean
+                    # CRITICAL: Add current bit as bit 0 of next block (it was skipped earlier)
+                    self._rbds_reg = bit & 0x3FFFFFF
                     self._rbds_block_number = (self._rbds_block_number + 1) % 4
                     self._rbds_blocks_counter += 1
 
@@ -1257,6 +1270,10 @@ class RBDSWorker:
                                             self._rbds_wrong_blocks)
                         self._rbds_blocks_counter = 0
                         self._rbds_wrong_blocks = 0
+                else:
+                    # Still accumulating bits for current block - just increment counter
+                    # (bit was already added to register at line 980)
+                    self._rbds_block_bit_counter += 1
 
         # Clean up processed bits from buffer to prevent unbounded growth
         # Remove bits we've successfully processed
