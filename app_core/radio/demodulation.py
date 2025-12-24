@@ -329,6 +329,23 @@ class RBDSWorker:
         # Design this at sample_rate since we mix BEFORE lowpass filtering
         self._rbds_lowpass = self._design_fir_lowpass(7500.0, self._sample_rate, taps=101)
 
+        # CRITICAL: 19 kHz pilot extraction for phase-coherent demodulation
+        # Redsea/GNU Radio architecture: Use pilot × 3 to generate 57 kHz carrier
+        # This ensures phase coherence with the transmitter!
+        pilot_filter_taps = min(101, max(31, int(self._sample_rate / 3000)))
+        self._pilot_bandpass = self._design_fir_bandpass(
+            18500.0, 19500.0, self._sample_rate, taps=pilot_filter_taps
+        )
+
+        # Pilot PLL state (2nd order PLL for phase tracking)
+        self._pilot_pll_phase = 0.0  # Current phase estimate
+        self._pilot_pll_freq = 2.0 * np.pi * 19000.0 / self._sample_rate  # Normalized frequency
+        self._pilot_pll_alpha = 0.05  # Loop filter proportional gain
+        self._pilot_pll_beta = 0.0005  # Loop filter integral gain
+
+        # 57 kHz carrier phase (derived from pilot × 3)
+        self._carrier_phase_57k = 0.0
+
         # RBDS symbol timing
         self._rbds_symbol_rate = 1187.5
         self._rbds_samples_per_symbol = 16
@@ -387,6 +404,51 @@ class RBDSWorker:
         # sum(abs(h)) is wrong for bandpass (has negative coefficients)
         h /= np.max(np.abs(h))
         return h.astype(np.float32)
+
+    def _track_pilot_pll(self, multiplex: np.ndarray) -> np.ndarray:
+        """Track 19 kHz pilot tone using 2nd order PLL.
+
+        Returns array of pilot phases (one per sample) for generating coherent subcarriers.
+        This is the CRITICAL fix: using the pilot × 3 for 57 kHz ensures phase coherence!
+
+        Reference: Redsea decoder architecture - "PLL locks onto 19 kHz pilot,
+        third harmonic (57 kHz) used to regenerate RDS subcarrier"
+        """
+        n = len(multiplex)
+        if n == 0:
+            return np.array([], dtype=np.float64)
+
+        # Filter to extract 19 kHz pilot tone
+        pilot_filtered = np.convolve(multiplex, self._pilot_bandpass, mode='same')
+
+        # Track pilot phase sample-by-sample with 2nd order PLL
+        pilot_phases = np.zeros(n, dtype=np.float64)
+        phase = self._pilot_pll_phase
+        freq = self._pilot_pll_freq
+
+        for i in range(n):
+            # Generate local oscillator at current phase estimate
+            pilot_phases[i] = phase
+
+            # Phase detector: multiply input by conjugate of local oscillator
+            # For real signals: error = input * sin(phase)
+            error = pilot_filtered[i] * np.sin(phase)
+
+            # 2nd order loop filter
+            freq += self._pilot_pll_beta * error
+            phase += freq + self._pilot_pll_alpha * error
+
+            # Wrap phase to [-π, π]
+            while phase > np.pi:
+                phase -= 2.0 * np.pi
+            while phase < -np.pi:
+                phase += 2.0 * np.pi
+
+        # Save state for next call
+        self._pilot_pll_phase = phase
+        self._pilot_pll_freq = freq
+
+        return pilot_phases
 
     def _start(self) -> None:
         """Start the worker thread."""
@@ -495,21 +557,44 @@ class RBDSWorker:
         sample_rate = self._sample_rate
         time.sleep(0)  # Yield GIL
 
-        # Step 1: Bandpass filter to extract 57 kHz RBDS subcarrier (54-60 kHz)
-        # CRITICAL: Do this BEFORE any decimation that would remove the 57 kHz signal!
-        # The bandpass filter was designed but never used - now we use it correctly
+        # Step 1: Extract 19 kHz pilot and generate phase-coherent 57 kHz carrier
+        # CRITICAL ARCHITECTURE FIX: Redsea/GNU Radio method
+        # The transmitter phase-locks RBDS (57 kHz) to the pilot (19 kHz)
+        # We MUST do the same: pilot × 3 = 57 kHz (phase-coherent!)
+        # This is why we had random spacing - fixed oscillator had random phase!
+        pilot_phases = self._track_pilot_pll(multiplex)
+
+        # Log pilot tracking periodically
+        if not hasattr(self, '_pilot_log_count'):
+            self._pilot_log_count = 0
+        self._pilot_log_count += 1
+        if self._pilot_log_count % 100 == 1:
+            # Convert normalized freq back to Hz
+            pilot_freq_hz = (self._pilot_pll_freq * sample_rate) / (2.0 * np.pi)
+            logger.info(f"RBDS Pilot PLL: freq={pilot_freq_hz:.1f} Hz, phase={self._pilot_pll_phase:.2f} rad")
+        time.sleep(0)  # Yield GIL
+
+        # Step 2: Bandpass filter to extract 57 kHz RBDS subcarrier (54-60 kHz)
+        # CRITICAL: Do this BEFORE decimation that would remove the 57 kHz signal!
         if self._rbds_bandpass is not None and sample_rate >= self.RBDS_MIN_SAMPLE_RATE:
             x = np.convolve(x, self._rbds_bandpass, mode='same')
             time.sleep(0)  # Yield GIL
 
-        # Step 2: Frequency shift to baseband (-57 kHz) - PHASE CONTINUOUS
-        # CRITICAL: Track carrier phase across calls to avoid discontinuities
+        # Step 3: Frequency shift to baseband using PILOT-DERIVED carrier
+        # Generate 57 kHz = pilot × 3 (third harmonic)
+        # This ensures our local oscillator is phase-coherent with transmitter!
         n = len(x)
-        phase_increment = 2.0 * np.pi * 57000.0 / sample_rate
-        phases = self._carrier_phase_57k + phase_increment * np.arange(n, dtype=np.float64)
-        x = x * np.exp(-1j * phases)
-        # Update phase for next call (wrap to avoid precision loss)
-        self._carrier_phase_57k = (self._carrier_phase_57k + phase_increment * n) % (2.0 * np.pi)
+        if len(pilot_phases) == n:
+            # Use pilot-derived carrier: 57 kHz = 3 × 19 kHz
+            carrier_phases_57k = 3.0 * pilot_phases
+            x = x * np.exp(-1j * carrier_phases_57k)
+        else:
+            # Fallback to fixed oscillator if pilot tracking failed
+            logger.warning("RBDS: Pilot tracking failed, using fixed 57 kHz oscillator")
+            phase_increment = 2.0 * np.pi * 57000.0 / sample_rate
+            phases = self._carrier_phase_57k + phase_increment * np.arange(n, dtype=np.float64)
+            x = x * np.exp(-1j * phases)
+            self._carrier_phase_57k = (self._carrier_phase_57k + phase_increment * n) % (2.0 * np.pi)
         time.sleep(0)  # Yield GIL
 
         # Step 3: Lowpass filter (7.5 kHz) to remove mixing artifacts and aliases
