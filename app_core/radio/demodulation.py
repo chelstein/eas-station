@@ -267,6 +267,10 @@ class RBDSWorker:
     into a queue; the worker processes them independently and publishes results.
     This ensures RBDS processing NEVER blocks the audio path.
     """
+    
+    # RBDS processing constants
+    RBDS_MIN_SAMPLE_RATE = 120000  # Minimum sample rate for 57 kHz subcarrier extraction (Hz)
+    RBDS_INTERMEDIATE_RATE = 25000  # Target rate after decimation before resampling (Hz)
 
     def __init__(self, sample_rate: int, intermediate_rate: int):
         """Initialize RBDS worker thread.
@@ -302,22 +306,28 @@ class RBDSWorker:
         # RBDSDecoder is defined in this same file (no import needed)
         self._rbds_decoder = RBDSDecoder()
 
-        # Decimation from sample_rate to intermediate_rate
-        self._rbds_decim_factor = max(1, self._sample_rate // self._intermediate_rate)
-        if self._rbds_decim_factor > 1:
-            decim_cutoff = self._intermediate_rate / 2.5
-            self._rbds_decim_filter = self._design_fir_lowpass(
-                decim_cutoff, self._sample_rate, taps=63
+        # CRITICAL FIX: Design filters at the ACTUAL sample rate they'll be used at!
+        # For Airspy after early decimation: sample_rate = 250 kHz
+        # Bandpass filter to extract 57 kHz RBDS subcarrier (54-60 kHz range)
+        # Only design bandpass if sample rate is high enough (need > 120 kHz for 60 kHz filter)
+        if self._sample_rate >= self.RBDS_MIN_SAMPLE_RATE:
+            rbds_filter_taps = min(101, max(31, int(self._sample_rate / 3000)))
+            self._rbds_bandpass = self._design_fir_bandpass(
+                54000.0, 60000.0, self._sample_rate, taps=rbds_filter_taps
             )
         else:
-            self._rbds_decim_filter = None
+            # If sample rate too low, skip bandpass (RBDS won't work but won't crash)
+            self._rbds_bandpass = None
+            logger.warning(
+                "RBDS: Sample rate %d Hz too low for 57 kHz subcarrier extraction (need >%d Hz). "
+                "RBDS decoding will not work.", 
+                self._sample_rate,
+                self.RBDS_MIN_SAMPLE_RATE
+            )
 
-        # RBDS filter design at intermediate rate
-        rbds_filter_taps = min(101, max(31, int(self._intermediate_rate / 3000)))
-        self._rbds_bandpass = self._design_fir_bandpass(
-            54000.0, 60000.0, self._intermediate_rate, taps=rbds_filter_taps
-        )
-        self._rbds_lowpass = self._design_fir_lowpass(7500.0, self._intermediate_rate, taps=101)
+        # Lowpass filter for post-mixing (removes aliases, keeps baseband RBDS at 0-7.5 kHz)
+        # Design this at sample_rate since we mix BEFORE lowpass filtering
+        self._rbds_lowpass = self._design_fir_lowpass(7500.0, self._sample_rate, taps=101)
 
         # RBDS symbol timing
         self._rbds_symbol_rate = 1187.5
@@ -466,22 +476,28 @@ class RBDSWorker:
         CRITICAL: M&M timing FIRST, then Costas loop!
         This order is essential - M&M must come BEFORE Costas to properly detect
         symbol transitions. Reversing this order breaks synchronization.
+        
+        CRITICAL FIX for Airspy: The multiplex arrives at 250 kHz after early decimation.
+        We must extract the 57 kHz RBDS subcarrier BEFORE any lowpass filtering that would
+        remove it. Correct order: bandpass → mix → lowpass → decimate.
         """
         if len(multiplex) == 0:
             return None
 
-        # Step 1: Decimate to intermediate rate
-        if self._rbds_decim_filter is not None and self._rbds_decim_factor > 1:
-            filtered = np.convolve(multiplex, self._rbds_decim_filter, mode="same")
-            x = fast_decimate(filtered.astype(np.float32), self._rbds_decim_factor)
-            sample_rate = self._intermediate_rate
-        else:
-            x = multiplex.astype(np.float32)
-            sample_rate = self._sample_rate
+        # Start with multiplex at original sample rate (250 kHz for Airspy after early decim)
+        x = multiplex.astype(np.float32)
+        sample_rate = self._sample_rate
         time.sleep(0)  # Yield GIL
 
+        # Step 1: Bandpass filter to extract 57 kHz RBDS subcarrier (54-60 kHz)
+        # CRITICAL: Do this BEFORE any decimation that would remove the 57 kHz signal!
+        # The bandpass filter was designed but never used - now we use it correctly
+        if self._rbds_bandpass is not None and sample_rate >= self.RBDS_MIN_SAMPLE_RATE:
+            x = np.convolve(x, self._rbds_bandpass, mode='same')
+            time.sleep(0)  # Yield GIL
+
         # Step 2: Frequency shift to baseband (-57 kHz) - PHASE CONTINUOUS
-        # CRITICAL FIX: Track carrier phase across calls to avoid discontinuities
+        # CRITICAL: Track carrier phase across calls to avoid discontinuities
         n = len(x)
         phase_increment = 2.0 * np.pi * 57000.0 / sample_rate
         phases = self._carrier_phase_57k + phase_increment * np.arange(n, dtype=np.float64)
@@ -490,18 +506,19 @@ class RBDSWorker:
         self._carrier_phase_57k = (self._carrier_phase_57k + phase_increment * n) % (2.0 * np.pi)
         time.sleep(0)  # Yield GIL
 
-        # Step 3: Lowpass filter (7.5 kHz)
+        # Step 3: Lowpass filter (7.5 kHz) to remove mixing artifacts and aliases
         x = np.convolve(x, self._rbds_lowpass, mode='same')
         time.sleep(0)  # Yield GIL
 
-        # Step 4: Decimate by 10 (if sample rate allows)
-        decim = max(1, int(sample_rate / 25000))
+        # Step 4: Decimate to intermediate rate (~25 kHz) to reduce processing load
+        # Now safe to decimate since we've already extracted and mixed down the RBDS signal
+        decim = max(1, int(sample_rate / self.RBDS_INTERMEDIATE_RATE))
         if decim > 1:
             x = x[::decim]
             sample_rate = int(sample_rate // decim)  # Keep as int
         time.sleep(0)  # Yield GIL
 
-        # Step 5: Resample to exactly 19 kHz (16 samples per symbol)
+        # Step 5: Resample to exactly 19 kHz (16 samples per symbol at 1187.5 baud)
         # Log sample rates periodically for debugging
         if not hasattr(self, '_rate_log_count'):
             self._rate_log_count = 0

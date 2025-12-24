@@ -6,6 +6,28 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+### Fixed
+- **CRITICAL: RBDS Sample Rate Mismatch and Filter Design** (v2.44.13)
+  - Problem: RBDS never achieves sync on Airspy R2, Costas frequency ~14 Hz instead of ~3 Hz, syndromes never match
+  - Root cause analysis:
+    1. Airspy R2 at 2.5 MHz → early decimation (10x) → 250 kHz multiplex to demodulator
+    2. RBDS code was decimating 250 kHz → 25 kHz with 10 kHz lowpass filter FIRST
+    3. 10 kHz lowpass filter completely removed the 57 kHz RBDS subcarrier before mixing!
+    4. Subsequent 57 kHz downconversion operated on noise/garbage
+    5. Bandpass and lowpass filters were designed for 25 kHz but applied at 250 kHz (10x mismatch)
+  - Solution: Completely redesigned RBDS signal processing chain:
+    1. Start with 250 kHz multiplex (contains 57 kHz RBDS)
+    2. **Bandpass filter 54-60 kHz** to extract RBDS subcarrier (designed at 250 kHz sample rate)
+    3. **Mix down by 57 kHz** to baseband (now safe, RBDS is isolated)
+    4. **Lowpass filter 7.5 kHz** to remove mixing artifacts (designed at 250 kHz sample rate)
+    5. **Then decimate** to ~25 kHz (now safe, RBDS is at baseband)
+    6. Resample to exactly 19 kHz for symbol timing recovery
+  - Correct order: **bandpass → mix → lowpass → decimate** (not lowpass → decimate → mix!)
+  - File: `app_core/radio/demodulation.py` - `_init_rbds_state()` and `_process_rbds()`
+  - Impact: RBDS subcarrier now properly extracted before any filtering that would remove it
+  - Hardware: Critical fix for Airspy R2 which only supports 2.5 MHz or 10 MHz sample rates
+  - Testing: Monitor with `journalctl -u eas-station-audio.service -f | grep RBDS` - should see synchronization achieved
+
 ### Added
 - **RBDS Automatic Diagnostic Tool** (v2.44.12)
   - Created comprehensive diagnostic tool after 35+ PRs of failed RBDS fixes
