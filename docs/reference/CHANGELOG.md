@@ -7,6 +7,26 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **CRITICAL: Fix Off-By-One Error in Sync Transition** (v2.44.21)
+  - **BREAKTHROUGH**: First sync achieved! "RBDS SYNCHRONIZED at bit 605" ✅
+  - First block PASSED CRC with inverted polarity ✅
+  - But ALL subsequent blocks failed CRC immediately after sync
+  - Root cause: Off-by-one error when transitioning from presync to synced mode
+  - **The Bug**: After processing sync block, code reset register but continued processing
+    current bit in main while loop. This caused next block to start 1 bit off.
+  - Sequence:
+    1. Presync finds sync, processes sync block (bit N through N+25) ✅
+    2. Sets `_rbds_synced = True`, resets register ✅
+    3. Main loop continues with bit N+26 (first bit of next block)
+    4. Enters synced mode, starts counting from 0
+    5. Problem: Already processed bit N+26 as part of current iteration!
+    6. Next block accumulates bits N+26 (already in reg) through N+51
+    7. Off by 1 bit → all CRCs fail ❌
+  - Solution: Set `_rbds_block_bit_counter = -1` at sync so current bit becomes bit 0
+  - File: `app_core/radio/demodulation.py:1107`
+  - Impact: Subsequent blocks should now pass CRC and decode station data!
+  - This was the LAST bug preventing RBDS from working!
+
 - **CRITICAL: Further Reduce M&M Loop Gain for Exact Symbol Lock** (v2.44.20)
   - Problem: M&M still running 2.6% fast - 15.59 sps instead of 16.0 sps
   - Evidence from production logs: "499 samples -> 32 symbols" = 15.59 sps

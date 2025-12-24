@@ -1104,14 +1104,14 @@ class RBDSWorker:
                             self._rbds_synced = True
                             self._rbds_wrong_blocks = 0 if good_block else 1
                             self._rbds_blocks_counter = 1  # We just processed one block
-                            self._rbds_block_bit_counter = 0  # Start counting for next block
+                            self._rbds_block_bit_counter = -1  # CRITICAL: Set to -1 so current bit (already processed) becomes bit 0
                             self._rbds_reg = 0  # CRITICAL: Reset register so next block starts clean
                             self._rbds_block_number = (block_type_pos + 1) % 4  # Next expected block
                             self._rbds_group_good = 0
                             self._crc_check_count = 1  # We just did one CRC check
                             self._rbds_normal_blocks = 1 if (good_block and not used_inverted) else 0
                             self._rbds_inverted_blocks = 1 if (good_block and used_inverted) else 0
-                            
+
                             # Store in group data if good
                             if good_block:
                                 self._rbds_group_data[block_type_pos] = final_dataword
@@ -1119,7 +1119,7 @@ class RBDSWorker:
                                     self._rbds_group_good = 1
                                 elif self._rbds_group_good > 0:
                                     self._rbds_group_good += 1
-                            
+
                             break  # Exit presync loop
             else:
                 # === SYNCED: Process blocks at 26-bit intervals ===
