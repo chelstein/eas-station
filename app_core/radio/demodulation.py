@@ -545,18 +545,17 @@ class RBDSWorker:
 
         self._rbds_sample_buffer = np.concatenate([self._rbds_sample_buffer, x])
 
-        # CRITICAL: python-radio RESETS Costas phase/freq to 0 on each call!
-        # This only works with LARGE buffers where Costas locks within one batch.
-        # We need ~2 seconds of data (38000 samples @ 19kHz = ~2375 symbols)
-        # to match python-radio's batch processing and allow full convergence.
-        if len(self._rbds_sample_buffer) < 38000:
+        # This is SDR, not streaming! RBDS updates slowly (station name, radiotext).
+        # Process large batches like python-radio does with recordings.
+        # 10 seconds @ 19kHz = 190000 samples = ~11875 symbols
+        if len(self._rbds_sample_buffer) < 190000:
             return self._decode_rbds_groups()
 
         # Use buffered samples and reset for next accumulation
         x = self._rbds_sample_buffer
         self._rbds_sample_buffer = np.array([], dtype=np.complex64)
 
-        # RESET M&M and Costas state to match python-radio's batch approach
+        # RESET M&M and Costas state - python-radio starts fresh each batch
         self._rbds_mm_mu = 0.01
         self._rbds_costas_phase = 0.0
         self._rbds_costas_freq = 0.0
