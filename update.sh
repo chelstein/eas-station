@@ -346,6 +346,25 @@ if [ -d ".git" ]; then
     # Fix git ownership warning when running as root
     git config --global --add safe.directory "$INSTALL_DIR" 2>/dev/null || true
 
+    # Check git directory ownership - critical for sudo -u eas-station to work
+    echo_progress "Checking git directory ownership..."
+    GIT_OWNER=$(stat -c '%U' "$INSTALL_DIR/.git" 2>/dev/null || echo "unknown")
+    
+    if [ "$GIT_OWNER" != "$SERVICE_USER" ]; then
+        echo_warning "Git directory is owned by '$GIT_OWNER', should be '$SERVICE_USER'"
+        echo_info "Fixing ownership to allow git operations as $SERVICE_USER..."
+        
+        if chown -R "$SERVICE_USER:$SERVICE_USER" "$INSTALL_DIR" 2>/dev/null; then
+            echo_success "Ownership corrected to $SERVICE_USER"
+        else
+            echo_error "Failed to change ownership - continuing but git operations may fail"
+            echo_warning "You may need to manually fix this with:"
+            echo_warning "  sudo chown -R $SERVICE_USER:$SERVICE_USER $INSTALL_DIR"
+        fi
+    else
+        echo_success "Git directory ownership is correct ($SERVICE_USER)"
+    fi
+
     echo_progress "Fetching latest changes from origin..."
     
     # Get current branch name (fixing the hardcoded 'main' issue)
@@ -358,11 +377,34 @@ if [ -d ".git" ]; then
     
     # Fetch updates
     echo_progress "Fetching latest changes from remote..."
-    if sudo -u "$SERVICE_USER" git fetch origin 2>&1; then
+    
+    # Capture git fetch output to show detailed errors if needed
+    FETCH_OUTPUT=$(sudo -u "$SERVICE_USER" git fetch origin 2>&1)
+    FETCH_STATUS=$?
+    
+    if [ $FETCH_STATUS -eq 0 ]; then
         echo_success "Fetched latest changes from remote"
     else
         echo_error "Git fetch failed - cannot update"
-        echo_info "Check your internet connection and git configuration"
+        echo_error "Git output:"
+        echo "$FETCH_OUTPUT" | head -20
+        echo ""
+        echo_warning "Possible causes:"
+        echo_warning "  1. Git directory ownership issue (should be owned by $SERVICE_USER)"
+        echo_warning "  2. Network connectivity issue"
+        echo_warning "  3. Git remote configuration issue"
+        echo ""
+        echo_info "Checking git directory ownership..."
+        ls -ld "$INSTALL_DIR/.git" 2>/dev/null || echo "  .git directory not found"
+        ls -l "$INSTALL_DIR/.git/config" 2>/dev/null || echo "  .git/config not found"
+        echo ""
+        echo_info "To fix ownership issues, run:"
+        echo_info "  sudo chown -R $SERVICE_USER:$SERVICE_USER $INSTALL_DIR"
+        echo ""
+        echo_info "To manually update, run:"
+        echo_info "  cd $INSTALL_DIR"
+        echo_info "  sudo -u $SERVICE_USER git fetch origin"
+        echo_info "  sudo -u $SERVICE_USER git reset --hard origin/$CURRENT_BRANCH"
         exit 1
     fi
     
@@ -400,7 +442,11 @@ if [ -d ".git" ]; then
     git diff --name-status HEAD "origin/$CURRENT_BRANCH" 2>/dev/null | head -20 || echo "  (unable to show diff)"
     echo ""
     
-    if sudo -u "$SERVICE_USER" git reset --hard "origin/$CURRENT_BRANCH" 2>&1; then
+    # Capture git reset output to show detailed errors if needed
+    RESET_OUTPUT=$(sudo -u "$SERVICE_USER" git reset --hard "origin/$CURRENT_BRANCH" 2>&1)
+    RESET_STATUS=$?
+    
+    if [ $RESET_STATUS -eq 0 ]; then
         NEW_COMMIT=$(git rev-parse --short HEAD)
         echo_success "Updated to commit: $NEW_COMMIT"
         echo_success "Local code now matches GitHub exactly"
@@ -414,8 +460,27 @@ if [ -d ".git" ]; then
         fi
     else
         echo_error "Git reset failed - update incomplete"
-        echo_info "Your installation may be out of date"
-        echo_info "Try running: git reset --hard origin/$CURRENT_BRANCH"
+        echo_error "Git output:"
+        echo "$RESET_OUTPUT" | head -20
+        echo ""
+        echo_warning "Possible causes:"
+        echo_warning "  1. Git directory ownership issue (should be owned by $SERVICE_USER)"
+        echo_warning "  2. File permission issues"
+        echo_warning "  3. Git configuration issue"
+        echo ""
+        echo_info "Checking git directory ownership..."
+        ls -ld "$INSTALL_DIR/.git" 2>/dev/null || echo "  .git directory not found"
+        echo ""
+        echo_info "To fix ownership issues, run:"
+        echo_info "  sudo chown -R $SERVICE_USER:$SERVICE_USER $INSTALL_DIR"
+        echo ""
+        echo_info "To manually update, run:"
+        echo_info "  cd $INSTALL_DIR"
+        echo_info "  sudo -u $SERVICE_USER git reset --hard origin/$CURRENT_BRANCH"
+        echo ""
+        echo_info "Or if ownership is the issue, run as root:"
+        echo_info "  cd $INSTALL_DIR && git reset --hard origin/$CURRENT_BRANCH"
+        echo_info "  Then fix ownership: chown -R $SERVICE_USER:$SERVICE_USER $INSTALL_DIR"
         exit 1
     fi
     

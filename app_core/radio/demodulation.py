@@ -947,9 +947,10 @@ class RBDSWorker:
             self._rbds_buffer_index += 1
             bits_processed += 1
             
-            self._rbds_reg = ((self._rbds_reg << 1) | bit) & 0x3FFFFFF  # 26-bit register
-            # DIAGNOSTIC: Try bit reversal within 26-bit blocks
-            # self._rbds_reg = ((bit << 25) | (self._rbds_reg >> 1)) & 0x3FFFFFF  # Reverse: shift right, insert at MSB
+            # CRITICAL FIX: RBDS transmits MSB first, so new bits must go to MSB position
+            # Shift right and insert at MSB (bit 25), not shift left and insert at LSB (bit 0)
+            self._rbds_reg = ((bit << 25) | (self._rbds_reg >> 1)) & 0x3FFFFFF  # MSB first (CORRECT)
+            # OLD (WRONG): self._rbds_reg = ((self._rbds_reg << 1) | bit) & 0x3FFFFFF  # LSB first (INCORRECT)
             self._rbds_bit_counter += 1
 
             if not self._rbds_synced:

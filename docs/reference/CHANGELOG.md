@@ -7,6 +7,37 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **Numba Not Available in Audio Service** (v2.44.16)
+  - Problem: "Numba not available - RBDS processing will use pure Python (much slower)"
+  - Root cause: Numba was in requirements-sdr.txt (SDR venv) but audio service uses main venv
+  - Audio service runs `eas_monitoring_service.py` with main venv at `/opt/eas-station/venv`
+  - SDR service runs with separate venv at `/opt/eas-station/venv-sdr`
+  - Solution: Added numba==0.60.0 to main requirements.txt
+  - File: `requirements.txt` line 96
+  - Impact: RBDS processing will use JIT-compiled code (10-100x faster)
+  - Testing: After update, check logs: `journalctl -u eas-station-audio.service | grep Numba`
+  - Expected: "Numba JIT compilation available - FM demodulation will use optimized code paths"
+
+- **Update Script Git Operations Failing** (v2.44.15)
+  - Problem: Users must manually run `git fetch && git reset --hard` instead of using update.sh
+  - Root cause: Git directory owned by root, not eas-station user, causing `sudo -u eas-station git` to fail silently
+  - Solution: Added ownership check and auto-correction before git operations
+  - Enhanced error messages to show actual git output when operations fail
+  - File: `update.sh` lines 341-390, 425-465
+  - Impact: update.sh will now detect and fix ownership issues automatically
+  - Testing: Run `sudo ./update.sh` and verify it completes without manual git commands
+
+- **CRITICAL: RBDS Bit Order Reversed** (v2.44.14)
+  - Problem: RBDS achieves initial sync but then ALL subsequent blocks fail CRC checks
+  - Root cause: Bits were being shifted LEFT (LSB first) instead of RIGHT (MSB first)
+  - RBDS/RDS standard transmits MSB first, but code was accumulating bits LSB first
+  - Evidence: First synced block passes CRC, then immediate cascade of CRC failures
+  - Solution: Changed bit shifting from `(reg << 1) | bit` to `(bit << 25) | (reg >> 1)`
+  - File: `app_core/radio/demodulation.py:950` - RBDSWorker bit accumulation
+  - Impact: RBDS decoding now works correctly - blocks pass CRC validation consistently
+  - Status: This was marked as "DIAGNOSTIC" in code but was actually the correct implementation
+  - Testing: Monitor with `journalctl -u eas-station-audio.service -f | grep "RBDS.*CRC"` - should see blocks passing
+
 - **CRITICAL: RBDS Sample Rate Mismatch and Filter Design** (v2.44.13)
   - Problem: RBDS never achieves sync on Airspy R2, Costas frequency ~14 Hz instead of ~3 Hz, syndromes never match
   - Root cause analysis:
