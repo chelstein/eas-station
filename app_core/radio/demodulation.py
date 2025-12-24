@@ -545,13 +545,20 @@ class RBDSWorker:
 
         self._rbds_sample_buffer = np.concatenate([self._rbds_sample_buffer, x])
 
-        # Need at least 2000 samples at 19kHz (125 symbols at 16 sps) for Costas to lock
-        if len(self._rbds_sample_buffer) < 2000:
+        # This is SDR, not streaming! RBDS updates slowly (station name, radiotext).
+        # Process large batches like python-radio does with recordings.
+        # 10 seconds @ 19kHz = 190000 samples = ~11875 symbols
+        if len(self._rbds_sample_buffer) < 190000:
             return self._decode_rbds_groups()
 
-        # Use buffered samples and clear buffer for next accumulation
+        # Use buffered samples and reset for next accumulation
         x = self._rbds_sample_buffer
         self._rbds_sample_buffer = np.array([], dtype=np.complex64)
+
+        # RESET M&M and Costas state - python-radio starts fresh each batch
+        self._rbds_mm_mu = 0.01
+        self._rbds_costas_phase = 0.0
+        self._rbds_costas_freq = 0.0
 
         if len(x) < 48:  # Need enough samples for processing
             return self._decode_rbds_groups()
