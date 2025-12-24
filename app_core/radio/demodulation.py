@@ -947,10 +947,10 @@ class RBDSWorker:
             self._rbds_buffer_index += 1
             bits_processed += 1
             
-            # CRITICAL FIX: RBDS transmits MSB first, so new bits must go to MSB position
-            # Shift right and insert at MSB (bit 25), not shift left and insert at LSB (bit 0)
-            self._rbds_reg = ((bit << 25) | (self._rbds_reg >> 1)) & 0x3FFFFFF  # MSB first (CORRECT)
-            # OLD (WRONG): self._rbds_reg = ((self._rbds_reg << 1) | bit) & 0x3FFFFFF  # LSB first (INCORRECT)
+            # RBDS transmits MSB first. For MSB-first transmission, shift left and add at LSB.
+            # After receiving all 26 bits, bit 0 (first received, MSB) ends at position 25,
+            # and bit 25 (last received, LSB) ends at position 0.
+            self._rbds_reg = ((self._rbds_reg << 1) | bit) & 0x3FFFFFF  # MSB first (CORRECT)
             self._rbds_bit_counter += 1
 
             if not self._rbds_synced:
@@ -1271,11 +1271,11 @@ class RBDSWorker:
         # Syndrome values for each block type (from RDS standard)
         # These are what calc_syndrome returns for valid blocks
         syndromes = {
-            "A": 383,   # 0x17F
-            "B": 14,    # 0x00E
-            "C": 303,   # 0x12F
-            "C'": 663,  # 0x297
-            "D": 748,   # 0x2EC
+            "A": 383,   # 0x17F - offset 0x0FC
+            "B": 14,    # 0x00E - offset 0x198
+            "C": 303,   # 0x12F - offset 0x168
+            "D": 663,   # 0x297 - offset 0x1B4
+            "C'": 748,  # 0x2EC - offset 0x350
         }
 
         # Convert bits to 26-bit integer (MSB first)
@@ -1324,7 +1324,7 @@ class RBDSWorker:
         self._syndrome_log_count += 1
         if self._syndrome_log_count % 100 == 0:
             logger.debug(
-                "RBDS syndrome: normal=%d inverted=%d (expected: A=383 B=14 C=303 C'=663 D=748)",
+                "RBDS syndrome: normal=%d inverted=%d (expected: A=383 B=14 C=303 D=663 C'=748)",
                 syndrome, syndrome_inv
             )
 

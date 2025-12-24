@@ -7,6 +7,23 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **CRITICAL: Revert Incorrect RBDS Bit Order "Fix"** (v2.44.17)
+  - Problem: RBDS has NEVER worked correctly - all 35+ previous fix attempts failed
+  - Root cause: Commit 36944fa (v2.44.14) claimed to "fix" bit order but actually REVERSED it
+  - Analysis: RBDS transmits MSB first. Correct implementation: `(reg << 1) | bit`
+    - After receiving bits b0, b1, b2...b25 in time order
+    - With `(reg << 1) | bit`: b0 ends at position 25 (MSB), b25 ends at position 0 (LSB) ✓ CORRECT
+    - With `(bit << 25) | (reg >> 1)`: b0 ends at position 0 (LSB), b25 ends at position 25 (MSB) ✗ REVERSED
+  - Verification: Created `verify_bit_order.py` proving v2.44.14 reverses bits
+    - Test block 0x48D06A with MSB-first transmission
+    - Original method: produces 0x48D06A ✓ CORRECT
+    - v2.44.14 method: produces 0x1582C48 (bit-reversed) ✗ WRONG
+  - Solution: Reverted to original bit shifting logic and fixed syndrome documentation
+  - Files: `app_core/radio/demodulation.py:950-953`, `app_core/radio/demodulation.py:1273-1279,1327`
+  - Impact: RBDS decoding should now work for the first time since project inception
+  - **Key lesson**: The diagnostic comment "# Try bit reversal" should have been tested, not blindly applied
+  - Testing: Monitor `journalctl -u eas-station-audio.service -f | grep RBDS` - should see syndromes matching
+
 - **Numba Not Available in Audio Service** (v2.44.16)
   - Problem: "Numba not available - RBDS processing will use pure Python (much slower)"
   - Root cause: Numba was in requirements-sdr.txt (SDR venv) but audio service uses main venv
