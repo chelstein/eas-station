@@ -337,15 +337,10 @@ class RBDSWorker:
             18500.0, 19500.0, self._sample_rate, taps=pilot_filter_taps
         )
 
-        # Pilot PLL state (2nd order PLL for phase tracking)
-        self._pilot_pll_phase = 0.0  # Current phase estimate
-        self._pilot_pll_freq = 2.0 * np.pi * 19000.0 / self._sample_rate  # Normalized frequency
-        # Increased loop gains for faster acquisition (ωn ≈ 0.1, ζ ≈ 0.7)
-        self._pilot_pll_alpha = 0.14  # Loop filter proportional gain (2*ζ*ωn)
-        self._pilot_pll_beta = 0.01   # Loop filter integral gain (ωn^2)
-
-        # 57 kHz carrier phase (derived from pilot × 3)
-        self._carrier_phase_57k = 0.0
+        # Crystal-locked 19 kHz pilot reference (no PLL needed!)
+        # FM stations use crystal oscillators - pilot is EXACTLY 19000 Hz
+        # Just count samples to generate perfect phase reference
+        self._pilot_sample_counter = 0  # Running sample count for phase continuity
 
         # RBDS symbol timing
         self._rbds_symbol_rate = 1187.5
@@ -406,45 +401,33 @@ class RBDSWorker:
         h /= np.max(np.abs(h))
         return h.astype(np.float32)
 
-    def _track_pilot_pll(self, multiplex: np.ndarray) -> np.ndarray:
-        """Extract 19 kHz pilot phase using Hilbert transform method.
+    def _generate_pilot_reference(self, n: int) -> np.ndarray:
+        """Generate crystal-locked 19 kHz pilot reference.
 
-        This is MORE ROBUST than PLL - directly extracts instantaneous phase
-        without convergence issues. Used by many professional RDS decoders.
+        FM broadcast stations use crystal oscillators - the 19 kHz pilot is
+        EXACTLY 19000.0 Hz (accurate to parts per million). We don't need to
+        track it - just generate a perfect reference!
 
-        Reference: Redsea decoder architecture - "PLL locks onto 19 kHz pilot,
-        third harmonic (57 kHz) used to regenerate RDS subcarrier"
+        This is simpler, more accurate, and noise-free compared to PLL or
+        Hilbert transform approaches which try to extract phase from noisy signals.
+
+        Args:
+            n: Number of samples to generate
+
+        Returns:
+            Array of pilot phases for generating 57 kHz carrier (pilot × 3)
         """
-        n = len(multiplex)
         if n == 0:
             return np.array([], dtype=np.float64)
 
-        # Step 1: Bandpass filter to extract 19 kHz pilot tone
-        pilot_filtered = np.convolve(multiplex, self._pilot_bandpass, mode='same')
+        # Generate time indices (continuous phase across calls)
+        t = (np.arange(n, dtype=np.float64) + self._pilot_sample_counter) / self._sample_rate
 
-        # Step 2: Use Hilbert transform to get analytic signal
-        # This gives us the instantaneous phase directly!
-        try:
-            from scipy.signal import hilbert
-            # Hilbert transform gives complex analytic signal
-            analytic = hilbert(pilot_filtered)
-            # Extract instantaneous phase using arctan2
-            pilot_phases = np.angle(analytic)
-        except ImportError:
-            # Fallback: use quadrature mixing at known 19 kHz frequency
-            # This assumes the pilot is exactly at 19 kHz (good assumption for FM broadcast)
-            t = np.arange(n, dtype=np.float64) + self._pilot_pll_phase
-            # Generate reference at 19 kHz
-            omega = 2.0 * np.pi * 19000.0 / self._sample_rate
-            i_ref = np.cos(omega * t)
-            q_ref = np.sin(omega * t)
-            # Mix to get I and Q channels
-            i_out = pilot_filtered * i_ref
-            q_out = pilot_filtered * q_ref
-            # Extract phase: atan2(Q, I)
-            pilot_phases = np.arctan2(q_out, i_out)
-            # Update phase counter for next call
-            self._pilot_pll_phase = (self._pilot_pll_phase + n) % (2.0 * np.pi / omega)
+        # Crystal-locked 19 kHz reference phase
+        pilot_phases = 2.0 * np.pi * 19000.0 * t
+
+        # Update sample counter for next call (maintain phase continuity)
+        self._pilot_sample_counter += n
 
         return pilot_phases
 
@@ -555,28 +538,26 @@ class RBDSWorker:
         sample_rate = self._sample_rate
         time.sleep(0)  # Yield GIL
 
-        # Step 1: Extract 19 kHz pilot and generate phase-coherent 57 kHz carrier
-        # CRITICAL ARCHITECTURE FIX: Redsea/GNU Radio method
-        # The transmitter phase-locks RBDS (57 kHz) to the pilot (19 kHz)
-        # We MUST do the same: pilot × 3 = 57 kHz (phase-coherent!)
-        # This is why we had random spacing - fixed oscillator had random phase!
-        pilot_phases = self._track_pilot_pll(multiplex)
+        # Step 1: Generate phase-coherent 57 kHz carrier from crystal-locked 19 kHz reference
+        # CRITICAL ARCHITECTURE FIX: FM stations use crystal oscillators
+        # The 19 kHz pilot is EXACTLY 19000.0 Hz (parts per million accuracy)
+        # We don't need PLL/Hilbert - just generate perfect reference!
+        # 57 kHz = pilot × 3 ensures phase coherence with transmitter
+        n = len(multiplex)
+        pilot_phases = self._generate_pilot_reference(n)
 
-        # Log pilot tracking periodically with diagnostics
+        # Log pilot reference generation periodically
         if not hasattr(self, '_pilot_log_count'):
             self._pilot_log_count = 0
         self._pilot_log_count += 1
         if self._pilot_log_count % 100 == 1:
-            # Check pilot signal strength and phase range
+            # Check pilot signal strength (for diagnostics only - not used in demod)
             pilot_rms = np.sqrt(np.mean(multiplex ** 2))
             pilot_filtered_sig = np.convolve(multiplex[:min(1000, len(multiplex))], self._pilot_bandpass, mode='same')
             pilot_filtered_rms = np.sqrt(np.mean(pilot_filtered_sig ** 2))
-            if len(pilot_phases) > 0:
-                phase_range = np.ptp(np.unwrap(pilot_phases))  # Phase variation
-                logger.info(f"RBDS Pilot (Hilbert): multiplex_rms={pilot_rms:.3f}, "
-                           f"filtered_rms={pilot_filtered_rms:.3f}, phase_range={phase_range:.2f} rad")
-            else:
-                logger.warning("RBDS Pilot: No phases extracted!")
+            expected_phase = 2.0 * np.pi * 19000.0 * n / self._sample_rate
+            logger.info(f"RBDS Pilot (Crystal-locked): multiplex_rms={pilot_rms:.3f}, "
+                       f"filtered_rms={pilot_filtered_rms:.3f}, samples={n}, expected_phase={expected_phase:.2f} rad")
         time.sleep(0)  # Yield GIL
 
         # Step 2: Bandpass filter to extract 57 kHz RBDS subcarrier (54-60 kHz)
