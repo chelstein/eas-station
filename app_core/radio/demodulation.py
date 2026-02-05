@@ -977,6 +977,7 @@ class RBDSWorker:
             self._rbds_group_assembly_started = False
             self._rbds_bytes_array = bytearray(8)
             self._rbds_global_bit_counter = 0  # CRITICAL: maintain across buffer clears
+            self._rbds_inverted_polarity = False
 
         # Process all bits in buffer (python-radio style)
         bits = self._rbds_bit_buffer
@@ -992,14 +993,28 @@ class RBDSWorker:
             if not self._rbds_synced:
                 # PRESYNC MODE (python-radio logic)
                 reg_syndrome = self._calc_syndrome(self._rbds_reg, 26)
+                reg_syndrome_inverted = self._calc_syndrome(self._rbds_reg ^ 0x3FFFFFF, 26)
                 for j in range(5):
+                    polarity: Optional[bool] = None
                     if reg_syndrome == syndrome[j]:
+                        polarity = False
+                    elif reg_syndrome_inverted == syndrome[j]:
+                        polarity = True
+
+                    if polarity is not None:
                         if not self._rbds_presync:
                             # First valid block found
                             self._rbds_lastseen_offset = j
                             self._rbds_lastseen_offset_counter = global_i
+                            self._rbds_inverted_polarity = polarity
                             self._rbds_presync = True
-                            logger.info(f"RBDS presync: first block type {j} at bit {global_i}")
+                            polarity_text = "inverted" if polarity else "normal"
+                            logger.info(
+                                "RBDS presync: first block type %d at bit %d (%s polarity)",
+                                j,
+                                global_i,
+                                polarity_text,
+                            )
                         else:
                             # Second valid block - check spacing
                             if offset_pos[self._rbds_lastseen_offset] >= offset_pos[j]:
@@ -1015,6 +1030,7 @@ class RBDSWorker:
                                 logger.debug(f"RBDS presync spacing mismatch: expected {expected_spacing}, got {actual_spacing}")
                                 self._rbds_lastseen_offset = j
                                 self._rbds_lastseen_offset_counter = global_i
+                                self._rbds_inverted_polarity = polarity
                                 # Keep presync=True with new first block
                             else:
                                 # SYNC ACHIEVED!
@@ -1034,9 +1050,10 @@ class RBDSWorker:
                 else:
                     # Complete 26-bit block received - check CRC
                     good_block = False
-                    dataword = (self._rbds_reg >> 10) & 0xFFFF
+                    block_word = self._rbds_reg ^ 0x3FFFFFF if self._rbds_inverted_polarity else self._rbds_reg
+                    dataword = (block_word >> 10) & 0xFFFF
                     block_calculated_crc = self._calc_syndrome(dataword, 16)
-                    checkword = self._rbds_reg & 0x3FF
+                    checkword = block_word & 0x3FF
                     
                     if self._rbds_block_number == 2:
                         # Block C can be C or C' offset word
@@ -1061,7 +1078,7 @@ class RBDSWorker:
                     # Group assembly (python-radio logic)
                     if self._rbds_block_number == 0 and good_block:
                         self._rbds_group_assembly_started = True
-                        self._rbds_group_good_blocks_counter = 1
+                        self._rbds_group_good_blocks_counter = 0
                         self._rbds_bytes_array = bytearray(8)
                     
                     if self._rbds_group_assembly_started:
