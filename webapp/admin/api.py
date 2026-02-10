@@ -22,6 +22,7 @@ from __future__ import annotations
 """REST-style API routes used by the admin interface."""
 
 import contextlib
+import os
 import socket
 from datetime import datetime
 from typing import Any, Dict, List, Optional
@@ -236,6 +237,58 @@ def get_alert_geometry(alert_id):
         api_bp.logger.error("Error getting alert geometry: %s", exc, exc_info=True)
         return jsonify({'error': 'Failed to retrieve alert geometry'}), 500
 
+def _extract_ipaws_display_data(alert) -> Optional[Dict[str, Any]]:
+    """Extract IPAWS-specific data from an alert for template rendering."""
+    raw_json = alert.raw_json
+    if not isinstance(raw_json, dict):
+        return None
+
+    props = raw_json.get('properties', {})
+    source = (props.get('source') or getattr(alert, 'source', '') or '').upper()
+    if source != 'IPAWS' and not raw_json.get('raw_xml'):
+        return None
+
+    data: Dict[str, Any] = {'is_ipaws': True}
+
+    # EAS parameters
+    params = props.get('parameters', {})
+    if params:
+        data['eas_org'] = ', '.join(params.get('EAS-ORG', []))
+        data['eas_station_id'] = ', '.join(params.get('EAS-STN-ID', []))
+        data['block_channels'] = params.get('BLOCKCHANNEL', [])
+
+    # SAME geocodes
+    geocodes = props.get('geocode', {})
+    if geocodes:
+        data['same_codes'] = geocodes.get('SAME', [])
+
+    # Non-audio resources (web links, etc.)
+    resources = props.get('resources', [])
+    web_resources = []
+    for r in resources:
+        mime = (r.get('mimeType') or '').lower()
+        if 'audio' not in mime and r.get('uri'):
+            web_resources.append({
+                'description': r.get('resourceDesc', 'Link'),
+                'url': r['uri'],
+                'mime_type': r.get('mimeType', ''),
+            })
+    if web_resources:
+        data['web_resources'] = web_resources
+
+    # Certificate info (from enrichment)
+    cert_info = getattr(alert, 'certificate_info', None)
+    if cert_info and isinstance(cert_info, dict):
+        data['certificate'] = cert_info
+
+    # IPAWS original audio URL
+    ipaws_audio = getattr(alert, 'ipaws_audio_url', None)
+    if ipaws_audio:
+        data['ipaws_audio_filename'] = ipaws_audio
+
+    return data
+
+
 @api_bp.route('/alerts/<int:alert_id>')
 def alert_detail(alert_id):
     """Show detailed information about a specific alert with accurate coverage calculation"""
@@ -384,6 +437,9 @@ def alert_detail(alert_id):
                 audio_error,
             )
 
+        # Extract IPAWS enrichment data for display
+        ipaws_data = _extract_ipaws_display_data(alert)
+
         return render_template(
             'alert_detail.html',
             alert=alert,
@@ -394,6 +450,7 @@ def alert_detail(alert_id):
             audio_entries=audio_entries,
             boundary_summary=boundary_summary,
             suppress_boundary_details=suppress_boundary_details,
+            ipaws_data=ipaws_data,
         )
 
     except Exception as exc:
@@ -499,6 +556,33 @@ def alert_detail_pdf(alert_id):
         api_bp.logger.error('Error generating alert PDF: %s', exc, exc_info=True)
         flash('Error generating PDF. Please try again.', 'error')
         return redirect(url_for('api.alert_detail', alert_id=alert_id))
+
+
+@api_bp.route('/alerts/<int:alert_id>/ipaws_audio')
+def ipaws_original_audio(alert_id):
+    """Serve the original IPAWS audio file for an alert."""
+    import mimetypes
+    alert = CAPAlert.query.get_or_404(alert_id)
+    filename = getattr(alert, 'ipaws_audio_url', None)
+    if not filename:
+        return Response('No IPAWS audio available for this alert', status=404)
+
+    eas_output = os.getenv('EAS_OUTPUT_DIR') or os.path.join(
+        os.getenv('EAS_STATIC_DIR', os.path.join(os.getcwd(), 'static')),
+        'eas_messages',
+    )
+    filepath = os.path.join(eas_output, filename)
+    if not os.path.isfile(filepath):
+        return Response('Audio file not found on disk', status=404)
+
+    content_type = mimetypes.guess_type(filename)[0] or 'audio/mpeg'
+    with open(filepath, 'rb') as f:
+        audio_data = f.read()
+
+    return Response(audio_data, content_type=content_type, headers={
+        'Content-Disposition': f'inline; filename="{filename}"',
+    })
+
 
 @api_bp.route('/api/alerts')
 @cache.cached(timeout=30, query_string=True, key_prefix='alerts_list')

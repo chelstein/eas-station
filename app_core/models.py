@@ -152,7 +152,13 @@ class CAPAlert(db.Model):
     eas_forwarded = db.Column(db.Boolean, default=False, nullable=False)
     eas_forwarding_reason = db.Column(db.String(255))  # Why it was or wasn't forwarded
     eas_audio_url = db.Column(db.String(512))  # URL/path to generated EAS audio file
-    
+
+    # IPAWS XML digital signature verification
+    signature_verified = db.Column(db.Boolean)  # None=not checked, True=valid, False=invalid
+    signature_status = db.Column(db.String(255))  # Human-readable verification result
+    certificate_info = db.Column(db.JSON)  # Full X.509 certificate details from IPAWS signature
+    ipaws_audio_url = db.Column(db.String(512))  # Path to saved original IPAWS audio file
+
     created_at = db.Column(db.DateTime(timezone=True), default=utc_now)
     updated_at = db.Column(
         db.DateTime(timezone=True),
