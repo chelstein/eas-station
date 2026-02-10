@@ -124,6 +124,7 @@ class RoleDefinition(Enum):
     """Predefined role names."""
     ADMIN = 'admin'
     OPERATOR = 'operator'
+    LOCAL_AUTHORITY = 'local_authority'
     VIEWER = 'viewer'
     DEMO = 'demo'
 
@@ -171,6 +172,7 @@ class PermissionDefinition(Enum):
 ROLE_DESCRIPTIONS = {
     'admin': 'Full system administrator with unrestricted access to all features, settings, and user management. Can configure system, manage users, control broadcasts, and access all logs and data.',
     'operator': 'Alert operator with access to broadcast operations and monitoring. Can initiate EAS broadcasts, control GPIO relays, view alerts and logs, but cannot modify system configuration or manage users.',
+    'local_authority': 'Local authority operator authorized to issue EAS alerts for their political subdivision. Can generate and broadcast EAS messages using their assigned station identifier and originator code, restricted to their authorized FIPS codes and event types.',
     'viewer': 'Read-only access for monitoring and reporting. Can view alerts, logs, statistics, and system status but cannot make any changes or initiate broadcasts.',
     'demo': 'Limited demonstration access for showcasing system features. Can view alerts, EAS workflow, audio monitoring, and non-sensitive settings but cannot export data, access logs, send alerts, or interrupt broadcasts.',
 }
@@ -252,6 +254,19 @@ DEFAULT_ROLE_PERMISSIONS = {
         PermissionDefinition.GPIO_CONTROL,
         PermissionDefinition.API_READ,
         PermissionDefinition.API_WRITE,
+    ],
+    RoleDefinition.LOCAL_AUTHORITY.value: [
+        # Local authority: can issue alerts within their jurisdiction
+        PermissionDefinition.ALERTS_VIEW,
+        PermissionDefinition.ALERTS_CREATE,
+        PermissionDefinition.EAS_VIEW,
+        PermissionDefinition.EAS_BROADCAST,
+        PermissionDefinition.EAS_MANUAL_ACTIVATE,
+        PermissionDefinition.SYSTEM_VIEW_CONFIG,
+        PermissionDefinition.LOGS_VIEW,
+        PermissionDefinition.RECEIVERS_VIEW,
+        PermissionDefinition.GPIO_VIEW,
+        PermissionDefinition.API_READ,
     ],
     RoleDefinition.VIEWER.value: [
         # Read-only access

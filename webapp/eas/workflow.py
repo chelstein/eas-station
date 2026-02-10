@@ -42,7 +42,7 @@ from flask import (
 )
 
 from app_core.extensions import db
-from app_core.models import AdminUser, EASMessage, ManualEASActivation, SystemLog
+from app_core.models import AdminUser, EASMessage, LocalAuthority, ManualEASActivation, SystemLog
 from app_utils.eas import (
     EASAudioGenerator,
     load_eas_config,
@@ -57,6 +57,16 @@ from app_utils.eas import (
 )
 from app_utils.event_codes import EVENT_CODE_REGISTRY
 from app_utils.fips_codes import get_same_lookup, get_us_state_county_tree
+
+
+def _get_local_authority(user) -> Optional[LocalAuthority]:
+    """Return the LocalAuthority record for a user, or None if not a local authority."""
+    if not user:
+        return None
+    authority = getattr(user, 'local_authority', None)
+    if authority and authority.is_active:
+        return authority
+    return None
 
 
 def register_workflow_routes(bp, logger, eas_config) -> None:
@@ -104,12 +114,18 @@ def register_workflow_routes(bp, logger, eas_config) -> None:
             EASMessage.query.order_by(EASMessage.created_at.desc()).limit(10).all()
         )
 
+        # Detect local authority context for the current user
+        local_auth = _get_local_authority(g.current_user)
+        local_authority_ctx = None
+        if local_auth:
+            local_authority_ctx = local_auth.to_dict()
+
         return render_template(
             'eas/workflow.html',
             eas_event_codes=event_options,
             eas_originator_choices=originator_choices,
-            eas_originator=eas_config.get('originator', 'WXR'),
-            eas_station_id=eas_config.get('station_id', 'EASNODES'),
+            eas_originator=local_auth.originator if local_auth else eas_config.get('originator', 'WXR'),
+            eas_station_id=local_auth.station_id if local_auth else eas_config.get('station_id', 'EASNODES'),
             eas_attention_seconds=eas_config.get('attention_tone_seconds', 8),
             eas_sample_rate=eas_config.get('sample_rate', 16000),
             eas_default_same_codes=manual_same_defaults,
@@ -120,6 +136,7 @@ def register_workflow_routes(bp, logger, eas_config) -> None:
             eas_originator_descriptions=ORIGINATOR_DESCRIPTIONS,
             eas_recent_messages=recent_messages,
             eas_web_subdir=current_app.config.get('EAS_OUTPUT_WEB_SUBDIR', 'eas_messages'),
+            local_authority=local_authority_ctx,
         )
 
     @bp.route('/manual/generate', methods=['POST'])
@@ -215,6 +232,41 @@ def register_workflow_routes(bp, logger, eas_config) -> None:
             return _validation_error('Originator must be one of the authorised SAME senders.')
 
         station_id = (payload.get('station_id') or eas_config.get('station_id', 'EASNODES')).strip() or 'EASNODES'
+
+        # --- Local Authority jurisdiction enforcement ---
+        local_authority = _get_local_authority(g.current_user)
+        if local_authority:
+            # Override originator and station_id with the authority's values
+            originator = local_authority.originator.upper()
+            station_id = local_authority.station_id.upper()
+
+            # Restrict FIPS codes to authorized subdivision
+            auth_fips = set(str(c).zfill(6)[:6] for c in (local_authority.authorized_fips_codes or []))
+            if auth_fips:
+                unauthorized = [c for c in location_codes if c not in auth_fips]
+                if unauthorized:
+                    return _validation_error(
+                        f'Your authority ({local_authority.name}) is not authorized to '
+                        f'broadcast to FIPS codes: {", ".join(unauthorized)}. '
+                        f'Authorized codes: {", ".join(sorted(auth_fips))}.'
+                    )
+
+            # Restrict event codes to authorized list
+            auth_events = set(str(e).strip().upper() for e in (local_authority.authorized_event_codes or []))
+            if auth_events and event_code not in auth_events:
+                return _validation_error(
+                    f'Your authority ({local_authority.name}) is not authorized to '
+                    f'issue event code {event_code}. '
+                    f'Authorized event codes: {", ".join(sorted(auth_events))}.'
+                )
+
+            workflow_logger.info(
+                'Local authority broadcast: user=%s authority=%s station_id=%s originator=%s',
+                getattr(g.current_user, 'username', 'unknown'),
+                local_authority.name,
+                station_id,
+                originator,
+            )
 
         status = (payload.get('status') or 'Actual').strip() or 'Actual'
         message_type = (payload.get('message_type') or 'Alert').strip() or 'Alert'
@@ -588,6 +640,9 @@ def register_workflow_routes(bp, logger, eas_config) -> None:
                 'summary_subpath': summary_subpath,
                 'web_prefix': web_prefix,
                 'includes_tts': bool(tts_component),
+                'local_authority_id': local_authority.id if local_authority else None,
+                'local_authority_name': local_authority.name if local_authority else None,
+                'local_authority_station_id': local_authority.station_id if local_authority else None,
             },
             composite_audio_data=composite_component.get('wav_bytes') if composite_component else None,
             same_audio_data=same_component.get('wav_bytes') if same_component else None,
