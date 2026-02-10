@@ -1713,6 +1713,75 @@ PUTNAM_REGION_COUNTIES = {
 }
 
 
+class LocalAuthority(db.Model):
+    """A local authority authorized to issue EAS alerts for their political subdivision.
+
+    Each local authority is tied to an AdminUser and defines the jurisdiction
+    (FIPS codes), originator code, station identifier, and authorized event
+    codes that the authority may use when issuing alerts through the
+    Broadcast Builder.
+    """
+    __tablename__ = "local_authorities"
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    # Link to the admin user account
+    user_id = db.Column(
+        db.Integer,
+        db.ForeignKey("admin_users.id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
+        index=True,
+    )
+
+    # Authority identity
+    name = db.Column(db.String(128), nullable=False)  # e.g. "Putnam County Sheriff's Office"
+    short_name = db.Column(db.String(32))  # e.g. "Putnam Co SO"
+
+    # SAME station identifier (8 characters per EAS plan)
+    station_id = db.Column(db.String(8), nullable=False)  # e.g. "PUTNCOSO"
+
+    # Originator code (3 characters: CIV, EAS, WXR, PEP)
+    originator = db.Column(db.String(3), nullable=False, default="CIV")
+
+    # Jurisdiction: FIPS codes this authority may broadcast to
+    authorized_fips_codes = db.Column(JSONB, nullable=False, default=list)
+
+    # Event codes this authority is allowed to issue (empty = all codes allowed)
+    authorized_event_codes = db.Column(JSONB, nullable=False, default=list)
+
+    # Whether this authority is currently enabled
+    is_active = db.Column(db.Boolean, nullable=False, default=True)
+
+    # Audit fields
+    created_at = db.Column(db.DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at = db.Column(db.DateTime(timezone=True), default=utc_now, onupdate=utc_now)
+    created_by = db.Column(db.String(128))  # Username of admin who created this authority
+
+    # Relationships
+    user = db.relationship("AdminUser", backref=db.backref("local_authority", uselist=False, cascade="all, delete-orphan"))
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "id": self.id,
+            "user_id": self.user_id,
+            "username": self.user.username if self.user else None,
+            "name": self.name,
+            "short_name": self.short_name,
+            "station_id": self.station_id,
+            "originator": self.originator,
+            "authorized_fips_codes": list(self.authorized_fips_codes or []),
+            "authorized_event_codes": list(self.authorized_event_codes or []),
+            "is_active": self.is_active,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+            "created_by": self.created_by,
+        }
+
+    def __repr__(self) -> str:
+        return f"<LocalAuthority {self.name} station_id={self.station_id}>"
+
+
 class SnowEmergency(db.Model):
     """Current snow emergency status for a county.
 
@@ -1834,6 +1903,7 @@ __all__ = [
     "Intersection",
     "LEDMessage",
     "LEDSignStatus",
+    "LocalAuthority",
     "LocationSettings",
     "ManualEASActivation",
     "NWSZone",
