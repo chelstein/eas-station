@@ -1,7 +1,7 @@
 """Add local_authorities table for jurisdiction-scoped EAS access.
 
 Revision ID: 20260210_add_local_authorities
-Revises: 20251220_add_max_sources_to_icecast
+Revises: 20260205_add_signature_verification
 Create Date: 2026-02-10
 
 This migration adds the local_authorities table which allows local government
@@ -20,7 +20,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 
 
 revision = "20260210_add_local_authorities"
-down_revision = "20251220_add_max_sources_to_icecast"
+down_revision = "20260205_add_signature_verification"
 branch_labels = None
 depends_on = None
 
