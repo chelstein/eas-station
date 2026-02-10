@@ -47,10 +47,15 @@ def register_local_authority_routes(app, logger):
 @local_authorities_bp.route('/admin/local-authorities')
 @require_permission('system.manage_users')
 def local_authorities_page():
-    """Render the local authorities management page (GET /admin/local-authorities with Accept: text/html)."""
-    if request.accept_mimetypes.best == 'application/json' or request.is_json:
-        return _list_authorities()
+    """Render the local authorities management page."""
     return render_template('admin/local_authorities.html')
+
+
+@local_authorities_bp.route('/admin/local-authorities/list')
+@require_permission('system.manage_users')
+def list_authorities_json():
+    """JSON list of all local authorities."""
+    return _list_authorities()
 
 
 @local_authorities_bp.route('/admin/local-authorities', methods=['POST'])
