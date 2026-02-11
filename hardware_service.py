@@ -146,21 +146,22 @@ def initialize_database():
 def initialize_led_controller():
     """Initialize LED sign controller."""
     try:
-        from app_core.led import initialise_led_controller, ensure_led_tables, LED_AVAILABLE
+        from app_core.led import initialise_led_controller, ensure_led_tables
 
-        if LED_AVAILABLE:
-            controller = initialise_led_controller(logger)
-            if controller:
-                logger.info("✅ LED controller initialized")
-                # Ensure database tables exist
-                try:
-                    ensure_led_tables()
-                except Exception as e:
-                    logger.warning(f"⚠️  Failed to ensure LED tables: {e}")
-            else:
-                logger.info("LED controller disabled or unavailable")
+        # Call initialise_led_controller() directly - it checks the database
+        # enabled setting internally. Do NOT gate on LED_AVAILABLE here because
+        # that flag is False at import time and only set True *after*
+        # initialise_led_controller() succeeds.
+        controller = initialise_led_controller(logger)
+        if controller:
+            logger.info("✅ LED controller initialized")
+            # Ensure database tables exist
+            try:
+                ensure_led_tables()
+            except Exception as e:
+                logger.warning(f"⚠️  Failed to ensure LED tables: {e}")
         else:
-            logger.info("LED hardware not available")
+            logger.info("LED controller disabled or unavailable")
 
     except Exception as e:
         logger.warning(f"⚠️  LED controller not available: {e}")
@@ -170,21 +171,22 @@ def initialize_led_controller():
 def initialize_vfd_controller():
     """Initialize VFD display controller."""
     try:
-        from app_core.vfd import initialise_vfd_controller, ensure_vfd_tables, VFD_AVAILABLE
+        from app_core.vfd import initialise_vfd_controller, ensure_vfd_tables
 
-        if VFD_AVAILABLE:
-            controller = initialise_vfd_controller(logger)
-            if controller:
-                logger.info("✅ VFD controller initialized")
-                # Ensure database tables exist
-                try:
-                    ensure_vfd_tables()
-                except Exception as e:
-                    logger.warning(f"⚠️  Failed to ensure VFD tables: {e}")
-            else:
-                logger.info("VFD controller disabled or unavailable")
+        # Call initialise_vfd_controller() directly - it checks the database
+        # enabled setting internally. Do NOT gate on VFD_AVAILABLE here because
+        # that flag is False at import time and only set True *after*
+        # initialise_vfd_controller() succeeds.
+        controller = initialise_vfd_controller(logger)
+        if controller:
+            logger.info("✅ VFD controller initialized")
+            # Ensure database tables exist
+            try:
+                ensure_vfd_tables()
+            except Exception as e:
+                logger.warning(f"⚠️  Failed to ensure VFD tables: {e}")
         else:
-            logger.info("VFD hardware not available")
+            logger.info("VFD controller disabled or unavailable")
 
     except Exception as e:
         logger.warning(f"⚠️  VFD controller not available: {e}")
@@ -194,27 +196,81 @@ def initialize_vfd_controller():
 def initialize_oled_display():
     """Initialize OLED display."""
     try:
-        from app_core.oled import initialise_oled_display, ensure_oled_button, OLED_AVAILABLE
+        from app_core.oled import initialise_oled_display, ensure_oled_button
 
-        if OLED_AVAILABLE:
-            controller = initialise_oled_display(logger)
-            if controller:
-                logger.info("✅ OLED display initialized")
+        # Call initialise_oled_display() directly - it checks the database
+        # enabled setting internally. Do NOT gate on OLED_AVAILABLE here because
+        # that flag is False at import time and only set True *after*
+        # initialise_oled_display() succeeds.
+        controller = initialise_oled_display(logger)
+        if controller:
+            logger.info("✅ OLED display initialized")
 
-                # Initialize OLED button (GPIO pin 4)
-                button = ensure_oled_button(logger)
-                if button:
-                    logger.info("✅ OLED button initialized on GPIO 4")
-                else:
-                    logger.info("OLED button disabled or unavailable")
+            # Initialize OLED button (GPIO pin 4)
+            button = ensure_oled_button(logger)
+            if button:
+                logger.info("✅ OLED button initialized on GPIO 4")
             else:
-                logger.info("OLED display disabled or unavailable")
+                logger.info("OLED button disabled or unavailable")
         else:
-            logger.info("OLED hardware not available")
+            logger.info("OLED display disabled or unavailable")
 
     except Exception as e:
         logger.warning(f"⚠️  OLED display not available: {e}")
         logger.info("Continuing without OLED support")
+
+
+def initialize_zigbee_coordinator():
+    """Initialize Zigbee coordinator if enabled in hardware settings."""
+    try:
+        from app_core.hardware_settings import get_zigbee_settings
+
+        zigbee_settings = get_zigbee_settings()
+        if not zigbee_settings.get('enabled', False):
+            logger.info("Zigbee coordinator disabled (enable in Admin > Hardware Settings)")
+            return
+
+        port = zigbee_settings.get('port', '/dev/ttyAMA0')
+        baudrate = zigbee_settings.get('baudrate', 115200)
+        channel = zigbee_settings.get('channel', 15)
+        pan_id = zigbee_settings.get('pan_id', '0x1A62')
+
+        # Verify the configured serial port is accessible
+        import os
+        if not os.path.exists(port):
+            logger.warning(
+                f"Zigbee serial port {port} does not exist. "
+                "Connect a Zigbee coordinator and check hardware settings."
+            )
+            return
+
+        # Publish Zigbee coordinator config to Redis so the web UI can display status
+        if _redis_client:
+            try:
+                _redis_client.setex(
+                    "zigbee:coordinator",
+                    120,
+                    json.dumps({
+                        "enabled": True,
+                        "port": port,
+                        "baudrate": baudrate,
+                        "channel": channel,
+                        "pan_id": pan_id,
+                        "status": "configured",
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                    })
+                )
+            except Exception as e:
+                logger.debug(f"Failed to publish Zigbee config to Redis: {e}")
+
+        logger.info(
+            f"✅ Zigbee coordinator configured on {port} "
+            f"(channel {channel}, PAN ID {pan_id})"
+        )
+
+    except Exception as e:
+        logger.warning(f"⚠️  Zigbee coordinator not available: {e}")
+        logger.info("Continuing without Zigbee support")
 
 
 def initialize_screen_manager(app):
@@ -227,8 +283,15 @@ def initialize_screen_manager(app):
         with app.app_context():
             screen_manager.init_app(app)
 
-            # Start screen rotation if enabled
-            auto_start = os.getenv("SCREENS_AUTO_START", "true").lower() in ("true", "1", "yes")
+            # Start screen rotation if enabled (read from database, not env var)
+            auto_start = True  # default
+            try:
+                from app_core.hardware_settings import get_oled_settings
+                oled_settings = get_oled_settings()
+                auto_start = oled_settings.get('screens_auto_start', True)
+            except Exception:
+                pass  # Fall back to default True if database unavailable
+
             if auto_start:
                 screen_manager.start()
                 logger.info("✅ Screen manager started with automatic rotation")
@@ -1620,6 +1683,11 @@ def main():
         logger.info("Initializing GPIO controller...")
         with app.app_context():
             initialize_gpio_controller(db_session=db.session)
+
+        # Initialize Zigbee coordinator (if configured)
+        logger.info("Initializing Zigbee coordinator...")
+        with app.app_context():
+            initialize_zigbee_coordinator()
 
         # Start Flask API server in background thread
         logger.info("Starting hardware proxy API server on port 5001...")
