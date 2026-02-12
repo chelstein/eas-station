@@ -22,6 +22,7 @@ from __future__ import annotations
 """REST-style API routes used by the admin interface."""
 
 import contextlib
+import os
 import socket
 from datetime import datetime
 from typing import Any, Dict, List, Optional
@@ -236,6 +237,60 @@ def get_alert_geometry(alert_id):
         api_bp.logger.error("Error getting alert geometry: %s", exc, exc_info=True)
         return jsonify({'error': 'Failed to retrieve alert geometry'}), 500
 
+def _extract_ipaws_display_data(alert) -> Optional[Dict[str, Any]]:
+    """Extract IPAWS-specific data from an alert for template rendering."""
+    raw_json = alert.raw_json
+    if not isinstance(raw_json, dict):
+        return None
+
+    props = raw_json.get('properties', {})
+    source = (props.get('source') or getattr(alert, 'source', '') or '').upper()
+    if source != 'IPAWS' and not raw_json.get('raw_xml'):
+        return None
+
+    data: Dict[str, Any] = {'is_ipaws': True}
+
+    # EAS parameters
+    params = props.get('parameters', {})
+    if params:
+        data['eas_org'] = ', '.join(params.get('EAS-ORG', []))
+        data['eas_station_id'] = ', '.join(params.get('EAS-STN-ID', []))
+        data['block_channels'] = params.get('BLOCKCHANNEL', [])
+
+    # SAME geocodes
+    geocodes = props.get('geocode', {})
+    if geocodes:
+        data['same_codes'] = geocodes.get('SAME', [])
+
+    # Non-audio resources (web links, etc.)
+    resources = props.get('resources', [])
+    web_resources = []
+    for r in resources:
+        mime = (r.get('mimeType') or '').lower()
+        uri = r.get('uri', '')
+        # Only allow http and https URLs to prevent XSS attacks
+        if 'audio' not in mime and uri and uri.lower().startswith(('http://', 'https://')):
+            web_resources.append({
+                'description': r.get('resourceDesc', 'Link'),
+                'url': uri,
+                'mime_type': r.get('mimeType', ''),
+            })
+    if web_resources:
+        data['web_resources'] = web_resources
+
+    # Certificate info (from enrichment)
+    cert_info = getattr(alert, 'certificate_info', None)
+    if cert_info and isinstance(cert_info, dict):
+        data['certificate'] = cert_info
+
+    # IPAWS original audio URL
+    ipaws_audio = getattr(alert, 'ipaws_audio_url', None)
+    if ipaws_audio:
+        data['ipaws_audio_filename'] = ipaws_audio
+
+    return data
+
+
 @api_bp.route('/alerts/<int:alert_id>')
 def alert_detail(alert_id):
     """Show detailed information about a specific alert with accurate coverage calculation"""
@@ -384,6 +439,9 @@ def alert_detail(alert_id):
                 audio_error,
             )
 
+        # Extract IPAWS enrichment data for display
+        ipaws_data = _extract_ipaws_display_data(alert)
+
         return render_template(
             'alert_detail.html',
             alert=alert,
@@ -394,6 +452,7 @@ def alert_detail(alert_id):
             audio_entries=audio_entries,
             boundary_summary=boundary_summary,
             suppress_boundary_details=suppress_boundary_details,
+            ipaws_data=ipaws_data,
         )
 
     except Exception as exc:
@@ -499,6 +558,42 @@ def alert_detail_pdf(alert_id):
         api_bp.logger.error('Error generating alert PDF: %s', exc, exc_info=True)
         flash('Error generating PDF. Please try again.', 'error')
         return redirect(url_for('api.alert_detail', alert_id=alert_id))
+
+
+@api_bp.route('/alerts/<int:alert_id>/ipaws_audio')
+def ipaws_original_audio(alert_id):
+    """Serve the original IPAWS audio file for an alert."""
+    from flask import send_file
+    alert = CAPAlert.query.get_or_404(alert_id)
+    filename = getattr(alert, 'ipaws_audio_url', None)
+    if not filename:
+        return Response('No IPAWS audio available for this alert', status=404)
+
+    # Prevent path traversal by ensuring filename contains no path separators
+    safe_filename = os.path.basename(filename)
+    if not safe_filename or safe_filename != filename:
+        return Response('Invalid audio filename', status=400)
+
+    eas_output = os.getenv('EAS_OUTPUT_DIR') or os.path.join(
+        os.getenv('EAS_STATIC_DIR', os.path.join(os.getcwd(), 'static')),
+        'eas_messages',
+    )
+    filepath = os.path.join(eas_output, safe_filename)
+    
+    # Verify the resolved path is within the output directory
+    try:
+        real_filepath = os.path.realpath(filepath)
+        real_output = os.path.realpath(eas_output)
+        if not real_filepath.startswith(real_output + os.sep) and real_filepath != real_output:
+            return Response('Invalid audio file path', status=400)
+    except (OSError, ValueError):
+        return Response('Invalid audio file path', status=400)
+    
+    if not os.path.isfile(real_filepath):
+        return Response('Audio file not found on disk', status=404)
+
+    return send_file(real_filepath, mimetype='audio/mpeg', download_name=safe_filename)
+
 
 @api_bp.route('/api/alerts')
 @cache.cached(timeout=30, query_string=True, key_prefix='alerts_list')

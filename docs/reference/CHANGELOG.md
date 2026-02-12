@@ -6,6 +6,32 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+### Security
+- **CRITICAL: Fix path traversal vulnerability in IPAWS audio serving** (v2.46.4)
+  - Added filename sanitization using `os.path.basename()` to prevent directory traversal
+  - Added path validation to ensure resolved path is within output directory
+  - Changed to use Flask's `send_file()` instead of reading entire file into memory
+  - File: `webapp/admin/api.py` - `ipaws_original_audio()` endpoint
+
+- **CRITICAL: Fix XSS vulnerability in IPAWS web resource URLs** (v2.46.4)
+  - Added URL scheme validation to only allow http:// and https:// protocols
+  - Prevents javascript: URIs and other malicious schemes from being rendered
+  - File: `webapp/admin/api.py` - `_extract_ipaws_display_data()` function
+
+- **MAJOR: Fix DoS vulnerability in IPAWS audio handling** (v2.46.4)
+  - Added configurable size limit (10MB default) via `IPAWS_AUDIO_MAX_BYTES` env var
+  - Validates size hint from resource metadata before decoding
+  - Estimates decoded size before base64 decode to prevent memory exhaustion
+  - Uses strict base64 validation to catch malformed payloads
+  - Verifies actual decoded size before writing to disk
+  - File: `app_utils/ipaws_enrichment.py` - `save_ipaws_audio()` function
+
+### Fixed
+- **Fix missing database columns in IPAWS enrichment migration** (v2.46.4)
+  - Added `signature_verified` and `signature_status` columns to migration
+  - These fields were defined in CAPAlert model but missing from migration
+  - File: `app_core/migrations/versions/20260210_add_ipaws_enrichment.py`
+
 ### Fixed
 - **CRITICAL: Fix M&M Symbol Rate Bug - Wrong SPS in Interpolated Space** (v2.44.22)
   - **ROOT CAUSE FOUND**: M&M was ALWAYS running at 15.625 sps regardless of loop gain!
