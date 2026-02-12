@@ -72,15 +72,19 @@ def test_add_pin_uses_null_backend_when_hardware_unavailable(monkeypatch):
     assert controller.get_state(18) == GPIOState.INACTIVE
 
 
-def test_load_gpio_pin_configs_from_env(monkeypatch):
-    """Environment parsing should produce structured GPIO configurations."""
+def test_load_gpio_pin_configs_from_database(monkeypatch):
+    """Database pin map should produce structured GPIO configurations."""
 
-    monkeypatch.setenv("EAS_GPIO_PIN", "12")
-    monkeypatch.setenv("EAS_GPIO_ACTIVE_STATE", "LOW")
-    monkeypatch.setenv("EAS_GPIO_HOLD_SECONDS", "2.5")
-    monkeypatch.setenv("EAS_GPIO_WATCHDOG_SECONDS", "90")
-    monkeypatch.setenv("GPIO_ADDITIONAL_PINS", "22:Aux Relay:HIGH:1.5:45\n24")
-    monkeypatch.setenv("GPIO_PIN_25", "LOW:3:180:Backup Relay")
+    # Mock the database settings to return a pin map
+    pin_map = {
+        "12": {"name": "EAS Transmitter PTT", "active_high": False, "hold_seconds": 2.5, "watchdog_seconds": 90},
+        "22": {"name": "Aux Relay", "active_high": True, "hold_seconds": 1.5, "watchdog_seconds": 45},
+        "24": {},
+        "25": {"name": "Backup Relay", "active_high": False, "hold_seconds": 3, "watchdog_seconds": 180},
+    }
+
+    monkeypatch.setattr(gpio, "_GPIO_SETTINGS_AVAILABLE", True)
+    monkeypatch.setattr(gpio, "get_gpio_settings", lambda: {"pin_map": pin_map, "behavior_matrix": {}})
 
     configs = load_gpio_pin_configs_from_env()
 
@@ -107,24 +111,37 @@ def test_load_gpio_pin_configs_from_env(monkeypatch):
 
 
 def test_reserved_oled_pins_rejected(monkeypatch, caplog):
-    """Pins reserved for the OLED module should not be configurable."""
+    """Pins reserved for the OLED module should not be configurable when OLED is enabled."""
 
-    monkeypatch.setenv("EAS_GPIO_PIN", "4")
-    monkeypatch.setenv("GPIO_ADDITIONAL_PINS", "2:Aux:HIGH:1:60,14:Serial:HIGH:1:60")
+    # Mock database returning OLED-reserved pins (BCM 2, 4, 14)
+    pin_map = {
+        "4": {"name": "Button Override"},
+        "2": {"name": "Aux", "active_high": True, "hold_seconds": 1, "watchdog_seconds": 60},
+        "14": {"name": "Serial", "active_high": True, "hold_seconds": 1, "watchdog_seconds": 60},
+    }
+
+    monkeypatch.setattr(gpio, "_GPIO_SETTINGS_AVAILABLE", True)
+    monkeypatch.setattr(gpio, "get_gpio_settings", lambda: {"pin_map": pin_map, "behavior_matrix": {}})
 
     test_logger = logging.getLogger("gpio-test")
     with caplog.at_level(logging.ERROR, logger="gpio-test"):
-        configs = load_gpio_pin_configs_from_env(logger=test_logger)
+        configs = load_gpio_pin_configs_from_env(logger=test_logger, oled_enabled=True)
 
     assert configs == []
     assert any("reserved" in record.message for record in caplog.records)
 
 
-def test_load_gpio_behavior_matrix_from_env(monkeypatch):
-    """GPIO_PIN_BEHAVIOR_MATRIX should deserialize to enums per pin."""
+def test_load_gpio_behavior_matrix_from_database(monkeypatch):
+    """Database behavior matrix should deserialize to enums per pin."""
 
-    matrix_json = '{"18": ["duration_of_alert", "incoming_alert"], "22": "flash", "bad": ["unknown"]}'
-    monkeypatch.setenv("GPIO_PIN_BEHAVIOR_MATRIX", matrix_json)
+    behavior_matrix = {
+        "18": ["duration_of_alert", "incoming_alert"],
+        "22": "flash",
+        "bad": ["unknown"],
+    }
+
+    monkeypatch.setattr(gpio, "_GPIO_SETTINGS_AVAILABLE", True)
+    monkeypatch.setattr(gpio, "get_gpio_settings", lambda: {"pin_map": {}, "behavior_matrix": behavior_matrix})
 
     matrix = load_gpio_behavior_matrix_from_env()
 
@@ -170,7 +187,6 @@ class _FakeController:
 def test_behavior_manager_hold_lifecycle(monkeypatch):
     """Behavior manager should activate and release pins for alert duration."""
 
-    monkeypatch.setenv("GPIO_PIN_BEHAVIOR_MATRIX", "")
     controller = _FakeController()
     configs = [GPIOPinConfig(pin=18, name="Alert Relay")]
     manager = GPIOBehaviorManager(
@@ -191,7 +207,7 @@ def test_behavior_manager_pulse_only(monkeypatch):
     """Pulse-only behaviors should prevent fallback activation."""
 
     controller = _FakeController()
-    configs = [GPIOPinConfig(pin=18, name="Beacon")] 
+    configs = [GPIOPinConfig(pin=18, name="Beacon")]
     manager = GPIOBehaviorManager(
         controller=controller,
         pin_configs=configs,
