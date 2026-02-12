@@ -172,6 +172,7 @@ from app_utils.location_settings import (
 )
 print(f"[CAP_POLLER] Importing app_utils.optimized_parsing...")
 from app_utils.optimized_parsing import json_loads, json_dumps, parse_xml_string, get_element_tree_module
+from app_utils.ipaws_enrichment import extract_certificate_info, save_ipaws_audio
 print(f"[CAP_POLLER] Importing app_core.models...")
 from app_core.models import PollerSettings
 print(f"[CAP_POLLER] All app module imports complete!")
@@ -293,6 +294,11 @@ except Exception as e:
         eas_forwarded = Column(Boolean, default=False, nullable=False)
         eas_forwarding_reason = Column(String(255))
         eas_audio_url = Column(String(512))
+        # IPAWS signature and enrichment
+        signature_verified = Column(Boolean)
+        signature_status = Column(String(255))
+        certificate_info = Column(JSON)
+        ipaws_audio_url = Column(String(512))
         created_at = Column(DateTime, default=utc_now)
         updated_at = Column(DateTime, default=utc_now)
 
@@ -2355,6 +2361,38 @@ class CAPPoller:
         new_alert.eas_forwarding_reason = None
         new_alert.eas_audio_url = None
         self._set_alert_geometry(new_alert, geometry_data)
+
+        # IPAWS enrichment: extract certificate info and save embedded audio
+        raw_json = alert_data.get('raw_json', {})
+        raw_xml = raw_json.get('raw_xml', '') if isinstance(raw_json, dict) else ''
+        if raw_xml:
+            try:
+                cert_info = extract_certificate_info(raw_xml)
+                if cert_info:
+                    new_alert.certificate_info = cert_info
+                    self.logger.info(
+                        "Extracted certificate info for %s: issuer=%s",
+                        payload.get('identifier', '?'),
+                        cert_info.get('issuer', 'unknown'),
+                    )
+            except Exception as exc:
+                self.logger.warning("Certificate extraction failed for %s: %s",
+                                    payload.get('identifier', '?'), exc)
+
+        if isinstance(raw_json, dict):
+            try:
+                eas_output = os.getenv('EAS_OUTPUT_DIR') or os.path.join(
+                    os.getenv('EAS_STATIC_DIR', os.path.join(os.getcwd(), 'static')),
+                    'eas_messages',
+                )
+                audio_filename = save_ipaws_audio(
+                    raw_json, payload.get('identifier', 'unknown'), eas_output,
+                )
+                if audio_filename:
+                    new_alert.ipaws_audio_url = audio_filename
+            except Exception as exc:
+                self.logger.warning("IPAWS audio save failed for %s: %s",
+                                    payload.get('identifier', '?'), exc)
 
         # First commit: Save alert to database to get the ID needed for EAS message linking
         self.db_session.add(new_alert)
