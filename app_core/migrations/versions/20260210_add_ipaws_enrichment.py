@@ -35,6 +35,12 @@ def _column_exists(table_name: str, column_name: str) -> bool:
 
 
 def upgrade() -> None:
+    if not _column_exists(TABLE, "signature_verified"):
+        op.add_column(TABLE, sa.Column("signature_verified", sa.Boolean(), nullable=True))
+
+    if not _column_exists(TABLE, "signature_status"):
+        op.add_column(TABLE, sa.Column("signature_status", sa.String(255), nullable=True))
+
     if not _column_exists(TABLE, "certificate_info"):
         op.add_column(TABLE, sa.Column("certificate_info", sa.JSON(), nullable=True))
 
@@ -47,3 +53,7 @@ def downgrade() -> None:
         op.drop_column(TABLE, "ipaws_audio_url")
     if _column_exists(TABLE, "certificate_info"):
         op.drop_column(TABLE, "certificate_info")
+    if _column_exists(TABLE, "signature_status"):
+        op.drop_column(TABLE, "signature_status")
+    if _column_exists(TABLE, "signature_verified"):
+        op.drop_column(TABLE, "signature_verified")

@@ -995,7 +995,7 @@
                             {% if ipaws_data.ipaws_audio_filename %}
                             <h6 class="text-muted mb-2">Original IPAWS Audio</h6>
                             <div class="detail-item">
-                                <audio controls preload="metadata" style="width: 100%; max-width: 400px;">
+                                <audio controls preload="metadata" style="width: 100%; max-width: 400px;" aria-label="Original IPAWS alert audio">
                                     <source src="{{ url_for('api.ipaws_original_audio', alert_id=alert.id) }}" type="audio/mpeg">
                                     Your browser does not support the audio element.
                                 </audio>

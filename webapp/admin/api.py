@@ -267,10 +267,12 @@ def _extract_ipaws_display_data(alert) -> Optional[Dict[str, Any]]:
     web_resources = []
     for r in resources:
         mime = (r.get('mimeType') or '').lower()
-        if 'audio' not in mime and r.get('uri'):
+        uri = r.get('uri', '')
+        # Only allow http and https URLs to prevent XSS attacks
+        if 'audio' not in mime and uri and uri.lower().startswith(('http://', 'https://')):
             web_resources.append({
                 'description': r.get('resourceDesc', 'Link'),
-                'url': r['uri'],
+                'url': uri,
                 'mime_type': r.get('mimeType', ''),
             })
     if web_resources:
@@ -561,27 +563,36 @@ def alert_detail_pdf(alert_id):
 @api_bp.route('/alerts/<int:alert_id>/ipaws_audio')
 def ipaws_original_audio(alert_id):
     """Serve the original IPAWS audio file for an alert."""
-    import mimetypes
+    from flask import send_file
     alert = CAPAlert.query.get_or_404(alert_id)
     filename = getattr(alert, 'ipaws_audio_url', None)
     if not filename:
         return Response('No IPAWS audio available for this alert', status=404)
 
+    # Prevent path traversal by ensuring filename contains no path separators
+    safe_filename = os.path.basename(filename)
+    if not safe_filename or safe_filename != filename:
+        return Response('Invalid audio filename', status=400)
+
     eas_output = os.getenv('EAS_OUTPUT_DIR') or os.path.join(
         os.getenv('EAS_STATIC_DIR', os.path.join(os.getcwd(), 'static')),
         'eas_messages',
     )
-    filepath = os.path.join(eas_output, filename)
-    if not os.path.isfile(filepath):
+    filepath = os.path.join(eas_output, safe_filename)
+    
+    # Verify the resolved path is within the output directory
+    try:
+        real_filepath = os.path.realpath(filepath)
+        real_output = os.path.realpath(eas_output)
+        if not real_filepath.startswith(real_output + os.sep):
+            return Response('Invalid audio file path', status=400)
+    except (OSError, ValueError):
+        return Response('Invalid audio file path', status=400)
+    
+    if not os.path.isfile(real_filepath):
         return Response('Audio file not found on disk', status=404)
 
-    content_type = mimetypes.guess_type(filename)[0] or 'audio/mpeg'
-    with open(filepath, 'rb') as f:
-        audio_data = f.read()
-
-    return Response(audio_data, content_type=content_type, headers={
-        'Content-Disposition': f'inline; filename="{filename}"',
-    })
+    return send_file(real_filepath, mimetype='audio/mpeg', download_name=safe_filename)
 
 
 @api_bp.route('/api/alerts')

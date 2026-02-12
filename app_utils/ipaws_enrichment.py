@@ -7,6 +7,7 @@ saves embedded audio resources to disk for archival and playback.
 from __future__ import annotations
 
 import base64
+import binascii
 import hashlib
 import logging
 import os
@@ -170,6 +171,7 @@ def save_ipaws_audio(
 
     Looks for audio resources in the alert's properties.resources list,
     decodes the base64 derefUri content, and writes it to disk.
+    Validates size limits to prevent DoS attacks.
 
     Args:
         raw_json: The full alert raw_json dict (contains properties.resources).
@@ -184,6 +186,13 @@ def save_ipaws_audio(
     if not resources:
         return None
 
+    # Default max size: 10 MB
+    try:
+        max_bytes = int(os.getenv('IPAWS_AUDIO_MAX_BYTES', '10485760'))
+    except (ValueError, TypeError):
+        logger.warning('Invalid IPAWS_AUDIO_MAX_BYTES value, using default 10 MB')
+        max_bytes = 10485760
+
     for resource in resources:
         mime_type = (resource.get('mimeType') or '').lower()
         resource_desc = (resource.get('resourceDesc') or '').lower()
@@ -191,6 +200,28 @@ def save_ipaws_audio(
 
         is_audio = 'audio' in mime_type or 'eas broadcast' in resource_desc
         if not (is_audio and deref_uri):
+            continue
+
+        # Check size hint if available
+        size_hint = resource.get('size')
+        if size_hint is not None:
+            try:
+                if int(size_hint) > max_bytes:
+                    logger.warning(
+                        'Skipping IPAWS audio for %s: size hint %s exceeds %d bytes',
+                        identifier, size_hint, max_bytes,
+                    )
+                    continue
+            except (TypeError, ValueError):
+                pass
+
+        # Estimate decoded size (base64 expands by ~4/3, so decoded is ~3/4 of encoded)
+        estimated_size = (len(deref_uri) * 3) // 4
+        if estimated_size > max_bytes:
+            logger.warning(
+                'Skipping IPAWS audio for %s: estimated size %d exceeds %d bytes',
+                identifier, estimated_size, max_bytes,
+            )
             continue
 
         # Determine file extension from MIME type
@@ -204,9 +235,17 @@ def save_ipaws_audio(
             ext = '.mp3'  # IPAWS typically uses MP3
 
         try:
-            audio_bytes = base64.b64decode(deref_uri)
-        except Exception as exc:
+            audio_bytes = base64.b64decode(deref_uri, validate=True)
+        except (binascii.Error, ValueError) as exc:
             logger.warning('Failed to decode IPAWS audio for %s: %s', identifier, exc)
+            continue
+
+        # Verify actual decoded size
+        if len(audio_bytes) > max_bytes:
+            logger.warning(
+                'Skipping IPAWS audio for %s: decoded size %d exceeds %d bytes',
+                identifier, len(audio_bytes), max_bytes,
+            )
             continue
 
         # Sanitize identifier for filename
