@@ -6,6 +6,20 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+### Fixed
+- **Fix update.sh showing same version after update** (v2.46.6)
+  - Added EAS_SKIP_PULL check to prevent redundant git operations on script restart
+  - Added helpful message when branch is already up-to-date with instructions to switch branches
+  - Improved indentation and code structure in git update section
+  - File: `update.sh`
+
+### Added
+- **Add IPAWS enrichment data display to alerts list page** (v2.46.5)
+  - Display IPAWS certificate "Signed" badge in Source column for digitally signed alerts
+  - Add IPAWS audio play button in Audio column when original IPAWS audio is available
+  - Users can now see and access IPAWS enrichment features from main /alerts page
+  - File: `templates/alerts.html`
+
 ### Security
 - **CRITICAL: Fix path traversal vulnerability in IPAWS audio serving** (v2.46.4)
   - Added filename sanitization using `os.path.basename()` to prevent directory traversal
