@@ -584,7 +584,7 @@ def ipaws_original_audio(alert_id):
     try:
         real_filepath = os.path.realpath(filepath)
         real_output = os.path.realpath(eas_output)
-        if not real_filepath.startswith(real_output + os.sep) and real_filepath != real_output:
+        if not real_filepath.startswith(real_output + os.sep):
             return Response('Invalid audio file path', status=400)
     except (OSError, ValueError):
         return Response('Invalid audio file path', status=400)

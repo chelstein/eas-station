@@ -187,7 +187,11 @@ def save_ipaws_audio(
         return None
 
     # Default max size: 10 MB
-    max_bytes = int(os.getenv('IPAWS_AUDIO_MAX_BYTES', '10485760'))
+    try:
+        max_bytes = int(os.getenv('IPAWS_AUDIO_MAX_BYTES', '10485760'))
+    except (ValueError, TypeError):
+        logger.warning('Invalid IPAWS_AUDIO_MAX_BYTES value, using default 10 MB')
+        max_bytes = 10485760
 
     for resource in resources:
         mime_type = (resource.get('mimeType') or '').lower()
