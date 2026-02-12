@@ -365,21 +365,32 @@ if [ -d ".git" ]; then
         echo_success "Git directory ownership is correct ($SERVICE_USER)"
     fi
 
-    echo_progress "Fetching latest changes from origin..."
-    
-    # Get current branch name (fixing the hardcoded 'main' issue)
-    CURRENT_BRANCH=$(git branch --show-current)
-    if [ -z "$CURRENT_BRANCH" ]; then
-        echo_warning "Unable to determine current branch - defaulting to main"
-        CURRENT_BRANCH="main"
-    fi
-    echo_info "Updating branch: ${BOLD}$CURRENT_BRANCH${NC}"
-    
-    # Fetch updates
-    echo_progress "Fetching latest changes from remote..."
-    
-    # Capture git fetch output to show detailed errors if needed
-    FETCH_OUTPUT=$(sudo -u "$SERVICE_USER" git fetch origin 2>&1)
+    # Check if we should skip git pull (e.g., after update.sh self-restart)
+    if [ "${EAS_SKIP_PULL:-}" = "true" ]; then
+        echo_info "Skipping git operations (EAS_SKIP_PULL is set)"
+        echo_success "Using already-updated code from previous pull"
+        # Get current branch for display purposes
+        CURRENT_BRANCH=$(git branch --show-current)
+        if [ -z "$CURRENT_BRANCH" ]; then
+            CURRENT_BRANCH="main"
+        fi
+        NEW_COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+    else
+        echo_progress "Fetching latest changes from origin..."
+        
+        # Get current branch name (fixing the hardcoded 'main' issue)
+        CURRENT_BRANCH=$(git branch --show-current)
+        if [ -z "$CURRENT_BRANCH" ]; then
+            echo_warning "Unable to determine current branch - defaulting to main"
+            CURRENT_BRANCH="main"
+        fi
+        echo_info "Updating branch: ${BOLD}$CURRENT_BRANCH${NC}"
+        
+        # Fetch updates
+        echo_progress "Fetching latest changes from remote..."
+        
+        # Capture git fetch output to show detailed errors if needed
+        FETCH_OUTPUT=$(sudo -u "$SERVICE_USER" git fetch origin 2>&1)
     FETCH_STATUS=$?
     
     if [ $FETCH_STATUS -eq 0 ]; then
@@ -418,7 +429,16 @@ if [ -d ".git" ]; then
         echo_info "Changes to be applied:"
         git log --oneline "$LOCAL_COMMIT..$REMOTE_COMMIT" 2>/dev/null | head -10 || echo "  (unable to show log)"
     else
-        echo_success "Already up to date with remote"
+        echo_success "Already up to date with remote on branch $CURRENT_BRANCH"
+        echo ""
+        echo_info "If you expect updates but see this message, you may be on an inactive branch."
+        echo_info "To switch to the main development branch, run:"
+        echo_info "  cd $INSTALL_DIR"
+        echo_info "  sudo -u $SERVICE_USER git fetch origin"
+        echo_info "  sudo -u $SERVICE_USER git checkout main"
+        echo_info "  sudo -u $SERVICE_USER git reset --hard origin/main"
+        echo_info "  Then run: sudo $INSTALL_DIR/update.sh"
+        echo ""
     fi
     
     # Check for uncommitted changes
@@ -483,6 +503,8 @@ if [ -d ".git" ]; then
         echo_info "  Then fix ownership: chown -R $SERVICE_USER:$SERVICE_USER $INSTALL_DIR"
         exit 1
     fi
+    
+    fi  # End of EAS_SKIP_PULL check
     
     # Clear Python bytecode cache to ensure new code is loaded
     echo_progress "Clearing Python bytecode cache..."
