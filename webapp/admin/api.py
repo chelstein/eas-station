@@ -401,7 +401,7 @@ def alert_detail(alert_id):
 
         is_county_wide = False
         if alert.area_desc:
-            area_lower = alert.area_desc.lower()
+            area_lower = alert.area_desc.lower().strip()
             is_county_wide = (
                 'putnam county' in area_lower
                 or 'entire county' in area_lower
@@ -411,6 +411,20 @@ def alert_detail(alert_id):
                     and (area_lower.count(';') >= 2 or area_lower.count(',') >= 2)
                 )
             )
+
+            # Detect statewide IPAWS alerts (e.g. area_desc="Ohio")
+            # A statewide alert always covers the county
+            if not is_county_wide and area_lower in ('ohio',):
+                is_county_wide = True
+
+            # Also check SAME geocodes for statewide codes (ending in "000")
+            if not is_county_wide:
+                raw_json = alert.raw_json if isinstance(alert.raw_json, dict) else {}
+                same_codes = raw_json.get('properties', {}).get('geocode', {}).get('SAME', [])
+                for code in same_codes:
+                    if isinstance(code, str) and code.endswith('000'):
+                        is_county_wide = True
+                        break
 
         coverage_data = calculate_coverage_percentages(alert_id, intersections)
 
@@ -536,6 +550,41 @@ def alert_detail(alert_id):
                 alert.identifier,
                 audio_error,
             )
+
+        # Lazy audio extraction: if ipaws_audio_url is NULL but raw_json has
+        # audio resources with derefUri, extract and save now.  This handles
+        # alerts inserted before the audio extraction code was added.
+        if not getattr(alert, 'ipaws_audio_url', None):
+            raw_json = alert.raw_json if isinstance(alert.raw_json, dict) else {}
+            resources = raw_json.get('properties', {}).get('resources', [])
+            has_audio_data = any(
+                ('audio' in (r.get('mimeType') or '').lower()
+                 or 'eas broadcast' in (r.get('resourceDesc') or '').lower())
+                and r.get('derefUri')
+                for r in resources
+            )
+            if has_audio_data:
+                try:
+                    from app_utils.ipaws_enrichment import save_ipaws_audio
+                    eas_output = os.getenv('EAS_OUTPUT_DIR') or os.path.join(
+                        os.getenv('EAS_STATIC_DIR', os.path.join(os.getcwd(), 'static')),
+                        'eas_messages',
+                    )
+                    audio_filename = save_ipaws_audio(
+                        raw_json, alert.identifier or str(alert.id), eas_output,
+                    )
+                    if audio_filename:
+                        alert.ipaws_audio_url = audio_filename
+                        db.session.commit()
+                        api_bp.logger.info(
+                            'Lazy-extracted IPAWS audio for alert %s: %s',
+                            alert.identifier, audio_filename,
+                        )
+                except Exception as exc:
+                    api_bp.logger.warning(
+                        'Lazy IPAWS audio extraction failed for %s: %s',
+                        alert.identifier, exc,
+                    )
 
         # Extract IPAWS enrichment data for display
         ipaws_data = _extract_ipaws_display_data(alert)
