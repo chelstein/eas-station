@@ -5,16 +5,16 @@
 {% block extra_css %}
 <style>
     .pin-card {
-        border-left: 4px solid #0d6efd;
+        border-left: 4px solid var(--primary-color);
         height: 100%;
         transition: all 0.3s ease;
     }
-    .pin-card.power { border-left-color: #ffc107; }
-    .pin-card.ground { border-left-color: #6c757d; }
-    .pin-card.gpio.configured { border-left-color: #28a745; }
-    .pin-card.gpio:not(.configured) { border-left-color: #0d6efd; }
+    .pin-card.power { border-left-color: var(--warning-color); }
+    .pin-card.ground { border-left-color: var(--text-muted); }
+    .pin-card.gpio.configured { border-left-color: var(--success-color); }
+    .pin-card.gpio:not(.configured) { border-left-color: var(--primary-color); }
     .pin-card.reserved {
-        border-left-color: #6c757d;
+        border-left-color: var(--text-muted);
         background: linear-gradient(135deg, rgba(248, 249, 250, 0.85), rgba(222, 226, 230, 0.9));
         filter: grayscale(0.2);
     }
@@ -22,8 +22,8 @@
         opacity: 0.8;
     }
     .pin-card.gpio.has-behavior { 
-        border-left-color: #198754;
-        box-shadow: 0 0 0 2px rgba(25, 135, 84, 0.15);
+        border-left-color: var(--success-color);
+        box-shadow: 0 0 0 2px color-mix(in srgb, var(--success-color) 15%, transparent);
     }
     .behavior-grid {
         display: grid;
@@ -43,7 +43,7 @@
     }
     .form-check-input:checked + .form-check-label {
         font-weight: 600;
-        color: #198754;
+        color: var(--success-color);
     }
     .unsaved-changes {
         position: fixed;

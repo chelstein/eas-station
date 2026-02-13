@@ -232,20 +232,20 @@
 
 <style>
 .audio-source-card {
-    border-left: 4px solid #0d6efd;
+    border-left: 4px solid var(--primary-color);
     transition: all 0.3s ease;
 }
 
 .audio-source-card.status-running {
-    border-left-color: #28a745;
+    border-left-color: var(--success-color);
 }
 
 .audio-source-card.status-stopped {
-    border-left-color: #6c757d;
+    border-left-color: var(--text-muted);
 }
 
 .audio-source-card.status-error {
-    border-left-color: #dc3545;
+    border-left-color: var(--danger-color);
 }
 
 .audio-source-card:hover {
@@ -254,7 +254,7 @@
 }
 
 .audio-player-container {
-    background: #f8f9fa;
+    background: var(--bg-color);
     padding: 1rem;
     border-radius: 8px;
     margin-top: 1rem;
@@ -1826,13 +1826,13 @@ function updateEASMonitorDisplay(status) {
             // Defensive validation
             if (monitorCount > 0) {
                 const sourceInfo = ` (${monitorCount} source${monitorCount !== 1 ? 's' : ''})`;
-                runningStatus.innerHTML = `<span style="color: #28a745;">✅ Active${sourceInfo}</span>`;
+                runningStatus.innerHTML = `<span style="color: var(--success-color);">✅ Active${sourceInfo}</span>`;
             } else {
                 // Running but no monitors? Show warning
-                runningStatus.innerHTML = '<span style="color: #ffc107;">⚠️ Running (no sources configured)</span>';
+                runningStatus.innerHTML = '<span style="color: var(--warning-color);">⚠️ Running (no sources configured)</span>';
             }
         } else {
-            runningStatus.innerHTML = '<span style="color: #6c757d;">⏸️ Stopped</span>';
+            runningStatus.innerHTML = '<span style="color: var(--text-muted);">⏸️ Stopped</span>';
         }
     }
 
@@ -1985,7 +1985,7 @@ function updateEASMonitorDisplay(status) {
     if (alertsCount) {
         const count = status.alerts_detected || 0;
         alertsCount.textContent = count.toLocaleString();
-        alertsCount.style.color = count > 0 ? '#28a745' : '#6c757d';
+        alertsCount.style.color = count > 0 ? 'var(--success-color)' : 'var(--text-muted)';
     }
 
     // Update decoder status
