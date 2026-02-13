@@ -671,7 +671,7 @@ For proprietary/closed-source use without AGPL obligations, a [Commercial Licens
 ### Copyright & Attribution
 
 ```
-Copyright (c) 2025 Timothy Kramer (KR8MER)
+Copyright (c) 2025-2026 Timothy Kramer (KR8MER)
 EAS Station - https://github.com/KR8MER/eas-station
 ```
 

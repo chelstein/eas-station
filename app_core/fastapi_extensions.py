@@ -1,6 +1,6 @@
 """
 EAS Station - Emergency Alert System
-Copyright (c) 2025 Timothy Kramer (KR8MER)
+Copyright (c) 2025-2026 Timothy Kramer (KR8MER)
 
 FastAPI extension singletons for the EAS Station application.
 This module provides FastAPI-compatible database and extension management.

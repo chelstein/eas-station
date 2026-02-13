@@ -1,6 +1,6 @@
 #!/bin/bash
 # EAS Station Update Script
-# Copyright (c) 2025 Timothy Kramer (KR8MER)
+# Copyright (c) 2025-2026 Timothy Kramer (KR8MER)
 # Licensed under AGPL v3 or Commercial License
 
 set -e  # Exit on error
@@ -149,7 +149,7 @@ show_step_progress() {
 
 # Add branding footer for whiptail dialogs
 whiptail_footer() {
-    echo "Copyright (c) 2025 Timothy Kramer (KR8MER) | AGPL v3 / Commercial License"
+    echo "Copyright (c) 2025-2026 Timothy Kramer (KR8MER) | AGPL v3 / Commercial License"
 }
 
 # Display update banner
@@ -179,7 +179,7 @@ cat << "EOF"
 EOF
 echo -e "${NC}"
 echo ""
-echo -e "${DIM}Copyright (c) 2025 Timothy Kramer (KR8MER)${NC}"
+echo -e "${DIM}Copyright (c) 2025-2026 Timothy Kramer (KR8MER)${NC}"
 echo -e "${DIM}Licensed under AGPL v3 or Commercial License${NC}"
 echo ""
 
@@ -297,18 +297,37 @@ else
 fi
 
 # Create backup (skip if restarting after self-update)
+BACKUP_FILE="none"
 if [ "${EAS_SKIP_BACKUP:-}" != "true" ]; then
 echo_step "Creating Backup"
-mkdir -p "$BACKUP_DIR"
-BACKUP_FILE="$BACKUP_DIR/eas-station-$(date +%Y%m%d-%H%M%S).tar.gz"
 
-echo_progress "Creating backup archive..."
-if tar -czf "$BACKUP_FILE" -C "$INSTALL_DIR" . 2>/dev/null; then
-    BACKUP_SIZE=$(du -h "$BACKUP_FILE" | cut -f1)
-    echo_success "Backup created: $BACKUP_FILE (${BACKUP_SIZE})"
+DO_BACKUP=false
+if [ "$USE_WHIPTAIL" = true ]; then
+    if whiptail --title "Create Backup?" --backtitle "$(whiptail_footer)" --yesno "Would you like to create a backup before updating?\n\nThis will create a compressed archive of your current installation.\nBackups are saved to: $BACKUP_DIR\n\nRecommended if you have local customizations." 14 65 --defaultno; then
+        DO_BACKUP=true
+    fi
 else
-    echo_warning "Backup failed (non-critical - continuing with update)"
-    BACKUP_FILE="none"
+    read -p "Create a backup before updating? (y/N) " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        DO_BACKUP=true
+    fi
+fi
+
+if [ "$DO_BACKUP" = true ]; then
+    mkdir -p "$BACKUP_DIR"
+    BACKUP_FILE="$BACKUP_DIR/eas-station-$(date +%Y%m%d-%H%M%S).tar.gz"
+
+    echo_progress "Creating backup archive..."
+    if tar -czf "$BACKUP_FILE" -C "$INSTALL_DIR" . 2>/dev/null; then
+        BACKUP_SIZE=$(du -h "$BACKUP_FILE" | cut -f1)
+        echo_success "Backup created: $BACKUP_FILE (${BACKUP_SIZE})"
+    else
+        echo_warning "Backup failed (non-critical - continuing with update)"
+        BACKUP_FILE="none"
+    fi
+else
+    echo_info "Skipping backup"
 fi
 fi  # End of EAS_SKIP_BACKUP check
 

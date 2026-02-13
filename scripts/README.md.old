@@ -210,7 +210,7 @@ When adding new scripts:
    ```bash
    #!/bin/bash
    # EAS Station - Emergency Alert System
-   # Copyright (c) 2025 Timothy Kramer (KR8MER)
+   # Copyright (c) 2025-2026 Timothy Kramer (KR8MER)
    ```
 
 3. **Make scripts executable:**

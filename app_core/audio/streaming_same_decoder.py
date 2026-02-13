@@ -1,6 +1,6 @@
 """
 EAS Station - Emergency Alert System
-Copyright (c) 2025 Timothy Kramer (KR8MER)
+Copyright (c) 2025-2026 Timothy Kramer (KR8MER)
 
 Streaming SAME/EAS Decoder
 
