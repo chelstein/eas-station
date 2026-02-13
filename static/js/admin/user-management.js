@@ -256,9 +256,5 @@ function formatUserTimestamp(timestamp) {
     return date.toLocaleString();
 }
 
-// Self-initialize when the DOM is ready
-document.addEventListener('DOMContentLoaded', function() {
-    if (typeof window.initializeUserManagement === 'function') {
-        window.initializeUserManagement();
-    }
-});
+// Self-initialize (scripts load at end of body, so DOM is already parsed)
+window.initializeUserManagement();
