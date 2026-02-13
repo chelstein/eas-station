@@ -449,7 +449,19 @@
                             <h6 class="text-muted mb-2">Affected Areas</h6>
                             <div class="p-3 bg-info bg-opacity-10 rounded">
                                 {{ alert.area_desc }}
-                                {% if ipaws_data and ipaws_data.same_codes %}
+                                {% if ipaws_data and ipaws_data.same_codes_decoded %}
+                                <div class="mt-2">
+                                    <small class="text-muted"><i class="fas fa-barcode"></i> SAME Codes:</small>
+                                    {% for entry in ipaws_data.same_codes_decoded %}
+                                    <div class="ms-1">
+                                        <code>{{ entry.code }}</code>
+                                        {% if entry.label %}
+                                        <small class="text-muted">&mdash; {{ entry.label }}</small>
+                                        {% endif %}
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                                {% elif ipaws_data and ipaws_data.same_codes %}
                                 <div class="mt-2">
                                     <small class="text-muted"><i class="fas fa-barcode"></i> SAME Codes:</small>
                                     {% for code in ipaws_data.same_codes %}
@@ -985,7 +997,18 @@
                             {# ── EAS Parameters ── #}
                             {% if ipaws_data.eas_org or ipaws_data.eas_station_id %}
                             <h6 class="text-muted mb-2">EAS Parameters</h6>
-                            {% if ipaws_data.eas_org %}
+                            {% if ipaws_data.eas_org_decoded %}
+                            <div class="detail-item">
+                                <span class="detail-label">EAS Originator (EAS-ORG)</span>
+                                {% for org in ipaws_data.eas_org_decoded %}
+                                <code>{{ org.code }}</code>
+                                {% if org.label %}
+                                <span class="text-muted">&mdash; {{ org.label }}</span>
+                                {% endif %}
+                                {% if not loop.last %}<br>{% endif %}
+                                {% endfor %}
+                            </div>
+                            {% elif ipaws_data.eas_org %}
                             <div class="detail-item">
                                 <span class="detail-label">EAS Originator (EAS-ORG)</span>
                                 <code>{{ ipaws_data.eas_org }}</code>
@@ -1005,7 +1028,19 @@
                                 {% endfor %}
                             </div>
                             {% endif %}
-                            {% if ipaws_data.same_codes %}
+                            {% if ipaws_data.same_codes_decoded %}
+                            <div class="detail-item">
+                                <span class="detail-label">SAME Geocodes</span>
+                                {% for entry in ipaws_data.same_codes_decoded %}
+                                <div>
+                                    <code>{{ entry.code }}</code>
+                                    {% if entry.label %}
+                                    <span class="text-muted">&mdash; {{ entry.label }}</span>
+                                    {% endif %}
+                                </div>
+                                {% endfor %}
+                            </div>
+                            {% elif ipaws_data.same_codes %}
                             <div class="detail-item">
                                 <span class="detail-label">SAME Geocodes</span>
                                 {% for code in ipaws_data.same_codes %}
@@ -1042,6 +1077,32 @@
                                 <i class="fas fa-shield-alt"></i> Digital Signature Certificate
                             </h6>
                             {% set cert = ipaws_data.certificate %}
+
+                            {# Certificate validity status banner #}
+                            {% if cert.is_cert_valid is not none %}
+                            <div class="mb-2">
+                                {% if cert.is_cert_valid %}
+                                <span class="badge bg-success"><i class="fas fa-check-circle"></i> Certificate {{ cert.cert_validity_status }}</span>
+                                {% else %}
+                                <span class="badge bg-danger"><i class="fas fa-times-circle"></i> Certificate {{ cert.cert_validity_status }}</span>
+                                {% endif %}
+                            </div>
+                            {% endif %}
+
+                            {# Signature verification status banner #}
+                            {% if cert.signature_verified is not none %}
+                            <div class="mb-2">
+                                {% if cert.signature_verified %}
+                                <span class="badge bg-success"><i class="fas fa-lock"></i> Signature Verified</span>
+                                {% else %}
+                                <span class="badge bg-warning text-dark"><i class="fas fa-exclamation-triangle"></i> Signature Unverified</span>
+                                {% endif %}
+                                {% if cert.signature_status %}
+                                <small class="text-muted ms-1">{{ cert.signature_status }}</small>
+                                {% endif %}
+                            </div>
+                            {% endif %}
+
                             {% if cert.subject %}
                             <div class="detail-item">
                                 <span class="detail-label">Subject</span>
@@ -1088,19 +1149,6 @@
                             <div class="detail-item">
                                 <span class="detail-label">XML Digest Method</span>
                                 <small class="text-break"><code>{{ cert.xml_digest_method }}</code></small>
-                            </div>
-                            {% endif %}
-                            {% if alert.signature_verified is defined and alert.signature_verified is not none %}
-                            <div class="detail-item">
-                                <span class="detail-label">Verification</span>
-                                {% if alert.signature_verified %}
-                                <span class="badge bg-success"><i class="fas fa-check-circle"></i> Valid</span>
-                                {% else %}
-                                <span class="badge bg-danger"><i class="fas fa-times-circle"></i> Invalid</span>
-                                {% endif %}
-                                {% if alert.signature_status %}
-                                <small class="text-muted ms-1">{{ alert.signature_status }}</small>
-                                {% endif %}
                             </div>
                             {% endif %}
                             <hr>

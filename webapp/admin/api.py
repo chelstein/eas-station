@@ -292,12 +292,26 @@ def _extract_ipaws_display_data(alert) -> Optional[Dict[str, Any]]:
     if fetch_type:
         data['fetch_endpoint_type'] = fetch_type
 
-    # --- EAS parameters ---
+    # --- EAS parameters with decoded labels ---
     params = props.get('parameters', {})
     if params:
-        data['eas_org'] = ', '.join(params.get('EAS-ORG', []))
+        eas_org_codes = params.get('EAS-ORG', [])
+        data['eas_org'] = ', '.join(eas_org_codes)
         data['eas_station_id'] = ', '.join(params.get('EAS-STN-ID', []))
         data['block_channels'] = params.get('BLOCKCHANNEL', [])
+
+        # Decode EAS-ORG codes to human-readable names
+        try:
+            from app_utils.eas import ORIGINATOR_DESCRIPTIONS
+            decoded_orgs = []
+            for code in eas_org_codes:
+                label = ORIGINATOR_DESCRIPTIONS.get(code.strip().upper(), '')
+                decoded_orgs.append({'code': code, 'label': label})
+            if decoded_orgs:
+                data['eas_org_decoded'] = decoded_orgs
+        except ImportError:
+            pass
+
         # Expose all remaining parameters for display
         extra_params = {}
         for k, v in params.items():
@@ -306,10 +320,25 @@ def _extract_ipaws_display_data(alert) -> Optional[Dict[str, Any]]:
         if extra_params:
             data['extra_parameters'] = extra_params
 
-    # --- SAME geocodes ---
+    # --- SAME geocodes with decoded location names ---
     geocodes = props.get('geocode', {})
     if geocodes:
-        data['same_codes'] = geocodes.get('SAME', [])
+        same_codes = geocodes.get('SAME', [])
+        data['same_codes'] = same_codes
+
+        # Decode SAME codes to location names
+        try:
+            from app_utils.fips_codes import get_same_lookup
+            fips_lookup = get_same_lookup()
+            decoded_same = []
+            for code in same_codes:
+                label = fips_lookup.get(code, '')
+                decoded_same.append({'code': code, 'label': label})
+            if decoded_same:
+                data['same_codes_decoded'] = decoded_same
+        except ImportError:
+            pass
+
         # Include any additional geocode types (UGC, FIPS6, etc.)
         extra_geocodes = {}
         for k, v in geocodes.items():
