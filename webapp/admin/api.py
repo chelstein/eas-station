@@ -881,13 +881,23 @@ def get_alerts():
 
             if alert.geometry:
                 geometry = json_loads(alert.geometry)
-            elif alert.area_desc and any(
-                county_term in alert.area_desc.lower()
-                for county_term in ['county', 'putnam', 'ohio']
-            ):
-                if county_boundary:
-                    geometry = county_boundary
-                    is_county_wide = True
+            else:
+                # Try to build geometry from SAME geocodes (IPAWS alerts)
+                if try_build_geometry_from_same_codes(alert.id):
+                    geom_json = db.session.query(
+                        func.ST_AsGeoJSON(CAPAlert.geom)
+                    ).filter(CAPAlert.id == alert.id).scalar()
+                    if geom_json:
+                        geometry = json_loads(geom_json)
+
+                # Fallback: use county boundary if area_desc suggests county-wide
+                if not geometry and alert.area_desc and any(
+                    county_term in alert.area_desc.lower()
+                    for county_term in ['county', 'putnam', 'ohio']
+                ):
+                    if county_boundary:
+                        geometry = county_boundary
+                        is_county_wide = True
 
             if not is_county_wide and alert.area_desc:
                 area_lower = alert.area_desc.lower()
@@ -1020,13 +1030,23 @@ def get_historical_alerts():
 
             if alert.geometry:
                 geometry = json_loads(alert.geometry)
-            elif alert.area_desc and any(
-                county_term in alert.area_desc.lower()
-                for county_term in ['county', 'putnam', 'ohio']
-            ):
-                if county_boundary:
-                    geometry = county_boundary
-                    is_county_wide = True
+            else:
+                # Try to build geometry from SAME geocodes (IPAWS alerts)
+                if try_build_geometry_from_same_codes(alert.id):
+                    geom_json = db.session.query(
+                        func.ST_AsGeoJSON(CAPAlert.geom)
+                    ).filter(CAPAlert.id == alert.id).scalar()
+                    if geom_json:
+                        geometry = json_loads(geom_json)
+
+                # Fallback: use county boundary if area_desc suggests county-wide
+                if not geometry and alert.area_desc and any(
+                    county_term in alert.area_desc.lower()
+                    for county_term in ['county', 'putnam', 'ohio']
+                ):
+                    if county_boundary:
+                        geometry = county_boundary
+                        is_county_wide = True
 
             if geometry:
                 expires_iso = None

@@ -1452,34 +1452,52 @@ function initializeMap() {
 }
 
 function loadAlertData() {
-    console.log('Loading alert data...');
+    console.log('Loading alert geometry...');
 
-    fetch('/api/alerts?include_expired=true')
+    // Use per-alert geometry endpoint which triggers SAME geocode geometry building
+    fetch(`/api/alerts/${alertData.id}/geometry`)
         .then(response => {
             if (!response.ok) {
-                throw new Error('Failed to fetch alerts: ' + response.status);
+                throw new Error('Failed to fetch alert geometry: ' + response.status);
             }
             return response.json();
         })
         .then(data => {
-            console.log('Alert data received:', data);
+            console.log('Alert geometry data received:', data);
 
-            if (data.features && data.features.length > 0) {
-                const currentAlert = data.features.find(f => f.properties.id === alertData.id);
-
-                if (currentAlert && currentAlert.geometry) {
-                    displayAlertOnMap(currentAlert);
-                } else {
-                    console.log('No geometry found for alert ID:', alertData.id);
-                    showMapError('Alert has no geographic data');
-                }
+            if (data.alert && data.alert.geometry) {
+                displayAlertOnMap(data.alert);
+            } else if (alertData.is_county_wide) {
+                // County-wide alert without inline geometry — use county boundary as fallback
+                console.log('County-wide alert without geometry, using county boundary fallback');
+                loadCountyBoundaryAsAlert();
             } else {
-                showMapError('No alert data available');
+                showMapError('Alert has no geographic data');
             }
         })
         .catch(error => {
-            console.error('Error loading alert data:', error);
+            console.error('Error loading alert geometry:', error);
             showMapError('Error loading alert data: ' + error.message);
+        });
+}
+
+function loadCountyBoundaryAsAlert() {
+    fetch('/api/boundaries?type=county')
+        .then(response => response.json())
+        .then(data => {
+            if (data.features && data.features.length > 0) {
+                // Use county boundary as the alert's display geometry
+                const countyFeature = data.features[0];
+                countyFeature.properties.id = alertData.id;
+                countyFeature.properties.is_county_wide = true;
+                displayAlertOnMap(countyFeature);
+            } else {
+                showMapError('No county boundary data available for map display');
+            }
+        })
+        .catch(error => {
+            console.error('Error loading county boundary fallback:', error);
+            showMapError('No geographic data available for this alert');
         });
 }
 
