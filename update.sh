@@ -390,7 +390,8 @@ if [ -d ".git" ]; then
         echo_progress "Fetching latest changes from remote..."
         
         # Capture git fetch output to show detailed errors if needed
-        FETCH_OUTPUT=$(sudo -u "$SERVICE_USER" git fetch origin 2>&1)
+        # Explicitly fetch the current branch to handle shallow clones and limited refspecs
+        FETCH_OUTPUT=$(sudo -u "$SERVICE_USER" git fetch origin "$CURRENT_BRANCH:refs/remotes/origin/$CURRENT_BRANCH" 2>&1)
     FETCH_STATUS=$?
     
     if [ $FETCH_STATUS -eq 0 ]; then
