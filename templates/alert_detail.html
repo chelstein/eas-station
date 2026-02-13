@@ -1499,13 +1499,68 @@ function loadCountyBoundaryAsAlert() {
                 countyFeature.properties.is_county_wide = true;
                 displayAlertOnMap(countyFeature);
             } else {
-                showMapError('No county boundary data available for map display');
+                // No county boundary polygon loaded — show approximate coverage area
+                showApproximateCountyCoverage();
             }
         })
         .catch(error => {
             console.error('Error loading county boundary fallback:', error);
-            showMapError('No geographic data available for this alert');
+            showApproximateCountyCoverage();
         });
+}
+
+function showApproximateCountyCoverage() {
+    console.log('No county boundary data — showing approximate coverage');
+    try {
+        let color = '#ff6b35';
+        switch(alertData.severity) {
+            case 'Extreme': color = '#e74c3c'; break;
+            case 'Severe': color = '#e67e22'; break;
+            case 'Moderate': color = '#f39c12'; break;
+            case 'Minor': color = '#3498db'; break;
+        }
+
+        // Use the map's default center (configured county coordinates)
+        const center = map.getCenter();
+
+        // Draw an approximate county-sized circle (~15km radius)
+        alertLayer = L.circle(center, {
+            radius: 15000,
+            color: color,
+            weight: 3,
+            opacity: 0.7,
+            fillOpacity: 0.15,
+            fillColor: color,
+            dashArray: '10, 5'
+        }).addTo(map);
+
+        alertLayer.bindPopup(`
+            <div class="popup-title">
+                ${alertData.event}
+                <span class="county-wide-badge">COUNTY-WIDE</span>
+            </div>
+            <div class="popup-detail"><strong>Severity:</strong> ${alertData.severity || 'Unknown'}</div>
+            <div class="popup-detail"><strong>Status:</strong> ${alertData.status}</div>
+            <div class="popup-detail"><em>Approximate coverage area shown.<br>Upload a county boundary for exact display.</em></div>
+        `);
+
+        map.setView(center, 11);
+
+        // Add an info notice overlay on the map
+        const info = L.control({position: 'topright'});
+        info.onAdd = function() {
+            const div = L.DomUtil.create('div', 'leaflet-control');
+            div.style.cssText = 'background: rgba(0,0,0,0.7); color: #fff; padding: 6px 10px; border-radius: 4px; font-size: 12px; max-width: 200px;';
+            div.innerHTML = '<i class="fas fa-info-circle"></i> Approximate area shown. Upload county boundary for exact coverage.';
+            return div;
+        };
+        info.addTo(map);
+
+        console.log('Approximate county coverage displayed');
+    } catch (error) {
+        console.error('Error showing approximate coverage:', error);
+        showMapError('Unable to display alert coverage');
+    }
 }
 
 function displayAlertOnMap(alertGeoData) {
