@@ -85,6 +85,8 @@ def update_hardware():
                 raise BadRequest(f"Invalid GPIO behavior matrix JSON: {exc}")
 
         # Convert boolean fields
+        # HTML checkboxes are NOT included in form data when unchecked, so for
+        # non-JSON form submissions we must explicitly set missing booleans to False.
         bool_fields = [
             'gpio_enabled', 'oled_enabled', 'oled_default_invert',
             'oled_button_active_high', 'screens_auto_start',
@@ -96,6 +98,9 @@ def update_hardware():
                     data[field] = data[field].lower() in ('true', '1', 'yes', 'on')
                 else:
                     data[field] = bool(data[field])
+            elif not request.is_json:
+                # Checkbox was unchecked - explicitly set to False for form submissions
+                data[field] = False
 
         # Convert integer fields
         int_fields = [
@@ -111,7 +116,10 @@ def update_hardware():
                     data[field] = None
                 else:
                     try:
-                        data[field] = int(data[field])
+                        val = data[field]
+                        # Use base 0 to auto-detect hex (0x), octal (0o), binary (0b) prefixes
+                        # This is needed because the I2C address field displays as "0x3c"
+                        data[field] = int(val, 0) if isinstance(val, str) else int(val)
                     except (TypeError, ValueError):
                         pass
 

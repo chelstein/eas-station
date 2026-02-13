@@ -236,37 +236,79 @@ def initialize_zigbee_coordinator():
         pan_id = zigbee_settings.get('pan_id', '0x1A62')
 
         # Verify the configured serial port is accessible
-        import os
         if not os.path.exists(port):
             logger.warning(
                 f"Zigbee serial port {port} does not exist. "
                 "Connect a Zigbee coordinator and check hardware settings."
             )
+            # Still publish status so the web UI can show the port is missing
+            if _redis_client:
+                try:
+                    _redis_client.setex(
+                        "zigbee:coordinator",
+                        30,
+                        json.dumps({
+                            "enabled": True,
+                            "port": port,
+                            "baudrate": baudrate,
+                            "channel": channel,
+                            "pan_id": pan_id,
+                            "status": "port_not_found",
+                            "port_accessible": False,
+                            "timestamp": datetime.now(timezone.utc).isoformat(),
+                        })
+                    )
+                except Exception:
+                    pass
             return
 
+        # Verify the serial port can actually be opened (not just that the path exists)
+        port_usable = False
+        try:
+            import serial
+            ser = serial.Serial(port, baudrate, timeout=1)
+            ser.close()
+            port_usable = True
+        except ImportError:
+            logger.warning("pyserial not installed - cannot verify Zigbee serial port")
+            port_usable = True  # Assume usable if we can't test
+        except Exception as e:
+            logger.warning(
+                f"Zigbee serial port {port} exists but cannot be opened: {e}. "
+                "Check permissions (user must be in 'dialout' group) and that "
+                "no other process is using the port."
+            )
+
         # Publish Zigbee coordinator config to Redis so the web UI can display status
+        status = "configured" if port_usable else "port_open_failed"
         if _redis_client:
             try:
                 _redis_client.setex(
                     "zigbee:coordinator",
-                    120,
+                    30,  # Short TTL - refreshed by publish_zigbee_status() every 5s
                     json.dumps({
                         "enabled": True,
                         "port": port,
                         "baudrate": baudrate,
                         "channel": channel,
                         "pan_id": pan_id,
-                        "status": "configured",
+                        "status": status,
+                        "port_accessible": port_usable,
                         "timestamp": datetime.now(timezone.utc).isoformat(),
                     })
                 )
             except Exception as e:
                 logger.debug(f"Failed to publish Zigbee config to Redis: {e}")
 
-        logger.info(
-            f"✅ Zigbee coordinator configured on {port} "
-            f"(channel {channel}, PAN ID {pan_id})"
-        )
+        if port_usable:
+            logger.info(
+                f"✅ Zigbee coordinator configured on {port} "
+                f"(channel {channel}, PAN ID {pan_id})"
+            )
+        else:
+            logger.warning(
+                f"⚠️  Zigbee coordinator configured on {port} but port is not usable"
+            )
 
     except Exception as e:
         logger.warning(f"⚠️  Zigbee coordinator not available: {e}")
@@ -405,6 +447,9 @@ def publish_hardware_metrics():
         # Publish detailed display state for preview (separate key for larger data)
         publish_display_state()
 
+        # Refresh Zigbee coordinator status in Redis (keeps key alive beyond initial publish)
+        publish_zigbee_status()
+
     except Exception as e:
         logger.debug(f"Failed to publish hardware metrics: {e}")
 
@@ -520,6 +565,49 @@ def publish_display_state():
 
     except Exception as e:
         logger.debug(f"Failed to publish display state: {e}")
+
+
+def publish_zigbee_status():
+    """Refresh Zigbee coordinator status in Redis.
+
+    The initial publish in initialize_zigbee_coordinator() uses a 120s TTL.
+    This function is called periodically from the health check loop to keep
+    the key alive so the web UI always has current coordinator status.
+    """
+    if not _redis_client:
+        return
+
+    try:
+        from app_core.hardware_settings import get_zigbee_settings
+
+        zigbee_settings = get_zigbee_settings()
+        if not zigbee_settings.get('enabled', False):
+            return
+
+        port = zigbee_settings.get('port', '/dev/ttyAMA0')
+        baudrate = zigbee_settings.get('baudrate', 115200)
+        channel = zigbee_settings.get('channel', 15)
+        pan_id = zigbee_settings.get('pan_id', '0x1A62')
+
+        # Check if the serial port is still accessible
+        port_accessible = os.path.exists(port)
+
+        _redis_client.setex(
+            "zigbee:coordinator",
+            30,  # 30 second TTL (6x the 5s publish interval for tolerance)
+            json.dumps({
+                "enabled": True,
+                "port": port,
+                "baudrate": baudrate,
+                "channel": channel,
+                "pan_id": pan_id,
+                "status": "configured" if port_accessible else "port_unavailable",
+                "port_accessible": port_accessible,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            })
+        )
+    except Exception as e:
+        logger.debug(f"Failed to publish Zigbee status: {e}")
 
 
 def create_api_app():
