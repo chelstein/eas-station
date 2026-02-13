@@ -159,14 +159,53 @@ def load_eas_config(base_path: Optional[str] = None) -> Dict[str, object]:
         load_logger.error(f"Failed to load TTS settings from database: {exc}")
         load_logger.exception("TTS settings load error details:")
 
+    # Load station identity from database (EASSettings row 1), falling back to
+    # environment variables for backwards compatibility, then to hardcoded defaults.
+    db_originator = None
+    db_station_id = None
+    db_broadcast_enabled = None
+    db_sample_rate = None
+    db_attention_tone_seconds = None
+    db_audio_player = None
+    try:
+        from app_core.models import EASSettings
+        eas_settings = EASSettings.query.get(1)
+        if eas_settings:
+            db_originator = eas_settings.originator
+            db_station_id = eas_settings.station_id
+            db_broadcast_enabled = eas_settings.broadcast_enabled
+            db_sample_rate = eas_settings.sample_rate
+            db_attention_tone_seconds = eas_settings.attention_tone_seconds
+            db_audio_player = eas_settings.audio_player
+            load_logger.info(
+                'EASSettings loaded from DB: originator=%s station_id=%s broadcast_enabled=%s',
+                db_originator, db_station_id, db_broadcast_enabled,
+            )
+    except Exception as exc:
+        load_logger.debug('Could not load EASSettings from database: %s', exc)
+
     config: Dict[str, object] = {
-        'enabled': os.getenv('EAS_BROADCAST_ENABLED', 'false').lower() == 'true',
-        'originator': (os.getenv('EAS_ORIGINATOR') or 'WXR')[:3].upper(),
-        'station_id': (os.getenv('EAS_STATION_ID') or 'EASNODES')[:8].ljust(8),
+        'enabled': (
+            db_broadcast_enabled if db_broadcast_enabled is not None
+            else os.getenv('EAS_BROADCAST_ENABLED', 'false').lower() == 'true'
+        ),
+        'originator': (
+            os.getenv('EAS_ORIGINATOR')
+            or (db_originator if db_originator else None)
+            or 'WXR'
+        )[:3].upper(),
+        'station_id': (
+            os.getenv('EAS_STATION_ID')
+            or (db_station_id if db_station_id else None)
+            or 'EASNODES'
+        )[:8].ljust(8),
         'output_dir': _ensure_directory(output_dir),
         'web_subdir': web_subdir,
-        'audio_player_cmd': os.getenv('EAS_AUDIO_PLAYER', '').strip(),
-        'attention_tone_seconds': float(os.getenv('EAS_ATTENTION_TONE_SECONDS', '8') or 8),
+        'audio_player_cmd': os.getenv('EAS_AUDIO_PLAYER', '').strip() or (db_audio_player or ''),
+        'attention_tone_seconds': float(
+            os.getenv('EAS_ATTENTION_TONE_SECONDS')
+            or (db_attention_tone_seconds if db_attention_tone_seconds is not None else 8)
+        ),
         'gpio_pin': os.getenv('EAS_GPIO_PIN'),
         'gpio_active_state': os.getenv('EAS_GPIO_ACTIVE_STATE', 'HIGH').upper(),
         'gpio_hold_seconds': float(os.getenv('EAS_GPIO_HOLD_SECONDS', '5') or 5),
@@ -186,7 +225,10 @@ def load_eas_config(base_path: Optional[str] = None) -> Dict[str, object]:
             str(pin): [behavior.value for behavior in sorted(behaviors, key=lambda b: b.value)]
             for pin, behaviors in gpio_behavior_matrix.items()
         },
-        'sample_rate': int(os.getenv('EAS_SAMPLE_RATE', '16000') or 16000),
+        'sample_rate': int(
+            os.getenv('EAS_SAMPLE_RATE')
+            or (db_sample_rate if db_sample_rate is not None else 16000)
+        ),
         'tts_provider': tts_provider,
         'azure_speech_key': os.getenv('AZURE_SPEECH_KEY'),
         'azure_speech_region': os.getenv('AZURE_SPEECH_REGION'),

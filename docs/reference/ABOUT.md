@@ -25,7 +25,7 @@ EAS Station’s reference build centers on a Raspberry Pi 5 (4 GB RAM baseli
 - **Operational Focus:** Multi-source alert aggregation, automatic SAME broadcast generation, SDR-based verification, spatial boundary awareness, and audit trail management.
 
 ## Current Development Status
-See the **[Master Roadmap](../roadmap/dasdec3-feature-roadmap)** for detailed progress on all nine requirement areas, including completed features like audio ingest, security controls, and analytics.
+See the **[Master Roadmap](../roadmap/dasdec3-feature-roadmap)** for detailed progress on all nine requirement areas, including completed features like audio ingest, security controls, and analytics. For an honest assessment of where EAS Station stands relative to the commercial DASDEC-III, see the **[DASDEC-III Comparison](DASDEC_COMPARISON.md)**.
 
 ## Core Services
 
