@@ -652,7 +652,7 @@ sudo apt-get autoremove postgresql redis-server nginx
 
 ## License
 
-Copyright (c) 2025 Timothy Kramer (KR8MER)
+Copyright (c) 2025-2026 Timothy Kramer (KR8MER)
 
 EAS Station is available under dual licensing:
 - **Open Source:** GNU Affero General Public License v3 (AGPL-3.0)

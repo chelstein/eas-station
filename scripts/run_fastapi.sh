@@ -1,6 +1,6 @@
 #!/bin/bash
 # EAS Station - FastAPI Server Startup Script
-# Copyright (c) 2025 Timothy Kramer (KR8MER)
+# Copyright (c) 2025-2026 Timothy Kramer (KR8MER)
 
 set -e
 

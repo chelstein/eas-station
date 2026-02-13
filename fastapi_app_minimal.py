@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 EAS Station - Emergency Alert System (FastAPI Minimal Version)
-Copyright (c) 2025 Timothy Kramer (KR8MER)
+Copyright (c) 2025-2026 Timothy Kramer (KR8MER)
 
 Minimal working FastAPI application for testing and gradual migration.
 This version has no Flask dependencies and can run independently.

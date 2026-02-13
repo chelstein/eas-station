@@ -1,6 +1,6 @@
 #!/bin/bash
 # EAS Station Bare Metal Installation Script
-# Copyright (c) 2025 Timothy Kramer (KR8MER)
+# Copyright (c) 2025-2026 Timothy Kramer (KR8MER)
 # Licensed under AGPL v3 or Commercial License
 
 set -e  # Exit on error
@@ -150,7 +150,7 @@ show_step_progress() {
 
 # Add branding footer for whiptail dialogs
 whiptail_footer() {
-    echo "Copyright (c) 2025 Timothy Kramer (KR8MER) | AGPL v3 / Commercial License"
+    echo "Copyright (c) 2025-2026 Timothy Kramer (KR8MER) | AGPL v3 / Commercial License"
 }
 
 # Display installation banner
@@ -180,7 +180,7 @@ cat << "EOF"
 EOF
 echo -e "${NC}"
 echo ""
-echo -e "${DIM}Copyright (c) 2025 Timothy Kramer (KR8MER)${NC}"
+echo -e "${DIM}Copyright (c) 2025-2026 Timothy Kramer (KR8MER)${NC}"
 echo -e "${DIM}Licensed under AGPL v3 or Commercial License${NC}"
 echo ""
 
