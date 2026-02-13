@@ -121,6 +121,7 @@ If you're new to EAS Station, start here:
 | Document | Description |
 |----------|-------------|
 | [About EAS Station](reference/ABOUT) | Project background |
+| [DASDEC-III Comparison](reference/DASDEC_COMPARISON) | Feature gap analysis vs. commercial DASDEC-III |
 | [Changelog](reference/CHANGELOG) | Version history |
 | [Diagrams Index](reference/DIAGRAMS) | Visual documentation index |
 | [Release Notes v1.0.0](reference/RELEASE_NOTES_v1.0.0) | Version 1.0.0 release notes |

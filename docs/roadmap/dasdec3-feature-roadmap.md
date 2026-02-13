@@ -4,30 +4,53 @@
 
 This roadmap outlines the path to achieving complete feature parity with the Digital Alert Systems DASDEC3, based on analysis of the Version 5.1 Software User's Guide. The roadmap is organized by functional areas and prioritized by importance and dependencies.
 
-## Current Status Summary
+> **See also:** [DASDEC Comparison](../reference/DASDEC_COMPARISON.md) for a detailed side-by-side feature comparison with the commercial DASDEC-III, including gap analysis, EAS Station advantages, and deployment recommendations.
 
-### ✅ Completed Features (Phase 1)
-- Basic SAME decoding
-- Alert logging and storage
-- Web-based interface
-- Database management
-- Multiple audio input support
-- Real-time monitoring
-- Alert history and search
+## Current Status Summary (Updated February 2025)
 
-### 🔄 In Progress (Phase 2)
-- Enhanced UI/UX improvements
-- Advanced alert management
-- Confidence scoring system
-- Audio recording capabilities
-- Better visualization and dashboards
+### ✅ Completed Features
+- FCC-compliant SAME encoding and decoding (headers, attention tone, EOM)
+- Multi-source CAP alert ingestion (NOAA Weather, IPAWS, custom feeds)
+- PostGIS-powered geographic filtering with county polygon boundaries
+- SDR RF receiver monitoring, demodulation, and EAS tone detection
+- Full web UI with Bootstrap 5 responsive design and real-time WebSocket updates
+- Interactive GIS mapping with Leaflet
+- Role-based access control with TOTP multi-factor authentication
+- GPIO relay control for transmitter keying
+- LED sign, OLED (SSD1306), and VFD (Noritake) display integration
+- Icecast audio streaming with configurable profiles
+- Text-to-speech audio generation (Azure OpenAI and pyttsx3)
+- Alert deduplication and duplicate cleaning
+- System logging and audit trails
+- Backup and restore functionality
+- RWT (Routine Weekly Test) scheduling
+- Alert analytics, trend analysis, and dashboards
+- SDR waterfall spectrum display
+- PDF export and compliance reporting
+- NTP time synchronization
+- HTTPS/TLS with Let's Encrypt support
 
-### 📋 Planned (Phase 3-4)
-- Complete CAP protocol support
-- Network alert distribution
-- Advanced audio processing
-- Full encoder functionality
-- DASDEC3 feature parity
+### 🔄 In Progress
+- FastAPI parallel deployment alongside Flask
+- RBDS (Radio Data System) decoding improvements
+- CAP v1.2 full compliance
+- Certification-grade reliability controls (see `certification_reliability_plan.md`)
+
+### 📋 Remaining Gaps vs. DASDEC-III (Critical)
+These are the features that prevent EAS Station from replacing a DASDEC in a regulated broadcast facility. See [DASDEC Comparison](../reference/DASDEC_COMPARISON.md) for full details.
+
+- **FCC Part 11 Certification** — Requires formal laboratory testing of hardware+software
+- **Fail-safe audio bypass relay** — Hardware requirement, cannot be solved in software
+- **Balanced professional audio I/O** — 600-ohm analog and AES/EBU digital
+- **MPEG/AC-3 stream insertion** — Required for cable/digital TV
+- **HDMI video output / character generator** — Required for TV broadcast
+- **MultiStation management** — Up to 5 stations from one unit
+- **DVS-644/SCTE-18 protocol** — Cable headend integration
+- **ATSC 3.0 / NextGen TV** — Next-generation TV broadcasting
+- **CAP digital signature verification** — Required for full IPAWS conformity
+- **FEMA IPAWS Conformity Assessment** — Formal certification process
+- **SNMP monitoring** — Broadcast NOC integration
+- **GPS PPS time source** — Certified timing accuracy
 
 ## Phase 3: DASDEC3 Core Feature Parity
 
@@ -173,14 +196,14 @@ This roadmap outlines the path to achieving complete feature parity with the Dig
 ### 3.6 EAS Encoder (Priority: Critical)
 
 **DASDEC3 Features:**
-- SAME header generation ⚠️ (Basic)
+- SAME header generation ✅ (Implemented - FCC-compliant)
 - All event codes support ✅ (Implemented)
 - All originator codes support ✅ (Implemented)
 - FIPS code support ✅ (Implemented)
-- Audio generation ⚠️ (Basic)
+- Audio generation ✅ (Implemented - WAV with headers, attention tone, TTS)
 - Message templates ⚠️ (Basic)
-- Scheduled testing ❌ (Not implemented)
-- Manual alert origination ⚠️ (Basic)
+- Scheduled testing ✅ (Implemented - RWT scheduling)
+- Manual alert origination ⚠️ (Partial - basic UI)
 
 **Implementation Tasks:**
 - [ ] Complete SAME encoder implementation
@@ -215,11 +238,11 @@ This roadmap outlines the path to achieving complete feature parity with the Dig
 ### 3.7 CAP (Common Alerting Protocol) (Priority: High)
 
 **DASDEC3 Features:**
-- CAP message parsing ⚠️ (Basic)
-- CAP to EAS translation ❌ (Not implemented)
-- CAP message validation ❌ (Not implemented)
-- Multiple CAP sources ❌ (Not implemented)
-- CAP filtering ❌ (Not implemented)
+- CAP message parsing ✅ (Implemented - CAP v1.1, partial v1.2)
+- CAP to EAS translation ⚠️ (Partial - automatic alert-to-SAME workflow)
+- CAP message validation ✅ (Implemented)
+- Multiple CAP sources ✅ (Implemented - NOAA, IPAWS, custom feeds)
+- CAP filtering ✅ (Implemented - geographic, event type, severity)
 - CAP forwarding ❌ (Not implemented)
 
 **Implementation Tasks:**
@@ -322,10 +345,10 @@ This roadmap outlines the path to achieving complete feature parity with the Dig
 ### 3.10 GPIO and Hardware Integration (Priority: Medium)
 
 **DASDEC3 Features:**
-- Contact closure inputs ❌ (Not implemented)
-- Relay outputs ❌ (Not implemented)
-- GPIO configuration ❌ (Not implemented)
-- Hardware triggers ❌ (Not implemented)
+- Contact closure inputs ⚠️ (Partial - Pi GPIO, not industrial-grade)
+- Relay outputs ✅ (Implemented - relay HAT GPIO)
+- GPIO configuration ✅ (Implemented - web UI and hardware service)
+- Hardware triggers ✅ (Implemented - alert-based relay triggering)
 
 **Implementation Tasks:**
 - [ ] Implement GPIO support
