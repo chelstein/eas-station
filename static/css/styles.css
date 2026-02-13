@@ -1063,8 +1063,8 @@ small,
 
 /* Page Shell */
 .page-shell {
-    /* Take only the space needed, preventing excessive whitespace gaps */
-    flex: 0 0 auto;
+    /* Grow to fill remaining viewport so the footer is pinned to the bottom */
+    flex: 1 0 auto;
     display: flex;
     flex-direction: column;
     padding: var(--layout-padding-top) 0 var(--layout-padding-bottom);
