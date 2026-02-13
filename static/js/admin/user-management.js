@@ -255,3 +255,10 @@ function formatUserTimestamp(timestamp) {
     }
     return date.toLocaleString();
 }
+
+// Self-initialize when the DOM is ready
+document.addEventListener('DOMContentLoaded', function() {
+    if (typeof window.initializeUserManagement === 'function') {
+        window.initializeUserManagement();
+    }
+});
