@@ -447,6 +447,10 @@ class ManualEASActivation(db.Model):
     attention_audio_data = db.Column(db.LargeBinary)
     tts_audio_data = db.Column(db.LargeBinary)
     eom_audio_data = db.Column(db.LargeBinary)
+    # Uploaded audio segments (user-provided files)
+    narration_upload_audio_data = db.Column(db.LargeBinary)
+    pre_alert_audio_data = db.Column(db.LargeBinary)
+    post_alert_audio_data = db.Column(db.LargeBinary)
 
     def to_dict(self) -> Dict[str, Any]:
         return {
