@@ -1482,9 +1482,16 @@ function loadAlertData() {
 }
 
 function loadCountyBoundaryAsAlert() {
+    console.log('Fetching county boundary for fallback display...');
     fetch('/api/boundaries?type=county')
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Boundary API returned ' + response.status);
+            }
+            return response.json();
+        })
         .then(data => {
+            console.log('County boundary response:', data.features ? data.features.length + ' features' : 'no features');
             if (data.features && data.features.length > 0) {
                 // Use county boundary as the alert's display geometry
                 const countyFeature = data.features[0];
