@@ -7,6 +7,12 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **Fix update.sh failing to fetch updates in shallow clones** (v2.46.7)
+  - Changed `git fetch origin` to explicitly fetch current branch with refspec
+  - Fixes issue where update.sh would quit after displaying error in environments with limited git refspecs
+  - Now works correctly with shallow clones and GitHub Copilot agent environments
+  - File: `update.sh`
+
 - **Fix update.sh showing same version after update** (v2.46.6)
   - Added EAS_SKIP_PULL check to prevent redundant git operations on script restart
   - Added helpful message when branch is already up-to-date with instructions to switch branches
