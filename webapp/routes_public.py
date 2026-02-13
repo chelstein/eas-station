@@ -911,6 +911,40 @@ def register(app: Flask, logger) -> None:
                 db.session.rollback()
                 route_logger.warning("Error loading manual activations: %s", exc)
 
+            # Lazy audio extraction: backfill IPAWS audio for alerts on this page
+            # that were inserted before the audio extraction code was added.
+            if alerts_list:
+                import os as _os
+                try:
+                    from app_utils.ipaws_enrichment import save_ipaws_audio
+                    eas_output = _os.getenv('EAS_OUTPUT_DIR') or _os.path.join(
+                        _os.getenv('EAS_STATIC_DIR', _os.path.join(_os.getcwd(), 'static')),
+                        'eas_messages',
+                    )
+                    for alert_obj in alerts_list:
+                        if getattr(alert_obj, 'ipaws_audio_url', None):
+                            continue
+                        raw_json = alert_obj.raw_json if isinstance(alert_obj.raw_json, dict) else {}
+                        resources = raw_json.get('properties', {}).get('resources', [])
+                        has_audio = any(
+                            ('audio' in (r.get('mimeType') or '').lower()
+                             or 'eas broadcast' in (r.get('resourceDesc') or '').lower())
+                            and r.get('derefUri')
+                            for r in resources
+                        )
+                        if has_audio:
+                            audio_fn = save_ipaws_audio(
+                                raw_json,
+                                alert_obj.identifier or str(alert_obj.id),
+                                eas_output,
+                            )
+                            if audio_fn:
+                                alert_obj.ipaws_audio_url = audio_fn
+                    db.session.commit()
+                except Exception as exc:
+                    db.session.rollback()
+                    route_logger.warning("Lazy IPAWS audio backfill failed: %s", exc)
+
             current_filters = {
                 "search": search,
                 "status": status_filter,
