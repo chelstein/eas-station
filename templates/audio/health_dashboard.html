@@ -178,21 +178,21 @@
 }
 
 .health-score-circle.healthy {
-    border-color: #28a745;
-    color: #28a745;
-    background-color: rgba(40, 167, 69, 0.1);
+    border-color: var(--success-color);
+    color: var(--success-color);
+    background-color: color-mix(in srgb, var(--success-color) 10%, transparent);
 }
 
 .health-score-circle.degraded {
-    border-color: #ffc107;
-    color: #ffc107;
-    background-color: rgba(255, 193, 7, 0.1);
+    border-color: var(--warning-color);
+    color: var(--warning-color);
+    background-color: color-mix(in srgb, var(--warning-color) 10%, transparent);
 }
 
 .health-score-circle.failed {
-    border-color: #dc3545;
-    color: #dc3545;
-    background-color: rgba(220, 53, 69, 0.1);
+    border-color: var(--danger-color);
+    color: var(--danger-color);
+    background-color: color-mix(in srgb, var(--danger-color) 10%, transparent);
 }
 
 .stat-box {
@@ -211,15 +211,15 @@
 }
 
 .source-health-item.healthy {
-    border-left-color: #28a745;
+    border-left-color: var(--success-color);
 }
 
 .source-health-item.degraded {
-    border-left-color: #ffc107;
+    border-left-color: var(--warning-color);
 }
 
 .source-health-item.failed {
-    border-left-color: #dc3545;
+    border-left-color: var(--danger-color);
 }
 
 .metric-badge {
@@ -234,8 +234,8 @@
 .failover-event {
     padding: 10px;
     margin-bottom: 8px;
-    border-left: 4px solid #ffc107;
-    background-color: #fff3cd;
+    border-left: 4px solid var(--warning-color);
+    background-color: color-mix(in srgb, var(--warning-color) 20%, var(--surface-color));
     border-radius: 4px;
 }
 </style>

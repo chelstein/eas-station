@@ -235,22 +235,22 @@
         }
 
         .smart-status-badge.bg-success {
-            background: linear-gradient(135deg, var(--success-color) 0%, #28a745 100%) !important;
+            background: linear-gradient(135deg, var(--success-color) 0%, color-mix(in srgb, var(--success-color) 85%, black) 100%) !important;
             border: none;
-            box-shadow: 0 2px 8px rgba(40, 167, 69, 0.3);
+            box-shadow: 0 2px 8px color-mix(in srgb, var(--success-color) 30%, transparent);
         }
 
         .smart-status-badge.bg-danger {
-            background: linear-gradient(135deg, var(--danger-color) 0%, #c82333 100%) !important;
+            background: linear-gradient(135deg, var(--danger-color) 0%, color-mix(in srgb, var(--danger-color) 85%, black) 100%) !important;
             border: none;
-            box-shadow: 0 2px 8px rgba(220, 53, 69, 0.3);
+            box-shadow: 0 2px 8px color-mix(in srgb, var(--danger-color) 30%, transparent);
             animation: pulse-danger 1.5s infinite;
         }
 
         .smart-status-badge.bg-warning {
-            background: linear-gradient(135deg, var(--warning-color) 0%, #e0a800 100%) !important;
+            background: linear-gradient(135deg, var(--warning-color) 0%, color-mix(in srgb, var(--warning-color) 85%, black) 100%) !important;
             border: none;
-            box-shadow: 0 2px 8px rgba(255, 193, 7, 0.3);
+            box-shadow: 0 2px 8px color-mix(in srgb, var(--warning-color) 30%, transparent);
         }
 
         .progress-bar {
@@ -261,15 +261,15 @@
         }
 
         .progress-bar.bg-success {
-            background: linear-gradient(90deg, #28a745 0%, #20c997 100%);
+            background: linear-gradient(90deg, var(--success-color) 0%, color-mix(in srgb, var(--success-color) 70%, var(--info-color)) 100%);
         }
 
         .progress-bar.bg-warning {
-            background: linear-gradient(90deg, #ffc107 0%, #fd7e14 100%);
+            background: linear-gradient(90deg, var(--warning-color) 0%, color-mix(in srgb, var(--warning-color) 60%, var(--danger-color)) 100%);
         }
 
         .progress-bar.bg-danger {
-            background: linear-gradient(90deg, #dc3545 0%, #e83e8c 100%);
+            background: linear-gradient(90deg, var(--danger-color) 0%, color-mix(in srgb, var(--danger-color) 60%, var(--warning-color)) 100%);
         }
 
         .metric-value.display-number {
@@ -1552,6 +1552,11 @@
     <!-- Chart.js for visualizations (local to avoid CDN tracking prevention) -->
     <script src="{{ url_for('static', filename='vendor/chartjs/chart.min.js') }}"></script>
     <script>
+        // Helper to read CSS custom properties at runtime (for Chart.js and canvas contexts)
+        function getColorVar(varName) {
+            return getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+        }
+
         const initialHealthData = {{ health_data_raw | tojson }} || {};
         const REFRESH_INTERVAL_MS = 30000;
         const numberFormatter = new Intl.NumberFormat();
@@ -3204,7 +3209,7 @@
                     data: {
                         datasets: [{
                             data: [0, 100],
-                            backgroundColor: ['#28a745', '#e9ecef'],
+                            backgroundColor: [getColorVar('--success-color'), getColorVar('--bg-color')],
                             borderWidth: 0,
                             circumference: 180,
                             rotation: 270
@@ -3222,7 +3227,7 @@
                                 text: '0%',
                                 position: 'bottom',
                                 font: { size: 24, weight: 'bold' },
-                                color: '#28a745'
+                                color: getColorVar('--success-color')
                             }
                         }
                     }
@@ -3239,7 +3244,7 @@
                         labels: ['Used', 'Free'],
                         datasets: [{
                             data: [0, 100],
-                            backgroundColor: ['#28a745', '#e9ecef'],
+                            backgroundColor: [getColorVar('--success-color'), getColorVar('--bg-color')],
                             borderWidth: 2,
                             borderColor: '#fff'
                         }]
@@ -3266,7 +3271,7 @@
                                 text: '0%',
                                 position: 'center',
                                 font: { size: 20, weight: 'bold' },
-                                color: '#28a745'
+                                color: getColorVar('--success-color')
                             }
                         }
                     },
@@ -3289,7 +3294,7 @@
                             const textX = Math.round((width - ctx.measureText(text).width) / 2);
                             const textY = height / 2;
 
-                            ctx.fillStyle = dataset.data[0] > 90 ? '#dc3545' : dataset.data[0] > 75 ? '#ffc107' : '#28a745';
+                            ctx.fillStyle = dataset.data[0] > 90 ? getColorVar('--danger-color') : dataset.data[0] > 75 ? getColorVar('--warning-color') : getColorVar('--success-color');
                             ctx.fillText(text, textX, textY);
                             ctx.save();
                         }
@@ -3306,7 +3311,7 @@
                 cpuChart.data.datasets[0].data = [cpuUsage, 100 - cpuUsage];
 
                 // Update color based on usage
-                const cpuColor = cpuUsage > 80 ? '#dc3545' : cpuUsage > 50 ? '#ffc107' : '#28a745';
+                const cpuColor = cpuUsage > 80 ? getColorVar('--danger-color') : cpuUsage > 50 ? getColorVar('--warning-color') : getColorVar('--success-color');
                 cpuChart.data.datasets[0].backgroundColor[0] = cpuColor;
                 cpuChart.options.plugins.title.text = cpuUsage.toFixed(1) + '%';
                 cpuChart.options.plugins.title.color = cpuColor;
@@ -3319,7 +3324,7 @@
                 memoryChart.data.datasets[0].data = [memUsage, 100 - memUsage];
 
                 // Update color based on usage
-                const memColor = memUsage > 90 ? '#dc3545' : memUsage > 75 ? '#ffc107' : '#28a745';
+                const memColor = memUsage > 90 ? getColorVar('--danger-color') : memUsage > 75 ? getColorVar('--warning-color') : getColorVar('--success-color');
                 memoryChart.data.datasets[0].backgroundColor[0] = memColor;
                 memoryChart.update('none');
             }

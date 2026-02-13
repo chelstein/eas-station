@@ -255,17 +255,17 @@
     }
 
     .snow-level-badge.level-1 {
-        background: #ffc107;
+        background: var(--warning-color);
         color: #000;
     }
 
     .snow-level-badge.level-2 {
-        background: #fd7e14;
+        background: var(--warning-color);
         color: #fff;
     }
 
     .snow-level-badge.level-3 {
-        background: #dc3545;
+        background: var(--danger-color);
         color: #fff;
     }
 
@@ -700,7 +700,7 @@
     }
 
     .historical-badge {
-        background: linear-gradient(45deg, #6c757d, #495057);
+        background: linear-gradient(45deg, var(--text-muted), #495057);
         color: #fff;
         font-size: 0.7em;
         padding: 2px 6px;
@@ -745,11 +745,11 @@
         margin: 2px;
     }
 
-    .severity-extreme { background: #dc3545; color: white; }
-    .severity-severe { background: #fd7e14; color: white; }
-    .severity-moderate { background: #ffc107; color: black; }
-    .severity-minor { background: #17a2b8; color: white; }
-    .severity-unknown { background: #6c757d; color: white; }
+    .severity-extreme { background: var(--danger-color); color: white; }
+    .severity-severe { background: var(--warning-color); color: white; }
+    .severity-moderate { background: var(--warning-color); color: black; }
+    .severity-minor { background: var(--info-color); color: white; }
+    .severity-unknown { background: var(--text-muted); color: white; }
 
     @media (max-width: 991px) {
         .sticky-card {
@@ -1071,6 +1071,11 @@
 
 <script>
 console.log('🗺️ Interactive map page initializing...');
+
+// Helper to read CSS custom properties at runtime (for use in JS contexts like Leaflet styling)
+function getColorVar(varName) {
+    return getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+}
 
 // Global map variables
 let map;
@@ -1394,11 +1399,11 @@ function displayHistoricalAlerts(alerts) {
         if (alert.geometry) {
             const alertFeature = L.geoJSON(alert, {
                 style: {
-                    color: '#6c757d',
+                    color: getColorVar('--text-muted'),
                     weight: 2,
                     opacity: 0.6,
                     fillOpacity: 0.1,
-                    fillColor: '#6c757d',
+                    fillColor: getColorVar('--text-muted'),
                     dashArray: '5,5',
                     className: 'alert-expired'
                 },
@@ -1702,12 +1707,12 @@ function createBoundaryPopup(props, type) {
 // Utility functions
 function getSeverityColor(severity) {
     const colors = {
-        'Extreme': '#dc3545',
-        'Severe': '#fd7e14',
-        'Moderate': '#ffc107',
-        'Minor': '#17a2b8'
+        'Extreme': getColorVar('--danger-color'),
+        'Severe': getColorVar('--warning-color'),
+        'Moderate': getColorVar('--warning-color'),
+        'Minor': getColorVar('--info-color')
     };
-    return colors[severity] || '#6c757d';
+    return colors[severity] || getColorVar('--text-muted');
 }
 
 function isAlertExpired(expiresDate) {
@@ -1962,13 +1967,13 @@ async function inspectBoundaries() {
                             padding-bottom: 10px;
                         }
                         .summary {
-                            background: #e9ecef;
+                            background: #e9ecef; /* Should match var(--bg-color) */
                             padding: 20px;
                             border-radius: 8px;
                             margin: 20px 0;
                         }
                         .summary h2 {
-                            color: #28a745;
+                            color: #28a745; /* Should match var(--success-color) */
                             margin-top: 0;
                         }
                         .type-section {
@@ -1979,10 +1984,10 @@ async function inspectBoundaries() {
                         }
                         .type-header {
                             font-weight: bold;
-                            color: #dc3545;
+                            color: #dc3545; /* Should match var(--danger-color) */
                             margin-bottom: 15px;
                             font-size: 1.2em;
-                            border-bottom: 2px solid #dc3545;
+                            border-bottom: 2px solid #dc3545; /* Should match var(--danger-color) */
                             padding-bottom: 5px;
                         }
                         .boundary-item {
@@ -1997,7 +2002,7 @@ async function inspectBoundaries() {
                             color: #007bff;
                         }
                         .boundary-id {
-                            color: #6c757d;
+                            color: #6c757d; /* Should match var(--text-muted) */
                             font-size: 0.9em;
                         }
                         .description {
