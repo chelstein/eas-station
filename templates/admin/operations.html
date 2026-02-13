@@ -3,40 +3,16 @@
 {% block title %}Admin Operations - EAS Station{% endblock %}
 
 {% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">
 <style>
-    .operations-header {
-        background: linear-gradient(135deg, var(--primary-color), var(--primary-soft));
-        color: white;
-        padding: 2rem 0;
-        margin-bottom: 2rem;
-        box-shadow: var(--shadow-lg);
+    .action-btn {
+        min-width: 150px;
     }
 
-    .operation-card {
-        background: var(--surface-color);
-        border-radius: 12px;
-        padding: 1.5rem;
-        box-shadow: var(--shadow-md);
-        margin-bottom: 2rem;
-        border-left: 4px solid var(--primary-color);
-    }
-
-    .operation-card.backup { border-left-color: var(--info-color); }
-    .operation-card.upgrade { border-left-color: var(--warning-color); }
-    .operation-card.database { border-left-color: var(--success-color); }
-
-    .status-badge {
-        padding: 0.5rem 1rem;
-        border-radius: 8px;
-        font-weight: 600;
-        font-size: 0.9rem;
+    .spinner-wrapper {
         display: inline-block;
+        margin-left: 0.5rem;
     }
-
-    .status-running { background: color-mix(in srgb, var(--info-color) 20%, var(--surface-color)); color: var(--info-color); }
-    .status-success { background: color-mix(in srgb, var(--success-color) 20%, var(--surface-color)); color: var(--success-color); }
-    .status-failed { background: color-mix(in srgb, var(--danger-color) 20%, var(--surface-color)); color: var(--danger-color); }
-    .status-idle { background: var(--bg-color); color: var(--text-secondary); }
 
     .stat-item {
         background: var(--bg-color);
@@ -48,45 +24,11 @@
     .stat-item strong {
         color: var(--primary-color);
     }
-
-    .action-btn {
-        min-width: 150px;
-    }
-
-    .output-box {
-        background: var(--bg-color);
-        border: 1px solid var(--border-color);
-        border-radius: 8px;
-        padding: 1rem;
-        max-height: 200px;
-        overflow-y: auto;
-        font-family: monospace;
-        font-size: 0.85rem;
-        white-space: pre-wrap;
-        word-wrap: break-word;
-    }
-
-    .spinner-wrapper {
-        display: inline-block;
-        margin-left: 0.5rem;
-    }
-
-    .health-indicator {
-        width: 12px;
-        height: 12px;
-        border-radius: 50%;
-        display: inline-block;
-        margin-right: 0.5rem;
-    }
-
-    .health-good { background-color: var(--success-color); }
-    .health-warning { background-color: var(--warning-color); }
-    .health-error { background-color: var(--danger-color); }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="operations-header">
+<div class="admin-page-header">
     <div class="container">
         <h1><i class="fas fa-cogs"></i> Admin Operations</h1>
         <p class="mb-0">System maintenance, backups, and database management</p>
@@ -95,7 +37,7 @@
 
 <div class="container">
     <!-- Database Health -->
-    <div class="operation-card database">
+    <div class="admin-accent-card accent-success">
         <div class="d-flex justify-content-between align-items-center mb-3">
             <h4><i class="fas fa-database"></i> Database Health</h4>
             <button class="btn btn-sm btn-outline-primary" onclick="checkDatabaseHealth()">
@@ -121,14 +63,14 @@
     </div>
 
     <!-- Backup Operations -->
-    <div class="operation-card backup">
+    <div class="admin-accent-card accent-info">
         <div class="d-flex justify-content-between align-items-center mb-3">
             <h4><i class="fas fa-save"></i> Backup Operations</h4>
             <div>
                 <a href="/admin/backups" class="btn btn-sm btn-outline-info me-2">
                     <i class="fas fa-database"></i> Manage Backups
                 </a>
-                <span class="status-badge" id="backup-status">Idle</span>
+                <span class="admin-badge admin-badge-muted" id="backup-status">Idle</span>
             </div>
         </div>
 
@@ -164,20 +106,20 @@
             </div>
             <div id="backup-output-container" style="display: none;">
                 <h6 class="mt-3">Output</h6>
-                <div class="output-box" id="backup-output"></div>
+                <div class="admin-output-box" id="backup-output"></div>
             </div>
             <div id="backup-error-container" style="display: none;">
                 <h6 class="mt-3">Error Output</h6>
-                <div class="output-box text-danger" id="backup-error"></div>
+                <div class="admin-output-box text-danger" id="backup-error"></div>
             </div>
         </div>
     </div>
 
     <!-- Upgrade Operations -->
-    <div class="operation-card upgrade">
+    <div class="admin-accent-card accent-warning">
         <div class="d-flex justify-content-between align-items-center mb-3">
             <h4><i class="fas fa-arrow-up"></i> System Upgrade</h4>
-            <span class="status-badge" id="upgrade-status">Idle</span>
+            <span class="admin-badge admin-badge-muted" id="upgrade-status">Idle</span>
         </div>
 
         <div class="alert alert-warning" role="alert">
@@ -226,11 +168,11 @@
             </div>
             <div id="upgrade-output-container" style="display: none;">
                 <h6 class="mt-3">Output</h6>
-                <div class="output-box" id="upgrade-output"></div>
+                <div class="admin-output-box" id="upgrade-output"></div>
             </div>
             <div id="upgrade-error-container" style="display: none;">
                 <h6 class="mt-3">Error Output</h6>
-                <div class="output-box text-danger" id="upgrade-error"></div>
+                <div class="admin-output-box text-danger" id="upgrade-error"></div>
             </div>
         </div>
     </div>
@@ -310,13 +252,15 @@ function updateOperationStatus(operationType, operation) {
     if (!operation) return;
 
     // Update status badge
-    statusEl.className = 'status-badge';
+    const badgeMap = { running: 'admin-badge-info', success: 'admin-badge-success', failed: 'admin-badge-danger', idle: 'admin-badge-muted' };
+    statusEl.className = 'admin-badge';
     if (operation.running) {
-        statusEl.classList.add('status-running');
+        statusEl.classList.add('admin-badge-info');
         statusEl.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Running';
         btnEl.disabled = true;
     } else {
-        statusEl.classList.add(`status-${operation.last_status || 'idle'}`);
+        const badgeClass = badgeMap[operation.last_status] || 'admin-badge-muted';
+        statusEl.classList.add(badgeClass);
         statusEl.textContent = operation.last_status ? operation.last_status.charAt(0).toUpperCase() + operation.last_status.slice(1) : 'Idle';
         btnEl.disabled = false;
     }
@@ -364,12 +308,12 @@ async function checkDatabaseHealth() {
         }
 
         const isHealthy = data.connectivity === 'Connected';
-        const indicator = isHealthy ? 'health-good' : 'health-error';
+        const indicator = isHealthy ? 'dot-success' : 'dot-danger';
 
         container.innerHTML = `
             <div class="col-md-4">
                 <div class="stat-item">
-                    <span class="health-indicator ${indicator}"></span>
+                    <span class="admin-health-dot ${indicator}"></span>
                     <strong>Connectivity:</strong> ${escapeHtml(data.connectivity)}
                 </div>
             </div>

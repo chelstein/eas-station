@@ -3,97 +3,9 @@
 {% block title %}Malicious Login Attempts - EAS Station{% endblock %}
 
 {% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">
 <style>
-    .security-header {
-        background: linear-gradient(135deg, var(--danger-color), color-mix(in srgb, var(--danger-color) 85%, black));
-        color: var(--text-color);
-        padding: 2rem 0;
-        margin-bottom: 2rem;
-        box-shadow: 0 4px 20px var(--shadow-color);
-    }
-
-    .alert-danger-custom {
-        background: color-mix(in srgb, var(--danger-color) 20%, var(--surface-color));
-        border-left: 4px solid var(--danger-color);
-        padding: 1rem;
-        margin-bottom: 1.5rem;
-        border-radius: 4px;
-        color: var(--text-color);
-    }
-
-    .stats-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-        gap: 1.5rem;
-        margin-bottom: 2rem;
-    }
-
-    .stat-card {
-        background: var(--surface-color);
-        border-radius: 12px;
-        padding: 1.5rem;
-        box-shadow: 0 2px 10px var(--shadow-color);
-        border-left: 4px solid var(--danger-color);
-        color: var(--text-color);
-    }
-
-    .stat-value {
-        font-size: 2.5rem;
-        font-weight: bold;
-        color: var(--danger-color);
-        margin: 0.5rem 0;
-    }
-
-    .stat-label {
-        color: var(--text-muted);
-        font-size: 0.9rem;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-    }
-
-    .malicious-table {
-        background: var(--surface-color);
-        border-radius: 12px;
-        box-shadow: 0 2px 10px var(--shadow-color);
-        overflow: hidden;
-        color: var(--text-color);
-    }
-
-    .malicious-badge {
-        padding: 0.35rem 0.75rem;
-        border-radius: 12px;
-        font-size: 0.85rem;
-        font-weight: 600;
-        background: var(--danger-color);
-        color: var(--text-color);
-    }
-
-    .ip-address {
-        font-family: 'Courier New', monospace;
-        font-weight: 600;
-        color: var(--text-color);
-    }
-
-    .attempt-details {
-        font-family: 'Courier New', monospace;
-        font-size: 0.85rem;
-        background: color-mix(in srgb, var(--surface-color) 70%, var(--border-color));
-        color: var(--text-color);
-        padding: 0.5rem;
-        border-radius: 4px;
-        max-height: 80px;
-        overflow-y: auto;
-    }
-
-    .ip-stats-card {
-        background: var(--surface-color);
-        border-radius: 12px;
-        padding: 1.5rem;
-        box-shadow: 0 2px 10px var(--shadow-color);
-        margin-bottom: 2rem;
-        color: var(--text-color);
-    }
-
+    /* Page-specific: IP statistics list items */
     .ip-stat-item {
         display: flex;
         justify-content: space-between;
@@ -106,32 +18,26 @@
         border-bottom: none;
     }
 
-    .badge-count {
-        background: var(--danger-color);
-        color: var(--text-color);
-        padding: 0.25rem 0.75rem;
-        border-radius: 12px;
+    /* Page-specific: danger-themed table header */
+    .admin-table-card thead th {
+        background-color: var(--danger-color) !important;
+        color: var(--text-color) !important;
         font-weight: 600;
+        border-bottom: 2px solid color-mix(in srgb, var(--danger-color) 85%, black);
+        padding: 0.75rem;
     }
 
-    .filter-card {
-        background: var(--surface-color);
-        border-radius: 12px;
-        padding: 1.5rem;
-        box-shadow: 0 2px 10px var(--shadow-color);
-        margin-bottom: 2rem;
-        color: var(--text-color);
+    .admin-table-card tbody tr:hover {
+        background-color: color-mix(in srgb, var(--danger-color) 10%, var(--surface-color));
     }
 
-    .fail2ban-info {
-        background: color-mix(in srgb, var(--warning-color) 20%, var(--surface-color));
-        border-left: 4px solid var(--warning-color);
-        padding: 1rem;
-        margin: 1.5rem 0;
-        border-radius: 4px;
-        color: var(--text-color);
+    /* Page-specific: compact output box for table cells */
+    .admin-output-box-compact {
+        max-height: 80px;
+        padding: 0.5rem;
     }
 
+    /* Page-specific: code block for fail2ban config */
     .code-block {
         background: color-mix(in srgb, var(--bg-color) 85%, black);
         color: var(--text-secondary);
@@ -143,28 +49,11 @@
         margin: 1rem 0;
         border: 1px solid var(--border-color);
     }
-
-    /* Theme-aware table header styling */
-    .malicious-table thead th {
-        background-color: var(--danger-color) !important;
-        color: var(--text-color) !important;
-        font-weight: 600;
-        border-bottom: 2px solid color-mix(in srgb, var(--danger-color) 85%, black);
-        padding: 0.75rem;
-    }
-
-    .malicious-table tbody tr:hover {
-        background-color: color-mix(in srgb, var(--danger-color) 10%, var(--surface-color));
-    }
-
-    .malicious-table tbody td {
-        color: var(--text-color);
-    }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="security-header">
+<div class="admin-page-header header-danger">
     <div class="container">
         <h1><i class="bi bi-shield-exclamation"></i> Malicious Login Attempts</h1>
         <p class="lead mb-0">Monitor and track SQL injection and command injection attempts</p>
@@ -180,25 +69,25 @@
 
     <!-- Statistics -->
     <div class="stats-grid">
-        <div class="stat-card">
+        <div class="admin-stat-card stat-danger">
             <div class="stat-label">Total Attempts</div>
-            <div class="stat-value" id="total-attempts">0</div>
+            <div class="stat-number" id="total-attempts">0</div>
             <small class="text-muted">Last 7 days</small>
         </div>
-        <div class="stat-card">
+        <div class="admin-stat-card stat-danger">
             <div class="stat-label">Unique IPs</div>
-            <div class="stat-value" id="unique-ips">0</div>
+            <div class="stat-number" id="unique-ips">0</div>
             <small class="text-muted">Attacking sources</small>
         </div>
-        <div class="stat-card">
+        <div class="admin-stat-card stat-danger">
             <div class="stat-label">Today</div>
-            <div class="stat-value" id="today-attempts">0</div>
+            <div class="stat-number" id="today-attempts">0</div>
             <small class="text-muted">Attempts in last 24h</small>
         </div>
     </div>
 
     <!-- fail2ban Integration Info -->
-    <div class="fail2ban-info">
+    <div class="admin-warning-box">
         <h5><i class="bi bi-info-circle-fill"></i> fail2ban Integration</h5>
         <p>Malicious login attempts are logged to the security log file for fail2ban to automatically ban attacking IPs.</p>
         <button class="btn btn-sm btn-warning" onclick="showFail2banConfig()">
@@ -207,7 +96,7 @@
     </div>
 
     <!-- IP Filter Management -->
-    <div class="ip-stats-card mb-4">
+    <div class="admin-accent-card accent-danger mb-4">
         <div class="d-flex justify-content-between align-items-center mb-3">
             <h4 class="mb-0"><i class="bi bi-shield-lock"></i> IP Filter Management</h4>
             <div>
@@ -228,7 +117,7 @@
     </div>
 
     <!-- Top Attacking IPs -->
-    <div class="ip-stats-card">
+    <div class="admin-accent-card accent-danger">
         <h4 class="mb-3"><i class="bi bi-globe"></i> Top Attacking IP Addresses</h4>
         <div id="ip-statistics">
             <p class="text-center text-muted">Loading statistics...</p>
@@ -236,7 +125,7 @@
     </div>
 
     <!-- Filters -->
-    <div class="filter-card">
+    <div class="admin-filter-card">
         <h5 class="mb-3">Filters</h5>
         <div class="row">
             <div class="col-md-4">
@@ -266,7 +155,7 @@
     </div>
 
     <!-- Attempts Table -->
-    <div class="malicious-table">
+    <div class="admin-table-card">
         <div class="table-responsive">
             <table class="table table-hover mb-0">
                 <thead>

@@ -3,93 +3,23 @@
 {% block title %}GPIO Statistics - EAS Station{% endblock %}
 
 {% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">
 <style>
-    .stats-header {
-        background: linear-gradient(135deg, var(--success-color), color-mix(in srgb, var(--success-color) 80%, var(--info-color)));
-        color: white;
-        padding: 2rem 0;
-        margin-bottom: 2rem;
-        box-shadow: var(--shadow-lg);
-    }
-
-    .stat-card {
-        background: var(--surface-color);
-        border-radius: 12px;
-        padding: 1.5rem;
-        box-shadow: var(--shadow-md);
-        text-align: center;
-        transition: transform 0.3s ease;
-        height: 100%;
-    }
-
-    .stat-card:hover {
-        transform: translateY(-5px);
-        box-shadow: var(--shadow-lg);
-    }
-
-    .stat-number {
-        font-size: 2.5rem;
-        font-weight: bold;
-        color: var(--primary-color);
-        margin-bottom: 0.5rem;
-    }
-
-    .stat-label {
-        color: var(--text-secondary);
-        font-size: 0.9rem;
-        text-transform: uppercase;
-        letter-spacing: 1px;
-    }
-
-    .chart-container {
-        background: var(--surface-color);
-        border-radius: 12px;
-        padding: 1.5rem;
-        box-shadow: var(--shadow-md);
-        margin-bottom: 2rem;
-    }
-
-    .pin-usage-card {
-        background: var(--surface-color);
-        border-radius: 12px;
-        padding: 1.5rem;
-        box-shadow: var(--shadow-md);
-        margin-bottom: 1rem;
-        border-left: 4px solid var(--primary-color);
-    }
-
-    .usage-bar {
-        height: 8px;
-        background: var(--bg-color);
-        border-radius: 4px;
-        overflow: hidden;
-        margin-top: 0.5rem;
-    }
-
-    .usage-fill {
-        height: 100%;
-        background: linear-gradient(90deg, var(--success-color), color-mix(in srgb, var(--success-color) 80%, var(--info-color)));
-        transition: width 0.3s ease;
-    }
-
-    .activation-type-badge {
-        padding: 0.25rem 0.75rem;
-        border-radius: 12px;
-        font-size: 0.85rem;
+    /* Page-specific: admin-tag on this page needs non-monospace font and bolder weight */
+    .admin-tag {
+        font-family: inherit;
         font-weight: 600;
-        margin: 0.25rem;
-        display: inline-block;
     }
 
-    .type-manual { background: color-mix(in srgb, var(--info-color) 20%, var(--surface-color)); color: var(--info-color); }
-    .type-automatic { background: color-mix(in srgb, var(--success-color) 20%, var(--surface-color)); color: var(--success-color); }
-    .type-test { background: color-mix(in srgb, var(--warning-color) 20%, var(--surface-color)); color: var(--warning-color); }
-    .type-override { background: color-mix(in srgb, var(--danger-color) 20%, var(--surface-color)); color: var(--danger-color); }
+    /* Page-specific: tighter spacing for pin usage cards */
+    .admin-accent-card.pin-usage {
+        margin-bottom: 1rem;
+    }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="stats-header">
+<div class="admin-page-header header-success">
     <div class="container">
         <div class="d-flex justify-content-between align-items-center">
             <div>
@@ -112,19 +42,19 @@
     <!-- Summary Statistics -->
     <div class="row mb-4">
         <div class="col-md-3">
-            <div class="stat-card">
+            <div class="admin-stat-card">
                 <div class="stat-number" id="total-activations">--</div>
                 <div class="stat-label">Total Activations</div>
             </div>
         </div>
         <div class="col-md-3">
-            <div class="stat-card">
+            <div class="admin-stat-card">
                 <div class="stat-number" id="success-rate">--%</div>
                 <div class="stat-label">Success Rate</div>
             </div>
         </div>
         <div class="col-md-3">
-            <div class="stat-card">
+            <div class="admin-stat-card">
                 <div class="stat-number" id="avg-duration">--s</div>
                 <div class="stat-label">Avg Duration</div>
             </div>
