@@ -3,68 +3,8 @@
 {% block title %}Network Configuration - EAS Station{% endblock %}
 
 {% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">
 <style>
-    .settings-container {
-        max-width: 1400px;
-        margin: 0 auto;
-        padding: 2rem;
-    }
-
-    .settings-header {
-        margin-bottom: 2rem;
-    }
-
-    .settings-header h1 {
-        font-size: 2rem;
-        font-weight: 600;
-        margin-bottom: 0.5rem;
-    }
-
-    .settings-header p {
-        color: var(--text-secondary);
-    }
-
-    /* Tab styling */
-    .nav-tabs {
-        border-bottom: 2px solid var(--border-color);
-        margin-bottom: 2rem;
-    }
-
-    .nav-tabs .nav-link {
-        color: var(--text-color);
-        border: none;
-        border-bottom: 3px solid transparent;
-        padding: 0.75rem 1.5rem;
-        transition: all 0.2s;
-    }
-
-    .nav-tabs .nav-link:hover {
-        border-bottom-color: var(--primary-color);
-        background: transparent;
-    }
-
-    .nav-tabs .nav-link.active {
-        color: var(--primary-color);
-        background: transparent;
-        border-bottom-color: var(--primary-color);
-        font-weight: 600;
-    }
-
-    .network-section {
-        background: var(--surface-color);
-        border-radius: 0.5rem;
-        padding: 1.5rem;
-        margin-bottom: 1.5rem;
-        border: 1px solid var(--border-color);
-    }
-
-    .network-section h3 {
-        margin-bottom: 1rem;
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-    }
-
     .network-list {
         list-style: none;
         padding: 0;
@@ -129,11 +69,10 @@
         background: var(--success-color);
     }
 
-    /* Signal strength color coding */
-    .signal-bar.active.signal-poor { background: #dc3545; }      /* Red: 0-25% */
-    .signal-bar.active.signal-fair { background: #fd7e14; }      /* Orange: 26-50% */
-    .signal-bar.active.signal-good { background: #28a745; }      /* Green: 51-75% */
-    .signal-bar.active.signal-excellent { background: #20c997; } /* Teal: 76-100% */
+    .signal-bar.active.signal-poor { background: #dc3545; }
+    .signal-bar.active.signal-fair { background: #fd7e14; }
+    .signal-bar.active.signal-good { background: #28a745; }
+    .signal-bar.active.signal-excellent { background: #20c997; }
 
     .signal-bar:nth-child(1) { height: 6px; }
     .signal-bar:nth-child(2) { height: 10px; }
@@ -278,7 +217,6 @@
         border: 1px solid var(--border-color);
     }
 
-    /* Password strength indicator */
     .password-strength {
         height: 4px;
         background: var(--border-color);
@@ -302,7 +240,6 @@
         margin-top: 0.25rem;
     }
 
-    /* Help icons and tooltips */
     .help-icon {
         display: inline-block;
         width: 16px;
@@ -317,7 +254,6 @@
         margin-left: 0.25rem;
     }
 
-    /* Error message with hint */
     .error-with-hint {
         background: rgba(220, 53, 69, 0.1);
         border: 1px solid rgba(220, 53, 69, 0.3);
@@ -348,8 +284,8 @@
 {% endblock %}
 
 {% block content %}
-<div class="settings-container">
-    <div class="settings-header">
+<div class="admin-container wide">
+    <div class="admin-settings-header">
         <h1><i class="fas fa-network-wired"></i> Network Configuration</h1>
         <p>Professional network management - DASDEC3 compatible</p>
     </div>
@@ -393,7 +329,7 @@
         
         <!-- Status Tab -->
         <div class="tab-pane fade show active" id="status" role="tabpanel">
-            <div class="network-section">
+            <div class="admin-form-section">
                 <h3><i class="fas fa-info-circle"></i> Network Overview</h3>
                 <div id="status-loading">
                     <div class="spinner"></div> Loading network status...
@@ -404,7 +340,7 @@
                 </div>
             </div>
 
-            <div class="network-section">
+            <div class="admin-form-section">
                 <h3><i class="fas fa-desktop"></i> Hostname</h3>
                 <div id="hostname-loading">
                     <div class="spinner"></div> Loading hostname...
@@ -435,7 +371,7 @@
                 </div>
             </div>
 
-            <div class="network-section">
+            <div class="admin-form-section">
                 <h3><i class="fas fa-route"></i> Default Gateway</h3>
                 <div id="gateway-info"></div>
             </div>
@@ -443,7 +379,7 @@
 
         <!-- WiFi Tab -->
         <div class="tab-pane fade" id="wifi" role="tabpanel">
-            <div class="network-section">
+            <div class="admin-form-section">
                 <h3>
                     <i class="fas fa-broadcast-tower"></i> Available WiFi Networks
                     <button class="btn btn-sm btn-primary ms-auto" id="scan-btn">
@@ -464,7 +400,7 @@
 
         <!-- Wired Tab -->
         <div class="tab-pane fade" id="wired" role="tabpanel">
-            <div class="network-section">
+            <div class="admin-form-section">
                 <h3>
                     <i class="fas fa-ethernet"></i> Ethernet Interfaces
                     <button class="btn btn-sm btn-primary ms-auto" id="refresh-interfaces-btn">
@@ -480,7 +416,7 @@
 
         <!-- DNS Tab -->
         <div class="tab-pane fade" id="dns" role="tabpanel">
-            <div class="network-section">
+            <div class="admin-form-section">
                 <h3><i class="fas fa-server"></i> DNS Configuration</h3>
                 <div id="dns-loading">
                     <div class="spinner"></div> Loading DNS configuration...
@@ -517,7 +453,7 @@
 
         <!-- Diagnostics Tab -->
         <div class="tab-pane fade" id="diagnostics" role="tabpanel">
-            <div class="network-section">
+            <div class="admin-form-section">
                 <h3><i class="fas fa-stethoscope"></i> Network Diagnostics</h3>
                 
                 <div class="row mb-4">
@@ -577,7 +513,7 @@
 
         <!-- Connections Tab -->
         <div class="tab-pane fade" id="connections" role="tabpanel">
-            <div class="network-section">
+            <div class="admin-form-section">
                 <h3>
                     <i class="fas fa-list"></i> Saved Connection Profiles
                     <button class="btn btn-sm btn-primary ms-auto" id="refresh-connections-btn">

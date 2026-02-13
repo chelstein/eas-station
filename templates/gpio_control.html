@@ -3,18 +3,19 @@
 {% block title %}GPIO Control Panel - EAS Station{% endblock %}
 
 {% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">
 <style>
-    .gpio-card { border-left: 4px solid #007bff; }
-    .gpio-card.active { border-left-color: #28a745; }
-    .gpio-card.inactive { border-left-color: #6c757d; }
-    .gpio-card.error { border-left-color: #dc3545; }
+    .gpio-card { border-left: 4px solid var(--primary-color); }
+    .gpio-card.active { border-left-color: var(--success-color); }
+    .gpio-card.inactive { border-left-color: var(--text-muted); }
+    .gpio-card.error { border-left-color: var(--danger-color); }
     .activation-timeline { max-height: 400px; overflow-y: auto; }
-    .timeline-item { border-left: 3px solid #e9ecef; padding-left: 1rem; margin-bottom: 1rem; position: relative; }
-    .timeline-item::before { content: ''; position: absolute; left: -7px; width: 11px; height: 11px; border-radius: 50%; background: #007bff; }
-    .timeline-item.success::before { background: #28a745; }
-    .timeline-item.error::before { background: #dc3545; }
-    .timeline-item.warning::before { background: #ffc107; }
-    
+    .timeline-item { border-left: 3px solid var(--border-color); padding-left: 1rem; margin-bottom: 1rem; position: relative; }
+    .timeline-item::before { content: ''; position: absolute; left: -7px; width: 11px; height: 11px; border-radius: 50%; background: var(--primary-color); }
+    .timeline-item.success::before { background: var(--success-color); }
+    .timeline-item.error::before { background: var(--danger-color); }
+    .timeline-item.warning::before { background: var(--warning-color); }
+
     /* LED Status Indicator */
     .status-led {
         display: inline-block;
@@ -26,29 +27,29 @@
         box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.1) inset;
     }
     .status-led.active {
-        background: #28a745;
-        box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.1) inset, 0 0 10px #28a745, 0 0 20px rgba(40, 167, 69, 0.5);
+        background: var(--success-color);
+        box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.1) inset, 0 0 10px var(--success-color), 0 0 20px color-mix(in srgb, var(--success-color) 50%, transparent);
         animation: pulse-green 2s infinite;
     }
     .status-led.inactive {
-        background: #6c757d;
+        background: var(--text-muted);
     }
     .status-led.error {
-        background: #dc3545;
-        box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.1) inset, 0 0 10px #dc3545;
+        background: var(--danger-color);
+        box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.1) inset, 0 0 10px var(--danger-color);
     }
     @keyframes pulse-green {
         0%, 100% { opacity: 1; }
         50% { opacity: 0.7; }
     }
-    
+
     /* Auto-refresh indicator */
     .auto-refresh-indicator {
         display: inline-block;
         width: 8px;
         height: 8px;
         border-radius: 50%;
-        background: #28a745;
+        background: var(--success-color);
         margin-right: 6px;
         animation: blink 2s infinite;
     }

@@ -3,110 +3,10 @@
 {% block title %}Audit Logs - EAS Station{% endblock %}
 
 {% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">
 <style>
-    .audit-header {
-        background: linear-gradient(135deg, #6610f2, #6f42c1);
-        color: white;
-        padding: 2rem 0;
-        margin-bottom: 2rem;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.1);
-    }
-
-    .filter-card {
-        background: var(--surface-color);
-        border-radius: 12px;
-        padding: 1.5rem;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-        margin-bottom: 2rem;
-    }
-
-    .audit-table {
-        background: var(--surface-color);
-        border-radius: 12px;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-    }
-
-    .status-badge {
-        padding: 0.35rem 0.75rem;
-        border-radius: 12px;
-        font-size: 0.85rem;
-        font-weight: 600;
-    }
-
-    .status-success {
-        background: #d4edda;
-        color: #155724;
-    }
-
-    .status-failure {
-        background: #f8d7da;
-        color: #721c24;
-    }
-
-    .action-badge {
-        padding: 0.35rem 0.75rem;
-        border-radius: 12px;
-        font-size: 0.85rem;
-        font-weight: 600;
-        background: #e7f1ff;
-        color: #004085;
-    }
-
-    .log-details {
-        font-family: 'Courier New', monospace;
-        font-size: 0.85rem;
-        background: #f8f9fa;
-        padding: 0.5rem;
-        border-radius: 4px;
-        max-height: 100px;
-        overflow-y: auto;
-    }
-
-    .pagination-container {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 1rem;
-        background: #f8f9fa;
-        border-top: 1px solid #dee2e6;
-    }
-
     .stats-row {
         margin-bottom: 2rem;
-    }
-
-    .stats-row .stat-card {
-        background: var(--surface-color) !important;
-        border-radius: 12px;
-        padding: 1.5rem;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-        text-align: center;
-        transition: transform 0.3s ease;
-        /* Override global stat-card gradient styles */
-        color: var(--text-color);
-    }
-
-    .stats-row .stat-card::before,
-    .stats-row .stat-card::after {
-        display: none !important;
-    }
-
-    .stats-row .stat-card:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-    }
-
-    .stats-row .stat-number {
-        font-size: 2.5rem;
-        font-weight: bold;
-        color: #204885;
-    }
-
-    .stats-row .stat-label {
-        color: #6c757d;
-        font-size: 0.9rem;
-        text-transform: uppercase;
-        letter-spacing: 1px;
     }
 
     .export-buttons {
@@ -117,7 +17,7 @@
 {% endblock %}
 
 {% block content %}
-<div class="audit-header">
+<div class="admin-page-header header-purple">
     <div class="container">
         <h1><i class="fas fa-clipboard-list"></i> Audit Logs</h1>
         <p class="mb-0">Security audit trail and event logging</p>
@@ -128,25 +28,25 @@
     <!-- Statistics Row -->
     <div class="row stats-row">
         <div class="col-md-3">
-            <div class="stat-card">
+            <div class="admin-stat-card">
                 <div class="stat-number" id="total-logs-count">--</div>
                 <div class="stat-label">Total Logs</div>
             </div>
         </div>
         <div class="col-md-3">
-            <div class="stat-card">
+            <div class="admin-stat-card stat-success">
                 <div class="stat-number text-success" id="success-logs-count">--</div>
                 <div class="stat-label">Successful</div>
             </div>
         </div>
         <div class="col-md-3">
-            <div class="stat-card">
+            <div class="admin-stat-card stat-danger">
                 <div class="stat-number text-danger" id="failure-logs-count">--</div>
                 <div class="stat-label">Failed</div>
             </div>
         </div>
         <div class="col-md-3">
-            <div class="stat-card">
+            <div class="admin-stat-card stat-info">
                 <div class="stat-number text-info" id="today-logs-count">--</div>
                 <div class="stat-label">Today</div>
             </div>
@@ -154,7 +54,7 @@
     </div>
 
     <!-- Filters -->
-    <div class="filter-card">
+    <div class="admin-filter-card">
         <h5 class="mb-3"><i class="fas fa-filter"></i> Filters</h5>
         <div class="row g-3">
             <div class="col-md-3">
@@ -222,7 +122,7 @@
     </div>
 
     <!-- Audit Logs Table -->
-    <div class="audit-table">
+    <div class="admin-table-card">
         <div class="table-responsive">
             <table class="table table-hover mb-0">
                 <thead class="table-light">
@@ -248,7 +148,7 @@
                 </tbody>
             </table>
         </div>
-        <div class="pagination-container" id="pagination-container">
+        <div class="admin-pagination" id="pagination-container">
             <div id="pagination-info">Loading...</div>
             <nav aria-label="Audit log pagination">
                 <ul class="pagination mb-0" id="pagination-controls"></ul>
@@ -334,7 +234,7 @@ function renderLogs(logs) {
 
     tbody.innerHTML = logs.map(log => {
         const timestamp = new Date(log.timestamp).toLocaleString();
-        const statusClass = log.success ? 'status-success' : 'status-failure';
+        const statusClass = log.success ? 'admin-badge-success' : 'admin-badge-danger';
         const statusIcon = log.success ? 'fa-check-circle' : 'fa-times-circle';
         const statusText = log.success ? 'Success' : 'Failed';
 
@@ -351,7 +251,7 @@ function renderLogs(logs) {
                         '<em class="text-muted">System</em>'
                     }
                 </td>
-                <td><span class="action-badge">${log.action}</span></td>
+                <td><span class="admin-badge admin-badge-primary">${log.action}</span></td>
                 <td>
                     ${log.resource_type ?
                         `${log.resource_type}${log.resource_id ? `:${log.resource_id}` : ''}` :
@@ -360,7 +260,7 @@ function renderLogs(logs) {
                 </td>
                 <td><small>${log.ip_address || '<em class="text-muted">—</em>'}</small></td>
                 <td>
-                    <span class="status-badge ${statusClass}">
+                    <span class="admin-badge ${statusClass}">
                         <i class="fas ${statusIcon}"></i> ${statusText}
                     </span>
                 </td>
@@ -433,7 +333,7 @@ function showLogDetails(logId) {
         </tr>
         <tr>
             <th>Action:</th>
-            <td><span class="action-badge">${log.action}</span></td>
+            <td><span class="admin-badge admin-badge-primary">${log.action}</span></td>
         </tr>
         <tr>
             <th>Resource:</th>
@@ -450,7 +350,7 @@ function showLogDetails(logId) {
         <tr>
             <th>Status:</th>
             <td>
-                <span class="status-badge ${log.success ? 'status-success' : 'status-failure'}">
+                <span class="admin-badge ${log.success ? 'admin-badge-success' : 'admin-badge-danger'}">
                     <i class="fas ${log.success ? 'fa-check-circle' : 'fa-times-circle'}"></i>
                     ${log.success ? 'Success' : 'Failed'}
                 </span>
@@ -462,7 +362,7 @@ function showLogDetails(logId) {
     if (log.details) {
         jsonContainer.innerHTML = `
             <h6>Details:</h6>
-            <pre class="log-details">${JSON.stringify(log.details, null, 2)}</pre>
+            <pre class="admin-output-box">${JSON.stringify(log.details, null, 2)}</pre>
         `;
     } else {
         jsonContainer.innerHTML = '';

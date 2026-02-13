@@ -3,83 +3,20 @@
 {% block title %}Intersection Management - EAS Station{% endblock %}
 
 {% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">
 <style>
-    .intersections-header {
-        background: linear-gradient(135deg, var(--secondary-color), var(--secondary-dark));
-        color: white;
-        padding: 2rem 0;
-        margin-bottom: 2rem;
-        box-shadow: var(--shadow-lg);
-    }
+    /* Page-specific: show/hide logic for result boxes */
+    .result-box { display: none; }
+    .result-box.show { display: block; }
 
-    .operation-card {
-        background: var(--surface-color);
-        border-radius: 12px;
-        padding: 1.5rem;
-        box-shadow: var(--shadow-md);
-        margin-bottom: 2rem;
-        border-left: 4px solid var(--secondary-color);
-    }
-
-    .operation-card h5 {
-        color: var(--secondary-color);
-        margin-bottom: 1rem;
+    .alert-search-box {
+        max-width: 600px;
     }
 
     .operation-description {
         color: var(--text-secondary);
         margin-bottom: 1rem;
         font-size: 0.95rem;
-    }
-
-    .result-box {
-        background: var(--bg-color);
-        border: 1px solid var(--border-color);
-        border-radius: 8px;
-        padding: 1rem;
-        margin-top: 1rem;
-        display: none;
-    }
-
-    .result-box.show {
-        display: block;
-    }
-
-    .stat-badge {
-        background: color-mix(in srgb, var(--info-color) 20%, var(--surface-color));
-        color: var(--info-color);
-        padding: 0.5rem 1rem;
-        border-radius: 8px;
-        display: inline-block;
-        margin: 0.25rem;
-        font-weight: 600;
-    }
-
-    .alert-search-box {
-        max-width: 600px;
-    }
-
-    .info-box {
-        background: color-mix(in srgb, var(--info-color) 15%, var(--surface-color));
-        border-left: 4px solid var(--info-color);
-        padding: 1rem;
-        margin-bottom: 1rem;
-        border-radius: 4px;
-    }
-
-    .warning-box {
-        background: color-mix(in srgb, var(--warning-color) 15%, var(--surface-color));
-        border-left: 4px solid var(--warning-color);
-        padding: 1rem;
-        margin-bottom: 1rem;
-        border-radius: 4px;
-    }
-
-    .stats-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-        gap: 1rem;
-        margin-top: 1rem;
     }
 
     .stat-item {
@@ -104,7 +41,7 @@
 {% endblock %}
 
 {% block content %}
-<div class="intersections-header">
+<div class="admin-page-header header-secondary">
     <div class="container">
         <h1><i class="fas fa-project-diagram"></i> Intersection Management</h1>
         <p class="mb-0">Manage and recalculate alert-boundary intersections</p>
@@ -113,7 +50,7 @@
 
 <div class="container">
     <!-- Info Box -->
-    <div class="info-box">
+    <div class="admin-info-box">
         <h6><i class="fas fa-info-circle"></i> About Intersections</h6>
         <p class="mb-0">
             Intersections determine which geographic boundaries (counties, forecast zones) are affected by each alert.
@@ -123,7 +60,7 @@
     </div>
 
     <!-- Quick Stats -->
-    <div class="operation-card">
+    <div class="admin-accent-card accent-secondary">
         <h5><i class="fas fa-chart-bar"></i> Current Statistics</h5>
         <div class="stats-grid" id="stats-container">
             <div class="stat-item">
@@ -151,7 +88,7 @@
     </div>
 
     <!-- Fix County Intersections -->
-    <div class="operation-card">
+    <div class="admin-accent-card accent-secondary">
         <h5><i class="fas fa-wrench"></i> Fix County Intersections</h5>
         <p class="operation-description">
             Recalculate intersection areas for all <strong>active</strong> alerts. Use this when intersection
@@ -160,13 +97,13 @@
         <button class="btn btn-primary" onclick="fixCountyIntersections()" id="fix-county-btn">
             <i class="fas fa-tools"></i> Fix County Intersections
         </button>
-        <div class="result-box" id="fix-county-result"></div>
+        <div class="admin-output-box result-box" id="fix-county-result"></div>
     </div>
 
     <!-- Recalculate All Intersections -->
-    <div class="operation-card">
+    <div class="admin-accent-card accent-secondary">
         <h5><i class="fas fa-sync"></i> Recalculate All Intersections</h5>
-        <div class="warning-box">
+        <div class="admin-warning-box">
             <i class="fas fa-exclamation-triangle"></i> <strong>Warning:</strong>
             This will delete ALL existing intersections and recalculate them from scratch.
             This operation may take several minutes for large databases.
@@ -178,11 +115,11 @@
         <button class="btn btn-warning" onclick="recalculateAllIntersections()" id="recalc-all-btn">
             <i class="fas fa-redo"></i> Recalculate All Intersections
         </button>
-        <div class="result-box" id="recalc-all-result"></div>
+        <div class="admin-output-box result-box" id="recalc-all-result"></div>
     </div>
 
     <!-- Calculate for Specific Alert -->
-    <div class="operation-card">
+    <div class="admin-accent-card accent-secondary">
         <h5><i class="fas fa-crosshairs"></i> Calculate for Specific Alert</h5>
         <p class="operation-description">
             Calculate or recalculate intersections for a single alert by ID. Use this to fix individual
@@ -197,13 +134,13 @@
                 </button>
             </div>
         </div>
-        <div class="result-box" id="specific-alert-result"></div>
+        <div class="admin-output-box result-box" id="specific-alert-result"></div>
     </div>
 
     <!-- Calculate All (Background) -->
-    <div class="operation-card">
+    <div class="admin-accent-card accent-secondary">
         <h5><i class="fas fa-cogs"></i> Calculate All Intersections (Batch)</h5>
-        <div class="warning-box">
+        <div class="admin-warning-box">
             <i class="fas fa-exclamation-triangle"></i> <strong>Warning:</strong>
             This operation processes every alert with geometry and may take a very long time.
             It commits in batches to avoid memory issues.
@@ -215,7 +152,7 @@
         <button class="btn btn-info" onclick="calculateAllIntersections()" id="calc-all-btn">
             <i class="fas fa-play"></i> Calculate All (Batch)
         </button>
-        <div class="result-box" id="calc-all-result"></div>
+        <div class="admin-output-box result-box" id="calc-all-result"></div>
     </div>
 </div>
 
@@ -267,7 +204,7 @@ async function fixCountyIntersections() {
 
     btn.disabled = true;
     btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span> Processing...';
-    resultDiv.className = 'result-box';
+    resultDiv.className = 'admin-output-box result-box';
     resultDiv.style.display = 'none';
 
     try {
@@ -286,8 +223,8 @@ async function fixCountyIntersections() {
                     <strong><i class="fas fa-check-circle"></i> Success!</strong> ${escapeHtml(data.success)}
                 </div>
                 <div class="mt-2">
-                    <span class="stat-badge">Alerts Processed: ${data.alerts_processed}</span>
-                    <span class="stat-badge">Intersections Updated: ${data.intersections_updated}</span>
+                    <span class="admin-badge admin-badge-info">Alerts Processed: ${data.alerts_processed}</span>
+                    <span class="admin-badge admin-badge-info">Intersections Updated: ${data.intersections_updated}</span>
                 </div>
             `;
             loadStats();
@@ -318,7 +255,7 @@ async function recalculateAllIntersections() {
 
     btn.disabled = true;
     btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span> Recalculating...';
-    resultDiv.className = 'result-box';
+    resultDiv.className = 'admin-output-box result-box';
     resultDiv.style.display = 'none';
 
     try {
@@ -337,10 +274,10 @@ async function recalculateAllIntersections() {
                     <strong><i class="fas fa-check-circle"></i> Success!</strong> ${escapeHtml(data.success)}
                 </div>
                 <div class="mt-2">
-                    <span class="stat-badge">Alerts Processed: ${data.stats.alerts_processed}</span>
-                    <span class="stat-badge">Intersections Created: ${data.stats.intersections_created}</span>
-                    <span class="stat-badge">Deleted: ${data.stats.deleted_intersections}</span>
-                    ${data.stats.errors > 0 ? '<span class="stat-badge" style="background: color-mix(in srgb, var(--warning-color) 20%, var(--surface-color)); color: var(--warning-color);">Errors: ' + data.stats.errors + '</span>' : ''}
+                    <span class="admin-badge admin-badge-info">Alerts Processed: ${data.stats.alerts_processed}</span>
+                    <span class="admin-badge admin-badge-info">Intersections Created: ${data.stats.intersections_created}</span>
+                    <span class="admin-badge admin-badge-info">Deleted: ${data.stats.deleted_intersections}</span>
+                    ${data.stats.errors > 0 ? '<span class="admin-badge admin-badge-warning">Errors: ' + data.stats.errors + '</span>' : ''}
                 </div>
             `;
             loadStats();
@@ -370,7 +307,7 @@ async function calculateSpecificAlert() {
         return;
     }
 
-    resultDiv.className = 'result-box';
+    resultDiv.className = 'admin-output-box result-box';
     resultDiv.style.display = 'none';
 
     try {
@@ -389,10 +326,10 @@ async function calculateSpecificAlert() {
                     <strong><i class="fas fa-check-circle"></i> Success!</strong> ${escapeHtml(data.success)}
                 </div>
                 <div class="mt-2">
-                    <span class="stat-badge">Event: ${escapeHtml(data.alert_event)}</span>
-                    <span class="stat-badge">Intersections Created: ${data.intersections_created}</span>
-                    <span class="stat-badge">With Area: ${data.intersections_with_area}</span>
-                    <span class="stat-badge">Boundaries Checked: ${data.boundaries_checked}</span>
+                    <span class="admin-badge admin-badge-info">Event: ${escapeHtml(data.alert_event)}</span>
+                    <span class="admin-badge admin-badge-info">Intersections Created: ${data.intersections_created}</span>
+                    <span class="admin-badge admin-badge-info">With Area: ${data.intersections_with_area}</span>
+                    <span class="admin-badge admin-badge-info">Boundaries Checked: ${data.boundaries_checked}</span>
                 </div>
             `;
             loadStats();
@@ -420,7 +357,7 @@ async function calculateAllIntersections() {
 
     btn.disabled = true;
     btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span> Processing...';
-    resultDiv.className = 'result-box';
+    resultDiv.className = 'admin-output-box result-box';
     resultDiv.style.display = 'none';
 
     try {
@@ -439,8 +376,8 @@ async function calculateAllIntersections() {
                     <strong><i class="fas fa-check-circle"></i> Success!</strong> ${escapeHtml(data.success)}
                 </div>
                 <div class="mt-2">
-                    <span class="stat-badge">Alerts Processed: ${data.alerts_processed}</span>
-                    <span class="stat-badge">Intersections Created: ${data.total_intersections_created}</span>
+                    <span class="admin-badge admin-badge-info">Alerts Processed: ${data.alerts_processed}</span>
+                    <span class="admin-badge admin-badge-info">Intersections Created: ${data.total_intersections_created}</span>
                 </div>
             `;
             loadStats();

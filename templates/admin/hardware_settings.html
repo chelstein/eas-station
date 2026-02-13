@@ -2,500 +2,416 @@
 
 {% block title %}Hardware Settings - Admin{% endblock %}
 
-{% block extra_head %}
-<style>
-    .hw-container {
-        max-width: 960px;
-        margin: 0 auto;
-        padding: 0 1rem 2rem;
-    }
-
-    /* ── Page header ─────────────────────────────────────────── */
-    .hw-header {
-        background: linear-gradient(135deg, var(--primary-color, #6366f1), #4f46e5);
-        color: #fff;
-        padding: 1.25rem 1.5rem;
-        border-radius: var(--radius-lg, 0.75rem);
-        margin-bottom: 1rem;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        flex-wrap: wrap;
-        gap: 0.75rem;
-    }
-    .hw-header h1 { color: #fff; margin: 0; font-size: 1.5rem; }
-    .hw-header p  { color: rgba(255,255,255,.8); margin: .25rem 0 0; font-size: .9rem; }
-    .hw-header .btn-restart {
-        background: rgba(255,255,255,.18);
-        color: #fff;
-        border: 1px solid rgba(255,255,255,.3);
-        padding: .4rem .9rem;
-        border-radius: var(--radius-md, .5rem);
-        cursor: pointer;
-        font-weight: 500;
-        font-size: .85rem;
-        transition: background .15s;
-        white-space: nowrap;
-    }
-    .hw-header .btn-restart:hover { background: rgba(255,255,255,.3); }
-
-    /* ── Tab bar ──────────────────────────────────────────────── */
-    .hw-tabs {
-        display: flex;
-        gap: 2px;
-        margin-bottom: 0;
-        overflow-x: auto;
-        -webkit-overflow-scrolling: touch;
-    }
-    .hw-tabs button {
-        flex: 0 0 auto;
-        padding: .65rem 1.1rem;
-        background: var(--bg-color, #f8f9fa);
-        border: 1px solid var(--border-color, #dee2e6);
-        border-bottom: none;
-        border-radius: var(--radius-sm, .375rem) var(--radius-sm, .375rem) 0 0;
-        cursor: pointer;
-        font-weight: 500;
-        font-size: .875rem;
-        color: var(--text-secondary, #6c757d);
-        transition: color .15s, background .15s;
-        white-space: nowrap;
-        line-height: 1.4;
-    }
-    .hw-tabs button i { margin-right: .4rem; }
-    .hw-tabs button:hover {
-        background: var(--surface-color, #fff);
-        color: var(--text-color, #212529);
-    }
-    .hw-tabs button.active {
-        background: var(--surface-color, #fff);
-        color: var(--primary-color, #6366f1);
-        border-bottom: 2px solid var(--surface-color, #fff);
-        margin-bottom: -1px;
-        position: relative;
-        z-index: 1;
-    }
-
-    /* ── Tab panels ──────────────────────────────────────────── */
-    .hw-panel {
-        display: none !important;          /* Bootstrap-proof */
-        padding: 1.25rem;
-        background: var(--surface-color, #fff);
-        border: 1px solid var(--border-color, #dee2e6);
-        border-radius: 0 0 var(--radius-md, .5rem) var(--radius-md, .5rem);
-    }
-    .hw-panel.active {
-        display: block !important;
-    }
-
-    /* ── Form cards inside panels ────────────────────────────── */
-    .hw-card {
-        margin-bottom: 1rem;
-        padding: 1.25rem;
-        border: 1px solid var(--border-color, #dee2e6);
-        border-radius: var(--radius-md, .5rem);
-        background: var(--bg-color, #f8f9fa);
-    }
-    .hw-card:last-child { margin-bottom: 0; }
-    .hw-card h3 {
-        margin: 0 0 1rem;
-        padding-bottom: .6rem;
-        border-bottom: 2px solid var(--primary-color, #6366f1);
-        font-size: 1rem;
-        font-weight: 600;
-        color: var(--text-color, #212529);
-    }
-    .hw-card .row { margin-bottom: 0; }
-    .hw-card .row > [class*="col-"] { margin-bottom: .75rem; }
-
-    /* ── Utility ─────────────────────────────────────────────── */
-    .hw-notice {
-        padding: .65rem 1rem;
-        border-radius: var(--radius-md, .5rem);
-        margin-bottom: 1rem;
-        font-size: .85rem;
-        color: var(--text-color, #212529);
-    }
-    .hw-notice-info {
-        background: var(--info-bg, rgba(59,130,246,.08));
-        border: 1px solid var(--info-color, #3b82f6);
-    }
-    .hw-notice-warn {
-        background: var(--warning-bg, rgba(255,193,7,.08));
-        border: 1px solid var(--warning-color, #ffc107);
-    }
-    .hw-actions {
-        margin-top: 1.25rem;
-        padding: 1rem 1.25rem;
-        background: var(--bg-color, #f8f9fa);
-        border: 1px solid var(--border-color, #dee2e6);
-        border-radius: var(--radius-md, .5rem);
-        display: flex;
-        gap: .75rem;
-    }
-
-    .form-label { font-weight: 500; font-size: .875rem; }
-    .form-text  { font-size: .8rem; }
-
-    @media (max-width: 768px) {
-        .hw-container { padding: 0 .5rem 1.5rem; }
-        .hw-tabs button { padding: .5rem .75rem; font-size: .8rem; }
-        .hw-panel { padding: 1rem; }
-        .hw-card  { padding: 1rem; }
-        .hw-header { padding: 1rem; }
-        .hw-header h1 { font-size: 1.25rem; }
-    }
-</style>
+{% block extra_css %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">
+    <style>
+        /* Panel visibility for custom tab JS (Bootstrap-proof) */
+        .hw-panel { display: none !important; }
+        .hw-panel.active { display: block !important; }
+    </style>
 {% endblock %}
 
 {% block content %}
-<div class="hw-container mt-4">
-
-    <div class="hw-header">
+<div class="container-fluid">
+    <!-- Page Header -->
+    <div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-3">
         <div>
-            <h1><i class="fas fa-cogs"></i> Hardware Settings</h1>
-            <p>Configure GPIO, displays, and other hardware peripherals</p>
+            <h1 class="mb-1"><i class="fas fa-cogs"></i> Hardware Settings</h1>
+            <p class="mb-0 opacity-75">Configure GPIO, displays, and other hardware peripherals</p>
         </div>
-        <button class="btn-restart" type="button" onclick="restartServices()">
+        <button class="btn btn-light btn-sm" type="button" onclick="restartServices()">
             <i class="fas fa-sync-alt"></i> Restart Services
         </button>
     </div>
 
-    <div class="hw-notice hw-notice-info">
+    <div class="alert alert-info">
         <i class="fas fa-info-circle"></i>
         Settings are saved to the database. After saving, restart services for changes to take effect.
     </div>
 
-    <!-- Tab bar -->
-    <div class="hw-tabs" role="tablist">
-        <button type="button" class="active" data-tab="gpio"><i class="fas fa-microchip"></i>GPIO / Relays</button>
-        <button type="button" data-tab="oled"><i class="fas fa-tv"></i>OLED Display</button>
-        <button type="button" data-tab="led"><i class="fas fa-sign"></i>LED Sign</button>
-        <button type="button" data-tab="vfd"><i class="fas fa-desktop"></i>VFD Display</button>
-        <button type="button" data-tab="zigbee"><i class="fas fa-broadcast-tower"></i>Zigbee</button>
-    </div>
-
-    <form id="hardwareForm" method="POST" action="{{ url_for('hardware.update_hardware') }}">
-
-        <!-- ═══════════════ GPIO ═══════════════ -->
-        <div id="panel-gpio" class="hw-panel active">
-            <div class="hw-card">
-                <h3><i class="fas fa-power-off me-1"></i> GPIO Control</h3>
-                <div class="form-check mb-2">
-                    <input class="form-check-input" type="checkbox" id="gpio_enabled" name="gpio_enabled" value="true" {% if settings.gpio_enabled %}checked{% endif %}>
-                    <label class="form-check-label" for="gpio_enabled">Enable GPIO Control</label>
-                </div>
-                <p class="text-muted mb-0" style="font-size:.85rem">
-                    When enabled, GPIO pins can trigger external equipment like transmitters, sirens, and lights.
-                </p>
-            </div>
-
-            {% if settings.oled_enabled %}
-            <div class="hw-notice hw-notice-warn">
-                <strong>OLED Reserved Pins:</strong>
-                GPIO {{ reserved_gpio_pins|join(', ') }} (BCM) are reserved for the OLED display.
-            </div>
-            {% endif %}
-
-            <div class="hw-card">
-                <h3><i class="fas fa-map me-1"></i> Pin Configuration</h3>
-                <p class="text-muted mb-3" style="font-size:.85rem">
-                    Configure individual GPIO pins and assign alert behaviors using the dedicated pages.
-                </p>
-                <div class="d-flex gap-2 flex-wrap">
-                    <a href="/admin/gpio/pin-map" class="btn btn-sm btn-primary">
-                        <i class="fas fa-map"></i> GPIO Pin Map
-                    </a>
-                    <a href="/admin/gpio" class="btn btn-sm btn-outline-primary">
-                        <i class="fas fa-microchip"></i> Control Panel
-                    </a>
-                    <a href="/admin/gpio/statistics" class="btn btn-sm btn-outline-secondary">
-                        <i class="fas fa-chart-pie"></i> Statistics
-                    </a>
-                </div>
-            </div>
+    <!-- Main Settings Card -->
+    <div class="card shadow-sm">
+        <div class="card-header p-0 border-0">
+            <ul class="nav nav-tabs hw-tabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button type="button" class="nav-link active" data-tab="gpio"><i class="fas fa-microchip"></i> GPIO / Relays</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button type="button" class="nav-link" data-tab="oled"><i class="fas fa-tv"></i> OLED Display</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button type="button" class="nav-link" data-tab="led"><i class="fas fa-sign"></i> LED Sign</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button type="button" class="nav-link" data-tab="vfd"><i class="fas fa-desktop"></i> VFD Display</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button type="button" class="nav-link" data-tab="zigbee"><i class="fas fa-broadcast-tower"></i> Zigbee</button>
+                </li>
+            </ul>
         </div>
+        <div class="card-body">
+            <form id="hardwareForm" method="POST" action="{{ url_for('hardware.update_hardware') }}">
 
-        <!-- ═══════════════ OLED ═══════════════ -->
-        <div id="panel-oled" class="hw-panel">
-            <div class="hw-card">
-                <h3><i class="fas fa-tv me-1"></i> OLED Display (SSD1306)</h3>
-                <div class="form-check">
-                    <input class="form-check-input" type="checkbox" id="oled_enabled" name="oled_enabled" value="true" {% if settings.oled_enabled %}checked{% endif %}>
-                    <label class="form-check-label" for="oled_enabled">Enable OLED Display (128x64)</label>
-                </div>
-            </div>
+                <!-- GPIO Panel -->
+                <div id="panel-gpio" class="hw-panel active">
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <h5 class="card-title"><i class="fas fa-power-off me-1"></i> GPIO Control</h5>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" id="gpio_enabled" name="gpio_enabled" value="true" {% if settings.gpio_enabled %}checked{% endif %}>
+                                <label class="form-check-label" for="gpio_enabled">Enable GPIO Control</label>
+                            </div>
+                            <p class="text-muted small mb-0">
+                                When enabled, GPIO pins can trigger external equipment like transmitters, sirens, and lights.
+                            </p>
+                        </div>
+                    </div>
 
-            <div class="hw-card">
-                <h3>I2C Configuration</h3>
-                <div class="row">
-                    <div class="col-md-6">
-                        <label for="oled_i2c_bus" class="form-label">I2C Bus</label>
-                        <input type="number" class="form-control form-control-sm" id="oled_i2c_bus" name="oled_i2c_bus" value="{{ settings.oled_i2c_bus }}" min="0" max="10">
+                    {% if settings.oled_enabled %}
+                    <div class="alert alert-warning">
+                        <strong>OLED Reserved Pins:</strong>
+                        GPIO {{ reserved_gpio_pins|join(', ') }} (BCM) are reserved for the OLED display.
                     </div>
-                    <div class="col-md-6">
-                        <label for="oled_i2c_address" class="form-label">I2C Address (hex)</label>
-                        <input type="text" class="form-control form-control-sm font-monospace" id="oled_i2c_address" name="oled_i2c_address" value="0x{{ '%02x' % settings.oled_i2c_address }}" placeholder="0x3C">
-                    </div>
-                </div>
-            </div>
+                    {% endif %}
 
-            <div class="hw-card">
-                <h3>Display Settings</h3>
-                <div class="row">
-                    <div class="col-md-3">
-                        <label for="oled_width" class="form-label">Width (px)</label>
-                        <input type="number" class="form-control form-control-sm" id="oled_width" name="oled_width" value="{{ settings.oled_width }}" min="16" max="256">
-                    </div>
-                    <div class="col-md-3">
-                        <label for="oled_height" class="form-label">Height (px)</label>
-                        <input type="number" class="form-control form-control-sm" id="oled_height" name="oled_height" value="{{ settings.oled_height }}" min="16" max="128">
-                    </div>
-                    <div class="col-md-3">
-                        <label for="oled_rotate" class="form-label">Rotation</label>
-                        <select class="form-select form-select-sm" id="oled_rotate" name="oled_rotate">
-                            <option value="0" {% if settings.oled_rotate == 0 %}selected{% endif %}>0&deg;</option>
-                            <option value="1" {% if settings.oled_rotate == 1 %}selected{% endif %}>90&deg;</option>
-                            <option value="2" {% if settings.oled_rotate == 2 %}selected{% endif %}>180&deg;</option>
-                            <option value="3" {% if settings.oled_rotate == 3 %}selected{% endif %}>270&deg;</option>
-                        </select>
-                    </div>
-                    <div class="col-md-3">
-                        <label for="oled_contrast" class="form-label">Contrast</label>
-                        <input type="number" class="form-control form-control-sm" id="oled_contrast" name="oled_contrast" value="{{ settings.oled_contrast if settings.oled_contrast is not none else '' }}" min="0" max="255" placeholder="Auto">
-                    </div>
-                </div>
-            </div>
-
-            <div class="hw-card">
-                <h3>Front Panel Button</h3>
-                <div class="row">
-                    <div class="col-md-4">
-                        <label for="oled_button_gpio" class="form-label">GPIO Pin (BCM)</label>
-                        <input type="number" class="form-control form-control-sm" id="oled_button_gpio" name="oled_button_gpio" value="{{ settings.oled_button_gpio }}" min="2" max="27">
-                    </div>
-                    <div class="col-md-4">
-                        <label for="oled_button_hold_seconds" class="form-label">Hold Time (sec)</label>
-                        <input type="number" step="0.01" class="form-control form-control-sm" id="oled_button_hold_seconds" name="oled_button_hold_seconds" value="{{ settings.oled_button_hold_seconds }}">
-                    </div>
-                    <div class="col-md-4 d-flex align-items-end pb-2">
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" id="oled_button_active_high" name="oled_button_active_high" value="true" {% if settings.oled_button_active_high %}checked{% endif %}>
-                            <label class="form-check-label" for="oled_button_active_high">Active High</label>
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <h5 class="card-title"><i class="fas fa-map me-1"></i> Pin Configuration</h5>
+                            <p class="text-muted small mb-3">
+                                Configure individual GPIO pins and assign alert behaviors using the dedicated pages.
+                            </p>
+                            <div class="d-flex gap-2 flex-wrap">
+                                <a href="/admin/gpio/pin-map" class="btn btn-sm btn-primary">
+                                    <i class="fas fa-map"></i> GPIO Pin Map
+                                </a>
+                                <a href="/admin/gpio" class="btn btn-sm btn-outline-primary">
+                                    <i class="fas fa-microchip"></i> Control Panel
+                                </a>
+                                <a href="/admin/gpio/statistics" class="btn btn-sm btn-outline-secondary">
+                                    <i class="fas fa-chart-pie"></i> Statistics
+                                </a>
+                            </div>
                         </div>
                     </div>
                 </div>
-            </div>
 
-            <div class="hw-card">
-                <h3>Scroll Animation</h3>
-                <div class="row">
-                    <div class="col-md-4">
-                        <label for="oled_scroll_effect" class="form-label">Effect</label>
-                        <select class="form-select form-select-sm" id="oled_scroll_effect" name="oled_scroll_effect">
-                            <option value="scroll_left" {% if settings.oled_scroll_effect == 'scroll_left' %}selected{% endif %}>Scroll Left</option>
-                            <option value="scroll_right" {% if settings.oled_scroll_effect == 'scroll_right' %}selected{% endif %}>Scroll Right</option>
-                            <option value="scroll_up" {% if settings.oled_scroll_effect == 'scroll_up' %}selected{% endif %}>Scroll Up</option>
-                            <option value="scroll_down" {% if settings.oled_scroll_effect == 'scroll_down' %}selected{% endif %}>Scroll Down</option>
-                        </select>
+                <!-- OLED Panel -->
+                <div id="panel-oled" class="hw-panel">
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <h5 class="card-title"><i class="fas fa-tv me-1"></i> OLED Display (SSD1306)</h5>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="oled_enabled" name="oled_enabled" value="true" {% if settings.oled_enabled %}checked{% endif %}>
+                                <label class="form-check-label" for="oled_enabled">Enable OLED Display (128x64)</label>
+                            </div>
+                        </div>
                     </div>
-                    <div class="col-md-4">
-                        <label for="oled_scroll_speed" class="form-label">Speed (px/frame)</label>
-                        <input type="number" class="form-control form-control-sm" id="oled_scroll_speed" name="oled_scroll_speed" value="{{ settings.oled_scroll_speed }}" min="1" max="10">
-                    </div>
-                    <div class="col-md-4">
-                        <label for="oled_scroll_fps" class="form-label">FPS</label>
-                        <input type="number" class="form-control form-control-sm" id="oled_scroll_fps" name="oled_scroll_fps" value="{{ settings.oled_scroll_fps }}" min="5" max="60">
-                    </div>
-                </div>
-            </div>
 
-            <div class="hw-card">
-                <h3>Screen Options</h3>
-                <div class="form-check mb-1">
-                    <input class="form-check-input" type="checkbox" id="screens_auto_start" name="screens_auto_start" value="true" {% if settings.screens_auto_start %}checked{% endif %}>
-                    <label class="form-check-label" for="screens_auto_start">Auto-start screen rotation</label>
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <h5 class="card-title">I2C Configuration</h5>
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label for="oled_i2c_bus" class="form-label">I2C Bus</label>
+                                    <input type="number" class="form-control" id="oled_i2c_bus" name="oled_i2c_bus" value="{{ settings.oled_i2c_bus }}" min="0" max="10">
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="oled_i2c_address" class="form-label">I2C Address (hex)</label>
+                                    <input type="text" class="form-control font-monospace" id="oled_i2c_address" name="oled_i2c_address" value="0x{{ '%02x' % settings.oled_i2c_address }}" placeholder="0x3C">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <h5 class="card-title">Display Settings</h5>
+                            <div class="row g-3">
+                                <div class="col-md-3">
+                                    <label for="oled_width" class="form-label">Width (px)</label>
+                                    <input type="number" class="form-control" id="oled_width" name="oled_width" value="{{ settings.oled_width }}" min="16" max="256">
+                                </div>
+                                <div class="col-md-3">
+                                    <label for="oled_height" class="form-label">Height (px)</label>
+                                    <input type="number" class="form-control" id="oled_height" name="oled_height" value="{{ settings.oled_height }}" min="16" max="128">
+                                </div>
+                                <div class="col-md-3">
+                                    <label for="oled_rotate" class="form-label">Rotation</label>
+                                    <select class="form-select" id="oled_rotate" name="oled_rotate">
+                                        <option value="0" {% if settings.oled_rotate == 0 %}selected{% endif %}>0&deg;</option>
+                                        <option value="1" {% if settings.oled_rotate == 1 %}selected{% endif %}>90&deg;</option>
+                                        <option value="2" {% if settings.oled_rotate == 2 %}selected{% endif %}>180&deg;</option>
+                                        <option value="3" {% if settings.oled_rotate == 3 %}selected{% endif %}>270&deg;</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-3">
+                                    <label for="oled_contrast" class="form-label">Contrast</label>
+                                    <input type="number" class="form-control" id="oled_contrast" name="oled_contrast" value="{{ settings.oled_contrast if settings.oled_contrast is not none else '' }}" min="0" max="255" placeholder="Auto">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <h5 class="card-title">Front Panel Button</h5>
+                            <div class="row g-3">
+                                <div class="col-md-4">
+                                    <label for="oled_button_gpio" class="form-label">GPIO Pin (BCM)</label>
+                                    <input type="number" class="form-control" id="oled_button_gpio" name="oled_button_gpio" value="{{ settings.oled_button_gpio }}" min="2" max="27">
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="oled_button_hold_seconds" class="form-label">Hold Time (sec)</label>
+                                    <input type="number" step="0.01" class="form-control" id="oled_button_hold_seconds" name="oled_button_hold_seconds" value="{{ settings.oled_button_hold_seconds }}">
+                                </div>
+                                <div class="col-md-4 d-flex align-items-end pb-2">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="oled_button_active_high" name="oled_button_active_high" value="true" {% if settings.oled_button_active_high %}checked{% endif %}>
+                                        <label class="form-check-label" for="oled_button_active_high">Active High</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <h5 class="card-title">Scroll Animation</h5>
+                            <div class="row g-3">
+                                <div class="col-md-4">
+                                    <label for="oled_scroll_effect" class="form-label">Effect</label>
+                                    <select class="form-select" id="oled_scroll_effect" name="oled_scroll_effect">
+                                        <option value="scroll_left" {% if settings.oled_scroll_effect == 'scroll_left' %}selected{% endif %}>Scroll Left</option>
+                                        <option value="scroll_right" {% if settings.oled_scroll_effect == 'scroll_right' %}selected{% endif %}>Scroll Right</option>
+                                        <option value="scroll_up" {% if settings.oled_scroll_effect == 'scroll_up' %}selected{% endif %}>Scroll Up</option>
+                                        <option value="scroll_down" {% if settings.oled_scroll_effect == 'scroll_down' %}selected{% endif %}>Scroll Down</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="oled_scroll_speed" class="form-label">Speed (px/frame)</label>
+                                    <input type="number" class="form-control" id="oled_scroll_speed" name="oled_scroll_speed" value="{{ settings.oled_scroll_speed }}" min="1" max="10">
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="oled_scroll_fps" class="form-label">FPS</label>
+                                    <input type="number" class="form-control" id="oled_scroll_fps" name="oled_scroll_fps" value="{{ settings.oled_scroll_fps }}" min="5" max="60">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <h5 class="card-title">Screen Options</h5>
+                            <div class="form-check mb-1">
+                                <input class="form-check-input" type="checkbox" id="screens_auto_start" name="screens_auto_start" value="true" {% if settings.screens_auto_start %}checked{% endif %}>
+                                <label class="form-check-label" for="screens_auto_start">Auto-start screen rotation</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="oled_default_invert" name="oled_default_invert" value="true" {% if settings.oled_default_invert %}checked{% endif %}>
+                                <label class="form-check-label" for="oled_default_invert">Invert display colors</label>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <div class="form-check">
-                    <input class="form-check-input" type="checkbox" id="oled_default_invert" name="oled_default_invert" value="true" {% if settings.oled_default_invert %}checked{% endif %}>
-                    <label class="form-check-label" for="oled_default_invert">Invert display colors</label>
+
+                <!-- LED Panel -->
+                <div id="panel-led" class="hw-panel">
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <h5 class="card-title"><i class="fas fa-sign me-1"></i> LED Sign (BetaBrite/Alpha)</h5>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="led_enabled" name="led_enabled" value="true" {% if settings.led_enabled %}checked{% endif %}>
+                                <label class="form-check-label" for="led_enabled">Enable LED Sign</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <h5 class="card-title">Connection Type</h5>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="led_connection_type" id="led_network" value="network" {% if settings.led_connection_type == 'network' %}checked{% endif %}>
+                                <label class="form-check-label" for="led_network">Network (TCP)</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="led_connection_type" id="led_serial" value="serial" {% if settings.led_connection_type == 'serial' %}checked{% endif %}>
+                                <label class="form-check-label" for="led_serial">Serial (RS232/485)</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card mb-3" id="led-network-settings">
+                        <div class="card-body">
+                            <h5 class="card-title">Network Settings</h5>
+                            <div class="row g-3">
+                                <div class="col-md-8">
+                                    <label for="led_ip_address" class="form-label">IP Address</label>
+                                    <input type="text" class="form-control" id="led_ip_address" name="led_ip_address" value="{{ settings.led_ip_address }}" placeholder="192.168.1.100">
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="led_port" class="form-label">Port</label>
+                                    <input type="number" class="form-control" id="led_port" name="led_port" value="{{ settings.led_port }}" min="1" max="65535">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card mb-3" id="led-serial-settings">
+                        <div class="card-body">
+                            <h5 class="card-title">Serial Settings</h5>
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label for="led_serial_port" class="form-label">Serial Port</label>
+                                    <input type="text" class="form-control font-monospace" id="led_serial_port" name="led_serial_port" value="{{ settings.led_serial_port }}" placeholder="/dev/ttyUSB1">
+                                </div>
+                                <div class="col-md-3">
+                                    <label for="led_baudrate" class="form-label">Baud Rate</label>
+                                    <select class="form-select" id="led_baudrate" name="led_baudrate">
+                                        <option value="2400" {% if settings.led_baudrate == 2400 %}selected{% endif %}>2400</option>
+                                        <option value="4800" {% if settings.led_baudrate == 4800 %}selected{% endif %}>4800</option>
+                                        <option value="9600" {% if settings.led_baudrate == 9600 %}selected{% endif %}>9600</option>
+                                        <option value="19200" {% if settings.led_baudrate == 19200 %}selected{% endif %}>19200</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-3">
+                                    <label for="led_serial_mode" class="form-label">Mode</label>
+                                    <select class="form-select" id="led_serial_mode" name="led_serial_mode">
+                                        <option value="RS232" {% if settings.led_serial_mode == 'RS232' %}selected{% endif %}>RS232</option>
+                                        <option value="RS485" {% if settings.led_serial_mode == 'RS485' %}selected{% endif %}>RS485</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <h5 class="card-title">Default Text</h5>
+                            <textarea class="form-control" id="led_default_text" name="led_default_text" rows="3" placeholder="Line 1,Line 2,Line 3,Line 4">{{ settings.led_default_text }}</textarea>
+                            <small class="form-text text-muted">Separate lines with commas</small>
+                        </div>
+                    </div>
                 </div>
-            </div>
+
+                <!-- VFD Panel -->
+                <div id="panel-vfd" class="hw-panel">
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <h5 class="card-title"><i class="fas fa-desktop me-1"></i> VFD Display (Noritake GU140x32F-7000B)</h5>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="vfd_enabled" name="vfd_enabled" value="true" {% if settings.vfd_enabled %}checked{% endif %}>
+                                <label class="form-check-label" for="vfd_enabled">Enable VFD Display</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <h5 class="card-title">Serial / Network Settings</h5>
+                            <div class="row g-3">
+                                <div class="col-md-8">
+                                    <label for="vfd_port" class="form-label">Port</label>
+                                    <input type="text" class="form-control font-monospace" id="vfd_port" name="vfd_port" value="{{ settings.vfd_port }}" placeholder="/dev/ttyUSB0 or socket://192.168.8.122:10001">
+                                    <small class="form-text text-muted">Serial: /dev/ttyUSB0 &middot; Network: socket://192.168.8.122:10001</small>
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="vfd_baudrate" class="form-label">Baud Rate</label>
+                                    <select class="form-select" id="vfd_baudrate" name="vfd_baudrate">
+                                        <option value="9600" {% if settings.vfd_baudrate == 9600 %}selected{% endif %}>9600</option>
+                                        <option value="19200" {% if settings.vfd_baudrate == 19200 %}selected{% endif %}>19200</option>
+                                        <option value="38400" {% if settings.vfd_baudrate == 38400 %}selected{% endif %}>38400</option>
+                                        <option value="57600" {% if settings.vfd_baudrate == 57600 %}selected{% endif %}>57600</option>
+                                        <option value="115200" {% if settings.vfd_baudrate == 115200 %}selected{% endif %}>115200</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Zigbee Panel -->
+                <div id="panel-zigbee" class="hw-panel">
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <h5 class="card-title"><i class="fas fa-broadcast-tower me-1"></i> Zigbee Coordinator</h5>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" id="zigbee_enabled" name="zigbee_enabled" value="true" {% if settings.zigbee_enabled %}checked{% endif %}>
+                                <label class="form-check-label" for="zigbee_enabled">Enable Zigbee Coordinator</label>
+                            </div>
+                            <p class="text-muted small mb-0">
+                                Requires a compatible coordinator (CC2531, CC2652, or SLZB-06).
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <h5 class="card-title">Serial Port</h5>
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label for="zigbee_port" class="form-label">Port</label>
+                                    <input type="text" class="form-control font-monospace" id="zigbee_port" name="zigbee_port" value="{{ settings.zigbee_port }}" placeholder="/dev/ttyAMA0">
+                                    <small class="form-text text-muted">Common: /dev/ttyAMA0, /dev/ttyUSB0, /dev/ttyACM0</small>
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="zigbee_baudrate" class="form-label">Baud Rate</label>
+                                    <select class="form-select" id="zigbee_baudrate" name="zigbee_baudrate">
+                                        <option value="38400" {% if settings.zigbee_baudrate == 38400 %}selected{% endif %}>38400</option>
+                                        <option value="57600" {% if settings.zigbee_baudrate == 57600 %}selected{% endif %}>57600</option>
+                                        <option value="115200" {% if settings.zigbee_baudrate == 115200 %}selected{% endif %}>115200</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <h5 class="card-title">Network Settings</h5>
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label for="zigbee_channel" class="form-label">Channel (11-26)</label>
+                                    <input type="number" class="form-control" id="zigbee_channel" name="zigbee_channel" value="{{ settings.zigbee_channel }}" min="11" max="26">
+                                    <small class="form-text text-muted">Channel 15 is commonly used.</small>
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="zigbee_pan_id" class="form-label">PAN ID</label>
+                                    <input type="text" class="form-control font-monospace" id="zigbee_pan_id" name="zigbee_pan_id" value="{{ settings.zigbee_pan_id }}" placeholder="0x1A62">
+                                    <small class="form-text text-muted">Personal Area Network ID in hex (e.g., 0x1A62)</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <h5 class="card-title">Devices</h5>
+                            <p class="text-muted small mb-0">
+                                After enabling the coordinator, visit the
+                                <a href="{{ url_for('zigbee.zigbee_settings') }}">Zigbee Devices</a> page
+                                to view connected devices and diagnostics.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Save / Cancel -->
+                <div class="d-flex gap-2 mt-3">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save"></i> Save Settings
+                    </button>
+                    <a href="{{ url_for('index') }}" class="btn btn-secondary">Cancel</a>
+                </div>
+            </form>
         </div>
-
-        <!-- ═══════════════ LED ═══════════════ -->
-        <div id="panel-led" class="hw-panel">
-            <div class="hw-card">
-                <h3><i class="fas fa-sign me-1"></i> LED Sign (BetaBrite/Alpha)</h3>
-                <div class="form-check">
-                    <input class="form-check-input" type="checkbox" id="led_enabled" name="led_enabled" value="true" {% if settings.led_enabled %}checked{% endif %}>
-                    <label class="form-check-label" for="led_enabled">Enable LED Sign</label>
-                </div>
-            </div>
-
-            <div class="hw-card">
-                <h3>Connection Type</h3>
-                <div class="form-check">
-                    <input class="form-check-input" type="radio" name="led_connection_type" id="led_network" value="network" {% if settings.led_connection_type == 'network' %}checked{% endif %}>
-                    <label class="form-check-label" for="led_network">Network (TCP)</label>
-                </div>
-                <div class="form-check">
-                    <input class="form-check-input" type="radio" name="led_connection_type" id="led_serial" value="serial" {% if settings.led_connection_type == 'serial' %}checked{% endif %}>
-                    <label class="form-check-label" for="led_serial">Serial (RS232/485)</label>
-                </div>
-            </div>
-
-            <div class="hw-card" id="led-network-settings">
-                <h3>Network Settings</h3>
-                <div class="row">
-                    <div class="col-md-8">
-                        <label for="led_ip_address" class="form-label">IP Address</label>
-                        <input type="text" class="form-control form-control-sm" id="led_ip_address" name="led_ip_address" value="{{ settings.led_ip_address }}" placeholder="192.168.1.100">
-                    </div>
-                    <div class="col-md-4">
-                        <label for="led_port" class="form-label">Port</label>
-                        <input type="number" class="form-control form-control-sm" id="led_port" name="led_port" value="{{ settings.led_port }}" min="1" max="65535">
-                    </div>
-                </div>
-            </div>
-
-            <div class="hw-card" id="led-serial-settings">
-                <h3>Serial Settings</h3>
-                <div class="row">
-                    <div class="col-md-6">
-                        <label for="led_serial_port" class="form-label">Serial Port</label>
-                        <input type="text" class="form-control form-control-sm font-monospace" id="led_serial_port" name="led_serial_port" value="{{ settings.led_serial_port }}" placeholder="/dev/ttyUSB1">
-                    </div>
-                    <div class="col-md-3">
-                        <label for="led_baudrate" class="form-label">Baud Rate</label>
-                        <select class="form-select form-select-sm" id="led_baudrate" name="led_baudrate">
-                            <option value="2400" {% if settings.led_baudrate == 2400 %}selected{% endif %}>2400</option>
-                            <option value="4800" {% if settings.led_baudrate == 4800 %}selected{% endif %}>4800</option>
-                            <option value="9600" {% if settings.led_baudrate == 9600 %}selected{% endif %}>9600</option>
-                            <option value="19200" {% if settings.led_baudrate == 19200 %}selected{% endif %}>19200</option>
-                        </select>
-                    </div>
-                    <div class="col-md-3">
-                        <label for="led_serial_mode" class="form-label">Mode</label>
-                        <select class="form-select form-select-sm" id="led_serial_mode" name="led_serial_mode">
-                            <option value="RS232" {% if settings.led_serial_mode == 'RS232' %}selected{% endif %}>RS232</option>
-                            <option value="RS485" {% if settings.led_serial_mode == 'RS485' %}selected{% endif %}>RS485</option>
-                        </select>
-                    </div>
-                </div>
-            </div>
-
-            <div class="hw-card">
-                <h3>Default Text</h3>
-                <textarea class="form-control form-control-sm" id="led_default_text" name="led_default_text" rows="3" placeholder="Line 1,Line 2,Line 3,Line 4">{{ settings.led_default_text }}</textarea>
-                <small class="form-text text-muted">Separate lines with commas</small>
-            </div>
-        </div>
-
-        <!-- ═══════════════ VFD ═══════════════ -->
-        <div id="panel-vfd" class="hw-panel">
-            <div class="hw-card">
-                <h3><i class="fas fa-desktop me-1"></i> VFD Display (Noritake GU140x32F-7000B)</h3>
-                <div class="form-check">
-                    <input class="form-check-input" type="checkbox" id="vfd_enabled" name="vfd_enabled" value="true" {% if settings.vfd_enabled %}checked{% endif %}>
-                    <label class="form-check-label" for="vfd_enabled">Enable VFD Display</label>
-                </div>
-            </div>
-
-            <div class="hw-card">
-                <h3>Serial / Network Settings</h3>
-                <div class="row">
-                    <div class="col-md-8">
-                        <label for="vfd_port" class="form-label">Port</label>
-                        <input type="text" class="form-control form-control-sm font-monospace" id="vfd_port" name="vfd_port" value="{{ settings.vfd_port }}" placeholder="/dev/ttyUSB0 or socket://192.168.8.122:10001">
-                        <small class="form-text text-muted">Serial: /dev/ttyUSB0 &middot; Network: socket://192.168.8.122:10001</small>
-                    </div>
-                    <div class="col-md-4">
-                        <label for="vfd_baudrate" class="form-label">Baud Rate</label>
-                        <select class="form-select form-select-sm" id="vfd_baudrate" name="vfd_baudrate">
-                            <option value="9600" {% if settings.vfd_baudrate == 9600 %}selected{% endif %}>9600</option>
-                            <option value="19200" {% if settings.vfd_baudrate == 19200 %}selected{% endif %}>19200</option>
-                            <option value="38400" {% if settings.vfd_baudrate == 38400 %}selected{% endif %}>38400</option>
-                            <option value="57600" {% if settings.vfd_baudrate == 57600 %}selected{% endif %}>57600</option>
-                            <option value="115200" {% if settings.vfd_baudrate == 115200 %}selected{% endif %}>115200</option>
-                        </select>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- ═══════════════ ZIGBEE ═══════════════ -->
-        <div id="panel-zigbee" class="hw-panel">
-            <div class="hw-card">
-                <h3><i class="fas fa-broadcast-tower me-1"></i> Zigbee Coordinator</h3>
-                <div class="form-check mb-2">
-                    <input class="form-check-input" type="checkbox" id="zigbee_enabled" name="zigbee_enabled" value="true" {% if settings.zigbee_enabled %}checked{% endif %}>
-                    <label class="form-check-label" for="zigbee_enabled">Enable Zigbee Coordinator</label>
-                </div>
-                <p class="text-muted mb-0" style="font-size:.85rem">
-                    Requires a compatible coordinator (CC2531, CC2652, or SLZB-06).
-                </p>
-            </div>
-
-            <div class="hw-card">
-                <h3>Serial Port</h3>
-                <div class="row">
-                    <div class="col-md-6">
-                        <label for="zigbee_port" class="form-label">Port</label>
-                        <input type="text" class="form-control form-control-sm font-monospace" id="zigbee_port" name="zigbee_port" value="{{ settings.zigbee_port }}" placeholder="/dev/ttyAMA0">
-                        <small class="form-text text-muted">Common: /dev/ttyAMA0, /dev/ttyUSB0, /dev/ttyACM0</small>
-                    </div>
-                    <div class="col-md-6">
-                        <label for="zigbee_baudrate" class="form-label">Baud Rate</label>
-                        <select class="form-select form-select-sm" id="zigbee_baudrate" name="zigbee_baudrate">
-                            <option value="38400" {% if settings.zigbee_baudrate == 38400 %}selected{% endif %}>38400</option>
-                            <option value="57600" {% if settings.zigbee_baudrate == 57600 %}selected{% endif %}>57600</option>
-                            <option value="115200" {% if settings.zigbee_baudrate == 115200 %}selected{% endif %}>115200</option>
-                        </select>
-                    </div>
-                </div>
-            </div>
-
-            <div class="hw-card">
-                <h3>Network Settings</h3>
-                <div class="row">
-                    <div class="col-md-6">
-                        <label for="zigbee_channel" class="form-label">Channel (11-26)</label>
-                        <input type="number" class="form-control form-control-sm" id="zigbee_channel" name="zigbee_channel" value="{{ settings.zigbee_channel }}" min="11" max="26">
-                        <small class="form-text text-muted">Channel 15 is commonly used.</small>
-                    </div>
-                    <div class="col-md-6">
-                        <label for="zigbee_pan_id" class="form-label">PAN ID</label>
-                        <input type="text" class="form-control form-control-sm font-monospace" id="zigbee_pan_id" name="zigbee_pan_id" value="{{ settings.zigbee_pan_id }}" placeholder="0x1A62">
-                        <small class="form-text text-muted">Personal Area Network ID in hex (e.g., 0x1A62)</small>
-                    </div>
-                </div>
-            </div>
-
-            <div class="hw-card">
-                <h3>Devices</h3>
-                <p class="text-muted mb-0" style="font-size:.85rem">
-                    After enabling the coordinator, visit the
-                    <a href="{{ url_for('zigbee.zigbee_settings') }}">Zigbee Devices</a> page
-                    to view connected devices and diagnostics.
-                </p>
-            </div>
-        </div>
-
-        <!-- Save / Cancel -->
-        <div class="hw-actions">
-            <button type="submit" class="btn btn-primary">
-                <i class="fas fa-save"></i> Save Settings
-            </button>
-            <a href="{{ url_for('index') }}" class="btn btn-secondary">Cancel</a>
-        </div>
-    </form>
+    </div>
 </div>
 
 <script>
 (function() {
-    // ── Tab switching ───────────────────────────────────────────
-    var tabs = document.querySelectorAll('.hw-tabs button[data-tab]');
+    // Tab switching
+    var tabs = document.querySelectorAll('.hw-tabs .nav-link[data-tab]');
     var panels = document.querySelectorAll('.hw-panel');
 
     tabs.forEach(function(tab) {
@@ -513,7 +429,7 @@
         });
     });
 
-    // ── LED connection type toggle ──────────────────────────────
+    // LED connection type toggle
     function updateLEDConnectionVisibility() {
         var networkRadio = document.getElementById('led_network');
         var networkSettings = document.getElementById('led-network-settings');
@@ -534,7 +450,7 @@
     });
     updateLEDConnectionVisibility();
 
-    // ── I2C address hex display ─────────────────────────────────
+    // I2C address hex display
     var i2cInput = document.getElementById('oled_i2c_address');
     if (i2cInput) {
         i2cInput.addEventListener('blur', function() {

@@ -3,13 +3,15 @@
 {% block title %}Analytics Dashboard - EAS Station{% endblock %}
 
 {% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">
 <style>
     .metric-card {
         background: var(--surface-color);
-        border-radius: 8px;
+        border-radius: 12px;
         padding: 20px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        box-shadow: var(--shadow-md);
         margin-bottom: 20px;
+        border: 1px solid var(--border-color);
     }
     .metric-card h3 {
         font-size: 1.1rem;

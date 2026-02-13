@@ -3,93 +3,23 @@
 {% block title %}GPIO Statistics - EAS Station{% endblock %}
 
 {% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">
 <style>
-    .stats-header {
-        background: linear-gradient(135deg, var(--success-color), color-mix(in srgb, var(--success-color) 80%, var(--info-color)));
-        color: white;
-        padding: 2rem 0;
-        margin-bottom: 2rem;
-        box-shadow: var(--shadow-lg);
-    }
-
-    .stat-card {
-        background: var(--surface-color);
-        border-radius: 12px;
-        padding: 1.5rem;
-        box-shadow: var(--shadow-md);
-        text-align: center;
-        transition: transform 0.3s ease;
-        height: 100%;
-    }
-
-    .stat-card:hover {
-        transform: translateY(-5px);
-        box-shadow: var(--shadow-lg);
-    }
-
-    .stat-number {
-        font-size: 2.5rem;
-        font-weight: bold;
-        color: var(--primary-color);
-        margin-bottom: 0.5rem;
-    }
-
-    .stat-label {
-        color: var(--text-secondary);
-        font-size: 0.9rem;
-        text-transform: uppercase;
-        letter-spacing: 1px;
-    }
-
-    .chart-container {
-        background: var(--surface-color);
-        border-radius: 12px;
-        padding: 1.5rem;
-        box-shadow: var(--shadow-md);
-        margin-bottom: 2rem;
-    }
-
-    .pin-usage-card {
-        background: var(--surface-color);
-        border-radius: 12px;
-        padding: 1.5rem;
-        box-shadow: var(--shadow-md);
-        margin-bottom: 1rem;
-        border-left: 4px solid var(--primary-color);
-    }
-
-    .usage-bar {
-        height: 8px;
-        background: var(--bg-color);
-        border-radius: 4px;
-        overflow: hidden;
-        margin-top: 0.5rem;
-    }
-
-    .usage-fill {
-        height: 100%;
-        background: linear-gradient(90deg, var(--success-color), color-mix(in srgb, var(--success-color) 80%, var(--info-color)));
-        transition: width 0.3s ease;
-    }
-
-    .activation-type-badge {
-        padding: 0.25rem 0.75rem;
-        border-radius: 12px;
-        font-size: 0.85rem;
+    /* Page-specific: admin-tag on this page needs non-monospace font and bolder weight */
+    .admin-tag {
+        font-family: inherit;
         font-weight: 600;
-        margin: 0.25rem;
-        display: inline-block;
     }
 
-    .type-manual { background: color-mix(in srgb, var(--info-color) 20%, var(--surface-color)); color: var(--info-color); }
-    .type-automatic { background: color-mix(in srgb, var(--success-color) 20%, var(--surface-color)); color: var(--success-color); }
-    .type-test { background: color-mix(in srgb, var(--warning-color) 20%, var(--surface-color)); color: var(--warning-color); }
-    .type-override { background: color-mix(in srgb, var(--danger-color) 20%, var(--surface-color)); color: var(--danger-color); }
+    /* Page-specific: tighter spacing for pin usage cards */
+    .admin-accent-card.pin-usage {
+        margin-bottom: 1rem;
+    }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="stats-header">
+<div class="admin-page-header header-success">
     <div class="container">
         <div class="d-flex justify-content-between align-items-center">
             <div>
@@ -112,25 +42,25 @@
     <!-- Summary Statistics -->
     <div class="row mb-4">
         <div class="col-md-3">
-            <div class="stat-card">
+            <div class="admin-stat-card">
                 <div class="stat-number" id="total-activations">--</div>
                 <div class="stat-label">Total Activations</div>
             </div>
         </div>
         <div class="col-md-3">
-            <div class="stat-card">
+            <div class="admin-stat-card">
                 <div class="stat-number" id="success-rate">--%</div>
                 <div class="stat-label">Success Rate</div>
             </div>
         </div>
         <div class="col-md-3">
-            <div class="stat-card">
+            <div class="admin-stat-card">
                 <div class="stat-number" id="avg-duration">--s</div>
                 <div class="stat-label">Avg Duration</div>
             </div>
         </div>
         <div class="col-md-3">
-            <div class="stat-card">
+            <div class="admin-stat-card">
                 <div class="stat-number" id="total-pins">--</div>
                 <div class="stat-label">Configured Pins</div>
             </div>
@@ -140,7 +70,7 @@
     <!-- Time Period Selector -->
     <div class="row mb-4">
         <div class="col-md-12">
-            <div class="chart-container">
+            <div class="admin-form-section">
                 <div class="d-flex justify-content-between align-items-center mb-3">
                     <h5 class="mb-0">Time Period</h5>
                     <div class="btn-group" role="group" aria-label="Time period selection">
@@ -157,7 +87,7 @@
     <!-- Activation Types Breakdown -->
     <div class="row mb-4">
         <div class="col-md-12">
-            <div class="chart-container">
+            <div class="admin-form-section">
                 <h5 class="mb-3">Activations by Type</h5>
                 <div class="row" id="activation-types-container">
                     <div class="col-md-3 text-center">
@@ -171,7 +101,7 @@
     <!-- Per-Pin Usage Statistics -->
     <div class="row mb-4">
         <div class="col-md-12">
-            <div class="chart-container">
+            <div class="admin-form-section">
                 <h5 class="mb-3">Usage by Pin</h5>
                 <div id="pin-usage-container">
                     <div class="text-center">
@@ -186,7 +116,7 @@
     <!-- Recent Errors -->
     <div class="row">
         <div class="col-md-12">
-            <div class="chart-container">
+            <div class="admin-form-section">
                 <h5 class="mb-3"><i class="fas fa-exclamation-triangle"></i> Recent Errors</h5>
                 <div class="table-responsive">
                     <table class="table table-hover" id="errors-table">
@@ -348,18 +278,18 @@ function updateActivationTypes(byType) {
     }
 
     const types = {
-        manual: { label: 'Manual', icon: 'hand-pointer', class: 'type-manual' },
-        automatic: { label: 'Automatic', icon: 'robot', class: 'type-automatic' },
-        test: { label: 'Test', icon: 'vial', class: 'type-test' },
-        override: { label: 'Override', icon: 'exclamation-triangle', class: 'type-override' }
+        manual: { label: 'Manual', icon: 'hand-pointer', class: 'admin-tag-info' },
+        automatic: { label: 'Automatic', icon: 'robot', class: 'admin-tag-success' },
+        test: { label: 'Test', icon: 'vial', class: 'admin-tag-warning' },
+        override: { label: 'Override', icon: 'exclamation-triangle', class: 'admin-tag-danger' }
     };
 
     container.innerHTML = Object.entries(byType).map(([type, count]) => {
-        const typeInfo = types[type] || { label: type, icon: 'question', class: 'type-manual' };
+        const typeInfo = types[type] || { label: type, icon: 'question', class: 'admin-tag-info' };
         return `
             <div class="col-md-3 mb-3">
-                <div class="stat-card">
-                    <div class="activation-type-badge ${typeInfo.class}">
+                <div class="admin-stat-card">
+                    <div class="admin-tag ${typeInfo.class}">
                         <i class="fas fa-${typeInfo.icon}"></i> ${typeInfo.label}
                     </div>
                     <div class="stat-number mt-2">${count}</div>
@@ -392,7 +322,7 @@ function updatePinUsage(byPin) {
         const avgDuration = pin.avg_duration_seconds || 0;
 
         return `
-            <div class="pin-usage-card">
+            <div class="admin-accent-card pin-usage">
                 <div class="d-flex justify-content-between align-items-center mb-2">
                     <h6 class="mb-0"><i class="fas fa-microchip"></i> GPIO Pin ${pin.pin}</h6>
                     <div>
@@ -401,12 +331,17 @@ function updatePinUsage(byPin) {
                         <span class="badge bg-info">${avgDuration.toFixed(1)}s avg</span>
                     </div>
                 </div>
-                <div class="usage-bar">
-                    <div class="usage-fill" style="width: ${percentage}%"></div>
+                <div class="admin-usage-bar">
+                    <div class="admin-usage-fill" style="width: ${percentage}%"></div>
                 </div>
             </div>
         `;
     }).join('');
+}
+
+function getTagClass(activationType) {
+    const tagMap = { manual: 'admin-tag-info', automatic: 'admin-tag-success', test: 'admin-tag-warning', override: 'admin-tag-danger' };
+    return tagMap[activationType] || 'admin-tag-info';
 }
 
 function updateRecentErrors(errors) {
@@ -421,7 +356,7 @@ function updateRecentErrors(errors) {
         <tr>
             <td><small>${new Date(error.activated_at).toLocaleString()}</small></td>
             <td><strong>GPIO ${escapeHtml(error.pin)}</strong></td>
-            <td><span class="activation-type-badge type-${escapeHtml(error.activation_type)}">${escapeHtml(error.activation_type)}</span></td>
+            <td><span class="admin-tag ${getTagClass(error.activation_type)}">${escapeHtml(error.activation_type)}</span></td>
             <td><small class="text-danger">${escapeHtml(error.error_message || 'Unknown error')}</small></td>
             <td><small>${error.operator ? escapeHtml(error.operator) : '<em>—</em>'}</small></td>
         </tr>

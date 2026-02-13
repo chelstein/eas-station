@@ -3,26 +3,11 @@
 {% block title %}Environment Settings - EAS Station{% endblock %}
 
 {% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">
 <style>
-    .settings-container {
-        max-width: 1400px;
-        margin: 0 auto;
+    /* Page-specific: extra top/side padding beyond .admin-container.wide */
+    .admin-container.wide.env-page {
         padding: 2rem;
-    }
-
-    .settings-header {
-        margin-bottom: 2rem;
-    }
-
-    .settings-header h1 {
-        font-size: 2rem;
-        font-weight: 600;
-        margin-bottom: 0.5rem;
-    }
-
-    .settings-header p {
-        color: var(--text-secondary);
-        margin-bottom: 1rem;
     }
 
     .validation-banner {
@@ -60,7 +45,7 @@
 
     .category-btn.active {
         background: var(--primary-color);
-        color: #ffffff;
+        color: white;
         border-color: var(--primary-color);
         box-shadow: 0 6px 18px var(--shadow-color);
     }
@@ -73,13 +58,13 @@
     .category-btn.active i,
     .category-btn.active .category-name,
     .category-btn.active .category-desc {
-        color: #ffffff;
+        color: white;
     }
 
     .category-btn.active .category-badge {
         background: rgba(255, 255, 255, 0.2);
         border-color: rgba(255, 255, 255, 0.35);
-        color: #ffffff;
+        color: white;
     }
 
     .category-info {
@@ -314,7 +299,7 @@
             margin-bottom: 2rem;
         }
 
-        .settings-container {
+        .admin-container.wide.env-page {
             padding: 1rem;
         }
     }
@@ -322,9 +307,9 @@
 {% endblock %}
 
 {% block content %}
-<div class="settings-container">
+<div class="admin-container wide env-page">
     <!-- Header -->
-    <div class="settings-header">
+    <div class="admin-settings-header">
         <div class="d-flex justify-content-between align-items-start mb-3">
             <div>
                 <h1><i class="fas fa-cog"></i> Environment Settings</h1>

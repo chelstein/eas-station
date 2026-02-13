@@ -3,80 +3,14 @@
 {% block title %}Local Authority Management - EAS Station{% endblock %}
 
 {% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">
 <style>
-    .la-header {
-        background: linear-gradient(135deg, var(--primary-color), var(--primary-soft));
-        color: white;
-        padding: 2rem 0;
-        margin-bottom: 2rem;
-        box-shadow: var(--shadow-lg);
-    }
-
-    .authority-card {
-        border-left: 4px solid var(--primary-color);
-        transition: all 0.3s ease;
-    }
-
-    .authority-card:hover {
-        transform: translateY(-2px);
-        box-shadow: var(--shadow-lg);
-    }
-
-    .authority-card.inactive {
-        border-left-color: var(--text-muted);
-        opacity: 0.7;
-    }
-
-    .station-id-badge {
-        font-family: monospace;
-        font-size: 1.1rem;
-        font-weight: bold;
-        padding: 0.25rem 0.75rem;
-        border-radius: 6px;
-        background: var(--bg-color);
-        color: var(--primary-color);
-        letter-spacing: 1px;
-    }
-
-    .originator-badge {
-        display: inline-block;
-        padding: 0.25rem 0.75rem;
-        border-radius: 12px;
-        font-size: 0.85rem;
-        font-weight: 600;
-    }
-
-    .originator-badge.civ { background: #e3f2fd; color: #1565c0; }
-    .originator-badge.eas { background: #fff3e0; color: #e65100; }
-    .originator-badge.wxr { background: #e8f5e9; color: #2e7d32; }
-    .originator-badge.pep { background: #fce4ec; color: #c62828; }
-
-    .fips-tag {
-        display: inline-block;
-        padding: 0.2rem 0.6rem;
-        border-radius: 10px;
-        font-size: 0.8rem;
-        margin: 0.15rem;
-        background: var(--bg-color);
-        color: var(--text-secondary);
-        font-family: monospace;
-    }
-
-    .event-tag {
-        display: inline-block;
-        padding: 0.2rem 0.6rem;
-        border-radius: 10px;
-        font-size: 0.8rem;
-        margin: 0.15rem;
-        background: #fff3e0;
-        color: #e65100;
-        font-family: monospace;
-    }
+    .admin-accent-card.accent-secondary { opacity: 0.7; }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="la-header">
+<div class="admin-page-header">
     <div class="container">
         <h1><i class="fas fa-building-shield"></i> Local Authority Management</h1>
         <p class="mb-0">Manage local authorities authorized to issue EAS alerts for their political subdivisions</p>
@@ -302,27 +236,28 @@ document.addEventListener('DOMContentLoaded', function() {
 
         container.innerHTML = '';
         authorities.forEach(auth => {
-            const origClass = esc((auth.originator || '').toLowerCase());
+            const origTagMap = { civ: 'admin-tag-primary', eas: 'admin-tag-warning', wxr: 'admin-tag-success', pep: 'admin-tag-danger' };
+            const origClass = origTagMap[(auth.originator || '').toLowerCase()] || '';
             const statusBadge = auth.is_active
                 ? '<span class="badge bg-success">Active</span>'
                 : '<span class="badge bg-secondary">Disabled</span>';
 
             let fipsTags = '';
             if (auth.authorized_fips_codes && auth.authorized_fips_codes.length) {
-                fipsTags = auth.authorized_fips_codes.map(c => `<span class="fips-tag">${esc(c)}</span>`).join('');
+                fipsTags = auth.authorized_fips_codes.map(c => `<span class="admin-tag">${esc(c)}</span>`).join('');
             } else {
                 fipsTags = '<span class="text-muted">All station FIPS codes</span>';
             }
 
             let eventTags = '';
             if (auth.authorized_event_codes && auth.authorized_event_codes.length) {
-                eventTags = auth.authorized_event_codes.map(c => `<span class="event-tag">${esc(c)}</span>`).join('');
+                eventTags = auth.authorized_event_codes.map(c => `<span class="admin-tag admin-tag-warning">${esc(c)}</span>`).join('');
             } else {
                 eventTags = '<span class="text-muted">All event codes</span>';
             }
 
             const card = document.createElement('div');
-            card.className = `card authority-card ${auth.is_active ? '' : 'inactive'} mb-3`;
+            card.className = `card admin-accent-card ${auth.is_active ? '' : 'accent-secondary'} mb-3`;
             card.innerHTML = `
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-start">
@@ -334,9 +269,9 @@ document.addEventListener('DOMContentLoaded', function() {
                         </p>
                     </div>
                     <div class="text-end">
-                        <span class="station-id-badge">${esc(auth.station_id)}</span>
+                        <span class="admin-mono-badge">${esc(auth.station_id)}</span>
                         <br>
-                        <span class="originator-badge ${origClass} mt-1">${esc(auth.originator)}</span>
+                        <span class="admin-tag ${origClass} mt-1">${esc(auth.originator)}</span>
                     </div>
                 </div>
                 <div class="row mt-2">
