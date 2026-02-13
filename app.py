@@ -979,19 +979,24 @@ def initialize_database():
                 )
                 return False
             
-            logger.info("[13/15] Loading NWS zone catalog (may take time)...")
+            logger.info("[13/16] Loading NWS zone catalog (may take time)...")
             # Zone catalog is optional - app can start without it
             if not ensure_zone_catalog(logger):
                 logger.warning("NWS zone catalog could not be loaded - continuing without it")
+
+            logger.info("[14/16] Loading US county boundaries (may take time on first run)...")
+            from app_core.county_boundaries import ensure_us_county_boundaries
+            if not ensure_us_county_boundaries(logger):
+                logger.info("US county boundaries not loaded - IPAWS coverage maps may be limited")
             
-            logger.info("[14/15] Ensuring storage zone codes column...")
+            logger.info("[15/16] Ensuring storage zone codes column...")
             if not ensure_storage_zone_codes_column(logger):
                 _db_initialization_error = RuntimeError(
                     "Location settings storage_zone_codes column could not be ensured"
                 )
                 return False
             
-            logger.info("[15/15] Backfilling data and initializing services...")
+            logger.info("[16/16] Backfilling data and initializing services...")
             backfill_eas_message_payloads(logger)
             backfill_manual_eas_audio(logger)
             settings = get_location_settings(force_reload=True)
