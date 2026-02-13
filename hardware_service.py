@@ -90,6 +90,7 @@ else:
 # Global state
 _running = True
 _redis_client: Optional[redis.Redis] = None
+_flask_app: Optional[Flask] = None
 _screen_manager = None
 _gpio_controller = None
 
@@ -415,9 +416,23 @@ def initialize_gpio_controller(db_session=None):
 
 
 def publish_hardware_metrics():
-    """Publish hardware status and metrics to Redis."""
+    """Publish hardware status and metrics to Redis.
+
+    IMPORTANT: This is called from health_check_loop() which runs outside any
+    Flask app context. Functions that access the database (publish_display_state,
+    publish_zigbee_status) require app context for Flask-SQLAlchemy queries.
+    We push the app context here so all downstream functions can use the DB.
+    """
     if not _redis_client:
         return
+
+    # Push Flask app context for database operations in publish_display_state()
+    # and publish_zigbee_status() which call get_*_settings() -> HardwareSettings.query
+    if _flask_app:
+        ctx = _flask_app.app_context()
+        ctx.push()
+    else:
+        ctx = None
 
     try:
         metrics = {
@@ -452,6 +467,9 @@ def publish_hardware_metrics():
 
     except Exception as e:
         logger.debug(f"Failed to publish hardware metrics: {e}")
+    finally:
+        if ctx is not None:
+            ctx.pop()
 
 
 def publish_display_state():
@@ -1731,7 +1749,7 @@ def health_check_loop():
 
 def main():
     """Main entry point for hardware service."""
-    global _running
+    global _running, _flask_app
 
     logger.info("=" * 60)
     logger.info("🔌 EAS Station - Dedicated Hardware Service")
@@ -1750,6 +1768,7 @@ def main():
         # Initialize database
         logger.info("Initializing database connection...")
         app, db = initialize_database()
+        _flask_app = app  # Store for health check loop (publish_hardware_metrics needs app context)
         logger.info("✅ Database connected")
 
         # Initialize hardware controllers (must be done before screen manager)
