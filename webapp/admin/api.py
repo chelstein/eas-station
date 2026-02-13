@@ -498,35 +498,36 @@ def alert_detail(alert_id):
                 func.count(Boundary.id),
             ).group_by(Boundary.type).all()
 
-            if boundary_totals:
-                coverage_data = {}
-                for boundary_type, boundary_count in boundary_totals:
-                    entry = {
-                        'total_boundaries': boundary_count,
-                        'affected_boundaries': boundary_count,
-                        'coverage_percentage': 100.0,
-                        'total_area_sqm': None,
-                        'intersected_area_sqm': None,
-                        'is_estimated': True,
-                    }
+            coverage_data = {}
+            for boundary_type, boundary_count in boundary_totals:
+                entry = {
+                    'total_boundaries': boundary_count,
+                    'affected_boundaries': boundary_count,
+                    'coverage_percentage': 100.0,
+                    'total_area_sqm': None,
+                    'intersected_area_sqm': None,
+                    'is_estimated': True,
+                }
 
-                    if boundary_type == 'county':
-                        coverage_data['county'] = entry
-                    else:
-                        coverage_data[boundary_type] = entry
+                if boundary_type == 'county':
+                    coverage_data['county'] = entry
+                else:
+                    coverage_data[boundary_type] = entry
 
-                if 'county' not in coverage_data:
-                    coverage_data['county'] = {
-                        'total_boundaries': 1,
-                        'affected_boundaries': 1,
-                        'coverage_percentage': 100.0,
-                        'total_area_sqm': None,
-                        'intersected_area_sqm': None,
-                        'is_estimated': True,
-                    }
+            # Always ensure county coverage is set when is_county_wide is True,
+            # even if no local boundaries are loaded in the boundaries table.
+            if 'county' not in coverage_data:
+                coverage_data['county'] = {
+                    'total_boundaries': 1,
+                    'affected_boundaries': 1,
+                    'coverage_percentage': 100.0,
+                    'total_area_sqm': None,
+                    'intersected_area_sqm': None,
+                    'is_estimated': True,
+                }
 
-                county_coverage = coverage_data['county']['coverage_percentage']
-                is_actually_county_wide = True
+            county_coverage = coverage_data['county']['coverage_percentage']
+            is_actually_county_wide = True
 
         suppress_boundary_details = is_actually_county_wide
 

@@ -215,8 +215,8 @@ def main():
     try:
         from dotenv import load_dotenv
         load_dotenv(PROJECT_ROOT / ".env")
-    except ImportError:
-        # dotenv not required if env is already configured
+    except (ImportError, PermissionError, OSError):
+        # dotenv not required if env is already configured or .env is not readable
         pass
 
     from app import app
