@@ -1,100 +1,88 @@
-# 📚 EAS Station Documentation
+# EAS Station Documentation
 
-**Welcome!** This is your complete guide to the EAS Station emergency alert system.
+Welcome to the documentation for EAS Station - an Emergency Alert System platform.
 
-> ⚠️ **IMPORTANT**: This software is experimental and for laboratory use only. Not FCC-certified for production emergency alerting.
+> **IMPORTANT**: This software is experimental and for laboratory use only. Not FCC-certified for production emergency alerting.
 
 ---
 
-## 🚀 Getting Started
+## Getting Started
 
-**Quick Start Path:**
 1. **[Installation](../README.md#quick-start)** - One command to get running
 2. **[Setup Wizard](guides/SETUP_INSTRUCTIONS)** - First-run configuration
 3. **[User Guide](guides/HELP)** - Daily operations
 
 ---
 
-## 📖 Documentation by Role
+## Documentation by Role
 
-### 🎯 For Operators
-
-**Daily operations and monitoring**
+### For Operators
 
 | Guide | What You'll Learn |
 |-------|-------------------|
-| **[User Guide](guides/HELP)** | Dashboard, alerts, monitoring |
-| **[Setup Instructions](guides/SETUP_INSTRUCTIONS)** | First-time configuration |
-| **[HTTPS Setup](guides/HTTPS_SETUP)** | Secure access configuration |
+| [User Guide](guides/HELP) | Dashboard, alerts, monitoring |
+| [Setup Instructions](guides/SETUP_INSTRUCTIONS) | First-time configuration |
+| [HTTPS Setup](guides/HTTPS_SETUP) | Secure access configuration |
 
-### 🔧 For Administrators
-
-**Deployment, security, and maintenance**
+### For Administrators
 
 | Guide | What You'll Learn |
 |-------|-------------------|
-| **[Portainer Deployment](deployment/PORTAINER_DEPLOYMENT)** | Complete deployment guide |
-| **[SDR Setup](hardware/SDR_SETUP)** | Radio receiver configuration |
-| **[Hardware Build](hardware/reference_pi_build)** | Raspberry Pi setup |
-| **[Database Troubleshooting](troubleshooting/DATABASE_CONSISTENCY_FIXES)** | PostgreSQL issues |
+| [Installation Guide](installation/README) | Bare metal deployment |
+| [SDR Setup](hardware/SDR_SETUP) | Radio receiver configuration |
+| [Database Troubleshooting](troubleshooting/DATABASE_CONSISTENCY_FIXES) | PostgreSQL issues |
 
-### 💻 For Developers
-
-**Architecture, APIs, and contributing**
+### For Developers
 
 | Guide | What You'll Learn |
 |-------|-------------------|
-| **[Developer Guidelines](development/AGENTS)** | Code standards, architecture, testing |
-| **[Frontend Documentation](frontend/FRONTEND_INDEX)** | UI components, theming |
-| **[JavaScript API](frontend/JAVASCRIPT_API)** | REST API reference |
-| **[Contributing](process/CONTRIBUTING)** | How to contribute |
+| [Developer Guidelines](development/AGENTS) | Code standards, architecture, testing |
+| [JavaScript API](frontend/JAVASCRIPT_API) | REST API reference |
+| [Contributing](process/CONTRIBUTING) | How to contribute |
 
 ---
 
-## 🗺️ System Overview
+## System Overview
 
-### Architecture
+EAS Station integrates multiple alert sources (NOAA Weather, IPAWS Federal) and processes them through a pipeline that includes:
 
-EAS Station integrates multiple alert sources (NOAA Weather, IPAWS Federal) and processes them through a sophisticated pipeline that includes:
+- Multi-source alert aggregation
+- FCC-compliant SAME encoding
+- PostGIS spatial filtering
+- SDR broadcast verification
+- Built-in HTTPS with Let's Encrypt
+- GPIO relay and LED sign control
 
-- 🌐 Multi-source alert aggregation
-- 📻 FCC-compliant SAME encoding
-- 🗺️ PostGIS spatial filtering
-- 📡 SDR broadcast verification
-- 🔒 Built-in HTTPS with Let's Encrypt
-- ⚡ GPIO relay and LED sign control
-
-**[View Full Architecture Details →](architecture/SYSTEM_ARCHITECTURE)**
-
-**[View Visual Diagrams →](reference/DIAGRAMS)**
+**[View Full Architecture Details](architecture/SYSTEM_ARCHITECTURE)** | **[View Diagrams](reference/DIAGRAMS)**
 
 ---
 
-## 📂 Documentation Structure
+## Documentation Structure
 
 ```
 docs/
-├── guides/              ← Essential operator guides (5 files)
-├── hardware/            ← SDR, GPIO, Raspberry Pi setup
-├── audio/               ← Audio system documentation
-├── deployment/          ← Deployment and maintenance guides
-├── troubleshooting/     ← Problem-solving guides
-├── development/         ← Developer documentation
-├── architecture/        ← System design and theory (9 files)
-├── frontend/            ← Web UI documentation
-├── reference/           ← Technical reference materials
-├── security/            ← Security documentation (3 files)
-├── roadmap/             ← Future features and planning
-├── policies/            ← Legal documents
-├── process/             ← Process and reliability guides
-└── resources/           ← Vendor PDFs and external docs
+├── architecture/    # System architecture and design
+├── audio/           # Audio monitoring
+├── development/     # Developer documentation
+├── frontend/        # Web UI documentation
+├── guides/          # User and operator guides
+├── hardware/        # SDR and hardware setup
+├── installation/    # Installation guides
+├── maintenance/     # System maintenance
+├── policies/        # Legal documents
+├── process/         # Contributing and certification
+├── reference/       # Reference materials
+├── roadmap/         # Feature planning
+├── security/        # Security documentation
+├── troubleshooting/ # Problem-solving guides
+└── archive/         # Historical documentation
 ```
 
-**[Complete Index](INDEX)** - Searchable list of all documentation
+**[Complete Index](INDEX)** - Full list of all documentation
 
 ---
 
-## 🎯 Common Tasks
+## Common Tasks
 
 ### Setup & Configuration
 
@@ -119,7 +107,7 @@ docs/
 
 ---
 
-## 🆘 Getting Help
+## Getting Help
 
 1. **Check the documentation** - Start with [INDEX](INDEX)
 2. **Review troubleshooting** - See [Common Issues](guides/HELP#troubleshooting)
@@ -129,7 +117,7 @@ docs/
 
 ---
 
-## 📊 Project Information
+## Project Information
 
 | Resource | Link |
 |----------|------|
@@ -146,17 +134,13 @@ docs/
 
 ---
 
-## 🤝 Contributing
-
-We welcome contributions! See:
+## Contributing
 
 - [Contributing Guide](process/CONTRIBUTING)
 - [Developer Guidelines](development/AGENTS)
-- [Code Standards](development/AGENTS#code-standards)
 
 ---
 
-**Last Updated**: 2025-12-02
-**Documentation Version**: 3.1 (Reorganized documentation structure)
+**Last Updated**: 2026-02-13
 
 **[Return to Main README](../README.md)** | **[View Complete Index](INDEX)**
