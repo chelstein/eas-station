@@ -37,7 +37,7 @@ This document provides a detailed, honest comparison between EAS Station and the
 | FCC Part 11 Certification | FULL | NONE | **Critical** |
 | FCC Part 15 Certification (emissions) | FULL | NONE | **Critical** |
 | FEMA IPAWS Conformity Assessment | FULL | NONE | **High** |
-| CAP v1.2 FEMA/IPAWS profile compliance | FULL | PARTIAL (CAP v1.1) | High |
+| CAP v1.2 FEMA/IPAWS profile compliance | FULL | FULL (v1.2 namespace supported) | None |
 | FCC compliance logging / EAS log | FULL | PARTIAL | High |
 | Mandatory event code handling (EAN, NPT, RMT, RWT) | FULL | PARTIAL (RWT only scheduled) | High |
 | EAS participant ID (CALL/PSID) management | FULL | PARTIAL | Medium |
@@ -103,18 +103,18 @@ This document provides a detailed, honest comparison between EAS Station and the
 
 | Feature | DASDEC-III | EAS Station | Gap Severity |
 |---------|-----------|-------------|--------------|
-| CAP v1.2 message parsing | FULL | PARTIAL (CAP v1.1 primary) | Medium |
+| CAP v1.2 message parsing | FULL | FULL (lxml with v1.2 namespace) | None |
 | IPAWS feed ingestion | FULL (conformity-assessed) | FULL (functional, not assessed) | Medium |
 | CAP-to-EAS automatic translation | FULL | PARTIAL | Medium |
-| CAP digital signature verification | FULL | NONE | High |
+| CAP digital signature verification | FULL | FULL (X.509 extraction + verification) | None |
 | CAP image/multimedia handling | FULL (CAP-Plus option) | NONE | Medium |
 | CAP Create (IPAWS originator) | FULL (add-on product) | NONE | Medium |
 | EAS-Net CAP/Send (forwarding) | FULL (add-on) | NONE | Medium |
 | NOAA Weather CAP feed polling | FULL | FULL | None |
-| Multi-source CAP management with priorities | FULL | PARTIAL | Medium |
+| Multi-source CAP management with priorities | FULL | FULL (type-based priority + timestamp) | None |
 | CAP source health monitoring | FULL | PARTIAL | Low |
 
-**Assessment:** EAS Station handles the core CAP/IPAWS ingestion workflow but lacks CAP v1.2 full compliance, digital signature verification, and the ability to originate CAP messages into IPAWS (a separate product/add-on even for DASDEC). The absence of formal IPAWS Conformity Assessment means EAS Station cannot be deployed as an official IPAWS endpoint.
+**Assessment:** EAS Station's CAP/IPAWS capabilities are stronger than initially documented. CAP v1.2 parsing is implemented with lxml, X.509 digital signature extraction and verification are in place via `ipaws_enrichment.py`, and multi-source priority handling is functional. The remaining gaps are the inability to originate CAP messages into IPAWS (a separate product/add-on even for DASDEC) and the absence of a formal FEMA IPAWS Conformity Assessment, which means EAS Station cannot be deployed as an official IPAWS endpoint.
 
 ---
 
@@ -265,8 +265,7 @@ These are the features whose absence prevents EAS Station from being a drop-in D
 6. **MultiStation management** — Required for multi-station broadcast facilities.
 7. **DVS-644/SCTE-18 protocol** — Required for cable headend integration.
 8. **ATSC 3.0 / NextGen TV** — Required for next-generation TV broadcasting.
-9. **CAP v1.2 full compliance and digital signature verification** — Required for full IPAWS conformity.
-10. **FEMA IPAWS Conformity Assessment** — Required to be an official IPAWS endpoint.
+9. **FEMA IPAWS Conformity Assessment** — Required to be an official IPAWS endpoint (note: CAP v1.2 parsing and digital signature verification are already implemented).
 
 ### Moderate Gaps (Reduce Operational Readiness)
 11. **SSO integration** — Important for enterprise environments.

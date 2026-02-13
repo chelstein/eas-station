@@ -33,7 +33,6 @@ This roadmap outlines the path to achieving complete feature parity with the Dig
 ### 🔄 In Progress
 - FastAPI parallel deployment alongside Flask
 - RBDS (Radio Data System) decoding improvements
-- CAP v1.2 full compliance
 - Certification-grade reliability controls (see `certification_reliability_plan.md`)
 
 ### 📋 Remaining Gaps vs. DASDEC-III (Critical)
@@ -47,8 +46,7 @@ These are the features that prevent EAS Station from replacing a DASDEC in a reg
 - **MultiStation management** — Up to 5 stations from one unit
 - **DVS-644/SCTE-18 protocol** — Cable headend integration
 - **ATSC 3.0 / NextGen TV** — Next-generation TV broadcasting
-- **CAP digital signature verification** — Required for full IPAWS conformity
-- **FEMA IPAWS Conformity Assessment** — Formal certification process
+- **FEMA IPAWS Conformity Assessment** — Formal certification process (CAP v1.2 + signatures now implemented)
 - **SNMP monitoring** — Broadcast NOC integration
 - **GPS PPS time source** — Certified timing accuracy
 
