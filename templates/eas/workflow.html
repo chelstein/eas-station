@@ -345,6 +345,43 @@
                             <label class="form-check-label" for="includeTtsToggle">Include narration (TTS)</label>
                             <div class="form-text">Provider: {{ eas_originator_descriptions.get(eas_originator, 'TTS') }}</div>
                         </div>
+                        <div class="col-12">
+                            <hr class="my-1">
+                            <div class="d-flex align-items-center gap-2 mb-2">
+                                <h6 class="mb-0"><i class="fas fa-file-audio me-1 text-info"></i>Audio File Uploads</h6>
+                                <span class="badge bg-secondary">Optional</span>
+                            </div>
+                            <div class="form-text mb-3">Upload WAV or MP3 files to use custom audio. Uploaded narration replaces TTS-generated speech. Pre/post alert audio is inserted around the narration segment.</div>
+                            <div class="row g-3">
+                                <div class="col-md-4">
+                                    <label for="narrationAudioUpload" class="form-label">Narration Audio</label>
+                                    <input type="file" class="form-control" id="narrationAudioUpload" accept=".wav,.mp3,.ogg,.aac,.flac,audio/*">
+                                    <div class="form-text">Replaces TTS narration.</div>
+                                    <div id="narrationAudioPreview" class="mt-1" style="display:none;">
+                                        <audio class="w-100" controls preload="metadata" id="narrationAudioPlayer"></audio>
+                                        <button type="button" class="btn btn-sm btn-outline-danger mt-1" id="clearNarrationAudio"><i class="fas fa-times me-1"></i>Remove</button>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="preAlertAudioUpload" class="form-label">Pre-Alert Audio</label>
+                                    <input type="file" class="form-control" id="preAlertAudioUpload" accept=".wav,.mp3,.ogg,.aac,.flac,audio/*">
+                                    <div class="form-text">Plays before narration.</div>
+                                    <div id="preAlertAudioPreview" class="mt-1" style="display:none;">
+                                        <audio class="w-100" controls preload="metadata" id="preAlertAudioPlayer"></audio>
+                                        <button type="button" class="btn btn-sm btn-outline-danger mt-1" id="clearPreAlertAudio"><i class="fas fa-times me-1"></i>Remove</button>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="postAlertAudioUpload" class="form-label">Post-Alert Audio</label>
+                                    <input type="file" class="form-control" id="postAlertAudioUpload" accept=".wav,.mp3,.ogg,.aac,.flac,audio/*">
+                                    <div class="form-text">Plays after narration.</div>
+                                    <div id="postAlertAudioPreview" class="mt-1" style="display:none;">
+                                        <audio class="w-100" controls preload="metadata" id="postAlertAudioPlayer"></audio>
+                                        <button type="button" class="btn btn-sm btn-outline-danger mt-1" id="clearPostAlertAudio"><i class="fas fa-times me-1"></i>Remove</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                         <div class="col-12 d-flex align-items-center gap-2">
                             <button type="submit" class="btn btn-primary">
                                 <i class="fas fa-bolt me-1"></i> Generate Manual Package
@@ -1077,12 +1114,50 @@ function renderComponents(components, activation) {
     document.getElementById('generationResults').style.display = 'block';
 }
 
+function hasUploadedFiles() {
+    const narration = document.getElementById('narrationAudioUpload');
+    const preAlert = document.getElementById('preAlertAudioUpload');
+    const postAlert = document.getElementById('postAlertAudioUpload');
+    return (narration && narration.files.length > 0)
+        || (preAlert && preAlert.files.length > 0)
+        || (postAlert && postAlert.files.length > 0);
+}
+
 async function postManualGeneration(payload) {
-    const response = await fetch('/eas/manual/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-    });
+    let response;
+    if (hasUploadedFiles()) {
+        // Use FormData when files are present
+        const formData = new FormData();
+        for (const [key, value] of Object.entries(payload)) {
+            if (Array.isArray(value)) {
+                formData.append(key, JSON.stringify(value));
+            } else {
+                formData.append(key, String(value));
+            }
+        }
+        const narrationInput = document.getElementById('narrationAudioUpload');
+        if (narrationInput && narrationInput.files.length > 0) {
+            formData.append('narration_audio', narrationInput.files[0]);
+        }
+        const preAlertInput = document.getElementById('preAlertAudioUpload');
+        if (preAlertInput && preAlertInput.files.length > 0) {
+            formData.append('pre_alert_audio', preAlertInput.files[0]);
+        }
+        const postAlertInput = document.getElementById('postAlertAudioUpload');
+        if (postAlertInput && postAlertInput.files.length > 0) {
+            formData.append('post_alert_audio', postAlertInput.files[0]);
+        }
+        response = await fetch('/eas/manual/generate', {
+            method: 'POST',
+            body: formData,
+        });
+    } else {
+        response = await fetch('/eas/manual/generate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+    }
     let result = {};
     try {
         result = await response.json();
@@ -1422,6 +1497,39 @@ function initialiseWorkflow() {
             handleQuickRwt();
         });
     }
+
+    // Audio file upload preview handlers
+    function setupAudioUpload(inputId, previewId, playerId, clearBtnId) {
+        const input = document.getElementById(inputId);
+        const preview = document.getElementById(previewId);
+        const player = document.getElementById(playerId);
+        const clearBtn = document.getElementById(clearBtnId);
+        if (!input || !preview || !player) return;
+
+        input.addEventListener('change', () => {
+            if (input.files && input.files.length > 0) {
+                const url = URL.createObjectURL(input.files[0]);
+                player.src = url;
+                preview.style.display = 'block';
+            } else {
+                player.src = '';
+                preview.style.display = 'none';
+            }
+        });
+
+        if (clearBtn) {
+            clearBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                input.value = '';
+                player.src = '';
+                preview.style.display = 'none';
+            });
+        }
+    }
+
+    setupAudioUpload('narrationAudioUpload', 'narrationAudioPreview', 'narrationAudioPlayer', 'clearNarrationAudio');
+    setupAudioUpload('preAlertAudioUpload', 'preAlertAudioPreview', 'preAlertAudioPlayer', 'clearPreAlertAudio');
+    setupAudioUpload('postAlertAudioUpload', 'postAlertAudioPreview', 'postAlertAudioPlayer', 'clearPostAlertAudio');
 
     updateEventName();
     updateToneControls();

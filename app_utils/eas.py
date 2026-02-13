@@ -1180,6 +1180,9 @@ class EASAudioGenerator:
         silence_between_headers: float = 1.0,
         silence_after_header: float = 1.0,
         force_rwt_defaults: bool = True,
+        narration_upload_samples: Optional[List[int]] = None,
+        pre_alert_samples: Optional[List[int]] = None,
+        post_alert_samples: Optional[List[int]] = None,
     ) -> Dict[str, object]:
         # Extract event code from SAME header to detect RWT (Required Weekly Test)
         # Header format: ZCZC-ORG-EEE-PSSCCC-... where EEE is the event code
@@ -1243,8 +1246,14 @@ class EASAudioGenerator:
         tts_samples: List[int] = []
         tts_warning: Optional[str] = None
         provider = self.tts_engine.provider
-        
-        if include_tts:
+
+        # If narration audio was uploaded, use it instead of TTS
+        if narration_upload_samples:
+            normalized_narration = _normalize_audio_amplitude(narration_upload_samples, amplitude * 0.7)
+            tts_samples.extend(normalized_narration)
+            if self.logger:
+                self.logger.info(f"Using uploaded narration audio: {len(tts_samples)} samples")
+        elif include_tts:
             if not message_text:
                 if self.logger:
                     self.logger.warning("TTS requested but no message text available for narration")
@@ -1311,14 +1320,30 @@ class EASAudioGenerator:
 
         eom_samples.extend(_generate_silence(1.0, self.sample_rate))
 
+        # Normalize uploaded pre/post alert audio
+        norm_pre_alert = (
+            _normalize_audio_amplitude(pre_alert_samples, amplitude * 0.7)
+            if pre_alert_samples else []
+        )
+        norm_post_alert = (
+            _normalize_audio_amplitude(post_alert_samples, amplitude * 0.7)
+            if post_alert_samples else []
+        )
+
         trailing_silence = _generate_silence(silence_after_header, self.sample_rate)
         composite_samples: List[int] = []
         composite_samples.extend(same_samples)
         composite_samples.extend(trailing_silence)
         composite_samples.extend(attention_samples)
+        if norm_pre_alert:
+            composite_samples.extend(trailing_silence)
+            composite_samples.extend(norm_pre_alert)
         if tts_samples:
             composite_samples.extend(trailing_silence)
             composite_samples.extend(tts_samples)
+        if norm_post_alert:
+            composite_samples.extend(trailing_silence)
+            composite_samples.extend(norm_post_alert)
         composite_samples.extend(trailing_silence)
         composite_samples.extend(eom_samples)
 
@@ -1335,6 +1360,8 @@ class EASAudioGenerator:
             'tts_enabled': include_tts,  # Actual TTS state (may differ from request if RWT)
             'eom_header': eom_header,
             'eom_samples': eom_samples,
+            'pre_alert_samples': norm_pre_alert,
+            'post_alert_samples': norm_post_alert,
             'composite_samples': composite_samples,
             'sample_rate': self.sample_rate,
         }
@@ -1671,6 +1698,16 @@ class EASBroadcaster:
         return result
 
 
+def convert_audio_to_samples(
+    audio_data: bytes,
+    mime_type: str,
+    target_sample_rate: int,
+    logger,
+) -> Optional[List[int]]:
+    """Public wrapper for audio conversion. See :func:`_convert_audio_to_samples`."""
+    return _convert_audio_to_samples(audio_data, mime_type, target_sample_rate, logger)
+
+
 __all__ = [
     'load_eas_config',
     'EASBroadcaster',
@@ -1679,6 +1716,7 @@ __all__ = [
     'build_eom_header',
     'samples_to_wav_bytes',
     'manual_default_same_codes',
+    'convert_audio_to_samples',
     'PRIMARY_ORIGINATORS',
 ]
 

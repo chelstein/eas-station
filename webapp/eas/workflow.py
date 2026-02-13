@@ -43,8 +43,11 @@ from flask import (
 
 from app_core.extensions import db
 from app_core.models import AdminUser, EASMessage, LocalAuthority, ManualEASActivation, SystemLog
+from werkzeug.utils import secure_filename
+
 from app_utils.eas import (
     EASAudioGenerator,
+    _convert_audio_to_samples,
     load_eas_config,
     ORIGINATOR_DESCRIPTIONS,
     P_DIGIT_MEANINGS,
@@ -57,6 +60,9 @@ from app_utils.eas import (
 )
 from app_utils.event_codes import EVENT_CODE_REGISTRY
 from app_utils.fips_codes import get_same_lookup, get_us_state_county_tree
+
+ALLOWED_AUDIO_EXTENSIONS = {'.wav', '.mp3', '.ogg', '.aac', '.flac'}
+MAX_UPLOAD_SIZE = 50 * 1024 * 1024  # 50 MB
 
 
 def _get_local_authority(user) -> Optional[LocalAuthority]:
@@ -139,13 +145,70 @@ def register_workflow_routes(bp, logger, eas_config) -> None:
             local_authority=local_authority_ctx,
         )
 
+    def _read_upload_file(file_key: str, logger) -> Optional[List[int]]:
+        """Read and convert an uploaded audio file to PCM samples.
+
+        Returns a list of 16-bit PCM samples or None when no file is present.
+        """
+        upload = request.files.get(file_key)
+        if not upload or not upload.filename:
+            return None
+
+        filename = secure_filename(upload.filename)
+        ext = os.path.splitext(filename)[1].lower()
+        if ext not in ALLOWED_AUDIO_EXTENSIONS:
+            return None
+
+        audio_bytes = upload.read()
+        if not audio_bytes:
+            return None
+
+        if len(audio_bytes) > MAX_UPLOAD_SIZE:
+            logger.warning('Uploaded file %s exceeds size limit (%d bytes)', file_key, len(audio_bytes))
+            return None
+
+        mime = upload.content_type or 'application/octet-stream'
+        try:
+            sample_rate = int(request.form.get('sample_rate') or eas_config.get('sample_rate', 16000) or 16000)
+        except (TypeError, ValueError):
+            sample_rate = 16000
+
+        samples = _convert_audio_to_samples(audio_bytes, mime, sample_rate, logger)
+        if samples and logger:
+            duration = round(len(samples) / sample_rate, 2)
+            logger.info('Uploaded %s: %s (%s, %d samples, ~%ss)', file_key, filename, mime, len(samples), duration)
+        return samples
+
     @bp.route('/manual/generate', methods=['POST'])
     def manual_eas_generate():
         auth_response = _auth_redirect(json_mode=True)
         if auth_response is not None:
             return auth_response
 
-        payload = request.get_json(silent=True) or {}
+        # Support both JSON and multipart/form-data (for file uploads)
+        content_type = (request.content_type or '').lower()
+        if 'multipart/form-data' in content_type:
+            payload = {}
+            for key in request.form:
+                value = request.form[key]
+                # Parse boolean-like values
+                if value.lower() in ('true', '1', 'on'):
+                    payload[key] = True
+                elif value.lower() in ('false', '0', 'off'):
+                    payload[key] = False
+                else:
+                    payload[key] = value
+            # Parse same_codes from comma-separated or JSON
+            raw_same = request.form.get('same_codes', '')
+            if raw_same.startswith('['):
+                try:
+                    payload['same_codes'] = json.loads(raw_same)
+                except (json.JSONDecodeError, ValueError):
+                    payload['same_codes'] = raw_same
+            else:
+                payload['same_codes'] = raw_same
+        else:
+            payload = request.get_json(silent=True) or {}
 
         def _validation_error(message: str, status: int = 400):
             return jsonify({'error': message}), status
@@ -365,6 +428,11 @@ def register_workflow_routes(bp, logger, eas_config) -> None:
             # Use default behavior (RWT disables TTS, other events keep user's choice)
             force_rwt_defaults = True
 
+        # Process uploaded audio files (only present in multipart requests)
+        uploaded_narration = _read_upload_file('narration_audio', workflow_logger)
+        uploaded_pre_alert = _read_upload_file('pre_alert_audio', workflow_logger)
+        uploaded_post_alert = _read_upload_file('post_alert_audio', workflow_logger)
+
         try:
             components = generator.build_manual_components(
                 alert_object,
@@ -373,6 +441,9 @@ def register_workflow_routes(bp, logger, eas_config) -> None:
                 tone_duration=tone_seconds,
                 include_tts=include_tts,
                 force_rwt_defaults=force_rwt_defaults,
+                narration_upload_samples=uploaded_narration,
+                pre_alert_samples=uploaded_pre_alert,
+                post_alert_samples=uploaded_post_alert,
             )
         except Exception as exc:
             workflow_logger.error('Manual EAS generation failed: %s', exc)
@@ -515,14 +586,18 @@ def register_workflow_routes(bp, logger, eas_config) -> None:
 
         same_component = _package_audio(components.get('same_samples') or [], 'same')
         attention_component = _package_audio(components.get('attention_samples') or [], 'attention')
+        pre_alert_component = _package_audio(components.get('pre_alert_samples') or [], 'pre_alert')
         tts_component = _package_audio(components.get('tts_samples') or [], 'tts')
+        post_alert_component = _package_audio(components.get('post_alert_samples') or [], 'post_alert')
         eom_component = _package_audio(components.get('eom_samples') or [], 'eom')
         composite_component = _package_audio(components.get('composite_samples') or [], 'full')
 
         stored_components = {
             'same': same_component,
             'attention': attention_component,
+            'pre_alert': pre_alert_component,
             'tts': tts_component,
+            'post_alert': post_alert_component,
             'eom': eom_component,
             'composite': composite_component,
         }
@@ -649,6 +724,9 @@ def register_workflow_routes(bp, logger, eas_config) -> None:
             attention_audio_data=attention_component.get('wav_bytes') if attention_component else None,
             tts_audio_data=tts_component.get('wav_bytes') if tts_component else None,
             eom_audio_data=eom_component.get('wav_bytes') if eom_component else None,
+            narration_upload_audio_data=tts_component.get('wav_bytes') if (tts_component and uploaded_narration) else None,
+            pre_alert_audio_data=pre_alert_component.get('wav_bytes') if pre_alert_component else None,
+            post_alert_audio_data=post_alert_component.get('wav_bytes') if post_alert_component else None,
         )
 
         try:
