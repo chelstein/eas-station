@@ -1,7 +1,7 @@
 """Add uploaded audio columns to manual_eas_activations.
 
 Revision ID: 20260213_add_audio_upload_columns
-Revises: 20260210_add_local_authorities
+Revises: 20260210_add_ipaws_enrichment
 Create Date: 2026-02-13
 
 Adds columns for user-uploaded audio files: narration audio (alternative to
@@ -17,7 +17,7 @@ from sqlalchemy import inspect
 
 
 revision = "20260213_add_audio_upload_columns"
-down_revision = "20260210_add_local_authorities"
+down_revision = "20260210_add_ipaws_enrichment"
 branch_labels = None
 depends_on = None
 
