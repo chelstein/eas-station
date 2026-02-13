@@ -49,71 +49,64 @@ SNAPSHOT_SCREEN_TEMPLATE = {
     "template_data": {
         "clear": True,
         "elements": [
-            # Live header row
-            {"type": "text", "text": "{now.time_24}", "x": 0, "y": 0, "font": "small"},
-            {
-                "type": "text",
-                "text": "{status.status} · {status.active_alerts_count} alerts",
-                "x": 127,
-                "y": 0,
-                "font": "small",
-                "align": "right",
-                "max_width": 96,
-                "overflow": "trim",
-            },
-            # CPU bar (y≈12-20)
-            {"type": "text", "text": "CPU", "x": 0, "y": 12, "font": "small"},
-            {"type": "bar", "value": "{status.system_resources.cpu_usage_percent}", "x": 28, "y": 13, "width": 76, "height": 7},
+            # Header banner
+            {"type": "rectangle", "x": 0, "y": 0, "width": 128, "height": 12, "filled": True},
+            {"type": "text", "text": "SYSTEM STATUS", "x": 2, "y": 1, "font": "small", "invert": True},
+            {"type": "text", "text": "{now.time_24}", "x": 125, "y": 1, "font": "small", "invert": True, "align": "right"},
+            # CPU row (y=14)
+            {"type": "text", "text": "CPU", "x": 2, "y": 14, "font": "small"},
+            {"type": "bar", "value": "{status.system_resources.cpu_usage_percent}", "x": 26, "y": 14, "width": 70, "height": 10},
             {
                 "type": "text",
                 "text": "{status.system_resources.cpu_usage_percent}%",
                 "x": 125,
-                "y": 12,
+                "y": 14,
                 "font": "small",
                 "align": "right",
-                "max_width": 30,
+                "max_width": 28,
                 "overflow": "trim",
             },
-            # Memory bar (y≈24-32)
-            {"type": "text", "text": "MEM", "x": 0, "y": 24, "font": "small"},
-            {"type": "bar", "value": "{status.system_resources.memory_usage_percent}", "x": 28, "y": 25, "width": 76, "height": 7},
+            # Memory row (y=26)
+            {"type": "text", "text": "MEM", "x": 2, "y": 26, "font": "small"},
+            {"type": "bar", "value": "{status.system_resources.memory_usage_percent}", "x": 26, "y": 26, "width": 70, "height": 10},
             {
                 "type": "text",
                 "text": "{status.system_resources.memory_usage_percent}%",
                 "x": 125,
-                "y": 24,
+                "y": 26,
                 "font": "small",
                 "align": "right",
-                "max_width": 30,
+                "max_width": 28,
                 "overflow": "trim",
             },
-            # Status summary row
+            # Footer divider + summary
+            {"type": "rectangle", "x": 0, "y": 39, "width": 128, "height": 1, "filled": True},
             {
                 "type": "text",
                 "text": "{status.status_summary}",
-                "x": 0,
-                "y": 40,
+                "x": 2,
+                "y": 42,
                 "font": "small",
-                "max_width": 84,
+                "max_width": 66,
                 "overflow": "ellipsis",
             },
             {
                 "type": "text",
                 "text": "{now.date}",
                 "x": 125,
-                "y": 40,
+                "y": 42,
                 "font": "small",
                 "align": "right",
-                "max_width": 40,
+                "max_width": 48,
                 "overflow": "trim",
             },
             {
                 "type": "text",
                 "text": "Last poll {status.last_poll.local_timestamp}",
-                "x": 0,
-                "y": 52,
+                "x": 2,
+                "y": 54,
                 "font": "small",
-                "max_width": 128,
+                "max_width": 124,
                 "overflow": "ellipsis",
             },
         ],
@@ -150,6 +143,7 @@ class ScreenManager:
         self._oled_button_lock = threading.Lock()
         self._oled_button_held = False
         self._oled_button_initialized = False
+        self._oled_button_retry_after = 0.0  # monotonic time; throttle init retries
         self._oled_alert_paused = False  # Track if alert scrolling is paused
         self._pending_alert: Optional[Dict[str, Any]] = None  # Higher priority alert waiting to display
         # Pixel-by-pixel scrolling configuration
@@ -209,9 +203,9 @@ class ScreenManager:
             loop_start = time.monotonic()
 
             try:
-                self._ensure_oled_button_listener()
                 if self.app:
                     with self.app.app_context():
+                        self._ensure_oled_button_listener()
                         self._update_rotations()
                         self._check_led_rotation()
                         self._check_vfd_rotation()
@@ -430,6 +424,11 @@ class ScreenManager:
                     logger.debug("Could not verify OLED button callbacks: %s", exc)
             return
 
+        # Throttle retries to every 5 seconds (loop runs at 60fps)
+        now_mono = time.monotonic()
+        if now_mono < self._oled_button_retry_after:
+            return
+
         try:
             from app_core.oled import ensure_oled_button
         except Exception as exc:  # pragma: no cover - optional dependency
@@ -440,8 +439,9 @@ class ScreenManager:
         button = ensure_oled_button(logger)
         if button is None:
             # Don't set initialized to True if button is None due to hardware issues
-            # This allows retry on next loop iteration
-            logger.debug("OLED button not available, will retry")
+            # Retry after 5 seconds instead of every frame
+            self._oled_button_retry_after = now_mono + 5.0
+            logger.debug("OLED button not available, will retry in 5s")
             return
 
         try:
