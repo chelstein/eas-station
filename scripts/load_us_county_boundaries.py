@@ -212,8 +212,12 @@ def main():
     args = parser.parse_args()
 
     # Flask app context is required for database access
-    from dotenv import load_dotenv
-    load_dotenv(PROJECT_ROOT / ".env")
+    try:
+        from dotenv import load_dotenv
+        load_dotenv(PROJECT_ROOT / ".env")
+    except ImportError:
+        # dotenv not required if env is already configured
+        pass
 
     from app import app
     with app.app_context():

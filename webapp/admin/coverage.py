@@ -30,17 +30,29 @@ from app_core.models import Boundary, CAPAlert, Intersection
 from app_core.extensions import db
 
 
+def _us_county_table_exists() -> bool:
+    """Return True if the us_county_boundaries table has been created and has rows."""
+    from sqlalchemy import text
+    try:
+        result = db.session.execute(
+            text("SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'us_county_boundaries')")
+        ).scalar()
+        return bool(result)
+    except Exception:
+        return False
+
+
 def _build_geometry_from_same_codes(alert) -> bool:
     """Build alert geometry from SAME geocodes via US county boundary lookup.
 
     When an IPAWS alert has no inline polygon but carries SAME geocodes,
     this function looks up matching county boundaries in ``us_county_boundaries``
-    and stores a union geometry on the alert.  Returns True if geometry was
-    set, False otherwise.
+    and stores a union geometry on the alert.  Handles statewide codes
+    (ending in '000') by looking up all counties for that state.
+
+    Returns True if geometry was set, False otherwise.
     """
-    try:
-        from app_core.models import USCountyBoundary
-    except ImportError:
+    if not _us_county_table_exists():
         return False
 
     raw_json = alert.raw_json if isinstance(alert.raw_json, dict) else {}
@@ -48,54 +60,89 @@ def _build_geometry_from_same_codes(alert) -> bool:
     if not same_codes:
         return False
 
-    # Convert 6-digit SAME codes to 5-digit GEOIDs:  039137 -> 39137
-    geoids = set()
-    for code in same_codes:
-        if not isinstance(code, str) or len(code) < 5:
-            continue
-        # SAME format: PSSCCC  (P=part, SS=state, CCC=county)
-        # GEOID format: SSCCC
-        # Statewide codes end in 000 - skip (no single county to look up)
-        if code.endswith('000'):
-            continue
-        # Strip leading zero: 039137 -> 39137
-        geoid = code.lstrip('0')
-        if len(geoid) < 4:
-            continue
-        geoids.add(geoid)
+    try:
+        from sqlalchemy import text
 
-    if not geoids:
+        # Convert 6-digit SAME codes to 5-digit GEOIDs and collect state FIPS
+        # for statewide codes
+        geoids = set()
+        statewide_state_fps = set()
+
+        for code in same_codes:
+            if not isinstance(code, str) or len(code) < 5:
+                continue
+            # Statewide codes end in 000 → look up all counties for that state
+            if code.endswith('000'):
+                # SAME 039000 → state FIPS "39"
+                state_fp = code.lstrip('0')[:2] if len(code.lstrip('0')) >= 3 else code[1:3]
+                # Ensure 2-digit state FIPS
+                if len(code) == 6:
+                    state_fp = code[1:3]
+                statewide_state_fps.add(state_fp)
+                continue
+            # County codes: 039137 → GEOID 39137
+            geoid = code.lstrip('0')
+            if len(geoid) < 4:
+                continue
+            geoids.add(geoid)
+
+        if not geoids and not statewide_state_fps:
+            return False
+
+        # Build WHERE clause for matching counties
+        conditions = []
+        params = {}
+
+        if geoids:
+            conditions.append("geoid = ANY(:geoids)")
+            params["geoids"] = list(geoids)
+
+        if statewide_state_fps:
+            conditions.append("statefp = ANY(:state_fps)")
+            params["state_fps"] = list(statewide_state_fps)
+
+        where_clause = " OR ".join(conditions)
+
+        # Count matches first
+        count = db.session.execute(
+            text(f"SELECT COUNT(*) FROM us_county_boundaries WHERE ({where_clause}) AND geom IS NOT NULL"),
+            params,
+        ).scalar()
+
+        if not count:
+            return False
+
+        # Build union geometry
+        union_result = db.session.execute(
+            text(f"""
+                SELECT ST_SetSRID(ST_Multi(ST_Union(geom)), 4326)
+                FROM us_county_boundaries
+                WHERE ({where_clause})
+                  AND geom IS NOT NULL
+            """),
+            params,
+        ).scalar()
+
+        if union_result is None:
+            return False
+
+        alert.geom = union_result
+        db.session.commit()
+        current_app.logger.info(
+            'Built geometry from %d SAME codes (%d counties matched) for alert %s',
+            len(same_codes), count, alert.identifier,
+        )
+        return True
+
+    except Exception as exc:
+        current_app.logger.debug(
+            'SAME geometry lookup failed for %s: %s', alert.identifier, exc,
+        )
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
         return False
-
-    # Check if any matching rows exist
-    count = USCountyBoundary.query.filter(
-        USCountyBoundary.geoid.in_(geoids)
-    ).count()
-    if count == 0:
-        return False
-
-    # Build a union of all matching county geometries
-    from sqlalchemy import text
-    union_result = db.session.execute(
-        text("""
-            SELECT ST_SetSRID(ST_Multi(ST_Union(geom)), 4326)
-            FROM us_county_boundaries
-            WHERE geoid = ANY(:geoids)
-              AND geom IS NOT NULL
-        """),
-        {"geoids": list(geoids)},
-    ).scalar()
-
-    if union_result is None:
-        return False
-
-    alert.geom = union_result
-    db.session.commit()
-    current_app.logger.info(
-        'Built geometry from %d SAME codes (%d matched) for alert %s',
-        len(same_codes), count, alert.identifier,
-    )
-    return True
 
 
 def calculate_coverage_percentages(alert_id, intersections):
