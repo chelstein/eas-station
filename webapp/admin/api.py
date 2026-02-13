@@ -238,7 +238,12 @@ def get_alert_geometry(alert_id):
         return jsonify({'error': 'Failed to retrieve alert geometry'}), 500
 
 def _extract_ipaws_display_data(alert) -> Optional[Dict[str, Any]]:
-    """Extract IPAWS-specific data from an alert for template rendering."""
+    """Extract IPAWS-specific data from an alert for template rendering.
+
+    Parses the full set of IPAWS alert properties including sender details,
+    EAS parameters, SAME geocodes, resources, digital signature certificate
+    information, and audio references.
+    """
     raw_json = alert.raw_json
     if not isinstance(raw_json, dict):
         return None
@@ -250,40 +255,104 @@ def _extract_ipaws_display_data(alert) -> Optional[Dict[str, Any]]:
 
     data: Dict[str, Any] = {'is_ipaws': True}
 
-    # EAS parameters
+    # --- Sender / origin information ---
+    sender = props.get('sender', '')
+    if sender:
+        data['sender'] = sender
+    sender_name = props.get('senderName', '')
+    if sender_name:
+        data['sender_name'] = sender_name
+
+    # --- Scope, response type, category ---
+    scope = props.get('scope', '')
+    if scope:
+        data['scope'] = scope
+    response_type = props.get('responseType', '')
+    if response_type:
+        data['response_type'] = response_type
+    category = props.get('category', '')
+    if category:
+        data['category'] = category
+
+    # --- Effective time ---
+    effective = props.get('effective', '')
+    if effective:
+        data['effective'] = effective
+
+    # --- Web link from the alert ---
+    web = props.get('web', '')
+    if web and web.lower().startswith(('http://', 'https://')):
+        data['web'] = web
+
+    # --- IPAWS fetch endpoint (provenance) ---
+    fetch_endpoint = props.get('_fetch_endpoint', '')
+    if fetch_endpoint:
+        data['fetch_endpoint'] = fetch_endpoint
+    fetch_type = props.get('_fetch_endpoint_type', '')
+    if fetch_type:
+        data['fetch_endpoint_type'] = fetch_type
+
+    # --- EAS parameters ---
     params = props.get('parameters', {})
     if params:
         data['eas_org'] = ', '.join(params.get('EAS-ORG', []))
         data['eas_station_id'] = ', '.join(params.get('EAS-STN-ID', []))
         data['block_channels'] = params.get('BLOCKCHANNEL', [])
+        # Expose all remaining parameters for display
+        extra_params = {}
+        for k, v in params.items():
+            if k not in ('EAS-ORG', 'EAS-STN-ID', 'BLOCKCHANNEL'):
+                extra_params[k] = v
+        if extra_params:
+            data['extra_parameters'] = extra_params
 
-    # SAME geocodes
+    # --- SAME geocodes ---
     geocodes = props.get('geocode', {})
     if geocodes:
         data['same_codes'] = geocodes.get('SAME', [])
+        # Include any additional geocode types (UGC, FIPS6, etc.)
+        extra_geocodes = {}
+        for k, v in geocodes.items():
+            if k != 'SAME':
+                extra_geocodes[k] = v
+        if extra_geocodes:
+            data['extra_geocodes'] = extra_geocodes
 
-    # Non-audio resources (web links, etc.)
+    # --- Resources: separate audio from web links ---
     resources = props.get('resources', [])
     web_resources = []
+    audio_resources = []
     for r in resources:
         mime = (r.get('mimeType') or '').lower()
         uri = r.get('uri', '')
-        # Only allow http and https URLs to prevent XSS attacks
-        if 'audio' not in mime and uri and uri.lower().startswith(('http://', 'https://')):
+        desc = r.get('resourceDesc', '')
+        has_deref = bool(r.get('derefUri'))
+
+        if 'audio' in mime or 'eas broadcast' in desc.lower():
+            audio_resources.append({
+                'description': desc or 'Audio',
+                'mime_type': r.get('mimeType', ''),
+                'size': r.get('size', ''),
+                'has_inline_data': has_deref,
+                'url': uri if uri and uri.lower().startswith(('http://', 'https://')) else '',
+            })
+        elif uri and uri.lower().startswith(('http://', 'https://')):
             web_resources.append({
-                'description': r.get('resourceDesc', 'Link'),
+                'description': desc or 'Link',
                 'url': uri,
                 'mime_type': r.get('mimeType', ''),
             })
     if web_resources:
         data['web_resources'] = web_resources
+    if audio_resources:
+        data['audio_resources'] = audio_resources
 
-    # Certificate info (from enrichment)
+    # --- Certificate info (from enrichment) ---
     cert_info = getattr(alert, 'certificate_info', None)
     if cert_info and isinstance(cert_info, dict):
         data['certificate'] = cert_info
 
-    # IPAWS original audio URL
+    # --- IPAWS original audio URL (saved to disk) ---
     ipaws_audio = getattr(alert, 'ipaws_audio_url', None)
     if ipaws_audio:
         data['ipaws_audio_filename'] = ipaws_audio
