@@ -67,6 +67,75 @@ from .coverage import calculate_coverage_percentages
 # Create Blueprint for API routes
 api_bp = Blueprint('api', __name__)
 
+
+def _get_configured_fips_codes() -> List[str]:
+    """Return the configured FIPS codes from LocationSettings (cached per-request)."""
+    from app_core.location import get_location_settings
+    settings = get_location_settings()
+    return settings.get('fips_codes', []) if settings else []
+
+
+def _detect_county_wide(alert) -> bool:
+    """Determine whether an alert covers the configured county.
+
+    Checks area_desc text patterns, SAME geocodes matching configured FIPS
+    codes, and statewide SAME codes.  Returns True when the alert is known
+    to cover the primary county.
+    """
+    is_county_wide = False
+
+    # --- Text-based detection from area_desc ---
+    if alert.area_desc:
+        area_lower = alert.area_desc.lower().strip()
+        is_county_wide = (
+            'putnam county' in area_lower
+            or 'entire county' in area_lower
+            or ('county' in area_lower and 'ohio' in area_lower)
+            or (
+                'putnam' in area_lower
+                and (area_lower.count(';') >= 2 or area_lower.count(',') >= 2)
+            )
+        )
+
+        # Statewide text patterns (e.g. area_desc="Ohio" or contains "state of ohio")
+        if not is_county_wide:
+            if area_lower in ('ohio',) or 'state of ohio' in area_lower:
+                is_county_wide = True
+
+    # --- SAME geocode matching (most reliable for IPAWS) ---
+    if not is_county_wide:
+        raw_json = alert.raw_json if isinstance(alert.raw_json, dict) else {}
+        same_codes = raw_json.get('properties', {}).get('geocode', {}).get('SAME', [])
+        if same_codes:
+            configured_fips = set(_get_configured_fips_codes())
+            # Also build the state-level code from each configured FIPS
+            # e.g. 039137 -> 039000 (statewide Ohio)
+            statewide_codes = set()
+            for fips in configured_fips:
+                if isinstance(fips, str) and len(fips) >= 3:
+                    statewide_codes.add(fips[:3] + '000')
+
+            for code in same_codes:
+                if not isinstance(code, str):
+                    continue
+                # Exact match to configured county FIPS
+                if code in configured_fips:
+                    is_county_wide = True
+                    break
+                # Statewide code for our state (e.g. 039000)
+                if code in statewide_codes:
+                    is_county_wide = True
+                    break
+                # Any code ending in 000 is statewide for some state;
+                # check if it's our state
+                if code.endswith('000') and len(code) >= 6:
+                    state_prefix = code[:3]
+                    if any(f.startswith(state_prefix) for f in configured_fips):
+                        is_county_wide = True
+                        break
+
+    return is_county_wide
+
 _CPU_SAMPLE_INTERVAL_SECONDS = 1.0
 _last_cpu_sample_timestamp: Optional[datetime] = None
 _last_cpu_sample_value: float = 0.0
@@ -160,12 +229,25 @@ def get_alert_geometry(alert_id):
 
         if alert.geometry:
             geometry = json_loads(alert.geometry)
-        elif alert.area_desc:
-            area_lower = alert.area_desc.lower()
-            if any(county_term in area_lower for county_term in ['county', 'putnam', 'ohio']):
-                if county_boundary:
-                    geometry = county_boundary
-                    is_county_wide = True
+        else:
+            # Try to build geometry from SAME geocodes (multi-county IPAWS)
+            full_alert = CAPAlert.query.get(alert_id)
+            if full_alert and not full_alert.geom:
+                from .coverage import _build_geometry_from_same_codes
+                if _build_geometry_from_same_codes(full_alert):
+                    geom_json = db.session.query(
+                        func.ST_AsGeoJSON(CAPAlert.geom)
+                    ).filter(CAPAlert.id == alert_id).scalar()
+                    if geom_json:
+                        geometry = json_loads(geom_json)
+
+            # Fallback: use county boundary if area_desc suggests county-wide
+            if not geometry and alert.area_desc:
+                area_lower = alert.area_desc.lower()
+                if any(county_term in area_lower for county_term in ['county', 'putnam', 'ohio']):
+                    if county_boundary:
+                        geometry = county_boundary
+                        is_county_wide = True
 
         intersecting_boundaries = []
         if geometry:
@@ -399,32 +481,7 @@ def alert_detail(alert_id):
             Boundary, Intersection.boundary_id == Boundary.id
         ).filter(Intersection.cap_alert_id == alert_id).all()
 
-        is_county_wide = False
-        if alert.area_desc:
-            area_lower = alert.area_desc.lower().strip()
-            is_county_wide = (
-                'putnam county' in area_lower
-                or 'entire county' in area_lower
-                or ('county' in area_lower and 'ohio' in area_lower)
-                or (
-                    'putnam' in area_lower
-                    and (area_lower.count(';') >= 2 or area_lower.count(',') >= 2)
-                )
-            )
-
-            # Detect statewide IPAWS alerts (e.g. area_desc="Ohio")
-            # A statewide alert always covers the county
-            if not is_county_wide and area_lower in ('ohio',):
-                is_county_wide = True
-
-            # Also check SAME geocodes for statewide codes (ending in "000")
-            if not is_county_wide:
-                raw_json = alert.raw_json if isinstance(alert.raw_json, dict) else {}
-                same_codes = raw_json.get('properties', {}).get('geocode', {}).get('SAME', [])
-                for code in same_codes:
-                    if isinstance(code, str) and code.endswith('000'):
-                        is_county_wide = True
-                        break
+        is_county_wide = _detect_county_wide(alert)
 
         coverage_data = calculate_coverage_percentages(alert_id, intersections)
 
@@ -583,6 +640,33 @@ def alert_detail(alert_id):
                 except Exception as exc:
                     api_bp.logger.warning(
                         'Lazy IPAWS audio extraction failed for %s: %s',
+                        alert.identifier, exc,
+                    )
+
+        # Lazy certificate extraction: if certificate_info is NULL but raw_json
+        # has raw_xml, extract certificate details now.  Handles alerts ingested
+        # before the enrichment code was deployed.
+        if not getattr(alert, 'certificate_info', None):
+            raw_json_cert = alert.raw_json if isinstance(alert.raw_json, dict) else {}
+            raw_xml = raw_json_cert.get('raw_xml', '')
+            if raw_xml:
+                try:
+                    from app_utils.ipaws_enrichment import extract_certificate_info
+                    cert_info = extract_certificate_info(raw_xml)
+                    if cert_info:
+                        alert.certificate_info = cert_info
+                        if cert_info.get('signature_verified') is not None:
+                            alert.signature_verified = cert_info['signature_verified']
+                        if cert_info.get('signature_status'):
+                            alert.signature_status = cert_info['signature_status']
+                        db.session.commit()
+                        api_bp.logger.info(
+                            'Lazy-extracted certificate info for alert %s: valid=%s',
+                            alert.identifier, cert_info.get('is_cert_valid', '?'),
+                        )
+                except Exception as exc:
+                    api_bp.logger.warning(
+                        'Lazy certificate extraction failed for %s: %s',
                         alert.identifier, exc,
                     )
 

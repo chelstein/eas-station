@@ -1890,6 +1890,36 @@ class SnowEmergency(db.Model):
         )
 
 
+class USCountyBoundary(db.Model):
+    """US Census county boundary for FIPS-based alert geometry lookup.
+
+    Loaded from Census Bureau TIGER/Line shapefiles.  Used to build
+    union geometry for multi-county IPAWS alerts that carry SAME geocodes
+    but no inline polygon.
+    """
+    __tablename__ = "us_county_boundaries"
+
+    id = db.Column(db.Integer, primary_key=True)
+    statefp = db.Column(db.String(2), nullable=False, index=True)
+    countyfp = db.Column(db.String(3), nullable=False)
+    geoid = db.Column(db.String(5), nullable=False, unique=True, index=True)
+    name = db.Column(db.String(255), nullable=False)
+    namelsad = db.Column(db.String(255))
+    stusps = db.Column(db.String(2))
+    state_name = db.Column(db.String(100))
+    aland = db.Column(db.BigInteger)
+    awater = db.Column(db.BigInteger)
+    geom = db.Column(_geometry_type("MULTIPOLYGON"))
+
+    @property
+    def same_code(self) -> str:
+        """Return the 6-digit SAME code (0 + STATEFP + COUNTYFP)."""
+        return f"0{self.statefp}{self.countyfp}"
+
+    def __repr__(self) -> str:
+        return f"<USCountyBoundary {self.geoid} {self.namelsad or self.name}>"
+
+
 __all__ = [
     "db",
     "AlertDeliveryReport",
@@ -1926,6 +1956,7 @@ __all__ = [
     "SNOW_EMERGENCY_LEVELS",
     "SnowEmergency",
     "SystemLog",
+    "USCountyBoundary",
     "VFDDisplay",
     "VFDStatus",
 ]
