@@ -7,6 +7,13 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **Fix update.sh silently failing without notifying user on git errors** (v2.46.8)
+  - Added `set +e` / `set -e` around git fetch and git reset commands to prevent silent exit
+  - Script now properly displays error messages when git operations fail instead of quitting silently
+  - Fixes issue where script would stop at Step 5 without showing error details or reaching completion
+  - Users now see helpful error messages with troubleshooting steps when git commands fail
+  - File: `update.sh`
+
 - **Fix update.sh failing to fetch updates in shallow clones** (v2.46.7)
   - Changed `git fetch origin` to explicitly fetch current branch with refspec
   - Fixes issue where update.sh would quit after displaying error in environments with limited git refspecs

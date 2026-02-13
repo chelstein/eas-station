@@ -391,8 +391,10 @@ if [ -d ".git" ]; then
         
         # Capture git fetch output to show detailed errors if needed
         # Explicitly fetch the current branch to handle shallow clones and limited refspecs
+        set +e  # Temporarily disable exit-on-error to capture git fetch failure
         FETCH_OUTPUT=$(sudo -u "$SERVICE_USER" git fetch origin "$CURRENT_BRANCH:refs/remotes/origin/$CURRENT_BRANCH" 2>&1)
-    FETCH_STATUS=$?
+        FETCH_STATUS=$?
+        set -e  # Re-enable exit-on-error
     
     if [ $FETCH_STATUS -eq 0 ]; then
         echo_success "Fetched latest changes from remote"
@@ -464,8 +466,10 @@ if [ -d ".git" ]; then
     echo ""
     
     # Capture git reset output to show detailed errors if needed
+    set +e  # Temporarily disable exit-on-error to capture git reset failure
     RESET_OUTPUT=$(sudo -u "$SERVICE_USER" git reset --hard "origin/$CURRENT_BRANCH" 2>&1)
     RESET_STATUS=$?
+    set -e  # Re-enable exit-on-error
     
     if [ $RESET_STATUS -eq 0 ]; then
         NEW_COMMIT=$(git rev-parse --short HEAD)
