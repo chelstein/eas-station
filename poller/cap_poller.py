@@ -2362,7 +2362,7 @@ class CAPPoller:
         new_alert.eas_audio_url = None
         self._set_alert_geometry(new_alert, geometry_data)
 
-        # IPAWS enrichment: extract certificate info and save embedded audio
+        # IPAWS enrichment: extract certificate info, verify signature, save audio
         raw_json = alert_data.get('raw_json', {})
         raw_xml = raw_json.get('raw_xml', '') if isinstance(raw_json, dict) else ''
         if raw_xml:
@@ -2370,10 +2370,17 @@ class CAPPoller:
                 cert_info = extract_certificate_info(raw_xml)
                 if cert_info:
                     new_alert.certificate_info = cert_info
+                    # Persist signature verification result to DB columns
+                    if cert_info.get('signature_verified') is not None:
+                        new_alert.signature_verified = cert_info['signature_verified']
+                    if cert_info.get('signature_status'):
+                        new_alert.signature_status = cert_info['signature_status']
                     self.logger.info(
-                        "Extracted certificate info for %s: issuer=%s",
+                        "Extracted certificate info for %s: issuer=%s, cert_valid=%s, sig=%s",
                         payload.get('identifier', '?'),
                         cert_info.get('issuer', 'unknown'),
+                        cert_info.get('is_cert_valid', '?'),
+                        cert_info.get('signature_status', '?'),
                     )
             except Exception as exc:
                 self.logger.warning("Certificate extraction failed for %s: %s",

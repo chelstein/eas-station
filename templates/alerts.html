@@ -216,8 +216,12 @@
                                             <span class="text-muted">Unknown</span>
                                             {% endif %}
                                             {% if alert.certificate_info %}
-                                            <span class="badge bg-success" title="IPAWS Digitally Signed">
-                                                <i class="fas fa-certificate"></i> Signed
+                                            {% set cert = alert.certificate_info if alert.certificate_info is mapping else {} %}
+                                            {% set cert_valid = cert.get('is_cert_valid') %}
+                                            {% set sig_ok = cert.get('signature_verified') %}
+                                            <span class="badge {% if cert_valid == false %}bg-danger{% elif sig_ok %}bg-success{% elif sig_ok == false %}bg-warning text-dark{% else %}bg-success{% endif %}" title="Issuer: {{ cert.get('issuer', 'Unknown') }}&#10;Valid: {{ cert.get('not_before', '?') }} - {{ cert.get('not_after', '?') }}&#10;Cert: {{ cert.get('cert_validity_status', '?') }}&#10;Signature: {{ cert.get('signature_status', '?') }}&#10;Algorithm: {{ cert.get('signature_algorithm', '?') }}">
+                                                <i class="fas fa-{% if cert_valid == false %}times-circle{% elif sig_ok %}lock{% else %}shield-alt{% endif %}"></i>
+                                                {% if cert_valid == false %}Expired Cert{% elif sig_ok %}Verified{% elif sig_ok == false %}Signed{% else %}Signed{% endif %}
                                             </span>
                                             {% endif %}
                                         </div>

@@ -449,6 +449,36 @@
                             <h6 class="text-muted mb-2">Affected Areas</h6>
                             <div class="p-3 bg-info bg-opacity-10 rounded">
                                 {{ alert.area_desc }}
+                                {% if ipaws_data and ipaws_data.same_codes_decoded %}
+                                <div class="mt-2">
+                                    <small class="text-muted"><i class="fas fa-barcode"></i> SAME Codes:</small>
+                                    {% for entry in ipaws_data.same_codes_decoded %}
+                                    <div class="ms-1">
+                                        <code>{{ entry.code }}</code>
+                                        {% if entry.label %}
+                                        <small class="text-muted">&mdash; {{ entry.label }}</small>
+                                        {% endif %}
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                                {% elif ipaws_data and ipaws_data.same_codes %}
+                                <div class="mt-2">
+                                    <small class="text-muted"><i class="fas fa-barcode"></i> SAME Codes:</small>
+                                    {% for code in ipaws_data.same_codes %}
+                                    <code class="ms-1">{{ code }}</code>
+                                    {% endfor %}
+                                </div>
+                                {% endif %}
+                                {% if ipaws_data and ipaws_data.extra_geocodes %}
+                                {% for geo_type, codes in ipaws_data.extra_geocodes.items() %}
+                                <div class="mt-1">
+                                    <small class="text-muted"><i class="fas fa-map-pin"></i> {{ geo_type }}:</small>
+                                    {% for code in codes %}
+                                    <code class="ms-1">{{ code }}</code>
+                                    {% endfor %}
+                                </div>
+                                {% endfor %}
+                                {% endif %}
                                 {% if coverage_data and coverage_data.get('county') %}
                                     {% set county_coverage = coverage_data['county']['coverage_percentage'] %}
                                     <br><small class="text-muted mt-2">
@@ -904,9 +934,81 @@
                             </h5>
                         </div>
                         <div class="card-body technical-details">
+
+                            {# ── Sender / Origin ── #}
+                            {% if ipaws_data.sender_name or ipaws_data.sender %}
+                            <h6 class="text-muted mb-2">Alert Origin</h6>
+                            {% if ipaws_data.sender_name %}
+                            <div class="detail-item">
+                                <span class="detail-label">Originator</span>
+                                {{ ipaws_data.sender_name }}
+                            </div>
+                            {% endif %}
+                            {% if ipaws_data.sender %}
+                            <div class="detail-item">
+                                <span class="detail-label">Sender ID</span>
+                                <code>{{ ipaws_data.sender }}</code>
+                            </div>
+                            {% endif %}
+                            {% if ipaws_data.scope %}
+                            <div class="detail-item">
+                                <span class="detail-label">Scope</span>
+                                <span class="badge bg-info">{{ ipaws_data.scope }}</span>
+                            </div>
+                            {% endif %}
+                            {% if ipaws_data.category %}
+                            <div class="detail-item">
+                                <span class="detail-label">Category</span>
+                                <span class="badge bg-secondary">{{ ipaws_data.category }}</span>
+                            </div>
+                            {% endif %}
+                            {% if ipaws_data.response_type %}
+                            <div class="detail-item">
+                                <span class="detail-label">Response Type</span>
+                                {{ ipaws_data.response_type }}
+                            </div>
+                            {% endif %}
+                            {% if ipaws_data.effective %}
+                            <div class="detail-item">
+                                <span class="detail-label">Effective</span>
+                                <small>{{ ipaws_data.effective }}</small>
+                            </div>
+                            {% endif %}
+                            {% if ipaws_data.web %}
+                            <div class="detail-item">
+                                <span class="detail-label">Web</span>
+                                <a href="{{ ipaws_data.web }}" target="_blank" rel="noopener noreferrer">
+                                    {{ ipaws_data.web | truncate(60) }} <i class="fas fa-external-link-alt fa-xs"></i>
+                                </a>
+                            </div>
+                            {% endif %}
+                            {% if ipaws_data.fetch_endpoint %}
+                            <div class="detail-item">
+                                <span class="detail-label">IPAWS Feed</span>
+                                <small class="text-break"><code>{{ ipaws_data.fetch_endpoint }}</code></small>
+                                {% if ipaws_data.fetch_endpoint_type %}
+                                <span class="badge bg-dark ms-1">{{ ipaws_data.fetch_endpoint_type }}</span>
+                                {% endif %}
+                            </div>
+                            {% endif %}
+                            <hr>
+                            {% endif %}
+
+                            {# ── EAS Parameters ── #}
                             {% if ipaws_data.eas_org or ipaws_data.eas_station_id %}
                             <h6 class="text-muted mb-2">EAS Parameters</h6>
-                            {% if ipaws_data.eas_org %}
+                            {% if ipaws_data.eas_org_decoded %}
+                            <div class="detail-item">
+                                <span class="detail-label">EAS Originator (EAS-ORG)</span>
+                                {% for org in ipaws_data.eas_org_decoded %}
+                                <code>{{ org.code }}</code>
+                                {% if org.label %}
+                                <span class="text-muted">&mdash; {{ org.label }}</span>
+                                {% endif %}
+                                {% if not loop.last %}<br>{% endif %}
+                                {% endfor %}
+                            </div>
+                            {% elif ipaws_data.eas_org %}
                             <div class="detail-item">
                                 <span class="detail-label">EAS Originator (EAS-ORG)</span>
                                 <code>{{ ipaws_data.eas_org }}</code>
@@ -926,7 +1028,19 @@
                                 {% endfor %}
                             </div>
                             {% endif %}
-                            {% if ipaws_data.same_codes %}
+                            {% if ipaws_data.same_codes_decoded %}
+                            <div class="detail-item">
+                                <span class="detail-label">SAME Geocodes</span>
+                                {% for entry in ipaws_data.same_codes_decoded %}
+                                <div>
+                                    <code>{{ entry.code }}</code>
+                                    {% if entry.label %}
+                                    <span class="text-muted">&mdash; {{ entry.label }}</span>
+                                    {% endif %}
+                                </div>
+                                {% endfor %}
+                            </div>
+                            {% elif ipaws_data.same_codes %}
                             <div class="detail-item">
                                 <span class="detail-label">SAME Geocodes</span>
                                 {% for code in ipaws_data.same_codes %}
@@ -934,12 +1048,61 @@
                                 {% endfor %}
                             </div>
                             {% endif %}
+                            {% if ipaws_data.extra_geocodes %}
+                            {% for geo_type, codes in ipaws_data.extra_geocodes.items() %}
+                            <div class="detail-item">
+                                <span class="detail-label">{{ geo_type }} Codes</span>
+                                {% for code in codes %}
+                                <code>{{ code }}</code>{% if not loop.last %}, {% endif %}
+                                {% endfor %}
+                            </div>
+                            {% endfor %}
+                            {% endif %}
+                            {% if ipaws_data.extra_parameters %}
+                            {% for param_name, param_values in ipaws_data.extra_parameters.items() %}
+                            <div class="detail-item">
+                                <span class="detail-label">{{ param_name }}</span>
+                                {% for val in param_values %}
+                                <code>{{ val }}</code>{% if not loop.last %}, {% endif %}
+                                {% endfor %}
+                            </div>
+                            {% endfor %}
+                            {% endif %}
                             <hr>
                             {% endif %}
 
+                            {# ── Digital Signature Certificate ── #}
                             {% if ipaws_data.certificate %}
-                            <h6 class="text-muted mb-2">Digital Signature Certificate</h6>
+                            <h6 class="text-muted mb-2">
+                                <i class="fas fa-shield-alt"></i> Digital Signature Certificate
+                            </h6>
                             {% set cert = ipaws_data.certificate %}
+
+                            {# Certificate validity status banner #}
+                            {% if cert.is_cert_valid is not none %}
+                            <div class="mb-2">
+                                {% if cert.is_cert_valid %}
+                                <span class="badge bg-success"><i class="fas fa-check-circle"></i> Certificate {{ cert.cert_validity_status }}</span>
+                                {% else %}
+                                <span class="badge bg-danger"><i class="fas fa-times-circle"></i> Certificate {{ cert.cert_validity_status }}</span>
+                                {% endif %}
+                            </div>
+                            {% endif %}
+
+                            {# Signature verification status banner #}
+                            {% if cert.signature_verified is not none %}
+                            <div class="mb-2">
+                                {% if cert.signature_verified %}
+                                <span class="badge bg-success"><i class="fas fa-lock"></i> Signature Verified</span>
+                                {% else %}
+                                <span class="badge bg-warning text-dark"><i class="fas fa-exclamation-triangle"></i> Signature Unverified</span>
+                                {% endif %}
+                                {% if cert.signature_status %}
+                                <small class="text-muted ms-1">{{ cert.signature_status }}</small>
+                                {% endif %}
+                            </div>
+                            {% endif %}
+
                             {% if cert.subject %}
                             <div class="detail-item">
                                 <span class="detail-label">Subject</span>
@@ -954,7 +1117,7 @@
                             {% endif %}
                             {% if cert.not_before and cert.not_after %}
                             <div class="detail-item">
-                                <span class="detail-label">Validity</span>
+                                <span class="detail-label">Validity Period</span>
                                 <small>{{ cert.not_before }} &mdash; {{ cert.not_after }}</small>
                             </div>
                             {% endif %}
@@ -966,7 +1129,7 @@
                             {% endif %}
                             {% if cert.key_algorithm %}
                             <div class="detail-item">
-                                <span class="detail-label">Key</span>
+                                <span class="detail-label">Public Key</span>
                                 <small>{{ cert.key_algorithm }}{% if cert.key_size %} ({{ cert.key_size }} bit){% endif %}</small>
                             </div>
                             {% endif %}
@@ -976,24 +1139,26 @@
                                 <small>{{ cert.signature_algorithm }}</small>
                             </div>
                             {% endif %}
-                            {% if alert.signature_verified is defined and alert.signature_verified is not none %}
+                            {% if cert.xml_signature_method %}
                             <div class="detail-item">
-                                <span class="detail-label">Verification</span>
-                                {% if alert.signature_verified %}
-                                <span class="badge bg-success"><i class="fas fa-check-circle"></i> Valid</span>
-                                {% else %}
-                                <span class="badge bg-danger"><i class="fas fa-times-circle"></i> Invalid</span>
-                                {% endif %}
-                                {% if alert.signature_status %}
-                                <small class="text-muted ms-1">{{ alert.signature_status }}</small>
-                                {% endif %}
+                                <span class="detail-label">XML Signature Method</span>
+                                <small class="text-break"><code>{{ cert.xml_signature_method }}</code></small>
+                            </div>
+                            {% endif %}
+                            {% if cert.xml_digest_method %}
+                            <div class="detail-item">
+                                <span class="detail-label">XML Digest Method</span>
+                                <small class="text-break"><code>{{ cert.xml_digest_method }}</code></small>
                             </div>
                             {% endif %}
                             <hr>
                             {% endif %}
 
+                            {# ── IPAWS Original Audio ── #}
                             {% if ipaws_data.ipaws_audio_filename %}
-                            <h6 class="text-muted mb-2">Original IPAWS Audio</h6>
+                            <h6 class="text-muted mb-2">
+                                <i class="fas fa-volume-up"></i> Original IPAWS Audio
+                            </h6>
                             <div class="detail-item">
                                 <audio controls preload="metadata" style="width: 100%; max-width: 400px;" aria-label="Original IPAWS alert audio">
                                     <source src="{{ url_for('api.ipaws_original_audio', alert_id=alert.id) }}" type="audio/mpeg">
@@ -1005,9 +1170,46 @@
                                     </a>
                                 </div>
                             </div>
+                            {% if ipaws_data.audio_resources %}
+                            {% for ar in ipaws_data.audio_resources %}
+                            <div class="detail-item">
+                                <span class="detail-label">{{ ar.description }}</span>
+                                <small>
+                                    {{ ar.mime_type }}
+                                    {% if ar.size %} &middot; {{ ar.size }} bytes{% endif %}
+                                    {% if ar.has_inline_data %}
+                                    <span class="badge bg-success">Embedded</span>
+                                    {% endif %}
+                                </small>
+                            </div>
+                            {% endfor %}
+                            {% endif %}
+                            <hr>
+                            {% elif ipaws_data.audio_resources %}
+                            <h6 class="text-muted mb-2">
+                                <i class="fas fa-volume-up"></i> IPAWS Audio Resources
+                            </h6>
+                            {% for ar in ipaws_data.audio_resources %}
+                            <div class="detail-item">
+                                <span class="detail-label">{{ ar.description }}</span>
+                                <small>
+                                    {{ ar.mime_type }}
+                                    {% if ar.size %} &middot; {{ ar.size }} bytes{% endif %}
+                                    {% if ar.has_inline_data %}
+                                    <span class="badge bg-success">Embedded</span>
+                                    {% endif %}
+                                    {% if ar.url %}
+                                    &middot; <a href="{{ ar.url }}" target="_blank" rel="noopener noreferrer">
+                                        Link <i class="fas fa-external-link-alt fa-xs"></i>
+                                    </a>
+                                    {% endif %}
+                                </small>
+                            </div>
+                            {% endfor %}
                             <hr>
                             {% endif %}
 
+                            {# ── Linked Resources ── #}
                             {% if ipaws_data.web_resources %}
                             <h6 class="text-muted mb-2">Linked Resources</h6>
                             {% for res in ipaws_data.web_resources %}
@@ -1016,6 +1218,9 @@
                                 <a href="{{ res.url }}" target="_blank" rel="noopener noreferrer">
                                     {{ res.url | truncate(60) }} <i class="fas fa-external-link-alt fa-xs"></i>
                                 </a>
+                                {% if res.mime_type %}
+                                <small class="text-muted ms-1">({{ res.mime_type }})</small>
+                                {% endif %}
                             </div>
                             {% endfor %}
                             {% endif %}
