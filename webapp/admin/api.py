@@ -207,6 +207,7 @@ def get_alert_geometry(alert_id):
             CAPAlert.sent,
             CAPAlert.area_desc,
             CAPAlert.status,
+            CAPAlert.raw_json,
             func.ST_AsGeoJSON(CAPAlert.geom).label('geometry'),
         ).filter(CAPAlert.id == alert_id).first()
 
@@ -217,7 +218,7 @@ def get_alert_geometry(alert_id):
         try:
             county_geom = db.session.query(
                 func.ST_AsGeoJSON(Boundary.geom).label('geometry')
-            ).filter(Boundary.type == 'county').first()
+            ).filter(func.lower(Boundary.type) == 'county').first()
 
             if county_geom and county_geom.geometry:
                 county_boundary = json_loads(county_geom.geometry)
@@ -238,13 +239,10 @@ def get_alert_geometry(alert_id):
             if geom_json:
                 geometry = json_loads(geom_json)
 
-            # Fallback: use county boundary if area_desc suggests county-wide
-            if not geometry and alert.area_desc:
-                area_lower = alert.area_desc.lower()
-                if any(county_term in area_lower for county_term in ['county', 'putnam', 'ohio']):
-                    if county_boundary:
-                        geometry = county_boundary
-                        is_county_wide = True
+            # Fallback: use county boundary if alert is county-wide
+            if not geometry and county_boundary and _detect_county_wide(alert):
+                geometry = county_boundary
+                is_county_wide = True
 
         intersecting_boundaries = []
         if geometry:
@@ -867,7 +865,7 @@ def get_alerts():
         try:
             county_geom = db.session.query(
                 func.ST_AsGeoJSON(Boundary.geom).label('geometry')
-            ).filter(Boundary.type == 'county').first()
+            ).filter(func.lower(Boundary.type) == 'county').first()
 
             if county_geom and county_geom.geometry:
                 county_boundary = json_loads(county_geom.geometry)
@@ -1016,7 +1014,7 @@ def get_historical_alerts():
         try:
             county_geom = db.session.query(
                 func.ST_AsGeoJSON(Boundary.geom).label('geometry')
-            ).filter(Boundary.type == 'county').first()
+            ).filter(func.lower(Boundary.type) == 'county').first()
 
             if county_geom and county_geom.geometry:
                 county_boundary = json_loads(county_geom.geometry)
