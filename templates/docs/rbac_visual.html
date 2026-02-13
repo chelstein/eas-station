@@ -38,7 +38,7 @@
 
 .hierarchy-connector {
     position: absolute;
-    border-left: 2px solid #6c757d;
+    border-left: 2px solid var(--text-muted);
     height: 2rem;
     top: -2rem;
     left: 50%;
@@ -46,25 +46,25 @@
 
 .hierarchy-branch {
     position: absolute;
-    border-top: 2px solid #6c757d;
+    border-top: 2px solid var(--text-muted);
     height: 2px;
     top: -2rem;
 }
 
 .permission-category {
-    background: #f8f9fa;
+    background: var(--bg-color);
     border-left: 4px solid;
     padding: 1rem;
     margin-bottom: 1rem;
 }
 
-.category-alerts { border-left-color: #0d6efd; }
+.category-alerts { border-left-color: var(--primary-color); }
 .category-eas { border-left-color: var(--danger-color); }
-.category-system { border-left-color: #6f42c1; }
-.category-logs { border-left-color: #fd7e14; }
-.category-receivers { border-left-color: #20c997; }
+.category-system { border-left-color: var(--secondary-color); }
+.category-logs { border-left-color: var(--accent-color); }
+.category-receivers { border-left-color: var(--success-color); }
 .category-gpio { border-left-color: var(--warning-color); }
-.category-api { border-left-color: #0dcaf0; }
+.category-api { border-left-color: var(--info-color); }
 
 .comparison-table {
     font-size: 0.9rem;
@@ -78,7 +78,7 @@
 }
 
 .feature-row:hover {
-    background-color: #f8f9fa;
+    background-color: var(--bg-color);
 }
 </style>
 {% endblock %}
