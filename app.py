@@ -49,7 +49,11 @@ from collections import defaultdict
 from urllib.parse import quote, urljoin, urlparse
 from types import SimpleNamespace
 
-from dotenv import load_dotenv
+try:
+    from dotenv import load_dotenv
+except ImportError:
+    def load_dotenv(*_a, **_kw):  # type: ignore[misc]
+        pass
 import pytz
 
 # Application utilities

@@ -21,9 +21,7 @@ from app_core.county_boundaries import (
 
 logger = logging.getLogger(__name__)
 
-county_boundaries_bp = Blueprint(
-    "county_boundaries", __name__, url_prefix="/admin"
-)
+county_boundaries_bp = Blueprint("county_boundaries", __name__)
 
 
 @county_boundaries_bp.route("/county_boundaries")

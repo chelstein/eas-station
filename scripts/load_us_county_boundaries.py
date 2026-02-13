@@ -5,16 +5,16 @@ Downloads (if needed) and imports county boundary polygons into the
 ``us_county_boundaries`` table so that IPAWS alerts with SAME geocodes
 can be rendered on the map even when they carry no inline polygon.
 
-Usage::
+Usage (use the project virtualenv Python)::
 
     # Load all US counties (creates table if needed)
-    python scripts/load_us_county_boundaries.py
+    /opt/eas-station/venv/bin/python scripts/load_us_county_boundaries.py
 
     # Load only Ohio counties
-    python scripts/load_us_county_boundaries.py --state OH
+    /opt/eas-station/venv/bin/python scripts/load_us_county_boundaries.py --state OH
 
     # Specify a local shapefile instead of downloading
-    python scripts/load_us_county_boundaries.py --shapefile data/shapefiles/cb_2024_us_county_500k/cb_2024_us_county_500k.shp
+    /opt/eas-station/venv/bin/python scripts/load_us_county_boundaries.py --shapefile data/shapefiles/cb_2024_us_county_500k/cb_2024_us_county_500k.shp
 
 Data source: US Census Bureau Cartographic Boundary Files (500k resolution)
 https://www.census.gov/geographies/mapping-files/time-series/geo/cartographic-boundary.html

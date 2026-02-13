@@ -29,7 +29,7 @@ from .audio_sdr_fix import register_audio_sdr_fix_routes
 from .api import register_api_routes
 from .auth import register_auth_routes
 from .boundaries import register_boundary_routes
-from .coverage import calculate_coverage_percentages
+from .coverage import calculate_coverage_percentages, try_build_geometry_from_same_codes
 from .dashboard import register_dashboard_routes
 from .environment import register_environment_routes
 from .intersections import register_intersection_routes
