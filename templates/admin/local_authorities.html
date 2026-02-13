@@ -244,14 +244,14 @@ document.addEventListener('DOMContentLoaded', function() {
 
             let fipsTags = '';
             if (auth.authorized_fips_codes && auth.authorized_fips_codes.length) {
-                fipsTags = auth.authorized_fips_codes.map(c => `<span class="fips-tag">${esc(c)}</span>`).join('');
+                fipsTags = auth.authorized_fips_codes.map(c => `<span class="admin-tag">${esc(c)}</span>`).join('');
             } else {
                 fipsTags = '<span class="text-muted">All station FIPS codes</span>';
             }
 
             let eventTags = '';
             if (auth.authorized_event_codes && auth.authorized_event_codes.length) {
-                eventTags = auth.authorized_event_codes.map(c => `<span class="event-tag">${esc(c)}</span>`).join('');
+                eventTags = auth.authorized_event_codes.map(c => `<span class="admin-tag admin-tag-warning">${esc(c)}</span>`).join('');
             } else {
                 eventTags = '<span class="text-muted">All event codes</span>';
             }

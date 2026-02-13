@@ -306,10 +306,10 @@ function displayAttempts(logs) {
         return `
             <tr>
                 <td>${timestamp}</td>
-                <td class="ip-address">${log.ip_address || 'N/A'}</td>
+                <td class="admin-mono-badge">${log.ip_address || 'N/A'}</td>
                 <td><code>${log.username || 'N/A'}</code></td>
-                <td><span class="malicious-badge">${reason}</span></td>
-                <td><div class="attempt-details">${escapeHtml(detailsStr)}</div></td>
+                <td><span class="admin-badge admin-badge-danger">${reason}</span></td>
+                <td><div class="admin-output-box admin-output-box-compact">${escapeHtml(detailsStr)}</div></td>
             </tr>
         `;
     }).join('');
@@ -345,7 +345,7 @@ function displayIPStats(ipStats) {
     container.innerHTML = sorted.map(([ip, stats]) => `
         <div class="ip-stat-item">
             <div>
-                <strong class="ip-address">${ip}</strong>
+                <strong class="admin-mono-badge">${ip}</strong>
                 <br>
                 <small class="text-muted">
                     Last: ${new Date(stats.last_attempt).toLocaleString()}
@@ -353,7 +353,7 @@ function displayIPStats(ipStats) {
                 </small>
             </div>
             <div>
-                <span class="badge-count me-2">${stats.count} attempts</span>
+                <span class="admin-badge admin-badge-danger me-2">${stats.count} attempts</span>
                 <button class="btn btn-sm btn-danger" onclick="banIPFromStats('${ip}')" title="Ban this IP">
                     <i class="bi bi-ban"></i> Ban
                 </button>
@@ -468,7 +468,7 @@ function displayIPFilters(filters) {
         allowlist.forEach(filter => {
             html += `
                 <tr>
-                    <td class="ip-address">${filter.ip_address}</td>
+                    <td class="admin-mono-badge">${filter.ip_address}</td>
                     <td>${filter.description || '-'}</td>
                     <td>${new Date(filter.created_at).toLocaleString()}</td>
                     <td>
@@ -500,7 +500,7 @@ function displayIPFilters(filters) {
             const expires = filter.expires_at ? new Date(filter.expires_at).toLocaleString() : 'Never';
             html += `
                 <tr>
-                    <td class="ip-address">${filter.ip_address}</td>
+                    <td class="admin-mono-badge">${filter.ip_address}</td>
                     <td><span class="badge bg-danger">${filter.reason}</span></td>
                     <td>${filter.description || '-'}</td>
                     <td>${expires}</td>

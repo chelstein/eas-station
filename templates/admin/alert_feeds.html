@@ -249,9 +249,9 @@
                 <i class="fas fa-cloud" style="color: var(--info-color);"></i>
                 NOAA Weather Alerts
                 {% if noaa_status.configured %}
-                <span class="status-badge active">✓ Active</span>
+                <span class="admin-badge admin-badge-success">✓ Active</span>
                 {% else %}
-                <span class="status-badge inactive">Not Configured</span>
+                <span class="admin-badge admin-badge-danger">Not Configured</span>
                 {% endif %}
             </h2>
 
@@ -276,7 +276,7 @@
                     <div class="status-label">Poll Status</div>
                     <div class="status-value" id="noaaLastPollStatus">
                         {% if noaa_status.last_poll_status %}
-                        <span class="status-badge {% if noaa_status.last_poll_status == 'SUCCESS' %}active{% elif noaa_status.last_poll_status == 'ERROR' %}inactive{% else %}warning{% endif %}">
+                        <span class="admin-badge {% if noaa_status.last_poll_status == 'SUCCESS' %}admin-badge-success{% elif noaa_status.last_poll_status == 'ERROR' %}admin-badge-danger{% else %}admin-badge-warning{% endif %}">
                             {{ noaa_status.last_poll_status }}
                         </span>
                         {% else %}
@@ -286,9 +286,9 @@
                 </div>
             </div>
             {% if noaa_status.last_poll_error %}
-            <div class="alert alert-error" style="margin-top: 1rem; padding: 1rem; background-color: color-mix(in srgb, var(--danger-color) 15%, var(--surface-color)); border: 1px solid var(--danger-color); border-radius: 0.5rem; color: var(--danger-color);">
+            <div class="alert alert-error" style="margin-top: 1rem;">
                 <strong>⚠️ Last Poll Error:</strong><br>
-                <code style="display: block; margin-top: 0.5rem; padding: 0.5rem; background-color: color-mix(in srgb, var(--danger-color) 8%, var(--surface-color)); border-radius: 0.25rem; overflow-x: auto; font-size: 0.875rem;">{{ noaa_status.last_poll_error }}</code>
+                <code style="display: block; margin-top: 0.5rem; padding: 0.5rem; background: color-mix(in srgb, var(--danger-color) 8%, var(--surface-color)); border-radius: 0.25rem; overflow-x: auto; font-size: 0.875rem;">{{ noaa_status.last_poll_error }}</code>
             </div>
             {% endif %}
 
@@ -319,9 +319,9 @@
                 <i class="fas fa-satellite-dish" style="color: var(--danger-color);"></i>
                 FEMA IPAWS Alerts
                 {% if ipaws_status.configured %}
-                <span class="status-badge active">✓ Active</span>
+                <span class="admin-badge admin-badge-success">✓ Active</span>
                 {% else %}
-                <span class="status-badge inactive">Not Configured</span>
+                <span class="admin-badge admin-badge-danger">Not Configured</span>
                 {% endif %}
             </h2>
 
@@ -352,7 +352,7 @@
                     <div class="status-label">Poll Status</div>
                     <div class="status-value" id="ipawsLastPollStatus">
                         {% if ipaws_status.last_poll_status %}
-                        <span class="status-badge {% if ipaws_status.last_poll_status == 'SUCCESS' %}active{% elif ipaws_status.last_poll_status == 'ERROR' %}inactive{% else %}warning{% endif %}">
+                        <span class="admin-badge {% if ipaws_status.last_poll_status == 'SUCCESS' %}admin-badge-success{% elif ipaws_status.last_poll_status == 'ERROR' %}admin-badge-danger{% else %}admin-badge-warning{% endif %}">
                             {{ ipaws_status.last_poll_status }}
                         </span>
                         {% else %}
@@ -362,9 +362,9 @@
                 </div>
             </div>
             {% if ipaws_status.last_poll_error %}
-            <div class="alert alert-error" style="margin-top: 1rem; padding: 1rem; background-color: color-mix(in srgb, var(--danger-color) 15%, var(--surface-color)); border: 1px solid var(--danger-color); border-radius: 0.5rem; color: var(--danger-color);">
+            <div class="alert alert-error" style="margin-top: 1rem;">
                 <strong>⚠️ Last Poll Error:</strong><br>
-                <code style="display: block; margin-top: 0.5rem; padding: 0.5rem; background-color: color-mix(in srgb, var(--danger-color) 8%, var(--surface-color)); border-radius: 0.25rem; overflow-x: auto; font-size: 0.875rem;">{{ ipaws_status.last_poll_error }}</code>
+                <code style="display: block; margin-top: 0.5rem; padding: 0.5rem; background: color-mix(in srgb, var(--danger-color) 8%, var(--surface-color)); border-radius: 0.25rem; overflow-x: auto; font-size: 0.875rem;">{{ ipaws_status.last_poll_error }}</code>
             </div>
             {% endif %}
 
@@ -450,7 +450,7 @@
     </div>
 
     <!-- Shared Settings -->
-    <div class="shared-settings">
+    <div class="admin-form-section">
         <h2><i class="fas fa-clock"></i> Unified Poll Interval</h2>
         <p style="font-size: 0.875rem; color: var(--text-secondary); margin-bottom: 1rem;">
             All alert sources (NOAA, IPAWS, and custom) are polled together using this single interval. FEMA recommends minimum 2 minutes (120 seconds).

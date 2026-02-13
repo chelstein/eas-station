@@ -3,31 +3,32 @@
 {% block title %}System Diagnostics - EAS Station{% endblock %}
 
 {% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">
 <style>
     .status-pass {
-        color: #28a745;
+        color: var(--success-color);
     }
 
     .status-warning {
-        color: #ffc107;
+        color: var(--warning-color);
     }
 
     .status-fail {
-        color: #dc3545;
+        color: var(--danger-color);
     }
 
     .status-info {
-        color: #17a2b8;
+        color: var(--info-color);
     }
 
     .check-item {
         padding: 0.75rem;
-        border-bottom: 1px solid #dee2e6;
+        border-bottom: 1px solid var(--border-color);
         transition: background-color 0.2s;
     }
 
     .check-item:hover {
-        background-color: #f8f9fa;
+        background-color: var(--bg-color);
     }
 
     .check-item:last-child {

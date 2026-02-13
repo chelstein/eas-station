@@ -277,7 +277,7 @@ async function recalculateAllIntersections() {
                     <span class="admin-badge admin-badge-info">Alerts Processed: ${data.stats.alerts_processed}</span>
                     <span class="admin-badge admin-badge-info">Intersections Created: ${data.stats.intersections_created}</span>
                     <span class="admin-badge admin-badge-info">Deleted: ${data.stats.deleted_intersections}</span>
-                    ${data.stats.errors > 0 ? '<span class="stat-badge" style="background: color-mix(in srgb, var(--warning-color) 20%, var(--surface-color)); color: var(--warning-color);">Errors: ' + data.stats.errors + '</span>' : ''}
+                    ${data.stats.errors > 0 ? '<span class="admin-badge admin-badge-warning">Errors: ' + data.stats.errors + '</span>' : ''}
                 </div>
             `;
             loadStats();

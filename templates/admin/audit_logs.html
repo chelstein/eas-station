@@ -350,7 +350,7 @@ function showLogDetails(logId) {
         <tr>
             <th>Status:</th>
             <td>
-                <span class="status-badge ${log.success ? 'status-success' : 'status-failure'}">
+                <span class="admin-badge ${log.success ? 'admin-badge-success' : 'admin-badge-danger'}">
                     <i class="fas ${log.success ? 'fa-check-circle' : 'fa-times-circle'}"></i>
                     ${log.success ? 'Success' : 'Failed'}
                 </span>
@@ -362,7 +362,7 @@ function showLogDetails(logId) {
     if (log.details) {
         jsonContainer.innerHTML = `
             <h6>Details:</h6>
-            <pre class="log-details">${JSON.stringify(log.details, null, 2)}</pre>
+            <pre class="admin-output-box">${JSON.stringify(log.details, null, 2)}</pre>
         `;
     } else {
         jsonContainer.innerHTML = '';
