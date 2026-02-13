@@ -295,6 +295,8 @@ const escapeHtml = window.EASUtils?.escapeHtml || function(text) {
     return div.innerHTML;
 };
 
+const JSON_HEADERS = { 'Accept': 'application/json' };
+
 // Load all data on page load
 document.addEventListener('DOMContentLoaded', async function() {
     await loadRoles();
@@ -304,7 +306,7 @@ document.addEventListener('DOMContentLoaded', async function() {
 
 async function loadRoles() {
     try {
-        const response = await fetch('/security/roles');
+        const response = await fetch('/security/roles', { headers: JSON_HEADERS });
         if (!response.ok) {
             if (response.status === 403) {
                 throw new Error('You do not have permission to view roles. Contact your administrator to grant you the "system.view_users" permission.');
@@ -379,7 +381,7 @@ function renderRoles() {
 
 async function loadPermissions() {
     try {
-        const response = await fetch('/security/permissions');
+        const response = await fetch('/security/permissions', { headers: JSON_HEADERS });
         if (!response.ok) {
             if (response.status === 403) {
                 throw new Error('You do not have permission to view permissions. Contact your administrator.');
@@ -445,7 +447,7 @@ function renderPermissionsForModal(containerId = 'createRolePermissions', select
 
 async function loadUsers() {
     try {
-        const response = await fetch('/admin/users');
+        const response = await fetch('/admin/users', { headers: JSON_HEADERS });
         if (!response.ok) {
             if (response.status === 403) {
                 throw new Error('You do not have permission to view users. Contact your administrator.');
@@ -487,9 +489,14 @@ function renderUsers() {
             </td>
             <td>${user.last_login_at ? new Date(user.last_login_at).toLocaleString() : 'Never'}</td>
             <td>
-                <button class="btn btn-sm btn-primary change-role-btn" data-user-id="${user.id}" data-user-role-id="${user.role_id || ''}">
-                    <i class="fas fa-user-tag"></i> Change Role
-                </button>
+                <div class="btn-group" role="group">
+                    <button class="btn btn-sm btn-primary change-role-btn" data-user-id="${user.id}" data-user-role-id="${user.role_id || ''}">
+                        <i class="fas fa-user-tag"></i> Change Role
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger delete-user-btn" data-user-id="${user.id}">
+                        <i class="fas fa-user-times"></i> Delete
+                    </button>
+                </div>
             </td>
         </tr>
     `).join('');
@@ -517,6 +524,16 @@ function renderUsers() {
             showChangeRoleModalSecure(userId, username, roleId);
         });
     });
+
+    // Delete user buttons
+    tbody.querySelectorAll('.delete-user-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const userId = parseInt(btn.dataset.userId);
+            const username = btn.closest('tr').querySelector('strong').textContent;
+            handleDeleteUser(userId, username);
+        });
+    });
 }
 
 function showChangeRoleModalSecure(userId, username, currentRoleId) {
@@ -525,6 +542,27 @@ function showChangeRoleModalSecure(userId, username, currentRoleId) {
     document.getElementById('changeRoleUsername').textContent = username;
     document.getElementById('newRoleSelect').value = currentRoleId || '';
     new bootstrap.Modal(document.getElementById('changeUserRoleModal')).show();
+}
+
+async function handleDeleteUser(userId, username) {
+    if (!confirm(`Delete user "${username}"? This will immediately revoke their access.`)) return;
+    try {
+        const response = await fetch(`/admin/users/${userId}`, {
+            method: 'DELETE',
+            headers: JSON_HEADERS,
+        });
+        if (response.status === 401) { window.location.href = '/login'; return; }
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+            alert(data.error || 'Failed to delete user.');
+            return;
+        }
+        alert(data.message || 'User deleted successfully.');
+        await loadUsers();
+    } catch (error) {
+        console.error('Failed to delete user:', error);
+        alert('Failed to delete user.');
+    }
 }
 
 function populateRoleSelect() {
@@ -562,7 +600,7 @@ async function changeUserRole() {
     try {
         const response = await fetch(`/security/users/${userId}/role`, {
             method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
             body: JSON.stringify({ role_id: parseInt(roleId) })
         });
 
@@ -620,7 +658,7 @@ async function createUser() {
         // First create the user (always creates as admin role initially)
         const createResponse = await fetch('/admin/users', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
             body: JSON.stringify({ username, password })
         });
 
@@ -639,7 +677,7 @@ async function createUser() {
         if (selectedRoleId !== adminRole?.id) {
             const roleResponse = await fetch(`/security/users/${createData.user.id}/role`, {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
                 body: JSON.stringify({ role_id: selectedRoleId })
             });
 
@@ -687,7 +725,7 @@ async function createRole() {
     try {
         const response = await fetch('/security/roles', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
             body: JSON.stringify({ name, description, permission_ids: permissionIds })
         });
 
@@ -730,7 +768,7 @@ async function saveRole() {
     try {
         const response = await fetch(`/security/roles/${roleId}`, {
             method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
             body: JSON.stringify({ description, permission_ids: permissionIds })
         });
 
