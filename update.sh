@@ -393,8 +393,8 @@ if [ -d ".git" ]; then
         # Explicitly fetch the current branch to handle shallow clones and limited refspecs
         set +e  # Temporarily disable exit-on-error to capture git fetch failure
         FETCH_OUTPUT=$(sudo -u "$SERVICE_USER" git fetch origin "$CURRENT_BRANCH:refs/remotes/origin/$CURRENT_BRANCH" 2>&1)
-    FETCH_STATUS=$?
-    set -e  # Re-enable exit-on-error
+        FETCH_STATUS=$?
+        set -e  # Re-enable exit-on-error
     
     if [ $FETCH_STATUS -eq 0 ]; then
         echo_success "Fetched latest changes from remote"
