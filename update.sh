@@ -459,23 +459,44 @@ if [ -d ".git" ]; then
     # This is INTENTIONAL and ensures the local code matches GitHub exactly.
     # Local changes are already stashed above, so they won't be lost.
     echo_progress "Pulling updates for branch $CURRENT_BRANCH..."
-    
+
     # Show which files will be updated
     echo_info "Files changed between local and remote:"
     git diff --name-status HEAD "origin/$CURRENT_BRANCH" 2>/dev/null | head -20 || echo "  (unable to show diff)"
     echo ""
-    
+
+    # Ensure all working tree files are owned by the service user before reset.
+    # Files may have been created by root (e.g., from a previous root-level operation),
+    # causing "unable to unlink old" permission errors when git reset runs as the service user.
+    echo_progress "Ensuring file ownership is correct before applying changes..."
+    chown -R "$SERVICE_USER:$SERVICE_USER" "$INSTALL_DIR" 2>/dev/null || true
+
     # Capture git reset output to show detailed errors if needed
     set +e  # Temporarily disable exit-on-error to capture git reset failure
     RESET_OUTPUT=$(sudo -u "$SERVICE_USER" git reset --hard "origin/$CURRENT_BRANCH" 2>&1)
     RESET_STATUS=$?
     set -e  # Re-enable exit-on-error
-    
+
+    # If reset failed due to permission errors, retry as root then fix ownership
+    if [ $RESET_STATUS -ne 0 ] && echo "$RESET_OUTPUT" | grep -q "Permission denied"; then
+        echo_warning "Permission denied during git reset - retrying as root..."
+        set +e
+        RESET_OUTPUT=$(git reset --hard "origin/$CURRENT_BRANCH" 2>&1)
+        RESET_STATUS=$?
+        set -e
+
+        if [ $RESET_STATUS -eq 0 ]; then
+            echo_progress "Fixing file ownership after root-level reset..."
+            chown -R "$SERVICE_USER:$SERVICE_USER" "$INSTALL_DIR"
+            echo_success "File ownership corrected"
+        fi
+    fi
+
     if [ $RESET_STATUS -eq 0 ]; then
         NEW_COMMIT=$(git rev-parse --short HEAD)
         echo_success "Updated to commit: $NEW_COMMIT"
         echo_success "Local code now matches GitHub exactly"
-        
+
         # Show what files were actually updated
         if [ "$LOCAL_COMMIT" != "$NEW_COMMIT" ]; then
             echo_info "Files updated in this release:"
