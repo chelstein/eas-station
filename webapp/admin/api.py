@@ -62,7 +62,7 @@ from app_utils import is_alert_expired
 from app_utils.pdf_generator import generate_pdf_document
 from app_utils.optimized_parsing import json_loads, json_dumps
 
-from .coverage import calculate_coverage_percentages
+from .coverage import calculate_coverage_percentages, try_build_geometry_from_same_codes
 
 # Create Blueprint for API routes
 api_bp = Blueprint('api', __name__)
@@ -231,15 +231,12 @@ def get_alert_geometry(alert_id):
             geometry = json_loads(alert.geometry)
         else:
             # Try to build geometry from SAME geocodes (multi-county IPAWS)
-            full_alert = CAPAlert.query.get(alert_id)
-            if full_alert and not full_alert.geom:
-                from .coverage import _build_geometry_from_same_codes
-                if _build_geometry_from_same_codes(full_alert):
-                    geom_json = db.session.query(
-                        func.ST_AsGeoJSON(CAPAlert.geom)
-                    ).filter(CAPAlert.id == alert_id).scalar()
-                    if geom_json:
-                        geometry = json_loads(geom_json)
+            try_build_geometry_from_same_codes(alert_id)
+            geom_json = db.session.query(
+                func.ST_AsGeoJSON(CAPAlert.geom)
+            ).filter(CAPAlert.id == alert_id).scalar()
+            if geom_json:
+                geometry = json_loads(geom_json)
 
             # Fallback: use county boundary if area_desc suggests county-wide
             if not geometry and alert.area_desc:
@@ -481,7 +478,14 @@ def alert_detail(alert_id):
             Boundary, Intersection.boundary_id == Boundary.id
         ).filter(Intersection.cap_alert_id == alert_id).all()
 
-        is_county_wide = _detect_county_wide(alert)
+        try:
+            is_county_wide = _detect_county_wide(alert)
+        except Exception:
+            is_county_wide = False
+
+        # Build geometry from SAME geocodes BEFORE coverage calc.
+        # Uses a savepoint so failures never corrupt the session.
+        try_build_geometry_from_same_codes(alert_id)
 
         coverage_data = calculate_coverage_percentages(alert_id, intersections)
 

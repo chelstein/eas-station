@@ -24,142 +24,141 @@ from __future__ import annotations
 from typing import Any, Dict, List, Tuple
 
 from flask import current_app
-from sqlalchemy import func
+from sqlalchemy import func, text
 
 from app_core.models import Boundary, CAPAlert, Intersection
 from app_core.extensions import db
 
 
-def _us_county_table_exists() -> bool:
-    """Return True if the us_county_boundaries table has been created and has rows."""
-    from sqlalchemy import text
+def _us_county_table_ready() -> bool:
+    """Return True if the us_county_boundaries table exists and has rows."""
     try:
-        result = db.session.execute(
-            text("SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'us_county_boundaries')")
+        row_check = db.session.execute(
+            text(
+                "SELECT EXISTS ("
+                "  SELECT 1 FROM information_schema.tables"
+                "  WHERE table_name = 'us_county_boundaries'"
+                ")"
+            )
         ).scalar()
-        return bool(result)
+        if not row_check:
+            return False
+        count = db.session.execute(
+            text("SELECT COUNT(*) FROM us_county_boundaries LIMIT 1")
+        ).scalar()
+        return bool(count and count > 0)
     except Exception:
         return False
 
 
-def _build_geometry_from_same_codes(alert) -> bool:
-    """Build alert geometry from SAME geocodes via US county boundary lookup.
+def try_build_geometry_from_same_codes(alert_id: int) -> bool:
+    """Attempt to build alert geometry from SAME geocodes.
 
-    When an IPAWS alert has no inline polygon but carries SAME geocodes,
-    this function looks up matching county boundaries in ``us_county_boundaries``
-    and stores a union geometry on the alert.  Handles statewide codes
-    (ending in '000') by looking up all counties for that state.
+    Uses a SAVEPOINT so that failures never corrupt the caller's session.
+    Call this *before* calculate_coverage_percentages, not inside it.
 
-    Returns True if geometry was set, False otherwise.
+    Returns True if the alert now has geometry, False otherwise.
     """
-    if not _us_county_table_exists():
-        return False
-
-    raw_json = alert.raw_json if isinstance(alert.raw_json, dict) else {}
-    same_codes = raw_json.get('properties', {}).get('geocode', {}).get('SAME', [])
-    if not same_codes:
+    if not _us_county_table_ready():
         return False
 
     try:
-        from sqlalchemy import text
+        alert = CAPAlert.query.get(alert_id)
+        if not alert or alert.geom:
+            return bool(alert and alert.geom)
 
-        # Convert 6-digit SAME codes to 5-digit GEOIDs and collect state FIPS
-        # for statewide codes
+        raw_json = alert.raw_json if isinstance(alert.raw_json, dict) else {}
+        same_codes = raw_json.get('properties', {}).get('geocode', {}).get('SAME', [])
+        if not same_codes:
+            return False
+
         geoids = set()
         statewide_state_fps = set()
 
         for code in same_codes:
             if not isinstance(code, str) or len(code) < 5:
                 continue
-            # Statewide codes end in 000 → look up all counties for that state
             if code.endswith('000'):
-                # SAME 039000 → state FIPS "39"
-                state_fp = code.lstrip('0')[:2] if len(code.lstrip('0')) >= 3 else code[1:3]
-                # Ensure 2-digit state FIPS
-                if len(code) == 6:
-                    state_fp = code[1:3]
+                # Statewide: SAME 039000 → state FIPS "39"
+                state_fp = code[1:3] if len(code) == 6 else code.lstrip('0')[:2]
                 statewide_state_fps.add(state_fp)
                 continue
-            # County codes: 039137 → GEOID 39137
             geoid = code.lstrip('0')
-            if len(geoid) < 4:
-                continue
-            geoids.add(geoid)
+            if len(geoid) >= 4:
+                geoids.add(geoid)
 
         if not geoids and not statewide_state_fps:
             return False
 
-        # Build WHERE clause for matching counties
-        conditions = []
-        params = {}
+        # Use a SAVEPOINT so that any DB error is contained
+        nested = db.session.begin_nested()
+        try:
+            conditions = []
+            params: Dict[str, Any] = {}
 
-        if geoids:
-            conditions.append("geoid = ANY(:geoids)")
-            params["geoids"] = list(geoids)
+            if geoids:
+                conditions.append("geoid = ANY(:geoids)")
+                params["geoids"] = list(geoids)
+            if statewide_state_fps:
+                conditions.append("statefp = ANY(:state_fps)")
+                params["state_fps"] = list(statewide_state_fps)
 
-        if statewide_state_fps:
-            conditions.append("statefp = ANY(:state_fps)")
-            params["state_fps"] = list(statewide_state_fps)
+            where_clause = " OR ".join(conditions)
 
-        where_clause = " OR ".join(conditions)
+            count = db.session.execute(
+                text(f"SELECT COUNT(*) FROM us_county_boundaries WHERE ({where_clause}) AND geom IS NOT NULL"),
+                params,
+            ).scalar()
 
-        # Count matches first
-        count = db.session.execute(
-            text(f"SELECT COUNT(*) FROM us_county_boundaries WHERE ({where_clause}) AND geom IS NOT NULL"),
-            params,
-        ).scalar()
+            if not count:
+                nested.rollback()
+                return False
 
-        if not count:
+            union_geom = db.session.execute(
+                text(f"""
+                    SELECT ST_SetSRID(ST_Multi(ST_Union(geom)), 4326)
+                    FROM us_county_boundaries
+                    WHERE ({where_clause}) AND geom IS NOT NULL
+                """),
+                params,
+            ).scalar()
+
+            if union_geom is None:
+                nested.rollback()
+                return False
+
+            alert.geom = union_geom
+            nested.commit()
+            db.session.commit()
+
+            current_app.logger.info(
+                'Built geometry from %d SAME codes (%d counties) for alert %s',
+                len(same_codes), count, alert.identifier,
+            )
+            return True
+
+        except Exception:
+            nested.rollback()
             return False
-
-        # Build union geometry
-        union_result = db.session.execute(
-            text(f"""
-                SELECT ST_SetSRID(ST_Multi(ST_Union(geom)), 4326)
-                FROM us_county_boundaries
-                WHERE ({where_clause})
-                  AND geom IS NOT NULL
-            """),
-            params,
-        ).scalar()
-
-        if union_result is None:
-            return False
-
-        alert.geom = union_result
-        db.session.commit()
-        current_app.logger.info(
-            'Built geometry from %d SAME codes (%d counties matched) for alert %s',
-            len(same_codes), count, alert.identifier,
-        )
-        return True
 
     except Exception as exc:
-        current_app.logger.debug(
-            'SAME geometry lookup failed for %s: %s', alert.identifier, exc,
-        )
-        try:
-            db.session.rollback()
-        except Exception:
-            pass
+        current_app.logger.debug('SAME geometry build skipped for alert %s: %s', alert_id, exc)
         return False
 
 
 def calculate_coverage_percentages(alert_id, intersections):
-    """Calculate coverage metrics for each boundary type and the overall county."""
+    """Calculate coverage metrics for each boundary type and the overall county.
+
+    Important: call ``try_build_geometry_from_same_codes`` before this function
+    so that alerts with SAME-derived geometry are handled.
+    """
 
     coverage_data: Dict[str, Dict[str, Any]] = {}
 
     try:
-        logger = current_app.logger
         alert = CAPAlert.query.get(alert_id)
         if not alert or not alert.geom:
-            # Try to build geometry from SAME codes (IPAWS alerts)
-            if alert and not alert.geom:
-                if _build_geometry_from_same_codes(alert):
-                    db.session.refresh(alert)
-            if not alert or not alert.geom:
-                return coverage_data
+            return coverage_data
 
         boundary_types: Dict[str, List[Tuple[Intersection, Boundary]]] = {}
         for intersection, boundary in intersections:
@@ -223,4 +222,4 @@ def calculate_coverage_percentages(alert_id, intersections):
     return coverage_data
 
 
-__all__ = ['calculate_coverage_percentages', '_build_geometry_from_same_codes']
+__all__ = ['calculate_coverage_percentages', 'try_build_geometry_from_same_codes']
