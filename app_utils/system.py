@@ -1539,6 +1539,21 @@ def _collect_smart_health(logger, devices: List[Dict[str, Any]]) -> Dict[str, An
             result["devices"].append(device_result)
             continue
 
+        # Diagnostic: log which top-level JSON keys smartctl returned so we
+        # can quickly identify missing sections when debugging attribute
+        # extraction failures.
+        report_keys = sorted(report.keys()) if isinstance(report, dict) else []
+        has_nvme_log = "nvme_smart_health_information_log" in report_keys
+        has_temperature = "temperature" in report_keys
+        has_ata_attrs = "ata_smart_attributes" in report_keys
+        if logger:
+            logger.debug(
+                "smartctl JSON for %s: keys=%s nvme_log=%s temp=%s ata_attrs=%s",
+                path, report_keys, has_nvme_log, has_temperature, has_ata_attrs,
+            )
+        # Store diagnostic info so it's visible in the API response
+        device_result["_diag_report_keys"] = report_keys
+
         device_result["model"] = (
             device_result.get("model")
             or report.get("model_name")
@@ -1667,11 +1682,17 @@ def _collect_smart_health(logger, devices: List[Dict[str, Any]]) -> Dict[str, An
             if spare_threshold is not None:
                 device_result["available_spare_threshold"] = spare_threshold
 
-            warning_time = _coerce_int(nvme_info.get("warning_temp_time"))
+            warning_time = (
+                _coerce_int(nvme_info.get("warning_comp_temperature_time"))
+                or _coerce_int(nvme_info.get("warning_temp_time"))
+            )
             if warning_time is not None:
                 device_result["warning_temp_time_minutes"] = warning_time
 
-            critical_time = _coerce_int(nvme_info.get("critical_comp_time"))
+            critical_time = (
+                _coerce_int(nvme_info.get("critical_comp_temperature_time"))
+                or _coerce_int(nvme_info.get("critical_comp_time"))
+            )
             if critical_time is not None:
                 device_result["critical_temp_time_minutes"] = critical_time
 
@@ -1691,6 +1712,18 @@ def _collect_smart_health(logger, devices: List[Dict[str, Any]]) -> Dict[str, An
                             readings.append(round(value, 1))
                 if readings:
                     device_result["temperature_sensors_celsius"] = readings
+
+        # Diagnostic: log extraction results for debugging
+        if logger:
+            logger.debug(
+                "SMART extraction for %s: temp=%s hours=%s pct_used=%s spare=%s media_err=%s",
+                path,
+                device_result.get("temperature_celsius"),
+                device_result.get("power_on_hours"),
+                device_result.get("percentage_used"),
+                device_result.get("available_spare"),
+                device_result.get("media_errors"),
+            )
 
         # Only store stderr as error if it indicates a real problem
         if stderr_output and completed.returncode != 0:
@@ -2050,9 +2083,9 @@ def _populate_nvme_metrics(device_result: Dict[str, Any], report: Dict[str, Any]
         if device_result.get(field) is not None:
             return
         for key in keys:
-            value = nvme_info.get(key)
-            if isinstance(value, (int, float)):
-                device_result[field] = int(value)
+            value = _coerce_int(nvme_info.get(key))
+            if value is not None:
+                device_result[field] = value
                 return
 
     _update_if_absent("power_on_hours", "power_on_hours", "power_on_time_hours")
@@ -2066,9 +2099,9 @@ def _populate_nvme_metrics(device_result: Dict[str, Any], report: Dict[str, Any]
         ("host_writes_32mib", "host_writes_32mib"),
         ("host_reads_32mib", "host_reads_32mib"),
     ):
-        value = nvme_info.get(source_key)
-        if isinstance(value, (int, float)):
-            device_result[target_field] = int(value)
+        value = _coerce_int(nvme_info.get(source_key))
+        if value is not None:
+            device_result[target_field] = value
 
     if device_result.get("data_units_written") is not None:
         device_result["data_units_written_bytes"] = _convert_nvme_data_units(
