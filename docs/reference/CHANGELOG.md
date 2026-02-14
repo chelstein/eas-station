@@ -7,6 +7,12 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **Fixed System Health page template errors** (v2.51.1)
+  - Fixed CPU usage display: Changed `cpu.overall_percent` to `cpu.cpu_usage_percent` to match backend data structure
+  - Fixed Storage display: Changed `partitions` to `disk` and `partition.percent_used` to `partition.percentage` to match backend data structure
+  - Error message "'dict object' has no attribute 'overall_percent'" is now resolved
+  - File: `templates/system_health.html`
+
 - **Fixed NVMe S.M.A.R.T. data display issue** (v2.51.0)
   - Changed template variable access from `.get()` method to dot notation for consistency
   - NVMe I/O statistics (data units read/written, host commands, controller busy time) now display correctly
