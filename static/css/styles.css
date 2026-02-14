@@ -3331,6 +3331,16 @@ a:not(.btn):not(.nav-link):not(.dropdown-item):hover {
     transform: scale(1.1);
 }
 
+/* Leaflet Info Control */
+.leaflet-control.info-control {
+    background: var(--overlay-dark);
+    color: var(--text-on-dark);
+    padding: 6px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    max-width: 200px;
+}
+
 /* Leaflet Popup Enhancements */
 .leaflet-popup-content-wrapper {
     background: color-mix(in srgb, var(--surface-color) 98%, transparent) !important;
