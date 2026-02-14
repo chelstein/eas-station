@@ -1406,6 +1406,38 @@
 <script>
 console.log('Alert detail page scripts loading...');
 
+// Helper function to get CSS variable colors
+function getCSSVar(varName, fallback) {
+    const value = getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+    return value || fallback;
+}
+
+// Severity color mapping
+function getSeverityColor(severity) {
+    switch(severity) {
+        case 'Extreme': return getCSSVar('--severity-extreme', '#e74c3c');
+        case 'Severe': return getCSSVar('--severity-severe', '#e67e22');
+        case 'Moderate': return getCSSVar('--severity-moderate', '#f39c12');
+        case 'Minor': return getCSSVar('--severity-minor', '#3498db');
+        default: return getCSSVar('--severity-unknown', '#ff6b35');
+    }
+}
+
+// Boundary type color mapping
+function getBoundaryColor(type) {
+    const colorMap = {
+        'county': getCSSVar('--boundary-county', '#e74c3c'),
+        'fire': getCSSVar('--boundary-fire', '#e67e22'),
+        'ems': getCSSVar('--boundary-ems', '#f39c12'),
+        'electric': getCSSVar('--boundary-electric', '#2ecc71'),
+        'township': getCSSVar('--boundary-school', '#3498db'),
+        'villages': getCSSVar('--boundary-gas', '#9b59b6'),
+        'telephone': getCSSVar('--boundary-water', '#1abc9c'),
+        'school': getCSSVar('--boundary-transit', '#34495e')
+    };
+    return colorMap[type] || getCSSVar('--severity-unknown', '#95a5a6');
+}
+
 // Global variables for this page
 let map;
 let alertLayer;
@@ -1513,13 +1545,7 @@ function loadCountyBoundaryAsAlert() {
 function showApproximateCountyCoverage() {
     console.log('No county boundary data — showing approximate coverage');
     try {
-        let color = '#ff6b35';
-        switch(alertData.severity) {
-            case 'Extreme': color = '#e74c3c'; break;
-            case 'Severe': color = '#e67e22'; break;
-            case 'Moderate': color = '#f39c12'; break;
-            case 'Minor': color = '#3498db'; break;
-        }
+        const color = getSeverityColor(alertData.severity);
 
         // Use the map's default center (configured county coordinates)
         const center = map.getCenter();
@@ -1568,13 +1594,7 @@ function displayAlertOnMap(alertGeoData) {
         console.log('Displaying alert on map...');
 
         // Determine color based on severity
-        let color = '#ff6b35'; // default orange
-        switch(alertData.severity) {
-            case 'Extreme': color = '#e74c3c'; break;
-            case 'Severe': color = '#e67e22'; break;
-            case 'Moderate': color = '#f39c12'; break;
-            case 'Minor': color = '#3498db'; break;
-        }
+        const color = getSeverityColor(alertData.severity);
 
         // Create alert layer
         alertLayer = L.geoJSON(alertGeoData, {
@@ -1617,31 +1637,21 @@ function loadBoundaries() {
     // Load boundaries using the same approach as index.html
     const boundaryTypes = ['county', 'fire', 'ems', 'electric', 'township', 'villages', 'telephone', 'school'];
 
-    // Color scheme matching index.html
-    const colors = {
-        county: '#e74c3c',
-        fire: '#e67e22',
-        ems: '#f39c12',
-        electric: '#2ecc71',
-        township: '#3498db',
-        villages: '#9b59b6',
-        telephone: '#1abc9c',
-        school: '#34495e'
-    };
-
     boundaryTypes.forEach(type => {
         fetch(`/api/boundaries?type=${type}`)
             .then(response => response.json())
             .then(data => {
                 if (data.features && data.features.length > 0) {
+                    const color = getBoundaryColor(type);
+                    
                     // Create boundary layer
                     boundaryLayers[type] = L.geoJSON(data, {
                         style: {
-                            color: colors[type] || '#95a5a6',
+                            color: color,
                             weight: type === 'county' ? 3 : 1,
                             opacity: 0.6,
                             fillOpacity: type === 'county' ? 0.05 : 0.1,
-                            fillColor: colors[type] || '#95a5a6'
+                            fillColor: color
                         },
                         onEachFeature: function(feature, layer) {
                             const props = feature.properties;
