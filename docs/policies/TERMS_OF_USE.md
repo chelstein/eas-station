@@ -1,6 +1,6 @@
 # ⚖️ Terms of Use
 
-_Last updated: January 30, 2025_
+_Last updated: February 14, 2026_
 
 > **Critical Safety Notice:** EAS Station is experimental software. It must not be used for life-safety, mission-critical, or FCC-mandated alerting. Commercially certified EAS equipment remains the only acceptable solution for regulatory compliance.
 
