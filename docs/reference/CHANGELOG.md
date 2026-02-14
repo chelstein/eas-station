@@ -6,6 +6,16 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+### Enhanced
+- **Enhanced visual appearance of install and update scripts** (v2.51.3)
+  - Added animated celebration with sparkles on successful completion
+  - Added elapsed time tracking and display for installation/update operations
+  - Added time estimate display function for long-running operations
+  - Added enhanced section separators with color options
+  - Improved visual consistency between install.sh and update.sh
+  - Scripts now provide better user feedback with more engaging visual elements
+  - Files: `install.sh`, `update.sh`
+
 ### Fixed
 - **Fixed System Health memory usage display error** (v2.51.2)
   - Fixed memory usage display: Changed `memory.percent` to `memory.percentage` to match backend data structure
