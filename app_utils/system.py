@@ -1429,6 +1429,13 @@ def _collect_smart_health(logger, devices: List[Dict[str, Any]]) -> Dict[str, An
         # Returns None only when there's no plausible SMART support (e.g. ramdisk).
         device_type_flag = _detect_device_type(device, path, logger)
 
+        # For NVMe devices, use the controller character device (/dev/nvme0)
+        # instead of the namespace block device (/dev/nvme0n1).  The namespace
+        # path causes "Read Self-test Log failed" (exit code 4) on drives that
+        # don't support the self-test log on the namespace, while the controller
+        # path returns a clean exit code 0.
+        query_path = _nvme_controller_path(path) if device_type_flag == "nvme" else path
+
         # Check if we need sudo (smartctl requires root access to read device data)
         # If smartctl_path doesn't start with /usr or /sbin, or if we're not root, use sudo
         import os
@@ -1462,10 +1469,10 @@ def _collect_smart_health(logger, devices: List[Dict[str, Any]]) -> Dict[str, An
         if device_type_flag and device_type_flag in ("ata", "sat"):
             command.extend(["-n", "standby"])
 
-        command.append(path)
+        command.append(query_path)
 
         if logger:
-            logger.debug("Querying SMART data for %s with command: %s", path, " ".join(command))
+            logger.debug("Querying SMART data for %s with command: %s", query_path, " ".join(command))
 
         try:
             completed = subprocess.run(
