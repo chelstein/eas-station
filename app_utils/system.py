@@ -1430,6 +1430,10 @@ def _collect_smart_health(logger, devices: List[Dict[str, Any]]) -> Dict[str, An
         # Detect device type and add appropriate flags for smartctl
         device_type_flag = _detect_device_type(device, path, logger)
 
+        # None means the device doesn't support SMART (e.g. MMC/SD cards) — skip it
+        if device_type_flag is None:
+            continue
+
         # Check if we need sudo (smartctl requires root access to read device data)
         # If smartctl_path doesn't start with /usr or /sbin, or if we're not root, use sudo
         import os
