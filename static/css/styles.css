@@ -163,6 +163,82 @@
     --layout-padding-x: 1.5rem;
     --layout-padding-bottom: 1rem;
     --footer-margin-top: 20px;
+
+    /* Alert Severity Colors */
+    --severity-extreme: #e74c3c;
+    --severity-severe: #e67e22;
+    --severity-moderate: #f39c12;
+    --severity-minor: #3498db;
+    --severity-unknown: #95a5a6;
+
+    /* Hardware Display Colors */
+    --display-oled-bg: #000000;
+    --display-oled-text: #ffffff;
+    --display-vfd-bg: #001a00;
+    --display-vfd-text: #00ff00;
+    --display-vfd-dim: #004400;
+    --display-muted: #888888;
+
+    /* Terminal/Retro Colors */
+    --terminal-bg: #000000;
+    --terminal-text: #00ff00;
+    --terminal-border: #cccccc;
+
+    /* LED Hardware Colors (for physical LED control) */
+    --led-red: #ff0000;
+    --led-green: #00ff00;
+    --led-blue: #0000ff;
+    --led-amber: #ffbf00;
+    --led-yellow: #ffff00;
+    --led-orange: #ff8000;
+    --led-brown: #964b00;
+    --led-dim-red: #800000;
+    --led-dim-green: #008000;
+
+    /* Boundary Type Colors */
+    --boundary-county: #e74c3c;
+    --boundary-fire: #e67e22;
+    --boundary-ems: #f39c12;
+    --boundary-electric: #2ecc71;
+    --boundary-school: #3498db;
+    --boundary-water: #1abc9c;
+    --boundary-gas: #9b59b6;
+    --boundary-transit: #34495e;
+    --boundary-park: #27ae60;
+    --boundary-health: #e91e63;
+    --boundary-custom-1: #38bdf8;
+    --boundary-custom-2: #fb7185;
+    --boundary-custom-3: #845ef7;
+    --boundary-custom-4: #22c55e;
+    --boundary-custom-5: #f97316;
+    --boundary-custom-6: #14b8a6;
+    --boundary-custom-7: #facc15;
+    --boundary-custom-8: #64748b;
+
+    /* Overlay & Effect Colors */
+    --overlay-dark: rgba(0, 0, 0, 0.7);
+    --overlay-light: rgba(255, 255, 255, 0.9);
+    --glass-bg: rgba(255, 255, 255, 0.1);
+    --glass-border: rgba(255, 255, 255, 0.2);
+
+    /* Text on Colored Backgrounds */
+    --text-on-dark: #ffffff;
+    --text-on-light: #1a1a1a;
+    --text-on-color: #ffffff;
+
+    /* Chart & Visualization Colors */
+    --chart-primary-start: #667eea;
+    --chart-primary-end: #764ba2;
+    --chart-success-start: #11998e;
+    --chart-success-end: #38ef7d;
+    --chart-danger-start: #eb3349;
+    --chart-danger-end: #f45c43;
+    --chart-warning-start: #f7971e;
+    --chart-warning-end: #ffd200;
+    --chart-info-start: #36d1dc;
+    --chart-info-end: #5b86e5;
+    --chart-grid: rgba(0, 0, 0, 0.1);
+    --chart-text: rgba(0, 0, 0, 0.7);
 }
 
 [data-theme="dark"] {
@@ -193,6 +269,82 @@
     --logo-backdrop: rgba(36, 48, 70, 0.95);
     --logo-border-color: rgba(107, 150, 255, 0.35);
     --logo-shadow: 0 14px 32px rgba(5, 9, 16, 0.55);
+
+    /* Alert Severity Colors - Dark Theme */
+    --severity-extreme: #ff6b6b;
+    --severity-severe: #ffa94d;
+    --severity-moderate: #ffd43b;
+    --severity-minor: #74c0fc;
+    --severity-unknown: #adb5bd;
+
+    /* Hardware Display Colors - Same for dark theme */
+    --display-oled-bg: #000000;
+    --display-oled-text: #ffffff;
+    --display-vfd-bg: #001a00;
+    --display-vfd-text: #00ff00;
+    --display-vfd-dim: #004400;
+    --display-muted: #888888;
+
+    /* Terminal/Retro Colors - Same for dark theme */
+    --terminal-bg: #000000;
+    --terminal-text: #00ff00;
+    --terminal-border: #666666;
+
+    /* LED Hardware Colors - Same for dark theme */
+    --led-red: #ff0000;
+    --led-green: #00ff00;
+    --led-blue: #0000ff;
+    --led-amber: #ffbf00;
+    --led-yellow: #ffff00;
+    --led-orange: #ff8000;
+    --led-brown: #964b00;
+    --led-dim-red: #800000;
+    --led-dim-green: #008000;
+
+    /* Boundary Type Colors - Dark Theme */
+    --boundary-county: #ff6b6b;
+    --boundary-fire: #ffa94d;
+    --boundary-ems: #ffd43b;
+    --boundary-electric: #51cf66;
+    --boundary-school: #74c0fc;
+    --boundary-water: #3bc9db;
+    --boundary-transit: #748ffc;
+    --boundary-park: #69db7c;
+    --boundary-health: #ff6b9d;
+    --boundary-gas: #cc5de8;
+    --boundary-custom-1: #74c0fc;
+    --boundary-custom-2: #ff8787;
+    --boundary-custom-3: #b197fc;
+    --boundary-custom-4: #69db7c;
+    --boundary-custom-5: #ffa94d;
+    --boundary-custom-6: #3bc9db;
+    --boundary-custom-7: #ffe066;
+    --boundary-custom-8: #868e96;
+
+    /* Overlay & Effect Colors - Dark Theme */
+    --overlay-dark: rgba(0, 0, 0, 0.8);
+    --overlay-light: rgba(255, 255, 255, 0.1);
+    --glass-bg: rgba(36, 48, 70, 0.2);
+    --glass-border: rgba(107, 150, 255, 0.3);
+
+    /* Text on Colored Backgrounds - Dark Theme */
+    --text-on-dark: #ffffff;
+    --text-on-light: #1a1a1a;
+    --text-on-color: #ffffff;
+
+    /* Chart & Visualization Colors - Dark Theme */
+    --chart-primary-start: #8093ff;
+    --chart-primary-end: #9b6bc2;
+    --chart-success-start: #3bb9a3;
+    --chart-success-end: #63ffa8;
+    --chart-danger-start: #ff5c6e;
+    --chart-danger-end: #ff8b6d;
+    --chart-warning-start: #ffb84d;
+    --chart-warning-end: #ffe74d;
+    --chart-info-start: #63e5f5;
+    --chart-info-end: #8ba6ff;
+    --chart-grid: rgba(255, 255, 255, 0.1);
+    --chart-text: rgba(255, 255, 255, 0.7);
 }
 
 /* Coffee Theme */
