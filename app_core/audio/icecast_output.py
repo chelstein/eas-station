@@ -49,7 +49,6 @@ import requests
 from requests import exceptions as requests_exceptions
 
 from .stream_profiles import StreamFormat
-from .ingest import AudioSourceType  # For source type detection in conditional -re flag logic
 
 logger = logging.getLogger(__name__)
 
@@ -343,48 +342,15 @@ class IcecastStreamer:
 
             logger.info(f"Connecting to Icecast: {self.config.server}:{self.config.port}/{mount_path}")
 
-            # Determine if -re flag should be used based on source type
-            # CRITICAL: -re flag behavior depends on the audio source:
-            #
-            # 1. SDR sources (RedisSDRSourceAdapter): NO -re flag
-            #    - Audio is already captured in real-time by SDR hardware
-            #    - Using -re causes fatal backpressure and stalling after 5-6 seconds
-            #    - FFmpeg should consume stdin as fast as possible
-            #
-            # 2. HTTP/Stream sources (StreamSourceAdapter, etc.): YES -re flag
-            #    - Remote streams need throttling for correct resampling
-            #    - Without -re, FFmpeg processes too fast and resampling is incorrect
-            #    - The -re flag is needed to maintain proper timing
-            use_re_flag = False
-            source_type_name = type(self.audio_source).__name__
-            
-            # Check if this is a network stream source that needs -re flag
-            if source_type_name in ('StreamSourceAdapter', 'IcecastIngestSource', 'HTTPIngestSource'):
-                use_re_flag = True
-                logger.debug(f"Using -re flag for {source_type_name} (network stream)")
-            # Check if this is an SDR source that should NOT use -re flag
-            elif 'SDR' in source_type_name or 'sdr' in source_type_name.lower():
-                use_re_flag = False
-                logger.debug(f"NOT using -re flag for {source_type_name} (live hardware capture)")
-            # Check audio source config if available
-            elif hasattr(self.audio_source, 'config'):
-                config = self.audio_source.config
-                if hasattr(config, 'source_type'):
-                    if config.source_type == AudioSourceType.SDR:
-                        use_re_flag = False
-                        logger.debug(f"NOT using -re flag for source_type=SDR")
-                    elif config.source_type == AudioSourceType.STREAM:
-                        use_re_flag = True
-                        logger.debug(f"Using -re flag for source_type=STREAM")
-            
+            # NEVER use -re flag for the Icecast encoder FFmpeg.
+            # All audio arrives via the broadcast queue at real-time rate
+            # (whether from SDR hardware or network stream sources).
+            # Using -re double-throttles consumption, causing slow playback.
+
             # Build FFmpeg command
             cmd = ['ffmpeg']
-            
-            # Add -re flag if needed for this source type
-            if use_re_flag:
-                cmd.append('-re')
-            
-            # Add remaining input options
+
+            # Input options
             cmd.extend([
                 '-f', 's16le',  # Input: 16-bit PCM
                 '-ar', str(self.config.sample_rate),  # Sample rate
