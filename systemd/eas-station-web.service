@@ -92,7 +92,8 @@ DeviceAllow=block-sd r
 # Required capabilities for sudo to work (certbot/nginx management)
 # CAP_SETUID and CAP_SETGID allow sudo to change user/group IDs
 # CAP_AUDIT_WRITE allows sudo to write audit records
-CapabilityBoundingSet=CAP_SETUID CAP_SETGID CAP_AUDIT_WRITE
+# CAP_SYS_ADMIN required for NVMe admin ioctls (SMART health queries)
+CapabilityBoundingSet=CAP_SETUID CAP_SETGID CAP_AUDIT_WRITE CAP_SYS_ADMIN
 
 # Resource limits
 LimitNOFILE=65536
