@@ -471,17 +471,17 @@
                     <i class="fas fa-memory fa-2x mb-2" style="color: var(--primary-color);"></i>
                     <h6 class="text-muted mb-2">Memory Usage</h6>
                     <h3 class="mb-0" id="quick-memory-usage">
-                        {% if memory and memory.percent is not none %}
-                            {{ "%.1f"|format(memory.percent) }}%
+                        {% if memory and memory.percentage is not none %}
+                            {{ "%.1f"|format(memory.percentage) }}%
                         {% else %}
                             N/A
                         {% endif %}
                     </h3>
-                    {% if memory and memory.percent is not none %}
+                    {% if memory and memory.percentage is not none %}
                         <div class="progress progress-sm mt-2">
                             <div class="progress-bar" role="progressbar" 
-                                 style="width: {{ memory.percent }}%; 
-                                        background-color: {% if memory.percent > 90 %}var(--danger-color){% elif memory.percent > 80 %}var(--warning-color){% else %}var(--success-color){% endif %};">
+                                 style="width: {{ memory.percentage }}%; 
+                                        background-color: {% if memory.percentage > 90 %}var(--danger-color){% elif memory.percentage > 80 %}var(--warning-color){% else %}var(--success-color){% endif %};">
                             </div>
                         </div>
                         <small class="text-muted">{{ format_bytes(memory.used) }} / {{ format_bytes(memory.total) }}</small>
