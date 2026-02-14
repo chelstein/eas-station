@@ -360,6 +360,8 @@ PUBLIC_API_GET_PATHS = {
     # Monitoring endpoints (for health checks and version tracking)
     '/api/health',
     '/api/release-manifest',
+    # Hardware diagnostics (used by local monitoring/debugging)
+    '/api/smart_diag',
 }
 # CSRF constants are now imported from app_core.flask.csrf
 app.config['CSRF_SESSION_KEY'] = CSRF_SESSION_KEY
