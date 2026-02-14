@@ -6,6 +6,20 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+### Changed
+- **Replace hardcoded colors with CSS variables across frontend** (v2.47.0)
+  - Added comprehensive CSS variables for alert severity, hardware displays, boundaries, charts, and overlays
+  - Replaced inline style attributes with CSS classes using theme variables
+  - Updated LED control page to use CSS variables for terminal colors and LED hardware colors
+  - Updated index page hero section and custom boundaries to use theme-aware colors
+  - Updated display preview pages (OLED/VFD) to use CSS variables for canvas rendering
+  - Updated alert detail maps with severity and boundary color functions using CSS variables
+  - Updated security settings page badges and headers to use theme colors
+  - Updated analytics dashboard charts (stats/_scripts.html) to dynamically use CSS variables
+  - Updated analytics dashboard styles (stats/_styles.html) to use chart color variables
+  - Benefits: Automatic theme support, centralized color management, dark mode compatibility, easier customization
+  - Files: `static/css/styles.css`, `templates/admin.html`, `templates/index.html`, `templates/alert_detail.html`, `templates/led_control.html`, `templates/displays_preview.html`, `templates/security_settings.html`, `templates/stats/_scripts.html`, `templates/stats/_styles.html`
+
 ### Fixed
 - **Fix update.sh silently failing without notifying user on git errors** (v2.46.8)
   - Added `set +e` / `set -e` around git fetch and git reset commands to prevent silent exit
