@@ -367,29 +367,58 @@
         }
 
         /* S.M.A.R.T. Health Status Visual Enhancements */
-        .smart-device-card {
-            border-left: 3px solid var(--border-color);
-            padding-left: 1rem;
-            margin-bottom: 1rem;
+        .smart-device-panel {
+            border: 1px solid var(--border-color);
+            border-left: 4px solid var(--border-color);
+            border-radius: var(--radius-md);
+            padding: 1.25rem;
+            background: var(--bg-color);
             transition: all 0.3s ease;
         }
 
-        .smart-device-card:hover {
-            border-left-color: var(--primary-color);
-            background: var(--hover-color);
-            border-radius: var(--radius-sm);
+        .smart-device-panel:hover {
+            box-shadow: 0 2px 12px var(--shadow-color);
         }
 
-        .smart-device-card.status-passed {
+        .smart-device-panel.status-passed {
             border-left-color: var(--success-color);
         }
 
-        .smart-device-card.status-failed {
+        .smart-device-panel.status-failed {
             border-left-color: var(--danger-color);
         }
 
-        .smart-device-card.status-warning {
+        .smart-device-panel.status-warning {
             border-left-color: var(--warning-color);
+        }
+
+        .smart-section-label {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--text-secondary);
+            margin-bottom: 0.5rem;
+            padding-bottom: 0.35rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .smart-attr-table td {
+            padding: 0.2rem 0.4rem !important;
+            font-size: 0.82rem;
+            color: var(--text-color);
+        }
+
+        .smart-attr-name {
+            color: var(--text-secondary);
+            white-space: nowrap;
+            width: 1%;
+            padding-right: 1rem !important;
+        }
+
+        .smart-attr-val {
+            font-family: 'Roboto Mono', 'SFMono-Regular', 'Courier New', monospace;
+            font-variant-numeric: tabular-nums;
+            font-weight: 500;
         }
 
         /* Refresh button enhancement */
@@ -1274,7 +1303,7 @@
 
         <!-- Storage Inventory & Health -->
         <div class="row mb-4">
-            <div class="col-lg-8 mb-3" id="hardware-devices-card">
+            <div class="col-12 mb-3" id="hardware-devices-card">
                 <div class="card health-card h-100">
                     <div class="card-body">
                         <h5><i class="fas fa-database section-icon"></i> Storage Inventory</h5>
@@ -1346,15 +1375,19 @@
                 </div>
             </div>
 
-            <div class="col-lg-4 mb-3" id="smart-card">
-                <div class="card health-card h-100">
+        </div>
+
+        <!-- S.M.A.R.T. Health - Full Width -->
+        <div class="row mb-4">
+            <div class="col-12" id="smart-card">
+                <div class="card health-card">
                     <div class="card-body">
                         <h5><i class="fas fa-heartbeat section-icon"></i> Storage Health (S.M.A.R.T.)</h5>
 
                         {% if smart_info.available %}
                             {% set smart_devices = smart_info.devices or [] %}
                             {% if smart_devices %}
-                                {% for device in smart_devices[:5] %}
+                                {% for device in smart_devices[:10] %}
                                     {% set status_raw = (device.overall_status or 'unknown')|lower %}
                                     {% if status_raw in ['passed', 'ok', 'healthy', 'success'] %}
                                         {% set badge_class = 'success' %}
@@ -1366,104 +1399,190 @@
                                         {% set badge_class = 'warning' %}
                                         {% set status_label = device.overall_status or 'Unknown' %}
                                     {% endif %}
-                                    <div class="smart-device-card status-{{ 'passed' if badge_class == 'success' else 'failed' if badge_class == 'danger' else 'warning' }}">
-                                        <div class="d-flex justify-content-between align-items-center mb-2">
+
+                                    {% set is_nvme = device.nvme_version_string or (device.path and 'nvme' in device.path|lower) or (device.name and 'nvme' in device.name|lower) %}
+
+                                    <div class="smart-device-panel status-{{ 'passed' if badge_class == 'success' else 'failed' if badge_class == 'danger' else 'warning' }} {% if not loop.last %}mb-4{% endif %}">
+                                        {# ── Device Header ── #}
+                                        <div class="d-flex justify-content-between align-items-start mb-3">
                                             <div>
-                                                <div class="d-flex align-items-center gap-2">
-                                                    <span class="metric-label">{{ device.path or device.name or 'Unknown device' }}</span>
-                                                    {% if device.nvme_version_string or (device.path and 'nvme' in device.path|lower) or (device.name and 'nvme' in device.name|lower) %}
-                                                        <span class="badge bg-info" style="font-size: 0.7em;">NVMe</span>
+                                                <div class="d-flex align-items-center gap-2 mb-1">
+                                                    <h6 class="mb-0 fw-bold">{{ device.path or device.name or 'Unknown device' }}</h6>
+                                                    {% if is_nvme %}
+                                                        <span class="badge bg-info">NVMe</span>
                                                     {% elif device.is_rotational %}
-                                                        <span class="badge bg-secondary" style="font-size: 0.7em;">HDD</span>
+                                                        <span class="badge bg-secondary">HDD</span>
                                                     {% elif device.is_rotational is sameas(false) %}
-                                                        <span class="badge bg-secondary" style="font-size: 0.7em;">SSD</span>
+                                                        <span class="badge bg-secondary">SSD</span>
                                                     {% endif %}
                                                 </div>
-                                                {% if device.model %}<div class="hardware-meta">{{ device.model }}</div>{% endif %}
-                                                {% if device.serial %}<div class="hardware-meta">Serial: {{ device.serial }}</div>{% endif %}
+                                                {% if device.model %}<div class="text-muted" style="font-size: 0.85rem;">{{ device.model }}</div>{% endif %}
+                                                {% if device.serial %}<div class="text-muted" style="font-size: 0.8rem;">S/N: {{ device.serial }}</div>{% endif %}
                                             </div>
-                                            <span class="badge bg-{{ badge_class }} smart-status-badge">{{ status_label }}</span>
+                                            <span class="badge bg-{{ badge_class }} smart-status-badge px-3 py-2" style="font-size: 0.9rem;">{{ status_label }}</span>
                                         </div>
-                                        {% set identity_parts = [] %}
-                                        {% if device.firmware_version %}{% set identity_parts = identity_parts + ['FW ' ~ device.firmware_version] %}{% endif %}
-                                        {% if device.nvme_version_string %}{% set identity_parts = identity_parts + ['NVMe ' ~ device.nvme_version_string] %}{% endif %}
-                                        {% if device.nvme_controller_id is not none %}{% set identity_parts = identity_parts + ['Controller ' ~ device.nvme_controller_id] %}{% endif %}
-                                        {% if device.nvme_number_of_namespaces is not none %}
-                                            {% set ns_label = device.nvme_number_of_namespaces ~ ' namespace' %}
-                                            {% if device.nvme_number_of_namespaces|int != 1 %}{% set ns_label = ns_label ~ 's' %}{% endif %}
-                                            {% set identity_parts = identity_parts + [ns_label] %}
-                                        {% endif %}
-                                        {% if device.ieee_oui_identifier %}{% set identity_parts = identity_parts + ['OUI ' ~ device.ieee_oui_identifier] %}{% endif %}
-                                        {% if identity_parts %}<div class="hardware-meta">{{ identity_parts|join(' • ') }}</div>{% endif %}
 
-                                        {% set capacity_parts = [] %}
-                                        {% if device.total_capacity_bytes %}{% set capacity_parts = capacity_parts + ['Capacity: ' ~ format_bytes(device.total_capacity_bytes)] %}{% endif %}
-                                        {% if device.unallocated_capacity_bytes %}{% set capacity_parts = capacity_parts + ['Unallocated: ' ~ format_bytes(device.unallocated_capacity_bytes)] %}{% endif %}
-                                        {% if capacity_parts %}<div class="hardware-meta">{{ capacity_parts|join(' • ') }}</div>{% endif %}
-
-                                        {% set temperature_label = 'Temp: ' ~ ("%.0f"|format(device.temperature_celsius) ~ '°C' if device.temperature_celsius is not none else 'N/A') %}
-                                        {% set sensor_line = '' %}
-                                        {% if device.temperature_sensors_celsius %}
-                                            {% set sensor_values = [] %}
-                                            {% for reading in device.temperature_sensors_celsius %}
-                                            {% set sensor_values = sensor_values + ['%.0f'|format(reading) ~ '°C'] %}
-                                            {% endfor %}
-                                            {% if sensor_values %}{% set sensor_line = 'Sensors: ' ~ sensor_values|join(', ') %}{% endif %}
-                                        {% endif %}
-                                        {% set temp_parts = [temperature_label] %}
-                                        {% if sensor_line %}{% set temp_parts = temp_parts + [sensor_line] %}{% endif %}
-                                        <div class="hardware-meta">{{ temp_parts|join(' • ') }}</div>
-
-                                        {% set power_parts = [] %}
-                                        {% if device.power_on_hours is not none %}{% set power_parts = power_parts + ['Power On: ' ~ device.power_on_hours ~ 'h'] %}{% endif %}
-                                        {% if device.power_cycle_count is not none %}{% set power_parts = power_parts + ['Cycles: ' ~ device.power_cycle_count] %}{% endif %}
-                                        {% if device.unsafe_shutdowns is not none %}{% set power_parts = power_parts + ['Unsafe: ' ~ device.unsafe_shutdowns] %}{% endif %}
-                                        {% if device.warning_temp_time_minutes is not none and device.warning_temp_time_minutes > 0 %}{% set power_parts = power_parts + ['Warn Temp: ' ~ device.warning_temp_time_minutes ~ ' min'] %}{% endif %}
-                                        {% if device.critical_temp_time_minutes is not none and device.critical_temp_time_minutes > 0 %}{% set power_parts = power_parts + ['Critical Temp: ' ~ device.critical_temp_time_minutes ~ ' min'] %}{% endif %}
-                                        {% if power_parts %}<div class="hardware-meta">{{ power_parts|join(' • ') }}</div>{% endif %}
-
-                                        {% set health_parts = [] %}
-                                        {% if device.reallocated_sector_count is not none %}{% set health_parts = health_parts + ['Realloc: ' ~ device.reallocated_sector_count] %}{% else %}{% set health_parts = health_parts + ['Realloc: N/A'] %}{% endif %}
-                                        {% if device.media_errors is not none %}{% set health_parts = health_parts + ['Media Errors: ' ~ device.media_errors] %}{% endif %}
-                                        {% if device.critical_warnings is not none %}{% set health_parts = health_parts + ['Warnings: ' ~ device.critical_warnings] %}{% endif %}
-                                        {% if device.available_spare is not none %}{% set health_parts = health_parts + ['Spare: ' ~ '%.0f'|format(device.available_spare) ~ '%'] %}{% endif %}
-                                        {% if device.available_spare_threshold is not none %}{% set health_parts = health_parts + ['Threshold: ' ~ '%.0f'|format(device.available_spare_threshold) ~ '%'] %}{% endif %}
-                                        {% if device.percentage_used is not none %}{% set health_parts = health_parts + ['Wear: ' ~ '%.1f'|format(device.percentage_used) ~ '%'] %}{% endif %}
-                                        {% if device.num_error_log_entries is not none %}{% set health_parts = health_parts + ['Error Log: ' ~ device.num_error_log_entries] %}{% endif %}
                                         {% if device.error %}
-                                            <div class="hardware-meta text-warning"><i class="fas fa-exclamation-triangle"></i> {{ device.error }}</div>
-                                        {% elif health_parts %}
-                                            <div class="hardware-meta">{{ health_parts|join(' • ') }}</div>
+                                            <div class="alert alert-warning py-2 mb-3">
+                                                <i class="fas fa-exclamation-triangle me-1"></i> {{ device.error }}
+                                            </div>
                                         {% endif %}
 
-                                        {% set nvme_ns = namespace(lines=[]) %}
-                                        {% set nvme_written = device.data_units_written_bytes %}
-                                        {% set nvme_read = device.data_units_read_bytes %}
-                                        {% set nvme_host_reads = device.host_read_commands %}
-                                        {% set nvme_host_writes = device.host_write_commands %}
-                                        {% set nvme_busy = device.controller_busy_time_minutes %}
-                                        {% if nvme_written is not none %}
-                                            {% set nvme_ns.lines = nvme_ns.lines + ['Written: ' ~ format_bytes(nvme_written)] %}
-                                        {% endif %}
-                                        {% if nvme_read is not none %}
-                                            {% set nvme_ns.lines = nvme_ns.lines + ['Read: ' ~ format_bytes(nvme_read)] %}
-                                        {% endif %}
-                                        {% if nvme_host_reads is not none %}
-                                            {% set nvme_ns.lines = nvme_ns.lines + ['Reads: ' ~ '{:,}'.format(nvme_host_reads) ~ ' cmds'] %}
-                                        {% endif %}
-                                        {% if nvme_host_writes is not none %}
-                                            {% set nvme_ns.lines = nvme_ns.lines + ['Writes: ' ~ '{:,}'.format(nvme_host_writes) ~ ' cmds'] %}
-                                        {% endif %}
-                                        {% if nvme_busy is not none %}
-                                            {% set nvme_ns.lines = nvme_ns.lines + ['Busy: ' ~ '{:,}'.format(nvme_busy) ~ ' min'] %}
-                                        {% endif %}
-                                        {% if nvme_ns.lines %}
-                                            <div class="hardware-meta">NVMe: {{ nvme_ns.lines|join(' • ') }}</div>
-                                        {% endif %}
+                                        {# ── Attributes Grid ── #}
+                                        <div class="row">
+                                            {# Column 1: Identity & Capacity #}
+                                            <div class="col-md-4 col-sm-6 mb-3">
+                                                <h6 class="smart-section-label">Device Information</h6>
+                                                <table class="table table-sm table-borderless smart-attr-table mb-0">
+                                                    <tbody>
+                                                        {% if device.firmware_version %}
+                                                        <tr><td class="smart-attr-name">Firmware</td><td class="smart-attr-val">{{ device.firmware_version }}</td></tr>
+                                                        {% endif %}
+                                                        {% if device.nvme_version_string %}
+                                                        <tr><td class="smart-attr-name">NVMe Version</td><td class="smart-attr-val">{{ device.nvme_version_string }}</td></tr>
+                                                        {% endif %}
+                                                        {% if device.total_capacity_bytes %}
+                                                        <tr><td class="smart-attr-name">Capacity</td><td class="smart-attr-val">{{ format_bytes(device.total_capacity_bytes) }}</td></tr>
+                                                        {% endif %}
+                                                        {% if device.unallocated_capacity_bytes %}
+                                                        <tr><td class="smart-attr-name">Unallocated</td><td class="smart-attr-val">{{ format_bytes(device.unallocated_capacity_bytes) }}</td></tr>
+                                                        {% endif %}
+                                                        {% if device.nvme_controller_id is not none %}
+                                                        <tr><td class="smart-attr-name">Controller ID</td><td class="smart-attr-val">{{ device.nvme_controller_id }}</td></tr>
+                                                        {% endif %}
+                                                        {% if device.nvme_number_of_namespaces is not none %}
+                                                        <tr><td class="smart-attr-name">Namespaces</td><td class="smart-attr-val">{{ device.nvme_number_of_namespaces }}</td></tr>
+                                                        {% endif %}
+                                                        {% if device.ieee_oui_identifier %}
+                                                        <tr><td class="smart-attr-name">IEEE OUI</td><td class="smart-attr-val">{{ device.ieee_oui_identifier }}</td></tr>
+                                                        {% endif %}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+
+                                            {# Column 2: Temperature & Power #}
+                                            <div class="col-md-4 col-sm-6 mb-3">
+                                                <h6 class="smart-section-label">Temperature &amp; Power</h6>
+                                                <table class="table table-sm table-borderless smart-attr-table mb-0">
+                                                    <tbody>
+                                                        <tr>
+                                                            <td class="smart-attr-name">Temperature</td>
+                                                            <td class="smart-attr-val">
+                                                                {% if device.temperature_celsius is not none %}
+                                                                    {% set temp_val = device.temperature_celsius %}
+                                                                    <span class="{% if temp_val > 70 %}text-danger fw-bold{% elif temp_val > 55 %}text-warning{% else %}text-success{% endif %}">{{ "%.0f"|format(temp_val) }}°C</span>
+                                                                {% else %}
+                                                                    <span class="text-muted">N/A</span>
+                                                                {% endif %}
+                                                            </td>
+                                                        </tr>
+                                                        {% if device.temperature_sensors_celsius %}
+                                                        <tr>
+                                                            <td class="smart-attr-name">Temp Sensors</td>
+                                                            <td class="smart-attr-val">
+                                                                {% for reading in device.temperature_sensors_celsius %}{{ "%.0f"|format(reading) }}°C{% if not loop.last %}, {% endif %}{% endfor %}
+                                                            </td>
+                                                        </tr>
+                                                        {% endif %}
+                                                        {% if device.power_on_hours is not none %}
+                                                        <tr>
+                                                            <td class="smart-attr-name">Power On Hours</td>
+                                                            <td class="smart-attr-val">{{ "{:,}".format(device.power_on_hours) }}h
+                                                                <span class="text-muted" style="font-size: 0.8em;">({{ "%.1f"|format(device.power_on_hours / 24) }}d)</span>
+                                                            </td>
+                                                        </tr>
+                                                        {% endif %}
+                                                        {% if device.power_cycle_count is not none %}
+                                                        <tr><td class="smart-attr-name">Power Cycles</td><td class="smart-attr-val">{{ "{:,}".format(device.power_cycle_count) }}</td></tr>
+                                                        {% endif %}
+                                                        {% if device.unsafe_shutdowns is not none %}
+                                                        <tr>
+                                                            <td class="smart-attr-name">Unsafe Shutdowns</td>
+                                                            <td class="smart-attr-val">
+                                                                <span class="{% if device.unsafe_shutdowns > 0 %}text-warning{% endif %}">{{ "{:,}".format(device.unsafe_shutdowns) }}</span>
+                                                            </td>
+                                                        </tr>
+                                                        {% endif %}
+                                                        {% if device.warning_temp_time_minutes is not none and device.warning_temp_time_minutes > 0 %}
+                                                        <tr><td class="smart-attr-name">Warning Temp Time</td><td class="smart-attr-val text-warning">{{ "{:,}".format(device.warning_temp_time_minutes) }} min</td></tr>
+                                                        {% endif %}
+                                                        {% if device.critical_temp_time_minutes is not none and device.critical_temp_time_minutes > 0 %}
+                                                        <tr><td class="smart-attr-name">Critical Temp Time</td><td class="smart-attr-val text-danger">{{ "{:,}".format(device.critical_temp_time_minutes) }} min</td></tr>
+                                                        {% endif %}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+
+                                            {# Column 3: Health & Wear #}
+                                            <div class="col-md-4 col-sm-12 mb-3">
+                                                <h6 class="smart-section-label">Health &amp; Wear</h6>
+                                                <table class="table table-sm table-borderless smart-attr-table mb-0">
+                                                    <tbody>
+                                                        {% if device.percentage_used is not none %}
+                                                        <tr>
+                                                            <td class="smart-attr-name">Wear Level</td>
+                                                            <td class="smart-attr-val">
+                                                                <div class="d-flex align-items-center gap-2">
+                                                                    <div class="progress progress-sm flex-grow-1" style="height: 6px; min-width: 60px;">
+                                                                        <div class="progress-bar {% if device.percentage_used > 80 %}bg-danger{% elif device.percentage_used > 50 %}bg-warning{% else %}bg-success{% endif %}"
+                                                                             style="width: {{ [device.percentage_used, 100]|min }}%"></div>
+                                                                    </div>
+                                                                    <span>{{ "%.1f"|format(device.percentage_used) }}%</span>
+                                                                </div>
+                                                            </td>
+                                                        </tr>
+                                                        {% endif %}
+                                                        {% if device.available_spare is not none %}
+                                                        <tr>
+                                                            <td class="smart-attr-name">Available Spare</td>
+                                                            <td class="smart-attr-val">
+                                                                <div class="d-flex align-items-center gap-2">
+                                                                    <div class="progress progress-sm flex-grow-1" style="height: 6px; min-width: 60px;">
+                                                                        <div class="progress-bar bg-success" style="width: {{ [device.available_spare, 100]|min }}%"></div>
+                                                                    </div>
+                                                                    <span>{{ "%.0f"|format(device.available_spare) }}%</span>
+                                                                </div>
+                                                            </td>
+                                                        </tr>
+                                                        {% endif %}
+                                                        {% if device.available_spare_threshold is not none %}
+                                                        <tr><td class="smart-attr-name">Spare Threshold</td><td class="smart-attr-val">{{ "%.0f"|format(device.available_spare_threshold) }}%</td></tr>
+                                                        {% endif %}
+                                                        {% if device.media_errors is not none %}
+                                                        <tr><td class="smart-attr-name">Media Errors</td><td class="smart-attr-val {% if device.media_errors > 0 %}text-danger fw-bold{% endif %}">{{ "{:,}".format(device.media_errors) }}</td></tr>
+                                                        {% endif %}
+                                                        {% if device.critical_warnings is not none %}
+                                                        <tr><td class="smart-attr-name">Critical Warnings</td><td class="smart-attr-val {% if device.critical_warnings > 0 %}text-danger fw-bold{% endif %}">{{ device.critical_warnings }}</td></tr>
+                                                        {% endif %}
+                                                        {% if device.reallocated_sector_count is not none %}
+                                                        <tr><td class="smart-attr-name">Reallocated Sectors</td><td class="smart-attr-val {% if device.reallocated_sector_count > 0 %}text-warning{% endif %}">{{ "{:,}".format(device.reallocated_sector_count) }}</td></tr>
+                                                        {% endif %}
+                                                        {% if device.num_error_log_entries is not none %}
+                                                        <tr><td class="smart-attr-name">Error Log Entries</td><td class="smart-attr-val {% if device.num_error_log_entries > 0 %}text-warning{% endif %}">{{ "{:,}".format(device.num_error_log_entries) }}</td></tr>
+                                                        {% endif %}
+                                                        {% if device.data_units_written_bytes is not none %}
+                                                        <tr><td class="smart-attr-name">Data Written</td><td class="smart-attr-val">{{ format_bytes(device.data_units_written_bytes) }}</td></tr>
+                                                        {% endif %}
+                                                        {% if device.data_units_read_bytes is not none %}
+                                                        <tr><td class="smart-attr-name">Data Read</td><td class="smart-attr-val">{{ format_bytes(device.data_units_read_bytes) }}</td></tr>
+                                                        {% endif %}
+                                                        {% if device.host_write_commands is not none %}
+                                                        <tr><td class="smart-attr-name">Host Write Cmds</td><td class="smart-attr-val">{{ "{:,}".format(device.host_write_commands) }}</td></tr>
+                                                        {% endif %}
+                                                        {% if device.host_read_commands is not none %}
+                                                        <tr><td class="smart-attr-name">Host Read Cmds</td><td class="smart-attr-val">{{ "{:,}".format(device.host_read_commands) }}</td></tr>
+                                                        {% endif %}
+                                                        {% if device.controller_busy_time_minutes is not none %}
+                                                        <tr><td class="smart-attr-name">Controller Busy</td><td class="smart-attr-val">{{ "{:,}".format(device.controller_busy_time_minutes) }} min</td></tr>
+                                                        {% endif %}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
                                     </div>
                                 {% endfor %}
-                                {% if smart_devices|length > 5 %}
-                                <small class="text-muted">… and {{ smart_devices|length - 5 }} more devices</small>
+                                {% if smart_devices|length > 10 %}
+                                <small class="text-muted">… and {{ smart_devices|length - 10 }} more devices</small>
                                 {% endif %}
                             {% else %}
                                 <p class="text-muted mb-0">No S.M.A.R.T. capable devices detected.</p>
@@ -2432,12 +2551,22 @@
             `;
         }
 
+        function _smartAttrRow(label, value) {
+            if (value == null) return '';
+            return `<tr><td class="smart-attr-name">${escapeHtml(label)}</td><td class="smart-attr-val">${value}</td></tr>`;
+        }
+
+        function _smartFormatNum(v) {
+            if (v == null) return null;
+            return Number(v).toLocaleString();
+        }
+
         function renderSmartHealthCard(smartInfo) {
             const info = smartInfo && typeof smartInfo === 'object' ? smartInfo : {};
             if (!info.available) {
                 const error = info.error ? `: ${escapeHtml(info.error)}` : '';
                 return `
-                    <div class="card health-card h-100">
+                    <div class="card health-card">
                         <div class="card-body">
                             <h5><i class="fas fa-heartbeat section-icon"></i> Storage Health (S.M.A.R.T.)</h5>
                             <div class="alert alert-warning mb-0 py-2">S.M.A.R.T. data unavailable${error}</div>
@@ -2449,7 +2578,7 @@
             const devices = Array.isArray(info.devices) ? info.devices : [];
             if (!devices.length) {
                 return `
-                    <div class="card health-card h-100">
+                    <div class="card health-card">
                         <div class="card-body">
                             <h5><i class="fas fa-heartbeat section-icon"></i> Storage Health (S.M.A.R.T.)</h5>
                             <p class="text-muted mb-0">No S.M.A.R.T. capable devices detected.</p>
@@ -2458,127 +2587,128 @@
                 `;
             }
 
-            // Build table rows for each device
-            const tableRows = devices.slice(0, 10).map((device) => {
-                const data = device && typeof device === 'object' ? device : {};
+            const devicePanels = devices.slice(0, 10).map((device, idx) => {
+                const d = device && typeof device === 'object' ? device : {};
 
-                // Device name/path
-                const deviceName = escapeHtml(data.name || data.path || 'Unknown');
-                const model = data.model ? escapeHtml(data.model) : '';
-                const serial = data.serial ? `<small class="text-muted">S/N: ${escapeHtml(data.serial)}</small>` : '';
+                // Status
+                const statusRaw = String(d.overall_status || 'unknown').toLowerCase();
+                let badgeClass = 'warning', statusLabel = d.overall_status ? escapeHtml(String(d.overall_status)) : 'Unknown';
+                if (d.error) { badgeClass = 'danger'; statusLabel = 'Error'; }
+                else if (['passed','ok','healthy','success'].includes(statusRaw)) { badgeClass = 'success'; statusLabel = 'Passed'; }
+                else if (['failed','fail','critical'].includes(statusRaw)) { badgeClass = 'danger'; statusLabel = 'Failed'; }
 
-                // Status badge
-                const statusRaw = String(data.overall_status || 'unknown').toLowerCase();
-                let badgeClass = 'warning';
-                let statusLabel = data.overall_status ? escapeHtml(String(data.overall_status)) : 'Unknown';
-                
-                // If there's an error, show as danger status to draw attention
-                if (data.error) {
-                    badgeClass = 'danger';
-                    statusLabel = 'Error';
-                } else if (['passed', 'ok', 'healthy', 'success'].includes(statusRaw)) {
-                    badgeClass = 'success';
-                    statusLabel = 'Passed';
-                } else if (['failed', 'fail', 'critical'].includes(statusRaw)) {
-                    badgeClass = 'danger';
-                    statusLabel = 'Failed';
-                }
+                const panelStatus = badgeClass === 'success' ? 'passed' : badgeClass === 'danger' ? 'failed' : 'warning';
 
-                // Temperature
-                const temp = data.temperature_celsius != null
-                    ? `${toNumber(data.temperature_celsius, 0).toFixed(0)}°C`
-                    : '<span class="text-muted">N/A</span>';
+                // Device type badge
+                const isNvme = d.nvme_version_string || (d.path && d.path.includes('nvme')) || (d.name && d.name.includes('nvme'));
+                let typeBadge = '';
+                if (isNvme) typeBadge = '<span class="badge bg-info">NVMe</span>';
+                else if (d.is_rotational === true) typeBadge = '<span class="badge bg-secondary">HDD</span>';
+                else if (d.is_rotational === false) typeBadge = '<span class="badge bg-secondary">SSD</span>';
 
-                // Power on hours
-                const powerOnHours = data.power_on_hours != null
-                    ? formatNumber(data.power_on_hours) || escapeHtml(String(data.power_on_hours))
-                    : '<span class="text-muted">N/A</span>';
+                // Error banner
+                const errorAlert = d.error ? `<div class="alert alert-warning py-2 mb-3"><i class="fas fa-exclamation-triangle me-1"></i> ${escapeHtml(String(d.error))}</div>` : '';
 
-                // Capacity
-                const capacity = data.total_capacity_bytes != null
-                    ? formatBytes(data.total_capacity_bytes)
-                    : '<span class="text-muted">N/A</span>';
+                // Column 1: Device Info
+                let col1 = '';
+                col1 += _smartAttrRow('Firmware', d.firmware_version ? escapeHtml(d.firmware_version) : null);
+                col1 += _smartAttrRow('NVMe Version', d.nvme_version_string ? escapeHtml(d.nvme_version_string) : null);
+                col1 += _smartAttrRow('Capacity', d.total_capacity_bytes != null ? formatBytes(d.total_capacity_bytes) : null);
+                col1 += _smartAttrRow('Unallocated', d.unallocated_capacity_bytes != null ? formatBytes(d.unallocated_capacity_bytes) : null);
+                col1 += _smartAttrRow('Controller ID', d.nvme_controller_id != null ? String(d.nvme_controller_id) : null);
+                col1 += _smartAttrRow('Namespaces', d.nvme_number_of_namespaces != null ? String(d.nvme_number_of_namespaces) : null);
+                col1 += _smartAttrRow('IEEE OUI', d.ieee_oui_identifier ? escapeHtml(d.ieee_oui_identifier) : null);
 
-                // Wear level (percentage used)
-                const wearLevel = data.percentage_used != null
-                    ? `${formatPercent(data.percentage_used)}%`
-                    : '<span class="text-muted">N/A</span>';
-
-                // Health metrics
-                const healthParts = [];
-                if (data.media_errors != null && data.media_errors > 0) {
-                    healthParts.push(`<span class="text-danger">Media Errors: ${escapeHtml(String(data.media_errors))}</span>`);
-                }
-                if (data.critical_warnings != null && data.critical_warnings > 0) {
-                    healthParts.push(`<span class="text-warning">Warnings: ${escapeHtml(String(data.critical_warnings))}</span>`);
-                }
-                if (data.reallocated_sector_count != null && data.reallocated_sector_count > 0) {
-                    healthParts.push(`<span class="text-warning">Realloc: ${escapeHtml(String(data.reallocated_sector_count))}</span>`);
-                }
-                if (data.available_spare != null) {
-                    const spare = toNumber(data.available_spare, 0).toFixed(0);
-                    healthParts.push(`Spare: ${spare}%`);
-                }
-                
-                // Display error message instead of "Healthy" when present
-                // All errors are shown as warnings since they indicate data collection issues
-                let healthInfo = '';
-                if (data.error) {
-                    healthInfo = `<span class="text-warning"><i class="fas fa-exclamation-triangle"></i> ${escapeHtml(String(data.error))}</span>`;
-                } else if (healthParts.length) {
-                    healthInfo = healthParts.join('<br>');
+                // Column 2: Temperature & Power
+                let col2 = '';
+                if (d.temperature_celsius != null) {
+                    const t = toNumber(d.temperature_celsius, 0);
+                    const tc = t > 70 ? 'text-danger fw-bold' : t > 55 ? 'text-warning' : 'text-success';
+                    col2 += _smartAttrRow('Temperature', `<span class="${tc}">${t.toFixed(0)}°C</span>`);
                 } else {
-                    healthInfo = '<span class="text-success">✓ Healthy</span>';
+                    col2 += _smartAttrRow('Temperature', '<span class="text-muted">N/A</span>');
+                }
+                if (Array.isArray(d.temperature_sensors_celsius) && d.temperature_sensors_celsius.length) {
+                    col2 += _smartAttrRow('Temp Sensors', d.temperature_sensors_celsius.map(v => toNumber(v, 0).toFixed(0) + '°C').join(', '));
+                }
+                if (d.power_on_hours != null) {
+                    const h = toNumber(d.power_on_hours, 0);
+                    col2 += _smartAttrRow('Power On Hours', `${_smartFormatNum(h)}h <span class="text-muted" style="font-size:0.8em">(${(h/24).toFixed(1)}d)</span>`);
+                }
+                col2 += _smartAttrRow('Power Cycles', _smartFormatNum(d.power_cycle_count));
+                if (d.unsafe_shutdowns != null) {
+                    const cls = d.unsafe_shutdowns > 0 ? ' class="text-warning"' : '';
+                    col2 += _smartAttrRow('Unsafe Shutdowns', `<span${cls}>${_smartFormatNum(d.unsafe_shutdowns)}</span>`);
+                }
+                if (d.warning_temp_time_minutes != null && d.warning_temp_time_minutes > 0) {
+                    col2 += _smartAttrRow('Warning Temp Time', `<span class="text-warning">${_smartFormatNum(d.warning_temp_time_minutes)} min</span>`);
+                }
+                if (d.critical_temp_time_minutes != null && d.critical_temp_time_minutes > 0) {
+                    col2 += _smartAttrRow('Critical Temp Time', `<span class="text-danger">${_smartFormatNum(d.critical_temp_time_minutes)} min</span>`);
                 }
 
-                // Additional info (NVMe-specific) - exclude error since it's already shown in healthInfo
-                const additionalInfo = [];
-                if (data.data_units_written_bytes != null) {
-                    additionalInfo.push(`Written: ${formatBytes(data.data_units_written_bytes)}`);
+                // Column 3: Health & Wear
+                let col3 = '';
+                if (d.percentage_used != null) {
+                    const pu = toNumber(d.percentage_used, 0);
+                    const bc = pu > 80 ? 'bg-danger' : pu > 50 ? 'bg-warning' : 'bg-success';
+                    col3 += _smartAttrRow('Wear Level', `<div class="d-flex align-items-center gap-2"><div class="progress progress-sm flex-grow-1" style="height:6px;min-width:60px"><div class="progress-bar ${bc}" style="width:${Math.min(pu,100)}%"></div></div><span>${pu.toFixed(1)}%</span></div>`);
                 }
-                if (data.data_units_read_bytes != null) {
-                    additionalInfo.push(`Read: ${formatBytes(data.data_units_read_bytes)}`);
+                if (d.available_spare != null) {
+                    const sp = toNumber(d.available_spare, 0);
+                    col3 += _smartAttrRow('Available Spare', `<div class="d-flex align-items-center gap-2"><div class="progress progress-sm flex-grow-1" style="height:6px;min-width:60px"><div class="progress-bar bg-success" style="width:${Math.min(sp,100)}%"></div></div><span>${sp.toFixed(0)}%</span></div>`);
                 }
-                if (data.power_cycle_count != null) {
-                    additionalInfo.push(`Power Cycles: ${formatNumber(data.power_cycle_count) || escapeHtml(String(data.power_cycle_count))}`);
+                col3 += _smartAttrRow('Spare Threshold', d.available_spare_threshold != null ? toNumber(d.available_spare_threshold, 0).toFixed(0) + '%' : null);
+                if (d.media_errors != null) {
+                    const cls = d.media_errors > 0 ? ' class="text-danger fw-bold"' : '';
+                    col3 += _smartAttrRow('Media Errors', `<span${cls}>${_smartFormatNum(d.media_errors)}</span>`);
                 }
-                // Note: error is already shown in healthInfo, so we don't add it here
-                const additionalInfoHtml = additionalInfo.length
-                    ? `<small class="text-muted">${additionalInfo.join(' • ')}</small>`
-                    : '';
+                if (d.critical_warnings != null) {
+                    const cls = d.critical_warnings > 0 ? ' class="text-danger fw-bold"' : '';
+                    col3 += _smartAttrRow('Critical Warnings', `<span${cls}>${d.critical_warnings}</span>`);
+                }
+                if (d.reallocated_sector_count != null) {
+                    const cls = d.reallocated_sector_count > 0 ? ' class="text-warning"' : '';
+                    col3 += _smartAttrRow('Reallocated Sectors', `<span${cls}>${_smartFormatNum(d.reallocated_sector_count)}</span>`);
+                }
+                col3 += _smartAttrRow('Error Log Entries', d.num_error_log_entries != null ? (d.num_error_log_entries > 0 ? `<span class="text-warning">${_smartFormatNum(d.num_error_log_entries)}</span>` : '0') : null);
+                col3 += _smartAttrRow('Data Written', d.data_units_written_bytes != null ? formatBytes(d.data_units_written_bytes) : null);
+                col3 += _smartAttrRow('Data Read', d.data_units_read_bytes != null ? formatBytes(d.data_units_read_bytes) : null);
+                col3 += _smartAttrRow('Host Write Cmds', _smartFormatNum(d.host_write_commands));
+                col3 += _smartAttrRow('Host Read Cmds', _smartFormatNum(d.host_read_commands));
+                col3 += _smartAttrRow('Controller Busy', d.controller_busy_time_minutes != null ? _smartFormatNum(d.controller_busy_time_minutes) + ' min' : null);
 
-                // Determine device type badge
-                let deviceTypeBadge = '';
-                const isNvme = data.nvme_version_string || 
-                              (data.path && data.path.includes('nvme')) || 
-                              (data.name && data.name.includes('nvme'));
-                if (isNvme) {
-                    deviceTypeBadge = '<span class="badge bg-info" style="font-size: 0.7em; margin-left: 0.5em;">NVMe</span>';
-                } else if (data.is_rotational === true) {
-                    deviceTypeBadge = '<span class="badge bg-secondary" style="font-size: 0.7em; margin-left: 0.5em;">HDD</span>';
-                } else if (data.is_rotational === false) {
-                    deviceTypeBadge = '<span class="badge bg-secondary" style="font-size: 0.7em; margin-left: 0.5em;">SSD</span>';
-                }
+                const isLast = idx === Math.min(devices.length, 10) - 1;
 
                 return `
-                    <tr>
-                        <td>
-                            <strong>${deviceName}</strong>${deviceTypeBadge}
-                            ${model ? `<br><small class="text-muted">${model}</small>` : ''}
-                            ${serial ? `<br>${serial}` : ''}
-                        </td>
-                        <td class="text-center">
-                            <span class="badge bg-${badgeClass} smart-status-badge">${statusLabel}</span>
-                        </td>
-                        <td class="text-end">${temp}</td>
-                        <td class="text-end">${powerOnHours}h</td>
-                        <td class="text-end">${capacity}</td>
-                        <td class="text-end">${wearLevel}</td>
-                        <td>
-                            ${healthInfo}
-                            ${additionalInfoHtml ? `<br>${additionalInfoHtml}` : ''}
-                        </td>
-                    </tr>
+                    <div class="smart-device-panel status-${panelStatus}${isLast ? '' : ' mb-4'}">
+                        <div class="d-flex justify-content-between align-items-start mb-3">
+                            <div>
+                                <div class="d-flex align-items-center gap-2 mb-1">
+                                    <h6 class="mb-0 fw-bold">${escapeHtml(d.path || d.name || 'Unknown device')}</h6>
+                                    ${typeBadge}
+                                </div>
+                                ${d.model ? `<div class="text-muted" style="font-size:0.85rem">${escapeHtml(d.model)}</div>` : ''}
+                                ${d.serial ? `<div class="text-muted" style="font-size:0.8rem">S/N: ${escapeHtml(d.serial)}</div>` : ''}
+                            </div>
+                            <span class="badge bg-${badgeClass} smart-status-badge px-3 py-2" style="font-size:0.9rem">${statusLabel}</span>
+                        </div>
+                        ${errorAlert}
+                        <div class="row">
+                            <div class="col-md-4 col-sm-6 mb-3">
+                                <h6 class="smart-section-label">Device Information</h6>
+                                <table class="table table-sm table-borderless smart-attr-table mb-0"><tbody>${col1 || '<tr><td class="text-muted" colspan="2">No device info available</td></tr>'}</tbody></table>
+                            </div>
+                            <div class="col-md-4 col-sm-6 mb-3">
+                                <h6 class="smart-section-label">Temperature &amp; Power</h6>
+                                <table class="table table-sm table-borderless smart-attr-table mb-0"><tbody>${col2}</tbody></table>
+                            </div>
+                            <div class="col-md-4 col-sm-12 mb-3">
+                                <h6 class="smart-section-label">Health &amp; Wear</h6>
+                                <table class="table table-sm table-borderless smart-attr-table mb-0"><tbody>${col3 || '<tr><td class="text-muted" colspan="2">No health data available</td></tr>'}</tbody></table>
+                            </div>
+                        </div>
+                    </div>
                 `;
             }).join('');
 
@@ -2586,45 +2716,11 @@
                 ? `<p class="text-muted mt-2 mb-0"><small>… and ${devices.length - 10} more devices</small></p>`
                 : '';
 
-            // Check if any devices have errors (sudo/permission issues)
-            const devicesWithErrors = devices.filter(d => d && d.error);
-            const errorBanner = devicesWithErrors.length > 0 ? `
-                <div class="alert alert-warning mb-3" role="alert">
-                    <i class="fas fa-exclamation-triangle me-2"></i>
-                    <strong>S.M.A.R.T. Data Collection Issues</strong>
-                    <p class="mb-2 mt-2">${devicesWithErrors.length} device(s) could not be queried. Common causes:</p>
-                    <ul class="mb-2">
-                        <li><strong>Sudo permissions not configured:</strong> smartctl requires root access. Configure <code>/etc/sudoers.d/eas-station</code> for passwordless sudo.</li>
-                        <li><strong>Device access restrictions:</strong> Some devices may be locked or in standby mode.</li>
-                        <li><strong>Driver issues:</strong> Device may not support S.M.A.R.T. or driver is incompatible.</li>
-                    </ul>
-                    <p class="mb-0"><small>See "Health Details" column for specific error messages. Check application logs for more details.</small></p>
-                </div>
-            ` : '';
-
             return `
-                <div class="card health-card h-100">
+                <div class="card health-card">
                     <div class="card-body">
                         <h5><i class="fas fa-heartbeat section-icon"></i> Storage Health (S.M.A.R.T.)</h5>
-                        ${errorBanner}
-                        <div class="table-responsive">
-                            <table class="table table-sm table-hover mb-0">
-                                <thead>
-                                    <tr>
-                                        <th>Device</th>
-                                        <th class="text-center">Status</th>
-                                        <th class="text-end">Temp</th>
-                                        <th class="text-end">Power On</th>
-                                        <th class="text-end">Capacity</th>
-                                        <th class="text-end">Wear</th>
-                                        <th>Health Details</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    ${tableRows}
-                                </tbody>
-                            </table>
-                        </div>
+                        ${devicePanels}
                         ${overflow}
                     </div>
                 </div>
