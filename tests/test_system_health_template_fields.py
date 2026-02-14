@@ -23,9 +23,31 @@ from pathlib import Path
 
 import pytest
 
+# Add parent directory to path to allow importing app modules
+# This is required in test environment where package is not installed
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 from app_utils import system as system_utils
+
+
+# Mock objects used for testing
+class MockDB:
+    """Mock database session for testing."""
+    class session:
+        @staticmethod
+        def execute(query):
+            class MockResult:
+                def scalar(self):
+                    return "PostgreSQL 15.0"
+                def fetchone(self):
+                    return ("100 MB",)
+            return MockResult()
+
+
+class MockLogger:
+    """Mock logger for testing."""
+    def error(self, *args, **kwargs):
+        pass
 
 
 class TestSystemHealthFieldNames:
@@ -33,28 +55,12 @@ class TestSystemHealthFieldNames:
 
     def test_backend_returns_cpu_usage_percent(self):
         """Verify backend returns cpu_usage_percent, not overall_percent."""
-        # Create minimal mock db and logger
-        class MockDB:
-            class session:
-                @staticmethod
-                def execute(query):
-                    class MockResult:
-                        def scalar(self):
-                            return "PostgreSQL 15.0"
-                        def fetchone(self):
-                            return ("100 MB",)
-                    return MockResult()
-                
-        class MockLogger:
-            def error(self, *args, **kwargs):
-                pass
-        
         # Get health data
         try:
             health_data = system_utils.build_system_health_snapshot(MockDB(), MockLogger())
-        except Exception:
-            # If it fails due to missing dependencies, skip
-            pytest.skip("Cannot run without full environment")
+        except (ImportError, AttributeError, OSError) as e:
+            # Skip if missing required dependencies or system access
+            pytest.skip(f"Cannot run without full environment: {e}")
             return
         
         # Verify CPU field structure
@@ -71,25 +77,10 @@ class TestSystemHealthFieldNames:
 
     def test_backend_returns_disk_not_partitions(self):
         """Verify backend returns 'disk', not 'partitions'."""
-        class MockDB:
-            class session:
-                @staticmethod
-                def execute(query):
-                    class MockResult:
-                        def scalar(self):
-                            return "PostgreSQL 15.0"
-                        def fetchone(self):
-                            return ("100 MB",)
-                    return MockResult()
-                
-        class MockLogger:
-            def error(self, *args, **kwargs):
-                pass
-        
         try:
             health_data = system_utils.build_system_health_snapshot(MockDB(), MockLogger())
-        except Exception:
-            pytest.skip("Cannot run without full environment")
+        except (ImportError, AttributeError, OSError) as e:
+            pytest.skip(f"Cannot run without full environment: {e}")
             return
         
         # Verify disk field structure
@@ -99,25 +90,10 @@ class TestSystemHealthFieldNames:
 
     def test_disk_entries_have_percentage_not_percent_used(self):
         """Verify disk entries have 'percentage', not 'percent_used'."""
-        class MockDB:
-            class session:
-                @staticmethod
-                def execute(query):
-                    class MockResult:
-                        def scalar(self):
-                            return "PostgreSQL 15.0"
-                        def fetchone(self):
-                            return ("100 MB",)
-                    return MockResult()
-                
-        class MockLogger:
-            def error(self, *args, **kwargs):
-                pass
-        
         try:
             health_data = system_utils.build_system_health_snapshot(MockDB(), MockLogger())
-        except Exception:
-            pytest.skip("Cannot run without full environment")
+        except (ImportError, AttributeError, OSError) as e:
+            pytest.skip(f"Cannot run without full environment: {e}")
             return
         
         disk_data = health_data.get("disk", [])
