@@ -1446,7 +1446,11 @@ def _collect_smart_health(logger, devices: List[Dict[str, Any]]) -> Dict[str, An
         if device_type_flag:
             command.extend(["-d", device_type_flag])
         
-        command.extend(["--json", "-H", "-A"])
+        # -a (all) = -H -i -c -A -l error -l selftest: provides complete
+        # device info, capabilities, attributes, and health status.  Using -a
+        # instead of just -H -A ensures NVMe health logs and ATA attributes
+        # are both fully populated in the JSON output.
+        command.extend(["--json", "-a"])
 
         # The -n standby flag is for ATA/SATA devices to skip devices in standby mode.
         # Only add this flag for:
@@ -1632,6 +1636,18 @@ def _collect_smart_health(logger, devices: List[Dict[str, Any]]) -> Dict[str, An
         device_result["reallocated_sector_count"] = _extract_attribute_value(
             report, "Reallocated_Sector_Ct"
         )
+
+        # Fallback: also try "Reallocated_Sector_Count" (used by some drives)
+        if device_result["reallocated_sector_count"] is None:
+            device_result["reallocated_sector_count"] = _extract_attribute_value(
+                report, "Reallocated_Sector_Count"
+            )
+
+        # ATA pending sector count (another common health indicator)
+        pending = _extract_attribute_value(report, "Current_Pending_Sector")
+        if pending is not None:
+            device_result.setdefault("pending_sector_count", pending)
+
         device_result["media_errors"] = _extract_nvme_field(report, "media_errors")
         device_result["critical_warnings"] = _extract_nvme_field(report, "critical_warning")
         nvme_stats = _extract_nvme_statistics(report)
