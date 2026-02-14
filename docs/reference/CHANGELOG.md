@@ -7,6 +7,11 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **Fixed System Health memory usage display error** (v2.51.2)
+  - Fixed memory usage display: Changed `memory.percent` to `memory.percentage` to match backend data structure
+  - Error message "'dict object' has no attribute 'percent'" is now resolved
+  - File: `templates/system_health.html`
+
 - **Fixed System Health page template errors** (v2.51.1)
   - Fixed CPU usage display: Changed `cpu.overall_percent` to `cpu.cpu_usage_percent` to match backend data structure
   - Fixed Storage display: Changed `partitions` to `disk` and `partition.percent_used` to `partition.percentage` to match backend data structure

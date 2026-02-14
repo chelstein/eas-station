@@ -105,6 +105,26 @@ class TestSystemHealthFieldNames:
             assert "percent_used" not in first_disk, \
                 "Disk entries should NOT contain 'percent_used' field (old name)"
 
+    def test_backend_returns_memory_percentage(self):
+        """Verify backend returns memory with 'percentage' field, not 'percent'."""
+        try:
+            health_data = system_utils.build_system_health_snapshot(MockDB(), MockLogger())
+        except (ImportError, AttributeError, OSError) as e:
+            pytest.skip(f"Cannot run without full environment: {e}")
+            return
+        
+        # Verify memory field structure
+        assert "memory" in health_data, "Health data should contain 'memory' key"
+        memory_data = health_data["memory"]
+        
+        # Check for correct field name
+        assert "percentage" in memory_data, \
+            "Memory data should contain 'percentage' field"
+        
+        # Verify old incorrect field doesn't exist
+        assert "percent" not in memory_data, \
+            "Memory data should NOT contain 'percent' field (would conflict with psutil object)"
+
 
 class TestSystemHealthTemplateFieldNames:
     """Test that template uses correct field names."""
@@ -157,6 +177,24 @@ class TestSystemHealthTemplateFieldNames:
         # Check that old incorrect field is not used
         assert "percent_used" not in quick_stats, \
             "Template should NOT reference 'percent_used' in quick stats (old field name)"
+
+    def test_template_uses_memory_percentage_not_percent(self):
+        """Verify template references memory.percentage, not memory.percent."""
+        template_path = Path(__file__).parent.parent / "templates" / "system_health.html"
+        content = template_path.read_text()
+        
+        # Use word boundary regex to check for exact field name (not as substring of percentage)
+        import re
+        
+        # Check that old incorrect field name is not used (with word boundary)
+        # This matches "memory.percent" but NOT "memory.percentage"
+        old_field_pattern = r'memory\.percent\b'
+        assert not re.search(old_field_pattern, content), \
+            "Template should NOT reference 'memory.percent' (old field name)"
+        
+        # Check that correct field name is used
+        assert "memory.percentage" in content, \
+            "Template should reference 'memory.percentage' (correct field name)"
 
 
 if __name__ == "__main__":
