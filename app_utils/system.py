@@ -25,6 +25,7 @@ import http.client
 import json
 import os
 import platform
+import re
 import shutil
 import socket
 import subprocess
@@ -1381,9 +1382,6 @@ def _collect_smart_health(logger, devices: List[Dict[str, Any]]) -> Dict[str, An
         if not path:
             continue
 
-        # Note: For NVMe devices, smartctl can query either the namespace (nvme0n1)
-        # or the controller (nvme0). We query the namespace directly which provides
-        # complete SMART data for the attached media.
         device_name = device.get("name") or ""
 
         device_result: Dict[str, Any] = {
@@ -1431,6 +1429,12 @@ def _collect_smart_health(logger, devices: List[Dict[str, Any]]) -> Dict[str, An
         # Returns None only when there's no plausible SMART support (e.g. ramdisk).
         device_type_flag = _detect_device_type(device, path, logger)
 
+        # For NVMe devices, smartctl must query the controller character device
+        # (e.g. /dev/nvme0) rather than the namespace block device (e.g.
+        # /dev/nvme0n1).  lsblk reports the namespace, so we derive the
+        # controller path by stripping the "nN" namespace suffix.
+        query_path = _nvme_controller_path(path) if device_type_flag == "nvme" else path
+
         # Check if we need sudo (smartctl requires root access to read device data)
         # If smartctl_path doesn't start with /usr or /sbin, or if we're not root, use sudo
         import os
@@ -1442,11 +1446,11 @@ def _collect_smart_health(logger, devices: List[Dict[str, Any]]) -> Dict[str, An
             command.extend(["sudo", "-n"])  # -n means don't prompt for password
 
         command.append(smartctl_path)
-        
+
         # Add device type flag first (must come before other flags for some smartctl versions)
         if device_type_flag:
             command.extend(["-d", device_type_flag])
-        
+
         # -a (all) = -H -i -c -A -l error -l selftest: provides complete
         # device info, capabilities, attributes, and health status.  Using -a
         # instead of just -H -A ensures NVMe health logs and ATA attributes
@@ -1464,10 +1468,10 @@ def _collect_smart_health(logger, devices: List[Dict[str, Any]]) -> Dict[str, An
         if device_type_flag and device_type_flag in ("ata", "sat"):
             command.extend(["-n", "standby"])
 
-        command.append(path)
+        command.append(query_path)
         
         if logger:
-            logger.debug("Querying SMART data for %s with command: %s", path, " ".join(command))
+            logger.debug("Querying SMART data for %s with command: %s", query_path, " ".join(command))
 
         try:
             completed = subprocess.run(
@@ -1893,6 +1897,18 @@ def _is_valid_temperature(temp: float) -> bool:
     """Check if temperature value is within reasonable bounds for Celsius."""
     # Allow range from -50°C to 150°C (should cover all realistic hardware scenarios)
     return -50 <= temp <= 150
+
+
+def _nvme_controller_path(path: str) -> str:
+    """Convert an NVMe namespace path to its controller path.
+
+    smartctl requires the controller character device (e.g. ``/dev/nvme0``)
+    rather than the namespace block device (e.g. ``/dev/nvme0n1``) to
+    retrieve SMART data.  If *path* doesn't match the namespace pattern it
+    is returned unchanged.
+    """
+    m = re.match(r'^(/dev/nvme\d+)n\d+', path)
+    return m.group(1) if m else path
 
 
 def _detect_device_type(device: Dict[str, Any], path: str, logger) -> Optional[str]:
