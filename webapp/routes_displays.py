@@ -44,14 +44,14 @@ def register(app: Flask, logger) -> None:
             try:
                 led_status = led_module.led_controller.get_status() if led_module.led_controller else None
             except Exception as exc:
-                route_logger.debug(f"Could not get LED status: {exc}")
+                route_logger.debug("Could not get LED status: %s", exc)
 
             # Get VFD status
             vfd_status = None
             try:
                 vfd_status = vfd_controller.get_status() if vfd_controller else None
             except Exception as exc:
-                route_logger.debug(f"Could not get VFD status: {exc}")
+                route_logger.debug("Could not get VFD status: %s", exc)
 
             # Get recent LED messages
             recent_led_messages = []
@@ -60,7 +60,7 @@ def register(app: Flask, logger) -> None:
                     LEDMessage.query.order_by(LEDMessage.created_at.desc()).limit(5).all()
                 )
             except OperationalError as exc:
-                route_logger.debug(f"Could not get LED messages: {exc}")
+                route_logger.debug("Could not get LED messages: %s", exc)
 
             # Get recent VFD displays
             recent_vfd_displays = []
@@ -69,7 +69,7 @@ def register(app: Flask, logger) -> None:
                     VFDDisplay.query.order_by(VFDDisplay.created_at.desc()).limit(5).all()
                 )
             except OperationalError as exc:
-                route_logger.debug(f"Could not get VFD displays: {exc}")
+                route_logger.debug("Could not get VFD displays: %s", exc)
 
             # Get screen counts
             screens_count = 0
@@ -78,7 +78,7 @@ def register(app: Flask, logger) -> None:
                 screens_count = DisplayScreen.query.count()
                 rotations_count = ScreenRotation.query.count()
             except OperationalError as exc:
-                route_logger.debug(f"Could not get screen counts: {exc}")
+                route_logger.debug("Could not get screen counts: %s", exc)
 
             return render_template(
                 "displays_control.html",
@@ -92,7 +92,7 @@ def register(app: Flask, logger) -> None:
             )
 
         except Exception as exc:
-            route_logger.error(f"Error loading unified displays page: {exc}")
+            route_logger.error("Error loading unified displays page: %s", exc)
             return (
                 "<h1>Display Control Error</h1>"
                 f"<p>{exc}</p><p><a href='/'>← Back to Main</a></p>"

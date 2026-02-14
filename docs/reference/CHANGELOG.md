@@ -6,6 +6,22 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+### Changed
+- **Modernized footer design with enhanced visual appeal** (v2.50.0)
+  - Multi-column layout with organized sections (Brand, Quick Access, Resources, Legal, Status)
+  - Animated gradient background with floating logo icon
+  - Status widgets showing real-time clock, version, and health
+  - Larger tech stack badges with for-the-badge style  
+  - Improved mobile responsiveness with centered layouts
+  - Animated gradient accent line at top
+  - Enhanced hover effects on all interactive elements
+  - Better visual hierarchy and spacing throughout
+  - Files: `templates/base.html`, `static/css/styles.css`
+
+- **Fixed code review issues in display routes** (v2.50.0)
+  - Replaced f-strings with lazy % formatting in logging calls for better performance
+  - File: `webapp/routes_displays.py`
+
 ### Added
 - **Site Navigation page for quick access to all features** (v2.49.0)
   - Created `/navigation` page organizing all features by category
