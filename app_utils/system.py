@@ -75,6 +75,79 @@ def _is_audio_processing_process(name: Optional[str], cmdline: Optional[str]) ->
     return any(keyword in haystack for keyword in _AUDIO_PROCESS_KEYWORDS)
 
 
+def _collect_dependency_versions(logger) -> List[Dict[str, str]]:
+    """Collect version information for key software dependencies."""
+
+    versions: List[Dict[str, str]] = []
+
+    # Python runtime
+    versions.append({
+        "name": "Python",
+        "version": platform.python_version(),
+        "category": "runtime",
+    })
+
+    # Key Python packages
+    _pkg_list = [
+        ("Flask", "flask", "framework"),
+        ("FastAPI", "fastapi", "framework"),
+        ("SQLAlchemy", "sqlalchemy", "database"),
+        ("Alembic", "alembic", "database"),
+        ("Redis", "redis", "database"),
+        ("psutil", "psutil", "system"),
+        ("Gunicorn", "gunicorn", "server"),
+        ("Uvicorn", "uvicorn", "server"),
+        ("Jinja2", "jinja2", "framework"),
+        ("Werkzeug", "werkzeug", "framework"),
+        ("NumPy", "numpy", "processing"),
+        ("SciPy", "scipy", "processing"),
+        ("lxml", "lxml", "processing"),
+        ("Requests", "requests", "network"),
+        ("httpx", "httpx", "network"),
+        ("Pillow", "PIL", "processing"),
+        ("PyYAML", "yaml", "processing"),
+        ("pytest", "pytest", "testing"),
+    ]
+
+    from importlib.metadata import version as pkg_version, PackageNotFoundError
+
+    for display_name, import_name, category in _pkg_list:
+        try:
+            ver = pkg_version(import_name if import_name != "PIL" else "Pillow")
+            versions.append({"name": display_name, "version": ver, "category": category})
+        except PackageNotFoundError:
+            pass
+        except Exception:
+            pass
+
+    # System-level tools
+    for cmd, name, category in [
+        (["redis-server", "--version"], "Redis Server", "database"),
+        (["ffmpeg", "-version"], "FFmpeg", "processing"),
+        (["smartctl", "--version"], "smartmontools", "system"),
+    ]:
+        try:
+            result = subprocess.run(
+                cmd, capture_output=True, text=True, check=False, timeout=5,
+            )
+            output = (result.stdout or "").strip()
+            if output:
+                # Extract version from first line
+                first_line = output.split("\n")[0]
+                # Common patterns: "redis-server v=7.0.0", "ffmpeg version 6.1"
+                ver_str = first_line
+                for prefix in ("redis-server ", "Redis server ", "ffmpeg version ", "smartctl "):
+                    if prefix.lower() in ver_str.lower():
+                        idx = ver_str.lower().index(prefix.lower()) + len(prefix)
+                        ver_str = ver_str[idx:].split()[0].strip("v=,")
+                        break
+                versions.append({"name": name, "version": ver_str, "category": category})
+        except Exception:
+            pass
+
+    return versions
+
+
 def build_system_health_snapshot(db, logger) -> SystemHealth:
     """Collect detailed system health metrics."""
 
@@ -368,6 +441,7 @@ def build_system_health_snapshot(db, logger) -> SystemHealth:
             "temperature": temperature_info,
             "hardware": hardware_info,
             "smart": smart_info,
+            "dependencies": _collect_dependency_versions(logger),
         }
         
         # Add shields.io badges and distro logo
@@ -1516,9 +1590,41 @@ def _collect_smart_health(logger, devices: List[Dict[str, Any]]) -> Dict[str, An
             status_text = smart_status.get("status") or smart_status.get("string")
             if status_text:
                 device_result["overall_status"] = str(status_text)
-            # If still unknown but smartctl succeeded, log for debugging
-            elif logger and completed.returncode == 0:
-                logger.debug("SMART status unavailable for %s despite successful smartctl execution", path)
+            else:
+                # Fallback: infer health status from exit code and available data
+                # smartctl exit code bits 3-7 indicate disk problems:
+                #   bit 3 = DISK FAILING, bit 4 = prefail attrs <= threshold,
+                #   bit 5 = usage attrs <= threshold, bit 6 = error log has errors,
+                #   bit 7 = self-test log has errors
+                exit_code = completed.returncode
+                disk_failing_bits = exit_code & 0x18  # bits 3-4: critical failures
+                disk_problem_bits = exit_code & 0xF8  # bits 3-7: any disk issues
+
+                nvme_info = report.get("nvme_smart_health_information_log")
+                if isinstance(nvme_info, dict):
+                    # NVMe: use critical_warning field as authoritative source
+                    critical_warning = _coerce_int(nvme_info.get("critical_warning"))
+                    if critical_warning is not None:
+                        device_result["overall_status"] = "failed" if critical_warning != 0 else "passed"
+                    elif disk_problem_bits == 0:
+                        device_result["overall_status"] = "passed"
+                elif disk_failing_bits:
+                    # ATA/SATA with critical failure bits set
+                    device_result["overall_status"] = "failed"
+                elif disk_problem_bits == 0:
+                    # No disk problem bits set and we parsed valid data
+                    device_result["overall_status"] = "passed"
+
+                if logger:
+                    if device_result["overall_status"] != "unknown":
+                        logger.debug(
+                            "Inferred SMART status '%s' for %s from exit code %d",
+                            device_result["overall_status"], path, exit_code,
+                        )
+                    elif exit_code == 0:
+                        logger.debug(
+                            "SMART status unavailable for %s despite successful smartctl execution", path,
+                        )
 
         device_result["temperature_celsius"] = _extract_temperature(report)
         device_result["power_on_hours"] = _extract_attribute_value(report, "Power_On_Hours")
