@@ -148,7 +148,7 @@ class StreamingSAMEDecoder:
         self.DLL_GAIN = 0.4
         self.INTEGRATOR_MAX = 12
         self.MAX_MSG_LEN = 268
-        self.sphaseinc = int(0x10000 * self.baud_rate * self.SUBSAMP / self.sample_rate)
+        self.sphaseinc = int(0x10000 * self.baud_rate / self.sample_rate)
 
     def reset(self) -> None:
         """
@@ -310,7 +310,7 @@ class StreamingSAMEDecoder:
 
         # End of bit period?
         if self.sphase >= 0x10000:
-            self.sphase = 1
+            self.sphase &= 0xFFFF
             self.lasts = (self.lasts >> 1) & 0x7F
 
             # Make bit decision based on integrator
