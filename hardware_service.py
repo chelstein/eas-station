@@ -354,8 +354,8 @@ def initialize_gpio_controller(db_session=None):
         from app_utils.gpio import (
             GPIOController,
             GPIOBehaviorManager,
-            load_gpio_pin_configs_from_env,
-            load_gpio_behavior_matrix_from_env,
+            load_gpio_pin_configs_from_db,
+            load_gpio_behavior_matrix_from_db,
         )
 
         # Try to load GPIO enabled flag from database first
@@ -378,7 +378,7 @@ def initialize_gpio_controller(db_session=None):
 
         # Load GPIO pin configurations (from database with env fallback)
         # Pass oled_enabled to ensure reserved pins are only blocked when OLED is actually enabled
-        gpio_configs = load_gpio_pin_configs_from_env(logger, oled_enabled=oled_enabled)
+        gpio_configs = load_gpio_pin_configs_from_db(logger, oled_enabled=oled_enabled)
         if not gpio_configs:
             logger.info("No GPIO pins configured (configure in Admin > Hardware Settings)")
             return
@@ -397,7 +397,7 @@ def initialize_gpio_controller(db_session=None):
                 logger.error(f"Failed to add GPIO pin {config.pin}: {e}")
 
         # Load and configure GPIO behavior matrix
-        behavior_matrix = load_gpio_behavior_matrix_from_env(logger, oled_enabled=oled_enabled)
+        behavior_matrix = load_gpio_behavior_matrix_from_db(logger, oled_enabled=oled_enabled)
         if behavior_matrix:
             gpio_behavior_manager = GPIOBehaviorManager(
                 controller=_gpio_controller,

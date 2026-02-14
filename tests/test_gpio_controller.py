@@ -36,8 +36,8 @@ from app_utils.gpio import (
     GPIOController,
     GPIOPinConfig,
     GPIOState,
-    load_gpio_behavior_matrix_from_env,
-    load_gpio_pin_configs_from_env,
+    load_gpio_behavior_matrix_from_db,
+    load_gpio_pin_configs_from_db,
     serialize_gpio_behavior_matrix,
 )
 
@@ -86,7 +86,7 @@ def test_load_gpio_pin_configs_from_database(monkeypatch):
     monkeypatch.setattr(gpio, "_GPIO_SETTINGS_AVAILABLE", True)
     monkeypatch.setattr(gpio, "get_gpio_settings", lambda: {"pin_map": pin_map, "behavior_matrix": {}})
 
-    configs = load_gpio_pin_configs_from_env()
+    configs = load_gpio_pin_configs_from_db()
 
     assert {cfg.pin for cfg in configs} == {12, 22, 24, 25}
 
@@ -125,7 +125,7 @@ def test_reserved_oled_pins_rejected(monkeypatch, caplog):
 
     test_logger = logging.getLogger("gpio-test")
     with caplog.at_level(logging.ERROR, logger="gpio-test"):
-        configs = load_gpio_pin_configs_from_env(logger=test_logger, oled_enabled=True)
+        configs = load_gpio_pin_configs_from_db(logger=test_logger, oled_enabled=True)
 
     assert configs == []
     assert any("reserved" in record.message for record in caplog.records)
@@ -143,7 +143,7 @@ def test_load_gpio_behavior_matrix_from_database(monkeypatch):
     monkeypatch.setattr(gpio, "_GPIO_SETTINGS_AVAILABLE", True)
     monkeypatch.setattr(gpio, "get_gpio_settings", lambda: {"pin_map": {}, "behavior_matrix": behavior_matrix})
 
-    matrix = load_gpio_behavior_matrix_from_env()
+    matrix = load_gpio_behavior_matrix_from_db()
 
     assert 18 in matrix
     assert matrix[18] == {GPIOBehavior.DURATION_OF_ALERT, GPIOBehavior.INCOMING_ALERT}

@@ -35,7 +35,6 @@ from werkzeug.exceptions import BadRequest
 
 from app_core.location import get_location_settings
 from app_core.auth.roles import require_permission
-from app_utils.pi_pinout import ARGON_OLED_RESERVED_BCM, ARGON_OLED_RESERVED_PHYSICAL
 
 logger = logging.getLogger(__name__)
 
@@ -56,65 +55,6 @@ def _get_domain_candidates() -> List[str]:
     return candidates or ['localhost']
 
 
-def _raise_reserved_pin(field: str, pin: int) -> None:
-    physical = ", ".join(str(p) for p in sorted(ARGON_OLED_RESERVED_PHYSICAL))
-    raise BadRequest(
-        f"{field} cannot use GPIO pin {pin}; the Argon OLED enclosure reserves physical pins {physical}."
-    )
-
-
-def _validate_reserved_pin(field: str, value: str) -> None:
-    value = (value or '').strip()
-    if not value:
-        return
-    try:
-        pin = int(value, 10)
-    except ValueError:
-        return
-    if pin in ARGON_OLED_RESERVED_BCM:
-        _raise_reserved_pin(field, pin)
-
-
-def _validate_reserved_pin_collection(field: str, raw: str) -> None:
-    raw = (raw or '').strip()
-    if not raw:
-        return
-    entries = [segment.strip() for segment in re.split(r"[,\n]+", raw) if segment.strip()]
-    for entry in entries:
-        pin_segment = entry.split(":", 1)[0].strip()
-        if not pin_segment:
-            continue
-        try:
-            pin = int(pin_segment, 10)
-        except ValueError:
-            continue
-        if pin in ARGON_OLED_RESERVED_BCM:
-            _raise_reserved_pin(field, pin)
-
-
-def _validate_behavior_matrix_reserved(raw: str) -> None:
-    """DEPRECATED: GPIO settings are now managed via database at /admin/hardware.
-    
-    This validation is kept for backward compatibility but should not be used
-    for new configurations. GPIO pin maps and behavior matrices are stored in
-    the HardwareSettings database table.
-    """
-    raw = (raw or '').strip()
-    if not raw:
-        return
-    try:
-        payload = json.loads(raw)
-    except json.JSONDecodeError:
-        return
-    if not isinstance(payload, dict):
-        return
-    for key in payload.keys():
-        try:
-            pin = int(key)
-        except (TypeError, ValueError):
-            continue
-        if pin in ARGON_OLED_RESERVED_BCM:
-            _raise_reserved_pin('GPIO_PIN_BEHAVIOR_MATRIX (DEPRECATED - use /admin/hardware)', pin)
 
 
 def _find_ssl_material(filename: str) -> tuple[Path | None, List[Path], str | None]:
@@ -742,16 +682,6 @@ def update_environment_variables():
             if not found:
                 logger.error(f'Unknown variable attempted to be updated: {key}')
                 raise BadRequest(f'Unknown variable: {key}')
-
-            # DEPRECATED: Hardware settings (GPIO, OLED, LED, VFD) are now managed via
-            # the database at /admin/hardware. These validations are kept for backward
-            # compatibility but should not be used for new configurations.
-            if key == 'EAS_GPIO_PIN':
-                _validate_reserved_pin(key, value)
-            elif key == 'GPIO_ADDITIONAL_PINS':
-                _validate_reserved_pin_collection(key, value)
-            elif key == 'GPIO_PIN_BEHAVIOR_MATRIX':
-                _validate_behavior_matrix_reserved(value)
 
             # Update value
             old_value = env_vars.get(key, '')

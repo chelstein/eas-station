@@ -36,7 +36,7 @@ def test_gpio_behavior_matrix_database_save(monkeypatch):
     """Test that GPIO behavior matrix can be serialized and loaded from database settings."""
     from app_utils.gpio import (
         GPIOBehavior,
-        load_gpio_behavior_matrix_from_env,
+        load_gpio_behavior_matrix_from_db,
         serialize_gpio_behavior_matrix,
     )
 
@@ -67,7 +67,7 @@ def test_gpio_behavior_matrix_database_save(monkeypatch):
     )
 
     # Load it back
-    loaded_matrix = load_gpio_behavior_matrix_from_env()
+    loaded_matrix = load_gpio_behavior_matrix_from_db()
 
     # Verify all pins and behaviors are preserved
     assert 17 in loaded_matrix
@@ -82,7 +82,7 @@ def test_gpio_behavior_matrix_database_save(monkeypatch):
 
 def test_gpio_behavior_matrix_empty_handling(monkeypatch):
     """Test that empty behavior matrix is handled correctly."""
-    from app_utils.gpio import load_gpio_behavior_matrix_from_env
+    from app_utils.gpio import load_gpio_behavior_matrix_from_db
 
     # Test with empty dict from database
     monkeypatch.setattr(gpio, "_GPIO_SETTINGS_AVAILABLE", True)
@@ -91,7 +91,7 @@ def test_gpio_behavior_matrix_empty_handling(monkeypatch):
         "get_gpio_settings",
         lambda: {"pin_map": {}, "behavior_matrix": {}},
     )
-    matrix = load_gpio_behavior_matrix_from_env()
+    matrix = load_gpio_behavior_matrix_from_db()
     assert matrix == {}
 
     # Test with None behavior_matrix
@@ -100,7 +100,7 @@ def test_gpio_behavior_matrix_empty_handling(monkeypatch):
         "get_gpio_settings",
         lambda: {"pin_map": {}, "behavior_matrix": None},
     )
-    matrix = load_gpio_behavior_matrix_from_env()
+    matrix = load_gpio_behavior_matrix_from_db()
     assert matrix == {}
 
 
@@ -155,7 +155,7 @@ def test_env_file_write_and_read():
 
 def test_gpio_behavior_matrix_with_single_behavior(monkeypatch):
     """Test behavior matrix with single behavior per pin (common case from UI)."""
-    from app_utils.gpio import GPIOBehavior, load_gpio_behavior_matrix_from_env
+    from app_utils.gpio import GPIOBehavior, load_gpio_behavior_matrix_from_db
 
     # Simulate what the UI sends - single behavior in array
     behavior_matrix = {"17": ["duration_of_alert"], "18": ["playout"]}
@@ -167,7 +167,7 @@ def test_gpio_behavior_matrix_with_single_behavior(monkeypatch):
         lambda: {"pin_map": {}, "behavior_matrix": behavior_matrix},
     )
 
-    matrix = load_gpio_behavior_matrix_from_env()
+    matrix = load_gpio_behavior_matrix_from_db()
 
     assert 17 in matrix
     assert 18 in matrix
@@ -177,12 +177,12 @@ def test_gpio_behavior_matrix_with_single_behavior(monkeypatch):
 
 def test_gpio_behavior_matrix_database_unavailable(monkeypatch):
     """Test that unavailable database settings returns empty dict gracefully."""
-    from app_utils.gpio import load_gpio_behavior_matrix_from_env
+    from app_utils.gpio import load_gpio_behavior_matrix_from_db
 
     # Simulate database settings not available
     monkeypatch.setattr(gpio, "_GPIO_SETTINGS_AVAILABLE", False)
 
-    matrix = load_gpio_behavior_matrix_from_env()
+    matrix = load_gpio_behavior_matrix_from_db()
     assert matrix == {}
 
 

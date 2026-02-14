@@ -64,8 +64,8 @@ from app_utils.gpio import (
     GPIOActivationType,
     GPIOBehaviorManager,
     GPIOController,
-    load_gpio_behavior_matrix_from_env,
-    load_gpio_pin_configs_from_env,
+    load_gpio_behavior_matrix_from_db,
+    load_gpio_pin_configs_from_db,
 )
 from app_utils.event_codes import EVENT_CODE_REGISTRY
 from app_utils.fips_codes import get_same_lookup, get_us_state_county_tree
@@ -1157,7 +1157,7 @@ def register_workflow_routes(bp, logger, eas_config) -> None:
         gpio_behavior_manager = None
         try:
             oled_enabled = _get_oled_enabled_status()
-            gpio_configs = load_gpio_pin_configs_from_env(
+            gpio_configs = load_gpio_pin_configs_from_db(
                 workflow_logger, oled_enabled=oled_enabled,
             )
             if gpio_configs:
@@ -1170,7 +1170,7 @@ def register_workflow_routes(bp, logger, eas_config) -> None:
                     controller.add_pin(cfg)
                 gpio_controller = controller
 
-                behavior_matrix = load_gpio_behavior_matrix_from_env(
+                behavior_matrix = load_gpio_behavior_matrix_from_db(
                     workflow_logger,
                 )
                 gpio_behavior_manager = GPIOBehaviorManager(

@@ -56,7 +56,6 @@ def _build_full_form(secret: str = None) -> dict:
         "EAS_ORIGINATOR": "WXR",
         "EAS_STATION_ID": "KR8MER",
         "EAS_MANUAL_FIPS_CODES": "039137",
-        "EAS_GPIO_PIN": "17",
         "AUDIO_INGEST_ENABLED": "true",
         "AUDIO_ALSA_ENABLED": "true",
         "AUDIO_ALSA_DEVICE": "hw:1,0",
@@ -132,19 +131,6 @@ def test_clean_submission_validates_port_numeric():
     with pytest.raises(SetupValidationError) as excinfo:
         clean_submission(form)
     assert "POSTGRES_PORT" in excinfo.value.errors
-
-
-def test_clean_submission_rejects_reserved_oled_pin():
-    """Reject GPIO pins that belong to the Argon OLED enclosure block."""
-
-    form = _build_full_form()
-    form["EAS_GPIO_PIN"] = "4"  # BCM 4 (physical pin 7) reserved
-
-    with pytest.raises(SetupValidationError) as excinfo:
-        clean_submission(form)
-
-    assert "EAS_GPIO_PIN" in excinfo.value.errors
-    assert "reserved" in excinfo.value.errors["EAS_GPIO_PIN"].lower()
 
 
 # ============================================================================

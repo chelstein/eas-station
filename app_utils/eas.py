@@ -53,8 +53,8 @@ from .gpio import (
     GPIOBehaviorManager,
     GPIOController,
     GPIOPinConfig,
-    load_gpio_behavior_matrix_from_env,
-    load_gpio_pin_configs_from_env,
+    load_gpio_behavior_matrix_from_db,
+    load_gpio_pin_configs_from_db,
 )
 
 
@@ -112,8 +112,8 @@ def load_eas_config(base_path: Optional[str] = None) -> Dict[str, object]:
         web_subdir = 'eas_messages'
 
     oled_enabled = _get_oled_enabled_status()
-    gpio_configs = load_gpio_pin_configs_from_env(oled_enabled=oled_enabled)
-    gpio_behavior_matrix = load_gpio_behavior_matrix_from_env(oled_enabled=oled_enabled)
+    gpio_configs = load_gpio_pin_configs_from_db(oled_enabled=oled_enabled)
+    gpio_behavior_matrix = load_gpio_behavior_matrix_from_db(oled_enabled=oled_enabled)
 
     # Load TTS configuration from database only
     from app_core.tts_settings import get_tts_settings
@@ -206,11 +206,6 @@ def load_eas_config(base_path: Optional[str] = None) -> Dict[str, object]:
             os.getenv('EAS_ATTENTION_TONE_SECONDS')
             or (db_attention_tone_seconds if db_attention_tone_seconds is not None else 8)
         ),
-        'gpio_pin': os.getenv('EAS_GPIO_PIN'),
-        'gpio_active_state': os.getenv('EAS_GPIO_ACTIVE_STATE', 'HIGH').upper(),
-        'gpio_hold_seconds': float(os.getenv('EAS_GPIO_HOLD_SECONDS', '5') or 5),
-        'gpio_watchdog_seconds': float(os.getenv('EAS_GPIO_WATCHDOG_SECONDS', '300') or 300),
-        'gpio_additional_pins': os.getenv('GPIO_ADDITIONAL_PINS', '').strip(),
         'gpio_pin_configs': [
             {
                 'pin': cfg.pin,
@@ -1439,7 +1434,7 @@ class EASBroadcaster:
 
         if self.enabled:
             oled_enabled = _get_oled_enabled_status()
-            gpio_configs = load_gpio_pin_configs_from_env(self.logger, oled_enabled=oled_enabled)
+            gpio_configs = load_gpio_pin_configs_from_db(self.logger, oled_enabled=oled_enabled)
             if gpio_configs:
                 try:
                     gpio_logger = (
@@ -1456,7 +1451,7 @@ class EASBroadcaster:
 
                     self.gpio_controller = controller
                     self.gpio_pin_configs = gpio_configs
-                    behavior_matrix = load_gpio_behavior_matrix_from_env(self.logger)
+                    behavior_matrix = load_gpio_behavior_matrix_from_db(self.logger)
                     self.gpio_behavior_manager = GPIOBehaviorManager(
                         controller=controller,
                         pin_configs=gpio_configs,

@@ -40,8 +40,8 @@ from app_utils.gpio import (
     GPIOActivationType,
     GPIOBehavior,
     GPIO_BEHAVIOR_LABELS,
-    load_gpio_behavior_matrix_from_env,
-    load_gpio_pin_configs_from_env,
+    load_gpio_behavior_matrix_from_db,
+    load_gpio_pin_configs_from_db,
 )
 from app_utils.pi_pinout import PIN_ROWS
 from app_utils.time import utc_now
@@ -80,7 +80,7 @@ def register(app: Flask, logger) -> None:
         """Load GPIO pin configurations from environment variables."""
 
         oled_enabled = _get_oled_enabled_status()
-        configs = load_gpio_pin_configs_from_env(route_logger, oled_enabled=oled_enabled)
+        configs = load_gpio_pin_configs_from_db(route_logger, oled_enabled=oled_enabled)
 
         for config in configs:
             try:
@@ -104,7 +104,7 @@ def register(app: Flask, logger) -> None:
         if behavior_manager:
             behavior_manager.update_pin_configs(configs)
             behavior_manager.update_behavior_matrix(
-                load_gpio_behavior_matrix_from_env(route_logger)
+                load_gpio_behavior_matrix_from_db(route_logger)
             )
 
     def _build_pin_entry(pin_def, config_map, behavior_matrix):
@@ -133,8 +133,8 @@ def register(app: Flask, logger) -> None:
 
     def _build_pin_rows():
         oled_enabled = _get_oled_enabled_status()
-        configs = load_gpio_pin_configs_from_env(route_logger, oled_enabled=oled_enabled)
-        behavior_matrix = load_gpio_behavior_matrix_from_env(route_logger, oled_enabled=oled_enabled)
+        configs = load_gpio_pin_configs_from_db(route_logger, oled_enabled=oled_enabled)
+        behavior_matrix = load_gpio_behavior_matrix_from_db(route_logger, oled_enabled=oled_enabled)
         config_map = {cfg.pin: cfg for cfg in configs}
 
         rows = []
