@@ -441,6 +441,7 @@ class ManualEASActivation(db.Model):
     metadata_payload = db.Column(db.JSON, nullable=False, default=dict)
     created_at = db.Column(db.DateTime(timezone=True), default=utc_now)
     archived_at = db.Column(db.DateTime(timezone=True))
+    triggered_at = db.Column(db.DateTime(timezone=True))
     # Binary audio data cached in database
     composite_audio_data = db.Column(db.LargeBinary)
     same_audio_data = db.Column(db.LargeBinary)
@@ -479,6 +480,7 @@ class ManualEASActivation(db.Model):
             "metadata": dict(self.metadata_payload or {}),
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "archived_at": self.archived_at.isoformat() if self.archived_at else None,
+            "triggered_at": self.triggered_at.isoformat() if self.triggered_at else None,
         }
 
 

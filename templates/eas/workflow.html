@@ -143,6 +143,80 @@
         color: var(--primary-color);
     }
 
+    .btn-send-alert {
+        background: linear-gradient(135deg, #dc3545, #b02a37);
+        color: white;
+        font-weight: 600;
+        border: none;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .btn-send-alert:hover {
+        background: linear-gradient(135deg, #b02a37, #8b2131);
+        color: white;
+    }
+
+    .btn-send-alert:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+
+    .btn-send-alert.sending {
+        pointer-events: none;
+    }
+
+    .send-countdown-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.75);
+        z-index: 9999;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        color: white;
+    }
+
+    .send-countdown-overlay .countdown-number {
+        font-size: 6rem;
+        font-weight: 700;
+        line-height: 1;
+        margin: 1rem 0;
+    }
+
+    .send-countdown-overlay .countdown-label {
+        font-size: 1.25rem;
+        opacity: 0.9;
+    }
+
+    .send-countdown-overlay .countdown-detail {
+        font-size: 0.95rem;
+        opacity: 0.7;
+        margin-top: 0.5rem;
+        text-align: center;
+        max-width: 400px;
+    }
+
+    .send-countdown-overlay .btn-cancel-send {
+        margin-top: 1.5rem;
+        font-size: 1.1rem;
+        padding: 0.5rem 2rem;
+    }
+
+    .triggered-badge {
+        display: inline-block;
+        font-size: 0.7rem;
+        padding: 0.15rem 0.4rem;
+        border-radius: 4px;
+        background: rgba(25, 135, 84, 0.15);
+        color: var(--success-color);
+        border: 1px solid rgba(25, 135, 84, 0.3);
+    }
+
     @media (max-width: 767px) {
         .workflow-hero {
             padding: 2rem 1.5rem;
@@ -486,6 +560,15 @@
                 </div>
             </div>
         </div>
+    </div>
+
+    <div id="sendCountdownOverlay" class="send-countdown-overlay" style="display: none;">
+        <div class="countdown-label">SENDING EAS ALERT IN</div>
+        <div class="countdown-number" id="countdownNumber">3</div>
+        <div class="countdown-detail" id="countdownDetail"></div>
+        <button type="button" class="btn btn-outline-light btn-cancel-send" id="cancelSendBtn">
+            <i class="fas fa-times me-1"></i> Cancel
+        </button>
     </div>
 </div>
 {% endblock %}
@@ -1111,6 +1194,17 @@ function renderComponents(components, activation) {
         actionRow.appendChild(exportBtn);
     }
 
+    if (activation?.id) {
+        const sendBtn = document.createElement('button');
+        sendBtn.type = 'button';
+        sendBtn.className = 'btn btn-send-alert';
+        sendBtn.innerHTML = '<i class="fas fa-broadcast-tower me-1"></i> Send Alert';
+        sendBtn.addEventListener('click', () => {
+            initiateSendCountdown(activation.id, components);
+        });
+        actionRow.appendChild(sendBtn);
+    }
+
     document.getElementById('generationResults').style.display = 'block';
 }
 
@@ -1346,8 +1440,11 @@ async function handleQuickRwt() {
 
 function renderActivationRow(item) {
     const row = document.createElement('tr');
+    const triggeredLabel = item.triggered_at
+        ? `<span class="triggered-badge" title="Sent ${formatDateTime(item.triggered_at)}"><i class="fas fa-check me-1"></i>Sent</span>`
+        : '';
     row.innerHTML = `
-        <td class="text-nowrap">${formatDateTime(item.created_at)}</td>
+        <td class="text-nowrap">${formatDateTime(item.created_at)}${triggeredLabel ? '<br>' + triggeredLabel : ''}</td>
         <td>
             <strong>${item.event_code} — ${item.event_name || ''}</strong><br>
             <small class="text-muted">${item.identifier}</small>
@@ -1355,7 +1452,10 @@ function renderActivationRow(item) {
         <td class="text-break"><code>${item.same_header || ''}</code></td>
         <td class="text-center">
             <div class="btn-group btn-group-sm" role="group">
-                ${item.print_url ? `<a class="btn btn-outline-secondary" href="${item.print_url}" target="_blank" rel="noopener"><i class="fas fa-file-pdf"></i> Export PDF</a>` : ''}
+                <button type="button" class="btn btn-send-alert btn-sm" data-send-id="${item.id}" title="Send this activation">
+                    <i class="fas fa-broadcast-tower me-1"></i>Send
+                </button>
+                ${item.print_url ? `<a class="btn btn-outline-secondary" href="${item.print_url}" target="_blank" rel="noopener"><i class="fas fa-file-pdf"></i></a>` : ''}
                 ${item.export_url ? `<a class="btn btn-outline-primary" href="${item.export_url}" target="_blank" rel="noopener">JSON</a>` : ''}
                 <button type="button" class="btn btn-outline-danger" data-id="${item.id}" title="Delete activation">
                     <i class="fas fa-trash"></i>
@@ -1364,6 +1464,7 @@ function renderActivationRow(item) {
         </td>
     `;
     row.querySelector('button.btn-outline-danger')?.addEventListener('click', () => deleteActivation(item.id));
+    row.querySelector('[data-send-id]')?.addEventListener('click', () => initiateSendCountdown(item.id));
     return row;
 }
 
@@ -1443,6 +1544,90 @@ async function purgeActivations() {
     } catch (error) {
         console.error('Failed to purge manual activations', error);
         setStatus(error.message || 'Failed to purge manual activations.', 'error');
+    }
+}
+
+let _sendCountdownTimer = null;
+let _sendCancelled = false;
+
+function initiateSendCountdown(activationId) {
+    _sendCancelled = false;
+    const overlay = document.getElementById('sendCountdownOverlay');
+    const numberEl = document.getElementById('countdownNumber');
+    const detailEl = document.getElementById('countdownDetail');
+    const cancelBtn = document.getElementById('cancelSendBtn');
+
+    detailEl.textContent = `Activation #${activationId} — audio playback and GPIO relay activation will begin.`;
+    overlay.style.display = 'flex';
+    let remaining = 3;
+    numberEl.textContent = remaining;
+
+    function onCancel() {
+        _sendCancelled = true;
+        clearInterval(_sendCountdownTimer);
+        _sendCountdownTimer = null;
+        overlay.style.display = 'none';
+        setStatus('Send cancelled.', 'info');
+    }
+    cancelBtn.onclick = onCancel;
+
+    // Allow Escape key to cancel
+    function onKeydown(e) {
+        if (e.key === 'Escape') {
+            onCancel();
+            document.removeEventListener('keydown', onKeydown);
+        }
+    }
+    document.addEventListener('keydown', onKeydown);
+
+    _sendCountdownTimer = setInterval(() => {
+        remaining -= 1;
+        if (remaining <= 0) {
+            clearInterval(_sendCountdownTimer);
+            _sendCountdownTimer = null;
+            document.removeEventListener('keydown', onKeydown);
+            if (!_sendCancelled) {
+                numberEl.textContent = '...';
+                detailEl.textContent = 'Sending alert — please wait.';
+                cancelBtn.disabled = true;
+                executeSend(activationId).finally(() => {
+                    overlay.style.display = 'none';
+                    cancelBtn.disabled = false;
+                });
+            }
+        } else {
+            numberEl.textContent = remaining;
+        }
+    }, 1000);
+}
+
+async function executeSend(activationId) {
+    try {
+        const response = await fetch(`/eas/manual/events/${activationId}/send`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+        });
+        const data = await response.json();
+        if (!response.ok) {
+            throw new Error(data.error || 'Failed to send alert.');
+        }
+
+        const parts = [];
+        if (data.audio_played) {
+            parts.push('audio played');
+        } else if (data.audio_player_configured === false) {
+            parts.push('no audio player configured');
+        } else {
+            parts.push('audio playback skipped');
+        }
+        if (data.gpio_activated) {
+            parts.push('GPIO relays activated');
+        }
+        setStatus(`Alert sent successfully (${parts.join(', ')}).`, 'success');
+        await loadManualActivations();
+    } catch (error) {
+        console.error('Send failed', error);
+        setStatus(`Failed to send alert: ${error.message}`, 'error');
     }
 }
 

@@ -26,6 +26,8 @@ import json
 import os
 import re
 import shutil
+import subprocess
+import tempfile
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from typing import Any, Dict, List, Optional
@@ -57,6 +59,13 @@ from app_utils.eas import (
     describe_same_header,
     manual_default_same_codes,
     samples_to_wav_bytes,
+)
+from app_utils.gpio import (
+    GPIOActivationType,
+    GPIOBehaviorManager,
+    GPIOController,
+    load_gpio_behavior_matrix_from_env,
+    load_gpio_pin_configs_from_env,
 )
 from app_utils.event_codes import EVENT_CODE_REGISTRY
 from app_utils.fips_codes import get_same_lookup, get_us_state_county_tree
@@ -842,6 +851,7 @@ def register_workflow_routes(bp, logger, eas_config) -> None:
                         'same_header': event.same_header,
                         'created_at': event.created_at.isoformat() if event.created_at else None,
                         'archived_at': event.archived_at.isoformat() if event.archived_at else None,
+                        'triggered_at': event.triggered_at.isoformat() if event.triggered_at else None,
                         'print_url': url_for('eas.manual_eas_print', event_id=event.id),
                         'export_url': export_url,
                         'components': {
@@ -1089,6 +1099,221 @@ def register_workflow_routes(bp, logger, eas_config) -> None:
             return jsonify({'error': 'Failed to delete manual EAS activation.'}), 500
 
         return jsonify({'message': 'Manual EAS activation deleted.', 'id': event_id})
+
+    @bp.route('/manual/events/<int:event_id>/send', methods=['POST'])
+    def manual_eas_send(event_id: int):
+        """Send a previously generated manual EAS activation.
+
+        Triggers audio playback via the configured player command and
+        activates GPIO relay pins according to the hardware behavior
+        matrix.  Updates the activation's ``triggered_at`` timestamp
+        on success.
+        """
+        auth_response = _auth_redirect(json_mode=True)
+        if auth_response is not None:
+            return auth_response
+
+        activation = ManualEASActivation.query.get(event_id)
+        if activation is None:
+            return jsonify({'error': 'Manual EAS activation not found.'}), 404
+
+        # Retrieve composite audio (full alert) from the database record
+        audio_data = activation.composite_audio_data
+        if not audio_data:
+            # Fall back to reading from disk
+            output_root = str(
+                current_app.config.get('EAS_OUTPUT_DIR') or ''
+            ).strip()
+            if output_root and activation.storage_path:
+                components = activation.components_payload or {}
+                composite_meta = components.get('composite') or {}
+                filename = composite_meta.get('filename', '')
+                if filename:
+                    disk_path = os.path.join(
+                        output_root, activation.storage_path, filename,
+                    )
+                    if os.path.isfile(disk_path):
+                        try:
+                            with open(disk_path, 'rb') as fh:
+                                audio_data = fh.read()
+                        except OSError as exc:
+                            workflow_logger.warning(
+                                'Failed to read composite audio from disk: %s', exc,
+                            )
+
+        if not audio_data:
+            return jsonify({
+                'error': 'No composite audio data is available for this activation.',
+            }), 404
+
+        # Load EAS configuration for audio player command
+        fresh_config = load_eas_config(current_app.root_path)
+        audio_player_cmd = fresh_config.get('audio_player_cmd')
+
+        # Initialize GPIO controller (same pattern as EASBroadcaster)
+        from app_utils.eas import _get_oled_enabled_status
+
+        gpio_controller = None
+        gpio_behavior_manager = None
+        try:
+            oled_enabled = _get_oled_enabled_status()
+            gpio_configs = load_gpio_pin_configs_from_env(
+                workflow_logger, oled_enabled=oled_enabled,
+            )
+            if gpio_configs:
+                gpio_logger = workflow_logger.getChild('gpio')
+                controller = GPIOController(
+                    db_session=db.session,
+                    logger=gpio_logger,
+                )
+                for cfg in gpio_configs:
+                    controller.add_pin(cfg)
+                gpio_controller = controller
+
+                behavior_matrix = load_gpio_behavior_matrix_from_env(
+                    workflow_logger,
+                )
+                gpio_behavior_manager = GPIOBehaviorManager(
+                    controller=controller,
+                    pin_configs=gpio_configs,
+                    behavior_matrix=behavior_matrix,
+                    logger=gpio_logger.getChild('behavior'),
+                )
+                controller.behavior_manager = gpio_behavior_manager
+        except Exception as exc:
+            workflow_logger.warning('GPIO initialization failed: %s', exc)
+
+        # Write composite audio to a temporary file for playback
+        tmp_file = None
+        send_result = {
+            'event_id': event_id,
+            'identifier': activation.identifier,
+            'audio_played': False,
+            'gpio_activated': False,
+        }
+
+        try:
+            tmp_file = tempfile.NamedTemporaryFile(
+                suffix='.wav', prefix='eas_send_', delete=False,
+            )
+            tmp_file.write(audio_data)
+            tmp_file.flush()
+            tmp_path = tmp_file.name
+            tmp_file.close()
+
+            alert_id = activation.identifier
+            event_code = activation.event_code
+
+            # Activate GPIO relays
+            activated_any = False
+            manager_handled = False
+            if gpio_controller:
+                try:
+                    activation_reason = (
+                        f"Manual send ({event_code or 'unknown'})"
+                    )
+                    if gpio_behavior_manager:
+                        gpio_behavior_manager.trigger_incoming_alert(
+                            alert_id=alert_id, event_code=event_code,
+                        )
+                        manager_handled = gpio_behavior_manager.start_alert(
+                            alert_id=alert_id,
+                            event_code=event_code,
+                            reason=activation_reason,
+                        )
+                        activated_any = manager_handled
+                    if not activated_any:
+                        activation_results = gpio_controller.activate_all(
+                            activation_type=GPIOActivationType.AUTOMATIC,
+                            operator=getattr(g.current_user, 'username', None),
+                            alert_id=alert_id,
+                            reason=activation_reason,
+                        )
+                        activated_any = any(activation_results.values())
+                except Exception as exc:
+                    workflow_logger.warning('GPIO activation failed: %s', exc)
+                    activated_any = False
+                    manager_handled = False
+
+            send_result['gpio_activated'] = activated_any
+
+            # Play audio via configured player command
+            if audio_player_cmd:
+                try:
+                    command = list(audio_player_cmd) + [tmp_path]
+                    workflow_logger.info(
+                        'Playing manual EAS audio: %s', ' '.join(command),
+                    )
+                    subprocess.run(command, check=False, timeout=300)
+                    send_result['audio_played'] = True
+                except subprocess.TimeoutExpired:
+                    workflow_logger.warning(
+                        'Audio playback timed out for activation %s', event_id,
+                    )
+                except Exception as exc:
+                    workflow_logger.warning(
+                        'Audio playback failed: %s', exc,
+                    )
+            else:
+                workflow_logger.info(
+                    'No audio player configured; skipping playback for '
+                    'activation %s.',
+                    event_id,
+                )
+                send_result['audio_player_configured'] = False
+
+        finally:
+            # Deactivate GPIO relays
+            if gpio_controller and activated_any:
+                try:
+                    if manager_handled and gpio_behavior_manager:
+                        gpio_behavior_manager.end_alert(
+                            alert_id=alert_id,
+                            event_code=event_code,
+                        )
+                    else:
+                        gpio_controller.deactivate_all()
+                except Exception as exc:
+                    workflow_logger.warning('GPIO release failed: %s', exc)
+
+            # Clean up temp file
+            if tmp_file is not None:
+                try:
+                    os.unlink(tmp_file.name)
+                except OSError:
+                    pass
+
+        # Record the trigger timestamp
+        now = datetime.now(timezone.utc)
+        try:
+            activation.triggered_at = now
+            db.session.add(
+                SystemLog(
+                    level='INFO',
+                    message='Manual EAS activation sent',
+                    module='eas.workflow',
+                    details={
+                        'event_id': event_id,
+                        'identifier': activation.identifier,
+                        'event_code': activation.event_code,
+                        'audio_played': send_result['audio_played'],
+                        'gpio_activated': send_result['gpio_activated'],
+                        'triggered_by': getattr(
+                            g.current_user, 'username', 'system',
+                        ),
+                    },
+                )
+            )
+            db.session.commit()
+        except Exception as exc:
+            workflow_logger.error(
+                'Failed to update triggered_at for activation %s: %s',
+                event_id, exc,
+            )
+            db.session.rollback()
+
+        send_result['triggered_at'] = now.isoformat()
+        return jsonify(send_result)
 
     @bp.route('/manual/events/purge', methods=['POST'])
     def manual_eas_purge():
