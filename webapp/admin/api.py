@@ -1398,10 +1398,15 @@ def api_smart_diag():
         tran = (disk.get("tran") or "").lower()
         dtype = "nvme" if ("nvme" in name or tran == "nvme") else "auto"
 
+        # For NVMe, smartctl needs the controller device (e.g. /dev/nvme0),
+        # not the namespace block device (e.g. /dev/nvme0n1).
+        from app_utils.system import _nvme_controller_path
+        query_path = _nvme_controller_path(path) if dtype == "nvme" else path
+
         cmd = ["sudo", "-n", smartctl_path]
         if dtype:
             cmd.extend(["-d", dtype])
-        cmd.extend(["--json", "-a", path])
+        cmd.extend(["--json", "-a", query_path])
 
         diag: dict = {
             "path": path,

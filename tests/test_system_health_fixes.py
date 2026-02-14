@@ -28,6 +28,25 @@ sys.path.append(str(Path(__file__).resolve().parents[1]))
 from app_utils import system as system_utils
 
 
+class TestNvmeControllerPath:
+    """Test NVMe namespace-to-controller path conversion."""
+
+    def test_converts_namespace_to_controller(self):
+        assert system_utils._nvme_controller_path("/dev/nvme0n1") == "/dev/nvme0"
+
+    def test_converts_second_controller(self):
+        assert system_utils._nvme_controller_path("/dev/nvme1n1") == "/dev/nvme1"
+
+    def test_converts_higher_namespace(self):
+        assert system_utils._nvme_controller_path("/dev/nvme0n2") == "/dev/nvme0"
+
+    def test_leaves_controller_path_unchanged(self):
+        assert system_utils._nvme_controller_path("/dev/nvme0") == "/dev/nvme0"
+
+    def test_leaves_non_nvme_unchanged(self):
+        assert system_utils._nvme_controller_path("/dev/sda") == "/dev/sda"
+
+
 class TestDeviceTypeDetection:
     """Test device type detection for SMART data collection."""
 
@@ -61,10 +80,10 @@ class TestDeviceTypeDetection:
         result = system_utils._detect_device_type(device, "/dev/sdb", None)
         assert result == "auto"
 
-    def test_skips_mmc(self):
+    def test_mmc_falls_through_to_auto(self):
         device = {"name": "mmcblk0", "transport": None}
         result = system_utils._detect_device_type(device, "/dev/mmcblk0", None)
-        assert result is None
+        assert result == "auto"
 
     def test_defaults_to_auto(self):
         device = {"name": "sda", "transport": None}
