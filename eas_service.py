@@ -306,10 +306,16 @@ def collect_eas_metrics() -> Dict[str, Any]:
 
 def publish_eas_metrics_to_redis(metrics: Dict[str, Any]):
     """Publish EAS metrics to Redis for web application.
-    
+
     Merges EAS monitor metrics into the existing eas:metrics hash
     published by audio-service, so webapp can read both audio and EAS
     metrics from the same Redis key.
+
+    IMPORTANT: If the audio-service (eas_monitoring_service.py) is already
+    publishing eas_monitor data via its V3 UnifiedEASMonitorService, we
+    defer to it since it has direct access to audio sources and provides
+    more authoritative status. This prevents state oscillation where two
+    services alternate overwriting the eas_monitor key.
     """
     try:
         r = get_redis_client()
@@ -320,14 +326,32 @@ def publish_eas_metrics_to_redis(metrics: Dict[str, Any]):
 
         # Read existing metrics from audio-service (if any)
         existing_metrics = r.hgetall("eas:metrics")
-        
+
+        # Check if audio-service (eas_monitoring_service.py) is already publishing
+        # authoritative eas_monitor data via its V3 unified monitor.
+        # If so, defer to it to prevent state oscillation.
+        if existing_metrics and "eas_monitor" in existing_metrics:
+            try:
+                existing_eas_raw = existing_metrics["eas_monitor"]
+                if isinstance(existing_eas_raw, bytes):
+                    existing_eas_raw = existing_eas_raw.decode("utf-8")
+                existing_eas = json.loads(existing_eas_raw) if isinstance(existing_eas_raw, str) else existing_eas_raw
+                if isinstance(existing_eas, dict) and existing_eas.get("mode") == "unified-streaming":
+                    # V3 unified monitor from audio-service is active - don't overwrite
+                    metrics.pop("eas_monitor", None)
+                    logger.debug(
+                        "Deferring eas_monitor to audio-service V3 unified monitor"
+                    )
+            except (json.JSONDecodeError, TypeError, AttributeError):
+                pass  # Can't parse existing data, proceed with our own
+
         # Flatten nested dicts to strings for Redis hash
         flat_metrics = {}
-        
+
         # Keep existing metrics from audio-service
         if existing_metrics:
             flat_metrics.update(existing_metrics)
-        
+
         # Add/update EAS metrics
         for key, value in metrics.items():
             if isinstance(value, (dict, list)):
@@ -344,7 +368,7 @@ def publish_eas_metrics_to_redis(metrics: Dict[str, Any]):
         # Publish notification for real-time updates
         r.publish("eas:metrics:update", "1")
 
-        logger.info(f"✅ Published EAS metrics to Redis: {len(flat_metrics)} keys, eas_monitor={metrics.get('eas_monitor', {}).get('running', 'N/A')}")
+        logger.info(f"✅ Published EAS metrics to Redis: {len(flat_metrics)} keys, eas_monitor={metrics.get('eas_monitor', {}).get('running', 'N/A') if isinstance(metrics.get('eas_monitor'), dict) else 'deferred'}")
 
     except Exception as e:
         logger.error(f"Error publishing EAS metrics to Redis: {e}")
