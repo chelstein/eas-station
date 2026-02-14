@@ -48,7 +48,7 @@
     .page-header {
         background: linear-gradient(135deg, var(--primary-dark, var(--primary-color)), var(--secondary-dark, var(--secondary-color)));
         border-radius: var(--radius-md);
-        color: #fff;
+        color: var(--text-on-color);
         padding: var(--spacing-md) var(--spacing-lg);
         display: flex;
         align-items: center;
@@ -89,7 +89,7 @@
         font-weight: 700;
         margin: 0;
         letter-spacing: 0.01em;
-        color: #ffffff;
+        color: var(--text-on-color);
         text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
     }
 
@@ -97,7 +97,7 @@
         font-size: 0.85rem;
         opacity: 1;
         margin: 0;
-        color: #ffffff;
+        color: var(--text-on-color);
         text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
         font-weight: 500;
     }
@@ -114,11 +114,11 @@
 
     .dashboard-page-logo .logo-text-primary,
     .dashboard-page-logo .logo-text-secondary {
-        fill: #ffffff;
+        fill: var(--text-on-color);
     }
 
     .dashboard-page-logo .logo-bar {
-        fill: #ffffff;
+        fill: var(--text-on-color);
     }
 
     /* Ensure buttons are visible on gradient */
@@ -130,7 +130,7 @@
     }
 
     .page-header .btn-outline-light {
-        color: #ffffff !important;
+        color: var(--text-on-color) !important;
         border-color: rgba(255, 255, 255, 0.8);
         background-color: rgba(255, 255, 255, 0.1);
         text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
@@ -138,7 +138,7 @@
 
     .page-header .btn-outline-light:hover {
         background-color: rgba(255, 255, 255, 0.25);
-        border-color: #ffffff;
+        border-color: var(--text-on-color);
     }
 
     /* Snow Emergency Banner */
@@ -261,12 +261,12 @@
 
     .snow-level-badge.level-2 {
         background: var(--warning-color);
-        color: #fff;
+        color: var(--text-on-color);
     }
 
     .snow-level-badge.level-3 {
         background: var(--danger-color);
-        color: #fff;
+        color: var(--text-on-color);
     }
 
     .snow-emergency-info {
@@ -313,7 +313,7 @@
     .snow-edit-county-name .primary-badge {
         font-size: 0.65rem;
         background: var(--primary-color);
-        color: #fff;
+        color: var(--text-on-color);
         padding: 0.1rem 0.4rem;
         border-radius: 999px;
     }
@@ -701,7 +701,7 @@
 
     .historical-badge {
         background: linear-gradient(45deg, var(--text-muted), #495057);
-        color: #fff;
+        color: var(--text-on-color);
         font-size: 0.7em;
         padding: 2px 6px;
         border-radius: 8px;
@@ -1085,7 +1085,22 @@ let alertData = { active: [], historical: [] };
 
 const BOUNDARY_TYPE_CONFIG = window.BOUNDARY_TYPE_CONFIG || {};
 const BOUNDARY_GROUP_LABELS = window.BOUNDARY_GROUP_LABELS || {};
-const CUSTOM_BOUNDARY_PALETTE = ['#38bdf8', '#fb7185', '#845ef7', '#22c55e', '#f97316', '#14b8a6', '#facc15', '#64748b'];
+
+// Get CSS variable helper
+function getCSSVar(varName) {
+    return getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+}
+
+const CUSTOM_BOUNDARY_PALETTE = [
+    getCSSVar('--boundary-custom-1') || '#38bdf8',
+    getCSSVar('--boundary-custom-2') || '#fb7185',
+    getCSSVar('--boundary-custom-3') || '#845ef7',
+    getCSSVar('--boundary-custom-4') || '#22c55e',
+    getCSSVar('--boundary-custom-5') || '#f97316',
+    getCSSVar('--boundary-custom-6') || '#14b8a6',
+    getCSSVar('--boundary-custom-7') || '#facc15',
+    getCSSVar('--boundary-custom-8') || '#64748b'
+];
 const boundaryTypeMetadata = new Map();
 const layerVisibility = {};
 const customColorAssignments = {};
