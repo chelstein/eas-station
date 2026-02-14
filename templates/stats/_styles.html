@@ -8,14 +8,14 @@
         --glass-border: rgba(255, 255, 255, 0.18);
         --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
         --glass-blur: blur(12px);
-        --gradient-primary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        --gradient-success: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
-        --gradient-danger: linear-gradient(135deg, #eb3349 0%, #f45c43 100%);
-        --gradient-warning: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-        --gradient-info: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-        --gradient-purple: linear-gradient(135deg, #a855f7 0%, #6366f1 100%);
-        --gradient-teal: linear-gradient(135deg, #0891b2 0%, #06b6d4 100%);
-        --gradient-orange: linear-gradient(135deg, #f97316 0%, #fb923c 100%);
+        --gradient-primary: linear-gradient(135deg, var(--chart-primary-start) 0%, var(--chart-primary-end) 100%);
+        --gradient-success: linear-gradient(135deg, var(--chart-success-start) 0%, var(--chart-success-end) 100%);
+        --gradient-danger: linear-gradient(135deg, var(--chart-danger-start) 0%, var(--chart-danger-end) 100%);
+        --gradient-warning: linear-gradient(135deg, var(--chart-warning-start) 0%, var(--chart-warning-end) 100%);
+        --gradient-info: linear-gradient(135deg, var(--chart-info-start) 0%, var(--chart-info-end) 100%);
+        --gradient-purple: linear-gradient(135deg, var(--chart-primary-start) 0%, var(--chart-primary-end) 100%);
+        --gradient-teal: linear-gradient(135deg, var(--chart-info-start) 0%, var(--chart-info-end) 100%);
+        --gradient-orange: linear-gradient(135deg, var(--chart-warning-start) 0%, var(--chart-warning-end) 100%);
         --gradient-dark: linear-gradient(135deg, #1e3a5f 0%, #0f172a 100%);
         --card-radius: 20px;
         --transition-smooth: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
@@ -330,8 +330,8 @@
     .filters-panel select:focus,
     .filters-panel input:focus {
         outline: none;
-        border-color: #667eea;
-        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2);
+        border-color: var(--chart-primary-start);
+        box-shadow: 0 0 0 3px color-mix(in srgb, var(--chart-primary-start) 20%, transparent);
     }
 
     .filters-actions {
@@ -357,12 +357,12 @@
     .filters-actions button.apply {
         background: var(--gradient-primary);
         color: white;
-        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        box-shadow: 0 4px 15px color-mix(in srgb, var(--chart-primary-start) 40%, transparent);
     }
 
     .filters-actions button.apply:hover {
         transform: translateY(-2px);
-        box-shadow: 0 6px 20px rgba(102, 126, 234, 0.5);
+        box-shadow: 0 6px 20px color-mix(in srgb, var(--chart-primary-start) 50%, transparent);
     }
 
     .filters-actions button.reset {
@@ -560,7 +560,7 @@
         padding: 0.75rem 1rem;
         background: var(--glass-bg);
         border-radius: 10px;
-        border-left: 3px solid #667eea;
+        border-left: 3px solid var(--chart-primary-start);
     }
 
     /* Lifecycle Legend */
@@ -615,11 +615,11 @@
         height: 12px;
         border-radius: 6px;
         background: linear-gradient(90deg,
-            rgba(102, 126, 234, 0.1) 0%,
-            rgba(129, 140, 248, 0.3) 25%,
-            rgba(168, 85, 247, 0.5) 50%,
-            rgba(236, 72, 153, 0.75) 75%,
-            rgba(244, 63, 94, 1) 100%
+            color-mix(in srgb, var(--chart-primary-start) 10%, transparent) 0%,
+            color-mix(in srgb, var(--chart-info-start) 30%, transparent) 25%,
+            color-mix(in srgb, var(--chart-warning-start) 50%, transparent) 50%,
+            color-mix(in srgb, var(--chart-danger-start) 75%, transparent) 75%,
+            var(--chart-danger-end) 100%
         );
     }
 
@@ -638,7 +638,7 @@
     }
 
     .stats-footer a {
-        color: #667eea;
+        color: var(--chart-primary-start);
         text-decoration: none;
         font-weight: 500;
     }
