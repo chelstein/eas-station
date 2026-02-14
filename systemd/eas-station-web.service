@@ -80,9 +80,15 @@ ReadWritePaths=/opt/eas-station /var/log/eas-station /var/www /run /etc/nginx /e
 DeviceAllow=/dev/gpiochip0 rw
 DeviceAllow=/dev/gpiochip4 rw
 DeviceAllow=/dev/i2c-1 rw
-# Storage device access for S.M.A.R.T. health monitoring (smartctl)
-DeviceAllow=/dev/nvme* rw
-DeviceAllow=/dev/sd* r
+# Storage device access for S.M.A.R.T. health monitoring (smartctl).
+# Path wildcards are NOT supported by DeviceAllow — use device group names
+# from /proc/devices instead so all present and future devices match.
+#   char-nvme:    NVMe controller char devices  (/dev/nvme0, /dev/nvme1, …)
+#   block-blkext: NVMe namespace block devices   (/dev/nvme0n1, …)
+#   block-sd:     SCSI/SATA disk block devices   (/dev/sda, /dev/sdb, …)
+DeviceAllow=char-nvme rw
+DeviceAllow=block-blkext rw
+DeviceAllow=block-sd r
 # Required capabilities for sudo to work (certbot/nginx management)
 # CAP_SETUID and CAP_SETGID allow sudo to change user/group IDs
 # CAP_AUDIT_WRITE allows sudo to write audit records
