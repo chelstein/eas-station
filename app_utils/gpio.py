@@ -1172,7 +1172,7 @@ class GPIOController:
             pass  # Suppress exceptions in destructor
 
 
-def load_gpio_pin_configs_from_env(logger=None, oled_enabled: bool = False) -> List[GPIOPinConfig]:
+def load_gpio_pin_configs_from_db(logger=None, oled_enabled: bool = False) -> List[GPIOPinConfig]:
     """Load GPIO pin configurations from database.
 
     Hardware settings (GPIO, OLED, LED Sign, VFD) are configured via the web UI
@@ -1347,7 +1347,7 @@ def serialize_gpio_behavior_matrix(matrix: Dict[int, Iterable[GPIOBehavior]]) ->
     return json.dumps(serializable, separators=(",", ":"), sort_keys=True)
 
 
-def load_gpio_behavior_matrix_from_env(logger=None, oled_enabled: bool = False) -> Dict[int, Set[GPIOBehavior]]:
+def load_gpio_behavior_matrix_from_db(logger=None, oled_enabled: bool = False) -> Dict[int, Set[GPIOBehavior]]:
     """Load GPIO behavior assignments from database.
 
     Hardware settings (GPIO, OLED, LED Sign, VFD) are configured via the web UI
