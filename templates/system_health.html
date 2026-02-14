@@ -2392,7 +2392,12 @@
                 const statusRaw = String(data.overall_status || 'unknown').toLowerCase();
                 let badgeClass = 'warning';
                 let statusLabel = data.overall_status ? escapeHtml(String(data.overall_status)) : 'Unknown';
-                if (['passed', 'ok', 'healthy', 'success'].includes(statusRaw)) {
+                
+                // If there's an error, show as danger status to draw attention
+                if (data.error) {
+                    badgeClass = 'danger';
+                    statusLabel = 'Error';
+                } else if (['passed', 'ok', 'healthy', 'success'].includes(statusRaw)) {
                     badgeClass = 'success';
                     statusLabel = 'Passed';
                 } else if (['failed', 'fail', 'critical'].includes(statusRaw)) {
@@ -2463,10 +2468,23 @@
                     ? `<small class="text-muted">${additionalInfo.join(' • ')}</small>`
                     : '';
 
+                // Determine device type badge
+                let deviceTypeBadge = '';
+                const isNvme = data.nvme_version_string || 
+                              (data.path && data.path.includes('nvme')) || 
+                              (data.name && data.name.includes('nvme'));
+                if (isNvme) {
+                    deviceTypeBadge = '<span class="badge bg-info" style="font-size: 0.7em; margin-left: 0.5em;">NVMe</span>';
+                } else if (data.is_rotational === true) {
+                    deviceTypeBadge = '<span class="badge bg-secondary" style="font-size: 0.7em; margin-left: 0.5em;">HDD</span>';
+                } else if (data.is_rotational === false) {
+                    deviceTypeBadge = '<span class="badge bg-secondary" style="font-size: 0.7em; margin-left: 0.5em;">SSD</span>';
+                }
+
                 return `
                     <tr>
                         <td>
-                            <strong>${deviceName}</strong>
+                            <strong>${deviceName}</strong>${deviceTypeBadge}
                             ${model ? `<br><small class="text-muted">${model}</small>` : ''}
                             ${serial ? `<br>${serial}` : ''}
                         </td>
@@ -2489,10 +2507,27 @@
                 ? `<p class="text-muted mt-2 mb-0"><small>… and ${devices.length - 10} more devices</small></p>`
                 : '';
 
+            // Check if any devices have errors (sudo/permission issues)
+            const devicesWithErrors = devices.filter(d => d && d.error);
+            const errorBanner = devicesWithErrors.length > 0 ? `
+                <div class="alert alert-warning mb-3" role="alert">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    <strong>S.M.A.R.T. Data Collection Issues</strong>
+                    <p class="mb-2 mt-2">${devicesWithErrors.length} device(s) could not be queried. Common causes:</p>
+                    <ul class="mb-2">
+                        <li><strong>Sudo permissions not configured:</strong> smartctl requires root access. Configure <code>/etc/sudoers.d/eas-station</code> for passwordless sudo.</li>
+                        <li><strong>Device access restrictions:</strong> Some devices may be locked or in standby mode.</li>
+                        <li><strong>Driver issues:</strong> Device may not support S.M.A.R.T. or driver is incompatible.</li>
+                    </ul>
+                    <p class="mb-0"><small>See "Health Details" column for specific error messages. Check application logs for more details.</small></p>
+                </div>
+            ` : '';
+
             return `
                 <div class="card health-card h-100">
                     <div class="card-body">
                         <h5><i class="fas fa-heartbeat section-icon"></i> Storage Health (S.M.A.R.T.)</h5>
+                        ${errorBanner}
                         <div class="table-responsive">
                             <table class="table table-sm table-hover mb-0">
                                 <thead>
