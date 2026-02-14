@@ -147,6 +147,73 @@ show_step_progress() {
     printf "]${NC}\n\n"
 }
 
+# Track start time for elapsed time calculation
+START_TIME=$(date +%s)
+
+# Format duration in human-readable format
+format_duration() {
+    local seconds=$1
+    local hours=$((seconds / 3600))
+    local minutes=$(( (seconds % 3600) / 60 ))
+    local secs=$((seconds % 60))
+    
+    if [ $hours -gt 0 ]; then
+        printf "${BOLD}%dh %dm %ds${NC}" $hours $minutes $secs
+    elif [ $minutes -gt 0 ]; then
+        printf "${BOLD}%dm %ds${NC}" $minutes $secs
+    else
+        printf "${BOLD}%ds${NC}" $secs
+    fi
+}
+
+# Display elapsed time
+show_elapsed_time() {
+    local current_time=$(date +%s)
+    local elapsed=$((current_time - START_TIME))
+    echo -e "${DIM}⏱️  Elapsed time: $(format_duration $elapsed)${NC}"
+}
+
+# Animated celebration for successful completion
+show_celebration() {
+    local message="$1"
+    echo ""
+    echo -e "${BOLD}${GREEN}"
+    cat << "EOF"
+    ╔════════════════════════════════════════════════════════════╗
+    ║                    🎉 SUCCESS! 🎉                          ║
+    ╚════════════════════════════════════════════════════════════╝
+EOF
+    echo -e "${NC}"
+    echo -e "  ${BOLD}${WHITE}$message${NC}"
+    echo ""
+    
+    # Animated sparkles
+    local sparkles=("✨" "⭐" "🌟" "💫" "✨")
+    for sparkle in "${sparkles[@]}"; do
+        echo -ne "\r  ${YELLOW}$sparkle $sparkle $sparkle $sparkle $sparkle $sparkle $sparkle $sparkle $sparkle $sparkle${NC}"
+        sleep 0.1
+    done
+    echo -ne "\r$(printf ' %.0s' {1..80})\r"  # Clear line
+    echo ""
+}
+
+# Display operation with time estimate
+echo_operation() {
+    local message="$1"
+    local estimate="${2:-}"
+    if [ -n "$estimate" ]; then
+        echo -e "${MAGENTA}▶${NC}  $message ${DIM}(~$estimate)${NC}"
+    else
+        echo -e "${MAGENTA}▶${NC}  $message"
+    fi
+}
+
+# Enhanced section separator
+draw_separator() {
+    local color="${1:-$CYAN}"
+    echo -e "\n${color}$(printf '━%.0s' {1..75})${NC}\n"
+}
+
 # Add branding footer for whiptail dialogs
 whiptail_footer() {
     echo "Copyright (c) 2025-2026 Timothy Kramer (KR8MER) | AGPL v3 / Commercial License"
@@ -1247,6 +1314,14 @@ fi
 
 # Console summary
 echo ""
+
+# Show celebration animation
+show_celebration "Update completed successfully!"
+
+# Show elapsed time
+show_elapsed_time
+echo ""
+
 echo_success "═══════════════════════════════════════════════════════════════"
 echo_success "                     UPDATE COMPLETE                           "
 echo_success "═══════════════════════════════════════════════════════════════"
