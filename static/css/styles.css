@@ -1630,7 +1630,7 @@ footer a:hover {
 }
 
 .tech-badge img {
-    height: 24px;
+    height: var(--footer-badge-height, 24px);
     border-radius: 4px;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
@@ -1716,8 +1716,8 @@ footer a:hover {
         gap: 0.5rem;
     }
 
-    .tech-badge img {
-        height: 20px;
+    :root {
+        --footer-badge-height: 20px;
     }
 
     .footer-disclaimer {
@@ -4197,12 +4197,12 @@ a:not(.btn):not(.nav-link):not(.dropdown-item):hover {
         margin-top: 3rem;
     }
 
-    .tech-stack-badges {
-        gap: 0.5rem !important;
+    :root {
+        --footer-badge-height: 20px;
     }
 
-    .tech-badge img {
-        height: 20px !important;
+    .tech-stack-badges {
+        gap: 0.5rem !important;
     }
 }
 
@@ -4368,12 +4368,12 @@ a:not(.btn):not(.nav-link):not(.dropdown-item):hover {
         margin-top: 2.5rem;
     }
 
-    .tech-stack-badges {
-        gap: 0.4rem !important;
+    :root {
+        --footer-badge-height: 18px;
     }
 
-    .tech-badge img {
-        height: 18px !important;
+    .tech-stack-badges {
+        gap: 0.4rem !important;
     }
 
     .footer-disclaimer {
