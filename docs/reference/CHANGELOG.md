@@ -7,6 +7,40 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Changed
+- **Modernized footer design with enhanced visual appeal** (v2.50.0)
+  - Multi-column layout with organized sections (Brand, Quick Access, Resources, Legal, Status)
+  - Animated gradient background with floating logo icon
+  - Status widgets showing real-time clock, version, and health
+  - Larger tech stack badges with for-the-badge style  
+  - Improved mobile responsiveness with centered layouts
+  - Animated gradient accent line at top
+  - Enhanced hover effects on all interactive elements
+  - Better visual hierarchy and spacing throughout
+  - Files: `templates/base.html`, `static/css/styles.css`
+
+- **Fixed code review issues in display routes** (v2.50.0)
+  - Replaced f-strings with lazy % formatting in logging calls for better performance
+  - File: `webapp/routes_displays.py`
+
+### Added
+- **Site Navigation page for quick access to all features** (v2.49.0)
+  - Created `/navigation` page organizing all features by category
+  - Quick access buttons to 40+ pages grouped into 8 logical sections
+  - Added to Help dropdown menu for easy discovery
+  - Helps new users understand the full feature set
+  - Reduces need to hunt through navigation menus
+  - Files: `templates/site_navigation.html`, `webapp/routes_public.py`, `templates/components/navbar.html`
+
+- **Unified Display Controls page** (v2.48.0)
+  - Created consolidated `/displays` page combining LED, VFD, and OLED display controls
+  - Single navigation entry replaces three separate display control links
+  - Quick access tabs for each display type with status indicators
+  - Quick action buttons to access full control pages when needed
+  - Recent activity feed showing display output history across all display types
+  - Reduces navigation menu complexity while maintaining full functionality
+  - Files: `templates/displays_control.html`, `webapp/routes_displays.py`, `webapp/__init__.py`, `templates/components/navbar.html`, `templates/help.html`
+
+### Changed
 - **Replace hardcoded colors with CSS variables across frontend** (v2.47.0)
   - Added comprehensive CSS variables for alert severity, hardware displays, boundaries, charts, and overlays
   - Replaced inline style attributes with CSS classes using theme variables

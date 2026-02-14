@@ -33,6 +33,7 @@ from . import (
     routes_backups,
     routes_debug,
     routes_diagnostics,
+    routes_displays,
     routes_eas_monitor_status,
     routes_exports,
     routes_ipaws,
@@ -84,6 +85,7 @@ def iter_route_modules() -> Iterable[RouteModule]:
     yield RouteModule("routes_eas_monitor_status", routes_eas_monitor_status.register_eas_monitor_routes)
     yield RouteModule("routes_audio_tests", routes_audio_tests.register)
     yield RouteModule("routes_exports", routes_exports.register)
+    yield RouteModule("routes_displays", routes_displays.register)
     yield RouteModule("routes_led", routes_led.register)
     yield RouteModule("routes_vfd", routes_vfd.register)
     yield RouteModule("routes_screens", routes_screens.register)
