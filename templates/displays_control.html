@@ -1,0 +1,238 @@
+{% extends "base.html" %}
+
+{% block title %}Display Controls{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <h1 class="mb-4">
+        <i class="fas fa-tv"></i> Display Controls
+    </h1>
+
+    <!-- Display Type Selector -->
+    <ul class="nav nav-pills mb-4" id="displayTypeTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="led-tab" data-bs-toggle="tab" data-bs-target="#led-panel" type="button" role="tab">
+                <i class="fas fa-tv"></i> LED Sign
+                <span class="badge {% if led_status and led_status.connected %}bg-success{% else %}bg-secondary{% endif %} ms-2">
+                    {% if led_status and led_status.connected %}Connected{% else %}Offline{% endif %}
+                </span>
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="vfd-tab" data-bs-toggle="tab" data-bs-target="#vfd-panel" type="button" role="tab">
+                <i class="fas fa-desktop"></i> VFD Display
+                <span class="badge {% if vfd_available %}bg-success{% else %}bg-secondary{% endif %} ms-2">
+                    {% if vfd_available %}Connected{% else %}Offline{% endif %}
+                </span>
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="oled-tab" data-bs-toggle="tab" data-bs-target="#oled-panel" type="button" role="tab">
+                <i class="fas fa-display"></i> OLED Screens
+            </button>
+        </li>
+    </ul>
+
+    <!-- Tab Content -->
+    <div class="tab-content" id="displayTypeContent">
+        <!-- LED Sign Panel -->
+        <div class="tab-pane fade show active" id="led-panel" role="tabpanel">
+            <div class="card mb-3">
+                <div class="card-header">
+                    <i class="fas fa-info-circle"></i> LED Sign Status
+                </div>
+                <div class="card-body">
+                    {% if led_status %}
+                    <div class="row">
+                        <div class="col-md-3">
+                            <strong>Connection:</strong><br>
+                            <span class="badge {% if led_status.connected %}bg-success{% else %}bg-danger{% endif %}">
+                                {% if led_status.connected %}Connected{% else %}Disconnected{% endif %}
+                            </span>
+                        </div>
+                        <div class="col-md-3">
+                            <strong>Address:</strong><br>
+                            {{ led_status.host }}:{{ led_status.port }}
+                        </div>
+                        <div class="col-md-3">
+                            <strong>Model:</strong><br>
+                            {{ led_status.model }}
+                        </div>
+                        <div class="col-md-3">
+                            <strong>Protocol:</strong><br>
+                            {{ led_status.protocol }}
+                        </div>
+                    </div>
+                    {% else %}
+                    <p class="text-muted">LED sign status unavailable</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="alert alert-info">
+                <i class="fas fa-arrow-right"></i> 
+                For advanced LED sign control, visit the <a href="{{ url_for('led_control') }}">full LED control page</a>.
+            </div>
+        </div>
+
+        <!-- VFD Display Panel -->
+        <div class="tab-pane fade" id="vfd-panel" role="tabpanel">
+            <div class="card mb-3">
+                <div class="card-header">
+                    <i class="fas fa-info-circle"></i> VFD Display Status
+                </div>
+                <div class="card-body">
+                    {% if vfd_status %}
+                    <div class="row">
+                        <div class="col-md-3">
+                            <strong>Connection:</strong><br>
+                            <span class="badge {% if vfd_status.connected %}bg-success{% else %}bg-danger{% endif %}">
+                                {% if vfd_status.connected %}Connected{% else %}Disconnected{% endif %}
+                            </span>
+                        </div>
+                        <div class="col-md-3">
+                            <strong>Port:</strong><br>
+                            {{ vfd_status.port }}
+                        </div>
+                        <div class="col-md-3">
+                            <strong>Resolution:</strong><br>
+                            {{ vfd_status.width }} × {{ vfd_status.height }} pixels
+                        </div>
+                        <div class="col-md-3">
+                            <strong>Brightness:</strong><br>
+                            Level {{ vfd_status.brightness }} / 7
+                        </div>
+                    </div>
+                    {% else %}
+                    <p class="text-muted">VFD status unavailable</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="alert alert-info">
+                <i class="fas fa-arrow-right"></i> 
+                For advanced VFD control, visit the <a href="{{ url_for('vfd_control') }}">full VFD control page</a>.
+            </div>
+        </div>
+
+        <!-- OLED Screens Panel -->
+        <div class="tab-pane fade" id="oled-panel" role="tabpanel">
+            <div class="card mb-3">
+                <div class="card-header">
+                    <i class="fas fa-info-circle"></i> OLED Screen Management
+                </div>
+                <div class="card-body">
+                    <p>Manage custom display screens for OLED, VFD, and LED displays.</p>
+                    <div class="row">
+                        <div class="col-md-4">
+                            <strong>Total Screens:</strong> {{ screens_count if screens_count else 0 }}
+                        </div>
+                        <div class="col-md-4">
+                            <strong>Active Rotations:</strong> {{ rotations_count if rotations_count else 0 }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="alert alert-info">
+                <i class="fas fa-arrow-right"></i> 
+                For custom screen creation and management, visit the <a href="{{ url_for('screens_page') }}">full screen editor</a>.
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="card mt-4">
+        <div class="card-header">
+            <i class="fas fa-bolt"></i> Quick Actions
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-4">
+                    <a href="{{ url_for('led_control') }}" class="btn btn-primary w-100 mb-2">
+                        <i class="fas fa-tv"></i> LED Sign Control
+                    </a>
+                </div>
+                <div class="col-md-4">
+                    <a href="{{ url_for('vfd_control') }}" class="btn btn-primary w-100 mb-2">
+                        <i class="fas fa-desktop"></i> VFD Display Control
+                    </a>
+                </div>
+                <div class="col-md-4">
+                    <a href="{{ url_for('screens_page') }}" class="btn btn-primary w-100 mb-2">
+                        <i class="fas fa-display"></i> OLED Screen Editor
+                    </a>
+                </div>
+            </div>
+            <div class="row mt-2">
+                <div class="col-md-6">
+                    <a href="{{ url_for('displays_preview_page') }}" class="btn btn-outline-secondary w-100">
+                        <i class="fas fa-eye"></i> Preview All Displays
+                    </a>
+                </div>
+                <div class="col-md-6">
+                    <a href="/admin/hardware" class="btn btn-outline-secondary w-100">
+                        <i class="fas fa-cog"></i> Hardware Settings
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Activity -->
+    <div class="card mt-4">
+        <div class="card-header">
+            <i class="fas fa-history"></i> Recent Display Activity
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-sm table-hover">
+                    <thead>
+                        <tr>
+                            <th>Time</th>
+                            <th>Display</th>
+                            <th>Type</th>
+                            <th>Content</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% if recent_led_messages %}
+                            {% for msg in recent_led_messages[:5] %}
+                            <tr>
+                                <td>{{ msg.created_at.strftime('%H:%M:%S') if msg.created_at else 'N/A' }}</td>
+                                <td><span class="badge bg-warning">LED</span></td>
+                                <td>{{ msg.message_type if msg.message_type else 'Text' }}</td>
+                                <td>{{ msg.line_1[:50] if msg.line_1 else '' }}</td>
+                            </tr>
+                            {% endfor %}
+                        {% endif %}
+                        
+                        {% if recent_vfd_displays %}
+                            {% for display in recent_vfd_displays[:5] %}
+                            <tr>
+                                <td>{{ display.created_at.strftime('%H:%M:%S') if display.created_at else 'N/A' }}</td>
+                                <td><span class="badge bg-info">VFD</span></td>
+                                <td>{{ display.content_type if display.content_type else 'Text' }}</td>
+                                <td>
+                                    {% if display.content_type == 'text' %}
+                                        {{ display.content_data[:50] if display.content_data else '' }}
+                                    {% else %}
+                                        <i class="fas fa-image"></i> {{ display.content_type }}
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        {% endif %}
+                        
+                        {% if not recent_led_messages and not recent_vfd_displays %}
+                        <tr>
+                            <td colspan="4" class="text-center text-muted">No recent display activity</td>
+                        </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

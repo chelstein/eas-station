@@ -6,6 +6,16 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+### Added
+- **Unified Display Controls page** (v2.48.0)
+  - Created consolidated `/displays` page combining LED, VFD, and OLED display controls
+  - Single navigation entry replaces three separate display control links
+  - Quick access tabs for each display type with status indicators
+  - Quick action buttons to access full control pages when needed
+  - Recent activity feed showing display output history across all display types
+  - Reduces navigation menu complexity while maintaining full functionality
+  - Files: `templates/displays_control.html`, `webapp/routes_displays.py`, `webapp/__init__.py`, `templates/components/navbar.html`
+
 ### Changed
 - **Replace hardcoded colors with CSS variables across frontend** (v2.47.0)
   - Added comprehensive CSS variables for alert severity, hardware displays, boundaries, charts, and overlays
