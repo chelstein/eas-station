@@ -22,6 +22,7 @@ from __future__ import annotations
 """REST-style API routes used by the admin interface."""
 
 import contextlib
+import json
 import os
 import socket
 from datetime import datetime
@@ -1357,6 +1358,92 @@ def api_system_health():
     except Exception as exc:
         api_bp.logger.error('Error getting system health via API: %s', exc, exc_info=True)
         return jsonify({'error': 'Failed to get system health'}), 500
+
+
+@api_bp.route('/api/smart_diag')
+def api_smart_diag():
+    """Diagnostic endpoint: shows raw smartctl JSON output for debugging."""
+    import shutil
+    import subprocess as _sp
+
+    smartctl_path = shutil.which("smartctl") or "/usr/sbin/smartctl"
+    devices_output: list = []
+
+    # Run lsblk to find disks
+    try:
+        lsblk = _sp.run(
+            ["lsblk", "--json", "--output", "NAME,PATH,TYPE,TRAN"],
+            capture_output=True, text=True, check=False, timeout=5,
+        )
+        lsblk_data = json.loads(lsblk.stdout or "{}")
+    except Exception as exc:
+        return jsonify({"error": f"lsblk failed: {exc}"})
+
+    block_devs = lsblk_data.get("blockdevices") or []
+
+    def _find_disks(entries):
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
+            if (entry.get("type") or "").lower() == "disk":
+                name = entry.get("name") or ""
+                if not name.startswith(("ram", "loop", "zram")):
+                    yield entry
+            for child in entry.get("children") or []:
+                yield from _find_disks([child])
+
+    for disk in _find_disks(block_devs):
+        path = disk.get("path") or f"/dev/{disk.get('name')}"
+        name = disk.get("name") or ""
+        tran = (disk.get("tran") or "").lower()
+        dtype = "nvme" if ("nvme" in name or tran == "nvme") else "auto"
+
+        cmd = ["sudo", "-n", smartctl_path]
+        if dtype:
+            cmd.extend(["-d", dtype])
+        cmd.extend(["--json", "-a", path])
+
+        diag: dict = {
+            "path": path,
+            "name": name,
+            "transport": tran,
+            "device_type_flag": dtype,
+            "command": " ".join(cmd),
+        }
+
+        try:
+            result = _sp.run(cmd, capture_output=True, text=True, check=False, timeout=15)
+            diag["exit_code"] = result.returncode
+            diag["stderr"] = (result.stderr or "").strip()[:500]
+            raw = (result.stdout or "").strip()
+            if raw:
+                try:
+                    parsed = json.loads(raw)
+                    diag["json_keys"] = sorted(parsed.keys())
+                    diag["has_nvme_health_log"] = "nvme_smart_health_information_log" in parsed
+                    diag["has_temperature"] = "temperature" in parsed
+                    diag["has_smart_status"] = "smart_status" in parsed
+                    nvme_log = parsed.get("nvme_smart_health_information_log")
+                    if isinstance(nvme_log, dict):
+                        diag["nvme_log_keys"] = sorted(nvme_log.keys())
+                        diag["nvme_log_sample"] = {
+                            k: nvme_log.get(k)
+                            for k in [
+                                "temperature", "power_on_hours", "percentage_used",
+                                "available_spare", "data_units_written", "power_cycles",
+                            ]
+                            if k in nvme_log
+                        }
+                except json.JSONDecodeError:
+                    diag["raw_output_start"] = raw[:500]
+            else:
+                diag["raw_output_start"] = "(empty)"
+        except Exception as exc:
+            diag["error"] = str(exc)
+
+        devices_output.append(diag)
+
+    return jsonify({"devices": devices_output})
 
 
 __all__ = ['register_api_routes']
