@@ -7,6 +7,14 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Added
+- **Site Navigation page for quick access to all features** (v2.49.0)
+  - Created `/navigation` page organizing all features by category
+  - Quick access buttons to 40+ pages grouped into 8 logical sections
+  - Added to Help dropdown menu for easy discovery
+  - Helps new users understand the full feature set
+  - Reduces need to hunt through navigation menus
+  - Files: `templates/site_navigation.html`, `webapp/routes_public.py`, `templates/components/navbar.html`
+
 - **Unified Display Controls page** (v2.48.0)
   - Created consolidated `/displays` page combining LED, VFD, and OLED display controls
   - Single navigation entry replaces three separate display control links
@@ -14,7 +22,7 @@ tracks releases under the 2.x series.
   - Quick action buttons to access full control pages when needed
   - Recent activity feed showing display output history across all display types
   - Reduces navigation menu complexity while maintaining full functionality
-  - Files: `templates/displays_control.html`, `webapp/routes_displays.py`, `webapp/__init__.py`, `templates/components/navbar.html`
+  - Files: `templates/displays_control.html`, `webapp/routes_displays.py`, `webapp/__init__.py`, `templates/components/navbar.html`, `templates/help.html`
 
 ### Changed
 - **Replace hardcoded colors with CSS variables across frontend** (v2.47.0)

@@ -639,6 +639,18 @@ def register(app: Flask, logger) -> None:
                 "<h1>Help</h1><p>Refer to docs/guides/HELP.md in the repository for the full operations guide.</p>"
             )
 
+    @app.route("/navigation")
+    def site_navigation():
+        """Quick access page showing all features organized by category."""
+        try:
+            return render_template("site_navigation.html")
+        except Exception as exc:  # pragma: no cover - fallback content
+            route_logger.error("Error rendering site navigation page: %s", exc)
+            return (
+                "<h1>Site Navigation</h1><p>Quick access to all pages.</p>"
+                "<p><a href='/'>Dashboard</a> | <a href='/alerts'>Alerts</a> | <a href='/admin'>Admin</a></p>"
+            )
+
     @app.route("/terms")
     def terms_page():
         return _render_policy_page("TERMS_OF_USE.md", "Terms of Use")
