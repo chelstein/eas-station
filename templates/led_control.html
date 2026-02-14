@@ -8,8 +8,8 @@
 <style>
 /* LED-specific styles */
 .message-preview {
-    background: #000;
-    color: #00ff00;
+    background: var(--terminal-bg);
+    color: var(--terminal-text);
     font-family: 'Courier New', monospace;
     padding: 20px;
     border-radius: 8px;
@@ -51,17 +51,17 @@
     width: 30px;
     height: 30px;
     border-radius: 4px;
-    border: 1px solid #ccc;
+    border: 1px solid var(--terminal-border);
 }
 
 .effect-preview {
     font-size: 0.8em;
-    color: #666;
+    color: var(--text-muted);
     font-style: italic;
 }
 
 .btn-emergency {
-    background: linear-gradient(135deg, var(--danger-color), #e74c3c);
+    background: linear-gradient(135deg, var(--danger-color), var(--severity-extreme));
     border: none;
     animation: pulse 2s infinite;
 }
@@ -87,7 +87,7 @@
 }
 
 .rainbow-text {
-    background: linear-gradient(45deg, #ff0000, #ff7f00, #ffff00, #00ff00, #0000ff, #4b0082, #9400d3);
+    background: linear-gradient(45deg, var(--led-red), var(--led-orange), var(--led-yellow), var(--led-green), var(--led-blue), #4b0082, #9400d3);
     background-size: 400% 400%;
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
@@ -141,7 +141,7 @@
     border-radius: 6px;
     padding: 0.75rem;
     background: rgba(0, 0, 0, 0.75);
-    color: #00ff00;
+    color: var(--terminal-text);
     font-family: 'Courier New', monospace;
     letter-spacing: 1px;
     transition: background 0.2s ease, border-color 0.2s ease;
@@ -198,7 +198,7 @@
 }
 
 .special-function-group {
-    border: 1px solid #e0e0e0;
+    border: 1px solid var(--border-color);
     border-radius: 6px;
     padding: 10px;
     margin: 5px 0;
@@ -1140,13 +1140,24 @@ let messageHistory = [];
 let filteredHistory = [];
 
 // Complete color mapping
+// Helper function to get CSS variable values
+function getCSSVar(varName) {
+    return getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+}
+
 const colorMap = {
-    'RED': '#ff0000', 'GREEN': '#00ff00', 'AMBER': '#ffbf00', 'DIM_RED': '#800000',
-    'DIM_GREEN': '#008000', 'BROWN': '#964B00', 'ORANGE': '#ff8000', 'YELLOW': '#ffff00',
-    'RAINBOW_1': 'linear-gradient(45deg, #ff0000, #00ff00, #0000ff)',
+    'RED': getCSSVar('--led-red') || '#ff0000',
+    'GREEN': getCSSVar('--led-green') || '#00ff00',
+    'AMBER': getCSSVar('--led-amber') || '#ffbf00',
+    'DIM_RED': getCSSVar('--led-dim-red') || '#800000',
+    'DIM_GREEN': getCSSVar('--led-dim-green') || '#008000',
+    'BROWN': getCSSVar('--led-brown') || '#964B00',
+    'ORANGE': getCSSVar('--led-orange') || '#ff8000',
+    'YELLOW': getCSSVar('--led-yellow') || '#ffff00',
+    'RAINBOW_1': `linear-gradient(45deg, ${getCSSVar('--led-red') || '#ff0000'}, ${getCSSVar('--led-green') || '#00ff00'}, ${getCSSVar('--led-blue') || '#0000ff'})`,
     'RAINBOW_2': 'linear-gradient(45deg, #ff00ff, #ffff00, #00ffff)',
-    'COLOR_MIX': 'linear-gradient(45deg, #ff0000, #00ff00, #0000ff, #ffff00)',
-    'AUTO_COLOR': '#ffffff'
+    'COLOR_MIX': `linear-gradient(45deg, ${getCSSVar('--led-red') || '#ff0000'}, ${getCSSVar('--led-green') || '#00ff00'}, ${getCSSVar('--led-blue') || '#0000ff'}, ${getCSSVar('--led-yellow') || '#ffff00'})`,
+    'AUTO_COLOR': getCSSVar('--text-on-dark') || '#ffffff'
 };
 
 // Font size mapping

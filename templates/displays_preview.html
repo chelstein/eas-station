@@ -356,31 +356,38 @@ function initDisplays() {
         return value || fallback;
     };
     
-    // Clear OLED (true black for OLED hardware simulation)
-    oledCtx.fillStyle = '#000';
+    // Clear OLED (hardware simulation colors from CSS variables)
+    oledCtx.fillStyle = getColor('--display-oled-bg', '#000');
     oledCtx.fillRect(0, 0, 128, 64);
 
-    // Clear VFD (dark green background for VFD hardware simulation)
-    vfdCtx.fillStyle = '#001a00';
+    // Clear VFD (hardware simulation colors from CSS variables)
+    vfdCtx.fillStyle = getColor('--display-vfd-bg', '#001a00');
     vfdCtx.fillRect(0, 0, 140, 32);
 
-    // Draw "No Signal" message on OLED (use theme-aware muted color)
-    oledCtx.fillStyle = getColor('--text-muted', '#888');
+    // Draw "No Signal" message on OLED
+    oledCtx.fillStyle = getColor('--display-muted', '#888');
     oledCtx.font = '8px monospace';
     oledCtx.textAlign = 'center';
     oledCtx.fillText('No Signal', 64, 32);
 
-    // Draw "No Signal" message on VFD (dim green for VFD hardware)
-    vfdCtx.fillStyle = '#004400';
+    // Draw "No Signal" message on VFD
+    vfdCtx.fillStyle = getColor('--display-vfd-dim', '#004400');
     vfdCtx.font = '10px monospace';
     vfdCtx.textAlign = 'center';
     vfdCtx.fillText('No Signal', 70, 18);
 }
 
+// Helper function for getting CSS colors
+function getDisplayColor(varName, fallback) {
+    const rootStyles = getComputedStyle(document.documentElement);
+    const value = rootStyles.getPropertyValue(varName).trim();
+    return value || fallback;
+}
+
 // Render OLED display
 function renderOLED(state) {
-    // Clear canvas (true black for OLED hardware)
-    oledCtx.fillStyle = '#000';
+    // Clear canvas (hardware simulation)
+    oledCtx.fillStyle = getDisplayColor('--display-oled-bg', '#000');
     oledCtx.fillRect(0, 0, 128, 64);
 
     // If we have a preview image from the actual OLED controller, use it
@@ -394,8 +401,8 @@ function renderOLED(state) {
         return;
     }
 
-    // Fallback: render simulated display if no preview available (white text on OLED)
-    oledCtx.fillStyle = '#fff';
+    // Fallback: render simulated display
+    oledCtx.fillStyle = getDisplayColor('--display-oled-text', '#fff');
     oledCtx.font = '8px monospace';
     oledCtx.textAlign = 'left';
 
@@ -424,12 +431,12 @@ function renderOLED(state) {
 
 // Render VFD display
 function renderVFD(state) {
-    // Clear canvas with VFD dark green background (hardware simulation)
-    vfdCtx.fillStyle = '#001a00';
+    // Clear canvas with VFD background (hardware simulation)
+    vfdCtx.fillStyle = getDisplayColor('--display-vfd-bg', '#001a00');
     vfdCtx.fillRect(0, 0, 140, 32);
 
-    // Bright green text for VFD display (hardware characteristic)
-    vfdCtx.fillStyle = '#00ff00';
+    // VFD display text (hardware characteristic bright green)
+    vfdCtx.fillStyle = getDisplayColor('--display-vfd-text', '#00ff00');
     vfdCtx.font = '10px monospace';
     vfdCtx.textAlign = 'center';
 

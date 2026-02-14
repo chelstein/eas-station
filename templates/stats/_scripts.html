@@ -14,17 +14,23 @@ Chart.register(ChartDataLabels);
 // GRADIENT COLOR SYSTEM
 // ============================================
 
+// Helper function to get CSS variables
+function getCSSVar(varName, fallback = '#212529') {
+    const value = getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+    return value || fallback;
+}
+
 const GRADIENT_PALETTES = {
-    primary: ['#667eea', '#764ba2'],
-    success: ['#11998e', '#38ef7d'],
-    danger: ['#eb3349', '#f45c43'],
-    warning: ['#f093fb', '#f5576c'],
-    info: ['#4facfe', '#00f2fe'],
-    purple: ['#a855f7', '#6366f1'],
-    teal: ['#0891b2', '#06b6d4'],
-    orange: ['#f97316', '#fb923c'],
-    pink: ['#ec4899', '#f472b6'],
-    indigo: ['#6366f1', '#818cf8']
+    primary: [getCSSVar('--chart-primary-start', '#667eea'), getCSSVar('--chart-primary-end', '#764ba2')],
+    success: [getCSSVar('--chart-success-start', '#11998e'), getCSSVar('--chart-success-end', '#38ef7d')],
+    danger: [getCSSVar('--chart-danger-start', '#eb3349'), getCSSVar('--chart-danger-end', '#f45c43')],
+    warning: [getCSSVar('--chart-warning-start', '#f093fb'), getCSSVar('--chart-warning-end', '#f5576c')],
+    info: [getCSSVar('--chart-info-start', '#4facfe'), getCSSVar('--chart-info-end', '#00f2fe')],
+    purple: [getCSSVar('--chart-purple-start', '#a855f7'), getCSSVar('--chart-purple-end', '#6366f1')],
+    teal: [getCSSVar('--chart-teal-start', '#0891b2'), getCSSVar('--chart-teal-end', '#06b6d4')],
+    orange: [getCSSVar('--chart-orange-start', '#f97316'), getCSSVar('--chart-orange-end', '#fb923c')],
+    pink: [getCSSVar('--chart-pink-start', '#ec4899'), getCSSVar('--chart-pink-end', '#f472b6')],
+    indigo: [getCSSVar('--chart-indigo-start', '#6366f1'), getCSSVar('--chart-indigo-end', '#818cf8')]
 };
 
 const CHART_GRADIENTS = [
@@ -59,18 +65,39 @@ function createRadialGradient(ctx, colorStops) {
     return gradient;
 }
 
+// Helper function to convert hex color to RGB object
+function hexToRgb(hex) {
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    return result ? {
+        r: parseInt(result[1], 16),
+        g: parseInt(result[2], 16),
+        b: parseInt(result[3], 16)
+    } : { r: 102, g: 126, b: 234 }; // fallback to primary color (#667eea converted to RGB)
+}
+
 // Heatmap color interpolation
 function getHeatmapColor(value, max) {
-    if (max === 0) return 'rgba(102, 126, 234, 0.05)';
+    const primaryStart = getCSSVar('--chart-primary-start', '#667eea');
+    if (max === 0) {
+        // Return primary color with low opacity
+        const rgb = hexToRgb(primaryStart);
+        return `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.05)`;
+    }
     const ratio = Math.min(value / max, 1);
 
-    // Beautiful gradient from light purple to deep purple/pink
+    // Beautiful gradient from primary to danger colors
+    const primaryStartRgb = hexToRgb(getCSSVar('--chart-primary-start', '#667eea'));
+    const infoStartRgb = hexToRgb(getCSSVar('--chart-info-start', '#36d1dc'));
+    const warningStartRgb = hexToRgb(getCSSVar('--chart-warning-start', '#f7971e'));
+    const dangerStartRgb = hexToRgb(getCSSVar('--chart-danger-start', '#eb3349'));
+    const dangerEndRgb = hexToRgb(getCSSVar('--chart-danger-end', '#f45c43'));
+    
     const colors = [
-        { pos: 0, r: 102, g: 126, b: 234, a: 0.1 },
-        { pos: 0.25, r: 129, g: 140, b: 248, a: 0.3 },
-        { pos: 0.5, r: 168, g: 85, b: 247, a: 0.5 },
-        { pos: 0.75, r: 236, g: 72, b: 153, a: 0.75 },
-        { pos: 1, r: 244, g: 63, b: 94, a: 0.95 }
+        { pos: 0, r: primaryStartRgb.r, g: primaryStartRgb.g, b: primaryStartRgb.b, a: 0.1 },
+        { pos: 0.25, r: infoStartRgb.r, g: infoStartRgb.g, b: infoStartRgb.b, a: 0.3 },
+        { pos: 0.5, r: warningStartRgb.r, g: warningStartRgb.g, b: warningStartRgb.b, a: 0.5 },
+        { pos: 0.75, r: dangerStartRgb.r, g: dangerStartRgb.g, b: dangerStartRgb.b, a: 0.75 },
+        { pos: 1, r: dangerEndRgb.r, g: dangerEndRgb.g, b: dangerEndRgb.b, a: 0.95 }
     ];
 
     let lower = colors[0], upper = colors[colors.length - 1];
@@ -97,19 +124,18 @@ function getHeatmapColor(value, max) {
 // THEME MANAGEMENT
 // ============================================
 
-function getCSSVar(varName, fallback = '#212529') {
-    const value = getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
-    return value || fallback;
-}
-
 function getChartThemeColors() {
     const isDark = document.documentElement.getAttribute('data-theme-mode') === 'dark';
+    const gridColor = getCSSVar('--chart-grid', isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)');
+    const textColor = getCSSVar('--chart-text', isDark ? 'rgba(255, 255, 255, 0.7)' : 'rgba(0, 0, 0, 0.7)');
+    
     return {
         text: getCSSVar('--text-color', isDark ? '#ffffff' : '#212529'),
         textMuted: getCSSVar('--text-muted', isDark ? '#a8b4cc' : '#8892a6'),
         surface: getCSSVar('--surface-color', isDark ? '#243046' : '#ffffff'),
         border: getCSSVar('--border-color', isDark ? '#40516c' : '#ced7ea'),
-        gridLines: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)'
+        gridLines: gridColor,
+        chartText: textColor
     };
 }
 
@@ -524,7 +550,7 @@ function createAlertTypesChart(agg) {
                     legend: { position: 'right', labels: { padding: 15, usePointStyle: true } },
                     datalabels: {
                         display: true,
-                        color: '#fff',
+                        color: getCSSVar('--surface-color', '#ffffff'),
                         font: { weight: 'bold', size: 11 },
                         formatter: (val, ctx) => {
                             const total = ctx.dataset.data.reduce((a, b) => a + b, 0);
@@ -547,7 +573,7 @@ function createSeverityChart(agg) {
         'Severe': GRADIENT_PALETTES.orange,
         'Moderate': GRADIENT_PALETTES.warning,
         'Minor': GRADIENT_PALETTES.info,
-        'Unknown': ['#94a3b8', '#64748b']
+        'Unknown': [getCSSVar('--text-muted', '#94a3b8'), getCSSVar('--border-color', '#64748b')]
     };
 
     createOrUpdateChart(id, canvas => {
@@ -604,7 +630,7 @@ function createStatusChart(agg) {
                     legend: { position: 'right', labels: { padding: 12, usePointStyle: true } },
                     datalabels: {
                         display: true,
-                        color: '#fff',
+                        color: getCSSVar('--surface-color', '#ffffff'),
                         font: { weight: 'bold' },
                         formatter: val => val
                     }
@@ -703,9 +729,18 @@ function createHourlyLineChart(agg) {
     createOrUpdateChart(id, canvas => {
         const ctx = canvas.getContext('2d');
         const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
-        gradient.addColorStop(0, 'rgba(236, 72, 153, 0.5)');
-        gradient.addColorStop(0.5, 'rgba(168, 85, 247, 0.3)');
-        gradient.addColorStop(1, 'rgba(99, 102, 241, 0.05)');
+        
+        const dangerStartRgb = hexToRgb(getCSSVar('--chart-danger-start', '#eb3349'));
+        const warningStartRgb = hexToRgb(getCSSVar('--chart-warning-start', '#f7971e'));
+        const primaryStartRgb = hexToRgb(getCSSVar('--chart-primary-start', '#667eea'));
+        
+        gradient.addColorStop(0, `rgba(${dangerStartRgb.r}, ${dangerStartRgb.g}, ${dangerStartRgb.b}, 0.5)`);
+        gradient.addColorStop(0.5, `rgba(${warningStartRgb.r}, ${warningStartRgb.g}, ${warningStartRgb.b}, 0.3)`);
+        gradient.addColorStop(1, `rgba(${primaryStartRgb.r}, ${primaryStartRgb.g}, ${primaryStartRgb.b}, 0.05)`);
+
+        const borderColor = getCSSVar('--chart-danger-start', '#ec4899');
+        const pointColor = getCSSVar('--chart-danger-start', '#ec4899');
+        const surfaceColor = getCSSVar('--surface-color', '#ffffff');
 
         return new Chart(canvas, {
             type: 'line',
@@ -714,13 +749,13 @@ function createHourlyLineChart(agg) {
                 datasets: [{
                     label: 'Alerts by Hour',
                     data: agg.hourlyTotals,
-                    borderColor: '#ec4899',
+                    borderColor: borderColor,
                     backgroundColor: gradient,
                     fill: true,
                     tension: 0.4,
                     pointRadius: 4,
-                    pointBackgroundColor: '#ec4899',
-                    pointBorderColor: '#fff',
+                    pointBackgroundColor: pointColor,
+                    pointBorderColor: surfaceColor,
                     pointBorderWidth: 2,
                     pointHoverRadius: 6,
                     borderWidth: 3
@@ -748,9 +783,17 @@ function createDayOfWeekChart(agg) {
     createOrUpdateChart(id, canvas => {
         const ctx = canvas.getContext('2d');
         const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
-        gradient.addColorStop(0, 'rgba(17, 153, 142, 0.5)');
-        gradient.addColorStop(0.5, 'rgba(56, 239, 125, 0.25)');
-        gradient.addColorStop(1, 'rgba(56, 239, 125, 0.02)');
+        
+        const successStartRgb = hexToRgb(getCSSVar('--chart-success-start', '#11998e'));
+        const successEndRgb = hexToRgb(getCSSVar('--chart-success-end', '#38ef7d'));
+        
+        gradient.addColorStop(0, `rgba(${successStartRgb.r}, ${successStartRgb.g}, ${successStartRgb.b}, 0.5)`);
+        gradient.addColorStop(0.5, `rgba(${successEndRgb.r}, ${successEndRgb.g}, ${successEndRgb.b}, 0.25)`);
+        gradient.addColorStop(1, `rgba(${successEndRgb.r}, ${successEndRgb.g}, ${successEndRgb.b}, 0.02)`);
+
+        const borderColor = getCSSVar('--chart-success-start', '#11998e');
+        const pointColor = getCSSVar('--chart-success-start', '#11998e');
+        const surfaceColor = getCSSVar('--surface-color', '#ffffff');
 
         return new Chart(canvas, {
             type: 'line',
@@ -759,13 +802,13 @@ function createDayOfWeekChart(agg) {
                 datasets: [{
                     label: 'Weekly Pattern',
                     data: agg.dowTotals,
-                    borderColor: '#11998e',
+                    borderColor: borderColor,
                     backgroundColor: gradient,
                     fill: true,
                     tension: 0.4,
                     pointRadius: 6,
-                    pointBackgroundColor: '#11998e',
-                    pointBorderColor: '#fff',
+                    pointBackgroundColor: pointColor,
+                    pointBorderColor: surfaceColor,
                     pointBorderWidth: 3,
                     pointHoverRadius: 8,
                     borderWidth: 3
@@ -793,8 +836,15 @@ function createMonthlyChart(agg) {
     createOrUpdateChart(id, canvas => {
         const ctx = canvas.getContext('2d');
         const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
-        gradient.addColorStop(0, 'rgba(102, 126, 234, 0.4)');
-        gradient.addColorStop(1, 'rgba(102, 126, 234, 0.02)');
+        
+        const primaryStartRgb = hexToRgb(getCSSVar('--chart-primary-start', '#667eea'));
+        
+        gradient.addColorStop(0, `rgba(${primaryStartRgb.r}, ${primaryStartRgb.g}, ${primaryStartRgb.b}, 0.4)`);
+        gradient.addColorStop(1, `rgba(${primaryStartRgb.r}, ${primaryStartRgb.g}, ${primaryStartRgb.b}, 0.02)`);
+
+        const borderColor = getCSSVar('--chart-primary-start', '#667eea');
+        const pointColor = getCSSVar('--chart-primary-start', '#667eea');
+        const surfaceColor = getCSSVar('--surface-color', '#ffffff');
 
         return new Chart(canvas, {
             type: 'line',
@@ -803,13 +853,13 @@ function createMonthlyChart(agg) {
                 datasets: [{
                     label: 'Monthly Alerts',
                     data: agg.monthlyTotals,
-                    borderColor: '#667eea',
+                    borderColor: borderColor,
                     backgroundColor: gradient,
                     fill: true,
                     tension: 0.4,
                     pointRadius: 4,
-                    pointBackgroundColor: '#667eea',
-                    pointBorderColor: '#fff',
+                    pointBackgroundColor: pointColor,
+                    pointBorderColor: surfaceColor,
                     pointBorderWidth: 2
                 }]
             },
@@ -835,8 +885,16 @@ function createRecentActivityChart(agg) {
     createOrUpdateChart(id, canvas => {
         const ctx = canvas.getContext('2d');
         const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
-        gradient.addColorStop(0, 'rgba(17, 153, 142, 0.5)');
-        gradient.addColorStop(1, 'rgba(56, 239, 125, 0.05)');
+        
+        const successStartRgb = hexToRgb(getCSSVar('--chart-success-start', '#11998e'));
+        const successEndRgb = hexToRgb(getCSSVar('--chart-success-end', '#38ef7d'));
+        
+        gradient.addColorStop(0, `rgba(${successStartRgb.r}, ${successStartRgb.g}, ${successStartRgb.b}, 0.5)`);
+        gradient.addColorStop(1, `rgba(${successEndRgb.r}, ${successEndRgb.g}, ${successEndRgb.b}, 0.05)`);
+
+        const borderColor = getCSSVar('--chart-success-start', '#11998e');
+        const pointColor = getCSSVar('--chart-success-start', '#11998e');
+        const surfaceColor = getCSSVar('--surface-color', '#ffffff');
 
         return new Chart(canvas, {
             type: 'line',
@@ -845,13 +903,13 @@ function createRecentActivityChart(agg) {
                 datasets: [{
                     label: 'Daily Alerts',
                     data: series.map(i => i.count),
-                    borderColor: '#11998e',
+                    borderColor: borderColor,
                     backgroundColor: gradient,
                     fill: true,
                     tension: 0.4,
                     pointRadius: 3,
-                    pointBackgroundColor: '#11998e',
-                    pointBorderColor: '#fff',
+                    pointBackgroundColor: pointColor,
+                    pointBorderColor: surfaceColor,
                     pointBorderWidth: 2
                 }]
             },
@@ -877,8 +935,17 @@ function createYearlyTrendChart(agg) {
     createOrUpdateChart(id, canvas => {
         const ctx = canvas.getContext('2d');
         const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
-        gradient.addColorStop(0, 'rgba(168, 85, 247, 0.4)');
-        gradient.addColorStop(1, 'rgba(99, 102, 241, 0.05)');
+        
+        const primaryStartRgb = hexToRgb(getCSSVar('--chart-primary-start', '#667eea'));
+        const primaryEndRgb = hexToRgb(getCSSVar('--chart-primary-end', '#764ba2'));
+        
+        gradient.addColorStop(0, `rgba(${primaryStartRgb.r}, ${primaryStartRgb.g}, ${primaryStartRgb.b}, 0.4)`);
+        gradient.addColorStop(1, `rgba(${primaryEndRgb.r}, ${primaryEndRgb.g}, ${primaryEndRgb.b}, 0.05)`);
+
+        const borderColor = getCSSVar('--chart-primary-start', '#667eea');
+        const pointColor = getCSSVar('--chart-primary-start', '#667eea');
+        const surfaceColor = getCSSVar('--surface-color', '#ffffff');
+        const labelColor = getCSSVar('--chart-primary-start', '#667eea');
 
         return new Chart(canvas, {
             type: 'line',
@@ -887,13 +954,13 @@ function createYearlyTrendChart(agg) {
                 datasets: [{
                     label: 'Annual Alerts',
                     data: data.map(i => i.count),
-                    borderColor: '#a855f7',
+                    borderColor: borderColor,
                     backgroundColor: gradient,
                     fill: true,
                     tension: 0.3,
                     pointRadius: 6,
-                    pointBackgroundColor: '#a855f7',
-                    pointBorderColor: '#fff',
+                    pointBackgroundColor: pointColor,
+                    pointBorderColor: surfaceColor,
                     pointBorderWidth: 2
                 }]
             },
@@ -903,7 +970,7 @@ function createYearlyTrendChart(agg) {
                     datalabels: {
                         display: true,
                         align: 'top',
-                        color: '#a855f7',
+                        color: labelColor,
                         font: { weight: 'bold' }
                     }
                 },
@@ -973,7 +1040,7 @@ function createBoundaryTypesChart() {
                 cutout: '55%',
                 plugins: {
                     legend: { position: 'right', labels: { usePointStyle: true } },
-                    datalabels: { display: true, color: '#fff', font: { weight: 'bold' } }
+                    datalabels: { display: true, color: getCSSVar('--surface-color', '#ffffff'), font: { weight: 'bold' } }
                 }
             }
         });
@@ -996,7 +1063,7 @@ function createReliabilityGauge() {
             data: {
                 datasets: [{
                     data: [rate, 1 - rate],
-                    backgroundColor: [createGradient(ctx, color), 'rgba(0,0,0,0.05)'],
+                    backgroundColor: [createGradient(ctx, color), getCSSVar('--glass-bg', 'rgba(0,0,0,0.05)')],
                     borderWidth: 0,
                     circumference: 180,
                     rotation: 270
