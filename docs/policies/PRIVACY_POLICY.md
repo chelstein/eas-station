@@ -1,6 +1,6 @@
 # 🛡️ Privacy Policy
 
-_Last updated: January 15, 2025_
+_Last updated: February 14, 2026_
 
 EAS Station is a self-hosted project that runs entirely under your control. The maintainers do not operate a hosted service, collect analytics, or receive telemetry from deployments. This policy explains how to handle data while testing the software in lab environments.
 
