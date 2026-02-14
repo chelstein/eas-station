@@ -439,6 +439,135 @@
     </div>
     
     <div class="alert alert-danger d-none" id="refresh-error" role="alert"></div>
+    
+    <!-- Quick Stats Summary -->
+    <div class="row mb-4">
+        <div class="col-md-3 mb-3">
+            <div class="card health-card h-100">
+                <div class="card-body text-center">
+                    <i class="fas fa-microchip fa-2x mb-2" style="color: var(--primary-color);"></i>
+                    <h6 class="text-muted mb-2">CPU Usage</h6>
+                    <h3 class="mb-0" id="quick-cpu-usage">
+                        {% if cpu and cpu.overall_percent is not none %}
+                            {{ "%.1f"|format(cpu.overall_percent) }}%
+                        {% else %}
+                            N/A
+                        {% endif %}
+                    </h3>
+                    {% if cpu and cpu.overall_percent is not none %}
+                        <div class="progress progress-sm mt-2">
+                            <div class="progress-bar" role="progressbar" 
+                                 style="width: {{ cpu.overall_percent }}%; 
+                                        background-color: {% if cpu.overall_percent > 90 %}var(--danger-color){% elif cpu.overall_percent > 70 %}var(--warning-color){% else %}var(--success-color){% endif %};">
+                            </div>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card health-card h-100">
+                <div class="card-body text-center">
+                    <i class="fas fa-memory fa-2x mb-2" style="color: var(--primary-color);"></i>
+                    <h6 class="text-muted mb-2">Memory Usage</h6>
+                    <h3 class="mb-0" id="quick-memory-usage">
+                        {% if memory and memory.percent is not none %}
+                            {{ "%.1f"|format(memory.percent) }}%
+                        {% else %}
+                            N/A
+                        {% endif %}
+                    </h3>
+                    {% if memory and memory.percent is not none %}
+                        <div class="progress progress-sm mt-2">
+                            <div class="progress-bar" role="progressbar" 
+                                 style="width: {{ memory.percent }}%; 
+                                        background-color: {% if memory.percent > 90 %}var(--danger-color){% elif memory.percent > 80 %}var(--warning-color){% else %}var(--success-color){% endif %};">
+                            </div>
+                        </div>
+                        <small class="text-muted">{{ format_bytes(memory.used) }} / {{ format_bytes(memory.total) }}</small>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card health-card h-100">
+                <div class="card-body text-center">
+                    <i class="fas fa-hdd fa-2x mb-2" style="color: var(--primary-color);"></i>
+                    <h6 class="text-muted mb-2">Storage</h6>
+                    <h3 class="mb-0" id="quick-storage-usage">
+                        {% if partitions %}
+                            {% set root_partition = namespace(found=false) %}
+                            {% for partition in partitions %}
+                                {% if partition.mountpoint == '/' and not root_partition.found %}
+                                    {% set root_partition.found = true %}
+                                    {{ "%.1f"|format(partition.percent_used) }}%
+                                {% endif %}
+                            {% endfor %}
+                            {% if not root_partition.found %}
+                                N/A
+                            {% endif %}
+                        {% else %}
+                            N/A
+                        {% endif %}
+                    </h3>
+                    {% if partitions %}
+                        {% for partition in partitions %}
+                            {% if partition.mountpoint == '/' %}
+                                <div class="progress progress-sm mt-2">
+                                    <div class="progress-bar" role="progressbar" 
+                                         style="width: {{ partition.percent_used }}%; 
+                                                background-color: {% if partition.percent_used > 90 %}var(--danger-color){% elif partition.percent_used > 80 %}var(--warning-color){% else %}var(--success-color){% endif %};">
+                                    </div>
+                                </div>
+                                <small class="text-muted">{{ format_bytes(partition.used) }} / {{ format_bytes(partition.total) }}</small>
+                            {% endif %}
+                        {% endfor %}
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card health-card h-100">
+                <div class="card-body text-center">
+                    <i class="fas fa-heartbeat fa-2x mb-2" style="color: var(--primary-color);"></i>
+                    <h6 class="text-muted mb-2">S.M.A.R.T. Status</h6>
+                    {% if smart and smart.available and smart.devices %}
+                        {% set smart_summary = namespace(passed=0, failed=0, warning=0) %}
+                        {% for device in smart.devices %}
+                            {% set status = (device.overall_status or 'unknown')|lower %}
+                            {% if status in ['passed', 'ok', 'healthy', 'success'] %}
+                                {% set smart_summary.passed = smart_summary.passed + 1 %}
+                            {% elif status in ['failed', 'fail', 'critical'] %}
+                                {% set smart_summary.failed = smart_summary.failed + 1 %}
+                            {% else %}
+                                {% set smart_summary.warning = smart_summary.warning + 1 %}
+                            {% endif %}
+                        {% endfor %}
+                        <h3 class="mb-2">
+                            <span class="badge bg-success">{{ smart_summary.passed }}</span>
+                            {% if smart_summary.failed > 0 %}
+                                <span class="badge bg-danger">{{ smart_summary.failed }}</span>
+                            {% endif %}
+                            {% if smart_summary.warning > 0 %}
+                                <span class="badge bg-warning">{{ smart_summary.warning }}</span>
+                            {% endif %}
+                        </h3>
+                        <small class="text-muted">
+                            {{ smart_summary.passed }} OK
+                            {% if smart_summary.failed > 0 %}, {{ smart_summary.failed }} Failed{% endif %}
+                            {% if smart_summary.warning > 0 %}, {{ smart_summary.warning }} Warning{% endif %}
+                        </small>
+                    {% elif smart and not smart.available %}
+                        <h3 class="mb-0 text-muted">Unavailable</h3>
+                        <small class="text-muted">{{ smart.error or 'Not installed' }}</small>
+                    {% else %}
+                        <h3 class="mb-0 text-muted">No Devices</h3>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
     <!-- System Stats Cards -->
         <div class="row mb-4">
             <div class="col-12">
@@ -1211,9 +1340,18 @@
                                         {% set status_label = device.overall_status or 'Unknown' %}
                                     {% endif %}
                                     <div class="smart-device-card status-{{ 'passed' if badge_class == 'success' else 'failed' if badge_class == 'danger' else 'warning' }}">
-                                        <div class="d-flex justify-content-between align-items-center">
+                                        <div class="d-flex justify-content-between align-items-center mb-2">
                                             <div>
-                                                <span class="metric-label">{{ device.path or device.name or 'Unknown device' }}</span>
+                                                <div class="d-flex align-items-center gap-2">
+                                                    <span class="metric-label">{{ device.path or device.name or 'Unknown device' }}</span>
+                                                    {% if device.nvme_version_string or (device.path and 'nvme' in device.path|lower) or (device.name and 'nvme' in device.name|lower) %}
+                                                        <span class="badge bg-info" style="font-size: 0.7em;">NVMe</span>
+                                                    {% elif device.is_rotational %}
+                                                        <span class="badge bg-secondary" style="font-size: 0.7em;">HDD</span>
+                                                    {% elif device.is_rotational is sameas(false) %}
+                                                        <span class="badge bg-secondary" style="font-size: 0.7em;">SSD</span>
+                                                    {% endif %}
+                                                </div>
                                                 {% if device.model %}<div class="hardware-meta">{{ device.model }}</div>{% endif %}
                                                 {% if device.serial %}<div class="hardware-meta">Serial: {{ device.serial }}</div>{% endif %}
                                             </div>
@@ -1272,11 +1410,11 @@
                                         {% endif %}
 
                                         {% set nvme_ns = namespace(lines=[]) %}
-                                        {% set nvme_written = device.get('data_units_written_bytes') %}
-                                        {% set nvme_read = device.get('data_units_read_bytes') %}
-                                        {% set nvme_host_reads = device.get('host_read_commands') %}
-                                        {% set nvme_host_writes = device.get('host_write_commands') %}
-                                        {% set nvme_busy = device.get('controller_busy_time_minutes') %}
+                                        {% set nvme_written = device.data_units_written_bytes %}
+                                        {% set nvme_read = device.data_units_read_bytes %}
+                                        {% set nvme_host_reads = device.host_read_commands %}
+                                        {% set nvme_host_writes = device.host_write_commands %}
+                                        {% set nvme_busy = device.controller_busy_time_minutes %}
                                         {% if nvme_written is not none %}
                                             {% set nvme_ns.lines = nvme_ns.lines + ['Written: ' ~ format_bytes(nvme_written)] %}
                                         {% endif %}
@@ -1541,10 +1679,15 @@
         </div>
     </div>
 
-    <!-- Auto-refresh button -->
-    <button class="btn btn-primary refresh-btn refresh-trigger" type="button" title="Refresh system data">
-        <i class="fas fa-sync-alt"></i>
-    </button>
+    <!-- Floating Action Buttons -->
+    <div class="floating-actions">
+        <button class="btn btn-primary refresh-btn refresh-trigger" type="button" title="Refresh system data">
+            <i class="fas fa-sync-alt"></i>
+        </button>
+        <button class="btn btn-success refresh-btn" type="button" title="Export system data" onclick="exportSystemData()" style="right: 80px;">
+            <i class="fas fa-download"></i>
+        </button>
+    </div>
 </div>
 {% endblock %}
 
@@ -3328,6 +3471,33 @@
                 memoryChart.data.datasets[0].backgroundColor[0] = memColor;
                 memoryChart.update('none');
             }
+        }
+
+        // Export system data to JSON file
+        function exportSystemData() {
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+            const filename = `system-health-${timestamp}.json`;
+            
+            // Use the raw health data passed to the template
+            const healthData = {{ health_data_raw|tojson|safe }};
+            
+            // Create a blob with the JSON data
+            const dataStr = JSON.stringify(healthData, null, 2);
+            const blob = new Blob([dataStr], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            
+            // Create a temporary download link and trigger it
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            
+            // Cleanup
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+            
+            showToast('System data exported successfully', 'success');
         }
 
         document.addEventListener('DOMContentLoaded', () => {
