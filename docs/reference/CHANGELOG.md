@@ -6,6 +6,31 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+### Fixed
+- **Fixed NVMe S.M.A.R.T. data display issue** (v2.51.0)
+  - Changed template variable access from `.get()` method to dot notation for consistency
+  - NVMe I/O statistics (data units read/written, host commands, controller busy time) now display correctly
+  - File: `templates/system_health.html`
+  
+- **Improved S.M.A.R.T. error visibility and diagnostics** (v2.51.0)
+  - Changed status badge from "Unknown" to "Error" (red) when device query fails
+  - Added warning banner when devices have collection errors
+  - Provides troubleshooting guidance for common issues (sudo permissions, device access, driver problems)
+  - Added device type badges (NVMe/SSD/HDD) to table view for quick identification
+  - Error messages now prominently displayed in Health Details column
+  - File: `templates/system_health.html`
+
+### Added
+- **Modernized System Health page with new features** (v2.51.0)
+  - Added quick stats summary cards at top showing CPU, Memory, Storage, and S.M.A.R.T. status at a glance
+  - Added visual progress bars for each metric with color-coded thresholds (green/yellow/red)
+  - Added export system data feature with floating action button to download health snapshot as JSON
+  - Added NVMe device badge to clearly identify NVMe drives in S.M.A.R.T. section
+  - Added device type badges (NVMe/SSD/HDD) for all storage devices in both card and table views
+  - Improved visual hierarchy and organization of health information
+  - Better mobile responsiveness for summary cards
+  - Files: `templates/system_health.html`
+
 ### Changed
 - **Modernized footer design with enhanced visual appeal** (v2.50.0)
   - Multi-column layout with organized sections (Brand, Quick Access, Resources, Legal, Status)
