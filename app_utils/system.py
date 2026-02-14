@@ -1427,7 +1427,8 @@ def _collect_smart_health(logger, devices: List[Dict[str, Any]]) -> Dict[str, An
             "error": None,
         }
 
-        # Detect device type and add appropriate flags for smartctl
+        # Detect device type and add appropriate flags for smartctl.
+        # Returns None only when there's no plausible SMART support (e.g. ramdisk).
         device_type_flag = _detect_device_type(device, path, logger)
 
         # Check if we need sudo (smartctl requires root access to read device data)
@@ -1862,39 +1863,51 @@ def _is_valid_temperature(temp: float) -> bool:
 
 
 def _detect_device_type(device: Dict[str, Any], path: str, logger) -> Optional[str]:
-    """Detect the device type and return appropriate smartctl -d flag value."""
-    
-    # Check device name patterns for NVMe devices
+    """Detect the device type and return appropriate smartctl -d flag value.
+
+    Returns the ``-d`` value for smartctl, or ``"auto"`` to let smartctl
+    probe the device itself.  Never returns ``None`` — every block device
+    gets a chance to report SMART data because some PCIe NVMe drives on
+    Raspberry Pi appear as ``mmcblk`` rather than ``nvme``.
+    """
+
     name = device.get("name") or ""
-    if name.startswith("nvme"):
-        return "nvme"
-    
-    # Check transport type from lsblk
     transport = (device.get("transport") or "").lower()
-    if transport == "nvme":
+
+    # ── Explicit NVMe detection ──
+    if name.startswith("nvme") or transport == "nvme" or "nvme" in path.lower():
         return "nvme"
-    
-    # Check path patterns
-    if "nvme" in path.lower():
+
+    # ── PCIe-attached storage (e.g. Raspberry Pi 5 NVMe hat) ──
+    # On the Pi 5 an NVMe SSD on the PCIe bus can appear as /dev/mmcblk* with
+    # transport "" or "pcie".  Also check the sysfs NVMe path as a hint.
+    if transport in ("pcie", "pci"):
+        # Almost certainly NVMe behind a PCIe bridge
         return "nvme"
-    
-    # For USB devices, try auto detection
+
+    # Check sysfs for NVMe backing — covers mmcblk devices backed by NVMe
+    try:
+        sysfs_link = Path(f"/sys/block/{name}").resolve()
+        sysfs_str = str(sysfs_link).lower()
+        if "nvme" in sysfs_str or "pci" in sysfs_str:
+            if logger:
+                logger.debug(
+                    "Detected PCIe/NVMe backing for %s via sysfs: %s",
+                    path, sysfs_link,
+                )
+            return "nvme"
+    except Exception:
+        pass
+
+    # ── Known transports ──
     if transport in ("usb", "usb-storage"):
         return "auto"
-    
-    # Check if device has SCSI transport
     if transport in ("sata", "scsi", "ata"):
-        # Let smartctl auto-detect SATA/SCSI devices
         return "auto"
-    
-    # For MMC/SD cards
-    if name.startswith("mmcblk"):
-        # Most SD cards don't support SMART
-        if logger:
-            logger.debug("Skipping SMART for MMC/SD device %s", path)
-        return None
-    
-    # Default: let smartctl auto-detect
+
+    # ── Fall-through: let smartctl auto-detect ──
+    # This includes mmcblk devices where we couldn't confirm NVMe backing.
+    # smartctl will gracefully fail for true SD cards.
     return "auto"
 
 
