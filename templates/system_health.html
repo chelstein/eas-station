@@ -448,17 +448,17 @@
                     <i class="fas fa-microchip fa-2x mb-2" style="color: var(--primary-color);"></i>
                     <h6 class="text-muted mb-2">CPU Usage</h6>
                     <h3 class="mb-0" id="quick-cpu-usage">
-                        {% if cpu and cpu.overall_percent is not none %}
-                            {{ "%.1f"|format(cpu.overall_percent) }}%
+                        {% if cpu and cpu.cpu_usage_percent is not none %}
+                            {{ "%.1f"|format(cpu.cpu_usage_percent) }}%
                         {% else %}
                             N/A
                         {% endif %}
                     </h3>
-                    {% if cpu and cpu.overall_percent is not none %}
+                    {% if cpu and cpu.cpu_usage_percent is not none %}
                         <div class="progress progress-sm mt-2">
                             <div class="progress-bar" role="progressbar" 
-                                 style="width: {{ cpu.overall_percent }}%; 
-                                        background-color: {% if cpu.overall_percent > 90 %}var(--danger-color){% elif cpu.overall_percent > 70 %}var(--warning-color){% else %}var(--success-color){% endif %};">
+                                 style="width: {{ cpu.cpu_usage_percent }}%; 
+                                        background-color: {% if cpu.cpu_usage_percent > 90 %}var(--danger-color){% elif cpu.cpu_usage_percent > 70 %}var(--warning-color){% else %}var(--success-color){% endif %};">
                             </div>
                         </div>
                     {% endif %}
@@ -495,12 +495,12 @@
                     <i class="fas fa-hdd fa-2x mb-2" style="color: var(--primary-color);"></i>
                     <h6 class="text-muted mb-2">Storage</h6>
                     <h3 class="mb-0" id="quick-storage-usage">
-                        {% if partitions %}
+                        {% if disk %}
                             {% set root_partition = namespace(found=false) %}
-                            {% for partition in partitions %}
+                            {% for partition in disk %}
                                 {% if partition.mountpoint == '/' and not root_partition.found %}
                                     {% set root_partition.found = true %}
-                                    {{ "%.1f"|format(partition.percent_used) }}%
+                                    {{ "%.1f"|format(partition.percentage) }}%
                                 {% endif %}
                             {% endfor %}
                             {% if not root_partition.found %}
@@ -510,13 +510,13 @@
                             N/A
                         {% endif %}
                     </h3>
-                    {% if partitions %}
-                        {% for partition in partitions %}
+                    {% if disk %}
+                        {% for partition in disk %}
                             {% if partition.mountpoint == '/' %}
                                 <div class="progress progress-sm mt-2">
                                     <div class="progress-bar" role="progressbar" 
-                                         style="width: {{ partition.percent_used }}%; 
-                                                background-color: {% if partition.percent_used > 90 %}var(--danger-color){% elif partition.percent_used > 80 %}var(--warning-color){% else %}var(--success-color){% endif %};">
+                                         style="width: {{ partition.percentage }}%; 
+                                                background-color: {% if partition.percentage > 90 %}var(--danger-color){% elif partition.percentage > 80 %}var(--warning-color){% else %}var(--success-color){% endif %};">
                                     </div>
                                 </div>
                                 <small class="text-muted">{{ format_bytes(partition.used) }} / {{ format_bytes(partition.total) }}</small>
