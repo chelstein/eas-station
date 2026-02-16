@@ -22,6 +22,7 @@ from __future__ import annotations
 """OLED display integration helpers for the Argon Industria SSD1306 module."""
 
 import logging
+import math
 import os
 import threading
 import textwrap
@@ -135,6 +136,128 @@ class OLEDLine:
     spacing: int = 2
     invert: Optional[bool] = None
     allow_empty: bool = False
+
+
+def _draw_icon_antenna(draw: Any, x: int, y: int, size: int, colour: int) -> None:
+    """Draw a radio antenna/tower icon."""
+    cx = x + size // 2
+    # Antenna mast
+    draw.line([(cx, y + 2), (cx, y + size - 1)], fill=colour)
+    # Signal arcs (left)
+    draw.arc([(x, y - 1), (cx + 1, y + 5)], start=120, end=240, fill=colour)
+    # Signal arcs (right)
+    draw.arc([(cx - 1, y - 1), (x + size, y + 5)], start=300, end=60, fill=colour)
+    # Base
+    draw.line([(cx - 2, y + size - 1), (cx + 2, y + size - 1)], fill=colour)
+
+
+def _draw_icon_speaker(draw: Any, x: int, y: int, size: int, colour: int) -> None:
+    """Draw a speaker/audio icon."""
+    # Speaker body
+    h = size - 2
+    mid = y + size // 2
+    draw.polygon([
+        (x + 1, mid - h // 4), (x + size // 3, mid - h // 4),
+        (x + size * 2 // 3, mid - h // 2), (x + size * 2 // 3, mid + h // 2),
+        (x + size // 3, mid + h // 4), (x + 1, mid + h // 4),
+    ], fill=colour)
+    # Sound waves
+    draw.arc(
+        [(x + size * 2 // 3, mid - h // 3), (x + size - 1, mid + h // 3)],
+        start=300, end=60, fill=colour,
+    )
+
+
+def _draw_icon_warning(draw: Any, x: int, y: int, size: int, colour: int) -> None:
+    """Draw a warning triangle icon."""
+    cx = x + size // 2
+    draw.polygon([
+        (cx, y), (x, y + size - 1), (x + size - 1, y + size - 1),
+    ], outline=colour)
+    # Exclamation mark
+    draw.line([(cx, y + 3), (cx, y + size - 4)], fill=colour)
+    draw.point((cx, y + size - 2), fill=colour)
+
+
+def _draw_icon_check(draw: Any, x: int, y: int, size: int, colour: int) -> None:
+    """Draw a checkmark icon."""
+    draw.line([
+        (x + 1, y + size // 2),
+        (x + size // 3, y + size - 2),
+        (x + size - 2, y + 1),
+    ], fill=colour)
+
+
+def _draw_icon_cross(draw: Any, x: int, y: int, size: int, colour: int) -> None:
+    """Draw an X/cross icon."""
+    draw.line([(x + 1, y + 1), (x + size - 2, y + size - 2)], fill=colour)
+    draw.line([(x + size - 2, y + 1), (x + 1, y + size - 2)], fill=colour)
+
+
+def _draw_icon_network(draw: Any, x: int, y: int, size: int, colour: int) -> None:
+    """Draw a network/globe icon."""
+    cx, cy = x + size // 2, y + size // 2
+    r = size // 2 - 1
+    draw.ellipse([(cx - r, cy - r), (cx + r, cy + r)], outline=colour)
+    # Horizontal line
+    draw.line([(cx - r, cy), (cx + r, cy)], fill=colour)
+    # Vertical ellipse
+    draw.ellipse([(cx - r // 2, cy - r), (cx + r // 2, cy + r)], outline=colour)
+
+
+def _draw_icon_shield(draw: Any, x: int, y: int, size: int, colour: int) -> None:
+    """Draw a shield/security icon."""
+    cx = x + size // 2
+    draw.polygon([
+        (cx, y), (x, y + size // 3),
+        (x + 1, y + size * 2 // 3), (cx, y + size - 1),
+        (x + size - 2, y + size * 2 // 3), (x + size - 1, y + size // 3),
+    ], outline=colour)
+
+
+def _draw_icon_wave(draw: Any, x: int, y: int, size: int, colour: int) -> None:
+    """Draw an audio waveform icon."""
+    mid_y = y + size // 2
+    # Draw a mini sine wave
+    for px in range(size):
+        py = mid_y + int(math.sin(px * math.pi * 2 / size) * (size // 3))
+        draw.point((x + px, py), fill=colour)
+
+
+def _draw_icon_clock(draw: Any, x: int, y: int, size: int, colour: int) -> None:
+    """Draw a small clock icon."""
+    cx, cy = x + size // 2, y + size // 2
+    r = size // 2 - 1
+    draw.ellipse([(cx - r, cy - r), (cx + r, cy + r)], outline=colour)
+    # Hour hand (pointing to ~10 o'clock)
+    draw.line([(cx, cy), (cx - r // 2, cy - r // 2)], fill=colour)
+    # Minute hand (pointing to 12)
+    draw.line([(cx, cy), (cx, cy - r + 1)], fill=colour)
+
+
+def _draw_icon_heartbeat(draw: Any, x: int, y: int, size: int, colour: int) -> None:
+    """Draw a heartbeat/pulse icon."""
+    mid_y = y + size // 2
+    # Flat line, spike, flat line
+    draw.line([(x, mid_y), (x + size // 4, mid_y)], fill=colour)
+    draw.line([(x + size // 4, mid_y), (x + size * 3 // 8, y + 1)], fill=colour)
+    draw.line([(x + size * 3 // 8, y + 1), (x + size // 2, y + size - 2)], fill=colour)
+    draw.line([(x + size // 2, y + size - 2), (x + size * 5 // 8, mid_y)], fill=colour)
+    draw.line([(x + size * 5 // 8, mid_y), (x + size - 1, mid_y)], fill=colour)
+
+
+_ICON_RENDERERS = {
+    "antenna": _draw_icon_antenna,
+    "speaker": _draw_icon_speaker,
+    "warning": _draw_icon_warning,
+    "check": _draw_icon_check,
+    "cross": _draw_icon_cross,
+    "network": _draw_icon_network,
+    "shield": _draw_icon_shield,
+    "wave": _draw_icon_wave,
+    "clock": _draw_icon_clock,
+    "heartbeat": _draw_icon_heartbeat,
+}
 
 
 class ArgonOLEDController:
@@ -477,6 +600,202 @@ class ArgonOLEDController:
                         fill=None,
                         outline=draw_colour
                     )
+
+            elif elem_type == 'hline':
+                # Horizontal line (convenient shorthand for dividers)
+                x = max(0, element.get('x', 0))
+                y = max(0, min(self.height - 1, element.get('y', 0)))
+                width = element.get('width', self.width - x)
+                width = max(1, min(width, self.width - x))
+                draw.line([(x, y), (x + width - 1, y)], fill=draw_colour)
+
+            elif elem_type == 'vline':
+                # Vertical line
+                x = max(0, min(self.width - 1, element.get('x', 0)))
+                y = max(0, element.get('y', 0))
+                height = element.get('height', self.height - y)
+                height = max(1, min(height, self.height - y))
+                draw.line([(x, y), (x, y + height - 1)], fill=draw_colour)
+
+            elif elem_type == 'line':
+                # Arbitrary line between two points
+                x1 = max(0, min(self.width - 1, element.get('x1', 0)))
+                y1 = max(0, min(self.height - 1, element.get('y1', 0)))
+                x2 = max(0, min(self.width - 1, element.get('x2', 0)))
+                y2 = max(0, min(self.height - 1, element.get('y2', 0)))
+                line_width = max(1, element.get('width', 1))
+                draw.line([(x1, y1), (x2, y2)], fill=draw_colour, width=line_width)
+
+            elif elem_type == 'circle':
+                # Circle or ellipse outline/filled
+                cx = element.get('x', 32)
+                cy = element.get('y', 32)
+                radius = max(1, element.get('radius', 10))
+                filled = element.get('filled', False)
+                x1 = max(0, cx - radius)
+                y1 = max(0, cy - radius)
+                x2 = min(self.width - 1, cx + radius)
+                y2 = min(self.height - 1, cy + radius)
+                if filled:
+                    draw.ellipse([(x1, y1), (x2, y2)], fill=draw_colour, outline=draw_colour)
+                else:
+                    draw.ellipse([(x1, y1), (x2, y2)], outline=draw_colour)
+
+            elif elem_type == 'arc':
+                # Arc segment of a circle
+                cx = element.get('x', 32)
+                cy = element.get('y', 32)
+                radius = max(1, element.get('radius', 10))
+                start_angle = element.get('start', 0)
+                end_angle = element.get('end', 360)
+                x1 = max(0, cx - radius)
+                y1 = max(0, cy - radius)
+                x2 = min(self.width - 1, cx + radius)
+                y2 = min(self.height - 1, cy + radius)
+                draw.arc([(x1, y1), (x2, y2)], start=start_angle, end=end_angle, fill=draw_colour)
+
+            elif elem_type == 'icon':
+                # Built-in vector icon from the icon library
+                icon_name = str(element.get('name', '')).lower()
+                x = max(0, element.get('x', 0))
+                y = max(0, element.get('y', 0))
+                size = max(6, element.get('size', 10))
+                renderer_fn = _ICON_RENDERERS.get(icon_name)
+                if renderer_fn:
+                    renderer_fn(draw, x, y, size, draw_colour)
+
+            elif elem_type == 'clock':
+                # Analog clock face - reads system time, draws hands
+                cx = element.get('x', 32)
+                cy = element.get('y', 32)
+                radius = max(8, element.get('radius', 28))
+                show_seconds = element.get('show_seconds', False)
+                show_ticks = element.get('show_ticks', True)
+
+                try:
+                    from app_utils.time import local_now
+                    now = local_now()
+                except ImportError:
+                    from datetime import datetime as _dt
+                    now = _dt.now()
+
+                # Clock face outline
+                draw.ellipse(
+                    [(cx - radius, cy - radius), (cx + radius, cy + radius)],
+                    outline=draw_colour,
+                )
+
+                # Hour tick marks
+                if show_ticks:
+                    for h in range(12):
+                        angle = math.radians(h * 30 - 90)
+                        is_major = h % 3 == 0
+                        inner_r = radius - (4 if is_major else 2)
+                        outer_r = radius - 1
+                        tx1 = cx + int(inner_r * math.cos(angle))
+                        ty1 = cy + int(inner_r * math.sin(angle))
+                        tx2 = cx + int(outer_r * math.cos(angle))
+                        ty2 = cy + int(outer_r * math.sin(angle))
+                        draw.line([(tx1, ty1), (tx2, ty2)], fill=draw_colour)
+
+                # Hour hand (short, thick)
+                hour_frac = (now.hour % 12) + now.minute / 60.0
+                hour_angle = math.radians(hour_frac * 30 - 90)
+                hx = cx + int((radius * 0.5) * math.cos(hour_angle))
+                hy = cy + int((radius * 0.5) * math.sin(hour_angle))
+                draw.line([(cx, cy), (hx, hy)], fill=draw_colour, width=2)
+
+                # Minute hand (long, thin)
+                min_frac = now.minute + now.second / 60.0
+                min_angle = math.radians(min_frac * 6 - 90)
+                mx = cx + int((radius * 0.78) * math.cos(min_angle))
+                my = cy + int((radius * 0.78) * math.sin(min_angle))
+                draw.line([(cx, cy), (mx, my)], fill=draw_colour, width=1)
+
+                # Second hand (thinnest, longest)
+                if show_seconds:
+                    sec_angle = math.radians(now.second * 6 - 90)
+                    sx = cx + int((radius * 0.85) * math.cos(sec_angle))
+                    sy = cy + int((radius * 0.85) * math.sin(sec_angle))
+                    draw.line([(cx, cy), (sx, sy)], fill=draw_colour, width=1)
+
+                # Center dot
+                draw.ellipse(
+                    [(cx - 1, cy - 1), (cx + 1, cy + 1)],
+                    fill=draw_colour,
+                )
+
+            elif elem_type == 'gauge':
+                # Semi-circular gauge (speedometer style)
+                cx = element.get('x', 64)
+                cy = element.get('y', 50)
+                radius = max(8, element.get('radius', 24))
+                value = max(0.0, min(100.0, element.get('value', 0.0)))
+
+                # Draw arc background (180 degrees, bottom half open)
+                draw.arc(
+                    [(cx - radius, cy - radius), (cx + radius, cy + radius)],
+                    start=180, end=360, fill=draw_colour,
+                )
+
+                # Draw tick marks along the arc
+                for t in range(0, 11):
+                    tick_angle = math.radians(180 + t * 18)  # 180..360
+                    inner_r = radius - 3
+                    outer_r = radius - 1
+                    tx1 = cx + int(inner_r * math.cos(tick_angle))
+                    ty1 = cy + int(inner_r * math.sin(tick_angle))
+                    tx2 = cx + int(outer_r * math.cos(tick_angle))
+                    ty2 = cy + int(outer_r * math.sin(tick_angle))
+                    draw.line([(tx1, ty1), (tx2, ty2)], fill=draw_colour)
+
+                # Needle
+                needle_angle = math.radians(180 + (value / 100.0) * 180)
+                nx = cx + int((radius * 0.7) * math.cos(needle_angle))
+                ny = cy + int((radius * 0.7) * math.sin(needle_angle))
+                draw.line([(cx, cy), (nx, ny)], fill=draw_colour, width=1)
+
+                # Center dot
+                draw.ellipse(
+                    [(cx - 1, cy - 1), (cx + 1, cy + 1)],
+                    fill=draw_colour,
+                )
+
+            elif elem_type == 'dotted_hline':
+                # Dotted horizontal line (every other pixel)
+                x = max(0, element.get('x', 0))
+                y = max(0, min(self.height - 1, element.get('y', 0)))
+                width = element.get('width', self.width - x)
+                width = max(1, min(width, self.width - x))
+                for px in range(0, width, 2):
+                    draw.point((x + px, y), fill=draw_colour)
+
+            elif elem_type == 'pixel_pattern':
+                # Draw a custom pixel pattern from a hex-encoded bitmap
+                # Each byte represents 8 horizontal pixels
+                x = max(0, element.get('x', 0))
+                y = max(0, element.get('y', 0))
+                pattern_width = element.get('pattern_width', 8)
+                hex_data = element.get('data', '')
+                if hex_data:
+                    try:
+                        raw = bytes.fromhex(hex_data)
+                        row = 0
+                        col = 0
+                        for byte_val in raw:
+                            for bit in range(8):
+                                if col + bit < pattern_width:
+                                    if byte_val & (0x80 >> bit):
+                                        px = x + col + bit
+                                        py = y + row
+                                        if 0 <= px < self.width and 0 <= py < self.height:
+                                            draw.point((px, py), fill=draw_colour)
+                            col += 8
+                            if col >= pattern_width:
+                                col = 0
+                                row += 1
+                    except (ValueError, TypeError):
+                        pass
 
         self._last_image = image.copy()
         self.device.display(image)
