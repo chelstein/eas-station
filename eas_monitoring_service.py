@@ -867,8 +867,13 @@ def main():
                     No resampling is performed - audio is passed through at native rate to ensure
                     accurate pitch and playback speed.
                     """
-                    # Source configuration
+                    # Source configuration — prefer metrics.sample_rate which is
+                    # updated asynchronously when the stream's native rate is
+                    # detected by FFmpeg.  config.sample_rate is also updated but
+                    # checking both provides a safety net.
                     source_sample_rate = adapter.config.sample_rate
+                    if hasattr(adapter, 'metrics') and getattr(adapter.metrics, 'sample_rate', 0) > 0:
+                        source_sample_rate = adapter.metrics.sample_rate
                     stream_sample_rate = source_sample_rate  # Use native source rate
                     stream_channels = 1  # Mono saves 50% bandwidth
                     bits_per_sample = 16
