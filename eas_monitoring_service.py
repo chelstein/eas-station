@@ -1000,65 +1000,64 @@ def main():
             @stream_app.route('/api/eas/decoder-stream')
             def stream_eas_decoder():
                 """Stream the actual 16kHz audio being fed to the EAS decoder.
-                
+
                 This endpoint allows users to listen to exactly what the EAS decoder processes,
                 which is critical for debugging detection issues. The audio is resampled to 16kHz
                 for decoder CPU efficiency.
-                
+
                 Returns:
                     Response: Streaming MP3 audio at 16kHz (what the decoder actually sees)
                 """
                 import queue as queue_module
                 import subprocess
                 import os
-                
+
                 if not _eas_monitor:
                     return jsonify({'error': 'EAS monitor not initialized'}), 503
-                
+
+                # Validate all prerequisites BEFORE creating the streaming response.
+                # This ensures proper HTTP error codes instead of empty 200 OK responses.
+                status = _eas_monitor.get_status()
+                if not status or 'monitors' not in status or not status['monitors']:
+                    logger.error("EAS monitor has no active monitors")
+                    return jsonify({'error': 'EAS monitor has no active monitors'}), 503
+
+                monitor_info = next(iter(status['monitors'].values()), None)
+                if not monitor_info or 'source_name' not in monitor_info:
+                    logger.error("No source information in EAS monitor status")
+                    return jsonify({'error': 'No source information in EAS monitor status'}), 503
+
+                source_name = monitor_info['source_name']
+
+                if not _audio_controller:
+                    logger.error("Audio controller not initialized")
+                    return jsonify({'error': 'Audio controller not initialized'}), 503
+
+                adapter = _audio_controller.get_source(source_name)
+                if not adapter:
+                    logger.error(f"Audio source '{source_name}' not found")
+                    return jsonify({'error': f"Audio source '{source_name}' not found"}), 503
+
+                # Use the 16kHz EAS broadcast queue - this is the actual audio the decoder processes
+                if not (hasattr(adapter, 'get_eas_broadcast_queue') and callable(getattr(adapter, 'get_eas_broadcast_queue', None))):
+                    logger.error(f"Audio source '{source_name}' does not support EAS broadcast queue")
+                    return jsonify({'error': f"Audio source '{source_name}' does not support EAS broadcast queue"}), 503
+
+                broadcast_queue = adapter.get_eas_broadcast_queue()
+
                 def generate_eas_decoder_mp3():
                     """Generate MP3 stream from EAS decoder's 16kHz audio feed."""
                     stream_sample_rate = 16000  # EAS decoder always uses 16kHz
                     stream_channels = 1
-                    
-                    # Subscribe to the EAS monitor's broadcast queue
-                    # The EAS monitor gets 16kHz resampled audio from ResamplingBroadcastAdapter
+
                     subscriber_id = f"eas-decoder-stream-{threading.current_thread().ident}"
-                    
+                    ffmpeg_process = None
+
                     try:
-                        # Get the audio source that the EAS monitor is watching
-                        status = _eas_monitor.get_status()
-                        if not status or 'monitors' not in status:
-                            logger.error("EAS monitor has no active monitors")
-                            return
-                        
-                        # Get first monitor (for now - could extend to support multiple)
-                        monitor_info = next(iter(status['monitors'].values()), None)
-                        if not monitor_info or 'source_name' not in monitor_info:
-                            logger.error("No source information in EAS monitor status")
-                            return
-                        
-                        source_name = monitor_info['source_name']
-                        
-                        # Get the audio adapter for this source
-                        if not _audio_controller:
-                            logger.error("Audio controller not initialized")
-                            return
-                        
-                        adapter = _audio_controller.get_source(source_name)
-                        if not adapter:
-                            logger.error(f"Audio source '{source_name}' not found")
-                            return
-                        
-                        # Get the broadcast queue from the source
-                        if not (hasattr(adapter, 'get_broadcast_queue') and callable(getattr(adapter, 'get_broadcast_queue', None))):
-                            logger.error(f"Audio source '{source_name}' does not support broadcast queue")
-                            return
-                        
-                        broadcast_queue = adapter.get_broadcast_queue()
                         subscription_queue = broadcast_queue.subscribe(subscriber_id)
-                        
+
                         logger.info(f"EAS decoder stream started (16kHz resampled audio from {source_name})")
-                        
+
                         # Start ffmpeg for MP3 encoding
                         ffmpeg_cmd = [
                             'ffmpeg',
@@ -1071,7 +1070,7 @@ def main():
                             '-f', 'mp3',
                             '-',
                         ]
-                        
+
                         ffmpeg_process = subprocess.Popen(
                             ffmpeg_cmd,
                             stdin=subprocess.PIPE,
@@ -1079,7 +1078,7 @@ def main():
                             stderr=subprocess.PIPE,
                             bufsize=0
                         )
-                        
+
                         # Make stdout non-blocking
                         try:
                             import fcntl
@@ -1088,22 +1087,22 @@ def main():
                             fcntl.fcntl(fd, fcntl.F_SETFL, flags | os.O_NONBLOCK)
                         except ImportError:
                             pass
-                        
+
                         silence_duration = 0.05
                         silence_samples = int(stream_sample_rate * stream_channels * silence_duration)
-                        
+
                         while _running and ffmpeg_process.poll() is None:
                             try:
                                 # Read from subscription queue
                                 audio_chunk = subscription_queue.get(timeout=0.2)
-                                
+
                                 if audio_chunk is None:
                                     silence_chunk = np.zeros(silence_samples, dtype=np.int16)
                                     pcm_data = silence_chunk.tobytes()
                                 else:
                                     if not isinstance(audio_chunk, np.ndarray):
                                         audio_chunk = np.array(audio_chunk, dtype=np.float32)
-                                    
+
                                     # Convert to mono if needed
                                     if audio_chunk.ndim == 2 and stream_channels == 1:
                                         audio_chunk = np.mean(audio_chunk, axis=1)
@@ -1111,10 +1110,10 @@ def main():
                                         pass
                                     else:
                                         audio_chunk = audio_chunk.flatten()
-                                    
+
                                     # Convert to int16 PCM
                                     pcm_data = (np.clip(audio_chunk, -1.0, 1.0) * 32767).astype(np.int16).tobytes()
-                                
+
                                 # Write to ffmpeg
                                 if ffmpeg_process.stdin:
                                     try:
@@ -1122,7 +1121,7 @@ def main():
                                         ffmpeg_process.stdin.flush()
                                     except BrokenPipeError:
                                         break
-                                
+
                                 # Read MP3 output
                                 try:
                                     mp3_chunk = ffmpeg_process.stdout.read(4096)
@@ -1130,13 +1129,13 @@ def main():
                                         yield mp3_chunk
                                 except (BlockingIOError, IOError):
                                     pass
-                                    
+
                             except queue_module.Empty:
                                 pass
                             except Exception as e:
                                 logger.error(f"Error in EAS decoder stream: {e}")
                                 break
-                    
+
                     finally:
                         broadcast_queue.unsubscribe(subscriber_id)
                         if ffmpeg_process:
@@ -1154,7 +1153,7 @@ def main():
                                 except:
                                     pass
                         logger.info("EAS decoder stream ended")
-                
+
                 return Response(
                     stream_with_context(generate_eas_decoder_mp3()),
                     mimetype='audio/mpeg',
