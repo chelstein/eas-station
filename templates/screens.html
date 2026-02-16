@@ -142,18 +142,18 @@
 .status-chip.disabled { background: color-mix(in srgb, var(--danger-color) 18%, var(--surface-color)); color: var(--danger-color); }
 
 .screen-preview {
-    border-radius: 12px;
+    border-radius: 8px;
     padding: 1rem;
     margin: 1.25rem 0 0.5rem;
-    background: var(--dark-color);
+    background: #000;
     font-family: 'JetBrains Mono', 'Courier New', monospace;
     min-height: 110px;
-    border: 1px solid var(--border-color);
+    border: 2px solid #222;
 }
 
-.screen-preview[data-display="led"] { background: var(--bg-primary); color: var(--warning-color); text-shadow: 0 0 12px color-mix(in srgb, var(--warning-color) 60%, transparent); }
-.screen-preview[data-display="oled"] { background: var(--bg-primary); color: var(--text-color); }
-.screen-preview[data-display="vfd"] { background: color-mix(in srgb, var(--success-color) 3%, var(--bg-primary)); color: var(--success-color); border-color: color-mix(in srgb, var(--success-color) 20%, transparent); }
+.screen-preview[data-display="led"] { background: #0a0a0a; color: var(--warning-color); text-shadow: 0 0 12px color-mix(in srgb, var(--warning-color) 60%, transparent); border-color: #222; }
+.screen-preview[data-display="oled"] { background: #000; color: #fff; border-color: #222; }
+.screen-preview[data-display="vfd"] { background: #001200; color: #00ff00; text-shadow: 0 0 8px rgba(0, 255, 0, 0.3); border-color: color-mix(in srgb, var(--success-color) 20%, #111); }
 
 .preview-line {
     display: block;

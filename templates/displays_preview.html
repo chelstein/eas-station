@@ -6,8 +6,9 @@
 <style>
     .display-container {
         background: var(--surface-color);
+        border: 1px solid var(--border-color);
         border-radius: 12px;
-        padding: 20px;
+        padding: 16px;
         margin-bottom: 20px;
         box-shadow: var(--shadow-md);
     }
@@ -53,15 +54,30 @@
     }
 
     .display-canvas-wrapper {
-        background: var(--bg-primary);
-        border: 3px solid var(--border-color);
         border-radius: 8px;
-        padding: 15px;
+        padding: 8px;
         display: flex;
         justify-content: center;
         position: relative;
         width: 100%;
         overflow: hidden;
+        background: #111;
+        border: 2px solid #333;
+    }
+
+    .display-canvas-wrapper.oled-wrapper {
+        background: #000;
+        border-color: #222;
+    }
+
+    .display-canvas-wrapper.vfd-wrapper {
+        background: #001200;
+        border-color: color-mix(in srgb, var(--success-color) 20%, #111);
+    }
+
+    .display-canvas-wrapper.led-wrapper {
+        background: #0a0a0a;
+        border-color: #222;
     }
 
     .display-canvas {
@@ -74,27 +90,21 @@
     }
 
     .display-info {
-        margin-top: 12px;
-        font-size: 0.9rem;
+        margin-top: 10px;
+        font-size: 0.85rem;
         color: var(--text-muted);
-        font-family: 'Courier New', monospace;
+        font-family: 'JetBrains Mono', 'Courier New', monospace;
     }
 
     .oled-canvas {
-        background: var(--bg-primary);
-        border: 2px solid var(--border-color);
         max-width: 512px;
     }
 
     .vfd-canvas {
-        background: color-mix(in srgb, var(--success-color) 5%, var(--bg-primary));
-        border: 2px solid color-mix(in srgb, var(--success-color) 15%, var(--bg-primary));
         max-width: 420px;
     }
 
     .led-canvas {
-        background: var(--bg-primary);
-        border: 2px solid var(--border-color);
     }
 
     .refresh-indicator {
@@ -113,24 +123,20 @@
     }
 
     .display-specs {
-        margin-top: 10px;
-        padding: 10px;
-        background: var(--surface-color);
-        border: 1px solid var(--border-color);
-        border-radius: 6px;
+        margin-top: 12px;
+        padding: 0;
         font-size: 0.85rem;
-        color: var(--text-color);
+        color: var(--text-muted);
     }
 
     .display-specs strong {
-        color: var(--primary-color);
+        color: var(--text-color);
     }
 
     .led-preview {
-        background: var(--bg-primary);
-        padding: 10px;
-        border-radius: 4px;
-        font-family: 'Courier New', monospace;
+        background: transparent;
+        padding: 8px;
+        font-family: 'JetBrains Mono', 'Courier New', monospace;
         line-height: 1.6;
         min-height: 100px;
         width: 100%;
@@ -227,7 +233,7 @@
                     <span class="display-status disabled" id="oled-status">Disabled</span>
                 </div>
 
-                <div class="display-canvas-wrapper">
+                <div class="display-canvas-wrapper oled-wrapper">
                     <canvas id="oled-canvas" class="display-canvas oled-canvas" width="128" height="64"></canvas>
                 </div>
 
@@ -255,7 +261,7 @@
                     <span class="display-status disabled" id="vfd-status">Disabled</span>
                 </div>
 
-                <div class="display-canvas-wrapper">
+                <div class="display-canvas-wrapper vfd-wrapper">
                     <canvas id="vfd-canvas" class="display-canvas vfd-canvas" width="140" height="32"></canvas>
                 </div>
 
@@ -283,7 +289,7 @@
                     <span class="display-status disabled" id="led-status">Disabled</span>
                 </div>
 
-                <div class="display-canvas-wrapper">
+                <div class="display-canvas-wrapper led-wrapper">
                     <div id="led-preview" class="led-preview">
                         <span class="led-line led-color-amber" id="led-line-0">--------------------</span>
                         <span class="led-line led-color-amber" id="led-line-1">  LED SIGN READY    </span>
