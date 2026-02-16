@@ -553,6 +553,34 @@ class IcecastStreamer:
             
         return base
 
+    def _sync_sample_rate(self) -> bool:
+        """Sync sample rate from the audio source's current config.
+
+        StreamSourceAdapter detects the stream's native sample rate
+        asynchronously (via FFmpeg stderr parsing).  If it has updated
+        its ``config.sample_rate`` since this streamer was created, we
+        pick up the new value so the Icecast encoder declares the
+        correct input rate.
+
+        Returns:
+            True if the sample rate was changed.
+        """
+        source_rate = 0
+        if hasattr(self.audio_source, 'config'):
+            source_rate = getattr(self.audio_source.config, 'sample_rate', 0)
+        if source_rate > 0 and source_rate != self.config.sample_rate:
+            logger.warning(
+                "Icecast mount %s: sample rate mismatch detected — "
+                "encoder configured at %d Hz but source is now %d Hz. "
+                "Updating to match source (fixes slow/fast playback).",
+                self.config.mount,
+                self.config.sample_rate,
+                source_rate,
+            )
+            self.config.sample_rate = source_rate
+            return True
+        return False
+
     def _feed_loop(self) -> None:
         """Feed audio to FFmpeg for encoding and streaming."""
         logger.debug("Icecast feed loop started")
@@ -561,11 +589,23 @@ class IcecastStreamer:
         # Use the helper method which handles timeouts and partial buffers gracefully
         from collections import deque
         buffer = self._prebuffer_audio(target_chunks=150)
-        
+
         if buffer is None:
              # If prebuffering failed completely, start with empty buffer but warn
              buffer = deque(maxlen=600)
              logger.warning("Starting Icecast stream with empty buffer due to prebuffer failure")
+
+        # After prebuffering the source has been producing audio for
+        # several seconds, so its native sample rate should now be
+        # detected.  If it differs from what we told the FFmpeg encoder
+        # at startup, restart the encoder with the correct rate.
+        if self._sync_sample_rate():
+            logger.info(
+                "Restarting Icecast encoder for %s after sample-rate update",
+                self.config.mount,
+            )
+            if not self._restart_ffmpeg("sample rate corrected after prebuffer"):
+                time.sleep(1.0)
 
         buffer_low_watermark = 150  # Warn if buffer drops below 7.5 seconds (25% of max)
 
@@ -703,6 +743,10 @@ class IcecastStreamer:
 
         if self._stop_event.is_set():
             return False
+
+        # Pick up any sample-rate changes from the source before
+        # restarting the encoder so the new process uses the correct rate.
+        self._sync_sample_rate()
 
         process = self._ffmpeg_process
         stderr_thread = self._stderr_reader_thread
