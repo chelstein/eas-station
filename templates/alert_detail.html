@@ -927,11 +927,15 @@
                     </div>
 
                     {% if ipaws_data %}
-                    <!-- IPAWS Alert Details -->
+                    <!-- {{ ipaws_data.source_label }} Alert Details -->
                     <div class="card mt-4">
                         <div class="card-header">
                             <h5 class="mb-0">
+                                {% if ipaws_data.is_ipaws %}
                                 <i class="fas fa-satellite-dish"></i> IPAWS Alert Details
+                                {% else %}
+                                <i class="fas fa-cloud-sun"></i> NOAA Alert Details
+                                {% endif %}
                             </h5>
                         </div>
                         <div class="card-body technical-details">
@@ -985,7 +989,7 @@
                             {% endif %}
                             {% if ipaws_data.fetch_endpoint %}
                             <div class="detail-item">
-                                <span class="detail-label">IPAWS Feed</span>
+                                <span class="detail-label">{% if ipaws_data.is_ipaws %}IPAWS Feed{% else %}Alert Feed{% endif %}</span>
                                 <small class="text-break"><code>{{ ipaws_data.fetch_endpoint }}</code></small>
                                 {% if ipaws_data.fetch_endpoint_type %}
                                 <span class="badge bg-dark ms-1">{{ ipaws_data.fetch_endpoint_type }}</span>
@@ -995,8 +999,8 @@
                             <hr>
                             {% endif %}
 
-                            {# ── EAS Parameters ── #}
-                            {% if ipaws_data.eas_org or ipaws_data.eas_station_id %}
+                            {# ── EAS Parameters (IPAWS only) ── #}
+                            {% if ipaws_data.is_ipaws and (ipaws_data.eas_org or ipaws_data.eas_station_id) %}
                             <h6 class="text-muted mb-2">EAS Parameters</h6>
                             {% if ipaws_data.eas_org_decoded %}
                             <div class="detail-item">
@@ -1029,6 +1033,12 @@
                                 {% endfor %}
                             </div>
                             {% endif %}
+                            <hr>
+                            {% endif %}
+
+                            {# ── Geocodes (both IPAWS and NOAA) ── #}
+                            {% if ipaws_data.same_codes_decoded or ipaws_data.same_codes or ipaws_data.extra_geocodes %}
+                            <h6 class="text-muted mb-2">Geocodes</h6>
                             {% if ipaws_data.same_codes_decoded %}
                             <div class="detail-item">
                                 <span class="detail-label">SAME Geocodes</span>
@@ -1059,7 +1069,12 @@
                             </div>
                             {% endfor %}
                             {% endif %}
+                            <hr>
+                            {% endif %}
+
+                            {# ── Additional Parameters (both IPAWS and NOAA) ── #}
                             {% if ipaws_data.extra_parameters %}
+                            <h6 class="text-muted mb-2">{% if ipaws_data.is_noaa %}NWS Parameters{% else %}Additional Parameters{% endif %}</h6>
                             {% for param_name, param_values in ipaws_data.extra_parameters.items() %}
                             <div class="detail-item">
                                 <span class="detail-label">{{ param_name }}</span>
@@ -1068,7 +1083,6 @@
                                 {% endfor %}
                             </div>
                             {% endfor %}
-                            {% endif %}
                             <hr>
                             {% endif %}
 
