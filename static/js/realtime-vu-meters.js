@@ -1,5 +1,9 @@
 const audioAnalyzers = new Map();
 let animationFrameId = null;
+// Throttle VU meter updates to ~15fps (67ms) instead of 60fps to reduce CPU usage.
+// 15fps is more than sufficient for VU meter visual feedback.
+const VU_METER_UPDATE_INTERVAL_MS = 67;
+let lastVUMeterUpdateTime = 0;
 
 function initializeRealtimeVUMeter(audioElement, sourceName) {
     if (!audioElement || !sourceName) {
@@ -135,15 +139,20 @@ function cleanupRealtimeVUMeter(sourceName) {
 }
 
 /**
- * Start the animation loop that updates all VU meters at 60Hz
+ * Start the animation loop that updates all VU meters.
+ * Throttled to ~15fps to reduce CPU usage while maintaining smooth visuals.
  */
 function startVUMeterAnimation() {
-    function animate() {
-        // Update all active VU meters
-        audioAnalyzers.forEach((analyzer, sourceName) => {
-            updateVUMeterForSource(sourceName, analyzer);
-        });
-        
+    function animate(timestamp) {
+        // Throttle updates to VU_METER_UPDATE_INTERVAL_MS (~15fps)
+        if (timestamp - lastVUMeterUpdateTime >= VU_METER_UPDATE_INTERVAL_MS) {
+            lastVUMeterUpdateTime = timestamp;
+            // Update all active VU meters
+            audioAnalyzers.forEach((analyzer, sourceName) => {
+                updateVUMeterForSource(sourceName, analyzer);
+            });
+        }
+
         // Continue animation loop if we have active analyzers
         if (audioAnalyzers.size > 0) {
             animationFrameId = requestAnimationFrame(animate);
@@ -151,7 +160,7 @@ function startVUMeterAnimation() {
             animationFrameId = null;
         }
     }
-    
+
     animationFrameId = requestAnimationFrame(animate);
 }
 
