@@ -164,6 +164,32 @@
         line-height: 1.6;
     }
 
+    .geocode-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+        gap: 2px 12px;
+        margin-top: 4px;
+    }
+
+    .geocode-grid .geocode-entry {
+        display: flex;
+        align-items: baseline;
+        gap: 6px;
+        padding: 1px 0;
+        font-size: 0.85em;
+    }
+
+    .geocode-grid .geocode-entry code {
+        flex-shrink: 0;
+    }
+
+    .geocode-inline {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+        margin-top: 4px;
+    }
+
     .timing-card {
         background: var(--bg-color);
         border: 1px solid var(--border-color);
@@ -453,30 +479,34 @@
                                 {% if ipaws_data and ipaws_data.same_codes_decoded %}
                                 <div class="mt-2">
                                     <small class="text-muted"><i class="fas fa-barcode"></i> SAME Codes:</small>
-                                    {% for entry in ipaws_data.same_codes_decoded %}
-                                    <div class="ms-1">
-                                        <code>{{ entry.code }}</code>
-                                        {% if entry.label %}
-                                        <small class="text-muted">&mdash; {{ entry.label }}</small>
-                                        {% endif %}
+                                    <div class="geocode-grid">
+                                        {% for entry in ipaws_data.same_codes_decoded %}
+                                        <div class="geocode-entry">
+                                            <code>{{ entry.code }}</code>
+                                            {% if entry.label %}<span class="text-muted">{{ entry.label }}</span>{% endif %}
+                                        </div>
+                                        {% endfor %}
                                     </div>
-                                    {% endfor %}
                                 </div>
                                 {% elif ipaws_data and ipaws_data.same_codes %}
                                 <div class="mt-2">
                                     <small class="text-muted"><i class="fas fa-barcode"></i> SAME Codes:</small>
-                                    {% for code in ipaws_data.same_codes %}
-                                    <code class="ms-1">{{ code }}</code>
-                                    {% endfor %}
+                                    <div class="geocode-inline">
+                                        {% for code in ipaws_data.same_codes %}
+                                        <code>{{ code }}</code>
+                                        {% endfor %}
+                                    </div>
                                 </div>
                                 {% endif %}
                                 {% if ipaws_data and ipaws_data.extra_geocodes %}
                                 {% for geo_type, codes in ipaws_data.extra_geocodes.items() %}
                                 <div class="mt-1">
                                     <small class="text-muted"><i class="fas fa-map-pin"></i> {{ geo_type }}:</small>
-                                    {% for code in codes %}
-                                    <code class="ms-1">{{ code }}</code>
-                                    {% endfor %}
+                                    <span class="geocode-inline">
+                                        {% for code in codes %}
+                                        <code>{{ code }}</code>
+                                        {% endfor %}
+                                    </span>
                                 </div>
                                 {% endfor %}
                                 {% endif %}
@@ -1068,30 +1098,34 @@
                             {% if ipaws_data.same_codes_decoded %}
                             <div class="detail-item">
                                 <span class="detail-label">SAME Geocodes</span>
-                                {% for entry in ipaws_data.same_codes_decoded %}
-                                <div>
-                                    <code>{{ entry.code }}</code>
-                                    {% if entry.label %}
-                                    <span class="text-muted">&mdash; {{ entry.label }}</span>
-                                    {% endif %}
+                                <div class="geocode-grid">
+                                    {% for entry in ipaws_data.same_codes_decoded %}
+                                    <div class="geocode-entry">
+                                        <code>{{ entry.code }}</code>
+                                        {% if entry.label %}<span class="text-muted">{{ entry.label }}</span>{% endif %}
+                                    </div>
+                                    {% endfor %}
                                 </div>
-                                {% endfor %}
                             </div>
                             {% elif ipaws_data.same_codes %}
                             <div class="detail-item">
                                 <span class="detail-label">SAME Geocodes</span>
-                                {% for code in ipaws_data.same_codes %}
-                                <code>{{ code }}</code>{% if not loop.last %}, {% endif %}
-                                {% endfor %}
+                                <div class="geocode-inline">
+                                    {% for code in ipaws_data.same_codes %}
+                                    <code>{{ code }}</code>
+                                    {% endfor %}
+                                </div>
                             </div>
                             {% endif %}
                             {% if ipaws_data.extra_geocodes %}
                             {% for geo_type, codes in ipaws_data.extra_geocodes.items() %}
                             <div class="detail-item">
                                 <span class="detail-label">{{ geo_type }} Codes</span>
-                                {% for code in codes %}
-                                <code>{{ code }}</code>{% if not loop.last %}, {% endif %}
-                                {% endfor %}
+                                <span class="geocode-inline">
+                                    {% for code in codes %}
+                                    <code>{{ code }}</code>
+                                    {% endfor %}
+                                </span>
                             </div>
                             {% endfor %}
                             {% endif %}
