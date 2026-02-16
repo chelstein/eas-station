@@ -2416,16 +2416,34 @@ function toggleEASDecoderAudio(button) {
         button.classList.add('btn-warning');
         button.disabled = true;
 
-        // Force reload the stream source so the browser fetches fresh data
-        audio.src = '/api/eas/decoder-stream';
-        audio.load();
-
-        audio.play().then(() => {
+        // Pre-check the stream endpoint to get specific error messages on failure.
+        // Use an AbortController so the check request is cleaned up before the audio element connects.
+        const checkController = new AbortController();
+        fetch('/api/eas/decoder-stream', { signal: checkController.signal }).then(response => {
+            if (!response.ok) {
+                // Server returned an error - try to parse the JSON error message
+                return response.json().then(data => {
+                    throw new Error(data.error || 'Stream unavailable (HTTP ' + response.status + ')');
+                }).catch(jsonErr => {
+                    if (jsonErr.message && !jsonErr.message.includes('JSON')) {
+                        throw jsonErr; // Re-throw the parsed error
+                    }
+                    throw new Error('Stream unavailable (HTTP ' + response.status + ')');
+                });
+            }
+            // Stream is available - abort the check request and let the audio element connect
+            checkController.abort();
+            audio.src = '/api/eas/decoder-stream';
+            audio.load();
+            return audio.play();
+        }).then(() => {
             button.innerHTML = '<i class="fas fa-stop me-1"></i> Stop';
             button.classList.remove('btn-warning');
             button.classList.add('btn-danger');
             button.disabled = false;
         }).catch(err => {
+            // Ignore AbortError from intentional checkController.abort()
+            if (err.name === 'AbortError') return;
             console.error('Failed to play EAS decoder audio:', err);
             // Revert UI and show feedback
             container.classList.add('d-none');
@@ -2433,12 +2451,13 @@ function toggleEASDecoderAudio(button) {
             button.classList.remove('btn-warning');
             button.classList.add('btn-primary');
             button.disabled = false;
-            // Show a brief error toast/alert
+            // Show a brief error toast/alert with specific error details
             const alertDiv = document.createElement('div');
             alertDiv.className = 'alert alert-danger alert-dismissible fade show mt-2';
             alertDiv.setAttribute('role', 'alert');
+            const errorMsg = err.message || 'Unknown error';
             alertDiv.innerHTML = '<i class="fas fa-exclamation-triangle me-1"></i> ' +
-                'Failed to play decoder audio stream. Ensure the EAS monitor is active and try again.' +
+                'Failed to play decoder audio stream: ' + errorMsg +
                 '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>';
             container.parentElement.appendChild(alertDiv);
             setTimeout(() => alertDiv.remove(), 8000);
