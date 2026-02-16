@@ -172,7 +172,7 @@
     }
 
     .timing-item {
-        margin-bottom: 12px;
+        margin-bottom: 8px;
     }
 
     .timing-label {
@@ -194,7 +194,7 @@
     }
 
     .detail-item {
-        margin-bottom: 10px;
+        margin-bottom: 8px;
     }
 
     .detail-label {
@@ -383,47 +383,47 @@
                             </div>
                             {% endif %}
 
-                            <div class="row g-3">
-                                <div class="col-md-6">
-                                    <h6 class="text-muted mb-1">Event Type</h6>
-                                    <span class="fs-5 fw-bold text-primary">{{ alert.event }}</span>
+                            <div class="row g-2">
+                                <div class="col-md-4 col-sm-6">
+                                    <h6 class="text-muted mb-1 small">Event Type</h6>
+                                    <span class="fw-bold text-primary">{{ alert.event }}</span>
                                 </div>
-                                <div class="col-md-6">
-                                    <h6 class="text-muted mb-1">Status</h6>
-                                    <span class="badge bg-{% if alert.status == 'Actual' %}success{% else %}secondary{% endif %} fs-6">
+                                <div class="col-md-4 col-sm-6">
+                                    <h6 class="text-muted mb-1 small">Status</h6>
+                                    <span class="badge bg-{% if alert.status == 'Actual' %}success{% else %}secondary{% endif %}">
                                         {{ alert.status }}
                                         {% if alert.expires | is_expired %}
                                         EXPIRED
                                         {% endif %}
                                     </span>
                                 </div>
-                                <div class="col-md-6">
-                                    <h6 class="text-muted mb-1">Severity</h6>
+                                <div class="col-md-4 col-sm-6">
+                                    <h6 class="text-muted mb-1 small">Severity</h6>
                                     {% if alert.severity %}
-                                    <span class="badge bg-{% if alert.severity == 'Extreme' %}danger{% elif alert.severity == 'Severe' %}warning{% elif alert.severity == 'Moderate' %}info{% else %}secondary{% endif %} fs-6">{{ alert.severity }}</span>
+                                    <span class="badge bg-{% if alert.severity == 'Extreme' %}danger{% elif alert.severity == 'Severe' %}warning{% elif alert.severity == 'Moderate' %}info{% else %}secondary{% endif %}">{{ alert.severity }}</span>
                                     {% else %}
                                     <span class="text-muted">Not specified</span>
                                     {% endif %}
                                 </div>
-                                <div class="col-md-6">
-                                    <h6 class="text-muted mb-1">Urgency</h6>
+                                <div class="col-md-4 col-sm-6">
+                                    <h6 class="text-muted mb-1 small">Urgency</h6>
                                     {% if alert.urgency %}
-                                    <span class="badge bg-warning fs-6">{{ alert.urgency }}</span>
+                                    <span class="badge bg-warning">{{ alert.urgency }}</span>
                                     {% else %}
                                     <span class="text-muted">Not specified</span>
                                     {% endif %}
                                 </div>
-                                <div class="col-md-6">
-                                    <h6 class="text-muted mb-1">Certainty</h6>
+                                <div class="col-md-4 col-sm-6">
+                                    <h6 class="text-muted mb-1 small">Certainty</h6>
                                     {% if alert.certainty %}
-                                    <span class="badge bg-success fs-6">{{ alert.certainty }}</span>
+                                    <span class="badge bg-success">{{ alert.certainty }}</span>
                                     {% else %}
                                     <span class="text-muted">Not specified</span>
                                     {% endif %}
                                 </div>
-                                <div class="col-md-6">
-                                    <h6 class="text-muted mb-1">Message Type</h6>
-                                    <span class="badge bg-dark fs-6">{{ alert.message_type }}</span>
+                                <div class="col-md-4 col-sm-6">
+                                    <h6 class="text-muted mb-1 small">Message Type</h6>
+                                    <span class="badge bg-dark">{{ alert.message_type }}</span>
                                 </div>
                             </div>
 
@@ -532,6 +532,130 @@
                                         Specific alert area shown
                                     {% endif %}
                                 </small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Timing & Technical Details (side by side) -->
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-6">
+                            <div class="card h-100">
+                                <div class="card-header">
+                                    <h5 class="mb-0">
+                                        <i class="fas fa-clock"></i> Timing
+                                        <small class="text-muted">({{ location_settings.county_name }})</small>
+                                    </h5>
+                                </div>
+                                <div class="card-body timing-card">
+                                    <div class="row g-2">
+                                        <div class="col-sm-6">
+                                            <div class="timing-item">
+                                                <span class="timing-label">Alert Sent:</span>
+                                                <div class="timing-value">
+                                                    {% if alert.sent %}
+                                                    {{ alert.sent | format_local_datetime(false) }}<br>
+                                                    <small class="text-muted">{{ alert.sent | format_local_time }}</small>
+                                                    {% else %}
+                                                    <span class="text-muted">Unknown</span>
+                                                    {% endif %}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-6">
+                                            <div class="timing-item">
+                                                <span class="timing-label">Expires:</span>
+                                                <div class="timing-value">
+                                                    {% if alert.expires %}
+                                                    {{ alert.expires | format_local_datetime(false) }}<br>
+                                                    <small class="text-muted">{{ alert.expires | format_local_time }}</small>
+                                                    {% else %}
+                                                    <span class="text-muted">No expiration</span>
+                                                    {% endif %}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-6">
+                                            <div class="timing-item">
+                                                <span class="timing-label">Added:</span>
+                                                <div class="timing-value">
+                                                    {{ alert.created_at | format_local_datetime(false) if alert.created_at else 'Unknown' }}<br>
+                                                    <small class="text-muted">{{ alert.created_at | format_local_time if alert.created_at else 'Unknown timezone' }}</small>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-6">
+                                            <div class="timing-item">
+                                                <span class="timing-label">Updated:</span>
+                                                <div class="timing-value">
+                                                    {{ alert.updated_at | format_local_datetime(false) if alert.updated_at else 'Unknown' }}<br>
+                                                    <small class="text-muted">{{ alert.updated_at | format_local_time if alert.updated_at else 'Unknown timezone' }}</small>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <hr>
+                                    <small class="text-muted">
+                                        <i class="fas fa-info-circle"></i> Times in {{ location_settings.timezone }}. Auto-adjusts for daylight saving.
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card h-100">
+                                <div class="card-header">
+                                    <h5 class="mb-0">
+                                        <i class="fas fa-cog"></i> Technical Details
+                                    </h5>
+                                </div>
+                                <div class="card-body technical-details">
+                                    <div class="row g-2">
+                                        <div class="col-sm-6">
+                                            <div class="detail-item">
+                                                <span class="detail-label">Alert Identifier</span><br>
+                                                <code class="small">{{ alert.identifier }}</code>
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-6">
+                                            <div class="detail-item">
+                                                <span class="detail-label">Database ID</span><br>
+                                                #{{ alert.id }}
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-6">
+                                            <div class="detail-item">
+                                                <span class="detail-label">Scope</span>
+                                                {{ alert.scope }}
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-6">
+                                            <div class="detail-item">
+                                                <span class="detail-label">Category</span>
+                                                {{ alert.category or 'Not specified' }}
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-6">
+                                            <div class="detail-item">
+                                                <span class="detail-label">Coverage Type</span>
+                                                {% if coverage_data and coverage_data.get('county') %}
+                                                    {% set county_coverage = coverage_data['county']['coverage_percentage'] %}
+                                                    {% if county_coverage >= 95 %}County-Wide{% elif county_coverage >= 75 %}Major Coverage{% else %}Localized{% endif %}
+                                                {% else %}Coverage Calculating...{% endif %}
+                                            </div>
+                                        </div>
+                                        {% if coverage_data and coverage_data.get('county') %}
+                                        <div class="col-sm-6">
+                                            <div class="detail-item">
+                                                <span class="detail-label">Exact Coverage</span>
+                                                {{ coverage_data['county']['coverage_percentage'] }}% of {{ location_settings.county_name }}
+                                            </div>
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                    <hr>
+                                    <small class="text-muted">
+                                        <i class="fas fa-info-circle"></i> Source times converted from NWS format to local Eastern Time.
+                                    </small>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -827,104 +951,6 @@
                         </div>
                         {% endif %}
                     {% endif %}
-
-                    <!-- Timing Information -->
-                    <div class="card mb-4">
-                        <div class="card-header">
-                            <h5 class="mb-0">
-                                <i class="fas fa-clock"></i> Timing Information
-                                <small class="text-muted">({{ location_settings.county_name }} Time)</small>
-                            </h5>
-                        </div>
-                        <div class="card-body timing-card">
-                            <div class="timing-item">
-                                <span class="timing-label">Alert Sent:</span>
-                                <div class="timing-value">
-                                    {% if alert.sent %}
-                                    {{ alert.sent | format_local_datetime(false) }}<br>
-                                    <small class="text-muted">{{ alert.sent | format_local_time }}</small>
-                                    {% else %}
-                                    <span class="text-muted">Unknown</span>
-                                    {% endif %}
-                                </div>
-                            </div>
-                            <div class="timing-item">
-                                <span class="timing-label">Expires:</span>
-                                <div class="timing-value">
-                                    {% if alert.expires %}
-                                    {{ alert.expires | format_local_datetime(false) }}<br>
-                                    <small class="text-muted">{{ alert.expires | format_local_time }}</small>
-                                    {% else %}
-                                    <span class="text-muted">No expiration</span>
-                                    {% endif %}
-                                </div>
-                            </div>
-                            <div class="timing-item">
-                                <span class="timing-label">Added to System:</span>
-                                <div class="timing-value">
-                                    {{ alert.created_at | format_local_datetime(false) if alert.created_at else 'Unknown' }}<br>
-                                    <small class="text-muted">{{ alert.created_at | format_local_time if alert.created_at else 'Unknown timezone' }}</small>
-                                </div>
-                            </div>
-                            <div class="timing-item">
-                                <span class="timing-label">Last Updated:</span>
-                                <div class="timing-value">
-                                    {{ alert.updated_at | format_local_datetime(false) if alert.updated_at else 'Unknown' }}<br>
-                                    <small class="text-muted">{{ alert.updated_at | format_local_time if alert.updated_at else 'Unknown timezone' }}</small>
-                                </div>
-                            </div>
-                            <hr>
-                            <small class="text-muted">
-                                <i class="fas fa-info-circle"></i> All times shown in {{ location_settings.timezone }} local time with UTC reference.
-                                Times automatically adjust for daylight saving changes.
-                            </small>
-                        </div>
-                    </div>
-
-                    <!-- Technical Details -->
-                    <div class="card">
-                        <div class="card-header">
-                            <h5 class="mb-0">
-                                <i class="fas fa-cog"></i> Technical Details
-                            </h5>
-                        </div>
-                        <div class="card-body technical-details">
-                            <div class="detail-item">
-                                <span class="detail-label">Alert Identifier</span>
-                                <code>{{ alert.identifier }}</code>
-                            </div>
-                            <div class="detail-item">
-                                <span class="detail-label">Scope</span>
-                                {{ alert.scope }}
-                            </div>
-                            <div class="detail-item">
-                                <span class="detail-label">Category</span>
-                                {{ alert.category or 'Not specified' }}
-                            </div>
-                            <div class="detail-item">
-                                <span class="detail-label">Database ID</span>
-                                #{{ alert.id }}
-                            </div>
-                            <div class="detail-item">
-                                <span class="detail-label">Coverage Type</span>
-                                {% if coverage_data and coverage_data.get('county') %}
-                                    {% set county_coverage = coverage_data['county']['coverage_percentage'] %}
-                                    {% if county_coverage >= 95 %}County-Wide{% elif county_coverage >= 75 %}Major Coverage{% else %}Localized{% endif %}
-                                {% else %}Coverage Calculating...{% endif %}
-                            </div>
-                            {% if coverage_data and coverage_data.get('county') %}
-                            <div class="detail-item">
-                                <span class="detail-label">Exact Coverage</span>
-                                {{ coverage_data['county']['coverage_percentage'] }}% of {{ location_settings.county_name }}
-                            </div>
-                            {% endif %}
-                            <hr>
-                            <div class="detail-item">
-                                <span class="detail-label">Timezone Processing</span>
-                                <small class="text-muted">Source times converted from NWS format (UTC/EST/EDT) to local Eastern Time for display.</small>
-                            </div>
-                        </div>
-                    </div>
 
                     {% if ipaws_data %}
                     <!-- {{ ipaws_data.source_label }} Alert Details -->
