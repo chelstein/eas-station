@@ -83,6 +83,7 @@ PREVIEW_SAMPLE_DATA: Dict[str, Any] = {
                 "properties": {
                     "event": "Flood Warning",
                     "severity": "Moderate",
+                    "urgency": "Expected",
                     "area_desc": "Putnam County, OH",
                     "expires_iso": "2025-11-19T08:15:00Z",
                 }
@@ -100,6 +101,7 @@ PREVIEW_SAMPLE_DATA: Dict[str, Any] = {
     ],
     "audio": {
         "total_sources": 2,
+        "active_source": "WNCI",
         "left_bar_width": 118,
         "right_bar_width": 112,
         "peak_level_db": -3.2,
@@ -149,6 +151,50 @@ PREVIEW_SAMPLE_DATA: Dict[str, Any] = {
                 "mtu": 1500,
             },
         },
+    },
+    "eas_monitor": {
+        "running": True,
+        "audio_flowing": True,
+        "health_percentage": 92.0,
+        "decoder_synced": True,
+        "decoder_in_message": False,
+        "alerts_detected": 3,
+        "active_sources": 2,
+        "monitor_count": 2,
+        "scans_performed": 1247,
+        "samples_per_second": 22050.0,
+        "runtime_seconds": 86400.0,
+    },
+    "radio": {
+        "receivers": [
+            {
+                "id": 1,
+                "identifier": "WXJ-93",
+                "display_name": "WXJ-93 Airspy",
+                "driver": "airspy",
+                "frequency_hz": 162425000,
+                "enabled": True,
+                "latest_status": {
+                    "locked": True,
+                    "signal_strength": -43.0,
+                    "last_error": None,
+                },
+            },
+            {
+                "id": 2,
+                "identifier": "WNCI-FM",
+                "display_name": "WNCI RTL-SDR",
+                "driver": "rtl_sdr",
+                "frequency_hz": 97900000,
+                "enabled": True,
+                "latest_status": {
+                    "locked": True,
+                    "signal_strength": -51.2,
+                    "last_error": None,
+                },
+            },
+        ],
+        "count": 2,
     },
 }
 
@@ -671,6 +717,97 @@ class ScreenRenderer:
                     'width': element.get('width', 10),
                     'height': element.get('height', 10),
                     'filled': element.get('filled', False),
+                })
+
+            elif elem_type in ('hline', 'vline', 'dotted_hline'):
+                # Line shorthand elements - pass through
+                rendered_elements.append({
+                    'type': elem_type,
+                    'x': element.get('x', 0),
+                    'y': element.get('y', 0),
+                    'width': element.get('width'),
+                    'height': element.get('height'),
+                })
+
+            elif elem_type == 'line':
+                # Arbitrary line between two points
+                rendered_elements.append({
+                    'type': 'line',
+                    'x1': element.get('x1', 0),
+                    'y1': element.get('y1', 0),
+                    'x2': element.get('x2', 0),
+                    'y2': element.get('y2', 0),
+                    'width': element.get('width', 1),
+                })
+
+            elif elem_type == 'circle':
+                # Circle / ellipse
+                rendered_elements.append({
+                    'type': 'circle',
+                    'x': element.get('x', 32),
+                    'y': element.get('y', 32),
+                    'radius': element.get('radius', 10),
+                    'filled': element.get('filled', False),
+                })
+
+            elif elem_type == 'arc':
+                # Arc segment
+                rendered_elements.append({
+                    'type': 'arc',
+                    'x': element.get('x', 32),
+                    'y': element.get('y', 32),
+                    'radius': element.get('radius', 10),
+                    'start': element.get('start', 0),
+                    'end': element.get('end', 360),
+                })
+
+            elif elem_type == 'icon':
+                # Built-in vector icon
+                rendered_elements.append({
+                    'type': 'icon',
+                    'name': element.get('name', ''),
+                    'x': element.get('x', 0),
+                    'y': element.get('y', 0),
+                    'size': element.get('size', 10),
+                })
+
+            elif elem_type == 'clock':
+                # Analog clock face - self-contained, reads system time
+                rendered_elements.append({
+                    'type': 'clock',
+                    'x': element.get('x', 32),
+                    'y': element.get('y', 32),
+                    'radius': element.get('radius', 28),
+                    'show_seconds': element.get('show_seconds', False),
+                    'show_ticks': element.get('show_ticks', True),
+                })
+
+            elif elem_type == 'gauge':
+                # Semi-circular gauge (speedometer style)
+                value_template = element.get('value', '0')
+                value_str = self.substitute_variables(value_template, api_data)
+                try:
+                    value = float(value_str)
+                except (ValueError, TypeError):
+                    value = 0.0
+                value = max(0.0, min(100.0, value))
+
+                rendered_elements.append({
+                    'type': 'gauge',
+                    'x': element.get('x', 64),
+                    'y': element.get('y', 50),
+                    'radius': element.get('radius', 24),
+                    'value': value,
+                })
+
+            elif elem_type == 'pixel_pattern':
+                # Custom bitmap pattern
+                rendered_elements.append({
+                    'type': 'pixel_pattern',
+                    'x': element.get('x', 0),
+                    'y': element.get('y', 0),
+                    'pattern_width': element.get('pattern_width', 8),
+                    'data': element.get('data', ''),
                 })
 
         return {
