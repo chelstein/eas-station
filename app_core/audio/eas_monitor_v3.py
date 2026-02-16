@@ -285,7 +285,7 @@ class SourceWatcher:
             broadcast_queue=eas_broadcast_queue,
             subscriber_id=subscriber_id,
             sample_rate=16000,
-            read_timeout=1.0
+            read_timeout=0.1  # Short timeout so one stalled source doesn't block others
         )
         
         logger.info(
@@ -608,15 +608,15 @@ class UnifiedEASMonitorService:
                 # Clear source context
                 self._current_source_context = None
                 
-                # Sleep briefly to prevent CPU spinning, but minimize delay when audio flows
-                # CRITICAL: EAS monitor cannot drop packets - keep sleep minimal
+                # Sleep to prevent CPU spinning.  Audio arrives in ~100ms chunks
+                # (1600 samples at 16kHz), so polling faster than 20Hz is wasteful.
+                # The blocking queue read inside read_audio() already rate-limits
+                # when no data is buffered, so this sleep only matters when the
+                # queue has a backlog to drain.
                 if any_audio_processed:
-                    # Audio flowing: minimal sleep to prevent CPU spin but stay responsive
-                    # At 48kHz with 4096 sample chunks = 85ms/chunk, we need to read faster than this
-                    time.sleep(0.001)  # 1ms - allows ~1000 reads/sec, far exceeding audio rate
+                    time.sleep(0.05)  # 50ms — up to 20 reads/sec, 2× the chunk arrival rate
                 else:
-                    # No audio: longer sleep to save CPU when idle
-                    time.sleep(0.01)  # 10ms when no audio available
+                    time.sleep(0.05)  # 50ms when idle — no urgency, save CPU
             
             except Exception as e:
                 logger.error(f"Error in unified monitor loop: {e}", exc_info=True)

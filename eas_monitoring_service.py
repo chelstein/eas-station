@@ -929,7 +929,7 @@ def main():
                                     # Yield silence to keep stream alive
                                     silence_chunk = np.zeros(silence_samples, dtype=np.int16)
                                     yield silence_chunk.tobytes()
-                                    time.sleep(0.01)
+                                    time.sleep(silence_duration)  # Sleep for the silence duration (~50ms)
                                     continue
 
                                 if not isinstance(audio_chunk, np.ndarray):
@@ -951,15 +951,15 @@ def main():
                                 yield pcm_data.tobytes()
 
                             except queue_module.Empty:
-                                # No audio available, yield silence
+                                # No audio available — the queue.get timeout (200ms) already
+                                # throttled this path, just yield silence and continue.
                                 silence_chunk = np.zeros(silence_samples, dtype=np.int16)
                                 yield silence_chunk.tobytes()
-                                time.sleep(0.01)
                             except Exception as e:
                                 logger.debug(f"Error in stream generator: {e}")
                                 silence_chunk = np.zeros(silence_samples, dtype=np.int16)
                                 yield silence_chunk.tobytes()
-                                time.sleep(0.01)
+                                time.sleep(0.05)
                     finally:
                         # Unsubscribe when client disconnects
                         broadcast_queue.unsubscribe(subscriber_id)
