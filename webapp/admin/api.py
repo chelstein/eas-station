@@ -315,12 +315,12 @@ def get_alert_geometry(alert_id):
         api_bp.logger.error("Error getting alert geometry: %s", exc, exc_info=True)
         return jsonify({'error': 'Failed to retrieve alert geometry'}), 500
 
-def _extract_ipaws_display_data(alert) -> Optional[Dict[str, Any]]:
-    """Extract IPAWS-specific data from an alert for template rendering.
+def _extract_alert_display_data(alert) -> Optional[Dict[str, Any]]:
+    """Extract enriched display data from an alert for template rendering.
 
-    Parses the full set of IPAWS alert properties including sender details,
-    EAS parameters, SAME geocodes, resources, digital signature certificate
-    information, and audio references.
+    Works for both IPAWS and NOAA alerts.  Parses sender details,
+    parameters, geocodes, resources, and (for IPAWS) digital signature
+    certificate information and audio references.
     """
     raw_json = alert.raw_json
     if not isinstance(raw_json, dict):
@@ -328,10 +328,19 @@ def _extract_ipaws_display_data(alert) -> Optional[Dict[str, Any]]:
 
     props = raw_json.get('properties', {})
     source = (props.get('source') or getattr(alert, 'source', '') or '').upper()
-    if source != 'IPAWS' and not raw_json.get('raw_xml'):
+
+    is_ipaws = source == 'IPAWS' or bool(raw_json.get('raw_xml'))
+    is_noaa = source == 'NOAA'
+
+    # Must be a recognised source to extract extra data
+    if not is_ipaws and not is_noaa:
         return None
 
-    data: Dict[str, Any] = {'is_ipaws': True}
+    data: Dict[str, Any] = {
+        'is_ipaws': is_ipaws,
+        'is_noaa': is_noaa,
+        'source_label': 'IPAWS' if is_ipaws else 'NOAA',
+    }
 
     # --- Sender / origin information ---
     sender = props.get('sender', '')
@@ -674,8 +683,8 @@ def alert_detail(alert_id):
                         alert.identifier, exc,
                     )
 
-        # Extract IPAWS enrichment data for display
-        ipaws_data = _extract_ipaws_display_data(alert)
+        # Extract enriched display data (works for both IPAWS and NOAA)
+        ipaws_data = _extract_alert_display_data(alert)
 
         return render_template(
             'alert_detail.html',
