@@ -1532,6 +1532,13 @@ class StreamSourceAdapter(AudioSourceAdapter):
             else:
                 updates['song'] = stream_title
 
+            # Log metadata change at INFO level so stream activity is visible in logs
+            logger.info(
+                "%s: now playing — %s",
+                self.config.name,
+                display_song or stream_title,
+            )
+
             now_playing: Dict[str, Any] = {'raw': stream_title}
             if title:
                 now_playing['title'] = title
