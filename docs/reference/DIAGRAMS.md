@@ -136,6 +136,54 @@ This page provides an index of all professional diagrams and flowcharts availabl
 
 ---
 
+#### 6. Security &amp; Authentication Architecture
+
+**Multi-layer security pipeline** from incoming HTTP request through IP filtering, rate limiting, password authentication, MFA (TOTP), session management, role-based access control, and audit logging.
+
+![Security &amp; Authentication Architecture](../assets/diagrams/security-auth-architecture.svg)
+
+**Key Features:**
+- **Layer 1 — IP Filter:** Allowlist/blocklist with CIDR support; auto-ban for flood (&gt;10 req/min, 1h) and brute force (≥5 fails, 24h)
+- **Layer 2 — Rate Limiter:** 5 failed attempts per 5-minute window; 15-minute lockout; thread-safe in-memory tracking
+- **Layer 3 — Password Auth:** Werkzeug bcrypt hash verification; failures increment rate-limiter count
+- **Layer 4 — MFA (TOTP):** Optional pyotp 6-digit codes; 10 one-time backup codes; 5-minute pending session timeout; reuse prevention
+- **RBAC:** 5 roles (admin, operator, local_authority, viewer, demo); 18 permissions in resource.action format; `@require_permission` decorator per route
+- **Audit Logger:** Comprehensive event logging to `audit_logs` table with IP, user agent, success/fail, 90-day retention
+
+**Use Cases:**
+- Understanding the security model
+- Planning user roles and permissions
+- Auditing access patterns
+- Onboarding new administrators
+
+**File:** [`../assets/diagrams/security-auth-architecture.svg`](../assets/diagrams/security-auth-architecture.svg)
+
+---
+
+#### 7. Analytics Pipeline
+
+**Time-series analytics pipeline** showing data collection from operational sources through aggregation, trend analysis, and anomaly detection into a scheduled background system.
+
+![Analytics Pipeline](../assets/diagrams/analytics-pipeline.svg)
+
+**Key Features:**
+- **Data Sources:** AlertDeliveryReport, AudioHealthStatus, AudioSourceMetrics, RadioReceiverStatus, GPIOActivationLog, ComplianceLog
+- **MetricsAggregator:** Hourly/daily/weekly snapshots with min/max/avg/stddev; deduplicates existing windows
+- **TrendAnalyzer:** 7-day rolling linear regression; calculates slope, intercept, R²; classifies direction (improving/degrading/stable)
+- **AnomalyDetector:** Statistical Z-score detection against 7-day baseline; severity levels (low/medium/high)
+- **AnalyticsScheduler:** Background daemon thread; metrics every 60 min, trends every 6 hours, anomalies every 60 min
+- **Metric Categories:** alert_delivery · audio_health · receiver_status · gpio_activity · compliance
+
+**Use Cases:**
+- Understanding the analytics data model
+- Compliance reporting and audit trails
+- System health trend monitoring
+- Configuring alerting thresholds
+
+**File:** [`../assets/diagrams/analytics-pipeline.svg`](../assets/diagrams/analytics-pipeline.svg)
+
+---
+
 ## 🗺️ Legacy Architecture Diagrams (SVG)
 
 These diagrams were created earlier and provide high-level system overviews:
@@ -289,6 +337,6 @@ When adding new diagrams:
 
 ---
 
-**Last Updated:** 2025-12-16
-**Diagram Count:** 7 professional SVG diagrams + 31+ embedded Mermaid diagrams (6 new data flow sequences)
-**Total Documentation Coverage:** Complete system from hardware to software, including detailed data processing flows
+**Last Updated:** 2026-02-17
+**Diagram Count:** 9 professional SVG diagrams + 31+ embedded Mermaid diagrams (6 new data flow sequences)
+**Total Documentation Coverage:** Complete system from hardware to software, including security architecture, analytics pipeline, and detailed data processing flows
