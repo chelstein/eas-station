@@ -6,6 +6,93 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+### Added
+- **Automatic alert forwarding to air chain for IPAWS, NOAA, and OTA sources** (v2.52.0)
+  - Received alerts are now automatically forwarded for broadcast with zero operator intervention
+  - Station originator is substituted into outgoing SAME headers via `build_same_header()`
+  - Cross-source deduplication prevents the same alert from being broadcast multiple times when received via IPAWS + NOAA + OTA simultaneously (15-minute window, event code + overlapping FIPS)
+  - CAP poller now calls `auto_forward_cap_alert()` after saving each new alert, triggering `EASBroadcaster.handle_alert()` for full broadcast (SAME audio + GPIO + playback)
+  - OTA alerts forwarded via `auto_forward_ota_alert()` through the same broadcast pipeline
+  - `CAPAlert.eas_forwarded` tracking flag is now properly updated (was always `False` previously)
+  - Files: `app_core/audio/auto_forward.py` (new), `app_core/audio/alert_forwarding.py`, `poller/cap_poller.py`, `eas_service.py`, `eas_monitoring_service.py`
+
+- **Tailscale VPN integration with admin UI** (PR #1671)
+  - New `/admin/tailscale` page for managing Tailscale VPN connections
+  - Backend settings management via `app_core/tailscale_settings.py`
+  - Database model for persisting Tailscale configuration
+  - Navigation entry added to admin menu
+  - Files: `app_core/tailscale_settings.py`, `webapp/admin/tailscale.py`, `templates/admin/tailscale.html`, `app_core/models.py`
+
+- **Redesigned OLED screens with graphical elements and new display types** (PR #1669)
+  - New graphical OLED rendering engine with `screen_renderer.py`
+  - Database migration for improved OLED screen configuration
+  - New OLED driver module in `app_core/oled.py`
+  - Files: `app_core/oled.py`, `scripts/screen_renderer.py`, migration `20260216_improve_oled_screens.py`
+
+- **NOAA alerts support in display data extraction and UI** (PR #1666)
+  - Extended display data extraction API to handle NOAA weather alerts
+  - Alert detail UI updated to render NOAA-specific fields
+  - Files: `templates/alert_detail.html`, `webapp/admin/api.py`
+
+- **Enhanced S.M.A.R.T. diagnostics API with multiple NVMe strategies** (PR #1657)
+  - `/api/smart_diag` endpoint now tries multiple NVMe query strategies (different paths, different tools)
+  - Surfaces meaningful error messages when diagnostics fail
+  - Files: `webapp/admin/api.py`
+
+### Changed
+- **Display preview styling with type-specific themes** (PR #1670)
+  - Applied type-specific visual themes to display preview and screens templates
+  - Files: `templates/displays_preview.html`, `templates/screens.html`
+
+- **Compact SAME codes and geocodes in multi-column grid layout** (PR #1668)
+  - Alert detail page compresses SAME codes and geocodes into a readable multi-column grid
+  - Files: `templates/alert_detail.html`
+
+- **Refactored alert detail layout** (PR #1667)
+  - Moved timing and technical information cards from sidebar into main content flow
+  - Files: `templates/alert_detail.html`
+
+- **GPIO configuration UI aligned with Hardware Settings** (PR #1653)
+  - Refactored GPIO configuration templates to use the Hardware Settings admin interface
+  - Files: `templates/gpio_pin_map.html`, `templates/gpio_control.html`, `app_utils/gpio.py`
+
+### Fixed
+- **Fixed SSL/TLS certificate management for easstation.com** (PR #1672)
+  - Enhanced certbot admin module with better certificate handling
+  - Improved SSL utility functions for robust certificate management
+  - Files: `app_core/ssl_utils.py`, `webapp/admin/certbot.py`
+
+- **Fixed EAS decoder stream error handling and validation** (PR #1665)
+  - Hardened EAS decoder with better stream error handling and validation logic
+  - Improved audio monitoring UI with additional status information
+  - Files: `eas_monitoring_service.py`, `templates/audio_monitoring.html`
+
+- **Reduced CPU usage in EAS monitor loop and WAV streaming** (PR #1664)
+  - Adjusted timing/sleep intervals in EAS monitoring loop to reduce unnecessary CPU cycles
+  - Files: `app_core/audio/eas_monitor_v3.py`, `eas_monitoring_service.py`
+
+- **Reduced VU meter CPU usage and improved audio playback** (PR #1663)
+  - Frontend VU meter animation CPU consumption significantly reduced
+  - Enhanced EAS decoder audio playback functionality
+  - Files: `static/js/realtime-vu-meters.js`, `templates/audio_monitoring.html`
+
+- **Fixed audio playback speed by syncing sample rate from source** (PR #1662)
+  - Icecast output now correctly syncs sample rate from the audio source
+  - Fixes playback that was too fast or too slow
+  - Files: `app_core/audio/icecast_output.py`, `eas_monitoring_service.py`
+
+- **Fixed NVMe S.M.A.R.T. monitoring across multiple PRs** (PRs #1654-#1661)
+  - Use NVMe controller path (`/dev/nvme0`) instead of namespace path (`/dev/nvme0n1`) for SMART queries
+  - Added `CAP_SYS_ADMIN` capability to systemd service for NVMe SMART ioctls
+  - Fixed `DeviceAllow` to use device group names instead of path wildcards
+  - Added NVMe and SATA device allow rules to systemd service
+  - Fixed `/api/smart_diag` returning 401 for unauthenticated requests
+  - Files: `systemd/eas-station-web.service`, `app_utils/system.py`, `webapp/admin/api.py`
+
+- **Fixed EAS monitor status oscillation between idle and active** (PR #1655)
+  - Resolved rapid flipping between idle and active states in EAS monitor
+  - Files: `eas_service.py`
+
 ### Enhanced
 - **Enhanced visual appearance of install and update scripts** (v2.51.3)
   - Added animated celebration with sparkles on successful completion
