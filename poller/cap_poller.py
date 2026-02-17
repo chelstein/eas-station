@@ -173,6 +173,8 @@ from app_utils.location_settings import (
 print(f"[CAP_POLLER] Importing app_utils.optimized_parsing...")
 from app_utils.optimized_parsing import json_loads, json_dumps, parse_xml_string, get_element_tree_module
 from app_utils.ipaws_enrichment import extract_certificate_info, save_ipaws_audio
+from app_utils.eas import load_eas_config
+from app_core.audio.auto_forward import auto_forward_cap_alert
 print(f"[CAP_POLLER] Importing app_core.models...")
 from app_core.models import PollerSettings
 print(f"[CAP_POLLER] All app module imports complete!")
@@ -536,6 +538,18 @@ class CAPPoller:
         except Exception as exc:
             self.logger.warning(f"Redis unavailable: {exc}. Event publishing will be disabled.")
             self.redis_client = None
+
+        # EAS broadcast configuration for automatic alert forwarding
+        try:
+            self.eas_config = load_eas_config()
+            if self.eas_config.get('enabled'):
+                self.logger.info("EAS auto-forwarding enabled (originator=%s, station=%s)",
+                                 self.eas_config.get('originator'), self.eas_config.get('station_id'))
+            else:
+                self.logger.info("EAS broadcasting is disabled; alerts will be stored but not auto-forwarded")
+        except Exception as exc:
+            self.logger.warning("Failed to load EAS config for auto-forwarding: %s", exc)
+            self.eas_config = {'enabled': False}
 
         # HTTP Session with compliance headers for both NOAA and IPAWS
         # NOAA Weather API: https://www.weather.gov/documentation/services-web-api
@@ -2408,9 +2422,9 @@ class CAPPoller:
         if new_alert.geom:
             self.process_intersections(new_alert)
         
-        # Publish new alert event to Redis for EAS service to handle
+        # Publish new alert event to Redis for other services
         if not self.is_alert_expired(new_alert):
-            # Publish to EAS service for broadcast decision
+            # Publish to Redis for real-time UI updates and LED service
             self._publish_alert_event('alerts:new', {
                 'alert_id': new_alert.id,
                 'identifier': new_alert.identifier,
@@ -2422,7 +2436,7 @@ class CAPPoller:
                 'expires': new_alert.expires,
                 'raw_json': alert_data.get('raw_json', {})
             })
-            
+
             # Publish to LED service for display update
             self._publish_alert_event('alerts:led:new', {
                 'alert_id': new_alert.id,
@@ -2430,6 +2444,37 @@ class CAPPoller:
                 'event': new_alert.event,
                 'severity': new_alert.severity
             })
+
+            # Auto-forward to air chain: generate SAME header with station
+            # originator, build audio, activate GPIO, and play broadcast.
+            # This is fully automatic with zero operator intervention.
+            try:
+                forward_result = auto_forward_cap_alert(
+                    cap_alert=new_alert,
+                    alert_data=alert_data,
+                    db_session=self.db_session,
+                    eas_message_cls=EASMessage,
+                    eas_config=self.eas_config,
+                    location_settings=self.location_settings,
+                    logger_instance=self.logger,
+                )
+                if forward_result.get('forwarded'):
+                    self.logger.info(
+                        "Auto-forwarded %s to air chain: %s",
+                        new_alert.identifier,
+                        forward_result.get('same_header', ''),
+                    )
+                else:
+                    self.logger.info(
+                        "Auto-forward skipped for %s: %s",
+                        new_alert.identifier,
+                        forward_result.get('reason', 'unknown'),
+                    )
+            except Exception as exc:
+                self.logger.error(
+                    "Auto-forward failed for %s: %s",
+                    new_alert.identifier, exc, exc_info=True,
+                )
 
         self.logger.info(f"Saved new alert: {new_alert.identifier} - {new_alert.event}")
         return True, new_alert, None

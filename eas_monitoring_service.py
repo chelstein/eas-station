@@ -540,7 +540,7 @@ def initialize_eas_monitor(app, audio_controller):
 
         # Create alert callback with filtering
         def forward_alert_handler(alert):
-            """Forward matched alerts."""
+            """Forward matched alerts to API and air chain broadcast."""
             from app_core.audio.alert_forwarding import forward_alert_to_api
             source_name = alert.get('source_name', 'unknown')
             event_code = alert.get('event_code', 'UNKNOWN')
@@ -549,7 +549,8 @@ def initialize_eas_monitor(app, audio_controller):
                 f"Forwarding alert from source '{source_name}': "
                 f"{event_code} for {location_codes}"
             )
-            forward_alert_to_api(alert)
+            result = forward_alert_to_api(alert)
+            return result
 
         alert_callback = create_fips_filtering_callback(
             configured_fips_codes=configured_fips,
