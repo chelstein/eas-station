@@ -201,6 +201,11 @@ function buildCard(s) {
 
   <!-- Song history panel -->
   <div class="panel card-body" id="history-${esc}">
+    <div class="d-flex justify-content-end mb-2">
+      <button class="btn btn-sm btn-outline-danger" onclick="clearHistory('${s.source_name}')">
+        <i class="fas fa-trash me-1"></i> Clear History
+      </button>
+    </div>
     <div id="history-body-${esc}">
       <div class="text-center text-muted py-3"><span class="spinner"></span> Loading history…</div>
     </div>
@@ -440,6 +445,26 @@ async function loadHistory(sourceName) {
   } catch (e) {
     bodyEl.innerHTML = `<div class="alert alert-danger mb-0">Failed to load history: ${e}</div>`;
   }
+}
+
+/* -----------------------------------------------------------------------
+   Clear song history
+----------------------------------------------------------------------- */
+async function clearHistory(sourceName) {
+  if (!confirm(`Clear all song history for "${sourceName}"?\nThis cannot be undone.`)) return;
+  try {
+    const r = await api('DELETE', `/api/audio/archives/${encodeURIComponent(sourceName)}/metadata-log`);
+    if (r.error) {
+      toast('Clear failed: ' + r.error, false);
+    } else {
+      toast(`Cleared ${r.deleted} history entry(s) for ${sourceName}`);
+      const bodyEl = document.getElementById('history-body-' + CSS.escape(sourceName));
+      if (bodyEl) bodyEl.innerHTML = '<p class="text-muted mb-0">No song history yet. History is recorded when the audio service detects ICY stream metadata changes.</p>';
+      // Allow re-loading next time the panel is opened
+      const panelId = 'history-' + CSS.escape(sourceName);
+      delete _panelLoaded[panelId];
+    }
+  } catch (e) { toast('Error: ' + e, false); }
 }
 
 /* -----------------------------------------------------------------------
