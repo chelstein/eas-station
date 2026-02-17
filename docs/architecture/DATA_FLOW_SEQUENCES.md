@@ -697,6 +697,132 @@ sequenceDiagram
 
 ---
 
+## Automatic Alert Forwarding Pipeline (v2.52.0+)
+
+This sequence shows the **automatic** forwarding path where received alerts are forwarded to the air chain with zero operator intervention. This covers all three alert sources (IPAWS, NOAA CAP, and OTA) and includes cross-source deduplication to prevent duplicate broadcasts.
+
+**Key Components:**
+- `app_core/audio/auto_forward.py` - Automatic forwarding orchestration and cross-source deduplication
+- `poller/cap_poller.py` - CAP alert reception and auto-forward trigger
+- `app_core/audio/alert_forwarding.py` - OTA alert forwarding with air chain trigger
+- `app_utils/eas.py` - EASBroadcaster for SAME generation, audio playback, and GPIO control
+
+```mermaid
+sequenceDiagram
+    participant IPAWS as FEMA IPAWS<br>CAP Feed
+    participant NOAA as NOAA Weather<br>CAP Feed
+    participant OTA as OTA Receiver<br>EAS Monitor
+    participant Poller as CAP Poller<br>cap_poller.py
+    participant Monitor as EAS Monitor<br>eas_monitor.py
+    participant AutoFwd as Auto-Forward<br>auto_forward.py
+    participant Dedup as Cross-Source<br>Dedup Engine
+    participant DB as Database<br>PostgreSQL
+    participant Broadcaster as EAS Broadcaster<br>eas.py
+    participant GPIO as GPIO Controller
+    participant TX as Transmitter
+
+    Note over IPAWS,TX: Path 1: IPAWS/NOAA CAP Alert → Automatic Broadcast
+
+    alt IPAWS source
+        IPAWS->>Poller: HTTP GET CAP feed
+    else NOAA source
+        NOAA->>Poller: HTTP GET CAP feed
+    end
+
+    Poller->>Poller: Parse CAP XML
+    Poller->>Poller: Check duplicate by identifier
+    Poller->>DB: INSERT INTO cap_alerts
+    DB-->>Poller: alert_id
+
+    Poller->>AutoFwd: auto_forward_cap_alert(alert, data)
+
+    AutoFwd->>Dedup: is_duplicate_broadcast(event_code, fips)
+    Dedup->>DB: Query EASMessage (15-min window)
+    Dedup->>DB: Query ManualEASActivation (15-min window)
+
+    alt Cross-source duplicate found
+        Dedup-->>AutoFwd: True (duplicate)
+        AutoFwd->>DB: UPDATE cap_alerts SET eas_forwarded=false, reason='duplicate'
+        AutoFwd-->>Poller: Skipped (already broadcast)
+    else No duplicate
+        Dedup-->>AutoFwd: False (proceed)
+
+        AutoFwd->>Broadcaster: EASBroadcaster.handle_alert(alert, payload)
+
+        Broadcaster->>Broadcaster: build_same_header()
+        Note right of Broadcaster: Substitutes station originator<br>(replaces original with configured)
+
+        Broadcaster->>Broadcaster: Generate FSK + attention tone
+        Broadcaster->>Broadcaster: Generate TTS narration
+        Broadcaster->>Broadcaster: Generate EOM
+        Broadcaster->>Broadcaster: Concatenate audio
+
+        Broadcaster->>DB: INSERT INTO eas_messages
+        DB-->>Broadcaster: message_id
+
+        Broadcaster->>GPIO: Activate relay (key transmitter)
+        GPIO->>TX: PTT active
+        Broadcaster->>Broadcaster: Play audio file
+        Broadcaster->>GPIO: Deactivate relay (unkey)
+        GPIO->>TX: PTT inactive
+
+        Broadcaster-->>AutoFwd: {same_triggered: true, ...}
+        AutoFwd->>DB: UPDATE cap_alerts SET eas_forwarded=true
+        AutoFwd-->>Poller: Forwarded successfully
+    end
+
+    Note over OTA,TX: Path 2: OTA (Over-the-Air) Alert → Automatic Broadcast
+
+    OTA->>Monitor: SAME header decoded from RF
+    Monitor->>Monitor: Parse event_code, FIPS codes
+    Monitor->>Monitor: FIPS filtering (configured locations)
+
+    alt FIPS match
+        Monitor->>DB: INSERT INTO received_eas_alerts (10-min dedup)
+
+        Monitor->>AutoFwd: auto_forward_ota_alert(alert_dict)
+
+        AutoFwd->>Dedup: is_duplicate_broadcast(event_code, fips)
+
+        alt Cross-source duplicate
+            Dedup-->>AutoFwd: True (already broadcast via IPAWS/NOAA)
+            AutoFwd-->>Monitor: Skipped (cross-source duplicate)
+        else No duplicate
+            AutoFwd->>AutoFwd: Build CAPAlert-like object from OTA data
+            AutoFwd->>Broadcaster: EASBroadcaster.handle_alert(alert_obj, payload)
+
+            Note right of Broadcaster: Same broadcast pipeline as CAP path
+
+            Broadcaster->>GPIO: Key transmitter
+            Broadcaster->>Broadcaster: Play audio
+            Broadcaster->>GPIO: Unkey transmitter
+            Broadcaster-->>AutoFwd: {same_triggered: true}
+            AutoFwd-->>Monitor: Forwarded successfully
+        end
+    else No FIPS match
+        Monitor->>DB: INSERT received_eas_alerts (decision='ignored')
+    end
+
+    Note over IPAWS,TX: All paths fully automatic - zero operator intervention
+```
+
+**Cross-Source Deduplication Strategy:**
+
+| Check | Source | Method |
+|-------|--------|--------|
+| Within-source CAP | IPAWS/NOAA | Unique `identifier` constraint on `cap_alerts` table |
+| Within-source OTA | Over-the-air | 10-minute window on `raw_same_header` in `received_eas_alerts` |
+| Cross-source broadcast | All | 15-minute window checking `eas_messages` + `manual_eas_activations` by event code + overlapping FIPS codes |
+
+**Originator Substitution:**
+- Original alert originator (e.g., `WXR` from NWS, `PEP` from FEMA) is replaced with the station's configured originator
+- Station originator set via `EAS_ORIGINATOR` env var or database `eas_settings.originator`
+- Substitution occurs in `build_same_header()` at `app_utils/eas.py:647`
+
+**Files:** `app_core/audio/auto_forward.py`, `poller/cap_poller.py:2412`, `app_core/audio/alert_forwarding.py`, `app_utils/eas.py:1535`
+
+---
+
 ## Summary
 
 These sequence diagrams illustrate the major data processing paths through the EAS Station system:
@@ -706,7 +832,8 @@ These sequence diagrams illustrate the major data processing paths through the E
 3. **Audio Ingest** - Multiple audio sources flow through adapters into a unified controller with priority selection
 4. **Radio Capture** - Broadcast triggers coordinated capture across all receivers for verification
 5. **EAS Generation** - Alert data transforms through SAME encoding, FSK modulation, and audio assembly
-6. **Complete Pipeline** - End-to-end flow from CAP fetch to verified broadcast
+6. **Complete Pipeline** - End-to-end flow from CAP fetch to operator-triggered verified broadcast
+7. **Automatic Forwarding** - Zero-intervention forwarding with cross-source deduplication and originator substitution
 
 Each diagram shows:
 - **Components involved** with file references
@@ -728,6 +855,6 @@ Each diagram shows:
 
 ---
 
-**Last Updated:** 2025-12-16
-**Diagram Count:** 6 comprehensive sequence diagrams
-**Coverage:** Complete data processing paths from input to output
+**Last Updated:** 2026-02-17
+**Diagram Count:** 7 comprehensive sequence diagrams
+**Coverage:** Complete data processing paths from input to output, including automatic alert forwarding

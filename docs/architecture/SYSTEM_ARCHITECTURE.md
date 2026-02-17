@@ -150,6 +150,8 @@ graph LR
         AUDIO_INGEST[app_core/audio/ingest.py<br>Audio Controller]
         AUDIO_SOURCES[app_core/audio/sources.py<br>Source Adapters]
         AUDIO_METER[app_core/audio/metering.py<br>Monitoring]
+        AUTO_FWD[app_core/audio/auto_forward.py<br>Automatic Alert Forwarding]
+        ALERT_FWD[app_core/audio/alert_forwarding.py<br>OTA Alert Forwarding]
     end
 
     subgraph "Radio System"
@@ -188,10 +190,14 @@ graph LR
     ROUTES --> RADIO_MGR
     ROUTES --> EAS_UTIL
     CAP_POLL --> ALERTS
+    CAP_POLL --> AUTO_FWD
     IPAWS_POLL --> ALERTS
     AUDIO_SOURCES --> AUDIO_INGEST
     AUDIO_METER --> AUDIO_INGEST
     RADIO_DRV --> RADIO_MGR
+    AUTO_FWD --> EAS_UTIL
+    AUTO_FWD --> MODELS
+    ALERT_FWD --> AUTO_FWD
 ```
 
 ---

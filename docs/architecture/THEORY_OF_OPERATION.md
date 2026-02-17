@@ -100,6 +100,7 @@ flowchart TD
     C -->|PostgreSQL 17<br/>+ PostGIS 3.4| D[(Database<br/>alerts, boundaries<br/>receivers, configs)]
     C -->|app_core/location.py<br/>app_core/boundaries.py| E[Spatial Intelligence]
     D -->|Flask webapp<br/>REST APIs| F[Operator Experience]
+    B -->|auto_forward.py<br/>Automatic forwarding| G
     F -->|Manual activation<br/>Scheduled RWT| G[EAS Workflow]
     G -->|app_utils/eas.py<br/>app_utils/eas_fsk.py| H[SAME Generator]
     H -->|hardware-service<br/>GPIO Control| I[Broadcast Output]
@@ -214,40 +215,63 @@ erDiagram
 
 ### 4. Broadcast Orchestration
 
+Broadcast can be triggered **automatically** (zero intervention) or **manually** by an operator:
+
 ```mermaid
 flowchart TD
-    START([Operator Initiates<br/>EAS Broadcast]) --> SELECT{Alert Source}
-    
-    SELECT -->|Manual| MANUAL[Select Event Code<br/>Enter Details]
-    SELECT -->|From CAP| CAP[Select Active Alert]
-    
-    MANUAL --> CONFIG
-    CAP --> CONFIG[Configure SAME Header]
-    
+    subgraph AutoPath["Automatic Path (v2.52.0+)"]
+        CAP_IN[New CAP Alert<br/>IPAWS / NOAA] --> DEDUP{Cross-Source<br/>Duplicate?}
+        OTA_IN[OTA Alert Received<br/>FIPS Match] --> DEDUP
+        DEDUP -->|No| AUTO_FWD[auto_forward.py<br/>EASBroadcaster.handle_alert]
+        DEDUP -->|Yes| SKIP[Skip<br/>Already broadcast]
+    end
+
+    subgraph ManualPath["Manual Path"]
+        START([Operator Initiates<br/>EAS Broadcast]) --> SELECT{Alert Source}
+        SELECT -->|Manual| MANUAL[Select Event Code<br/>Enter Details]
+        SELECT -->|From CAP| CAP[Select Active Alert]
+        MANUAL --> CONFIG
+        CAP --> CONFIG[Configure SAME Header]
+    end
+
+    AUTO_FWD --> SAME
     CONFIG --> SAME[Generate SAME Header<br/>app_utils/eas.py]
-    SAME --> FSK[FSK Encode @ 520.83 baud<br/>app_utils/eas_fsk.py]
+
+    SAME --> ORIGINATOR[Substitute Station Originator<br/>replaces source originator]
+    ORIGINATOR --> FSK[FSK Encode @ 520.83 baud<br/>app_utils/eas_fsk.py]
     FSK --> TONE[Generate Attention Tone<br/>853 Hz + 960 Hz]
-    
+
     TONE --> TTS{TTS Enabled?}
     TTS -->|Yes| NARRATE[Generate TTS Audio<br/>Azure/pyttsx3]
     TTS -->|No| EOM
     NARRATE --> EOM[Generate EOM x3<br/>NNNN]
-    
+
     EOM --> AUDIO[Build Complete Audio<br/>Header x3 + Tone + Voice + EOM x3]
     AUDIO --> STORE[(Store WAV File)]
-    
+
     STORE --> GPIO{GPIO Configured?}
     GPIO -->|Yes| KEY[hardware-service<br/>Key Transmitter]
     GPIO -->|No| PLAY
     KEY --> PLAY[Play Audio]
     PLAY --> UNKEY[Unkey Transmitter]
-    UNKEY --> LOG[Log to Database]
-    
-    style START fill:#3b82f6,color:#fff
+    UNKEY --> LOG[Log to Database<br/>eas_forwarded = true]
+
+    style CAP_IN fill:#3b82f6,color:#fff
+    style OTA_IN fill:#3b82f6,color:#fff
+    style START fill:#10b981,color:#fff
+    style ORIGINATOR fill:#8b5cf6,color:#fff
     style STORE fill:#10b981,color:#fff
     style KEY fill:#f59e0b,color:#000
+    style SKIP fill:#ef4444,color:#fff
 ```
 
+**Automatic Forwarding (v2.52.0+):**
+- **CAP alerts** (`poller/cap_poller.py`) — after saving a new alert, calls `auto_forward_cap_alert()` which triggers `EASBroadcaster.handle_alert()` for full SAME + audio + GPIO broadcast
+- **OTA alerts** (`app_core/audio/alert_forwarding.py`) — when a FIPS-matched OTA alert is received, calls `auto_forward_ota_alert()` through the same broadcast pipeline
+- **Cross-source deduplication** (`app_core/audio/auto_forward.py`) — checks `eas_messages` and `manual_eas_activations` tables within a 15-minute window for same event code + overlapping FIPS codes to prevent duplicate broadcasts when the same alert arrives via IPAWS + NOAA + OTA
+- **Originator substitution** — the original alert's originator is replaced with the station's configured originator in `build_same_header()` (`app_utils/eas.py:647`)
+
+**Manual Path:**
 - **Workflow UI (`webapp/eas/`)** guides operators through alert selection and SAME header preview
 - **SAME Generator (`app_utils/eas.py`, `app_utils/eas_fsk.py`)** creates FCC-compliant 520⅔ baud FSK audio
 - **Hardware Integration** via isolated `hardware-service` systemd service for GPIO relay control
