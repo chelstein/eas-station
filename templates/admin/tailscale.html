@@ -355,6 +355,13 @@
             <div id="installStatus">
                 <span class="spinner-border"></span> Checking...
             </div>
+            <div id="installActions" style="display: none; margin-top: 1rem;">
+                <p class="text-muted">Tailscale is not installed on this system. Click the button below to install it using the official Tailscale install script.</p>
+                <button type="button" class="btn btn-primary" id="btnInstall" onclick="installTailscale()">
+                    <i class="fas fa-download"></i> Install Tailscale
+                </button>
+                <div id="installOutput" class="ping-output mt-3" style="display: none;"></div>
+            </div>
         </div>
     </div>
 </div>
@@ -423,14 +430,18 @@ async function refreshStatus() {
         // Build status grid
         let gridHtml = '';
 
+        const installActions = document.getElementById('installActions');
+
         if (!data.installed) {
             gridHtml = `
                 <div class="status-item">
                     <div class="status-label"><i class="fas fa-exclamation-triangle"></i> Installation</div>
                     <div class="status-value"><span class="status-badge danger">Not Installed</span></div>
                 </div>`;
-            installStatus.innerHTML = '<span class="status-badge danger">Not Installed</span> - Install Tailscale to enable VPN connectivity. Visit <a href="https://tailscale.com/download" target="_blank" rel="noopener noreferrer">tailscale.com/download</a>';
+            installStatus.innerHTML = '<span class="status-badge danger">Not Installed</span>';
+            installActions.style.display = 'block';
         } else {
+            installActions.style.display = 'none';
             let statusBadgeClass = 'secondary';
             let statusText = data.status || 'Unknown';
             if (data.status === 'connected') statusBadgeClass = 'success';
@@ -681,6 +692,48 @@ async function pingPeer() {
         output.textContent = result.output || result.error || 'No output';
     } catch (error) {
         output.textContent = 'Error: ' + error.message;
+    }
+}
+
+// Install Tailscale
+async function installTailscale() {
+    const btn = document.getElementById('btnInstall');
+    const output = document.getElementById('installOutput');
+
+    if (!confirm('This will download and install Tailscale from tailscale.com using the official install script. The system must have internet access. Continue?')) {
+        return;
+    }
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border"></span> Installing... (this may take a minute)';
+    output.style.display = 'block';
+    output.textContent = 'Running Tailscale install script...\n';
+
+    try {
+        const response = await fetch('/admin/api/tailscale/install', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+        });
+
+        const result = await response.json();
+
+        if (result.output) {
+            output.textContent = result.output;
+        }
+
+        if (result.success) {
+            showToast(result.message || 'Tailscale installed successfully', 'success');
+            refreshStatus();
+        } else {
+            showToast(result.error || 'Installation failed', 'error');
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-download"></i> Install Tailscale';
+        }
+    } catch (error) {
+        output.textContent += '\nError: ' + error.message;
+        showToast('Installation error: ' + error.message, 'error');
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-download"></i> Install Tailscale';
     }
 }
 

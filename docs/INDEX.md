@@ -22,6 +22,7 @@ Complete documentation for **EAS Station** - an Emergency Alert System platform 
 | [IPAWS Integration](guides/ipaws_feed_integration.md) | Federal alert source setup |
 | [Poller Migration Guide](guides/POLLER_MIGRATION_GUIDE.md) | Alert poller setup |
 | [One-Button Upgrade](guides/one_button_upgrade.md) | Automated updates |
+| [Tailscale VPN Setup](guides/TAILSCALE_SETUP.md) | Secure remote access via Tailscale mesh VPN |
 | [S.M.A.R.T. Setup](guides/SMART_SETUP.md) | NVMe and SSD health monitoring |
 | [Configuration Migration](guides/CONFIGURATION_MIGRATION.md) | Environment variable merge utility |
 | [Hardware Quickstart](guides/HARDWARE_QUICKSTART.md) | Hardware configuration |
