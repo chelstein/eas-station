@@ -1588,8 +1588,15 @@ class StreamSourceAdapter(AudioSourceAdapter):
             return changed
 
         with self._metadata_lock:
-            if _merge_dict(self._stream_metadata, updates):
+            changed = _merge_dict(self._stream_metadata, updates)
+            if changed:
                 self.metrics.metadata = copy.deepcopy(self._stream_metadata)
+
+        if changed and self.on_metadata_change and 'now_playing' in updates:
+            try:
+                self.on_metadata_change(self.config.name, updates)
+            except Exception as exc:
+                logger.warning("on_metadata_change callback error: %s", exc)
 
 # Factory function for creating sources
 def create_audio_source(config: AudioSourceConfig) -> AudioSourceAdapter:

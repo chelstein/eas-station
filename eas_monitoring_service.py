@@ -515,6 +515,38 @@ def initialize_auto_streaming(app, audio_controller):
         return None
 
 
+def _make_metadata_log_callback(flask_app):
+    """Return a thread-safe callback that persists ICY metadata changes to the DB."""
+    import threading
+
+    def _callback(source_name: str, updates: dict) -> None:
+        def _write() -> None:
+            try:
+                with flask_app.app_context():
+                    from app_core.extensions import db
+                    from app_core.models import StreamMetadataLog
+
+                    now_playing = updates.get('now_playing', {})
+                    record = StreamMetadataLog(
+                        source_name=source_name,
+                        title=updates.get('title') or now_playing.get('title'),
+                        artist=updates.get('artist') or now_playing.get('artist'),
+                        album=updates.get('album'),
+                        artwork_url=updates.get('artwork_url'),
+                        length=updates.get('length'),
+                        display=updates.get('song'),
+                        raw=updates.get('song_raw'),
+                    )
+                    db.session.add(record)
+                    db.session.commit()
+            except Exception as exc:
+                logger.warning("Failed to log stream metadata for '%s': %s", source_name, exc)
+
+        threading.Thread(target=_write, daemon=True).start()
+
+    return _callback
+
+
 def initialize_archivers(app, audio_controller):
     """Start AudioArchivers for sources that have archiving enabled in their config_params.
 
@@ -882,6 +914,14 @@ def main():
         # Initialize audio archivers for sources that have archiving enabled
         logger.info("Initializing audio archivers...")
         initialize_archivers(app, audio_controller)
+
+        # Attach metadata-logging callback to every source so now-playing
+        # changes are persisted to stream_metadata_log
+        metadata_log_callback = _make_metadata_log_callback(app)
+        with audio_controller._lock:
+            for adapter in audio_controller._sources.values():
+                adapter.on_metadata_change = metadata_log_callback
+        logger.info("Stream metadata logging callbacks registered")
 
         # Initialize EAS monitor
         logger.info("Initializing EAS monitor...")

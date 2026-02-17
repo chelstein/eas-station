@@ -1452,6 +1452,31 @@ class AudioSourceConfigDB(db.Model):
         }
 
 
+class StreamMetadataLog(db.Model):
+    """Persistent log of ICY/stream metadata changes (now-playing events).
+
+    A new row is written every time a source's StreamTitle changes so the
+    song-play history can be queried from the web UI.
+    """
+
+    __tablename__ = "stream_metadata_log"
+
+    id = db.Column(db.Integer, primary_key=True)
+    source_name = db.Column(db.String(100), nullable=False, index=True)
+    timestamp = db.Column(db.DateTime(timezone=True), default=utc_now, nullable=False, index=True)
+
+    # Parsed fields
+    title = db.Column(db.Text)
+    artist = db.Column(db.Text)
+    album = db.Column(db.Text)
+    artwork_url = db.Column(db.Text)
+    length = db.Column(db.String(20))
+    display = db.Column(db.Text)  # "Artist – Title" display string
+
+    # Raw ICY StreamTitle string
+    raw = db.Column(db.Text)
+
+
 class GPIOActivationLog(db.Model):
     """Audit log for GPIO relay activations.
 
@@ -2024,6 +2049,7 @@ __all__ = [
     "ScreenRotation",
     "SNOW_EMERGENCY_LEVELS",
     "SnowEmergency",
+    "StreamMetadataLog",
     "SystemLog",
     "TailscaleSettings",
     "USCountyBoundary",
