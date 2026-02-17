@@ -506,6 +506,27 @@ def register(app: Flask, logger_arg, archive_dir: str = _DEFAULT_ARCHIVE_DIR) ->
             route_logger.error("metadata-log query failed for '%s': %s", source_name, exc)
             return jsonify({"source_name": source_name, "entries": []})
 
+    # ------------------------------------------------------------------
+    # API: clear (delete) the metadata log for one source
+    # ------------------------------------------------------------------
+
+    @app.route("/api/audio/archives/<source_name>/metadata-log", methods=["DELETE"])
+    def api_audio_archive_metadata_log_clear(source_name: str):
+        try:
+            from app_core.extensions import db
+            from app_core.models import StreamMetadataLog
+            deleted = (
+                StreamMetadataLog.query
+                .filter_by(source_name=source_name)
+                .delete(synchronize_session=False)
+            )
+            db.session.commit()
+            route_logger.info("Cleared %d metadata-log rows for '%s'", deleted, source_name)
+            return jsonify({"source_name": source_name, "deleted": deleted})
+        except Exception as exc:
+            route_logger.error("metadata-log clear failed for '%s': %s", source_name, exc)
+            return jsonify({"error": str(exc)}), 500
+
     route_logger.info("Audio archive routes registered (archive_dir=%s)", archive_root)
 
 
