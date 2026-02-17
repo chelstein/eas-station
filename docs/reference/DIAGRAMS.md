@@ -147,7 +147,7 @@ This page provides an index of all professional diagrams and flowcharts availabl
 - **Layer 2 — Rate Limiter:** 5 failed attempts per 5-minute window; 15-minute lockout; thread-safe in-memory tracking
 - **Layer 3 — Password Auth:** Werkzeug bcrypt hash verification; failures increment rate-limiter count
 - **Layer 4 — MFA (TOTP):** Optional pyotp 6-digit codes; 10 one-time backup codes; 5-minute pending session timeout; reuse prevention
-- **RBAC:** 5 roles (admin, operator, local_authority, viewer, demo); 18 permissions in resource.action format; `@require_permission` decorator per route
+- **RBAC:** 5 roles (admin, operator, local_authority, viewer, demo); 22 permissions in resource.action format; `@require_permission` decorator per route
 - **Audit Logger:** Comprehensive event logging to `audit_logs` table with IP, user agent, success/fail, 90-day retention
 
 **Use Cases:**
@@ -169,7 +169,7 @@ This page provides an index of all professional diagrams and flowcharts availabl
 **Key Features:**
 - **Data Sources:** AlertDeliveryReport, AudioHealthStatus, AudioSourceMetrics, RadioReceiverStatus, GPIOActivationLog, ComplianceLog
 - **MetricsAggregator:** Hourly/daily/weekly snapshots with min/max/avg/stddev; deduplicates existing windows
-- **TrendAnalyzer:** 7-day rolling linear regression; calculates slope, intercept, R²; classifies direction (improving/degrading/stable)
+- **TrendAnalyzer:** 7-day rolling linear regression; calculates slope, intercept, R²; classifies direction (rising/falling/stable)
 - **AnomalyDetector:** Statistical Z-score detection against 7-day baseline; severity levels (low/medium/high)
 - **AnalyticsScheduler:** Background daemon thread; metrics every 60 min, trends every 6 hours, anomalies every 60 min
 - **Metric Categories:** alert_delivery · audio_health · receiver_status · gpio_activity · compliance

@@ -158,7 +158,7 @@
     <line x1="15" y1="56" x2="235" y2="56" stroke="#a78bfa" stroke-width="0.5"/>
     <text x="125" y="74"  class="xs" text-anchor="middle">Window: 7-day rolling analysis</text>
     <text x="125" y="90"  class="xs" text-anchor="middle">Calculates: slope · intercept · R²</text>
-    <text x="125" y="106" class="xs" text-anchor="middle">Direction: improving / degrading / stable</text>
+    <text x="125" y="106" class="xs" text-anchor="middle">Direction: rising / falling / stable</text>
     <text x="125" y="122" class="xs" text-anchor="middle">Runs every 6 hours via scheduler</text>
   </g>
 
@@ -175,7 +175,7 @@
     <line x1="15" y1="56" x2="235" y2="56" stroke="#a78bfa" stroke-width="0.5"/>
     <text x="125" y="74"  class="xs" text-anchor="middle">Baseline: 7-day historical window</text>
     <text x="125" y="90"  class="xs" text-anchor="middle">Method: Z-score / threshold deviation</text>
-    <text x="125" y="106" class="xs" text-anchor="middle">Severity: low · medium · high</text>
+    <text x="125" y="106" class="xs" text-anchor="middle">Severity: low · medium · high · critical</text>
     <text x="125" y="122" class="xs" text-anchor="middle">Runs every 60 min via scheduler</text>
   </g>
 
@@ -208,7 +208,7 @@
     <line x1="15" y1="54" x2="280" y2="54" stroke="#86efac" stroke-width="0.5"/>
     <text x="147" y="72"  class="xs" text-anchor="middle">metric_category · metric_name</text>
     <text x="147" y="88"  class="xs" text-anchor="middle">slope · intercept · r_squared</text>
-    <text x="147" y="104" class="xs" text-anchor="middle">direction: improving / degrading / stable</text>
+    <text x="147" y="104" class="xs" text-anchor="middle">direction: rising / falling / stable</text>
   </g>
 
   <!-- AnomalyRecord table -->
@@ -219,7 +219,7 @@
     <line x1="15" y1="54" x2="280" y2="54" stroke="#86efac" stroke-width="0.5"/>
     <text x="147" y="72"  class="xs" text-anchor="middle">metric_category · metric_name</text>
     <text x="147" y="88"  class="xs" text-anchor="middle">detected_value · baseline_value · z_score</text>
-    <text x="147" y="104" class="xs" text-anchor="middle">severity: low / medium / high · timestamp</text>
+    <text x="147" y="104" class="xs" text-anchor="middle">severity: low / medium / high / critical · timestamp</text>
   </g>
 
   <!-- PostgreSQL bracket -->
