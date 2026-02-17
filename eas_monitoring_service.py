@@ -529,7 +529,14 @@ def _make_metadata_log_callback(flask_app):
                     now_playing = updates.get('now_playing', {})
                     record = StreamMetadataLog(
                         source_name=source_name,
-                        title=updates.get('title') or now_playing.get('title'),
+                        # updates['title'] / updates['artist'] are only set when a clean
+                        # value was actually parsed out of the ICY StreamTitle.
+                        # now_playing['title'] can be the full raw ICY blob (it is
+                        # initialised from stream_title before any pattern matching),
+                        # so we must NOT fall back to it for the title column.
+                        # now_playing['artist'] is safe because it starts as None and is
+                        # only populated when a real artist string was extracted.
+                        title=updates.get('title'),
                         artist=updates.get('artist') or now_playing.get('artist'),
                         album=updates.get('album'),
                         artwork_url=updates.get('artwork_url'),
