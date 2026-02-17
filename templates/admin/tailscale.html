@@ -1,0 +1,699 @@
+{% extends "base.html" %}
+
+{% block title %}Tailscale VPN - Admin{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">
+<style>
+    .status-badge {
+        display: inline-block;
+        padding: 0.375rem 0.75rem;
+        border-radius: 0.25rem;
+        font-size: 0.875rem;
+        font-weight: 600;
+        text-transform: uppercase;
+    }
+
+    .status-badge.success {
+        background: color-mix(in srgb, var(--success-color) 20%, var(--surface-color));
+        color: var(--success-color);
+    }
+
+    .status-badge.danger {
+        background: color-mix(in srgb, var(--danger-color) 20%, var(--surface-color));
+        color: var(--danger-color);
+    }
+
+    .status-badge.warning {
+        background: color-mix(in srgb, var(--warning-color) 20%, var(--surface-color));
+        color: var(--warning-color);
+    }
+
+    .status-badge.secondary {
+        background: var(--border-color);
+        color: var(--text-color);
+    }
+
+    .status-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 1.5rem;
+        margin-top: 1.5rem;
+    }
+
+    .status-item {
+        padding: 1.25rem;
+        border: 2px solid var(--border-color);
+        border-radius: 0.5rem;
+        background: var(--bg-color);
+        transition: all 0.2s ease;
+    }
+
+    .status-item:hover {
+        border-color: var(--primary-color);
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        transform: translateY(-2px);
+    }
+
+    .status-label {
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: var(--muted-text);
+        margin-bottom: 0.5rem;
+        font-weight: 500;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .status-value {
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: var(--text-color);
+        word-break: break-word;
+    }
+
+    .status-item.highlight {
+        border-color: var(--primary-color);
+        background: linear-gradient(135deg, var(--bg-color) 0%, var(--card-bg) 100%);
+    }
+
+    .status-item.highlight .status-value {
+        color: var(--primary-color);
+    }
+
+    .peer-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 1rem;
+    }
+
+    .peer-table th,
+    .peer-table td {
+        padding: 0.75rem;
+        border-bottom: 1px solid var(--border-color);
+        text-align: left;
+    }
+
+    .peer-table th {
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: var(--muted-text);
+        font-weight: 600;
+    }
+
+    .peer-online {
+        color: var(--success-color);
+    }
+
+    .peer-offline {
+        color: var(--muted-text);
+    }
+
+    .spinner-border {
+        display: inline-block;
+        width: 1rem;
+        height: 1rem;
+        vertical-align: text-bottom;
+        border: 0.15rem solid currentColor;
+        border-right-color: transparent;
+        border-radius: 50%;
+        animation: spinner-border 0.75s linear infinite;
+    }
+
+    @keyframes spinner-border {
+        to { transform: rotate(360deg); }
+    }
+
+    .login-url-container {
+        padding: 1rem;
+        margin: 1rem 0;
+        border: 2px solid var(--primary-color);
+        border-radius: 0.5rem;
+        background: color-mix(in srgb, var(--primary-color) 10%, var(--surface-color));
+        word-break: break-all;
+    }
+
+    .login-url-container a {
+        color: var(--primary-color);
+        font-weight: 600;
+    }
+
+    .security-note {
+        padding: 1rem;
+        margin: 1rem 0;
+        border-left: 4px solid var(--warning-color);
+        background: color-mix(in srgb, var(--warning-color) 10%, var(--surface-color));
+        color: var(--text-color);
+    }
+
+    .security-note i {
+        margin-right: 0.5rem;
+        color: var(--warning-color);
+    }
+
+    .ping-output {
+        font-family: monospace;
+        font-size: 0.875rem;
+        background: var(--bg-color);
+        border: 1px solid var(--border-color);
+        border-radius: 0.375rem;
+        padding: 1rem;
+        white-space: pre-wrap;
+        max-height: 200px;
+        overflow-y: auto;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <h1>Tailscale VPN</h1>
+    <p class="text-muted">Configure Tailscale for secure remote access to your EAS Station</p>
+
+    <div class="admin-tabs">
+        <div class="admin-tab active" data-tab="configuration">Configuration</div>
+        <div class="admin-tab" data-tab="status">Status & Peers</div>
+        <div class="admin-tab" data-tab="diagnostics">Diagnostics</div>
+    </div>
+
+    <!-- Configuration Tab -->
+    <div class="admin-tab-content active" id="configuration">
+        <form id="tailscaleSettingsForm">
+            <!-- General Settings -->
+            <div class="admin-form-section">
+                <h4>General Settings</h4>
+
+                <div class="mb-3">
+                    <label for="enabled" class="form-label">Tailscale Enabled</label>
+                    <select class="form-control" id="enabled" name="enabled">
+                        <option value="false" {% if not settings.enabled %}selected{% endif %}>Disabled</option>
+                        <option value="true" {% if settings.enabled %}selected{% endif %}>Enabled</option>
+                    </select>
+                    <div class="form-text">Enable or disable Tailscale VPN connectivity</div>
+                </div>
+
+                <div class="mb-3">
+                    <label for="auth_key" class="form-label">Auth Key</label>
+                    <input type="password" class="form-control" id="auth_key" name="auth_key"
+                           value="{{ settings.auth_key }}" autocomplete="off">
+                    <div class="form-text">Pre-authentication key from your <a href="https://login.tailscale.com/admin/settings/keys" target="_blank" rel="noopener noreferrer">Tailscale admin console</a>. Leave blank for browser-based login.</div>
+                </div>
+
+                <div class="mb-3">
+                    <label for="hostname" class="form-label">Hostname</label>
+                    <input type="text" class="form-control" id="hostname" name="hostname"
+                           value="{{ settings.hostname }}" placeholder="eas-station">
+                    <div class="form-text">Name this device will appear as on your tailnet. Leave blank to use the system hostname.</div>
+                </div>
+            </div>
+
+            <!-- Network Settings -->
+            <div class="admin-form-section">
+                <h4>Network Settings</h4>
+
+                <div class="mb-3">
+                    <label for="accept_routes" class="form-label">Accept Routes</label>
+                    <select class="form-control" id="accept_routes" name="accept_routes">
+                        <option value="true" {% if settings.accept_routes %}selected{% endif %}>Enabled</option>
+                        <option value="false" {% if not settings.accept_routes %}selected{% endif %}>Disabled</option>
+                    </select>
+                    <div class="form-text">Accept subnet routes advertised by other nodes on the tailnet</div>
+                </div>
+
+                <div class="mb-3">
+                    <label for="advertise_routes" class="form-label">Advertise Routes</label>
+                    <input type="text" class="form-control" id="advertise_routes" name="advertise_routes"
+                           value="{{ settings.advertise_routes }}" placeholder="192.168.1.0/24,10.0.0.0/8">
+                    <div class="form-text">Comma-separated CIDR ranges to advertise as subnet routes to the tailnet</div>
+                </div>
+
+                <div class="mb-3">
+                    <label for="advertise_exit_node" class="form-label">Advertise as Exit Node</label>
+                    <select class="form-control" id="advertise_exit_node" name="advertise_exit_node">
+                        <option value="false" {% if not settings.advertise_exit_node %}selected{% endif %}>Disabled</option>
+                        <option value="true" {% if settings.advertise_exit_node %}selected{% endif %}>Enabled</option>
+                    </select>
+                    <div class="form-text">Offer this station as an exit node for the tailnet (routes all internet traffic through this node)</div>
+                </div>
+
+                <div class="mb-3">
+                    <label for="shields_up" class="form-label">Shields Up</label>
+                    <select class="form-control" id="shields_up" name="shields_up">
+                        <option value="false" {% if not settings.shields_up %}selected{% endif %}>Disabled</option>
+                        <option value="true" {% if settings.shields_up %}selected{% endif %}>Enabled</option>
+                    </select>
+                    <div class="form-text">Block all incoming connections from the tailnet (outbound-only mode)</div>
+                </div>
+            </div>
+
+            <!-- DNS Settings -->
+            <div class="admin-form-section">
+                <h4>DNS Settings</h4>
+
+                <div class="mb-3">
+                    <label for="accept_dns" class="form-label">Accept DNS</label>
+                    <select class="form-control" id="accept_dns" name="accept_dns">
+                        <option value="true" {% if settings.accept_dns %}selected{% endif %}>Enabled</option>
+                        <option value="false" {% if not settings.accept_dns %}selected{% endif %}>Disabled</option>
+                    </select>
+                    <div class="form-text">Accept DNS configuration pushed from the Tailscale admin console (MagicDNS)</div>
+                </div>
+            </div>
+
+            <div class="security-note">
+                <i class="fas fa-info-circle"></i>
+                <strong>Note:</strong> After saving settings, use the <strong>Connect</strong> button on the Status tab to apply changes. Changing settings while connected will require a reconnection.
+            </div>
+
+            <div class="d-flex gap-2 mt-3">
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-save"></i> Save Settings
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Status Tab -->
+    <div class="admin-tab-content" id="status">
+        <div class="admin-form-section">
+            <h4>Connection Status</h4>
+            <div id="statusLoading">
+                <span class="spinner-border"></span> Loading status...
+            </div>
+            <div id="statusContent" style="display: none;">
+                <div class="status-grid" id="statusGrid">
+                    <!-- Populated by JavaScript -->
+                </div>
+            </div>
+        </div>
+
+        <div class="admin-form-section">
+            <h4>Controls</h4>
+            <div class="d-flex gap-2 flex-wrap">
+                <button type="button" class="btn btn-success" id="btnConnect" onclick="connectTailscale()">
+                    <i class="fas fa-plug"></i> Connect
+                </button>
+                <button type="button" class="btn btn-warning" id="btnDisconnect" onclick="disconnectTailscale()">
+                    <i class="fas fa-power-off"></i> Disconnect
+                </button>
+                <button type="button" class="btn btn-outline-primary" id="btnLoginUrl" onclick="getLoginUrl()">
+                    <i class="fas fa-link"></i> Get Login URL
+                </button>
+                <button type="button" class="btn btn-outline-secondary" id="btnRefresh" onclick="refreshStatus()">
+                    <i class="fas fa-sync-alt"></i> Refresh
+                </button>
+                <button type="button" class="btn btn-outline-danger" id="btnLogout" onclick="logoutTailscale()">
+                    <i class="fas fa-sign-out-alt"></i> Logout
+                </button>
+            </div>
+            <div id="loginUrlContainer" class="login-url-container" style="display: none;">
+                <strong>Login URL:</strong><br>
+                <a id="loginUrlLink" href="#" target="_blank" rel="noopener noreferrer"></a>
+                <div class="form-text mt-2">Open this URL in a browser to authenticate this node with your Tailscale account.</div>
+            </div>
+        </div>
+
+        <div class="admin-form-section" id="peersSection" style="display: none;">
+            <h4>Connected Peers</h4>
+            <table class="peer-table">
+                <thead>
+                    <tr>
+                        <th>Hostname</th>
+                        <th>IP Address</th>
+                        <th>OS</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody id="peersTableBody">
+                    <!-- Populated by JavaScript -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Diagnostics Tab -->
+    <div class="admin-tab-content" id="diagnostics">
+        <div class="admin-form-section">
+            <h4>Ping a Peer</h4>
+            <div class="d-flex gap-2 align-items-end">
+                <div class="flex-grow-1">
+                    <label for="pingTarget" class="form-label">Target Hostname or IP</label>
+                    <input type="text" class="form-control" id="pingTarget" placeholder="my-laptop or 100.x.y.z">
+                </div>
+                <button type="button" class="btn btn-primary" onclick="pingPeer()">
+                    <i class="fas fa-satellite-dish"></i> Ping
+                </button>
+            </div>
+            <div id="pingOutput" class="ping-output mt-3" style="display: none;"></div>
+        </div>
+
+        <div class="admin-form-section">
+            <h4>Installation Status</h4>
+            <div id="installStatus">
+                <span class="spinner-border"></span> Checking...
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Tab switching
+document.querySelectorAll('.admin-tab').forEach(tab => {
+    tab.addEventListener('click', function() {
+        document.querySelectorAll('.admin-tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.admin-tab-content').forEach(c => c.classList.remove('active'));
+        this.classList.add('active');
+        document.getElementById(this.dataset.tab).classList.add('active');
+
+        // Auto-refresh status when switching to status tab
+        if (this.dataset.tab === 'status' || this.dataset.tab === 'diagnostics') {
+            refreshStatus();
+        }
+    });
+});
+
+// Settings form submission
+document.getElementById('tailscaleSettingsForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+
+    const formData = new FormData(this);
+    const data = Object.fromEntries(formData.entries());
+
+    try {
+        const response = await fetch('/admin/api/tailscale/settings', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            showToast(result.message || 'Settings saved successfully', 'success');
+        } else {
+            showToast(result.error || 'Failed to save settings', 'error');
+        }
+    } catch (error) {
+        showToast('Error saving settings: ' + error.message, 'error');
+    }
+});
+
+// Status refresh
+async function refreshStatus() {
+    const statusLoading = document.getElementById('statusLoading');
+    const statusContent = document.getElementById('statusContent');
+    const statusGrid = document.getElementById('statusGrid');
+    const peersSection = document.getElementById('peersSection');
+    const peersTableBody = document.getElementById('peersTableBody');
+    const installStatus = document.getElementById('installStatus');
+
+    statusLoading.style.display = 'block';
+    statusContent.style.display = 'none';
+
+    try {
+        const response = await fetch('/admin/api/tailscale/status');
+        const data = await response.json();
+
+        statusLoading.style.display = 'none';
+        statusContent.style.display = 'block';
+
+        // Build status grid
+        let gridHtml = '';
+
+        if (!data.installed) {
+            gridHtml = `
+                <div class="status-item">
+                    <div class="status-label"><i class="fas fa-exclamation-triangle"></i> Installation</div>
+                    <div class="status-value"><span class="status-badge danger">Not Installed</span></div>
+                </div>`;
+            installStatus.innerHTML = '<span class="status-badge danger">Not Installed</span> - Install Tailscale to enable VPN connectivity. Visit <a href="https://tailscale.com/download" target="_blank" rel="noopener noreferrer">tailscale.com/download</a>';
+        } else {
+            let statusBadgeClass = 'secondary';
+            let statusText = data.status || 'Unknown';
+            if (data.status === 'connected') statusBadgeClass = 'success';
+            else if (data.status === 'needs_login') statusBadgeClass = 'warning';
+            else if (data.status === 'stopped') statusBadgeClass = 'secondary';
+            else if (data.status === 'error') statusBadgeClass = 'danger';
+
+            gridHtml += `
+                <div class="status-item highlight">
+                    <div class="status-label"><i class="fas fa-circle"></i> Status</div>
+                    <div class="status-value"><span class="status-badge ${statusBadgeClass}">${statusText}</span></div>
+                </div>`;
+
+            if (data.version) {
+                gridHtml += `
+                    <div class="status-item">
+                        <div class="status-label"><i class="fas fa-code-branch"></i> Version</div>
+                        <div class="status-value">${data.version}</div>
+                    </div>`;
+            }
+
+            if (data.ip) {
+                gridHtml += `
+                    <div class="status-item highlight">
+                        <div class="status-label"><i class="fas fa-network-wired"></i> Tailscale IP</div>
+                        <div class="status-value">${data.ip}</div>
+                    </div>`;
+            }
+
+            if (data.tailnet) {
+                gridHtml += `
+                    <div class="status-item">
+                        <div class="status-label"><i class="fas fa-cloud"></i> Tailnet</div>
+                        <div class="status-value">${data.tailnet}</div>
+                    </div>`;
+            }
+
+            if (data.dns_name) {
+                gridHtml += `
+                    <div class="status-item">
+                        <div class="status-label"><i class="fas fa-globe"></i> DNS Name</div>
+                        <div class="status-value" style="font-size: 1rem;">${data.dns_name}</div>
+                    </div>`;
+            }
+
+            if (data.hostname) {
+                gridHtml += `
+                    <div class="status-item">
+                        <div class="status-label"><i class="fas fa-server"></i> Hostname</div>
+                        <div class="status-value">${data.hostname}</div>
+                    </div>`;
+            }
+
+            gridHtml += `
+                <div class="status-item">
+                    <div class="status-label"><i class="fas fa-cog"></i> Daemon</div>
+                    <div class="status-value"><span class="status-badge ${data.daemon_running ? 'success' : 'danger'}">${data.daemon_running ? 'Running' : 'Stopped'}</span></div>
+                </div>`;
+
+            // Install status
+            installStatus.innerHTML = `<span class="status-badge success">Installed</span> - Version: ${data.version || 'unknown'}`;
+
+            // Peers table
+            if (data.peers && data.peers.length > 0) {
+                peersSection.style.display = 'block';
+                let peersHtml = '';
+                data.peers.forEach(peer => {
+                    const onlineClass = peer.online ? 'peer-online' : 'peer-offline';
+                    const statusIcon = peer.online ? 'fa-circle' : 'fa-circle';
+                    const ips = (peer.ips || []).join(', ');
+                    peersHtml += `
+                        <tr>
+                            <td>${peer.hostname || peer.dns_name || 'Unknown'}</td>
+                            <td><code>${ips}</code></td>
+                            <td>${peer.os || '-'}</td>
+                            <td class="${onlineClass}"><i class="fas ${statusIcon}"></i> ${peer.online ? 'Online' : 'Offline'}</td>
+                        </tr>`;
+                });
+                peersTableBody.innerHTML = peersHtml;
+            } else {
+                peersSection.style.display = 'none';
+            }
+        }
+
+        statusGrid.innerHTML = gridHtml;
+
+    } catch (error) {
+        statusLoading.style.display = 'none';
+        statusContent.style.display = 'block';
+        statusGrid.innerHTML = `
+            <div class="status-item">
+                <div class="status-label"><i class="fas fa-exclamation-triangle"></i> Error</div>
+                <div class="status-value" style="font-size: 1rem; color: var(--danger-color);">${error.message}</div>
+            </div>`;
+        installStatus.innerHTML = `<span class="status-badge danger">Error</span> - ${error.message}`;
+    }
+}
+
+// Connect
+async function connectTailscale() {
+    const btn = document.getElementById('btnConnect');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border"></span> Connecting...';
+
+    try {
+        const response = await fetch('/admin/api/tailscale/start', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            showToast(result.message || 'Connected', 'success');
+        } else if (result.needs_login) {
+            showToast('Authentication required. Use "Get Login URL" or set an auth key.', 'warning');
+        } else {
+            showToast(result.error || 'Failed to connect', 'error');
+        }
+    } catch (error) {
+        showToast('Error: ' + error.message, 'error');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-plug"></i> Connect';
+        refreshStatus();
+    }
+}
+
+// Disconnect
+async function disconnectTailscale() {
+    const btn = document.getElementById('btnDisconnect');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border"></span> Disconnecting...';
+
+    try {
+        const response = await fetch('/admin/api/tailscale/stop', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            showToast(result.message || 'Disconnected', 'success');
+        } else {
+            showToast(result.error || 'Failed to disconnect', 'error');
+        }
+    } catch (error) {
+        showToast('Error: ' + error.message, 'error');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-power-off"></i> Disconnect';
+        refreshStatus();
+    }
+}
+
+// Get Login URL
+async function getLoginUrl() {
+    const btn = document.getElementById('btnLoginUrl');
+    const container = document.getElementById('loginUrlContainer');
+    const link = document.getElementById('loginUrlLink');
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border"></span> Generating...';
+
+    try {
+        const response = await fetch('/admin/api/tailscale/login-url', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+        });
+
+        const result = await response.json();
+
+        if (result.login_url) {
+            link.href = result.login_url;
+            link.textContent = result.login_url;
+            container.style.display = 'block';
+            showToast('Login URL generated. Open it in a browser to authenticate.', 'success');
+        } else if (result.success) {
+            showToast(result.message || 'Already authenticated', 'success');
+            container.style.display = 'none';
+        } else {
+            showToast(result.error || 'Failed to generate login URL', 'error');
+            container.style.display = 'none';
+        }
+    } catch (error) {
+        showToast('Error: ' + error.message, 'error');
+        container.style.display = 'none';
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-link"></i> Get Login URL';
+    }
+}
+
+// Logout
+async function logoutTailscale() {
+    if (!confirm('Are you sure you want to log out? This will remove this node from the tailnet.')) {
+        return;
+    }
+
+    const btn = document.getElementById('btnLogout');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border"></span> Logging out...';
+
+    try {
+        const response = await fetch('/admin/api/tailscale/logout', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            showToast(result.message || 'Logged out', 'success');
+        } else {
+            showToast(result.error || 'Failed to logout', 'error');
+        }
+    } catch (error) {
+        showToast('Error: ' + error.message, 'error');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-sign-out-alt"></i> Logout';
+        refreshStatus();
+    }
+}
+
+// Ping
+async function pingPeer() {
+    const target = document.getElementById('pingTarget').value.trim();
+    const output = document.getElementById('pingOutput');
+
+    if (!target) {
+        showToast('Enter a target hostname or IP address', 'warning');
+        return;
+    }
+
+    output.style.display = 'block';
+    output.textContent = 'Pinging ' + target + '...\n';
+
+    try {
+        const response = await fetch('/admin/api/tailscale/ping', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ target: target })
+        });
+
+        const result = await response.json();
+        output.textContent = result.output || result.error || 'No output';
+    } catch (error) {
+        output.textContent = 'Error: ' + error.message;
+    }
+}
+
+// Toast helper (uses showToast from base template if available)
+if (typeof showToast === 'undefined') {
+    function showToast(message, type) {
+        alert((type === 'error' ? 'Error: ' : '') + message);
+    }
+}
+
+// Auto-load status on page load
+document.addEventListener('DOMContentLoaded', function() {
+    refreshStatus();
+});
+</script>
+{% endblock %}
