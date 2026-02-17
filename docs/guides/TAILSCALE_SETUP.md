@@ -59,16 +59,19 @@ Before configuring Tailscale in EAS Station, you need:
 
 ## Installation
 
-Tailscale must be installed on the EAS Station system before it can be configured. Installation is performed through the EAS Station web interface — no command line access is required.
+Tailscale must be installed on the EAS Station system before it can be configured. Installation is performed entirely through the EAS Station web interface — no command-line access is required.
 
 1. Log in to the EAS Station web interface
 2. Navigate to **Admin → Tailscale**
-3. If Tailscale is not yet installed, the Diagnostics tab will show **Not Installed**
-4. Follow the on-screen prompts to install Tailscale
+3. Click the **Diagnostics** tab
+4. If Tailscale is not yet installed, the Installation Status section will show **Not Installed** along with an **Install Tailscale** button
+5. Click **Install Tailscale** and confirm the prompt
+6. The installer will run in the background and display live output. Installation typically completes in under a minute
+7. When complete, the page will refresh and show Tailscale as **Installed**
 
-The installer will download and install Tailscale from the official Tailscale repository and enable the `tailscaled` system service automatically.
+The installer uses the [official Tailscale install script](https://tailscale.com/install.sh) and automatically enables the `tailscaled` system service.
 
-> **Note:** The system must have internet access during installation to reach the Tailscale package repository.
+> **Note:** The EAS Station system must have internet access during installation to download Tailscale from the official repository.
 
 ---
 
@@ -220,7 +223,7 @@ When enabled, the device uses Tailscale's MagicDNS, which allows resolving other
 
 ### Tailscale shows "Not Installed"
 
-Tailscale is not installed on the system. Go to the **Diagnostics** tab and follow the installation prompts. The system must have internet access.
+Tailscale is not installed on the system. Go to the **Diagnostics** tab, click **Install Tailscale**, and confirm the prompt. The system must have internet access to download the installer.
 
 ### Status shows "Needs Login"
 

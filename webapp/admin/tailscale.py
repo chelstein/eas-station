@@ -603,6 +603,61 @@ def ping_peer():
         return jsonify({"success": False, "error": str(exc)}), 500
 
 
+@tailscale_bp.route('/api/tailscale/install', methods=['POST'])
+@require_permission('system.configure')
+def install_tailscale():
+    """Install Tailscale using the official install script."""
+    try:
+        install_info = _check_tailscale_installed()
+        if install_info['installed']:
+            return jsonify({
+                "success": True,
+                "already_installed": True,
+                "message": f"Tailscale is already installed (version {install_info['version']})",
+            })
+
+        # Run the official Tailscale install script
+        result = subprocess.run(
+            ['sudo', 'sh', '-c', 'curl -fsSL https://tailscale.com/install.sh | sh'],
+            capture_output=True,
+            text=True,
+            timeout=180,
+        )
+
+        output = (result.stdout + result.stderr).strip()
+
+        if result.returncode == 0:
+            # Enable and start the daemon after install
+            subprocess.run(
+                ['sudo', 'systemctl', 'enable', '--now', 'tailscaled'],
+                capture_output=True,
+                text=True,
+                timeout=15,
+            )
+            logger.info("Tailscale installed successfully")
+            return jsonify({
+                "success": True,
+                "message": "Tailscale installed successfully. You can now connect from the Status tab.",
+                "output": output,
+            })
+        else:
+            logger.error(f"Tailscale install failed (rc={result.returncode}): {output}")
+            return jsonify({
+                "success": False,
+                "error": "Installation failed. See output for details.",
+                "output": output,
+            }), 500
+
+    except subprocess.TimeoutExpired:
+        return jsonify({
+            "success": False,
+            "error": "Installation timed out after 3 minutes.",
+        }), 500
+    except Exception as exc:
+        logger.error(f"Tailscale install error: {exc}")
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+
 def register_tailscale_routes(app, logger):
     """Register Tailscale admin routes with the Flask app.
 
