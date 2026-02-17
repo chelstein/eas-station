@@ -1,0 +1,338 @@
+{% extends "base.html" %}
+
+{% block title %}Audio Archives — EAS Station{% endblock %}
+
+{% block extra_css %}
+<style>
+  .source-card { margin-bottom: 1.5rem; }
+  .archive-badge {
+    display: inline-flex; align-items: center; gap: .4rem;
+    padding: .25rem .6rem; border-radius: .25rem; font-size: .8rem; font-weight: 600;
+  }
+  .badge-enabled  { background: color-mix(in srgb, var(--success-color) 20%, var(--surface-color)); color: var(--success-color); }
+  .badge-disabled { background: color-mix(in srgb, var(--secondary-color) 20%, var(--surface-color)); color: var(--secondary-color); }
+  .disk-bar-wrap  { background: var(--border-color); border-radius: .25rem; height: .45rem; overflow: hidden; min-width: 80px; }
+  .disk-bar       { background: var(--primary-color); height: 100%; transition: width .4s; }
+  .disk-bar.warn  { background: var(--warning-color); }
+  .disk-bar.danger{ background: var(--danger-color); }
+  .settings-panel { display: none; }
+  .settings-panel.open { display: block; }
+  .form-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1rem; }
+  .action-bar { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
+  .toast-stack { position: fixed; bottom: 1.5rem; right: 1.5rem; z-index: 9999; display: flex; flex-direction: column; gap: .5rem; }
+  .toast-msg {
+    background: var(--surface-color); border: 1px solid var(--border-color);
+    border-radius: .375rem; padding: .6rem 1rem; font-size: .875rem;
+    box-shadow: 0 4px 12px rgba(0,0,0,.15); opacity: 1; transition: opacity .5s;
+  }
+  .toast-msg.ok   { border-left: 4px solid var(--success-color); }
+  .toast-msg.err  { border-left: 4px solid var(--danger-color); }
+  .spinner { display: inline-block; width: 1rem; height: 1rem; border: 2px solid currentColor;
+    border-right-color: transparent; border-radius: 50%; animation: spin .6s linear infinite; vertical-align: middle; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+
+  <!-- Header -->
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <div>
+      <h1 class="mb-0"><i class="fas fa-archive me-2"></i>Audio Archives</h1>
+      <p class="text-muted mb-0 mt-1">
+        Record, retain, and manage on-disk audio segments per source.
+        Settings are persisted to the database; the audio service applies them automatically.
+      </p>
+    </div>
+    <button class="btn btn-outline-secondary" onclick="loadSources()">
+      <i class="fas fa-sync-alt me-1"></i> Refresh
+    </button>
+  </div>
+
+  <!-- Summary bar -->
+  <div class="card mb-4" id="summary-card" style="display:none">
+    <div class="card-body py-2 d-flex flex-wrap gap-4">
+      <div><span class="text-muted small">Total disk used</span><br><strong id="sum-disk">—</strong></div>
+      <div><span class="text-muted small">Total files</span><br><strong id="sum-files">—</strong></div>
+      <div><span class="text-muted small">Sources with archiving enabled</span><br><strong id="sum-enabled">—</strong></div>
+    </div>
+  </div>
+
+  <!-- Source cards -->
+  <div id="sources-container">
+    <div class="text-center text-muted py-5" id="loading-msg">
+      <span class="spinner"></span> Loading sources…
+    </div>
+  </div>
+
+</div><!-- /container -->
+
+<!-- Toast stack -->
+<div class="toast-stack" id="toast-stack"></div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+/* -----------------------------------------------------------------------
+   Helpers
+----------------------------------------------------------------------- */
+function toast(msg, ok = true) {
+  const el = document.createElement('div');
+  el.className = 'toast-msg ' + (ok ? 'ok' : 'err');
+  el.textContent = msg;
+  document.getElementById('toast-stack').appendChild(el);
+  setTimeout(() => { el.style.opacity = '0'; setTimeout(() => el.remove(), 600); }, 4000);
+}
+
+function fmt(n) {
+  const units = ['B','KB','MB','GB','TB'];
+  let u = 0;
+  while (n >= 1024 && u < units.length - 1) { n /= 1024; u++; }
+  return n.toFixed(1) + ' ' + units[u];
+}
+
+function gbToBytes(gb) { return Math.round(parseFloat(gb) * 1073741824); }
+function bytesToGb(b)  { return (b / 1073741824).toFixed(2); }
+
+async function api(method, url, body) {
+  const opts = { method, headers: { 'Content-Type': 'application/json' } };
+  if (body !== undefined) opts.body = JSON.stringify(body);
+  const r = await fetch(url, opts);
+  return r.json();
+}
+
+/* -----------------------------------------------------------------------
+   Build a source card
+----------------------------------------------------------------------- */
+function buildCard(s) {
+  const archEnabled = s.archive && s.archive.enabled;
+  const diskBytes   = s.disk_bytes || 0;
+  const maxBytes    = (s.archive && s.archive.max_disk_bytes) || 0;
+  const pct         = maxBytes > 0 ? Math.min(100, diskBytes / maxBytes * 100) : 0;
+  const barClass    = pct > 90 ? 'danger' : pct > 70 ? 'warn' : '';
+  const badgeClass  = archEnabled ? 'badge-enabled' : 'badge-disabled';
+  const badgeLabel  = archEnabled ? 'Archiving ON' : 'Archiving OFF';
+  const badgeIcon   = archEnabled ? 'fa-circle-dot' : 'fa-circle';
+  const fmt_val     = s.archive && s.archive.format ? s.archive.format.toUpperCase() : 'WAV';
+  const segMin      = s.archive ? Math.round(s.archive.segment_duration_seconds / 60) : 60;
+  const retDays     = s.archive ? s.archive.retention_days : 7;
+  const maxGb       = s.archive ? bytesToGb(s.archive.max_disk_bytes || 0) : 0;
+  const outDir      = (s.archive && s.archive.output_dir) || 'archives';
+  const bitrate     = (s.archive && s.archive.bitrate) || 128;
+  const newest      = s.newest_file_iso ? new Date(s.newest_file_iso).toLocaleString() : '—';
+
+  return `
+<div class="card source-card" id="card-${CSS.escape(s.source_name)}">
+  <div class="card-header d-flex align-items-center justify-content-between flex-wrap gap-2">
+    <div class="d-flex align-items-center gap-2">
+      <i class="fas fa-stream text-muted"></i>
+      <strong>${s.source_name}</strong>
+      <span class="text-muted small">(${s.source_type || '—'})</span>
+      <span class="archive-badge ${badgeClass}">
+        <i class="fas ${badgeIcon}"></i>${badgeLabel}
+      </span>
+    </div>
+    <div class="d-flex align-items-center gap-3">
+      <span class="text-muted small">${s.disk_bytes_human || '0 B'} on disk &bull; ${s.disk_files || 0} files</span>
+      ${maxBytes > 0 ? `
+      <div style="display:flex;align-items:center;gap:.4rem;">
+        <div class="disk-bar-wrap" style="width:80px">
+          <div class="disk-bar ${barClass}" style="width:${pct.toFixed(1)}%"></div>
+        </div>
+        <span class="text-muted small">${pct.toFixed(0)}%</span>
+      </div>` : ''}
+      <button class="btn btn-sm btn-outline-secondary" onclick="toggleSettings('${s.source_name}')">
+        <i class="fas fa-sliders"></i> Settings
+      </button>
+    </div>
+  </div>
+
+  <!-- Settings panel -->
+  <div class="card-body settings-panel" id="settings-${CSS.escape(s.source_name)}">
+    <form onsubmit="saveSettings(event, '${s.source_name}')">
+      <div class="form-row mb-3">
+        <div class="form-check d-flex align-items-center gap-2 pt-3">
+          <input type="checkbox" class="form-check-input" id="en-${s.source_name}" name="enabled" ${archEnabled ? 'checked' : ''}>
+          <label class="form-check-label" for="en-${s.source_name}">Enable archiving</label>
+        </div>
+        <div>
+          <label class="form-label small text-muted">Output directory</label>
+          <input type="text" class="form-control form-control-sm" name="output_dir" value="${outDir}">
+        </div>
+        <div>
+          <label class="form-label small text-muted">Segment length (minutes)</label>
+          <input type="number" class="form-control form-control-sm" name="segment_minutes" min="1" max="1440" value="${segMin}">
+        </div>
+        <div>
+          <label class="form-label small text-muted">Retain for (days, 0=forever)</label>
+          <input type="number" class="form-control form-control-sm" name="retention_days" min="0" value="${retDays}">
+        </div>
+        <div>
+          <label class="form-label small text-muted">Disk quota (GB, 0=unlimited)</label>
+          <input type="number" class="form-control form-control-sm" name="max_disk_gb" min="0" step="0.1" value="${maxGb}">
+        </div>
+        <div>
+          <label class="form-label small text-muted">Format</label>
+          <select class="form-select form-select-sm" name="format" onchange="toggleBitrate(this)">
+            <option value="wav" ${fmt_val==='WAV'?'selected':''}>WAV (no extra deps)</option>
+            <option value="mp3" ${fmt_val==='MP3'?'selected':''}>MP3 (requires FFmpeg)</option>
+          </select>
+        </div>
+        <div class="bitrate-field" style="${fmt_val==='WAV'?'display:none':''}">
+          <label class="form-label small text-muted">MP3 bitrate (kbps)</label>
+          <input type="number" class="form-control form-control-sm" name="bitrate" min="64" max="320" step="32" value="${bitrate}">
+        </div>
+      </div>
+
+      <div class="action-bar mt-2">
+        <button type="submit" class="btn btn-sm btn-primary">
+          <i class="fas fa-save me-1"></i> Save Settings
+        </button>
+        <button type="button" class="btn btn-sm btn-success" onclick="startArchiver('${s.source_name}')">
+          <i class="fas fa-play me-1"></i> Start Now
+        </button>
+        <button type="button" class="btn btn-sm btn-warning" onclick="stopArchiver('${s.source_name}')">
+          <i class="fas fa-stop me-1"></i> Stop
+        </button>
+        <div class="ms-auto d-flex gap-2">
+          <button type="button" class="btn btn-sm btn-outline-danger"
+            onclick="purgeOlder('${s.source_name}')">
+            <i class="fas fa-clock me-1"></i> Purge Old…
+          </button>
+          <button type="button" class="btn btn-sm btn-danger"
+            onclick="purgeAll('${s.source_name}')">
+            <i class="fas fa-trash me-1"></i> Purge All
+          </button>
+        </div>
+      </div>
+
+      <div class="mt-2 text-muted small">
+        Last archived file: <span>${newest}</span>
+      </div>
+    </form>
+  </div>
+</div>`;
+}
+
+/* -----------------------------------------------------------------------
+   Toggle settings panel
+----------------------------------------------------------------------- */
+function toggleSettings(name) {
+  const el = document.getElementById('settings-' + name);
+  if (el) el.classList.toggle('open');
+}
+
+function toggleBitrate(sel) {
+  const row = sel.closest('.form-row').querySelector('.bitrate-field');
+  if (row) row.style.display = sel.value === 'mp3' ? '' : 'none';
+}
+
+/* -----------------------------------------------------------------------
+   Load sources
+----------------------------------------------------------------------- */
+async function loadSources() {
+  const container = document.getElementById('sources-container');
+  container.innerHTML = '<div class="text-center text-muted py-5"><span class="spinner"></span> Loading…</div>';
+
+  try {
+    const data = await api('GET', '/api/audio/archives/sources');
+    const sources = data.sources || [];
+
+    if (!sources.length) {
+      container.innerHTML = '<div class="alert alert-info">No audio sources configured yet. Add sources at <a href="/admin/audio-sources">Audio Streams</a>.</div>';
+      return;
+    }
+
+    container.innerHTML = sources.map(buildCard).join('');
+
+    // Summary bar
+    const totalDisk    = sources.reduce((a, s) => a + (s.disk_bytes || 0), 0);
+    const totalFiles   = sources.reduce((a, s) => a + (s.disk_files || 0), 0);
+    const enabledCount = sources.filter(s => s.archive && s.archive.enabled).length;
+    document.getElementById('sum-disk').textContent    = fmt(totalDisk);
+    document.getElementById('sum-files').textContent   = totalFiles;
+    document.getElementById('sum-enabled').textContent = `${enabledCount} / ${sources.length}`;
+    document.getElementById('summary-card').style.display = '';
+    document.getElementById('loading-msg') && document.getElementById('loading-msg').remove();
+
+  } catch (e) {
+    container.innerHTML = `<div class="alert alert-danger">Failed to load sources: ${e}</div>`;
+  }
+}
+
+/* -----------------------------------------------------------------------
+   Save settings
+----------------------------------------------------------------------- */
+async function saveSettings(evt, sourceName) {
+  evt.preventDefault();
+  const form = evt.target;
+  const fd   = new FormData(form);
+
+  const body = {
+    enabled:                  fd.get('enabled') === 'on',
+    output_dir:               fd.get('output_dir'),
+    segment_duration_seconds: parseInt(fd.get('segment_minutes') || 60) * 60,
+    retention_days:           parseInt(fd.get('retention_days') || 7),
+    max_disk_bytes:           gbToBytes(fd.get('max_disk_gb') || 0),
+    format:                   fd.get('format'),
+    bitrate:                  parseInt(fd.get('bitrate') || 128),
+  };
+
+  try {
+    const r = await api('POST', `/api/audio/archives/${encodeURIComponent(sourceName)}/settings`, body);
+    if (r.saved) { toast('Settings saved for ' + sourceName); }
+    else         { toast('Save failed: ' + (r.error || 'unknown'), false); }
+  } catch (e) { toast('Error: ' + e, false); }
+}
+
+/* -----------------------------------------------------------------------
+   Start / Stop
+----------------------------------------------------------------------- */
+async function startArchiver(sourceName) {
+  try {
+    const r = await api('POST', `/api/audio/archives/${encodeURIComponent(sourceName)}/start`, {});
+    const ok = r.result && r.result.success;
+    toast(ok ? `Archiver started for ${sourceName}` : `Start failed: ${(r.result||{}).message||r.error}`, ok);
+    if (ok) setTimeout(() => loadSources(), 800);
+  } catch (e) { toast('Error: ' + e, false); }
+}
+
+async function stopArchiver(sourceName) {
+  try {
+    const r = await api('POST', `/api/audio/archives/${encodeURIComponent(sourceName)}/stop`, {});
+    const ok = r.result && r.result.success;
+    toast(ok ? `Archiver stopped for ${sourceName}` : `Stop failed: ${(r.result||{}).message||r.error}`, ok);
+    if (ok) setTimeout(() => loadSources(), 800);
+  } catch (e) { toast('Error: ' + e, false); }
+}
+
+/* -----------------------------------------------------------------------
+   Purge
+----------------------------------------------------------------------- */
+async function purgeAll(sourceName) {
+  if (!confirm(`Delete ALL archive files for "${sourceName}"?\nThis cannot be undone.`)) return;
+  try {
+    const r = await api('POST', `/api/audio/archives/${encodeURIComponent(sourceName)}/purge`, {});
+    if (r.error) { toast('Purge failed: ' + r.error, false); }
+    else { toast(`Purged ${r.files_deleted} file(s) (${r.bytes_freed_human}) for ${sourceName}`); setTimeout(loadSources, 600); }
+  } catch (e) { toast('Error: ' + e, false); }
+}
+
+async function purgeOlder(sourceName) {
+  const days = parseInt(prompt('Delete files older than how many days?', '7'));
+  if (isNaN(days) || days < 1) return;
+  try {
+    const r = await api('POST', `/api/audio/archives/${encodeURIComponent(sourceName)}/purge`, { days_older_than: days });
+    if (r.error) { toast('Purge failed: ' + r.error, false); }
+    else { toast(`Purged ${r.files_deleted} file(s) (${r.bytes_freed_human}) older than ${days} day(s)`); setTimeout(loadSources, 600); }
+  } catch (e) { toast('Error: ' + e, false); }
+}
+
+/* -----------------------------------------------------------------------
+   Init
+----------------------------------------------------------------------- */
+document.addEventListener('DOMContentLoaded', loadSources);
+</script>
+{% endblock %}

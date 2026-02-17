@@ -22,46 +22,55 @@ from __future__ import annotations
 """
 Audio Archive Management Routes
 
-Provides a JSON API and minimal HTML page for inspecting and managing
-on-disk audio archives produced by the AudioArchiver.
+All archive management is performed from the web UI — no CLI required.
 
 Endpoints
 ---------
 GET  /admin/audio/archives
-     Dashboard page listing all source archive directories.
+     Full management dashboard (HTML).
 
 GET  /api/audio/archives
-     JSON: disk usage and file counts for every source archive directory.
+     JSON: disk stats for every source archive directory.
 
-GET  /api/audio/archives/<source_name>
-     JSON: per-day breakdown for one source.
+GET  /api/audio/archives/<source_name>/settings
+     JSON: archiver config stored in AudioSourceConfigDB.config_params["archive"].
+
+POST /api/audio/archives/<source_name>/settings
+     Save archiver config to DB (does not start/stop the archiver).
+     Body: AudioArchiverConfig fields (enabled, output_dir, segment_duration_seconds,
+           retention_days, max_disk_bytes, format, bitrate).
+
+POST /api/audio/archives/<source_name>/start
+     Save config to DB (enabled=true) and send Redis command to audio-service
+     to start the archiver immediately.
+
+POST /api/audio/archives/<source_name>/stop
+     Send Redis command to stop the archiver and set enabled=false in DB.
 
 POST /api/audio/archives/<source_name>/purge
-     Delete all archive files for the named source. Body (optional):
-       { "days_older_than": 3 }   – purge only files older than N days
-     Omit the body (or set days_older_than=0) to purge everything.
+     Delete archive files.  Body (optional): {"days_older_than": N}
+
+GET  /api/audio/archives/sources
+     JSON: all AudioSourceConfigDB records with their archive config.
 """
 
 import logging
-import shutil
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from flask import Flask, jsonify, render_template_string, request
+from flask import Flask, jsonify, render_template, request
 
 logger = logging.getLogger(__name__)
 
-# Default archive root – should match AudioArchiverConfig.output_dir.
-# Override by passing archive_dir to register().
 _DEFAULT_ARCHIVE_DIR = "archives"
 
+
 # ---------------------------------------------------------------------------
-# Helpers
+# Filesystem helpers
 # ---------------------------------------------------------------------------
 
 def _dir_size(path: Path) -> int:
-    """Recursively sum file sizes under *path*."""
     total = 0
     if not path.exists():
         return 0
@@ -74,6 +83,12 @@ def _dir_size(path: Path) -> int:
     return total
 
 
+def _count_files(path: Path) -> int:
+    if not path.exists():
+        return 0
+    return sum(1 for f in path.rglob("*") if f.is_file())
+
+
 def _format_bytes(n: int) -> str:
     for unit in ("B", "KB", "MB", "GB", "TB"):
         if n < 1024:
@@ -82,97 +97,36 @@ def _format_bytes(n: int) -> str:
     return f"{n:.1f} PB"
 
 
-def _count_files(path: Path) -> int:
-    if not path.exists():
-        return 0
-    return sum(1 for f in path.rglob("*") if f.is_file())
+def _newest_mtime(source_dir: Path) -> Optional[float]:
+    best: Optional[float] = None
+    if source_dir.exists():
+        for f in source_dir.rglob("*"):
+            if f.is_file():
+                try:
+                    mt = f.stat().st_mtime
+                    if best is None or mt > best:
+                        best = mt
+                except OSError:
+                    pass
+    return best
 
 
-def _source_summary(source_dir: Path) -> Dict[str, Any]:
-    """Return a summary dict for one source directory."""
+def _source_disk_summary(source_dir: Path) -> Dict[str, Any]:
     total_bytes = _dir_size(source_dir)
     total_files = _count_files(source_dir)
-
-    # Newest file mtime
-    newest_mtime: Optional[float] = None
-    for f in source_dir.rglob("*"):
-        if f.is_file():
-            try:
-                mt = f.stat().st_mtime
-                if newest_mtime is None or mt > newest_mtime:
-                    newest_mtime = mt
-            except OSError:
-                pass
-
+    newest = _newest_mtime(source_dir)
     return {
         "source_name": source_dir.name,
         "total_bytes": total_bytes,
         "total_bytes_human": _format_bytes(total_bytes),
         "total_files": total_files,
-        "newest_file_ts": newest_mtime,
-        "newest_file_iso": (
-            datetime.fromtimestamp(newest_mtime).isoformat() if newest_mtime else None
-        ),
+        "newest_file_ts": newest,
+        "newest_file_iso": datetime.fromtimestamp(newest).isoformat() if newest else None,
     }
 
 
-def _source_detail(source_dir: Path) -> Dict[str, Any]:
-    """Return a per-day breakdown for one source directory."""
-    summary = _source_summary(source_dir)
-    days: List[Dict[str, Any]] = []
-
-    if source_dir.exists():
-        for date_dir in sorted(source_dir.iterdir(), reverse=True):
-            if not date_dir.is_dir():
-                continue
-            try:
-                datetime.strptime(date_dir.name, "%Y-%m-%d")
-            except ValueError:
-                continue
-
-            day_bytes = _dir_size(date_dir)
-            files = sorted(
-                (
-                    {
-                        "name": f.name,
-                        "bytes": f.stat().st_size,
-                        "bytes_human": _format_bytes(f.stat().st_size),
-                        "mtime_iso": datetime.fromtimestamp(f.stat().st_mtime).isoformat(),
-                    }
-                    for f in date_dir.iterdir()
-                    if f.is_file()
-                ),
-                key=lambda x: x["name"],
-                reverse=True,
-            )
-            days.append(
-                {
-                    "date": date_dir.name,
-                    "bytes": day_bytes,
-                    "bytes_human": _format_bytes(day_bytes),
-                    "file_count": len(files),
-                    "files": files,
-                }
-            )
-
-    summary["days"] = days
-    return summary
-
-
 def _purge_source(source_dir: Path, days_older_than: int = 0) -> Dict[str, Any]:
-    """
-    Delete archive files for one source.
-
-    Args:
-        source_dir: Root directory for the source.
-        days_older_than: If > 0 only delete files/dirs older than this many
-                         days.  If 0, delete everything.
-
-    Returns:
-        Dict with files_deleted, bytes_freed, error.
-    """
     result: Dict[str, Any] = {"files_deleted": 0, "bytes_freed": 0, "error": None}
-
     if not source_dir.exists():
         return result
 
@@ -186,15 +140,13 @@ def _purge_source(source_dir: Path, days_older_than: int = 0) -> Dict[str, Any]:
         for date_dir in sorted(source_dir.iterdir()):
             if not date_dir.is_dir():
                 continue
-
             if cutoff is not None:
                 try:
                     dir_date = datetime.strptime(date_dir.name, "%Y-%m-%d")
                 except ValueError:
                     continue
                 if dir_date >= cutoff:
-                    continue  # Keep this directory
-
+                    continue
             for f in date_dir.iterdir():
                 if f.is_file():
                     try:
@@ -202,12 +154,11 @@ def _purge_source(source_dir: Path, days_older_than: int = 0) -> Dict[str, Any]:
                         f.unlink()
                         result["files_deleted"] += 1
                     except OSError as exc:
-                        logger.warning("Archive purge: could not delete %s: %s", f, exc)
+                        logger.warning("Archive purge: cannot delete %s: %s", f, exc)
             try:
                 date_dir.rmdir()
             except OSError:
-                pass  # Directory not empty – leave it
-
+                pass
     except Exception as exc:
         result["error"] = str(exc)
         logger.error("Archive purge error for %s: %s", source_dir, exc)
@@ -216,102 +167,82 @@ def _purge_source(source_dir: Path, days_older_than: int = 0) -> Dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
-# Simple dashboard template (inline – no separate file needed)
+# DB helpers
 # ---------------------------------------------------------------------------
 
-_DASHBOARD_TEMPLATE = """\
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Audio Archives – EAS Station</title>
-<style>
-  body { font-family: sans-serif; margin: 2rem; color: #222; }
-  h1 { font-size: 1.5rem; margin-bottom: 1rem; }
-  table { border-collapse: collapse; width: 100%; max-width: 900px; }
-  th, td { border: 1px solid #ccc; padding: .5rem .75rem; text-align: left; }
-  th { background: #f0f0f0; }
-  .purge-btn { background: #c0392b; color: #fff; border: none; padding: .3rem .75rem;
-               cursor: pointer; border-radius: 3px; }
-  .purge-btn:hover { background: #a93226; }
-  .msg { margin: .5rem 0; padding: .5rem; border-radius: 3px; }
-  .msg.ok { background: #d5f5e3; border: 1px solid #27ae60; }
-  .msg.err { background: #fadbd8; border: 1px solid #c0392b; }
-</style>
-</head>
-<body>
-<h1>Audio Archives</h1>
-
-<div id="status"></div>
-
-<table id="archives-table">
-  <thead><tr>
-    <th>Source</th>
-    <th>Files</th>
-    <th>Disk Usage</th>
-    <th>Newest File</th>
-    <th>Actions</th>
-  </tr></thead>
-  <tbody id="archives-body">
-    <tr><td colspan="5">Loading…</td></tr>
-  </tbody>
-</table>
-
-<script>
-function showMsg(text, ok) {
-  const el = document.getElementById('status');
-  el.innerHTML = '<div class="msg ' + (ok ? 'ok' : 'err') + '">' + text + '</div>';
-  setTimeout(() => { el.innerHTML = ''; }, 5000);
+_DEFAULT_ARCHIVE_CONFIG: Dict[str, Any] = {
+    "enabled": False,
+    "output_dir": "archives",
+    "segment_duration_seconds": 3600,
+    "retention_days": 7,
+    "max_disk_bytes": 0,
+    "format": "wav",
+    "bitrate": 128,
 }
 
-function renderTable(sources) {
-  const tbody = document.getElementById('archives-body');
-  if (!sources.length) {
-    tbody.innerHTML = '<tr><td colspan="5">No archives found.</td></tr>';
-    return;
-  }
-  tbody.innerHTML = sources.map(s => {
-    const newest = s.newest_file_iso
-      ? new Date(s.newest_file_iso).toLocaleString()
-      : '—';
-    return '<tr>' +
-      '<td>' + s.source_name + '</td>' +
-      '<td>' + s.total_files + '</td>' +
-      '<td>' + s.total_bytes_human + '</td>' +
-      '<td>' + newest + '</td>' +
-      '<td><button class="purge-btn" onclick="purge(' + JSON.stringify(s.source_name) + ')">Purge All</button></td>' +
-    '</tr>';
-  }).join('');
-}
 
-function loadTable() {
-  fetch('/api/audio/archives')
-    .then(r => r.json())
-    .then(d => renderTable(d.sources || []))
-    .catch(e => showMsg('Error loading archives: ' + e, false));
-}
+def _get_archive_config(source_name: str) -> Optional[Dict[str, Any]]:
+    """Return the archive config for *source_name* from the DB, or None if not found."""
+    try:
+        from app_core.models import AudioSourceConfigDB
+        db_config = AudioSourceConfigDB.query.filter_by(name=source_name).first()
+        if db_config is None:
+            return None
+        config_params = db_config.config_params or {}
+        archive = dict(_DEFAULT_ARCHIVE_CONFIG)
+        archive.update(config_params.get("archive", {}))
+        return archive
+    except Exception as exc:
+        logger.error("Error reading archive config for '%s': %s", source_name, exc)
+        return None
 
-function purge(sourceName) {
-  if (!confirm('Delete ALL archive files for "' + sourceName + '"?')) return;
-  fetch('/api/audio/archives/' + encodeURIComponent(sourceName) + '/purge', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({}),
-  })
-  .then(r => r.json())
-  .then(d => {
-    if (d.error) { showMsg('Purge failed: ' + d.error, false); }
-    else { showMsg('Purged ' + d.files_deleted + ' file(s) (' + d.bytes_freed_human + ')', true); loadTable(); }
-  })
-  .catch(e => showMsg('Request failed: ' + e, false));
-}
 
-loadTable();
-</script>
-</body>
-</html>
-"""
+def _save_archive_config(source_name: str, archive_cfg: Dict[str, Any]) -> bool:
+    """Merge *archive_cfg* into AudioSourceConfigDB.config_params["archive"]."""
+    try:
+        from app_core.extensions import db
+        from app_core.models import AudioSourceConfigDB
+        db_config = AudioSourceConfigDB.query.filter_by(name=source_name).first()
+        if db_config is None:
+            return False
+        config_params = dict(db_config.config_params or {})
+        existing = dict(_DEFAULT_ARCHIVE_CONFIG)
+        existing.update(config_params.get("archive", {}))
+        existing.update(archive_cfg)
+        config_params["archive"] = existing
+        db_config.config_params = config_params
+        db.session.commit()
+        return True
+    except Exception as exc:
+        logger.error("Error saving archive config for '%s': %s", source_name, exc)
+        try:
+            from app_core.extensions import db
+            db.session.rollback()
+        except Exception:
+            pass
+        return False
+
+
+def _all_sources_with_archive_config() -> List[Dict[str, Any]]:
+    """Return all AudioSourceConfigDB records with their archive config."""
+    try:
+        from app_core.models import AudioSourceConfigDB
+        rows = AudioSourceConfigDB.query.order_by(AudioSourceConfigDB.name).all()
+        result = []
+        for row in rows:
+            config_params = row.config_params or {}
+            archive = dict(_DEFAULT_ARCHIVE_CONFIG)
+            archive.update(config_params.get("archive", {}))
+            result.append({
+                "source_name": row.name,
+                "source_type": row.source_type,
+                "enabled": row.enabled,
+                "archive": archive,
+            })
+        return result
+    except Exception as exc:
+        logger.error("Error listing sources: %s", exc)
+        return []
 
 
 # ---------------------------------------------------------------------------
@@ -319,15 +250,7 @@ loadTable();
 # ---------------------------------------------------------------------------
 
 def register(app: Flask, logger_arg, archive_dir: str = _DEFAULT_ARCHIVE_DIR) -> None:
-    """Attach audio archive management routes to *app*.
-
-    Args:
-        app: Flask application.
-        logger_arg: Module-level logger supplied by the route registration
-                    framework.
-        archive_dir: Root directory where AudioArchiver writes files.  Must
-                     match ``AudioArchiverConfig.output_dir``.
-    """
+    """Attach audio archive management routes to *app*."""
 
     route_logger = logger_arg.getChild("routes_audio_archive")
     archive_root = Path(archive_dir)
@@ -338,73 +261,135 @@ def register(app: Flask, logger_arg, archive_dir: str = _DEFAULT_ARCHIVE_DIR) ->
 
     @app.route("/admin/audio/archives")
     def audio_archives_dashboard():
-        return _DASHBOARD_TEMPLATE, 200, {"Content-Type": "text/html; charset=utf-8"}
+        return render_template("admin/audio_archives.html")
 
     # ------------------------------------------------------------------
-    # API: list all sources
+    # API: all sources with settings + disk stats
+    # ------------------------------------------------------------------
+
+    @app.route("/api/audio/archives/sources", methods=["GET"])
+    def api_audio_archives_sources():
+        sources = _all_sources_with_archive_config()
+
+        # Enrich each source with its current disk usage
+        for s in sources:
+            source_dir = archive_root / s["source_name"]
+            disk = _source_disk_summary(source_dir)
+            s["disk_bytes"] = disk["total_bytes"]
+            s["disk_bytes_human"] = disk["total_bytes_human"]
+            s["disk_files"] = disk["total_files"]
+            s["newest_file_iso"] = disk["newest_file_iso"]
+
+        return jsonify({"sources": sources, "archive_dir": str(archive_root)})
+
+    # ------------------------------------------------------------------
+    # API: disk-only summary (no DB lookup)
     # ------------------------------------------------------------------
 
     @app.route("/api/audio/archives", methods=["GET"])
     def api_audio_archives_list():
         sources: List[Dict[str, Any]] = []
-
         if archive_root.exists():
             for source_dir in sorted(archive_root.iterdir()):
                 if source_dir.is_dir():
                     try:
-                        sources.append(_source_summary(source_dir))
+                        sources.append(_source_disk_summary(source_dir))
                     except Exception as exc:
-                        route_logger.warning(
-                            "Error summarising archive dir %s: %s", source_dir, exc
-                        )
+                        route_logger.warning("Error reading archive dir %s: %s", source_dir, exc)
 
         total_bytes = sum(s["total_bytes"] for s in sources)
-        total_files = sum(s["total_files"] for s in sources)
-
-        return jsonify(
-            {
-                "sources": sources,
-                "total_bytes": total_bytes,
-                "total_bytes_human": _format_bytes(total_bytes),
-                "total_files": total_files,
-                "archive_dir": str(archive_root),
-            }
-        )
+        return jsonify({
+            "sources": sources,
+            "total_bytes": total_bytes,
+            "total_bytes_human": _format_bytes(total_bytes),
+            "total_files": sum(s["total_files"] for s in sources),
+            "archive_dir": str(archive_root),
+        })
 
     # ------------------------------------------------------------------
-    # API: detail for one source
+    # API: get settings for one source
     # ------------------------------------------------------------------
 
-    @app.route("/api/audio/archives/<source_name>", methods=["GET"])
-    def api_audio_archives_source(source_name: str):
-        # Restrict to the archive root (no path traversal)
-        source_dir = archive_root / Path(source_name).name
+    @app.route("/api/audio/archives/<source_name>/settings", methods=["GET"])
+    def api_audio_archive_get_settings(source_name: str):
+        cfg = _get_archive_config(source_name)
+        if cfg is None:
+            return jsonify({"error": f"Source '{source_name}' not found"}), 404
+        return jsonify({"source_name": source_name, "archive": cfg})
 
-        if not source_dir.exists():
-            return jsonify({"error": f"No archives for '{source_name}'"}), 404
+    # ------------------------------------------------------------------
+    # API: save settings (does NOT start/stop archiver)
+    # ------------------------------------------------------------------
+
+    @app.route("/api/audio/archives/<source_name>/settings", methods=["POST"])
+    def api_audio_archive_save_settings(source_name: str):
+        body: Dict[str, Any] = request.get_json(silent=True) or {}
+        if not _save_archive_config(source_name, body):
+            return jsonify({"error": f"Failed to save settings for '{source_name}'"}), 500
+        cfg = _get_archive_config(source_name)
+        return jsonify({"source_name": source_name, "archive": cfg, "saved": True})
+
+    # ------------------------------------------------------------------
+    # API: start archiver
+    # ------------------------------------------------------------------
+
+    @app.route("/api/audio/archives/<source_name>/start", methods=["POST"])
+    def api_audio_archive_start(source_name: str):
+        body: Dict[str, Any] = request.get_json(silent=True) or {}
+
+        # Merge any overrides from request body into existing config
+        existing = _get_archive_config(source_name)
+        if existing is None:
+            return jsonify({"error": f"Source '{source_name}' not found"}), 404
+
+        merged = dict(existing)
+        merged.update(body)
+        merged["enabled"] = True
+
+        if not _save_archive_config(source_name, merged):
+            return jsonify({"error": "Failed to save archive config"}), 500
 
         try:
-            detail = _source_detail(source_dir)
-            return jsonify(detail)
+            from app_core.audio.redis_commands import get_audio_command_publisher
+            publisher = get_audio_command_publisher()
+            result = publisher.start_archiver(source_name, merged)
+            return jsonify({"source_name": source_name, "result": result})
         except Exception as exc:
-            route_logger.error("Error reading archive detail for %s: %s", source_name, exc)
-            return jsonify({"error": str(exc)}), 500
+            route_logger.error("archiver start command failed for '%s': %s", source_name, exc)
+            return jsonify({
+                "source_name": source_name,
+                "result": {"success": False, "message": str(exc)},
+            }), 500
 
     # ------------------------------------------------------------------
-    # API: purge one source
+    # API: stop archiver
+    # ------------------------------------------------------------------
+
+    @app.route("/api/audio/archives/<source_name>/stop", methods=["POST"])
+    def api_audio_archive_stop(source_name: str):
+        # Persist disabled state to DB
+        _save_archive_config(source_name, {"enabled": False})
+
+        try:
+            from app_core.audio.redis_commands import get_audio_command_publisher
+            publisher = get_audio_command_publisher()
+            result = publisher.stop_archiver(source_name)
+            return jsonify({"source_name": source_name, "result": result})
+        except Exception as exc:
+            route_logger.error("archiver stop command failed for '%s': %s", source_name, exc)
+            return jsonify({
+                "source_name": source_name,
+                "result": {"success": False, "message": str(exc)},
+            }), 500
+
+    # ------------------------------------------------------------------
+    # API: purge archive files
     # ------------------------------------------------------------------
 
     @app.route("/api/audio/archives/<source_name>/purge", methods=["POST"])
-    def api_audio_archives_purge(source_name: str):
-        # Restrict to the archive root (no path traversal)
-        source_dir = archive_root / Path(source_name).name
-
-        body: Dict[str, Any] = {}
-        try:
-            body = request.get_json(silent=True) or {}
-        except Exception:
-            pass
-
+    def api_audio_archive_purge(source_name: str):
+        source_dir = archive_root / Path(source_name).name  # prevent path traversal
+        body: Dict[str, Any] = request.get_json(silent=True) or {}
         days_older_than = 0
         try:
             days_older_than = int(body.get("days_older_than", 0))
@@ -413,13 +398,10 @@ def register(app: Flask, logger_arg, archive_dir: str = _DEFAULT_ARCHIVE_DIR) ->
 
         route_logger.info(
             "Archive purge requested for '%s' (days_older_than=%d)",
-            source_name,
-            days_older_than,
+            source_name, days_older_than,
         )
-
         result = _purge_source(source_dir, days_older_than=days_older_than)
         result["bytes_freed_human"] = _format_bytes(result["bytes_freed"])
-
         status = 200 if result["error"] is None else 500
         return jsonify(result), status
 
