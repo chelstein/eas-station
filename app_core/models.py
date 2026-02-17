@@ -1896,6 +1896,69 @@ class SnowEmergency(db.Model):
         )
 
 
+class TailscaleSettings(db.Model):
+    """Tailscale VPN configuration stored in database.
+
+    Manages Tailscale daemon settings through the web UI.
+    All settings are stored in a single row (id=1).
+    """
+    __tablename__ = "tailscale_settings"
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    # ========================================================================
+    # General Settings
+    # ========================================================================
+    enabled = db.Column(db.Boolean, nullable=False, default=False)
+    # Master switch: when enabled, tailscaled will be started/maintained
+
+    auth_key = db.Column(db.String(500), nullable=False, default='')
+    # Pre-authentication key from Tailscale admin console
+
+    hostname = db.Column(db.String(255), nullable=False, default='')
+    # Hostname to advertise on the tailnet (blank = system hostname)
+
+    # ========================================================================
+    # Network Settings
+    # ========================================================================
+    advertise_exit_node = db.Column(db.Boolean, nullable=False, default=False)
+    # Offer this node as an exit node for the tailnet
+
+    accept_routes = db.Column(db.Boolean, nullable=False, default=True)
+    # Accept subnet routes advertised by other nodes
+
+    advertise_routes = db.Column(db.String(1000), nullable=False, default='')
+    # Comma-separated CIDR ranges to advertise (e.g. "192.168.1.0/24,10.0.0.0/8")
+
+    shields_up = db.Column(db.Boolean, nullable=False, default=False)
+    # Block all incoming connections (outbound-only mode)
+
+    # ========================================================================
+    # DNS Settings
+    # ========================================================================
+    accept_dns = db.Column(db.Boolean, nullable=False, default=True)
+    # Accept DNS configuration from the tailnet
+
+    # ========================================================================
+    # Metadata
+    # ========================================================================
+    updated_at = db.Column(db.DateTime, nullable=True, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def to_dict(self):
+        """Convert model to dictionary."""
+        return {
+            "enabled": self.enabled,
+            "auth_key": self.auth_key,
+            "hostname": self.hostname,
+            "advertise_exit_node": self.advertise_exit_node,
+            "accept_routes": self.accept_routes,
+            "advertise_routes": self.advertise_routes,
+            "shields_up": self.shields_up,
+            "accept_dns": self.accept_dns,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+
 class USCountyBoundary(db.Model):
     """US Census county boundary for FIPS-based alert geometry lookup.
 
@@ -1962,6 +2025,7 @@ __all__ = [
     "SNOW_EMERGENCY_LEVELS",
     "SnowEmergency",
     "SystemLog",
+    "TailscaleSettings",
     "USCountyBoundary",
     "VFDDisplay",
     "VFDStatus",

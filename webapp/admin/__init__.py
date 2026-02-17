@@ -44,6 +44,7 @@ from .icecast import register_icecast_routes
 from .certbot import register_certbot_routes
 from .tts import register_tts_routes
 from .local_authorities import register_local_authority_routes
+from .tailscale import register_tailscale_routes
 from .poller import poller_bp
 
 
@@ -77,6 +78,7 @@ def register(app, logger):
     app.register_blueprint(poller_bp)  # Poller settings management
     logger.info("Poller settings routes registered")
     register_local_authority_routes(app, logger)  # Local authority EAS access management
+    register_tailscale_routes(app, logger)  # Tailscale VPN configuration
 
     # Note: Audio controller initialization removed for separated architecture.
     # In separated architecture, audio processing runs in dedicated audio-service process.
