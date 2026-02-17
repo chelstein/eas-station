@@ -21,6 +21,7 @@ Repository: https://github.com/KR8MER/eas-station
 Alert Forwarding Module
 
 Handles forwarding of matched EAS alerts to:
+- Air chain broadcast (automatic SAME header generation + audio playback + GPIO)
 - Redis pub/sub for real-time web UI updates
 - Optional webhook endpoints for external integrations
 """
@@ -37,12 +38,14 @@ logger = logging.getLogger(__name__)
 ALERT_CHANNEL = "eas:alerts:received"
 
 
-def forward_alert_to_api(alert: Dict[str, Any]) -> bool:
+def forward_alert_to_api(alert: Dict[str, Any]) -> Dict[str, Any]:
     """
     Forward a matched EAS alert for processing.
 
-    Publishes the alert to Redis for real-time notifications and
-    optionally forwards to configured webhook endpoints.
+    Publishes the alert to Redis for real-time notifications,
+    optionally forwards to configured webhook endpoints, and
+    auto-forwards to the air chain for broadcast (generates SAME
+    header with station originator, builds audio, activates GPIO).
 
     Args:
         alert: Dictionary containing alert data with keys:
@@ -54,8 +57,10 @@ def forward_alert_to_api(alert: Dict[str, Any]) -> bool:
             - confidence: Decode confidence score (optional)
 
     Returns:
-        True if forwarding succeeded, False otherwise.
+        Dict with forwarding results including broadcast status.
     """
+    result: Dict[str, Any] = {'redis': False, 'broadcast': False}
+
     try:
         source_name = alert.get('source_name', 'unknown')
         event_code = alert.get('event_code', 'UNKNOWN')
@@ -79,17 +84,64 @@ def forward_alert_to_api(alert: Dict[str, Any]) -> bool:
 
         # Publish to Redis for real-time updates
         _publish_to_redis(payload)
+        result['redis'] = True
 
         # Forward to webhook if configured
         webhook_url = os.environ.get('EAS_ALERT_WEBHOOK_URL')
         if webhook_url:
             _forward_to_webhook(webhook_url, payload)
 
-        return True
+        # Auto-forward to air chain for broadcast
+        broadcast_result = _auto_forward_to_air_chain(alert)
+        if broadcast_result:
+            result['broadcast'] = broadcast_result.get('forwarded', False)
+            result['broadcast_detail'] = broadcast_result
+
+        return result
 
     except Exception as e:
         logger.error(f"Failed to forward alert: {e}", exc_info=True)
-        return False
+        return result
+
+
+def _auto_forward_to_air_chain(alert: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Auto-forward an OTA alert to the air chain for broadcast.
+
+    Generates a SAME header with the station's originator, builds
+    broadcast audio, activates GPIO relays, and plays the audio.
+    Cross-source deduplication prevents duplicate broadcasts when the
+    same alert arrives via IPAWS, NOAA, and OTA simultaneously.
+    """
+    try:
+        from flask import has_app_context
+        if not has_app_context():
+            logger.debug("No Flask app context; skipping OTA auto-forward to air chain")
+            return None
+    except ImportError:
+        logger.debug("Flask not available; skipping OTA auto-forward to air chain")
+        return None
+
+    try:
+        from app_core.extensions import db
+        from app_core.models import EASMessage
+        from app_core.location import get_location_settings
+        from app_utils.eas import load_eas_config
+        from app_core.audio.auto_forward import auto_forward_ota_alert
+
+        eas_config = load_eas_config()
+        location_settings = get_location_settings()
+
+        return auto_forward_ota_alert(
+            alert_dict=alert,
+            db_session=db.session,
+            eas_message_cls=EASMessage,
+            eas_config=eas_config,
+            location_settings=location_settings,
+            logger_instance=logger,
+        )
+    except Exception as exc:
+        logger.error("OTA auto-forward to air chain failed: %s", exc, exc_info=True)
+        return None
 
 
 def _publish_to_redis(payload: Dict[str, Any]) -> None:
@@ -135,4 +187,4 @@ def _forward_to_webhook(webhook_url: str, payload: Dict[str, Any]) -> None:
         logger.warning(f"Failed to forward alert to webhook: {e}")
 
 
-__all__ = ['forward_alert_to_api', 'ALERT_CHANNEL']
+__all__ = ['forward_alert_to_api', 'ALERT_CHANNEL', '_auto_forward_to_air_chain']

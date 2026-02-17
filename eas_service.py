@@ -163,7 +163,7 @@ def initialize_eas_monitor(app):
 
         # Create alert forwarding handler
         def forward_alert_handler(alert):
-            """Forward matched alerts to API."""
+            """Forward matched alerts to API and air chain broadcast."""
             source_name = alert.get('source_name', 'unknown')
             event_code = alert.get('event_code', 'UNKNOWN')
             location_codes = alert.get('location_codes', [])
@@ -171,7 +171,9 @@ def initialize_eas_monitor(app):
                 f"Forwarding alert from source '{source_name}': "
                 f"{event_code} for {location_codes}"
             )
-            forward_alert_to_api(alert)
+            result = forward_alert_to_api(alert)
+            # Return result so _extract_message_id can link the broadcast record
+            return result
 
         # Create FIPS filtering callback
         fips_callback = create_fips_filtering_callback(
