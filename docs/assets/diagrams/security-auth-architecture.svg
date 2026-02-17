@@ -1,0 +1,351 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="830" viewBox="0 0 1200 830" role="img" aria-labelledby="title desc">
+  <title id="title">EAS Station Security &amp; Authentication Architecture</title>
+  <desc id="desc">Multi-layer security pipeline: IP filtering, rate limiting, password auth, MFA (TOTP), session management, RBAC permission checks, and comprehensive audit logging.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0%" stop-color="#061826" />
+      <stop offset="100%" stop-color="#0f2d46" />
+    </linearGradient>
+    <linearGradient id="panel" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#1f4b70" />
+      <stop offset="100%" stop-color="#15334e" />
+    </linearGradient>
+    <linearGradient id="sec-panel" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#14532d" />
+      <stop offset="100%" stop-color="#15803d" />
+    </linearGradient>
+    <linearGradient id="auth-panel" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#1e3a5f" />
+      <stop offset="100%" stop-color="#1d4ed8" />
+    </linearGradient>
+    <linearGradient id="rbac-panel" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#3b0764" />
+      <stop offset="100%" stop-color="#6d28d9" />
+    </linearGradient>
+    <linearGradient id="red-panel" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#7f1d1d" />
+      <stop offset="100%" stop-color="#b91c1c" />
+    </linearGradient>
+    <linearGradient id="audit-panel" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#78350f" />
+      <stop offset="100%" stop-color="#b45309" />
+    </linearGradient>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="5" refY="5" orient="auto">
+      <path d="M0,1 L9,5 L0,9 Z" fill="#8bd5ff" />
+    </marker>
+    <marker id="red-arrow" markerWidth="10" markerHeight="10" refX="5" refY="5" orient="auto">
+      <path d="M0,1 L9,5 L0,9 Z" fill="#fca5a5" />
+    </marker>
+    <marker id="green-arrow" markerWidth="10" markerHeight="10" refX="5" refY="5" orient="auto">
+      <path d="M0,1 L9,5 L0,9 Z" fill="#86efac" />
+    </marker>
+    <marker id="purple-arrow" markerWidth="10" markerHeight="10" refX="5" refY="5" orient="auto">
+      <path d="M0,1 L9,5 L0,9 Z" fill="#c4b5fd" />
+    </marker>
+    <style>
+      text { font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; fill: #f4f7fb; }
+      .headline { font-size: 26px; font-weight: 700; }
+      .subtitle { font-size: 14px; fill: #93c5fd; }
+      .panel-title { font-size: 14px; font-weight: 600; }
+      .sm { font-size: 12px; fill: #d4e7ff; }
+      .xs { font-size: 11px; fill: #b8d9f9; }
+      .allow { font-size: 11px; fill: #86efac; }
+      .deny  { font-size: 11px; fill: #fca5a5; }
+    </style>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1200" height="830" rx="24" fill="url(#bg)" />
+
+  <!-- Title -->
+  <text x="600" y="42" class="headline" text-anchor="middle">EAS Station Security &amp; Authentication Architecture</text>
+  <text x="600" y="66" class="subtitle" text-anchor="middle">IP Filter → Rate Limiter → Password Auth → MFA (TOTP) → Session → RBAC → Audit Log</text>
+
+  <!-- ═══════════════════════════════════════════════════ -->
+  <!--  LEFT COLUMN: Request Pipeline (x 30-290)          -->
+  <!-- ═══════════════════════════════════════════════════ -->
+
+  <!-- Box 1: Incoming Request -->
+  <g transform="translate(30,85)">
+    <rect width="260" height="58" rx="12" fill="url(#panel)" stroke="#49b3ff" stroke-width="2"/>
+    <text x="130" y="25" class="panel-title" text-anchor="middle">Incoming HTTP Request</text>
+    <text x="130" y="44" class="sm" text-anchor="middle">HTTPS via nginx / Let's Encrypt TLS</text>
+  </g>
+  <!-- Arrow down to IP Filter -->
+  <line x1="160" y1="143" x2="160" y2="160" stroke="#8bd5ff" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- Box 2: IP Filter -->
+  <g transform="translate(30,160)">
+    <rect width="260" height="105" rx="12" fill="url(#sec-panel)" stroke="#86efac" stroke-width="2"/>
+    <text x="130" y="24" class="panel-title" text-anchor="middle">Layer 1 — IP Filter</text>
+    <text x="130" y="44" class="sm" text-anchor="middle">Allowlist &amp; Blocklist (CIDR ranges)</text>
+    <text x="130" y="62" class="xs" text-anchor="middle">• Auto-ban: flood &gt;10 req/min → 1-hour block</text>
+    <text x="130" y="78" class="xs" text-anchor="middle">• Auto-ban: brute force ≥5 fails → 24-hour block</text>
+    <text x="130" y="94" class="xs" text-anchor="middle">• Manual allow/block by admin (with expiry)</text>
+  </g>
+  <!-- Reject arrow right -->
+  <line x1="290" y1="210" x2="355" y2="210" stroke="#fca5a5" stroke-width="1.5" marker-end="url(#red-arrow)"/>
+  <text x="296" y="204" class="deny">403</text>
+  <!-- Allow arrow down -->
+  <line x1="160" y1="265" x2="160" y2="282" stroke="#86efac" stroke-width="1.5" marker-end="url(#green-arrow)"/>
+  <text x="168" y="276" class="allow">Pass</text>
+
+  <!-- Box 3: Rate Limiter -->
+  <g transform="translate(30,282)">
+    <rect width="260" height="97" rx="12" fill="url(#sec-panel)" stroke="#86efac" stroke-width="2"/>
+    <text x="130" y="24" class="panel-title" text-anchor="middle">Layer 2 — Rate Limiter</text>
+    <text x="130" y="44" class="sm" text-anchor="middle">LoginRateLimiter (in-memory, thread-safe)</text>
+    <text x="130" y="62" class="xs" text-anchor="middle">• 5 failed attempts per 5-minute window</text>
+    <text x="130" y="78" class="xs" text-anchor="middle">• 15-minute lockout after threshold</text>
+    <text x="130" y="94" class="xs" text-anchor="middle">• Tracks up to 10,000 IPs; auto-cleanup</text>
+  </g>
+  <!-- Reject arrow right -->
+  <line x1="290" y1="328" x2="355" y2="328" stroke="#fca5a5" stroke-width="1.5" marker-end="url(#red-arrow)"/>
+  <text x="296" y="322" class="deny">429</text>
+  <!-- Allow arrow down -->
+  <line x1="160" y1="379" x2="160" y2="396" stroke="#86efac" stroke-width="1.5" marker-end="url(#green-arrow)"/>
+  <text x="168" y="390" class="allow">Pass</text>
+
+  <!-- Box 4: Password Auth -->
+  <g transform="translate(30,396)">
+    <rect width="260" height="88" rx="12" fill="url(#auth-panel)" stroke="#93c5fd" stroke-width="2"/>
+    <text x="130" y="24" class="panel-title" text-anchor="middle">Layer 3 — Password Auth</text>
+    <text x="130" y="44" class="sm" text-anchor="middle">InputValidator + Werkzeug bcrypt</text>
+    <text x="130" y="62" class="xs" text-anchor="middle">• SQL/cmd injection check on all inputs</text>
+    <text x="130" y="78" class="xs" text-anchor="middle">• bcrypt hash verify; fail → rate-limiter++</text>
+  </g>
+  <!-- Reject arrow right -->
+  <line x1="290" y1="438" x2="355" y2="438" stroke="#fca5a5" stroke-width="1.5" marker-end="url(#red-arrow)"/>
+  <text x="295" y="432" class="deny">Fail</text>
+  <!-- Allow arrow down -->
+  <line x1="160" y1="484" x2="160" y2="501" stroke="#86efac" stroke-width="1.5" marker-end="url(#green-arrow)"/>
+  <text x="168" y="495" class="allow">Pass</text>
+
+  <!-- Box 5: MFA -->
+  <g transform="translate(30,501)">
+    <rect width="260" height="108" rx="12" fill="url(#auth-panel)" stroke="#a78bfa" stroke-width="2"/>
+    <text x="130" y="24" class="panel-title" text-anchor="middle">Layer 4 — MFA Verification</text>
+    <text x="130" y="44" class="sm" text-anchor="middle">Optional TOTP (pyotp) — if enrolled</text>
+    <text x="130" y="62" class="xs" text-anchor="middle">• 6-digit TOTP code from authenticator app</text>
+    <text x="130" y="78" class="xs" text-anchor="middle">• 10 one-time backup codes (hashed)</text>
+    <text x="130" y="94" class="xs" text-anchor="middle">• 5-minute pending session; reuse prevention</text>
+  </g>
+  <!-- Reject arrow right -->
+  <line x1="290" y1="550" x2="355" y2="550" stroke="#fca5a5" stroke-width="1.5" marker-end="url(#red-arrow)"/>
+  <text x="295" y="544" class="deny">401</text>
+  <!-- Allow arrow down -->
+  <line x1="160" y1="609" x2="160" y2="626" stroke="#86efac" stroke-width="1.5" marker-end="url(#green-arrow)"/>
+  <text x="168" y="620" class="allow">Pass</text>
+
+  <!-- Box 6: Session -->
+  <g transform="translate(30,626)">
+    <rect width="260" height="68" rx="12" fill="url(#panel)" stroke="#49b3ff" stroke-width="2"/>
+    <text x="130" y="24" class="panel-title" text-anchor="middle">Session Established</text>
+    <text x="130" y="44" class="sm" text-anchor="middle">Flask secure cookie · permanent session</text>
+    <text x="130" y="60" class="xs" text-anchor="middle">user_id stored; cleared on logout / expiry</text>
+  </g>
+  <!-- Arrow right to RBAC -->
+  <line x1="290" y1="660" x2="440" y2="660" stroke="#c4b5fd" stroke-width="2" marker-end="url(#purple-arrow)"/>
+  <text x="305" y="652" class="xs" style="fill:#c4b5fd">Every request</text>
+
+  <!-- ═══════════════════════════════════════════════════ -->
+  <!--  CENTER: Rejection Column (x 355-505)              -->
+  <!-- ═══════════════════════════════════════════════════ -->
+  <g transform="translate(355,190)">
+    <rect width="130" height="410" rx="12" fill="url(#red-panel)" stroke="#fca5a5" stroke-width="1.5"/>
+    <text x="65" y="24" class="panel-title" text-anchor="middle" style="fill:#fecaca">Rejected</text>
+
+    <line x1="10" y1="34" x2="120" y2="34" stroke="#fca5a5" stroke-width="0.5"/>
+    <text x="65" y="54" class="xs" text-anchor="middle" style="fill:#fef2f2">403 Blocked IP</text>
+    <text x="65" y="70" class="xs" text-anchor="middle" style="fill:#fee2e2">IPFilter record</text>
+
+    <line x1="10" y1="82" x2="120" y2="82" stroke="#fca5a5" stroke-width="0.5"/>
+    <text x="65" y="102" class="xs" text-anchor="middle" style="fill:#fef2f2">429 Rate Limited</text>
+    <text x="65" y="118" class="xs" text-anchor="middle" style="fill:#fee2e2">Lockout active</text>
+
+    <line x1="10" y1="130" x2="120" y2="130" stroke="#fca5a5" stroke-width="0.5"/>
+    <text x="65" y="150" class="xs" text-anchor="middle" style="fill:#fef2f2">401 Bad Creds</text>
+    <text x="65" y="166" class="xs" text-anchor="middle" style="fill:#fee2e2">Attempt counted</text>
+
+    <line x1="10" y1="178" x2="120" y2="178" stroke="#fca5a5" stroke-width="0.5"/>
+    <text x="65" y="198" class="xs" text-anchor="middle" style="fill:#fef2f2">401 Bad MFA</text>
+    <text x="65" y="214" class="xs" text-anchor="middle" style="fill:#fee2e2">Audit logged</text>
+
+    <line x1="10" y1="230" x2="120" y2="230" stroke="#fca5a5" stroke-width="0.5"/>
+    <text x="65" y="260" class="xs" text-anchor="middle" style="fill:#fef2f2">All failures</text>
+    <text x="65" y="276" class="xs" text-anchor="middle" style="fill:#fef2f2">→ AuditLog</text>
+    <text x="65" y="292" class="xs" text-anchor="middle" style="fill:#fef2f2">→ SecurityLog</text>
+
+    <line x1="10" y1="310" x2="120" y2="310" stroke="#fca5a5" stroke-width="0.5"/>
+    <text x="65" y="335" class="xs" text-anchor="middle" style="fill:#fecaca">403 No Permission</text>
+    <text x="65" y="351" class="xs" text-anchor="middle" style="fill:#fee2e2">RBAC denied</text>
+    <text x="65" y="367" class="xs" text-anchor="middle" style="fill:#fee2e2">redirected to /</text>
+  </g>
+
+  <!-- ═══════════════════════════════════════════════════ -->
+  <!--  RIGHT COLUMN (x 440-1160)                         -->
+  <!-- ═══════════════════════════════════════════════════ -->
+
+  <!-- RBAC Panel (top-right) -->
+  <g transform="translate(510,85)">
+    <rect width="660" height="350" rx="14" fill="url(#rbac-panel)" stroke="#a78bfa" stroke-width="2"/>
+    <text x="330" y="30" class="panel-title" text-anchor="middle">Role-Based Access Control (RBAC)</text>
+    <text x="330" y="50" class="xs" text-anchor="middle" style="fill:#ddd6fe">@require_permission('resource.action') decorator applied per route</text>
+
+    <!-- Permission groups -->
+    <text x="60"  y="78" class="sm" text-anchor="middle" style="fill:#c4b5fd">Alerts</text>
+    <text x="165" y="78" class="sm" text-anchor="middle" style="fill:#c4b5fd">EAS Broadcast</text>
+    <text x="285" y="78" class="sm" text-anchor="middle" style="fill:#c4b5fd">System</text>
+    <text x="420" y="78" class="sm" text-anchor="middle" style="fill:#c4b5fd">Receivers / GPIO</text>
+    <text x="545" y="78" class="sm" text-anchor="middle" style="fill:#c4b5fd">Logs / API</text>
+
+    <text x="60"  y="96"  class="xs" text-anchor="middle">alerts.view</text>
+    <text x="60"  y="112" class="xs" text-anchor="middle">alerts.create</text>
+    <text x="60"  y="128" class="xs" text-anchor="middle">alerts.delete</text>
+    <text x="60"  y="144" class="xs" text-anchor="middle">alerts.export</text>
+
+    <text x="165" y="96"  class="xs" text-anchor="middle">eas.view</text>
+    <text x="165" y="112" class="xs" text-anchor="middle">eas.broadcast</text>
+    <text x="165" y="128" class="xs" text-anchor="middle">eas.manual_activate</text>
+    <text x="165" y="144" class="xs" text-anchor="middle">eas.cancel</text>
+
+    <text x="285" y="96"  class="xs" text-anchor="middle">system.configure</text>
+    <text x="285" y="112" class="xs" text-anchor="middle">system.view_config</text>
+    <text x="285" y="128" class="xs" text-anchor="middle">system.manage_users</text>
+    <text x="285" y="144" class="xs" text-anchor="middle">system.view_users</text>
+
+    <text x="420" y="96"  class="xs" text-anchor="middle">receivers.view</text>
+    <text x="420" y="112" class="xs" text-anchor="middle">receivers.configure</text>
+    <text x="420" y="128" class="xs" text-anchor="middle">gpio.view</text>
+    <text x="420" y="144" class="xs" text-anchor="middle">gpio.control</text>
+
+    <text x="545" y="96"  class="xs" text-anchor="middle">logs.view</text>
+    <text x="545" y="112" class="xs" text-anchor="middle">logs.export</text>
+    <text x="545" y="128" class="xs" text-anchor="middle">api.read</text>
+    <text x="545" y="144" class="xs" text-anchor="middle">api.write</text>
+
+    <!-- Divider -->
+    <line x1="15" y1="158" x2="645" y2="158" stroke="#a78bfa" stroke-width="0.5" stroke-dasharray="4"/>
+
+    <!-- Role matrix header -->
+    <text x="20"  y="178" class="xs" style="fill:#ddd6fe">Role</text>
+    <text x="115" y="178" class="xs" text-anchor="middle" style="fill:#ddd6fe">Alerts</text>
+    <text x="210" y="178" class="xs" text-anchor="middle" style="fill:#ddd6fe">EAS</text>
+    <text x="310" y="178" class="xs" text-anchor="middle" style="fill:#ddd6fe">System</text>
+    <text x="415" y="178" class="xs" text-anchor="middle" style="fill:#ddd6fe">Rcvr/GPIO</text>
+    <text x="510" y="178" class="xs" text-anchor="middle" style="fill:#ddd6fe">Logs</text>
+    <text x="600" y="178" class="xs" text-anchor="middle" style="fill:#ddd6fe">API</text>
+
+    <!-- admin -->
+    <text x="20"  y="198" class="xs" style="fill:#f5f3ff">admin</text>
+    <text x="115" y="198" class="xs" text-anchor="middle" style="fill:#86efac">Full</text>
+    <text x="210" y="198" class="xs" text-anchor="middle" style="fill:#86efac">Full</text>
+    <text x="310" y="198" class="xs" text-anchor="middle" style="fill:#86efac">Full</text>
+    <text x="415" y="198" class="xs" text-anchor="middle" style="fill:#86efac">Full</text>
+    <text x="510" y="198" class="xs" text-anchor="middle" style="fill:#86efac">Full</text>
+    <text x="600" y="198" class="xs" text-anchor="middle" style="fill:#86efac">R+W</text>
+
+    <!-- operator -->
+    <text x="20"  y="218" class="xs" style="fill:#f5f3ff">operator</text>
+    <text x="115" y="218" class="xs" text-anchor="middle" style="fill:#86efac">V+C+E</text>
+    <text x="210" y="218" class="xs" text-anchor="middle" style="fill:#86efac">Full</text>
+    <text x="310" y="218" class="xs" text-anchor="middle" style="fill:#fde68a">View+Cfg</text>
+    <text x="415" y="218" class="xs" text-anchor="middle" style="fill:#86efac">Full</text>
+    <text x="510" y="218" class="xs" text-anchor="middle" style="fill:#86efac">V+Export</text>
+    <text x="600" y="218" class="xs" text-anchor="middle" style="fill:#86efac">R+W</text>
+
+    <!-- local_authority -->
+    <text x="20"  y="238" class="xs" style="fill:#f5f3ff">local_auth</text>
+    <text x="115" y="238" class="xs" text-anchor="middle" style="fill:#fde68a">V+Create</text>
+    <text x="210" y="238" class="xs" text-anchor="middle" style="fill:#fde68a">V+Bcast</text>
+    <text x="310" y="238" class="xs" text-anchor="middle" style="fill:#fde68a">View cfg</text>
+    <text x="415" y="238" class="xs" text-anchor="middle" style="fill:#fde68a">View</text>
+    <text x="510" y="238" class="xs" text-anchor="middle" style="fill:#fde68a">View</text>
+    <text x="600" y="238" class="xs" text-anchor="middle" style="fill:#fde68a">Read</text>
+
+    <!-- viewer -->
+    <text x="20"  y="258" class="xs" style="fill:#f5f3ff">viewer</text>
+    <text x="115" y="258" class="xs" text-anchor="middle" style="fill:#93c5fd">V+Export</text>
+    <text x="210" y="258" class="xs" text-anchor="middle" style="fill:#93c5fd">View</text>
+    <text x="310" y="258" class="xs" text-anchor="middle" style="fill:#93c5fd">View</text>
+    <text x="415" y="258" class="xs" text-anchor="middle" style="fill:#93c5fd">View</text>
+    <text x="510" y="258" class="xs" text-anchor="middle" style="fill:#93c5fd">V+Export</text>
+    <text x="600" y="258" class="xs" text-anchor="middle" style="fill:#93c5fd">Read</text>
+
+    <!-- demo -->
+    <text x="20"  y="278" class="xs" style="fill:#f5f3ff">demo</text>
+    <text x="115" y="278" class="xs" text-anchor="middle" style="fill:#fca5a5">View</text>
+    <text x="210" y="278" class="xs" text-anchor="middle" style="fill:#fca5a5">View</text>
+    <text x="310" y="278" class="xs" text-anchor="middle" style="fill:#fca5a5">None</text>
+    <text x="415" y="278" class="xs" text-anchor="middle" style="fill:#fca5a5">View</text>
+    <text x="510" y="278" class="xs" text-anchor="middle" style="fill:#fca5a5">None</text>
+    <text x="600" y="278" class="xs" text-anchor="middle" style="fill:#fca5a5">None</text>
+
+    <line x1="15" y1="292" x2="645" y2="292" stroke="#a78bfa" stroke-width="0.5" stroke-dasharray="4"/>
+    <text x="330" y="313" class="xs" text-anchor="middle" style="fill:#c4b5fd">Roles stored in PostgreSQL · many-to-many with permissions · checked per request via session user_id</text>
+    <text x="330" y="333" class="xs" text-anchor="middle" style="fill:#c4b5fd">local_authority restricted to assigned FIPS codes and authorised event types</text>
+  </g>
+
+  <!-- RBAC check box (connected by arrow from Session) -->
+  <g transform="translate(440,635)">
+    <rect width="210" height="55" rx="12" fill="url(#rbac-panel)" stroke="#a78bfa" stroke-width="2"/>
+    <text x="105" y="23" class="panel-title" text-anchor="middle">RBAC Check</text>
+    <text x="105" y="40" class="sm" text-anchor="middle">@require_permission on every route</text>
+  </g>
+  <!-- Arrow from RBAC check to right (denied) -->
+  <line x1="650" y1="662" x2="700" y2="662" stroke="#c4b5fd" stroke-width="1.5" marker-end="url(#purple-arrow)"/>
+  <!-- Protected Resource -->
+  <g transform="translate(700,635)">
+    <rect width="210" height="55" rx="12" fill="url(#panel)" stroke="#49b3ff" stroke-width="2"/>
+    <text x="105" y="23" class="panel-title" text-anchor="middle">Protected Resource</text>
+    <text x="105" y="40" class="sm" text-anchor="middle">Route handler executes</text>
+  </g>
+
+  <!-- Audit Logger Panel (bottom right) -->
+  <g transform="translate(510,455)">
+    <rect width="660" height="155" rx="14" fill="url(#audit-panel)" stroke="#fbbf24" stroke-width="2"/>
+    <text x="330" y="28" class="panel-title" text-anchor="middle">Audit Logger (AuditLogger.log → audit_logs table)</text>
+    <text x="330" y="46" class="xs" text-anchor="middle" style="fill:#fde68a">Captures: timestamp · user_id · username · action · resource · IP address · user agent · success/fail · details JSON</text>
+    <text x="330" y="62" class="xs" text-anchor="middle" style="fill:#fde68a">90-day retention · indexed by (user_id, action) and (timestamp, action)</text>
+
+    <!-- Auth events -->
+    <text x="85"  y="86" class="xs" text-anchor="middle" style="fill:#fef3c7">Auth Events</text>
+    <text x="85"  y="102" class="xs" text-anchor="middle">login.success</text>
+    <text x="85"  y="116" class="xs" text-anchor="middle">login.failure</text>
+    <text x="85"  y="130" class="xs" text-anchor="middle">logout</text>
+    <text x="85"  y="144" class="xs" text-anchor="middle">session.expired</text>
+
+    <!-- MFA events -->
+    <text x="225" y="86"  class="xs" text-anchor="middle" style="fill:#fef3c7">MFA Events</text>
+    <text x="225" y="102" class="xs" text-anchor="middle">mfa.enrolled</text>
+    <text x="225" y="116" class="xs" text-anchor="middle">mfa.verify.success</text>
+    <text x="225" y="130" class="xs" text-anchor="middle">mfa.verify.failure</text>
+    <text x="225" y="144" class="xs" text-anchor="middle">mfa.backup_code.used</text>
+
+    <!-- User/Role events -->
+    <text x="375" y="86"  class="xs" text-anchor="middle" style="fill:#fef3c7">User / Role</text>
+    <text x="375" y="102" class="xs" text-anchor="middle">user.created/updated</text>
+    <text x="375" y="116" class="xs" text-anchor="middle">user.role.changed</text>
+    <text x="375" y="130" class="xs" text-anchor="middle">password.changed</text>
+    <text x="375" y="144" class="xs" text-anchor="middle">permission.granted</text>
+
+    <!-- Operations events -->
+    <text x="520" y="86"  class="xs" text-anchor="middle" style="fill:#fef3c7">Operations</text>
+    <text x="520" y="102" class="xs" text-anchor="middle">eas.broadcast</text>
+    <text x="520" y="116" class="xs" text-anchor="middle">gpio.activated</text>
+    <text x="520" y="130" class="xs" text-anchor="middle">security.perm_denied</text>
+    <text x="520" y="144" class="xs" text-anchor="middle">security.rate_limit_exceeded</text>
+  </g>
+
+  <!-- Arrow from Protected Resource down to Audit -->
+  <line x1="805" y1="690" x2="805" y2="750" stroke="#fbbf24" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="812" y="724" class="xs" style="fill:#fde68a">All ops logged</text>
+
+  <!-- SecurityLogger note -->
+  <g transform="translate(510,625)">
+    <rect width="170" height="42" rx="8" fill="url(#panel)" stroke="#49b3ff" stroke-width="1"/>
+    <text x="85" y="18" class="xs" text-anchor="middle" style="fill:#93c5fd">SecurityLogger</text>
+    <text x="85" y="33" class="xs" text-anchor="middle">Structured app-level logs</text>
+  </g>
+
+</svg>

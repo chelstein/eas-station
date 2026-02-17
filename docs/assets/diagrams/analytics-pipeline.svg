@@ -1,0 +1,282 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="680" viewBox="0 0 1200 680" role="img" aria-labelledby="title desc">
+  <title id="title">EAS Station Analytics Pipeline</title>
+  <desc id="desc">Analytics pipeline showing data collection from multiple sources, aggregation into time-series snapshots, trend analysis, anomaly detection, and scheduled background processing.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0%" stop-color="#061826" />
+      <stop offset="100%" stop-color="#0f2d46" />
+    </linearGradient>
+    <linearGradient id="panel" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#1f4b70" />
+      <stop offset="100%" stop-color="#15334e" />
+    </linearGradient>
+    <linearGradient id="src-panel" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#1e3a5f" />
+      <stop offset="100%" stop-color="#1d4ed8" />
+    </linearGradient>
+    <linearGradient id="proc-panel" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#3b0764" />
+      <stop offset="100%" stop-color="#6d28d9" />
+    </linearGradient>
+    <linearGradient id="store-panel" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#14532d" />
+      <stop offset="100%" stop-color="#15803d" />
+    </linearGradient>
+    <linearGradient id="sched-panel" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#78350f" />
+      <stop offset="100%" stop-color="#b45309" />
+    </linearGradient>
+    <linearGradient id="api-panel" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#1f4b70" />
+      <stop offset="100%" stop-color="#065f46" />
+    </linearGradient>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="5" refY="5" orient="auto">
+      <path d="M0,1 L9,5 L0,9 Z" fill="#8bd5ff" />
+    </marker>
+    <marker id="green-arrow" markerWidth="10" markerHeight="10" refX="5" refY="5" orient="auto">
+      <path d="M0,1 L9,5 L0,9 Z" fill="#86efac" />
+    </marker>
+    <marker id="purple-arrow" markerWidth="10" markerHeight="10" refX="5" refY="5" orient="auto">
+      <path d="M0,1 L9,5 L0,9 Z" fill="#c4b5fd" />
+    </marker>
+    <marker id="amber-arrow" markerWidth="10" markerHeight="10" refX="5" refY="5" orient="auto">
+      <path d="M0,1 L9,5 L0,9 Z" fill="#fbbf24" />
+    </marker>
+    <style>
+      text { font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; fill: #f4f7fb; }
+      .headline { font-size: 26px; font-weight: 700; }
+      .subtitle { font-size: 14px; fill: #93c5fd; }
+      .panel-title { font-size: 14px; font-weight: 600; }
+      .sm { font-size: 12px; fill: #d4e7ff; }
+      .xs { font-size: 11px; fill: #b8d9f9; }
+      .section-label { font-size: 13px; font-weight: 600; fill: #93c5fd; }
+    </style>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1200" height="680" rx="24" fill="url(#bg)" />
+
+  <!-- Title -->
+  <text x="600" y="42" class="headline" text-anchor="middle">EAS Station Analytics Pipeline</text>
+  <text x="600" y="66" class="subtitle" text-anchor="middle">Time-series aggregation · Trend analysis (linear regression) · Statistical anomaly detection · Scheduled background processing</text>
+
+  <!-- ════════════════════════════════════ -->
+  <!--  SECTION LABELS                      -->
+  <!-- ════════════════════════════════════ -->
+  <text x="130"  y="94" class="section-label" text-anchor="middle">Data Sources</text>
+  <text x="440"  y="94" class="section-label" text-anchor="middle">Analytics Engine</text>
+  <text x="780"  y="94" class="section-label" text-anchor="middle">Storage (PostgreSQL)</text>
+  <text x="1060" y="94" class="section-label" text-anchor="middle">Access</text>
+
+  <!-- ════════════════════════════════════ -->
+  <!--  LEFT: Data Sources (x 20-240)       -->
+  <!-- ════════════════════════════════════ -->
+
+  <!-- AlertDeliveryReport -->
+  <g transform="translate(20,105)">
+    <rect width="220" height="72" rx="10" fill="url(#src-panel)" stroke="#93c5fd" stroke-width="1.5"/>
+    <text x="110" y="22" class="panel-title" text-anchor="middle">AlertDeliveryReport</text>
+    <text x="110" y="40" class="xs" text-anchor="middle">Delivery success rate</text>
+    <text x="110" y="56" class="xs" text-anchor="middle">Average delivery latency (ms)</text>
+    <text x="110" y="70" class="xs" text-anchor="middle">Alert volume per window</text>
+  </g>
+
+  <!-- AudioHealthStatus -->
+  <g transform="translate(20,192)">
+    <rect width="220" height="72" rx="10" fill="url(#src-panel)" stroke="#93c5fd" stroke-width="1.5"/>
+    <text x="110" y="22" class="panel-title" text-anchor="middle">AudioHealthStatus</text>
+    <text x="110" y="40" class="xs" text-anchor="middle">Health score (0-100)</text>
+    <text x="110" y="56" class="xs" text-anchor="middle">Silence detection rate</text>
+    <text x="110" y="70" class="xs" text-anchor="middle">Avg signal level (dBFS)</text>
+  </g>
+
+  <!-- AudioSourceMetrics -->
+  <g transform="translate(20,279)">
+    <rect width="220" height="58" rx="10" fill="url(#src-panel)" stroke="#93c5fd" stroke-width="1.5"/>
+    <text x="110" y="22" class="panel-title" text-anchor="middle">AudioSourceMetrics</text>
+    <text x="110" y="40" class="xs" text-anchor="middle">RMS level (dB) per source</text>
+    <text x="110" y="54" class="xs" text-anchor="middle">Per-source streaming stats</text>
+  </g>
+
+  <!-- RadioReceiverStatus -->
+  <g transform="translate(20,352)">
+    <rect width="220" height="58" rx="10" fill="url(#src-panel)" stroke="#93c5fd" stroke-width="1.5"/>
+    <text x="110" y="22" class="panel-title" text-anchor="middle">RadioReceiverStatus</text>
+    <text x="110" y="40" class="xs" text-anchor="middle">Receiver availability rate</text>
+    <text x="110" y="54" class="xs" text-anchor="middle">Active/inactive over time</text>
+  </g>
+
+  <!-- GPIOActivationLog -->
+  <g transform="translate(20,425)">
+    <rect width="220" height="58" rx="10" fill="url(#src-panel)" stroke="#93c5fd" stroke-width="1.5"/>
+    <text x="110" y="22" class="panel-title" text-anchor="middle">GPIOActivationLog</text>
+    <text x="110" y="40" class="xs" text-anchor="middle">Activation count per window</text>
+    <text x="110" y="54" class="xs" text-anchor="middle">Average activation duration (s)</text>
+  </g>
+
+  <!-- ComplianceLog -->
+  <g transform="translate(20,498)">
+    <rect width="220" height="58" rx="10" fill="url(#src-panel)" stroke="#93c5fd" stroke-width="1.5"/>
+    <text x="110" y="22" class="panel-title" text-anchor="middle">Compliance Log</text>
+    <text x="110" y="40" class="xs" text-anchor="middle">Weekly test relay rate</text>
+    <text x="110" y="54" class="xs" text-anchor="middle">Received vs relayed ratio</text>
+  </g>
+
+  <!-- Arrows from sources to aggregator -->
+  <line x1="240" y1="141" x2="305" y2="250" stroke="#93c5fd" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="240" y1="228" x2="305" y2="258" stroke="#93c5fd" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="240" y1="308" x2="305" y2="275" stroke="#93c5fd" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="240" y1="381" x2="305" y2="290" stroke="#93c5fd" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="240" y1="454" x2="305" y2="305" stroke="#93c5fd" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="240" y1="527" x2="305" y2="320" stroke="#93c5fd" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- ════════════════════════════════════ -->
+  <!--  CENTER: Analytics Engine (x 305-580)-->
+  <!-- ════════════════════════════════════ -->
+
+  <!-- MetricsAggregator -->
+  <g transform="translate(305,105)">
+    <rect width="250" height="145" rx="12" fill="url(#proc-panel)" stroke="#a78bfa" stroke-width="2"/>
+    <text x="125" y="26" class="panel-title" text-anchor="middle">MetricsAggregator</text>
+    <text x="125" y="46" class="sm" text-anchor="middle">Collects time-series snapshots</text>
+    <line x1="15" y1="56" x2="235" y2="56" stroke="#a78bfa" stroke-width="0.5"/>
+    <text x="125" y="74"  class="xs" text-anchor="middle">Periods: hourly · daily · weekly</text>
+    <text x="125" y="90"  class="xs" text-anchor="middle">Lookback: 24h (hourly), 7d (daily)</text>
+    <text x="125" y="106" class="xs" text-anchor="middle">Deduplicates: skips existing windows</text>
+    <text x="125" y="122" class="xs" text-anchor="middle">Stats: value · min · max · avg · stddev</text>
+    <text x="125" y="138" class="xs" text-anchor="middle">sample_count stored per snapshot</text>
+  </g>
+
+  <!-- Arrow: Aggregator → Snapshot store -->
+  <line x1="555" y1="177" x2="615" y2="177" stroke="#86efac" stroke-width="2" marker-end="url(#green-arrow)"/>
+
+  <!-- TrendAnalyzer -->
+  <g transform="translate(305,270)">
+    <rect width="250" height="130" rx="12" fill="url(#proc-panel)" stroke="#a78bfa" stroke-width="2"/>
+    <text x="125" y="26" class="panel-title" text-anchor="middle">TrendAnalyzer</text>
+    <text x="125" y="46" class="sm" text-anchor="middle">Linear regression on MetricSnapshots</text>
+    <line x1="15" y1="56" x2="235" y2="56" stroke="#a78bfa" stroke-width="0.5"/>
+    <text x="125" y="74"  class="xs" text-anchor="middle">Window: 7-day rolling analysis</text>
+    <text x="125" y="90"  class="xs" text-anchor="middle">Calculates: slope · intercept · R²</text>
+    <text x="125" y="106" class="xs" text-anchor="middle">Direction: rising / falling / stable</text>
+    <text x="125" y="122" class="xs" text-anchor="middle">Runs every 6 hours via scheduler</text>
+  </g>
+
+  <!-- Arrow: Aggregator → TrendAnalyzer (reads snapshots) -->
+  <line x1="430" y1="250" x2="430" y2="270" stroke="#c4b5fd" stroke-width="1.5" marker-end="url(#purple-arrow)"/>
+  <!-- Arrow: TrendAnalyzer → TrendRecord store -->
+  <line x1="555" y1="335" x2="615" y2="335" stroke="#86efac" stroke-width="2" marker-end="url(#green-arrow)"/>
+
+  <!-- AnomalyDetector -->
+  <g transform="translate(305,425)">
+    <rect width="250" height="130" rx="12" fill="url(#proc-panel)" stroke="#a78bfa" stroke-width="2"/>
+    <text x="125" y="26" class="panel-title" text-anchor="middle">AnomalyDetector</text>
+    <text x="125" y="46" class="sm" text-anchor="middle">Statistical anomaly detection</text>
+    <line x1="15" y1="56" x2="235" y2="56" stroke="#a78bfa" stroke-width="0.5"/>
+    <text x="125" y="74"  class="xs" text-anchor="middle">Baseline: 7-day historical window</text>
+    <text x="125" y="90"  class="xs" text-anchor="middle">Method: Z-score / threshold deviation</text>
+    <text x="125" y="106" class="xs" text-anchor="middle">Severity: low · medium · high · critical</text>
+    <text x="125" y="122" class="xs" text-anchor="middle">Runs every 60 min via scheduler</text>
+  </g>
+
+  <!-- Arrow: TrendAnalyzer → AnomalyDetector -->
+  <line x1="430" y1="400" x2="430" y2="425" stroke="#c4b5fd" stroke-width="1.5" marker-end="url(#purple-arrow)"/>
+  <!-- Arrow: AnomalyDetector → AnomalyRecord store -->
+  <line x1="555" y1="490" x2="615" y2="490" stroke="#86efac" stroke-width="2" marker-end="url(#green-arrow)"/>
+
+  <!-- ════════════════════════════════════ -->
+  <!--  RIGHT: Storage (x 615-935)          -->
+  <!-- ════════════════════════════════════ -->
+
+  <!-- MetricSnapshot table -->
+  <g transform="translate(615,105)">
+    <rect width="295" height="135" rx="12" fill="url(#store-panel)" stroke="#86efac" stroke-width="2"/>
+    <text x="147" y="26" class="panel-title" text-anchor="middle">MetricSnapshot</text>
+    <text x="147" y="44" class="sm" text-anchor="middle">Primary time-series store</text>
+    <line x1="15" y1="54" x2="280" y2="54" stroke="#86efac" stroke-width="0.5"/>
+    <text x="147" y="72"  class="xs" text-anchor="middle">metric_category · metric_name</text>
+    <text x="147" y="88"  class="xs" text-anchor="middle">snapshot_time · window_start · window_end</text>
+    <text x="147" y="104" class="xs" text-anchor="middle">aggregation_period (hourly/daily/weekly)</text>
+    <text x="147" y="120" class="xs" text-anchor="middle">value · min · max · avg · stddev · sample_count</text>
+  </g>
+
+  <!-- TrendRecord table -->
+  <g transform="translate(615,265)">
+    <rect width="295" height="120" rx="12" fill="url(#store-panel)" stroke="#86efac" stroke-width="2"/>
+    <text x="147" y="26" class="panel-title" text-anchor="middle">TrendRecord</text>
+    <text x="147" y="44" class="sm" text-anchor="middle">Regression analysis results</text>
+    <line x1="15" y1="54" x2="280" y2="54" stroke="#86efac" stroke-width="0.5"/>
+    <text x="147" y="72"  class="xs" text-anchor="middle">metric_category · metric_name</text>
+    <text x="147" y="88"  class="xs" text-anchor="middle">slope · intercept · r_squared</text>
+    <text x="147" y="104" class="xs" text-anchor="middle">direction: rising / falling / stable</text>
+  </g>
+
+  <!-- AnomalyRecord table -->
+  <g transform="translate(615,415)">
+    <rect width="295" height="120" rx="12" fill="url(#store-panel)" stroke="#86efac" stroke-width="2"/>
+    <text x="147" y="26" class="panel-title" text-anchor="middle">AnomalyRecord</text>
+    <text x="147" y="44" class="sm" text-anchor="middle">Detected anomaly events</text>
+    <line x1="15" y1="54" x2="280" y2="54" stroke="#86efac" stroke-width="0.5"/>
+    <text x="147" y="72"  class="xs" text-anchor="middle">metric_category · metric_name</text>
+    <text x="147" y="88"  class="xs" text-anchor="middle">detected_value · baseline_value · z_score</text>
+    <text x="147" y="104" class="xs" text-anchor="middle">severity: low / medium / high / critical · timestamp</text>
+  </g>
+
+  <!-- PostgreSQL bracket -->
+  <rect x="610" y="98" width="307" height="450" rx="16" fill="none" stroke="#49b3ff" stroke-width="1" stroke-dasharray="6 3"/>
+  <text x="762" y="560" class="xs" text-anchor="middle" style="fill:#93c5fd">PostgreSQL (app_core/analytics/models.py)</text>
+
+  <!-- ════════════════════════════════════ -->
+  <!--  FAR RIGHT: Access (x 950-1170)      -->
+  <!-- ════════════════════════════════════ -->
+
+  <!-- Flask API -->
+  <g transform="translate(950,105)">
+    <rect width="220" height="100" rx="12" fill="url(#api-panel)" stroke="#49b3ff" stroke-width="2"/>
+    <text x="110" y="26" class="panel-title" text-anchor="middle">Flask Web API</text>
+    <text x="110" y="46" class="sm" text-anchor="middle">Query analytics data</text>
+    <text x="110" y="64" class="xs" text-anchor="middle">/api/analytics/metrics</text>
+    <text x="110" y="80" class="xs" text-anchor="middle">/api/analytics/trends</text>
+    <text x="110" y="96" class="xs" text-anchor="middle">/api/analytics/anomalies</text>
+  </g>
+  <!-- Arrow from storage to API -->
+  <line x1="910" y1="205" x2="950" y2="205" stroke="#8bd5ff" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- Web Dashboard -->
+  <g transform="translate(950,230)">
+    <rect width="220" height="75" rx="12" fill="url(#api-panel)" stroke="#49b3ff" stroke-width="2"/>
+    <text x="110" y="26" class="panel-title" text-anchor="middle">Web Dashboard</text>
+    <text x="110" y="44" class="sm" text-anchor="middle">Compliance reports</text>
+    <text x="110" y="60" class="xs" text-anchor="middle">Trend charts · Anomaly alerts</text>
+  </g>
+  <!-- Arrow from API to Dashboard -->
+  <line x1="1060" y1="205" x2="1060" y2="230" stroke="#8bd5ff" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- ════════════════════════════════════ -->
+  <!--  BOTTOM: Scheduler                   -->
+  <!-- ════════════════════════════════════ -->
+  <g transform="translate(305,580)">
+    <rect width="600" height="80" rx="14" fill="url(#sched-panel)" stroke="#fbbf24" stroke-width="2"/>
+    <text x="300" y="26" class="panel-title" text-anchor="middle">AnalyticsScheduler — Background Thread (daemon)</text>
+    <text x="90"  y="48" class="xs" text-anchor="middle" style="fill:#fef3c7">MetricsAggregator</text>
+    <text x="90"  y="64" class="xs" text-anchor="middle" style="fill:#fde68a">Every 60 minutes</text>
+    <text x="300" y="48" class="xs" text-anchor="middle" style="fill:#fef3c7">TrendAnalyzer</text>
+    <text x="300" y="64" class="xs" text-anchor="middle" style="fill:#fde68a">Every 6 hours</text>
+    <text x="510" y="48" class="xs" text-anchor="middle" style="fill:#fef3c7">AnomalyDetector</text>
+    <text x="510" y="64" class="xs" text-anchor="middle" style="fill:#fde68a">Every 60 minutes</text>
+  </g>
+
+  <!-- Arrow from Scheduler to Aggregator -->
+  <line x1="430" y1="580" x2="430" y2="250" stroke="#fbbf24" stroke-width="1.5" stroke-dasharray="5 3" marker-end="url(#amber-arrow)"/>
+  <text x="438" y="540" class="xs" style="fill:#fde68a">triggers</text>
+
+  <!-- Metric categories label -->
+  <g transform="translate(20,575)">
+    <rect width="260" height="90" rx="10" fill="url(#panel)" stroke="#49b3ff" stroke-width="1"/>
+    <text x="130" y="22" class="sm" text-anchor="middle" style="fill:#93c5fd">Metric Categories</text>
+    <text x="130" y="40" class="xs" text-anchor="middle">alert_delivery · audio_health</text>
+    <text x="130" y="56" class="xs" text-anchor="middle">receiver_status · gpio_activity</text>
+    <text x="130" y="72" class="xs" text-anchor="middle">compliance</text>
+  </g>
+
+</svg>
