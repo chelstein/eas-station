@@ -224,6 +224,15 @@
                                                 {% if cert_valid == false %}Expired Cert{% elif sig_ok %}Verified{% elif sig_ok == false %}Signed{% else %}Signed{% endif %}
                                             </span>
                                             {% endif %}
+                                            {% if alert.eas_forwarded %}
+                                            <span class="badge bg-success" title="Auto-forwarded to air chain">
+                                                <i class="fas fa-broadcast-tower"></i> Forwarded
+                                            </span>
+                                            {% elif alert.eas_forwarding_reason %}
+                                            <span class="badge bg-secondary" title="{{ alert.eas_forwarding_reason }}">
+                                                <i class="fas fa-forward"></i> Skipped
+                                            </span>
+                                            {% endif %}
                                         </div>
                                     </td>
                                     <td>

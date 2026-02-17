@@ -864,6 +864,8 @@ def get_alerts():
             CAPAlert.expires,
             CAPAlert.area_desc,
             CAPAlert.source,
+            CAPAlert.eas_forwarded,
+            CAPAlert.eas_forwarding_reason,
             func.ST_AsGeoJSON(CAPAlert.geom).label('geometry'),
         ).all()
 
@@ -951,6 +953,8 @@ def get_alerts():
                             'expires_iso': expires_iso,
                             'is_county_wide': is_county_wide,
                             'is_expired': is_alert_expired(alert.expires),
+                            'eas_forwarded': bool(alert.eas_forwarded),
+                            'eas_forwarding_reason': alert.eas_forwarding_reason,
                         },
                         'geometry': geometry,
                     }
