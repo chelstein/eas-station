@@ -6,7 +6,11 @@ Provides functions to check and examine SSL certificates.
 import os
 import subprocess
 from datetime import datetime
+from pathlib import Path
 from typing import Dict, Optional
+
+# Match the certbot data directory used by the web app and systemd service
+_CERTBOT_DATA_DIR = Path(__file__).parent.parent / 'certbot_data'
 
 
 def get_certbot_config() -> Dict:
@@ -60,6 +64,7 @@ def get_ssl_certificate_info() -> Dict:
         'valid_until': None,
         'days_remaining': None,
         'self_signed': False,
+        'is_staging': False,  # True if cert was issued by Let's Encrypt staging server
         'error': None,
         'needs_installation': False  # True if cert exists but isn't installed
     }
@@ -72,7 +77,7 @@ def get_ssl_certificate_info() -> Dict:
     # First check the standard location, then check custom certbot directory
     letsencrypt_dirs = [
         '/etc/letsencrypt/live',  # Standard Let's Encrypt location
-        '/opt/eas-station/certbot_data/config/live',  # Custom certbot config location
+        str(_CERTBOT_DATA_DIR / 'config' / 'live'),  # Custom certbot config location
     ]
 
     letsencrypt_dir = None
@@ -152,13 +157,21 @@ def get_ssl_certificate_info() -> Dict:
                         if result.returncode == 0:
                             output = result.stdout
                             
-                            # Parse issuer
+                            # Parse issuer - check for staging before production
                             for line in output.split('\n'):
                                 if 'Issuer:' in line:
-                                    if "Let's Encrypt" in line or 'ISRG' in line:
+                                    issuer_text = line.split('Issuer:')[1].strip()
+                                    # Detect Let's Encrypt staging certificates
+                                    # Staging issuers contain "(STAGING)" e.g.:
+                                    #   O = (STAGING) Let's Encrypt, CN = (STAGING) Artificial Apricot R3
+                                    # Or older format with "Fake LE" / "Fake Let's Encrypt"
+                                    if '(STAGING)' in issuer_text or 'Fake LE' in issuer_text or 'Fake Let\'s Encrypt' in issuer_text:
+                                        cert_info['issuer'] = "Let's Encrypt (Staging)"
+                                        cert_info['is_staging'] = True
+                                    elif "Let's Encrypt" in issuer_text or 'ISRG' in issuer_text:
                                         cert_info['issuer'] = "Let's Encrypt"
                                     else:
-                                        cert_info['issuer'] = line.split('Issuer:')[1].strip()
+                                        cert_info['issuer'] = issuer_text
                             
                             # Get expiration date
                             result = subprocess.run(

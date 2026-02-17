@@ -226,6 +226,123 @@ def _check_nginx_status():
         return False
 
 
+def _is_existing_cert_staging(domain: str) -> bool:
+    """Check if an existing certificate for the domain is from the staging server.
+
+    Checks both the renewal config (for acme-staging server URL) and the cert
+    issuer (for STAGING / Fake LE indicators).
+
+    Args:
+        domain: Domain name to check
+
+    Returns:
+        True if a staging certificate exists for this domain
+    """
+    # Check renewal config files for staging ACME server URL
+    renewal_dir = CERTBOT_CONFIG_DIR / 'renewal'
+    if renewal_dir.exists():
+        for conf_file in renewal_dir.iterdir():
+            if not conf_file.name.endswith('.conf'):
+                continue
+            # Match domain.conf or domain-0001.conf
+            base = conf_file.stem
+            if base != domain and not (base.startswith(f"{domain}-") and base[len(domain)+1:].isdigit()):
+                continue
+            try:
+                content = conf_file.read_text()
+                if 'acme-staging' in content:
+                    return True
+            except Exception:
+                continue
+
+    # Check certificate issuer as a fallback
+    live_dir = CERTBOT_CONFIG_DIR / 'live'
+    if live_dir.exists():
+        for entry in live_dir.iterdir():
+            if not entry.is_dir() or entry.name == 'README':
+                continue
+            if entry.name != domain and not (entry.name.startswith(f"{domain}-") and entry.name[len(domain)+1:].isdigit()):
+                continue
+            cert_path = entry / 'fullchain.pem'
+            if cert_path.exists():
+                try:
+                    result = subprocess.run(
+                        ['openssl', 'x509', '-in', str(cert_path), '-noout', '-issuer'],
+                        capture_output=True, text=True, timeout=5
+                    )
+                    if result.returncode == 0:
+                        issuer = result.stdout
+                        if '(STAGING)' in issuer or 'Fake LE' in issuer or 'Fake Let\'s Encrypt' in issuer:
+                            return True
+                except Exception:
+                    continue
+
+    return False
+
+
+def _delete_staging_certs(domain: str) -> Dict[str, Any]:
+    """Delete all staging certificates for a domain so a production cert can be obtained.
+
+    Uses 'certbot delete' for each matching cert name, which cleanly removes
+    the certificate, renewal config, and associated files.
+
+    Args:
+        domain: Domain name whose staging certs should be deleted
+
+    Returns:
+        Dict with 'success', 'deleted' (list of deleted cert names), and optionally 'error'
+    """
+    deleted = []
+    errors = []
+
+    # Find all cert names that match this domain
+    renewal_dir = CERTBOT_CONFIG_DIR / 'renewal'
+    if not renewal_dir.exists():
+        return {"success": True, "deleted": []}
+
+    cert_names = []
+    for conf_file in renewal_dir.iterdir():
+        if not conf_file.name.endswith('.conf'):
+            continue
+        base = conf_file.stem
+        if base == domain or (base.startswith(f"{domain}-") and base[len(domain)+1:].isdigit()):
+            # Only delete if it's actually a staging cert
+            try:
+                content = conf_file.read_text()
+                if 'acme-staging' in content:
+                    cert_names.append(base)
+            except Exception:
+                continue
+
+    for cert_name in cert_names:
+        try:
+            result = subprocess.run(
+                [
+                    'sudo', 'certbot', 'delete',
+                    '--cert-name', cert_name,
+                    '--non-interactive',
+                    '--config-dir', str(CERTBOT_CONFIG_DIR),
+                    '--work-dir', str(CERTBOT_WORK_DIR),
+                    '--logs-dir', str(CERTBOT_LOGS_DIR),
+                ],
+                capture_output=True, text=True, timeout=30
+            )
+            if result.returncode == 0:
+                deleted.append(cert_name)
+                logger.info(f"Deleted staging certificate: {cert_name}")
+            else:
+                errors.append(f"{cert_name}: {result.stderr.strip()}")
+                logger.error(f"Failed to delete staging cert {cert_name}: {result.stderr}")
+        except Exception as e:
+            errors.append(f"{cert_name}: {str(e)}")
+
+    return {
+        "success": len(errors) == 0,
+        "deleted": deleted,
+        "error": "; ".join(errors) if errors else None,
+    }
+
+
 def _install_certificate_internal(domain: str) -> Dict[str, Any]:
     """Internal helper to install a certificate after it's been obtained.
 
@@ -689,6 +806,9 @@ def renew_certificate():
             logger.warning(f"Could not check certbot.timer status: {e}")
 
         # Build response with instructions
+        # Note: --staging is only shown for the obtain command (where it
+        # actually selects the ACME server).  For 'certbot renew', the server
+        # is read from the stored renewal config, so the flag is meaningless.
         staging_flag = ' --staging' if settings.staging else ''
         dir_flags = (
             f" --config-dir {CERTBOT_CONFIG_DIR} "
@@ -698,8 +818,8 @@ def renew_certificate():
         instructions = {
             'timer_status': timer_info,
             'manual_commands': {
-                'dry_run_test': f'certbot renew --dry-run{staging_flag}{dir_flags}',
-                'force_renew': f'certbot renew --force-renewal{staging_flag}{dir_flags}',
+                'dry_run_test': f'certbot renew --dry-run{dir_flags}',
+                'force_renew': f'certbot renew --force-renewal{dir_flags}',
                 'obtain_new': f'certbot certonly --standalone -d {domain} --email {settings.email}{staging_flag}{dir_flags}'
             },
             'note': 'Certificate operations are executed from within the application container.'
@@ -1037,6 +1157,18 @@ def obtain_certificate_execute():
 
         # Ensure certbot directories exist with proper permissions and clean up stale locks
         _ensure_certbot_directories()
+
+        # If switching from staging to production, delete existing staging certs first.
+        # Without this, certbot sees the existing (staging) cert is not due for renewal
+        # and silently exits with code 0, leaving the staging cert in place.
+        if not settings.staging and _is_existing_cert_staging(domain):
+            logger.info(f"Production mode selected but staging cert exists for {domain}. "
+                        "Deleting staging cert(s) before obtaining production cert.")
+            delete_result = _delete_staging_certs(domain)
+            if delete_result['deleted']:
+                logger.info(f"Deleted staging certs: {delete_result['deleted']}")
+            if delete_result.get('error'):
+                logger.warning(f"Some staging certs could not be deleted: {delete_result['error']}")
 
         # Build certbot command based on method
         staging_flag = ['--staging'] if settings.staging else []
@@ -1383,8 +1515,29 @@ def renew_certificate_execute():
                 "error": f"Failed to check certbot installation: {str(e)}"
             }), 500
 
+        # Detect staging-to-production mismatch.
+        # 'certbot renew' reads the ACME server URL from the stored renewal
+        # config, so passing or omitting --staging has no effect — it will
+        # always renew from whichever server was used during the original
+        # 'certbot certonly'.  If the current cert is staging but the user
+        # wants production, they must re-obtain, not renew.
+        domain = settings.domain_name.strip()
+        if not settings.staging and domain and _is_existing_cert_staging(domain):
+            return jsonify({
+                "success": False,
+                "error": (
+                    "Cannot renew: the current certificate was issued by the Let's Encrypt "
+                    "staging server, but your settings are now set to production. "
+                    "Renewal would only produce another staging certificate. "
+                    "Please use 'Obtain Certificate' to get a new production certificate — "
+                    "the staging certificate will be cleaned up automatically."
+                ),
+            }), 400
+
         # Build certbot renew command
-        staging_flag = ['--staging'] if settings.staging else []
+        # Note: --staging is intentionally NOT appended here.  certbot renew
+        # uses the ACME server stored in each renewal config file, so the flag
+        # is meaningless and could be misleading in logs.
         certbot_cmd = [
             'sudo', 'certbot', 'renew',
             '--config-dir', str(CERTBOT_CONFIG_DIR),
@@ -1397,8 +1550,6 @@ def renew_certificate_execute():
 
         if force:
             certbot_cmd.append('--force-renewal')
-
-        certbot_cmd.extend(staging_flag)
         
         try:
             logger.info(f"Running certbot renewal (dry_run={dry_run}, force={force})")
