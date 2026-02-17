@@ -50,16 +50,19 @@ CIDR_PATTERN = re.compile(r'^(\d{1,3}\.){3}\d{1,3}/\d{1,2}$')
 
 
 def _run_tailscale_cmd(args, timeout=30):
-    """Run a tailscale CLI command with sudo.
+    """Run a tailscale CLI command.
+
+    Tailscale CLI commands communicate with tailscaled via a Unix socket and
+    do not require sudo. Only systemctl operations on the daemon need root.
 
     Args:
-        args: List of arguments to pass after 'sudo tailscale'
+        args: List of arguments to pass after 'tailscale'
         timeout: Command timeout in seconds
 
     Returns:
         dict with 'success', 'stdout', 'stderr', and 'returncode'
     """
-    cmd = ['sudo', 'tailscale'] + args
+    cmd = ['tailscale'] + args
     try:
         result = subprocess.run(
             cmd,
@@ -123,6 +126,8 @@ def _check_tailscale_installed():
 def _check_tailscaled_running():
     """Check if the tailscaled daemon is running.
 
+    Tries systemctl first (may need sudo), then falls back to pgrep.
+
     Returns:
         bool
     """
@@ -133,7 +138,17 @@ def _check_tailscaled_running():
             text=True,
             timeout=5,
         )
-        return result.stdout.strip() == 'active'
+        if result.stdout.strip() == 'active':
+            return True
+
+        # Fallback: check via process list (no sudo needed)
+        pgrep = subprocess.run(
+            ['pgrep', '-x', 'tailscaled'],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        return pgrep.returncode == 0
     except Exception:
         return False
 
@@ -274,6 +289,14 @@ def get_status():
             })
 
         daemon_running = _check_tailscaled_running()
+
+        # Even if the process check says the daemon is not running, try getting
+        # the status anyway — the socket may still be accessible (e.g. process
+        # detection failed, or the service is managed differently).
+        if not daemon_running:
+            probe = _run_tailscale_cmd(['status', '--json'], timeout=5)
+            if probe['success']:
+                daemon_running = True
 
         status_info = {
             "success": True,
@@ -590,7 +613,7 @@ def ping_peer():
                 "error": "Invalid target. Only alphanumeric characters, dots, hyphens, and colons allowed.",
             }), 400
 
-        result = _run_tailscale_cmd(['ping', '--c', '3', target], timeout=15)
+        result = _run_tailscale_cmd(['ping', '-c', '3', target], timeout=15)
 
         return jsonify({
             "success": result['success'],
