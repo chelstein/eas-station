@@ -36,6 +36,7 @@ from .eas_monitor import (
     compute_alert_signature,
 )
 from .alert_forwarding import forward_alert_to_api, ALERT_CHANNEL
+from .archiver import AudioArchiver, AudioArchiverConfig
 
 __all__ = [
     'AudioIngestController',
@@ -52,4 +53,6 @@ __all__ = [
     'compute_alert_signature',
     'forward_alert_to_api',
     'ALERT_CHANNEL',
+    'AudioArchiver',
+    'AudioArchiverConfig',
 ]

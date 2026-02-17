@@ -205,6 +205,24 @@ class AudioCommandPublisher:
         """Stop EAS monitor in audio-service."""
         return self._publish_command('eas_monitor_stop', {})
 
+    def start_archiver(self, source_name: str, archive_config: Dict[str, Any]) -> Dict[str, Any]:
+        """Start archiver for *source_name* in audio-service.
+
+        Args:
+            source_name: Name of the audio source to archive.
+            archive_config: Dict matching :class:`~app_core.audio.archiver.AudioArchiverConfig`
+                            fields (output_dir, segment_duration_seconds, retention_days,
+                            max_disk_bytes, format, bitrate).
+        """
+        return self._publish_command(
+            'archiver_start',
+            {'source_name': source_name, 'archive_config': archive_config},
+        )
+
+    def stop_archiver(self, source_name: str) -> Dict[str, Any]:
+        """Stop archiver for *source_name* in audio-service."""
+        return self._publish_command('archiver_stop', {'source_name': source_name})
+
 
 class AudioCommandSubscriber:
     """
@@ -213,7 +231,8 @@ class AudioCommandSubscriber:
     Used by audio-service process to receive and execute commands from app.
     """
 
-    def __init__(self, audio_controller, auto_streaming_service=None, eas_monitor=None):
+    def __init__(self, audio_controller, auto_streaming_service=None, eas_monitor=None,
+                 archiver_registry: Optional[Dict[str, Any]] = None):
         """
         Initialize Redis subscriber with retry logic.
 
@@ -221,10 +240,13 @@ class AudioCommandSubscriber:
             audio_controller: AudioIngestController instance to execute commands on
             auto_streaming_service: Optional AutoStreamingService for Icecast streaming
             eas_monitor: Optional ContinuousEASMonitor for EAS monitoring control
+            archiver_registry: Optional dict mapping source_name -> AudioArchiver for
+                               handling archiver_start / archiver_stop commands.
         """
         self.audio_controller = audio_controller
         self.auto_streaming_service = auto_streaming_service
         self.eas_monitor = eas_monitor
+        self.archiver_registry: Dict[str, Any] = archiver_registry if archiver_registry is not None else {}
         try:
             self.redis_client = get_redis_client(max_retries=5)
             self.pubsub = self.redis_client.pubsub()
@@ -501,6 +523,64 @@ class AudioCommandSubscriber:
                     self.eas_monitor.stop()
                     return {'success': True, 'message': 'EAS monitor stopped'}
                 return {'success': False, 'message': 'EAS monitor not available'}
+
+            elif command == 'archiver_start':
+                source_name = params.get('source_name')
+                archive_config = params.get('archive_config', {})
+                if not source_name:
+                    return {'success': False, 'message': 'source_name is required'}
+
+                if source_name in self.archiver_registry:
+                    return {'success': True, 'message': f'Archiver for {source_name} already running'}
+
+                adapter = self.audio_controller._sources.get(source_name)
+                if adapter is None:
+                    return {'success': False, 'message': f'Source {source_name} not found'}
+
+                try:
+                    from app_core.audio.archiver import AudioArchiver, AudioArchiverConfig
+
+                    cfg = AudioArchiverConfig(
+                        output_dir=archive_config.get('output_dir', 'archives'),
+                        segment_duration_seconds=int(archive_config.get('segment_duration_seconds', 3600)),
+                        retention_days=int(archive_config.get('retention_days', 7)),
+                        max_disk_bytes=int(archive_config.get('max_disk_bytes', 0)),
+                        format=archive_config.get('format', 'wav'),
+                        bitrate=int(archive_config.get('bitrate', 128)),
+                    )
+
+                    broadcast_queue = getattr(adapter, 'broadcast_queue', None) or getattr(adapter, '_broadcast_queue', None)
+                    if broadcast_queue is None:
+                        return {'success': False, 'message': f'Source {source_name} has no broadcast queue'}
+
+                    archiver = AudioArchiver(
+                        source_name=source_name,
+                        config=cfg,
+                        broadcast_queue=broadcast_queue,
+                        sample_rate=getattr(adapter.config, 'sample_rate', 44100),
+                        channels=getattr(adapter.config, 'channels', 1),
+                    )
+                    if archiver.start():
+                        self.archiver_registry[source_name] = archiver
+                        return {'success': True, 'message': f'Archiver started for {source_name}'}
+                    return {'success': False, 'message': f'Archiver failed to start for {source_name}'}
+                except Exception as exc:
+                    logger.error('archiver_start error for %s: %s', source_name, exc, exc_info=True)
+                    return {'success': False, 'message': str(exc)}
+
+            elif command == 'archiver_stop':
+                source_name = params.get('source_name')
+                if not source_name:
+                    return {'success': False, 'message': 'source_name is required'}
+
+                archiver = self.archiver_registry.pop(source_name, None)
+                if archiver:
+                    try:
+                        archiver.stop()
+                    except Exception as exc:
+                        logger.warning('archiver_stop error for %s: %s', source_name, exc)
+                    return {'success': True, 'message': f'Archiver stopped for {source_name}'}
+                return {'success': True, 'message': f'No archiver running for {source_name}'}
 
             else:
                 return {'success': False, 'message': f'Unknown command: {command}'}

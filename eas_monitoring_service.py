@@ -91,6 +91,9 @@ _auto_streaming_service = None
 # NOTE: _radio_manager removed - audio-service does NOT access SDR hardware
 # SDR hardware is managed exclusively by sdr-service.py container
 
+# Registry of running AudioArchiver instances: source_name -> AudioArchiver
+_archivers: dict = {}
+
 
 def signal_handler(signum, frame):
     """Handle shutdown signals gracefully."""
@@ -512,6 +515,84 @@ def initialize_auto_streaming(app, audio_controller):
         return None
 
 
+def initialize_archivers(app, audio_controller):
+    """Start AudioArchivers for sources that have archiving enabled in their config_params.
+
+    Each AudioSourceConfigDB record may carry an ``"archive"`` key inside
+    ``config_params``.  When ``archive.enabled`` is true, an AudioArchiver is
+    created and started, then stored in ``_archivers``.
+    """
+    global _archivers
+
+    try:
+        from app_core.audio.archiver import AudioArchiver, AudioArchiverConfig
+        from app_core.audio.ingest import AudioSourceStatus
+        from app_core.models import AudioSourceConfigDB
+
+        with app.app_context():
+            db_configs = AudioSourceConfigDB.query.all()
+
+        started = 0
+        for db_config in db_configs:
+            config_params = db_config.config_params or {}
+            archive_cfg = config_params.get('archive', {})
+            if not archive_cfg.get('enabled', False):
+                continue
+
+            source_name = db_config.name
+            adapter = audio_controller._sources.get(source_name)
+            if adapter is None:
+                logger.debug("initialize_archivers: source '%s' not loaded yet – skipping", source_name)
+                continue
+
+            if adapter.status != AudioSourceStatus.RUNNING:
+                logger.debug(
+                    "initialize_archivers: source '%s' not running (status=%s) – skipping",
+                    source_name, adapter.status,
+                )
+                continue
+
+            broadcast_queue = (
+                getattr(adapter, 'broadcast_queue', None)
+                or getattr(adapter, '_broadcast_queue', None)
+            )
+            if broadcast_queue is None:
+                logger.warning("initialize_archivers: source '%s' has no broadcast queue", source_name)
+                continue
+
+            try:
+                cfg = AudioArchiverConfig(
+                    output_dir=archive_cfg.get('output_dir', 'archives'),
+                    segment_duration_seconds=int(archive_cfg.get('segment_duration_seconds', 3600)),
+                    retention_days=int(archive_cfg.get('retention_days', 7)),
+                    max_disk_bytes=int(archive_cfg.get('max_disk_bytes', 0)),
+                    format=archive_cfg.get('format', 'wav'),
+                    bitrate=int(archive_cfg.get('bitrate', 128)),
+                )
+                archiver = AudioArchiver(
+                    source_name=source_name,
+                    config=cfg,
+                    broadcast_queue=broadcast_queue,
+                    sample_rate=getattr(adapter.config, 'sample_rate', 44100),
+                    channels=getattr(adapter.config, 'channels', 1),
+                )
+                if archiver.start():
+                    _archivers[source_name] = archiver
+                    started += 1
+                    logger.info("✅ Archiver started for source '%s'", source_name)
+                else:
+                    logger.warning("⚠️ Archiver failed to start for source '%s'", source_name)
+            except Exception as exc:
+                logger.error("❌ Error starting archiver for '%s': %s", source_name, exc, exc_info=True)
+
+        logger.info("initialize_archivers: started %d archiver(s)", started)
+        return _archivers
+
+    except Exception as exc:
+        logger.error("Failed to initialize archivers: %s", exc, exc_info=True)
+        return _archivers
+
+
 def initialize_eas_monitor(app, audio_controller):
     """Initialize EAS monitoring system with unified monitor service.
     
@@ -798,6 +879,10 @@ def main():
                 except Exception as e:
                     logger.error(f"❌ Error adding '{source_name}' to Icecast: {e}", exc_info=True)
 
+        # Initialize audio archivers for sources that have archiving enabled
+        logger.info("Initializing audio archivers...")
+        initialize_archivers(app, audio_controller)
+
         # Initialize EAS monitor
         logger.info("Initializing EAS monitor...")
         eas_monitor = initialize_eas_monitor(app, audio_controller)
@@ -814,7 +899,10 @@ def main():
             from app_core.audio.redis_commands import AudioCommandSubscriber
             import threading
 
-            command_subscriber = AudioCommandSubscriber(audio_controller, auto_streaming, eas_monitor)
+            command_subscriber = AudioCommandSubscriber(
+                audio_controller, auto_streaming, eas_monitor,
+                archiver_registry=_archivers,
+            )
 
             # Start subscriber in background thread
             subscriber_thread = threading.Thread(
