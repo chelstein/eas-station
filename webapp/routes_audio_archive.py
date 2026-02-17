@@ -55,11 +55,12 @@ GET  /api/audio/archives/sources
 """
 
 import logging
+import os
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, jsonify, render_template, request, send_file
 
 logger = logging.getLogger(__name__)
 
@@ -404,6 +405,106 @@ def register(app: Flask, logger_arg, archive_dir: str = _DEFAULT_ARCHIVE_DIR) ->
         result["bytes_freed_human"] = _format_bytes(result["bytes_freed"])
         status = 200 if result["error"] is None else 500
         return jsonify(result), status
+
+    # ------------------------------------------------------------------
+    # API: list archive files for one source, grouped by date
+    # ------------------------------------------------------------------
+
+    @app.route("/api/audio/archives/<source_name>/files", methods=["GET"])
+    def api_audio_archive_files(source_name: str):
+        source_dir = archive_root / Path(source_name).name  # prevent path traversal
+        if not source_dir.exists():
+            return jsonify({"dates": []})
+
+        dates: List[Dict[str, Any]] = []
+        for date_dir in sorted(source_dir.iterdir(), reverse=True):
+            if not date_dir.is_dir():
+                continue
+            files: List[Dict[str, Any]] = []
+            for f in sorted(date_dir.iterdir()):
+                if f.is_file() and f.suffix.lower() in (".wav", ".mp3"):
+                    try:
+                        stat = f.stat()
+                        files.append({
+                            "filename": f.name,
+                            "date": date_dir.name,
+                            "size_bytes": stat.st_size,
+                            "size_human": _format_bytes(stat.st_size),
+                            "mtime": datetime.fromtimestamp(stat.st_mtime).isoformat(),
+                        })
+                    except OSError:
+                        pass
+            if files:
+                dates.append({"date": date_dir.name, "files": files})
+
+        return jsonify({"source_name": source_name, "dates": dates})
+
+    # ------------------------------------------------------------------
+    # API: serve / download one archive file
+    # ------------------------------------------------------------------
+
+    @app.route(
+        "/api/audio/archives/<source_name>/files/<date>/<filename>",
+        methods=["GET"],
+    )
+    def api_audio_archive_serve(source_name: str, date: str, filename: str):
+        # Prevent path traversal in every segment
+        safe_source = Path(source_name).name
+        safe_date   = Path(date).name
+        safe_file   = Path(filename).name
+
+        file_path = archive_root / safe_source / safe_date / safe_file
+        if not file_path.exists() or not file_path.is_file():
+            return jsonify({"error": "File not found"}), 404
+
+        suffix = file_path.suffix.lower()
+        if suffix not in (".wav", ".mp3"):
+            return jsonify({"error": "File type not served"}), 403
+
+        mime = "audio/wav" if suffix == ".wav" else "audio/mpeg"
+        as_attachment = request.args.get("download", "0") == "1"
+        return send_file(
+            file_path,
+            mimetype=mime,
+            as_attachment=as_attachment,
+            download_name=safe_file,
+            conditional=True,
+        )
+
+    # ------------------------------------------------------------------
+    # API: stream metadata log (recent now-playing history)
+    # ------------------------------------------------------------------
+
+    @app.route("/api/audio/archives/<source_name>/metadata-log", methods=["GET"])
+    def api_audio_archive_metadata_log(source_name: str):
+        try:
+            from app_core.models import StreamMetadataLog
+            limit = min(int(request.args.get("limit", 100)), 500)
+            rows = (
+                StreamMetadataLog.query
+                .filter_by(source_name=source_name)
+                .order_by(StreamMetadataLog.timestamp.desc())
+                .limit(limit)
+                .all()
+            )
+            entries = [
+                {
+                    "id": r.id,
+                    "timestamp": r.timestamp.isoformat() if r.timestamp else None,
+                    "title": r.title,
+                    "artist": r.artist,
+                    "album": r.album,
+                    "artwork_url": r.artwork_url,
+                    "length": r.length,
+                    "display": r.display,
+                    "raw": r.raw,
+                }
+                for r in rows
+            ]
+            return jsonify({"source_name": source_name, "entries": entries})
+        except Exception as exc:
+            route_logger.error("metadata-log query failed for '%s': %s", source_name, exc)
+            return jsonify({"source_name": source_name, "entries": []})
 
     route_logger.info("Audio archive routes registered (archive_dir=%s)", archive_root)
 

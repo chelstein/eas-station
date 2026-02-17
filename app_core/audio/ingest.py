@@ -139,6 +139,10 @@ class AudioSourceAdapter(ABC):
         
         self._last_metrics_update = 0.0
         self._start_time = 0.0
+        # Optional callback(source_name: str, updates: dict) invoked on each
+        # ICY metadata change.  Set by the monitoring service to persist
+        # now-playing events to the database.
+        self.on_metadata_change = None
         # Waveform buffer for visualization (stores last 2048 samples)
         self._waveform_buffer = np.zeros(2048, dtype=np.float32)
         self._waveform_lock = threading.Lock()

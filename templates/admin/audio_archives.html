@@ -15,11 +15,11 @@
   .disk-bar       { background: var(--primary-color); height: 100%; transition: width .4s; }
   .disk-bar.warn  { background: var(--warning-color); }
   .disk-bar.danger{ background: var(--danger-color); }
-  .settings-panel { display: none; }
-  .settings-panel.open { display: block; }
+  .panel { display: none; border-top: 1px solid var(--border-color); }
+  .panel.open { display: block; }
   .form-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1rem; }
   .action-bar { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
-  .toast-stack { position: fixed; bottom: 1.5rem; right: 1.5rem; z-index: 9999; display: flex; flex-direction: column; gap: .5rem; }
+  .toast-stack { position: fixed; bottom: 5rem; right: 1.5rem; z-index: 9999; display: flex; flex-direction: column; gap: .5rem; }
   .toast-msg {
     background: var(--surface-color); border: 1px solid var(--border-color);
     border-radius: .375rem; padding: .6rem 1rem; font-size: .875rem;
@@ -30,6 +30,33 @@
   .spinner { display: inline-block; width: 1rem; height: 1rem; border: 2px solid currentColor;
     border-right-color: transparent; border-radius: 50%; animation: spin .6s linear infinite; vertical-align: middle; }
   @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* File browser */
+  .date-row { cursor: pointer; user-select: none; }
+  .date-row:hover { background: color-mix(in srgb, var(--primary-color) 8%, transparent); }
+  .date-files { display: none; }
+  .date-files.open { display: table-row-group; }
+  .file-row td { padding: .3rem .75rem; font-size: .875rem; }
+  .file-row td:first-child { padding-left: 2rem; }
+  .play-btn { cursor: pointer; color: var(--primary-color); background: none; border: none; padding: 0 .25rem; }
+  .play-btn:hover { opacity: .75; }
+
+  /* Sticky audio player bar */
+  #player-bar {
+    position: fixed; bottom: 0; left: 0; right: 0; z-index: 1050;
+    background: var(--surface-color); border-top: 1px solid var(--border-color);
+    padding: .5rem 1.5rem; display: none; align-items: center; gap: 1rem;
+    box-shadow: 0 -4px 12px rgba(0,0,0,.15);
+  }
+  #player-bar.visible { display: flex; }
+  #player-bar audio { flex: 1; min-width: 0; height: 2rem; }
+  #player-label { font-size: .875rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 300px; }
+  #player-close { background: none; border: none; color: var(--secondary-color); font-size: 1.2rem; cursor: pointer; padding: 0 .25rem; }
+  #player-close:hover { color: var(--danger-color); }
+
+  /* Song history */
+  .meta-artwork { width: 36px; height: 36px; object-fit: cover; border-radius: .25rem; }
+  .meta-artwork-placeholder { width: 36px; height: 36px; background: var(--border-color); border-radius: .25rem; display: flex; align-items: center; justify-content: center; color: var(--secondary-color); }
 </style>
 {% endblock %}
 
@@ -71,6 +98,14 @@
 <!-- Toast stack -->
 <div class="toast-stack" id="toast-stack"></div>
 
+<!-- Sticky audio player bar -->
+<div id="player-bar">
+  <i class="fas fa-music text-muted"></i>
+  <span id="player-label" class="text-muted">—</span>
+  <audio id="player-audio" controls preload="none"></audio>
+  <button id="player-close" title="Close player" onclick="closePlayer()">&#x2715;</button>
+</div>
+
 {% endblock %}
 
 {% block scripts %}
@@ -95,6 +130,7 @@ function fmt(n) {
 
 function gbToBytes(gb) { return Math.round(parseFloat(gb) * 1073741824); }
 function bytesToGb(b)  { return (b / 1073741824).toFixed(2); }
+function fmtTs(iso)    { return iso ? new Date(iso).toLocaleString() : '—'; }
 
 async function api(method, url, body) {
   const opts = { method, headers: { 'Content-Type': 'application/json' } };
@@ -122,9 +158,10 @@ function buildCard(s) {
   const outDir      = (s.archive && s.archive.output_dir) || 'archives';
   const bitrate     = (s.archive && s.archive.bitrate) || 128;
   const newest      = s.newest_file_iso ? new Date(s.newest_file_iso).toLocaleString() : '—';
+  const esc         = CSS.escape(s.source_name);
 
   return `
-<div class="card source-card" id="card-${CSS.escape(s.source_name)}">
+<div class="card source-card" id="card-${esc}">
   <div class="card-header d-flex align-items-center justify-content-between flex-wrap gap-2">
     <div class="d-flex align-items-center gap-2">
       <i class="fas fa-stream text-muted"></i>
@@ -134,7 +171,7 @@ function buildCard(s) {
         <i class="fas ${badgeIcon}"></i>${badgeLabel}
       </span>
     </div>
-    <div class="d-flex align-items-center gap-3">
+    <div class="d-flex align-items-center gap-2 flex-wrap">
       <span class="text-muted small">${s.disk_bytes_human || '0 B'} on disk &bull; ${s.disk_files || 0} files</span>
       ${maxBytes > 0 ? `
       <div style="display:flex;align-items:center;gap:.4rem;">
@@ -143,19 +180,39 @@ function buildCard(s) {
         </div>
         <span class="text-muted small">${pct.toFixed(0)}%</span>
       </div>` : ''}
-      <button class="btn btn-sm btn-outline-secondary" onclick="toggleSettings('${s.source_name}')">
-        <i class="fas fa-sliders"></i> Settings
+      <button class="btn btn-sm btn-outline-primary" onclick="togglePanel('files-${esc}', '${s.source_name}', 'files')">
+        <i class="fas fa-folder-open me-1"></i> Files
+      </button>
+      <button class="btn btn-sm btn-outline-info" onclick="togglePanel('history-${esc}', '${s.source_name}', 'history')">
+        <i class="fas fa-music me-1"></i> Song History
+      </button>
+      <button class="btn btn-sm btn-outline-secondary" onclick="togglePanel('settings-${esc}', '${s.source_name}', 'settings')">
+        <i class="fas fa-sliders me-1"></i> Settings
       </button>
     </div>
   </div>
 
+  <!-- Files panel -->
+  <div class="panel card-body" id="files-${esc}">
+    <div id="files-body-${esc}">
+      <div class="text-center text-muted py-3"><span class="spinner"></span> Loading files…</div>
+    </div>
+  </div>
+
+  <!-- Song history panel -->
+  <div class="panel card-body" id="history-${esc}">
+    <div id="history-body-${esc}">
+      <div class="text-center text-muted py-3"><span class="spinner"></span> Loading history…</div>
+    </div>
+  </div>
+
   <!-- Settings panel -->
-  <div class="card-body settings-panel" id="settings-${CSS.escape(s.source_name)}">
+  <div class="panel card-body" id="settings-${esc}">
     <form onsubmit="saveSettings(event, '${s.source_name}')">
       <div class="form-row mb-3">
         <div class="form-check d-flex align-items-center gap-2 pt-3">
-          <input type="checkbox" class="form-check-input" id="en-${s.source_name}" name="enabled" ${archEnabled ? 'checked' : ''}>
-          <label class="form-check-label" for="en-${s.source_name}">Enable archiving</label>
+          <input type="checkbox" class="form-check-input" id="en-${esc}" name="enabled" ${archEnabled ? 'checked' : ''}>
+          <label class="form-check-label" for="en-${esc}">Enable archiving</label>
         </div>
         <div>
           <label class="form-label small text-muted">Output directory</label>
@@ -217,16 +274,172 @@ function buildCard(s) {
 }
 
 /* -----------------------------------------------------------------------
-   Toggle settings panel
+   Panel toggle — lazy-load files/history on first open
 ----------------------------------------------------------------------- */
-function toggleSettings(name) {
-  const el = document.getElementById('settings-' + name);
-  if (el) el.classList.toggle('open');
+const _panelLoaded = {};
+
+function togglePanel(panelId, sourceName, kind) {
+  const el = document.getElementById(panelId);
+  if (!el) return;
+  const wasOpen = el.classList.contains('open');
+  el.classList.toggle('open');
+  if (!wasOpen && !_panelLoaded[panelId]) {
+    _panelLoaded[panelId] = true;
+    if (kind === 'files')   loadFiles(sourceName);
+    if (kind === 'history') loadHistory(sourceName);
+  }
 }
 
 function toggleBitrate(sel) {
   const row = sel.closest('.form-row').querySelector('.bitrate-field');
   if (row) row.style.display = sel.value === 'mp3' ? '' : 'none';
+}
+
+/* -----------------------------------------------------------------------
+   File browser
+----------------------------------------------------------------------- */
+async function loadFiles(sourceName) {
+  const bodyEl = document.getElementById('files-body-' + CSS.escape(sourceName));
+  if (!bodyEl) return;
+  try {
+    const data = await api('GET', `/api/audio/archives/${encodeURIComponent(sourceName)}/files`);
+    const dates = data.dates || [];
+
+    if (!dates.length) {
+      bodyEl.innerHTML = '<p class="text-muted mb-0">No archived files found.</p>';
+      return;
+    }
+
+    let html = `
+<table class="table table-sm mb-0" style="font-size:.875rem">
+  <thead><tr>
+    <th>Date / File</th>
+    <th>Size</th>
+    <th>Modified</th>
+    <th></th>
+  </tr></thead>`;
+
+    for (const d of dates) {
+      const totalSize = d.files.reduce((a, f) => a + f.size_bytes, 0);
+      const groupId   = CSS.escape(sourceName + '-' + d.date);
+      html += `
+  <tbody>
+    <tr class="date-row table-secondary" onclick="toggleDateGroup('${groupId}')">
+      <td colspan="3"><i class="fas fa-chevron-right me-2 date-chevron-${groupId}" style="font-size:.75rem"></i>
+        <strong>${d.date}</strong>
+        <span class="text-muted ms-2">${d.files.length} file(s)</span>
+      </td>
+      <td class="text-end text-muted">${fmt(totalSize)}</td>
+    </tr>
+  </tbody>
+  <tbody class="date-files" id="dg-${groupId}">`;
+      for (const f of d.files) {
+        const playUrl = `/api/audio/archives/${encodeURIComponent(sourceName)}/files/${encodeURIComponent(d.date)}/${encodeURIComponent(f.filename)}`;
+        const dlUrl   = playUrl + '?download=1';
+        html += `
+    <tr class="file-row">
+      <td><i class="fas fa-file-audio text-muted me-2"></i>${f.filename}</td>
+      <td class="text-muted">${f.size_human}</td>
+      <td class="text-muted">${fmtTs(f.mtime)}</td>
+      <td class="text-end" style="white-space:nowrap">
+        <button class="play-btn" title="Play" onclick="playFile('${playUrl}', '${sourceName} / ${d.date} / ${f.filename}')">
+          <i class="fas fa-play-circle fa-lg"></i>
+        </button>
+        <a href="${dlUrl}" class="btn btn-sm btn-link p-0 ms-2" title="Download">
+          <i class="fas fa-download"></i>
+        </a>
+      </td>
+    </tr>`;
+      }
+      html += `
+  </tbody>`;
+    }
+    html += `\n</table>`;
+    bodyEl.innerHTML = html;
+  } catch (e) {
+    bodyEl.innerHTML = `<div class="alert alert-danger mb-0">Failed to load files: ${e}</div>`;
+  }
+}
+
+function toggleDateGroup(groupId) {
+  const tbody   = document.getElementById('dg-' + groupId);
+  const chevron = document.querySelector('.date-chevron-' + groupId);
+  if (!tbody) return;
+  tbody.classList.toggle('open');
+  if (chevron) {
+    chevron.classList.toggle('fa-chevron-right', !tbody.classList.contains('open'));
+    chevron.classList.toggle('fa-chevron-down',   tbody.classList.contains('open'));
+  }
+}
+
+/* -----------------------------------------------------------------------
+   Audio player
+----------------------------------------------------------------------- */
+function playFile(url, label) {
+  const bar   = document.getElementById('player-bar');
+  const audio = document.getElementById('player-audio');
+  const lbl   = document.getElementById('player-label');
+  audio.src   = url;
+  lbl.textContent = label;
+  bar.classList.add('visible');
+  audio.play().catch(() => {});
+}
+
+function closePlayer() {
+  const bar   = document.getElementById('player-bar');
+  const audio = document.getElementById('player-audio');
+  audio.pause();
+  audio.src = '';
+  bar.classList.remove('visible');
+}
+
+/* -----------------------------------------------------------------------
+   Song history
+----------------------------------------------------------------------- */
+async function loadHistory(sourceName) {
+  const bodyEl = document.getElementById('history-body-' + CSS.escape(sourceName));
+  if (!bodyEl) return;
+  try {
+    const data    = await api('GET', `/api/audio/archives/${encodeURIComponent(sourceName)}/metadata-log`);
+    const entries = data.entries || [];
+
+    if (!entries.length) {
+      bodyEl.innerHTML = '<p class="text-muted mb-0">No song history yet. History is recorded when the audio service detects ICY stream metadata changes.</p>';
+      return;
+    }
+
+    let html = `
+<table class="table table-sm mb-0" style="font-size:.875rem">
+  <thead><tr>
+    <th></th>
+    <th>Time</th>
+    <th>Title</th>
+    <th>Artist</th>
+    <th>Album</th>
+    <th>Duration</th>
+  </tr></thead>
+  <tbody>`;
+
+    for (const e of entries) {
+      const artHtml = e.artwork_url
+        ? `<img src="${e.artwork_url}" class="meta-artwork" alt="" onerror="this.style.display='none'">`
+        : `<div class="meta-artwork-placeholder"><i class="fas fa-music" style="font-size:.75rem"></i></div>`;
+      html += `
+    <tr>
+      <td>${artHtml}</td>
+      <td class="text-muted text-nowrap">${fmtTs(e.timestamp)}</td>
+      <td>${e.title || (e.display ? `<em>${e.display}</em>` : '<span class="text-muted">—</span>')}</td>
+      <td>${e.artist || '<span class="text-muted">—</span>'}</td>
+      <td>${e.album  || '<span class="text-muted">—</span>'}</td>
+      <td class="text-muted">${e.length || '—'}</td>
+    </tr>`;
+    }
+
+    html += `\n  </tbody>\n</table>`;
+    bodyEl.innerHTML = html;
+  } catch (e) {
+    bodyEl.innerHTML = `<div class="alert alert-danger mb-0">Failed to load history: ${e}</div>`;
+  }
 }
 
 /* -----------------------------------------------------------------------
@@ -255,7 +468,6 @@ async function loadSources() {
     document.getElementById('sum-files').textContent   = totalFiles;
     document.getElementById('sum-enabled').textContent = `${enabledCount} / ${sources.length}`;
     document.getElementById('summary-card').style.display = '';
-    document.getElementById('loading-msg') && document.getElementById('loading-msg').remove();
 
   } catch (e) {
     container.innerHTML = `<div class="alert alert-danger">Failed to load sources: ${e}</div>`;
