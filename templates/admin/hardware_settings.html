@@ -48,6 +48,9 @@
                 <li class="nav-item" role="presentation">
                     <button type="button" class="nav-link" data-tab="zigbee"><i class="fas fa-broadcast-tower"></i> Zigbee</button>
                 </li>
+                <li class="nav-item" role="presentation">
+                    <button type="button" class="nav-link" data-tab="tower-light"><i class="fas fa-traffic-light"></i> Tower Light</button>
+                </li>
             </ul>
         </div>
         <div class="card-body">
@@ -392,6 +395,63 @@
                                 <a href="{{ url_for('zigbee.zigbee_settings') }}">Zigbee Devices</a> page
                                 to view connected devices and diagnostics.
                             </p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tower Light Panel -->
+                <div id="panel-tower-light" class="hw-panel">
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <h5 class="card-title"><i class="fas fa-traffic-light me-1"></i> USB Tower Light</h5>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" id="tower_light_enabled" name="tower_light_enabled" value="true" {% if settings.tower_light_enabled %}checked{% endif %}>
+                                <label class="form-check-label" for="tower_light_enabled">Enable USB Tower Light</label>
+                            </div>
+                            <p class="text-muted small mb-0">
+                                Supports Adafruit USB Tri-Color Tower Light (#5125) and compatible USB serial tower lights.
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <h5 class="card-title">Serial Connection</h5>
+                            <div class="row g-3">
+                                <div class="col-md-8">
+                                    <label for="tower_light_serial_port" class="form-label">Serial Port</label>
+                                    <input type="text" class="form-control font-monospace" id="tower_light_serial_port" name="tower_light_serial_port" value="{{ settings.tower_light_serial_port }}" placeholder="/dev/ttyUSB0">
+                                    <small class="form-text text-muted">Common: /dev/ttyUSB0, /dev/ttyUSB1, /dev/ttyACM0</small>
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="tower_light_baudrate" class="form-label">Baud Rate</label>
+                                    <select class="form-select" id="tower_light_baudrate" name="tower_light_baudrate">
+                                        <option value="9600" {% if settings.tower_light_baudrate == 9600 %}selected{% endif %}>9600</option>
+                                        <option value="19200" {% if settings.tower_light_baudrate == 19200 %}selected{% endif %}>19200</option>
+                                        <option value="38400" {% if settings.tower_light_baudrate == 38400 %}selected{% endif %}>38400</option>
+                                        <option value="57600" {% if settings.tower_light_baudrate == 57600 %}selected{% endif %}>57600</option>
+                                        <option value="115200" {% if settings.tower_light_baudrate == 115200 %}selected{% endif %}>115200</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <h5 class="card-title">Alert Behavior</h5>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" id="tower_light_alert_buzzer" name="tower_light_alert_buzzer" value="true" {% if settings.tower_light_alert_buzzer %}checked{% endif %}>
+                                <label class="form-check-label" for="tower_light_alert_buzzer">Enable buzzer on alert</label>
+                            </div>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" id="tower_light_incoming_uses_yellow" name="tower_light_incoming_uses_yellow" value="true" {% if settings.tower_light_incoming_uses_yellow %}checked{% endif %}>
+                                <label class="form-check-label" for="tower_light_incoming_uses_yellow">Use yellow for incoming (pre-alert) state</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="tower_light_blink_on_alert" name="tower_light_blink_on_alert" value="true" {% if settings.tower_light_blink_on_alert %}checked{% endif %}>
+                                <label class="form-check-label" for="tower_light_blink_on_alert">Blink red during active alert</label>
+                            </div>
                         </div>
                     </div>
                 </div>
