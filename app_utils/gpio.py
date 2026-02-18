@@ -846,12 +846,35 @@ class GPIOController:
 
                 device = self._get_or_create_device(config)
                 if device is None:
+                    error_msg = f"GPIO hardware not available for pin {pin}"
                     if self.logger:
-                        self.logger.warning(f"Cannot activate pin {pin}: GPIO not available")
+                        self.logger.warning(error_msg)
+                    
+                    # Log failed activation due to hardware unavailability
+                    event = GPIOActivationEvent(
+                        pin=pin,
+                        activation_type=activation_type,
+                        activated_at=datetime.now(timezone.utc),
+                        operator=operator,
+                        alert_id=alert_id,
+                        reason=reason,
+                        success=False,
+                        error_message=error_msg,
+                    )
+                    self._save_activation_event(event)
                     return False
 
                 # Activate the pin
                 device.on()
+                
+                # Log successful GPIO firing
+                if self.logger:
+                    self.logger.info(
+                        f"✓ GPIO pin {pin} fired successfully: "
+                        f"device={device.__class__.__name__}, "
+                        f"active_high={config.active_high}, "
+                        f"type={activation_type.value}"
+                    )
 
                 activation_time = time.monotonic()
                 self._activation_times[pin] = activation_time
@@ -941,11 +964,21 @@ class GPIOController:
 
                 device = self._get_or_create_device(config)
                 if device is None:
+                    error_msg = f"GPIO hardware not available for pin {pin}"
                     if self.logger:
-                        self.logger.warning(f"Cannot deactivate pin {pin}: GPIO not available")
+                        self.logger.warning(error_msg)
                     return False
 
                 device.off()
+                
+                # Log successful GPIO deactivation
+                if self.logger:
+                    elapsed = time.monotonic() - self._activation_times.get(pin, 0)
+                    self.logger.info(
+                        f"✓ GPIO pin {pin} deactivated successfully: "
+                        f"active_time={elapsed:.2f}s, "
+                        f"forced={force}"
+                    )
 
                 self._states[pin] = GPIOState.INACTIVE
 
@@ -1352,6 +1385,9 @@ def load_gpio_pin_configs_from_db(logger=None, oled_enabled: bool = False) -> Li
         active_high: bool,
         hold_seconds: float,
         watchdog_seconds: float,
+        flash_enabled: bool = False,
+        flash_interval_ms: int = 500,
+        flash_partner_pin: Optional[int] = None,
     ) -> None:
         if pin in seen:
             _log("warning", f"Duplicate GPIO pin {pin} ignored")
@@ -1381,6 +1417,9 @@ def load_gpio_pin_configs_from_db(logger=None, oled_enabled: bool = False) -> Li
                 hold_seconds=max(0.1, hold_seconds or 0.0),
                 watchdog_seconds=max(1.0, watchdog_seconds or 0.0),
                 enabled=True,
+                flash_enabled=flash_enabled,
+                flash_interval_ms=max(50, min(5000, flash_interval_ms)),  # Clamp between 50ms and 5000ms
+                flash_partner_pin=flash_partner_pin,
             )
         )
         seen.add(pin)
@@ -1426,6 +1465,17 @@ def load_gpio_pin_configs_from_db(logger=None, oled_enabled: bool = False) -> Li
         active_high = _parse_bool(pin_config.get("active_high"), default=True)
         hold_seconds = _parse_float(pin_config.get("hold_seconds"), 5.0)
         watchdog_seconds = _parse_float(pin_config.get("watchdog_seconds"), 300.0)
+        
+        # Flash pattern configuration
+        flash_enabled = _parse_bool(pin_config.get("flash_enabled"), default=False)
+        flash_interval_ms = int(_parse_float(pin_config.get("flash_interval_ms"), 500.0))
+        flash_partner_pin_value = pin_config.get("flash_partner_pin")
+        flash_partner_pin = None
+        if flash_partner_pin_value is not None and flash_partner_pin_value != "":
+            try:
+                flash_partner_pin = int(flash_partner_pin_value)
+            except (TypeError, ValueError):
+                _log("warning", f"Invalid flash_partner_pin '{flash_partner_pin_value}' for GPIO pin {pin_number}")
 
         _add_config(
             configs,
@@ -1435,6 +1485,9 @@ def load_gpio_pin_configs_from_db(logger=None, oled_enabled: bool = False) -> Li
             active_high,
             hold_seconds,
             watchdog_seconds,
+            flash_enabled,
+            flash_interval_ms,
+            flash_partner_pin,
         )
 
     return configs
