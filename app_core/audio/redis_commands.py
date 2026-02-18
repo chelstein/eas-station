@@ -549,7 +549,10 @@ class AudioCommandSubscriber:
                         bitrate=int(archive_config.get('bitrate', 128)),
                     )
 
-                    broadcast_queue = getattr(adapter, 'broadcast_queue', None) or getattr(adapter, '_broadcast_queue', None)
+                    try:
+                        broadcast_queue = adapter.get_broadcast_queue()
+                    except AttributeError:
+                        broadcast_queue = None
                     if broadcast_queue is None:
                         return {'success': False, 'message': f'Source {source_name} has no broadcast queue'}
 
