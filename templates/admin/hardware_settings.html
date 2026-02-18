@@ -51,6 +51,9 @@
                 <li class="nav-item" role="presentation">
                     <button type="button" class="nav-link" data-tab="tower-light"><i class="fas fa-traffic-light"></i> Tower Light</button>
                 </li>
+                <li class="nav-item" role="presentation">
+                    <button type="button" class="nav-link" data-tab="neopixel"><i class="fas fa-lightbulb"></i> NeoPixel</button>
+                </li>
             </ul>
         </div>
         <div class="card-body">
@@ -451,6 +454,89 @@
                             <div class="form-check">
                                 <input class="form-check-input" type="checkbox" id="tower_light_blink_on_alert" name="tower_light_blink_on_alert" value="true" {% if settings.tower_light_blink_on_alert %}checked{% endif %}>
                                 <label class="form-check-label" for="tower_light_blink_on_alert">Blink red during active alert</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- NeoPixel Panel -->
+                <div id="panel-neopixel" class="hw-panel">
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <h5 class="card-title"><i class="fas fa-lightbulb me-1"></i> NeoPixel / WS2812B LED Strip</h5>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" id="neopixel_enabled" name="neopixel_enabled" value="true" {% if settings.neopixel_enabled %}checked{% endif %}>
+                                <label class="form-check-label" for="neopixel_enabled">Enable NeoPixel LED Strip</label>
+                            </div>
+                            <p class="text-muted small mb-0">
+                                Supports WS2812B and compatible addressable LEDs on a single GPIO data pin.
+                                Requires the <code>rpi_ws281x</code> library and root/SPI access.
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <h5 class="card-title">Hardware Configuration</h5>
+                            <div class="row g-3">
+                                <div class="col-md-3">
+                                    <label for="neopixel_gpio_pin" class="form-label">GPIO Pin (BCM)</label>
+                                    <input type="number" class="form-control" id="neopixel_gpio_pin" name="neopixel_gpio_pin" value="{{ settings.neopixel_gpio_pin }}" min="2" max="27">
+                                    <small class="form-text text-muted">GPIO 18 (PWM) recommended</small>
+                                </div>
+                                <div class="col-md-3">
+                                    <label for="neopixel_num_pixels" class="form-label">LED Count</label>
+                                    <input type="number" class="form-control" id="neopixel_num_pixels" name="neopixel_num_pixels" value="{{ settings.neopixel_num_pixels }}" min="1" max="1000">
+                                </div>
+                                <div class="col-md-3">
+                                    <label for="neopixel_led_order" class="form-label">LED Order</label>
+                                    <select class="form-select" id="neopixel_led_order" name="neopixel_led_order">
+                                        <option value="GRB" {% if settings.neopixel_led_order == 'GRB' %}selected{% endif %}>GRB (most WS2812B)</option>
+                                        <option value="RGB" {% if settings.neopixel_led_order == 'RGB' %}selected{% endif %}>RGB</option>
+                                        <option value="GRBW" {% if settings.neopixel_led_order == 'GRBW' %}selected{% endif %}>GRBW (SK6812 RGBW)</option>
+                                        <option value="RGBW" {% if settings.neopixel_led_order == 'RGBW' %}selected{% endif %}>RGBW</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-3">
+                                    <label for="neopixel_brightness" class="form-label">Brightness <span id="neopixel_brightness_val">{{ settings.neopixel_brightness }}</span></label>
+                                    <input type="range" class="form-range" id="neopixel_brightness" name="neopixel_brightness" value="{{ settings.neopixel_brightness }}" min="0" max="255" oninput="document.getElementById('neopixel_brightness_val').textContent=this.value">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <h5 class="card-title">Colors</h5>
+                            {% set sc = settings.neopixel_standby_color or {"r": 0, "g": 10, "b": 0} %}
+                            {% set ac = settings.neopixel_alert_color or {"r": 255, "g": 0, "b": 0} %}
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label for="neopixel_standby_color" class="form-label">Standby Color</label>
+                                    <input type="color" class="form-control form-control-color" id="neopixel_standby_color" name="neopixel_standby_color" value="#{{ '%02x%02x%02x' % (sc.r, sc.g, sc.b) }}">
+                                    <small class="form-text text-muted">Shown when no alert is active</small>
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="neopixel_alert_color" class="form-label">Alert Color</label>
+                                    <input type="color" class="form-control form-control-color" id="neopixel_alert_color" name="neopixel_alert_color" value="#{{ '%02x%02x%02x' % (ac.r, ac.g, ac.b) }}">
+                                    <small class="form-text text-muted">Shown during an active EAS alert</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <h5 class="card-title">Alert Behavior</h5>
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" id="neopixel_flash_on_alert" name="neopixel_flash_on_alert" value="true" {% if settings.neopixel_flash_on_alert %}checked{% endif %}>
+                                <label class="form-check-label" for="neopixel_flash_on_alert">Flash during active alert</label>
+                            </div>
+                            <div class="row g-3">
+                                <div class="col-md-4">
+                                    <label for="neopixel_flash_interval_ms" class="form-label">Flash Interval (ms)</label>
+                                    <input type="number" class="form-control" id="neopixel_flash_interval_ms" name="neopixel_flash_interval_ms" value="{{ settings.neopixel_flash_interval_ms }}" min="100" max="5000" step="50">
+                                </div>
                             </div>
                         </div>
                     </div>
