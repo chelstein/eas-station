@@ -154,16 +154,59 @@ def register(app: Flask, logger) -> None:
     @app.route("/api/gpio/status")
     @require_permission('gpio.view')
     def gpio_status():
-        """Get current status of all configured GPIO pins."""
+        """Get current status of all configured GPIO pins with summary data for OLED."""
         try:
             controller = _get_gpio_controller()
             states = controller.get_all_states()
+            pins_list = list(states.values())
+            
+            # Calculate summary data for OLED display
+            active_pins = [p for p in pins_list if p.get('is_active', False)]
+            active_count = len(active_pins)
+            
+            # Create active pins summary
+            if active_count == 0:
+                active_pins_summary = "No active pins"
+            elif active_count <= 3:
+                active_pins_summary = ", ".join([f"GPIO{p['pin']}" for p in active_pins])
+            else:
+                first_three = ", ".join([f"GPIO{p['pin']}" for p in active_pins[:3]])
+                active_pins_summary = f"{first_three} +{active_count - 3} more"
+            
+            # Get last activation from database
+            last_activation = db.session.query(GPIOActivationLog).filter(
+                GPIOActivationLog.success == True
+            ).order_by(GPIOActivationLog.activated_at.desc()).first()
+            
+            if last_activation:
+                time_ago = utc_now() - last_activation.activated_at
+                if time_ago.total_seconds() < 60:
+                    time_str = f"{int(time_ago.total_seconds())}s ago"
+                elif time_ago.total_seconds() < 3600:
+                    time_str = f"{int(time_ago.total_seconds() / 60)}m ago"
+                else:
+                    time_str = f"{int(time_ago.total_seconds() / 3600)}h ago"
+                last_activation_summary = f"GPIO{last_activation.pin} {time_str}"
+            else:
+                last_activation_summary = "No recent activations"
+            
+            # Count activations today
+            today_start = utc_now().replace(hour=0, minute=0, second=0, microsecond=0)
+            activations_today = db.session.query(GPIOActivationLog).filter(
+                GPIOActivationLog.activated_at >= today_start,
+                GPIOActivationLog.success == True
+            ).count()
 
             return jsonify(
                 {
                     "success": True,
-                    "pins": list(states.values()),
+                    "pins": pins_list,
                     "timestamp": datetime.now().isoformat(),
+                    # Summary data for OLED
+                    "active_count": active_count,
+                    "active_pins_summary": active_pins_summary,
+                    "last_activation_summary": last_activation_summary,
+                    "activations_today": activations_today,
                 }
             )
         except Exception as exc:

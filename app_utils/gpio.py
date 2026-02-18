@@ -512,6 +512,10 @@ class GPIOPinConfig:
     hold_seconds: float = 5.0  # Minimum hold time before release
     watchdog_seconds: float = 300.0  # Maximum activation time (5 minutes default)
     enabled: bool = True
+    # Flash pattern configuration for stack lights
+    flash_enabled: bool = False  # Enable flash/alternating pattern
+    flash_interval_ms: int = 500  # Flash interval in milliseconds (default 500ms = 2Hz)
+    flash_partner_pin: Optional[int] = None  # Partner pin for two-phase alternating pattern
 
 
 class GPIOController:
@@ -564,6 +568,8 @@ class GPIOController:
         self._current_events: Dict[int, GPIOActivationEvent] = {}
         self._lock = threading.RLock()
         self._watchdog_threads: Dict[int, threading.Thread] = {}
+        self._flash_threads: Dict[int, threading.Thread] = {}  # Flash pattern threads
+        self._flash_stop_events: Dict[int, threading.Event] = {}  # Flash stop signals
         self._devices: Dict[int, Any] = {}
         self._backend: Optional[GPIOBackend] = None
         self._backend_failures: Set[type] = set()
@@ -866,6 +872,10 @@ class GPIOController:
                 # Start watchdog timer
                 self._start_watchdog(pin, config.watchdog_seconds)
 
+                # Start flash pattern if enabled
+                if config.flash_enabled:
+                    self._start_flash(pin)
+
                 if self.logger:
                     self.logger.info(
                         f"Activated GPIO pin {pin} ({config.name}): "
@@ -938,6 +948,9 @@ class GPIOController:
                 device.off()
 
                 self._states[pin] = GPIOState.INACTIVE
+
+                # Stop flash pattern if running
+                self._stop_flash(pin)
 
                 # Complete activation event
                 if pin in self._current_events:
@@ -1105,6 +1118,111 @@ class GPIOController:
         if pin in self._watchdog_threads:
             # Thread will exit naturally when it checks the state
             del self._watchdog_threads[pin]
+
+    def _start_flash(self, pin: int) -> None:
+        """Start flash pattern for a pin (two-phase alternating with partner).
+
+        Args:
+            pin: Pin number to flash
+        """
+        config = self._pins.get(pin)
+        if not config or not config.flash_enabled:
+            return
+
+        # Create stop event for this flash thread
+        stop_event = threading.Event()
+        self._flash_stop_events[pin] = stop_event
+
+        def flash_pattern():
+            """Flash pattern thread - alternates pin on/off with partner."""
+            try:
+                interval = config.flash_interval_ms / 1000.0  # Convert to seconds
+                partner_pin = config.flash_partner_pin
+                
+                # Track if we have a partner and it's configured
+                has_partner = (
+                    partner_pin is not None 
+                    and partner_pin in self._pins 
+                    and partner_pin != pin
+                )
+                
+                phase = 0  # 0 or 1 to alternate
+                
+                while not stop_event.is_set():
+                    try:
+                        with self._lock:
+                            # Get devices
+                            device = self._devices.get(pin)
+                            partner_device = self._devices.get(partner_pin) if has_partner else None
+                            
+                            if device is None:
+                                if self.logger:
+                                    self.logger.warning(f"Flash pattern stopped: device for pin {pin} not available")
+                                break
+                            
+                            # Alternate pattern: when this pin is on, partner is off
+                            if phase == 0:
+                                device.on()
+                                if partner_device:
+                                    partner_device.off()
+                            else:
+                                device.off()
+                                if partner_device:
+                                    partner_device.on()
+                        
+                        # Toggle phase
+                        phase = 1 - phase
+                        
+                        # Sleep for interval (check stop event periodically)
+                        if stop_event.wait(interval):
+                            break
+                            
+                    except Exception as exc:
+                        if self.logger:
+                            self.logger.error(f"Error in flash pattern for pin {pin}: {exc}")
+                        break
+                
+                # Cleanup: ensure pin is in proper state when flash stops
+                with self._lock:
+                    device = self._devices.get(pin)
+                    if device and pin in self._states:
+                        # Set to solid on if still active
+                        if self._states[pin] == GPIOState.ACTIVE:
+                            device.on()
+                        
+            except Exception as exc:
+                if self.logger:
+                    self.logger.error(f"Flash pattern thread crashed for pin {pin}: {exc}")
+
+        thread = threading.Thread(target=flash_pattern, daemon=True, name=f"gpio-flash-{pin}")
+        self._flash_threads[pin] = thread
+        thread.start()
+
+        if self.logger:
+            partner_info = f" with partner GPIO{config.flash_partner_pin}" if config.flash_partner_pin else ""
+            self.logger.info(
+                f"Started flash pattern on GPIO pin {pin} "
+                f"(interval={config.flash_interval_ms}ms{partner_info})"
+            )
+
+    def _stop_flash(self, pin: int) -> None:
+        """Stop flash pattern for a pin.
+
+        Args:
+            pin: Pin number
+        """
+        if pin in self._flash_stop_events:
+            self._flash_stop_events[pin].set()
+            del self._flash_stop_events[pin]
+        
+        if pin in self._flash_threads:
+            thread = self._flash_threads[pin]
+            # Give thread time to clean up
+            thread.join(timeout=0.5)
+            del self._flash_threads[pin]
+            
+            if self.logger:
+                self.logger.debug(f"Stopped flash pattern on GPIO pin {pin}")
 
     def _save_activation_event(self, event: GPIOActivationEvent) -> None:
         """Save activation event to database for audit trail.
