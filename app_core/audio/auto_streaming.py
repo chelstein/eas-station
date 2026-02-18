@@ -170,6 +170,26 @@ class AutoStreamingService:
             logger.debug(f"AutoStreaming disabled, not adding {source_name}")
             return False
 
+        # For StreamSourceAdapter with preserve_native_rate=True, FFmpeg detects
+        # the actual sample rate asynchronously from its stderr output and updates
+        # config.sample_rate only after parsing the stream info line.  That
+        # detection happens *before* the first audio packet is delivered, so
+        # waiting until _last_connection_time is set guarantees the rate in
+        # config.sample_rate is correct.
+        #
+        # This wait is intentionally placed BEFORE acquiring self._lock so that
+        # up to 5 seconds of blocking does not stall other lock holders.
+        #
+        # Without this wait, add_source() could read config.sample_rate = 44100
+        # (the default) for a source that actually streams at 48000 Hz.  The
+        # resulting IcecastConfig would tell FFmpeg ("-ar 44100") to interpret
+        # 48000 Hz PCM as 44100 Hz, encoding an MP3 that plays at 91.9% speed —
+        # making 10 minutes of audio take ~11 minutes.
+        if hasattr(audio_source, '_last_connection_time'):  # StreamSourceAdapter
+            deadline = time.time() + 5.0
+            while time.time() < deadline and audio_source._last_connection_time is None:
+                time.sleep(0.05)
+
         with self._lock:
             if source_name in self._streamers:
                 logger.warning(f"Streamer for {source_name} already exists")
