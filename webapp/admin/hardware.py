@@ -91,6 +91,9 @@ def update_hardware():
             'gpio_enabled', 'oled_enabled', 'oled_default_invert',
             'oled_button_active_high', 'screens_auto_start',
             'led_enabled', 'vfd_enabled', 'zigbee_enabled',
+            'tower_light_enabled', 'tower_light_alert_buzzer',
+            'tower_light_incoming_uses_yellow', 'tower_light_blink_on_alert',
+            'neopixel_enabled', 'neopixel_flash_on_alert',
         ]
         for field in bool_fields:
             if field in data:
@@ -109,6 +112,9 @@ def update_hardware():
             'oled_scroll_speed', 'oled_scroll_fps',
             'led_port', 'led_baudrate', 'vfd_baudrate',
             'zigbee_baudrate', 'zigbee_channel',
+            'tower_light_baudrate',
+            'neopixel_gpio_pin', 'neopixel_num_pixels', 'neopixel_brightness',
+            'neopixel_flash_interval_ms',
         ]
         for field in int_fields:
             if field in data and data[field] is not None:
@@ -131,6 +137,20 @@ def update_hardware():
                     data[field] = float(data[field])
                 except (TypeError, ValueError):
                     pass
+
+        # Convert NeoPixel color hex strings (#rrggbb) to RGB dicts
+        for color_field in ('neopixel_standby_color', 'neopixel_alert_color'):
+            if color_field in data and isinstance(data[color_field], str):
+                hex_val = data[color_field].lstrip('#')
+                if len(hex_val) == 6:
+                    try:
+                        data[color_field] = {
+                            'r': int(hex_val[0:2], 16),
+                            'g': int(hex_val[2:4], 16),
+                            'b': int(hex_val[4:6], 16),
+                        }
+                    except ValueError:
+                        pass
 
         # Update settings
         settings = update_hardware_settings(data)
