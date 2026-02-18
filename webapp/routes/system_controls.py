@@ -175,7 +175,7 @@ def register(app: Flask, logger) -> None:
             
             # Get last activation from database
             last_activation = db.session.query(GPIOActivationLog).filter(
-                GPIOActivationLog.success == True
+                GPIOActivationLog.success
             ).order_by(GPIOActivationLog.activated_at.desc()).first()
             
             if last_activation:
@@ -194,7 +194,7 @@ def register(app: Flask, logger) -> None:
             today_start = utc_now().replace(hour=0, minute=0, second=0, microsecond=0)
             activations_today = db.session.query(GPIOActivationLog).filter(
                 GPIOActivationLog.activated_at >= today_start,
-                GPIOActivationLog.success == True
+                GPIOActivationLog.success
             ).count()
 
             return jsonify(

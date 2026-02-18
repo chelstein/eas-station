@@ -43,6 +43,10 @@ from typing import Any, Callable, Dict, Iterable, List, Optional, Protocol, Set
 
 from app_utils.pi_pinout import ARGON_OLED_RESERVED_BCM, ARGON_OLED_RESERVED_PHYSICAL
 
+# Flash pattern configuration constants
+MIN_FLASH_INTERVAL_MS = 50  # Minimum flash interval (20Hz)
+MAX_FLASH_INTERVAL_MS = 5000  # Maximum flash interval (0.2Hz)
+
 # Import hardware settings helper
 try:
     from app_core.hardware_settings import get_gpio_settings
@@ -1418,7 +1422,7 @@ def load_gpio_pin_configs_from_db(logger=None, oled_enabled: bool = False) -> Li
                 watchdog_seconds=max(1.0, watchdog_seconds or 0.0),
                 enabled=True,
                 flash_enabled=flash_enabled,
-                flash_interval_ms=max(50, min(5000, flash_interval_ms)),  # Clamp between 50ms and 5000ms
+                flash_interval_ms=max(MIN_FLASH_INTERVAL_MS, min(MAX_FLASH_INTERVAL_MS, flash_interval_ms)),
                 flash_partner_pin=flash_partner_pin,
             )
         )
