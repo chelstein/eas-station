@@ -1,0 +1,207 @@
+{% extends "base.html" %}
+
+{% block title %}Application Settings - EAS Station{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-3">
+        <div class="col-12">
+            <h2><i class="fas fa-sliders-h"></i> Application Settings</h2>
+            <p class="text-muted">Configure logging, file storage, and other application-level settings</p>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-8">
+            <form id="applicationSettingsForm">
+
+                <!-- Logging Settings -->
+                <div class="card mb-3">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="fas fa-file-alt"></i> Logging</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label for="log_level" class="form-label">
+                                <i class="fas fa-layer-group"></i> Log Level
+                            </label>
+                            <select class="form-select" id="log_level" name="log_level" required>
+                                {% for level in valid_log_levels %}
+                                <option value="{{ level }}" {% if settings.log_level == level %}selected{% endif %}>
+                                    {{ level }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                            <div class="form-text">
+                                Controls how much detail is logged.
+                                <strong>DEBUG</strong> is very verbose; <strong>INFO</strong> is recommended for production.
+                                Changes apply immediately without a restart.
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="log_file" class="form-label">
+                                <i class="fas fa-file"></i> Log File Path
+                            </label>
+                            <input type="text" class="form-control" id="log_file" name="log_file"
+                                   value="{{ settings.log_file }}"
+                                   placeholder="logs/eas_station.log" required>
+                            <div class="form-text">
+                                Path to the application log file (relative to the project root, or an absolute path).
+                                A service restart is required for log file path changes to take effect.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- File Storage Settings -->
+                <div class="card mb-3">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="fas fa-folder-open"></i> File Storage</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label for="upload_folder" class="form-label">
+                                <i class="fas fa-upload"></i> Upload Directory
+                            </label>
+                            <input type="text" class="form-control" id="upload_folder" name="upload_folder"
+                                   value="{{ settings.upload_folder }}"
+                                   placeholder="/opt/eas-station/uploads" required>
+                            <div class="form-text">
+                                Absolute path where uploaded files are stored.
+                                The directory will be created automatically if it does not exist.
+                                A service restart is required for this change to take effect.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Bootstrap Settings Notice -->
+                <div class="card mb-3 border-warning">
+                    <div class="card-header bg-warning text-dark">
+                        <h5 class="mb-0"><i class="fas fa-exclamation-triangle"></i> Bootstrap Settings</h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="mb-2">
+                            The following settings must still be configured via environment variables in your
+                            <code>.env</code> file because they are required before the database connection
+                            is available:
+                        </p>
+                        <ul class="mb-0">
+                            <li><code>SECRET_KEY</code> — Flask session security key</li>
+                            <li><code>DATABASE_URL</code> — PostgreSQL connection URL</li>
+                            <li><code>CACHE_REDIS_URL</code> — Redis connection URL</li>
+                            <li><code>CACHE_TYPE</code> — Cache backend type</li>
+                            <li><code>FLASK_ENV</code> / <code>FLASK_DEBUG</code> — Flask startup mode</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Save Button -->
+                <div class="d-grid gap-2 d-md-flex justify-content-md-end mb-3">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save"></i> Save Settings
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Sidebar -->
+        <div class="col-lg-4">
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-info-circle"></i> Current Settings</h5>
+                </div>
+                <div class="card-body">
+                    <ul class="list-unstyled mb-0">
+                        <li class="mb-2">
+                            <strong>Log Level:</strong>
+                            <span class="badge bg-secondary" id="logLevelBadge">{{ settings.log_level }}</span>
+                        </li>
+                        <li class="mb-2">
+                            <strong>Log File:</strong>
+                            <small class="text-muted" id="logFileDisplay">{{ settings.log_file }}</small>
+                        </li>
+                        <li class="mb-2">
+                            <strong>Upload Folder:</strong>
+                            <small class="text-muted" id="uploadFolderDisplay">{{ settings.upload_folder }}</small>
+                        </li>
+                        <li class="mb-0">
+                            <strong>Last Updated:</strong>
+                            <small class="text-muted" id="lastUpdated">
+                                {{ settings.updated_at.strftime('%Y-%m-%d %H:%M:%S') if settings.updated_at else 'Never' }}
+                            </small>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-question-circle"></i> Help</h5>
+                </div>
+                <div class="card-body">
+                    <h6>Log Levels</h6>
+                    <ul class="small mb-3">
+                        <li><strong>DEBUG</strong> — All messages including verbose diagnostics</li>
+                        <li><strong>INFO</strong> — Normal operational messages (recommended)</li>
+                        <li><strong>WARNING</strong> — Only warnings and errors</li>
+                        <li><strong>ERROR</strong> — Only errors</li>
+                        <li><strong>CRITICAL</strong> — Only critical failures</li>
+                    </ul>
+                    <p class="small mb-0">
+                        Log level changes take effect immediately. Other settings require a service restart.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('applicationSettingsForm');
+
+    form.addEventListener('submit', async function(e) {
+        e.preventDefault();
+
+        const formData = new FormData(form);
+        const submitBtn = form.querySelector('button[type="submit"]');
+        const originalBtnText = submitBtn.innerHTML;
+
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+
+        try {
+            const response = await fetch('/admin/application/update', {
+                method: 'POST',
+                body: formData,
+                headers: { 'X-CSRF-Token': window.CSRF_TOKEN }
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                showToast(data.message || 'Application settings saved successfully', 'success');
+
+                const s = data.settings;
+                document.getElementById('logLevelBadge').textContent = s.log_level;
+                document.getElementById('logFileDisplay').textContent = s.log_file;
+                document.getElementById('uploadFolderDisplay').textContent = s.upload_folder;
+                if (s.updated_at) {
+                    document.getElementById('lastUpdated').textContent = new Date(s.updated_at).toLocaleString();
+                }
+            } else {
+                showToast(data.error || 'Failed to save settings', 'danger');
+            }
+        } catch (error) {
+            console.error('Error saving settings:', error);
+            showToast('Error saving settings', 'danger');
+        } finally {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalBtnText;
+        }
+    });
+});
+</script>
+{% endblock %}

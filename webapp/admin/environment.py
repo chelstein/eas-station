@@ -99,12 +99,22 @@ def require_permission_or_setup_mode(permission_name: str):
     return decorator
 
 
-# Environment variable categories and their configurations
+# Bootstrap environment variable categories.
+# Only settings that are required before the database connection is
+# available are managed here.  Everything else is now configured through
+# dedicated admin pages backed by database tables:
+#   - Alert Polling  → /admin/poller
+#   - Notifications  → /admin/notifications
+#   - App Settings   → /admin/application
+#   - EAS Broadcast  → /admin/eas (EASSettings table)
+#   - Hardware       → /admin/hardware (HardwareSettings table)
+#   - Icecast        → /admin/icecast (IcecastSettings table)
+#   - TTS            → /admin/tts (TTSSettings table)
 ENV_CATEGORIES = {
     'core': {
         'name': 'Core Settings',
         'icon': 'fa-cog',
-        'description': 'Essential application configuration',
+        'description': 'Essential application bootstrap configuration',
         'variables': [
             {
                 'key': 'SECRET_KEY',
@@ -132,21 +142,6 @@ ENV_CATEGORIES = {
                 'options': ['false', 'true'],
                 'default': 'false',
                 'description': 'Enable Flask debug mode (should be false in production)',
-            },
-            {
-                'key': 'LOG_LEVEL',
-                'label': 'Log Level',
-                'type': 'select',
-                'options': ['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
-                'default': 'INFO',
-                'description': 'Application logging level',
-            },
-            {
-                'key': 'LOG_FILE',
-                'label': 'Log File Path',
-                'type': 'text',
-                'default': 'logs/eas_station.log',
-                'description': 'Path to application log file',
             },
         ],
     },
@@ -196,193 +191,6 @@ ENV_CATEGORIES = {
                 'description': 'How long cached data remains valid',
                 'min': 60,
                 'max': 3600,
-            },
-        ],
-    },
-    'polling': {
-        'name': 'Alert Polling',
-        'icon': 'fa-satellite',
-        'description': 'CAP feed polling configuration',
-        'variables': [
-            {
-                'key': 'POLL_INTERVAL_SEC',
-                'label': 'Poll Interval (seconds)',
-                'type': 'number',
-                'default': '180',
-                'description': 'How often to check for new alerts',
-                'min': 60,
-                'max': 3600,
-            },
-            {
-                'key': 'CAP_TIMEOUT',
-                'label': 'Request Timeout (seconds)',
-                'type': 'number',
-                'default': '30',
-                'description': 'HTTP timeout for CAP feed requests',
-                'min': 10,
-                'max': 120,
-            },
-            {
-                'key': 'NOAA_USER_AGENT',
-                'label': 'NOAA User Agent',
-                'type': 'text',
-                'required': True,
-                'default': 'EAS Station (+https://github.com/KR8MER/eas-station; support@easstation.com)',
-                'description': 'User agent string for NOAA API compliance (Format: "AppName/Version (contact info)")',
-            },
-            {
-                'key': 'CAP_ENDPOINTS',
-                'label': 'CAP Feed URLs',
-                'type': 'textarea',
-                'description': 'Comma-separated list of custom CAP feed URLs (optional)',
-                'placeholder': 'https://example.com/cap/feed1, https://example.com/cap/feed2',
-            },
-            {
-                'key': 'IPAWS_CAP_FEED_URLS',
-                'label': 'IPAWS Feed URLs',
-                'type': 'textarea',
-                'description': 'Comma-separated list of IPAWS CAP feed URLs (optional)',
-            },
-            {
-                'key': 'IPAWS_DEFAULT_LOOKBACK_HOURS',
-                'label': 'IPAWS Lookback Hours',
-                'type': 'number',
-                'default': '12',
-                'description': 'Hours to look back when fetching IPAWS alerts',
-                'min': 1,
-                'max': 72,
-            },
-        ],
-    },
-    'eas': {
-        'name': 'EAS Broadcast',
-        'icon': 'fa-broadcast-tower',
-        'description': 'SAME/EAS encoder configuration',
-        'variables': [
-            {
-                'key': 'EAS_BROADCAST_ENABLED',
-                'label': 'Enable EAS Broadcasting',
-                'type': 'select',
-                'options': ['false', 'true'],
-                'default': 'false',
-                'description': 'Enable SAME/EAS audio generation',
-            },
-            {
-                'key': 'EAS_ORIGINATOR',
-                'label': 'Originator Code',
-                'type': 'select',
-                'options': ['WXR', 'EAS', 'PEP', 'CIV'],
-                'default': 'WXR',
-                'description': 'EAS originator code: WXR (Weather), EAS (Broadcast), PEP (Primary Entry Point), CIV (Civil Authority)',
-                'category': 'eas_enabled',
-            },
-            {
-                'key': 'EAS_STATION_ID',
-                'label': 'Station ID',
-                'type': 'text',
-                'default': 'EASNODES',
-                'description': 'Your station callsign or identifier (8 characters max, uppercase letters/numbers/forward slash only)',
-                'maxlength': 8,
-                'pattern': '^[A-Z0-9/]{1,8}$',
-                'title': 'Must contain only uppercase letters (A-Z), numbers (0-9), and forward slash (/). No hyphens or lowercase letters.',
-                'category': 'eas_enabled',
-            },
-            {
-                'key': 'EAS_OUTPUT_DIR',
-                'label': 'Output Directory',
-                'type': 'text',
-                'default': 'static/eas_messages',
-                'description': 'Directory for generated EAS audio files',
-                'category': 'eas_enabled',
-            },
-            {
-                'key': 'EAS_ATTENTION_TONE_SECONDS',
-                'label': 'Attention Tone Duration',
-                'type': 'number',
-                'default': '8',
-                'description': 'Attention tone length in seconds',
-                'min': 1,
-                'max': 60,
-                'category': 'eas_enabled',
-            },
-            {
-                'key': 'EAS_SAMPLE_RATE',
-                'label': 'Audio Sample Rate',
-                'type': 'select',
-                'options': ['8000', '16000', '22050', '44100', '48000'],
-                'default': '44100',
-                'description': 'Audio sample rate in Hz',
-                'category': 'eas_enabled',
-            },
-            {
-                'key': 'EAS_AUDIO_PLAYER',
-                'label': 'Audio Player Command',
-                'type': 'text',
-                'default': 'aplay',
-                'description': 'Command to play audio files',
-                'category': 'eas_enabled',
-            },
-            {
-                'key': 'EAS_MANUAL_EVENT_CODES',
-                'label': 'Authorized Event Codes',
-                'type': 'textarea',
-                'description': 'Comma-separated event codes for manual broadcasts',
-                'placeholder': 'RWT,DMO,SVR',
-                'category': 'eas_enabled',
-            },
-        ],
-    },
-    'notifications': {
-        'name': 'Notifications',
-        'icon': 'fa-envelope',
-        'description': 'Email and SMS alerts',
-        'variables': [
-            {
-                'key': 'ENABLE_EMAIL_NOTIFICATIONS',
-                'label': 'Enable Email Notifications',
-                'type': 'select',
-                'options': ['false', 'true'],
-                'default': 'false',
-                'description': 'Send email alerts for new notifications',
-            },
-            {
-                'key': 'ENABLE_SMS_NOTIFICATIONS',
-                'label': 'Enable SMS Notifications',
-                'type': 'select',
-                'options': ['false', 'true'],
-                'default': 'false',
-                'description': 'Send SMS alerts (requires configuration)',
-            },
-            {
-                'key': 'MAIL_URL',
-                'label': 'Mail Server URL',
-                'type': 'text',
-                'description': 'Complete SMTP connection URL. Format: smtp://username:password@server:port?tls=true',
-                'placeholder': 'smtp://user:pass@smtp.gmail.com:587?tls=true',
-                'category': 'email',
-            },
-        ],
-    },
-    'performance': {
-        'name': 'Performance',
-        'icon': 'fa-tachometer-alt',
-        'description': 'Worker and file upload settings',
-        'variables': [
-            {
-                'key': 'MAX_WORKERS',
-                'label': 'Gunicorn Workers',
-                'type': 'number',
-                'default': '2',
-                'description': 'Number of Gunicorn worker processes. More workers allow handling more concurrent web requests but use more memory. Requires service restart to take effect.',
-                'min': 1,
-                'max': 8,
-            },
-            {
-                'key': 'UPLOAD_FOLDER',
-                'label': 'Upload Directory',
-                'type': 'text',
-                'default': '/opt/eas-station/uploads',
-                'description': 'Directory for file uploads',
             },
         ],
     },
@@ -760,11 +568,26 @@ def validate_environment():
                     'message': 'Database password should be changed from default',
                 })
 
-    # Check for deprecated variables
+    # Check for deprecated/migrated variables that can now be removed from .env
     deprecated_vars = [
         'PATH', 'LANG', 'GPG_KEY', 'PYTHON_VERSION', 'PYTHON_SHA256',
         'PYTHONDONTWRITEBYTECODE', 'PYTHONUNBUFFERED', 'SKIP_DB_INIT',
         'EAS_OUTPUT_WEB_SUBDIR',
+    ]
+    migrated_vars = [
+        # Polling settings → /admin/poller (poller_settings table)
+        'POLL_INTERVAL_SEC', 'CAP_TIMEOUT', 'NOAA_USER_AGENT',
+        'CAP_ENDPOINTS', 'IPAWS_CAP_FEED_URLS', 'IPAWS_DEFAULT_LOOKBACK_HOURS',
+        # EAS broadcast settings → /admin/eas (eas_settings table)
+        'EAS_BROADCAST_ENABLED', 'EAS_ORIGINATOR', 'EAS_STATION_ID',
+        'EAS_OUTPUT_DIR', 'EAS_ATTENTION_TONE_SECONDS', 'EAS_SAMPLE_RATE',
+        'EAS_AUDIO_PLAYER', 'EAS_MANUAL_EVENT_CODES',
+        # Notification settings → /admin/notifications (notification_settings table)
+        'ENABLE_EMAIL_NOTIFICATIONS', 'ENABLE_SMS_NOTIFICATIONS', 'MAIL_URL',
+        'MAIL_SERVER', 'MAIL_PORT', 'MAIL_USERNAME', 'MAIL_PASSWORD', 'MAIL_USE_TLS',
+        'COMPLIANCE_ALERT_EMAILS',
+        # Application settings → /admin/application (application_settings table)
+        'LOG_LEVEL', 'LOG_FILE', 'UPLOAD_FOLDER',
     ]
 
     for var in deprecated_vars:
@@ -773,6 +596,17 @@ def validate_environment():
                 'severity': 'info',
                 'variable': var,
                 'message': f'{var} is deprecated and can be removed',
+            })
+
+    for var in migrated_vars:
+        if var in env_vars:
+            warnings.append({
+                'severity': 'info',
+                'variable': var,
+                'message': (
+                    f'{var} has been migrated to the database and can be removed from .env. '
+                    'Configure it via the appropriate admin page instead.'
+                ),
             })
 
     return jsonify({

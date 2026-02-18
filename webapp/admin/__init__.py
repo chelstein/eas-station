@@ -32,6 +32,8 @@ from .boundaries import register_boundary_routes
 from .coverage import calculate_coverage_percentages, try_build_geometry_from_same_codes
 from .dashboard import register_dashboard_routes
 from .environment import register_environment_routes
+from .notifications import notifications_bp
+from .application_settings import application_settings_bp
 from .intersections import register_intersection_routes
 from .maintenance import register_maintenance_routes
 from .health_endpoints import register_health_routes
@@ -77,6 +79,10 @@ def register(app, logger):
     register_tts_routes(app, logger)  # Text-to-Speech configuration
     app.register_blueprint(poller_bp)  # Poller settings management
     logger.info("Poller settings routes registered")
+    app.register_blueprint(notifications_bp)  # Notification settings management
+    logger.info("Notification settings routes registered")
+    app.register_blueprint(application_settings_bp)  # Application settings management
+    logger.info("Application settings routes registered")
     register_local_authority_routes(app, logger)  # Local authority EAS access management
     register_tailscale_routes(app, logger)  # Tailscale VPN configuration
 
@@ -85,4 +91,5 @@ def register(app, logger):
     # The web application process only serves the web UI and reads metrics from Redis.
 
 
-__all__ = ['register', 'calculate_coverage_percentages']
+__all__ = ['register', 'calculate_coverage_percentages',
+           'notifications_bp', 'application_settings_bp']

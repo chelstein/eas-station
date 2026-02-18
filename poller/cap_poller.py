@@ -559,9 +559,18 @@ class CAPPoller:
         # - Returns application/atom+xml or application/cap+xml
         # - Accepts wildcard or specific XML formats
         self.session = requests.Session()
-        default_user_agent = os.getenv(
-            'NOAA_USER_AGENT',
-            'EAS Station/2.12 (+https://github.com/KR8MER/eas-station; support@easstation.com)',
+        # Prefer DB setting, fall back to env var for backwards compatibility
+        db_user_agent = None
+        try:
+            _ps = PollerSettings.query.first()
+            if _ps and _ps.noaa_user_agent:
+                db_user_agent = _ps.noaa_user_agent
+        except Exception:
+            pass
+        default_user_agent = (
+            db_user_agent
+            or os.getenv('NOAA_USER_AGENT', '')
+            or 'EAS Station/2.12 (+https://github.com/KR8MER/eas-station; support@easstation.com)'
         )
         self.session.headers.update({
             'User-Agent': default_user_agent,
@@ -594,9 +603,17 @@ class CAPPoller:
 
         # Endpoint configuration - Unified multi-source polling
         # The poller automatically polls all configured sources (NOAA, IPAWS, custom)
-        # Configure sources via IPAWS_CAP_FEED_URLS and CAP_ENDPOINTS in .env file
+        # Feed URLs are now stored in the poller_settings table.
 
         configured_endpoints: List[str] = []
+
+        def _extend_from_list(url_list) -> None:
+            if not url_list:
+                return
+            for url in url_list:
+                cleaned = url.strip() if isinstance(url, str) else ''
+                if cleaned:
+                    configured_endpoints.append(cleaned)
 
         def _extend_from_csv(csv_value: Optional[str]) -> None:
             if not csv_value:
@@ -606,21 +623,30 @@ class CAPPoller:
                 if cleaned:
                     configured_endpoints.append(cleaned)
 
-        # Read all configured endpoints from various sources
-        _extend_from_csv(os.getenv('CAP_ENDPOINTS'))
-        
-        # Always read IPAWS URLs (unified poller)
-        _extend_from_csv(os.getenv('IPAWS_CAP_FEED_URLS'))
+        # Read feed URLs from database (preferred), falling back to env vars
+        try:
+            _db_ps = PollerSettings.query.first()
+            if _db_ps:
+                _extend_from_list(_db_ps.cap_endpoints)
+                _extend_from_list(_db_ps.ipaws_feed_urls)
+        except Exception as _exc:
+            self.logger.debug("Could not read feed URLs from DB, falling back to env vars: %s", _exc)
+            _db_ps = None
+            _extend_from_csv(os.getenv('CAP_ENDPOINTS'))
+            _extend_from_csv(os.getenv('IPAWS_CAP_FEED_URLS'))
 
         if cap_endpoints:
             configured_endpoints.extend([endpoint for endpoint in cap_endpoints if endpoint])
 
         # Calculate default timestamp for IPAWS URLs with {timestamp} placeholder
-        # This is needed for URLs configured via the UI which use template placeholders
-        lookback_hours = os.getenv('IPAWS_DEFAULT_LOOKBACK_HOURS', '12')
+        # Prefer DB setting, fall back to env var
+        lookback_hours_int = 12
         try:
-            lookback_hours_int = max(1, int(lookback_hours))
-        except ValueError:
+            if _db_ps and _db_ps.ipaws_default_lookback_hours:
+                lookback_hours_int = max(1, _db_ps.ipaws_default_lookback_hours)
+            else:
+                lookback_hours_int = max(1, int(os.getenv('IPAWS_DEFAULT_LOOKBACK_HOURS', '12')))
+        except (ValueError, TypeError):
             lookback_hours_int = 12
 
         default_start = (utc_now() - timedelta(hours=lookback_hours_int)).strftime('%Y-%m-%dT%H:%M:%SZ')
@@ -2872,7 +2898,15 @@ class CAPPoller:
                 self.logger.info(f"  [{idx}] {endpoint}{env_marker}")
             self.logger.info("=" * 70)
 
-            alerts_data = self.fetch_cap_alerts()
+            # Read cap_timeout from DB settings if available
+            _cap_timeout = 30
+            try:
+                _ps_timeout = PollerSettings.query.first()
+                if _ps_timeout and _ps_timeout.cap_timeout:
+                    _cap_timeout = max(5, _ps_timeout.cap_timeout)
+            except Exception:
+                _cap_timeout = int(os.getenv('CAP_TIMEOUT', '30'))
+            alerts_data = self.fetch_cap_alerts(timeout=_cap_timeout)
             stats['alerts_fetched'] = len(alerts_data)
             stats['sources'] = list(self.last_poll_sources)
             # If no sources were detected in alerts (e.g., empty poll), use unified identifier

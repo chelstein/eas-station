@@ -995,9 +995,28 @@ class PollerSettings(db.Model):
     # Poller Configuration
     enabled = db.Column(db.Boolean, nullable=False, default=True)
     # When enabled, the poller service will fetch alerts from CAP feeds
-    
+
     poll_interval_sec = db.Column(db.Integer, nullable=False, default=120)
     # Seconds between polls (minimum: 30, recommended: 120 for IPAWS, 300 for NOAA)
+
+    cap_timeout = db.Column(db.Integer, nullable=False, default=30)
+    # HTTP request timeout in seconds for CAP feed requests
+
+    noaa_user_agent = db.Column(
+        db.String(500),
+        nullable=False,
+        default='EAS Station (+https://github.com/KR8MER/eas-station; support@easstation.com)',
+    )
+    # User-Agent header sent to NOAA API (required for compliance)
+
+    cap_endpoints = db.Column(JSONB, nullable=False, default=list)
+    # List of custom CAP feed URLs to poll (in addition to built-in NOAA feeds)
+
+    ipaws_feed_urls = db.Column(JSONB, nullable=False, default=list)
+    # List of IPAWS CAP feed URLs to poll
+
+    ipaws_default_lookback_hours = db.Column(db.Integer, nullable=False, default=12)
+    # Hours to look back when constructing IPAWS feed URLs with {timestamp} placeholder
 
     # Logging Settings
     log_fetched_alerts = db.Column(db.Boolean, nullable=False, default=False)
@@ -1013,6 +1032,11 @@ class PollerSettings(db.Model):
         return {
             "enabled": self.enabled,
             "poll_interval_sec": self.poll_interval_sec,
+            "cap_timeout": self.cap_timeout,
+            "noaa_user_agent": self.noaa_user_agent,
+            "cap_endpoints": self.cap_endpoints or [],
+            "ipaws_feed_urls": self.ipaws_feed_urls or [],
+            "ipaws_default_lookback_hours": self.ipaws_default_lookback_hours,
             "log_fetched_alerts": self.log_fetched_alerts,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
@@ -1961,6 +1985,91 @@ class SnowEmergency(db.Model):
         )
 
 
+class NotificationSettings(db.Model):
+    """Notification configuration stored in database.
+
+    Replaces ENABLE_EMAIL_NOTIFICATIONS, ENABLE_SMS_NOTIFICATIONS, MAIL_URL,
+    and COMPLIANCE_ALERT_EMAILS environment variables.
+    All settings are stored in a single row (id=1).
+    """
+    __tablename__ = "notification_settings"
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    # ========================================================================
+    # Email Notifications
+    # ========================================================================
+    email_enabled = db.Column(db.Boolean, nullable=False, default=False)
+    # Master switch for email notifications
+
+    mail_url = db.Column(db.String(500), nullable=False, default='')
+    # SMTP connection URL: smtp://user:pass@server:port?tls=true
+
+    compliance_alert_emails = db.Column(JSONB, nullable=False, default=list)
+    # List of email addresses for compliance/health alert notifications
+
+    # ========================================================================
+    # SMS Notifications
+    # ========================================================================
+    sms_enabled = db.Column(db.Boolean, nullable=False, default=False)
+    # Master switch for SMS notifications (future use)
+
+    # ========================================================================
+    # Metadata
+    # ========================================================================
+    updated_at = db.Column(db.DateTime, nullable=True, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def to_dict(self):
+        """Convert model to dictionary."""
+        return {
+            "email_enabled": self.email_enabled,
+            "mail_url": self.mail_url,
+            "compliance_alert_emails": self.compliance_alert_emails or [],
+            "sms_enabled": self.sms_enabled,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+
+class ApplicationSettings(db.Model):
+    """Application-level settings stored in database.
+
+    Replaces LOG_LEVEL, LOG_FILE, and UPLOAD_FOLDER environment variables.
+    All settings are stored in a single row (id=1).
+    """
+    __tablename__ = "application_settings"
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    # ========================================================================
+    # Logging
+    # ========================================================================
+    log_level = db.Column(db.String(16), nullable=False, default='INFO')
+    # Application logging level: DEBUG, INFO, WARNING, ERROR, CRITICAL
+
+    log_file = db.Column(db.String(255), nullable=False, default='logs/eas_station.log')
+    # Path to the application log file
+
+    # ========================================================================
+    # File Storage
+    # ========================================================================
+    upload_folder = db.Column(db.String(255), nullable=False, default='/opt/eas-station/uploads')
+    # Directory for uploaded files
+
+    # ========================================================================
+    # Metadata
+    # ========================================================================
+    updated_at = db.Column(db.DateTime, nullable=True, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def to_dict(self):
+        """Convert model to dictionary."""
+        return {
+            "log_level": self.log_level,
+            "log_file": self.log_file,
+            "upload_folder": self.upload_folder,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+
 class TailscaleSettings(db.Model):
     """Tailscale VPN configuration stored in database.
 
@@ -2057,6 +2166,7 @@ class USCountyBoundary(db.Model):
 __all__ = [
     "db",
     "AlertDeliveryReport",
+    "ApplicationSettings",
     "AudioAlert",
     "AudioHealthStatus",
     "AudioSourceConfigDB",
@@ -2076,6 +2186,7 @@ __all__ = [
     "LocalAuthority",
     "LocationSettings",
     "ManualEASActivation",
+    "NotificationSettings",
     "NWSZone",
     "Permission",
     "PollDebugRecord",
