@@ -922,12 +922,10 @@ def main():
         logger.info("Initializing audio archivers...")
         initialize_archivers(app, audio_controller)
 
-        # Attach metadata-logging callback to every source so now-playing
-        # changes are persisted to stream_metadata_log
+        # Attach metadata-logging callback to every source (current and future)
+        # so now-playing changes are persisted to stream_metadata_log
         metadata_log_callback = _make_metadata_log_callback(app)
-        with audio_controller._lock:
-            for adapter in audio_controller._sources.values():
-                adapter.on_metadata_change = metadata_log_callback
+        audio_controller.set_metadata_change_callback(metadata_log_callback)
         logger.info("Stream metadata logging callbacks registered")
 
         # Initialize EAS monitor

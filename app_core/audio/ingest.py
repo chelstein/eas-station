@@ -547,6 +547,7 @@ class AudioIngestController:
         self._monitor_stop = threading.Event()
         self._monitor_thread: Optional[threading.Thread] = None
         self._flask_app = flask_app  # Store Flask app for app context in background threads
+        self._metadata_change_callback = None  # Applied to every source (current and future)
 
         if enable_monitor:
             self._monitor_thread = threading.Thread(
@@ -556,9 +557,18 @@ class AudioIngestController:
             )
             self._monitor_thread.start()
 
+    def set_metadata_change_callback(self, callback) -> None:
+        """Store a metadata-change callback and apply it to all current and future sources."""
+        self._metadata_change_callback = callback
+        with self._lock:
+            for adapter in self._sources.values():
+                adapter.on_metadata_change = callback
+
     def add_source(self, source: AudioSourceAdapter) -> None:
         """Add an audio source to the controller."""
         with self._lock:
+            if self._metadata_change_callback is not None:
+                source.on_metadata_change = self._metadata_change_callback
             self._sources[source.config.name] = source
             logger.info(f"Added audio source: {source.config.name}")
 
