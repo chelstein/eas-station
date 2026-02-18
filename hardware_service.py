@@ -93,6 +93,8 @@ _redis_client: Optional[redis.Redis] = None
 _flask_app: Optional[Flask] = None
 _screen_manager = None
 _gpio_controller = None
+_neopixel_controller = None
+_tower_light_controller = None
 
 
 def signal_handler(signum, frame):
@@ -413,6 +415,69 @@ def initialize_gpio_controller(db_session=None):
     except Exception as e:
         logger.warning(f"⚠️  GPIO controller not available: {e}")
         logger.info("Continuing without GPIO support")
+
+
+def initialize_tower_light_controller():
+    """Initialize USB tower light controller (Adafruit #5125 / CH34x serial)."""
+    global _tower_light_controller
+
+    try:
+        from app_utils.gpio import TowerLightController, load_tower_light_config_from_db
+
+        config = load_tower_light_config_from_db(logger)
+        if config is None:
+            logger.info("USB tower light disabled (enable in Admin > Hardware Settings)")
+            return
+
+        _tower_light_controller = TowerLightController(config, logger=logger)
+        available = _tower_light_controller.start()
+
+        if available:
+            logger.info(
+                "✅ USB tower light initialized on %s",
+                config.serial_port,
+            )
+        else:
+            logger.warning(
+                "⚠️  USB tower light configured on %s but port could not be opened",
+                config.serial_port,
+            )
+
+    except Exception as e:
+        logger.warning(f"⚠️  USB tower light not available: {e}")
+        logger.info("Continuing without USB tower light support")
+
+
+def initialize_neopixel_controller():
+    """Initialize NeoPixel / WS2812B LED strip controller."""
+    global _neopixel_controller
+
+    try:
+        from app_utils.gpio import NeopixelController, load_neopixel_config_from_db
+
+        config = load_neopixel_config_from_db(logger)
+        if config is None:
+            logger.info("NeoPixel controller disabled (enable in Admin > Hardware Settings)")
+            return
+
+        _neopixel_controller = NeopixelController(config, logger=logger)
+        hardware_available = _neopixel_controller.start()
+
+        if hardware_available:
+            logger.info(
+                "✅ NeoPixel controller initialized: %d pixel(s) on GPIO %d",
+                config.num_pixels,
+                config.gpio_pin,
+            )
+        else:
+            logger.info(
+                "NeoPixel controller running in null mode "
+                "(rpi_ws281x library not available or DMA access denied)"
+            )
+
+    except Exception as e:
+        logger.warning(f"⚠️  NeoPixel controller not available: {e}")
+        logger.info("Continuing without NeoPixel support")
 
 
 def publish_hardware_metrics():
@@ -1791,6 +1856,16 @@ def main():
         with app.app_context():
             initialize_gpio_controller(db_session=db.session)
 
+        # Initialize NeoPixel controller
+        logger.info("Initializing NeoPixel controller...")
+        with app.app_context():
+            initialize_neopixel_controller()
+
+        # Initialize USB tower light controller
+        logger.info("Initializing USB tower light controller...")
+        with app.app_context():
+            initialize_tower_light_controller()
+
         # Initialize Zigbee coordinator (if configured)
         logger.info("Initializing Zigbee coordinator...")
         with app.app_context():
@@ -1827,6 +1902,18 @@ def main():
                     _gpio_controller.cleanup()
             except Exception as e:
                 logger.error(f"Error cleaning up GPIO: {e}")
+
+        if _neopixel_controller:
+            try:
+                _neopixel_controller.cleanup()
+            except Exception as e:
+                logger.error(f"Error cleaning up NeoPixel controller: {e}")
+
+        if _tower_light_controller:
+            try:
+                _tower_light_controller.cleanup()
+            except Exception as e:
+                logger.error(f"Error cleaning up USB tower light: {e}")
 
         if _redis_client:
             try:

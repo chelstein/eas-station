@@ -201,6 +201,43 @@ def get_zigbee_settings() -> Dict[str, Any]:
     }
 
 
+def get_tower_light_settings() -> Dict[str, Any]:
+    """Get USB tower light settings.
+
+    Returns:
+        Dictionary with tower light configuration
+    """
+    settings = get_hardware_settings()
+    return {
+        'enabled': settings.tower_light_enabled,
+        'serial_port': settings.tower_light_serial_port,
+        'baudrate': settings.tower_light_baudrate,
+        'alert_buzzer': settings.tower_light_alert_buzzer,
+        'incoming_uses_yellow': settings.tower_light_incoming_uses_yellow,
+        'blink_on_alert': settings.tower_light_blink_on_alert,
+    }
+
+
+def get_neopixel_settings() -> Dict[str, Any]:
+    """Get NeoPixel / WS2812B LED strip settings.
+
+    Returns:
+        Dictionary with NeoPixel configuration
+    """
+    settings = get_hardware_settings()
+    return {
+        'enabled': settings.neopixel_enabled,
+        'gpio_pin': settings.neopixel_gpio_pin,
+        'num_pixels': settings.neopixel_num_pixels,
+        'brightness': settings.neopixel_brightness,
+        'led_order': settings.neopixel_led_order,
+        'standby_color': settings.neopixel_standby_color or {"r": 0, "g": 10, "b": 0},
+        'alert_color': settings.neopixel_alert_color or {"r": 255, "g": 0, "b": 0},
+        'flash_on_alert': settings.neopixel_flash_on_alert,
+        'flash_interval_ms': settings.neopixel_flash_interval_ms,
+    }
+
+
 __all__ = [
     'get_hardware_settings',
     'update_hardware_settings',
@@ -210,4 +247,6 @@ __all__ = [
     'get_led_settings',
     'get_vfd_settings',
     'get_zigbee_settings',
+    'get_tower_light_settings',
+    'get_neopixel_settings',
 ]
