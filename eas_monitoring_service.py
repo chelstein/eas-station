@@ -1001,6 +1001,25 @@ def main():
                     No resampling is performed - audio is passed through at native rate to ensure
                     accurate pitch and playback speed.
                     """
+                    # For StreamSourceAdapter with preserve_native_rate=True, FFmpeg runs
+                    # without -ar and outputs at the stream's actual sample rate.  The
+                    # actual rate is detected from FFmpeg's stderr output in a background
+                    # thread (_stderr_pump) which then updates config.sample_rate and
+                    # metrics.sample_rate.  That detection happens *before* the first
+                    # audio packet reaches _read_audio_chunk, so waiting until
+                    # _last_connection_time is set (i.e. the first audio packet has
+                    # arrived) guarantees the rate is already correct.
+                    #
+                    # Without this wait, a freshly-started source (e.g. configured as
+                    # 44100 Hz but actually streaming at 48000 Hz) would cause the WAV
+                    # header to be written with the wrong rate.  The browser would then
+                    # play 48000 Hz audio as if it were 44100 Hz — about 91.9% speed —
+                    # making 10 minutes of audio take ~11 minutes.
+                    if hasattr(adapter, '_last_connection_time'):  # StreamSourceAdapter
+                        deadline = time.time() + 5.0
+                        while time.time() < deadline and adapter._last_connection_time is None:
+                            time.sleep(0.05)
+
                     # Source configuration — prefer metrics.sample_rate which is
                     # updated asynchronously when the stream's native rate is
                     # detected by FFmpeg.  config.sample_rate is also updated but
