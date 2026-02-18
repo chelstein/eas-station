@@ -1,0 +1,204 @@
+{% extends "base.html" %}
+
+{% block title %}Notification Settings - EAS Station{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-3">
+        <div class="col-12">
+            <h2><i class="fas fa-bell"></i> Notification Settings</h2>
+            <p class="text-muted">Configure email and SMS notification delivery</p>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-8">
+            <form id="notificationSettingsForm">
+
+                <!-- Email Notifications -->
+                <div class="card mb-3">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="fas fa-envelope"></i> Email Notifications</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label for="email_enabled" class="form-label">
+                                <i class="fas fa-toggle-on"></i> Enable Email Notifications
+                            </label>
+                            <select class="form-select" id="email_enabled" name="email_enabled">
+                                <option value="true" {% if settings.email_enabled %}selected{% endif %}>Enabled</option>
+                                <option value="false" {% if not settings.email_enabled %}selected{% endif %}>Disabled</option>
+                            </select>
+                            <div class="form-text">Send email alerts for compliance and system health events.</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="mail_url" class="form-label">
+                                <i class="fas fa-server"></i> Mail Server URL
+                            </label>
+                            <input type="text" class="form-control" id="mail_url" name="mail_url"
+                                   value="{{ settings.mail_url }}"
+                                   placeholder="smtp://user:pass@smtp.gmail.com:587?tls=true">
+                            <div class="form-text">
+                                SMTP connection URL.
+                                Format: <code>smtp://username:password@server:port?tls=true</code><br>
+                                Leave blank to disable email delivery even if enabled.
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="compliance_alert_emails" class="form-label">
+                                <i class="fas fa-users"></i> Compliance Alert Recipients
+                            </label>
+                            <textarea class="form-control" id="compliance_alert_emails"
+                                      name="compliance_alert_emails" rows="4"
+                                      placeholder="admin@example.com&#10;oncall@example.com">{{ (settings.compliance_alert_emails or []) | join('\n') }}</textarea>
+                            <div class="form-text">One email address per line. These recipients receive system health and compliance alerts.</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SMS Notifications -->
+                <div class="card mb-3">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="fas fa-sms"></i> SMS Notifications</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label for="sms_enabled" class="form-label">
+                                <i class="fas fa-toggle-on"></i> Enable SMS Notifications
+                            </label>
+                            <select class="form-select" id="sms_enabled" name="sms_enabled">
+                                <option value="true" {% if settings.sms_enabled %}selected{% endif %}>Enabled</option>
+                                <option value="false" {% if not settings.sms_enabled %}selected{% endif %}>Disabled</option>
+                            </select>
+                            <div class="form-text">SMS notification delivery (requires additional SMS gateway configuration).</div>
+                        </div>
+                        <div class="alert alert-info mb-0">
+                            <i class="fas fa-info-circle"></i>
+                            SMS gateway configuration will be available in a future update.
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Save Button -->
+                <div class="d-grid gap-2 d-md-flex justify-content-md-end mb-3">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save"></i> Save Settings
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Sidebar -->
+        <div class="col-lg-4">
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-info-circle"></i> Current Settings</h5>
+                </div>
+                <div class="card-body">
+                    <ul class="list-unstyled mb-0">
+                        <li class="mb-2">
+                            <strong>Email:</strong>
+                            <span class="badge bg-{{ 'success' if settings.email_enabled else 'secondary' }}" id="emailBadge">
+                                {{ 'Enabled' if settings.email_enabled else 'Disabled' }}
+                            </span>
+                        </li>
+                        <li class="mb-2">
+                            <strong>Mail Server:</strong>
+                            <span id="mailServerDisplay" class="text-muted small">
+                                {% if settings.mail_url %}Configured{% else %}Not configured{% endif %}
+                            </span>
+                        </li>
+                        <li class="mb-2">
+                            <strong>Alert Recipients:</strong>
+                            <span id="recipientsCount">{{ (settings.compliance_alert_emails or []) | length }}</span>
+                        </li>
+                        <li class="mb-2">
+                            <strong>SMS:</strong>
+                            <span class="badge bg-{{ 'success' if settings.sms_enabled else 'secondary' }}" id="smsBadge">
+                                {{ 'Enabled' if settings.sms_enabled else 'Disabled' }}
+                            </span>
+                        </li>
+                        <li class="mb-0">
+                            <strong>Last Updated:</strong>
+                            <small class="text-muted" id="lastUpdated">
+                                {{ settings.updated_at.strftime('%Y-%m-%d %H:%M:%S') if settings.updated_at else 'Never' }}
+                            </small>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-question-circle"></i> Help</h5>
+                </div>
+                <div class="card-body">
+                    <h6>Mail URL Format</h6>
+                    <p class="small mb-2">
+                        The SMTP URL encodes all connection details in one string:
+                    </p>
+                    <code class="small d-block mb-3">smtp://user:pass@host:587?tls=true</code>
+                    <h6>Common Providers</h6>
+                    <ul class="small mb-0">
+                        <li><strong>Gmail:</strong> port 587, TLS</li>
+                        <li><strong>Office 365:</strong> smtp.office365.com, port 587</li>
+                        <li><strong>SendGrid:</strong> smtp.sendgrid.net, port 587</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('notificationSettingsForm');
+
+    form.addEventListener('submit', async function(e) {
+        e.preventDefault();
+
+        const formData = new FormData(form);
+        const submitBtn = form.querySelector('button[type="submit"]');
+        const originalBtnText = submitBtn.innerHTML;
+
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+
+        try {
+            const response = await fetch('/admin/notifications/update', {
+                method: 'POST',
+                body: formData,
+                headers: { 'X-CSRF-Token': window.CSRF_TOKEN }
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                showToast('Notification settings saved successfully', 'success');
+
+                const s = data.settings;
+                document.getElementById('emailBadge').textContent = s.email_enabled ? 'Enabled' : 'Disabled';
+                document.getElementById('emailBadge').className = 'badge bg-' + (s.email_enabled ? 'success' : 'secondary');
+                document.getElementById('mailServerDisplay').textContent = s.mail_url ? 'Configured' : 'Not configured';
+                document.getElementById('recipientsCount').textContent = (s.compliance_alert_emails || []).length;
+                document.getElementById('smsBadge').textContent = s.sms_enabled ? 'Enabled' : 'Disabled';
+                document.getElementById('smsBadge').className = 'badge bg-' + (s.sms_enabled ? 'success' : 'secondary');
+                if (s.updated_at) {
+                    document.getElementById('lastUpdated').textContent = new Date(s.updated_at).toLocaleString();
+                }
+            } else {
+                showToast(data.error || 'Failed to save settings', 'danger');
+            }
+        } catch (error) {
+            console.error('Error saving settings:', error);
+            showToast('Error saving settings', 'danger');
+        } finally {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalBtnText;
+        }
+    });
+});
+</script>
+{% endblock %}

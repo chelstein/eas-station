@@ -511,6 +511,77 @@ if app.config['SETUP_MODE']:
     )
 
 
+def _load_db_settings_into_config() -> None:
+    """Load NotificationSettings and ApplicationSettings from DB into app.config.
+
+    Called once the database connection is confirmed available.  Falls back
+    silently to the existing env-var-based values when the tables do not yet
+    exist (e.g. before the first migration run).
+    """
+    from app_core.models import NotificationSettings, ApplicationSettings
+    from urllib.parse import urlparse, unquote
+
+    try:
+        with app.app_context():
+            # -----------------------------------------------------------------
+            # Notification settings -> app.config
+            # -----------------------------------------------------------------
+            notif = NotificationSettings.query.first()
+            if notif:
+                app.config['ENABLE_EMAIL_NOTIFICATIONS'] = notif.email_enabled
+                app.config['ENABLE_SMS_NOTIFICATIONS'] = notif.sms_enabled
+
+                # Parse SMTP URL into individual mail config keys used by
+                # the health alert worker (system_health.py)
+                mail_url = notif.mail_url or ''
+                if mail_url:
+                    try:
+                        parsed = urlparse(mail_url)
+                        app.config['MAIL_SERVER'] = parsed.hostname or ''
+                        app.config['MAIL_PORT'] = parsed.port or 587
+                        app.config['MAIL_USERNAME'] = unquote(parsed.username or '')
+                        app.config['MAIL_PASSWORD'] = unquote(parsed.password or '')
+                        qs = parsed.query or ''
+                        app.config['MAIL_USE_TLS'] = 'tls=true' in qs.lower() or 'tls=1' in qs.lower()
+                    except Exception as _parse_err:
+                        logger.warning("Could not parse MAIL_URL from DB: %s", _parse_err)
+
+                # Compliance alert recipients
+                emails = notif.compliance_alert_emails
+                if emails:
+                    app.config['COMPLIANCE_ALERT_EMAILS'] = list(emails)
+
+                logger.info(
+                    "Loaded notification settings from DB: email_enabled=%s, recipients=%d",
+                    notif.email_enabled, len(notif.compliance_alert_emails or []),
+                )
+
+            # -----------------------------------------------------------------
+            # Application settings -> app.config + live logging reconfiguration
+            # -----------------------------------------------------------------
+            app_settings = ApplicationSettings.query.first()
+            if app_settings:
+                import logging as _logging
+                numeric_level = getattr(_logging, app_settings.log_level, _logging.INFO)
+                _logging.getLogger().setLevel(numeric_level)
+                app.config['LOG_LEVEL'] = app_settings.log_level
+                app.config['LOG_FILE'] = app_settings.log_file
+                app.config['UPLOAD_FOLDER'] = app_settings.upload_folder
+                logger.info(
+                    "Loaded application settings from DB: log_level=%s, upload_folder=%s",
+                    app_settings.log_level, app_settings.upload_folder,
+                )
+
+    except Exception as _exc:
+        logger.debug(
+            "Could not load DB settings into app.config (tables may not exist yet): %s", _exc
+        )
+
+
+if not app.config.get('SETUP_MODE'):
+    _load_db_settings_into_config()
+
+
 # Configure EAS output integration
 EAS_CONFIG = load_eas_config(app.root_path)
 app.config['EAS_BROADCAST_ENABLED'] = bool(EAS_CONFIG.get('enabled'))

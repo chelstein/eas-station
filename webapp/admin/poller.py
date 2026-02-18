@@ -17,9 +17,11 @@ See NOTICE file for complete terms.
 Repository: https://github.com/KR8MER/eas-station
 """
 
+import json
+import logging
+
 from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash
 from sqlalchemy.exc import SQLAlchemyError
-import logging
 
 from app_core.extensions import db
 from app_core.models import PollerSettings
@@ -31,27 +33,34 @@ logger = logging.getLogger(__name__)
 poller_bp = Blueprint('poller', __name__, url_prefix='/admin/poller')
 
 
+def _get_or_create_settings() -> PollerSettings:
+    """Get poller settings, creating defaults if none exist."""
+    settings = PollerSettings.query.first()
+    if not settings:
+        settings = PollerSettings(
+            enabled=True,
+            poll_interval_sec=120,
+            cap_timeout=30,
+            noaa_user_agent='EAS Station (+https://github.com/KR8MER/eas-station; support@easstation.com)',
+            cap_endpoints=[],
+            ipaws_feed_urls=[],
+            ipaws_default_lookback_hours=12,
+            log_fetched_alerts=False,
+        )
+        db.session.add(settings)
+        db.session.commit()
+        logger.info("Created default poller settings")
+    return settings
+
+
 @poller_bp.route('/', methods=['GET'])
 @require_auth
 @require_permission('system.configure')
 def poller_settings():
     """Display poller configuration settings page."""
     try:
-        # Get or create poller settings (single row)
-        settings = PollerSettings.query.first()
-        if not settings:
-            # Create default settings if none exist
-            settings = PollerSettings(
-                enabled=True,
-                poll_interval_sec=120,
-                log_fetched_alerts=False
-            )
-            db.session.add(settings)
-            db.session.commit()
-            logger.info("Created default poller settings")
-        
+        settings = _get_or_create_settings()
         return render_template('admin/poller.html', settings=settings)
-    
     except SQLAlchemyError as e:
         logger.error(f"Database error loading poller settings: {str(e)}")
         db.session.rollback()
@@ -69,48 +78,58 @@ def update_poller_settings():
         if not settings:
             settings = PollerSettings()
             db.session.add(settings)
-        
-        # Get form data
-        enabled = request.form.get('enabled', 'false').lower() == 'true'
+
+        # Basic poller config
+        settings.enabled = request.form.get('enabled', 'false').lower() == 'true'
         poll_interval_sec = int(request.form.get('poll_interval_sec', 120))
-        log_fetched_alerts = request.form.get('log_fetched_alerts', 'false').lower() == 'true'
-        
-        # Validate poll interval (minimum 30 seconds)
         if poll_interval_sec < 30:
-            return jsonify({
-                'success': False,
-                'error': 'Poll interval must be at least 30 seconds'
-            }), 400
-        
-        # Update settings
-        settings.enabled = enabled
+            return jsonify({'success': False, 'error': 'Poll interval must be at least 30 seconds'}), 400
         settings.poll_interval_sec = poll_interval_sec
-        settings.log_fetched_alerts = log_fetched_alerts
-        
+
+        cap_timeout = int(request.form.get('cap_timeout', 30))
+        if cap_timeout < 5:
+            return jsonify({'success': False, 'error': 'Request timeout must be at least 5 seconds'}), 400
+        settings.cap_timeout = cap_timeout
+
+        settings.noaa_user_agent = request.form.get('noaa_user_agent', '').strip()
+
+        # CAP endpoints: textarea -> list of non-empty lines
+        cap_endpoints_raw = request.form.get('cap_endpoints', '').strip()
+        settings.cap_endpoints = [
+            url.strip() for url in cap_endpoints_raw.splitlines() if url.strip()
+        ]
+
+        # IPAWS feed URLs: textarea -> list of non-empty lines
+        ipaws_feed_urls_raw = request.form.get('ipaws_feed_urls', '').strip()
+        settings.ipaws_feed_urls = [
+            url.strip() for url in ipaws_feed_urls_raw.splitlines() if url.strip()
+        ]
+
+        ipaws_lookback = int(request.form.get('ipaws_default_lookback_hours', 12))
+        if ipaws_lookback < 1:
+            return jsonify({'success': False, 'error': 'IPAWS lookback must be at least 1 hour'}), 400
+        settings.ipaws_default_lookback_hours = ipaws_lookback
+
+        settings.log_fetched_alerts = request.form.get('log_fetched_alerts', 'false').lower() == 'true'
+
         db.session.commit()
-        
-        logger.info(f"Updated poller settings: enabled={enabled}, interval={poll_interval_sec}s, log_fetched={log_fetched_alerts}")
-        
-        return jsonify({
-            'success': True,
-            'message': 'Poller settings updated successfully',
-            'settings': settings.to_dict()
-        })
-    
+        logger.info(
+            "Updated poller settings: enabled=%s, interval=%ss, cap_timeout=%ss, "
+            "cap_endpoints=%d, ipaws_urls=%d",
+            settings.enabled, settings.poll_interval_sec, settings.cap_timeout,
+            len(settings.cap_endpoints), len(settings.ipaws_feed_urls),
+        )
+
+        return jsonify({'success': True, 'message': 'Poller settings updated successfully',
+                        'settings': settings.to_dict()})
+
     except ValueError as e:
         logger.error(f"Invalid value in poller settings: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': f'Invalid value: {str(e)}'
-        }), 400
-    
+        return jsonify({'success': False, 'error': f'Invalid value: {str(e)}'}), 400
     except SQLAlchemyError as e:
         logger.error(f"Database error updating poller settings: {str(e)}")
         db.session.rollback()
-        return jsonify({
-            'success': False,
-            'error': 'Database error saving poller settings'
-        }), 500
+        return jsonify({'success': False, 'error': 'Database error saving poller settings'}), 500
 
 
 @poller_bp.route('/status', methods=['GET'])
@@ -121,19 +140,8 @@ def poller_status():
     try:
         settings = PollerSettings.query.first()
         if not settings:
-            return jsonify({
-                'success': False,
-                'error': 'Poller settings not configured'
-            }), 404
-        
-        return jsonify({
-            'success': True,
-            'settings': settings.to_dict()
-        })
-    
+            return jsonify({'success': False, 'error': 'Poller settings not configured'}), 404
+        return jsonify({'success': True, 'settings': settings.to_dict()})
     except SQLAlchemyError as e:
         logger.error(f"Database error fetching poller status: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': 'Database error'
-        }), 500
+        return jsonify({'success': False, 'error': 'Database error'}), 500
