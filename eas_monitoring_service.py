@@ -591,10 +591,10 @@ def initialize_archivers(app, audio_controller):
                 )
                 continue
 
-            broadcast_queue = (
-                getattr(adapter, 'broadcast_queue', None)
-                or getattr(adapter, '_broadcast_queue', None)
-            )
+            try:
+                broadcast_queue = adapter.get_broadcast_queue()
+            except AttributeError:
+                broadcast_queue = None
             if broadcast_queue is None:
                 logger.warning("initialize_archivers: source '%s' has no broadcast queue", source_name)
                 continue
