@@ -573,8 +573,19 @@ async function saveSettings(evt, sourceName) {
 
   try {
     const r = await api('POST', `/api/audio/archives/${encodeURIComponent(sourceName)}/settings`, body);
-    if (r.saved) { toast('Settings saved for ' + sourceName); }
-    else         { toast('Save failed: ' + (r.error || 'unknown'), false); }
+    if (!r.saved) { toast('Save failed: ' + (r.error || 'unknown'), false); return; }
+
+    if (body.enabled) {
+      // Start the archiver with the freshly-saved config
+      const sr = await api('POST', `/api/audio/archives/${encodeURIComponent(sourceName)}/start`, {});
+      const ok = sr.result && sr.result.success;
+      toast(ok ? `Archiving enabled for ${sourceName}` : `Settings saved but archiver start failed: ${(sr.result||{}).message||sr.error||'unknown'}`, ok);
+    } else {
+      // Stop the archiver if it was running
+      await api('POST', `/api/audio/archives/${encodeURIComponent(sourceName)}/stop`, {});
+      toast(`Archiving disabled for ${sourceName}`);
+    }
+    setTimeout(() => loadSources(), 800);
   } catch (e) { toast('Error: ' + e, false); }
 }
 
