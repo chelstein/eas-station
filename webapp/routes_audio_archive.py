@@ -478,15 +478,39 @@ def register(app: Flask, logger_arg, archive_dir: str = _DEFAULT_ARCHIVE_DIR) ->
     @app.route("/api/audio/archives/<source_name>/metadata-log", methods=["GET"])
     def api_audio_archive_metadata_log(source_name: str):
         try:
+            from sqlalchemy import or_
             from app_core.models import StreamMetadataLog
-            limit = min(int(request.args.get("limit", 100)), 500)
-            rows = (
-                StreamMetadataLog.query
-                .filter_by(source_name=source_name)
-                .order_by(StreamMetadataLog.timestamp.desc())
-                .limit(limit)
-                .all()
-            )
+
+            limit_param = request.args.get("limit", "100").strip().lower()
+            search = request.args.get("search", "").strip()
+
+            if limit_param in ("all", "0", ""):
+                limit = None  # No limit — return all matching rows
+            else:
+                try:
+                    limit = max(1, min(int(limit_param), 10000))
+                except (ValueError, TypeError):
+                    limit = 100
+
+            query = StreamMetadataLog.query.filter_by(source_name=source_name)
+
+            if search:
+                search_term = f"%{search}%"
+                query = query.filter(
+                    or_(
+                        StreamMetadataLog.title.ilike(search_term),
+                        StreamMetadataLog.artist.ilike(search_term),
+                        StreamMetadataLog.album.ilike(search_term),
+                        StreamMetadataLog.display.ilike(search_term),
+                        StreamMetadataLog.raw.ilike(search_term),
+                    )
+                )
+
+            query = query.order_by(StreamMetadataLog.timestamp.desc())
+            if limit is not None:
+                query = query.limit(limit)
+
+            rows = query.all()
             entries = [
                 {
                     "id": r.id,
@@ -501,10 +525,10 @@ def register(app: Flask, logger_arg, archive_dir: str = _DEFAULT_ARCHIVE_DIR) ->
                 }
                 for r in rows
             ]
-            return jsonify({"source_name": source_name, "entries": entries})
+            return jsonify({"source_name": source_name, "entries": entries, "total": len(entries)})
         except Exception as exc:
             route_logger.error("metadata-log query failed for '%s': %s", source_name, exc)
-            return jsonify({"source_name": source_name, "entries": []})
+            return jsonify({"source_name": source_name, "entries": [], "total": 0})
 
     # ------------------------------------------------------------------
     # API: clear (delete) the metadata log for one source

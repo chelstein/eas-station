@@ -201,10 +201,28 @@ function buildCard(s) {
 
   <!-- Song history panel -->
   <div class="panel card-body" id="history-${esc}">
-    <div class="d-flex justify-content-end mb-2">
-      <button class="btn btn-sm btn-outline-danger" onclick="clearHistory('${s.source_name}')">
-        <i class="fas fa-trash me-1"></i> Clear History
-      </button>
+    <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+      <div class="input-group input-group-sm" style="max-width:260px">
+        <span class="input-group-text"><i class="fas fa-search"></i></span>
+        <input type="text" class="form-control" id="history-search-${esc}" placeholder="Search title, artist, album…"
+          oninput="debounceHistory('${s.source_name}')">
+      </div>
+      <select class="form-select form-select-sm" style="width:auto" id="history-limit-${esc}"
+        onchange="reloadHistory('${s.source_name}')">
+        <option value="5">5</option>
+        <option value="10">10</option>
+        <option value="20">20</option>
+        <option value="50">50</option>
+        <option value="100" selected>100</option>
+        <option value="200">200</option>
+        <option value="all">All</option>
+      </select>
+      <span class="text-muted small" id="history-count-${esc}"></span>
+      <div class="ms-auto">
+        <button class="btn btn-sm btn-outline-danger" onclick="clearHistory('${s.source_name}')">
+          <i class="fas fa-trash me-1"></i> Clear History
+        </button>
+      </div>
     </div>
     <div id="history-body-${esc}">
       <div class="text-center text-muted py-3"><span class="spinner"></span> Loading history…</div>
@@ -401,15 +419,47 @@ function closePlayer() {
 /* -----------------------------------------------------------------------
    Song history
 ----------------------------------------------------------------------- */
+const _historyDebounceTimers = {};
+
+function debounceHistory(sourceName) {
+  clearTimeout(_historyDebounceTimers[sourceName]);
+  _historyDebounceTimers[sourceName] = setTimeout(() => reloadHistory(sourceName), 350);
+}
+
+function reloadHistory(sourceName) {
+  const panelId = 'history-' + CSS.escape(sourceName);
+  // Reset so that the next panel open re-fetches, but also fetch now if panel is open
+  const panel = document.getElementById(panelId);
+  if (panel && panel.classList.contains('open')) {
+    loadHistory(sourceName);
+  }
+}
+
 async function loadHistory(sourceName) {
-  const bodyEl = document.getElementById('history-body-' + CSS.escape(sourceName));
+  const bodyEl    = document.getElementById('history-body-' + CSS.escape(sourceName));
+  const countEl   = document.getElementById('history-count-' + CSS.escape(sourceName));
+  const limitEl   = document.getElementById('history-limit-' + CSS.escape(sourceName));
+  const searchEl  = document.getElementById('history-search-' + CSS.escape(sourceName));
   if (!bodyEl) return;
+
+  const limit  = limitEl  ? limitEl.value  : '100';
+  const search = searchEl ? searchEl.value.trim() : '';
+
+  let url = `/api/audio/archives/${encodeURIComponent(sourceName)}/metadata-log?limit=${encodeURIComponent(limit)}`;
+  if (search) url += `&search=${encodeURIComponent(search)}`;
+
   try {
-    const data    = await api('GET', `/api/audio/archives/${encodeURIComponent(sourceName)}/metadata-log`);
+    const data    = await api('GET', url);
     const entries = data.entries || [];
 
+    if (countEl) {
+      countEl.textContent = entries.length ? `${entries.length} result${entries.length !== 1 ? 's' : ''}` : '';
+    }
+
     if (!entries.length) {
-      bodyEl.innerHTML = '<p class="text-muted mb-0">No song history yet. History is recorded when the audio service detects ICY stream metadata changes.</p>';
+      bodyEl.innerHTML = search
+        ? '<p class="text-muted mb-0">No results match your search.</p>'
+        : '<p class="text-muted mb-0">No song history yet. History is recorded when the audio service detects ICY stream metadata changes.</p>';
       return;
     }
 
@@ -458,8 +508,12 @@ async function clearHistory(sourceName) {
       toast('Clear failed: ' + r.error, false);
     } else {
       toast(`Cleared ${r.deleted} history entry(s) for ${sourceName}`);
-      const bodyEl = document.getElementById('history-body-' + CSS.escape(sourceName));
-      if (bodyEl) bodyEl.innerHTML = '<p class="text-muted mb-0">No song history yet. History is recorded when the audio service detects ICY stream metadata changes.</p>';
+      const bodyEl  = document.getElementById('history-body-'  + CSS.escape(sourceName));
+      const countEl = document.getElementById('history-count-' + CSS.escape(sourceName));
+      const searchEl = document.getElementById('history-search-' + CSS.escape(sourceName));
+      if (bodyEl)   bodyEl.innerHTML = '<p class="text-muted mb-0">No song history yet. History is recorded when the audio service detects ICY stream metadata changes.</p>';
+      if (countEl)  countEl.textContent = '';
+      if (searchEl) searchEl.value = '';
       // Allow re-loading next time the panel is opened
       const panelId = 'history-' + CSS.escape(sourceName);
       delete _panelLoaded[panelId];
