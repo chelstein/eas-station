@@ -694,6 +694,29 @@ class HardwareSettings(db.Model):
     gpio_behavior_matrix = db.Column(JSONB, nullable=False, default=dict)
 
     # ========================================================================
+    # USB Tower Light Settings (Adafruit #5125 / CH34x serial stack light)
+    # ========================================================================
+    tower_light_enabled = db.Column(db.Boolean, nullable=False, default=False)
+    tower_light_serial_port = db.Column(db.String(100), nullable=False, default='/dev/ttyUSB0')
+    tower_light_baudrate = db.Column(db.Integer, nullable=False, default=9600)
+    tower_light_alert_buzzer = db.Column(db.Boolean, nullable=False, default=False)
+    tower_light_incoming_uses_yellow = db.Column(db.Boolean, nullable=False, default=True)
+    tower_light_blink_on_alert = db.Column(db.Boolean, nullable=False, default=True)
+
+    # ========================================================================
+    # NeoPixel / WS2812B Addressable LED Strip Settings
+    # ========================================================================
+    neopixel_enabled = db.Column(db.Boolean, nullable=False, default=False)
+    neopixel_gpio_pin = db.Column(db.Integer, nullable=False, default=18)
+    neopixel_num_pixels = db.Column(db.Integer, nullable=False, default=1)
+    neopixel_brightness = db.Column(db.Integer, nullable=False, default=128)   # 0-255
+    neopixel_led_order = db.Column(db.String(10), nullable=False, default='GRB')
+    neopixel_standby_color = db.Column(JSONB, nullable=False, default=lambda: {"r": 0, "g": 10, "b": 0})
+    neopixel_alert_color = db.Column(JSONB, nullable=False, default=lambda: {"r": 255, "g": 0, "b": 0})
+    neopixel_flash_on_alert = db.Column(db.Boolean, nullable=False, default=True)
+    neopixel_flash_interval_ms = db.Column(db.Integer, nullable=False, default=500)
+
+    # ========================================================================
     # OLED Display Settings (Argon Industria SSD1306)
     # ========================================================================
     oled_enabled = db.Column(db.Boolean, nullable=False, default=False)
@@ -759,6 +782,23 @@ class HardwareSettings(db.Model):
             "gpio_enabled": self.gpio_enabled,
             "gpio_pin_map": self.gpio_pin_map or {},
             "gpio_behavior_matrix": self.gpio_behavior_matrix or {},
+            # Tower Light
+            "tower_light_enabled": self.tower_light_enabled,
+            "tower_light_serial_port": self.tower_light_serial_port,
+            "tower_light_baudrate": self.tower_light_baudrate,
+            "tower_light_alert_buzzer": self.tower_light_alert_buzzer,
+            "tower_light_incoming_uses_yellow": self.tower_light_incoming_uses_yellow,
+            "tower_light_blink_on_alert": self.tower_light_blink_on_alert,
+            # NeoPixel
+            "neopixel_enabled": self.neopixel_enabled,
+            "neopixel_gpio_pin": self.neopixel_gpio_pin,
+            "neopixel_num_pixels": self.neopixel_num_pixels,
+            "neopixel_brightness": self.neopixel_brightness,
+            "neopixel_led_order": self.neopixel_led_order,
+            "neopixel_standby_color": self.neopixel_standby_color or {"r": 0, "g": 10, "b": 0},
+            "neopixel_alert_color": self.neopixel_alert_color or {"r": 255, "g": 0, "b": 0},
+            "neopixel_flash_on_alert": self.neopixel_flash_on_alert,
+            "neopixel_flash_interval_ms": self.neopixel_flash_interval_ms,
             # OLED
             "oled_enabled": self.oled_enabled,
             "oled_i2c_bus": self.oled_i2c_bus,

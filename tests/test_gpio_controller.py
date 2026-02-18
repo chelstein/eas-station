@@ -36,8 +36,25 @@ from app_utils.gpio import (
     GPIOController,
     GPIOPinConfig,
     GPIOState,
+    NeopixelConfig,
+    NeopixelController,
+    TowerLightConfig,
+    TowerLightController,
+    _NullNeopixelStrip,
+    _make_neo_color,
+    _TOWER_CMD_GRN_ON,
+    _TOWER_CMD_GRN_OFF,
+    _TOWER_CMD_RED_ON,
+    _TOWER_CMD_RED_OFF,
+    _TOWER_CMD_RED_BLINK,
+    _TOWER_CMD_YEL_OFF,
+    _TOWER_CMD_YEL_BLINK,
+    _TOWER_CMD_BUZ_OFF,
+    _TOWER_CMD_BUZ_ON,
     load_gpio_behavior_matrix_from_db,
     load_gpio_pin_configs_from_db,
+    load_neopixel_config_from_db,
+    load_tower_light_config_from_db,
     serialize_gpio_behavior_matrix,
 )
 
@@ -275,3 +292,426 @@ def test_behavior_manager_pulse_only(monkeypatch):
     handled = manager.start_alert(alert_id="pulse", event_code="RWT")
     assert handled is True
     assert calls == [18]
+
+
+# ---------------------------------------------------------------------------
+# NeoPixel tests
+# ---------------------------------------------------------------------------
+
+
+def test_null_neopixel_strip_tracks_pixel_values():
+    """_NullNeopixelStrip should store and return pixel colour values."""
+    strip = _NullNeopixelStrip(4)
+    assert strip.numPixels() == 4
+
+    strip.setPixelColor(0, 0xFF0000)
+    strip.setPixelColor(3, 0x00FF00)
+    strip.show()  # no-op; must not raise
+
+    assert strip.pixels[0] == 0xFF0000
+    assert strip.pixels[1] == 0
+    assert strip.pixels[3] == 0x00FF00
+
+
+def test_make_neo_color_without_rpi_ws281x(monkeypatch):
+    """_make_neo_color should pack RGB correctly even without the real library."""
+    monkeypatch.setattr(gpio, "NeopixelColor", None)
+    packed = _make_neo_color(255, 128, 0)
+    assert packed == (255 << 16) | (128 << 8) | 0
+
+
+def test_neopixel_controller_starts_in_null_mode(monkeypatch):
+    """NeopixelController should start cleanly when rpi_ws281x is unavailable."""
+    monkeypatch.setattr(gpio, "_NEOPIXEL_LIB_AVAILABLE", False)
+
+    config = NeopixelConfig(gpio_pin=18, num_pixels=3, brightness=64)
+    ctrl = NeopixelController(config)
+    available = ctrl.start()
+
+    assert available is False
+    assert ctrl.is_available is False
+
+
+def test_neopixel_controller_set_color(monkeypatch):
+    """set_color should push the colour to every pixel."""
+    monkeypatch.setattr(gpio, "_NEOPIXEL_LIB_AVAILABLE", False)
+
+    config = NeopixelConfig(gpio_pin=18, num_pixels=4, brightness=128)
+    ctrl = NeopixelController(config)
+    ctrl.start()
+
+    ctrl.set_color(10, 20, 30)
+    expected = _make_neo_color(10, 20, 30)
+    assert all(p == expected for p in ctrl._strip.pixels)
+
+
+def test_neopixel_controller_standby_and_off(monkeypatch):
+    """set_standby and off should use the configured standby colour and black."""
+    monkeypatch.setattr(gpio, "_NEOPIXEL_LIB_AVAILABLE", False)
+
+    config = NeopixelConfig(
+        gpio_pin=18, num_pixels=2, brightness=128, standby_color=(0, 5, 0)
+    )
+    ctrl = NeopixelController(config)
+    ctrl.start()
+
+    ctrl.set_standby()
+    standby_val = _make_neo_color(0, 5, 0)
+    assert all(p == standby_val for p in ctrl._strip.pixels)
+
+    ctrl.off()
+    assert all(p == 0 for p in ctrl._strip.pixels)
+
+
+def test_neopixel_controller_start_and_end_alert(monkeypatch):
+    """start_alert should show the alert colour; end_alert restores standby."""
+    monkeypatch.setattr(gpio, "_NEOPIXEL_LIB_AVAILABLE", False)
+
+    config = NeopixelConfig(
+        gpio_pin=18,
+        num_pixels=2,
+        brightness=128,
+        standby_color=(0, 5, 0),
+        alert_color=(200, 0, 0),
+        flash_on_alert=False,
+    )
+    ctrl = NeopixelController(config)
+    ctrl.start()
+
+    ctrl.start_alert()
+    alert_val = _make_neo_color(200, 0, 0)
+    assert all(p == alert_val for p in ctrl._strip.pixels)
+
+    ctrl.end_alert()
+    standby_val = _make_neo_color(0, 5, 0)
+    assert all(p == standby_val for p in ctrl._strip.pixels)
+
+
+def test_neopixel_controller_flash_and_stop(monkeypatch):
+    """Flash pattern should toggle the strip; stop_flash cleans up the thread."""
+    import time
+
+    monkeypatch.setattr(gpio, "_NEOPIXEL_LIB_AVAILABLE", False)
+
+    config = NeopixelConfig(
+        gpio_pin=18,
+        num_pixels=1,
+        brightness=128,
+        standby_color=(0, 5, 0),
+        alert_color=(200, 0, 0),
+        flash_on_alert=True,
+        flash_interval_ms=50,
+    )
+    ctrl = NeopixelController(config)
+    ctrl.start()
+
+    ctrl.start_flash(200, 0, 0)
+    assert ctrl._flash_thread is not None and ctrl._flash_thread.is_alive()
+
+    # Let at least two toggles happen
+    time.sleep(0.15)
+
+    ctrl.stop_flash()
+    assert ctrl._flash_thread is None
+
+
+def test_neopixel_controller_cleanup(monkeypatch):
+    """cleanup should stop flash and turn the strip off."""
+    monkeypatch.setattr(gpio, "_NEOPIXEL_LIB_AVAILABLE", False)
+
+    config = NeopixelConfig(gpio_pin=18, num_pixels=2, brightness=128)
+    ctrl = NeopixelController(config)
+    ctrl.start()
+
+    ctrl.start_flash(255, 0, 0)
+    ctrl.cleanup()
+
+    # Strip reference should be cleared after cleanup
+    assert ctrl._strip is None
+    assert ctrl._flash_thread is None
+
+
+def test_neopixel_controller_get_status(monkeypatch):
+    """get_status should return a dict with all expected keys."""
+    monkeypatch.setattr(gpio, "_NEOPIXEL_LIB_AVAILABLE", False)
+
+    config = NeopixelConfig(
+        gpio_pin=18,
+        num_pixels=5,
+        brightness=100,
+        led_order="RGB",
+        flash_interval_ms=250,
+    )
+    ctrl = NeopixelController(config)
+    ctrl.start()
+
+    status = ctrl.get_status()
+    assert status["gpio_pin"] == 18
+    assert status["num_pixels"] == 5
+    assert status["brightness"] == 100
+    assert status["led_order"] == "RGB"
+    assert status["flash_interval_ms"] == 250
+    assert status["available"] is False
+    assert status["flashing"] is False
+
+
+def test_load_neopixel_config_disabled(monkeypatch):
+    """load_neopixel_config_from_db should return None when disabled."""
+    monkeypatch.setattr(gpio, "_GPIO_SETTINGS_AVAILABLE", True)
+
+    fake_settings = {
+        "enabled": False,
+        "gpio_pin": 18,
+        "num_pixels": 1,
+        "brightness": 128,
+        "led_order": "GRB",
+        "standby_color": {"r": 0, "g": 10, "b": 0},
+        "alert_color": {"r": 255, "g": 0, "b": 0},
+        "flash_on_alert": True,
+        "flash_interval_ms": 500,
+    }
+
+    # Patch the hardware_settings import inside gpio.py
+    import types
+    fake_module = types.ModuleType("app_core.hardware_settings")
+    fake_module.get_neopixel_settings = lambda: fake_settings
+    monkeypatch.setitem(
+        __import__("sys").modules, "app_core.hardware_settings", fake_module
+    )
+
+    result = load_neopixel_config_from_db()
+    assert result is None
+
+
+def test_load_neopixel_config_enabled(monkeypatch):
+    """load_neopixel_config_from_db should return NeopixelConfig when enabled."""
+    monkeypatch.setattr(gpio, "_GPIO_SETTINGS_AVAILABLE", True)
+
+    fake_settings = {
+        "enabled": True,
+        "gpio_pin": 18,
+        "num_pixels": 8,
+        "brightness": 200,
+        "led_order": "GRB",
+        "standby_color": {"r": 0, "g": 20, "b": 0},
+        "alert_color": {"r": 255, "g": 50, "b": 0},
+        "flash_on_alert": True,
+        "flash_interval_ms": 300,
+    }
+
+    import types
+    fake_module = types.ModuleType("app_core.hardware_settings")
+    fake_module.get_neopixel_settings = lambda: fake_settings
+    monkeypatch.setitem(
+        __import__("sys").modules, "app_core.hardware_settings", fake_module
+    )
+
+    result = load_neopixel_config_from_db()
+    assert result is not None
+    assert result.gpio_pin == 18
+    assert result.num_pixels == 8
+    assert result.brightness == 200
+    assert result.led_order == "GRB"
+    assert result.standby_color == (0, 20, 0)
+    assert result.alert_color == (255, 50, 0)
+    assert result.flash_on_alert is True
+    assert result.flash_interval_ms == 300
+
+
+# ---------------------------------------------------------------------------
+# USB Tower Light tests (Adafruit #5125 / CH34x serial)
+# ---------------------------------------------------------------------------
+
+
+class _FakeSerial:
+    """Minimal pyserial stub that records written bytes."""
+
+    def __init__(self):
+        self.written: list[int] = []
+
+    def write(self, data: bytes) -> None:
+        self.written.extend(data)
+
+    def close(self) -> None:
+        pass
+
+
+def _make_tower_ctrl(config: TowerLightConfig | None = None) -> tuple:
+    """Return a TowerLightController with a fake serial port injected."""
+    if config is None:
+        config = TowerLightConfig(serial_port="/dev/null")
+    ctrl = TowerLightController(config)
+    fake_ser = _FakeSerial()
+    ctrl._serial = fake_ser
+    ctrl._available = True
+    return ctrl, fake_ser
+
+
+def test_tower_light_standby_sends_correct_commands():
+    """set_standby should turn green on and everything else off."""
+    ctrl, ser = _make_tower_ctrl()
+    ser.written.clear()
+
+    ctrl.set_standby()
+
+    assert _TOWER_CMD_RED_OFF in ser.written
+    assert _TOWER_CMD_YEL_OFF in ser.written
+    assert _TOWER_CMD_BUZ_OFF in ser.written
+    assert _TOWER_CMD_GRN_ON in ser.written
+
+
+def test_tower_light_all_off_sends_correct_commands():
+    """all_off should turn all four segments off."""
+    ctrl, ser = _make_tower_ctrl()
+    ser.written.clear()
+
+    ctrl.all_off()
+
+    from app_utils.gpio import _TOWER_CMD_RED_OFF, _TOWER_CMD_YEL_OFF, _TOWER_CMD_GRN_OFF, _TOWER_CMD_BUZ_OFF
+    for cmd in (_TOWER_CMD_RED_OFF, _TOWER_CMD_YEL_OFF, _TOWER_CMD_GRN_OFF, _TOWER_CMD_BUZ_OFF):
+        assert cmd in ser.written
+
+
+def test_tower_light_start_alert_solid():
+    """start_alert with blink_on_alert=False should send red on, not blink."""
+    ctrl, ser = _make_tower_ctrl(
+        TowerLightConfig(serial_port="/dev/null", blink_on_alert=False, alert_buzzer=False)
+    )
+    ser.written.clear()
+
+    ctrl.start_alert()
+
+    assert _TOWER_CMD_RED_ON in ser.written
+    assert _TOWER_CMD_RED_BLINK not in ser.written
+    assert _TOWER_CMD_BUZ_ON not in ser.written
+
+
+def test_tower_light_start_alert_blink():
+    """start_alert with blink_on_alert=True should use the blink command."""
+    ctrl, ser = _make_tower_ctrl(
+        TowerLightConfig(serial_port="/dev/null", blink_on_alert=True, alert_buzzer=False)
+    )
+    ser.written.clear()
+
+    ctrl.start_alert()
+
+    assert _TOWER_CMD_RED_BLINK in ser.written
+    assert _TOWER_CMD_RED_ON not in ser.written
+
+
+def test_tower_light_start_alert_with_buzzer():
+    """start_alert with alert_buzzer=True should also send the buzzer on command."""
+    ctrl, ser = _make_tower_ctrl(
+        TowerLightConfig(serial_port="/dev/null", blink_on_alert=False, alert_buzzer=True)
+    )
+    ser.written.clear()
+
+    ctrl.start_alert()
+
+    assert _TOWER_CMD_BUZ_ON in ser.written
+
+
+def test_tower_light_start_incoming_alert_blink():
+    """start_incoming_alert should blink yellow when blink_on_alert=True."""
+    ctrl, ser = _make_tower_ctrl(
+        TowerLightConfig(serial_port="/dev/null", blink_on_alert=True)
+    )
+    ser.written.clear()
+
+    ctrl.start_incoming_alert()
+
+    assert _TOWER_CMD_YEL_BLINK in ser.written
+    assert _TOWER_CMD_GRN_OFF in ser.written
+    assert _TOWER_CMD_RED_OFF in ser.written
+
+
+def test_tower_light_end_alert_returns_to_standby():
+    """end_alert should restore the standby (green on) state."""
+    ctrl, ser = _make_tower_ctrl()
+    ctrl.start_alert()
+    ser.written.clear()
+
+    ctrl.end_alert()
+
+    assert _TOWER_CMD_GRN_ON in ser.written
+    assert _TOWER_CMD_RED_OFF in ser.written
+
+
+def test_tower_light_get_status():
+    """get_status should return a dict with expected keys."""
+    ctrl, _ = _make_tower_ctrl(
+        TowerLightConfig(
+            serial_port="/dev/ttyUSB1",
+            baudrate=9600,
+            alert_buzzer=True,
+            blink_on_alert=False,
+        )
+    )
+
+    status = ctrl.get_status()
+    assert status["available"] is True
+    assert status["serial_port"] == "/dev/ttyUSB1"
+    assert status["baudrate"] == 9600
+    assert status["alert_buzzer"] is True
+    assert status["blink_on_alert"] is False
+
+
+def test_tower_light_cleanup_closes_serial():
+    """cleanup should close the serial port and clear state."""
+    ctrl, ser = _make_tower_ctrl()
+    ctrl.cleanup()
+
+    assert ctrl._serial is None
+    assert ctrl._available is False
+
+
+def test_load_tower_light_config_disabled(monkeypatch):
+    """load_tower_light_config_from_db should return None when disabled."""
+    monkeypatch.setattr(gpio, "_GPIO_SETTINGS_AVAILABLE", True)
+
+    fake_settings = {
+        "enabled": False,
+        "serial_port": "/dev/ttyUSB0",
+        "baudrate": 9600,
+        "alert_buzzer": False,
+        "incoming_uses_yellow": True,
+        "blink_on_alert": True,
+    }
+
+    import types
+    fake_module = types.ModuleType("app_core.hardware_settings")
+    fake_module.get_tower_light_settings = lambda: fake_settings
+    monkeypatch.setitem(
+        __import__("sys").modules, "app_core.hardware_settings", fake_module
+    )
+
+    result = load_tower_light_config_from_db()
+    assert result is None
+
+
+def test_load_tower_light_config_enabled(monkeypatch):
+    """load_tower_light_config_from_db should return TowerLightConfig when enabled."""
+    monkeypatch.setattr(gpio, "_GPIO_SETTINGS_AVAILABLE", True)
+
+    fake_settings = {
+        "enabled": True,
+        "serial_port": "/dev/ttyUSB1",
+        "baudrate": 9600,
+        "alert_buzzer": True,
+        "incoming_uses_yellow": True,
+        "blink_on_alert": False,
+    }
+
+    import types
+    fake_module = types.ModuleType("app_core.hardware_settings")
+    fake_module.get_tower_light_settings = lambda: fake_settings
+    monkeypatch.setitem(
+        __import__("sys").modules, "app_core.hardware_settings", fake_module
+    )
+
+    result = load_tower_light_config_from_db()
+    assert result is not None
+    assert result.serial_port == "/dev/ttyUSB1"
+    assert result.baudrate == 9600
+    assert result.alert_buzzer is True
+    assert result.blink_on_alert is False
