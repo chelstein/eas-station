@@ -302,14 +302,26 @@ class AudioArchiver:
         self._current_segment_start = time.time()
         self._current_chunks = []
 
+        # Write a short initial segment (max 5 min) so the UI shows something
+        # quickly rather than waiting a full segment duration.
+        _INITIAL_FLUSH_SECONDS = 300  # 5 minutes
+        first_segment = True
+
         while not self._stop_event.is_set():
             now = time.time()
             segment_age = now - self._current_segment_start
 
-            if segment_age >= self.config.segment_duration_seconds:
+            flush_after = (
+                min(_INITIAL_FLUSH_SECONDS, self.config.segment_duration_seconds)
+                if first_segment
+                else self.config.segment_duration_seconds
+            )
+
+            if segment_age >= flush_after:
                 self._flush_segment()
                 self._current_segment_start = time.time()
                 self._run_pruning()
+                first_segment = False
 
             # Drain up to 200 chunks per iteration to stay responsive
             drained = 0
