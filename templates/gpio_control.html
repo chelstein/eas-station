@@ -108,6 +108,23 @@
                             <small class="text-muted">
                                 <strong>BCM GPIO:</strong> GPIO {{ pin_info.pin }}<br>
                                 <strong>Mode:</strong> Active {{ 'High' if pin_info.active_high else 'Low' }}<br>
+                                {% if pin_info.verification %}
+                                    <strong>Output Verify:</strong>
+                                    {% if pin_info.verification.verified is sameas true %}
+                                        <span class="text-success">Confirmed {{ pin_info.verification.observed }}</span><br>
+                                    {% elif pin_info.verification.verified is sameas false %}
+                                        <span class="text-danger">Mismatch ({{ pin_info.verification.observed }})</span><br>
+                                    {% else %}
+                                        <span class="text-warning">Unavailable</span><br>
+                                    {% endif %}
+                                {% endif %}
+                                {% if pin_info.flash_enabled %}
+                                    <strong>Flash:</strong> {{ pin_info.flash_interval_ms }}ms
+                                    {% if pin_info.flash_partner_pin %}
+                                        (paired GPIO {{ pin_info.flash_partner_pin }})
+                                    {% endif %}
+                                    <br>
+                                {% endif %}
                                 {% if pin_info.is_active %}
                                     <strong>Active for:</strong> {{ "%.1f"|format(pin_info.active_seconds) }}s<br>
                                     {% if pin_info.reason %}
