@@ -7,7 +7,7 @@
     <div class="row mb-3">
         <div class="col-12">
             <h2><i class="fas fa-bell"></i> Notification Settings</h2>
-            <p class="text-muted">Configure email and SMS notification delivery</p>
+            <p class="text-muted">Configure email and SMS delivery for EAS alert broadcasts</p>
         </div>
     </div>
 
@@ -15,12 +15,18 @@
         <div class="col-lg-8">
             <form id="notificationSettingsForm">
 
-                <!-- Email Notifications -->
+                <!-- ============================================================
+                     EMAIL NOTIFICATIONS
+                     ============================================================ -->
                 <div class="card mb-3">
-                    <div class="card-header">
+                    <div class="card-header d-flex justify-content-between align-items-center">
                         <h5 class="mb-0"><i class="fas fa-envelope"></i> Email Notifications</h5>
+                        <span class="badge bg-{{ 'success' if settings.email_enabled else 'secondary' }}" id="emailBadge">
+                            {{ 'Enabled' if settings.email_enabled else 'Disabled' }}
+                        </span>
                     </div>
                     <div class="card-body">
+
                         <div class="mb-3">
                             <label for="email_enabled" class="form-label">
                                 <i class="fas fa-toggle-on"></i> Enable Email Notifications
@@ -29,7 +35,7 @@
                                 <option value="true" {% if settings.email_enabled %}selected{% endif %}>Enabled</option>
                                 <option value="false" {% if not settings.email_enabled %}selected{% endif %}>Disabled</option>
                             </select>
-                            <div class="form-text">Send email alerts for compliance and system health events.</div>
+                            <div class="form-text">Master switch for all email notifications.</div>
                         </div>
 
                         <div class="mb-3">
@@ -47,23 +53,74 @@
                         </div>
 
                         <div class="mb-3">
+                            <label for="alert_emails" class="form-label">
+                                <i class="fas fa-broadcast-tower"></i> EAS Alert Recipients
+                            </label>
+                            <textarea class="form-control" id="alert_emails"
+                                      name="alert_emails" rows="4"
+                                      placeholder="ops@example.com&#10;oncall@example.com">{{ (settings.alert_emails or []) | join('\n') }}</textarea>
+                            <div class="form-text">
+                                One email address per line. These recipients receive an email each time an
+                                EAS alert is broadcast.
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="email_attach_audio" class="form-label">
+                                <i class="fas fa-paperclip"></i> Attach Composite Audio
+                            </label>
+                            <select class="form-select" id="email_attach_audio" name="email_attach_audio">
+                                <option value="true" {% if settings.email_attach_audio %}selected{% endif %}>Yes &ndash; attach EAS audio WAV to alert emails</option>
+                                <option value="false" {% if not settings.email_attach_audio %}selected{% endif %}>No &ndash; text-only alert emails</option>
+                            </select>
+                            <div class="form-text">
+                                When enabled, the full composite EAS audio (SAME header + attention tone +
+                                voice message + EOM) is attached to each alert email as a WAV file.
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
                             <label for="compliance_alert_emails" class="form-label">
-                                <i class="fas fa-users"></i> Compliance Alert Recipients
+                                <i class="fas fa-shield-alt"></i> Compliance / Health Alert Recipients
                             </label>
                             <textarea class="form-control" id="compliance_alert_emails"
-                                      name="compliance_alert_emails" rows="4"
+                                      name="compliance_alert_emails" rows="3"
                                       placeholder="admin@example.com&#10;oncall@example.com">{{ (settings.compliance_alert_emails or []) | join('\n') }}</textarea>
-                            <div class="form-text">One email address per line. These recipients receive system health and compliance alerts.</div>
+                            <div class="form-text">
+                                One email address per line. These recipients receive system health and
+                                FCC compliance alerts (separate from EAS broadcast notifications).
+                            </div>
                         </div>
+
+                        <div class="d-flex gap-2 align-items-center">
+                            <div class="input-group" style="max-width:320px;">
+                                <input type="email" class="form-control form-control-sm"
+                                       id="testEmailRecipient"
+                                       placeholder="Test recipient email">
+                            </div>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" id="testEmailBtn">
+                                <i class="fas fa-paper-plane"></i> Send Test Email
+                            </button>
+                        </div>
+                        <div class="form-text mt-1">
+                            Leave blank to use the first configured EAS Alert Recipient.
+                        </div>
+
                     </div>
                 </div>
 
-                <!-- SMS Notifications -->
+                <!-- ============================================================
+                     SMS NOTIFICATIONS
+                     ============================================================ -->
                 <div class="card mb-3">
-                    <div class="card-header">
-                        <h5 class="mb-0"><i class="fas fa-sms"></i> SMS Notifications</h5>
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0"><i class="fas fa-sms"></i> SMS Notifications (Twilio)</h5>
+                        <span class="badge bg-{{ 'success' if settings.sms_enabled else 'secondary' }}" id="smsBadge">
+                            {{ 'Enabled' if settings.sms_enabled else 'Disabled' }}
+                        </span>
                     </div>
                     <div class="card-body">
+
                         <div class="mb-3">
                             <label for="sms_enabled" class="form-label">
                                 <i class="fas fa-toggle-on"></i> Enable SMS Notifications
@@ -72,12 +129,90 @@
                                 <option value="true" {% if settings.sms_enabled %}selected{% endif %}>Enabled</option>
                                 <option value="false" {% if not settings.sms_enabled %}selected{% endif %}>Disabled</option>
                             </select>
-                            <div class="form-text">SMS notification delivery (requires additional SMS gateway configuration).</div>
+                            <div class="form-text">Master switch for SMS notifications.</div>
                         </div>
-                        <div class="alert alert-info mb-0">
+
+                        <input type="hidden" name="sms_provider" value="twilio">
+
+                        <div class="alert alert-info py-2 mb-3">
                             <i class="fas fa-info-circle"></i>
-                            SMS gateway configuration will be available in a future update.
+                            SMS delivery uses <strong>Twilio</strong>. You need a Twilio account with a purchased
+                            phone number. Sign up at
+                            <a href="https://www.twilio.com/" target="_blank" rel="noopener">twilio.com</a>.
                         </div>
+
+                        <div class="mb-3">
+                            <label for="sms_account_sid" class="form-label">
+                                <i class="fas fa-key"></i> Account SID
+                            </label>
+                            <input type="text" class="form-control" id="sms_account_sid"
+                                   name="sms_account_sid"
+                                   value="{{ settings.sms_account_sid or '' }}"
+                                   placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                                   autocomplete="off">
+                            <div class="form-text">Found on your Twilio Console dashboard.</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="sms_auth_token" class="form-label">
+                                <i class="fas fa-lock"></i> Auth Token
+                            </label>
+                            <div class="input-group">
+                                <input type="password" class="form-control" id="sms_auth_token"
+                                       name="sms_auth_token"
+                                       placeholder="{% if settings.sms_auth_token %}(saved &ndash; leave blank to keep){% else %}Enter Twilio Auth Token{% endif %}"
+                                       autocomplete="new-password">
+                                <button class="btn btn-outline-secondary" type="button" id="toggleAuthToken"
+                                        title="Show/hide auth token">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                            </div>
+                            <div class="form-text">
+                                Found on your Twilio Console dashboard.
+                                {% if settings.sms_auth_token %}Leave blank to keep the existing token.{% endif %}
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="sms_from_number" class="form-label">
+                                <i class="fas fa-phone"></i> From Number
+                            </label>
+                            <input type="text" class="form-control" id="sms_from_number"
+                                   name="sms_from_number"
+                                   value="{{ settings.sms_from_number or '' }}"
+                                   placeholder="+15555550100">
+                            <div class="form-text">
+                                Your Twilio phone number in E.164 format (e.g. <code>+15555550100</code>).
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="sms_recipients" class="form-label">
+                                <i class="fas fa-users"></i> SMS Recipients
+                            </label>
+                            <textarea class="form-control" id="sms_recipients"
+                                      name="sms_recipients" rows="4"
+                                      placeholder="+15555551234&#10;+15555555678">{{ (settings.sms_recipients or []) | join('\n') }}</textarea>
+                            <div class="form-text">
+                                One phone number per line in E.164 format (e.g. <code>+15555551234</code>).
+                                Each recipient is sent an SMS when an EAS alert is broadcast.
+                            </div>
+                        </div>
+
+                        <div class="d-flex gap-2 align-items-center">
+                            <div class="input-group" style="max-width:240px;">
+                                <input type="tel" class="form-control form-control-sm"
+                                       id="testSmsRecipient"
+                                       placeholder="Test number (+1...)">
+                            </div>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" id="testSmsBtn">
+                                <i class="fas fa-paper-plane"></i> Send Test SMS
+                            </button>
+                        </div>
+                        <div class="form-text mt-1">
+                            Leave blank to use the first configured SMS recipient.
+                        </div>
+
                     </div>
                 </div>
 
@@ -90,17 +225,19 @@
             </form>
         </div>
 
-        <!-- Sidebar -->
+        <!-- ============================================================
+             SIDEBAR
+             ============================================================ -->
         <div class="col-lg-4">
             <div class="card mb-3">
                 <div class="card-header">
-                    <h5 class="mb-0"><i class="fas fa-info-circle"></i> Current Settings</h5>
+                    <h5 class="mb-0"><i class="fas fa-info-circle"></i> Current Status</h5>
                 </div>
                 <div class="card-body">
                     <ul class="list-unstyled mb-0">
                         <li class="mb-2">
                             <strong>Email:</strong>
-                            <span class="badge bg-{{ 'success' if settings.email_enabled else 'secondary' }}" id="emailBadge">
+                            <span class="badge bg-{{ 'success' if settings.email_enabled else 'secondary' }}" id="emailBadgeSidebar">
                                 {{ 'Enabled' if settings.email_enabled else 'Disabled' }}
                             </span>
                         </li>
@@ -112,40 +249,80 @@
                         </li>
                         <li class="mb-2">
                             <strong>Alert Recipients:</strong>
-                            <span id="recipientsCount">{{ (settings.compliance_alert_emails or []) | length }}</span>
+                            <span id="alertEmailCount">{{ (settings.alert_emails or []) | length }}</span>
                         </li>
                         <li class="mb-2">
+                            <strong>Attach Audio:</strong>
+                            <span id="attachAudioDisplay" class="text-muted small">
+                                {{ 'Yes' if settings.email_attach_audio else 'No' }}
+                            </span>
+                        </li>
+                        <li class="mb-2">
+                            <strong>Compliance Recipients:</strong>
+                            <span id="recipientsCount">{{ (settings.compliance_alert_emails or []) | length }}</span>
+                        </li>
+                        <hr class="my-2">
+                        <li class="mb-2">
                             <strong>SMS:</strong>
-                            <span class="badge bg-{{ 'success' if settings.sms_enabled else 'secondary' }}" id="smsBadge">
+                            <span class="badge bg-{{ 'success' if settings.sms_enabled else 'secondary' }}" id="smsBadgeSidebar">
                                 {{ 'Enabled' if settings.sms_enabled else 'Disabled' }}
                             </span>
                         </li>
+                        <li class="mb-2">
+                            <strong>Twilio Configured:</strong>
+                            <span id="twilioConfigured" class="text-muted small">
+                                {% if settings.sms_account_sid and settings.sms_auth_token and settings.sms_from_number %}Yes{% else %}No{% endif %}
+                            </span>
+                        </li>
+                        <li class="mb-2">
+                            <strong>SMS Recipients:</strong>
+                            <span id="smsRecipientCount">{{ (settings.sms_recipients or []) | length }}</span>
+                        </li>
+                        <hr class="my-2">
                         <li class="mb-0">
                             <strong>Last Updated:</strong>
                             <small class="text-muted" id="lastUpdated">
-                                {{ settings.updated_at.strftime('%Y-%m-%d %H:%M:%S') if settings.updated_at else 'Never' }}
+                                {{ settings.updated_at.strftime('%Y-%m-%d %H:%M:%S UTC') if settings.updated_at else 'Never' }}
                             </small>
                         </li>
                     </ul>
                 </div>
             </div>
 
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-question-circle"></i> Email Help</h5>
+                </div>
+                <div class="card-body small">
+                    <h6>Mail URL Format</h6>
+                    <code class="d-block mb-2">smtp://user:pass@host:587?tls=true</code>
+                    <h6>Common Providers</h6>
+                    <ul class="mb-0">
+                        <li><strong>Gmail:</strong> smtp.gmail.com:587, TLS<br>
+                            <span class="text-muted">Requires App Password (not your regular password)</span></li>
+                        <li><strong>Office 365:</strong> smtp.office365.com:587, TLS</li>
+                        <li><strong>SendGrid:</strong> smtp.sendgrid.net:587<br>
+                            user: <code>apikey</code>, pass: your API key</li>
+                    </ul>
+                </div>
+            </div>
+
             <div class="card">
                 <div class="card-header">
-                    <h5 class="mb-0"><i class="fas fa-question-circle"></i> Help</h5>
+                    <h5 class="mb-0"><i class="fas fa-question-circle"></i> SMS Help</h5>
                 </div>
-                <div class="card-body">
-                    <h6>Mail URL Format</h6>
-                    <p class="small mb-2">
-                        The SMTP URL encodes all connection details in one string:
-                    </p>
-                    <code class="small d-block mb-3">smtp://user:pass@host:587?tls=true</code>
-                    <h6>Common Providers</h6>
-                    <ul class="small mb-0">
-                        <li><strong>Gmail:</strong> port 587, TLS</li>
-                        <li><strong>Office 365:</strong> smtp.office365.com, port 587</li>
-                        <li><strong>SendGrid:</strong> smtp.sendgrid.net, port 587</li>
-                    </ul>
+                <div class="card-body small">
+                    <h6>Getting Started with Twilio</h6>
+                    <ol class="mb-2 ps-3">
+                        <li>Create a free account at <strong>twilio.com</strong></li>
+                        <li>Get a phone number from the Twilio console</li>
+                        <li>Copy your <strong>Account SID</strong> and <strong>Auth Token</strong></li>
+                        <li>Enter the phone number in E.164 format: <code>+15555550100</code></li>
+                    </ol>
+                    <h6>Phone Number Format</h6>
+                    <p class="mb-0">All numbers must use E.164 format:<br>
+                    <code>+[country code][number]</code><br>
+                    US example: <code>+15555551234</code></p>
                 </div>
             </div>
         </div>
@@ -156,6 +333,9 @@
 document.addEventListener('DOMContentLoaded', function() {
     const form = document.getElementById('notificationSettingsForm');
 
+    // ----------------------------------------------------------------
+    // Save settings
+    // ----------------------------------------------------------------
     form.addEventListener('submit', async function(e) {
         e.preventDefault();
 
@@ -177,17 +357,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
             if (data.success) {
                 showToast('Notification settings saved successfully', 'success');
-
-                const s = data.settings;
-                document.getElementById('emailBadge').textContent = s.email_enabled ? 'Enabled' : 'Disabled';
-                document.getElementById('emailBadge').className = 'badge bg-' + (s.email_enabled ? 'success' : 'secondary');
-                document.getElementById('mailServerDisplay').textContent = s.mail_url ? 'Configured' : 'Not configured';
-                document.getElementById('recipientsCount').textContent = (s.compliance_alert_emails || []).length;
-                document.getElementById('smsBadge').textContent = s.sms_enabled ? 'Enabled' : 'Disabled';
-                document.getElementById('smsBadge').className = 'badge bg-' + (s.sms_enabled ? 'success' : 'secondary');
-                if (s.updated_at) {
-                    document.getElementById('lastUpdated').textContent = new Date(s.updated_at).toLocaleString();
-                }
+                _updateSidebar(data.settings);
             } else {
                 showToast(data.error || 'Failed to save settings', 'danger');
             }
@@ -199,6 +369,118 @@ document.addEventListener('DOMContentLoaded', function() {
             submitBtn.innerHTML = originalBtnText;
         }
     });
+
+    // ----------------------------------------------------------------
+    // Toggle auth token visibility
+    // ----------------------------------------------------------------
+    const toggleBtn = document.getElementById('toggleAuthToken');
+    const tokenInput = document.getElementById('sms_auth_token');
+    if (toggleBtn && tokenInput) {
+        toggleBtn.addEventListener('click', function() {
+            const isPassword = tokenInput.type === 'password';
+            tokenInput.type = isPassword ? 'text' : 'password';
+            toggleBtn.querySelector('i').className = isPassword ? 'fas fa-eye-slash' : 'fas fa-eye';
+        });
+    }
+
+    // ----------------------------------------------------------------
+    // Send test email
+    // ----------------------------------------------------------------
+    document.getElementById('testEmailBtn').addEventListener('click', async function() {
+        const btn = this;
+        const recipient = document.getElementById('testEmailRecipient').value.trim();
+        const original = btn.innerHTML;
+
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
+
+        try {
+            const fd = new FormData();
+            if (recipient) fd.append('test_recipient', recipient);
+
+            const response = await fetch('/admin/notifications/test-email', {
+                method: 'POST',
+                body: fd,
+                headers: { 'X-CSRF-Token': window.CSRF_TOKEN }
+            });
+            const data = await response.json();
+
+            if (data.success) {
+                showToast(data.message || 'Test email sent', 'success');
+            } else {
+                showToast(data.error || 'Test email failed', 'danger');
+            }
+        } catch (err) {
+            showToast('Error sending test email', 'danger');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = original;
+        }
+    });
+
+    // ----------------------------------------------------------------
+    // Send test SMS
+    // ----------------------------------------------------------------
+    document.getElementById('testSmsBtn').addEventListener('click', async function() {
+        const btn = this;
+        const recipient = document.getElementById('testSmsRecipient').value.trim();
+        const original = btn.innerHTML;
+
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
+
+        try {
+            const fd = new FormData();
+            if (recipient) fd.append('test_recipient', recipient);
+
+            const response = await fetch('/admin/notifications/test-sms', {
+                method: 'POST',
+                body: fd,
+                headers: { 'X-CSRF-Token': window.CSRF_TOKEN }
+            });
+            const data = await response.json();
+
+            if (data.success) {
+                showToast(data.message || 'Test SMS sent', 'success');
+            } else {
+                showToast(data.error || 'Test SMS failed', 'danger');
+            }
+        } catch (err) {
+            showToast('Error sending test SMS', 'danger');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = original;
+        }
+    });
+
+    // ----------------------------------------------------------------
+    // Update sidebar after save
+    // ----------------------------------------------------------------
+    function _updateSidebar(s) {
+        _setBadge('emailBadge', s.email_enabled);
+        _setBadge('emailBadgeSidebar', s.email_enabled);
+        _setBadge('smsBadge', s.sms_enabled);
+        _setBadge('smsBadgeSidebar', s.sms_enabled);
+
+        document.getElementById('mailServerDisplay').textContent = s.mail_url ? 'Configured' : 'Not configured';
+        document.getElementById('alertEmailCount').textContent = (s.alert_emails || []).length;
+        document.getElementById('attachAudioDisplay').textContent = s.email_attach_audio ? 'Yes' : 'No';
+        document.getElementById('recipientsCount').textContent = (s.compliance_alert_emails || []).length;
+        document.getElementById('smsRecipientCount').textContent = (s.sms_recipients || []).length;
+        document.getElementById('twilioConfigured').textContent =
+            (s.sms_account_sid && s.sms_from_number) ? 'Yes' : 'No';
+
+        if (s.updated_at) {
+            document.getElementById('lastUpdated').textContent = new Date(s.updated_at).toUTCString();
+        }
+    }
+
+    function _setBadge(id, enabled) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.textContent = enabled ? 'Enabled' : 'Disabled';
+        el.className = 'badge bg-' + (enabled ? 'success' : 'secondary');
+    }
 });
 </script>
 {% endblock %}
