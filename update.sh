@@ -264,6 +264,8 @@ draw_box "✓  Root privileges confirmed - Update ready to begin"
 # Configuration variables
 INSTALL_DIR="/opt/eas-station"
 SERVICE_USER="eas-station"
+SERVICE_GROUP="eas-station"
+LOG_DIR="/var/log/eas-station"
 BACKUP_DIR="/var/backups/eas-station"
 
 echo_step "Pre-flight Checks"
@@ -1222,6 +1224,11 @@ else
         NGINX_STATUS="failed"
     fi
 fi
+
+echo_progress "Ensuring log directory exists with correct ownership..."
+mkdir -p "$LOG_DIR"
+chown -R "$SERVICE_USER:$SERVICE_GROUP" "$LOG_DIR"
+echo_success "Log directory ready: $LOG_DIR"
 
 echo_progress "Starting all EAS Station services with updated code..."
 # Use restart (not start) to ensure all services reload with new code
