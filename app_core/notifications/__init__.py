@@ -51,7 +51,7 @@ def send_alert_notifications(
     try:
         from flask import has_app_context
         if not has_app_context():
-            log.debug("No Flask app context; skipping alert notifications")
+            log.warning("No Flask app context; alert notifications will not be sent")
             return
     except ImportError:
         return
@@ -61,6 +61,7 @@ def send_alert_notifications(
 
         settings = NotificationSettings.query.first()
         if not settings:
+            log.warning("No notification settings row found; skipping alert notifications")
             return
 
         # ------------------------------------------------------------------
@@ -83,8 +84,14 @@ def send_alert_notifications(
         # ------------------------------------------------------------------
         # Email
         # ------------------------------------------------------------------
-        if settings.email_enabled and settings.mail_url:
+        if not settings.email_enabled:
+            log.debug("Email notifications disabled; skipping")
+        elif not settings.mail_url:
+            log.warning("Email notifications enabled but no mail URL configured; skipping")
+        else:
             recipients = list(settings.alert_emails or [])
+            if not recipients:
+                log.warning("Email notifications enabled but no alert recipients configured; skipping")
             if recipients:
                 try:
                     from app_core.notifications.email import send_eas_alert_email
