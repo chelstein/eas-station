@@ -43,7 +43,14 @@ def _get_or_create_settings() -> NotificationSettings:
             email_enabled=False,
             mail_url='',
             compliance_alert_emails=[],
+            alert_emails=[],
+            email_attach_audio=False,
             sms_enabled=False,
+            sms_provider='twilio',
+            sms_account_sid='',
+            sms_auth_token='',
+            sms_from_number='',
+            sms_recipients=[],
         )
         db.session.add(settings)
         db.session.commit()
@@ -77,22 +84,50 @@ def update_notification_settings():
             settings = NotificationSettings(id=1)
             db.session.add(settings)
 
+        # --- Email ---
         settings.email_enabled = request.form.get('email_enabled', 'false').lower() == 'true'
         settings.mail_url = request.form.get('mail_url', '').strip()
-        settings.sms_enabled = request.form.get('sms_enabled', 'false').lower() == 'true'
+        settings.email_attach_audio = (
+            request.form.get('email_attach_audio', 'false').lower() == 'true'
+        )
 
-        # Compliance alert emails: textarea, one address per line
-        emails_raw = request.form.get('compliance_alert_emails', '').strip()
+        # Compliance alert emails: one address per line
+        compliance_raw = request.form.get('compliance_alert_emails', '').strip()
         settings.compliance_alert_emails = [
-            addr.strip() for addr in emails_raw.splitlines() if addr.strip()
+            addr.strip() for addr in compliance_raw.splitlines() if addr.strip()
+        ]
+
+        # EAS alert notification emails: one address per line
+        alert_raw = request.form.get('alert_emails', '').strip()
+        settings.alert_emails = [
+            addr.strip() for addr in alert_raw.splitlines() if addr.strip()
+        ]
+
+        # --- SMS ---
+        settings.sms_enabled = request.form.get('sms_enabled', 'false').lower() == 'true'
+        settings.sms_provider = request.form.get('sms_provider', 'twilio').strip() or 'twilio'
+        settings.sms_account_sid = request.form.get('sms_account_sid', '').strip()
+        settings.sms_from_number = request.form.get('sms_from_number', '').strip()
+
+        # Only update auth_token if a non-empty value was submitted
+        new_token = request.form.get('sms_auth_token', '').strip()
+        if new_token:
+            settings.sms_auth_token = new_token
+
+        # SMS recipients: one phone number per line
+        sms_raw = request.form.get('sms_recipients', '').strip()
+        settings.sms_recipients = [
+            num.strip() for num in sms_raw.splitlines() if num.strip()
         ]
 
         db.session.commit()
         logger.info(
             "Updated notification settings: email_enabled=%s, sms_enabled=%s, "
-            "compliance_emails=%d",
-            settings.email_enabled, settings.sms_enabled,
-            len(settings.compliance_alert_emails),
+            "alert_emails=%d, sms_recipients=%d",
+            settings.email_enabled,
+            settings.sms_enabled,
+            len(settings.alert_emails or []),
+            len(settings.sms_recipients or []),
         )
 
         return jsonify({
@@ -105,6 +140,86 @@ def update_notification_settings():
         logger.error(f"Database error updating notification settings: {str(e)}")
         db.session.rollback()
         return jsonify({'success': False, 'error': 'Database error saving notification settings'}), 500
+
+
+@notifications_bp.route('/test-email', methods=['POST'])
+@require_auth
+@require_permission('system.configure')
+def test_email():
+    """Send a test email using the current SMTP configuration."""
+    try:
+        settings = _get_or_create_settings()
+
+        if not settings.mail_url:
+            return jsonify({'success': False, 'error': 'No mail URL configured'}), 400
+
+        recipient = request.form.get('test_recipient', '').strip()
+        if not recipient:
+            # Fall back to first configured alert email or compliance email
+            all_emails = list(settings.alert_emails or []) + list(settings.compliance_alert_emails or [])
+            if all_emails:
+                recipient = all_emails[0]
+            else:
+                return jsonify({'success': False, 'error': 'No recipient address specified'}), 400
+
+        from app_core.notifications.email import test_email as _send_test
+
+        success, message = _send_test(mail_url=settings.mail_url, recipient=recipient)
+
+        if success:
+            logger.info("Test email sent to %s", recipient)
+            return jsonify({'success': True, 'message': message})
+        else:
+            logger.warning("Test email failed: %s", message)
+            return jsonify({'success': False, 'error': message}), 502
+
+    except Exception as e:
+        logger.error("Unexpected error sending test email: %s", e)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@notifications_bp.route('/test-sms', methods=['POST'])
+@require_auth
+@require_permission('system.configure')
+def test_sms():
+    """Send a test SMS using the current Twilio configuration."""
+    try:
+        settings = _get_or_create_settings()
+
+        if not settings.sms_account_sid or not settings.sms_auth_token or not settings.sms_from_number:
+            return jsonify({
+                'success': False,
+                'error': 'Twilio credentials (Account SID, Auth Token, From Number) are not configured',
+            }), 400
+
+        recipient = request.form.get('test_recipient', '').strip()
+        if not recipient:
+            # Fall back to first configured SMS recipient
+            sms_recipients = list(settings.sms_recipients or [])
+            if sms_recipients:
+                recipient = sms_recipients[0]
+            else:
+                return jsonify({'success': False, 'error': 'No recipient phone number specified'}), 400
+
+        from app_core.notifications.sms import test_sms as _send_test
+
+        success, message = _send_test(
+            account_sid=settings.sms_account_sid,
+            auth_token=settings.sms_auth_token,
+            from_number=settings.sms_from_number,
+            recipient=recipient,
+        )
+
+        if success:
+            logger.info("Test SMS sent to %s", recipient)
+            return jsonify({'success': True, 'message': message})
+        else:
+            logger.warning("Test SMS failed: %s", message)
+            return jsonify({'success': False, 'error': message}), 502
+
+    except Exception as e:
+        logger.error("Unexpected error sending test SMS: %s", e)
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @notifications_bp.route('/status', methods=['GET'])

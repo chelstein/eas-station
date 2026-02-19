@@ -2008,11 +2008,32 @@ class NotificationSettings(db.Model):
     compliance_alert_emails = db.Column(JSONB, nullable=False, default=list)
     # List of email addresses for compliance/health alert notifications
 
+    alert_emails = db.Column(JSONB, nullable=False, default=list)
+    # List of email addresses for EAS alert notifications (separate from compliance emails)
+
+    email_attach_audio = db.Column(db.Boolean, nullable=False, default=False)
+    # Attach composite EAS audio file to alert notification emails
+
     # ========================================================================
     # SMS Notifications
     # ========================================================================
     sms_enabled = db.Column(db.Boolean, nullable=False, default=False)
-    # Master switch for SMS notifications (future use)
+    # Master switch for SMS notifications
+
+    sms_provider = db.Column(db.String(50), nullable=False, default='twilio')
+    # SMS gateway provider: 'twilio'
+
+    sms_account_sid = db.Column(db.String(255), nullable=False, default='')
+    # Twilio Account SID
+
+    sms_auth_token = db.Column(db.String(255), nullable=False, default='')
+    # Twilio Auth Token
+
+    sms_from_number = db.Column(db.String(50), nullable=False, default='')
+    # Twilio sending phone number in E.164 format (e.g. +15555550100)
+
+    sms_recipients = db.Column(JSONB, nullable=False, default=list)
+    # List of destination phone numbers in E.164 format
 
     # ========================================================================
     # Metadata
@@ -2025,7 +2046,14 @@ class NotificationSettings(db.Model):
             "email_enabled": self.email_enabled,
             "mail_url": self.mail_url,
             "compliance_alert_emails": self.compliance_alert_emails or [],
+            "alert_emails": self.alert_emails or [],
+            "email_attach_audio": self.email_attach_audio,
             "sms_enabled": self.sms_enabled,
+            "sms_provider": self.sms_provider or "twilio",
+            "sms_account_sid": self.sms_account_sid or "",
+            # sms_auth_token intentionally omitted from API responses
+            "sms_from_number": self.sms_from_number or "",
+            "sms_recipients": self.sms_recipients or [],
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
 

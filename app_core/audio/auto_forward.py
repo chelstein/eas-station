@@ -263,6 +263,30 @@ def auto_forward_cap_alert(
             cap_alert, db_session, True, reason, log,
             audio_url=broadcast_result.get('audio_path'),
         )
+
+        # Send email/SMS notifications for this broadcast
+        try:
+            from app_core.notifications import send_alert_notifications
+
+            alert_info = {
+                'event_code': broadcast_result.get('event_code') or event_code or '',
+                'headline': getattr(cap_alert, 'headline', '') or '',
+                'same_header': broadcast_result.get('same_header', ''),
+                'location_codes': fips_codes,
+                'source': getattr(cap_alert, 'source', 'CAP') or 'CAP',
+                'timestamp': (
+                    getattr(cap_alert, 'sent', None) or datetime.now(timezone.utc)
+                ).isoformat(),
+            }
+            send_alert_notifications(
+                record_id=broadcast_result.get('record_id'),
+                alert_info=alert_info,
+                db_session=db_session,
+                logger_instance=log,
+            )
+        except Exception as _notif_exc:
+            log.warning("Notification dispatch failed (non-fatal): %s", _notif_exc)
+
     else:
         reason = broadcast_result.get('reason', 'Broadcast not triggered')
         log.info("Auto-forward did not trigger broadcast for %s: %s", result['identifier'], reason)
@@ -406,6 +430,28 @@ def auto_forward_ota_alert(
         result['forwarded'] = True
         result['same_header'] = broadcast_result.get('same_header')
         result['record_id'] = broadcast_result.get('record_id')
+
+        # Send email/SMS notifications for this broadcast
+        try:
+            from app_core.notifications import send_alert_notifications
+
+            alert_info = {
+                'event_code': event_code,
+                'headline': alert_object.headline,
+                'same_header': broadcast_result.get('same_header', ''),
+                'location_codes': list(fips_codes),
+                'source': source_name,
+                'timestamp': datetime.now(timezone.utc).isoformat(),
+            }
+            send_alert_notifications(
+                record_id=broadcast_result.get('record_id'),
+                alert_info=alert_info,
+                db_session=db_session,
+                logger_instance=log,
+            )
+        except Exception as _notif_exc:
+            log.warning("Notification dispatch failed (non-fatal): %s", _notif_exc)
+
     else:
         result['reason'] = broadcast_result.get('reason', 'Broadcast not triggered')
         log.info("OTA auto-forward did not trigger broadcast: %s", result['reason'])

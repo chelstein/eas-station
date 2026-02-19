@@ -116,6 +116,9 @@ rpi-ws281x>=0.0.5  # NeoPixel/WS2812B addressable LED strip control (requires DM
 pyotp==2.9.0  # TOTP (Time-based One-Time Password) generation and verification
 qrcode==8.2  # QR code generation for MFA enrollment
 
+# SMS notifications via Twilio
+twilio>=9.0.0  # Twilio REST API client for SMS alert delivery
+
 # Geospatial data processing
 pyshp==3.0.3  # Shapefile reader for converting boundary files to GeoJSON
 
