@@ -54,11 +54,19 @@ def parse_mail_url(mail_url: str) -> Dict[str, Any]:
 
     default_port = 465 if use_ssl else 587
 
+    username = parsed.username
+    password = parsed.password
+    # Strip whitespace that can sneak in from copy-paste (e.g. "user: password")
+    if username:
+        username = username.strip() or None
+    if password:
+        password = password.strip() or None
+
     return {
         "host": parsed.hostname or "localhost",
         "port": int(parsed.port) if parsed.port else default_port,
-        "username": parsed.username or None,
-        "password": parsed.password or None,
+        "username": username,
+        "password": password,
         "use_tls": use_tls,
         "use_ssl": use_ssl,
     }
