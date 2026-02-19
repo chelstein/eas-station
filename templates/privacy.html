@@ -41,6 +41,23 @@
                            personally identifiable information through these integrations.</p>
                     </section>
                     <section class="mb-4">
+                        <h2 class="h4 text-primary">3a. SMS Notifications (Twilio)</h2>
+                        <p>If the system administrator enables SMS notifications, phone numbers entered into the
+                           EAS Station admin panel are stored in the local database and transmitted to
+                           <strong>Twilio, Inc.</strong> solely for the purpose of delivering emergency alert
+                           text messages. The EAS Station maintainers have no access to phone numbers in any
+                           operator deployment.</p>
+                        <ul>
+                            <li><strong>Purpose:</strong> Delivery of EAS emergency alert notifications only.</li>
+                            <li><strong>Data stored:</strong> E.164-formatted phone numbers in the local PostgreSQL database.</li>
+                            <li><strong>Third-party processor:</strong> Twilio, Inc. (<a href="https://www.twilio.com/en-us/legal/privacy" target="_blank" rel="noopener">Twilio Privacy Policy</a>).</li>
+                            <li><strong>Opt-out:</strong> Reply <strong>STOP</strong> to any message, or ask the system operator to remove your number from the admin panel.</li>
+                            <li><strong>Message frequency:</strong> Varies with EAS alert volume; multiple messages per day are possible during active alert events.</li>
+                            <li><strong>Message and data rates may apply</strong> per your mobile carrier plan.</li>
+                        </ul>
+                        <p>See the full <a href="{{ url_for('sms_compliance_page') }}">SMS Messaging Policy</a> for details.</p>
+                    </section>
+                    <section class="mb-4">
                         <h2 class="h4 text-primary">4. Development & Testing Data</h2>
                         <p>Because EAS Station is experimental, populate it only with non-production test data. Do not ingest live
                            IPAWS traffic, dispatch center logs, or other mission critical sources. The maintainers do not accept

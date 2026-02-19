@@ -80,6 +80,36 @@
                            encryption, access controls, or secure deletion mechanisms will meet your regulatory requirements.</p>
                     </section>
                     <section class="mb-4">
+                        <h2 class="h4 text-primary">6a. SMS Messaging Terms</h2>
+                        <p>If you enable the SMS notification feature, the following terms apply to you as the
+                           system operator:</p>
+                        <ul>
+                            <li>You may only add phone numbers belonging to individuals who have provided
+                                <strong>explicit, prior written consent</strong> to receive EAS alert SMS messages
+                                from your deployment of this software.</li>
+                            <li>You are solely responsible for obtaining, documenting, and honoring consent,
+                                and for complying with all applicable laws including the
+                                Telephone Consumer Protection Act (TCPA), CTIA guidelines, and applicable
+                                carrier requirements.</li>
+                            <li>Messages sent by EAS Station via Twilio are for <strong>emergency alert notification
+                                purposes only</strong>. Do not use the SMS feature for marketing, promotional,
+                                or non-emergency communications.</li>
+                            <li>You must honor opt-out requests (STOP) promptly and remove the corresponding
+                                number from the admin panel. Twilio handles STOP/HELP/CANCEL keyword processing
+                                automatically at the carrier level.</li>
+                            <li><strong>Message and data rates may apply</strong> to recipients per their mobile
+                                carrier plan. Inform recipients of this before obtaining consent.</li>
+                            <li>Message frequency varies with EAS alert volume and may be high during active
+                                weather or emergency events. Disclose expected frequency to recipients prior
+                                to consent.</li>
+                            <li>The project maintainers disclaim all liability for your use of the SMS feature,
+                                including any regulatory violations, carrier fees, or claims arising from
+                                messages sent through your deployment.</li>
+                        </ul>
+                        <p>See the <a href="{{ url_for('sms_compliance_page') }}">SMS Messaging Policy</a> page
+                           for the consumer-facing disclosures required by Twilio and carriers.</p>
+                    </section>
+                    <section class="mb-4">
                         <h2 class="h4 text-primary">7. Security Expectations</h2>
                         <p>You are responsible for securing any deployment, including network isolation, credential management,
                            TLS termination, and operating system hardening. The maintainers do not warrant that the software is

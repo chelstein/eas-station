@@ -117,6 +117,7 @@ def register(app: Flask, logger) -> None:
             ("about_page", "weekly", "0.5"),
             ("privacy_page", "yearly", "0.3"),
             ("terms_page", "yearly", "0.3"),
+            ("sms_compliance_page", "yearly", "0.3"),
             ("system_health_page", "hourly", "0.6"),
             ("logs", "hourly", "0.4"),
         ]
@@ -658,6 +659,10 @@ def register(app: Flask, logger) -> None:
     @app.route("/privacy")
     def privacy_page():
         return _render_policy_page("PRIVACY_POLICY.md", "Privacy Policy")
+
+    @app.route("/sms-compliance")
+    def sms_compliance_page():
+        return render_template("sms_compliance.html")
 
     @app.route("/system_health")
     def system_health_page():
