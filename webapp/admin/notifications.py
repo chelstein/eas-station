@@ -227,10 +227,10 @@ def test_sms():
 @require_auth
 @require_permission('system.configure')
 def postal_status():
-    """Check whether a local Postal SMTP server is reachable on localhost:2525."""
+    """Check whether a local Postfix SMTP server is reachable on localhost:25.
+    Route name kept for backwards compatibility."""
     smtp_host = '127.0.0.1'
-    smtp_port = 2525
-    web_url = 'http://localhost:5000'
+    smtp_port = 25
 
     running = False
     try:
@@ -243,8 +243,7 @@ def postal_status():
         'running': running,
         'smtp_host': smtp_host,
         'smtp_port': smtp_port,
-        'smtp_url_template': f'smtp://<username>:<password>@{smtp_host}:{smtp_port}',
-        'web_ui': web_url,
+        'smtp_url': f'smtp://{smtp_host}:{smtp_port}' if running else '',
     })
 
 

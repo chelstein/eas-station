@@ -298,52 +298,34 @@
                 </div>
             </div>
 
-            <!-- Postal local mail server card -->
-            <div class="card mb-3" id="postalCard">
+            <!-- Local Postfix mail server card -->
+            <div class="card mb-3" id="postfixCard">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h5 class="mb-0">
-                        <i class="fas fa-server"></i> Local Postal Server
+                        <i class="fas fa-server"></i> Local Mail Server
                     </h5>
-                    <span id="postalStatusBadge" class="badge bg-secondary">Checking…</span>
+                    <span id="postfixStatusBadge" class="badge bg-secondary">Checking…</span>
                 </div>
                 <div class="card-body small">
-                    <p class="mb-2">
-                        EAS Station can use a self-hosted
-                        <strong>Postal</strong> mail server running on this machine
-                        instead of an external SMTP provider.
-                    </p>
-                    <div id="postalRunning" class="d-none">
+                    <div id="postfixRunning" class="d-none">
                         <div class="alert alert-success py-2 mb-2">
                             <i class="fas fa-circle-check me-1"></i>
-                            Postal SMTP is running on <code>localhost:2525</code>.
+                            Postfix is running on <code>localhost:25</code>.
                         </div>
-                        <p class="mb-1">Enter your Postal SMTP credentials below to auto-fill the Mail Server URL:</p>
-                        <div class="mb-2">
-                            <input type="text" class="form-control form-control-sm mb-1"
-                                   id="postalUser" placeholder="Postal SMTP username">
-                            <input type="password" class="form-control form-control-sm"
-                                   id="postalPass" placeholder="Postal SMTP password">
-                        </div>
-                        <div class="d-flex gap-2">
-                            <button type="button" class="btn btn-sm btn-success w-100" id="usePostalBtn">
-                                <i class="fas fa-plug"></i> Use Local Postal
-                            </button>
-                            <a href="http://localhost:5000" target="_blank"
-                               class="btn btn-sm btn-outline-secondary" title="Open Postal web UI">
-                                <i class="fas fa-external-link-alt"></i>
-                            </a>
-                        </div>
+                        <button type="button" class="btn btn-sm btn-success w-100 mb-2"
+                                id="usePostfixBtn">
+                            <i class="fas fa-bolt"></i> Use Local Postfix
+                        </button>
                     </div>
-                    <div id="postalNotRunning" class="d-none">
+                    <div id="postfixNotRunning" class="d-none">
                         <div class="alert alert-secondary py-2 mb-2">
                             <i class="fas fa-circle-xmark me-1"></i>
-                            Postal is not detected on <code>localhost:2525</code>.
+                            No local mail server detected.
                         </div>
-                        <p class="mb-0">
-                            Run <code>sudo bash scripts/setup_postal.sh</code> from the
-                            EAS Station directory to set up a local Postal mail server.
-                        </p>
                     </div>
+                    <a href="/admin/mail-server" class="btn btn-sm btn-outline-primary w-100">
+                        <i class="fas fa-envelope-open-text"></i> Open Mail Server Setup
+                    </a>
                 </div>
             </div>
 
@@ -356,13 +338,16 @@
                     <code class="d-block mb-2">smtp://user:pass@host:587?tls=true</code>
                     <h6>Common Providers</h6>
                     <ul class="mb-0">
-                        <li><strong>Postal (local):</strong> localhost:2525, no TLS<br>
-                            <span class="text-muted">Use "Local Postal Server" card above</span></li>
+                        <li><strong>Postfix (local):</strong> localhost:25, no TLS<br>
+                            <span class="text-muted">Use "Open Mail Server Setup" above</span></li>
+                        <li><strong>Brevo (free, 300/day):</strong> smtp-relay.brevo.com:587, TLS<br>
+                            <span class="text-muted">user: your login email, pass: SMTP key</span></li>
+                        <li><strong>SendGrid (free, 100/day):</strong> smtp.sendgrid.net:587<br>
+                            <span class="text-muted">user: <code>apikey</code>, pass: your API key</span></li>
+                        <li><strong>Mailgun (free, 100/day):</strong> smtp.mailgun.org:587</li>
                         <li><strong>Gmail:</strong> smtp.gmail.com:587, TLS<br>
-                            <span class="text-muted">Requires App Password (not your regular password)</span></li>
+                            <span class="text-muted">Requires App Password</span></li>
                         <li><strong>Office 365:</strong> smtp.office365.com:587, TLS</li>
-                        <li><strong>SendGrid:</strong> smtp.sendgrid.net:587<br>
-                            user: <code>apikey</code>, pass: your API key</li>
                     </ul>
                 </div>
             </div>
@@ -543,51 +528,61 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // ----------------------------------------------------------------
-    // Postal local server status check
+    // Local Postfix status check
     // ----------------------------------------------------------------
-    (async function checkPostalStatus() {
+    (async function checkPostfixStatus() {
         try {
-            const resp = await fetch('/admin/notifications/postal-status');
+            const resp = await fetch('/admin/mail-server/status');
             if (!resp.ok) return;
             const data = await resp.json();
-            const badge = document.getElementById('postalStatusBadge');
-            const runningEl = document.getElementById('postalRunning');
-            const notRunningEl = document.getElementById('postalNotRunning');
+            const badge = document.getElementById('postfixStatusBadge');
+            const runningEl = document.getElementById('postfixRunning');
+            const notRunningEl = document.getElementById('postfixNotRunning');
+            if (!badge) return;
 
-            if (data.running) {
+            if (data.port_open) {
                 badge.textContent = 'Running';
                 badge.className = 'badge bg-success';
-                runningEl.classList.remove('d-none');
+                if (runningEl) runningEl.classList.remove('d-none');
             } else {
                 badge.textContent = 'Not Running';
                 badge.className = 'badge bg-secondary';
-                notRunningEl.classList.remove('d-none');
+                if (notRunningEl) notRunningEl.classList.remove('d-none');
             }
         } catch (_) {
-            const badge = document.getElementById('postalStatusBadge');
+            const badge = document.getElementById('postfixStatusBadge');
             if (badge) { badge.textContent = 'Unknown'; }
         }
     })();
 
     // ----------------------------------------------------------------
-    // "Use Local Postal" button — fill Mail URL with Postal credentials
+    // "Use Local Postfix" — one click sets smtp://localhost:25 via API
     // ----------------------------------------------------------------
-    const usePostalBtn = document.getElementById('usePostalBtn');
-    if (usePostalBtn) {
-        usePostalBtn.addEventListener('click', function () {
-            const user = document.getElementById('postalUser').value.trim();
-            const pass = document.getElementById('postalPass').value.trim();
-            if (!user || !pass) {
-                showToast('Enter your Postal SMTP username and password first.', 'warning');
-                return;
-            }
-            const url = `smtp://${encodeURIComponent(user)}:${encodeURIComponent(pass)}@127.0.0.1:2525`;
-            const mailUrlInput = document.getElementById('mail_url');
-            if (mailUrlInput) {
-                mailUrlInput.value = url;
-                showToast('Mail Server URL updated — save settings to apply.', 'success');
-                mailUrlInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                mailUrlInput.focus();
+    const usePostfixBtn = document.getElementById('usePostfixBtn');
+    if (usePostfixBtn) {
+        usePostfixBtn.addEventListener('click', async function () {
+            const orig = this.innerHTML;
+            this.disabled = true;
+            this.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Applying…';
+            try {
+                const resp = await fetch('/admin/mail-server/apply-to-notifications', {
+                    method: 'POST',
+                    headers: { 'X-CSRF-Token': window.CSRF_TOKEN },
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    document.getElementById('mail_url').value = 'smtp://localhost:25';
+                    showToast('Mail URL set to local Postfix — save settings to apply.', 'success');
+                    document.getElementById('mail_url')
+                            .scrollIntoView({ behavior: 'smooth', block: 'center' });
+                } else {
+                    showToast(data.error || 'Failed to apply', 'danger');
+                }
+            } catch (_) {
+                showToast('Request failed', 'danger');
+            } finally {
+                this.disabled = false;
+                this.innerHTML = orig;
             }
         });
     }
