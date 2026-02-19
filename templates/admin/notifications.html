@@ -199,6 +199,15 @@
                             </div>
                         </div>
 
+                        <div class="alert alert-warning py-2 mb-3 small">
+                            <i class="fas fa-triangle-exclamation me-1"></i>
+                            <strong>Consent required:</strong> Only add numbers from individuals who have
+                            given explicit prior consent to receive EAS alert SMS messages from this system.
+                            Recipients can opt out at any time by replying <strong>STOP</strong>.
+                            Message and data rates may apply. Message frequency varies with alert volume.
+                            See the <a href="/sms-compliance" target="_blank">SMS Messaging Policy</a> for full disclosures.
+                        </div>
+
                         <div class="d-flex gap-2 align-items-center">
                             <div class="input-group" style="max-width:240px;">
                                 <input type="tel" class="form-control form-control-sm"
@@ -289,6 +298,37 @@
                 </div>
             </div>
 
+            <!-- Local Postfix mail server card -->
+            <div class="card mb-3" id="postfixCard">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="fas fa-server"></i> Local Mail Server
+                    </h5>
+                    <span id="postfixStatusBadge" class="badge bg-secondary">Checking…</span>
+                </div>
+                <div class="card-body small">
+                    <div id="postfixRunning" class="d-none">
+                        <div class="alert alert-success py-2 mb-2">
+                            <i class="fas fa-circle-check me-1"></i>
+                            Postfix is running on <code>localhost:25</code>.
+                        </div>
+                        <button type="button" class="btn btn-sm btn-success w-100 mb-2"
+                                id="usePostfixBtn">
+                            <i class="fas fa-bolt"></i> Use Local Postfix
+                        </button>
+                    </div>
+                    <div id="postfixNotRunning" class="d-none">
+                        <div class="alert alert-secondary py-2 mb-2">
+                            <i class="fas fa-circle-xmark me-1"></i>
+                            No local mail server detected.
+                        </div>
+                    </div>
+                    <a href="/admin/mail-server" class="btn btn-sm btn-outline-primary w-100">
+                        <i class="fas fa-envelope-open-text"></i> Open Mail Server Setup
+                    </a>
+                </div>
+            </div>
+
             <div class="card mb-3">
                 <div class="card-header">
                     <h5 class="mb-0"><i class="fas fa-question-circle"></i> Email Help</h5>
@@ -298,11 +338,16 @@
                     <code class="d-block mb-2">smtp://user:pass@host:587?tls=true</code>
                     <h6>Common Providers</h6>
                     <ul class="mb-0">
+                        <li><strong>Postfix (local):</strong> localhost:25, no TLS<br>
+                            <span class="text-muted">Use "Open Mail Server Setup" above</span></li>
+                        <li><strong>Brevo (free, 300/day):</strong> smtp-relay.brevo.com:587, TLS<br>
+                            <span class="text-muted">user: your login email, pass: SMTP key</span></li>
+                        <li><strong>SendGrid (free, 100/day):</strong> smtp.sendgrid.net:587<br>
+                            <span class="text-muted">user: <code>apikey</code>, pass: your API key</span></li>
+                        <li><strong>Mailgun (free, 100/day):</strong> smtp.mailgun.org:587</li>
                         <li><strong>Gmail:</strong> smtp.gmail.com:587, TLS<br>
-                            <span class="text-muted">Requires App Password (not your regular password)</span></li>
+                            <span class="text-muted">Requires App Password</span></li>
                         <li><strong>Office 365:</strong> smtp.office365.com:587, TLS</li>
-                        <li><strong>SendGrid:</strong> smtp.sendgrid.net:587<br>
-                            user: <code>apikey</code>, pass: your API key</li>
                     </ul>
                 </div>
             </div>
@@ -480,6 +525,66 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!el) return;
         el.textContent = enabled ? 'Enabled' : 'Disabled';
         el.className = 'badge bg-' + (enabled ? 'success' : 'secondary');
+    }
+
+    // ----------------------------------------------------------------
+    // Local Postfix status check
+    // ----------------------------------------------------------------
+    (async function checkPostfixStatus() {
+        try {
+            const resp = await fetch('/admin/mail-server/status');
+            if (!resp.ok) return;
+            const data = await resp.json();
+            const badge = document.getElementById('postfixStatusBadge');
+            const runningEl = document.getElementById('postfixRunning');
+            const notRunningEl = document.getElementById('postfixNotRunning');
+            if (!badge) return;
+
+            if (data.port_open) {
+                badge.textContent = 'Running';
+                badge.className = 'badge bg-success';
+                if (runningEl) runningEl.classList.remove('d-none');
+            } else {
+                badge.textContent = 'Not Running';
+                badge.className = 'badge bg-secondary';
+                if (notRunningEl) notRunningEl.classList.remove('d-none');
+            }
+        } catch (_) {
+            const badge = document.getElementById('postfixStatusBadge');
+            if (badge) { badge.textContent = 'Unknown'; }
+        }
+    })();
+
+    // ----------------------------------------------------------------
+    // "Use Local Postfix" — one click sets smtp://localhost:25 via API
+    // ----------------------------------------------------------------
+    const usePostfixBtn = document.getElementById('usePostfixBtn');
+    if (usePostfixBtn) {
+        usePostfixBtn.addEventListener('click', async function () {
+            const orig = this.innerHTML;
+            this.disabled = true;
+            this.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Applying…';
+            try {
+                const resp = await fetch('/admin/mail-server/apply-to-notifications', {
+                    method: 'POST',
+                    headers: { 'X-CSRF-Token': window.CSRF_TOKEN },
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    document.getElementById('mail_url').value = 'smtp://localhost:25';
+                    showToast('Mail URL set to local Postfix — save settings to apply.', 'success');
+                    document.getElementById('mail_url')
+                            .scrollIntoView({ behavior: 'smooth', block: 'center' });
+                } else {
+                    showToast(data.error || 'Failed to apply', 'danger');
+                }
+            } catch (_) {
+                showToast('Request failed', 'danger');
+            } finally {
+                this.disabled = false;
+                this.innerHTML = orig;
+            }
+        });
     }
 });
 </script>

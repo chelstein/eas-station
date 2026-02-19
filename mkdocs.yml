@@ -137,6 +137,8 @@ nav:
       - SDR Setup Guide: hardware/SDR_SETUP.md
       - One Button Upgrade: guides/one_button_upgrade.md
       - Audio Monitoring Dashboard: audio/AUDIO_MONITORING.md
+      - Notifications (Email & SMS): guides/notifications.md
+      - Local Mail Server (Postfix): guides/local_mail_server.md
   - Development:
       - Developer Guidelines: development/AGENTS.md
       - Git Workflow: development/git_workflow.md
@@ -183,3 +185,4 @@ nav:
   - Policies:
       - Terms of Use: policies/TERMS_OF_USE.md
       - Privacy Policy: policies/PRIVACY_POLICY.md
+      - SMS Messaging Policy: policies/SMS_MESSAGING.md

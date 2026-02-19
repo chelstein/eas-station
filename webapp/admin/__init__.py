@@ -48,6 +48,7 @@ from .tts import register_tts_routes
 from .local_authorities import register_local_authority_routes
 from .tailscale import register_tailscale_routes
 from .poller import poller_bp
+from .mail_server import register_mail_server_routes
 
 
 def register(app, logger):
@@ -85,6 +86,7 @@ def register(app, logger):
     logger.info("Application settings routes registered")
     register_local_authority_routes(app, logger)  # Local authority EAS access management
     register_tailscale_routes(app, logger)  # Tailscale VPN configuration
+    register_mail_server_routes(app, logger)  # Local Postfix mail server management
 
     # Note: Audio controller initialization removed for separated architecture.
     # In separated architecture, audio processing runs in dedicated audio-service process.
