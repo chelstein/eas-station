@@ -23,70 +23,54 @@ import logging
 import smtplib
 from email.message import EmailMessage
 from typing import Any, Dict, List, Optional, Tuple
-from urllib.parse import parse_qs, urlparse
 
 logger = logging.getLogger(__name__)
 
 
-def parse_mail_url(mail_url: str) -> Dict[str, Any]:
-    """Parse an SMTP URL into connection parameters.
+def _build_smtp_connection(host: str, port: int, security: str):
+    """Return an active SMTP connection based on security mode.
 
-    Supported formats:
-      smtp://user:pass@host:port?tls=true   — plain SMTP with STARTTLS
-      smtps://user:pass@host:port           — SMTP over SSL/TLS (e.g. port 465)
-      smtp://user:pass@host:port?ssl=true   — same as smtps://
+    Args:
+        host:     SMTP server hostname.
+        port:     SMTP server port.
+        security: "ssl" uses SMTP_SSL; "starttls" upgrades via STARTTLS;
+                  "none" makes a plain connection.
 
-    Port defaults: 465 for smtps/ssl, 587 otherwise.
-
-    Returns a dict with keys: host, port, username, password, use_tls, use_ssl.
-      use_ssl  — wrap the connection in SSL/TLS from the start (SMTP_SSL)
-      use_tls  — upgrade a plain connection via STARTTLS (ignored when use_ssl)
+    Returns:
+        An smtplib.SMTP or smtplib.SMTP_SSL instance (not yet authenticated).
     """
-    parsed = urlparse(mail_url)
-    qs = parse_qs(parsed.query)
-
-    # ssl=true query param or smtps:// scheme → SMTP_SSL mode
-    ssl_raw = qs.get("ssl", ["false"])[0]
-    use_ssl = parsed.scheme == "smtps" or ssl_raw.lower() in ("true", "1", "yes")
-
-    tls_raw = qs.get("tls", ["false"])[0]
-    use_tls = tls_raw.lower() in ("true", "1", "yes")
-
-    default_port = 465 if use_ssl else 587
-
-    username = parsed.username
-    password = parsed.password
-    # Strip whitespace that can sneak in from copy-paste (e.g. "user: password")
-    if username:
-        username = username.strip() or None
-    if password:
-        password = password.strip() or None
-
-    return {
-        "host": parsed.hostname or "localhost",
-        "port": int(parsed.port) if parsed.port else default_port,
-        "username": username,
-        "password": password,
-        "use_tls": use_tls,
-        "use_ssl": use_ssl,
-    }
+    if security == "ssl":
+        smtp = smtplib.SMTP_SSL(host, port, timeout=15)
+    else:
+        smtp = smtplib.SMTP(host, port, timeout=15)
+        if security == "starttls":
+            smtp.starttls()
+    return smtp
 
 
 def send_eas_alert_email(
     alert_info: Dict[str, Any],
     recipients: List[str],
-    mail_url: str,
+    smtp_host: str,
+    smtp_port: int,
+    smtp_username: str,
+    smtp_password: str,
+    smtp_security: str = "starttls",
     audio_data: Optional[bytes] = None,
     audio_filename: Optional[str] = None,
 ) -> bool:
     """Send an EAS alert notification email.
 
     Args:
-        alert_info: Dict with alert details (event_code, headline, same_header,
-                    location_codes, source, timestamp).
-        recipients:  List of destination email addresses.
-        mail_url:    SMTP URL (smtp://user:pass@host:port?tls=true).
-        audio_data:  Optional WAV bytes to attach to the email.
+        alert_info:    Dict with alert details (event_code, headline, same_header,
+                       location_codes, source, timestamp).
+        recipients:    List of destination email addresses.
+        smtp_host:     SMTP server hostname.
+        smtp_port:     SMTP server port.
+        smtp_username: SMTP login username (empty string for unauthenticated relay).
+        smtp_password: SMTP login password.
+        smtp_security: "none", "starttls", or "ssl".
+        audio_data:    Optional WAV bytes to attach to the email.
         audio_filename: Filename for the audio attachment.
 
     Returns:
@@ -96,14 +80,8 @@ def send_eas_alert_email(
         logger.debug("No alert email recipients configured; skipping")
         return False
 
-    if not mail_url:
-        logger.warning("No mail URL configured; skipping alert email")
-        return False
-
-    try:
-        conn = parse_mail_url(mail_url)
-    except Exception as exc:
-        logger.error("Invalid mail URL: %s", exc)
+    if not smtp_host:
+        logger.warning("No SMTP host configured; skipping alert email")
         return False
 
     event_code = alert_info.get("event_code", "UNKNOWN")
@@ -113,7 +91,7 @@ def send_eas_alert_email(
     timestamp = alert_info.get("timestamp", "")
     location_codes = alert_info.get("location_codes", [])
 
-    sender = conn["username"] or "alerts@localhost"
+    sender = smtp_username or "alerts@localhost"
 
     msg = EmailMessage()
     msg["Subject"] = f"EAS Alert: {event_code} - {headline}"
@@ -148,16 +126,9 @@ def send_eas_alert_email(
         )
 
     try:
-        if conn["use_ssl"]:
-            smtp_cls = smtplib.SMTP_SSL
-        else:
-            smtp_cls = smtplib.SMTP
-
-        with smtp_cls(conn["host"], conn["port"], timeout=15) as smtp:
-            if not conn["use_ssl"] and conn["use_tls"]:
-                smtp.starttls()
-            if conn["username"] and conn["password"]:
-                smtp.login(conn["username"], conn["password"])
+        with _build_smtp_connection(smtp_host, smtp_port, smtp_security) as smtp:
+            if smtp_username and smtp_password:
+                smtp.login(smtp_username, smtp_password)
             smtp.send_message(msg)
 
         logger.info(
@@ -169,38 +140,44 @@ def send_eas_alert_email(
 
     except Exception as exc:
         logger.error(
-            "Failed to send EAS alert email for event %s (%s://%s:%d): %s",
+            "Failed to send EAS alert email for event %s (%s:%d security=%s): %s",
             event_code,
-            "smtps" if conn["use_ssl"] else "smtp",
-            conn["host"],
-            conn["port"],
+            smtp_host,
+            smtp_port,
+            smtp_security,
             exc,
         )
         return False
 
 
-def test_email(mail_url: str, recipient: str) -> Tuple[bool, str]:
+def test_email(
+    smtp_host: str,
+    smtp_port: int,
+    smtp_username: str,
+    smtp_password: str,
+    smtp_security: str,
+    recipient: str,
+) -> Tuple[bool, str]:
     """Send a test email to verify the SMTP configuration.
 
     Args:
-        mail_url:  SMTP URL (smtp://user:pass@host:port?tls=true).
-        recipient: Destination email address for the test.
+        smtp_host:     SMTP server hostname.
+        smtp_port:     SMTP server port.
+        smtp_username: SMTP login username.
+        smtp_password: SMTP login password.
+        smtp_security: "none", "starttls", or "ssl".
+        recipient:     Destination email address for the test.
 
     Returns:
         (success: bool, message: str)
     """
-    if not mail_url:
-        return False, "No mail URL configured"
+    if not smtp_host:
+        return False, "No SMTP host configured"
 
     if not recipient:
         return False, "A recipient email address is required for testing"
 
-    try:
-        conn = parse_mail_url(mail_url)
-    except Exception as exc:
-        return False, f"Invalid mail URL: {exc}"
-
-    sender = conn["username"] or "alerts@localhost"
+    sender = smtp_username or "alerts@localhost"
 
     msg = EmailMessage()
     msg["Subject"] = "EAS Station - Test Email"
@@ -213,31 +190,30 @@ def test_email(mail_url: str, recipient: str) -> Tuple[bool, str]:
     )
 
     try:
-        if conn["use_ssl"]:
-            smtp_cls = smtplib.SMTP_SSL
-        else:
-            smtp_cls = smtplib.SMTP
-
-        with smtp_cls(conn["host"], conn["port"], timeout=15) as smtp:
-            if not conn["use_ssl"] and conn["use_tls"]:
-                smtp.starttls()
-            if conn["username"] and conn["password"]:
-                smtp.login(conn["username"], conn["password"])
+        with _build_smtp_connection(smtp_host, smtp_port, smtp_security) as smtp:
+            if smtp_username and smtp_password:
+                smtp.login(smtp_username, smtp_password)
             smtp.send_message(msg)
 
-        logger.info("Test email sent to %s via %s:%d", recipient, conn["host"], conn["port"])
+        logger.info(
+            "Test email sent to %s via %s:%d (security=%s)",
+            recipient,
+            smtp_host,
+            smtp_port,
+            smtp_security,
+        )
         return True, "Test email sent successfully"
 
     except Exception as exc:
         logger.error(
-            "Test email to %s failed (%s://%s:%d): %s",
+            "Test email to %s failed (%s:%d security=%s): %s",
             recipient,
-            "smtps" if conn["use_ssl"] else "smtp",
-            conn["host"],
-            conn["port"],
+            smtp_host,
+            smtp_port,
+            smtp_security,
             exc,
         )
         return False, f"Failed to send test email: {exc}"
 
 
-__all__ = ["parse_mail_url", "send_eas_alert_email", "test_email"]
+__all__ = ["send_eas_alert_email", "test_email"]

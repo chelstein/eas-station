@@ -91,8 +91,8 @@ def send_alert_notifications(
         # ------------------------------------------------------------------
         if not settings.email_enabled:
             log.debug("Email notifications disabled; skipping")
-        elif not settings.mail_url:
-            log.warning("Email notifications enabled but no mail URL configured; skipping")
+        elif not settings.smtp_host:
+            log.warning("Email notifications enabled but no SMTP host configured; skipping")
         else:
             recipients = list(settings.alert_emails or [])
             if not recipients:
@@ -104,7 +104,11 @@ def send_alert_notifications(
                     send_eas_alert_email(
                         alert_info=alert_info,
                         recipients=recipients,
-                        mail_url=settings.mail_url,
+                        smtp_host=settings.smtp_host,
+                        smtp_port=settings.smtp_port or 587,
+                        smtp_username=settings.smtp_username or "",
+                        smtp_password=settings.smtp_password or "",
+                        smtp_security=settings.smtp_security or "starttls",
                         audio_data=audio_data if settings.email_attach_audio else None,
                         audio_filename=audio_filename,
                     )

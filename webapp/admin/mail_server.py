@@ -267,7 +267,7 @@ def postfix_service():
 @require_auth
 @require_permission("system.configure")
 def apply_to_notifications():
-    """Set the notification mail URL to smtp://localhost:25."""
+    """Set the notification SMTP config to use local Postfix on localhost:25."""
     if not _port25_open():
         return jsonify({
             "success": False,
@@ -279,7 +279,9 @@ def apply_to_notifications():
         settings = NotificationSettings.query.first()
         if not settings:
             settings = NotificationSettings(
-                id=1, email_enabled=False, mail_url="",
+                id=1, email_enabled=False,
+                smtp_host="", smtp_port=587, smtp_username="",
+                smtp_password="", smtp_security="starttls",
                 compliance_alert_emails=[], alert_emails=[],
                 email_attach_audio=False, sms_enabled=False,
                 sms_provider="twilio", sms_account_sid="",
@@ -287,12 +289,16 @@ def apply_to_notifications():
             )
             db.session.add(settings)
 
-        settings.mail_url = "smtp://localhost:25"
+        settings.smtp_host = "localhost"
+        settings.smtp_port = 25
+        settings.smtp_username = ""
+        settings.smtp_password = ""
+        settings.smtp_security = "none"
         db.session.commit()
-        logger.info("Notification mail URL set to smtp://localhost:25")
+        logger.info("Notification SMTP set to localhost:25 (no auth, no TLS)")
         return jsonify({
             "success": True,
-            "message": "Notification settings updated to use local Postfix (smtp://localhost:25).",
+            "message": "Notification settings updated to use local Postfix (localhost:25).",
         })
     except SQLAlchemyError as exc:
         db.session.rollback()

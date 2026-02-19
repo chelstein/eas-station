@@ -2002,8 +2002,20 @@ class NotificationSettings(db.Model):
     email_enabled = db.Column(db.Boolean, nullable=False, default=False)
     # Master switch for email notifications
 
-    mail_url = db.Column(db.String(500), nullable=False, default='')
-    # SMTP connection URL: smtp://user:pass@server:port?tls=true
+    smtp_host = db.Column(db.String(255), nullable=False, default='')
+    # SMTP server hostname (e.g. smtp.gmail.com)
+
+    smtp_port = db.Column(db.Integer, nullable=False, default=587)
+    # SMTP server port (e.g. 587, 465, 25)
+
+    smtp_username = db.Column(db.String(255), nullable=False, default='')
+    # SMTP authentication username / login email
+
+    smtp_password = db.Column(db.String(255), nullable=False, default='')
+    # SMTP authentication password
+
+    smtp_security = db.Column(db.String(10), nullable=False, default='starttls')
+    # Connection security: "none", "starttls", or "ssl"
 
     compliance_alert_emails = db.Column(JSONB, nullable=False, default=list)
     # List of email addresses for compliance/health alert notifications
@@ -2044,7 +2056,11 @@ class NotificationSettings(db.Model):
         """Convert model to dictionary."""
         return {
             "email_enabled": self.email_enabled,
-            "mail_url": self.mail_url,
+            "smtp_host": self.smtp_host or "",
+            "smtp_port": self.smtp_port or 587,
+            "smtp_username": self.smtp_username or "",
+            # smtp_password intentionally omitted from API responses
+            "smtp_security": self.smtp_security or "starttls",
             "compliance_alert_emails": self.compliance_alert_emails or [],
             "alert_emails": self.alert_emails or [],
             "email_attach_audio": self.email_attach_audio,

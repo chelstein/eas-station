@@ -38,17 +38,70 @@
                             <div class="form-text">Master switch for all email notifications.</div>
                         </div>
 
+                        <div class="row g-2 mb-3">
+                            <div class="col-sm-8">
+                                <label for="smtp_host" class="form-label">
+                                    <i class="fas fa-server"></i> SMTP Server
+                                </label>
+                                <input type="text" class="form-control" id="smtp_host" name="smtp_host"
+                                       value="{{ settings.smtp_host or '' }}"
+                                       placeholder="smtp.gmail.com">
+                                <div class="form-text">Hostname of your SMTP mail server.</div>
+                            </div>
+                            <div class="col-sm-4">
+                                <label for="smtp_port" class="form-label">
+                                    <i class="fas fa-plug"></i> Port
+                                </label>
+                                <input type="number" class="form-control" id="smtp_port" name="smtp_port"
+                                       value="{{ settings.smtp_port or 587 }}"
+                                       min="1" max="65535" placeholder="587">
+                            </div>
+                        </div>
+
+                        <div class="row g-2 mb-3">
+                            <div class="col-sm-6">
+                                <label for="smtp_username" class="form-label">
+                                    <i class="fas fa-user"></i> Username
+                                </label>
+                                <input type="text" class="form-control" id="smtp_username" name="smtp_username"
+                                       value="{{ settings.smtp_username or '' }}"
+                                       placeholder="you@example.com"
+                                       autocomplete="off">
+                                <div class="form-text">Leave blank for unauthenticated relay.</div>
+                            </div>
+                            <div class="col-sm-6">
+                                <label for="smtp_password" class="form-label">
+                                    <i class="fas fa-lock"></i> Password
+                                </label>
+                                <div class="input-group">
+                                    <input type="password" class="form-control" id="smtp_password"
+                                           name="smtp_password"
+                                           placeholder="{% if settings.smtp_password %}(saved &ndash; leave blank to keep){% else %}Enter SMTP password{% endif %}"
+                                           autocomplete="new-password">
+                                    <button class="btn btn-outline-secondary" type="button"
+                                            id="toggleSmtpPassword" title="Show/hide password">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                </div>
+                                {% if settings.smtp_password %}
+                                <div class="form-text">Leave blank to keep the existing password.</div>
+                                {% endif %}
+                            </div>
+                        </div>
+
                         <div class="mb-3">
-                            <label for="mail_url" class="form-label">
-                                <i class="fas fa-server"></i> Mail Server URL
+                            <label for="smtp_security" class="form-label">
+                                <i class="fas fa-shield-halved"></i> Connection Security
                             </label>
-                            <input type="text" class="form-control" id="mail_url" name="mail_url"
-                                   value="{{ settings.mail_url }}"
-                                   placeholder="smtp://user:pass@smtp.gmail.com:587?tls=true">
+                            <select class="form-select" id="smtp_security" name="smtp_security">
+                                <option value="starttls" {% if (settings.smtp_security or 'starttls') == 'starttls' %}selected{% endif %}>STARTTLS &ndash; port 587 (recommended)</option>
+                                <option value="ssl" {% if settings.smtp_security == 'ssl' %}selected{% endif %}>SSL/TLS &ndash; port 465</option>
+                                <option value="none" {% if settings.smtp_security == 'none' %}selected{% endif %}>None &ndash; plain SMTP (local relay only)</option>
+                            </select>
                             <div class="form-text">
-                                SMTP connection URL.
-                                Format: <code>smtp://username:password@server:port?tls=true</code><br>
-                                Leave blank to disable email delivery even if enabled.
+                                STARTTLS upgrades a plain connection to encrypted.
+                                SSL/TLS encrypts from the start.
+                                Use "None" only for local servers like Postfix on port 25.
                             </div>
                         </div>
 
@@ -251,9 +304,9 @@
                             </span>
                         </li>
                         <li class="mb-2">
-                            <strong>Mail Server:</strong>
+                            <strong>SMTP Server:</strong>
                             <span id="mailServerDisplay" class="text-muted small">
-                                {% if settings.mail_url %}Configured{% else %}Not configured{% endif %}
+                                {% if settings.smtp_host %}{{ settings.smtp_host }}:{{ settings.smtp_port or 587 }}{% else %}Not configured{% endif %}
                             </span>
                         </li>
                         <li class="mb-2">
@@ -334,21 +387,48 @@
                     <h5 class="mb-0"><i class="fas fa-question-circle"></i> Email Help</h5>
                 </div>
                 <div class="card-body small">
-                    <h6>Mail URL Format</h6>
-                    <code class="d-block mb-2">smtp://user:pass@host:587?tls=true</code>
                     <h6>Common Providers</h6>
-                    <ul class="mb-0">
-                        <li><strong>Postfix (local):</strong> localhost:25, no TLS<br>
-                            <span class="text-muted">Use "Open Mail Server Setup" above</span></li>
-                        <li><strong>Brevo (free, 300/day):</strong> smtp-relay.brevo.com:587, TLS<br>
-                            <span class="text-muted">user: your login email, pass: SMTP key</span></li>
-                        <li><strong>SendGrid (free, 100/day):</strong> smtp.sendgrid.net:587<br>
-                            <span class="text-muted">user: <code>apikey</code>, pass: your API key</span></li>
-                        <li><strong>Mailgun (free, 100/day):</strong> smtp.mailgun.org:587</li>
-                        <li><strong>Gmail:</strong> smtp.gmail.com:587, TLS<br>
-                            <span class="text-muted">Requires App Password</span></li>
-                        <li><strong>Office 365:</strong> smtp.office365.com:587, TLS</li>
-                    </ul>
+                    <table class="table table-sm table-borderless mb-0">
+                        <thead><tr><th>Provider</th><th>Server</th><th>Port</th><th>Security</th></tr></thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>Postfix (local)</strong></td>
+                                <td><code>localhost</code></td>
+                                <td>25</td>
+                                <td>None</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Brevo</strong> <span class="text-muted">(300/day free)</span></td>
+                                <td><code>smtp-relay.brevo.com</code></td>
+                                <td>587</td>
+                                <td>STARTTLS</td>
+                            </tr>
+                            <tr>
+                                <td><strong>SendGrid</strong> <span class="text-muted">(100/day free)</span></td>
+                                <td><code>smtp.sendgrid.net</code></td>
+                                <td>587</td>
+                                <td>STARTTLS</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Mailgun</strong></td>
+                                <td><code>smtp.mailgun.org</code></td>
+                                <td>587</td>
+                                <td>STARTTLS</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Gmail</strong> <span class="text-muted">(App Password)</span></td>
+                                <td><code>smtp.gmail.com</code></td>
+                                <td>587</td>
+                                <td>STARTTLS</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Office 365</strong></td>
+                                <td><code>smtp.office365.com</code></td>
+                                <td>587</td>
+                                <td>STARTTLS</td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
 
@@ -414,6 +494,19 @@ document.addEventListener('DOMContentLoaded', function() {
             submitBtn.innerHTML = originalBtnText;
         }
     });
+
+    // ----------------------------------------------------------------
+    // Toggle SMTP password visibility
+    // ----------------------------------------------------------------
+    const toggleSmtpPwBtn = document.getElementById('toggleSmtpPassword');
+    const smtpPwInput = document.getElementById('smtp_password');
+    if (toggleSmtpPwBtn && smtpPwInput) {
+        toggleSmtpPwBtn.addEventListener('click', function() {
+            const isPassword = smtpPwInput.type === 'password';
+            smtpPwInput.type = isPassword ? 'text' : 'password';
+            toggleSmtpPwBtn.querySelector('i').className = isPassword ? 'fas fa-eye-slash' : 'fas fa-eye';
+        });
+    }
 
     // ----------------------------------------------------------------
     // Toggle auth token visibility
@@ -507,7 +600,8 @@ document.addEventListener('DOMContentLoaded', function() {
         _setBadge('smsBadge', s.sms_enabled);
         _setBadge('smsBadgeSidebar', s.sms_enabled);
 
-        document.getElementById('mailServerDisplay').textContent = s.mail_url ? 'Configured' : 'Not configured';
+        document.getElementById('mailServerDisplay').textContent =
+            s.smtp_host ? (s.smtp_host + ':' + (s.smtp_port || 587)) : 'Not configured';
         document.getElementById('alertEmailCount').textContent = (s.alert_emails || []).length;
         document.getElementById('attachAudioDisplay').textContent = s.email_attach_audio ? 'Yes' : 'No';
         document.getElementById('recipientsCount').textContent = (s.compliance_alert_emails || []).length;
@@ -556,7 +650,7 @@ document.addEventListener('DOMContentLoaded', function() {
     })();
 
     // ----------------------------------------------------------------
-    // "Use Local Postfix" — one click sets smtp://localhost:25 via API
+    // "Use Local Postfix" — one click sets localhost:25 / no auth / no TLS
     // ----------------------------------------------------------------
     const usePostfixBtn = document.getElementById('usePostfixBtn');
     if (usePostfixBtn) {
@@ -571,9 +665,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 });
                 const data = await resp.json();
                 if (data.success) {
-                    document.getElementById('mail_url').value = 'smtp://localhost:25';
-                    showToast('Mail URL set to local Postfix — save settings to apply.', 'success');
-                    document.getElementById('mail_url')
+                    document.getElementById('smtp_host').value = 'localhost';
+                    document.getElementById('smtp_port').value = '25';
+                    document.getElementById('smtp_username').value = '';
+                    document.getElementById('smtp_security').value = 'none';
+                    showToast('SMTP set to local Postfix (localhost:25) — save settings to apply.', 'success');
+                    document.getElementById('smtp_host')
                             .scrollIntoView({ behavior: 'smooth', block: 'center' });
                 } else {
                     showToast(data.error || 'Failed to apply', 'danger');
