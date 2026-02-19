@@ -262,15 +262,56 @@
                     <h2 class="h4 mb-3">
                         <i class="fas fa-user me-2 text-secondary"></i>Maintainer Profile
                     </h2>
-                    <div class="row">
+
+                    <!-- Identity row -->
+                    <div class="row align-items-center mb-4">
                         <div class="col-md-8">
-                            <p><strong>Project Lead:</strong> KR8MER (Amateur Radio License)</p>
-                            <p class="mb-0">The project is maintained by an amateur radio operator actively supporting emergency communications in Putnam County, Ohio. Development follows open-source best practices with emphasis on safety, compliance, and practical field deployment.</p>
+                            <h3 class="h5 mb-1">Timothy Kramer <span class="text-muted fw-normal fs-6">/ KR8MER</span></h3>
+                            <p class="text-muted small mb-2">Project Lead &mdash; Putnam County, Ohio</p>
+                            <p class="mb-0">Timothy Kramer is the sole maintainer of EAS Station, an amateur radio operator with deep roots in public safety and mission-critical communications. EAS Station reflects his goal of pairing disciplined engineering practices with experimental emergency communications research.</p>
                         </div>
-                        <div class="col-md-4">
-                            <div class="text-center">
-                                <img src="{{ url_for('static', filename='img/ham-radio-icon.svg') }}" alt="Amateur Radio" class="img-fluid mb-2" style="max-width: 80px;">
-                                <p class="small text-muted">Amateur Radio Emergency Service</p>
+                        <div class="col-md-4 text-center mt-3 mt-md-0">
+                            <img src="{{ url_for('static', filename='img/ham-radio-icon.svg') }}" alt="Amateur Radio" class="img-fluid mb-2" style="max-width: 80px;">
+                            <p class="small text-muted mb-0">Amateur Radio Emergency Service</p>
+                        </div>
+                    </div>
+
+                    <!-- Background cards -->
+                    <div class="row g-3">
+                        <div class="col-md-6 col-lg-3">
+                            <div class="bg-light rounded p-3 h-100">
+                                <div class="text-primary mb-2">
+                                    <i class="fas fa-radio fa-lg"></i>
+                                </div>
+                                <h6 class="mb-1">Amateur Radio</h6>
+                                <p class="small text-muted mb-0">Licensed since 2004; upgraded to General Class in 2025. Active in Skywarn weather spotting and emergency communications nets.</p>
+                            </div>
+                        </div>
+                        <div class="col-md-6 col-lg-3">
+                            <div class="bg-light rounded p-3 h-100">
+                                <div class="text-danger mb-2">
+                                    <i class="fas fa-shield-alt fa-lg"></i>
+                                </div>
+                                <h6 class="mb-1">Public Safety</h6>
+                                <p class="small text-muted mb-0">17 years of service as a deputy sheriff, building first-hand familiarity with Motorola mission-critical infrastructure and public warning workflows.</p>
+                            </div>
+                        </div>
+                        <div class="col-md-6 col-lg-3">
+                            <div class="bg-light rounded p-3 h-100">
+                                <div class="text-warning mb-2">
+                                    <i class="fas fa-bolt fa-lg"></i>
+                                </div>
+                                <h6 class="mb-1">Electrician</h6>
+                                <p class="small text-muted mb-0">Currently a full-time electrical panel electrician, bringing hands-on hardware discipline and a methodical troubleshooting mindset to every layer of the stack.</p>
+                            </div>
+                        </div>
+                        <div class="col-md-6 col-lg-3">
+                            <div class="bg-light rounded p-3 h-100">
+                                <div class="text-success mb-2">
+                                    <i class="fas fa-flask fa-lg"></i>
+                                </div>
+                                <h6 class="mb-1">Home Laboratory</h6>
+                                <p class="small text-muted mb-0">Operates a lab of professional-grade radios, RTL-SDR capture nodes, digital paging decoders, and networking equipment used to validate every EAS Station release.</p>
                             </div>
                         </div>
                     </div>
