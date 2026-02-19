@@ -91,3 +91,27 @@ eas-station ALL=(ALL) NOPASSWD: /usr/bin/systemctl status icecast
 
 # Audio service management (required to reload Icecast credentials after password change)
 eas-station ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart eas-station-audio
+
+# Postfix local mail server management (required for mail server web UI)
+# These commands are used by webapp/admin/mail_server.py to install, configure,
+# and manage the local Postfix SMTP relay for outbound alert email delivery.
+
+# Postfix service lifecycle
+eas-station ALL=(ALL) NOPASSWD: /usr/bin/systemctl is-active --quiet postfix
+eas-station ALL=(ALL) NOPASSWD: /usr/bin/systemctl enable postfix
+eas-station ALL=(ALL) NOPASSWD: /usr/bin/systemctl start postfix
+eas-station ALL=(ALL) NOPASSWD: /usr/bin/systemctl stop postfix
+eas-station ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart postfix
+
+# Postfix configuration inspection (read current hostname and sender map)
+eas-station ALL=(ALL) NOPASSWD: /usr/sbin/postconf myhostname
+eas-station ALL=(ALL) NOPASSWD: /usr/sbin/postconf sender_canonical_maps
+
+# Postfix configuration validation
+eas-station ALL=(ALL) NOPASSWD: /usr/sbin/postfix check
+
+# Write generated main.cf to /etc/postfix (web process cannot write there directly)
+eas-station ALL=(ALL) NOPASSWD: /usr/bin/tee /etc/postfix/main.cf
+
+# Postfix installation via apt-get (non-interactive, suppresses debconf prompts)
+eas-station ALL=(ALL) NOPASSWD: /usr/bin/env DEBIAN_FRONTEND=noninteractive apt-get install -y postfix libsasl2-modules
