@@ -1,0 +1,37 @@
+[Unit]
+Description=EAS Station — Postal Mail Server (Docker Compose)
+Documentation=https://github.com/KR8MER/eas-station
+After=docker.service network-online.target
+Requires=docker.service
+# Postal starts before the EAS Station web service so the SMTP relay is
+# available when alert emails are first sent after boot.
+Before=eas-station-web.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+
+# __POSTAL_DIR__ is replaced by setup_postal.sh with the absolute path to
+# the postal/ subdirectory of the repository (e.g. /opt/eas-station/postal).
+WorkingDirectory=__POSTAL_DIR__
+
+# Source the generated secrets before running docker compose
+EnvironmentFile=__POSTAL_DIR__/.env
+
+ExecStart=/usr/bin/docker compose up -d --remove-orphans
+ExecStop=/usr/bin/docker compose down
+
+# If docker-compose v1 is used instead, swap the ExecStart/ExecStop lines above
+# with:
+#   ExecStart=/usr/local/bin/docker-compose up -d --remove-orphans
+#   ExecStop=/usr/local/bin/docker-compose down
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=eas-station-postal
+
+TimeoutStartSec=120
+TimeoutStopSec=60
+
+[Install]
+WantedBy=multi-user.target eas-station.target

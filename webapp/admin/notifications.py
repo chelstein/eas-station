@@ -20,6 +20,7 @@ Repository: https://github.com/KR8MER/eas-station
 """Notification settings admin routes."""
 
 import logging
+import socket
 
 from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash
 from sqlalchemy.exc import SQLAlchemyError
@@ -220,6 +221,31 @@ def test_sms():
     except Exception as e:
         logger.error("Unexpected error sending test SMS: %s", e)
         return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@notifications_bp.route('/postal-status', methods=['GET'])
+@require_auth
+@require_permission('system.configure')
+def postal_status():
+    """Check whether a local Postal SMTP server is reachable on localhost:2525."""
+    smtp_host = '127.0.0.1'
+    smtp_port = 2525
+    web_url = 'http://localhost:5000'
+
+    running = False
+    try:
+        with socket.create_connection((smtp_host, smtp_port), timeout=2):
+            running = True
+    except OSError:
+        pass
+
+    return jsonify({
+        'running': running,
+        'smtp_host': smtp_host,
+        'smtp_port': smtp_port,
+        'smtp_url_template': f'smtp://<username>:<password>@{smtp_host}:{smtp_port}',
+        'web_ui': web_url,
+    })
 
 
 @notifications_bp.route('/status', methods=['GET'])
