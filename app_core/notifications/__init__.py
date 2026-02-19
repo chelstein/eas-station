@@ -47,6 +47,11 @@ def send_alert_notifications(
         logger_instance: Optional logger override.
     """
     log = logger_instance or logger
+    log.warning(
+        "send_alert_notifications: record_id=%s event=%s",
+        record_id,
+        alert_info.get("event_code", "?"),
+    )
 
     try:
         from flask import has_app_context
