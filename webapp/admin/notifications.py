@@ -42,7 +42,11 @@ def _get_or_create_settings() -> NotificationSettings:
         settings = NotificationSettings(
             id=1,
             email_enabled=False,
-            mail_url='',
+            smtp_host='',
+            smtp_port=587,
+            smtp_username='',
+            smtp_password='',
+            smtp_security='starttls',
             compliance_alert_emails=[],
             alert_emails=[],
             email_attach_audio=False,
@@ -87,10 +91,18 @@ def update_notification_settings():
 
         # --- Email ---
         settings.email_enabled = request.form.get('email_enabled', 'false').lower() == 'true'
-        settings.mail_url = request.form.get('mail_url', '').strip()
+        settings.smtp_host = request.form.get('smtp_host', '').strip()
+        settings.smtp_port = int(request.form.get('smtp_port', '587') or '587')
+        settings.smtp_username = request.form.get('smtp_username', '').strip()
+        settings.smtp_security = request.form.get('smtp_security', 'starttls').strip() or 'starttls'
         settings.email_attach_audio = (
             request.form.get('email_attach_audio', 'false').lower() == 'true'
         )
+
+        # Only update smtp_password if a non-empty value was submitted
+        new_smtp_password = request.form.get('smtp_password', '').strip()
+        if new_smtp_password:
+            settings.smtp_password = new_smtp_password
 
         # Compliance alert emails: one address per line
         compliance_raw = request.form.get('compliance_alert_emails', '').strip()
@@ -123,9 +135,11 @@ def update_notification_settings():
 
         db.session.commit()
         logger.info(
-            "Updated notification settings: email_enabled=%s, sms_enabled=%s, "
+            "Updated notification settings: email_enabled=%s smtp=%s:%d, sms_enabled=%s, "
             "alert_emails=%d, sms_recipients=%d",
             settings.email_enabled,
+            settings.smtp_host or '(none)',
+            settings.smtp_port or 587,
             settings.sms_enabled,
             len(settings.alert_emails or []),
             len(settings.sms_recipients or []),
@@ -151,8 +165,8 @@ def test_email():
     try:
         settings = _get_or_create_settings()
 
-        if not settings.mail_url:
-            return jsonify({'success': False, 'error': 'No mail URL configured'}), 400
+        if not settings.smtp_host:
+            return jsonify({'success': False, 'error': 'No SMTP host configured'}), 400
 
         recipient = request.form.get('test_recipient', '').strip()
         if not recipient:
@@ -164,16 +178,22 @@ def test_email():
                 return jsonify({'success': False, 'error': 'No recipient address specified'}), 400
 
         from app_core.notifications.email import test_email as _send_test
-        from urllib.parse import urlparse as _urlparse
-        _parsed = _urlparse(settings.mail_url or '')
         logger.warning(
-            "Test email attempt: recipient=%s smtp=%s:%s",
+            "Test email attempt: recipient=%s smtp=%s:%d security=%s",
             recipient,
-            _parsed.hostname or '(none)',
-            _parsed.port or '(default)',
+            settings.smtp_host or '(none)',
+            settings.smtp_port or 587,
+            settings.smtp_security or 'starttls',
         )
 
-        success, message = _send_test(mail_url=settings.mail_url, recipient=recipient)
+        success, message = _send_test(
+            smtp_host=settings.smtp_host,
+            smtp_port=settings.smtp_port or 587,
+            smtp_username=settings.smtp_username or '',
+            smtp_password=settings.smtp_password or '',
+            smtp_security=settings.smtp_security or 'starttls',
+            recipient=recipient,
+        )
 
         if success:
             logger.info("Test email sent to %s", recipient)
@@ -251,7 +271,6 @@ def postal_status():
         'running': running,
         'smtp_host': smtp_host,
         'smtp_port': smtp_port,
-        'smtp_url': f'smtp://{smtp_host}:{smtp_port}' if running else '',
     })
 
 
