@@ -140,7 +140,13 @@ def send_eas_alert_email(
         return True
 
     except Exception as exc:
-        logger.error("Failed to send EAS alert email: %s", exc)
+        logger.error(
+            "Failed to send EAS alert email for event %s (smtp://%s:%d): %s",
+            event_code,
+            conn["host"],
+            conn["port"],
+            exc,
+        )
         return False
 
 
@@ -185,9 +191,17 @@ def test_email(mail_url: str, recipient: str) -> Tuple[bool, str]:
                 smtp.login(conn["username"], conn["password"])
             smtp.send_message(msg)
 
+        logger.info("Test email sent to %s via %s:%d", recipient, conn["host"], conn["port"])
         return True, "Test email sent successfully"
 
     except Exception as exc:
+        logger.error(
+            "Test email to %s failed (smtp://%s:%d): %s",
+            recipient,
+            conn["host"],
+            conn["port"],
+            exc,
+        )
         return False, f"Failed to send test email: {exc}"
 
 
