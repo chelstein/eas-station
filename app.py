@@ -134,6 +134,7 @@ from sqlalchemy.exc import OperationalError
 
 # Logging
 import logging
+import logging.handlers
 import click
 
 from app_core.boundaries import (
@@ -217,6 +218,24 @@ from app_core.datetime.parsing import parse_nws_datetime
 # Configure logging early
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Add file handler to write logs to /logs/eas_station.log
+_log_dir = '/logs'
+_log_file = os.path.join(_log_dir, 'eas_station.log')
+try:
+    os.makedirs(_log_dir, exist_ok=True)
+    _file_handler = logging.handlers.RotatingFileHandler(
+        _log_file,
+        maxBytes=10 * 1024 * 1024,  # 10 MB
+        backupCount=5,
+    )
+    _file_handler.setFormatter(logging.Formatter(
+        '%(asctime)s [%(process)d] [%(levelname)s] %(name)s: %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S',
+    ))
+    logging.getLogger().addHandler(_file_handler)
+except Exception as _log_setup_err:
+    print(f"WARNING: Could not set up log file at {_log_file}: {_log_setup_err}", file=sys.stderr)
 
 # Log application startup to help diagnose blocking issues
 logger.info("=" * 60)
