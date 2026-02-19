@@ -220,8 +220,9 @@ from app_core.datetime.parsing import parse_nws_datetime
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Add file handler to write logs to /logs/eas_station.log
-_log_dir = '/logs'
+# Add file handler to write logs to /var/log/eas-station/eas_station.log
+# (matches LOG_DIR created by install.sh for the eas-station service user)
+_log_dir = os.environ.get('EAS_LOG_DIR', '/var/log/eas-station')
 _log_file = os.path.join(_log_dir, 'eas_station.log')
 try:
     os.makedirs(_log_dir, exist_ok=True)
@@ -235,8 +236,10 @@ try:
         datefmt='%Y-%m-%d %H:%M:%S',
     ))
     logging.getLogger().addHandler(_file_handler)
+    logger.info("File logging active: %s", _log_file)
 except Exception as _log_setup_err:
     print(f"WARNING: Could not set up log file at {_log_file}: {_log_setup_err}", file=sys.stderr)
+    print(f"WARNING: Set EAS_LOG_DIR env var to a writable directory to enable file logging", file=sys.stderr)
 
 # Log application startup to help diagnose blocking issues
 logger.info("=" * 60)
