@@ -224,8 +224,10 @@ logger = logging.getLogger(__name__)
 # (matches LOG_DIR created by install.sh for the eas-station service user)
 _log_dir = os.environ.get('EAS_LOG_DIR', '/var/log/eas-station')
 _log_file = os.path.join(_log_dir, 'eas_station.log')
+print(f"[eas-station] Setting up file logging: {_log_file} (PID {os.getpid()})", file=sys.stderr, flush=True)
 try:
     os.makedirs(_log_dir, exist_ok=True)
+    print(f"[eas-station] Log directory ready: {_log_dir}", file=sys.stderr, flush=True)
     _file_handler = logging.handlers.RotatingFileHandler(
         _log_file,
         maxBytes=10 * 1024 * 1024,  # 10 MB
@@ -235,11 +237,16 @@ try:
         '%(asctime)s [%(process)d] [%(levelname)s] %(name)s: %(message)s',
         datefmt='%Y-%m-%d %H:%M:%S',
     ))
+    # Set WARNING as the floor level for the file handler so that DB log_level
+    # overrides (applied later in _load_db_settings_into_config) cannot silence
+    # notification warnings and email error messages.
+    _file_handler.setLevel(logging.WARNING)
     logging.getLogger().addHandler(_file_handler)
-    logger.info("File logging active: %s", _log_file)
+    print(f"[eas-station] File logging active: {_log_file}", file=sys.stderr, flush=True)
+    logger.warning("File logging active: %s", _log_file)
 except Exception as _log_setup_err:
-    print(f"WARNING: Could not set up log file at {_log_file}: {_log_setup_err}", file=sys.stderr)
-    print(f"WARNING: Set EAS_LOG_DIR env var to a writable directory to enable file logging", file=sys.stderr)
+    print(f"[eas-station] ERROR: Could not set up log file at {_log_file}: {_log_setup_err}", file=sys.stderr, flush=True)
+    print(f"[eas-station] Hint: set EAS_LOG_DIR env var to a writable directory", file=sys.stderr, flush=True)
 
 # Log application startup to help diagnose blocking issues
 logger.info("=" * 60)

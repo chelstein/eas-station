@@ -164,6 +164,14 @@ def test_email():
                 return jsonify({'success': False, 'error': 'No recipient address specified'}), 400
 
         from app_core.notifications.email import test_email as _send_test
+        from urllib.parse import urlparse as _urlparse
+        _parsed = _urlparse(settings.mail_url or '')
+        logger.warning(
+            "Test email attempt: recipient=%s smtp=%s:%s",
+            recipient,
+            _parsed.hostname or '(none)',
+            _parsed.port or '(default)',
+        )
 
         success, message = _send_test(mail_url=settings.mail_url, recipient=recipient)
 
