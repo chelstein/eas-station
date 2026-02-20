@@ -16,6 +16,7 @@ graph TB
         RF[RF Signals<br/>162 MHz NOAA WX]
     end
 
+    subgraph EASServices["EAS Station Services"]
         subgraph AppLayer["Application Layer"]
             APP[app<br/>Flask Web UI<br/>Port 5000]
             NOAA_POLL[noaa-poller<br/>CAP Polling]
