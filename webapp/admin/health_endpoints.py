@@ -25,6 +25,8 @@ not the empty local controller in the web application process.
 """
 
 import logging
+import os
+import shutil
 import time
 from typing import Dict, Any, Optional
 
@@ -339,6 +341,138 @@ def api_system_health():
             'status': 'error',
             'message': str(e),
             'healthy': False
+        }), 500
+
+
+def _read_meminfo() -> Dict[str, int]:
+    """Parse /proc/meminfo and return values in kB."""
+    info: Dict[str, int] = {}
+    try:
+        with open('/proc/meminfo', 'r') as f:
+            for line in f:
+                parts = line.split()
+                if len(parts) >= 2:
+                    key = parts[0].rstrip(':')
+                    try:
+                        info[key] = int(parts[1])
+                    except ValueError:
+                        pass
+    except OSError:
+        pass
+    return info
+
+
+def _read_cpu_stat() -> Dict[str, int]:
+    """Read a single snapshot of /proc/stat cpu line."""
+    try:
+        with open('/proc/stat', 'r') as f:
+            for line in f:
+                if line.startswith('cpu '):
+                    fields = line.split()[1:]
+                    names = ['user', 'nice', 'system', 'idle', 'iowait',
+                             'irq', 'softirq', 'steal']
+                    return {names[i]: int(fields[i]) for i in range(min(len(names), len(fields)))}
+    except OSError:
+        pass
+    return {}
+
+
+def _cpu_percent(interval: float = 0.1) -> Optional[float]:
+    """Measure CPU usage over a short interval using /proc/stat."""
+    t1 = _read_cpu_stat()
+    if not t1:
+        return None
+    time.sleep(interval)
+    t2 = _read_cpu_stat()
+    if not t2:
+        return None
+    idle1 = t1.get('idle', 0) + t1.get('iowait', 0)
+    idle2 = t2.get('idle', 0) + t2.get('iowait', 0)
+    total1 = sum(t1.values())
+    total2 = sum(t2.values())
+    delta_total = total2 - total1
+    delta_idle = idle2 - idle1
+    if delta_total == 0:
+        return 0.0
+    return round(100.0 * (1 - delta_idle / delta_total), 1)
+
+
+@health_bp.route('/api/health/resources', methods=['GET'])
+def api_resource_health():
+    """
+    System resource utilization: CPU, memory, disk, load average, uptime.
+
+    Returns:
+        200: Resource metrics collected successfully
+        500: Error collecting metrics
+    """
+    try:
+        result: Dict[str, Any] = {}
+
+        # --- CPU ---
+        cpu_pct = _cpu_percent()
+        if cpu_pct is not None:
+            result['cpu_percent'] = cpu_pct
+
+        # --- Load average ---
+        try:
+            load1, load5, load15 = os.getloadavg()
+            result['load_average'] = {
+                '1min': round(load1, 2),
+                '5min': round(load5, 2),
+                '15min': round(load15, 2),
+            }
+        except (OSError, AttributeError):
+            pass
+
+        # --- Memory ---
+        meminfo = _read_meminfo()
+        if meminfo:
+            mem_total_kb = meminfo.get('MemTotal', 0)
+            mem_available_kb = meminfo.get('MemAvailable', 0)
+            mem_used_kb = mem_total_kb - mem_available_kb
+            if mem_total_kb:
+                result['memory'] = {
+                    'total_mb': round(mem_total_kb / 1024, 1),
+                    'used_mb': round(mem_used_kb / 1024, 1),
+                    'available_mb': round(mem_available_kb / 1024, 1),
+                    'percent': round(100.0 * mem_used_kb / mem_total_kb, 1),
+                }
+
+        # --- Disk (root filesystem) ---
+        try:
+            disk = shutil.disk_usage('/')
+            result['disk'] = {
+                'total_gb': round(disk.total / 1024 ** 3, 2),
+                'used_gb': round(disk.used / 1024 ** 3, 2),
+                'free_gb': round(disk.free / 1024 ** 3, 2),
+                'percent': round(100.0 * disk.used / disk.total, 1),
+            }
+        except OSError:
+            pass
+
+        # --- Uptime ---
+        try:
+            with open('/proc/uptime', 'r') as f:
+                uptime_seconds = float(f.read().split()[0])
+            result['uptime_seconds'] = int(uptime_seconds)
+        except (OSError, ValueError, IndexError):
+            pass
+
+        result['timestamp'] = time.time()
+
+        return jsonify({
+            'status': 'ok',
+            'healthy': True,
+            **result,
+        })
+
+    except Exception as e:
+        logger.error(f"Error collecting resource metrics: {e}", exc_info=True)
+        return jsonify({
+            'status': 'error',
+            'message': str(e),
+            'healthy': False,
         }), 500
 
 
