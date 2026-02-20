@@ -1,0 +1,160 @@
+{% extends "base.html" %}
+
+{% block title %}Active Sessions - EAS Station{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-3">
+        <div class="col-12 d-flex justify-content-between align-items-center">
+            <div>
+                <h2><i class="fas fa-user-clock"></i> Active Sessions</h2>
+                <p class="text-muted mb-0">Monitor and manage active administrator login sessions</p>
+            </div>
+            <div class="d-flex gap-2">
+                <button class="btn btn-outline-secondary btn-sm" id="toggleHistory">
+                    <i class="fas fa-history"></i> Show History
+                </button>
+                <button class="btn btn-outline-primary btn-sm" onclick="loadSessions()">
+                    <i class="fas fa-sync-alt"></i> Refresh
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Stats Row -->
+    <div class="row mb-3" id="statsRow">
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body py-2">
+                    <div class="h4 mb-0 text-success" id="activeCount">—</div>
+                    <small class="text-muted">Active Sessions</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body py-2">
+                    <div class="h4 mb-0 text-secondary" id="uniqueUsers">—</div>
+                    <small class="text-muted">Unique Users</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sessions Table -->
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0"><i class="fas fa-list"></i> <span id="tableTitle">Active Sessions</span></h5>
+            <small class="text-muted">Updated: <span id="lastRefresh">—</span></small>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>User</th>
+                            <th>IP Address</th>
+                            <th>User Agent</th>
+                            <th>Started</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="sessionsBody">
+                        <tr><td colspan="6" class="text-center py-3 text-muted">Loading…</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let showHistory = false;
+
+document.getElementById('toggleHistory').addEventListener('click', function() {
+    showHistory = !showHistory;
+    this.innerHTML = showHistory
+        ? '<i class="fas fa-user-check"></i> Show Active Only'
+        : '<i class="fas fa-history"></i> Show History';
+    document.getElementById('tableTitle').textContent = showHistory ? 'Session History (last 100)' : 'Active Sessions';
+    loadSessions();
+});
+
+async function loadSessions() {
+    const url = showHistory ? '/api/admin/sessions?active_only=false' : '/api/admin/sessions';
+    try {
+        const resp = await fetch(url, { headers: { 'X-CSRF-Token': window.CSRF_TOKEN } });
+        const data = await resp.json();
+        renderSessions(data.sessions || []);
+        document.getElementById('lastRefresh').textContent = new Date().toLocaleTimeString();
+    } catch (e) {
+        document.getElementById('sessionsBody').innerHTML =
+            '<tr><td colspan="6" class="text-center text-danger py-3">Error loading sessions</td></tr>';
+    }
+}
+
+function renderSessions(sessions) {
+    const tbody = document.getElementById('sessionsBody');
+    const active = sessions.filter(s => s.is_active);
+
+    document.getElementById('activeCount').textContent = active.length;
+    const users = new Set(sessions.filter(s => s.is_active).map(s => s.username));
+    document.getElementById('uniqueUsers').textContent = users.size;
+
+    if (!sessions.length) {
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center py-3 text-muted">No sessions found</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = sessions.map(s => {
+        const started = s.created_at ? new Date(s.created_at).toLocaleString() : '—';
+        const ua = s.user_agent ? s.user_agent.substring(0, 60) + (s.user_agent.length > 60 ? '…' : '') : '—';
+        const statusBadge = s.is_active
+            ? '<span class="badge bg-success">Active</span>'
+            : `<span class="badge bg-secondary">${s.ended_reason || 'ended'}</span>`;
+        const actions = s.is_active
+            ? `<button class="btn btn-outline-danger btn-sm" onclick="terminateSession(${s.id})">
+                 <i class="fas fa-times"></i> Terminate
+               </button>`
+            : `<small class="text-muted">${s.ended_at ? new Date(s.ended_at).toLocaleString() : ''}</small>`;
+        return `<tr>
+            <td><i class="fas fa-user me-1"></i><strong>${escHtml(s.username || '?')}</strong></td>
+            <td><code>${escHtml(s.ip_address || '—')}</code></td>
+            <td><small class="text-muted" title="${escHtml(s.user_agent || '')}">${escHtml(ua)}</small></td>
+            <td><small>${started}</small></td>
+            <td>${statusBadge}</td>
+            <td>${actions}</td>
+        </tr>`;
+    }).join('');
+}
+
+async function terminateSession(sessionId) {
+    if (!confirm('Terminate this session? The user will be signed out on their next request.')) return;
+    try {
+        const resp = await fetch(`/api/admin/sessions/${sessionId}`, {
+            method: 'DELETE',
+            headers: { 'X-CSRF-Token': window.CSRF_TOKEN },
+        });
+        const data = await resp.json();
+        if (resp.ok) {
+            showToast(data.message || 'Session terminated', 'success');
+            loadSessions();
+        } else {
+            showToast(data.error || 'Failed to terminate session', 'danger');
+        }
+    } catch (e) {
+        showToast('Error terminating session', 'danger');
+    }
+}
+
+function escHtml(str) {
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// Auto-refresh every 30s when viewing active sessions
+setInterval(() => { if (!showHistory) loadSessions(); }, 30000);
+
+document.addEventListener('DOMContentLoaded', loadSessions);
+</script>
+{% endblock %}

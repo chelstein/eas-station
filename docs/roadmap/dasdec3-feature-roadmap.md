@@ -80,11 +80,11 @@ These are the features that prevent EAS Station from replacing a DASDEC in a reg
 - Multiple NTP servers ✅ (Implemented)
 - Manual time setting ✅ (Implemented)
 - Timezone configuration ✅ (Implemented)
-- Time sync status monitoring ⚠️ (Partial)
+- Time sync status monitoring ✅ (GET /api/health/ntp — synchronized state, offset, stratum, server via timedatectl/chronyc)
 
 **Implementation Tasks:**
-- [ ] Add detailed NTP sync status display
-- [ ] Implement NTP server health monitoring
+- [x] Add detailed NTP sync status display
+- [x] Implement NTP server health monitoring
 - [ ] Add time drift alerts
 - [ ] Create time synchronization logs
 - [ ] Add GPS time source support (optional)
@@ -99,9 +99,9 @@ These are the features that prevent EAS Station from replacing a DASDEC in a reg
 - Multiple user accounts ✅ (Implemented)
 - Role-based access control ⚠️ (Basic implementation)
 - Password policy enforcement ✅ (Configurable: length + uppercase/lowercase/digits/special)
-- User activity logging ⚠️ (Partial)
-- Session management ✅ (Implemented)
-- Password expiration ❌ (Not implemented)
+- User activity logging ✅ (AuditLog model + UI at /admin/audit-logs)
+- Session management ✅ (AdminSession tracking; active sessions at /admin/sessions)
+- Password expiration ✅ (Configurable days; warning banner on login within 14-day window)
 
 **Implementation Tasks:**
 - [ ] Implement comprehensive RBAC system
@@ -114,9 +114,9 @@ These are the features that prevent EAS Station from replacing a DASDEC in a reg
   - [x] Complexity requirements (uppercase, lowercase, digits, special characters)
   - [ ] Password history
   - [ ] Expiration (180 days default)
-- [ ] Implement password expiration warnings
-- [ ] Add user activity audit logs
-- [ ] Create user session monitoring
+- [x] Implement password expiration warnings (banner on login, configurable in Application Settings)
+- [x] Add user activity audit logs (AuditLog model, /admin/audit-logs page)
+- [x] Create user session monitoring (AdminSession table, /admin/sessions page, terminate via API)
 
 **Estimated Effort:** 3-4 weeks
 

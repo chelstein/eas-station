@@ -197,6 +197,10 @@ class AdminUser(db.Model):
     # RBAC fields
     role_id = db.Column(db.Integer, db.ForeignKey('roles.id', ondelete='SET NULL'), nullable=True)
 
+    # Password management
+    password_changed_at = db.Column(db.DateTime(timezone=True), nullable=True)
+    # Timestamp of the most recent password change (set by set_password())
+
     # MFA fields
     mfa_enabled = db.Column(db.Boolean, default=False, nullable=False)
     mfa_secret = db.Column(db.String(255), nullable=True)  # Base32-encoded TOTP secret
@@ -210,6 +214,7 @@ class AdminUser(db.Model):
     def set_password(self, password: str) -> None:
         self.password_hash = werkzeug_generate_password_hash(password)
         self.salt = "pbkdf2"
+        self.password_changed_at = utc_now()
 
     def check_password(self, password: str) -> bool:
         """Check password and flag for upgrade if using legacy format.
@@ -250,6 +255,7 @@ class AdminUser(db.Model):
             "is_active": self.is_active,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "last_login_at": self.last_login_at.isoformat() if self.last_login_at else None,
+            "password_changed_at": self.password_changed_at.isoformat() if self.password_changed_at else None,
             "role_name": self.role.name if self.role else None,
             "role_id": self.role_id,
             "mfa_enabled": self.mfa_enabled,
@@ -261,6 +267,43 @@ class AdminUser(db.Model):
         """Flask-style authentication flag used by templates."""
 
         return bool(self.is_active)
+
+
+class AdminSession(db.Model):
+    """Tracks individual administrator login sessions for monitoring.
+
+    Created on login, ended on logout or expiry.
+    Allows admins to view who is currently active and terminate sessions.
+    """
+    __tablename__ = "admin_sessions"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("admin_users.id", ondelete="CASCADE"),
+                        nullable=False, index=True)
+    ip_address = db.Column(db.String(45), nullable=True)
+    user_agent = db.Column(db.String(512), nullable=True)
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utc_now)
+    last_seen_at = db.Column(db.DateTime(timezone=True), nullable=True, default=utc_now)
+    ended_at = db.Column(db.DateTime(timezone=True), nullable=True)
+    ended_reason = db.Column(db.String(32), nullable=True)
+    # ended_reason values: 'logout', 'expired', 'admin_terminated'
+
+    # Relationship
+    user = db.relationship('AdminUser', lazy='joined', foreign_keys=[user_id])
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            'id': self.id,
+            'user_id': self.user_id,
+            'username': self.user.username if self.user else None,
+            'ip_address': self.ip_address,
+            'user_agent': self.user_agent,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'last_seen_at': self.last_seen_at.isoformat() if self.last_seen_at else None,
+            'ended_at': self.ended_at.isoformat() if self.ended_at else None,
+            'ended_reason': self.ended_reason,
+            'is_active': self.ended_at is None,
+        }
 
 
 class EASMessage(db.Model):
@@ -2136,6 +2179,9 @@ class ApplicationSettings(db.Model):
     password_require_special = db.Column(db.Boolean, nullable=False, default=False)
     # Require at least one special character (!@#$%^&*...)
 
+    password_expiration_days = db.Column(db.Integer, nullable=False, default=0)
+    # Number of days before a password expires (0 = disabled)
+
     # ========================================================================
     # Metadata
     # ========================================================================
@@ -2152,6 +2198,7 @@ class ApplicationSettings(db.Model):
             "password_require_lowercase": self.password_require_lowercase,
             "password_require_digits": self.password_require_digits,
             "password_require_special": self.password_require_special,
+            "password_expiration_days": self.password_expiration_days,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
 
