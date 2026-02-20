@@ -33,7 +33,19 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 def _escape_pdf_text(value: str) -> str:
     """Escape special characters for PDF text content."""
-    escaped = value.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
+    # Newlines must be removed before backslash-escaping to avoid broken
+    # content-stream string literals.  NOAA/IPAWS alert descriptions often
+    # contain embedded \r\n or \n paragraph breaks which, if left in place,
+    # split the PDF operator token across lines and corrupt the stream.
+    escaped = (
+        value
+        .replace("\r\n", " ")
+        .replace("\r", " ")
+        .replace("\n", " ")
+        .replace("\\", "\\\\")
+        .replace("(", "\\(")
+        .replace(")", "\\)")
+    )
     return escaped
 
 
@@ -183,12 +195,17 @@ def generate_pdf_document(
         elif isinstance(content, list):
             for line in content:
                 if isinstance(line, str):
-                    # Wrap individual lines if needed
-                    if len(line) > 95:
-                        wrapped = _wrap_text(line)
-                        body_lines.extend(wrapped)
-                    else:
-                        body_lines.append(line)
+                    # Normalise line endings and split on embedded newlines so
+                    # that NOAA/IPAWS multi-paragraph descriptions are rendered
+                    # as separate lines rather than breaking the PDF stream.
+                    sub_lines = line.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+                    for sub_line in sub_lines:
+                        # Wrap individual lines if needed
+                        if len(sub_line) > 95:
+                            wrapped = _wrap_text(sub_line)
+                            body_lines.extend(wrapped)
+                        else:
+                            body_lines.append(sub_line)
                 else:
                     body_lines.append(str(line))
 
