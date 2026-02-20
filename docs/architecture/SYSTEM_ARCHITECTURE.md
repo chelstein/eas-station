@@ -1061,11 +1061,6 @@ graph TB
     POLL_C --> DB_C
     IPAWS_C --> DB_C
 
-    HOST --> APP_C
-    HOST --> POLL_C
-    HOST --> IPAWS_C
-    HOST --> DB_C
-
     DB_C --> NVME
     APP_C --> NVME
 
@@ -1078,7 +1073,6 @@ graph TB
     APP_C --> LED_EXT
     APP_C --> MONITOR
 
-    style HOST fill:#e1f5ff
     style APP_C fill:#d4edda
     style DB_C fill:#fff3cd
     style NVME fill:#f8d7da
@@ -1089,6 +1083,8 @@ graph TB
 ```mermaid
 graph TB
     subgraph "Application Server"
+        APP[EAS Station App<br>Flask + Gunicorn]
+        POLL[CAP Pollers<br>NOAA + IPAWS]
     end
 
     subgraph "Database Server"
