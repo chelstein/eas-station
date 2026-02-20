@@ -753,14 +753,20 @@ def alert_detail_pdf(alert_id):
                 'content': alert.instruction,
             })
 
-        # Area Information
+        # Area Information — geocode fields were removed from the model;
+        # extract them from the stored raw CAP JSON payload instead.
+        _props = (alert.raw_json or {}).get('properties', {}) if alert.raw_json else {}
+        _geocode = _props.get('geocode', {}) or {}
+        geocode_same = _geocode.get('SAME', [])
+        geocode_ugc = _geocode.get('UGC', [])
+
         area_info = []
         if alert.area_desc:
             area_info.append(f"Area Description: {alert.area_desc}")
-        if alert.geocode_same:
-            area_info.append(f"SAME Codes: {alert.geocode_same}")
-        if alert.geocode_fips:
-            area_info.append(f"FIPS Codes: {alert.geocode_fips}")
+        if geocode_same:
+            area_info.append(f"SAME Codes: {', '.join(geocode_same)}")
+        if geocode_ugc:
+            area_info.append(f"UGC Codes: {', '.join(geocode_ugc)}")
 
         if area_info:
             sections.append({
@@ -768,12 +774,16 @@ def alert_detail_pdf(alert_id):
                 'content': area_info,
             })
 
-        # Source Information
+        # Source Information — sender fields were removed from the model;
+        # extract them from raw_json instead.
+        sender_name = _props.get('senderName', '') or ''
+        sender_id = _props.get('sender', '') or ''
+
         source_info = []
-        if alert.sender_name:
-            source_info.append(f"Sender: {alert.sender_name}")
-        if alert.sender:
-            source_info.append(f"Sender ID: {alert.sender}")
+        if sender_name:
+            source_info.append(f"Sender: {sender_name}")
+        if sender_id:
+            source_info.append(f"Sender ID: {sender_id}")
         if alert.source:
             source_info.append(f"Source: {alert.source}")
 
