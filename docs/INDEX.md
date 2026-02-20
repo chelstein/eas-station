@@ -44,6 +44,7 @@ Complete documentation for **EAS Station** - an Emergency Alert System platform 
 | [GPIO Relay Wiring](hardware/GPIO_RELAY_WIRING.md) | Transmitter relay wiring, pin assignments, and safety |
 | [VFD Display Setup](hardware/VFD_DISPLAY_SETUP.md) | Noritake GU140x32F vacuum fluorescent display |
 | [NeoPixel LED Control](hardware/NEOPIXEL_LED_CONTROL.md) | WS2812B addressable LED strip integration |
+| [GPS HAT Setup](hardware/GPS_HAT_SETUP.md) | Adafruit Ultimate GPS HAT for precision time and location |
 | [Audio Monitoring](audio/AUDIO_MONITORING.md) | Live stream viewer |
 | [LED Communication](hardware/BIDIRECTIONAL_LED_COMMUNICATION.md) | LED sign integration |
 | [Serial Adapters](hardware/SERIAL_TO_ETHERNET_ADAPTERS.md) | Serial device setup |

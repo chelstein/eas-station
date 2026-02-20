@@ -21,9 +21,11 @@ from __future__ import annotations
 
 """Data export routes for alerts, boundaries, and statistics."""
 
+import xml.etree.ElementTree as ET
 from typing import Any, Dict, List
+from xml.dom import minidom
 
-from flask import Flask, jsonify, request
+from flask import Flask, Response, jsonify, request
 from sqlalchemy import func
 
 from app_core.alerts import get_active_alerts_query, get_expired_alerts_query
@@ -36,6 +38,52 @@ from app_utils import (
     local_now,
     utc_now,
 )
+
+_CAP_NS = "urn:oasis:names:tc:emergency:cap:1.2"
+
+
+def _cap_elem(tag: str, text: str | None = None) -> ET.Element:
+    """Create an element in the CAP 1.2 namespace."""
+    el = ET.Element(f"{{{_CAP_NS}}}{tag}")
+    if text is not None:
+        el.text = text
+    return el
+
+
+def _alert_to_cap_element(alert: CAPAlert) -> ET.Element:
+    """Convert a CAPAlert row to a CAP 1.2 <alert> XML element."""
+    root = ET.Element(f"{{{_CAP_NS}}}alert")
+    root.set("xmlns", _CAP_NS)
+
+    root.append(_cap_elem("identifier", alert.identifier or f"eas-station-{alert.id}"))
+    root.append(_cap_elem("sender", alert.source or "eas-station"))
+    root.append(_cap_elem("sent", alert.sent.isoformat() if alert.sent else ""))
+    root.append(_cap_elem("status", alert.status or "Actual"))
+    root.append(_cap_elem("msgType", "Alert"))
+    root.append(_cap_elem("scope", "Public"))
+
+    info = _cap_elem("info")
+    info.append(_cap_elem("language", "en-US"))
+    info.append(_cap_elem("category", "Met"))
+    info.append(_cap_elem("event", alert.event or ""))
+    info.append(_cap_elem("urgency", alert.urgency or "Unknown"))
+    info.append(_cap_elem("severity", alert.severity or "Unknown"))
+    info.append(_cap_elem("certainty", alert.certainty or "Unknown"))
+
+    if alert.sent:
+        info.append(_cap_elem("effective", alert.sent.isoformat()))
+    if alert.expires:
+        info.append(_cap_elem("expires", alert.expires.isoformat()))
+    if alert.headline:
+        info.append(_cap_elem("headline", alert.headline))
+
+    if alert.area_desc:
+        area = _cap_elem("area")
+        area.append(_cap_elem("areaDesc", alert.area_desc))
+        info.append(area)
+
+    root.append(info)
+    return root
 
 
 def register(app: Flask, logger) -> None:
@@ -215,6 +263,82 @@ def register(app: Flask, logger) -> None:
         except Exception as exc:
             route_logger.error("Error exporting statistics: %s", exc)
             return jsonify({"error": "Failed to export statistics data"}), 500
+
+    @app.route("/export/alerts/cap.xml")
+    def export_alerts_cap_xml():
+        """Export alerts as OASIS CAP 1.2 XML feed."""
+        try:
+            limit = request.args.get("limit", 1000, type=int)
+            limit = min(max(1, limit), 10000)
+
+            alerts = CAPAlert.query.order_by(CAPAlert.sent.desc()).limit(limit).all()
+
+            feed = ET.Element(f"{{{_CAP_NS}}}feed")
+            feed.set("xmlns", _CAP_NS)
+            feed.set("exported_at", utc_now().isoformat())
+            feed.set("count", str(len(alerts)))
+
+            for alert in alerts:
+                feed.append(_alert_to_cap_element(alert))
+
+            raw = ET.tostring(feed, encoding="unicode", xml_declaration=False)
+            pretty = minidom.parseString(
+                f'<?xml version="1.0" encoding="UTF-8"?>{raw}'
+            ).toprettyxml(indent="  ", encoding=None)
+            # minidom adds its own declaration; strip the one we prepended
+            pretty = "\n".join(
+                line for line in pretty.splitlines() if line.strip()
+            )
+
+            return Response(pretty, mimetype="application/xml; charset=utf-8")
+        except Exception as exc:
+            route_logger.error("Error exporting CAP XML: %s", exc)
+            return Response(
+                f"<error>Failed to export CAP XML: {exc}</error>",
+                status=500,
+                mimetype="application/xml",
+            )
+
+    @app.route("/export/alerts/csv")
+    def export_alerts_csv():
+        """Export alerts as a CSV file download."""
+        try:
+            from app_utils.export import generate_csv
+
+            limit = request.args.get("limit", 10000, type=int)
+            limit = min(max(1, limit), 50000)
+
+            alerts = CAPAlert.query.order_by(CAPAlert.sent.desc()).limit(limit).all()
+            rows: List[Dict[str, Any]] = []
+            for alert in alerts:
+                rows.append(
+                    {
+                        "ID": alert.id,
+                        "Identifier": alert.identifier,
+                        "Source": alert.source,
+                        "Event": alert.event,
+                        "Status": alert.status,
+                        "Severity": alert.severity or "",
+                        "Urgency": alert.urgency or "",
+                        "Certainty": alert.certainty or "",
+                        "Sent_UTC": alert.sent.isoformat() if alert.sent else "",
+                        "Expires_UTC": alert.expires.isoformat() if alert.expires else "",
+                        "Sent_Local": format_local_datetime(alert.sent, include_utc=False) if alert.sent else "",
+                        "Headline": alert.headline or "",
+                        "Area_Description": alert.area_desc or "",
+                        "Is_Expired": is_alert_expired(alert.expires),
+                    }
+                )
+
+            csv_text = generate_csv(rows)
+            return Response(
+                csv_text,
+                mimetype="text/csv",
+                headers={"Content-Disposition": 'attachment; filename="eas_alerts.csv"'},
+            )
+        except Exception as exc:
+            route_logger.error("Error exporting alerts CSV: %s", exc)
+            return jsonify({"error": "Failed to export CSV"}), 500
 
     @app.route("/export/intersections")
     def export_intersections():

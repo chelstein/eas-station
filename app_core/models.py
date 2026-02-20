@@ -765,6 +765,17 @@ class HardwareSettings(db.Model):
     zigbee_pan_id = db.Column(db.String(20), nullable=False, default='0x1A62')
 
     # ========================================================================
+    # GPS / Time Source Settings (Adafruit Ultimate GPS HAT #2324)
+    # ========================================================================
+    gps_enabled = db.Column(db.Boolean, nullable=False, default=False)
+    gps_serial_port = db.Column(db.String(100), nullable=False, default='/dev/serial0')
+    gps_baudrate = db.Column(db.Integer, nullable=False, default=9600)
+    gps_pps_gpio_pin = db.Column(db.Integer, nullable=False, default=4)
+    gps_use_for_location = db.Column(db.Boolean, nullable=False, default=False)
+    gps_use_for_time = db.Column(db.Boolean, nullable=False, default=False)
+    gps_min_satellites = db.Column(db.Integer, nullable=False, default=4)
+
+    # ========================================================================
     # Metadata
     # ========================================================================
     updated_at = db.Column(
@@ -835,6 +846,14 @@ class HardwareSettings(db.Model):
             "zigbee_baudrate": self.zigbee_baudrate,
             "zigbee_channel": self.zigbee_channel,
             "zigbee_pan_id": self.zigbee_pan_id,
+            # GPS HAT (Adafruit #2324)
+            "gps_enabled": self.gps_enabled,
+            "gps_serial_port": self.gps_serial_port,
+            "gps_baudrate": self.gps_baudrate,
+            "gps_pps_gpio_pin": self.gps_pps_gpio_pin,
+            "gps_use_for_location": self.gps_use_for_location,
+            "gps_use_for_time": self.gps_use_for_time,
+            "gps_min_satellites": self.gps_min_satellites,
             # Metadata
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }

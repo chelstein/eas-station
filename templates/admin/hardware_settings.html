@@ -54,6 +54,9 @@
                 <li class="nav-item" role="presentation">
                     <button type="button" class="nav-link" data-tab="neopixel"><i class="fas fa-lightbulb"></i> NeoPixel</button>
                 </li>
+                <li class="nav-item" role="presentation">
+                    <button type="button" class="nav-link" data-tab="gps"><i class="fas fa-satellite"></i> GPS</button>
+                </li>
             </ul>
         </div>
         <div class="card-body">
@@ -542,6 +545,88 @@
                     </div>
                 </div>
 
+                <!-- GPS Panel -->
+                <div id="panel-gps" class="hw-panel">
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <h5 class="card-title"><i class="fas fa-satellite me-1"></i> GPS Receiver</h5>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" id="gps_enabled" name="gps_enabled" value="true" {% if settings.gps_enabled %}checked{% endif %}>
+                                <label class="form-check-label" for="gps_enabled">Enable GPS Receiver</label>
+                            </div>
+                            <p class="text-muted small mb-0">
+                                Compatible with the <a href="https://www.adafruit.com/product/2324" target="_blank" rel="noopener">Adafruit Ultimate GPS HAT (#2324)</a>
+                                and other NMEA-0183 serial GPS modules. Provides location data and precision time via PPS.
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <h5 class="card-title">Serial Connection</h5>
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label for="gps_serial_port" class="form-label">Serial Port</label>
+                                    <input type="text" class="form-control font-monospace" id="gps_serial_port" name="gps_serial_port" value="{{ settings.gps_serial_port }}" placeholder="/dev/serial0">
+                                    <small class="form-text text-muted">Default for Raspberry Pi UART: /dev/serial0</small>
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="gps_baudrate" class="form-label">Baud Rate</label>
+                                    <select class="form-select" id="gps_baudrate" name="gps_baudrate">
+                                        <option value="4800" {% if settings.gps_baudrate == 4800 %}selected{% endif %}>4800</option>
+                                        <option value="9600" {% if settings.gps_baudrate == 9600 %}selected{% endif %}>9600 (default)</option>
+                                        <option value="19200" {% if settings.gps_baudrate == 19200 %}selected{% endif %}>19200</option>
+                                        <option value="38400" {% if settings.gps_baudrate == 38400 %}selected{% endif %}>38400</option>
+                                        <option value="57600" {% if settings.gps_baudrate == 57600 %}selected{% endif %}>57600</option>
+                                        <option value="115200" {% if settings.gps_baudrate == 115200 %}selected{% endif %}>115200</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <h5 class="card-title">PPS &amp; Time Sync</h5>
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label for="gps_pps_gpio_pin" class="form-label">PPS GPIO Pin (BCM)</label>
+                                    <input type="number" class="form-control" id="gps_pps_gpio_pin" name="gps_pps_gpio_pin" value="{{ settings.gps_pps_gpio_pin }}" min="1" max="27">
+                                    <small class="form-text text-muted">GPIO 4 (BCM) on Adafruit GPS HAT #2324</small>
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="gps_min_satellites" class="form-label">Minimum Satellites for Fix</label>
+                                    <input type="number" class="form-control" id="gps_min_satellites" name="gps_min_satellites" value="{{ settings.gps_min_satellites }}" min="1" max="12">
+                                    <small class="form-text text-muted">Minimum satellites required before reporting a valid fix</small>
+                                </div>
+                            </div>
+                            <div class="row g-3 mt-1">
+                                <div class="col-md-6">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="gps_use_for_time" name="gps_use_for_time" value="true" {% if settings.gps_use_for_time %}checked{% endif %}>
+                                        <label class="form-check-label" for="gps_use_for_time">Use GPS for time sync (requires pps-gpio kernel module)</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="gps_use_for_location" name="gps_use_for_location" value="true" {% if settings.gps_use_for_location %}checked{% endif %}>
+                                        <label class="form-check-label" for="gps_use_for_location">Use GPS for station location</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <h5 class="card-title">Live GPS Status <button type="button" class="btn btn-sm btn-outline-secondary ms-2" onclick="refreshGpsStatus()"><i class="fas fa-sync-alt"></i> Refresh</button></h5>
+                            <div id="gps-status-card" class="mt-2">
+                                <span class="text-muted small">Click Refresh to load GPS status.</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Save / Cancel -->
                 <div class="d-flex gap-2 mt-3">
                     <button type="submit" class="btn btn-primary">
@@ -611,6 +696,36 @@
         });
     }
 })();
+
+function refreshGpsStatus() {
+    var container = document.getElementById('gps-status-card');
+    container.innerHTML = '<span class="text-muted small"><i class="fas fa-spinner fa-spin"></i> Loading…</span>';
+    fetch('/api/hardware/gps/status')
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            var badge = d.has_fix
+                ? '<span class="badge bg-success">Fix Acquired</span>'
+                : (d.status === 'acquiring'
+                    ? '<span class="badge bg-warning text-dark">Acquiring</span>'
+                    : '<span class="badge bg-secondary">' + (d.status || 'No Fix') + '</span>');
+            var html = '<div class="row g-2 small">'
+                + '<div class="col-sm-4"><strong>Status:</strong> ' + badge + '</div>'
+                + '<div class="col-sm-4"><strong>Port:</strong> <code>' + (d.serial_port || '—') + '</code></div>'
+                + '<div class="col-sm-4"><strong>Satellites:</strong> ' + (d.satellites !== null && d.satellites !== undefined ? d.satellites : '—') + '</div>';
+            if (d.has_fix) {
+                html += '<div class="col-sm-4"><strong>Latitude:</strong> ' + (d.latitude !== null ? d.latitude.toFixed(6) + '°' : '—') + '</div>'
+                    + '<div class="col-sm-4"><strong>Longitude:</strong> ' + (d.longitude !== null ? d.longitude.toFixed(6) + '°' : '—') + '</div>'
+                    + '<div class="col-sm-4"><strong>Altitude:</strong> ' + (d.altitude_m !== null ? d.altitude_m.toFixed(1) + ' m' : '—') + '</div>'
+                    + '<div class="col-sm-4"><strong>UTC Time:</strong> ' + (d.gps_utc_time || '—') + '</div>'
+                    + '<div class="col-sm-4"><strong>HDOP:</strong> ' + (d.hdop !== null ? d.hdop : '—') + '</div>';
+            }
+            html += '</div>';
+            container.innerHTML = html;
+        })
+        .catch(function(err) {
+            container.innerHTML = '<span class="text-danger small">Failed to load GPS status: ' + err + '</span>';
+        });
+}
 
 function restartServices() {
     if (!confirm('This will restart all EAS Station services. Continue?')) return;

@@ -455,6 +455,26 @@ def audio_detail(message_id: int):
 
         summary_data = load_or_cache_summary_payload(message)
 
+        # Build segment entries for each available audio segment
+        _SEGMENT_FIELD_MAP = [
+            ("same",      "same_audio_data",       "SAME Header"),
+            ("attention", "attention_audio_data",   "Attention Tone"),
+            ("tts",       "tts_audio_data",         "Voice Narration (TTS)"),
+            ("eom",       "eom_audio_data",         "End-of-Message (EOM)"),
+            ("buffer",    "buffer_audio_data",      "Guard Interval"),
+        ]
+        segment_entries = []
+        for seg_variant, field_name, label in _SEGMENT_FIELD_MAP:
+            blob: Optional[bytes] = getattr(message, field_name, None)
+            if blob:
+                seg_url = url_for("eas_message_audio", message_id=message.id, variant=seg_variant)
+                segment_entries.append({
+                    "label": label,
+                    "url": seg_url,
+                    "size_bytes": len(blob),
+                    "duration_seconds": None,  # Could derive from WAV header if needed
+                })
+
         return render_template(
             'audio_detail.html',
             message=message,
@@ -467,6 +487,7 @@ def audio_detail(message_id: int):
             event_name=event_name,
             severity=severity,
             status=status,
+            segment_entries=segment_entries,
             locations=locations,
         )
 
@@ -475,11 +496,23 @@ def audio_detail(message_id: int):
         flash('Unable to load audio detail at this time.', 'error')
         return redirect(url_for('audio_history'))
 
+_AUDIO_VARIANT_LABELS: dict[str, str] = {
+    "primary": "Full Broadcast",
+    "eom": "End-of-Message (EOM)",
+    "same": "SAME Header",
+    "attention": "Attention Tone",
+    "tts": "Voice Narration (TTS)",
+    "buffer": "Guard Interval",
+}
+
+_VALID_VARIANTS: frozenset[str] = frozenset(_AUDIO_VARIANT_LABELS)
+
+
 @audio_bp.route('/eas_messages/<int:message_id>/audio', methods=['GET'])
 def eas_message_audio(message_id: int):
     variant = (request.args.get('variant') or 'primary').strip().lower()
-    if variant not in {'primary', 'eom'}:
-        abort(400, description='Unsupported audio variant.')
+    if variant not in _VALID_VARIANTS:
+        abort(400, description=f'Unsupported audio variant. Valid: {", ".join(sorted(_VALID_VARIANTS))}')
 
     message = EASMessage.query.get_or_404(message_id)
     data = load_or_cache_audio_data(message, variant=variant)
@@ -489,12 +522,13 @@ def eas_message_audio(message_id: int):
     download = request.args.get('download', '').strip().lower()
     as_attachment = download in {'1', 'true', 'yes', 'download'}
 
-    if variant == 'eom':
-        filename = (message.metadata_payload or {}).get('eom_filename') if message.metadata_payload else None
-        if not filename:
-            filename = f'eas_message_{message.id}_eom.wav'
-    else:
+    meta = message.metadata_payload or {}
+    if variant == 'primary':
         filename = message.audio_filename or f'eas_message_{message.id}.wav'
+    elif variant == 'eom':
+        filename = meta.get('eom_filename') or f'eas_message_{message.id}_eom.wav'
+    else:
+        filename = meta.get(f'{variant}_filename') or f'eas_message_{message.id}_{variant}.wav'
 
     file_obj = io.BytesIO(data)
     file_obj.seek(0)
