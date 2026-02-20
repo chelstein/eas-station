@@ -19,7 +19,7 @@
             <h1 class="mb-1"><i class="fas fa-cogs"></i> Hardware Settings</h1>
             <p class="mb-0 opacity-75">Configure GPIO, displays, and other hardware peripherals</p>
         </div>
-        <button class="btn btn-light btn-sm" type="button" onclick="restartServices()">
+        <button class="btn btn-light btn-sm" type="button" onclick="restartServices(this)">
             <i class="fas fa-sync-alt"></i> Restart Services
         </button>
     </div>
@@ -628,9 +628,13 @@
                 </div>
 
                 <!-- Save / Cancel -->
+                <div id="hw-status-banner" class="d-none mt-3"></div>
                 <div class="d-flex gap-2 mt-3">
                     <button type="submit" class="btn btn-primary">
                         <i class="fas fa-save"></i> Save Settings
+                    </button>
+                    <button type="button" class="btn btn-success" onclick="saveAndRestart(this)">
+                        <i class="fas fa-bolt"></i> Save &amp; Restart
                     </button>
                     <a href="{{ url_for('index') }}" class="btn btn-secondary">Cancel</a>
                 </div>
@@ -681,18 +685,22 @@
     });
     updateLEDConnectionVisibility();
 
-    // I2C address hex display
+    // I2C address: normalize to 0x hex on blur; accepts decimal or hex input
     var i2cInput = document.getElementById('oled_i2c_address');
     if (i2cInput) {
         i2cInput.addEventListener('blur', function() {
             var val = this.value.trim();
-            if (val.startsWith('0x')) {
-                this.dataset.hex = val;
-                this.value = parseInt(val, 16);
+            var num;
+            if (/^0x[\da-fA-F]+$/i.test(val)) {
+                num = parseInt(val, 16);
+            } else if (/^\d+$/.test(val)) {
+                num = parseInt(val, 10);
+            } else {
+                return;
             }
-        });
-        i2cInput.addEventListener('focus', function() {
-            if (this.dataset.hex) this.value = this.dataset.hex;
+            if (!isNaN(num) && num >= 0 && num <= 127) {
+                this.value = '0x' + num.toString(16).padStart(2, '0');
+            }
         });
     }
 })();
@@ -727,8 +735,23 @@ function refreshGpsStatus() {
         });
 }
 
-function restartServices() {
+function showHwAlert(message, type) {
+    var banner = document.getElementById('hw-status-banner');
+    if (!banner) return;
+    banner.className = 'alert alert-' + type + ' alert-dismissible fade show mt-3';
+    banner.innerHTML = message
+        + ' <button type="button" class="btn-close" onclick="this.parentElement.className=\'d-none\'"></button>';
+    banner.classList.remove('d-none');
+    banner.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    if (type === 'success') {
+        setTimeout(function() { banner.classList.add('d-none'); }, 6000);
+    }
+}
+
+function restartServices(btn) {
     if (!confirm('This will restart all EAS Station services. Continue?')) return;
+    var label = btn ? btn.innerHTML : '';
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Restarting\u2026'; }
 
     fetch('{{ url_for("hardware.restart_hardware_services") }}', {
         method: 'POST',
@@ -736,10 +759,66 @@ function restartServices() {
     })
     .then(function(r) { return r.json(); })
     .then(function(data) {
-        alert(data.success ? 'Services restarted successfully!' : 'Failed: ' + data.error);
+        if (data.success) {
+            showHwAlert('<i class="fas fa-check-circle me-1"></i> Services restarted successfully.', 'success');
+        } else {
+            showHwAlert('<i class="fas fa-exclamation-triangle me-1"></i> Restart failed: ' + data.error, 'danger');
+        }
     })
     .catch(function(err) {
-        alert('Error restarting services: ' + err);
+        showHwAlert('<i class="fas fa-exclamation-triangle me-1"></i> Error restarting services: ' + err, 'danger');
+    })
+    .finally(function() {
+        if (btn) { btn.disabled = false; btn.innerHTML = label; }
+    });
+}
+
+function saveAndRestart(btn) {
+    var form = document.getElementById('hardwareForm');
+    var formData = new FormData(form);
+    var data = {};
+
+    // Explicitly capture checkboxes — unchecked ones are absent from FormData
+    form.querySelectorAll('input[type="checkbox"]').forEach(function(cb) {
+        data[cb.name] = cb.checked;
+    });
+    // Capture all other fields
+    formData.forEach(function(value, key) {
+        if (!(key in data)) { data[key] = value; }
+    });
+
+    var label = btn ? btn.innerHTML : '';
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving\u2026'; }
+
+    fetch('{{ url_for("hardware.update_hardware") }}', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+    })
+    .then(function(r) {
+        if (!r.ok) return r.json().then(function(d) { throw new Error(d.error || r.statusText); });
+        return r.json();
+    })
+    .then(function(result) {
+        if (!result.success) { throw new Error(result.error || 'Save failed'); }
+        if (btn) { btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Restarting\u2026'; }
+        return fetch('{{ url_for("hardware.restart_hardware_services") }}', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        }).then(function(r) { return r.json(); });
+    })
+    .then(function(result) {
+        if (result.success) {
+            showHwAlert('<i class="fas fa-check-circle me-1"></i> Settings saved and services restarted.', 'success');
+        } else {
+            showHwAlert('<i class="fas fa-check-circle me-1"></i> Settings saved. Restart failed: ' + (result.error || ''), 'warning');
+        }
+    })
+    .catch(function(err) {
+        showHwAlert('<i class="fas fa-exclamation-triangle me-1"></i> ' + err, 'danger');
+    })
+    .finally(function() {
+        if (btn) { btn.disabled = false; btn.innerHTML = label; }
     });
 }
 </script>
