@@ -139,6 +139,18 @@ nav:
       - Audio Monitoring Dashboard: audio/AUDIO_MONITORING.md
       - Notifications (Email & SMS): guides/notifications.md
       - Local Mail Server (Postfix): guides/local_mail_server.md
+      - Manual EAS Events & Broadcast Builder: guides/MANUAL_EAS_EVENTS.md
+      - eas-config Tool: guides/EAS_CONFIG_TOOL.md
+      - Multi-Factor Authentication (TOTP): guides/MFA_TOTP_SETUP.md
+      - API Key Management: guides/API_KEY_MANAGEMENT.md
+      - Database Backups: guides/DATABASE_BACKUPS.md
+      - Analytics and Reporting: guides/ANALYTICS_AND_REPORTING.md
+      - Audit Log Review: guides/AUDIT_LOG_REVIEW.md
+      - Icecast Streaming Setup: guides/ICECAST_STREAMING_SETUP.md
+  - Hardware:
+      - GPIO Relay Wiring: hardware/GPIO_RELAY_WIRING.md
+      - VFD Display Setup: hardware/VFD_DISPLAY_SETUP.md
+      - NeoPixel LED Control: hardware/NEOPIXEL_LED_CONTROL.md
   - Development:
       - Developer Guidelines: development/AGENTS.md
       - Git Workflow: development/git_workflow.md
