@@ -428,9 +428,20 @@
                             <li><hr class="dropdown-divider"></li>
                             <li><h6 class="dropdown-header">Data Continuity</h6></li>
                             {% if can_export_alerts %}
+                            <li><h6 class="dropdown-header">Export Alerts</h6></li>
                             <li>
                                 <a class="dropdown-item" href="/export/alerts">
-                                    <i class="fas fa-download"></i> Export Data
+                                    <i class="fas fa-code"></i> JSON Feed
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item" href="/export/alerts/cap.xml">
+                                    <i class="fas fa-file-code"></i> CAP 1.2 XML
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item" href="/export/alerts/csv">
+                                    <i class="fas fa-file-csv"></i> CSV Download
                                 </a>
                             </li>
                             {% endif %}

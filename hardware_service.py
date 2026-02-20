@@ -95,6 +95,7 @@ _screen_manager = None
 _gpio_controller = None
 _neopixel_controller = None
 _tower_light_controller = None
+_gps_manager = None
 
 
 def signal_handler(signum, frame):
@@ -316,6 +317,33 @@ def initialize_zigbee_coordinator():
     except Exception as e:
         logger.warning(f"⚠️  Zigbee coordinator not available: {e}")
         logger.info("Continuing without Zigbee support")
+
+
+def initialize_gps_manager():
+    """Initialize GPS receiver manager (Adafruit Ultimate GPS HAT #2324) if enabled."""
+    global _gps_manager
+
+    try:
+        from app_core.hardware_settings import get_gps_settings
+        from app_core.gps import GPSManager
+
+        gps_settings = get_gps_settings()
+        if not gps_settings.get('enabled', False):
+            logger.info("GPS receiver disabled (enable in Admin > Hardware Settings)")
+            return
+
+        _gps_manager = GPSManager(
+            config=gps_settings,
+            redis_client=_redis_client,
+            logger=logger.getChild("gps"),
+        )
+        success = _gps_manager.start()
+        if not success:
+            _gps_manager = None
+
+    except Exception as e:
+        logger.warning(f"⚠️  GPS manager not available: {e}")
+        logger.info("Continuing without GPS support")
 
 
 def initialize_screen_manager(app):
@@ -1772,6 +1800,86 @@ def create_api_app():
             logger.error(f"Error setting hostname: {e}", exc_info=True)
             return jsonify({'success': False, 'error': str(e)}), 500
 
+    # GPS Hardware Endpoints
+
+    @api_app.route('/api/hardware/gps/status', methods=['GET'])
+    def get_gps_status():
+        """Return current GPS fix status from the GPS manager or Redis."""
+        try:
+            # Try live status from running manager first
+            if _gps_manager is not None:
+                return jsonify(_gps_manager.get_status())
+
+            # Fall back to last-known status from Redis
+            if _redis_client:
+                try:
+                    raw = _redis_client.get('gps:status')
+                    if raw:
+                        return jsonify(json.loads(raw))
+                except Exception:
+                    pass
+
+            # GPS not configured or not started
+            from app_core.hardware_settings import get_gps_settings
+            gps_settings = get_gps_settings()
+            return jsonify({
+                'running': False,
+                'has_fix': False,
+                'status': 'disabled' if not gps_settings.get('enabled') else 'not_started',
+                'serial_port': gps_settings.get('serial_port', '/dev/serial0'),
+                'baudrate': gps_settings.get('baudrate', 9600),
+                'pps_gpio_pin': gps_settings.get('pps_gpio_pin', 4),
+                'timestamp': datetime.now(timezone.utc).isoformat(),
+            })
+        except Exception as e:
+            logger.error(f"Error getting GPS status: {e}", exc_info=True)
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @api_app.route('/api/hardware/gps/configure', methods=['POST'])
+    def configure_gps():
+        """Save GPS configuration and restart the GPS manager."""
+        try:
+            data = request.json or {}
+
+            from app_core.hardware_settings import get_hardware_settings, update_hardware_settings
+
+            settings = get_hardware_settings()
+            update_fields = {}
+
+            if 'enabled' in data:
+                update_fields['gps_enabled'] = bool(data['enabled'])
+            if 'serial_port' in data:
+                update_fields['gps_serial_port'] = str(data['serial_port'])
+            if 'baudrate' in data:
+                update_fields['gps_baudrate'] = int(data['baudrate'])
+            if 'pps_gpio_pin' in data:
+                update_fields['gps_pps_gpio_pin'] = int(data['pps_gpio_pin'])
+            if 'use_for_location' in data:
+                update_fields['gps_use_for_location'] = bool(data['use_for_location'])
+            if 'use_for_time' in data:
+                update_fields['gps_use_for_time'] = bool(data['use_for_time'])
+            if 'min_satellites' in data:
+                update_fields['gps_min_satellites'] = max(1, int(data['min_satellites']))
+
+            if update_fields:
+                update_hardware_settings(update_fields)
+
+            # Restart GPS manager with new settings
+            global _gps_manager
+            if _gps_manager is not None:
+                _gps_manager.stop()
+                _gps_manager = None
+
+            if update_fields.get('gps_enabled', settings.gps_enabled):
+                with api_app.app_context() if hasattr(api_app, 'app_context') else _flask_app.app_context():
+                    initialize_gps_manager()
+
+            return jsonify({'success': True, 'message': 'GPS configuration saved'})
+
+        except Exception as e:
+            logger.error(f"Error configuring GPS: {e}", exc_info=True)
+            return jsonify({'success': False, 'error': str(e)}), 500
+
     return api_app
 
 
@@ -1871,6 +1979,11 @@ def main():
         with app.app_context():
             initialize_zigbee_coordinator()
 
+        # Initialize GPS receiver (if configured)
+        logger.info("Initializing GPS receiver...")
+        with app.app_context():
+            initialize_gps_manager()
+
         # Start Flask API server in background thread
         logger.info("Starting hardware proxy API server on port 5001...")
         api_thread = threading.Thread(target=run_api_server, daemon=True)
@@ -1914,6 +2027,12 @@ def main():
                 _tower_light_controller.cleanup()
             except Exception as e:
                 logger.error(f"Error cleaning up USB tower light: {e}")
+
+        if _gps_manager:
+            try:
+                _gps_manager.stop()
+            except Exception as e:
+                logger.error(f"Error stopping GPS manager: {e}")
 
         if _redis_client:
             try:

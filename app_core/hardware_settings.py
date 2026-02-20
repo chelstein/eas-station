@@ -238,6 +238,24 @@ def get_neopixel_settings() -> Dict[str, Any]:
     }
 
 
+def get_gps_settings() -> Dict[str, Any]:
+    """Get GPS HAT / receiver settings (Adafruit Ultimate GPS HAT #2324).
+
+    Returns:
+        Dictionary with GPS configuration
+    """
+    settings = get_hardware_settings()
+    return {
+        'enabled': settings.gps_enabled,
+        'serial_port': settings.gps_serial_port,
+        'baudrate': settings.gps_baudrate,
+        'pps_gpio_pin': settings.gps_pps_gpio_pin,
+        'use_for_location': settings.gps_use_for_location,
+        'use_for_time': settings.gps_use_for_time,
+        'min_satellites': settings.gps_min_satellites,
+    }
+
+
 __all__ = [
     'get_hardware_settings',
     'update_hardware_settings',
@@ -249,4 +267,5 @@ __all__ = [
     'get_zigbee_settings',
     'get_tower_light_settings',
     'get_neopixel_settings',
+    'get_gps_settings',
 ]

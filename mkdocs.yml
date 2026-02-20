@@ -151,6 +151,7 @@ nav:
       - GPIO Relay Wiring: hardware/GPIO_RELAY_WIRING.md
       - VFD Display Setup: hardware/VFD_DISPLAY_SETUP.md
       - NeoPixel LED Control: hardware/NEOPIXEL_LED_CONTROL.md
+      - GPS HAT Setup: hardware/GPS_HAT_SETUP.md
   - Development:
       - Developer Guidelines: development/AGENTS.md
       - Git Workflow: development/git_workflow.md

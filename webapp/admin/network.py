@@ -371,6 +371,21 @@ def configure_ntp():
     }), 500
 
 
+@network_bp.route('/api/hardware/gps/status')
+@require_permission('system.configure')
+def get_gps_status():
+    """Get GPS receiver status via hardware-service."""
+    return jsonify(call_hardware_service('/api/hardware/gps/status', method='GET'))
+
+
+@network_bp.route('/api/hardware/gps/configure', methods=['POST'])
+@require_permission('system.configure')
+def configure_gps():
+    """Configure GPS receiver via hardware-service."""
+    data = request.get_json()
+    return jsonify(call_hardware_service('/api/hardware/gps/configure', method='POST', data=data))
+
+
 def register_network_routes(app, logger):
     """Register network management routes with the Flask app."""
     app.register_blueprint(network_bp)
