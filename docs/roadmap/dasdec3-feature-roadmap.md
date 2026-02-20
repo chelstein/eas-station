@@ -98,7 +98,7 @@ These are the features that prevent EAS Station from replacing a DASDEC in a reg
 **DASDEC3 Features:**
 - Multiple user accounts ✅ (Implemented)
 - Role-based access control ⚠️ (Basic implementation)
-- Password policy enforcement ⚠️ (Basic implementation)
+- Password policy enforcement ✅ (Configurable: length + uppercase/lowercase/digits/special)
 - User activity logging ⚠️ (Partial)
 - Session management ✅ (Implemented)
 - Password expiration ❌ (Not implemented)
@@ -109,9 +109,9 @@ These are the features that prevent EAS Station from replacing a DASDEC in a reg
   - [ ] Operator role (alert management)
   - [ ] Monitor role (read-only)
   - [ ] Custom role creation
-- [ ] Add password policy configuration
-  - [ ] Minimum length (8-16 characters)
-  - [ ] Complexity requirements
+- [x] Add password policy configuration
+  - [x] Minimum length (configurable 1-128, default 8)
+  - [x] Complexity requirements (uppercase, lowercase, digits, special characters)
   - [ ] Password history
   - [ ] Expiration (180 days default)
 - [ ] Implement password expiration warnings
@@ -127,7 +127,7 @@ These are the features that prevent EAS Station from replacing a DASDEC in a reg
 **DASDEC3 Features:**
 - Multiple audio input sources ✅ (Implemented)
 - Input level adjustment ⚠️ (Basic)
-- Audio monitoring ⚠️ (Basic)
+- Audio monitoring ✅ (Health dashboard at /audio/health/dashboard with real-time metrics)
 - Input source naming ✅ (Implemented)
 - Audio routing ❌ (Not implemented)
 - Silence detection ⚠️ (Partial)
@@ -409,16 +409,16 @@ These are the features that prevent EAS Station from replacing a DASDEC in a reg
 
 **DASDEC3 Features:**
 - System status display ⚠️ (Basic)
-- Resource monitoring ⚠️ (Basic)
+- Resource monitoring ✅ (CPU, memory, disk, load average, uptime via /api/health/resources)
 - Log viewing ✅ (Implemented)
 - Diagnostic tools ❌ (Not implemented)
-- Health monitoring ❌ (Not implemented)
+- Health monitoring ✅ (Service health checks: Redis, audio-service, Icecast, system resources)
 
 **Implementation Tasks:**
-- [ ] Enhance system status display
-  - [ ] CPU usage
-  - [ ] Memory usage
-  - [ ] Disk usage
+- [x] Enhance system status display
+  - [x] CPU usage (via /api/health/resources)
+  - [x] Memory usage (via /api/health/resources)
+  - [x] Disk usage (via /api/health/resources)
   - [ ] Network statistics
   - [ ] Temperature monitoring
 - [ ] Add comprehensive logging

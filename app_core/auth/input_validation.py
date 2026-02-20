@@ -96,20 +96,66 @@ class InputValidator:
     def validate_password(cls, password: str) -> Tuple[bool, Optional[str]]:
         """
         Validate password input for security issues.
-        
+
         Args:
             password: The password to validate
-            
+
         Returns:
             Tuple of (is_valid, error_message)
         """
         if not password:
             return False, "Password is required"
-        
+
         # Check length
         if len(password) > cls.MAX_PASSWORD_LENGTH:
             return False, f"Password exceeds maximum length of {cls.MAX_PASSWORD_LENGTH}"
-        
+
+        return True, None
+
+    @classmethod
+    def validate_password_policy(
+        cls,
+        password: str,
+        min_length: int = 8,
+        require_uppercase: bool = False,
+        require_lowercase: bool = False,
+        require_digits: bool = False,
+        require_special: bool = False,
+    ) -> Tuple[bool, Optional[str]]:
+        """
+        Validate a password against configurable policy rules.
+
+        Args:
+            password: The password to validate
+            min_length: Minimum required length
+            require_uppercase: Require at least one uppercase letter
+            require_lowercase: Require at least one lowercase letter
+            require_digits: Require at least one digit
+            require_special: Require at least one special character
+
+        Returns:
+            Tuple of (is_valid, error_message)
+        """
+        # Basic security checks first
+        valid, error = cls.validate_password(password)
+        if not valid:
+            return False, error
+
+        if len(password) < min_length:
+            return False, f"Password must be at least {min_length} characters long"
+
+        if require_uppercase and not re.search(r'[A-Z]', password):
+            return False, "Password must contain at least one uppercase letter"
+
+        if require_lowercase and not re.search(r'[a-z]', password):
+            return False, "Password must contain at least one lowercase letter"
+
+        if require_digits and not re.search(r'\d', password):
+            return False, "Password must contain at least one digit"
+
+        if require_special and not re.search(r'[^A-Za-z0-9]', password):
+            return False, "Password must contain at least one special character"
+
         return True, None
     
     @classmethod

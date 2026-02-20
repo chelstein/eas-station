@@ -76,6 +76,66 @@
                     </div>
                 </div>
 
+                <!-- Password Policy -->
+                <div class="card mb-3">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="fas fa-lock"></i> Password Policy</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label for="password_min_length" class="form-label">
+                                <i class="fas fa-ruler-horizontal"></i> Minimum Password Length
+                            </label>
+                            <input type="number" class="form-control" id="password_min_length"
+                                   name="password_min_length" min="1" max="128"
+                                   value="{{ settings.password_min_length or 8 }}" required>
+                            <div class="form-text">
+                                Minimum number of characters required. Must be between 1 and 128.
+                            </div>
+                        </div>
+
+                        <label class="form-label"><i class="fas fa-check-square"></i> Character Requirements</label>
+                        <div class="mb-1">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="password_require_uppercase"
+                                       name="password_require_uppercase"
+                                       {% if settings.password_require_uppercase %}checked{% endif %}>
+                                <label class="form-check-label" for="password_require_uppercase">
+                                    Require at least one <strong>uppercase letter</strong> (A–Z)
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="password_require_lowercase"
+                                       name="password_require_lowercase"
+                                       {% if settings.password_require_lowercase %}checked{% endif %}>
+                                <label class="form-check-label" for="password_require_lowercase">
+                                    Require at least one <strong>lowercase letter</strong> (a–z)
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="password_require_digits"
+                                       name="password_require_digits"
+                                       {% if settings.password_require_digits %}checked{% endif %}>
+                                <label class="form-check-label" for="password_require_digits">
+                                    Require at least one <strong>digit</strong> (0–9)
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="password_require_special"
+                                       name="password_require_special"
+                                       {% if settings.password_require_special %}checked{% endif %}>
+                                <label class="form-check-label" for="password_require_special">
+                                    Require at least one <strong>special character</strong> (!@#$%^&amp;*…)
+                                </label>
+                            </div>
+                        </div>
+                        <div class="form-text mt-2">
+                            These rules are enforced when creating or resetting administrator passwords.
+                            Existing passwords are not affected until they are changed.
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Bootstrap Settings Notice -->
                 <div class="card mb-3 border-warning">
                     <div class="card-header bg-warning text-dark">
@@ -125,6 +185,10 @@
                         <li class="mb-2">
                             <strong>Upload Folder:</strong>
                             <small class="text-muted" id="uploadFolderDisplay">{{ settings.upload_folder }}</small>
+                        </li>
+                        <li class="mb-2">
+                            <strong>Min Password Length:</strong>
+                            <span class="badge bg-info" id="pwMinLengthBadge">{{ settings.password_min_length or 8 }}</span>
                         </li>
                         <li class="mb-0">
                             <strong>Last Updated:</strong>
@@ -188,6 +252,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 document.getElementById('logLevelBadge').textContent = s.log_level;
                 document.getElementById('logFileDisplay').textContent = s.log_file;
                 document.getElementById('uploadFolderDisplay').textContent = s.upload_folder;
+                document.getElementById('pwMinLengthBadge').textContent = s.password_min_length;
                 if (s.updated_at) {
                     document.getElementById('lastUpdated').textContent = new Date(s.updated_at).toLocaleString();
                 }

@@ -26,28 +26,6 @@ Radio captures from CAP poller are currently disabled in containerized deploymen
 
 ---
 
-### 2. Full Alert Processing Pipeline
-**File:** `app_core/eas_processing.py:71`
-**Status:** Partial Implementation
-
-**Description:**
-Expand the alert processing logic to include a complete end-to-end workflow.
-
-**Current State:**
-Basic alert logging is implemented. Alerts are received and logged successfully.
-
-**Planned Features:**
-1. Generate EAS message (create EASMessage record)
-2. Synthesize audio (SAME header + attention signal + message)
-3. Queue for broadcast
-4. Send notifications (LED, VFD, push notifications, etc.)
-5. Update alert status with processing results
-
-**Benefits:**
-- Complete automated alert workflow
-- Multi-channel notification support
-- Comprehensive audit trail
-
 ---
 
 ## Priority: Low
@@ -88,3 +66,20 @@ When an enhancement is completed, move it to this section with:
 - Implementation date
 - Pull request number
 - Brief summary of final approach
+
+### Full Alert Processing Pipeline
+**File:** `app_core/eas_processing.py`
+**Completed:** February 2026
+
+**Summary:**
+Implemented `process_eas_alert()` as a fully functional standalone entry point for
+the broadcast pipeline. The function normalizes both dict and object alert inputs,
+loads EAS config and location settings from the database, and delegates to
+`auto_forward_ota_alert()` for the full pipeline: cross-source deduplication,
+SAME FSK audio generation, EASMessage record creation, BroadcastQueue publishing,
+GPIO relay activation, and email/SMS notification dispatch.
+
+Also fixed `_extract_message_id()` in `eas_monitor.py` to correctly extract the
+`record_id` from the nested `broadcast_detail` dict returned by
+`forward_alert_to_api()`, ensuring `ReceivedEASAlert.generated_message_id` is
+properly populated for every successful broadcast.

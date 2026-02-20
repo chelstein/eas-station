@@ -31,7 +31,7 @@ from sqlalchemy import func
 from sqlalchemy.exc import SQLAlchemyError
 
 from app_core.extensions import db
-from app_core.models import AdminUser, Boundary, CAPAlert, EASMessage, SystemLog
+from app_core.models import AdminUser, ApplicationSettings, Boundary, CAPAlert, EASMessage, SystemLog
 from app_core.auth.roles import Role
 from app_core.alerts import get_active_alerts_query, get_expired_alerts_query
 from app_core.location import get_location_settings
@@ -47,6 +47,21 @@ from app_utils.event_codes import EVENT_CODE_REGISTRY
 from app_utils.fips_codes import get_same_lookup, get_us_state_county_tree
 
 USERNAME_PATTERN = re.compile(r'^[A-Za-z0-9_.-]{3,64}$')
+
+
+def _load_password_policy() -> dict:
+    """Return the active password policy from ApplicationSettings."""
+    settings = ApplicationSettings.query.first()
+    if settings:
+        return {
+            'min_length': settings.password_min_length or 8,
+            'require_uppercase': bool(settings.password_require_uppercase),
+            'require_lowercase': bool(settings.password_require_lowercase),
+            'require_digits': bool(settings.password_require_digits),
+            'require_special': bool(settings.password_require_special),
+        }
+    return {'min_length': 8, 'require_uppercase': False, 'require_lowercase': False,
+            'require_digits': False, 'require_special': False}
 
 
 # Create Blueprint for dashboard routes
@@ -220,8 +235,11 @@ def admin_users():
     if not USERNAME_PATTERN.match(username):
         return jsonify({'error': 'Usernames must be 3-64 characters and may include letters, numbers, dots, underscores, and hyphens.'}), 400
 
-    if len(password) < 8:
-        return jsonify({'error': 'Password must be at least 8 characters long.'}), 400
+    from app_core.auth.input_validation import InputValidator
+    policy = _load_password_policy()
+    valid, pw_error = InputValidator.validate_password_policy(password, **policy)
+    if not valid:
+        return jsonify({'error': pw_error}), 400
 
     existing = AdminUser.query.filter(func.lower(AdminUser.username) == username.lower()).first()
     if existing:
@@ -265,8 +283,11 @@ def admin_user_detail(user_id: int):
     if request.method == 'PATCH':
         payload = request.get_json(silent=True) or {}
         password = payload.get('password') or ''
-        if len(password) < 8:
-            return jsonify({'error': 'Password must be at least 8 characters long.'}), 400
+        from app_core.auth.input_validation import InputValidator
+        policy = _load_password_policy()
+        valid, pw_error = InputValidator.validate_password_policy(password, **policy)
+        if not valid:
+            return jsonify({'error': pw_error}), 400
 
         user.set_password(password)
         db.session.add(user)

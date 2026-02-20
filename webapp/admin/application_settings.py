@@ -45,6 +45,11 @@ def _get_or_create_settings() -> ApplicationSettings:
             log_level='INFO',
             log_file='logs/eas_station.log',
             upload_folder='/opt/eas-station/uploads',
+            password_min_length=8,
+            password_require_uppercase=False,
+            password_require_lowercase=False,
+            password_require_digits=False,
+            password_require_special=False,
         )
         db.session.add(settings)
         db.session.commit()
@@ -95,14 +100,33 @@ def update_application_settings():
             return jsonify({'success': False, 'error': 'Upload folder path is required'}), 400
         settings.upload_folder = upload_folder
 
+        # Password policy
+        try:
+            min_length = int(request.form.get('password_min_length', 8))
+            if min_length < 1 or min_length > 128:
+                return jsonify({'success': False, 'error': 'Minimum password length must be between 1 and 128'}), 400
+        except (ValueError, TypeError):
+            return jsonify({'success': False, 'error': 'Invalid minimum password length'}), 400
+        settings.password_min_length = min_length
+        settings.password_require_uppercase = request.form.get('password_require_uppercase') == 'on'
+        settings.password_require_lowercase = request.form.get('password_require_lowercase') == 'on'
+        settings.password_require_digits = request.form.get('password_require_digits') == 'on'
+        settings.password_require_special = request.form.get('password_require_special') == 'on'
+
         db.session.commit()
 
         # Apply log level change immediately to the running process
         import logging as _logging
         numeric_level = getattr(_logging, settings.log_level, _logging.INFO)
         _logging.getLogger().setLevel(numeric_level)
-        logger.info("Updated application settings: log_level=%s, log_file=%s, upload_folder=%s",
-                    settings.log_level, settings.log_file, settings.upload_folder)
+        logger.info(
+            "Updated application settings: log_level=%s, log_file=%s, upload_folder=%s, "
+            "password_min_length=%d, require_upper=%s, require_lower=%s, require_digits=%s, require_special=%s",
+            settings.log_level, settings.log_file, settings.upload_folder,
+            settings.password_min_length, settings.password_require_uppercase,
+            settings.password_require_lowercase, settings.password_require_digits,
+            settings.password_require_special,
+        )
 
         return jsonify({
             'success': True,

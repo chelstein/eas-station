@@ -2119,6 +2119,24 @@ class ApplicationSettings(db.Model):
     # Directory for uploaded files
 
     # ========================================================================
+    # Password Policy
+    # ========================================================================
+    password_min_length = db.Column(db.Integer, nullable=False, default=8)
+    # Minimum number of characters required in a password
+
+    password_require_uppercase = db.Column(db.Boolean, nullable=False, default=False)
+    # Require at least one uppercase letter (A-Z)
+
+    password_require_lowercase = db.Column(db.Boolean, nullable=False, default=False)
+    # Require at least one lowercase letter (a-z)
+
+    password_require_digits = db.Column(db.Boolean, nullable=False, default=False)
+    # Require at least one digit (0-9)
+
+    password_require_special = db.Column(db.Boolean, nullable=False, default=False)
+    # Require at least one special character (!@#$%^&*...)
+
+    # ========================================================================
     # Metadata
     # ========================================================================
     updated_at = db.Column(db.DateTime, nullable=True, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -2129,6 +2147,11 @@ class ApplicationSettings(db.Model):
             "log_level": self.log_level,
             "log_file": self.log_file,
             "upload_folder": self.upload_folder,
+            "password_min_length": self.password_min_length,
+            "password_require_uppercase": self.password_require_uppercase,
+            "password_require_lowercase": self.password_require_lowercase,
+            "password_require_digits": self.password_require_digits,
+            "password_require_special": self.password_require_special,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
 

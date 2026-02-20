@@ -307,7 +307,16 @@ def _extract_message_id(result: Any) -> Optional[int]:
     if isinstance(result, int):
         return result
     if isinstance(result, dict):
-        return result.get('message_id') or result.get('id')
+        # Direct message_id or id at top level
+        msg_id = result.get('message_id') or result.get('id')
+        if msg_id:
+            return int(msg_id)
+        # Nested inside broadcast_detail (forward_alert_to_api return format)
+        detail = result.get('broadcast_detail')
+        if isinstance(detail, dict):
+            nested = detail.get('record_id') or detail.get('message_id') or detail.get('id')
+            if nested:
+                return int(nested)
     if hasattr(result, 'id'):
         return getattr(result, 'id')
     return None
