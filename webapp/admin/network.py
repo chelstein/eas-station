@@ -29,6 +29,9 @@ In the separated service architecture:
 - Hardware service: Has NET_ADMIN cap and DBus access for nmcli
 """
 
+import re
+import subprocess
+
 import requests
 from flask import Blueprint, jsonify, request, render_template
 from app_core.auth.decorators import require_permission
@@ -240,6 +243,132 @@ def set_hostname():
     """Set system hostname via hardware-service."""
     data = request.get_json()
     return jsonify(call_hardware_service('/api/network/hostname', method='POST', data=data))
+
+
+def _parse_timedatectl_show(output: str) -> dict:
+    """Parse key=value output from `timedatectl show-timesync --all`."""
+    result = {}
+    for line in output.splitlines():
+        if "=" in line:
+            key, _, value = line.partition("=")
+            result[key.strip()] = value.strip()
+    return result
+
+
+def _run_cmd(cmd: list[str]) -> str:
+    """Run a subprocess command and return stdout, or '' on error."""
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+        return proc.stdout if proc.returncode == 0 else ""
+    except Exception:
+        return ""
+
+
+@network_bp.route('/api/system/ntp/status')
+@require_permission('system.configure')
+def get_ntp_status():
+    """Return the current NTP / time-synchronisation status.
+
+    Reads data from ``timedatectl show-timesync --all`` (systemd-timesyncd) and
+    supplements it with the human-readable ``timedatectl status`` output.
+    Falls back gracefully when systemd-timesyncd is not present.
+    """
+    # -- timedatectl show-timesync: machine-readable NTP details -------------
+    sync_raw = _run_cmd(["timedatectl", "show-timesync", "--all"])
+    sync_data = _parse_timedatectl_show(sync_raw)
+
+    # -- timedatectl status: human-readable summary --------------------------
+    status_raw = _run_cmd(["timedatectl", "status"])
+    status_data = _parse_timedatectl_show(_run_cmd(["timedatectl", "show", "--all"]))
+
+    # Synchronised flag can appear in both outputs
+    synchronized_str = (
+        sync_data.get("NTPSynchronized")
+        or status_data.get("NTPSynchronized")
+        or ""
+    ).lower()
+    synchronized = synchronized_str == "yes"
+
+    ntp_enabled_str = (
+        sync_data.get("NTP")
+        or status_data.get("NTP")
+        or ""
+    ).lower()
+    ntp_enabled = ntp_enabled_str in ("yes", "active")
+
+    # Offset comes in microseconds from systemd-timesyncd; convert to ms
+    offset_us_str = sync_data.get("NTPMessage", "")
+    offset_ms: float | None = None
+    # NTPMessage format: "To=... Offset=±NNNus ..."
+    offset_match = re.search(r"Offset=([+-]?\d+)us", offset_us_str)
+    if offset_match:
+        try:
+            offset_ms = int(offset_match.group(1)) / 1000.0
+        except ValueError:
+            pass
+
+    # Server address
+    server = sync_data.get("ServerName") or sync_data.get("ServerAddress") or None
+
+    # Root distance (accuracy indicator) in microseconds
+    root_dist_str = sync_data.get("RootDistanceMaxUSec") or ""
+    root_dist_ms: float | None = None
+    try:
+        root_dist_ms = int(root_dist_str) / 1000.0 if root_dist_str else None
+    except ValueError:
+        pass
+
+    # Last successful synchronisation time
+    last_sync = (
+        sync_data.get("LastSyncRealtimeUSec")
+        or sync_data.get("TimeUSec")
+        or None
+    )
+
+    # Extract local time string from human-readable status output
+    local_time_match = re.search(r"Local time\s*:\s*(.+)", status_raw)
+    local_time_str = local_time_match.group(1).strip() if local_time_match else None
+
+    # Timezone
+    timezone_str = status_data.get("Timezone") or None
+
+    return jsonify({
+        "synchronized": synchronized,
+        "ntp_enabled": ntp_enabled,
+        "server": server,
+        "offset_ms": offset_ms,
+        "root_distance_ms": root_dist_ms,
+        "last_sync_raw": last_sync,
+        "local_time": local_time_str,
+        "timezone": timezone_str,
+        "raw": {
+            "show_timesync": sync_data,
+            "show": status_data,
+        } if request.args.get("debug") else None,
+    })
+
+
+@network_bp.route('/api/system/ntp/configure', methods=['POST'])
+@require_permission('system.configure')
+def configure_ntp():
+    """Enable or disable NTP via timedatectl (requires sudo privilege).
+
+    Body: {"enabled": true|false}
+    """
+    data = request.get_json() or {}
+    enabled = bool(data.get("enabled", True))
+    flag = "true" if enabled else "false"
+
+    result = subprocess.run(
+        ["sudo", "timedatectl", "set-ntp", flag],
+        capture_output=True, text=True, timeout=10,
+    )
+    if result.returncode == 0:
+        return jsonify({"success": True, "ntp_enabled": enabled})
+    return jsonify({
+        "success": False,
+        "error": result.stderr.strip() or "timedatectl set-ntp failed",
+    }), 500
 
 
 def register_network_routes(app, logger):
