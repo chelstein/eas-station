@@ -1199,18 +1199,6 @@
                             <div class="col-md-6 col-lg-4">
                                 <div class="card shadow-sm h-100">
                                     <div class="card-body text-center">
-                                        <i class="fas fa-sitemap fa-2x text-warning mb-3"></i>
-                                        <h6>Zigbee Module</h6>
-                                        <p class="card-text text-muted small">Zigbee coordinator settings</p>
-                                        <a href="/admin/zigbee" class="btn btn-warning w-100">
-                                            <i class="fas fa-network-wired"></i> Configure
-                                        </a>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-md-6 col-lg-4">
-                                <div class="card shadow-sm h-100">
-                                    <div class="card-body text-center">
                                         <i class="fas fa-satellite-dish fa-2x text-secondary mb-3"></i>
                                         <h6>Alert Poller</h6>
                                         <p class="card-text text-muted small">Configure CAP alert polling intervals</p>
@@ -1594,8 +1582,8 @@
                                         <i class="fas fa-plug fa-2x text-secondary mb-3"></i>
                                         <h6>GPIO / Relays</h6>
                                         <p class="text-muted small">Transmitter PTT and relay outputs</p>
-                                        <a href="{{ url_for('hardware.hardware_settings_page') }}" class="btn btn-secondary w-100">
-                                            <i class="fas fa-microchip"></i> Configure
+                                        <a href="/admin/gpio" class="btn btn-secondary w-100">
+                                            <i class="fas fa-microchip"></i> Control Panel
                                         </a>
                                     </div>
                                 </div>
@@ -1604,8 +1592,6 @@
                     </div>
                 </div>
 
-                <!-- SSL/Certbot Tab -->
-                </div>
                 <!-- End of tab-content -->
             </div>
             <!-- End of card-body -->

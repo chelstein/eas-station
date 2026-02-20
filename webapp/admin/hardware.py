@@ -21,7 +21,9 @@ from __future__ import annotations
 
 """Hardware settings management routes."""
 
+import json
 import logging
+import subprocess
 from typing import Any, Dict
 
 from flask import Blueprint, flash, jsonify, redirect, render_template, request, url_for
@@ -71,14 +73,12 @@ def update_hardware():
 
         # Parse JSON fields
         if 'gpio_pin_map' in data and isinstance(data['gpio_pin_map'], str):
-            import json
             try:
                 data['gpio_pin_map'] = json.loads(data['gpio_pin_map']) if data['gpio_pin_map'].strip() else {}
             except json.JSONDecodeError as exc:
                 raise BadRequest(f"Invalid GPIO pin map JSON: {exc}")
 
         if 'gpio_behavior_matrix' in data and isinstance(data['gpio_behavior_matrix'], str):
-            import json
             try:
                 data['gpio_behavior_matrix'] = json.loads(data['gpio_behavior_matrix']) if data['gpio_behavior_matrix'].strip() else {}
             except json.JSONDecodeError as exc:
@@ -94,6 +94,7 @@ def update_hardware():
             'tower_light_enabled', 'tower_light_alert_buzzer',
             'tower_light_incoming_uses_yellow', 'tower_light_blink_on_alert',
             'neopixel_enabled', 'neopixel_flash_on_alert',
+            'gps_enabled', 'gps_use_for_location', 'gps_use_for_time',
         ]
         for field in bool_fields:
             if field in data:
@@ -115,6 +116,7 @@ def update_hardware():
             'tower_light_baudrate',
             'neopixel_gpio_pin', 'neopixel_num_pixels', 'neopixel_brightness',
             'neopixel_flash_interval_ms',
+            'gps_baudrate', 'gps_pps_gpio_pin', 'gps_min_satellites',
         ]
         for field in int_fields:
             if field in data and data[field] is not None:
@@ -190,8 +192,6 @@ def update_hardware():
 def restart_hardware_services():
     """Restart hardware-related services to apply new settings."""
     try:
-        import subprocess
-
         # Restart the target which will restart all services
         result = subprocess.run(
             ['systemctl', 'restart', 'eas-station.target'],
