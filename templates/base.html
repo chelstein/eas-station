@@ -102,6 +102,29 @@
         {% endif %}
     {% endwith %}
 
+    <!-- Password Expiry Warnings -->
+    {% if session.get('pw_expired') %}
+    <div class="container-fluid mt-2">
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            <i class="fas fa-lock me-2"></i>
+            <strong>Password Expired.</strong>
+            Your administrator password has expired. Please
+            <a href="/admin/users" class="alert-link">change your password</a> immediately.
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    </div>
+    {% elif session.get('pw_expires_in_days') is not none and session.get('pw_expires_in_days') <= 14 %}
+    <div class="container-fluid mt-2">
+        <div class="alert alert-warning alert-dismissible fade show" role="alert">
+            <i class="fas fa-exclamation-triangle me-2"></i>
+            <strong>Password Expiring Soon.</strong>
+            Your password expires in <strong>{{ session.get('pw_expires_in_days') }} day{{ 's' if session.get('pw_expires_in_days') != 1 else '' }}</strong>.
+            <a href="/admin/users" class="alert-link">Change it now</a> to avoid being locked out.
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- Main Content -->
     <main class="page-shell">
         {% block content %}{% endblock %}

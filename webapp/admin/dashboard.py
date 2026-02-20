@@ -31,7 +31,7 @@ from sqlalchemy import func
 from sqlalchemy.exc import SQLAlchemyError
 
 from app_core.extensions import db
-from app_core.models import AdminUser, ApplicationSettings, Boundary, CAPAlert, EASMessage, SystemLog
+from app_core.models import AdminSession, AdminUser, ApplicationSettings, Boundary, CAPAlert, EASMessage, SystemLog
 from app_core.auth.roles import Role
 from app_core.alerts import get_active_alerts_query, get_expired_alerts_query
 from app_core.location import get_location_settings
@@ -322,6 +322,59 @@ def admin_user_detail(user_id: int):
     ))
     db.session.commit()
     return jsonify({'message': 'User deleted successfully.'})
+
+@dashboard_bp.route('/api/admin/sessions', methods=['GET'])
+def api_admin_sessions():
+    """List active and recent administrator sessions.
+
+    Query params:
+        active_only (bool, default true): if 'false', return last 100 sessions regardless of state.
+    """
+    active_only = request.args.get('active_only', 'true').lower() != 'false'
+    if active_only:
+        sessions = (
+            AdminSession.query
+            .filter_by(ended_at=None)
+            .order_by(AdminSession.created_at.desc())
+            .limit(100)
+            .all()
+        )
+    else:
+        sessions = (
+            AdminSession.query
+            .order_by(AdminSession.created_at.desc())
+            .limit(100)
+            .all()
+        )
+    return jsonify({'sessions': [s.to_dict() for s in sessions]})
+
+
+@dashboard_bp.route('/api/admin/sessions/<int:session_id>', methods=['DELETE'])
+def api_terminate_admin_session(session_id: int):
+    """Terminate (force-end) an active administrator session."""
+    sess = AdminSession.query.get_or_404(session_id)
+    if sess.ended_at is not None:
+        return jsonify({'error': 'Session is already ended.'}), 400
+    sess.ended_at = func.now()
+    sess.ended_reason = 'admin_terminated'
+    db.session.add(SystemLog(
+        level='WARNING',
+        message='Administrator session terminated',
+        module='auth',
+        details={
+            'terminated_user_id': sess.user_id,
+            'terminated_by': g.current_user.username if g.current_user else None,
+            'session_id': session_id,
+        },
+    ))
+    db.session.commit()
+    return jsonify({'message': 'Session terminated.', 'session': sess.to_dict()})
+
+
+@dashboard_bp.route('/admin/sessions')
+def admin_sessions_page():
+    """Active administrator session monitoring."""
+    return render_template('admin/sessions.html')
 
 @dashboard_bp.route('/admin/rbac')
 def rbac_management():

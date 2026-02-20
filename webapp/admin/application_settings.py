@@ -50,6 +50,7 @@ def _get_or_create_settings() -> ApplicationSettings:
             password_require_lowercase=False,
             password_require_digits=False,
             password_require_special=False,
+            password_expiration_days=0,
         )
         db.session.add(settings)
         db.session.commit()
@@ -112,6 +113,14 @@ def update_application_settings():
         settings.password_require_lowercase = request.form.get('password_require_lowercase') == 'on'
         settings.password_require_digits = request.form.get('password_require_digits') == 'on'
         settings.password_require_special = request.form.get('password_require_special') == 'on'
+        try:
+            expiry_days = int(request.form.get('password_expiration_days', 0))
+            if expiry_days < 0 or expiry_days > 3650:
+                return jsonify({'success': False,
+                                'error': 'Password expiration days must be between 0 and 3650 (0 = disabled)'}), 400
+        except (ValueError, TypeError):
+            return jsonify({'success': False, 'error': 'Invalid password expiration days value'}), 400
+        settings.password_expiration_days = expiry_days
 
         db.session.commit()
 

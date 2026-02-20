@@ -26,7 +26,9 @@ not the empty local controller in the web application process.
 
 import logging
 import os
+import re
 import shutil
+import subprocess
 import time
 from typing import Dict, Any, Optional
 
@@ -474,6 +476,143 @@ def api_resource_health():
             'message': str(e),
             'healthy': False,
         }), 500
+
+
+def _parse_timedatectl_timesync(output: str) -> Dict[str, Any]:
+    """Parse output of `timedatectl show-timesync --no-pager` into a dict."""
+    result: Dict[str, Any] = {}
+    for line in output.splitlines():
+        if '=' in line:
+            key, _, value = line.partition('=')
+            result[key.strip()] = value.strip()
+    return result
+
+
+def _parse_chronyc_tracking(output: str) -> Dict[str, Any]:
+    """Parse `chronyc tracking` output into a structured dict."""
+    result: Dict[str, Any] = {}
+    for line in output.splitlines():
+        if ':' in line:
+            key, _, value = line.partition(':')
+            result[key.strip()] = value.strip()
+    return result
+
+
+def _get_ntp_status() -> Dict[str, Any]:
+    """
+    Collect NTP synchronization status using available system tools.
+
+    Tries timedatectl show-timesync, then timedatectl status,
+    then chronyc tracking, returning best-effort data.
+    """
+    info: Dict[str, Any] = {'method': None, 'synchronized': None}
+
+    # --- Try timedatectl show-timesync (systemd-timesyncd) ---
+    try:
+        result = subprocess.run(
+            ['timedatectl', 'show-timesync', '--no-pager'],
+            capture_output=True, text=True, timeout=5,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            parsed = _parse_timedatectl_timesync(result.stdout)
+            info['method'] = 'timedatectl/timesyncd'
+            info['server'] = parsed.get('ServerName') or parsed.get('FallbackNTPServers') or 'unknown'
+            offset_str = parsed.get('NTPMessage', '')
+            # Extract offset from NTPMessage field if present
+            m = re.search(r'offset=([+-]?\d+\.?\d*)', offset_str)
+            if m:
+                info['offset_ms'] = round(float(m.group(1)) * 1000, 3)
+            poll_str = parsed.get('Poll')
+            if poll_str:
+                try:
+                    info['poll_interval_s'] = int(poll_str)
+                except ValueError:
+                    pass
+    except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
+        pass
+
+    # --- Try timedatectl status (always works on systemd systems) ---
+    try:
+        result = subprocess.run(
+            ['timedatectl', 'status', '--no-pager'],
+            capture_output=True, text=True, timeout=5,
+        )
+        if result.returncode == 0:
+            out = result.stdout
+            # "System clock synchronized: yes"
+            m = re.search(r'System clock synchronized:\s+(\w+)', out)
+            if m:
+                info['synchronized'] = m.group(1).lower() == 'yes'
+            # "NTP service: active"
+            m = re.search(r'NTP service:\s+(\w+)', out)
+            if m:
+                info['ntp_service'] = m.group(1)
+            # "NTP synchronized: yes" (older systemd)
+            m = re.search(r'NTP synchronized:\s+(\w+)', out)
+            if m and info.get('synchronized') is None:
+                info['synchronized'] = m.group(1).lower() == 'yes'
+            if info.get('method') is None:
+                info['method'] = 'timedatectl/status'
+    except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
+        pass
+
+    # --- Try chronyc tracking ---
+    if info.get('synchronized') is None or info.get('offset_ms') is None:
+        try:
+            result = subprocess.run(
+                ['chronyc', 'tracking'],
+                capture_output=True, text=True, timeout=5,
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                parsed = _parse_chronyc_tracking(result.stdout)
+                if info.get('method') is None:
+                    info['method'] = 'chronyc'
+                    info['synchronized'] = True  # chronyc tracking only shows data when synced
+                ref_id = parsed.get('Reference ID', '')
+                m = re.search(r'\(([^)]+)\)', ref_id)
+                if m and info.get('server') is None:
+                    info['server'] = m.group(1)
+                offset_raw = parsed.get('System time offset', parsed.get('Last offset', ''))
+                m = re.search(r'([+-]?\d+\.?\d+(?:e[+-]?\d+)?)\s*seconds', offset_raw)
+                if m:
+                    info['offset_ms'] = round(float(m.group(1)) * 1000, 6)
+                stratum_str = parsed.get('Stratum', '')
+                m = re.match(r'(\d+)', stratum_str)
+                if m:
+                    info['stratum'] = int(m.group(1))
+        except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
+            pass
+
+    return info
+
+
+@health_bp.route('/api/health/ntp', methods=['GET'])
+def api_ntp_health():
+    """
+    NTP synchronization status.
+
+    Returns:
+        200: NTP status collected (synchronized/not, offset, server, method)
+        500: Error collecting status
+    """
+    try:
+        ntp = _get_ntp_status()
+        synced = ntp.get('synchronized')
+        return jsonify({
+            'status': 'ok' if synced else ('unknown' if synced is None else 'not_synced'),
+            'healthy': bool(synced),
+            'synchronized': synced,
+            'server': ntp.get('server'),
+            'offset_ms': ntp.get('offset_ms'),
+            'stratum': ntp.get('stratum'),
+            'poll_interval_s': ntp.get('poll_interval_s'),
+            'ntp_service': ntp.get('ntp_service'),
+            'method': ntp.get('method'),
+            'timestamp': time.time(),
+        })
+    except Exception as e:
+        logger.error(f"Error collecting NTP status: {e}", exc_info=True)
+        return jsonify({'status': 'error', 'healthy': False, 'message': str(e)}), 500
 
 
 def register_health_routes(app):

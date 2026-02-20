@@ -133,6 +133,22 @@
                             These rules are enforced when creating or resetting administrator passwords.
                             Existing passwords are not affected until they are changed.
                         </div>
+
+                        <div class="mb-3 mt-3">
+                            <label for="password_expiration_days" class="form-label">
+                                <i class="fas fa-calendar-times"></i> Password Expiration
+                            </label>
+                            <div class="input-group" style="max-width: 280px;">
+                                <input type="number" class="form-control" id="password_expiration_days"
+                                       name="password_expiration_days" min="0" max="3650"
+                                       value="{{ settings.password_expiration_days or 0 }}">
+                                <span class="input-group-text">days</span>
+                            </div>
+                            <div class="form-text">
+                                Number of days before passwords expire. Set to <strong>0</strong> to disable expiration.
+                                Admins will receive a warning banner within 14 days of their password expiry date.
+                            </div>
+                        </div>
                     </div>
                 </div>
 

@@ -31,7 +31,7 @@ from flask import current_app, flash, g, redirect, render_template, request, ses
 from sqlalchemy import func
 
 from app_core.extensions import db
-from app_core.models import AdminUser, SystemLog
+from app_core.models import AdminSession, AdminUser, SystemLog
 from app_utils import utc_now
 from app_core.auth.mfa import MFASession, verify_user_mfa
 from app_core.auth.audit import AuditLogger, AuditAction
@@ -39,6 +39,60 @@ from app_core.auth.input_validation import InputValidator
 from app_core.auth.rate_limiter import get_rate_limiter
 from app_core.auth.security_logger import log_malicious_login_attempt, log_failed_login_attempt, log_rate_limit_exceeded
 from app_core.auth.ip_filter import IPFilter, FloodProtection, AutoBanManager
+
+
+def _check_password_expiry(user: 'AdminUser') -> tuple:
+    """
+    Return (is_expired, days_remaining) based on ApplicationSettings policy.
+
+    Returns (False, None) when expiration is disabled or password_changed_at is unset.
+    """
+    from datetime import timezone, timedelta
+    from app_core.models import ApplicationSettings
+    try:
+        settings = ApplicationSettings.query.first()
+        expiry_days = (settings.password_expiration_days or 0) if settings else 0
+        if not expiry_days or not user.password_changed_at:
+            return False, None
+        changed = user.password_changed_at
+        if changed.tzinfo is None:
+            changed = changed.replace(tzinfo=timezone.utc)
+        from datetime import datetime
+        deadline = changed + timedelta(days=expiry_days)
+        now = datetime.now(timezone.utc)
+        days_remaining = (deadline - now).days
+        return days_remaining < 0, max(days_remaining, 0)
+    except Exception as exc:  # pragma: no cover
+        current_app.logger.warning("Password expiry check failed: %s", exc)
+        return False, None
+
+
+def _create_admin_session(user_id: int) -> None:
+    """Record a new administrator login session in the database."""
+    try:
+        db.session.add(AdminSession(
+            user_id=user_id,
+            ip_address=request.remote_addr,
+            user_agent=request.headers.get('User-Agent', '')[:512],
+        ))
+    except Exception as exc:  # pragma: no cover - non-critical
+        current_app.logger.warning("Could not create AdminSession record: %s", exc)
+
+
+def _end_admin_session(user_id: int, reason: str = 'logout') -> None:
+    """Mark the most recent active session for this user as ended."""
+    try:
+        session_row = (
+            AdminSession.query
+            .filter_by(user_id=user_id, ended_at=None)
+            .order_by(AdminSession.created_at.desc())
+            .first()
+        )
+        if session_row:
+            session_row.ended_at = utc_now()
+            session_row.ended_reason = reason
+    except Exception as exc:  # pragma: no cover - non-critical
+        current_app.logger.warning("Could not end AdminSession record: %s", exc)
 
 
 # Create Blueprint for auth routes
@@ -212,9 +266,16 @@ def login():
                                 )
                                 db.session.add(user)
                                 db.session.add(log_entry)
+                                _create_admin_session(user.id)
                                 db.session.commit()
 
                                 AuditLogger.log_login_success(user.id, user.username)
+
+                                pw_expired, pw_days = _check_password_expiry(user)
+                                if pw_expired:
+                                    session['pw_expired'] = True
+                                elif pw_days is not None and pw_days <= 14:
+                                    session['pw_expires_in_days'] = pw_days
 
                                 target = next_param if _is_safe_redirect_target(next_param) else url_for('dashboard.admin')
                                 return redirect(target)
@@ -266,6 +327,7 @@ def logout():
                 'remote_addr': request.remote_addr,
             },
         ))
+        _end_admin_session(user.id, reason='logout')
         db.session.commit()
 
         AuditLogger.log_logout(user.id, user.username)
@@ -316,12 +378,19 @@ def mfa_verify():
                 )
                 db.session.add(user)
                 db.session.add(log_entry)
+                _create_admin_session(user.id)
                 db.session.commit()
 
                 # Determine if backup code was used
                 method = 'backup_code' if len(code) > 6 else 'totp'
                 AuditLogger.log_login_success(user.id, user.username)
                 AuditLogger.log_mfa_verify_success(user.id, user.username, method)
+
+                pw_expired, pw_days = _check_password_expiry(user)
+                if pw_expired:
+                    session['pw_expired'] = True
+                elif pw_days is not None and pw_days <= 14:
+                    session['pw_expires_in_days'] = pw_days
 
                 target = next_param if _is_safe_redirect_target(next_param) else url_for('dashboard.admin')
                 return redirect(target)
