@@ -17,6 +17,14 @@ Complete documentation for **EAS Station** - an Emergency Alert System platform 
 | Document | Description |
 |----------|-------------|
 | [Help & Operations Guide](guides/HELP.md) | Complete operator manual |
+| [Manual EAS Events & Broadcast Builder](guides/MANUAL_EAS_EVENTS.md) | Create and send manual EAS broadcasts and RWT tests |
+| [eas-config Tool](guides/EAS_CONFIG_TOOL.md) | Interactive terminal configuration utility |
+| [Multi-Factor Authentication (TOTP)](guides/MFA_TOTP_SETUP.md) | Set up and manage 2FA for admin accounts |
+| [API Key Management](guides/API_KEY_MANAGEMENT.md) | Create, rotate, and manage REST API keys |
+| [Database Backups](guides/DATABASE_BACKUPS.md) | Backup strategy, restore procedures, and scheduling |
+| [Analytics and Reporting](guides/ANALYTICS_AND_REPORTING.md) | Alert trends, anomaly detection, and compliance reports |
+| [Audit Log Review](guides/AUDIT_LOG_REVIEW.md) | Review security events and user action logs |
+| [Icecast Streaming Setup](guides/ICECAST_STREAMING_SETUP.md) | Configure Icecast audio streaming server |
 | [HTTPS Setup](guides/HTTPS_SETUP.md) | SSL/TLS certificates |
 | [SSL Web UI Guide](guides/SSL_WEB_UI_GUIDE.md) | Web-based certificate management |
 | [IPAWS Integration](guides/ipaws_feed_integration.md) | Federal alert source setup |
@@ -33,6 +41,9 @@ Complete documentation for **EAS Station** - an Emergency Alert System platform 
 | Document | Description |
 |----------|-------------|
 | [SDR Setup Guide](hardware/SDR_SETUP.md) | Radio receiver configuration |
+| [GPIO Relay Wiring](hardware/GPIO_RELAY_WIRING.md) | Transmitter relay wiring, pin assignments, and safety |
+| [VFD Display Setup](hardware/VFD_DISPLAY_SETUP.md) | Noritake GU140x32F vacuum fluorescent display |
+| [NeoPixel LED Control](hardware/NEOPIXEL_LED_CONTROL.md) | WS2812B addressable LED strip integration |
 | [Audio Monitoring](audio/AUDIO_MONITORING.md) | Live stream viewer |
 | [LED Communication](hardware/BIDIRECTIONAL_LED_COMMUNICATION.md) | LED sign integration |
 | [Serial Adapters](hardware/SERIAL_TO_ETHERNET_ADAPTERS.md) | Serial device setup |
