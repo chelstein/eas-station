@@ -161,13 +161,24 @@ def _is_base64_blob(text: Optional[str]) -> bool:
     return bool(stripped and not re.search(r'\s', stripped) and _BASE64_BLOB_RE.match(stripped))
 
 
-def _is_junk_metadata(title: Optional[str], display: Optional[str], raw: Optional[str]) -> bool:
+def _is_junk_metadata(
+    title: Optional[str],
+    display: Optional[str],
+    raw: Optional[str],
+    stream_url: Optional[str] = None,
+) -> bool:
     """Return True if this metadata log row contains only junk (no useful display text).
 
     Junk means: the title/display value is a raw base64-encoded URL blob — not a
     real song title, artist, or station ID.  Commercials, promos, and station IDs
     are NOT considered junk and are left alone.
+
+    Entries that have a resolved stream_url (e.g. a VAST ad tag URL) are NOT
+    considered junk — they are kept so the user can attempt playback.
     """
+    # Entries with a resolved stream URL are meaningful — keep them
+    if stream_url and stream_url.startswith(("http://", "https://")):
+        return False
     # If the title column is a base64 blob, it's junk
     if _is_base64_blob(title):
         return True
@@ -724,7 +735,8 @@ def register(app: Flask, logger_arg, archive_dir: str = _DEFAULT_ARCHIVE_DIR) ->
             entries = []
             junk_hidden = 0
             for r in rows:
-                if hide_junk and _is_junk_metadata(r.title, r.display, r.raw):
+                if hide_junk and _is_junk_metadata(r.title, r.display, r.raw,
+                                                   getattr(r, "stream_url", None)):
                     junk_hidden += 1
                     continue
                 entries.append({
@@ -737,6 +749,7 @@ def register(app: Flask, logger_arg, archive_dir: str = _DEFAULT_ARCHIVE_DIR) ->
                     "length": r.length,
                     "display": r.display,
                     "raw": r.raw,
+                    "stream_url": getattr(r, "stream_url", None),
                 })
             return jsonify({
                 "source_name": source_name,
@@ -784,12 +797,14 @@ def register(app: Flask, logger_arg, archive_dir: str = _DEFAULT_ARCHIVE_DIR) ->
                 StreamMetadataLog.query
                 .filter_by(source_name=source_name)
                 .with_entities(StreamMetadataLog.id, StreamMetadataLog.title,
-                               StreamMetadataLog.display, StreamMetadataLog.raw)
+                               StreamMetadataLog.display, StreamMetadataLog.raw,
+                               StreamMetadataLog.stream_url)
                 .all()
             )
             junk_ids = [
                 r.id for r in rows
-                if _is_junk_metadata(r.title, r.display, r.raw)
+                if _is_junk_metadata(r.title, r.display, r.raw,
+                                     getattr(r, "stream_url", None))
             ]
             if junk_ids:
                 StreamMetadataLog.query.filter(
@@ -803,6 +818,85 @@ def register(app: Flask, logger_arg, archive_dir: str = _DEFAULT_ARCHIVE_DIR) ->
             return jsonify({"source_name": source_name, "deleted": len(junk_ids)})
         except Exception as exc:
             route_logger.error("metadata-log clean-junk failed for '%s': %s", source_name, exc)
+            return jsonify({"error": str(exc)}), 500
+
+    # ------------------------------------------------------------------
+    # API: resolve a stream/ad URL to a playable audio URL
+    # ------------------------------------------------------------------
+
+    @app.route("/api/audio/archives/resolve-stream-url", methods=["POST"])
+    def api_audio_archive_resolve_stream_url():
+        """Fetch a stream URL and resolve it to a direct playable audio URL.
+
+        Handles three cases:
+        1. Direct audio (audio/* content-type) — returns the URL as-is.
+        2. VAST XML — parses the XML and returns the first audio MediaFile URL.
+        3. Anything else — returns an error explaining it could not be resolved.
+        """
+        import urllib.request
+        import xml.etree.ElementTree as ET
+
+        body = request.get_json(silent=True) or {}
+        url = (body.get("url") or "").strip()
+
+        if not url or not url.startswith(("http://", "https://")):
+            return jsonify({"error": "Invalid or missing URL"}), 400
+
+        try:
+            req = urllib.request.Request(
+                url,
+                headers={"User-Agent": "Mozilla/5.0 (EAS-Station)"},
+            )
+            with urllib.request.urlopen(req, timeout=8) as resp:
+                content_type = (resp.headers.get("Content-Type") or "").lower()
+                data = resp.read(2 * 1024 * 1024)  # cap at 2 MB
+
+            # 1. Already a direct audio stream
+            if any(ct in content_type for ct in ("audio/", "video/mp2t", "application/ogg")):
+                return jsonify({"audio_url": url, "type": "direct"})
+
+            # 2. Try VAST / XML parsing
+            if "xml" in content_type or data.lstrip()[:5] in (b"<?xml", b"<VAST"):
+                try:
+                    root = ET.fromstring(data)
+                    _audio_mimes = {
+                        "audio/mpeg", "audio/mp3", "audio/mp4", "audio/aac",
+                        "audio/ogg", "audio/wav", "audio/x-wav", "audio/webm",
+                    }
+                    for media_file in root.iter("MediaFile"):
+                        mime = (media_file.get("type") or "").lower().strip()
+                        audio_url = (media_file.text or "").strip()
+                        if audio_url.startswith(("http://", "https://")) and (
+                            mime in _audio_mimes or mime.startswith("audio/")
+                        ):
+                            return jsonify({
+                                "audio_url": audio_url,
+                                "type": "vast",
+                                "mime": mime,
+                                "original_url": url,
+                            })
+                    # VAST parsed but no audio MediaFile found
+                    return jsonify({
+                        "error": "VAST parsed but no audio MediaFile found",
+                        "type": "vast_no_audio",
+                        "original_url": url,
+                    })
+                except ET.ParseError as exc:
+                    return jsonify({
+                        "error": f"XML parse error: {exc}",
+                        "type": "xml_error",
+                        "original_url": url,
+                    })
+
+            # 3. Unknown format
+            return jsonify({
+                "error": f"Unrecognised content type: {content_type or '(none)'}",
+                "type": "unknown",
+                "original_url": url,
+            })
+
+        except Exception as exc:
+            route_logger.warning("resolve-stream-url failed for %s: %s", url, exc)
             return jsonify({"error": str(exc)}), 500
 
     route_logger.info("Audio archive routes registered (archive_dir=%s)", archive_root)

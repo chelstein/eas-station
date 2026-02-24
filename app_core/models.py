@@ -1602,6 +1602,10 @@ class StreamMetadataLog(db.Model):
     # Raw ICY StreamTitle string
     raw = db.Column(db.Text)
 
+    # Playback URL — populated when the StreamTitle contains a base64-encoded
+    # audio/stream URL or an explicit url="" ICY attribute.
+    stream_url = db.Column(db.Text)
+
 
 class GPIOActivationLog(db.Model):
     """Audit log for GPIO relay activations.

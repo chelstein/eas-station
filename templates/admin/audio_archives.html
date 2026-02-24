@@ -57,6 +57,9 @@
   /* Song history */
   .meta-artwork { width: 36px; height: 36px; object-fit: cover; border-radius: .25rem; }
   .meta-artwork-placeholder { width: 36px; height: 36px; background: var(--border-color); border-radius: .25rem; display: flex; align-items: center; justify-content: center; color: var(--secondary-color); }
+  .ad-play-btn { background: none; border: none; cursor: pointer; padding: 0 .25rem; color: var(--warning-color); }
+  .ad-play-btn:hover { opacity: .75; }
+  .ad-play-btn.loading { animation: spin .6s linear infinite; }
 </style>
 {% endblock %}
 
@@ -518,6 +521,7 @@ async function loadHistory(sourceName) {
     <th>Artist</th>
     <th>Album</th>
     <th>Duration</th>
+    <th></th>
   </tr></thead>
   <tbody>`;
 
@@ -525,14 +529,31 @@ async function loadHistory(sourceName) {
       const artHtml = e.artwork_url
         ? `<img src="${e.artwork_url}" class="meta-artwork" alt="" onerror="this.style.display='none'">`
         : `<div class="meta-artwork-placeholder"><i class="fas fa-music" style="font-size:.75rem"></i></div>`;
+
+      // Stream/ad URL play button
+      let streamBtn = '';
+      if (e.stream_url) {
+        const escapedUrl = encodeURIComponent(e.stream_url);
+        const label = e.title ? `Ad: ${e.title}` : 'Ad URL';
+        streamBtn = `<button class="ad-play-btn" title="Resolve &amp; play ad/stream URL"
+          onclick="resolveAndPlay(this, '${e.stream_url.replace(/'/g, "\\'")}', '${label.replace(/'/g, "\\'")}')">
+          <i class="fas fa-ad fa-sm"></i>
+        </button>`;
+      }
+
+      const titleHtml = e.stream_url && !e.title && !e.display
+        ? `<span class="text-warning" title="${e.stream_url}"><i class="fas fa-ad me-1 fa-sm"></i>Ad URL</span>`
+        : (e.title || (e.display ? `<em>${e.display}</em>` : '<span class="text-muted">—</span>'));
+
       html += `
     <tr>
       <td>${artHtml}</td>
       <td class="text-muted text-nowrap">${fmtTs(e.timestamp)}</td>
-      <td>${e.title || (e.display ? `<em>${e.display}</em>` : '<span class="text-muted">—</span>')}</td>
+      <td>${titleHtml}</td>
       <td>${e.artist || '<span class="text-muted">—</span>'}</td>
       <td>${e.album  || '<span class="text-muted">—</span>'}</td>
       <td class="text-muted">${e.length || '—'}</td>
+      <td style="white-space:nowrap">${streamBtn}</td>
     </tr>`;
     }
 
@@ -654,6 +675,32 @@ async function clearHistory(sourceName) {
       delete _panelLoaded[panelId];
     }
   } catch (e) { toast('Error: ' + e, false); }
+}
+
+/* -----------------------------------------------------------------------
+   Resolve & play ad/stream URL (handles VAST XML)
+----------------------------------------------------------------------- */
+async function resolveAndPlay(btn, streamUrl, label) {
+  const icon = btn.querySelector('i');
+  icon.className = 'fas fa-spinner fa-spin fa-sm';
+  btn.disabled = true;
+  try {
+    const r = await api('POST', '/api/audio/archives/resolve-stream-url', { url: streamUrl });
+    if (r.audio_url) {
+      playFile(r.audio_url, label + (r.type === 'vast' ? ' (VAST)' : ''));
+      toast(`Playing: ${label}`);
+    } else {
+      const msg = r.error || 'No playable audio found';
+      toast(msg, false);
+      // Fall back to opening the original URL in a new tab
+      window.open(streamUrl, '_blank', 'noopener');
+    }
+  } catch (e) {
+    toast('Resolve failed: ' + e, false);
+  } finally {
+    icon.className = 'fas fa-ad fa-sm';
+    btn.disabled = false;
+  }
 }
 
 /* -----------------------------------------------------------------------
