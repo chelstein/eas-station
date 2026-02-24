@@ -543,6 +543,7 @@ def _make_metadata_log_callback(flask_app):
                         length=updates.get('length'),
                         display=updates.get('song'),
                         raw=updates.get('song_raw'),
+                        stream_url=updates.get('stream_url'),
                     )
                     db.session.add(record)
                     db.session.commit()

@@ -75,6 +75,12 @@ class AudioArchiverConfig:
     # MP3 bitrate in kbps (ignored for WAV).
     bitrate: int = 128
 
+    # Silence detection: segments whose RMS amplitude is below this value are
+    # skipped (not written to disk).  Useful for dropping dead-air segments
+    # when a source is disconnected or not transmitting.
+    # Set to 0.0 to disable.  Typical useful range: 0.001 – 0.01.
+    silence_threshold: float = 0.0
+
 
 class AudioArchiver:
     """
@@ -140,6 +146,7 @@ class AudioArchiver:
         self._lock = threading.Lock()
         self._files_written: int = 0
         self._bytes_written: int = 0
+        self._files_skipped_silence: int = 0
         self._last_file_path: Optional[str] = None
         self._last_error: Optional[str] = None
 
@@ -181,13 +188,14 @@ class AudioArchiver:
 
         logger.info(
             "AudioArchiver started for '%s' -> %s (segment=%ds, retention=%dd, "
-            "quota=%s, format=%s)",
+            "quota=%s, format=%s, silence_threshold=%s)",
             self.source_name,
             source_dir,
             self.config.segment_duration_seconds,
             self.config.retention_days,
             _format_bytes(self.config.max_disk_bytes) if self.config.max_disk_bytes else "unlimited",
             self.config.format,
+            self.config.silence_threshold if self.config.silence_threshold > 0.0 else "disabled",
         )
         return True
 
@@ -276,6 +284,7 @@ class AudioArchiver:
                 "format": self.config.format,
                 "files_written": self._files_written,
                 "bytes_written": self._bytes_written,
+                "files_skipped_silence": self._files_skipped_silence,
                 "disk_usage_bytes": self._measure_disk_usage(),
                 "last_file": self._last_file_path,
                 "last_error": self._last_error,
@@ -370,6 +379,22 @@ class AudioArchiver:
         self._current_chunks = []
 
         duration_s = len(audio) / max(self.sample_rate, 1)
+
+        # Silence detection — skip dead-air segments to avoid saving junk files
+        if self.config.silence_threshold > 0.0:
+            rms = float(np.sqrt(np.mean(audio ** 2)))
+            if rms < self.config.silence_threshold:
+                with self._lock:
+                    self._files_skipped_silence += 1
+                logger.info(
+                    "AudioArchiver: skipped silent segment for '%s' "
+                    "(rms=%.6f < threshold=%.6f, %.1fs of audio discarded)",
+                    self.source_name,
+                    rms,
+                    self.config.silence_threshold,
+                    duration_s,
+                )
+                return
 
         try:
             if self.config.format == "mp3":

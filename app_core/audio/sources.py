@@ -25,6 +25,7 @@ Audio Source Adapters
 Concrete implementations of AudioSourceAdapter for different input types.
 """
 
+import base64
 import copy
 import logging
 import os
@@ -35,11 +36,48 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import urljoin, urlparse, unquote
 
+import re as _re
+
 import numpy as np
 
 from .ingest import AudioSourceAdapter, AudioSourceConfig, AudioSourceStatus
 
 logger = logging.getLogger(__name__)
+
+# Pre-compiled pattern used by _looks_like_base64_blob
+_BASE64_BLOB_RE = _re.compile(r'^[A-Za-z0-9+/=]{20,}$')
+
+
+def _looks_like_base64_blob(text: str) -> bool:
+    """Return True if *text* looks like a raw base64-encoded blob.
+
+    Base64-encoded URLs or binary data occasionally appear in ICY StreamTitle
+    fields.  They are not useful display text and should be discarded.
+
+    Criteria: 20+ characters, no whitespace, only base64 alphabet characters.
+    """
+    return bool(text and not _re.search(r'\s', text) and _BASE64_BLOB_RE.match(text.strip()))
+
+
+def _decode_base64_url(text: str) -> Optional[str]:
+    """Try to base64-decode *text* and return it if it resolves to an HTTP(S) URL.
+
+    Some stream automation systems encode audio/ad URLs in base64 and embed
+    them directly as the ICY StreamTitle.  When successfully decoded to a URL
+    we can offer playback rather than silently discarding the entry.
+    """
+    try:
+        padded = text.strip()
+        # Restore padding stripped during base64 transport
+        remainder = len(padded) % 4
+        if remainder:
+            padded += '=' * (4 - remainder)
+        decoded = base64.b64decode(padded).decode('utf-8', errors='strict')
+        if decoded.startswith(('http://', 'https://')):
+            return decoded
+    except Exception:
+        pass
+    return None
 
 try:
     import alsaaudio
@@ -1527,8 +1565,20 @@ class StreamSourceAdapter(AudioSourceAdapter):
                         updates['song_title'] = title
                         updates['title'] = title
 
+            # Extract explicit url="" attribute (only if it looks like a real URL)
+            url_match = _re.search(r'\burl="(https?://[^"]{8,})"', stream_title)
+            if url_match:
+                updates.setdefault('stream_url', url_match.group(1).strip())
+
             if display_song:
                 updates['song'] = display_song
+            elif _looks_like_base64_blob(stream_title):
+                # Try to decode the base64 blob as a playable URL (e.g. VAST ad tag).
+                # If it resolves, store it as stream_url so the UI can offer playback.
+                decoded_url = _decode_base64_url(stream_title)
+                if decoded_url:
+                    updates['stream_url'] = decoded_url
+                # Do not store the raw base64 blob as the song display value.
             else:
                 updates['song'] = stream_title
 

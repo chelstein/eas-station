@@ -57,6 +57,9 @@
   /* Song history */
   .meta-artwork { width: 36px; height: 36px; object-fit: cover; border-radius: .25rem; }
   .meta-artwork-placeholder { width: 36px; height: 36px; background: var(--border-color); border-radius: .25rem; display: flex; align-items: center; justify-content: center; color: var(--secondary-color); }
+  .ad-play-btn { background: none; border: none; cursor: pointer; padding: 0 .25rem; color: var(--warning-color); }
+  .ad-play-btn:hover { opacity: .75; }
+  .ad-play-btn.loading { animation: spin .6s linear infinite; }
 </style>
 {% endblock %}
 
@@ -128,6 +131,14 @@ function fmt(n) {
   return n.toFixed(1) + ' ' + units[u];
 }
 
+function fmtDuration(secs) {
+  if (!secs && secs !== 0) return '—';
+  secs = Math.round(secs);
+  if (secs >= 3600) { const h = Math.floor(secs / 3600), m = Math.floor((secs % 3600) / 60); return `${h}h ${m}m`; }
+  const m = Math.floor(secs / 60), s = secs % 60;
+  return `${m}m ${s}s`;
+}
+
 function gbToBytes(gb) { return Math.round(parseFloat(gb) * 1073741824); }
 function bytesToGb(b)  { return (b / 1073741824).toFixed(2); }
 function fmtTs(iso)    { return iso ? new Date(iso).toLocaleString() : '—'; }
@@ -157,6 +168,7 @@ function buildCard(s) {
   const maxGb       = s.archive ? bytesToGb(s.archive.max_disk_bytes || 0) : 0;
   const outDir      = (s.archive && s.archive.output_dir) || 'archives';
   const bitrate     = (s.archive && s.archive.bitrate) || 128;
+  const silenceThreshold = (s.archive && s.archive.silence_threshold != null) ? s.archive.silence_threshold : 0.0;
   const newest      = s.newest_file_iso ? new Date(s.newest_file_iso).toLocaleString() : '—';
   const esc         = CSS.escape(s.source_name);
 
@@ -185,6 +197,9 @@ function buildCard(s) {
       </button>
       <button class="btn btn-sm btn-outline-info" onclick="togglePanel('history-${esc}', '${s.source_name}', 'history')">
         <i class="fas fa-music me-1"></i> Song History
+      </button>
+      <button class="btn btn-sm btn-outline-success" onclick="togglePanel('stats-${esc}', '${s.source_name}', 'stats')">
+        <i class="fas fa-chart-bar me-1"></i> Stats
       </button>
       <button class="btn btn-sm btn-outline-secondary" onclick="togglePanel('settings-${esc}', '${s.source_name}', 'settings')">
         <i class="fas fa-sliders me-1"></i> Settings
@@ -218,7 +233,14 @@ function buildCard(s) {
         <option value="all">All</option>
       </select>
       <span class="text-muted small" id="history-count-${esc}"></span>
-      <div class="ms-auto">
+      <span class="text-muted small" id="history-junk-${esc}" style="display:none">
+        &bull; <span class="text-warning" id="history-junk-count-${esc}"></span> junk hidden
+      </span>
+      <div class="ms-auto d-flex gap-2">
+        <button class="btn btn-sm btn-outline-warning" onclick="cleanJunk('${s.source_name}')"
+          title="Permanently delete base64 blob entries from the history database">
+          <i class="fas fa-filter me-1"></i> Clean Junk
+        </button>
         <button class="btn btn-sm btn-outline-danger" onclick="clearHistory('${s.source_name}')">
           <i class="fas fa-trash me-1"></i> Clear History
         </button>
@@ -226,6 +248,13 @@ function buildCard(s) {
     </div>
     <div id="history-body-${esc}">
       <div class="text-center text-muted py-3"><span class="spinner"></span> Loading history…</div>
+    </div>
+  </div>
+
+  <!-- Stats panel -->
+  <div class="panel card-body" id="stats-${esc}">
+    <div id="stats-body-${esc}">
+      <div class="text-center text-muted py-3"><span class="spinner"></span> Loading stats…</div>
     </div>
   </div>
 
@@ -263,6 +292,12 @@ function buildCard(s) {
         <div class="bitrate-field" style="${fmt_val==='WAV'?'display:none':''}">
           <label class="form-label small text-muted">MP3 bitrate (kbps)</label>
           <input type="number" class="form-control form-control-sm" name="bitrate" min="64" max="320" step="32" value="${bitrate}">
+        </div>
+        <div>
+          <label class="form-label small text-muted">Silence threshold (0 = off)</label>
+          <input type="number" class="form-control form-control-sm" name="silence_threshold"
+            min="0" max="1" step="0.001" value="${silenceThreshold}">
+          <div class="form-text" style="font-size:.75rem">Skip saving segments whose RMS is below this level (e.g. 0.005 drops dead air)</div>
         </div>
       </div>
 
@@ -310,6 +345,7 @@ function togglePanel(panelId, sourceName, kind) {
     _panelLoaded[panelId] = true;
     if (kind === 'files')   loadFiles(sourceName);
     if (kind === 'history') loadHistory(sourceName);
+    if (kind === 'stats')   loadStats(sourceName);
   }
 }
 
@@ -338,20 +374,25 @@ async function loadFiles(sourceName) {
   <thead><tr>
     <th>Date / File</th>
     <th>Size</th>
+    <th>Duration</th>
     <th>Modified</th>
     <th></th>
   </tr></thead>`;
 
     for (const d of dates) {
       const totalSize = d.files.reduce((a, f) => a + f.size_bytes, 0);
+      const totalDur  = d.total_duration_seconds != null ? d.total_duration_seconds
+                        : d.files.reduce((a, f) => a + (f.duration_seconds || 0), 0);
       const groupId   = CSS.escape(sourceName + '-' + d.date);
       html += `
   <tbody>
     <tr class="date-row table-secondary" onclick="toggleDateGroup('${groupId}')">
-      <td colspan="3"><i class="fas fa-chevron-right me-2 date-chevron-${groupId}" style="font-size:.75rem"></i>
+      <td colspan="2"><i class="fas fa-chevron-right me-2 date-chevron-${groupId}" style="font-size:.75rem"></i>
         <strong>${d.date}</strong>
         <span class="text-muted ms-2">${d.files.length} file(s)</span>
       </td>
+      <td class="text-muted">${fmtDuration(totalDur)}</td>
+      <td></td>
       <td class="text-end text-muted">${fmt(totalSize)}</td>
     </tr>
   </tbody>
@@ -363,6 +404,7 @@ async function loadFiles(sourceName) {
     <tr class="file-row">
       <td><i class="fas fa-file-audio text-muted me-2"></i>${f.filename}</td>
       <td class="text-muted">${f.size_human}</td>
+      <td class="text-muted">${fmtDuration(f.duration_seconds)}</td>
       <td class="text-muted">${fmtTs(f.mtime)}</td>
       <td class="text-end" style="white-space:nowrap">
         <button class="play-btn" title="Play" onclick="playFile('${playUrl}', '${sourceName} / ${d.date} / ${f.filename}')">
@@ -455,6 +497,13 @@ async function loadHistory(sourceName) {
     if (countEl) {
       countEl.textContent = entries.length ? `${entries.length} result${entries.length !== 1 ? 's' : ''}` : '';
     }
+    const junkEl = document.getElementById('history-junk-' + CSS.escape(sourceName));
+    const junkCntEl = document.getElementById('history-junk-count-' + CSS.escape(sourceName));
+    if (junkEl && junkCntEl) {
+      const junkHidden = data.junk_hidden || 0;
+      junkEl.style.display = junkHidden ? '' : 'none';
+      junkCntEl.textContent = junkHidden;
+    }
 
     if (!entries.length) {
       bodyEl.innerHTML = search
@@ -472,6 +521,7 @@ async function loadHistory(sourceName) {
     <th>Artist</th>
     <th>Album</th>
     <th>Duration</th>
+    <th></th>
   </tr></thead>
   <tbody>`;
 
@@ -479,14 +529,31 @@ async function loadHistory(sourceName) {
       const artHtml = e.artwork_url
         ? `<img src="${e.artwork_url}" class="meta-artwork" alt="" onerror="this.style.display='none'">`
         : `<div class="meta-artwork-placeholder"><i class="fas fa-music" style="font-size:.75rem"></i></div>`;
+
+      // Stream/ad URL play button
+      let streamBtn = '';
+      if (e.stream_url) {
+        const escapedUrl = encodeURIComponent(e.stream_url);
+        const label = e.title ? `Ad: ${e.title}` : 'Ad URL';
+        streamBtn = `<button class="ad-play-btn" title="Resolve &amp; play ad/stream URL"
+          onclick="resolveAndPlay(this, '${e.stream_url.replace(/'/g, "\\'")}', '${label.replace(/'/g, "\\'")}')">
+          <i class="fas fa-ad fa-sm"></i>
+        </button>`;
+      }
+
+      const titleHtml = e.stream_url && !e.title && !e.display
+        ? `<span class="text-warning" title="${e.stream_url}"><i class="fas fa-ad me-1 fa-sm"></i>Ad URL</span>`
+        : (e.title || (e.display ? `<em>${e.display}</em>` : '<span class="text-muted">—</span>'));
+
       html += `
     <tr>
       <td>${artHtml}</td>
       <td class="text-muted text-nowrap">${fmtTs(e.timestamp)}</td>
-      <td>${e.title || (e.display ? `<em>${e.display}</em>` : '<span class="text-muted">—</span>')}</td>
+      <td>${titleHtml}</td>
       <td>${e.artist || '<span class="text-muted">—</span>'}</td>
       <td>${e.album  || '<span class="text-muted">—</span>'}</td>
       <td class="text-muted">${e.length || '—'}</td>
+      <td style="white-space:nowrap">${streamBtn}</td>
     </tr>`;
     }
 
@@ -494,6 +561,95 @@ async function loadHistory(sourceName) {
     bodyEl.innerHTML = html;
   } catch (e) {
     bodyEl.innerHTML = `<div class="alert alert-danger mb-0">Failed to load history: ${e}</div>`;
+  }
+}
+
+/* -----------------------------------------------------------------------
+   Stats panel
+----------------------------------------------------------------------- */
+async function loadStats(sourceName) {
+  const bodyEl = document.getElementById('stats-body-' + CSS.escape(sourceName));
+  if (!bodyEl) return;
+  try {
+    const d = await api('GET', `/api/audio/archives/${encodeURIComponent(sourceName)}/stats`);
+
+    let html = `
+<div class="row g-3 mb-3">
+  <div class="col-auto">
+    <div class="text-muted small">Total files</div>
+    <div class="fs-5 fw-semibold">${d.total_files}</div>
+  </div>
+  <div class="col-auto">
+    <div class="text-muted small">Total size</div>
+    <div class="fs-5 fw-semibold">${d.total_bytes_human}</div>
+  </div>
+  <div class="col-auto">
+    <div class="text-muted small">Total recorded</div>
+    <div class="fs-5 fw-semibold">${d.total_duration_human}</div>
+  </div>
+  ${d.oldest_date ? `<div class="col-auto"><div class="text-muted small">Oldest</div><div class="fs-5 fw-semibold">${d.oldest_date}</div></div>` : ''}
+  ${d.newest_date ? `<div class="col-auto"><div class="text-muted small">Newest</div><div class="fs-5 fw-semibold">${d.newest_date}</div></div>` : ''}
+</div>`;
+
+    if (d.dates && d.dates.length) {
+      html += `
+<h6 class="text-muted mb-2">Recording History</h6>
+<table class="table table-sm mb-3" style="font-size:.875rem">
+  <thead><tr><th>Date</th><th>Files</th><th>Duration</th><th>Size</th></tr></thead>
+  <tbody>`;
+      for (const row of d.dates) {
+        html += `<tr>
+          <td>${row.date}</td>
+          <td class="text-muted">${row.file_count}</td>
+          <td class="text-muted">${row.duration_human}</td>
+          <td class="text-muted">${row.total_bytes_human}</td>
+        </tr>`;
+      }
+      html += `</tbody></table>`;
+    }
+
+    if (d.top_songs && d.top_songs.length) {
+      html += `
+<h6 class="text-muted mb-2">Top Songs</h6>
+<table class="table table-sm mb-3" style="font-size:.875rem">
+  <thead><tr><th></th><th>Title</th><th>Artist</th><th class="text-end">Plays</th></tr></thead>
+  <tbody>`;
+      for (const s of d.top_songs) {
+        const art = s.artwork_url
+          ? `<img src="${s.artwork_url}" class="meta-artwork" alt="" onerror="this.style.display='none'">`
+          : `<div class="meta-artwork-placeholder"><i class="fas fa-music" style="font-size:.75rem"></i></div>`;
+        html += `<tr>
+          <td>${art}</td>
+          <td>${s.title || '<span class="text-muted">—</span>'}</td>
+          <td class="text-muted">${s.artist || '—'}</td>
+          <td class="text-end text-muted">${s.count}</td>
+        </tr>`;
+      }
+      html += `</tbody></table>`;
+    }
+
+    if (d.top_artists && d.top_artists.length) {
+      html += `
+<h6 class="text-muted mb-2">Top Artists</h6>
+<table class="table table-sm mb-0" style="font-size:.875rem">
+  <thead><tr><th>Artist</th><th class="text-end">Plays</th></tr></thead>
+  <tbody>`;
+      for (const a of d.top_artists) {
+        html += `<tr>
+          <td>${a.artist}</td>
+          <td class="text-end text-muted">${a.count}</td>
+        </tr>`;
+      }
+      html += `</tbody></table>`;
+    }
+
+    if (!d.total_files && !d.top_songs?.length) {
+      html = '<p class="text-muted mb-0">No archive data yet.</p>';
+    }
+
+    bodyEl.innerHTML = html;
+  } catch (e) {
+    bodyEl.innerHTML = `<div class="alert alert-danger mb-0">Failed to load stats: ${e}</div>`;
   }
 }
 
@@ -517,6 +673,54 @@ async function clearHistory(sourceName) {
       // Allow re-loading next time the panel is opened
       const panelId = 'history-' + CSS.escape(sourceName);
       delete _panelLoaded[panelId];
+    }
+  } catch (e) { toast('Error: ' + e, false); }
+}
+
+/* -----------------------------------------------------------------------
+   Resolve & play ad/stream URL (handles VAST XML)
+----------------------------------------------------------------------- */
+async function resolveAndPlay(btn, streamUrl, label) {
+  const icon = btn.querySelector('i');
+  icon.className = 'fas fa-spinner fa-spin fa-sm';
+  btn.disabled = true;
+  try {
+    const r = await api('POST', '/api/audio/archives/resolve-stream-url', { url: streamUrl });
+    if (r.audio_url) {
+      playFile(r.audio_url, label + (r.type === 'vast' ? ' (VAST)' : ''));
+      toast(`Playing: ${label}`);
+    } else {
+      const msg = r.error || 'No playable audio found';
+      toast(msg, false);
+      // Fall back to opening the original URL in a new tab
+      window.open(streamUrl, '_blank', 'noopener');
+    }
+  } catch (e) {
+    toast('Resolve failed: ' + e, false);
+  } finally {
+    icon.className = 'fas fa-ad fa-sm';
+    btn.disabled = false;
+  }
+}
+
+/* -----------------------------------------------------------------------
+   Clean junk metadata entries
+----------------------------------------------------------------------- */
+async function cleanJunk(sourceName) {
+  if (!confirm(`Remove base64-blob junk entries from the history for "${sourceName}"?\nCommercials, promos, and station IDs will NOT be affected.`)) return;
+  try {
+    const r = await api('POST', `/api/audio/archives/${encodeURIComponent(sourceName)}/metadata-log/clean-junk`);
+    if (r.error) {
+      toast('Clean failed: ' + r.error, false);
+    } else if (r.deleted === 0) {
+      toast(`No junk entries found for ${sourceName}`);
+    } else {
+      toast(`Removed ${r.deleted} junk entry(s) for ${sourceName}`);
+      // Reset so panel reloads clean data
+      const panelId = 'history-' + CSS.escape(sourceName);
+      delete _panelLoaded[panelId];
+      const panel = document.getElementById(panelId);
+      if (panel && panel.classList.contains('open')) loadHistory(sourceName);
     }
   } catch (e) { toast('Error: ' + e, false); }
 }
@@ -569,6 +773,7 @@ async function saveSettings(evt, sourceName) {
     max_disk_bytes:           gbToBytes(fd.get('max_disk_gb') || 0),
     format:                   fd.get('format'),
     bitrate:                  parseInt(fd.get('bitrate') || 128),
+    silence_threshold:        parseFloat(fd.get('silence_threshold') || 0),
   };
 
   try {

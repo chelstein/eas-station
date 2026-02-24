@@ -56,6 +56,9 @@ GET  /api/audio/archives/sources
 
 import logging
 import os
+import re
+import wave
+from collections import Counter
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -110,6 +113,82 @@ def _newest_mtime(source_dir: Path) -> Optional[float]:
                 except OSError:
                     pass
     return best
+
+
+def _estimate_file_duration(filepath: Path, config_bitrate: int = 128) -> Optional[float]:
+    """Return estimated audio duration in seconds, or None on error.
+
+    WAV files: exact duration read from the file header.
+    MP3 files: estimated from file size and bitrate.
+    """
+    try:
+        suffix = filepath.suffix.lower()
+        if suffix == ".wav":
+            with wave.open(str(filepath), "rb") as wf:
+                frames = wf.getnframes()
+                rate = wf.getframerate()
+                if rate > 0 and frames > 0:
+                    return frames / rate
+        elif suffix == ".mp3":
+            size = filepath.stat().st_size
+            bytes_per_sec = config_bitrate * 125  # kbps * 1000 / 8
+            if bytes_per_sec > 0:
+                return size / bytes_per_sec
+    except Exception:
+        pass
+    return None
+
+
+def _format_duration(seconds: float) -> str:
+    """Format a duration in seconds as a human-readable string."""
+    seconds = int(seconds)
+    if seconds >= 3600:
+        h, rem = divmod(seconds, 3600)
+        m = rem // 60
+        return f"{h}h {m}m"
+    m, s = divmod(seconds, 60)
+    return f"{m}m {s}s"
+
+
+_BASE64_BLOB_RE = re.compile(r'^[A-Za-z0-9+/=]{20,}$')
+
+
+def _is_base64_blob(text: Optional[str]) -> bool:
+    """Return True if *text* looks like a raw base64-encoded blob (junk metadata)."""
+    if not text:
+        return False
+    stripped = text.strip()
+    return bool(stripped and not re.search(r'\s', stripped) and _BASE64_BLOB_RE.match(stripped))
+
+
+def _is_junk_metadata(
+    title: Optional[str],
+    display: Optional[str],
+    raw: Optional[str],
+    stream_url: Optional[str] = None,
+) -> bool:
+    """Return True if this metadata log row contains only junk (no useful display text).
+
+    Junk means: the title/display value is a raw base64-encoded URL blob — not a
+    real song title, artist, or station ID.  Commercials, promos, and station IDs
+    are NOT considered junk and are left alone.
+
+    Entries that have a resolved stream_url (e.g. a VAST ad tag URL) are NOT
+    considered junk — they are kept so the user can attempt playback.
+    """
+    # Entries with a resolved stream URL are meaningful — keep them
+    if stream_url and stream_url.startswith(("http://", "https://")):
+        return False
+    # If the title column is a base64 blob, it's junk
+    if _is_base64_blob(title):
+        return True
+    # If there's no title and the display fallback is a base64 blob, it's junk
+    if not (title or "").strip() and _is_base64_blob(display):
+        return True
+    # If neither title nor display have content but raw is a base64 blob, it's junk
+    if not (title or "").strip() and not (display or "").strip() and _is_base64_blob(raw):
+        return True
+    return False
 
 
 def _source_disk_summary(source_dir: Path) -> Dict[str, Any]:
@@ -179,6 +258,7 @@ _DEFAULT_ARCHIVE_CONFIG: Dict[str, Any] = {
     "max_disk_bytes": 0,
     "format": "wav",
     "bitrate": 128,
+    "silence_threshold": 0.0,
 }
 
 
@@ -416,6 +496,9 @@ def register(app: Flask, logger_arg, archive_dir: str = _DEFAULT_ARCHIVE_DIR) ->
         if not source_dir.exists():
             return jsonify({"dates": []})
 
+        cfg = _get_archive_config(source_name) or {}
+        bitrate = cfg.get("bitrate", 128)
+
         dates: List[Dict[str, Any]] = []
         for date_dir in sorted(source_dir.iterdir(), reverse=True):
             if not date_dir.is_dir():
@@ -425,19 +508,155 @@ def register(app: Flask, logger_arg, archive_dir: str = _DEFAULT_ARCHIVE_DIR) ->
                 if f.is_file() and f.suffix.lower() in (".wav", ".mp3"):
                     try:
                         stat = f.stat()
+                        duration = _estimate_file_duration(f, bitrate)
                         files.append({
                             "filename": f.name,
                             "date": date_dir.name,
                             "size_bytes": stat.st_size,
                             "size_human": _format_bytes(stat.st_size),
                             "mtime": datetime.fromtimestamp(stat.st_mtime).isoformat(),
+                            "duration_seconds": round(duration, 1) if duration is not None else None,
+                            "duration_human": _format_duration(duration) if duration is not None else None,
                         })
                     except OSError:
                         pass
             if files:
-                dates.append({"date": date_dir.name, "files": files})
+                day_duration = sum(f["duration_seconds"] or 0 for f in files)
+                dates.append({
+                    "date": date_dir.name,
+                    "files": files,
+                    "total_duration_seconds": round(day_duration, 1),
+                    "total_duration_human": _format_duration(day_duration),
+                })
 
         return jsonify({"source_name": source_name, "dates": dates})
+
+    # ------------------------------------------------------------------
+    # API: per-source archive statistics
+    # ------------------------------------------------------------------
+
+    @app.route("/api/audio/archives/<source_name>/stats", methods=["GET"])
+    def api_audio_archive_stats(source_name: str):
+        """Return rich statistics for one source's archive directory."""
+        source_dir = archive_root / Path(source_name).name
+        cfg = _get_archive_config(source_name) or {}
+        bitrate = cfg.get("bitrate", 128)
+
+        empty = {
+            "source_name": source_name,
+            "total_files": 0,
+            "total_bytes": 0,
+            "total_bytes_human": "0 B",
+            "total_duration_seconds": 0.0,
+            "total_duration_human": "0m 0s",
+            "dates": [],
+            "oldest_date": None,
+            "newest_date": None,
+            "top_songs": [],
+            "top_artists": [],
+        }
+
+        if not source_dir.exists():
+            return jsonify(empty)
+
+        # ---- disk / duration breakdown per day ----
+        day_rows: List[Dict[str, Any]] = []
+        for date_dir in sorted(source_dir.iterdir()):
+            if not date_dir.is_dir():
+                continue
+            day_files = 0
+            day_bytes = 0
+            day_duration = 0.0
+            for f in date_dir.iterdir():
+                if f.is_file() and f.suffix.lower() in (".wav", ".mp3"):
+                    try:
+                        day_bytes += f.stat().st_size
+                        day_files += 1
+                        dur = _estimate_file_duration(f, bitrate)
+                        if dur is not None:
+                            day_duration += dur
+                    except OSError:
+                        pass
+            if day_files:
+                day_rows.append({
+                    "date": date_dir.name,
+                    "file_count": day_files,
+                    "total_bytes": day_bytes,
+                    "total_bytes_human": _format_bytes(day_bytes),
+                    "duration_seconds": round(day_duration, 1),
+                    "duration_human": _format_duration(day_duration),
+                })
+
+        total_files = sum(d["file_count"] for d in day_rows)
+        total_bytes = sum(d["total_bytes"] for d in day_rows)
+        total_duration = sum(d["duration_seconds"] for d in day_rows)
+
+        # ---- top songs / artists from metadata log ----
+        top_songs: List[Dict[str, Any]] = []
+        top_artists: List[Dict[str, Any]] = []
+        try:
+            from app_core.models import StreamMetadataLog
+            rows = (
+                StreamMetadataLog.query
+                .filter_by(source_name=source_name)
+                .with_entities(
+                    StreamMetadataLog.title,
+                    StreamMetadataLog.artist,
+                    StreamMetadataLog.album,
+                    StreamMetadataLog.artwork_url,
+                )
+                .all()
+            )
+
+            song_counter: Counter = Counter()
+            artist_counter: Counter = Counter()
+            # Track artwork/album per title for display
+            song_meta: Dict[str, Dict] = {}
+
+            for r in rows:
+                title = (r.title or "").strip()
+                artist = (r.artist or "").strip()
+                if title:
+                    song_counter[title] += 1
+                    if title not in song_meta:
+                        song_meta[title] = {
+                            "artist": artist,
+                            "album": (r.album or "").strip(),
+                            "artwork_url": r.artwork_url,
+                        }
+                if artist:
+                    artist_counter[artist] += 1
+
+            top_songs = [
+                {
+                    "title": title,
+                    "count": count,
+                    "artist": song_meta[title]["artist"],
+                    "album": song_meta[title]["album"],
+                    "artwork_url": song_meta[title]["artwork_url"],
+                }
+                for title, count in song_counter.most_common(10)
+            ]
+            top_artists = [
+                {"artist": artist, "count": count}
+                for artist, count in artist_counter.most_common(10)
+            ]
+        except Exception as exc:
+            route_logger.warning("Could not compute top songs/artists for '%s': %s", source_name, exc)
+
+        return jsonify({
+            "source_name": source_name,
+            "total_files": total_files,
+            "total_bytes": total_bytes,
+            "total_bytes_human": _format_bytes(total_bytes),
+            "total_duration_seconds": round(total_duration, 1),
+            "total_duration_human": _format_duration(total_duration),
+            "dates": day_rows,
+            "oldest_date": day_rows[0]["date"] if day_rows else None,
+            "newest_date": day_rows[-1]["date"] if day_rows else None,
+            "top_songs": top_songs,
+            "top_artists": top_artists,
+        })
 
     # ------------------------------------------------------------------
     # API: serve / download one archive file
@@ -510,9 +729,17 @@ def register(app: Flask, logger_arg, archive_dir: str = _DEFAULT_ARCHIVE_DIR) ->
             if limit is not None:
                 query = query.limit(limit)
 
+            hide_junk = request.args.get("hide_junk", "true").lower() != "false"
+
             rows = query.all()
-            entries = [
-                {
+            entries = []
+            junk_hidden = 0
+            for r in rows:
+                if hide_junk and _is_junk_metadata(r.title, r.display, r.raw,
+                                                   getattr(r, "stream_url", None)):
+                    junk_hidden += 1
+                    continue
+                entries.append({
                     "id": r.id,
                     "timestamp": r.timestamp.isoformat() if r.timestamp else None,
                     "title": r.title,
@@ -522,10 +749,14 @@ def register(app: Flask, logger_arg, archive_dir: str = _DEFAULT_ARCHIVE_DIR) ->
                     "length": r.length,
                     "display": r.display,
                     "raw": r.raw,
-                }
-                for r in rows
-            ]
-            return jsonify({"source_name": source_name, "entries": entries, "total": len(entries)})
+                    "stream_url": getattr(r, "stream_url", None),
+                })
+            return jsonify({
+                "source_name": source_name,
+                "entries": entries,
+                "total": len(entries),
+                "junk_hidden": junk_hidden,
+            })
         except Exception as exc:
             route_logger.error("metadata-log query failed for '%s': %s", source_name, exc)
             return jsonify({"source_name": source_name, "entries": [], "total": 0})
@@ -549,6 +780,123 @@ def register(app: Flask, logger_arg, archive_dir: str = _DEFAULT_ARCHIVE_DIR) ->
             return jsonify({"source_name": source_name, "deleted": deleted})
         except Exception as exc:
             route_logger.error("metadata-log clear failed for '%s': %s", source_name, exc)
+            return jsonify({"error": str(exc)}), 500
+
+    # ------------------------------------------------------------------
+    # API: remove junk (base64 blob) metadata entries
+    # ------------------------------------------------------------------
+
+    @app.route("/api/audio/archives/<source_name>/metadata-log/clean-junk", methods=["POST"])
+    def api_audio_archive_metadata_log_clean_junk(source_name: str):
+        """Delete base64-blob junk entries from the metadata log for one source."""
+        try:
+            from app_core.extensions import db
+            from app_core.models import StreamMetadataLog
+
+            rows = (
+                StreamMetadataLog.query
+                .filter_by(source_name=source_name)
+                .with_entities(StreamMetadataLog.id, StreamMetadataLog.title,
+                               StreamMetadataLog.display, StreamMetadataLog.raw,
+                               StreamMetadataLog.stream_url)
+                .all()
+            )
+            junk_ids = [
+                r.id for r in rows
+                if _is_junk_metadata(r.title, r.display, r.raw,
+                                     getattr(r, "stream_url", None))
+            ]
+            if junk_ids:
+                StreamMetadataLog.query.filter(
+                    StreamMetadataLog.id.in_(junk_ids)
+                ).delete(synchronize_session=False)
+                db.session.commit()
+
+            route_logger.info(
+                "Cleaned %d junk metadata-log rows for '%s'", len(junk_ids), source_name
+            )
+            return jsonify({"source_name": source_name, "deleted": len(junk_ids)})
+        except Exception as exc:
+            route_logger.error("metadata-log clean-junk failed for '%s': %s", source_name, exc)
+            return jsonify({"error": str(exc)}), 500
+
+    # ------------------------------------------------------------------
+    # API: resolve a stream/ad URL to a playable audio URL
+    # ------------------------------------------------------------------
+
+    @app.route("/api/audio/archives/resolve-stream-url", methods=["POST"])
+    def api_audio_archive_resolve_stream_url():
+        """Fetch a stream URL and resolve it to a direct playable audio URL.
+
+        Handles three cases:
+        1. Direct audio (audio/* content-type) — returns the URL as-is.
+        2. VAST XML — parses the XML and returns the first audio MediaFile URL.
+        3. Anything else — returns an error explaining it could not be resolved.
+        """
+        import urllib.request
+        import xml.etree.ElementTree as ET
+
+        body = request.get_json(silent=True) or {}
+        url = (body.get("url") or "").strip()
+
+        if not url or not url.startswith(("http://", "https://")):
+            return jsonify({"error": "Invalid or missing URL"}), 400
+
+        try:
+            req = urllib.request.Request(
+                url,
+                headers={"User-Agent": "Mozilla/5.0 (EAS-Station)"},
+            )
+            with urllib.request.urlopen(req, timeout=8) as resp:
+                content_type = (resp.headers.get("Content-Type") or "").lower()
+                data = resp.read(2 * 1024 * 1024)  # cap at 2 MB
+
+            # 1. Already a direct audio stream
+            if any(ct in content_type for ct in ("audio/", "video/mp2t", "application/ogg")):
+                return jsonify({"audio_url": url, "type": "direct"})
+
+            # 2. Try VAST / XML parsing
+            if "xml" in content_type or data.lstrip()[:5] in (b"<?xml", b"<VAST"):
+                try:
+                    root = ET.fromstring(data)
+                    _audio_mimes = {
+                        "audio/mpeg", "audio/mp3", "audio/mp4", "audio/aac",
+                        "audio/ogg", "audio/wav", "audio/x-wav", "audio/webm",
+                    }
+                    for media_file in root.iter("MediaFile"):
+                        mime = (media_file.get("type") or "").lower().strip()
+                        audio_url = (media_file.text or "").strip()
+                        if audio_url.startswith(("http://", "https://")) and (
+                            mime in _audio_mimes or mime.startswith("audio/")
+                        ):
+                            return jsonify({
+                                "audio_url": audio_url,
+                                "type": "vast",
+                                "mime": mime,
+                                "original_url": url,
+                            })
+                    # VAST parsed but no audio MediaFile found
+                    return jsonify({
+                        "error": "VAST parsed but no audio MediaFile found",
+                        "type": "vast_no_audio",
+                        "original_url": url,
+                    })
+                except ET.ParseError as exc:
+                    return jsonify({
+                        "error": f"XML parse error: {exc}",
+                        "type": "xml_error",
+                        "original_url": url,
+                    })
+
+            # 3. Unknown format
+            return jsonify({
+                "error": f"Unrecognised content type: {content_type or '(none)'}",
+                "type": "unknown",
+                "original_url": url,
+            })
+
+        except Exception as exc:
+            route_logger.warning("resolve-stream-url failed for %s: %s", url, exc)
             return jsonify({"error": str(exc)}), 500
 
     route_logger.info("Audio archive routes registered (archive_dir=%s)", archive_root)
