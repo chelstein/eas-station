@@ -56,6 +56,7 @@ GET  /api/audio/archives/sources
 
 import logging
 import os
+import re
 import wave
 from collections import Counter
 from datetime import datetime, timedelta
@@ -147,6 +148,36 @@ def _format_duration(seconds: float) -> str:
         return f"{h}h {m}m"
     m, s = divmod(seconds, 60)
     return f"{m}m {s}s"
+
+
+_BASE64_BLOB_RE = re.compile(r'^[A-Za-z0-9+/=]{20,}$')
+
+
+def _is_base64_blob(text: Optional[str]) -> bool:
+    """Return True if *text* looks like a raw base64-encoded blob (junk metadata)."""
+    if not text:
+        return False
+    stripped = text.strip()
+    return bool(stripped and not re.search(r'\s', stripped) and _BASE64_BLOB_RE.match(stripped))
+
+
+def _is_junk_metadata(title: Optional[str], display: Optional[str], raw: Optional[str]) -> bool:
+    """Return True if this metadata log row contains only junk (no useful display text).
+
+    Junk means: the title/display value is a raw base64-encoded URL blob — not a
+    real song title, artist, or station ID.  Commercials, promos, and station IDs
+    are NOT considered junk and are left alone.
+    """
+    # If the title column is a base64 blob, it's junk
+    if _is_base64_blob(title):
+        return True
+    # If there's no title and the display fallback is a base64 blob, it's junk
+    if not (title or "").strip() and _is_base64_blob(display):
+        return True
+    # If neither title nor display have content but raw is a base64 blob, it's junk
+    if not (title or "").strip() and not (display or "").strip() and _is_base64_blob(raw):
+        return True
+    return False
 
 
 def _source_disk_summary(source_dir: Path) -> Dict[str, Any]:
@@ -687,9 +718,16 @@ def register(app: Flask, logger_arg, archive_dir: str = _DEFAULT_ARCHIVE_DIR) ->
             if limit is not None:
                 query = query.limit(limit)
 
+            hide_junk = request.args.get("hide_junk", "true").lower() != "false"
+
             rows = query.all()
-            entries = [
-                {
+            entries = []
+            junk_hidden = 0
+            for r in rows:
+                if hide_junk and _is_junk_metadata(r.title, r.display, r.raw):
+                    junk_hidden += 1
+                    continue
+                entries.append({
                     "id": r.id,
                     "timestamp": r.timestamp.isoformat() if r.timestamp else None,
                     "title": r.title,
@@ -699,10 +737,13 @@ def register(app: Flask, logger_arg, archive_dir: str = _DEFAULT_ARCHIVE_DIR) ->
                     "length": r.length,
                     "display": r.display,
                     "raw": r.raw,
-                }
-                for r in rows
-            ]
-            return jsonify({"source_name": source_name, "entries": entries, "total": len(entries)})
+                })
+            return jsonify({
+                "source_name": source_name,
+                "entries": entries,
+                "total": len(entries),
+                "junk_hidden": junk_hidden,
+            })
         except Exception as exc:
             route_logger.error("metadata-log query failed for '%s': %s", source_name, exc)
             return jsonify({"source_name": source_name, "entries": [], "total": 0})
@@ -726,6 +767,42 @@ def register(app: Flask, logger_arg, archive_dir: str = _DEFAULT_ARCHIVE_DIR) ->
             return jsonify({"source_name": source_name, "deleted": deleted})
         except Exception as exc:
             route_logger.error("metadata-log clear failed for '%s': %s", source_name, exc)
+            return jsonify({"error": str(exc)}), 500
+
+    # ------------------------------------------------------------------
+    # API: remove junk (base64 blob) metadata entries
+    # ------------------------------------------------------------------
+
+    @app.route("/api/audio/archives/<source_name>/metadata-log/clean-junk", methods=["POST"])
+    def api_audio_archive_metadata_log_clean_junk(source_name: str):
+        """Delete base64-blob junk entries from the metadata log for one source."""
+        try:
+            from app_core.extensions import db
+            from app_core.models import StreamMetadataLog
+
+            rows = (
+                StreamMetadataLog.query
+                .filter_by(source_name=source_name)
+                .with_entities(StreamMetadataLog.id, StreamMetadataLog.title,
+                               StreamMetadataLog.display, StreamMetadataLog.raw)
+                .all()
+            )
+            junk_ids = [
+                r.id for r in rows
+                if _is_junk_metadata(r.title, r.display, r.raw)
+            ]
+            if junk_ids:
+                StreamMetadataLog.query.filter(
+                    StreamMetadataLog.id.in_(junk_ids)
+                ).delete(synchronize_session=False)
+                db.session.commit()
+
+            route_logger.info(
+                "Cleaned %d junk metadata-log rows for '%s'", len(junk_ids), source_name
+            )
+            return jsonify({"source_name": source_name, "deleted": len(junk_ids)})
+        except Exception as exc:
+            route_logger.error("metadata-log clean-junk failed for '%s': %s", source_name, exc)
             return jsonify({"error": str(exc)}), 500
 
     route_logger.info("Audio archive routes registered (archive_dir=%s)", archive_root)

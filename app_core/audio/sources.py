@@ -35,11 +35,27 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import urljoin, urlparse, unquote
 
+import re as _re
+
 import numpy as np
 
 from .ingest import AudioSourceAdapter, AudioSourceConfig, AudioSourceStatus
 
 logger = logging.getLogger(__name__)
+
+# Pre-compiled pattern used by _looks_like_base64_blob
+_BASE64_BLOB_RE = _re.compile(r'^[A-Za-z0-9+/=]{20,}$')
+
+
+def _looks_like_base64_blob(text: str) -> bool:
+    """Return True if *text* looks like a raw base64-encoded blob.
+
+    Base64-encoded URLs or binary data occasionally appear in ICY StreamTitle
+    fields.  They are not useful display text and should be discarded.
+
+    Criteria: 20+ characters, no whitespace, only base64 alphabet characters.
+    """
+    return bool(text and not _re.search(r'\s', text) and _BASE64_BLOB_RE.match(text.strip()))
 
 try:
     import alsaaudio
@@ -1529,7 +1545,9 @@ class StreamSourceAdapter(AudioSourceAdapter):
 
             if display_song:
                 updates['song'] = display_song
-            else:
+            elif not _looks_like_base64_blob(stream_title):
+                # Store the raw title only if it's not an opaque base64 blob;
+                # those are URL-encoded junk that would pollute the song history.
                 updates['song'] = stream_title
 
             # Log metadata change at INFO level so stream activity is visible in logs
