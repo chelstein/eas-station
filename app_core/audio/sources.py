@@ -1458,16 +1458,22 @@ class StreamSourceAdapter(AudioSourceAdapter):
                 return value[1:-1]
             return value
 
+        # ICY outer metadata format: KEY='VALUE';KEY='VALUE';
+        # Values can contain ';' and '"', so we MUST NOT split naively on ';'.
+        # Use a regex that matches single-quoted ICY values correctly.
         fields: Dict[str, Any] = {}
+        for m in _re.finditer(r"(\w+)='([^']*)'", metadata_text):
+            fields[m.group(1)] = m.group(2)
+        # Fallback: some stations emit unquoted or double-quoted fields; handle them
+        # only for keys we haven't already seen from the regex pass.
         for part in metadata_text.split(';'):
             part = part.strip()
             if not part or '=' not in part:
                 continue
-
             key, value = part.split('=', 1)
             key = key.strip()
-            value = _strip_wrapping_quotes(value.strip())
-            if key:
+            if key and key not in fields:
+                value = _strip_wrapping_quotes(value.strip())
                 fields[key] = value
 
         updates: Dict[str, Any] = {
@@ -1489,32 +1495,33 @@ class StreamSourceAdapter(AudioSourceAdapter):
 
             title = stream_title.strip()
             artist = None
-            display_song = None
 
-            # Try to extract text="" or song="" attribute (iHeartRadio format)
-            # URL-decode the values to handle %20 and other encoded characters
-            text_match = re.search(r'text="([^"]+)"', stream_title)
-            song_attr_match = re.search(r'song="([^"]+)"', stream_title)
-            if text_match:
-                title = unquote(text_match.group(1)).strip()
+            # --- Step 1: extract title from an explicit attribute ---
+            # Different stream formats use different keys:
+            #   iHeartRadio primary:  text="Golden"
+            #   iHeartRadio alt:      title="Without You"   <-- this stream!
+            #   some automation:      song="..."
+            text_match       = re.search(r'\btext="([^"]+)"',   stream_title)
+            title_attr_match = re.search(r'\btitle="([^"]+)"',  stream_title)
+            song_attr_match  = re.search(r'\bsong="([^"]+)"',   stream_title)
+
+            # Pick the first match in preference order
+            explicit_match = text_match or title_attr_match or song_attr_match
+            if explicit_match:
+                title = unquote(explicit_match.group(1)).strip()
                 updates['song_title'] = title
                 updates['title'] = title
-            elif song_attr_match:
-                title = unquote(song_attr_match.group(1)).strip()
-                updates['song_title'] = title
-                updates['title'] = title
 
-            # Try to extract artist="" attribute
-            artist_match = re.search(r'artist="([^"]+)"', stream_title)
+            # --- Step 2: extract artist ---
+            artist_match = re.search(r'\bartist="([^"]+)"', stream_title)
             if artist_match:
                 artist = unquote(artist_match.group(1)).strip()
                 updates['artist'] = artist
                 updates['song_artist'] = artist
-            elif text_match or song_attr_match:
-                # Pattern like "Artist - text=\"Title\" ..." or "Artist - song=\"Title\" ..."
-                attr_key = 'text' if text_match else 'song'
-                prefix_pattern = rf'(?P<artist>.+?)-\s*{attr_key}="'
-                prefix_match = re.match(prefix_pattern, stream_title)
+            elif explicit_match:
+                # Look for "ArtistName - <attr>=\"...\"" prefix before the attribute
+                attr_key = 'text' if text_match else ('title' if title_attr_match else 'song')
+                prefix_match = re.match(rf'(?P<artist>.+?)\s+-\s+{attr_key}="', stream_title)
                 if prefix_match:
                     artist_candidate = unquote(prefix_match.group('artist')).strip()
                     if artist_candidate:
@@ -1522,59 +1529,63 @@ class StreamSourceAdapter(AudioSourceAdapter):
                         updates['artist'] = artist
                         updates['song_artist'] = artist
 
-            if artist and title:
-                display_song = f"{artist} - {title}"
-            elif title:
-                display_song = title
-            elif artist:
-                display_song = artist
-
-            # Try to extract album art URL (no need to decode URLs - they're already encoded properly)
+            # --- Step 3: artwork, length, album ---
             artwork_match = re.search(r'(?:amgArtworkURL|artworkURL|artwork_url)="([^"]+)"', stream_title)
             if artwork_match:
                 updates['artwork_url'] = artwork_match.group(1).strip()
 
-            # Try to extract song length/duration
             length_match = re.search(r'(?:length|duration)="([^"]+)"', stream_title)
             if length_match:
                 updates['length'] = length_match.group(1).strip()
 
-            # Try to extract album name
-            album_match = re.search(r'album="([^"]+)"', stream_title)
+            album_match = re.search(r'\balbum="([^"]+)"', stream_title)
             if album_match:
                 updates['album'] = unquote(album_match.group(1)).strip()
 
-            # If we didn't find text="" attribute, try traditional "Artist - Title" format
-            if not text_match and ' - ' in stream_title:
-                # Remove any XML-like attributes before splitting
-                clean_title = re.sub(r'\s+\w+="[^"]*"', '', stream_title)
+            # --- Step 4: traditional "Artist - Title" fallback ---
+            # Only used when no explicit title attribute was found.
+            if not explicit_match and ' - ' in stream_title:
+                clean_title = re.sub(r'[\s;]\w+="[^"]*"', '', stream_title)
                 clean_title = re.sub(r'\s+\w+=\S+', '', clean_title)
                 clean_title = ' '.join(clean_title.split()).strip()
-                # URL-decode the cleaned title to handle encoded characters
                 clean_title = unquote(clean_title)
 
                 if ' - ' in clean_title:
                     artist_candidate, title_candidate = clean_title.split(' - ', 1)
-                    artist = artist_candidate.strip() or artist
-                    title = title_candidate.strip() or title
+                    extracted_artist = artist_candidate.strip()
+                    extracted_title  = title_candidate.strip()
 
-                    if not artist_match and artist:
-                        updates['artist'] = artist
-                        updates.setdefault('song_artist', artist)
-                    if not text_match:
+                    if extracted_title:
+                        title = extracted_title
                         updates['song_title'] = title
                         updates['title'] = title
+                    if extracted_artist and not artist_match:
+                        artist = extracted_artist
+                        updates['artist'] = artist
+                        updates.setdefault('song_artist', artist)
 
-            # Extract explicit url="" attribute (only if it looks like a real URL)
+            # --- Step 5: stream URL from url="" attribute ---
             url_match = _re.search(r'\burl="(https?://[^"]{8,})"', stream_title)
             if url_match:
                 updates.setdefault('stream_url', url_match.group(1).strip())
 
+            # --- Step 6: build display_song now that all fields are settled ---
+            # Guard against the case where title was never updated (stays as the raw
+            # stream_title string) — don't use it as a display value in that case.
+            title_is_clean = title and title != stream_title.strip()
+            if artist and title_is_clean:
+                display_song = f"{artist} - {title}"
+            elif title_is_clean:
+                display_song = title
+            elif artist:
+                display_song = artist
+            else:
+                display_song = None
+
             if display_song:
                 updates['song'] = display_song
             elif _looks_like_base64_blob(stream_title):
-                # Try to decode the base64 blob as a playable URL (e.g. VAST ad tag).
-                # If it resolves, store it as stream_url so the UI can offer playback.
+                # Try to decode the base64 blob as a playable URL (e.g. a VAST ad tag).
                 decoded_url = _decode_base64_url(stream_title)
                 if decoded_url:
                     updates['stream_url'] = decoded_url
