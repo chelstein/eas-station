@@ -28,6 +28,7 @@ import os
 import re
 import struct
 import subprocess
+import tempfile
 import time
 import wave
 from dataclasses import dataclass, field
@@ -1124,9 +1125,14 @@ class EASAudioGenerator:
         segment_samples['buffer'].extend(trailing_silence)
 
         wav_bytes = samples_to_wav_bytes(samples, self.sample_rate)
-        with open(audio_path, 'wb') as handle:
-            handle.write(wav_bytes)
-        self.logger.info(f"Generated SAME audio at {audio_path}")
+        try:
+            with open(audio_path, 'wb') as handle:
+                handle.write(wav_bytes)
+            self.logger.info(f"Generated SAME audio at {audio_path}")
+        except OSError as exc:
+            self.logger.warning(
+                "Could not write audio file to disk (audio stored in database only): %s", exc
+            )
 
         segment_payload: Dict[str, Dict[str, object]] = {}
 
@@ -1165,9 +1171,14 @@ class EASAudioGenerator:
         if embedded_audio_source:
             text_body['embedded_audio_source'] = embedded_audio_source
 
-        with open(text_path, 'w', encoding='utf-8') as handle:
-            json.dump(text_body, handle, indent=2)
-        self.logger.info(f"Wrote alert summary at {text_path}")
+        try:
+            with open(text_path, 'w', encoding='utf-8') as handle:
+                json.dump(text_body, handle, indent=2)
+            self.logger.info(f"Wrote alert summary at {text_path}")
+        except OSError as exc:
+            self.logger.warning(
+                "Could not write text summary to disk (payload stored in database only): %s", exc
+            )
 
         return audio_filename, text_filename, message_text, wav_bytes, text_body, segment_payload
 
@@ -1198,10 +1209,17 @@ class EASAudioGenerator:
         samples.extend(_generate_silence(1.0, self.sample_rate))
 
         wav_bytes = samples_to_wav_bytes(samples, self.sample_rate)
-        with open(audio_path, 'wb') as handle:
-            handle.write(wav_bytes)
-        if self.logger:
-            self.logger.debug('Generated EOM audio at %s', audio_path)
+        try:
+            with open(audio_path, 'wb') as handle:
+                handle.write(wav_bytes)
+            if self.logger:
+                self.logger.debug('Generated EOM audio at %s', audio_path)
+        except OSError as exc:
+            if self.logger:
+                self.logger.warning(
+                    "Could not write EOM audio file to disk (audio stored in database only): %s",
+                    exc,
+                )
 
         return audio_filename, wav_bytes
 
@@ -1478,6 +1496,32 @@ class EASBroadcaster:
         self.logger.info('Playing alert audio using %s', ' '.join(command))
         _run_command(command, self.logger)
 
+    def _play_audio_or_bytes(
+        self, audio_path: Optional[str], fallback_bytes: Optional[bytes]
+    ) -> None:
+        """Play audio from ``audio_path`` if it exists, otherwise write
+        ``fallback_bytes`` to a temporary file and play from there."""
+        if audio_path and os.path.exists(audio_path):
+            self._play_audio(audio_path)
+            return
+        if fallback_bytes:
+            if audio_path:
+                self.logger.warning(
+                    "Audio file not on disk, playing from memory: %s", audio_path
+                )
+            fd, tmp_path = tempfile.mkstemp(suffix='.wav')
+            try:
+                os.write(fd, fallback_bytes)
+                os.close(fd)
+                self._play_audio(tmp_path)
+            finally:
+                try:
+                    os.unlink(tmp_path)
+                except OSError:
+                    pass
+        elif audio_path:
+            self.logger.warning('Audio file not available for playback: %s', audio_path)
+
     def _get_blockchannel(self, alert: object, payload: Dict[str, object]) -> set:
         """Extract BLOCKCHANNEL values from alert/payload.
         
@@ -1716,9 +1760,9 @@ class EASBroadcaster:
                 manager_handled = False
 
         try:
-            self._play_audio(audio_path)
-            if eom_path:
-                self._play_audio(eom_path)
+            self._play_audio_or_bytes(audio_path, audio_bytes)
+            if eom_path or eom_bytes:
+                self._play_audio_or_bytes(eom_path, eom_bytes)
         finally:
             if controller and activated_any:
                 try:  # pragma: no cover - hardware specific
