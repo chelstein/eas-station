@@ -614,14 +614,14 @@ class UnifiedEASMonitorService:
                 # Clear source context
                 self._current_source_context = None
                 
-                # Sleep to prevent CPU spinning.  Audio arrives in ~100ms chunks
-                # (1600 samples at 16kHz), so polling faster than 20Hz is wasteful.
-                # The blocking queue read inside read_audio() already rate-limits
-                # when no data is buffered, so this sleep only matters when the
-                # queue has a backlog to drain.
-                if any_audio_processed:
-                    time.sleep(0.05)  # 50ms — up to 20 reads/sec, 2× the chunk arrival rate
-                else:
+                # Only sleep when no audio was processed (idle sources).
+                # When audio IS flowing, read_audio() already provides natural
+                # rate-limiting via blocking queue.get() calls.  Adding a fixed
+                # 50ms sleep here causes the consumer to fall behind the producer
+                # by ~15% per cycle, filling the 10000-chunk broadcast queue in
+                # ~7 hours and introducing up to 15+ minutes of EAS detection
+                # latency — preventing real-time SAME header detection entirely.
+                if not any_audio_processed:
                     time.sleep(0.05)  # 50ms when idle — no urgency, save CPU
             
             except Exception as e:

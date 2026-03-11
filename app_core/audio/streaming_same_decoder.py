@@ -356,6 +356,16 @@ class StreamingSAMEDecoder:
                             if self._is_message_complete(msg_text, char):
                                 self._emit_alert(msg_text)
                                 self._reset_message_state()
+                            elif len(self.current_msg) > self.MAX_MSG_LEN:
+                                # Runaway message exceeded max length without a valid
+                                # SAME header (no ZCZC/NNNN found).  Reset so preamble
+                                # detection is not permanently blocked by in_message=True.
+                                logger.debug(
+                                    "Message exceeded MAX_MSG_LEN (%d chars) without "
+                                    "valid SAME header — resetting decoder state",
+                                    self.MAX_MSG_LEN,
+                                )
+                                self._reset_message_state()
                     else:
                         # Invalid character, lost sync
                         self.synced = False
