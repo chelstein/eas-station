@@ -1902,7 +1902,7 @@ async function triggerIntersectionFix() {
     console.log('triggerIntersectionFix called');
 
     try {
-        const response = await fetch('/admin/fix_county_intersections', { method: 'POST' });
+        const response = await fetch(`/admin/calculate_single_alert/${alertData.id}`, { method: 'POST' });
         const result = await response.json();
 
         if (response.ok) {
