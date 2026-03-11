@@ -79,10 +79,14 @@
 {% endblock %}
 
 {% block content %}
-<div class="admin-container">
-    <h1>Icecast Streaming Server Configuration</h1>
-    <p class="text-muted">Configure Icecast streaming server for live audio monitoring</p>
+<div class="admin-page-header">
+    <div class="container">
+        <h1><i class="fas fa-broadcast-tower"></i> Icecast Streaming</h1>
+        <p class="mb-0">Configure Icecast streaming server for live audio monitoring</p>
+    </div>
+</div>
 
+<div class="admin-container">
     <!-- Server Status Indicator -->
     <div class="alert alert-info" id="server-status-banner" style="display: none;">
         <div class="d-flex align-items-center">

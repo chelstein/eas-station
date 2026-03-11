@@ -275,32 +275,18 @@
 {% endblock %}
 
 {% block content %}
-<div class="admin-container wide env-page">
-    <!-- Header -->
-    <div class="admin-settings-header">
-        <div class="d-flex justify-content-between align-items-start mb-3">
-            <div>
-                <h1><i class="fas fa-cog"></i> Bootstrap Environment Settings</h1>
-                <p>
-                    Manage the bootstrap environment variables that must be set <em>before</em> the
-                    database is available (SECRET_KEY, DATABASE_URL, CACHE_REDIS_URL, and Flask mode).
-                    All other settings have been migrated to the database and are configured through
-                    dedicated admin pages:
-                    <a href="/admin/poller">Poller</a> &middot;
-                    <a href="/admin/notifications">Notifications</a> &middot;
-                    <a href="/admin/application">Application</a> &middot;
-                    <a href="/admin/eas">EAS Broadcast</a>.
-                </p>
-            </div>
-            <div>
-                <a href="{{ url_for('environment.admin_download_env') }}" class="btn btn-primary">
-                    <i class="fas fa-download me-2"></i>Download .env Backup
-                </a>
-            </div>
-        </div>
+<div class="admin-page-header">
+    <div class="container">
+        <h1><i class="fas fa-cog"></i> Environment Settings</h1>
+        <p class="mb-0">Manage bootstrap environment variables for database-free configuration</p>
+    </div>
+</div>
 
-        <!-- Search Box -->
-        <div class="mb-3">
+<div class="admin-container wide env-page">
+    <!-- Action Buttons & Search -->
+    <div class="d-flex justify-content-between align-items-start mb-3">
+        <div class="flex-grow-1 me-3">
+            <!-- Search Box -->
             <div class="input-group">
                 <span class="input-group-text"><i class="fas fa-search"></i></span>
                 <input type="text"
@@ -314,17 +300,22 @@
             </div>
             <small class="text-muted" id="search-results"></small>
         </div>
-
-        {% if not can_configure %}
-        <div class="alert alert-warning">
-            <i class="fas fa-eye"></i>
-            <strong>Read-Only Mode:</strong> You have view-only access to environment settings. All fields are disabled. Contact your administrator to request the <code>system.configure</code> permission if you need to make changes.
+        <div>
+            <a href="{{ url_for('environment.admin_download_env') }}" class="btn btn-primary">
+                <i class="fas fa-download me-2"></i>Download .env Backup
+            </a>
         </div>
-        {% endif %}
-
-        <!-- Validation Banner -->
-        <div id="validation-banner" class="validation-banner"></div>
     </div>
+
+    {% if not can_configure %}
+    <div class="alert alert-warning">
+        <i class="fas fa-eye"></i>
+        <strong>Read-Only Mode:</strong> You have view-only access to environment settings. All fields are disabled. Contact your administrator to request the <code>system.configure</code> permission if you need to make changes.
+    </div>
+    {% endif %}
+
+    <!-- Validation Banner -->
+    <div id="validation-banner" class="validation-banner"></div>
 
     <div class="row">
         <!-- Category Navigation -->

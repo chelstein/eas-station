@@ -230,15 +230,14 @@
 {% endblock %}
 
 {% block content %}
-<div class="admin-container">
-    <div class="admin-settings-header">
-        <h1>
-            <i class="fas fa-rss"></i>
-            Alert Feeds Configuration
-        </h1>
-        <p>Configure NOAA Weather and FEMA IPAWS alert feeds. All settings are saved to persistent storage.</p>
+<div class="admin-page-header">
+    <div class="container">
+        <h1><i class="fas fa-rss"></i> Alert Feeds</h1>
+        <p class="mb-0">Configure NOAA Weather and FEMA IPAWS alert feeds</p>
     </div>
+</div>
 
+<div class="admin-container">
     <div id="alertContainer"></div>
 
     <!-- Two Column Layout for NOAA and IPAWS -->
