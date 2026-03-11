@@ -39,102 +39,6 @@
         position: relative;
     }
 
-    .page-header {
-        background: linear-gradient(135deg, var(--primary-dark, var(--primary-color)), var(--secondary-dark, var(--secondary-color)));
-        border-radius: var(--radius-md);
-        color: var(--text-on-color);
-        padding: var(--spacing-md) var(--spacing-lg);
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        flex-wrap: wrap;
-        gap: var(--spacing-sm);
-        position: relative;
-        overflow: hidden;
-        box-shadow: 0 8px 20px rgba(32, 72, 133, 0.2);
-    }
-
-    .page-header::after {
-        content: "";
-        position: absolute;
-        inset: auto -40% -70% auto;
-        width: 200px;
-        height: 200px;
-        background: radial-gradient(circle at center, rgba(255, 255, 255, 0.15), transparent 70%);
-        transform: rotate(-12deg);
-        pointer-events: none;
-    }
-
-    .page-header .header-content {
-        display: flex;
-        align-items: center;
-        gap: var(--spacing-md);
-        position: relative;
-        z-index: 1;
-    }
-
-    .page-header .header-text {
-        display: flex;
-        flex-direction: column;
-    }
-
-    .page-header .page-title {
-        font-size: 1.4rem;
-        font-weight: 700;
-        margin: 0;
-        letter-spacing: 0.01em;
-        color: var(--text-on-color);
-        text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
-    }
-
-    .page-header .page-subtitle {
-        font-size: 0.85rem;
-        opacity: 1;
-        margin: 0;
-        color: var(--text-on-color);
-        text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
-        font-weight: 500;
-    }
-
-    /* Compact dashboard logo */
-    .dashboard-page-logo {
-        height: 40px;
-        width: auto;
-        display: block;
-        filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5));
-        position: relative;
-        z-index: 1;
-    }
-
-    .dashboard-page-logo .logo-text-primary,
-    .dashboard-page-logo .logo-text-secondary {
-        fill: var(--text-on-color);
-    }
-
-    .dashboard-page-logo .logo-bar {
-        fill: var(--text-on-color);
-    }
-
-    /* Ensure buttons are visible on gradient */
-    .page-header-actions {
-        position: relative;
-        z-index: 1;
-        display: flex;
-        gap: 0.5rem;
-    }
-
-    .page-header .btn-outline-light {
-        color: var(--text-on-color) !important;
-        border-color: rgba(255, 255, 255, 0.8);
-        background-color: rgba(255, 255, 255, 0.1);
-        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
-    }
-
-    .page-header .btn-outline-light:hover {
-        background-color: rgba(255, 255, 255, 0.25);
-        border-color: var(--text-on-color);
-    }
-
     /* Snow Emergency Banner */
     .snow-emergency-banner {
         margin-top: 0;
@@ -750,14 +654,6 @@
             position: static;
         }
 
-        .page-header {
-            padding: var(--spacing-md);
-        }
-
-        .page-header .page-title {
-            font-size: 1.6rem;
-        }
-
         .page-header-actions .btn {
             width: 100%;
             justify-content: center;
@@ -803,24 +699,25 @@
     {% set county_name = location_settings.county_name if location_settings is defined and location_settings and location_settings.county_name else 'your area' %}
     {% set state_code = location_settings.state_code if location_settings is defined and location_settings and location_settings.state_code else '' %}
     <div class="page-header">
-        <div class="header-content">
-            {% with logo_classes='dashboard-page-logo', logo_style='height: 36px; width: auto;' %}
-                {% include 'partials/logo_wordmark.html' %}
-            {% endwith %}
-            <div class="header-text">
-                <h1 class="page-title">Emergency Alert Dashboard</h1>
-                <p class="page-subtitle">{{ county_name }}{% if state_code %}, {{ state_code }}{% endif %}</p>
+        <div class="container-fluid">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+                <div>
+                    <h1 class="page-title mb-0">
+                        <i class="fas fa-gauge-high me-2"></i>Emergency Alert Dashboard
+                    </h1>
+                    <p class="page-subtitle mb-0">{{ county_name }}{% if state_code %}, {{ state_code }}{% endif %}</p>
+                </div>
+                <div class="page-header-actions">
+                    <button class="btn btn-outline-light" onclick="refreshData({ includeBoundaries: true, reason: 'Manual refresh' })">
+                        <i class="fas fa-sync-alt" id="refresh-icon"></i>
+                        <span>Refresh</span>
+                    </button>
+                    <a href="/alerts" class="btn btn-outline-light">
+                        <i class="fas fa-history"></i>
+                        <span>Alerts</span>
+                    </a>
+                </div>
             </div>
-        </div>
-        <div class="page-header-actions">
-            <button class="btn btn-outline-light" onclick="refreshData({ includeBoundaries: true, reason: 'Manual refresh' })">
-                <i class="fas fa-sync-alt" id="refresh-icon"></i>
-                <span>Refresh</span>
-            </button>
-            <a href="/alerts" class="btn btn-outline-light">
-                <i class="fas fa-history"></i>
-                <span>Alerts</span>
-            </a>
         </div>
     </div>
 

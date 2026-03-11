@@ -6,6 +6,14 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+### Added
+- **Consistent visual theming across all pages** (v2.52.0)
+  - Added the standard `admin-page-header` gradient banner to all 22 admin pages that previously lacked a consistent page header (application_settings, backups, county_boundaries, eas_decoder_monitor, mail_server, notifications, poller, zones, sessions, audio_archives, audio_sdr_fix, audio_sources, radio, radio_diagnostics, certbot, icecast, tailscale, tts, alert_feeds, environment, network, zigbee). Old ad-hoc h1/h2 heading rows removed.
+  - Migrated `hardware_settings.html` from the non-admin `.page-header` to `.admin-page-header` for consistent admin section styling.
+  - Fixed `index.html` (dashboard): removed the large inline `<style>` block that overrode the global `.page-header` CSS with conflicting padding, border-radius, and child element structure. Updated dashboard page-header HTML to use the canonical standard pattern (matching alerts.html, etc.).
+  - Replaced hardcoded hex colors (`#6610f2`, `#6f42c1`) in `.admin-page-header.header-purple` in `static/css/admin.css` with theme-aware CSS variables (`var(--vibrant-indigo)`, `var(--secondary-color)`) so the purple header variant respects the active theme.
+  - Files: all 22 `templates/admin/*.html` pages, `templates/index.html`, `static/css/admin.css`
+
 ### Fixed
 - **Fixed: floating orbs invisible due to compounded opacity** (v2.51.5)
   - Root cause: two opacity reductions were being compounded — `color-mix(..., transparent)` already reduces the gradient stop to ~10–25% opacity, and then the element `opacity` property was additionally set to `0.06–0.12`, resulting in an effective visibility of under 2% (invisible).

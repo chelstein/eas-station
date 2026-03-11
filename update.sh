@@ -1008,7 +1008,7 @@ if [ -f "$INSTALL_DIR/config/nginx-eas-station.conf" ]; then
             # self-signed certificate.  We capture the live paths first and restore them
             # after the copy so the certificate is never silently replaced.
             EXISTING_CERT=$(grep -E "^\s*ssl_certificate " /etc/nginx/sites-available/eas-station \
-                | grep -Ev "ssl_certificate_key|#" \
+                | grep -Ev "^[[:space:]]*#" \
                 | awk '{print $2}' | tr -d ';' | head -1)
             EXISTING_KEY=$(grep -E "^\s*ssl_certificate_key " /etc/nginx/sites-available/eas-station \
                 | grep -Ev "^[[:space:]]*#" \
