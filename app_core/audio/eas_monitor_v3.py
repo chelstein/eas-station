@@ -517,26 +517,32 @@ class UnifiedEASMonitorService:
             self._health_tracker.unregister_source(source_name)
             logger.info(f"✅ Removed watcher for source '{source_name}'")
     
-    def _handle_alert(self, alert_data: dict) -> None:
+    def _handle_alert(self, alert_data) -> None:
         """
         Handle detected alert from shared decoder.
-        
+
         The decoder doesn't know which source the alert came from,
         so we track that in _current_source_context.
         """
         self._total_alerts_detected += 1
-        
+
+        # The streaming decoder emits StreamingSAMEAlert objects; convert to dict.
+        from .streaming_same_decoder import StreamingSAMEAlert
+        from .eas_monitor import _same_alert_to_dict
+        if isinstance(alert_data, StreamingSAMEAlert):
+            alert_data = _same_alert_to_dict(alert_data)
+
         # Add source identification to alert
         if self._current_source_context:
             alert_data['source_name'] = self._current_source_context
         else:
             alert_data['source_name'] = 'unknown'
-        
+
         logger.warning(
             f"🚨 EAS Alert detected from '{alert_data['source_name']}': "
             f"{alert_data.get('event_code', 'UNKNOWN')}"
         )
-        
+
         # Call user's alert callback
         if self.alert_callback:
             try:

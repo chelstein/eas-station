@@ -70,6 +70,53 @@ class EASAlert:
 # Alert Utilities
 # =============================================================================
 
+def _same_alert_to_dict(alert: Any) -> Dict[str, Any]:
+    """Convert a StreamingSAMEAlert dataclass to the alert dict format expected downstream.
+
+    The streaming decoder emits StreamingSAMEAlert objects (raw message + confidence).
+    All downstream code—FIPS filtering, database storage, OTA auto-forward—expects a
+    plain dict with parsed fields (event_code, location_codes, originator, etc.).
+    This function bridges that gap by calling describe_same_header() on the raw string.
+    """
+    raw_msg = getattr(alert, 'message', '') or ''
+    try:
+        from app_utils.eas import describe_same_header
+        fields = describe_same_header(raw_msg) or {}
+    except Exception:
+        fields = {}
+
+    # Normalise raw location strings to plain 6-digit FIPS codes
+    location_codes = []
+    for loc in fields.get('raw_locations', []):
+        digits = ''.join(c for c in str(loc) if c.isdigit()).zfill(6)[:6]
+        if len(digits) == 6:
+            location_codes.append(digits)
+
+    # Derive purge_time ISO string from issue_time + purge_minutes
+    purge_time = None
+    issue_time_iso = fields.get('issue_time_iso')
+    purge_minutes = fields.get('purge_minutes')
+    if issue_time_iso and purge_minutes:
+        try:
+            issue_dt = datetime.fromisoformat(issue_time_iso)
+            purge_time = (issue_dt + timedelta(minutes=purge_minutes)).isoformat()
+        except Exception:
+            pass
+
+    ts = getattr(alert, 'timestamp', None)
+    return {
+        'raw_header': raw_msg,
+        'event_code': fields.get('event_code', ''),
+        'originator': fields.get('originator', ''),
+        'location_codes': location_codes,
+        'callsign': (fields.get('station_identifier') or '').strip('-').strip(),
+        'issue_time': issue_time_iso,
+        'purge_time': purge_time,
+        'confidence': getattr(alert, 'confidence', 0.0),
+        'timestamp': ts.isoformat() if hasattr(ts, 'isoformat') else str(ts),
+    }
+
+
 def compute_alert_signature(alert: Dict[str, Any]) -> str:
     """
     Create a deterministic hash of alert data for deduplication.
@@ -525,9 +572,15 @@ class EASMonitor:
             "audio_underruns": adapter_stats.get("underrun_count", 0),
         }
 
-    def _handle_alert(self, alert_data: dict) -> None:
+    def _handle_alert(self, alert_data) -> None:
         """Handle detected alert."""
         self._alerts_detected += 1
+
+        # The streaming decoder emits StreamingSAMEAlert objects; convert to dict.
+        from .streaming_same_decoder import StreamingSAMEAlert
+        if isinstance(alert_data, StreamingSAMEAlert):
+            alert_data = _same_alert_to_dict(alert_data)
+
         alert_data['source_name'] = self.source_name
 
         logger.info(
