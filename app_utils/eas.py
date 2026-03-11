@@ -1591,20 +1591,10 @@ class EASBroadcaster:
             'dense fog advisory',
         }
 
-        # Check BLOCKCHANNEL parameter - alerts can request to block specific distribution channels
-        # BLOCKCHANNEL is defined in CAP/IPAWS to specify which channels should NOT be used
-        # When "EAS" is in BLOCKCHANNEL, the alert should not trigger EAS broadcast
-        blockchannel = self._get_blockchannel(alert, payload)
-        if 'EAS' in blockchannel:
-            pretty_event = getattr(alert, 'event', '') or payload.get('event') or 'unknown'
-            self.logger.info(
-                'Skipping EAS broadcast for "%s" - BLOCKCHANNEL contains EAS (channels blocked: %s)',
-                pretty_event,
-                ', '.join(blockchannel),
-            )
-            result['reason'] = "EAS blocked by BLOCKCHANNEL parameter"
-            result['blockchannel'] = list(blockchannel)
-            return result
+        # Note: BLOCKCHANNEL in IPAWS/CAP applies to automated IPAWS distribution
+        # systems, not to local EAS stations monitoring the NWS API directly.
+        # Local EAS stations must make their own broadcast decisions based on
+        # event type and geographic coverage, not the BLOCKCHANNEL parameter.
 
         if status not in {'actual', 'test'}:
             self.logger.debug('Skipping EAS generation for status %s', status)
