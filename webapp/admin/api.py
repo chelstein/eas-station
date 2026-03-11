@@ -85,23 +85,52 @@ def _detect_county_wide(alert) -> bool:
     """
     is_county_wide = False
 
+    # Load configured county/state so detection is not hardcoded to any
+    # specific location (previously hardcoded to "Putnam County, Ohio").
+    from app_core.location import get_location_settings
+    settings = get_location_settings()
+    configured_county_name = (settings.get('county_name', '') or '').lower().strip()
+    configured_state_code = (settings.get('state_code', '') or '').lower().strip()
+
+    # Short county name without the " county" suffix for looser matching.
+    # e.g. "putnam county" → "putnam"
+    county_short = configured_county_name.replace(' county', '').strip()
+
     # --- Text-based detection from area_desc ---
     if alert.area_desc:
         area_lower = alert.area_desc.lower().strip()
-        is_county_wide = (
-            'putnam county' in area_lower
+
+        # Exact configured county name or "entire county" phrase
+        county_match = (
+            (configured_county_name and configured_county_name in area_lower)
             or 'entire county' in area_lower
-            or ('county' in area_lower and 'ohio' in area_lower)
-            or (
-                'putnam' in area_lower
-                and (area_lower.count(';') >= 2 or area_lower.count(',') >= 2)
+        )
+
+        # Short county name appears alongside a multi-area list (e.g. "putnam; ... OH")
+        short_with_list = (
+            county_short
+            and county_short in area_lower
+            and (area_lower.count(';') >= 2 or area_lower.count(',') >= 2)
+        )
+
+        # Statewide text patterns (e.g. area_desc="Ohio" or "state of ohio")
+        state_name_patterns = bool(
+            configured_state_code
+            and (
+                area_lower == configured_state_code
+                or f'state of {configured_state_code}' in area_lower
             )
         )
 
-        # Statewide text patterns (e.g. area_desc="Ohio" or contains "state of ohio")
-        if not is_county_wide:
-            if area_lower in ('ohio',) or 'state of ohio' in area_lower:
-                is_county_wide = True
+        # county + state code anywhere in area_desc
+        county_and_state = bool(
+            county_short
+            and configured_state_code
+            and 'county' in area_lower
+            and configured_state_code in area_lower
+        )
+
+        is_county_wide = bool(county_match or short_with_list or state_name_patterns or county_and_state)
 
     # --- SAME geocode matching (statewide codes only) ---
     # Note: an exact county FIPS match (e.g. 039137) only means the alert

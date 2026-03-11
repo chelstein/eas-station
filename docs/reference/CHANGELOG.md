@@ -6,6 +6,27 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+### Fixed
+- **Fixed: Audio stream ingest EAS detection delay after extended operation** (v2.53.0)
+  - Root cause: `UnifiedEASMonitorService._monitor_loop()` applied an unconditional 50ms sleep after each processing cycle regardless of whether audio was flowing. This caused the EAS broadcast queue consumer to fall behind the producer by ~15%, filling the 10,000-chunk buffer in ~7 hours and introducing up to 15+ minutes of real-time EAS detection latency.
+  - Fix: Sleep is now skipped when audio was processed in the current iteration; the natural blocking in `BroadcastAudioAdapter.read_audio()` (queue.get timeout) already rate-limits the consumer to the production rate.
+  - Files: `app_core/audio/eas_monitor_v3.py`
+
+- **Fixed: StreamingSAMEDecoder stuck in `in_message=True` state** (v2.53.0)
+  - A false 'Z' byte detection could start a message assembly that never received ZCZC/NNNN. When the message grew past `MAX_MSG_LEN` (268 chars) without a valid header, `_is_message_complete()` returned False but no reset occurred, permanently blocking preamble detection via the `not self.in_message` guard.
+  - Fix: When `len(current_msg) > MAX_MSG_LEN` and no valid header is found, the decoder state is explicitly reset so preamble detection can resume.
+  - Files: `app_core/audio/streaming_same_decoder.py`
+
+- **Fixed: Coverage "Coverage Calculating..." badge shown indefinitely when no boundaries configured** (v2.53.0)
+  - After coverage calculation completes with empty results (no boundaries in local database), the alert detail page displayed "Coverage Calculating..." in the header badge and Technical Details panel, suggesting ongoing computation that would never complete.
+  - Fix: Badge and coverage type now show "Coverage N/A" when calculation has completed with no results.
+  - Files: `templates/alert_detail.html`
+
+- **Fixed: `_detect_county_wide()` hardcoded to "Putnam County, Ohio"** (v2.53.0)
+  - The county-wide coverage detection logic in `api.py` and the inline Jinja2 fallback blocks in `alert_detail.html` were hardcoded to "putnam county" and "ohio", making the feature non-functional for any deployment outside Putnam County, OH.
+  - Fix: Both the Python function and all template inline checks now use the configured county name and state code from `location_settings`.
+  - Files: `webapp/admin/api.py`, `templates/alert_detail.html`
+
 ### Added
 - **Consistent visual theming across all pages** (v2.52.0)
   - Added the standard `admin-page-header` gradient banner to all 22 admin pages that previously lacked a consistent page header (application_settings, backups, county_boundaries, eas_decoder_monitor, mail_server, notifications, poller, zones, sessions, audio_archives, audio_sdr_fix, audio_sources, radio, radio_diagnostics, certbot, icecast, tailscale, tts, alert_feeds, environment, network, zigbee). Old ad-hoc h1/h2 heading rows removed.
