@@ -7,6 +7,28 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Added
+- **Consistent visual theming across all pages** (v2.52.0)
+  - Added the standard `admin-page-header` gradient banner to all 22 admin pages that previously lacked a consistent page header (application_settings, backups, county_boundaries, eas_decoder_monitor, mail_server, notifications, poller, zones, sessions, audio_archives, audio_sdr_fix, audio_sources, radio, radio_diagnostics, certbot, icecast, tailscale, tts, alert_feeds, environment, network, zigbee). Old ad-hoc h1/h2 heading rows removed.
+  - Migrated `hardware_settings.html` from the non-admin `.page-header` to `.admin-page-header` for consistent admin section styling.
+  - Fixed `index.html` (dashboard): removed the large inline `<style>` block that overrode the global `.page-header` CSS with conflicting padding, border-radius, and child element structure. Updated dashboard page-header HTML to use the canonical standard pattern (matching alerts.html, etc.).
+  - Replaced hardcoded hex colors (`#6610f2`, `#6f42c1`) in `.admin-page-header.header-purple` in `static/css/admin.css` with theme-aware CSS variables (`var(--vibrant-indigo)`, `var(--secondary-color)`) so the purple header variant respects the active theme.
+  - Files: all 22 `templates/admin/*.html` pages, `templates/index.html`, `static/css/admin.css`
+
+### Fixed
+- **Fixed: floating orbs invisible due to compounded opacity** (v2.51.5)
+  - Root cause: two opacity reductions were being compounded — `color-mix(..., transparent)` already reduces the gradient stop to ~10–25% opacity, and then the element `opacity` property was additionally set to `0.06–0.12`, resulting in an effective visibility of under 2% (invisible).
+  - `mix-blend-mode: soft-light` was also ineffective on dark backgrounds with dark-coloured sources; changed to `screen` so orbs produce a visible glow on all themes.
+  - Page-header orbs updated to use white/light source colours that work correctly with `soft-light` on the vibrant gradient header.
+  - All per-orb `opacity` values raised to `0.38–0.75`; `color-mix` percentages raised to 40–60% so the net visual effect is a subtle but perceptible coloured glow.
+  - Added global `.page-shell > *:not(.orb) { position: relative; z-index: 1; }` rule so page content always renders above the fixed background orbs. This rule previously existed only in `templates/index.html`; moved to `static/css/styles.css` and removed the duplicate.
+  - Files: `static/css/styles.css`, `templates/index.html`
+
+- **SSL certificate overwritten with self-signed cert on every upgrade** (v2.51.5)
+  - `update.sh` unconditionally copied the nginx template (which always references the self-signed certificate) over the live config. Any Let's Encrypt certificate paths configured by the admin were silently reverted on each `./update.sh` run.
+  - The script now reads the active `ssl_certificate` and `ssl_certificate_key` paths before overwriting the config file. If those paths point to a non-default (e.g. Let's Encrypt) certificate that still exists on disk, they are re-applied to the freshly copied template before nginx is reloaded.
+  - Files: `update.sh`
+
+### Added
 - **Automatic alert forwarding to air chain for IPAWS, NOAA, and OTA sources** (v2.52.0)
   - Received alerts are now automatically forwarded for broadcast with zero operator intervention
   - Station originator is substituted into outgoing SAME headers via `build_same_header()`

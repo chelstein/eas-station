@@ -3,13 +3,16 @@
 {% block title %}Audio Sources Configuration{% endblock %}
 
 {% block content %}
+<div class="admin-page-header header-success">
+    <div class="container">
+        <h1><i class="fas fa-microphone"></i> Audio Ingestion</h1>
+        <p class="mb-0">Monitor and manage audio input sources for the EAS system</p>
+    </div>
+</div>
+
 <div class="container py-4">
-    <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between mb-4">
-        <div>
-            <h1 class="h3 mb-1">Audio Ingestion Management</h1>
-            <p class="text-muted mb-0">Monitor and manage audio input sources for the EAS system.</p>
-        </div>
-        <button class="btn btn-primary mt-3 mt-md-0" id="addSourceBtn">
+    <div class="d-flex justify-content-end mb-4">
+        <button class="btn btn-primary" id="addSourceBtn">
             <i class="fas fa-plus"></i> Add Audio Source
         </button>
     </div>

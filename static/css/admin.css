@@ -503,7 +503,7 @@ code {
 }
 
 .admin-page-header.header-purple {
-    background: linear-gradient(135deg, #6610f2, #6f42c1);
+    background: linear-gradient(135deg, var(--vibrant-indigo, #5856D6), var(--secondary-color, #7c3aed));
 }
 
 /* Settings-style header (no gradient, plain layout) */

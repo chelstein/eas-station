@@ -1000,8 +1000,41 @@ if [ -f "$INSTALL_DIR/config/nginx-eas-station.conf" ]; then
     if [ -f /etc/nginx/sites-available/eas-station ]; then
         if ! diff -q "$INSTALL_DIR/config/nginx-eas-station.conf" /etc/nginx/sites-available/eas-station >/dev/null 2>&1; then
             echo_progress "Updating nginx configuration..."
+
+            # Preserve any existing SSL certificate paths before overwriting the config.
+            # The template always contains the self-signed certificate paths.  If the
+            # admin obtained a Let's Encrypt certificate via the web UI or certbot, those
+            # paths would be overwritten on every upgrade - reverting HTTPS to a
+            # self-signed certificate.  We capture the live paths first and restore them
+            # after the copy so the certificate is never silently replaced.
+            EXISTING_CERT=$(grep -E "^\s*ssl_certificate " /etc/nginx/sites-available/eas-station \
+                | grep -Ev "^[[:space:]]*#" \
+                | awk '{print $2}' | tr -d ';' | head -1)
+            EXISTING_KEY=$(grep -E "^\s*ssl_certificate_key " /etc/nginx/sites-available/eas-station \
+                | grep -Ev "^[[:space:]]*#" \
+                | awk '{print $2}' | tr -d ';' | head -1)
+
             cp "$INSTALL_DIR/config/nginx-eas-station.conf" /etc/nginx/sites-available/eas-station
-            
+
+            # If the previous config was using a certificate other than the default
+            # self-signed one (e.g. a Let's Encrypt certificate), restore those paths so
+            # the upgrade does not silently revert to a self-signed certificate.
+            if [ -n "$EXISTING_CERT" ] && \
+               [ "$EXISTING_CERT" != "/etc/ssl/certs/eas-station-selfsigned.crt" ] && \
+               [ -f "$EXISTING_CERT" ]; then
+                echo_info "Preserving existing SSL certificate: $EXISTING_CERT"
+                # Escape & and \ in the replacement strings so sed does not
+                # misinterpret them.  File paths on Linux cannot contain | so the
+                # | delimiter is safe; only & and \ need escaping in replacements.
+                CERT_ESC=$(printf '%s\n' "$EXISTING_CERT" | sed 's/[\\&]/\\&/g')
+                KEY_ESC=$(printf '%s\n' "$EXISTING_KEY" | sed 's/[\\&]/\\&/g')
+                sed -i "s|ssl_certificate /etc/ssl/certs/eas-station-selfsigned.crt;|ssl_certificate $CERT_ESC;|g" \
+                    /etc/nginx/sites-available/eas-station
+                sed -i "s|ssl_certificate_key /etc/ssl/private/eas-station-selfsigned.key;|ssl_certificate_key $KEY_ESC;|g" \
+                    /etc/nginx/sites-available/eas-station
+                echo_success "SSL certificate paths preserved"
+            fi
+
             if nginx -t 2>&1 | grep -q "successful"; then
                 systemctl reload nginx
                 echo_success "Nginx configuration updated"
