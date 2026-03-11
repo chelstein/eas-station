@@ -594,13 +594,14 @@ def build_same_header(alert: object, payload: Dict[str, object], config: Dict[st
     geocode = (payload.get('raw_json', {}) or {}).get('properties', {}).get('geocode', {})
     same_codes = []
 
-    for key in ('SAME', 'same', 'SAMEcodes', 'UGC'):  # allow a few vendor spellings
+    for key in ('SAME', 'same', 'SAMEcodes'):  # vendor spellings of SAME codes only
         values = geocode.get(key)
         if values:
             if isinstance(values, (list, tuple)):
                 same_codes.extend(str(v).strip() for v in values)
             else:
                 same_codes.append(str(values).strip())
+            break  # stop at the first key that has data; don't accumulate across keys
     same_codes = [code for code in same_codes if code and code != 'None']
 
     zone_codes: List[str] = []
@@ -633,6 +634,9 @@ def build_same_header(alert: object, payload: Dict[str, object], config: Dict[st
         same_codes = [code.replace('O', '').upper().replace(' ', '') for code in zone_codes]
 
     formatted_locations = _normalise_same_codes(same_codes)
+    # FCC 47 CFR §11.31 limits SAME headers to 31 location codes
+    if len(formatted_locations) > 31:
+        formatted_locations = formatted_locations[:31]
 
     if not formatted_locations:
         formatted_locations = ['000000']

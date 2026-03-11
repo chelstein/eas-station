@@ -53,13 +53,14 @@ def _get_fips_from_cap_alert(alert, raw_json: Optional[Dict] = None) -> List[str
         if isinstance(props, dict):
             geocode = props.get('geocode', {})
             if isinstance(geocode, dict):
-                for key in ('SAME', 'same', 'SAMEcodes', 'UGC'):
+                for key in ('SAME', 'same', 'SAMEcodes'):
                     values = geocode.get(key)
                     if values:
                         if isinstance(values, (list, tuple)):
                             codes.extend(str(v).strip() for v in values if v)
                         elif values:
                             codes.append(str(values).strip())
+                        break  # stop at first matching key; UGC zone codes are not FIPS codes
 
     return [c for c in codes if c and c != 'None']
 
