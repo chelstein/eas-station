@@ -100,7 +100,12 @@
         const headers = document.querySelectorAll('.page-header:not(.orbs-added)');
         headers.forEach(header => addOrbsToElement(header, 3));
 
-        // Add orbs to page-shell (container-fluid) elements
+        // Add orbs to page-shell only on larger screens to avoid mobile layout breakage
+        const isDesktopViewport = window.matchMedia('(min-width: 992px)').matches;
+        if (!isDesktopViewport) {
+            return;
+        }
+
         const pageShells = document.querySelectorAll('.page-shell:not(.orbs-added)');
         pageShells.forEach(shell => addOrbsToElement(shell, 5));
     }
