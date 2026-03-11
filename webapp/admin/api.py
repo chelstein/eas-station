@@ -103,13 +103,16 @@ def _detect_county_wide(alert) -> bool:
             if area_lower in ('ohio',) or 'state of ohio' in area_lower:
                 is_county_wide = True
 
-    # --- SAME geocode matching (most reliable for IPAWS) ---
+    # --- SAME geocode matching (statewide codes only) ---
+    # Note: an exact county FIPS match (e.g. 039137) only means the alert
+    # *affects* that county, not that it covers the entire county.  Only
+    # statewide SAME codes (e.g. 039000) should trigger county-wide coverage.
     if not is_county_wide:
         raw_json = alert.raw_json if isinstance(alert.raw_json, dict) else {}
         same_codes = raw_json.get('properties', {}).get('geocode', {}).get('SAME', [])
         if same_codes:
             configured_fips = set(_get_configured_fips_codes())
-            # Also build the state-level code from each configured FIPS
+            # Build the state-level code from each configured FIPS
             # e.g. 039137 -> 039000 (statewide Ohio)
             statewide_codes = set()
             for fips in configured_fips:
@@ -119,10 +122,6 @@ def _detect_county_wide(alert) -> bool:
             for code in same_codes:
                 if not isinstance(code, str):
                     continue
-                # Exact match to configured county FIPS
-                if code in configured_fips:
-                    is_county_wide = True
-                    break
                 # Statewide code for our state (e.g. 039000)
                 if code in statewide_codes:
                     is_county_wide = True
