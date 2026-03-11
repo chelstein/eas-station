@@ -689,6 +689,22 @@ class CAPPoller:
                 if endpoint not in seen:
                     unique_endpoints.append(endpoint)
                     seen.add(endpoint)
+
+            # ALWAYS add NOAA zone-based endpoints alongside configured IPAWS/custom feeds.
+            # PollerSettings.cap_endpoints is documented as "in addition to built-in NOAA feeds"
+            # but the original code skipped NOAA entirely when any configured endpoint existed.
+            noaa_endpoints = self._build_batched_noaa_endpoints(
+                self.location_settings['zone_codes'] or DEFAULT_LOCATION_SETTINGS['zone_codes']
+            )
+            for ep in noaa_endpoints:
+                if ep not in seen:
+                    unique_endpoints.append(ep)
+                    seen.add(ep)
+            if noaa_endpoints:
+                self.logger.info(
+                    "Added %d NOAA zone endpoint(s) alongside configured feeds", len(noaa_endpoints)
+                )
+
             self.cap_endpoints = unique_endpoints
         else:
             # No explicit endpoints configured - build defaults for both NOAA and IPAWS

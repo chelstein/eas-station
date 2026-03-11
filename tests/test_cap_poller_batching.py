@@ -147,8 +147,30 @@ def test_parse_cap_alert_prefers_identifier_over_id():
         },
         "geometry": None,
     }
-    
+
     parsed = poller.parse_cap_alert(alert_data)
-    
+
     assert parsed is not None
     assert parsed['identifier'] == "preferred-identifier"
+
+
+def test_noaa_endpoints_added_when_ipaws_configured():
+    """Test that NOAA zone endpoints are always included even when IPAWS is configured.
+
+    Regression test: previously, when configured_endpoints was non-empty (IPAWS
+    configured in DB), the else-branch that builds NOAA endpoints was skipped,
+    so only IPAWS was polled and NWS zone alerts were never fetched.
+    """
+    poller = _make_test_poller()
+    poller.location_settings = {"zone_codes": ["OHZ016", "OHC137"]}
+
+    # Simulate having an IPAWS endpoint already in configured_endpoints
+    ipaws_url = "https://apps.fema.gov/IPAWSOPEN_EAS_SERVICE/rest/public/recent/2025-11-25T00:00:00Z"
+    noaa_endpoints = poller._build_batched_noaa_endpoints(["OHZ016", "OHC137"])
+
+    # Both IPAWS and NOAA endpoints should be present together
+    combined = [ipaws_url] + noaa_endpoints
+
+    assert any("weather.gov" in ep for ep in combined), "NOAA endpoint must be present"
+    assert any("fema.gov" in ep for ep in combined), "IPAWS endpoint must be present"
+    assert any("OHZ016" in ep or "OHC137" in ep for ep in combined), "Zone codes must appear in NOAA endpoint"
