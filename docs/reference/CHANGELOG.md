@@ -6,6 +6,14 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.56.1] - Web Stream Stall and RBDS Decoding Fixes
+
+### Fixed
+- **Web stream stall after extended runtime** (`icecast_output.py`) — The source-timeout restart check was gated on the internal buffer being non-empty (`and buffer`). When the audio source stopped supplying data the buffer drained to zero, causing the check to silently skip and leaving a stalled FFmpeg process running indefinitely. The erroneous guard has been removed so the timeout fires correctly regardless of buffer state.
+- **RBDS decoding never locking** (`demodulation.py`) — Two related bugs prevented reliable RBDS carrier lock:
+  1. The M&M symbol-timing estimator (`_rbds_mm_mu`) and the Costas carrier-phase/frequency registers (`_rbds_costas_phase`, `_rbds_costas_freq`) were reset to zero at the start of every 10-second processing batch. This forced both loops to re-converge from scratch every batch, making stable lock impossible in a continuous stream.
+  2. `_costas_pysdr()` hardcoded `alpha=4.25` and `beta=0.0008` (values tuned for single-pass offline recording processing) instead of using the carefully tuned streaming parameters `self._rbds_costas_alpha=0.026` / `self._rbds_costas_beta=0.00035` that were already present in `__init__`. The aggressive offline values caused loop oscillation in the streaming context.
+
 ## [2.56.0] - UI Visual Modernization
 
 ### Changed

@@ -626,10 +626,12 @@ class RBDSWorker:
         x = self._rbds_sample_buffer
         self._rbds_sample_buffer = np.array([], dtype=np.complex64)
 
-        # RESET M&M and Costas state - python-radio starts fresh each batch
-        self._rbds_mm_mu = 0.01
-        self._rbds_costas_phase = 0.0
-        self._rbds_costas_freq = 0.0
+        # Do NOT reset M&M / Costas state between batches.
+        # Unlike an offline recording processed in one pass, this is a continuous
+        # stream that feeds 10-second slices one at a time.  The M&M timing
+        # estimator (mu) and the Costas carrier-phase/frequency state are
+        # intentionally carried forward so the loops stay locked across batches
+        # rather than having to re-converge from scratch every 10 seconds.
 
         if len(x) < 48:  # Need enough samples for processing
             return self._decode_rbds_groups()
@@ -769,16 +771,23 @@ class RBDSWorker:
     def _costas_pysdr(self, samples: np.ndarray) -> np.ndarray:
         """Costas loop for BPSK carrier/phase synchronization.
 
-        This is the EXACT implementation from https://github.com/ChrisDev8/python-radio
-        which is known to work correctly for RBDS decoding.
+        Adapted from https://github.com/ChrisDev8/python-radio but uses the
+        instance-level loop parameters (alpha / beta) rather than the
+        python-radio defaults.  python-radio processes a full recording in one
+        shot and can afford aggressive gains (alpha=4.25) to converge quickly.
+        Here we process 10-second streaming slices and carry phase/frequency
+        state across batches, so a much tighter loop (alpha=0.026, beta=0.00035)
+        is required to avoid oscillation and maintain a stable carrier lock.
         """
         n = len(samples)
         if n == 0:
             return samples
 
-        # python-radio uses these specific parameters
-        alpha = 4.25
-        beta = 0.0008
+        # Use the tuned streaming parameters from __init__; these were explicitly
+        # chosen to keep loop bandwidth narrow enough to prevent oscillation on
+        # continuous streaming data.
+        alpha = self._rbds_costas_alpha
+        beta = self._rbds_costas_beta
 
         phase = self._rbds_costas_phase if hasattr(self, '_rbds_costas_phase') else 0.0
         freq = self._rbds_costas_freq if hasattr(self, '_rbds_costas_freq') else 0.0

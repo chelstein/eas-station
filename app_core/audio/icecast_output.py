@@ -703,9 +703,12 @@ class IcecastStreamer:
 
                 # Check for write timeout - but only restart if it's been a LONG time
                 # Short gaps are normal during buffer fill, don't restart for those
+                # NOTE: do NOT gate this on "buffer" being non-empty.  When the source
+                # stops producing audio the buffer drains to zero and _last_write_time
+                # stops advancing; the stall detector must still fire so that FFmpeg is
+                # restarted and the stream recovers.
                 if (
                     self._source_timeout
-                    and buffer
                     and self._last_write_time > 0.0
                     and now - self._last_write_time > self._source_timeout
                 ):
