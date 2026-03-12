@@ -62,3 +62,17 @@ _Last updated: February 14, 2026_
 ## 12. Contact
 - Questions about these terms can be directed through the GitHub issue tracker.
 - Do **not** submit emergency requests, personal data, or public warning content through that channel.
+
+## 13. AMPR Network (44.0.0.0/8) — Non-Commercial Use
+
+This service may be accessible via the **AMPRNet** IPv4 address block (`44.0.0.0/8`), which is allocated globally to the licensed amateur radio community by the [Amateur Radio Digital Communications (ARDC)](https://www.ampr.org/) foundation and managed under amateur radio service rules (FCC 47 CFR Part 97 in the United States).
+
+In accordance with FCC Part 97, ARDC allocation policy, and the terms governing the AMPRNet address space:
+
+- **This service is strictly NON-COMMERCIAL.** No commercial activity, for-profit transactions, or commercial advertising of any kind is conducted through this AMPRNet-accessible endpoint.
+- This deployment is operated by a licensed amateur radio operator (KR8MER) for non-commercial research, experimentation, and emergency communications training.
+- Any use of this service via the 44.0.0.0/8 address space must remain consistent with FCC Part 97 non-commercial requirements.
+- Commercial exploitation of the 44.0.0.0/8 block is prohibited under ARDC allocation policy and applicable FCC regulations.
+
+For information on the AMPRNet allocation and acceptable use policy, see [ampr.org](https://www.ampr.org/).
+For the FCC Part 97 rules governing amateur radio service, see [47 CFR Part 97](https://www.ecfr.gov/current/title-47/chapter-I/subchapter-D/part-97).

@@ -1,6 +1,6 @@
 # SMS Messaging Policy
 
-**Last updated:** See repository commit history for most recent revision date.
+**Last updated:** March 12, 2026
 
 This policy applies to the SMS notification feature of EAS Station. It describes how
 text messages are sent, who receives them, and how recipients can opt out.

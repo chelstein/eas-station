@@ -6,6 +6,29 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.53.1] - Documentation & Compliance Update
+
+### Added
+- **AMPR 44.0.0.0/8 Non-Commercial Network Disclaimer** (v2.53.1)
+  - Added a prominent non-commercial network notice to `templates/about.html` and `templates/terms.html` for deployments accessible via the AMPRNet (44.0.0.0/8) address block.
+  - Added the same notice as Section 13 to `docs/policies/TERMS_OF_USE.md`.
+  - Explains FCC Part 97 non-commercial requirements, ARDC allocation policy, and that this service is operated strictly for non-commercial amateur radio research and emergency communications training.
+  - Files: `templates/about.html`, `templates/terms.html`, `docs/policies/TERMS_OF_USE.md`
+
+### Fixed
+- **Created missing `docs/javascripts/mermaid-init.js`** (v2.53.1)
+  - `mkdocs.yml` referenced `javascripts/mermaid-init.js` as an extra JavaScript file, but the file and its parent directory did not exist, causing a 404 error when building the MkDocs documentation site.
+  - Created `docs/javascripts/mermaid-init.js` with proper Mermaid initialization configuration (startOnLoad, theme variables, flowchart and ER diagram options).
+  - Files: `docs/javascripts/mermaid-init.js`
+
+- **Fixed `.bg-light` text readability in dark and coffee themes** (v2.53.1)
+  - The `.bg-light` CSS rule hard-coded `color: #212121` (near-black text), which became illegible when the `--light-color` variable resolves to a dark background colour (`#455169` in the dark theme, `#5b4333` in the coffee theme). Added theme-scoped overrides to use `var(--text-color)` and `var(--text-secondary)` for those two dark themes.
+  - Files: `static/css/styles.css`
+
+- **Updated SMS Messaging Policy date** (v2.53.1)
+  - Updated the "Last updated" field in `docs/policies/SMS_MESSAGING.md` from a placeholder to the current revision date.
+  - Files: `docs/policies/SMS_MESSAGING.md`
+
 ### Fixed
 - **Fixed: Audio stream ingest EAS detection delay after extended operation** (v2.53.0)
   - Root cause: `UnifiedEASMonitorService._monitor_loop()` applied an unconditional 50ms sleep after each processing cycle regardless of whether audio was flowing. This caused the EAS broadcast queue consumer to fall behind the producer by ~15%, filling the 10,000-chunk buffer in ~7 hours and introducing up to 15+ minutes of real-time EAS detection latency.
