@@ -41,6 +41,7 @@ from . import (
     routes_logs,
     routes_settings_radio,
     routes_settings_audio,
+    routes_settings_hub,
     routes_led,
     routes_vfd,
     routes_screens,
@@ -83,6 +84,7 @@ def iter_route_modules() -> Iterable[RouteModule]:
     yield RouteModule("routes_ipaws", routes_ipaws.register)
     yield RouteModule("routes_settings_radio", routes_settings_radio.register)
     yield RouteModule("routes_settings_audio", routes_settings_audio.register)
+    yield RouteModule("routes_settings_hub", routes_settings_hub.register)
     yield RouteModule("routes_eas_monitor_status", routes_eas_monitor_status.register_eas_monitor_routes)
     yield RouteModule("routes_audio_tests", routes_audio_tests.register)
     yield RouteModule("routes_audio_archive", routes_audio_archive.register)
