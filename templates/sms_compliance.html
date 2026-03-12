@@ -16,92 +16,148 @@
                     </div>
 
                     <div class="alert alert-primary d-flex align-items-start" role="alert">
-                        <i class="fas fa-broadcast-tower fa-lg me-3 mt-1"></i>
+                        <i class="fas fa-broadcast-tower fa-lg me-3 mt-1 flex-shrink-0"></i>
                         <div>
                             EAS Station sends SMS messages exclusively for <strong>emergency alert notifications</strong>.
                             Messages are sent only to phone numbers explicitly configured by the system administrator
-                            in the EAS Station admin panel. This service is not a public subscription service.
+                            in the EAS Station admin panel. <strong>This is not a public subscription service.</strong>
                         </div>
                     </div>
 
+                    <!-- ── 1. Program Description ─────────────────────────────────── -->
                     <section class="mb-4">
                         <h2 class="h4 text-primary">1. Program Description</h2>
-                        <p>EAS Station is a self-hosted Emergency Alert System (EAS) research and monitoring platform.
-                           When SMS notifications are enabled by the system administrator, EAS Station will send
-                           text message alerts to pre-configured recipients whenever an EAS alert is received
-                           and broadcast by the system. These messages contain emergency alert type, event code,
-                           affected area, and expiration information.</p>
+                        <p>EAS Station is a self-hosted Emergency Alert System (EAS) research and monitoring platform
+                           operated by a licensed amateur radio operator. When SMS notifications are enabled by the
+                           system administrator, EAS Station sends text message alerts to pre-configured recipients
+                           whenever an EAS alert is received and broadcast by the system. Messages contain the
+                           emergency event code, alert headline, affected area identifiers, and timestamp.</p>
                         <p>SMS messaging is powered by <strong>Twilio</strong> using a toll-free or long-code
                            phone number provisioned by the system operator.</p>
+                        <p><strong>Use case:</strong> Emergency public-safety alert notifications only. No marketing,
+                           promotional, or non-emergency messages are sent through this program.</p>
                     </section>
 
+                    <!-- ── 2. Opt-In / Consent Disclosure ────────────────────────── -->
                     <section class="mb-4">
-                        <h2 class="h4 text-primary">2. How Opt-In Works</h2>
+                        <h2 class="h4 text-primary">2. Opt-In / Consent Disclosure</h2>
                         <p>Because EAS Station is self-hosted software operated by a system administrator (not
                            a public-facing subscription service), opt-in is managed at the operator level:</p>
                         <ul>
                             <li>The system administrator adds recipient phone numbers directly to the EAS Station
                                 admin panel under <strong>Settings &rsaquo; Notifications</strong>.</li>
-                            <li>Only individuals who have provided explicit, prior written consent to the system
-                                operator may be added as SMS recipients.</li>
-                            <li>Adding a phone number to the recipient list constitutes the operator's attestation
-                                that the individual at that number has consented to receive EAS alert SMS messages
-                                from this system.</li>
-                            <li>Consent must be obtained before any messages are sent and must be documented by
-                                the operator.</li>
+                            <li>Only individuals who have provided <strong>explicit prior written consent</strong>
+                                to the system operator may be added as SMS recipients.</li>
+                            <li>Adding a phone number constitutes the operator's attestation that the individual
+                                has consented to receive EAS alert SMS messages from this program.</li>
+                            <li>Consent must be obtained and documented <strong>before</strong> any messages are
+                                sent.</li>
                         </ul>
+
+                        <!-- Consent disclosure block that Twilio reviewers inspect -->
+                        <div class="border rounded p-3 bg-light mt-3">
+                            <p class="fw-semibold mb-2">Consent Disclosure Language (shown to recipients at opt-in):</p>
+                            <blockquote class="blockquote mb-0 small">
+                                <p class="mb-0">
+                                    By providing your phone number you agree to receive EAS emergency alert SMS
+                                    notifications from EAS Station. These alerts are issued by the National Weather
+                                    Service and authorized government agencies.
+                                    <strong>Message and data rates may apply. Message frequency varies.</strong>
+                                    Reply <strong>STOP</strong> to stop messages at any time.
+                                    Reply <strong>HELP</strong> for help.
+                                    See the <a href="{{ url_for('privacy_page') }}">Privacy Policy</a> and
+                                    <a href="{{ url_for('terms_page') }}">Terms of Use</a>.
+                                </p>
+                            </blockquote>
+                        </div>
                     </section>
 
+                    <!-- ── 3. Message Frequency ───────────────────────────────────── -->
                     <section class="mb-4">
                         <h2 class="h4 text-primary">3. Message Frequency</h2>
                         <p>Message frequency depends entirely on the volume of EAS alerts received by the system.
                            EAS alerts are issued by the National Weather Service and other authorized government
                            agencies. During severe weather events or other emergencies, multiple messages may be
                            sent within a short period. During quiet periods, no messages may be sent at all.</p>
-                        <p><strong>Message frequency varies. You may receive multiple messages per day during
-                           active alert periods.</strong></p>
+                        <p class="fw-semibold">Message frequency varies. You may receive multiple messages per day
+                           during active alert periods.</p>
                     </section>
 
+                    <!-- ── 4. Message &amp; Data Rates ────────────────────────────── -->
                     <section class="mb-4">
                         <h2 class="h4 text-primary">4. Message &amp; Data Rates</h2>
-                        <p><strong>Message and data rates may apply.</strong> Standard SMS and data rates charged
-                           by your mobile carrier may apply to messages received from this system. EAS Station and
-                           its operators do not charge any fee for SMS notifications, but your carrier's standard
-                           rates apply.</p>
+                        <p class="fw-semibold">Message and data rates may apply.</p>
+                        <p>Standard SMS and data rates charged by your mobile carrier may apply to messages
+                           received from this system. EAS Station and its operators do not charge any fee for
+                           SMS notifications.</p>
                     </section>
 
+                    <!-- ── 5. What Messages Look Like ─────────────────────────────── -->
                     <section class="mb-4">
-                        <h2 class="h4 text-primary">5. How to Opt Out (STOP)</h2>
-                        <p>To stop receiving SMS messages from this system at any time, reply <strong>STOP</strong>
-                           to any message you receive. After texting STOP, you will receive a one-time confirmation
-                           message and will no longer receive SMS notifications from this number.</p>
-                        <p>You may also contact the system operator directly to have your number removed from the
-                           recipient list in the EAS Station admin panel.</p>
-                        <div class="alert alert-secondary py-2">
-                            <code>STOP</code> &mdash; Unsubscribe from all messages<br>
-                            <code>STOP ALL</code> &mdash; Unsubscribe and block all future messages
+                        <h2 class="h4 text-primary">5. Sample Message Format</h2>
+                        <p>Messages follow this format (actual content varies per alert):</p>
+                        <div class="bg-dark text-white rounded p-3 font-monospace small mb-3">
+                            EAS ALERT: TOR<br>
+                            Tornado Warning for Putnam County<br>
+                            Areas: 039137<br>
+                            2026-03-12T14:00:00<br>
+                            - EAS Station<br>
+                            Reply STOP to stop msgs
                         </div>
+                        <p class="text-muted small">All messages include an opt-out reminder
+                           (<strong>Reply STOP to stop msgs</strong>) as required by CTIA messaging guidelines.</p>
                     </section>
 
+                    <!-- ── 6. How to Opt Out ──────────────────────────────────────── -->
                     <section class="mb-4">
-                        <h2 class="h4 text-primary">6. Help</h2>
-                        <p>For assistance, reply <strong>HELP</strong> to any message you receive from this system.
-                           You may also contact the system operator directly through the contact information they
-                           have provided.</p>
+                        <h2 class="h4 text-primary">6. How to Opt Out (STOP)</h2>
+                        <p>To stop receiving SMS messages from this system at any time, reply
+                           <strong>STOP</strong> to any message. You will receive a one-time confirmation
+                           and will no longer receive SMS notifications from this number.</p>
+                        <p>You may also contact the system operator directly to have your number removed from
+                           the recipient list.</p>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-bordered mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Keyword</th>
+                                        <th>Effect</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr><td><code>STOP</code></td><td>Unsubscribe from all messages</td></tr>
+                                    <tr><td><code>STOP ALL</code></td><td>Unsubscribe and block all future messages</td></tr>
+                                    <tr><td><code>CANCEL</code></td><td>Unsubscribe from all messages</td></tr>
+                                    <tr><td><code>END</code></td><td>Unsubscribe from all messages</td></tr>
+                                    <tr><td><code>QUIT</code></td><td>Unsubscribe from all messages</td></tr>
+                                    <tr><td><code>UNSUBSCRIBE</code></td><td>Unsubscribe from all messages</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <p class="text-muted small mt-2">These keywords are processed automatically at
+                           the carrier level by Twilio. No additional action is needed from the recipient.</p>
+                    </section>
+
+                    <!-- ── 7. Help ────────────────────────────────────────────────── -->
+                    <section class="mb-4">
+                        <h2 class="h4 text-primary">7. Help</h2>
+                        <p>Reply <strong>HELP</strong> to any message for assistance. Twilio will return
+                           basic service information. You may also contact the system operator directly
+                           through the contact information they have provided.</p>
                         <div class="alert alert-secondary py-2">
                             <code>HELP</code> &mdash; Receive help information and operator contact details
                         </div>
                     </section>
 
+                    <!-- ── 8. Supported Carriers ──────────────────────────────────── -->
                     <section class="mb-4">
-                        <h2 class="h4 text-primary">7. Supported Carriers</h2>
+                        <h2 class="h4 text-primary">8. Supported Carriers</h2>
                         <p>SMS messages are delivered via Twilio and are compatible with all major U.S. wireless
                            carriers, including but not limited to:</p>
                         <ul>
                             <li>AT&amp;T</li>
                             <li>T-Mobile</li>
                             <li>Verizon Wireless</li>
-                            <li>Sprint (now part of T-Mobile)</li>
                             <li>US Cellular</li>
                             <li>Boost Mobile</li>
                             <li>Cricket Wireless</li>
@@ -110,25 +166,29 @@
                         <p class="text-muted small">Carriers are not liable for delayed or undelivered messages.</p>
                     </section>
 
+                    <!-- ── 9. Privacy ─────────────────────────────────────────────── -->
                     <section class="mb-4">
-                        <h2 class="h4 text-primary">8. Privacy</h2>
+                        <h2 class="h4 text-primary">9. Privacy</h2>
                         <p>Phone numbers added to the EAS Station SMS recipient list are stored in the local
                            EAS Station database on the operator's infrastructure. Numbers are shared with
-                           <strong>Twilio</strong> solely for the purpose of delivering SMS messages. Twilio's
-                           privacy policy applies to their processing of this data.</p>
-                        <p>The EAS Station maintainers (project authors) do not have access to phone numbers
-                           stored in any operator's deployment. See our full
-                           <a href="{{ url_for('privacy_page') }}">Privacy Policy</a> for more information.</p>
+                           <strong>Twilio, Inc.</strong> solely for the purpose of delivering SMS messages.
+                           Twilio's privacy policy applies to their processing of this data.</p>
+                        <p>The EAS Station project maintainers do not have access to phone numbers stored in
+                           any operator's deployment. See the full
+                           <a href="{{ url_for('privacy_page') }}">Privacy Policy</a> for complete data
+                           handling details.<br>
+                           Twilio's privacy policy: <a href="https://www.twilio.com/en-us/legal/privacy"
+                               target="_blank" rel="noopener">twilio.com/en-us/legal/privacy</a>.</p>
                     </section>
 
+                    <!-- ── 10. Contact ────────────────────────────────────────────── -->
                     <section class="mb-0">
-                        <h2 class="h4 text-primary">9. Contact</h2>
-                        <p>Questions about SMS messaging or this policy should be directed to the system operator
-                           who deployed this EAS Station instance. For questions about the EAS Station software
-                           itself, visit the project on GitHub.</p>
-                        <p>For Twilio-related questions, visit
-                           <a href="https://www.twilio.com/en-us/legal/privacy" target="_blank" rel="noopener">
-                               Twilio's Privacy Policy</a>.</p>
+                        <h2 class="h4 text-primary">10. Contact</h2>
+                        <p>Questions about SMS messaging or this policy should be directed to the system
+                           operator who deployed this EAS Station instance. For questions about the
+                           EAS Station software itself, visit the
+                           <a href="https://github.com/KR8MER/eas-station" target="_blank" rel="noopener">
+                               GitHub repository</a>.</p>
                         <hr>
                         <p class="text-muted small">
                             Related policies:
