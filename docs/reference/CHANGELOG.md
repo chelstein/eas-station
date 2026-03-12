@@ -7,6 +7,10 @@ tracks releases under the 2.x series.
 ## [Unreleased]
 
 ### Fixed
+- **Fixed: Alert detail page shows "Coverage N/A" even when alert has embedded polygon geometry** (v2.53.1)
+  - `try_build_geometry_from_same_codes()` in `coverage.py` returned `False` immediately when the `us_county_boundaries` table was absent or empty, before ever checking whether the alert's `raw_json['geometry']` already contained a usable polygon (NOAA GeoJSON feature body).
+  - Fix: The function now tries three sources in order – (1) existing `alert.geom`, (2) polygon in `raw_json['geometry']`, (3) SAME geocode lookup against `us_county_boundaries`. Alerts with explicit geometry will always get their coverage calculated.
+  - Files: `webapp/admin/coverage.py`
 - **Fixed: Audio stream ingest EAS detection delay after extended operation** (v2.53.0)
   - Root cause: `UnifiedEASMonitorService._monitor_loop()` applied an unconditional 50ms sleep after each processing cycle regardless of whether audio was flowing. This caused the EAS broadcast queue consumer to fall behind the producer by ~15%, filling the 10,000-chunk buffer in ~7 hours and introducing up to 15+ minutes of real-time EAS detection latency.
   - Fix: Sleep is now skipped when audio was processed in the current iteration; the natural blocking in `BroadcastAudioAdapter.read_audio()` (queue.get timeout) already rate-limits the consumer to the production rate.

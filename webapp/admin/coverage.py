@@ -21,6 +21,7 @@ from __future__ import annotations
 
 """Coverage calculation helpers for admin routes."""
 
+import json
 from typing import Any, Dict, List, Tuple
 
 from flask import current_app
@@ -52,22 +53,56 @@ def _us_county_table_ready() -> bool:
 
 
 def try_build_geometry_from_same_codes(alert_id: int) -> bool:
-    """Attempt to build alert geometry from SAME geocodes.
+    """Attempt to build alert geometry from available sources.
+
+    Tries three sources in order:
+    1. ``alert.geom`` already set – return immediately.
+    2. Polygon embedded in ``raw_json['geometry']`` (NOAA GeoJSON feature body).
+    3. SAME geocodes matched against the ``us_county_boundaries`` table.
 
     Uses a SAVEPOINT so that failures never corrupt the caller's session.
     Call this *before* calculate_coverage_percentages, not inside it.
 
     Returns True if the alert now has geometry, False otherwise.
     """
-    if not _us_county_table_ready():
-        return False
-
     try:
         alert = CAPAlert.query.get(alert_id)
         if not alert or alert.geom:
             return bool(alert and alert.geom)
 
         raw_json = alert.raw_json if isinstance(alert.raw_json, dict) else {}
+
+        # --- Priority 1: use the polygon embedded in raw_json['geometry'] ---
+        raw_geom = raw_json.get('geometry')
+        if raw_geom and isinstance(raw_geom, dict) and raw_geom.get('coordinates'):
+            nested = db.session.begin_nested()
+            try:
+                geom_json = json.dumps(raw_geom)
+                result = db.session.execute(
+                    text("SELECT ST_SetSRID(ST_GeomFromGeoJSON(:g), 4326)"),
+                    {"g": geom_json},
+                ).scalar()
+                if result is not None:
+                    alert.geom = result
+                    nested.commit()
+                    db.session.commit()
+                    current_app.logger.info(
+                        'Built geometry from raw_json[geometry] for alert %s',
+                        alert.identifier,
+                    )
+                    return True
+                nested.rollback()
+            except Exception as exc:
+                current_app.logger.debug(
+                    'raw_json[geometry] parse failed for alert %s: %s',
+                    alert_id, exc,
+                )
+                nested.rollback()
+
+        # --- Priority 2: build from SAME geocodes via county boundary table ---
+        if not _us_county_table_ready():
+            return False
+
         same_codes = raw_json.get('properties', {}).get('geocode', {}).get('SAME', [])
         if not same_codes:
             return False
