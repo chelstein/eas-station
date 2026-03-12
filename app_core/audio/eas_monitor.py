@@ -450,6 +450,14 @@ class EASMonitor:
         self._alerts_detected = 0
         self._samples_processed = 0
 
+        # Per-source duplicate suppression.
+        # The same SAME header text received within the cooldown window is
+        # silently dropped so that multi-burst alerts (three identical
+        # ZCZC headers broadcast back-to-back) are not forwarded three times.
+        self._duplicate_cooldown_seconds: float = 300.0  # 5 minutes
+        self._seen_alert_hashes: Dict[str, float] = {}  # signature → timestamp
+        self._seen_alerts_lock = threading.Lock()
+
         # Health tracking
         self._health = MonitorHealth()
         self._health_lock = threading.Lock()
@@ -593,6 +601,96 @@ class EASMonitor:
                 self.alert_callback(alert_data)
             except Exception as e:
                 logger.error(f"Error in alert callback: {e}", exc_info=True)
+
+    def _handle_alert_detected(
+        self,
+        result: Any,
+        samples: Any,
+        wav_file_path: Optional[str] = None,
+    ) -> None:
+        """Handle a decoded alert result, suppressing duplicates within the cooldown window.
+
+        This method provides backward-compatible support for callers that pass a
+        ``SAMEAudioDecodeResult`` (or similar object with a ``raw_text`` attribute)
+        instead of a ``StreamingSAMEAlert``.  It mirrors the deduplication logic
+        that was previously baked into the old ``ContinuousEASMonitor`` class so
+        that unit tests and legacy code paths continue to work correctly.
+
+        Duplicate detection uses a SHA-256 hash of ``raw_text``; if the same
+        signature arrives within ``_duplicate_cooldown_seconds`` it is silently
+        dropped.  Stale entries are pruned on each call to keep memory bounded.
+
+        Args:
+            result: Object with ``raw_text`` attribute (e.g. ``SAMEAudioDecodeResult``),
+                    or a plain dict with a ``'raw_text'`` key.
+            samples: Audio samples array – accepted for API compatibility but unused.
+            wav_file_path: Optional on-disk path to the decoded audio file.
+        """
+        raw_text: str = ''
+        if isinstance(result, dict):
+            raw_text = result.get('raw_text', '') or ''
+        else:
+            raw_text = getattr(result, 'raw_text', '') or ''
+
+        alert_sig = hashlib.sha256(raw_text.encode('utf-8', 'ignore')).hexdigest()
+        current_time = time.time()
+
+        with self._seen_alerts_lock:
+            last_seen = self._seen_alert_hashes.get(alert_sig)
+            if last_seen is not None and (current_time - last_seen) < self._duplicate_cooldown_seconds:
+                logger.debug(
+                    "Suppressing duplicate alert on '%s' "
+                    "(seen %.1fs ago, cooldown %.0fs)",
+                    self.source_name,
+                    current_time - last_seen,
+                    self._duplicate_cooldown_seconds,
+                )
+                return
+            self._seen_alert_hashes[alert_sig] = current_time
+            # Prune entries older than the cooldown window to bound memory use.
+            cutoff = current_time - self._duplicate_cooldown_seconds
+            self._seen_alert_hashes = {
+                k: v for k, v in self._seen_alert_hashes.items() if v >= cutoff
+            }
+
+        # Build the alert dict from the result object if needed, then delegate
+        # to the normal _handle_alert path (which fires the alert_callback).
+        if isinstance(result, dict):
+            alert_data: Dict[str, Any] = dict(result)
+        else:
+            # SAMEAudioDecodeResult: extract fields from the first header.
+            headers_list = getattr(result, 'headers', []) or []
+            first_fields: Dict[str, Any] = {}
+            if headers_list:
+                first = headers_list[0]
+                first_fields = getattr(first, 'fields', {}) or {}
+
+            location_codes: List[str] = []
+            for loc in (first_fields.get('locations') or []):
+                if isinstance(loc, dict):
+                    code = loc.get('code', '')
+                else:
+                    code = str(loc)
+                # Keep only the numeric portion and normalise to exactly 6 digits.
+                digits = ''.join(c for c in code if c.isdigit())
+                if len(digits) <= 6:
+                    digits = digits.zfill(6)
+                else:
+                    digits = digits[:6]
+                if digits:
+                    location_codes.append(digits)
+
+            alert_data = {
+                'raw_header': raw_text,
+                'event_code': first_fields.get('event_code', ''),
+                'originator': first_fields.get('originator', ''),
+                'location_codes': location_codes,
+                'callsign': (first_fields.get('station_identifier') or '').strip('- '),
+                'confidence': getattr(result, 'bit_confidence', 0.0),
+                'timestamp': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
+            }
+
+        self._handle_alert(alert_data)
 
     def _resample_linear(self, samples: np.ndarray) -> np.ndarray:
         """Fast linear resampling."""
