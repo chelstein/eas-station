@@ -1,0 +1,334 @@
+{% extends "base.html" %}
+
+{% block title %}Settings - EAS Station{% endblock %}
+
+{% block extra_css %}
+<style>
+    .settings-hub-header {
+        background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark, var(--primary-color)) 100%);
+        color: #fff;
+        padding: 2rem 1.5rem 1.5rem;
+        margin-bottom: 2rem;
+        border-radius: 0 0 var(--radius-lg, 12px) var(--radius-lg, 12px);
+    }
+    .settings-hub-header h1 {
+        font-size: 1.75rem;
+        font-weight: 700;
+        margin-bottom: 0.25rem;
+    }
+    .settings-hub-header p {
+        opacity: 0.85;
+        margin: 0;
+    }
+    .settings-category-title {
+        font-size: 0.75rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--text-secondary, #6c757d);
+        margin: 1.5rem 0 0.75rem;
+        padding-bottom: 0.4rem;
+        border-bottom: 2px solid var(--border-color, #dee2e6);
+    }
+    .settings-card {
+        display: flex;
+        align-items: flex-start;
+        gap: 1rem;
+        padding: 1rem 1.25rem;
+        border-radius: var(--radius-md, 8px);
+        border: 1px solid var(--border-color, #dee2e6);
+        background: var(--surface-color, var(--bg-color));
+        color: var(--text-color);
+        text-decoration: none;
+        transition: box-shadow 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+        height: 100%;
+    }
+    .settings-card:hover {
+        border-color: var(--primary-color);
+        box-shadow: 0 4px 16px var(--shadow-color, rgba(0,0,0,0.10));
+        transform: translateY(-2px);
+        color: var(--text-color);
+        text-decoration: none;
+    }
+    .settings-card-icon {
+        width: 42px;
+        height: 42px;
+        border-radius: var(--radius-sm, 6px);
+        background: rgba(var(--primary-rgb, 99,102,241), 0.12);
+        color: var(--primary-color);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.15rem;
+        flex-shrink: 0;
+    }
+    .settings-card-body {
+        flex: 1;
+        min-width: 0;
+    }
+    .settings-card-title {
+        font-weight: 600;
+        font-size: 0.95rem;
+        margin-bottom: 0.2rem;
+        color: var(--text-color);
+    }
+    .settings-card-desc {
+        font-size: 0.82rem;
+        color: var(--text-secondary, #6c757d);
+        line-height: 1.4;
+        margin: 0;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="settings-hub-header">
+    <div class="container-fluid">
+        <h1><i class="fas fa-cog"></i> Settings</h1>
+        <p>Configure and manage all aspects of EAS Station from one place.</p>
+    </div>
+</div>
+
+<div class="container-fluid pb-4">
+
+    {# ── Configuration ───────────────────────────────────────────────────── #}
+    {% if can_view_system_config or can_manage_config %}
+    <h6 class="settings-category-title"><i class="fas fa-sliders me-1"></i> Configuration</h6>
+    <div class="row g-3 mb-2">
+
+        {% if can_view_system_config %}
+        <div class="col-sm-6 col-md-4 col-xl-3">
+            <a href="/admin" class="settings-card">
+                <div class="settings-card-icon"><i class="fas fa-sliders"></i></div>
+                <div class="settings-card-body">
+                    <div class="settings-card-title">System Settings</div>
+                    <p class="settings-card-desc">Core system configuration and admin dashboard.</p>
+                </div>
+            </a>
+        </div>
+        <div class="col-sm-6 col-md-4 col-xl-3">
+            <a href="/admin/environment" class="settings-card">
+                <div class="settings-card-icon"><i class="fas fa-cog"></i></div>
+                <div class="settings-card-body">
+                    <div class="settings-card-title">Environment Variables</div>
+                    <p class="settings-card-desc">Runtime environment and application variables.</p>
+                </div>
+            </a>
+        </div>
+        <div class="col-sm-6 col-md-4 col-xl-3">
+            <a href="/admin/icecast" class="settings-card">
+                <div class="settings-card-icon"><i class="fas fa-podcast"></i></div>
+                <div class="settings-card-body">
+                    <div class="settings-card-title">Icecast Streaming</div>
+                    <p class="settings-card-desc">Live audio stream server configuration.</p>
+                </div>
+            </a>
+        </div>
+        <div class="col-sm-6 col-md-4 col-xl-3">
+            <a href="/admin/alert-feeds" class="settings-card">
+                <div class="settings-card-icon"><i class="fas fa-rss"></i></div>
+                <div class="settings-card-body">
+                    <div class="settings-card-title">Alert Sources</div>
+                    <p class="settings-card-desc">Manage NOAA CAP alert feed sources.</p>
+                </div>
+            </a>
+        </div>
+        <div class="col-sm-6 col-md-4 col-xl-3">
+            <a href="/admin/notifications" class="settings-card">
+                <div class="settings-card-icon"><i class="fas fa-bell"></i></div>
+                <div class="settings-card-body">
+                    <div class="settings-card-title">Notifications</div>
+                    <p class="settings-card-desc">Push, SMS, and email alert notification settings.</p>
+                </div>
+            </a>
+        </div>
+        <div class="col-sm-6 col-md-4 col-xl-3">
+            <a href="/admin/mail-server" class="settings-card">
+                <div class="settings-card-icon"><i class="fas fa-envelope-open-text"></i></div>
+                <div class="settings-card-body">
+                    <div class="settings-card-title">Mail Server</div>
+                    <p class="settings-card-desc">SMTP / outgoing email server configuration.</p>
+                </div>
+            </a>
+        </div>
+        {% endif %}
+
+        {% if can_manage_config %}
+        <div class="col-sm-6 col-md-4 col-xl-3">
+            <a href="/settings/stream-profiles" class="settings-card">
+                <div class="settings-card-icon"><i class="fas fa-stream"></i></div>
+                <div class="settings-card-body">
+                    <div class="settings-card-title">Audio Profiles</div>
+                    <p class="settings-card-desc">Manage audio encoding and stream profiles.</p>
+                </div>
+            </a>
+        </div>
+        {% endif %}
+
+    </div>
+    {% endif %}
+
+    {# ── Network ─────────────────────────────────────────────────────────── #}
+    {% if can_view_gpio or can_manage_config %}
+    <h6 class="settings-category-title"><i class="fas fa-wifi me-1"></i> Network</h6>
+    <div class="row g-3 mb-2">
+
+        <div class="col-sm-6 col-md-4 col-xl-3">
+            <a href="/admin/network" class="settings-card">
+                <div class="settings-card-icon"><i class="fas fa-wifi"></i></div>
+                <div class="settings-card-body">
+                    <div class="settings-card-title">WiFi &amp; Network</div>
+                    <p class="settings-card-desc">Network interface and connectivity settings.</p>
+                </div>
+            </a>
+        </div>
+        <div class="col-sm-6 col-md-4 col-xl-3">
+            <a href="/admin/tailscale" class="settings-card">
+                <div class="settings-card-icon"><i class="fas fa-shield-alt"></i></div>
+                <div class="settings-card-body">
+                    <div class="settings-card-title">Tailscale VPN</div>
+                    <p class="settings-card-desc">Secure mesh VPN network configuration.</p>
+                </div>
+            </a>
+        </div>
+
+    </div>
+    {% endif %}
+
+    {# ── Hardware ────────────────────────────────────────────────────────── #}
+    {% if can_manage_receivers or can_manage_config or can_view_gpio %}
+    <h6 class="settings-category-title"><i class="fas fa-microchip me-1"></i> Hardware</h6>
+    <div class="row g-3 mb-2">
+
+        {% if can_manage_receivers %}
+        <div class="col-sm-6 col-md-4 col-xl-3">
+            <a href="/admin/radio" class="settings-card">
+                <div class="settings-card-icon"><i class="fas fa-signal"></i></div>
+                <div class="settings-card-body">
+                    <div class="settings-card-title">SDR Receivers</div>
+                    <p class="settings-card-desc">Software-defined radio receiver configuration.</p>
+                </div>
+            </a>
+        </div>
+        <div class="col-sm-6 col-md-4 col-xl-3">
+            <a href="/admin/audio-sources" class="settings-card">
+                <div class="settings-card-icon"><i class="fas fa-stream"></i></div>
+                <div class="settings-card-body">
+                    <div class="settings-card-title">Audio Streams</div>
+                    <p class="settings-card-desc">Audio input source and stream configuration.</p>
+                </div>
+            </a>
+        </div>
+        <div class="col-sm-6 col-md-4 col-xl-3">
+            <a href="/admin/audio/archives" class="settings-card">
+                <div class="settings-card-icon"><i class="fas fa-archive"></i></div>
+                <div class="settings-card-body">
+                    <div class="settings-card-title">Audio Archives</div>
+                    <p class="settings-card-desc">Archived audio recording storage settings.</p>
+                </div>
+            </a>
+        </div>
+        {% endif %}
+
+        {% if can_manage_config %}
+        <div class="col-sm-6 col-md-4 col-xl-3">
+            <a href="/admin/hardware" class="settings-card">
+                <div class="settings-card-icon"><i class="fas fa-sliders"></i></div>
+                <div class="settings-card-body">
+                    <div class="settings-card-title">Hardware Settings</div>
+                    <p class="settings-card-desc">GPIO, OLED, LED display and VFD configuration.</p>
+                </div>
+            </a>
+        </div>
+        {% endif %}
+
+        {% if can_view_gpio %}
+        <div class="col-sm-6 col-md-4 col-xl-3">
+            <a href="/admin/gpio" class="settings-card">
+                <div class="settings-card-icon"><i class="fas fa-plug"></i></div>
+                <div class="settings-card-body">
+                    <div class="settings-card-title">GPIO &amp; Relays</div>
+                    <p class="settings-card-desc">General-purpose I/O pin and relay management.</p>
+                </div>
+            </a>
+        </div>
+        {% endif %}
+
+        {% if can_view_gpio or can_manage_config %}
+        <div class="col-sm-6 col-md-4 col-xl-3">
+            <a href="/admin/zigbee" class="settings-card">
+                <div class="settings-card-icon"><i class="fas fa-home"></i></div>
+                <div class="settings-card-body">
+                    <div class="settings-card-title">Zigbee</div>
+                    <p class="settings-card-desc">Zigbee device and coordinator settings.</p>
+                </div>
+            </a>
+        </div>
+        {% endif %}
+
+    </div>
+    {% endif %}
+
+    {# ── Security & Access ───────────────────────────────────────────────── #}
+    {% if can_view_users or can_manage_users or can_view_logs %}
+    <h6 class="settings-category-title"><i class="fas fa-shield-halved me-1"></i> Security &amp; Access</h6>
+    <div class="row g-3 mb-2">
+
+        {% if can_view_users %}
+        <div class="col-sm-6 col-md-4 col-xl-3">
+            <a href="/admin/rbac" class="settings-card">
+                <div class="settings-card-icon"><i class="fas fa-users"></i></div>
+                <div class="settings-card-body">
+                    <div class="settings-card-title">User Management</div>
+                    <p class="settings-card-desc">Manage user accounts, roles and permissions.</p>
+                </div>
+            </a>
+        </div>
+        {% endif %}
+
+        {% if can_manage_users %}
+        <div class="col-sm-6 col-md-4 col-xl-3">
+            <a href="/admin/local-authorities" class="settings-card">
+                <div class="settings-card-icon"><i class="fas fa-building-shield"></i></div>
+                <div class="settings-card-body">
+                    <div class="settings-card-title">Local Authorities</div>
+                    <p class="settings-card-desc">Configure trusted local authority sources.</p>
+                </div>
+            </a>
+        </div>
+        <div class="col-sm-6 col-md-4 col-xl-3">
+            <a href="/security/settings" class="settings-card">
+                <div class="settings-card-icon"><i class="fas fa-shield-halved"></i></div>
+                <div class="settings-card-body">
+                    <div class="settings-card-title">Security Policies</div>
+                    <p class="settings-card-desc">Password policies, session limits and MFA settings.</p>
+                </div>
+            </a>
+        </div>
+        {% endif %}
+
+        {% if can_view_logs %}
+        <div class="col-sm-6 col-md-4 col-xl-3">
+            <a href="/security/malicious-logins" class="settings-card">
+                <div class="settings-card-icon"><i class="fas fa-shield-exclamation"></i></div>
+                <div class="settings-card-body">
+                    <div class="settings-card-title">Malicious Login Attempts</div>
+                    <p class="settings-card-desc">Review blocked and suspicious login activity.</p>
+                </div>
+            </a>
+        </div>
+        {% endif %}
+
+    </div>
+    {% endif %}
+
+    {# Show a friendly message if the user has no access to any settings #}
+    {% if not (can_view_system_config or can_manage_config or can_view_gpio or can_manage_receivers or can_view_users or can_manage_users or can_view_logs) %}
+    <div class="alert alert-info mt-4">
+        <i class="fas fa-info-circle me-2"></i>
+        You do not have permission to view any settings. Contact your administrator if you need access.
+    </div>
+    {% endif %}
+
+</div>
+{% endblock %}

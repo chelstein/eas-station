@@ -6,6 +6,14 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.55.0] - Unified Settings Hub
+
+### Added
+- **Unified Settings hub page** (`/settings`) — All settings sections (Configuration, Network, Hardware, Security & Access) are now presented as a single card-based overview page, making it much easier to discover and navigate to any setting without hunting through nested dropdown menus.
+
+### Changed
+- **Settings navbar entry simplified** — The Settings dropdown (which previously contained 15+ nested links across four sections) is replaced by a single "Settings" link that navigates directly to the new unified `/settings` hub page, reducing navbar visual complexity.
+
 ## [2.54.1] - Navigation Consolidation
 
 ### Changed
