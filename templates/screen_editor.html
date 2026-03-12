@@ -71,10 +71,10 @@
                 </div>
             </div>
 
-            <!-- Element Properties Panel -->
+            <!-- Element Properties Panel (Text) -->
             <div class="panel" id="element-props-panel" style="display: none;">
                 <div class="panel-header">
-                    <i class="fas fa-edit"></i> Element Properties
+                    <i class="fas fa-font"></i> Text Properties
                 </div>
                 <div class="panel-body">
                     <div class="form-group">
@@ -146,6 +146,74 @@
                 </div>
             </div>
 
+            <!-- Bar Graph Properties Panel -->
+            <div class="panel" id="bar-props-panel" style="display: none;">
+                <div class="panel-header">
+                    <i class="fas fa-chart-bar"></i> Bar Graph Properties
+                </div>
+                <div class="panel-body">
+                    <div class="form-group">
+                        <label>Value (0–100 or {variable})</label>
+                        <input type="text" id="elem-bar-value" class="form-control" placeholder="{status.system_resources.cpu_usage_percent}">
+                        <small class="form-text text-muted">Template variable resolves to 0–100</small>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-6">
+                            <div class="form-group">
+                                <label>X Position</label>
+                                <input type="number" id="elem-bar-x" class="form-control" value="0" min="0">
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="form-group">
+                                <label>Y Position</label>
+                                <input type="number" id="elem-bar-y" class="form-control" value="0" min="0">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-6">
+                            <div class="form-group">
+                                <label>Width (px)</label>
+                                <input type="number" id="elem-bar-width" class="form-control" value="80" min="4">
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="form-group">
+                                <label>Height (px)</label>
+                                <input type="number" id="elem-bar-height" class="form-control" value="9" min="3">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Preview Fill (%)
+                            <input type="range" id="elem-bar-preview" class="form-range" min="0" max="100" value="60">
+                            <span id="elem-bar-preview-value">60</span>%
+                        </label>
+                        <small class="form-text text-muted">Canvas preview only — live data used on device</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="elem-bar-border" checked>
+                            Show Border
+                        </label>
+                    </div>
+
+                    <div class="button-group">
+                        <button id="btn-delete-bar" class="btn btn-danger btn-sm">
+                            <i class="fas fa-trash"></i> Delete
+                        </button>
+                        <button id="btn-duplicate-bar" class="btn btn-secondary btn-sm">
+                            <i class="fas fa-copy"></i> Duplicate
+                        </button>
+                    </div>
+                </div>
+            </div>
+
             <!-- Scroll Effects Panel (OLED/VFD only) -->
             <div class="panel" id="effects-panel">
                 <div class="panel-header">
@@ -187,7 +255,10 @@
         <div class="canvas-area">
             <div class="canvas-toolbar">
                 <button id="btn-add-text" class="btn btn-primary">
-                    <i class="fas fa-plus"></i> Add Text Element
+                    <i class="fas fa-font"></i> Add Text
+                </button>
+                <button id="btn-add-bar" class="btn btn-primary">
+                    <i class="fas fa-chart-bar"></i> Add Bar Graph
                 </button>
                 <button id="btn-clear-canvas" class="btn btn-outline-secondary">
                     <i class="fas fa-eraser"></i> Clear All
