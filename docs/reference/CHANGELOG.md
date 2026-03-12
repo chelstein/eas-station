@@ -6,6 +6,36 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.54.1] - OLED Display Improvements
+
+### Fixed
+- **OLED button GPIO uses fresh database settings** (`app_core/oled.py`)
+  - `ensure_oled_button()` now reads `button_gpio`, `button_active_high`, and
+    `button_hold_seconds` from the database on each call instead of using
+    module-level values set at import time.  Settings changed via Admin → Hardware
+    now take effect on the next button initialization without a service restart.
+
+- **Screen editor only supported text elements**
+  - Added **Add Bar Graph** button to the toolbar.
+  - New **Bar Graph Properties** panel lets users configure value template,
+    position, dimensions, border, and preview fill percentage.
+  - Bar graph elements are rendered live in the canvas preview.
+  - `buildTemplateData()` now serializes all elements using the `elements` format
+    so bar graphs are preserved when saved to the database.
+  - `loadScreen()` now loads both `elements` (bar + text) and legacy `lines`
+    formats so existing screens continue to open correctly in the editor.
+
+### Changed
+- **SNAPSHOT_SCREEN_TEMPLATE** (`scripts/screen_manager.py`)
+  - Added **Disk (DSK)** usage bar row alongside CPU and MEM, filling the 128×64
+    display with three resource meters.
+  - Bars slightly wider (75 px vs 70 px) and vertically offset by 1 px for
+    better alignment against adjacent text labels.
+  - Footer replaced with a single-line status summary + date; removed the
+    "Last poll" line that could overflow the display area.
+  - Header time field uses a tighter `max_width` to prevent overlap with the
+    "SYSTEM STATUS" title at wide characters.
+
 ## [2.54.0] - LED Time and Date Display Endpoints
 
 ### Added
