@@ -6,6 +6,17 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.56.0] - UI Visual Modernization
+
+### Changed
+- **Ambient background gradient** — All pages now display a subtle two-orb radial-gradient overlay fixed to the viewport. The gradient is derived from the active theme's `--primary-color` and `--secondary-color` variables, so it automatically adapts across all 20 built-in themes.
+- **Admin card headers** — Replaced the flat `var(--bg-color)` fill with a theme-aware gradient tint (`color-mix` at low opacity against `--surface-color`), giving every section card a subtle accent without obscuring form content.
+- **Admin header banner** — Replaced hardcoded `#667eea / #764ba2` hex values with `var(--primary-color)` / `var(--secondary-color)` so the banner matches the chosen theme. Added a shimmer highlight overlay and a stronger box-shadow for depth.
+- **Admin stat cards** — Replaced hardcoded indigo/purple gradient with theme-aware `var(--primary-color)` → `var(--secondary-color)` gradient. Hover shadow also now uses `color-mix` on the theme primary rather than a hardcoded RGBA.
+- **Admin modal headers** — Replaced the hardcoded red gradient with the theme primary→secondary gradient to align with the rest of the UI.
+- **Manage-card headers** — Applied the same subtle gradient tint treatment as the main card headers for visual consistency.
+- **Form focus glow** — Replaced hardcoded `rgba(102, 126, 234, 0.2)` focus ring with `color-mix(in srgb, var(--primary-color) 20%, transparent)` so the focus state reflects the active theme color.
+
 ## [2.55.0] - Unified Settings Hub
 
 ### Added
