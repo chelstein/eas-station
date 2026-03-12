@@ -1326,8 +1326,11 @@ def ensure_oled_button(log: Optional[logging.Logger] = None):
             log.debug("gpiozero Button class unavailable; skipping OLED button setup")
         return None
 
-    # Check if OLED is enabled in database settings
+    # Check if OLED is enabled and read GPIO config from database settings.
+    # Always read fresh settings so that changes made via the web UI take effect
+    # without requiring a service restart.
     oled_enabled = False
+    oled_settings: dict = {}
     if _SETTINGS_AVAILABLE:
         try:
             oled_settings = get_oled_settings()
@@ -1340,6 +1343,11 @@ def ensure_oled_button(log: Optional[logging.Logger] = None):
         if log:
             log.debug("OLED button disabled because OLED module is disabled")
         return None
+
+    # Use fresh DB values for GPIO config; fall back to module-level defaults
+    gpio_pin = oled_settings.get('button_gpio', OLED_BUTTON_GPIO)
+    active_high = oled_settings.get('button_active_high', OLED_BUTTON_ACTIVE_HIGH)
+    hold_seconds = max(0.5, oled_settings.get('button_hold_seconds', OLED_BUTTON_HOLD_SECONDS))
 
     logger_ref = log or logger
 
@@ -1368,17 +1376,17 @@ def ensure_oled_button(log: Optional[logging.Logger] = None):
             # Configure button based on wiring:
             # - pull_up=True (default): Internal pull-up resistor enabled, button connects GPIO to GND when pressed
             # - pull_up=False: Internal pull-down resistor enabled, button connects GPIO to 3.3V when pressed
-            # The OLED_BUTTON_ACTIVE_HIGH env var controls this for different enclosure wiring configurations
+            # The button_active_high setting controls this for different enclosure wiring configurations
             button = ButtonClass(
-                OLED_BUTTON_GPIO,
-                pull_up=not OLED_BUTTON_ACTIVE_HIGH,
-                hold_time=OLED_BUTTON_HOLD_SECONDS,
+                gpio_pin,
+                pull_up=not active_high,
+                hold_time=hold_seconds,
                 bounce_time=0.05,
             )
         except Exception as exc:  # pragma: no cover - hardware specific
             logger_ref.warning(
                 "Failed to initialise OLED button on GPIO %s: %s",
-                OLED_BUTTON_GPIO,
+                gpio_pin,
                 exc,
             )
             return None
@@ -1386,9 +1394,9 @@ def ensure_oled_button(log: Optional[logging.Logger] = None):
         oled_button_device = button
         logger_ref.info(
             "OLED button initialised on GPIO %s with hold time %.2fs (active_%s)",
-            OLED_BUTTON_GPIO,
-            OLED_BUTTON_HOLD_SECONDS,
-            "high" if OLED_BUTTON_ACTIVE_HIGH else "low",
+            gpio_pin,
+            hold_seconds,
+            "high" if active_high else "low",
         )
         return oled_button_device
 

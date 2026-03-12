@@ -1,6 +1,7 @@
 /**
  * Visual Screen Editor for OLED/VFD/LED Displays
  * Phase 1 + 2: Full WYSIWYG editor with element management
+ * Supports text elements and bar graph elements.
  */
 
 const ScreenEditor = (function() {
@@ -38,6 +39,12 @@ const ScreenEditor = (function() {
         huge: 36
     };
 
+    // Bar graph element constraints and defaults
+    const BAR_MIN_WIDTH = 4;
+    const BAR_MIN_HEIGHT = 3;
+    const BAR_DEFAULT_VALUE = '50';
+    const BAR_DEFAULT_PREVIEW = 60;
+
     // Canvas and context
     let canvas, ctx;
 
@@ -70,6 +77,9 @@ const ScreenEditor = (function() {
         // Add text element
         document.getElementById('btn-add-text').addEventListener('click', addTextElement);
 
+        // Add bar graph element
+        document.getElementById('btn-add-bar').addEventListener('click', addBarElement);
+
         // Clear canvas
         document.getElementById('btn-clear-canvas').addEventListener('click', () => {
             if (confirm('Clear all elements?')) {
@@ -85,7 +95,7 @@ const ScreenEditor = (function() {
         document.getElementById('btn-zoom-in').addEventListener('click', () => changeZoom(0.25));
         document.getElementById('btn-zoom-out').addEventListener('click', () => changeZoom(-0.25));
 
-        // Element property changes
+        // Text element property changes
         document.getElementById('elem-text').addEventListener('input', updateSelectedElement);
         document.getElementById('elem-font').addEventListener('change', updateSelectedElement);
         document.getElementById('elem-x').addEventListener('input', updateSelectedElement);
@@ -95,9 +105,25 @@ const ScreenEditor = (function() {
         document.getElementById('elem-invert').addEventListener('change', updateSelectedElement);
         document.getElementById('elem-allow-empty').addEventListener('change', updateSelectedElement);
 
-        // Element actions
+        // Text element actions
         document.getElementById('btn-delete-element').addEventListener('click', deleteSelectedElement);
         document.getElementById('btn-duplicate-element').addEventListener('click', duplicateSelectedElement);
+
+        // Bar element property changes
+        document.getElementById('elem-bar-value').addEventListener('input', updateSelectedElement);
+        document.getElementById('elem-bar-x').addEventListener('input', updateSelectedElement);
+        document.getElementById('elem-bar-y').addEventListener('input', updateSelectedElement);
+        document.getElementById('elem-bar-width').addEventListener('input', updateSelectedElement);
+        document.getElementById('elem-bar-height').addEventListener('input', updateSelectedElement);
+        document.getElementById('elem-bar-border').addEventListener('change', updateSelectedElement);
+        document.getElementById('elem-bar-preview').addEventListener('input', function() {
+            document.getElementById('elem-bar-preview-value').textContent = this.value;
+            updateSelectedElement();
+        });
+
+        // Bar element actions
+        document.getElementById('btn-delete-bar').addEventListener('click', deleteSelectedElement);
+        document.getElementById('btn-duplicate-bar').addEventListener('click', duplicateSelectedElement);
 
         // Scroll effect controls
         document.getElementById('scroll-effect').addEventListener('change', function() {
@@ -144,12 +170,18 @@ const ScreenEditor = (function() {
         // Keyboard shortcuts
         document.addEventListener('keydown', handleKeyDown);
 
-        // Variable helper - click to insert
+        // Variable helper - click to insert into focused text input
         document.querySelectorAll('.variable-item').forEach(item => {
             item.addEventListener('click', function() {
                 const variable = this.dataset.var;
+                // Insert into whichever text input is active
+                const barValueInput = document.getElementById('elem-bar-value');
                 const textInput = document.getElementById('elem-text');
-                if (textInput) {
+                const activeInput = document.activeElement;
+                if (activeInput === barValueInput || activeInput === textInput) {
+                    activeInput.value += variable;
+                    activeInput.dispatchEvent(new Event('input'));
+                } else if (textInput) {
                     textInput.value += variable;
                     textInput.dispatchEvent(new Event('input'));
                 }
@@ -196,6 +228,26 @@ const ScreenEditor = (function() {
         render();
     }
 
+    // Add new bar graph element
+    function addBarElement() {
+        const element = {
+            id: Date.now(),
+            type: 'bar',
+            x: 26,
+            y: 10,
+            barWidth: 75,
+            barHeight: 9,
+            value: BAR_DEFAULT_VALUE,
+            border: true,
+            barPreview: BAR_DEFAULT_PREVIEW
+        };
+
+        state.elements.push(element);
+        selectElement(element.id);
+        updateLayers();
+        render();
+    }
+
     // Select element
     function selectElement(elementId) {
         state.selectedElement = elementId;
@@ -208,43 +260,70 @@ const ScreenEditor = (function() {
         }
     }
 
-    // Show element properties panel
+    // Show element properties panel (text or bar)
     function showElementProps(element) {
-        document.getElementById('element-props-panel').style.display = 'block';
+        if (element.type === 'bar') {
+            document.getElementById('element-props-panel').style.display = 'none';
+            document.getElementById('bar-props-panel').style.display = 'block';
 
-        document.getElementById('elem-text').value = element.text;
-        document.getElementById('elem-font').value = element.font;
-        document.getElementById('elem-x').value = element.x;
-        document.getElementById('elem-y').value = element.y;
-        document.getElementById('elem-max-width').value = element.maxWidth || '';
-        document.getElementById('elem-wrap').checked = element.wrap;
-        document.getElementById('elem-invert').checked = element.invert || false;
-        document.getElementById('elem-allow-empty').checked = element.allowEmpty || false;
+            document.getElementById('elem-bar-value').value = element.value || '50';
+            document.getElementById('elem-bar-x').value = element.x;
+            document.getElementById('elem-bar-y').value = element.y;
+            document.getElementById('elem-bar-width').value = element.barWidth || 75;
+            document.getElementById('elem-bar-height').value = element.barHeight || 9;
+            document.getElementById('elem-bar-border').checked = element.border !== false;
+            const preview = element.barPreview != null ? element.barPreview : 60;
+            document.getElementById('elem-bar-preview').value = preview;
+            document.getElementById('elem-bar-preview-value').textContent = preview;
+        } else {
+            document.getElementById('bar-props-panel').style.display = 'none';
+            document.getElementById('element-props-panel').style.display = 'block';
+
+            document.getElementById('elem-text').value = element.text;
+            document.getElementById('elem-font').value = element.font;
+            document.getElementById('elem-x').value = element.x;
+            document.getElementById('elem-y').value = element.y;
+            document.getElementById('elem-max-width').value = element.maxWidth || '';
+            document.getElementById('elem-wrap').checked = element.wrap;
+            document.getElementById('elem-invert').checked = element.invert || false;
+            document.getElementById('elem-allow-empty').checked = element.allowEmpty || false;
+        }
     }
 
-    // Hide element properties panel
+    // Hide element properties panels
     function hideElementProps() {
         document.getElementById('element-props-panel').style.display = 'none';
+        document.getElementById('bar-props-panel').style.display = 'none';
     }
 
-    // Update selected element from form
+    // Update selected element from form inputs
     function updateSelectedElement() {
         if (!state.selectedElement) return;
 
         const element = getElementById(state.selectedElement);
         if (!element) return;
 
-        element.text = document.getElementById('elem-text').value;
-        element.font = document.getElementById('elem-font').value;
-        element.x = parseInt(document.getElementById('elem-x').value) || 0;
-        element.y = parseInt(document.getElementById('elem-y').value) || 0;
+        if (element.type === 'bar') {
+            element.value = document.getElementById('elem-bar-value').value;
+            element.x = parseInt(document.getElementById('elem-bar-x').value) || 0;
+            element.y = parseInt(document.getElementById('elem-bar-y').value) || 0;
+            element.barWidth = Math.max(BAR_MIN_WIDTH, parseInt(document.getElementById('elem-bar-width').value) || 75);
+            element.barHeight = Math.max(BAR_MIN_HEIGHT, parseInt(document.getElementById('elem-bar-height').value) || 9);
+            element.border = document.getElementById('elem-bar-border').checked;
+            element.barPreview = parseInt(document.getElementById('elem-bar-preview').value) || 60;
+        } else {
+            element.text = document.getElementById('elem-text').value;
+            element.font = document.getElementById('elem-font').value;
+            element.x = parseInt(document.getElementById('elem-x').value) || 0;
+            element.y = parseInt(document.getElementById('elem-y').value) || 0;
 
-        const maxWidthVal = document.getElementById('elem-max-width').value;
-        element.maxWidth = maxWidthVal ? parseInt(maxWidthVal) : null;
+            const maxWidthVal = document.getElementById('elem-max-width').value;
+            element.maxWidth = maxWidthVal ? parseInt(maxWidthVal) : null;
 
-        element.wrap = document.getElementById('elem-wrap').checked;
-        element.invert = document.getElementById('elem-invert').checked;
-        element.allowEmpty = document.getElementById('elem-allow-empty').checked;
+            element.wrap = document.getElementById('elem-wrap').checked;
+            element.invert = document.getElementById('elem-invert').checked;
+            element.allowEmpty = document.getElementById('elem-allow-empty').checked;
+        }
 
         updateLayers();
         render();
@@ -298,21 +377,29 @@ const ScreenEditor = (function() {
                 <div class="empty-state">
                     <i class="fas fa-inbox"></i>
                     <p>No elements yet</p>
-                    <small>Click "Add Text Element" to start</small>
+                    <small>Click "Add Text" or "Add Bar Graph"</small>
                 </div>
             `;
             return;
         }
 
-        layersList.innerHTML = state.elements.map((element, index) => `
+        layersList.innerHTML = state.elements.map((element, index) => {
+            const isBar = element.type === 'bar';
+            const icon = isBar ? 'fa-chart-bar' : 'fa-font';
+            const label = isBar
+                ? `Bar ${element.barWidth}×${element.barHeight}`
+                : escapeHtml(element.text);
+            const meta = `(${element.x}, ${element.y})`;
+
+            return `
             <div class="layer-item ${state.selectedElement === element.id ? 'selected' : ''}"
                  data-element-id="${element.id}">
                 <div class="layer-icon">
-                    <i class="fas fa-font"></i>
+                    <i class="fas ${icon}"></i>
                 </div>
                 <div class="layer-content">
-                    <div class="layer-text">${escapeHtml(element.text)}</div>
-                    <div class="layer-meta">${element.font} • (${element.x}, ${element.y})</div>
+                    <div class="layer-text">${label}</div>
+                    <div class="layer-meta">${isBar ? '' : element.font + ' • '}${meta}</div>
                 </div>
                 <div class="layer-actions">
                     <button class="layer-action-btn layer-move-up" ${index === 0 ? 'disabled' : ''}>
@@ -322,8 +409,8 @@ const ScreenEditor = (function() {
                         <i class="fas fa-arrow-down"></i>
                     </button>
                 </div>
-            </div>
-        `).join('');
+            </div>`;
+        }).join('');
 
         // Add layer click handlers
         layersList.querySelectorAll('.layer-item').forEach(item => {
@@ -365,7 +452,7 @@ const ScreenEditor = (function() {
 
     // Render canvas
     function render() {
-        // Clear canvas
+        // Clear canvas (black background mimics OLED)
         ctx.fillStyle = '#000';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -380,14 +467,47 @@ const ScreenEditor = (function() {
 
     // Render single element on canvas
     function renderElement(element) {
-        const fontSize = FONT_SIZES[element.font];
+        if (element.type === 'bar') {
+            renderBarElement(element);
+        } else {
+            renderTextElement(element);
+        }
+    }
 
+    // Render a text element on the canvas preview
+    function renderTextElement(element) {
+        const fontSize = FONT_SIZES[element.font] || 11;
         ctx.fillStyle = element.invert ? '#000' : '#fff';
         ctx.font = `${fontSize}px monospace`;
         ctx.textBaseline = 'top';
-
-        // Simple text rendering (actual OLED will use better fonts)
         ctx.fillText(element.text, element.x, element.y);
+    }
+
+    // Render a bar graph element on the canvas preview
+    function renderBarElement(element) {
+        const x = Math.max(0, element.x);
+        const y = Math.max(0, element.y);
+        const w = Math.max(BAR_MIN_WIDTH, element.barWidth || 75);
+        const h = Math.max(BAR_MIN_HEIGHT, element.barHeight || 9);
+        const pct = Math.max(0, Math.min(100, element.barPreview != null ? element.barPreview : 60));
+        const showBorder = element.border !== false;
+
+        ctx.strokeStyle = '#fff';
+        ctx.fillStyle = '#fff';
+        ctx.lineWidth = 1;
+
+        if (showBorder) {
+            ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+            const inner = Math.max(0, Math.floor((pct / 100) * (w - 2)));
+            if (inner > 0) {
+                ctx.fillRect(x + 1, y + 1, inner, h - 2);
+            }
+        } else {
+            const filled = Math.max(0, Math.floor((pct / 100) * w));
+            if (filled > 0) {
+                ctx.fillRect(x, y, filled, h);
+            }
+        }
     }
 
     // Update element overlays for drag handles
@@ -396,8 +516,16 @@ const ScreenEditor = (function() {
         overlaysContainer.innerHTML = '';
 
         state.elements.forEach(element => {
-            const fontSize = FONT_SIZES[element.font];
-            const textWidth = ctx.measureText(element.text).width;
+            let elemW, elemH;
+            if (element.type === 'bar') {
+                elemW = element.barWidth || 75;
+                elemH = element.barHeight || 9;
+            } else {
+                const fontSize = FONT_SIZES[element.font] || 11;
+                ctx.font = `${fontSize}px monospace`;
+                elemW = Math.max(10, ctx.measureText(element.text).width);
+                elemH = fontSize;
+            }
 
             const overlay = document.createElement('div');
             overlay.className = 'element-overlay';
@@ -407,13 +535,17 @@ const ScreenEditor = (function() {
 
             overlay.style.left = `${element.x}px`;
             overlay.style.top = `${element.y}px`;
-            overlay.style.width = `${textWidth}px`;
-            overlay.style.height = `${fontSize}px`;
+            overlay.style.width = `${elemW}px`;
+            overlay.style.height = `${elemH}px`;
             overlay.dataset.elementId = element.id;
 
             const label = document.createElement('div');
             label.className = 'element-overlay-label';
-            label.textContent = element.text.substring(0, 20);
+            if (element.type === 'bar') {
+                label.textContent = `bar ${element.barWidth}px`;
+            } else {
+                label.textContent = element.text.substring(0, 20);
+            }
             overlay.appendChild(label);
 
             overlaysContainer.appendChild(overlay);
@@ -464,9 +596,14 @@ const ScreenEditor = (function() {
         state.dragStartX = x;
         state.dragStartY = y;
 
-        // Update form
-        document.getElementById('elem-x').value = element.x;
-        document.getElementById('elem-y').value = element.y;
+        // Sync position back to the active props form
+        if (element.type === 'bar') {
+            document.getElementById('elem-bar-x').value = element.x;
+            document.getElementById('elem-bar-y').value = element.y;
+        } else {
+            document.getElementById('elem-x').value = element.x;
+            document.getElementById('elem-y').value = element.y;
+        }
 
         updateLayers();
         render();
@@ -609,10 +746,14 @@ const ScreenEditor = (function() {
                 <small>Access properties from ${source.endpoint}</small>
             `;
             div.addEventListener('click', function() {
+                const barValueInput = document.getElementById('elem-bar-value');
                 const textInput = document.getElementById('elem-text');
-                if (textInput) {
-                    textInput.value += `{${source.var_name}.`;
-                    textInput.focus();
+                const activeInput = document.activeElement;
+                const target = (activeInput === barValueInput || activeInput === textInput)
+                    ? activeInput : textInput;
+                if (target) {
+                    target.value += `{${source.var_name}.`;
+                    target.focus();
                 }
             });
             container.appendChild(div);
@@ -680,23 +821,43 @@ const ScreenEditor = (function() {
         });
     }
 
-    // Build template data from editor state
+    // Build template data from editor state.
+    // Always uses the 'elements' format so bar graphs and other graphics types
+    // are preserved correctly.  The server-side renderer supports both 'elements'
+    // and the legacy 'lines' format.
     function buildTemplateData() {
+        const elements = state.elements.map(e => {
+            if (e.type === 'bar') {
+                return {
+                    type: 'bar',
+                    x: e.x,
+                    y: e.y,
+                    width: e.barWidth || 75,
+                    height: e.barHeight || 9,
+                    value: e.value || '0',
+                    border: e.border !== false
+                };
+            } else {
+                return {
+                    type: 'text',
+                    text: e.text,
+                    x: e.x,
+                    y: e.y,
+                    font: e.font,
+                    max_width: e.maxWidth || null,
+                    wrap: e.wrap,
+                    invert: e.invert || null,
+                    allow_empty: e.allowEmpty || false
+                };
+            }
+        });
+
         const template = {
-            lines: state.elements.map(e => ({
-                text: e.text,
-                x: e.x,
-                y: e.y,
-                font: e.font,
-                max_width: e.maxWidth,
-                wrap: e.wrap,
-                invert: e.invert,
-                allow_empty: e.allowEmpty
-            })),
+            elements: elements,
             clear: true
         };
 
-        // Add scroll effect if not static
+        // Add scroll effect if not static (only meaningful for pure-text screens)
         const scrollEffect = document.getElementById('scroll-effect').value;
         if (scrollEffect && scrollEffect !== 'static') {
             template.scroll_effect = scrollEffect;
@@ -719,8 +880,39 @@ const ScreenEditor = (function() {
         updateCanvasDimensions();
         updateEffectsPanel();
 
-        // Load elements
-        if (screenData.template_data && screenData.template_data.lines) {
+        // Load elements: prefer 'elements' format, fall back to legacy 'lines'
+        if (screenData.template_data && screenData.template_data.elements) {
+            state.elements = screenData.template_data.elements.map((elem, index) => {
+                if (elem.type === 'bar') {
+                    return {
+                        id: Date.now() + index,
+                        type: 'bar',
+                        x: elem.x || 0,
+                        y: elem.y || 0,
+                        barWidth: elem.width || 75,
+                        barHeight: elem.height || 9,
+                        value: elem.value != null ? String(elem.value) : BAR_DEFAULT_VALUE,
+                        border: elem.border !== false,
+                        barPreview: BAR_DEFAULT_PREVIEW
+                    };
+                } else {
+                    // 'text' type or any unknown element — treat as text
+                    return {
+                        id: Date.now() + index,
+                        type: 'text',
+                        text: elem.text || '',
+                        x: elem.x || 0,
+                        y: elem.y || 0,
+                        font: elem.font || 'small',
+                        maxWidth: elem.max_width || null,
+                        wrap: elem.wrap !== false,
+                        invert: elem.invert || false,
+                        allowEmpty: elem.allow_empty || false
+                    };
+                }
+            });
+        } else if (screenData.template_data && screenData.template_data.lines) {
+            // Legacy lines format — all treated as text elements
             state.elements = screenData.template_data.lines.map((line, index) => ({
                 id: Date.now() + index,
                 type: 'text',
