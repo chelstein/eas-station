@@ -5437,6 +5437,18 @@ a:not(.btn):not(.nav-link):not(.dropdown-item):hover {
     color: #6b7280 !important;
 }
 
+/* For dark/coffee themes, --light-color is actually a dark hue.
+   Use theme text variables so text stays readable on the darker surface. */
+[data-theme="dark"] .bg-light,
+[data-theme="coffee"] .bg-light {
+    color: var(--text-color) !important;
+}
+
+[data-theme="dark"] .bg-light .text-muted,
+[data-theme="coffee"] .bg-light .text-muted {
+    color: var(--text-secondary) !important;
+}
+
 /* .bg-dark must always have light text */
 .bg-dark {
     background-color: var(--dark-color) !important;

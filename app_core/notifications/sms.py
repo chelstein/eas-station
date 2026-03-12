@@ -34,6 +34,10 @@ def send_eas_alert_sms(
 ) -> bool:
     """Send EAS alert SMS notifications via Twilio.
 
+    Each message includes an opt-out footer ("Reply STOP to stop msgs") as
+    required by CTIA messaging guidelines and enforced by Twilio for
+    toll-free number verification.
+
     Args:
         alert_info:   Dict with alert details (event_code, headline,
                       location_codes, timestamp, source).
@@ -89,6 +93,9 @@ def send_eas_alert_sms(
         body_parts.append(timestamp[:19])
 
     body_parts.append("- EAS Station")
+    # CTIA / Twilio compliance: every outbound message must include opt-out
+    # instructions so recipients always know how to stop messages.
+    body_parts.append("Reply STOP to stop msgs")
 
     message_body = "\n".join(body_parts)
 
@@ -149,7 +156,8 @@ def test_sms(
         msg = client.messages.create(
             body=(
                 "EAS Station - Test SMS. "
-                "Your SMS notification configuration is working correctly."
+                "Your SMS notification configuration is working correctly. "
+                "Reply STOP to stop msgs, HELP for help."
             ),
             from_=from_number,
             to=recipient,

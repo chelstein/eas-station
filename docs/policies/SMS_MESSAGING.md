@@ -1,6 +1,6 @@
 # SMS Messaging Policy
 
-**Last updated:** See repository commit history for most recent revision date.
+**Last updated:** March 12, 2026
 
 This policy applies to the SMS notification feature of EAS Station. It describes how
 text messages are sent, who receives them, and how recipients can opt out.
@@ -39,13 +39,17 @@ public-facing service), opt-in is managed at the operator level:
 Messages contain emergency alert information in the following format:
 
 ```
-EAS ALERT: [Event Code] - [Headline]
-Area: [Location Codes]
-Expires: [Time]
-Source: EAS Station
+EAS ALERT: [Event Code]
+[Alert Headline]
+Areas: [Location Codes]
+[Timestamp]
+- EAS Station
+Reply STOP to stop msgs
 ```
 
-Messages are kept under 160 characters for single-segment delivery.
+The opt-out reminder (`Reply STOP to stop msgs`) is appended to every message as required
+by CTIA messaging guidelines enforced by Twilio. Messages target under 160 characters for
+single-segment delivery where possible.
 
 ---
 
@@ -79,6 +83,10 @@ from the admin panel.
 |---|---|
 | `STOP` | Unsubscribe from all messages |
 | `STOP ALL` | Unsubscribe and block all future messages |
+| `CANCEL` | Unsubscribe from all messages |
+| `END` | Unsubscribe from all messages |
+| `QUIT` | Unsubscribe from all messages |
+| `UNSUBSCRIBE` | Unsubscribe from all messages |
 | `HELP` | Receive help information |
 
 ---

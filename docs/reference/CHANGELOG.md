@@ -6,6 +6,58 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.53.2] - Twilio Toll-Free Verification Compliance
+
+### Added
+- **CTIA-required opt-out footer in all outgoing EAS alert SMS messages** (v2.53.2)
+  - `app_core/notifications/sms.py` now appends `Reply STOP to stop msgs` to every alert message body, satisfying CTIA messaging guidelines that Twilio enforces during toll-free number verification. This footer is required for carrier delivery.
+  - Test SMS messages also include `Reply STOP to stop msgs, HELP for help` so test submissions to Twilio reviewers demonstrate compliance.
+  - Files: `app_core/notifications/sms.py`
+
+- **Expanded `/sms-compliance` opt-in disclosure page** (v2.53.2)
+  - Added "Sample Message Format" section with an exact mock-up of what EAS alert messages look like (including the new STOP footer), satisfying Twilio's requirement to show a representative message sample on the opt-in page.
+  - Added verbatim "Consent Disclosure Language" block (the exact text shown to recipients at opt-in) so Twilio reviewers can verify the opt-in flow.
+  - Expanded opt-out keyword table to include all Twilio-standard keywords: STOP, STOP ALL, CANCEL, END, QUIT, UNSUBSCRIBE.
+  - Removed Sprint (now T-Mobile) from the carrier list; list now reflects current major carriers.
+  - Files: `templates/sms_compliance.html`
+
+- **Twilio Toll-Free Verification help card in admin Notification Settings** (v2.53.2)
+  - Added a new "Toll-Free Verification" card in the sidebar of `/admin/notifications` that contains a ready-to-use field reference table: use case, opt-in type, opt-in page URL, privacy policy URL, terms of service URL, and exact message sample — all pre-filled for EAS Station. Operators can copy values directly into the Twilio console form.
+  - Files: `templates/admin/notifications.html`
+
+- **Complete Twilio verification form field-by-field guide in `docs/guides/notifications.md`** (v2.53.2)
+  - Replaced the short verification table with a full guide covering business information, contact information, use case, opt-in information, and message content sections. Each section provides exact copy-paste values for an EAS Station deployment.
+  - Added CTIA message content requirements section explaining the mandatory STOP footer.
+  - Files: `docs/guides/notifications.md`
+
+- **Updated SMS Messaging Policy to reflect new message format and full keyword list** (v2.53.2)
+  - Message content sample updated to include the `Reply STOP to stop msgs` footer.
+  - Opt-out keyword table expanded to include CANCEL, END, QUIT, UNSUBSCRIBE (Twilio standard).
+  - Files: `docs/policies/SMS_MESSAGING.md`
+
+## [2.53.1] - Documentation & Compliance Update
+
+### Added
+- **AMPR 44.0.0.0/8 Non-Commercial Network Disclaimer** (v2.53.1)
+  - Added a prominent non-commercial network notice to `templates/about.html` and `templates/terms.html` for deployments accessible via the AMPRNet (44.0.0.0/8) address block.
+  - Added the same notice as Section 13 to `docs/policies/TERMS_OF_USE.md`.
+  - Explains FCC Part 97 non-commercial requirements, ARDC allocation policy, and that this service is operated strictly for non-commercial amateur radio research and emergency communications training.
+  - Files: `templates/about.html`, `templates/terms.html`, `docs/policies/TERMS_OF_USE.md`
+
+### Fixed
+- **Created missing `docs/javascripts/mermaid-init.js`** (v2.53.1)
+  - `mkdocs.yml` referenced `javascripts/mermaid-init.js` as an extra JavaScript file, but the file and its parent directory did not exist, causing a 404 error when building the MkDocs documentation site.
+  - Created `docs/javascripts/mermaid-init.js` with proper Mermaid initialization configuration (startOnLoad, theme variables, flowchart and ER diagram options).
+  - Files: `docs/javascripts/mermaid-init.js`
+
+- **Fixed `.bg-light` text readability in dark and coffee themes** (v2.53.1)
+  - The `.bg-light` CSS rule hard-coded `color: #212121` (near-black text), which became illegible when the `--light-color` variable resolves to a dark background colour (`#455169` in the dark theme, `#5b4333` in the coffee theme). Added theme-scoped overrides to use `var(--text-color)` and `var(--text-secondary)` for those two dark themes.
+  - Files: `static/css/styles.css`
+
+- **Updated SMS Messaging Policy date** (v2.53.1)
+  - Updated the "Last updated" field in `docs/policies/SMS_MESSAGING.md` from a placeholder to the current revision date.
+  - Files: `docs/policies/SMS_MESSAGING.md`
+
 ### Fixed
 - **Fixed: Audio stream ingest EAS detection delay after extended operation** (v2.53.0)
   - Root cause: `UnifiedEASMonitorService._monitor_loop()` applied an unconditional 50ms sleep after each processing cycle regardless of whether audio was flowing. This caused the EAS broadcast queue consumer to fall behind the producer by ~15%, filling the 10,000-chunk buffer in ~7 hours and introducing up to 15+ minutes of real-time EAS detection latency.
