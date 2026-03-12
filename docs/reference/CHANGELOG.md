@@ -6,6 +6,35 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.53.2] - Twilio Toll-Free Verification Compliance
+
+### Added
+- **CTIA-required opt-out footer in all outgoing EAS alert SMS messages** (v2.53.2)
+  - `app_core/notifications/sms.py` now appends `Reply STOP to stop msgs` to every alert message body, satisfying CTIA messaging guidelines that Twilio enforces during toll-free number verification. This footer is required for carrier delivery.
+  - Test SMS messages also include `Reply STOP to stop msgs, HELP for help` so test submissions to Twilio reviewers demonstrate compliance.
+  - Files: `app_core/notifications/sms.py`
+
+- **Expanded `/sms-compliance` opt-in disclosure page** (v2.53.2)
+  - Added "Sample Message Format" section with an exact mock-up of what EAS alert messages look like (including the new STOP footer), satisfying Twilio's requirement to show a representative message sample on the opt-in page.
+  - Added verbatim "Consent Disclosure Language" block (the exact text shown to recipients at opt-in) so Twilio reviewers can verify the opt-in flow.
+  - Expanded opt-out keyword table to include all Twilio-standard keywords: STOP, STOP ALL, CANCEL, END, QUIT, UNSUBSCRIBE.
+  - Removed Sprint (now T-Mobile) from the carrier list; list now reflects current major carriers.
+  - Files: `templates/sms_compliance.html`
+
+- **Twilio Toll-Free Verification help card in admin Notification Settings** (v2.53.2)
+  - Added a new "Toll-Free Verification" card in the sidebar of `/admin/notifications` that contains a ready-to-use field reference table: use case, opt-in type, opt-in page URL, privacy policy URL, terms of service URL, and exact message sample — all pre-filled for EAS Station. Operators can copy values directly into the Twilio console form.
+  - Files: `templates/admin/notifications.html`
+
+- **Complete Twilio verification form field-by-field guide in `docs/guides/notifications.md`** (v2.53.2)
+  - Replaced the short verification table with a full guide covering business information, contact information, use case, opt-in information, and message content sections. Each section provides exact copy-paste values for an EAS Station deployment.
+  - Added CTIA message content requirements section explaining the mandatory STOP footer.
+  - Files: `docs/guides/notifications.md`
+
+- **Updated SMS Messaging Policy to reflect new message format and full keyword list** (v2.53.2)
+  - Message content sample updated to include the `Reply STOP to stop msgs` footer.
+  - Opt-out keyword table expanded to include CANCEL, END, QUIT, UNSUBSCRIBE (Twilio standard).
+  - Files: `docs/policies/SMS_MESSAGING.md`
+
 ## [2.53.1] - Documentation & Compliance Update
 
 ### Added

@@ -439,15 +439,42 @@
                 <div class="card-body small">
                     <h6>Getting Started with Twilio</h6>
                     <ol class="mb-2 ps-3">
-                        <li>Create a free account at <strong>twilio.com</strong></li>
-                        <li>Get a phone number from the Twilio console</li>
+                        <li>Create a free account at <a href="https://www.twilio.com/" target="_blank" rel="noopener"><strong>twilio.com</strong></a></li>
+                        <li>Buy a toll-free or long-code phone number</li>
                         <li>Copy your <strong>Account SID</strong> and <strong>Auth Token</strong></li>
                         <li>Enter the phone number in E.164 format: <code>+15555550100</code></li>
                     </ol>
                     <h6>Phone Number Format</h6>
-                    <p class="mb-0">All numbers must use E.164 format:<br>
+                    <p class="mb-2">All numbers must use E.164 format:<br>
                     <code>+[country code][number]</code><br>
                     US example: <code>+15555551234</code></p>
+                </div>
+            </div>
+
+            <div class="card mt-3 border-warning">
+                <div class="card-header bg-warning text-dark">
+                    <h5 class="mb-0"><i class="fas fa-certificate"></i> Toll-Free Verification</h5>
+                </div>
+                <div class="card-body small">
+                    <p class="mb-2">Toll-free numbers <strong>must be verified</strong> in the Twilio Console
+                       before they can send at scale. Unverified numbers are blocked by most carriers.</p>
+                    <p class="mb-1"><strong>Required fields &amp; what to enter:</strong></p>
+                    <table class="table table-sm table-bordered mb-2">
+                        <tbody>
+                            <tr><td class="text-muted">Use case</td><td>Emergency / public-safety alert notifications</td></tr>
+                            <tr><td class="text-muted">Opt-in type</td><td>Website / offline — explicit prior written consent obtained by operator</td></tr>
+                            <tr><td class="text-muted">Opt-in page URL</td><td><code>/sms-compliance</code> on this server</td></tr>
+                            <tr><td class="text-muted">Privacy policy URL</td><td><code>/privacy</code> on this server</td></tr>
+                            <tr><td class="text-muted">Terms of service URL</td><td><code>/terms</code> on this server</td></tr>
+                            <tr><td class="text-muted">Message sample</td><td>EAS ALERT: TOR&lt;newline&gt;Tornado Warning for County&lt;newline&gt;Areas: 039137&lt;newline&gt;- EAS Station&lt;newline&gt;Reply STOP to stop msgs</td></tr>
+                        </tbody>
+                    </table>
+                    <p class="mb-1">Compliance pages (accessible without login):</p>
+                    <ul class="ps-3 mb-0">
+                        <li><a href="/sms-compliance" target="_blank">SMS Messaging Policy</a></li>
+                        <li><a href="/privacy" target="_blank">Privacy Policy</a></li>
+                        <li><a href="/terms" target="_blank">Terms of Use</a></li>
+                    </ul>
                 </div>
             </div>
         </div>

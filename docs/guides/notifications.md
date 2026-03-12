@@ -140,41 +140,103 @@ All numbers must include the country code with a leading `+`:
 
 If you use a **toll-free number** with Twilio, US carriers require you to submit it for
 verification before it can send messages at scale. Unverified toll-free numbers have
-very limited throughput and may have messages blocked.
+very limited throughput and may have messages blocked or filtered.
 
-#### What Twilio Requires
+!!! warning "Verify before going live"
+    Submit your toll-free number for verification as soon as you purchase it.
+    Unverified numbers are blocked by AT&T, T-Mobile, and Verizon for most traffic.
 
-Twilio's toll-free verification form asks for:
+#### Complete Twilio Verification Form Field Guide
 
-| Field | Where to Find It |
+The Twilio toll-free verification form asks for the following information. Use these
+exact values for EAS Station:
+
+**Business / Organization Information**
+
+| Field | What to Enter |
 |---|---|
-| Business name | Your organization name |
-| Business website | Your EAS Station URL |
-| Use case | "Emergency notifications / public safety alerts" |
-| Opt-in page URL | `https://yourserver/sms-compliance` |
-| Opt-in description | "Recipients are added by the system operator after obtaining explicit prior written consent" |
-| Message sample | "EAS ALERT: Tornado Warning (TOR) issued for [County] until 6:45 PM. [Source: EAS Station]" |
+| Business name | Your organization name (e.g. "Putnam County ARES" or personal callsign) |
+| Business website | Full URL of your EAS Station instance (e.g. `https://eas.example.com`) |
+| Business type | Non-profit / Government / Individual (choose what applies) |
+| Business industry | Public Safety / Emergency Services |
+| Business address | Your physical mailing address |
+
+**Contact Information**
+
+| Field | What to Enter |
+|---|---|
+| First name | Your first name |
+| Last name | Your last name |
+| Contact email | Your email address |
+| Contact phone | Your phone number |
+
+**Use Case**
+
+| Field | What to Enter |
+|---|---|
+| Use case category | **Emergency** (select from dropdown) |
+| Use case description | `EAS Station sends real-time Emergency Alert System (EAS) notifications to a small list of pre-authorized recipients (operators, monitoring personnel). Recipients have provided explicit prior written consent. Messages contain NWS/IPAWS alert event codes, affected area identifiers, and timestamps. Use case: emergency public-safety notification only.` |
+
+**Opt-In Information**
+
+| Field | What to Enter |
+|---|---|
+| Opt-in type | **Website opt-in** (or **Offline opt-in** if consent is documented offline) |
+| Opt-in image / URL | `https://yourserver/sms-compliance` |
+| Opt-in description | `Recipients are added exclusively by the system administrator in the EAS Station admin panel after obtaining explicit prior written consent from the individual. The consent disclosure shown at the opt-in URL is read to/provided to each recipient before their number is added.` |
+
+**Message Content**
+
+| Field | What to Enter |
+|---|---|
+| Message sample | See block below |
 | Privacy policy URL | `https://yourserver/privacy` |
 | Terms of service URL | `https://yourserver/terms` |
 
+**Exact Message Sample** (copy this verbatim into the form):
+
+```
+EAS ALERT: TOR
+Tornado Warning for Putnam County
+Areas: 039137
+2026-03-12T14:00:00
+- EAS Station
+Reply STOP to stop msgs
+```
+
 #### Compliance Pages
 
-EAS Station includes three public-facing compliance pages that Twilio reviewers can access:
+EAS Station includes three public-facing compliance pages that Twilio reviewers can access
+without logging in:
 
 | Page | URL | Purpose |
 |---|---|---|
-| SMS Messaging Policy | `/sms-compliance` | Opt-in/opt-out, frequency, rates — required for verification |
-| Privacy Policy | `/privacy` | Data handling, Twilio as processor |
-| Terms of Use | `/terms` | Operator SMS consent obligations |
+| SMS Messaging Policy | `/sms-compliance` | Opt-in disclosure, keywords, frequency, rates — **required** |
+| Privacy Policy | `/privacy` | Data handling, Twilio as sub-processor |
+| Terms of Use | `/terms` | Operator consent obligations |
+
+Verify these pages are reachable by opening them in a private browser window before
+submitting the Twilio form.
 
 #### Submission Process
 
 1. Log into the [Twilio Console](https://console.twilio.com/).
 2. Navigate to **Phone Numbers → Manage → Active Numbers**.
 3. Click your toll-free number.
-4. Click **Register for A2P** or **Verify** (exact label varies by Twilio console version).
-5. Complete the form using the table above.
-6. Submit — Twilio typically reviews within 3–7 business days.
+4. Click **Register for A2P** or **Verify for Toll-Free** (exact label varies by Twilio console version).
+5. Complete all sections using the tables above.
+6. Upload or paste the message sample exactly as shown.
+7. Submit — Twilio typically reviews within 3–7 business days.
+8. You will receive an email confirmation when verification is approved.
+
+### CTIA Message Content Requirements
+
+EAS Station automatically appends **`Reply STOP to stop msgs`** to every outgoing alert
+message. This opt-out footer is required by CTIA messaging guidelines and enforced by
+Twilio during verification review. Do not remove or alter this text.
+
+Test messages also include `Reply STOP to stop msgs, HELP for help` to demonstrate
+compliance to Twilio reviewers.
 
 ### Operator Consent Requirements
 
@@ -187,6 +249,7 @@ EAS Station includes three public-facing compliance pages that Twilio reviewers 
     - Honor `STOP` opt-outs immediately — Twilio processes them automatically at the
       carrier level, but you must also remove the number from the admin panel.
     - Inform recipients: "Message and data rates may apply. Message frequency varies."
+    - Use the consent language shown on the `/sms-compliance` page.
 
 See the full [SMS Messaging Policy](../policies/SMS_MESSAGING.md) for consumer-facing
 disclosures.
