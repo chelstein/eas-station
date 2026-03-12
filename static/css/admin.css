@@ -1,10 +1,33 @@
 /* Admin Page - Theme-Aware Styles */
 .admin-header {
-    background: linear-gradient(135deg, #667eea, #764ba2);
+    /* Use theme palette variables so the header matches any active theme */
+    background: linear-gradient(135deg,
+        var(--primary-color) 0%,
+        color-mix(in srgb, var(--primary-color) 65%, var(--secondary-color)) 50%,
+        var(--secondary-color) 100%);
     color: white;
-    padding: 1.25rem 0;
-    margin-bottom: 0.75rem;
-    box-shadow: 0 4px 20px var(--shadow-color);
+    padding: 1.5rem 0;
+    margin-bottom: 1rem;
+    box-shadow:
+        0 8px 32px color-mix(in srgb, var(--primary-color) 30%, rgba(0, 0, 0, 0.2)),
+        0 2px 8px rgba(0, 0, 0, 0.15);
+    position: relative;
+    overflow: hidden;
+}
+
+/* Shimmer highlight on admin header */
+.admin-header::after {
+    content: "";
+    position: absolute;
+    top: -50%;
+    right: -20%;
+    width: 60%;
+    height: 200%;
+    background: radial-gradient(ellipse at top right,
+        rgba(255, 255, 255, 0.15),
+        rgba(255, 255, 255, 0.06) 40%,
+        transparent 70%);
+    pointer-events: none;
 }
 
 .tab-content {
@@ -19,16 +42,25 @@
     background: transparent;
 }
 
-/* Cards and panels need proper backgrounds */
+/* Cards - let main styles.css gradient card shine; only enforce theme colors */
 .card {
-    background: var(--surface-color);
-    border-color: var(--border-color);
+    background: linear-gradient(
+        180deg,
+        var(--surface-color) 0%,
+        color-mix(in srgb, var(--surface-color) 97%, var(--primary-color)) 100%
+    );
+    border-color: color-mix(in srgb, var(--border-color) 70%, var(--primary-color));
     color: var(--text-color);
 }
 
+/* Card headers — subtle gradient tint derived from theme palette.
+   This replaces the previous flat var(--bg-color) which made every
+   section look identical to the page background. */
 .card-header {
-    background: var(--bg-color);
-    border-color: var(--border-color);
+    background: linear-gradient(135deg,
+        color-mix(in srgb, var(--primary-color) 14%, var(--surface-color)) 0%,
+        color-mix(in srgb, var(--secondary-color) 9%, var(--surface-color)) 100%);
+    border-bottom: 1px solid color-mix(in srgb, var(--primary-color) 20%, var(--border-color));
     color: var(--text-color);
 }
 
@@ -40,25 +72,27 @@
 /* Nav tabs need proper styling */
 .nav-tabs {
     border-color: var(--border-color);
-    background: var(--bg-color);
+    background: color-mix(in srgb, var(--primary-color) 6%, var(--surface-color));
 }
 
 .nav-tabs .nav-link {
     color: var(--text-secondary);
     border: none;
-    padding: 1rem 1.25rem;
+    padding: 0.875rem 1.25rem;
     transition: all 0.2s ease;
+    border-radius: 0;
 }
 
 .nav-tabs .nav-link:hover {
     color: var(--text-color);
-    background: var(--surface-color);
+    background: color-mix(in srgb, var(--primary-color) 10%, var(--surface-color));
 }
 
 .nav-tabs .nav-link.active {
     background: var(--surface-color);
     color: var(--primary-color);
     border-bottom: 3px solid var(--primary-color);
+    font-weight: 600;
 }
 
 .form-control, .form-select {
@@ -69,9 +103,10 @@
     transition: all 0.2s ease;
 }
 
+/* Use theme variable for focus glow instead of hardcoded rgba */
 .form-control:focus, .form-select:focus {
     border-color: var(--primary-color);
-    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary-color) 20%, transparent);
     background-color: var(--surface-color);
     color: var(--text-color);
 }
@@ -96,8 +131,12 @@
     margin: 0.75rem 0;
 }
 
+/* Stat card base — theme variables replace hardcoded indigo/purple */
 .stat-card {
-    background: linear-gradient(135deg, #667eea, #764ba2);
+    background: linear-gradient(135deg,
+        var(--primary-color) 0%,
+        color-mix(in srgb, var(--primary-color) 60%, var(--secondary-color)) 50%,
+        var(--secondary-color) 100%);
     color: white;
     padding: 1.5rem;
     border-radius: 16px;
@@ -119,7 +158,7 @@
 }
 
 .stat-card:hover {
-    box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+    box-shadow: 0 8px 25px color-mix(in srgb, var(--primary-color) 40%, transparent);
     transform: translateY(-3px);
 }
 
@@ -226,7 +265,10 @@
 
 .modal-header {
     border-bottom: 1px solid var(--border-color);
-    background: linear-gradient(135deg, #eb3349, #f45c43);
+    background: linear-gradient(135deg,
+        var(--primary-color) 0%,
+        color-mix(in srgb, var(--primary-color) 65%, var(--secondary-color)) 50%,
+        var(--secondary-color) 100%);
     color: white;
     border-radius: 15px 15px 0 0;
 }
@@ -320,8 +362,10 @@
 }
 
 .manage-card .card-header {
-    background: var(--bg-color);
-    border-color: var(--border-color);
+    background: linear-gradient(135deg,
+        color-mix(in srgb, var(--primary-color) 14%, var(--surface-color)) 0%,
+        color-mix(in srgb, var(--secondary-color) 9%, var(--surface-color)) 100%);
+    border-color: color-mix(in srgb, var(--primary-color) 20%, var(--border-color));
     color: var(--text-color);
 }
 

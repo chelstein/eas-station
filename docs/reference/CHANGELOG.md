@@ -6,35 +6,31 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
-## [2.54.1] - OLED Display Improvements
-
-### Fixed
-- **OLED button GPIO uses fresh database settings** (`app_core/oled.py`)
-  - `ensure_oled_button()` now reads `button_gpio`, `button_active_high`, and
-    `button_hold_seconds` from the database on each call instead of using
-    module-level values set at import time.  Settings changed via Admin → Hardware
-    now take effect on the next button initialization without a service restart.
-
-- **Screen editor only supported text elements**
-  - Added **Add Bar Graph** button to the toolbar.
-  - New **Bar Graph Properties** panel lets users configure value template,
-    position, dimensions, border, and preview fill percentage.
-  - Bar graph elements are rendered live in the canvas preview.
-  - `buildTemplateData()` now serializes all elements using the `elements` format
-    so bar graphs are preserved when saved to the database.
-  - `loadScreen()` now loads both `elements` (bar + text) and legacy `lines`
-    formats so existing screens continue to open correctly in the editor.
+## [2.56.0] - UI Visual Modernization
 
 ### Changed
-- **SNAPSHOT_SCREEN_TEMPLATE** (`scripts/screen_manager.py`)
-  - Added **Disk (DSK)** usage bar row alongside CPU and MEM, filling the 128×64
-    display with three resource meters.
-  - Bars slightly wider (75 px vs 70 px) and vertically offset by 1 px for
-    better alignment against adjacent text labels.
-  - Footer replaced with a single-line status summary + date; removed the
-    "Last poll" line that could overflow the display area.
-  - Header time field uses a tighter `max_width` to prevent overlap with the
-    "SYSTEM STATUS" title at wide characters.
+- **Ambient background gradient** — All pages now display a subtle two-orb radial-gradient overlay fixed to the viewport. The gradient is derived from the active theme's `--primary-color` and `--secondary-color` variables, so it automatically adapts across all 20 built-in themes.
+- **Admin card headers** — Replaced the flat `var(--bg-color)` fill with a theme-aware gradient tint (`color-mix` at low opacity against `--surface-color`), giving every section card a subtle accent without obscuring form content.
+- **Admin header banner** — Replaced hardcoded `#667eea / #764ba2` hex values with `var(--primary-color)` / `var(--secondary-color)` so the banner matches the chosen theme. Added a shimmer highlight overlay and a stronger box-shadow for depth.
+- **Admin stat cards** — Replaced hardcoded indigo/purple gradient with theme-aware `var(--primary-color)` → `var(--secondary-color)` gradient. Hover shadow also now uses `color-mix` on the theme primary rather than a hardcoded RGBA.
+- **Admin modal headers** — Replaced the hardcoded red gradient with the theme primary→secondary gradient to align with the rest of the UI.
+- **Manage-card headers** — Applied the same subtle gradient tint treatment as the main card headers for visual consistency.
+- **Form focus glow** — Replaced hardcoded `rgba(102, 126, 234, 0.2)` focus ring with `color-mix(in srgb, var(--primary-color) 20%, transparent)` so the focus state reflects the active theme color.
+
+## [2.55.0] - Unified Settings Hub
+
+### Added
+- **Unified Settings hub page** (`/settings`) — All settings sections (Configuration, Network, Hardware, Security & Access) are now presented as a single card-based overview page, making it much easier to discover and navigate to any setting without hunting through nested dropdown menus.
+
+### Changed
+- **Settings navbar entry simplified** — The Settings dropdown (which previously contained 15+ nested links across four sections) is replaced by a single "Settings" link that navigates directly to the new unified `/settings` hub page, reducing navbar visual complexity.
+
+## [2.54.1] - Navigation Consolidation
+
+### Changed
+- **Merged Hardware dropdown into Settings** - The Hardware navigation item has been removed as a standalone top-level dropdown. All hardware-related links (SDR Receivers, Audio Streams, Audio Archives, Hardware Settings, GPIO & Relays, Zigbee) are now organized under a new "Hardware" section within the Settings dropdown, reducing top-level navigation from 7 to 6 items.
+- **Moved Audio Health to Monitor** - Audio Health dashboard link moved from Tools > Observability to Monitor > Radio Monitoring, where it logically belongs alongside other audio/radio monitoring links.
+- **Removed duplicate Alert Statistics from Tools** - The `/stats` link in Tools > Analytics & Reporting has been removed since Statistics is already accessible from the Monitor dropdown.
 
 ## [2.54.0] - LED Time and Date Display Endpoints
 

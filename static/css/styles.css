@@ -847,6 +847,19 @@ body {
     line-height: var(--line-height-base);
     color: var(--text-color);
     background-color: var(--bg-color);
+    /* Ambient gradient overlay: two soft radial glows derived from the current
+       theme's primary / secondary palette.  Works on both light & dark themes
+       because color-mix keeps the tint very low (10 % / 8 %).
+       background-attachment: fixed keeps the gradient stationary while the
+       page scrolls, creating a subtle depth / parallax effect. */
+    background-image:
+        radial-gradient(ellipse at 10% 20%,
+            color-mix(in srgb, var(--primary-color) 10%, transparent) 0%,
+            transparent 55%),
+        radial-gradient(ellipse at 90% 80%,
+            color-mix(in srgb, var(--secondary-color) 8%, transparent) 0%,
+            transparent 55%);
+    background-attachment: fixed;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
