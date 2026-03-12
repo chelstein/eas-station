@@ -22,6 +22,7 @@ from __future__ import annotations
 """LED sign routes extracted from the application entrypoint."""
 
 import os
+from datetime import datetime
 from typing import Any, Dict, List
 
 from flask import Flask, jsonify, redirect, render_template, request, url_for
@@ -797,6 +798,146 @@ def register(app: Flask, logger) -> None:
                 "error": str(exc),
                 "connected": False
             })
+
+
+    @app.route("/api/led/set_time_format", methods=["POST"])
+    def api_led_set_time_format():
+        """Set time display format on the LED sign and send current time."""
+        try:
+            ensure_led_tables()
+
+            data = request.get_json(silent=True) or {}
+            time_format = str(data.get("time_format", "TIME_12H")).upper()
+            color_name = str(data.get("color", "GREEN")).upper()
+            font_name = str(data.get("font", "FONT_7x13")).upper()
+
+            if not led_module.led_controller:
+                return jsonify({"success": False, "error": "LED controller not available"})
+
+            if not _led_enums_available():
+                return jsonify({"success": False, "error": "LED library enums unavailable"})
+
+            format_24h = time_format == "TIME_24H"
+            result = led_module.led_controller.set_time_format(format_24h=format_24h)
+            if not result:
+                return jsonify({"success": False, "error": "Failed to set time format on sign"})
+
+            now = datetime.now()
+            if format_24h:
+                time_str = now.strftime("%H:%M")
+            else:
+                time_str = now.strftime("%I:%M %p")
+                if time_str[0] == "0":
+                    time_str = time_str[1:]
+
+            try:
+                color = Color[color_name]
+            except (KeyError, TypeError):
+                return jsonify({"success": False, "error": f"Unknown color: {color_name}"})
+
+            try:
+                font = Font[font_name] if Font else None
+                if not font and FontSize:
+                    font = FontSize[font_name]
+            except (KeyError, TypeError):
+                return jsonify({"success": False, "error": f"Unknown font: {font_name}"})
+
+            result = led_module.led_controller.send_message(
+                lines=["CURRENT TIME", time_str],
+                color=color,
+                font=font,
+                mode=DisplayMode.HOLD,
+                speed=Speed.SPEED_3,
+            )
+
+            led_message = LEDMessage(
+                message_type="time_display",
+                content=time_str,
+                priority=2,
+                color=color_name,
+                font_size=font_name,
+                effect="HOLD",
+                speed="SPEED_3",
+                scheduled_time=utc_now(),
+                sent_at=utc_now() if result else None,
+            )
+            db.session.add(led_message)
+            db.session.commit()
+
+            return jsonify({"success": result, "time": time_str, "format": time_format})
+        except Exception as exc:
+            route_logger.error("Error setting LED time format: %s", exc)
+            return jsonify({"success": False, "error": str(exc)})
+
+    @app.route("/api/led/set_date_format", methods=["POST"])
+    def api_led_set_date_format():
+        """Send current date to the LED sign in the specified format."""
+        try:
+            ensure_led_tables()
+
+            data = request.get_json(silent=True) or {}
+            date_format = str(data.get("date_format", "MMDDYYYY")).upper()
+            color_name = str(data.get("color", "GREEN")).upper()
+            font_name = str(data.get("font", "FONT_7x13")).upper()
+
+            if not led_module.led_controller:
+                return jsonify({"success": False, "error": "LED controller not available"})
+
+            if not _led_enums_available():
+                return jsonify({"success": False, "error": "LED library enums unavailable"})
+
+            date_format_map = {
+                "MMDDYY": "%m/%d/%y",
+                "DDMMYY": "%d/%m/%y",
+                "MMDDYYYY": "%m/%d/%Y",
+                "DDMMYYYY": "%d/%m/%Y",
+                "YYMMDD": "%y-%m-%d",
+                "YYYYMMDD": "%Y-%m-%d",
+            }
+            strftime_fmt = date_format_map.get(date_format)
+            if not strftime_fmt:
+                return jsonify({"success": False, "error": f"Unknown date format: {date_format}"})
+
+            date_str = datetime.now().strftime(strftime_fmt)
+
+            try:
+                color = Color[color_name]
+            except (KeyError, TypeError):
+                return jsonify({"success": False, "error": f"Unknown color: {color_name}"})
+
+            try:
+                font = Font[font_name] if Font else None
+                if not font and FontSize:
+                    font = FontSize[font_name]
+            except (KeyError, TypeError):
+                return jsonify({"success": False, "error": f"Unknown font: {font_name}"})
+
+            result = led_module.led_controller.send_message(
+                lines=["TODAY'S DATE", date_str],
+                color=color,
+                font=font,
+                mode=DisplayMode.HOLD,
+                speed=Speed.SPEED_3,
+            )
+
+            led_message = LEDMessage(
+                message_type="date_display",
+                content=date_str,
+                priority=2,
+                color=color_name,
+                font_size=font_name,
+                effect="HOLD",
+                speed="SPEED_3",
+                scheduled_time=utc_now(),
+                sent_at=utc_now() if result else None,
+            )
+            db.session.add(led_message)
+            db.session.commit()
+
+            return jsonify({"success": result, "date": date_str, "format": date_format})
+        except Exception as exc:
+            route_logger.error("Error setting LED date format: %s", exc)
+            return jsonify({"success": False, "error": str(exc)})
 
 
 def _enum_label(value: Any) -> str:

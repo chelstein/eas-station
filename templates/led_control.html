@@ -1726,9 +1726,6 @@ function sendCannedMessage(messageName) {
 
 // Time display functions
 function sendTimeDisplay() {
-    showToast('Time/date display feature coming soon', 'info');
-    return;
-    // TODO: Implement backend endpoint
     const timeFormat = document.getElementById('time-format').value;
     const color = document.getElementById('time-color').value;
     const font = document.getElementById('time-font').value;
@@ -1753,18 +1750,15 @@ function sendTimeDisplay() {
 }
 
 function sendDateDisplay() {
-    showToast('Time/date display feature coming soon', 'info');
-    return;
-    // TODO: Implement backend endpoint
     const dateFormat = document.getElementById('date-format').value;
     const color = document.getElementById('time-color').value;
     const font = document.getElementById('time-font').value;
 
-    fetch('/api/led/set_time_format', {
+    fetch('/api/led/set_date_format', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-            time_format: dateFormat,
+            date_format: dateFormat,
             color: color,
             font: font
         })

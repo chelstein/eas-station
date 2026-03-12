@@ -6,6 +6,27 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.54.0] - LED Time and Date Display Endpoints
+
+### Added
+- **`POST /api/led/set_time_format` endpoint** (v2.54.0)
+  - Accepts `time_format` ("TIME_12H" or "TIME_24H"), `color`, and `font` parameters.
+  - Calls the LED sign controller to apply the selected 12-hour or 24-hour time format, then sends the current time as a two-line message ("CURRENT TIME" / formatted time string) to the sign.
+  - Records the sent message in the `led_messages` database table.
+  - Files: `webapp/routes_led.py`
+
+- **`POST /api/led/set_date_format` endpoint** (v2.54.0)
+  - Accepts `date_format` (one of MMDDYY, DDMMYY, MMDDYYYY, DDMMYYYY, YYMMDD, YYYYMMDD), `color`, and `font` parameters.
+  - Formats the current date using the requested layout and sends it as a two-line message ("TODAY'S DATE" / formatted date string) to the sign.
+  - Records the sent message in the `led_messages` database table.
+  - Files: `webapp/routes_led.py`
+
+### Changed
+- **LED control frontend buttons now fully functional** (v2.54.0)
+  - Removed the "Time/date display feature coming soon" stub and disabled early-returns from `sendTimeDisplay()` and `sendDateDisplay()` in `templates/led_control.html`.
+  - `sendDateDisplay()` corrected to call `/api/led/set_date_format` with the `date_format` key instead of the old copy-paste bug that called `/api/led/set_time_format` with `time_format`.
+  - Files: `templates/led_control.html`
+
 ## [2.53.2] - Twilio Toll-Free Verification Compliance
 
 ### Added
