@@ -20,7 +20,7 @@
 {%- set show_settings_configuration = can_view_system_config or can_manage_config -%}
 {%- set show_settings_hardware = can_view_gpio -%}
 {%- set show_settings_security = can_manage_users or can_view_users -%}
-{%- set show_settings_dropdown = show_settings_configuration or show_settings_hardware or show_settings_security -%}
+{%- set show_settings_dropdown = show_settings_configuration or show_settings_hardware or show_settings_security or show_hardware_nav -%}
 {%- set show_hardware_nav = show_broadcast_inputs or can_manage_config or can_view_gpio -%}
 
 {%- set show_alerts_radio_section = is_authenticated and (can_view_alerts or can_manage_receivers or can_view_logs) -%}
@@ -111,6 +111,11 @@
                                     <i class="fas fa-headphones"></i> Live Audio
                                 </a>
                             </li>
+                            <li>
+                                <a class="dropdown-item" href="/audio/health/dashboard">
+                                    <i class="fas fa-wave-square"></i> Audio Health
+                                </a>
+                            </li>
                             {% endif %}
                         </ul>
                     </li>
@@ -162,68 +167,6 @@
                                     <i class="fas fa-eye"></i> Preview
                                 </a>
                             </li>
-                            {% endif %}
-                        </ul>
-                    </li>
-                    {% endif %}
-
-                    <!-- Hardware -->
-                    {% if show_hardware_nav %}
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle"
-                           href="#"
-                           id="hardwareDropdown"
-                           role="button"
-                           data-bs-toggle="dropdown"
-                           aria-expanded="false">
-                            <i class="fas fa-microchip"></i>
-                            <span>Hardware</span>
-                        </a>
-                        <ul class="dropdown-menu" aria-labelledby="hardwareDropdown">
-                            {% if show_broadcast_inputs %}
-                            <li><h6 class="dropdown-header">Radio & Audio</h6></li>
-                            <li>
-                                <a class="dropdown-item" href="/admin/radio">
-                                    <i class="fas fa-signal"></i> SDR Receivers
-                                </a>
-                            </li>
-                            <li>
-                                <a class="dropdown-item" href="/admin/audio-sources">
-                                    <i class="fas fa-stream"></i> Audio Streams
-                                </a>
-                            </li>
-                            <li>
-                                <a class="dropdown-item" href="/admin/audio/archives">
-                                    <i class="fas fa-archive"></i> Audio Archives
-                                </a>
-                            </li>
-                            {% endif %}
-                            {% if can_manage_config or can_view_gpio %}
-                            {% if show_broadcast_inputs %}
-                            <li><hr class="dropdown-divider"></li>
-                            {% endif %}
-                            <li><h6 class="dropdown-header">Peripherals</h6></li>
-                            {% if can_manage_config %}
-                            <li>
-                                <a class="dropdown-item" href="/admin/hardware">
-                                    <i class="fas fa-sliders"></i> Hardware Settings
-                                </a>
-                            </li>
-                            {% endif %}
-                            {% if can_view_gpio %}
-                            <li>
-                                <a class="dropdown-item" href="/admin/gpio">
-                                    <i class="fas fa-plug"></i> GPIO & Relays
-                                </a>
-                            </li>
-                            {% endif %}
-                            {% if can_view_gpio or can_manage_config %}
-                            <li>
-                                <a class="dropdown-item" href="/admin/zigbee">
-                                    <i class="fas fa-home"></i> Zigbee
-                                </a>
-                            </li>
-                            {% endif %}
                             {% endif %}
                         </ul>
                     </li>
@@ -304,8 +247,53 @@
                             {% endif %}
                             {% endif %}
 
-                            {% if show_settings_security %}
+                            {% if show_hardware_nav %}
                             {% if show_settings_configuration or show_settings_hardware %}
+                            <li><hr class="dropdown-divider"></li>
+                            {% endif %}
+                            <li><h6 class="dropdown-header">Hardware</h6></li>
+                            {% if show_broadcast_inputs %}
+                            <li>
+                                <a class="dropdown-item" href="/admin/radio">
+                                    <i class="fas fa-signal"></i> SDR Receivers
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item" href="/admin/audio-sources">
+                                    <i class="fas fa-stream"></i> Audio Streams
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item" href="/admin/audio/archives">
+                                    <i class="fas fa-archive"></i> Audio Archives
+                                </a>
+                            </li>
+                            {% endif %}
+                            {% if can_manage_config %}
+                            <li>
+                                <a class="dropdown-item" href="/admin/hardware">
+                                    <i class="fas fa-sliders"></i> Hardware Settings
+                                </a>
+                            </li>
+                            {% endif %}
+                            {% if can_view_gpio %}
+                            <li>
+                                <a class="dropdown-item" href="/admin/gpio">
+                                    <i class="fas fa-plug"></i> GPIO & Relays
+                                </a>
+                            </li>
+                            {% endif %}
+                            {% if can_view_gpio or can_manage_config %}
+                            <li>
+                                <a class="dropdown-item" href="/admin/zigbee">
+                                    <i class="fas fa-home"></i> Zigbee
+                                </a>
+                            </li>
+                            {% endif %}
+                            {% endif %}
+
+                            {% if show_settings_security %}
+                            {% if show_settings_configuration or show_settings_hardware or show_hardware_nav %}
                             <li><hr class="dropdown-divider"></li>
                             {% endif %}
                             <li><h6 class="dropdown-header">Security & Access</h6></li>
@@ -363,11 +351,6 @@
                                     <i class="fas fa-heartbeat"></i> Health Dashboard
                                 </a>
                             </li>
-                            <li>
-                                <a class="dropdown-item" href="/audio/health/dashboard">
-                                    <i class="fas fa-wave-square"></i> Audio Health
-                                </a>
-                            </li>
                             {% if is_authenticated and can_view_logs %}
                             <li>
                                 <a class="dropdown-item" href="/logs">
@@ -382,11 +365,6 @@
                             <li>
                                 <a class="dropdown-item" href="/analytics">
                                     <i class="fas fa-chart-line"></i> Analytics Dashboard
-                                </a>
-                            </li>
-                            <li>
-                                <a class="dropdown-item" href="/stats">
-                                    <i class="fas fa-chart-bar"></i> Alert Statistics
                                 </a>
                             </li>
                             {% if can_view_logs %}

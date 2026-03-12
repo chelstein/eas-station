@@ -6,6 +6,13 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.54.1] - Navigation Consolidation
+
+### Changed
+- **Merged Hardware dropdown into Settings** - The Hardware navigation item has been removed as a standalone top-level dropdown. All hardware-related links (SDR Receivers, Audio Streams, Audio Archives, Hardware Settings, GPIO & Relays, Zigbee) are now organized under a new "Hardware" section within the Settings dropdown, reducing top-level navigation from 7 to 6 items.
+- **Moved Audio Health to Monitor** - Audio Health dashboard link moved from Tools > Observability to Monitor > Radio Monitoring, where it logically belongs alongside other audio/radio monitoring links.
+- **Removed duplicate Alert Statistics from Tools** - The `/stats` link in Tools > Analytics & Reporting has been removed since Statistics is already accessible from the Monitor dropdown.
+
 ## [2.54.0] - LED Time and Date Display Endpoints
 
 ### Added
