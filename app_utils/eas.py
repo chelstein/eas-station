@@ -1128,6 +1128,28 @@ class EASAudioGenerator:
         samples.extend(trailing_silence)
         segment_samples['buffer'].extend(trailing_silence)
 
+        # Generate EOM (End of Message) and append it to the complete audio sequence.
+        # This ensures the broadcast sequence (SAME + attention + narration + EOM) is
+        # contained in one uninterrupted audio file, matching the behavior of
+        # build_manual_components() and satisfying FCC 47 CFR §11.31.
+        eom_header = build_eom_header(self.config)
+        eom_bits = encode_same_bits(eom_header, include_preamble=True)
+        eom_header_samples = generate_fsk_samples(
+            eom_bits,
+            sample_rate=self.sample_rate,
+            bit_rate=float(SAME_BAUD),
+            mark_freq=SAME_MARK_FREQ,
+            space_freq=SAME_SPACE_FREQ,
+            amplitude=amplitude,
+        )
+        eom_raw_samples: List[int] = []
+        for burst_index in range(3):
+            eom_raw_samples.extend(eom_header_samples)
+            if burst_index < 2:
+                eom_raw_samples.extend(_generate_silence(1.0, self.sample_rate))
+        eom_raw_samples.extend(_generate_silence(1.0, self.sample_rate))
+        samples.extend(eom_raw_samples)
+
         wav_bytes = samples_to_wav_bytes(samples, self.sample_rate)
         try:
             with open(audio_path, 'wb') as handle:
@@ -1157,6 +1179,13 @@ class EASAudioGenerator:
                 'duration_seconds': round(len(tts_segment) / self.sample_rate, 6),
                 'size_bytes': len(tts_wav),
             }
+
+        eom_wav = samples_to_wav_bytes(eom_raw_samples, self.sample_rate)
+        segment_payload['eom'] = {
+            'wav_bytes': eom_wav,
+            'duration_seconds': round(len(eom_raw_samples) / self.sample_rate, 6),
+            'size_bytes': len(eom_wav),
+        }
 
         text_body = {
             'identifier': identifier,
@@ -1635,15 +1664,12 @@ class EASBroadcaster:
             segment_payload,
         ) = self.audio_generator.build_files(alert, payload, header, location_codes)
 
-        try:
-            eom_filename, eom_bytes = self.audio_generator.build_eom_file()
-        except Exception as exc:
-            self.logger.warning(f"Failed to generate EOM audio: {exc}")
-            eom_filename = None
-            eom_bytes = None
+        # EOM is now embedded in audio_bytes (built inside build_files()).
+        # Extract the EOM segment for separate database storage so it can be
+        # displayed/downloaded individually from the audio detail page.
+        eom_bytes = (segment_payload.get('eom') or {}).get('wav_bytes')
 
         audio_path = os.path.join(self.audio_generator.output_dir, audio_filename)
-        eom_path = os.path.join(self.audio_generator.output_dir, eom_filename) if eom_filename else None
 
         result.update(
             {
@@ -1651,7 +1677,6 @@ class EASBroadcaster:
                 "event_code": event_code,
                 "same_header": header,
                 "audio_path": audio_path,
-                "eom_path": eom_path,
                 "location_codes": location_codes,
             }
         )
@@ -1704,9 +1729,9 @@ class EASBroadcaster:
                 'status': getattr(alert, 'status', ''),
                 'message_type': getattr(alert, 'message_type', ''),
                 'locations': location_codes,
-                'eom_filename': eom_filename,
                 'segments': segment_metadata,
                 'has_tts': bool(segment_payload.get('tts')),
+                'has_eom': bool(segment_payload.get('eom')),
             },
         )
 
@@ -1754,9 +1779,11 @@ class EASBroadcaster:
                 manager_handled = False
 
         try:
+            # audio_bytes contains the complete broadcast sequence:
+            # SAME header (3x) → attention tone → TTS narration → EOM.
+            # All segments are in a single uninterrupted audio file, so no
+            # gap can appear between the narration and the EOM burst.
             self._play_audio_or_bytes(audio_path, audio_bytes)
-            if eom_path or eom_bytes:
-                self._play_audio_or_bytes(eom_path, eom_bytes)
         finally:
             if controller and activated_any:
                 try:  # pragma: no cover - hardware specific
