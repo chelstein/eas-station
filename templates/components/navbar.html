@@ -98,6 +98,16 @@
                                 </a>
                             </li>
 
+                            {% if can_manage_config %}
+                            <li><hr class="dropdown-divider"></li>
+                            <li><h6 class="dropdown-header">Hardware</h6></li>
+                            <li>
+                                <a class="dropdown-item" href="/admin/zigbee">
+                                    <i class="fas fa-broadcast-tower"></i> Zigbee
+                                </a>
+                            </li>
+                            {% endif %}
+
                             {% if show_alerts_radio_section %}
                             <li><hr class="dropdown-divider"></li>
                             <li><h6 class="dropdown-header">Radio Monitoring</h6></li>

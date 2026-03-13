@@ -47,6 +47,8 @@ def call_hardware_service(endpoint, method='GET', data=None):
             response = requests.get(url, timeout=30)
         elif method == 'POST':
             response = requests.post(url, json=data, timeout=30)
+        elif method == 'DELETE':
+            response = requests.delete(url, timeout=30)
         else:
             return {'success': False, 'error': f'Unsupported method: {method}'}
 
@@ -255,6 +257,40 @@ def detect_zigbee_coordinator():
         debug = request.args.get('debug', '')
         endpoint = f'/api/zigbee/detect?debug={debug}' if debug else '/api/zigbee/detect'
         result = call_hardware_service(endpoint, method='GET')
+        return jsonify(result), 200 if result.get('success') else 500
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@zigbee_bp.route('/api/zigbee/permit_join', methods=['POST'])
+@require_permission('system.configure')
+def permit_join():
+    """Open the Zigbee join window so new devices can pair."""
+    try:
+        body = request.get_json(silent=True) or {}
+        result = call_hardware_service('/api/zigbee/permit_join', method='POST', data=body)
+        return jsonify(result), 200 if result.get('success') else 503
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@zigbee_bp.route('/api/zigbee/permit_join', methods=['DELETE'])
+@require_permission('system.configure')
+def close_join():
+    """Close the Zigbee join window immediately."""
+    try:
+        result = call_hardware_service('/api/zigbee/permit_join', method='DELETE')
+        return jsonify(result), 200 if result.get('success') else 503
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@zigbee_bp.route('/api/zigbee/join_status')
+@require_permission('system.configure')
+def join_status():
+    """Return current join-window state from the hardware service."""
+    try:
+        result = call_hardware_service('/api/zigbee/join_status', method='GET')
         return jsonify(result), 200 if result.get('success') else 500
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
