@@ -1848,14 +1848,82 @@ def create_api_app():
 
     @api_app.route('/api/zigbee/detect', methods=['GET'])
     def detect_zigbee_port():
-        """Auto-detect Zigbee coordinator USB devices by VID/PID and /dev/serial/by-id."""
+        """Auto-detect Zigbee coordinator USB devices by VID/PID and /dev/serial/by-id.
+
+        Add ?debug=1 to return full diagnostic information including all ports seen
+        by pyserial, all /dev/serial/by-id entries, and any errors encountered.
+        """
+        debug = request.args.get('debug', '').lower() in ('1', 'true', 'yes')
         try:
-            results = detect_zigbee_coordinator()
-            return jsonify({
-                'success': True,
-                'devices': results,
-                'count': len(results),
-            })
+            if not debug:
+                results = detect_zigbee_coordinator()
+                return jsonify({
+                    'success': True,
+                    'devices': results,
+                    'count': len(results),
+                })
+
+            # Debug mode: capture all intermediate data and errors
+            diag = {
+                'all_serial_ports': [],
+                'by_id_entries': [],
+                'dev_tty_glob': [],
+                'errors': [],
+                'matched_devices': [],
+            }
+
+            # All ports pyserial can see
+            try:
+                from serial.tools import list_ports
+                for p in list_ports.comports():
+                    diag['all_serial_ports'].append({
+                        'device': p.device,
+                        'description': p.description,
+                        'hwid': p.hwid,
+                        'vid': f"0x{p.vid:04x}" if p.vid else None,
+                        'pid': f"0x{p.pid:04x}" if p.pid else None,
+                        'manufacturer': p.manufacturer,
+                        'product': p.product,
+                        'serial_number': p.serial_number,
+                    })
+            except ImportError:
+                diag['errors'].append("pyserial not installed (pip install pyserial)")
+            except Exception as e:
+                diag['errors'].append(f"pyserial list_ports error: {e}")
+
+            # /dev/serial/by-id entries
+            try:
+                import glob as _g
+                for sym in sorted(_g.glob('/dev/serial/by-id/*')):
+                    diag['by_id_entries'].append({
+                        'symlink': sym,
+                        'name': os.path.basename(sym),
+                        'real_path': os.path.realpath(sym),
+                    })
+                if not diag['by_id_entries']:
+                    diag['by_id_entries'] = []
+            except Exception as e:
+                diag['errors'].append(f"/dev/serial/by-id scan error: {e}")
+
+            # Raw /dev/tty* globs
+            try:
+                import glob as _g
+                for pattern in ('/dev/ttyUSB*', '/dev/ttyACM*', '/dev/ttyAMA*', '/dev/ttyS*'):
+                    diag['dev_tty_glob'].extend(sorted(_g.glob(pattern)))
+            except Exception as e:
+                diag['errors'].append(f"/dev/tty glob error: {e}")
+
+            # VID/PID signatures we're scanning for
+            diag['known_signatures'] = [
+                {'vid': f"0x{v:04x}", 'pid': f"0x{p:04x}", 'label': l}
+                for v, p, l in _ZIGBEE_USB_SIGNATURES
+            ]
+            diag['known_byid_keywords'] = _ZIGBEE_BYID_KEYWORDS
+
+            diag['matched_devices'] = detect_zigbee_coordinator()
+
+            return jsonify({'success': True, 'debug': diag})
+
         except Exception as e:
             logger.error(f"Error detecting Zigbee coordinator: {e}")
             return jsonify({'success': False, 'error': str(e)}), 500
