@@ -30,7 +30,7 @@ In the separated service architecture:
 """
 
 import requests
-from flask import Blueprint, jsonify, render_template
+from flask import Blueprint, jsonify, render_template, request
 from app_core.auth.decorators import require_permission
 from app_core.extensions import get_redis_client
 from app_core.hardware_settings import get_zigbee_settings
@@ -252,9 +252,11 @@ def get_zigbee_diagnostics():
 @zigbee_bp.route('/api/zigbee/detect')
 @require_permission('system.configure')
 def detect_zigbee_coordinator():
-    """Auto-detect Zigbee coordinator USB devices."""
+    """Auto-detect Zigbee coordinator USB devices. Pass ?debug=1 for full diagnostics."""
     try:
-        result = call_hardware_service('/api/zigbee/detect', method='GET')
+        debug = request.args.get('debug', '')
+        endpoint = f'/api/zigbee/detect?debug={debug}' if debug else '/api/zigbee/detect'
+        result = call_hardware_service(endpoint, method='GET')
         return jsonify(result), 200 if result.get('success') else 500
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
