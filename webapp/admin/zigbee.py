@@ -32,13 +32,11 @@ In the separated service architecture:
 import requests
 from flask import Blueprint, jsonify, render_template, request
 from app_core.auth.decorators import require_permission
+from app_core.config import HARDWARE_SERVICE_URL
 from app_core.extensions import get_redis_client
 from app_core.hardware_settings import get_zigbee_settings
 
 zigbee_bp = Blueprint('zigbee', __name__)
-
-# Hardware service API endpoint (runs on port 5001)
-HARDWARE_SERVICE_URL = "http://hardware-service:5001"
 
 
 def call_hardware_service(endpoint, method='GET', data=None):
