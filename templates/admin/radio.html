@@ -515,6 +515,13 @@
 {% block scripts %}
 {{ super() }}
 <script>
+// Bootstrap recommends modals be direct children of <body> to avoid CSS
+// stacking-context conflicts with positioned flex containers (.page-shell).
+// Move them before Bootstrap initialises the instances below.
+['radioReceiverModal', 'discoveryModal', 'diagnosticsModal', 'presetsModal'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) document.body.appendChild(el);
+});
 (() => {
     const initialReceivers = {{ receivers | tojson }};
     const tableBody = document.querySelector('#radioReceiversTable tbody');
