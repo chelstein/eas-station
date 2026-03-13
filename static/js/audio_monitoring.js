@@ -124,7 +124,14 @@ function handleAudioMetricsUpdate(data) {
 
         const hasRealMetrics = liveMetrics.some(metric => hasMeaningfulLevels(metric));
         if (!hasRealMetrics) {
-            showMetricsWarning('No live audio metrics received — check audio service/Redis');
+            const hasRunningSources = liveMetrics.some(
+                metric => metric.source_status === 'running'
+            );
+            if (hasRunningSources) {
+                showMetricsWarning('Sources running but no audio detected — check stream URLs and audio levels');
+            } else {
+                showMetricsWarning('No live audio metrics received — check audio service/Redis');
+            }
         } else {
             hideMetricsWarning();
         }
@@ -503,8 +510,9 @@ function getStatusBadge(status) {
         starting: '<span class="status-badge bg-warning"><span class="status-dot"></span> Starting</span>',
         error: '<span class="status-badge bg-danger"><span class="status-dot"></span> Error</span>',
         disconnected: '<span class="status-badge bg-danger"><span class="status-dot"></span> Disconnected</span>',
+        unknown: '<span class="status-badge bg-secondary" style="opacity:0.6"><span class="status-dot"></span> Unknown</span>',
     };
-    return badges[status] || badges.stopped;
+    return badges[status] || badges.unknown;
 }
 
 function updateBackendStatusIndicator(broadcastStats = {}, activeSource = null) {
@@ -627,7 +635,14 @@ async function updateMetrics() {
 
         const hasRealMetrics = liveMetrics.some(metric => hasMeaningfulLevels(metric));
         if (!hasRealMetrics) {
-            showMetricsWarning('No live audio metrics received — check audio service/Redis');
+            const hasRunningSources = liveMetrics.some(
+                metric => metric.source_status === 'running'
+            );
+            if (hasRunningSources) {
+                showMetricsWarning('Sources running but no audio detected — check stream URLs and audio levels');
+            } else {
+                showMetricsWarning('No live audio metrics received — check audio service/Redis');
+            }
         } else {
             hideMetricsWarning();
         }

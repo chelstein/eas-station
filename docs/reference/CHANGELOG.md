@@ -6,6 +6,41 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.57.2] - Fix audio monitor not reporting metrics
+
+### Fixed
+- **Audio monitor shows "No metrics available from audio-service"** — `_sanitize_value()` in
+  `eas_monitoring_service.py` converted numpy `-inf` (the default `peak_level_db`/`rms_level_db`
+  for stopped sources) to Python `float('-inf')` but returned it unchanged. Python's `json.dumps()`
+  produces the non-standard literal `-Infinity` for infinite floats (instead of raising an error),
+  which is not valid JSON. When `read_shared_metrics()` later called `json.loads()` on the stored
+  value it raised `JSONDecodeError`, the audio-controller metrics fell back to the raw unparseable
+  string, and source metrics were empty. After 60 seconds the Redis key expired, leaving the web
+  app with no metrics to read and showing the "No metrics available from audio-service" banner.
+  Fix: the function now converts any Python `float` inf/nan to `-120.0` before returning, matching
+  the behaviour already applied to numpy types by `worker_coordinator_redis._sanitize_for_json()`.
+- **`broadcast_queue` stats never populated** — `collect_metrics()` stored broadcast queue data
+  under the key `"broadcast_queues"` (plural) while the web app and WebSocket emitter read
+  `"broadcast_queue"` (singular). Fixed by using the consistent singular key.
+- **EAS monitor status stored as string `"None"` in Redis** — when `_eas_monitor.get_status()`
+  raised an exception, `metrics["eas_monitor"]` remained `None` and was serialised as the literal
+  string `"None"` (via `str(None)`). Downstream readers then saw an unexpected `str` type instead
+  of a `dict` and returned a confusing "invalid type" error. Fix: `None` values are now skipped
+  entirely during serialisation, and exception fallback stores `{"running": False, "error": "..."}`.
+- **`routes_eas_monitor_status.py` "invalid type" error** — the non-dict check now returns
+  the same user-friendly "No metrics available" message instead of an internal type-error string,
+  since both cases represent the same condition (EAS monitor not yet initialised).
+- **Audio monitor VU meter warning hides when sources are running but silent** — the warning
+  banner now distinguishes between "no metrics from service" and "sources running but no audio
+  detected", providing a clearer diagnostic message when the service is healthy but streams are
+  silent.
+- **EAS Continuous Monitor badge stays "Loading…" on error** — the status badge is now updated
+  to "Unavailable" when the API returns an error and there is no cached valid state, instead of
+  remaining permanently stuck on the initial "Loading…" placeholder.
+- **Source cards show "STOPPED" for unknown status** — when the audio-service is not running,
+  sources had an `unknown` status that was silently mapped to the "stopped" badge. A dedicated
+  "Unknown" badge (slightly dimmed) is now shown so users can tell the difference between a
+  source that is truly stopped and one whose status cannot be determined.
 ## [2.57.1] - Fix RBDS phase drift from dropped queue samples
 
 ### Fixed
