@@ -1258,8 +1258,12 @@ small,
 
 /* Ensure page content always renders above the fixed background orbs (z-index: 0).
    Without this, positioned orbs sit on top of normal-flow block elements in the
-   stacking order. The index.html page had this rule locally — moved here globally. */
-.page-shell > *:not(.orb) {
+   stacking order. The index.html page had this rule locally — moved here globally.
+   Bootstrap modals (.modal) are excluded: Bootstrap appends the backdrop directly to
+   <body> at z-index 1040, so giving the modal element z-index 1 here (higher specificity
+   than Bootstrap's own .modal rule) would place the backdrop above the modal dialog,
+   making the modal appear visible but completely unclickable. */
+.page-shell > *:not(.orb):not(.modal) {
     position: relative;
     z-index: 1;
 }

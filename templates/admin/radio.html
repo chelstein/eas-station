@@ -1947,6 +1947,16 @@
         const deemphasisContainer = document.getElementById('deemphasisContainer');
         if (fmOptionsContainer) fmOptionsContainer.style.display = 'none';
 
+        // Show modal immediately so the user isn't left staring at a frozen page
+        // while the async device-discovery fetch (up to 5 s) runs in the background.
+        document.getElementById('radioReceiverModalLabel').textContent = receiver ? 'Edit Receiver' : 'Add Receiver';
+        // Ensure dropdown shows a loading placeholder while devices are fetched
+        const deviceSelectEarly = document.getElementById('receiverDevice');
+        if (deviceSelectEarly) {
+            deviceSelectEarly.innerHTML = '<option value="">-- Detecting devices... --</option>';
+        }
+        receiverModal.show();
+
         if (receiver) {
             // Editing existing receiver - set basic fields first
             document.getElementById('receiverId').value = receiver.id;
@@ -2127,8 +2137,6 @@
             document.getElementById('receiverAutoStart').checked = true;
         }
 
-        document.getElementById('radioReceiverModalLabel').textContent = receiver ? 'Edit Receiver' : 'Add Receiver';
-        receiverModal.show();
     }
 
     // Old frequency conversion code removed - now handled by service-based validation
