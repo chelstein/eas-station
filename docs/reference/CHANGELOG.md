@@ -6,6 +6,58 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.56.2] - Fix Gunicorn 504 / I2C Deadlock on Raspberry Pi
+
+### Fixed
+- **504 Gateway Timeout / Gunicorn worker hung in I2C on Raspberry Pi** — Three
+  co-operating bugs caused the web service to deadlock on any Pi with an OLED
+  display attached:
+
+  1. **`app.py` — screen manager started inside Gunicorn worker** (`app.py`).
+     `screen_manager.start()` was called at module-import time inside every
+     Gunicorn gevent worker. This spawned a 60 fps background thread that
+     continuously issued blocking `ioctl()` calls to the I2C bus.  `gevent`
+     cannot monkey-patch `ioctl()`, so those calls blocked the entire event
+     loop.  Simultaneously `eas-station-hardware.service` held the kernel
+     `i2c_designware` mutex for its own 30 fps OLED scroll, creating a
+     classic priority-inversion deadlock (`rt_mutex_schedule` visible in
+     `/proc/<pid>/stack`).  **Fix:** removed the `screen_manager.start()` call
+     entirely from the web service.  Display hardware is now owned exclusively
+     by `eas-station-hardware.service`.
+
+  2. **`routes_screens.py` — web worker accessed I2C directly on push requests**.
+     `/api/screens/<id>/display` called `initialise_oled_display()` (opens
+     `/dev/i2c-*`) and drove the OLED directly from within a gevent request
+     handler.  **Fix:** the route now proxies to
+     `POST http://127.0.0.1:5001/api/hardware/display/push` — a new endpoint
+     on the hardware service that executes the display push in the correct
+     process.
+
+  3. **`routes_screens.py` — `/api/displays/current-state` direct hardware
+     fallback**.  When Redis was unavailable the fallback path opened the OLED
+     controller from the web process.  **Fix:** the fallback now returns a
+     safe "hardware service unavailable" stub instead of touching hardware.
+
+- **Session key inconsistency across Gunicorn workers** (`app.py`).  Without
+  `--preload`, each Gunicorn worker imports `app.py` independently and calls
+  `secrets.token_hex(32)` at module-import time, giving every worker a
+  *different* Flask `secret_key`.  Sessions signed by Worker 1 were rejected
+  by Worker 2, randomly logging users out mid-session.  **Fix:** a new
+  `_load_or_generate_secret_key()` helper persists the generated key to
+  `.secret_key` (mode 0600, excluded from git) so all workers and restarts
+  share the same key until a real `SECRET_KEY` is configured in `.env`.
+
+- **Gunicorn workers crashing on startup when PostgreSQL is not yet ready**
+  (`wsgi.py`).  The eager `initialize_database()` call raised
+  `RuntimeError` on any DB failure, killing the worker before it could
+  serve a single request.  On a Raspberry Pi PostgreSQL often isn't fully
+  reachable when the web service starts (boot ordering), resulting in a
+  permanent 503/504 loop.  **Fix:** DB failures at worker startup are now
+  logged as warnings; the worker starts in a degraded state and the
+  `before_request` hook retries `initialize_database()` on every incoming
+  request until the DB is available.  Genuine non-DB exceptions (import
+  errors, etc.) still propagate and kill the worker as before.
+
 ## [2.56.1] - Web Stream Stall and RBDS Decoding Fixes
 
 ### Fixed

@@ -21,8 +21,18 @@ Repository: https://github.com/KR8MER/eas-station
 import os
 import sys
 import logging
+import traceback as _tb
 from datetime import datetime
 import tempfile
+
+# SQLAlchemy DB error types — imported early so the except block that decides
+# whether to re-raise doesn't need a conditional import at exception time.
+try:
+    from sqlalchemy.exc import OperationalError as _SA_OperationalError, \
+        DatabaseError as _SA_DatabaseError
+except ImportError:  # SQLAlchemy not installed yet (shouldn't happen, but be safe)
+    _SA_OperationalError = Exception  # type: ignore[assignment,misc]
+    _SA_DatabaseError = Exception  # type: ignore[assignment,misc]
 
 # Configure logging early for wsgi startup diagnostics
 # NOTE: Gunicorn will override this with its own logging config, but this ensures
@@ -130,11 +140,26 @@ if not os.environ.get("SKIP_DB_INIT") and not application.config.get('SETUP_MODE
                     # Silently ignore if we can't write the file
                     logger.debug("Could not write error log file: %s", log_error)
                 
-                raise RuntimeError(f"Database initialization failed: {error_details}")
+                # Do NOT raise here. On Raspberry Pi (and other low-power systems),
+                # PostgreSQL may not be fully ready when this worker starts even
+                # though the systemd After= dependency is satisfied.  Raising kills
+                # the worker, which causes Gunicorn to have no live workers and
+                # Nginx returns 504 Gateway Timeout.
+                #
+                # Instead, let the worker start in a degraded state.  Every
+                # incoming request calls initialize_database() via before_request;
+                # once PostgreSQL becomes available the first successful call
+                # marks the DB as initialised and the service recovers
+                # automatically without a service restart.
+                logger.warning(
+                    "WSGI: Worker PID %d starting without database access. "
+                    "Requests will return HTTP 503 until the database is available.",
+                    os.getpid(),
+                )
     except Exception as e:
         error_msg = (
             f"\n{'=' * 80}\n"
-            f"FATAL ERROR: Exception during database initialization!\n"
+            f"ERROR: Exception during database initialization!\n"
             f"Worker PID: {os.getpid()}\n"
             f"{'=' * 80}\n"
             f"Exception Type: {type(e).__name__}\n"
@@ -146,7 +171,6 @@ if not os.environ.get("SKIP_DB_INIT") and not application.config.get('SETUP_MODE
         
         # Write to secure temporary file for persistence
         try:
-            import traceback
             with tempfile.NamedTemporaryFile(
                 mode='w',
                 prefix='eas-station-web-startup-error-',
@@ -156,15 +180,26 @@ if not os.environ.get("SKIP_DB_INIT") and not application.config.get('SETUP_MODE
             ) as f:
                 f.write(error_msg)
                 f.write(f"\nFull traceback:\n")
-                f.write(traceback.format_exc())
+                f.write(_tb.format_exc())
                 f.write(f"\nTimestamp: {datetime.now()}\n")
                 error_log_path = f.name
             logger.critical("Error details written to: %s", error_log_path)
         except Exception as log_error:
             # Silently ignore if we can't write the file
             logger.debug("Could not write error log file: %s", log_error)
-        
-        raise
+
+        # Database-related errors are non-fatal at startup: the worker starts in a
+        # degraded state and before_request retries initialization on every request.
+        # Re-raise only genuine application errors (import failures, syntax errors,
+        # etc.) that cannot recover on their own.
+        if isinstance(e, (_SA_OperationalError, _SA_DatabaseError)):
+            logger.warning(
+                "WSGI: Worker PID %d starting without database access (DB error at startup). "
+                "Requests will return HTTP 503 until the database is available.",
+                os.getpid(),
+            )
+        else:
+            raise
     
     success_banner = (
         f"\n{'=' * 80}\n"

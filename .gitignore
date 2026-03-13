@@ -9,6 +9,10 @@ __pycache__/
 .DS_Store
 .idea/
 
+# Runtime-generated secret key (auto-created when SECRET_KEY is absent from .env)
+.secret_key
+.secret_key.tmp
+
 # VSCode local settings (may contain secrets)
 .vscode/settings.local.json
 .vscode/sqltools.settings.json
