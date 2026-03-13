@@ -15,9 +15,7 @@ IMPORTANT: This software cannot be rebranded or have attribution removed.
 See NOTICE file for complete terms.
 
 Repository: https://github.com/KR8MER/eas-station
-"""
 
-"""
 SAMEDemodulatorCore — the single FSK/DLL SAME demodulation engine.
 
 Previously the project maintained two independent implementations of the same
