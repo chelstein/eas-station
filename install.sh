@@ -315,6 +315,13 @@ else
     echo_info "No GPIO hardware detected (VM or standard PC)"
 fi
 
+# Detect Raspberry Pi 5 (needed to offer Argon ONE V5 Zigbee option)
+IS_PI5=false
+if grep -q "Raspberry Pi 5" /proc/device-tree/model 2>/dev/null; then
+    IS_PI5=true
+    echo_info "Raspberry Pi 5 detected"
+fi
+
 # ====================================================================
 # COLLECT MINIMAL CONFIGURATION
 # ====================================================================
@@ -1112,6 +1119,50 @@ else
     echo_info "VFD display: ${BOLD}disabled${NC}"
 fi
 
+# Zigbee Coordinator
+ZIGBEE_ENABLED="false"
+ZIGBEE_PORT="/dev/ttyUSB0"
+ZIGBEE_BAUDRATE="115200"
+ARGON_ZIGBEE=false
+
+if [ "$IS_PI5" = true ]; then
+    # On Pi 5, offer Argon ONE V5 as a specific option
+    if whiptail --title "Argon ONE V5 Zigbee" --backtitle "$(whiptail_footer)" --yesno \
+        "Are you using an Argon ONE V5 case with the Industria Zigbee module?\n\n\
+The Argon Industria V5 Zigbee module (CC2652P) plugs inside the Argon ONE V5 case.\n\
+This installer will:\n\
+  • Configure /boot/firmware/config.txt (USB hub overlay)\n\
+  • Install the Argon daemon (argononed)\n\
+  • Enable Zigbee on /dev/ttyUSB0 at 115200 baud\n\n\
+A reboot will be required after installation." 18 72 --defaultno; then
+        ZIGBEE_ENABLED="true"
+        ZIGBEE_PORT="/dev/ttyUSB0"
+        ARGON_ZIGBEE=true
+        echo_success "Zigbee: ${BOLD}Argon Industria V5${NC} on /dev/ttyUSB0"
+    elif whiptail --title "Other Zigbee Coordinator" --backtitle "$(whiptail_footer)" --yesno \
+        "Do you have a different USB Zigbee coordinator (SONOFF, SMLIGHT, ConBee II, etc.)?" 8 70 --defaultno; then
+        ZIGBEE_ENABLED="true"
+        ZIGBEE_PORT=$(whiptail --title "Zigbee Port" --backtitle "$(whiptail_footer)" \
+            --inputbox "Serial port for Zigbee coordinator:\n\n/dev/ttyUSB0  — most USB CC2652P dongles\n/dev/ttyACM0  — ConBee II\n/dev/ttyAMA0  — GPIO UART (rare)" \
+            12 70 "/dev/ttyUSB0" 3>&1 1>&2 2>&3) || ZIGBEE_PORT="/dev/ttyUSB0"
+        echo_success "Zigbee: ${BOLD}enabled${NC} on $ZIGBEE_PORT"
+    else
+        echo_info "Zigbee coordinator: ${BOLD}disabled${NC}"
+    fi
+else
+    # Non-Pi5: generic USB Zigbee question
+    if whiptail --title "Zigbee Coordinator" --backtitle "$(whiptail_footer)" --yesno \
+        "Do you have a USB Zigbee coordinator (SONOFF, SMLIGHT, ConBee II, etc.)?" 8 70 --defaultno; then
+        ZIGBEE_ENABLED="true"
+        ZIGBEE_PORT=$(whiptail --title "Zigbee Port" --backtitle "$(whiptail_footer)" \
+            --inputbox "Serial port for Zigbee coordinator:\n\n/dev/ttyUSB0  — most USB CC2652P dongles\n/dev/ttyACM0  — ConBee II" \
+            10 70 "/dev/ttyUSB0" 3>&1 1>&2 2>&3) || ZIGBEE_PORT="/dev/ttyUSB0"
+        echo_success "Zigbee: ${BOLD}enabled${NC} on $ZIGBEE_PORT"
+    else
+        echo_info "Zigbee coordinator: ${BOLD}disabled${NC}"
+    fi
+fi
+
 # ====================================================================
 # FINAL CONFIGURATION SUMMARY
 # ====================================================================
@@ -1143,8 +1194,9 @@ FEATURES:
 • GPIO Integration: $GPIO_ENABLED
 • LED Sign: $LED_SIGN_ENABLED
 • VFD Display: $VFD_DISPLAY_ENABLED
+• Zigbee Coordinator: $ZIGBEE_ENABLED${ARGON_ZIGBEE:+ (Argon ONE V5 — will configure config.txt)}
 
-Press OK to begin installation..." 28 70
+Press OK to begin installation..." 30 72
 
 echo_success "✓ Complete configuration collected! Starting installation..."
 
@@ -1810,6 +1862,11 @@ ICECAST_ADMIN_PASSWORD=$ICECAST_ADMIN_PASSWORD
 LED_SIGN_ENABLED=$LED_SIGN_ENABLED
 VFD_DISPLAY_ENABLED=$VFD_DISPLAY_ENABLED
 
+# Zigbee Coordinator (read by DB migration to pre-configure hardware_settings table)
+ZIGBEE_ENABLED=$ZIGBEE_ENABLED
+ZIGBEE_PORT=$ZIGBEE_PORT
+ZIGBEE_BAUDRATE=$ZIGBEE_BAUDRATE
+
 # Text-to-Speech Settings (Configure via web interface)
 EAS_TTS_PROVIDER=pyttsx3
 
@@ -1871,6 +1928,63 @@ mkdir -p /var/www/certbot/.well-known/acme-challenge
 chown -R root:root /var/www/certbot
 chmod -R 755 /var/www/certbot
 echo_success "ACME challenge directory created (root:root 755)"
+
+# ====================================================================
+# ARGON ONE V5 HARDWARE CONFIGURATION (only if selected)
+# ====================================================================
+
+if [ "$ARGON_ZIGBEE" = true ]; then
+    echo ""
+    echo_progress "Configuring Argon ONE V5 Zigbee hardware..."
+
+    CONFIG_TXT="/boot/firmware/config.txt"
+
+    if [ -f "$CONFIG_TXT" ]; then
+        # Check if config is already set (idempotent)
+        if ! grep -q "dtoverlay=dwc2,dr_mode=host" "$CONFIG_TXT"; then
+            # Find the [all] section and insert after it, or append if not found
+            if grep -q "^\[all\]" "$CONFIG_TXT"; then
+                # Insert the two overlay lines immediately after [all]
+                sed -i '/^\[all\]/a dtoverlay=dwc2,dr_mode=host\nusb_max_current_enable=1' "$CONFIG_TXT"
+                echo_success "Added USB hub overlays under [all] in $CONFIG_TXT"
+            else
+                # Append an [all] section at the end
+                printf '\n[all]\ndtoverlay=dwc2,dr_mode=host\nusb_max_current_enable=1\n' >> "$CONFIG_TXT"
+                echo_success "Appended [all] section with USB hub overlays to $CONFIG_TXT"
+            fi
+        else
+            echo_info "Argon USB hub overlays already present in $CONFIG_TXT (skipping)"
+        fi
+    else
+        echo_warning "$CONFIG_TXT not found — skipping Argon config.txt setup"
+        echo_warning "Manually add under [all] in your boot config:"
+        echo_warning "  dtoverlay=dwc2,dr_mode=host"
+        echo_warning "  usb_max_current_enable=1"
+    fi
+
+    # Install Argon ONE V5 daemon (fan control + USB hub power)
+    if ! command -v argonone-cli &>/dev/null && ! systemctl is-active --quiet argononed 2>/dev/null; then
+        echo_progress "Installing Argon ONE V5 daemon..."
+        set +e
+        curl -sSL https://download.argon40.com/argon1v5.sh -o /tmp/argon1v5.sh
+        CURL_EXIT=$?
+        set -e
+
+        if [ $CURL_EXIT -eq 0 ] && [ -f /tmp/argon1v5.sh ]; then
+            bash /tmp/argon1v5.sh
+            rm -f /tmp/argon1v5.sh
+            systemctl enable argononed.service 2>/dev/null || true
+            echo_success "Argon ONE V5 daemon installed and enabled"
+        else
+            echo_warning "Could not download Argon daemon — install manually after reboot:"
+            echo_warning "  curl https://download.argon40.com/argon1v5.sh | bash"
+        fi
+    else
+        echo_info "Argon daemon already installed (skipping)"
+    fi
+
+    echo_warning "*** A reboot is required before the Zigbee module will appear as /dev/ttyUSB0 ***"
+fi
 
 echo_step "Nginx Web Server Configuration"
 
@@ -2486,8 +2600,17 @@ echo -e "      ${GREEN}✓${NC} Location configured: ${BOLD}$COUNTY_NAME, $STATE
 echo -e "      ${GREEN}✓${NC} Station callsign: ${BOLD}$EAS_STATION_ID${NC}"
 echo -e "      ${GREEN}✓${NC} Alert sources: NOAA=${BOLD}$NOAA_ENABLED${NC}, IPAWS=${BOLD}$IPAWS_ENABLED${NC}"
 echo -e "      ${GREEN}✓${NC} Icecast streaming: ${BOLD}$ICECAST_ENABLED${NC}"
-echo -e "      ${GREEN}✓${NC} Hardware: GPIO=${BOLD}$GPIO_ENABLED${NC}, LED=${BOLD}$LED_SIGN_ENABLED${NC}, VFD=${BOLD}$VFD_DISPLAY_ENABLED${NC}"
+echo -e "      ${GREEN}✓${NC} Hardware: GPIO=${BOLD}$GPIO_ENABLED${NC}, LED=${BOLD}$LED_SIGN_ENABLED${NC}, VFD=${BOLD}$VFD_DISPLAY_ENABLED${NC}, Zigbee=${BOLD}$ZIGBEE_ENABLED${NC}"
 echo ""
+
+if [ "$ARGON_ZIGBEE" = true ]; then
+echo -e "  ${BOLD}${RED}⚠️  REBOOT REQUIRED FOR ZIGBEE${NC}"
+echo -e "      The Argon ONE V5 USB hub was enabled in /boot/firmware/config.txt."
+echo -e "      Reboot now for the Zigbee module to appear as /dev/ttyUSB0:"
+echo -e "      ${BOLD}sudo reboot${NC}"
+echo ""
+fi
+
 echo -e "  ${BOLD}${YELLOW}3.${NC} ${BOLD}Fine-tune settings${NC} in the web interface or use ${BOLD}sudo eas-config${NC}"
 echo -e "      ${DIM}The eas-config tool provides a raspi-config style interface${NC}"
 echo -e "      ${DIM}to reconfigure your EAS station after installation${NC}"

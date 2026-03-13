@@ -89,6 +89,17 @@ eas-station ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart icecast
 eas-station ALL=(ALL) NOPASSWD: /usr/bin/systemctl status icecast2
 eas-station ALL=(ALL) NOPASSWD: /usr/bin/systemctl status icecast
 
+# EAS Station service management (required for Hardware Settings restart button and web UI service control)
+# Hardware service restart is triggered after saving hardware settings (GPIO, OLED, Zigbee, displays)
+eas-station ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart eas-station-hardware.service
+eas-station ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart eas-station-web.service
+eas-station ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart eas-station-poller.service
+eas-station ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart eas-station-sdr.service
+eas-station ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart eas-station-eas.service
+eas-station ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart eas-station-ipaws-poller.service
+eas-station ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart eas-station-noaa-poller.service
+eas-station ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart eas-station.target
+
 # Audio service management (required to reload Icecast credentials after password change)
 eas-station ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart eas-station-audio
 

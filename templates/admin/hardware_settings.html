@@ -351,7 +351,7 @@
                                 <label class="form-check-label" for="zigbee_enabled">Enable Zigbee Coordinator</label>
                             </div>
                             <p class="text-muted small mb-0">
-                                Requires a compatible coordinator (CC2531, CC2652, or SLZB-06).
+                                Supports CC2652P-based coordinators: Argon Industria V5, SONOFF Zigbee 3.0 USB Dongle Plus, SMLIGHT SLZB-06, and others.
                             </p>
                         </div>
                     </div>
@@ -362,17 +362,27 @@
                             <div class="row g-3">
                                 <div class="col-md-6">
                                     <label for="zigbee_port" class="form-label">Port</label>
-                                    <input type="text" class="form-control font-monospace" id="zigbee_port" name="zigbee_port" value="{{ settings.zigbee_port }}" placeholder="/dev/ttyAMA0">
-                                    <small class="form-text text-muted">Common: /dev/ttyAMA0, /dev/ttyUSB0, /dev/ttyACM0</small>
+                                    <input type="text" class="form-control font-monospace" id="zigbee_port" name="zigbee_port" value="{{ settings.zigbee_port }}" placeholder="/dev/ttyUSB0">
+                                    <small class="form-text text-muted">
+                                        <strong>Argon Industria V5 / USB dongles:</strong> <code>/dev/ttyUSB0</code><br>
+                                        ConBee II: <code>/dev/ttyACM0</code> &mdash; GPIO UART: <code>/dev/ttyAMA0</code>
+                                    </small>
                                 </div>
                                 <div class="col-md-6">
                                     <label for="zigbee_baudrate" class="form-label">Baud Rate</label>
                                     <select class="form-select" id="zigbee_baudrate" name="zigbee_baudrate">
-                                        <option value="38400" {% if settings.zigbee_baudrate == 38400 %}selected{% endif %}>38400</option>
+                                        <option value="38400" {% if settings.zigbee_baudrate == 38400 %}selected{% endif %}>38400 (ConBee II)</option>
                                         <option value="57600" {% if settings.zigbee_baudrate == 57600 %}selected{% endif %}>57600</option>
-                                        <option value="115200" {% if settings.zigbee_baudrate == 115200 %}selected{% endif %}>115200</option>
+                                        <option value="115200" {% if settings.zigbee_baudrate == 115200 %}selected{% endif %}>115200 (CC2652P / Argon / SONOFF)</option>
                                     </select>
                                 </div>
+                            </div>
+                            <div class="alert alert-info mt-3 mb-0 py-2 small">
+                                <i class="fas fa-info-circle me-1"></i>
+                                <strong>Argon Industria V5 users:</strong> The module appears as <code>/dev/ttyUSB0</code> at 115200 baud.
+                                If the device is missing, ensure <code>dtoverlay=dwc2,dr_mode=host</code> and <code>usb_max_current_enable=1</code>
+                                are set under <code>[all]</code> in <code>/boot/firmware/config.txt</code> and the Argon daemon is running.
+                                See the <a href="https://github.com/KR8MER/eas-station/blob/main/docs/hardware/ARGON40_ZIGBEE_SETUP.md" target="_blank">Argon40 Zigbee Setup Guide</a> for details.
                             </div>
                         </div>
                     </div>
@@ -384,7 +394,7 @@
                                 <div class="col-md-6">
                                     <label for="zigbee_channel" class="form-label">Channel (11-26)</label>
                                     <input type="number" class="form-control" id="zigbee_channel" name="zigbee_channel" value="{{ settings.zigbee_channel }}" min="11" max="26">
-                                    <small class="form-text text-muted">Channel 15 is commonly used.</small>
+                                    <small class="form-text text-muted">Channel 15 avoids 2.4 GHz Wi-Fi overlap (recommended).</small>
                                 </div>
                                 <div class="col-md-6">
                                     <label for="zigbee_pan_id" class="form-label">PAN ID</label>
@@ -401,7 +411,7 @@
                             <p class="text-muted small mb-0">
                                 After enabling the coordinator, visit the
                                 <a href="{{ url_for('zigbee.zigbee_settings') }}">Zigbee Devices</a> page
-                                to view connected devices and diagnostics.
+                                to view coordinator status, connected devices, and diagnostics.
                             </p>
                         </div>
                     </div>
