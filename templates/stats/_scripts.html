@@ -1107,7 +1107,7 @@ function createDurationChart() {
                 labels: statsData.avgDurations.map(i => i.event),
                 datasets: [{
                     label: 'Avg Hours',
-                    data: statsData.avgDurations.map(i => Math.round((i.average || i.avg_hours || 0) * 10) / 10),
+                    data: statsData.avgDurations.map(i => Math.round(('average' in i ? i.average : (i.avg_hours || 0)) * 10) / 10),
                     backgroundColor: createGradient(ctx, GRADIENT_PALETTES.orange),
                     borderRadius: 6,
                     borderSkipped: false

@@ -445,7 +445,7 @@ def register(app: Flask, logger) -> None:
 
             try:
                 eas_forwarded_count = CAPAlert.query.filter_by(eas_forwarded=True).count()
-                total_for_eas = stats_data.get("total_alerts", 0) or CAPAlert.query.count()
+                total_for_eas = stats_data.get("total_alerts") or 0
                 stats_data["eas_forwarding_stats"] = {
                     "forwarded": eas_forwarded_count,
                     "total": total_for_eas,
