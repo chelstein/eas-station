@@ -44,6 +44,7 @@ The web application reads metrics from Redis and serves the UI.
 
 import os
 import sys
+import math
 import time
 import signal
 import logging
@@ -127,19 +128,38 @@ def get_redis_client() -> redis.Redis:
 
 
 def _sanitize_value(value: Any) -> Any:
-    """Convert runtime values to JSON-serializable primitives."""
+    """Convert runtime values to JSON-serializable primitives.
+
+    Handles numpy types and Python float inf/nan values that would
+    otherwise cause json.dumps() to raise ValueError.
+    """
     try:
         import numpy as np  # type: ignore
 
         if isinstance(value, (np.floating, np.integer)):
-            return float(value)
+            v = float(value)
+            if math.isinf(v):
+                return -120.0 if v < 0 else 120.0
+            if math.isnan(v):
+                return -120.0
+            return v
         if isinstance(value, np.bool_):
             return bool(value)
     except Exception:
         # numpy is optional in some deployments; ignore if unavailable
         pass
 
-    if isinstance(value, (str, int, float, bool)):
+    if isinstance(value, bool):
+        return value
+
+    if isinstance(value, float):
+        if math.isinf(value):
+            return -120.0 if value < 0 else 120.0
+        if math.isnan(value):
+            return -120.0
+        return value
+
+    if isinstance(value, (str, int)):
         return value
 
     if isinstance(value, dict):
@@ -788,16 +808,17 @@ def collect_metrics():
                             broadcast_queues[name] = _sanitize_value(bq.get_stats())
                 
                 if broadcast_queues:
-                    metrics["broadcast_queues"] = broadcast_queues
+                    metrics["broadcast_queue"] = broadcast_queues
             except Exception as e:
                 logger.error(f"Error getting broadcast queue stats: {e}")
 
         # Get EAS monitor stats (supports both single and multi-monitor)
         if _eas_monitor:
             try:
-                metrics["eas_monitor"] = _eas_monitor.get_status()
+                metrics["eas_monitor"] = _sanitize_value(_eas_monitor.get_status())
             except Exception as e:
                 logger.error(f"Error getting EAS monitor stats: {e}")
+                metrics["eas_monitor"] = {"running": False, "error": str(e)}
 
     except Exception as e:
         logger.error(f"Error collecting metrics: {e}")
@@ -817,6 +838,10 @@ def publish_metrics_to_redis(metrics):
         # Flatten nested dicts to strings for Redis hash
         flat_metrics = {}
         for key, value in metrics.items():
+            if value is None:
+                # Skip None values – they indicate uninitialized optional components
+                # and storing "None" (string) confuses downstream readers
+                continue
             if isinstance(value, (dict, list)):
                 flat_metrics[key] = json.dumps(value)
             else:

@@ -1738,9 +1738,12 @@ function updateEASMonitorDisplay(status) {
             status = lastValidEASMonitorState;
             // Using cached EAS monitor state
         } else {
-            // No cached state and no valid data - show error
-            const errorDiv = document.getElementById('eas-monitor-error');
-            if (errorDiv && status?.error) {
+            // No cached state and no valid data - show error and update badge
+            const statusBadge = document.getElementById('eas-monitor-status-badge');
+            if (statusBadge) {
+                statusBadge.innerHTML = '<span class="badge bg-warning">Unavailable</span>';
+            }
+            if (status?.error) {
                 showEASMonitorError(status.error);
             }
             return;
