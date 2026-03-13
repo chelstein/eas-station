@@ -362,11 +362,17 @@
                             <div class="row g-3">
                                 <div class="col-md-6">
                                     <label for="zigbee_port" class="form-label">Port</label>
-                                    <input type="text" class="form-control font-monospace" id="zigbee_port" name="zigbee_port" value="{{ settings.zigbee_port }}" placeholder="/dev/ttyUSB0">
+                                    <div class="input-group">
+                                        <input type="text" class="form-control font-monospace" id="zigbee_port" name="zigbee_port" value="{{ settings.zigbee_port }}" placeholder="/dev/ttyUSB0">
+                                        <button class="btn btn-outline-secondary" type="button" id="zigbee_detect_btn" title="Auto-detect Zigbee coordinator">
+                                            <i class="fas fa-search"></i> Detect
+                                        </button>
+                                    </div>
                                     <small class="form-text text-muted">
                                         <strong>Argon Industria V5 / USB dongles:</strong> <code>/dev/ttyUSB0</code><br>
                                         ConBee II: <code>/dev/ttyACM0</code> &mdash; GPIO UART: <code>/dev/ttyAMA0</code>
                                     </small>
+                                    <div id="zigbee_detect_result" class="mt-1" style="display:none;"></div>
                                 </div>
                                 <div class="col-md-6">
                                     <label for="zigbee_baudrate" class="form-label">Baud Rate</label>
@@ -833,5 +839,49 @@ function saveAndRestart(btn) {
         if (btn) { btn.disabled = false; btn.innerHTML = label; }
     });
 }
+
+// Zigbee auto-detect
+document.addEventListener('DOMContentLoaded', function() {
+    var detectBtn = document.getElementById('zigbee_detect_btn');
+    if (!detectBtn) return;
+    detectBtn.addEventListener('click', function() {
+        var btn = this;
+        var resultDiv = document.getElementById('zigbee_detect_result');
+        var portInput = document.getElementById('zigbee_port');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Detecting...';
+        resultDiv.style.display = 'none';
+        fetch('/api/zigbee/detect')
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.success && data.devices && data.devices.length > 0) {
+                    var dev = data.devices[0];
+                    portInput.value = dev.port;
+                    var badge = dev.confidence === 'high'
+                        ? '<span class="badge bg-success">high confidence</span>'
+                        : '<span class="badge bg-warning text-dark">medium confidence</span>';
+                    resultDiv.innerHTML = '<div class="alert alert-success py-1 mb-0 small">'
+                        + '<i class="fas fa-check-circle me-1"></i> Detected: <code>'
+                        + dev.port + '</code> &mdash; ' + (dev.description || '') + ' ' + badge
+                        + (data.devices.length > 1 ? ' (' + (data.devices.length - 1) + ' other(s) found)' : '')
+                        + '</div>';
+                    resultDiv.style.display = '';
+                } else {
+                    resultDiv.innerHTML = '<div class="alert alert-warning py-1 mb-0 small">'
+                        + '<i class="fas fa-exclamation-triangle me-1"></i> No Zigbee coordinator detected. '
+                        + 'Check device connection.</div>';
+                    resultDiv.style.display = '';
+                }
+            })
+            .catch(function(err) {
+                resultDiv.innerHTML = '<div class="alert alert-danger py-1 mb-0 small">Detection failed: ' + err + '</div>';
+                resultDiv.style.display = '';
+            })
+            .finally(function() {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-search"></i> Detect';
+            });
+    });
+});
 </script>
 {% endblock %}

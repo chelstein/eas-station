@@ -249,6 +249,17 @@ def get_zigbee_diagnostics():
 
 
 
+@zigbee_bp.route('/api/zigbee/detect')
+@require_permission('system.configure')
+def detect_zigbee_coordinator():
+    """Auto-detect Zigbee coordinator USB devices."""
+    try:
+        result = call_hardware_service('/api/zigbee/detect', method='GET')
+        return jsonify(result), 200 if result.get('success') else 500
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 def register_zigbee_routes(app, logger):
     """Register Zigbee management routes with the Flask app."""
     app.register_blueprint(zigbee_bp)
