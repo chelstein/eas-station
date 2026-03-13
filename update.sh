@@ -989,6 +989,22 @@ if [ -d "$INSTALL_DIR/systemd" ]; then
     else
         echo_success "Hardware access groups configured (all groups already existed)"
     fi
+
+    # Apply Argon ONE V5 config.txt settings if the Argon daemon is installed but the
+    # USB hub overlay is missing (e.g. installed before this fix was added)
+    if (command -v argonone-cli &>/dev/null || systemctl list-unit-files argononed.service &>/dev/null 2>&1) \
+        && grep -q "Raspberry Pi 5" /proc/device-tree/model 2>/dev/null; then
+        CONFIG_TXT="/boot/firmware/config.txt"
+        if [ -f "$CONFIG_TXT" ] && ! grep -q "dtoverlay=dwc2,dr_mode=host" "$CONFIG_TXT"; then
+            echo_progress "Applying missing Argon ONE V5 USB hub overlays to $CONFIG_TXT..."
+            if grep -q "^\[all\]" "$CONFIG_TXT"; then
+                sed -i '/^\[all\]/a dtoverlay=dwc2,dr_mode=host\nusb_max_current_enable=1' "$CONFIG_TXT"
+            else
+                printf '\n[all]\ndtoverlay=dwc2,dr_mode=host\nusb_max_current_enable=1\n' >> "$CONFIG_TXT"
+            fi
+            echo_warning "Argon ONE V5 USB overlays added — reboot required for /dev/ttyUSB0 to appear"
+        fi
+    fi
 else
     echo_warning "Systemd directory not found - skipping service file update"
 fi
