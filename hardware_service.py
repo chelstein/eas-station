@@ -224,6 +224,78 @@ def initialize_oled_display():
         logger.info("Continuing without OLED support")
 
 
+# Known Zigbee coordinator USB device signatures (vid, pid, label)
+# Used for auto-detection via pyserial and /dev/serial/by-id
+_ZIGBEE_USB_SIGNATURES = [
+    (0x10c4, 0xea60, "Silicon Labs CP210x — Argon Industria V5 / SONOFF / SMLIGHT / CC2652P"),
+    (0x10c4, 0x8a2a, "Silicon Labs CP2105"),
+    (0x1cf1, 0x0030, "Dresden Elektronik ConBee II"),
+    (0x0451, 0x16a8, "Texas Instruments CC2531"),
+    (0x1a86, 0x7523, "CH340 USB-Serial"),
+    (0x0403, 0x6001, "FTDI FT232R"),
+    (0x0403, 0x6015, "FTDI FT231X"),
+]
+
+# Substrings in /dev/serial/by-id symlink names that suggest a Zigbee coordinator
+_ZIGBEE_BYID_KEYWORDS = [
+    "cp210", "silabs", "silicon_labs", "sonoff", "itead", "conbee",
+    "dresden", "argon", "smlight", "cc2531", "cc2652", "skyconnect",
+]
+
+
+def detect_zigbee_coordinator():
+    """Detect connected Zigbee coordinator USB devices.
+
+    Returns a list of dicts, each with keys:
+        port        - device path e.g. /dev/ttyUSB0
+        description - human-readable label
+        confidence  - 'high' (VID/PID match) or 'medium' (by-id name match)
+    Ordered by confidence (high first), then by port path.
+    """
+    detected = {}  # keyed by port path to avoid duplicates
+
+    # Method 1: pyserial list_ports — gives USB VID/PID, most reliable
+    try:
+        from serial.tools import list_ports
+        for info in list_ports.comports():
+            if info.vid is None:
+                continue
+            for vid, pid, label in _ZIGBEE_USB_SIGNATURES:
+                if info.vid == vid and info.pid == pid:
+                    detected[info.device] = {
+                        'port': info.device,
+                        'description': f"{label}",
+                        'vid': f"{vid:04x}",
+                        'pid': f"{pid:04x}",
+                        'confidence': 'high',
+                    }
+                    break
+    except Exception:
+        pass
+
+    # Method 2: /dev/serial/by-id symlinks — works without pyserial VID/PID support
+    try:
+        import glob as _glob
+        for symlink in _glob.glob('/dev/serial/by-id/*'):
+            real = os.path.realpath(symlink)
+            name_lower = os.path.basename(symlink).lower()
+            if any(kw in name_lower for kw in _ZIGBEE_BYID_KEYWORDS):
+                if real not in detected:
+                    detected[real] = {
+                        'port': real,
+                        'description': os.path.basename(symlink),
+                        'confidence': 'medium',
+                    }
+    except Exception:
+        pass
+
+    results = sorted(
+        detected.values(),
+        key=lambda x: (0 if x['confidence'] == 'high' else 1, x['port'])
+    )
+    return results
+
+
 def initialize_zigbee_coordinator():
     """Initialize Zigbee coordinator if enabled in hardware settings."""
     try:
@@ -239,32 +311,43 @@ def initialize_zigbee_coordinator():
         channel = zigbee_settings.get('channel', 15)
         pan_id = zigbee_settings.get('pan_id', '0x1A62')
 
-        # Verify the configured serial port is accessible
+        # Verify the configured serial port is accessible; auto-detect if missing
         if not os.path.exists(port):
             logger.warning(
-                f"Zigbee serial port {port} does not exist. "
-                "Connect a Zigbee coordinator and check hardware settings."
+                f"Zigbee serial port {port} does not exist — attempting auto-detection."
             )
-            # Still publish status so the web UI can show the port is missing
-            if _redis_client:
-                try:
-                    _redis_client.setex(
-                        "zigbee:coordinator",
-                        30,
-                        json.dumps({
-                            "enabled": True,
-                            "port": port,
-                            "baudrate": baudrate,
-                            "channel": channel,
-                            "pan_id": pan_id,
-                            "status": "port_not_found",
-                            "port_accessible": False,
-                            "timestamp": datetime.now(timezone.utc).isoformat(),
-                        })
-                    )
-                except Exception:
-                    pass
-            return
+            candidates = detect_zigbee_coordinator()
+            if candidates:
+                detected_port = candidates[0]['port']
+                detected_desc = candidates[0].get('description', '')
+                logger.info(
+                    f"Auto-detected Zigbee coordinator: {detected_port} ({detected_desc}). "
+                    "Update Hardware Settings to make this permanent."
+                )
+                port = detected_port
+            else:
+                logger.warning(
+                    "No Zigbee coordinator detected. Connect a coordinator and check hardware settings."
+                )
+                if _redis_client:
+                    try:
+                        _redis_client.setex(
+                            "zigbee:coordinator",
+                            30,
+                            json.dumps({
+                                "enabled": True,
+                                "port": zigbee_settings.get('port', '/dev/ttyAMA0'),
+                                "baudrate": baudrate,
+                                "channel": channel,
+                                "pan_id": pan_id,
+                                "status": "port_not_found",
+                                "port_accessible": False,
+                                "timestamp": datetime.now(timezone.utc).isoformat(),
+                            })
+                        )
+                    except Exception:
+                        pass
+                return
 
         # Verify the serial port can actually be opened (not just that the path exists)
         port_usable = False
@@ -1761,6 +1844,20 @@ def create_api_app():
 
         except Exception as e:
             logger.error(f"Error testing serial port: {e}")
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @api_app.route('/api/zigbee/detect', methods=['GET'])
+    def detect_zigbee_port():
+        """Auto-detect Zigbee coordinator USB devices by VID/PID and /dev/serial/by-id."""
+        try:
+            results = detect_zigbee_coordinator()
+            return jsonify({
+                'success': True,
+                'devices': results,
+                'count': len(results),
+            })
+        except Exception as e:
+            logger.error(f"Error detecting Zigbee coordinator: {e}")
             return jsonify({'success': False, 'error': str(e)}), 500
 
     # Hostname Configuration Endpoints
