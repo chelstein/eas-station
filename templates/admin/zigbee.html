@@ -7,6 +7,43 @@
 <style>
     /* Page-specific styles not covered by admin.css */
 
+    /* Pairing panel */
+    .pairing-panel {
+        border: 2px dashed var(--border-color);
+        border-radius: 0.5rem;
+        padding: 1.5rem;
+        text-align: center;
+        transition: border-color 0.3s;
+    }
+    .pairing-panel.active {
+        border-color: var(--warning-color);
+        background: rgba(255, 193, 7, 0.05);
+    }
+    .pairing-countdown {
+        font-size: 3rem;
+        font-weight: 700;
+        font-family: 'Courier New', monospace;
+        color: var(--warning-color);
+        line-height: 1;
+        margin: 0.5rem 0;
+    }
+    .pairing-pulse {
+        display: inline-block;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        background: var(--warning-color);
+        margin-right: 0.4rem;
+        animation: pulse 1s ease-in-out infinite;
+    }
+    @keyframes pulse {
+        0%, 100% { opacity: 1; transform: scale(1); }
+        50%       { opacity: 0.4; transform: scale(0.8); }
+    }
+    .duration-btns { display: flex; gap: 0.5rem; justify-content: center; flex-wrap: wrap; }
+    .duration-btn  { min-width: 60px; }
+    .duration-btn.active { background: var(--primary-color); color: #fff; border-color: var(--primary-color); }
+
     .spinner {
         display: inline-block;
         width: 1rem;
@@ -220,6 +257,36 @@
         </div>
     </div>
 
+    <!-- Pairing / Permit Join -->
+    <div class="admin-form-section" id="pairing-section" style="display: none;">
+        <h3><i class="fas fa-plus-circle"></i> Add Devices (Pairing Mode)</h3>
+        <div class="pairing-panel" id="pairing-panel">
+            <!-- idle state -->
+            <div id="pairing-idle">
+                <p class="text-muted mb-3">
+                    Put the coordinator into pairing mode, then power on or reset your Zigbee device.
+                </p>
+                <div class="duration-btns mb-3">
+                    <button class="btn btn-sm btn-outline-secondary duration-btn active" data-seconds="60">60 s</button>
+                    <button class="btn btn-sm btn-outline-secondary duration-btn" data-seconds="120">2 min</button>
+                    <button class="btn btn-sm btn-outline-secondary duration-btn" data-seconds="254">4 min</button>
+                </div>
+                <button class="btn btn-warning btn-lg" id="start-pairing-btn">
+                    <i class="fas fa-wifi"></i> Allow Joining
+                </button>
+            </div>
+            <!-- active state -->
+            <div id="pairing-active" style="display: none;">
+                <div><span class="pairing-pulse"></span> <strong>Pairing window open</strong></div>
+                <div class="pairing-countdown" id="pairing-countdown">--</div>
+                <div class="text-muted mb-3" style="font-size: 0.875rem;">seconds remaining — power on or reset your device now</div>
+                <button class="btn btn-sm btn-outline-danger" id="stop-pairing-btn">
+                    <i class="fas fa-times"></i> Close Window
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Diagnostics -->
     <div class="admin-form-section" id="diagnostics-section" style="display: none;">
         <h3><i class="fas fa-stethoscope"></i> Diagnostics</h3>
@@ -256,11 +323,30 @@ const ZigbeeMonitor = {
         }, 10000);
     },
 
+    selectedDuration: 60,
+    countdownTimer: null,
+
     attachEventListeners() {
         document.getElementById('refresh-btn').addEventListener('click', () => {
             this.loadZigbeeStatus();
             this.loadDevices();
             this.loadDiagnostics();
+        });
+
+        document.getElementById('start-pairing-btn').addEventListener('click', () => {
+            this.startPairing();
+        });
+
+        document.getElementById('stop-pairing-btn').addEventListener('click', () => {
+            this.stopPairing();
+        });
+
+        document.querySelectorAll('.duration-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.duration-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                this.selectedDuration = parseInt(btn.dataset.seconds);
+            });
         });
     },
 
@@ -271,6 +357,14 @@ const ZigbeeMonitor = {
 
             if (data.success) {
                 this.displayStatus(data);
+                // Show pairing panel only when coordinator is running
+                const pairingSection = document.getElementById('pairing-section');
+                if (data.enabled) {
+                    pairingSection.style.display = 'block';
+                    this.pollJoinStatus();
+                } else {
+                    pairingSection.style.display = 'none';
+                }
             }
         } catch (error) {
             console.error('Failed to load Zigbee status:', error);
@@ -500,9 +594,95 @@ const ZigbeeMonitor = {
         `;
     },
 
+    // ------------------------------------------------------------------ pairing
+
+    async startPairing() {
+        const btn = document.getElementById('start-pairing-btn');
+        btn.disabled = true;
+        try {
+            const resp = await fetch('/api/zigbee/permit_join', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ duration: this.selectedDuration }),
+            });
+            const data = await resp.json();
+            if (data.success) {
+                this.updatePairingUI(true, data.deadline);
+            } else {
+                alert('Could not open join window: ' + (data.error || 'unknown error'));
+                btn.disabled = false;
+            }
+        } catch (e) {
+            console.error('startPairing error:', e);
+            btn.disabled = false;
+        }
+    },
+
+    async stopPairing() {
+        try {
+            await fetch('/api/zigbee/permit_join', { method: 'DELETE' });
+        } catch (e) {
+            console.error('stopPairing error:', e);
+        }
+        this.updatePairingUI(false, null);
+    },
+
+    updatePairingUI(active, deadlineTimestamp) {
+        const panel  = document.getElementById('pairing-panel');
+        const idle   = document.getElementById('pairing-idle');
+        const activeEl = document.getElementById('pairing-active');
+        const startBtn = document.getElementById('start-pairing-btn');
+
+        if (this.countdownTimer) {
+            clearInterval(this.countdownTimer);
+            this.countdownTimer = null;
+        }
+
+        if (active && deadlineTimestamp) {
+            panel.classList.add('active');
+            idle.style.display    = 'none';
+            activeEl.style.display = 'block';
+            startBtn.disabled = false;
+
+            const tick = () => {
+                const remaining = Math.max(0, Math.round(deadlineTimestamp - Date.now() / 1000));
+                document.getElementById('pairing-countdown').textContent = remaining;
+                if (remaining <= 0) {
+                    clearInterval(this.countdownTimer);
+                    this.countdownTimer = null;
+                    this.updatePairingUI(false, null);
+                    this.loadDevices(); // refresh device list when window closes
+                }
+            };
+            tick();
+            this.countdownTimer = setInterval(tick, 1000);
+        } else {
+            panel.classList.remove('active');
+            idle.style.display     = 'block';
+            activeEl.style.display = 'none';
+            startBtn.disabled = false;
+        }
+    },
+
+    async pollJoinStatus() {
+        try {
+            const resp = await fetch('/api/zigbee/join_status');
+            if (!resp.ok) return;
+            const data = await resp.json();
+            if (data.success && data.permit_join_active && data.deadline) {
+                this.updatePairingUI(true, data.deadline);
+            }
+        } catch (e) { /* ignore */ }
+    },
+
+    // ------------------------------------------------------------------ destroy
+
     destroy() {
         if (this.refreshInterval) {
             clearInterval(this.refreshInterval);
+        }
+        if (this.countdownTimer) {
+            clearInterval(this.countdownTimer);
         }
     }
 };
