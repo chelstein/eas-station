@@ -266,7 +266,7 @@ const ZigbeeMonitor = {
 
     async loadZigbeeStatus() {
         try {
-            const response = await api.get('/api/zigbee/status');
+            const response = await fetch('/api/zigbee/status');
             const data = await response.json();
 
             if (data.success) {
@@ -390,7 +390,7 @@ const ZigbeeMonitor = {
 
     async loadDevices() {
         try {
-            const response = await api.get('/api/zigbee/devices');
+            const response = await fetch('/api/zigbee/devices');
             const data = await response.json();
 
             if (data.success) {
@@ -460,7 +460,7 @@ const ZigbeeMonitor = {
 
     async loadDiagnostics() {
         try {
-            const response = await api.get('/api/zigbee/diagnostics');
+            const response = await fetch('/api/zigbee/diagnostics');
             const data = await response.json();
 
             if (data.success && data.diagnostics) {
