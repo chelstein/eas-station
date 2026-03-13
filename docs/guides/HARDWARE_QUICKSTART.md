@@ -127,6 +127,60 @@ See [Waveshare Setup Guide](../hardware/WAVESHARE_RS232_WIFI_SETUP.md) for detai
 - **Lines**: Comma-separated text for each line
 - **Colors**: AMBER, RED, GREEN (depends on sign model)
 
+## Zigbee Coordinator Configuration
+
+### Enable Zigbee (Argon Industria V5 or USB Dongle)
+
+#### Argon Industria V5 (Raspberry Pi 5 only)
+
+Before configuring in EAS Station, make sure the module is detected at the OS level:
+
+1. Add to `/boot/firmware/config.txt` under `[all]`:
+   ```ini
+   dtoverlay=dwc2,dr_mode=host
+   usb_max_current_enable=1
+   ```
+2. Install the Argon utilities and reboot:
+   ```bash
+   curl https://download.argon40.com/argon1v5.sh | bash
+   sudo systemctl enable --now argononed.service
+   sudo reboot
+   ```
+3. Verify the device appears: `ls /dev/ttyUSB*` (should show `/dev/ttyUSB0`)
+
+> See [Argon40 Zigbee Setup Guide](../hardware/ARGON40_ZIGBEE_SETUP.md) for complete OS setup steps.
+
+#### Configure in EAS Station
+
+1. Navigate to **Admin → Hardware Settings → Zigbee** tab
+2. Check **Enable Zigbee Coordinator**
+3. Set **Port** to:
+   - `/dev/ttyUSB0` — Argon Industria V5, SONOFF dongle, most USB coordinators
+   - `/dev/ttyACM0` — ConBee II and some other USB coordinators
+   - `/dev/ttyAMA0` — GPIO-connected coordinators (rare)
+4. Set **Baud Rate** to `115200` (correct for CC2652P-based coordinators)
+5. Leave **Channel** at `15` (avoids 2.4 GHz Wi-Fi interference)
+6. Leave **PAN ID** at `0x1A62` (or pick any unique hex value)
+7. Click **Save Changes**
+8. Click **Restart Now** when prompted
+
+### Verify Zigbee is Working
+
+1. Check **Logs → Hardware Service** for:
+   - `✅ Zigbee coordinator configured on /dev/ttyUSB0 (channel 15, PAN ID 0x1A62)`
+2. Visit **Admin → Zigbee** to see coordinator status and paired devices
+
+### Troubleshoot Zigbee
+
+| Symptom | Fix |
+|---------|-----|
+| `/dev/ttyUSB0` missing | Add `dtoverlay=dwc2,dr_mode=host` to `config.txt` under `[all]` and reboot |
+| "port_open_failed" | Add `eas-station` user to `dialout` group: `sudo usermod -aG dialout eas-station` |
+| "Zigbee disabled" | Enable in Admin → Hardware Settings → Zigbee tab |
+| Wrong port | Check `ls /dev/ttyUSB* /dev/ttyACM*` to find the actual device |
+
+---
+
 ## Service Restart Options
 
 When you save changes, you'll see a **Restart Now** button. This restarts only the hardware service.
@@ -235,6 +289,9 @@ fetch('/api/environment/restart-services', {
 | VFD | Noritake GU140x32F-7000B | ✅ Supported |
 | LED | BetaBrite Protocol | ✅ Supported |
 | Network Serial | Waveshare RS232/485 WiFi | ✅ Supported |
+| Zigbee | Argon Industria V5 (CC2652P) | ✅ Supported |
+| Zigbee | SONOFF Zigbee 3.0 USB Dongle Plus | ✅ Supported |
+| Zigbee | SMLIGHT SLZB-06 | ✅ Supported |
 
 ### Requirements
 
@@ -291,6 +348,7 @@ After hardware is configured:
 
 ## Related Documentation
 
+- [Argon40 Zigbee Setup Guide](../hardware/ARGON40_ZIGBEE_SETUP.md)
 - [Waveshare WiFi Adapter Setup](../hardware/WAVESHARE_RS232_WIFI_SETUP.md)
 - [GPIO Pin Reference](../../app_utils/pi_pinout.py)
 - [Environment Variables Reference](../reference/ENVIRONMENT_VARIABLES.md)

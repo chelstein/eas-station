@@ -192,9 +192,9 @@ def update_hardware():
 def restart_hardware_services():
     """Restart hardware-related services to apply new settings."""
     try:
-        # Restart the target which will restart all services
+        # Restart only the hardware service (GPIO, OLED, Zigbee, displays)
         result = subprocess.run(
-            ['systemctl', 'restart', 'eas-station.target'],
+            ['sudo', 'systemctl', 'restart', 'eas-station-hardware.service'],
             capture_output=True,
             text=True,
             timeout=30,
