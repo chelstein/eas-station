@@ -412,33 +412,42 @@ alert.burst_timing_gaps_ms   # List[float]
 
 ---
 
-## Known Architectural Debt
+## Architectural Consolidation (2026-03)
 
-### Two Separate FSK Implementations
+### Single FSK/DLL Engine: `SAMEDemodulatorCore`
 
-The project currently maintains **two independent implementations** of the
-same core FSK/DLL demodulation algorithm:
+Both decoders now delegate all DSP to a **single shared implementation**:
+
+```
+app_utils/eas_demod.py  →  SAMEDemodulatorCore
+```
 
 | | File Decoder | Streaming Decoder |
 |---|---|---|
 | **File** | `app_utils/eas_decode.py` | `app_core/audio/streaming_same_decoder.py` |
 | **Entry point** | `decode_same_audio(path)` | `StreamingSAMEDecoder.process_samples(chunk)` |
-| **DLL loop** | `_correlate_and_decode_with_dll()` | `_process_dll_and_bits()` |
-| **Correlation** | `np.dot` per chunk | BLAS matmul via `sliding_window_view @ table` |
-| **Purpose** | Post-hoc file verification | Live monitoring |
+| **DLL engine** | `SAMEDemodulatorCore` | `SAMEDemodulatorCore` |
+| **Bandpass** | `SAMEDemodulatorCore` | `SAMEDemodulatorCore` (stateful `zi`) |
+| **ENDEC detection** | `SAMEDemodulatorCore` | `SAMEDemodulatorCore` |
 
-These serve genuinely different use-cases (batch vs. streaming), and a fully
-streaming architecture needs stateful filter/DLL objects that persist between
-calls.  However, the **shared logic** (bandpass filter, DLL constants,
-ENDEC detection) is already being consolidated:
+### What `eas_demod.py` Provides
 
-- ENDEC mode constants and detection functions live in `eas_decode.py` and are
-  **imported** by `streaming_same_decoder.py` — no duplication there.
-- The DLL algorithm and correlation logic remain duplicated.
+```python
+from app_utils.eas_demod import SAMEDemodulatorCore
 
-**Planned improvement**: Extract a shared `SAMEDemodulatorCore` base class
-(or module) containing the DLL state machine and correlation table generation,
-then have both decoders compose from it rather than re-implement it.
+# Both decoders use the same core:
+core = SAMEDemodulatorCore(sample_rate, message_callback=cb, apply_bandpass=True)
+core.process_samples(audio_chunk)   # stateful, call repeatedly for streaming
+```
+
+- `ENDEC_MODE_*` constants
+- `apply_bandpass_filter()` — stateless helper for one-shot filtering
+- `compute_burst_timing_gaps_ms()` — inter-burst gap computation
+- `detect_endec_mode()` — ENDEC hardware fingerprinting
+- `SAMEDemodulatorCore` — stateful BLAS-accelerated FSK/DLL demodulator
+
+There is **no longer any duplication** between the file decoder and the
+streaming decoder.
 
 ---
 

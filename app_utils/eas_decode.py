@@ -38,22 +38,21 @@ import numpy as np
 from .eas import ORIGINATOR_DESCRIPTIONS, decode_county_originator, describe_same_header
 from .eas_fsk import SAME_BAUD, SAME_MARK_FREQ, SAME_SPACE_FREQ, encode_same_bits
 from .fips_codes import get_same_lookup
+from .eas_demod import (
+    SAMEDemodulatorCore,
+    apply_bandpass_filter as _apply_bandpass_filter,
+    compute_burst_timing_gaps_ms as _compute_burst_timing_gaps_ms,
+    detect_endec_mode as _detect_endec_mode,
+    ENDEC_MODE_UNKNOWN,
+    ENDEC_MODE_DEFAULT,
+    ENDEC_MODE_NWS,
+    ENDEC_MODE_NWS_CRS,
+    ENDEC_MODE_NWS_BMH,
+    ENDEC_MODE_SAGE_3644,
+    ENDEC_MODE_SAGE_1822,
+    ENDEC_MODE_TRILITHIC,
+)
 from app_utils.event_codes import EVENT_CODE_REGISTRY
-
-
-# ENDEC hardware type identifiers (mirrors EAS-Tools common-functions.js profiles)
-ENDEC_MODE_UNKNOWN = "UNKNOWN"
-ENDEC_MODE_DEFAULT = "DEFAULT"          # DASDEC / generic
-ENDEC_MODE_NWS = "NWS"                  # NWS Legacy / EAS.js
-ENDEC_MODE_NWS_CRS = "NWS_CRS"         # NWS Console Replacement System 1998-2016
-ENDEC_MODE_NWS_BMH = "NWS_BMH"         # NWS Broadcast Message Handler 2016+
-ENDEC_MODE_SAGE_3644 = "SAGE_DIGITAL_3644"
-ENDEC_MODE_SAGE_1822 = "SAGE_ANALOG_1822"
-ENDEC_MODE_TRILITHIC = "TRILITHIC"      # Trilithic EASyPLUS (~868 ms inter-burst gap)
-
-# Inter-burst gap windows (ms) for mode fingerprinting
-_ENDEC_GAP_TRILITHIC = (820, 920)   # 868 ms nominal
-_ENDEC_GAP_STANDARD = (900, 1100)   # 1000 ms nominal (DASDEC, SAGE, NWS)
 
 
 class AudioDecodeError(RuntimeError):
@@ -466,259 +465,18 @@ def _goertzel(samples: Iterable[float], sample_rate: int, target_freq: float) ->
     return power if power > 0.0 else 0.0
 
 
-def _apply_bandpass_filter(samples: List[float], sample_rate: int) -> List[float]:
-    """Apply a 4th-order Butterworth bandpass filter isolating the SAME FSK signal.
-
-    Centered at 1822.9 Hz (midpoint of mark 2083.3 Hz and space 1562.5 Hz), Q≈3.
-    This rejects out-of-band noise before demodulation, matching the approach used
-    by EAS-Tools decoder-bundle.js (SoftwareBandpass at 1822.9 Hz, Q=3).
-    Falls back silently if scipy is unavailable.
-    """
-    try:
-        from scipy.signal import butter, sosfilt
-        # Pass-band: slightly wider than the FSK deviation to capture both tones
-        low_hz = 1200.0
-        high_hz = 2500.0
-        nyquist = sample_rate / 2.0
-        if high_hz >= nyquist:
-            high_hz = nyquist * 0.95
-        if low_hz >= high_hz:
-            return samples
-        sos = butter(4, [low_hz / nyquist, high_hz / nyquist], btype="bandpass", output="sos")
-        filtered = sosfilt(sos, np.asarray(samples, dtype=np.float64))
-        return filtered.tolist()
-    except Exception:
-        return samples
-
-
-def _generate_correlation_tables(
-    sample_rate: int, corr_len: int
-) -> Tuple["np.ndarray", "np.ndarray", "np.ndarray", "np.ndarray"]:
-    """Generate I/Q correlation tables for mark and space frequencies.
-
-    Returns numpy arrays for fast dot-product demodulation.
-    """
-    t = np.arange(corr_len, dtype=np.float64)
-    mark_phase = 2.0 * np.pi * SAME_MARK_FREQ / sample_rate * t
-    space_phase = 2.0 * np.pi * SAME_SPACE_FREQ / sample_rate * t
-    mark_i = np.cos(mark_phase).astype(np.float32)
-    mark_q = np.sin(mark_phase).astype(np.float32)
-    space_i = np.cos(space_phase).astype(np.float32)
-    space_q = np.sin(space_phase).astype(np.float32)
-    return mark_i, mark_q, space_i, space_q
-
-
 def _correlate_and_decode_with_dll(
     samples: List[float], sample_rate: int
 ) -> Tuple[List[str], float, List[Tuple[int, int]]]:
+    """Decode SAME messages using SAMEDemodulatorCore (shared FSK/DLL engine).
+
+    Returns (decoded_messages, average_confidence, burst_sample_ranges).
+    Bandpass filtering is handled by the caller before this function is called,
+    so the core is instantiated with apply_bandpass=False.
     """
-    Decode SAME messages using correlation and DLL timing recovery (multimon-ng algorithm).
-
-    Returns tuple of (decoded_messages, confidence, burst_sample_ranges) where
-    burst_sample_ranges is a list of (start_sample, end_sample) per detected burst.
-    The correlation inner loop is vectorized via numpy dot products (~10-50x faster
-    than the pure-Python generator-expression form).
-    """
-
-    # Constants based on multimon-ng with improvements
-    SUBSAMP = 2  # Downsampling factor
-    PREAMBLE_BYTE = 0xAB  # Preamble pattern
-    DLL_GAIN = 0.4  # Reduced from 0.5 for more stable timing recovery
-    INTEGRATOR_MAX = 12  # Increased from 10 for better noise immunity
-    MAX_MSG_LEN = 268  # Maximum message length
-
-    baud_rate = float(SAME_BAUD)
-    corr_len = int(sample_rate / baud_rate)  # Samples per bit period
-
-    # Generate correlation tables (numpy arrays for fast dot products)
-    mark_i, mark_q, space_i, space_q = _generate_correlation_tables(sample_rate, corr_len)
-
-    # Convert samples to numpy array once — avoids repeated list indexing overhead
-    samples_arr = np.asarray(samples, dtype=np.float32)
-
-    # State variables
-    dcd_shreg = 0  # Shift register for bit history
-    dcd_integrator = 0  # Integrator for noise immunity
-    sphase = 1  # Sampling phase (16-bit fixed point)
-    lasts = 0  # Last 8 bits received
-    byte_counter = 0  # Bits received in current byte
-    synced = False  # Whether we've found preamble
-
-    # Message storage
-    messages: List[str] = []
-    current_msg = []
-    in_message = False
-
-    # Burst timing tracking: record sample position when each burst starts/ends
-    burst_sample_ranges: List[Tuple[int, int]] = []
-    current_burst_start: Optional[int] = None
-
-    # Phase increment per sample
-    sphaseinc = int(0x10000 * baud_rate * SUBSAMP / sample_rate)
-
-    # Process samples with subsampling
-    idx = 0
-    bit_confidences: List[float] = []
-    n_samples = len(samples_arr)
-
-    while idx + corr_len < n_samples:
-        # Vectorized correlation: 4 dot products replace 4 generator-expression sums
-        window = samples_arr[idx : idx + corr_len]
-        mark_i_corr = float(np.dot(window, mark_i))
-        mark_q_corr = float(np.dot(window, mark_q))
-        space_i_corr = float(np.dot(window, space_i))
-        space_q_corr = float(np.dot(window, space_q))
-
-        mark_power = mark_i_corr**2 + mark_q_corr**2
-        space_power = space_i_corr**2 + space_q_corr**2
-        correlation = mark_power - space_power
-        total_power = mark_power + space_power
-
-        # Update DCD shift register
-        dcd_shreg = (dcd_shreg << 1) & 0xFFFFFFFF
-        if correlation > 0:
-            dcd_shreg |= 1
-
-        # Update integrator
-        if correlation > 0 and dcd_integrator < INTEGRATOR_MAX:
-            dcd_integrator += 1
-        elif correlation < 0 and dcd_integrator > -INTEGRATOR_MAX:
-            dcd_integrator -= 1
-
-        # DLL: Check for bit transitions and adjust timing
-        if (dcd_shreg ^ (dcd_shreg >> 1)) & 1:
-            if sphase < 0x8000:
-                if sphase > sphaseinc // 2:
-                    adjustment = min(int(sphase * DLL_GAIN), 8192)
-                    sphase -= adjustment
-            else:
-                if sphase < 0x10000 - sphaseinc // 2:
-                    adjustment = min(int((0x10000 - sphase) * DLL_GAIN), 8192)
-                    sphase += adjustment
-
-        # Advance sampling phase
-        sphase += sphaseinc
-
-        # End of bit period?
-        if sphase >= 0x10000:
-            sphase = 1
-            lasts = (lasts >> 1) & 0x7F
-
-            # Make bit decision based on integrator
-            if dcd_integrator >= 0:
-                lasts |= 0x80
-
-            curbit = (lasts >> 7) & 1
-
-            # Estimate confidence for this bit using correlation energy
-            if synced or in_message:
-                if total_power > 0:
-                    bit_confidence = min(abs(correlation) / total_power, 1.0)
-                else:
-                    bit_confidence = 0.0
-                bit_confidences.append(bit_confidence)
-
-            # Check for preamble sync
-            if (lasts & 0xFF) == PREAMBLE_BYTE and not in_message:
-                synced = True
-                byte_counter = 0
-            elif synced:
-                byte_counter += 1
-                if byte_counter == 8:
-                    # Got a complete byte
-                    byte_val = lasts & 0xFF
-
-                    # Check if it's a valid ASCII character
-                    if 32 <= byte_val <= 126 or byte_val in (10, 13):
-                        char = chr(byte_val)
-
-                        if not in_message and char == 'Z':
-                            # Possible start of ZCZC — record burst start sample
-                            in_message = True
-                            current_burst_start = idx
-                            current_msg = [char]
-                        elif in_message:
-                            current_msg.append(char)
-
-                            # Check for end of message
-                            msg_text = ''.join(current_msg)
-                            if char == '\r' or char == '\n':
-                                # Carriage return or line feed terminates message
-                                if 'ZCZC' in msg_text or 'NNNN' in msg_text:
-                                    # Clean up the message - include trailing dash
-                                    if '-' in msg_text:
-                                        msg_text = msg_text[:msg_text.rfind('-')+1]
-                                    messages.append(msg_text.strip())
-                                if current_burst_start is not None:
-                                    burst_sample_ranges.append((current_burst_start, idx))
-                                    current_burst_start = None
-                                current_msg = []
-                                in_message = False
-                                synced = False
-                            elif char == '-' and len(current_msg) > 40:
-                                # Complete SAME message format: ZCZC-ORG-EEE-PSSCCC+TTTT-JJJHHMM-LLLLLLLL-
-                                # Counting dashes: ZCZC-ORG-EEE-PSSCCC+TTTT-JJJHHMM-LLLLLLLL-
-                                #                      1   2   3+location dashes  N   N+1     N+2 (final)
-                                # With 3 location codes: 1+1+1+3+1+1+1 = 9 dashes total
-                                # The 8th dash comes after station ID, which is what we want
-                                dash_count = msg_text.count('-')
-                                location_count = 0
-                                has_time_section = '+' in msg_text
-                                if has_time_section:
-                                    pre_expiration, _ = msg_text.split('+', 1)
-                                    location_segments = pre_expiration.split('-')[3:]
-                                    for segment in location_segments:
-                                        cleaned = segment.strip()
-                                        if len(cleaned) == 6 and cleaned.isdigit():
-                                            location_count += 1
-
-                                    if location_count <= 0:
-                                        min_dashes = 6
-                                    else:
-                                        min_dashes = 6 + max(location_count - 1, 0)
-
-                                    # Only terminate if we have the time section and enough dashes
-                                    if dash_count >= min_dashes:
-                                        if 'ZCZC' in msg_text or 'NNNN' in msg_text:
-                                            messages.append(msg_text.strip())
-                                        if current_burst_start is not None:
-                                            burst_sample_ranges.append((current_burst_start, idx))
-                                            current_burst_start = None
-                                        current_msg = []
-                                        in_message = False
-                                        synced = False
-                            elif len(current_msg) > MAX_MSG_LEN:
-                                # Safety: prevent runaway messages
-                                if 'ZCZC' in msg_text or 'NNNN' in msg_text:
-                                    messages.append(msg_text.strip())
-                                if current_burst_start is not None:
-                                    burst_sample_ranges.append((current_burst_start, idx))
-                                    current_burst_start = None
-                                current_msg = []
-                                in_message = False
-                                synced = False
-                    else:
-                        # Invalid character, lost sync
-                        synced = False
-                        if in_message and current_burst_start is not None:
-                            burst_sample_ranges.append((current_burst_start, idx))
-                            current_burst_start = None
-                        in_message = False
-                        if current_msg:
-                            current_msg = []
-
-                    byte_counter = 0
-
-        # Advance by SUBSAMP samples
-        idx += SUBSAMP
-
-    # Calculate average confidence
-    if bit_confidences:
-        avg_confidence = sum(bit_confidences) / len(bit_confidences)
-    else:
-        avg_confidence = 0.0
-
-    return messages, avg_confidence, burst_sample_ranges
+    core = SAMEDemodulatorCore(sample_rate, apply_bandpass=False)
+    core.process_samples(np.asarray(samples, dtype=np.float32))
+    return core.messages, core.average_confidence, core.burst_sample_ranges
 
 
 def _extract_bits(
@@ -1175,59 +933,6 @@ def _bits_to_text(bits: List[int]) -> Dict[str, object]:
     )
     metadata["char_bit_positions"] = list(char_positions)
     return metadata
-
-
-def _compute_burst_timing_gaps_ms(
-    burst_sample_ranges: List[Tuple[int, int]], sample_rate: int
-) -> List[float]:
-    """Compute inter-burst gap durations in milliseconds.
-
-    The gap is measured from the END of burst N to the START of burst N+1,
-    which is what ENDEC hardware profiles describe (e.g. 1000 ms for DASDEC,
-    868 ms for Trilithic EASyPLUS).
-    """
-    gaps: List[float] = []
-    for i in range(1, len(burst_sample_ranges)):
-        gap_samples = burst_sample_ranges[i][0] - burst_sample_ranges[i - 1][1]
-        if gap_samples >= 0:
-            gaps.append(gap_samples / float(sample_rate) * 1000.0)
-    return gaps
-
-
-def _detect_endec_mode(
-    messages: List[str],
-    burst_timing_gaps_ms: List[float],
-) -> str:
-    """Fingerprint the originating ENDEC hardware from transmission characteristics.
-
-    Detection uses two signals (in priority order):
-    1. Inter-burst gap timing — most distinctive difference between models.
-    2. Preamble run length — NWS systems sometimes use 17+ 0xAB bytes vs 16.
-
-    Returns one of the ENDEC_MODE_* constants.
-    """
-    if not messages:
-        return ENDEC_MODE_UNKNOWN
-
-    # --- Method 1: inter-burst gap timing ---
-    if burst_timing_gaps_ms:
-        avg_gap = sum(burst_timing_gaps_ms) / len(burst_timing_gaps_ms)
-        lo, hi = _ENDEC_GAP_TRILITHIC
-        if lo <= avg_gap <= hi:
-            return ENDEC_MODE_TRILITHIC
-        lo, hi = _ENDEC_GAP_STANDARD
-        if lo <= avg_gap <= hi:
-            # Further distinguish NWS variants vs DASDEC/SAGE by message count.
-            # NWS systems typically produce exactly 3 ZCZC bursts with clean timing.
-            # Without preamble byte counts we can't distinguish sub-variants here,
-            # so report the generic DEFAULT mode.
-            return ENDEC_MODE_DEFAULT
-
-    # --- Method 2: message content heuristics ---
-    # Trilithic EASyPLUS omits the trailing CR on EOM; SAGE ANALOG uses 0xFF-padded
-    # terminators.  These are difficult to detect from the decoded ASCII alone,
-    # so we fall through to UNKNOWN when timing is unavailable.
-    return ENDEC_MODE_UNKNOWN
 
 
 def _score_candidate(metadata: Dict[str, object]) -> float:
