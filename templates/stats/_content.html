@@ -130,6 +130,42 @@
         </div>
     </div>
 
+    <!-- EAS Activity Cards -->
+    <div class="row mt-2">
+        <div class="col-lg-3 col-md-6 col-sm-6">
+            <div class="stat-card yellow">
+                <i class="fas fa-satellite-dish stat-icon"></i>
+                <div class="stat-number">{{ received_eas_stats.total or 0 }}</div>
+                <div class="stat-label">EAS Received</div>
+                <div class="stat-subtitle">From audio monitoring</div>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6 col-sm-6">
+            <div class="stat-card green">
+                <i class="fas fa-broadcast-tower stat-icon"></i>
+                <div class="stat-number">{{ eas_forwarding_stats.forwarded or 0 }}</div>
+                <div class="stat-label">EAS Forwarded</div>
+                <div class="stat-subtitle">{{ eas_forwarding_stats.rate or 0 }}% of total alerts</div>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6 col-sm-6">
+            <div class="stat-card orange">
+                <i class="fas fa-hand-paper stat-icon"></i>
+                <div class="stat-number">{{ manual_activation_count or 0 }}</div>
+                <div class="stat-label">Manual Activations</div>
+                <div class="stat-subtitle">Manually triggered</div>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6 col-sm-6">
+            <div class="stat-card blue">
+                <i class="fas fa-forward stat-icon"></i>
+                <div class="stat-number">{{ received_eas_stats.forwarded or 0 }}</div>
+                <div class="stat-label">Audio Forwarded</div>
+                <div class="stat-subtitle">{{ received_eas_stats.ignored or 0 }} ignored</div>
+            </div>
+        </div>
+    </div>
+
     <!-- System Start Date Setting -->
     <div class="settings-panel">
         <h4><i class="fas fa-cog"></i> System Start Date</h4>
@@ -244,6 +280,34 @@
             </div>
         </div>
     </div>
+
+    <!-- Urgency & Certainty -->
+    {% if alert_by_urgency or alert_by_certainty %}
+    <div class="chart-grid">
+        <div class="chart-container">
+            <div class="chart-title">
+                <i class="fas fa-exclamation-circle"></i> By Urgency
+            </div>
+            <div id="urgencyChart">
+                <div class="loading-message">
+                    <div class="spinner"></div>
+                    <div>Loading...</div>
+                </div>
+            </div>
+        </div>
+        <div class="chart-container">
+            <div class="chart-title">
+                <i class="fas fa-check-double"></i> By Certainty
+            </div>
+            <div id="certaintyChart">
+                <div class="loading-message">
+                    <div class="spinner"></div>
+                    <div>Loading...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
 
     <!-- Recent Activity -->
     {% if recent_by_day and recent_by_day|length > 0 %}

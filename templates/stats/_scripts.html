@@ -177,7 +177,9 @@ const statsData = {
     filterOptions: {{ filter_options | tojson | safe }} || { severities: [], statuses: [], events: [] },
     dailyAlerts: {{ daily_alerts | tojson | safe }} || [],
     dowHourMatrix: {{ dow_hour_matrix | tojson | safe }} || Array.from({ length: 7 }, () => Array(24).fill(0)),
-    lifecycleTimeline: {{ lifecycle_timeline | tojson | safe }} || []
+    lifecycleTimeline: {{ lifecycle_timeline | tojson | safe }} || [],
+    alertByUrgency: {{ alert_by_urgency | tojson | safe }} || [],
+    alertByCertainty: {{ alert_by_certainty | tojson | safe }} || []
 };
 
 const baseAlerts = (statsData.alertEvents || []).map(alert => ({
@@ -1105,7 +1107,7 @@ function createDurationChart() {
                 labels: statsData.avgDurations.map(i => i.event),
                 datasets: [{
                     label: 'Avg Hours',
-                    data: statsData.avgDurations.map(i => Math.round(i.avg_hours * 10) / 10),
+                    data: statsData.avgDurations.map(i => Math.round((i.average || i.avg_hours || 0) * 10) / 10),
                     backgroundColor: createGradient(ctx, GRADIENT_PALETTES.orange),
                     borderRadius: 6,
                     borderSkipped: false
@@ -1116,6 +1118,109 @@ function createDurationChart() {
                 scales: {
                     y: { beginAtZero: true, title: { display: true, text: 'Hours' }, grid: { color: getChartThemeColors().gridLines } },
                     x: { grid: { display: false } }
+                }
+            }
+        });
+    });
+}
+
+function createUrgencyChart() {
+    const id = 'urgencyChart';
+    const container = document.getElementById(id);
+    if (!container) return;
+    const data = statsData.alertByUrgency || [];
+    if (!data.length) return showNoData(id, 'No urgency data');
+
+    const urgencyGradients = {
+        'Immediate': GRADIENT_PALETTES.danger,
+        'Expected': GRADIENT_PALETTES.warning,
+        'Future': GRADIENT_PALETTES.info,
+        'Past': [getCSSVar('--text-muted', '#94a3b8'), getCSSVar('--border-color', '#64748b')],
+        'Unknown': [getCSSVar('--text-muted', '#94a3b8'), getCSSVar('--border-color', '#64748b')]
+    };
+
+    createOrUpdateChart(id, canvas => {
+        const ctx = canvas.getContext('2d');
+        return new Chart(canvas, {
+            type: 'bar',
+            data: {
+                labels: data.map(i => i.urgency),
+                datasets: [{
+                    label: 'Alerts',
+                    data: data.map(i => i.count),
+                    backgroundColor: data.map(i => {
+                        const colors = urgencyGradients[i.urgency] || urgencyGradients.Unknown;
+                        return createGradient(ctx, colors);
+                    }),
+                    borderRadius: 8,
+                    borderSkipped: false
+                }]
+            },
+            options: {
+                plugins: {
+                    legend: { display: false },
+                    datalabels: {
+                        display: true,
+                        anchor: 'end',
+                        align: 'top',
+                        color: getChartThemeColors().text,
+                        font: { weight: 'bold', size: 11 },
+                        formatter: val => val
+                    }
+                },
+                scales: {
+                    y: { beginAtZero: true, grid: { color: getChartThemeColors().gridLines } },
+                    x: { grid: { display: false } }
+                }
+            }
+        });
+    });
+}
+
+function createCertaintyChart() {
+    const id = 'certaintyChart';
+    const container = document.getElementById(id);
+    if (!container) return;
+    const data = statsData.alertByCertainty || [];
+    if (!data.length) return showNoData(id, 'No certainty data');
+
+    const certaintyGradients = {
+        'Observed': GRADIENT_PALETTES.danger,
+        'Likely': GRADIENT_PALETTES.warning,
+        'Possible': GRADIENT_PALETTES.info,
+        'Unlikely': GRADIENT_PALETTES.success,
+        'Unknown': [getCSSVar('--text-muted', '#94a3b8'), getCSSVar('--border-color', '#64748b')]
+    };
+
+    createOrUpdateChart(id, canvas => {
+        const ctx = canvas.getContext('2d');
+        return new Chart(canvas, {
+            type: 'doughnut',
+            data: {
+                labels: data.map(i => i.certainty),
+                datasets: [{
+                    data: data.map(i => i.count),
+                    backgroundColor: data.map(i => {
+                        const colors = certaintyGradients[i.certainty] || certaintyGradients.Unknown;
+                        return createRadialGradient(ctx, colors);
+                    }),
+                    borderWidth: 0,
+                    hoverOffset: 8
+                }]
+            },
+            options: {
+                cutout: '55%',
+                plugins: {
+                    legend: { position: 'right', labels: { padding: 12, usePointStyle: true } },
+                    datalabels: {
+                        display: true,
+                        color: getCSSVar('--surface-color', '#ffffff'),
+                        font: { weight: 'bold', size: 11 },
+                        formatter: (val, ctx) => {
+                            const total = ctx.dataset.data.reduce((a, b) => a + b, 0);
+                            return total > 0 ? `${((val / total) * 100).toFixed(0)}%` : '';
+                        }
+                    }
                 }
             }
         });
@@ -1143,6 +1248,8 @@ function renderStaticCharts() {
     createBoundaryTypesChart();
     createReliabilityGauge();
     createDurationChart();
+    createUrgencyChart();
+    createCertaintyChart();
 }
 
 function updateDashboard() {

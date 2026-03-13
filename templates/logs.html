@@ -97,6 +97,12 @@
                         </a>
                     </li>
                     <li class="nav-item" role="presentation">
+                        <a class="nav-link {% if log_type == 'received_alerts' %}active{% endif %}"
+                           href="?type=received_alerts&limit={{ limit }}">
+                            <i class="fas fa-satellite-dish"></i> Received EAS
+                        </a>
+                    </li>
+                    <li class="nav-item" role="presentation">
                         <a class="nav-link {% if log_type == 'decoded_audio' %}active{% endif %}"
                            href="?type=decoded_audio&limit={{ limit }}">
                             <i class="fas fa-microphone"></i> Decoded Audio
@@ -247,6 +253,8 @@
                         <strong><i class="fas fa-info-circle"></i> GPIO Logs:</strong> Relay activation audit trail showing pin activations, operators, and durations.
                     {% elif log_type == 'eas_messages' %}
                         <strong><i class="fas fa-info-circle"></i> EAS Messages:</strong> Generated EAS messages including SAME headers, audio files, and TTS information.
+                    {% elif log_type == 'received_alerts' %}
+                        <strong><i class="fas fa-info-circle"></i> Received EAS Alerts:</strong> EAS alerts received from audio monitoring sources showing event codes, forwarding decisions, and SAME header details.
                     {% elif log_type == 'decoded_audio' %}
                         <strong><i class="fas fa-info-circle"></i> Decoded EAS Audio:</strong> Decoded audio from incoming EAS signals with SAME headers and quality metrics.
                     {% elif log_type == 'manual_activations' %}
@@ -448,6 +456,8 @@
                             Logs will appear when GPIO pins are activated (manual or automatic).
                             {% elif log_type == 'eas_messages' %}
                             Logs will appear when EAS messages are generated for broadcast.
+                            {% elif log_type == 'received_alerts' %}
+                            Logs will appear when EAS alerts are received and decoded from audio monitoring sources (radio receivers).
                             {% elif log_type == 'decoded_audio' %}
                             Logs will appear when EAS audio signals are decoded from radio receivers.
                             {% elif log_type == 'manual_activations' %}
