@@ -48,6 +48,7 @@ from app_core.models import (
     ManualEASActivation,
     PollDebugRecord,
     PollHistory,
+    ReceivedEASAlert,
     SystemLog,
 )
 from app_core.system_health import get_system_health
@@ -411,6 +412,69 @@ def register(app: Flask, logger) -> None:
                 stats_data["duration_stats"] = []
 
             try:
+                alert_by_urgency = (
+                    db.session.query(
+                        CAPAlert.urgency, func.count(CAPAlert.id).label("count")
+                    )
+                    .filter(CAPAlert.urgency.isnot(None))
+                    .group_by(CAPAlert.urgency)
+                    .all()
+                )
+                stats_data["alert_by_urgency"] = [
+                    {"urgency": urgency, "count": count}
+                    for urgency, count in alert_by_urgency
+                ]
+
+                alert_by_certainty = (
+                    db.session.query(
+                        CAPAlert.certainty, func.count(CAPAlert.id).label("count")
+                    )
+                    .filter(CAPAlert.certainty.isnot(None))
+                    .group_by(CAPAlert.certainty)
+                    .all()
+                )
+                stats_data["alert_by_certainty"] = [
+                    {"certainty": certainty, "count": count}
+                    for certainty, count in alert_by_certainty
+                ]
+            except Exception as exc:
+                db.session.rollback()
+                route_logger.error("Error getting urgency/certainty stats: %s", exc)
+                stats_data["alert_by_urgency"] = []
+                stats_data["alert_by_certainty"] = []
+
+            try:
+                eas_forwarded_count = CAPAlert.query.filter_by(eas_forwarded=True).count()
+                total_for_eas = stats_data.get("total_alerts") or 0
+                stats_data["eas_forwarding_stats"] = {
+                    "forwarded": eas_forwarded_count,
+                    "total": total_for_eas,
+                    "rate": round(eas_forwarded_count / total_for_eas * 100, 1) if total_for_eas > 0 else 0,
+                }
+            except Exception as exc:
+                db.session.rollback()
+                route_logger.error("Error getting EAS forwarding stats: %s", exc)
+                stats_data["eas_forwarding_stats"] = {"forwarded": 0, "total": 0, "rate": 0}
+
+            try:
+                stats_data["manual_activation_count"] = ManualEASActivation.query.count()
+            except Exception as exc:
+                db.session.rollback()
+                route_logger.error("Error getting manual activation count: %s", exc)
+                stats_data["manual_activation_count"] = 0
+
+            try:
+                stats_data["received_eas_stats"] = {
+                    "total": ReceivedEASAlert.query.count(),
+                    "forwarded": ReceivedEASAlert.query.filter_by(forwarding_decision="forwarded").count(),
+                    "ignored": ReceivedEASAlert.query.filter_by(forwarding_decision="ignored").count(),
+                }
+            except Exception as exc:
+                db.session.rollback()
+                route_logger.error("Error getting received EAS stats: %s", exc)
+                stats_data["received_eas_stats"] = {"total": 0, "forwarded": 0, "ignored": 0}
+
+            try:
                 recent_alerts = (
                     db.session.query(
                         CAPAlert.id,
@@ -610,6 +674,11 @@ def register(app: Flask, logger) -> None:
                 {"severities": [], "statuses": [], "events": []},
             )
             stats_data.setdefault("polling", {})
+            stats_data.setdefault("alert_by_urgency", [])
+            stats_data.setdefault("alert_by_certainty", [])
+            stats_data.setdefault("eas_forwarding_stats", {"forwarded": 0, "total": 0, "rate": 0})
+            stats_data.setdefault("manual_activation_count", 0)
+            stats_data.setdefault("received_eas_stats", {"total": 0, "forwarded": 0, "ignored": 0})
 
             return render_template("stats.html", **stats_data)
         except Exception as exc:  # pragma: no cover - fallback content
@@ -1337,6 +1406,30 @@ def register(app: Flask, logger) -> None:
             except Exception as e:
                 route_logger.warning("Failed to load manual activations: %s", e)
 
+            # Received EAS Alerts (from audio monitoring)
+            try:
+                for log in ReceivedEASAlert.query.order_by(ReceivedEASAlert.received_at.desc()).limit(logs_per_category).all():
+                    all_logs.append({
+                        'timestamp': log.received_at,
+                        'level': 'INFO' if log.forwarding_decision == 'forwarded'
+                                 else 'WARNING' if log.forwarding_decision == 'ignored'
+                                 else 'ERROR',
+                        'module': f'Audio Monitor: {log.source_name}',
+                        'message': (
+                            f"Event: {log.event_code} ({log.event_name or 'Unknown'}) | "
+                            f"Decision: {log.forwarding_decision} | "
+                            f"Source: {log.callsign or log.source_name}"
+                        ),
+                        'details': {
+                            'event_code': log.event_code,
+                            'forwarding_decision': log.forwarding_decision,
+                            'forwarding_reason': log.forwarding_reason,
+                        },
+                        'category': 'Received EAS'
+                    })
+            except Exception as e:
+                route_logger.warning("Failed to load received EAS alerts: %s", e)
+
             # Service Logs (systemd) - fetch recent logs without date restriction
             try:
                 services = get_all_log_services()
@@ -1732,6 +1825,45 @@ def register(app: Flask, logger) -> None:
                         'duration_minutes': log.duration_minutes,
                         'storage_path': log.storage_path,
                         'archived_at': log.archived_at.isoformat() if log.archived_at else None,
+                    },
+                }
+                for log in logs_result
+            ]
+
+        elif log_type == 'received_alerts':
+            log_type_name = "Received EAS Alerts"
+            logs_result = (
+                ReceivedEASAlert.query
+                .order_by(ReceivedEASAlert.received_at.desc())
+                .limit(limit)
+                .all()
+            )
+            logs_data = [
+                {
+                    'timestamp': log.received_at,
+                    'level': 'INFO' if log.forwarding_decision == 'forwarded'
+                             else 'WARNING' if log.forwarding_decision == 'ignored'
+                             else 'ERROR',
+                    'module': f'Audio Monitor: {log.source_name}',
+                    'message': (
+                        f"Event: {log.event_code} ({log.event_name or 'Unknown'}) | "
+                        f"Decision: {log.forwarding_decision} | "
+                        f"Source: {log.callsign or log.source_name}"
+                    ),
+                    'details': {
+                        'id': log.id,
+                        'source_name': log.source_name,
+                        'raw_same_header': log.raw_same_header,
+                        'event_code': log.event_code,
+                        'event_name': log.event_name,
+                        'originator_code': log.originator_code,
+                        'originator_name': log.originator_name,
+                        'fips_codes': log.fips_codes or [],
+                        'forwarding_decision': log.forwarding_decision,
+                        'forwarding_reason': log.forwarding_reason,
+                        'matched_fips_codes': log.matched_fips_codes or [],
+                        'decode_confidence': log.decode_confidence,
+                        'generated_message_id': log.generated_message_id,
                     },
                 }
                 for log in logs_result

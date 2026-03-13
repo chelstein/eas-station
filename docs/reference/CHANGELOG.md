@@ -6,6 +6,28 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.57.0] - Enhanced Logs and Statistics
+
+### Added
+- **Received EAS Alerts log tab** — New "Received EAS" tab on the Logs page shows EAS alerts
+  received from audio monitoring sources (radio receivers), including event codes, forwarding
+  decisions, SAME header details, and decode confidence scores.
+- **EAS activity stat cards** — The Statistics dashboard now shows four new metric cards:
+  EAS Received (from audio monitoring), EAS Forwarded (CAP alerts that triggered an EAS broadcast),
+  Manual Activations, and Audio Forwarded count.
+- **Urgency and Certainty distribution charts** — New "By Urgency" and "By Certainty" bar/doughnut
+  charts on the Statistics page show how alerts are classified, helping identify the most common
+  alert characterizations in your area.
+- **Received EAS stats in backend** — Stats route now queries `ReceivedEASAlert` and
+  `ManualEASActivation` tables and exposes forwarding rates and counts to the template.
+- **Received EAS category in All Logs** — The "All Logs" view now includes a "Received EAS"
+  category aggregating audio-monitored EAS alert reception events.
+
+### Fixed
+- **Duration chart `avg_hours` field mismatch** — `createDurationChart()` was reading `i.avg_hours`
+  which does not exist; it now correctly reads `i.average` (with `i.avg_hours` as a fallback)
+  so the Average Alert Duration chart renders properly.
+
 ## [2.56.2] - Fix Gunicorn 504 / I2C Deadlock on Raspberry Pi
 
 ### Fixed
