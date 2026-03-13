@@ -1808,11 +1808,17 @@ def create_api_app():
     def list_serial_ports():
         """List available serial ports for Zigbee coordinator."""
         try:
-            import glob
-            ports = glob.glob('/dev/ttyUSB*') + glob.glob('/dev/ttyACM*') + glob.glob('/dev/ttyAMA*')
+            import serial.tools.list_ports
+            port_objects = []
+            for p in sorted(serial.tools.list_ports.comports(), key=lambda x: x.device):
+                if any(p.device.startswith(prefix) for prefix in ('/dev/ttyUSB', '/dev/ttyACM', '/dev/ttyAMA')):
+                    port_objects.append({
+                        'device': p.device,
+                        'description': p.description or p.device,
+                    })
             return jsonify({
                 'success': True,
-                'ports': sorted(ports)
+                'ports': port_objects,
             })
         except Exception as e:
             logger.error(f"Error listing serial ports: {e}")
@@ -1836,11 +1842,11 @@ def create_api_app():
                 try:
                     ser = serial.Serial(port, 115200, timeout=1)
                     ser.close()
-                    return jsonify({'success': True, 'message': 'Port accessible'})
+                    return jsonify({'success': True, 'accessible': True, 'message': 'Port accessible'})
                 except serial.SerialException as e:
-                    return jsonify({'success': False, 'error': f'Cannot open port: {str(e)}'})
+                    return jsonify({'success': False, 'accessible': False, 'error': f'Cannot open port: {str(e)}'})
             else:
-                return jsonify({'success': False, 'error': 'Port does not exist'})
+                return jsonify({'success': False, 'accessible': False, 'error': 'Port does not exist'})
 
         except Exception as e:
             logger.error(f"Error testing serial port: {e}")
