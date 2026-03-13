@@ -1,0 +1,503 @@
+"""
+EAS Station - Emergency Alert System
+Copyright (c) 2025-2026 Timothy Kramer (KR8MER)
+
+This file is part of EAS Station.
+
+EAS Station is dual-licensed software:
+- GNU Affero General Public License v3 (AGPL-3.0) for open-source use
+- Commercial License for proprietary use
+
+You should have received a copy of both licenses with this software.
+For more information, see LICENSE and LICENSE-COMMERCIAL files.
+
+IMPORTANT: This software cannot be rebranded or have attribution removed.
+See NOTICE file for complete terms.
+
+Repository: https://github.com/KR8MER/eas-station
+"""
+
+"""
+SAMEDemodulatorCore — the single FSK/DLL SAME demodulation engine.
+
+Previously the project maintained two independent implementations of the same
+core algorithm:
+
+  - app_utils/eas_decode.py  (_correlate_and_decode_with_dll)
+  - app_core/audio/streaming_same_decoder.py  (_process_dll_and_bits)
+
+This module replaces both with one implementation.  The file-based decoder
+and the real-time streaming decoder both compose SAMEDemodulatorCore; all DSP
+constants, DLL state machine logic, bandpass filtering, and ENDEC hardware
+fingerprinting now live here exactly once.
+"""
+
+from __future__ import annotations
+
+import logging
+from typing import Callable, List, Optional, Sequence, Tuple
+
+import numpy as np
+
+from .eas_fsk import SAME_BAUD, SAME_MARK_FREQ, SAME_SPACE_FREQ
+
+logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# ENDEC hardware type constants
+# ---------------------------------------------------------------------------
+
+ENDEC_MODE_UNKNOWN = "UNKNOWN"
+ENDEC_MODE_DEFAULT = "DEFAULT"          # DASDEC / generic
+ENDEC_MODE_NWS = "NWS"                  # NWS Legacy / EAS.js
+ENDEC_MODE_NWS_CRS = "NWS_CRS"         # NWS Console Replacement System 1998-2016
+ENDEC_MODE_NWS_BMH = "NWS_BMH"         # NWS Broadcast Message Handler 2016+
+ENDEC_MODE_SAGE_3644 = "SAGE_DIGITAL_3644"
+ENDEC_MODE_SAGE_1822 = "SAGE_ANALOG_1822"
+ENDEC_MODE_TRILITHIC = "TRILITHIC"      # Trilithic EASyPLUS (~868 ms inter-burst gap)
+
+# Inter-burst gap windows (ms) for mode fingerprinting
+_ENDEC_GAP_TRILITHIC = (820, 920)   # 868 ms nominal
+_ENDEC_GAP_STANDARD = (900, 1100)   # 1000 ms nominal (DASDEC, SAGE, NWS)
+
+
+# ---------------------------------------------------------------------------
+# Shared DSP utilities
+# ---------------------------------------------------------------------------
+
+def apply_bandpass_filter(samples: Sequence[float], sample_rate: int) -> List[float]:
+    """Apply a 4th-order Butterworth bandpass filter (1200–2500 Hz).
+
+    Isolates the SAME FSK signal and rejects out-of-band noise before
+    demodulation.  Matches the SoftwareBandpass(1822.9 Hz, Q=3) used by
+    EAS-Tools decoder-bundle.js.  Returns the original samples unchanged if
+    scipy is unavailable.
+    """
+    try:
+        from scipy.signal import butter, sosfilt
+        nyq = sample_rate / 2.0
+        low = 1200.0 / nyq
+        high = min(2500.0, nyq * 0.95) / nyq
+        if not (0 < low < high < 1.0):
+            return list(samples)
+        sos = butter(4, [low, high], btype="bandpass", output="sos")
+        filtered = sosfilt(sos, np.asarray(samples, dtype=np.float64))
+        return filtered.tolist()
+    except Exception:
+        return list(samples)
+
+
+def compute_burst_timing_gaps_ms(
+    burst_sample_ranges: List[Tuple[int, int]], sample_rate: int
+) -> List[float]:
+    """Return inter-burst gap durations (ms) from a list of (start, end) sample pairs.
+
+    The gap is measured from the END of burst N to the START of burst N+1,
+    which matches the inter-burst silence durations published in ENDEC hardware
+    profiles (e.g. 1000 ms for DASDEC, 868 ms for Trilithic EASyPLUS).
+    """
+    gaps: List[float] = []
+    for i in range(1, len(burst_sample_ranges)):
+        gap_samples = burst_sample_ranges[i][0] - burst_sample_ranges[i - 1][1]
+        if gap_samples >= 0:
+            gaps.append(gap_samples / float(sample_rate) * 1000.0)
+    return gaps
+
+
+def detect_endec_mode(
+    messages: List[str],
+    burst_timing_gaps_ms: List[float],
+) -> str:
+    """Fingerprint the originating ENDEC hardware from transmission characteristics.
+
+    Uses inter-burst gap timing as the primary discriminator.  Returns one of
+    the ENDEC_MODE_* constants defined in this module.
+    """
+    if not messages:
+        return ENDEC_MODE_UNKNOWN
+    if burst_timing_gaps_ms:
+        avg_gap = sum(burst_timing_gaps_ms) / len(burst_timing_gaps_ms)
+        lo, hi = _ENDEC_GAP_TRILITHIC
+        if lo <= avg_gap <= hi:
+            return ENDEC_MODE_TRILITHIC
+        lo, hi = _ENDEC_GAP_STANDARD
+        if lo <= avg_gap <= hi:
+            return ENDEC_MODE_DEFAULT
+    return ENDEC_MODE_UNKNOWN
+
+
+# ---------------------------------------------------------------------------
+# SAMEDemodulatorCore
+# ---------------------------------------------------------------------------
+
+class SAMEDemodulatorCore:
+    """
+    Stateful FSK/DLL SAME demodulator — the single shared implementation.
+
+    Handles the complete signal path from raw PCM samples to decoded SAME
+    message text:
+
+      PCM samples → bandpass filter → sliding-window I/Q correlation →
+      DLL timing recovery → bit assembly → 8N1 framing → SAME message
+
+    Designed for both batch (file) and streaming (real-time) use:
+
+    * **Streaming**: create one instance; call process_samples() with each
+      audio chunk.  All state persists between calls.
+    * **Batch / file**: create one instance; feed the entire sample array in
+      one process_samples() call; read results from .messages.
+
+    Args:
+        sample_rate:       Audio sample rate in Hz.
+        message_callback:  Optional callable invoked for each complete decoded
+                           message with signature
+                           ``(msg_text: str, confidence: float,
+                              burst_sample_ranges: List[Tuple[int,int]])``.
+        apply_bandpass:    When True (default) the core applies an IIR
+                           bandpass filter to each chunk before demodulation.
+                           Set False when the caller has already filtered the
+                           samples (avoids double-filtering).
+    """
+
+    # DLL constants — identical values used by both the old file decoder and
+    # the old streaming decoder; consolidated here.
+    PREAMBLE_BYTE = 0xAB
+    DLL_GAIN = 0.4
+    INTEGRATOR_MAX = 12
+    MAX_MSG_LEN = 268
+
+    def __init__(
+        self,
+        sample_rate: int,
+        message_callback: Optional[Callable[[str, float, List[Tuple[int, int]]], None]] = None,
+        apply_bandpass: bool = True,
+    ) -> None:
+        self.sample_rate = sample_rate
+        self.baud_rate = float(SAME_BAUD)
+        self.corr_len = int(sample_rate / self.baud_rate)
+        self.message_callback = message_callback
+        self._apply_bandpass_flag = apply_bandpass
+
+        # Correlation tables (numpy float32 for BLAS)
+        t = np.arange(self.corr_len, dtype=np.float64)
+        mark_phase = 2.0 * np.pi * SAME_MARK_FREQ / sample_rate * t
+        space_phase = 2.0 * np.pi * SAME_SPACE_FREQ / sample_rate * t
+        self._mark_i = np.cos(mark_phase).astype(np.float32)
+        self._mark_q = np.sin(mark_phase).astype(np.float32)
+        self._space_i = np.cos(space_phase).astype(np.float32)
+        self._space_q = np.sin(space_phase).astype(np.float32)
+
+        # Bandpass filter coefficients (computed once; never reset)
+        self._bandpass_sos: Optional[np.ndarray] = None
+        self._bandpass_available = False
+        if apply_bandpass:
+            self._init_bandpass()
+
+        # All mutable decoder state lives in reset()
+        self._bandpass_zi: Optional[np.ndarray] = None
+        self.reset()
+
+    # ------------------------------------------------------------------
+    # Initialisation helpers
+    # ------------------------------------------------------------------
+
+    def _init_bandpass(self) -> None:
+        try:
+            from scipy.signal import butter
+            nyq = self.sample_rate / 2.0
+            low = 1200.0 / nyq
+            high = min(2500.0, nyq * 0.95) / nyq
+            if 0 < low < high < 1.0:
+                self._bandpass_sos = butter(4, [low, high], btype="bandpass", output="sos")
+                self._bandpass_available = True
+                logger.debug(
+                    "SAMEDemodulatorCore bandpass filter: 1200–2500 Hz, 4th-order "
+                    "Butterworth @ %d Hz", self.sample_rate
+                )
+        except Exception as exc:
+            logger.debug("Bandpass filter unavailable: %s", exc)
+
+    # ------------------------------------------------------------------
+    # Public interface
+    # ------------------------------------------------------------------
+
+    def reset(self) -> None:
+        """Reset all DLL, message-assembly, filter, and accumulator state."""
+        # DLL state
+        self.dcd_shreg: int = 0
+        self.dcd_integrator: int = 0
+        self.sphase: int = 1
+        self.sphaseinc: int = int(0x10000 * self.baud_rate / self.sample_rate)
+        self.lasts: int = 0
+        self.byte_counter: int = 0
+        self.synced: bool = False
+
+        # Message assembly
+        self.current_msg: List[str] = []
+        self.in_message: bool = False
+        self.bit_confidences: List[float] = []
+
+        # Accumulators (cleared on full reset)
+        self.messages: List[str] = []
+        self.burst_sample_ranges: List[Tuple[int, int]] = []
+        self._all_bit_confidences: List[float] = []
+        self.bytes_decoded: int = 0
+        self.samples_processed: int = 0
+
+        # Burst timing / ENDEC
+        self._burst_start_sample: Optional[int] = None
+        self._burst_sample_history: List[Tuple[int, int]] = []
+        self.endec_mode: str = ENDEC_MODE_UNKNOWN
+        self.burst_timing_gaps_ms: List[float] = []
+
+        # Prefix buffer for cross-chunk continuity (streaming use)
+        self._prefix = np.zeros(self.corr_len - 1, dtype=np.float32)
+        self._warmup_remaining: int = self.corr_len
+
+        # Reset bandpass filter initial conditions
+        if self._bandpass_available and self._bandpass_sos is not None:
+            self._bandpass_zi = np.zeros((self._bandpass_sos.shape[0], 2))
+
+    def process_samples(self, samples: np.ndarray) -> None:
+        """Process audio samples through the full demodulation pipeline.
+
+        Maintains all state between calls — safe to call repeatedly with
+        streaming audio chunks of any size (including single samples).
+
+        Args:
+            samples: Audio samples as a numpy array, normalised to [-1, 1].
+                     Will be cast to float32 if needed.
+        """
+        if len(samples) == 0:
+            return
+
+        if samples.dtype != np.float32:
+            samples = samples.astype(np.float32)
+
+        self.samples_processed += len(samples)
+
+        # Bandpass filter (stateful — zi persists across calls)
+        if self._bandpass_available and self._bandpass_sos is not None:
+            try:
+                from scipy.signal import sosfilt
+                filtered, self._bandpass_zi = sosfilt(
+                    self._bandpass_sos,
+                    samples.astype(np.float64),
+                    zi=self._bandpass_zi,
+                )
+                samples = filtered.astype(np.float32)
+            except Exception:
+                pass  # continue with unfiltered samples
+
+        num_samples = len(samples)
+
+        # Warmup: need corr_len samples before the first correlation window
+        if self._warmup_remaining > 0:
+            if num_samples < self._warmup_remaining:
+                self._warmup_remaining -= num_samples
+                prefix_len = self.corr_len - 1
+                if num_samples >= prefix_len:
+                    self._prefix[:] = samples[-prefix_len:]
+                else:
+                    self._prefix = np.roll(self._prefix, -num_samples)
+                    self._prefix[-num_samples:] = samples
+                return
+            else:
+                warmup_count = self._warmup_remaining
+                self._warmup_remaining = 0
+                prefix_len = self.corr_len - 1
+                if warmup_count >= prefix_len:
+                    self._prefix[:] = samples[warmup_count - prefix_len:warmup_count]
+                else:
+                    shift = prefix_len - warmup_count
+                    self._prefix[:shift] = self._prefix[warmup_count:]
+                    self._prefix[shift:] = samples[:warmup_count]
+                samples = samples[warmup_count:]
+                num_samples = len(samples)
+                if num_samples == 0:
+                    return
+
+        # Build contiguous linear buffer (prefix + new samples)
+        prefix_len = self.corr_len - 1
+        linear = np.empty(prefix_len + num_samples, dtype=np.float32)
+        linear[:prefix_len] = self._prefix
+        linear[prefix_len:] = samples
+        self._prefix[:] = linear[-(self.corr_len - 1):]
+
+        # BLAS-accelerated batch correlation:
+        # sliding_window_view gives (num_samples, corr_len) with zero copies;
+        # 4 matrix multiplies replace 4*N individual np.dot calls.
+        windows = np.lib.stride_tricks.sliding_window_view(linear, self.corr_len)
+        mark_i_all = windows @ self._mark_i    # (num_samples,)
+        mark_q_all = windows @ self._mark_q
+        space_i_all = windows @ self._space_i
+        space_q_all = windows @ self._space_q
+
+        mark_power = mark_i_all * mark_i_all + mark_q_all * mark_q_all
+        space_power = space_i_all * space_i_all + space_q_all * space_q_all
+        correlations = mark_power - space_power
+        total_powers = mark_power + space_power
+
+        # Sequential DLL + bit decision loop (inherently stateful)
+        for i in range(num_samples):
+            self._process_dll_and_bits(float(correlations[i]), float(total_powers[i]))
+
+    # ------------------------------------------------------------------
+    # Properties derived from accumulated state
+    # ------------------------------------------------------------------
+
+    @property
+    def average_confidence(self) -> float:
+        """Mean bit confidence across all decoded bits since last reset."""
+        if self._all_bit_confidences:
+            return sum(self._all_bit_confidences) / len(self._all_bit_confidences)
+        return 0.0
+
+    # ------------------------------------------------------------------
+    # Internal DLL state machine
+    # ------------------------------------------------------------------
+
+    def _process_dll_and_bits(self, correlation: float, total_power: float) -> None:
+        """Apply one sample's pre-computed correlation values to the DLL."""
+        # Shift register for transition detection
+        self.dcd_shreg = (self.dcd_shreg << 1) & 0xFFFFFFFF
+        if correlation > 0:
+            self.dcd_shreg |= 1
+
+        # Integrator (noise-immunity hysteresis)
+        if correlation > 0 and self.dcd_integrator < self.INTEGRATOR_MAX:
+            self.dcd_integrator += 1
+        elif correlation < 0 and self.dcd_integrator > -self.INTEGRATOR_MAX:
+            self.dcd_integrator -= 1
+
+        # DLL: adjust sampling phase on bit transitions
+        if (self.dcd_shreg ^ (self.dcd_shreg >> 1)) & 1:
+            if self.sphase < 0x8000:
+                if self.sphase > self.sphaseinc // 2:
+                    self.sphase -= min(int(self.sphase * self.DLL_GAIN), 8192)
+            else:
+                if self.sphase < 0x10000 - self.sphaseinc // 2:
+                    self.sphase += min(int((0x10000 - self.sphase) * self.DLL_GAIN), 8192)
+
+        self.sphase += self.sphaseinc
+
+        # End of bit period?
+        if self.sphase >= 0x10000:
+            self.sphase &= 0xFFFF
+            self.lasts = (self.lasts >> 1) & 0x7F
+            if self.dcd_integrator >= 0:
+                self.lasts |= 0x80
+
+            # Bit confidence
+            if self.synced or self.in_message:
+                conf = min(abs(correlation) / total_power, 1.0) if total_power > 0 else 0.0
+                self.bit_confidences.append(conf)
+                self._all_bit_confidences.append(conf)
+
+            # Preamble sync detection
+            if (self.lasts & 0xFF) == self.PREAMBLE_BYTE and not self.in_message:
+                self.synced = True
+                self.byte_counter = 0
+            elif self.synced:
+                self.byte_counter += 1
+                if self.byte_counter == 8:
+                    byte_val = self.lasts & 0xFF
+                    self.bytes_decoded += 1
+                    if 32 <= byte_val <= 126 or byte_val in (10, 13):
+                        char = chr(byte_val)
+                        if not self.in_message and char == "Z":
+                            self.in_message = True
+                            self._burst_start_sample = self.samples_processed
+                            self.current_msg = [char]
+                        elif self.in_message:
+                            self.current_msg.append(char)
+                            msg_text = "".join(self.current_msg)
+                            if self._is_message_complete(msg_text, char):
+                                self._on_message_complete(msg_text)
+                                self._reset_message_state()
+                            elif len(self.current_msg) > self.MAX_MSG_LEN:
+                                self._reset_message_state()
+                    else:
+                        self.synced = False
+                        if self.in_message:
+                            self._reset_message_state()
+                    self.byte_counter = 0
+
+    def _is_message_complete(self, msg_text: str, last_char: str) -> bool:
+        if last_char in ("\r", "\n"):
+            return "ZCZC" in msg_text or "NNNN" in msg_text
+        if last_char == "-" and len(self.current_msg) > 40:
+            dash_count = msg_text.count("-")
+            if "+" in msg_text:
+                try:
+                    pre_exp, _ = msg_text.split("+", 1)
+                    loc_segs = pre_exp.split("-")[3:]
+                    loc_count = sum(
+                        1 for s in loc_segs if len(s.strip()) == 6 and s.strip().isdigit()
+                    )
+                    min_dashes = 6 if loc_count <= 0 else 6 + max(loc_count - 1, 0)
+                    if dash_count >= min_dashes:
+                        return "ZCZC" in msg_text or "NNNN" in msg_text
+                except (ValueError, IndexError):
+                    pass
+        return False
+
+    def _on_message_complete(self, msg_text: str) -> None:
+        msg_text = msg_text.strip()
+        # Trim to last dash for ZCZC messages
+        if "ZCZC" in msg_text and "-" in msg_text:
+            msg_text = msg_text[: msg_text.rfind("-") + 1]
+
+        # Record burst timing
+        if self._burst_start_sample is not None:
+            self.burst_sample_ranges.append(
+                (self._burst_start_sample, self.samples_processed)
+            )
+            self._burst_sample_history.append(
+                (self._burst_start_sample, self.samples_processed)
+            )
+            self._burst_start_sample = None
+            if len(self._burst_sample_history) > 4:
+                self._burst_sample_history = self._burst_sample_history[-4:]
+            self.burst_timing_gaps_ms = compute_burst_timing_gaps_ms(
+                self._burst_sample_history, self.sample_rate
+            )
+            if self.burst_timing_gaps_ms:
+                self.endec_mode = detect_endec_mode([msg_text], self.burst_timing_gaps_ms)
+
+        confidence = (
+            sum(self.bit_confidences) / len(self.bit_confidences)
+            if self.bit_confidences
+            else 0.0
+        )
+        self.messages.append(msg_text)
+
+        if self.message_callback:
+            self.message_callback(msg_text, confidence, list(self.burst_sample_ranges))
+
+    def _reset_message_state(self) -> None:
+        self.current_msg = []
+        self.in_message = False
+        self.synced = False
+        self.bit_confidences = []
+        self._burst_start_sample = None
+
+
+# ---------------------------------------------------------------------------
+# Public exports
+# ---------------------------------------------------------------------------
+
+__all__ = [
+    "SAMEDemodulatorCore",
+    "apply_bandpass_filter",
+    "compute_burst_timing_gaps_ms",
+    "detect_endec_mode",
+    "ENDEC_MODE_UNKNOWN",
+    "ENDEC_MODE_DEFAULT",
+    "ENDEC_MODE_NWS",
+    "ENDEC_MODE_NWS_CRS",
+    "ENDEC_MODE_NWS_BMH",
+    "ENDEC_MODE_SAGE_3644",
+    "ENDEC_MODE_SAGE_1822",
+    "ENDEC_MODE_TRILITHIC",
+]
