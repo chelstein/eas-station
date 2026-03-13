@@ -220,6 +220,39 @@ from app_core.datetime.parsing import parse_nws_datetime
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
+def _load_or_generate_secret_key(key_file: str) -> str:
+    """Load the Flask secret key from *key_file*, or generate and persist a new one.
+
+    This ensures every Gunicorn worker process (which imports this module
+    independently without ``--preload``) uses the **same** secret key, preventing
+    session cookies signed by one worker from being rejected by another worker.
+
+    The key file is written with mode 0o600 (owner-read only) and is excluded
+    from version control via ``.gitignore``.
+    """
+    try:
+        if os.path.isfile(key_file):
+            with open(key_file, 'r') as _f:
+                _key = _f.read().strip()
+            if len(_key) >= 32:
+                return _key
+    except Exception as _read_err:
+        logger.debug("Could not read secret key file %s: %s", key_file, _read_err)
+
+    # Generate a new key and try to persist it atomically.
+    _key = secrets.token_hex(32)
+    try:
+        _tmp = key_file + '.tmp'
+        with open(_tmp, 'w') as _f:
+            _f.write(_key)
+        os.chmod(_tmp, 0o600)
+        os.replace(_tmp, key_file)
+        logger.info("Persisted runtime secret key to %s", key_file)
+    except Exception as _write_err:
+        logger.debug("Could not persist secret key to %s: %s", key_file, _write_err)
+    return _key
+
 # Add file handler to write logs to /var/log/eas-station/eas_station.log
 # (matches LOG_DIR created by install.sh for the eas-station service user)
 _log_dir = os.environ.get('EAS_LOG_DIR', '/var/log/eas-station')
@@ -405,10 +438,17 @@ _placeholder_secrets = {
 secret_key = os.environ.get('SECRET_KEY', '')
 if secret_key in _placeholder_secrets or len(secret_key) < 32:
     _setup_mode_reasons.append('secret-key')
-    secret_key = secrets.token_hex(32)
+    # Use a persistent key file so all Gunicorn workers share the same session key.
+    # Without this, each worker generates its own random key (no --preload), making
+    # sessions incompatible between workers and randomly logging users out.
+    _default_key_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.secret_key')
+    secret_key = _load_or_generate_secret_key(
+        os.environ.get('SECRET_KEY_FILE', _default_key_file)
+    )
     logger.warning(
         'SECRET_KEY is missing or using a placeholder value. '
-        'Using a temporary key while setup mode is active.'
+        'Using a runtime key shared across workers; set SECRET_KEY in .env to '
+        'persist sessions across service restarts.'
     )
 app.secret_key = secret_key
 
@@ -649,19 +689,25 @@ else:
     logger.info("✓ Health alert worker started")
     print(f"[PID {os.getpid()}] Health alert worker started successfully", file=sys.stderr, flush=True)
 
-# Start screen manager for LED/VFD display rotation
-if not skip_background_services:
-    print(f"[PID {os.getpid()}] About to start screen manager...", file=sys.stderr, flush=True)
-    try:
-        from scripts.screen_manager import screen_manager
-        screen_manager.init_app(app)
-        if not app.config.get('SETUP_MODE'):
-            screen_manager.start()
-            logger.info('Screen manager started for display rotation')
-            print(f"[PID {os.getpid()}] Screen manager started successfully", file=sys.stderr, flush=True)
-    except Exception as screen_mgr_error:
-        logger.warning('Screen manager could not be started: %s', screen_mgr_error)
-        print(f"[PID {os.getpid()}] Screen manager failed: {screen_mgr_error}", file=sys.stderr, flush=True)
+# NOTE: The screen manager (OLED / LED / VFD display rotation) is intentionally
+# NOT started here.  Display hardware is owned exclusively by
+# eas-station-hardware.service which runs scripts/screen_manager.py in a
+# dedicated process that is allowed to make blocking I2C/GPIO ioctl() calls.
+#
+# Starting the screen manager inside a Gunicorn gevent worker causes two
+# separate problems:
+#   1. The 30-fps OLED scroll loop issues blocking I2C ioctl() calls that
+#      gevent cannot yield around, so the event loop stalls and every request
+#      from that worker hangs → 504 Gateway Timeout.
+#   2. Both the web worker and eas-station-hardware.service hold the kernel
+#      I2C DesignWare mutex simultaneously → rt_mutex_schedule deadlock, the
+#      worker is stuck at the kernel level and can never recover without a
+#      service restart.
+#
+# Web routes that need to push a screen to a display proxy the request to the
+# hardware service REST API on port 5001
+# (POST /api/hardware/display/push, handled by hardware_service.py).
+logger.info('Display hardware managed by eas-station-hardware.service (not started in web worker)')
 
 # Start RWT (Required Weekly Test) scheduler
 if not skip_background_services:

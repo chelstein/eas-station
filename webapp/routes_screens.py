@@ -22,6 +22,8 @@ from __future__ import annotations
 """Custom screen management routes for LED and VFD displays."""
 
 import json
+import urllib.error
+import urllib.request
 from typing import Any, Dict, List
 
 from flask import Flask, jsonify, render_template, request
@@ -318,150 +320,55 @@ def register(app: Flask, logger) -> None:
 
     @app.route("/api/screens/<int:screen_id>/display", methods=["POST"])
     def display_screen_now(screen_id: int):
-        """Display a screen immediately (override rotation)."""
+        """Display a screen immediately by proxying to eas-station-hardware.service.
+
+        All physical display access (OLED/LED/VFD) is delegated to the hardware
+        service (port 5001).  The web worker must never open I2C/GPIO/serial
+        device nodes directly: blocking ioctl() calls stall the gevent event
+        loop and can deadlock with the hardware service's own I2C session.
+        """
         try:
             screen = DisplayScreen.query.get(screen_id)
 
             if not screen:
                 return jsonify({"error": "Screen not found"}), 404
 
-            # Render screen
-            renderer = ScreenRenderer(allow_preview_samples=False)
-            rendered = renderer.render_screen(screen.to_dict())
-
-            if not rendered:
-                return jsonify({"error": "Failed to render screen"}), 500
-
-            # Display on appropriate device
-            if screen.display_type == "led":
-                import app_core.led as led_module
-
-                if not led_module.led_controller:
-                    return jsonify({"error": "LED controller not available"}), 503
-
-                lines = rendered.get("lines", [])
-                color_str = rendered.get("color", "AMBER")
-                mode_str = rendered.get("mode", "HOLD")
-                speed_str = rendered.get("speed", "SPEED_3")
-
-                # Convert strings to enum values
-                color = _convert_led_enum(led_module.Color, color_str, led_module.Color.AMBER if led_module.Color else color_str)
-                mode = _convert_led_enum(led_module.DisplayMode, mode_str, led_module.DisplayMode.HOLD if led_module.DisplayMode else mode_str)
-                speed = _convert_led_enum(led_module.Speed, speed_str, led_module.Speed.SPEED_3 if led_module.Speed else speed_str)
-
-                led_module.led_controller.send_message(
-                    lines=lines,
-                    color=color,
-                    mode=mode,
-                    speed=speed,
-                )
-
-            elif screen.display_type == "vfd":
-                from app_core.vfd import vfd_controller
-
-                if not vfd_controller:
-                    return jsonify({"error": "VFD controller not available"}), 503
-
-                for command in rendered:
-                    cmd_type = command.get("type")
-
-                    if cmd_type == "clear":
-                        vfd_controller.clear_display()
-
-                    elif cmd_type == "text":
-                        vfd_controller.draw_text(
-                            command.get("text", ""),
-                            command.get("x", 0),
-                            command.get("y", 0),
-                        )
-
-                    elif cmd_type == "rectangle":
-                        vfd_controller.draw_rectangle(
-                            command.get("x1", 0),
-                            command.get("y1", 0),
-                            command.get("x2", 10),
-                            command.get("y2", 10),
-                            filled=command.get("filled", False),
-                        )
-
-                    elif cmd_type == "line":
-                        vfd_controller.draw_line(
-                            command.get("x1", 0),
-                            command.get("y1", 0),
-                            command.get("x2", 10),
-                            command.get("y2", 10),
-                        )
-            elif screen.display_type == "oled":
-                import app_core.oled as oled_module
-                from app_core.oled import OLEDLine, initialise_oled_display
-
-                controller = oled_module.oled_controller or initialise_oled_display(route_logger)
-                if controller is None:
-                    return jsonify({"error": "OLED controller not available"}), 503
-
-                raw_lines = rendered.get("lines", [])
-                if not isinstance(raw_lines, list):
-                    return jsonify({"error": "Invalid OLED payload"}), 500
-
-                line_objects: List[OLEDLine] = []
-                for entry in raw_lines:
-                    if isinstance(entry, OLEDLine):
-                        line_objects.append(entry)
-                        continue
-
-                    if not isinstance(entry, dict):
-                        continue
-
-                    text = str(entry.get("text", ""))
-
-                    try:
-                        x_value = int(entry.get("x", 0) or 0)
-                    except (TypeError, ValueError):
-                        x_value = 0
-
-                    y_raw = entry.get("y")
-                    try:
-                        y_value = int(y_raw) if y_raw is not None else None
-                    except (TypeError, ValueError):
-                        y_value = None
-
-                    max_width_raw = entry.get("max_width")
-                    try:
-                        max_width_value = int(max_width_raw) if max_width_raw is not None else None
-                    except (TypeError, ValueError):
-                        max_width_value = None
-
-                    try:
-                        spacing_value = int(entry.get("spacing", 2))
-                    except (TypeError, ValueError):
-                        spacing_value = 2
-
-                    line_objects.append(
-                        OLEDLine(
-                            text=text,
-                            x=x_value,
-                            y=y_value,
-                            font=str(entry.get("font", "small")),
-                            wrap=bool(entry.get("wrap", True)),
-                            max_width=max_width_value,
-                            spacing=spacing_value,
-                            invert=entry.get("invert"),
-                            allow_empty=bool(entry.get("allow_empty", False)),
-                        )
+            # Proxy the push request to the hardware service.
+            hw_url = "http://127.0.0.1:5001/api/hardware/display/push"
+            payload = json.dumps({"screen_id": screen_id}).encode()
+            hw_req = urllib.request.Request(
+                hw_url,
+                data=payload,
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            try:
+                with urllib.request.urlopen(hw_req, timeout=15) as hw_resp:
+                    hw_body = hw_resp.read()
+                hw_data = json.loads(hw_body)
+                if not hw_data.get("success"):
+                    err = hw_data.get("error", "Unknown error from hardware service")
+                    route_logger.error("Hardware service push failed: %s", err)
+                    return jsonify({"error": err}), 503
+            except urllib.error.HTTPError as exc:
+                try:
+                    err_body = json.loads(exc.read()).get("error", str(exc))
+                except Exception:
+                    err_body = str(exc)
+                route_logger.error("Hardware service returned %s: %s", exc.code, err_body)
+                return jsonify({"error": f"Hardware service error: {err_body}"}), exc.code
+            except (urllib.error.URLError, OSError) as exc:
+                route_logger.warning(
+                    "Hardware service unavailable at %s: %s", hw_url, exc)
+                return jsonify({
+                    "error": (
+                        "Hardware service (eas-station-hardware.service) is not reachable. "
+                        "Ensure it is running: sudo systemctl start eas-station-hardware.service"
                     )
+                }), 503
 
-                controller.display_lines(
-                    line_objects,
-                    clear=rendered.get("clear", True),
-                    invert=rendered.get("invert"),
-                )
-
-            # Update statistics
-            screen.display_count += 1
-            screen.last_displayed_at = utc_now()
-            db.session.commit()
-
-            route_logger.info(f"Displayed screen: {screen.name} (ID: {screen.id})")
+            route_logger.info("Displayed screen via hardware service: %s (ID: %s)",
+                              screen.name, screen.id)
 
             return jsonify({
                 "message": "Screen displayed successfully",
@@ -699,124 +606,38 @@ def register(app: Flask, logger) -> None:
     def get_displays_current_state():
         """Get the current state of all displays.
 
-        In multi-container architecture, display state is published by the hardware-service
-        container to Redis. This endpoint reads from Redis instead of accessing hardware directly.
+        Display state is published to Redis by eas-station-hardware.service.
+        The web worker reads from Redis only — it must never open I2C/GPIO/serial
+        device nodes directly (see display_screen_now() for the reasoning).
         """
         try:
-            # Try to get display state from Redis (published by hardware-service)
+            # Read display state from Redis (published by hardware-service).
             try:
                 from app_core.redis_client import get_redis_client
                 redis_client = get_redis_client()
-
-                # Get display state from Redis
                 display_state_json = redis_client.get("hardware:display_state")
-
                 if display_state_json:
-                    # Parse and return the state from hardware-service
                     state = json.loads(display_state_json)
                     route_logger.debug("Display state retrieved from Redis (hardware-service)")
                     return jsonify(state)
                 else:
-                    route_logger.warning("No display state in Redis - hardware-service may not be running")
-
+                    route_logger.warning(
+                        "No display state in Redis — eas-station-hardware.service may not be running"
+                    )
             except Exception as e:
-                route_logger.warning(f"Failed to get display state from Redis: {e}")
+                route_logger.warning("Failed to get display state from Redis: %s", e)
 
-            # Fallback: Try to get state directly (for single-container deployments)
-            route_logger.debug("Falling back to direct hardware access")
-            from scripts.screen_manager import screen_manager
-
-            state = {
-                "oled": {
-                    "enabled": False,
-                    "width": 128,
-                    "height": 64,
-                    "current_screen": None,
-                    "scroll_offset": 0,
-                    "alert_active": False,
-                },
-                "vfd": {
-                    "enabled": False,
-                    "width": 140,
-                    "height": 32,
-                    "current_screen": None,
-                },
-                "led": {
-                    "enabled": False,
-                    "lines": 4,
-                    "chars_per_line": 20,
-                    "current_message": None,
-                    "color": "AMBER",
-                },
-            }
-
-            # Get OLED state
-            if screen_manager:
-                try:
-                    import app_core.oled as oled_module
-                    # Check if controller exists and mark as enabled immediately
-                    if oled_module.oled_controller:
-                        state["oled"]["enabled"] = True
-
-                        # Get basic controller info
-                        try:
-                            state["oled"]["width"] = oled_module.oled_controller.width
-                            state["oled"]["height"] = oled_module.oled_controller.height
-                        except Exception as e:
-                            route_logger.warning(f"Error getting OLED dimensions: {e}")
-
-                        # Get current screen name if available
-                        try:
-                            if hasattr(screen_manager, '_current_oled_screen'):
-                                current_screen = screen_manager._current_oled_screen
-                                if current_screen:
-                                    state["oled"]["current_screen"] = current_screen.name if hasattr(current_screen, 'name') else str(current_screen)
-                        except Exception as e:
-                            route_logger.warning(f"Error getting OLED current screen: {e}")
-
-                        # Get current alert state if scrolling
-                        try:
-                            if hasattr(screen_manager, '_oled_scroll_effect') and screen_manager._oled_scroll_effect:
-                                state["oled"]["alert_active"] = True
-                                state["oled"]["scroll_offset"] = screen_manager._oled_scroll_offset
-                                state["oled"]["alert_text"] = screen_manager._current_alert_text or ""
-                                state["oled"]["scroll_speed"] = screen_manager._oled_scroll_speed
-
-                                # Get cached header
-                                if hasattr(screen_manager, '_cached_header_text'):
-                                    state["oled"]["header_text"] = screen_manager._cached_header_text
-                        except Exception as e:
-                            route_logger.warning(f"Error getting OLED alert state: {e}")
-
-                        # Get preview image - don't let this failure affect enabled status
-                        try:
-                            preview_image = oled_module.oled_controller.get_preview_image_base64()
-                            if preview_image:
-                                state["oled"]["preview_image"] = preview_image
-                        except Exception as e:
-                            route_logger.warning(f"Error getting OLED preview image: {e}")
-
-                except Exception as e:
-                    route_logger.warning(f"Error checking OLED controller: {e}")
-
-                # Get VFD state
-                try:
-                    from app_core.vfd import vfd_controller
-                    if vfd_controller:
-                        state["vfd"]["enabled"] = True
-                except Exception as e:
-                    route_logger.debug(f"Error getting VFD state: {e}")
-
-                # Get LED state
-                try:
-                    import app_core.led as led_module
-                    if led_module.led_controller:
-                        state["led"]["enabled"] = True
-                except Exception as e:
-                    route_logger.debug(f"Error getting LED state: {e}")
-
-            return jsonify(state)
+            # Hardware service is unavailable: return an empty-but-valid state so
+            # the UI degrades gracefully instead of showing a JS error.
+            return jsonify({
+                "oled": {"enabled": False, "width": 128, "height": 64,
+                         "current_screen": None, "scroll_offset": 0, "alert_active": False},
+                "vfd":  {"enabled": False, "width": 140, "height": 32, "current_screen": None},
+                "led":  {"enabled": False, "lines": 4, "chars_per_line": 20,
+                         "current_message": None, "color": "AMBER"},
+                "hardware_service_available": False,
+            })
 
         except Exception as e:
-            route_logger.error(f"Error getting display states: {e}")
+            route_logger.error("Error getting display states: %s", e)
             return jsonify({"error": str(e)}), 500
