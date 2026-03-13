@@ -6,6 +6,23 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.57.1] - Fix RBDS phase drift from dropped queue samples
+
+### Fixed
+- **RBDS crystal-locked carrier phase drift** — `RBDSWorker._pilot_sample_counter` only
+  advanced when a chunk was actually *processed*, but when the RBDS queue was full the audio
+  thread silently dropped chunks. Each dropped chunk caused the worker's local counter to lag
+  further behind real stream time, producing a wrong 57 kHz mixing reference for every
+  subsequent chunk. The extracted baseband signal was therefore pure noise, explaining why
+  the decoder generated bits indefinitely but never decoded a single RBDS group. Fix: the
+  absolute sample offset of each chunk is now tracked in `FMDemodulator._sample_index` and
+  passed to `submit_samples()`; `_generate_pilot_reference()` uses this caller-supplied
+  offset instead of a local counter so the phase is always correct regardless of how many
+  chunks were dropped.
+- **Stale RBDS unit tests** — Updated `tests/test_rbds_demodulation.py` to test the current
+  code architecture (`RBDSWorker` worker-thread model) rather than methods that were removed
+  in a prior refactor (`_rbds_symbol_to_bit`, `_rbds_process_interval`).
+
 ## [2.57.0] - Enhanced Logs and Statistics
 
 ### Added

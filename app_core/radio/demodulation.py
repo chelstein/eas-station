@@ -401,7 +401,7 @@ class RBDSWorker:
         h /= np.max(np.abs(h))
         return h.astype(np.float32)
 
-    def _generate_pilot_reference(self, n: int) -> np.ndarray:
+    def _generate_pilot_reference(self, n: int, sample_offset: int) -> np.ndarray:
         """Generate crystal-locked 19 kHz pilot reference.
 
         FM broadcast stations use crystal oscillators - the 19 kHz pilot is
@@ -412,7 +412,11 @@ class RBDSWorker:
         Hilbert transform approaches which try to extract phase from noisy signals.
 
         Args:
-            n: Number of samples to generate
+            n: Number of samples to generate.
+            sample_offset: Absolute position of the first sample in the FM
+                           stream.  Must come from the caller so that the
+                           reference phase is correct even when the RBDS queue
+                           has dropped some chunks (see submit_samples).
 
         Returns:
             Array of pilot phases for generating 57 kHz carrier (pilot × 3)
@@ -420,14 +424,13 @@ class RBDSWorker:
         if n == 0:
             return np.array([], dtype=np.float64)
 
-        # Generate time indices (continuous phase across calls)
-        t = (np.arange(n, dtype=np.float64) + self._pilot_sample_counter) / self._sample_rate
+        # Use the absolute sample offset supplied by the caller so that the
+        # generated phase is always aligned with the true FM stream position,
+        # regardless of how many chunks were previously dropped from the queue.
+        t = (np.arange(n, dtype=np.float64) + sample_offset) / self._sample_rate
 
         # Crystal-locked 19 kHz reference phase
         pilot_phases = 2.0 * np.pi * 19000.0 * t
-
-        # Update sample counter for next call (maintain phase continuity)
-        self._pilot_sample_counter += n
 
         return pilot_phases
 
@@ -448,17 +451,25 @@ class RBDSWorker:
             self._thread.join(timeout=1.0)
         logger.info("RBDS worker thread stopped")
 
-    def submit_samples(self, multiplex: np.ndarray) -> None:
+    def submit_samples(self, multiplex: np.ndarray, sample_offset: int) -> None:
         """Submit multiplex samples for RBDS processing (non-blocking).
 
         If the queue is full, samples are dropped. This ensures the audio
         thread is NEVER blocked by RBDS processing.
+
+        Args:
+            multiplex: FM multiplex signal at the configured sample rate.
+            sample_offset: Absolute sample position of the first sample in
+                           this chunk within the continuous FM stream.  This
+                           is used to generate a phase-coherent 57 kHz mixing
+                           reference that is correct even when chunks are
+                           dropped from the queue.
         """
         try:
-            # CRITICAL FIX: Pass reference only - don't copy in audio thread!
-            # The multiplex array is read-only for RBDS so sharing is safe.
-            # This prevents GIL contention that was causing audio stalling.
-            self._sample_queue.put_nowait(multiplex)
+            # Pass the chunk together with its absolute time offset so the
+            # worker can generate the correct crystal-locked carrier phase
+            # regardless of how many chunks were dropped in between.
+            self._sample_queue.put_nowait((multiplex, sample_offset))
         except queue.Full:
             # This is expected and fine - RBDS is lower priority than audio
             pass
@@ -477,14 +488,14 @@ class RBDSWorker:
         while not self._stop_event.is_set():
             try:
                 # Wait for samples with timeout (allows checking stop_event)
-                multiplex = self._sample_queue.get(timeout=0.5)
+                multiplex, sample_offset = self._sample_queue.get(timeout=0.5)
             except queue.Empty:
                 continue
 
             try:
                 samples_processed += 1
                 # Process RBDS - this can take as long as needed since we're in our own thread
-                rbds_data = self._process_rbds(multiplex)
+                rbds_data = self._process_rbds(multiplex, sample_offset)
 
                 if rbds_data:
                     groups_decoded += 1
@@ -516,7 +527,7 @@ class RBDSWorker:
 
         logger.info("RBDS worker thread exited (samples=%d, groups=%d)", samples_processed, groups_decoded)
 
-    def _process_rbds(self, multiplex: np.ndarray) -> Optional[RBDSData]:
+    def _process_rbds(self, multiplex: np.ndarray, sample_offset: int) -> Optional[RBDSData]:
         """Process multiplex samples to extract RBDS data.
 
         Based on PySDR's working implementation:
@@ -529,6 +540,12 @@ class RBDSWorker:
         CRITICAL FIX for Airspy: The multiplex arrives at 250 kHz after early decimation.
         We must extract the 57 kHz RBDS subcarrier BEFORE any lowpass filtering that would
         remove it. Correct order: bandpass → mix → lowpass → decimate.
+
+        Args:
+            multiplex: FM multiplex signal (real-valued, at self._sample_rate Hz).
+            sample_offset: Absolute position of the first sample in the FM stream.
+                           Used to compute the correct crystal-locked 57 kHz carrier
+                           phase even when earlier chunks were dropped from the queue.
         """
         if len(multiplex) == 0:
             return None
@@ -542,9 +559,15 @@ class RBDSWorker:
         # CRITICAL ARCHITECTURE FIX: FM stations use crystal oscillators
         # The 19 kHz pilot is EXACTLY 19000.0 Hz (parts per million accuracy)
         # We don't need PLL/Hilbert - just generate perfect reference!
-        # 57 kHz = pilot × 3 ensures phase coherence with transmitter
+        # 57 kHz = pilot × 3 ensures phase coherence with transmitter.
+        #
+        # IMPORTANT: Use sample_offset (the absolute position of this chunk in the
+        # FM stream) rather than a local counter.  When the queue is full the audio
+        # thread drops chunks; if we use a local counter it lags behind real time and
+        # the resulting 57 kHz reference phase is completely wrong for every subsequent
+        # chunk, making the extracted RBDS bits pure noise.
         n = len(multiplex)
-        pilot_phases = self._generate_pilot_reference(n)
+        pilot_phases = self._generate_pilot_reference(n, sample_offset)
 
         # Log pilot reference generation periodically
         if not hasattr(self, '_pilot_log_count'):
@@ -1481,13 +1504,20 @@ class FMDemodulator:
         # 24/7 RELIABILITY: Wrap in try-except to ensure RBDS issues never affect audio
         if self._rbds_enabled and self._rbds_worker:
             try:
-                # Submit samples for processing - this is instant and never blocks
-                self._rbds_worker.submit_samples(multiplex)
+                # Pass the absolute sample offset so the worker generates the
+                # correct crystal-locked 57 kHz carrier phase even when chunks
+                # are dropped from the queue (queue overflow discards chunks in
+                # the audio thread, so the worker's local counter would lag).
+                self._rbds_worker.submit_samples(multiplex, self._sample_index)
                 # Get whatever RBDS data is available (may be from previous chunks)
                 rbds_data = self._rbds_worker.get_latest_data()
             except Exception as e:
                 # Log but don't let RBDS errors affect audio demodulation
                 logger.warning(f"RBDS error (audio unaffected): {e}")
+
+        # Advance the absolute sample index AFTER submitting to ensure the
+        # offset is the position of the FIRST sample in this chunk.
+        self._sample_index += len(multiplex)
 
         # Calculate decimation factor for audio downsampling
         target_rate = self.config.audio_sample_rate
