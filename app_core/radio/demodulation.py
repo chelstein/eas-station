@@ -1070,8 +1070,16 @@ class RBDSWorker:
                                 self._rbds_wrong_blocks_counter = 0
                                 self._rbds_blocks_counter = 0
                                 self._rbds_block_bit_counter = 0
-                                self._rbds_block_number = (j + 1) % 4
+                                # CRITICAL FIX: Use offset_pos[j] to determine the next expected
+                                # block number, not j directly.  For C' (j=4), offset_pos[4]=2
+                                # (same slot as C), so the next block is D (3), not B (1).
+                                # Using (j+1)%4 gives 1 for j=4 which is wrong and causes
+                                # immediate sync loss for stations broadcasting Group 2B.
+                                self._rbds_block_number = (offset_pos[j] + 1) % 4
                                 self._rbds_group_assembly_started = False
+                                # Update polarity to match the triggering block so synced-mode
+                                # CRC checks use the correct inversion flag.
+                                self._rbds_inverted_polarity = polarity
                                 self._rbds_synced = True
                         break  # Syndrome found, exit j loop
             

@@ -6,6 +6,25 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.57.3] - Fix RBDS C' block sync bug
+
+### Fixed
+- **RBDS unreliable for stations broadcasting Group 2B (C' blocks)** — When the presync state
+  machine achieved synchronisation and the triggering (second) valid block was a C' (C-prime) block
+  (`j=4` in the syndrome table), the next expected block number was calculated as `(j+1)%4 = 1`
+  (Block B) instead of the correct `(offset_pos[j]+1)%4 = 3` (Block D).  `offset_pos[4] = 2`,
+  which is the same frame slot as a normal C block, so the next expected block after C' is always D
+  (block 3).  Setting the block number to 1 caused every subsequent block in synced mode to fail
+  its CRC check, exhausting the 35/50 bad-block threshold in seconds and forcing continuous
+  re-synchronisation.  WBKS and other stations that transmit Radio Text via Group 2B were
+  particularly affected.  Fix: compute initial block number as `(offset_pos[j]+1)%4` so C' is
+  treated identically to C for the purpose of advancing to the next block.
+- **RBDS polarity not updated at sync achievement** — After presync achieved sync, `_rbds_inverted_polarity`
+  was not updated to reflect the triggering block's polarity.  If a spacing-mismatch reset had
+  previously stored a different polarity, synced-mode CRC checks could silently apply the wrong
+  bit inversion, causing all blocks to fail.  Fix: `_rbds_inverted_polarity` is now explicitly set
+  to `polarity` at the point of sync achievement.
+
 ## [2.57.2] - Fix audio monitor not reporting metrics
 
 ### Fixed
