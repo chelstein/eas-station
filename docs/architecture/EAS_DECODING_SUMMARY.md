@@ -332,7 +332,117 @@ The current streaming decoder implementation has resolved these issues:
 
 ---
 
-**Document Version**: 1.0  
-**Date**: 2025-11-22  
-**Status**: Current system correct ✅  
-**Action Required**: None - problem resolved
+---
+
+## Recent Improvements (2026-03)
+
+Both decoders were enhanced based on analysis of the
+[EAS-Tools](https://github.com/wagwan-piffting-blud/EAS-Tools) open-source
+browser-based toolkit (`decoder-bundle.js`).
+
+### 1. IIR Bandpass Pre-Filter
+
+A 4th-order Butterworth bandpass filter (1200–2500 Hz) is now applied **before
+any demodulation** in both decoders.  This rejects out-of-band noise and closely
+matches the `SoftwareBandpass(1822.9 Hz, Q=3)` used by EAS-Tools.
+
+- **File decoder** (`eas_decode.py`): `_apply_bandpass_filter()` applied once
+  per file in `_decode_at_sample_rate()`.
+- **Streaming decoder** (`streaming_same_decoder.py`): Stateful scipy `sosfilt`
+  with persisted `zi` (initial conditions) applied at the start of every
+  `process_samples()` call.  Filter state is never lost between chunks.
+
+### 2. Numpy Vectorization (File Decoder)
+
+The file decoder's FSK correlation inner loop was pure-Python
+`sum(generator_expression)` calls (~170 multiply-adds per bit in interpreted
+Python).  Replaced with `np.dot()` calls operating on pre-built numpy arrays.
+Expected speedup: **10–50×** on the correlation hot path.
+
+The streaming decoder already used BLAS-accelerated matrix multiplication
+(`sliding_window_view` + `@` operator), so no change was needed there.
+
+### 3. ENDEC Mode Detection
+
+Both decoders can now fingerprint the originating transmitter hardware from
+inter-burst gap timing:
+
+| ENDEC Hardware | Inter-Burst Gap | Constant |
+|---|---|---|
+| Trilithic EASyPLUS | ~868 ms | `ENDEC_MODE_TRILITHIC` |
+| DASDEC / SAGE / NWS | ~1000 ms | `ENDEC_MODE_DEFAULT` |
+| Unknown / insufficient data | — | `ENDEC_MODE_UNKNOWN` |
+
+Logic lives in `app_utils/eas_decode.py` (`_detect_endec_mode`,
+`_compute_burst_timing_gaps_ms`) and is **shared** by both decoders to avoid
+duplication.
+
+### 4. Burst Timing Tracking
+
+Both decoders now record the sample position of each burst's start and end:
+
+- **File decoder**: `_correlate_and_decode_with_dll()` returns a third value —
+  a `List[Tuple[int, int]]` of `(start_sample, end_sample)` per burst.
+- **Streaming decoder**: `_burst_start_sample` is set when `in_message`
+  becomes True; the range is committed in `_emit_alert()`.
+
+### New Fields on Results
+
+**`SAMEAudioDecodeResult`** (file decoder):
+```python
+result.endec_mode            # str  e.g. "TRILITHIC", "DEFAULT", "UNKNOWN"
+result.burst_timing_gaps_ms  # List[float]  e.g. [868.2, 871.4]
+```
+
+**`StreamingSAMEAlert`** (streaming decoder):
+```python
+alert.endec_mode             # str
+alert.burst_timing_gaps_ms   # List[float]
+```
+
+**`StreamingSAMEDecoder.get_stats()`** now includes:
+```python
+{
+    ...
+    "endec_mode": "TRILITHIC",
+    "burst_timing_gaps_ms": [868.2, 871.4],
+    "bandpass_filter_active": True,
+}
+```
+
+---
+
+## Known Architectural Debt
+
+### Two Separate FSK Implementations
+
+The project currently maintains **two independent implementations** of the
+same core FSK/DLL demodulation algorithm:
+
+| | File Decoder | Streaming Decoder |
+|---|---|---|
+| **File** | `app_utils/eas_decode.py` | `app_core/audio/streaming_same_decoder.py` |
+| **Entry point** | `decode_same_audio(path)` | `StreamingSAMEDecoder.process_samples(chunk)` |
+| **DLL loop** | `_correlate_and_decode_with_dll()` | `_process_dll_and_bits()` |
+| **Correlation** | `np.dot` per chunk | BLAS matmul via `sliding_window_view @ table` |
+| **Purpose** | Post-hoc file verification | Live monitoring |
+
+These serve genuinely different use-cases (batch vs. streaming), and a fully
+streaming architecture needs stateful filter/DLL objects that persist between
+calls.  However, the **shared logic** (bandpass filter, DLL constants,
+ENDEC detection) is already being consolidated:
+
+- ENDEC mode constants and detection functions live in `eas_decode.py` and are
+  **imported** by `streaming_same_decoder.py` — no duplication there.
+- The DLL algorithm and correlation logic remain duplicated.
+
+**Planned improvement**: Extract a shared `SAMEDemodulatorCore` base class
+(or module) containing the DLL state machine and correlation table generation,
+then have both decoders compose from it rather than re-implement it.
+
+---
+
+**Document Version**: 1.1
+**Updated**: 2026-03-13
+**Status**: Current system correct ✅ — improvements applied to both decoders
+**Action Required**: None urgent; see Architectural Debt section for planned consolidation

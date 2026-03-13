@@ -14,7 +14,7 @@ with zero dropouts or gaps. Commercial EAS decoders operate this way.
 
 import logging
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import List, Optional, Callable, Tuple
 
@@ -22,6 +22,11 @@ import numpy as np
 
 from app_utils.eas_fsk import SAME_BAUD, SAME_MARK_FREQ, SAME_SPACE_FREQ
 from app_utils import utc_now
+from app_utils.eas_decode import (
+    _compute_burst_timing_gaps_ms,
+    _detect_endec_mode,
+    ENDEC_MODE_UNKNOWN,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +38,8 @@ class StreamingSAMEAlert:
     confidence: float
     timestamp: datetime
     raw_bits: List[int]
+    endec_mode: str = ENDEC_MODE_UNKNOWN
+    burst_timing_gaps_ms: List[float] = field(default_factory=list)
 
 
 class StreamingSAMEDecoder:
@@ -85,6 +92,9 @@ class StreamingSAMEDecoder:
             self._generate_correlation_tables()
         )
 
+        # Initialize bandpass filter coefficients once (never recomputed on reset)
+        self._init_bandpass_filter()
+
         # Decoder state variables (persistent across process_samples calls)
         self._reset_decoder_state()
 
@@ -114,6 +124,33 @@ class StreamingSAMEDecoder:
     @property
     def space_q(self):
         return self._space_q
+
+    def _init_bandpass_filter(self) -> None:
+        """Initialize scipy IIR bandpass filter for noise rejection.
+
+        Centered between SAME mark (2083.3 Hz) and space (1562.5 Hz) frequencies.
+        Matches EAS-Tools decoder-bundle.js SoftwareBandpass(1822.9 Hz, Q=3).
+        Filter state is preserved across process_samples() calls for seamless
+        streaming operation. Falls back silently if scipy is unavailable.
+        """
+        self._bandpass_sos = None
+        self._bandpass_zi = None
+        self._bandpass_available = False
+        try:
+            from scipy.signal import butter
+            nyq = self.sample_rate / 2.0
+            low = 1200.0 / nyq
+            high = min(2500.0, nyq * 0.95) / nyq
+            if 0 < low < high < 1.0:
+                self._bandpass_sos = butter(4, [low, high], btype="bandpass", output="sos")
+                self._bandpass_zi = np.zeros((self._bandpass_sos.shape[0], 2))
+                self._bandpass_available = True
+                logger.debug(
+                    "Bandpass filter initialized: 1200–2500 Hz, 4th-order Butterworth "
+                    "(sample_rate=%d Hz)", self.sample_rate
+                )
+        except Exception as exc:
+            logger.debug("Bandpass filter unavailable: %s", exc)
 
     def _reset_decoder_state(self) -> None:
         """Reset decoder state variables."""
@@ -149,6 +186,16 @@ class StreamingSAMEDecoder:
         self.INTEGRATOR_MAX = 12
         self.MAX_MSG_LEN = 268
         self.sphaseinc = int(0x10000 * self.baud_rate / self.sample_rate)
+
+        # Bandpass filter state — reset to zero initial conditions on full restart
+        if getattr(self, "_bandpass_available", False) and self._bandpass_sos is not None:
+            self._bandpass_zi = np.zeros((self._bandpass_sos.shape[0], 2))
+
+        # ENDEC mode detection state
+        self._burst_start_sample: Optional[int] = None
+        self._burst_sample_history: List[Tuple[int, int]] = []
+        self.endec_mode: str = ENDEC_MODE_UNKNOWN
+        self.burst_timing_gaps_ms: List[float] = []
 
     def reset(self) -> None:
         """
@@ -201,6 +248,20 @@ class StreamingSAMEDecoder:
         # Ensure input is float32 for consistent dtype
         if samples.dtype != np.float32:
             samples = samples.astype(np.float32)
+
+        # Apply stateful IIR bandpass filter to reject out-of-band noise.
+        # Filter state (zi) is preserved across chunks for seamless streaming.
+        if self._bandpass_available and self._bandpass_sos is not None:
+            try:
+                from scipy.signal import sosfilt
+                filtered, self._bandpass_zi = sosfilt(
+                    self._bandpass_sos,
+                    samples.astype(np.float64),
+                    zi=self._bandpass_zi,
+                )
+                samples = filtered.astype(np.float32)
+            except Exception:
+                pass  # Fallback: continue with unfiltered samples
 
         # Handle warmup: need corr_len samples before processing starts
         if self._warmup_remaining > 0:
@@ -343,8 +404,9 @@ class StreamingSAMEDecoder:
                         char = chr(byte_val)
 
                         if not self.in_message and char == 'Z':
-                            # Possible start of ZCZC
+                            # Possible start of ZCZC — record burst start for timing
                             self.in_message = True
+                            self._burst_start_sample = self.samples_processed
                             self.current_msg = [char]
                         elif self.in_message:
                             self.current_msg.append(char)
@@ -443,6 +505,7 @@ class StreamingSAMEDecoder:
         self.in_message = False
         self.synced = False
         self.bit_confidences = []
+        self._burst_start_sample = None
 
     def _emit_alert(self, msg_text: str) -> None:
         """Emit decoded alert via callback."""
@@ -454,19 +517,37 @@ class StreamingSAMEDecoder:
         else:
             confidence = 0.0
 
+        # Record burst end and update ENDEC mode fingerprint
+        if self._burst_start_sample is not None:
+            self._burst_sample_history.append(
+                (self._burst_start_sample, self.samples_processed)
+            )
+            self._burst_start_sample = None
+            # Keep only the last 4 bursts for gap calculation
+            if len(self._burst_sample_history) > 4:
+                self._burst_sample_history = self._burst_sample_history[-4:]
+            self.burst_timing_gaps_ms = _compute_burst_timing_gaps_ms(
+                self._burst_sample_history, self.sample_rate
+            )
+            if self.burst_timing_gaps_ms:
+                self.endec_mode = _detect_endec_mode([msg_text], self.burst_timing_gaps_ms)
+
         # Create alert object
         alert = StreamingSAMEAlert(
             message=msg_text,
             confidence=confidence,
             timestamp=utc_now(),
-            raw_bits=list(self.bit_confidences)
+            raw_bits=list(self.bit_confidences),
+            endec_mode=self.endec_mode,
+            burst_timing_gaps_ms=list(self.burst_timing_gaps_ms),
         )
 
         self.alerts_detected += 1
 
         logger.info(
             f"SAME Alert Detected: {msg_text[:50]}... "
-            f"(confidence: {confidence:.1%}, alert #{self.alerts_detected})"
+            f"(confidence: {confidence:.1%}, endec={self.endec_mode}, "
+            f"alert #{self.alerts_detected})"
         )
 
         # Invoke callback
@@ -484,8 +565,11 @@ class StreamingSAMEDecoder:
             'bytes_decoded': self.bytes_decoded,
             'synced': self.synced,
             'in_message': self.in_message,
-            'current_message_length': len(self.current_msg)
+            'current_message_length': len(self.current_msg),
+            'endec_mode': self.endec_mode,
+            'burst_timing_gaps_ms': list(self.burst_timing_gaps_ms),
+            'bandpass_filter_active': self._bandpass_available,
         }
 
 
-__all__ = ['StreamingSAMEDecoder', 'StreamingSAMEAlert']
+__all__ = ['StreamingSAMEDecoder', 'StreamingSAMEAlert', 'ENDEC_MODE_UNKNOWN']
