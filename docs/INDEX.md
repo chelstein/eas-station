@@ -128,6 +128,7 @@ Complete documentation for **EAS Station** - an Emergency Alert System platform 
 |----------|-------------|
 | [Developer Guidelines](development/AGENTS.md) | Code standards and architecture |
 | [Admin Page Refactoring](development/ADMIN_PAGE_REFACTORING.md) | Admin page modularization roadmap |
+| [CSS Variables Migration](development/CSS_VARIABLES_MIGRATION.md) | Stats dashboard color migration to CSS variables |
 | [Contributing Guide](process/CONTRIBUTING.md) | How to contribute |
 
 ## Security
