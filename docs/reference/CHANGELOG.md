@@ -6,6 +6,31 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.58.0] - 2026-03-14 - Documentation cleanup and navigation overhaul
+
+### Changed
+- **Documentation cleanup** — Removed one-off development artifacts from the docs directory:
+  `docs/GPIO_ENHANCEMENT_SUMMARY.md` (PR summary, superseded by the individual feature docs it
+  references) and `docs/development/timing_fix_explanation.py` (Python demonstration code that
+  is not documentation).
+- **CSS Variables Migration doc relocated** — Moved `CSS_VARIABLES_MIGRATION.md` from the
+  repository root to `docs/development/CSS_VARIABLES_MIGRATION.md` so it lives alongside other
+  developer-facing documentation.
+- **mkdocs.yml copyright corrected** — Changed "MIT License" to the accurate dual-license
+  statement (AGPL-3.0 for open-source use, Commercial License for proprietary use).
+- **mkdocs.yml navigation rebuilt** — Removed 29 navigation entries pointing to files that do
+  not exist (orphaned references from previous development cycles). Added comprehensive sections
+  for all existing documentation:
+  - **Installation** section (7 guides, previously absent from nav)
+  - **Troubleshooting** section (21 guides, previously entirely absent from nav)
+  - **Security** section (3 guides, previously absent from nav)
+  - **Architecture** section expanded from 3 to 11 entries
+  - **Hardware** section expanded from 4 to 15 entries (including Alpha LED sign docs)
+  - **Guides** section expanded with all orphaned user guides
+  - **Frontend**, **Reference**, **Roadmap**, **Maintenance**, and **Development**
+    sections updated with missing entries
+- **docs/INDEX.md updated** — Added entry for the relocated CSS Variables Migration document.
+
 ## [2.57.3] - Fix RBDS C' block sync bug
 
 ### Fixed
