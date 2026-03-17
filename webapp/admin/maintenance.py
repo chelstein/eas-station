@@ -1349,6 +1349,70 @@ def mark_expired():
         return jsonify({"error": str(exc)}), 500
 
 
+@maintenance_bp.route("/admin/clear_expired", methods=["POST"])
+def clear_expired():
+    try:
+        now = utc_now()
+        payload = request.get_json(silent=True) or {}
+        confirmed = payload.get("confirmed", False)
+
+        expired_alerts = CAPAlert.query.filter(
+            or_(CAPAlert.expires < now, CAPAlert.status == "Expired")
+        ).all()
+
+        count = len(expired_alerts)
+
+        if count == 0:
+            return jsonify({"message": "No expired alerts found to delete."})
+
+        if not confirmed:
+            return jsonify(
+                {
+                    "requires_confirmation": True,
+                    "message": (
+                        f"This will permanently delete {count} expired alert(s) "
+                        "from the database."
+                    ),
+                    "warning": "This action cannot be undone. All expired alert data will be lost.",
+                    "count": count,
+                }
+            )
+
+        identifiers = [a.identifier for a in expired_alerts]
+        for alert in expired_alerts:
+            db.session.delete(alert)
+
+        log_entry = SystemLog(
+            level="WARNING",
+            message=f"Permanently deleted {count} expired alerts",
+            module="admin",
+            details={
+                "deleted_at_utc": now.isoformat(),
+                "deleted_at_local": local_now().isoformat(),
+                "count": count,
+                "identifiers": identifiers,
+            },
+        )
+        db.session.add(log_entry)
+        db.session.commit()
+
+        current_app.logger.warning(
+            "Admin permanently deleted %d expired alerts", count
+        )
+
+        return jsonify(
+            {
+                "message": f"Permanently deleted {count} expired alert(s).",
+                "deleted_count": count,
+            }
+        )
+
+    except Exception as exc:
+        db.session.rollback()
+        current_app.logger.error("Error clearing expired alerts: %s", exc)
+        return jsonify({"error": str(exc)}), 500
+
+
 # ============================================================================
 # EAS Settings Routes
 # ============================================================================
