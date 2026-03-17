@@ -9,6 +9,20 @@ let adminAlertFilters = { includeExpired: false, search: '' };
 let alertSearchTimeout = null;
 let editingAlertId = null;
 let editAlertModal;
+let alertManagementInitialized = false;
+
+// Initialize when the Alerts sub-tab is shown
+const alertsSubTab = document.getElementById('alerts-subtab');
+if (alertsSubTab) {
+    alertsSubTab.addEventListener('shown.bs.tab', function () {
+        if (!alertManagementInitialized) {
+            alertManagementInitialized = true;
+            initializeAlertManagement();
+        } else {
+            loadAdminAlerts();
+        }
+    });
+}
 
 // Alert management initialization and data loading
 function initializeAlertManagement() {

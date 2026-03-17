@@ -82,28 +82,82 @@ def register_detail_routes(app, logger) -> None:
 
             summary_data = load_or_cache_summary_payload(message)
 
-            component_map = {
-                'same': ('same_audio_data', 'SAME Header Bursts'),
-                'attention': ('attention_audio_data', 'Attention Tone'),
-                'tts': ('tts_audio_data', 'Narration / TTS'),
-                'buffer': ('buffer_audio_data', 'Silence Buffer'),
-            }
+            has_eom = bool(metadata.get('has_eom')) or bool(message.eom_audio_data)
+            has_tts = bool(metadata.get('has_tts')) or bool(message.tts_audio_data)
+
+            # Compliance checklist — every step in FCC §11.31 broadcast order.
+            # Steps marked required=True must be present for a valid EAS broadcast.
+            broadcast_steps = [
+                {
+                    'key': 'same',
+                    'label': 'SAME Header',
+                    'description': '3 bursts with preamble — FCC §11.31(b)',
+                    'icon': 'fa-wave-square',
+                    'present': bool(message.same_audio_data),
+                    'required': True,
+                    'duration': segment_metadata.get('same', {}).get('duration_seconds'),
+                    'size_bytes': segment_metadata.get('same', {}).get('size_bytes'),
+                },
+                {
+                    'key': 'attention',
+                    'label': 'Attention Tone',
+                    'description': '8 s standard / 25 s weekly test',
+                    'icon': 'fa-volume-up',
+                    'present': bool(message.attention_audio_data),
+                    'required': True,
+                    'duration': segment_metadata.get('attention', {}).get('duration_seconds'),
+                    'size_bytes': segment_metadata.get('attention', {}).get('size_bytes'),
+                },
+                {
+                    'key': 'tts',
+                    'label': 'Voice Narration',
+                    'description': 'Text-to-speech alert message',
+                    'icon': 'fa-microphone',
+                    'present': has_tts,
+                    'required': False,
+                    'duration': segment_metadata.get('tts', {}).get('duration_seconds'),
+                    'size_bytes': segment_metadata.get('tts', {}).get('size_bytes'),
+                },
+                {
+                    'key': 'eom',
+                    'label': 'End of Message (EOM)',
+                    'description': '3 bursts — FCC §11.31(e) required',
+                    'icon': 'fa-broadcast-tower',
+                    'present': has_eom,
+                    'required': True,
+                    'duration': segment_metadata.get('eom', {}).get('duration_seconds'),
+                    'size_bytes': segment_metadata.get('eom', {}).get('size_bytes'),
+                },
+            ]
+
+            # Segment audio entries in broadcast order: composite first, then individual steps.
+            component_map = [
+                ('primary',   'audio_data',           'Complete Broadcast (Composite)'),
+                ('same',      'same_audio_data',       'SAME Header Bursts'),
+                ('attention', 'attention_audio_data',  'Attention Tone'),
+                ('tts',       'tts_audio_data',        'Voice Narration'),
+                ('eom',       'eom_audio_data',        'End of Message (EOM)'),
+                ('buffer',    'buffer_audio_data',     'Silence Buffer'),
+            ]
 
             segment_entries = []
-            for key, (attr, label) in component_map.items():
-                blob = getattr(message, attr)
+            for key, attr, label in component_map:
+                blob = getattr(message, attr, None)
                 if not blob:
                     continue
                 metrics = segment_metadata.get(key, {})
+                size = metrics.get('size_bytes') or len(blob)
                 segment_entries.append(
                     {
                         'key': key,
                         'label': label,
                         'url': url_for('eas_message_audio', message_id=message.id, variant=key),
                         'duration_seconds': metrics.get('duration_seconds'),
-                        'size_bytes': metrics.get('size_bytes'),
+                        'size_bytes': size,
                     }
                 )
+
+            composite_metrics = segment_metadata.get('composite', {})
 
             return render_template(
                 'audio_detail.html',
@@ -120,6 +174,10 @@ def register_detail_routes(app, logger) -> None:
                 locations=locations,
                 location_details=location_details,
                 segment_entries=segment_entries,
+                broadcast_steps=broadcast_steps,
+                has_eom=has_eom,
+                has_tts=has_tts,
+                composite_metrics=composite_metrics,
             )
         except Exception as exc:
             logger.error('Error loading audio detail %s: %s', message_id, exc)
