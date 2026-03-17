@@ -539,9 +539,10 @@ def _extract_bits(
 def _extract_bytes_from_bits(
     bits: List[int], start_pos: int, max_bytes: int, *, confidence_threshold: float = 0.3
 ) -> Tuple[List[int], List[int]]:
-    """Extract byte values and their positions from a bit stream starting at start_pos.
+    """Extract byte values from an 8-bit SAME bit stream starting at start_pos.
 
-    Improved version with adaptive threshold and better frame validation.
+    Per FCC 47 CFR §11.31 each byte is 7 ASCII data bits (LSB first) + 1 null bit
+    with no start or stop framing.
     """
 
     confidences: List[float] = list(getattr(_extract_bits, "bit_confidences", []))
@@ -550,23 +551,15 @@ def _extract_bytes_from_bits(
 
     i = start_pos
     consecutive_failures = 0
-    max_consecutive_failures = 5  # Allow up to 5 failed frames in a row
+    max_consecutive_failures = 5
 
-    while i + 10 <= len(bits) and len(byte_values) < max_bytes:
-        # Check for valid frame: start bit (0) and stop bit (1)
-        if bits[i] != 0:
-            consecutive_failures += 1
-            if consecutive_failures > max_consecutive_failures:
-                break  # Too many errors, likely end of valid data
-            i += 1
-            continue
-
-        # Check confidence for this frame
+    while i + 8 <= len(bits) and len(byte_values) < max_bytes:
+        # Check confidence for this 8-bit frame
         frame_confidence = 0.0
-        if i + 10 <= len(confidences):
-            frame_confidence = sum(confidences[i:i + 10]) / 10.0
+        if i + 8 <= len(confidences):
+            frame_confidence = sum(confidences[i:i + 8]) / 8.0
 
-        # Adaptive threshold: lower threshold if we're already decoding successfully
+        # Adaptive threshold: lower once we are already decoding successfully
         adaptive_threshold = confidence_threshold if len(byte_values) < 5 else confidence_threshold * 0.8
 
         if frame_confidence < adaptive_threshold:
@@ -576,33 +569,24 @@ def _extract_bytes_from_bits(
             i += 1
             continue
 
-        if bits[i + 9] != 1:
-            consecutive_failures += 1
-            if consecutive_failures > max_consecutive_failures:
-                break
-            i += 1
-            continue
-
-        # Extract 7-bit ASCII payload (8N1 format: 7 data bits + null bit)
-        # Per FCC 47 CFR §11.31: 7-bit ASCII + eighth null bit
-        data_bits = bits[i + 1 : i + 8]
-        # Bit 8 (position i+8) is the null bit, which we ignore
+        # Extract 7-bit ASCII payload; bit 7 is the FCC null bit (ignored)
+        data_bits = bits[i : i + 7]
 
         value = 0
         for position, bit in enumerate(data_bits):
             value |= (bit & 1) << position
 
-        # Validate that it's a printable ASCII character or control character
+        # Validate printable ASCII or accepted control characters
         if 32 <= value <= 126 or value in (10, 13, 45):  # Printable ASCII, LF, CR, dash
             byte_values.append(value)
             byte_positions.append(i)
-            consecutive_failures = 0  # Reset on success
+            consecutive_failures = 0
         else:
             consecutive_failures += 1
             if consecutive_failures > max_consecutive_failures:
                 break
 
-        i += 10
+        i += 8
 
     return byte_values, byte_positions
 
