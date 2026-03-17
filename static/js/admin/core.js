@@ -176,4 +176,9 @@ window.sanitizeBoundaryTypeInput = function(value) {
  */
 document.addEventListener('DOMContentLoaded', function() {
     console.log('Admin Core initialized');
+
+    const confirmModalEl = document.getElementById('confirmationModal');
+    if (confirmModalEl) {
+        window.confirmationModal = new bootstrap.Modal(confirmModalEl);
+    }
 });
