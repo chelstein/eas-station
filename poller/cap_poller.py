@@ -491,6 +491,8 @@ class CAPPoller:
         self.last_poll_sources: List[str] = []
         self.last_duplicates_filtered: int = 0
         self.last_fetch_errors: List[str] = []  # Track errors during fetch for frontend logging
+        self.last_endpoints_by_type: Dict[str, List[str]] = {}  # endpoint_type -> list of URLs polled
+        self.last_per_source_errors: Dict[str, List[str]] = {}  # endpoint_type -> list of error msgs
 
         # Verify tables exist (don’t crash if missing)
         try:
@@ -1578,8 +1580,21 @@ class CAPPoller:
 
         # Reset error tracking for this fetch cycle
         self.last_fetch_errors = []
+        endpoints_by_type: Dict[str, List[str]] = {}
+        per_source_errors: Dict[str, List[str]] = {}
 
         for endpoint in self.cap_endpoints:
+            # Determine endpoint type before the try block so errors are attributed correctly
+            if 'tdl.apps.fema.gov' in endpoint:
+                endpoint_type = "IPAWS"
+            elif 'apps.fema.gov' in endpoint:
+                endpoint_type = "IPAWS"
+            elif 'weather.gov' in endpoint:
+                endpoint_type = "NOAA"
+            else:
+                endpoint_type = "CUSTOM"
+            endpoints_by_type.setdefault(endpoint_type, []).append(endpoint)
+
             try:
                 self.logger.info(f"Fetching alerts from: {endpoint}")
                 self.logger.info(f"  -> Making HTTP GET request...")
@@ -1606,15 +1621,7 @@ class CAPPoller:
                 features = self._parse_feed_payload(response)
                 self.logger.info(f"Retrieved {len(features)} alerts from {endpoint}")
 
-                # Determine endpoint type for logging
-                if 'tdl.apps.fema.gov' in endpoint:
-                    endpoint_type = "IPAWS-STAGING"
-                elif 'apps.fema.gov' in endpoint:
-                    endpoint_type = "IPAWS"
-                elif 'weather.gov' in endpoint:
-                    endpoint_type = "NOAA"
-                else:
-                    endpoint_type = "CUSTOM"
+                # endpoint_type already determined above before the try block
 
                 # Log summary of what was fetched from this endpoint
                 self.logger.info(f"=" * 60)
@@ -1713,6 +1720,7 @@ class CAPPoller:
                 )
                 self.logger.error(error_msg)
                 self.last_fetch_errors.append(f"SSL Error: {error_msg}")
+                per_source_errors.setdefault(endpoint_type, []).append(f"SSL Error: {error_msg}")
             except requests.exceptions.Timeout as exc:
                 error_msg = (
                     f"Timeout fetching from {endpoint} after {timeout}s. "
@@ -1720,20 +1728,25 @@ class CAPPoller:
                 )
                 self.logger.error(error_msg)
                 self.last_fetch_errors.append(f"Timeout: {error_msg}")
+                per_source_errors.setdefault(endpoint_type, []).append(f"Timeout: {error_msg}")
             except requests.exceptions.RequestException as exc:
                 error_msg = f"Error fetching from {endpoint}: {str(exc)}"
                 self.logger.error(error_msg)
                 self.last_fetch_errors.append(f"Request Error: {error_msg}")
+                per_source_errors.setdefault(endpoint_type, []).append(f"Request Error: {error_msg}")
             except Exception as exc:
                 error_msg = f"Unexpected error fetching from {endpoint}: {str(exc)}"
                 self.logger.error(error_msg)
                 self.last_fetch_errors.append(f"Unexpected Error: {error_msg}")
+                per_source_errors.setdefault(endpoint_type, []).append(f"Unexpected Error: {error_msg}")
 
         unique_alerts.extend(alerts_by_identifier.values())
         unique_alerts.extend(alerts_without_identifier)
 
         self.last_poll_sources = sorted(sources_seen)
         self.last_duplicates_filtered = duplicates_filtered
+        self.last_endpoints_by_type = endpoints_by_type
+        self.last_per_source_errors = per_source_errors
 
         if duplicates_filtered:
             if duplicates_replaced:
@@ -2778,39 +2791,74 @@ class CAPPoller:
             except Exception:
                 pass
 
-    def log_poll_history(self, stats):
+    def log_poll_history(self, stats, per_source_stats: Dict = None):
         try:
             try:
                 self.db_session.execute(text("SELECT 1 FROM poll_history LIMIT 1"))
             except Exception:
                 self.logger.debug("poll_history missing; file-only log")
                 return
-            # Build details dict with endpoint and config info for frontend visibility
-            poll_details = {
-                'endpoints_polled': stats.get('endpoints_polled', []),
+
+            # Shared details fields (config info relevant to every source)
+            common_details = {
                 'configured_zone_codes': stats.get('configured_zone_codes', []),
                 'configured_same_codes': stats.get('configured_same_codes', []),
                 'configured_storage_zones': stats.get('configured_storage_zones', []),
-                'alerts_filtered': stats.get('alerts_filtered', 0),
-                'alerts_accepted': stats.get('alerts_accepted', 0),
                 'duplicates_filtered': stats.get('duplicates_filtered', 0),
                 'poll_time_utc': stats.get('poll_time_utc'),
                 'poll_time_local': stats.get('poll_time_local'),
                 'timezone': stats.get('timezone'),
             }
-            rec = PollHistory(
-                timestamp=utc_now(),
-                alerts_fetched=stats.get('alerts_fetched', 0),
-                alerts_new=stats.get('alerts_new', 0),
-                alerts_updated=stats.get('alerts_updated', 0),
-                execution_time_ms=stats.get('execution_time_ms', 0),
-                status=stats.get('status', 'UNKNOWN'),
-                error_message=stats.get('error_message'),
-                data_source=summarise_sources(stats.get('sources', [])),
-                details=poll_details,
-            )
-            self.db_session.add(rec)
-            self.db_session.commit()
+
+            if per_source_stats:
+                # Write one PollHistory record per source type (NOAA, IPAWS, CUSTOM …)
+                endpoints_by_type = self.last_endpoints_by_type or {}
+                for src_type, src_s in per_source_stats.items():
+                    src_details = dict(common_details)
+                    src_details['endpoints_polled'] = [
+                        {'type': src_type, 'url': u}
+                        for u in endpoints_by_type.get(src_type, [])
+                    ]
+                    src_details['alerts_filtered'] = src_s.get('alerts_filtered', 0)
+                    src_details['alerts_accepted'] = src_s.get('alerts_accepted', 0)
+
+                    # data_source uses the endpoint type label directly; 'NOAA', 'IPAWS',
+                    # and 'CUSTOM' are preserved as-is (normalize_alert_source maps 'CUSTOM'
+                    # to 'UNKNOWN' which is not useful here).
+                    data_source = src_type
+
+                    rec = PollHistory(
+                        timestamp=utc_now(),
+                        alerts_fetched=src_s.get('alerts_fetched', 0),
+                        alerts_new=src_s.get('alerts_new', 0),
+                        alerts_updated=src_s.get('alerts_updated', 0),
+                        execution_time_ms=stats.get('execution_time_ms', 0),
+                        status=src_s.get('status', stats.get('status', 'UNKNOWN')),
+                        error_message=src_s.get('error_message'),
+                        data_source=data_source,
+                        details=src_details,
+                    )
+                    self.db_session.add(rec)
+                self.db_session.commit()
+            else:
+                # Fallback: single combined record (backward-compatible)
+                poll_details = dict(common_details)
+                poll_details['endpoints_polled'] = stats.get('endpoints_polled', [])
+                poll_details['alerts_filtered'] = stats.get('alerts_filtered', 0)
+                poll_details['alerts_accepted'] = stats.get('alerts_accepted', 0)
+                rec = PollHistory(
+                    timestamp=utc_now(),
+                    alerts_fetched=stats.get('alerts_fetched', 0),
+                    alerts_new=stats.get('alerts_new', 0),
+                    alerts_updated=stats.get('alerts_updated', 0),
+                    execution_time_ms=stats.get('execution_time_ms', 0),
+                    status=stats.get('status', 'UNKNOWN'),
+                    error_message=stats.get('error_message'),
+                    data_source=summarise_sources(stats.get('sources', [])),
+                    details=poll_details,
+                )
+                self.db_session.add(rec)
+                self.db_session.commit()
         except Exception as e:
             self.logger.error(f"log_poll_history error: {e}")
             try:
@@ -2856,7 +2904,7 @@ class CAPPoller:
         endpoints_info = []
         for ep in self.cap_endpoints:
             if 'tdl.apps.fema.gov' in ep:
-                ep_type = "IPAWS-STAGING"
+                ep_type = "IPAWS"
             elif 'apps.fema.gov' in ep:
                 ep_type = "IPAWS"
             elif 'weather.gov' in ep:
@@ -2882,6 +2930,20 @@ class CAPPoller:
             'configured_same_codes': sorted(self.same_codes),
             'configured_storage_zones': sorted(self.storage_zone_codes),
         }
+
+        # Per-source stats — one entry per endpoint type (NOAA, IPAWS, CUSTOM)
+        per_source_stats: Dict[str, Dict] = {}
+
+        def _init_source_stats() -> Dict:
+            return {
+                'alerts_fetched': 0,
+                'alerts_new': 0,
+                'alerts_updated': 0,
+                'alerts_filtered': 0,
+                'alerts_accepted': 0,
+                'status': 'SUCCESS',
+                'error_message': None,
+            }
 
         debug_records: List[Dict[str, Any]] = []
 
@@ -2955,6 +3017,11 @@ class CAPPoller:
                 headline = props.get('headline', '')
                 endpoint_type = props.get('_fetch_endpoint_type', 'UNKNOWN')
 
+                # Accumulate per-source stats for this alert
+                if endpoint_type not in per_source_stats:
+                    per_source_stats[endpoint_type] = _init_source_stats()
+                per_source_stats[endpoint_type]['alerts_fetched'] += 1
+
                 self.logger.info(f"Processing alert from [{endpoint_type}]: {event} (ID: {alert_id[:20] if alert_id!='No ID' else 'No ID'}...)")
 
                 # Track this alert in fetched_alerts for visibility (even if filtered)
@@ -3021,6 +3088,7 @@ class CAPPoller:
                     self.logger.info(f"║ Reason: Not relevant to {self.county_upper} - no matching location codes")
                     self.logger.info(f"╚═══════════════════════════════════════════════════════════════")
                     stats['alerts_filtered'] += 1
+                    per_source_stats[endpoint_type]['alerts_filtered'] += 1
                     # Track filtered alert for visibility
                     alert_summary['status'] = 'filtered'
                     alert_summary['reason'] = f"Not relevant to {self.county_upper} - no matching location codes"
@@ -3032,6 +3100,7 @@ class CAPPoller:
                     continue
 
                 stats['alerts_accepted'] += 1
+                per_source_stats[endpoint_type]['alerts_accepted'] += 1
                 parsed = self.parse_cap_alert(alert_data)
                 if not parsed:
                     self.logger.warning(f"Failed to parse: {event}")
@@ -3061,6 +3130,7 @@ class CAPPoller:
                     is_new, alert, _ = self.save_cap_alert(parsed)
                     if is_new:
                         stats['alerts_new'] += 1
+                        per_source_stats[endpoint_type]['alerts_new'] += 1
                         self.logger.info(
                             f"Saved new {self.location_name} alert: {alert.event if alert else parsed['event']} - Sent: {format_local_datetime(parsed.get('sent'))}"
                         )
@@ -3069,6 +3139,7 @@ class CAPPoller:
                         alert_summary['reason'] = 'New alert saved to database (SAME code match)'
                     else:
                         stats['alerts_updated'] += 1
+                        per_source_stats[endpoint_type]['alerts_updated'] += 1
                         self.logger.info(
                             f"Updated {self.location_name} alert: {alert.event if alert else parsed['event']} - Sent: {format_local_datetime(parsed.get('sent'))}"
                         )
@@ -3122,7 +3193,21 @@ class CAPPoller:
                     })
 
             self.cleanup_old_poll_history()
-            self.log_poll_history(stats)
+
+            # Ensure every polled source type has an entry (even if 0 alerts came back)
+            for src_type, src_endpoints in self.last_endpoints_by_type.items():
+                if src_type not in per_source_stats:
+                    per_source_stats[src_type] = _init_source_stats()
+                # Propagate fetch-phase errors into per-source status
+                src_errors = self.last_per_source_errors.get(src_type, [])
+                if src_errors:
+                    per_source_stats[src_type]['error_message'] = '; '.join(src_errors)
+                    per_source_stats[src_type]['status'] = (
+                        'PARTIAL_SUCCESS' if per_source_stats[src_type]['alerts_fetched'] > 0
+                        else 'ERROR'
+                    )
+
+            self.log_poll_history(stats, per_source_stats)
             self.persist_debug_records(poll_run_id, poll_start_utc, stats, debug_records)
             self.cleanup_old_debug_records()
 

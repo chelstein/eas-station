@@ -6,122 +6,50 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
-## [2.60.2] - 2026-03-17 - Fix OTA/stream alert decoding — restore 6 months of lost alerts
+## [2.60.1] - 2026-03-17 - View Alert and Edit Alert fixes
 
 ### Fixed
-- **CRITICAL: EAS encoder wrong bit format for 6 months** — A previous AI agent
-  (Claude, Nov 2 2025) was fixing a real bug (7E1 parity framing) but introduced
-  a worse one: it mis-read FCC §11.31 and implemented UART 8N1 serial framing
-  (start bit + 7 data + null + stop = **10 bits** per character) instead of the
-  correct raw FSK format (**8 bits** per character: 7 data + 1 null, no framing).
+- **"View Alert" button on Audio Archive** — The button was incorrectly linking to the
+  audio detail page (`/audio/<id>`) instead of the CAP alert detail page. Users who
+  clicked "View Alert" received a flash error "Unable to load audio detail at this time."
+  because the audio detail page was being accessed with unrelated message IDs. Fixed
+  `history.py` to generate `alert_url` using `api.alert_detail` so the button correctly
+  navigates to the linked CAP alert.
+- **"Edit Alert" modal not opening on Admin Panel** — The Bootstrap Modal instance for
+  `editAlertModal` was never created, so `editAlertModal.show()` silently did nothing.
+  Added `new bootstrap.Modal(element)` initialization inside `initializeAlertManagement()`
+  in `alert-management.js`.
+- **Confirmation modal not opening on Admin Panel** — `window.confirmationModal` was
+  likewise never initialized as a Bootstrap Modal instance, causing alert delete
+  confirmations to fail. Added initialization inside the `DOMContentLoaded` handler in
+  `core.js`.
 
-  **Root cause in plain terms:** SAME audio is raw FSK — bits flow continuously
-  with no UART serial overhead. FCC §11.31 says "7-bit ASCII ending with an eighth
-  null bit to constitute a full eight-bit byte." That means 8 raw bits per
-  character. It does NOT mean a UART serial frame with start and stop bits around
-  each byte. The AI agent confused the two.
-
-  **Why OTA and stream alerts never decoded:** The DLL streaming decoder
-  (`SAMEDemodulatorCore`) was always FCC-correct — it reads 8 bits per byte.
-  With the encoder emitting 10-bit frames, every byte boundary was off by 2 bits.
-  Preamble sync (`0xAB` detection) was impossible, so `synced` never went True,
-  no characters assembled into a message, and no alert callback ever fired. The
-  system received zero OTA or stream alerts for the entire 6-month operational
-  lifetime.
-
-  **Files changed:**
-  - `app_utils/eas_fsk.py` — `same_preamble_bits()`: removed start/stop bits;
-    preamble is now 16 × 8 = 128 bits (was 160).
-  - `app_utils/eas_fsk.py` — `encode_same_bits()`: removed start/stop bits;
-    each character is now 8 bits (was 10).
-  - `app_utils/eas_decode.py` — `_extract_bytes_from_bits()`: reads 8-bit frames.
-  - `app_utils/eas_decode.py` — `_find_same_bursts()`: updated ZCZC/NNNN patterns
-    to 8-bit; preamble skip updated 160 → 128 bits.
-  - `app_utils/eas_decode.py` — `_bits_to_text()` single-burst fallback: removed
-    start/stop bit scanning; uses 8-bit stride from detected burst position.
-
-- **test_streaming_same_decoder.py** collection failure — the existing test file
-  crashed pytest collection because `app_core/__init__.py` eagerly imports the full
-  Flask/SQLAlchemy/GeoAlchemy2/Redis stack at package import time. Fixed with
-  `pytest.importorskip` so the file skips gracefully in isolated environments.
+## [2.59.0] - 2026-03-17 - Per-source polling logs and log viewer fixes
 
 ### Added
-- **7 new regression tests in `tests/test_eas_decode.py`** using only `app_utils`
-  (no Flask stack required, always runnable):
-  - `test_encoder_produces_fcc_8bit_frames` — guards against 10-bit reversion
-  - `test_preamble_produces_fcc_8bit_bytes` — validates 16 × 0xAB, 128 bits
-  - `test_dll_decoder_round_trip_nominal` — encoder → FSK → DLL full pipeline
-  - `test_dll_decoder_round_trip_all_three_bursts` — verifies 3/3 bursts decoded
-  - `test_dll_decoder_round_trip_at_16khz` — validates the OTA monitoring rate
-  - `test_dll_decoder_round_trip_chunked_100ms` — simulates real 100 ms chunk feed
-  - `test_dll_decoder_round_trip_varied_headers` — 5 real-world SAME header formats
-
-## [2.60.1] - 2026-03-17 - Fix EAS decoder round-trip for fast-baud audio
+- **NOAA vs IPAWS polling differentiation** — The CAP poller now writes a separate
+  `PollHistory` record for each source type (NOAA, IPAWS, CUSTOM) per poll cycle.
+  The Polling log viewer shows individual "Alert Polling (NOAA)" and "Alert Polling (IPAWS)"
+  rows with per-source alert counts (fetched, new, updated, filtered, accepted), so it is
+  immediately clear which source provided alerts and whether each source had errors.
+- **Per-source error attribution** — Fetch errors (SSL, timeout, request failures) are now
+  attributed to the specific source type that caused them and surfaced in the corresponding
+  `PollHistory` record's `error_message` field and status (`ERROR` / `PARTIAL_SUCCESS`).
 
 ### Fixed
-- **EAS decoder single-burst confidence threshold** — lowered the bit-confidence
-  threshold in the `_bits_to_text` single-burst fallback path from 0.6 to 0.3,
-  matching the multi-burst path. When audio is encoded at a slightly fast baud rate
-  (e.g. 4 % above nominal), the start-bit Goertzel confidence drops to ~0.2 because
-  shorter bit windows reduce frequency selectivity. The old 0.6 threshold silently
-  rejected every valid frame and returned garbage text. The decoder now correctly
-  round-trips audio produced by the encoder (bit-for-bit) across the full ±4 % baud
-  tolerance window required by FCC §11.31 ENDEC hardware variation.
-
-## [2.60.0] - 2026-03-17 - Professional broadcast audio detail page
-
-### Changed
-- **Audio detail page completely overhauled** — Now displays like a commercial EAS
-  encoder/decoder record (Monroe Electronics R189 / Trilithic EAS-911 style) with:
-  - **FCC §11.31 compliance panel** at the top — four indicator tiles (SAME Header,
-    Attention Tone, Voice Narration, End of Message). Each tile shows ✅ OK with
-    duration or ❌ MISSING/NOT GENERATED. Panel border turns green when all required
-    components are present, red when any required component is absent.
-  - **Complete broadcast audio** card — full composite player with total duration and
-    size; direct composite download button.
-  - **Broadcast Sequence** card — all four FCC broadcast-order steps rendered with
-    status badge (OK / MISSING / NOT GENERATED), FCC regulation reference, duration,
-    size, individual audio player, and per-segment download button. TTS failure reason
-    shown inline when synthesis failed.
-  - **Stored Audio Files** sidebar — compact list of all six stored blobs (Composite,
-    SAME Header, Attention Tone, Voice Narration, EOM, Silence Buffer) with size in KB
-    and individual download link for every segment that was saved.
-  - **SAME Header Decode** panel showing the raw SAME string, event + code, severity,
-    status, and decoded location list with county/state detail.
-  - **Raw Metadata** collapsed by default to reduce noise.
-
-### Fixed
-- **EOM missing from segment list** — `eom_audio_data` was stored but not shown in the
-  audio detail view. EOM now appears as a required broadcast step with its own player
-  and download button, giving operators explicit confirmation it was generated.
-- **Composite duration/size not tracked** — Added `segment_payload['composite']`
-  metrics in `build_files()` so `metadata_payload.segments.composite` records the total
-  broadcast duration and file size without duplicating audio bytes.
-- **`azure.com` bare hostname incorrectly matched by Azure auth check** — Removed the
-  `== "azure.com"` equality branch; all valid Azure OpenAI endpoints use a subdomain
-  so `endswith(".azure.com")` is both sufficient and more precise.
-
-## [2.59.0] - 2026-03-17 - Fix Azure OpenAI TTS auth, remove TTS normalization, fix alerts spinner
-
-### Fixed
-- **Azure OpenAI TTS always failing (`has_tts: false`)** — Azure OpenAI subscription-key
-  authentication requires an `api-key: {key}` request header, not `Authorization: Bearer {key}`
-  (which is reserved for Entra ID/OAuth tokens). The wrong header was causing every Azure OpenAI
-  TTS request to return HTTP 401, silently producing no audio. The code now sends `api-key` for
-  any `*.azure.com` endpoint and `Authorization: Bearer` for `api.openai.com`.
-- **Admin "Alerts" tab stuck on loading spinner** — The `#alerts-subtab` button was missing a
-  `shown.bs.tab` event listener, so `initializeAlertManagement()` was never called when the tab
-  was opened. Added the listener following the same pattern used by the Zones and Snow Emergency
-  tabs. Subsequent tab activations only reload the alert list without re-binding event handlers.
-- **TTS audio normalization degrading audio quality** — `_normalize_audio_amplitude(..., amplitude * 0.7)`
-  was applied to TTS/narration samples in both the automatic-alert and manual-build code paths.
-  This RMS rescaling made the Azure OpenAI voice audio sound distorted. The normalization calls
-  have been removed; TTS samples are now mixed directly at their native level.
-
-### Added
-- **TTS warning now shown on audio detail page** — When TTS synthesis fails the error message
-  stored in `tts_warning` is displayed on `/audio/<id>` alongside the voice provider, making it
-  easy to diagnose configuration issues without digging through logs.
+- **`AudioAlert.cleared` AttributeError** — The `audio` log-viewer category referenced a
+  non-existent `cleared` attribute on `AudioAlert` (which uses `resolved`). Accessing this
+  attribute when the `audio_alerts` table contained rows would raise an `AttributeError`,
+  suppressed by the outer exception handler and returned as an HTML error page rather than
+  the log view. Changed to `log.resolved`.
+- **`PollHistory.poll_time` AttributeError** — `websocket_push.py` referenced
+  `PollHistory.poll_time` (non-existent) instead of `PollHistory.timestamp` and
+  `PollHistory.alerts_count` instead of `PollHistory.alerts_fetched`, causing a silent
+  exception when the IPAWS status WebSocket push ran. Both corrected.
+- **IPAWS-STAGING endpoints now grouped with IPAWS** — The FEMA TDL staging domain
+  (`tdl.apps.fema.gov`) is now classified as `"IPAWS"` instead of the previous
+  `"IPAWS-STAGING"` label, keeping it in the same `PollHistory` record as production
+  IPAWS and matching the `normalize_alert_source` canonical values.
 
 ## [2.58.0] - 2026-03-14 - Documentation cleanup and navigation overhaul
 

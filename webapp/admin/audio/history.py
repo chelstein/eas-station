@@ -154,7 +154,7 @@ def register_history_routes(app, logger) -> None:
                         'audio_url': audio_url,
                         'text_url': text_url,
                         'detail_url': url_for('audio_detail', message_id=message.id),
-                        'alert_url': url_for('audio_detail', message_id=message.id),
+                        'alert_url': url_for('api.alert_detail', alert_id=alert.id) if alert else None,
                         'alert_identifier': alert.identifier if alert else None,
                         'eom_url': eom_url,
                         'summary_data': summary_data,
