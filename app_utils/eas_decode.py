@@ -592,42 +592,35 @@ def _extract_bytes_from_bits(
 
 
 def _find_same_bursts(bits: List[int]) -> List[int]:
-    """Find the starting positions of SAME bursts by looking for ZCZC markers."""
+    """Find the starting positions of SAME bursts by looking for ZCZC markers.
 
-    # Look for 'ZCZC' pattern which marks the start of each SAME header
-    # 'Z' = 0x5A, 'C' = 0x43
-    # We'll search for sequences that look like ZCZC
+    Per FCC 47 CFR §11.31 each byte is 8 bits: 7 ASCII data bits (LSB first)
+    followed by one null bit.  There are no start or stop framing bits.
+    """
 
     burst_positions: List[int] = []
 
-    # Define character patterns using 8N1 framing (8 data bits, no parity, 1 stop)
-    # Per FCC 47 CFR §11.31: 7-bit ASCII + eighth null bit
-    # 'Z' = 0x5A = 0b01011010 -> LSB first: 0,1,0,1,1,0,1 + null(0)
-    # Frame: [start=0][7 data bits LSB first][null bit=0][stop=1]
-    Z_pattern = [0, 0, 1, 0, 1, 1, 0, 1, 0, 1]
-    # 'C' = 0x43 = 0b01000011 -> LSB first: 1,1,0,0,0,0,1 + null(0)
-    C_pattern = [0, 1, 1, 0, 0, 0, 0, 1, 0, 1]
+    # 8-bit FCC §11.31 patterns (7 data bits LSB-first + null bit)
+    # 'Z' = 0x5A → [0,1,0,1,1,0,1,0]
+    Z_pattern = [0, 1, 0, 1, 1, 0, 1, 0]
+    # 'C' = 0x43 → [1,1,0,0,0,0,1,0]
+    C_pattern = [1, 1, 0, 0, 0, 0, 1, 0]
 
-    # Skip the preamble (16 bytes of 0xAB * 10 bits per byte = 160 bits)
-    # The preamble can cause false matches, so start searching after it
-    preamble_bits = 160
-    i = min(preamble_bits, len(bits) // 4)  # Start after preamble or 25% into bits
-    while i < len(bits) - 40:  # Need at least 4 * 10 bits for ZCZC
-        # Check for ZCZC pattern
-        z1_matches = sum(1 for j in range(10) if i+j < len(bits) and bits[i+j] == Z_pattern[j])
-        c1_matches = sum(1 for j in range(10) if i+10+j < len(bits) and bits[i+10+j] == C_pattern[j])
-        z2_matches = sum(1 for j in range(10) if i+20+j < len(bits) and bits[i+20+j] == Z_pattern[j])
-        c2_matches = sum(1 for j in range(10) if i+30+j < len(bits) and bits[i+30+j] == C_pattern[j])
+    # Skip the preamble (16 bytes of 0xAB × 8 bits = 128 bits)
+    preamble_bits = 128
+    i = min(preamble_bits, len(bits) // 4)
+    while i < len(bits) - 32:  # Need at least 4 × 8 bits for ZCZC
+        z1 = sum(1 for j in range(8) if i+j < len(bits) and bits[i+j] == Z_pattern[j])
+        c1 = sum(1 for j in range(8) if i+8+j < len(bits) and bits[i+8+j] == C_pattern[j])
+        z2 = sum(1 for j in range(8) if i+16+j < len(bits) and bits[i+16+j] == Z_pattern[j])
+        c2 = sum(1 for j in range(8) if i+24+j < len(bits) and bits[i+24+j] == C_pattern[j])
 
-        # If we found a reasonably good ZCZC match
-        total_matches = z1_matches + c1_matches + z2_matches + c2_matches
-        if total_matches >= 28:  # Allow ~30% bit errors (12 out of 40 bits can be wrong)
-            # Found a burst! Record the position
-            # This is the start of the message (ZCZC position)
+        total_matches = z1 + c1 + z2 + c2
+        if total_matches >= 22:  # Allow ~30% bit errors (10 out of 32 bits can be wrong)
             burst_positions.append(i)
-            i += 400  # Skip ahead to avoid finding the same burst multiple times
+            i += 320  # Skip ahead past this burst
         else:
-            i += 10
+            i += 8
 
     return burst_positions
 
@@ -799,7 +792,7 @@ def _bits_to_text(bits: List[int]) -> Dict[str, object]:
                         break
             if trimmed_positions:
                 start_bit = trimmed_positions[0]
-                end_bit = trimmed_positions[-1] + 10
+                end_bit = trimmed_positions[-1] + 8
             else:
                 start_bit = burst_start
                 if index + 1 < len(burst_positions):
@@ -837,30 +830,22 @@ def _bits_to_text(bits: List[int]) -> Dict[str, object]:
     confidences: List[float] = list(getattr(_extract_bits, "bit_confidences", []))
     confidence_threshold = 0.3
 
-    i = 0
-    while i + 10 <= len(bits):
-        if bits[i] != 0:
-            i += 1
-            continue
-
+    # Start scanning from the first detected burst position if available,
+    # otherwise scan from bit 0.  Step through 8-bit FCC §11.31 frames
+    # (7 data bits LSB-first + 1 null bit, no start/stop framing).
+    scan_start = burst_positions[0] if burst_positions else 0
+    i = scan_start
+    while i + 8 <= len(bits):
         frame_confidence = 0.0
-        if i + 10 <= len(confidences):
-            frame_confidence = sum(confidences[i:i + 10]) / 10.0
+        if i + 8 <= len(confidences):
+            frame_confidence = sum(confidences[i:i + 8]) / 8.0
         if frame_confidence < confidence_threshold:
             error_positions.append(i)
-            i += 1
+            i += 8
             continue
 
-        stop_bit = bits[i + 9]
-        if stop_bit != 1:
-            error_positions.append(i)
-            i += 1
-            continue
-
-        # Extract 7-bit ASCII payload (8N1 format: 7 data bits + null bit)
-        # Bit 8 is the null bit per FCC spec, which we ignore
-        data_bits = bits[i + 1 : i + 8]
-
+        # Extract 7-bit ASCII payload; bit 7 is the FCC null bit (ignored)
+        data_bits = bits[i : i + 7]
         value = 0
         for position, bit in enumerate(data_bits):
             value |= (bit & 1) << position
@@ -869,12 +854,12 @@ def _bits_to_text(bits: List[int]) -> Dict[str, object]:
             character = chr(value)
         except ValueError:
             error_positions.append(i)
-            i += 10
+            i += 8
             continue
 
         characters.append(character)
         char_positions.append(i)
-        i += 10
+        i += 8
 
     raw_text = "".join(characters)
 
@@ -891,7 +876,7 @@ def _bits_to_text(bits: List[int]) -> Dict[str, object]:
                         break
             if trimmed_positions:
                 start_bit = trimmed_positions[0]
-                end_bit = trimmed_positions[-1] + 10
+                end_bit = trimmed_positions[-1] + 8
                 burst_bit_ranges.append((start_bit, end_bit))
 
     if char_positions:

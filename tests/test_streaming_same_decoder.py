@@ -23,11 +23,24 @@ Unit tests for StreamingSAMEDecoder
 Tests decoder reset functionality and optimized sample processing.
 """
 
+import sys
 import pytest
 import numpy as np
 import time
+from pathlib import Path
 
-from app_core.audio.streaming_same_decoder import StreamingSAMEDecoder
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+# StreamingSAMEDecoder lives inside app_core which eagerly imports the full
+# Flask / SQLAlchemy / GeoAlchemy2 / Redis stack via app_core/__init__.py.
+# In isolated test environments those packages may not be present, so we
+# skip the whole module rather than crashing collection.
+StreamingSAMEDecoder = pytest.importorskip(
+    "app_core.audio.streaming_same_decoder",
+    reason="app_core stack (Flask/SQLAlchemy/Redis) not available",
+).StreamingSAMEDecoder
 
 
 class TestStreamingSAMEDecoder:
