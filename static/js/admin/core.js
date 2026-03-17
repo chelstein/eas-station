@@ -179,6 +179,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
     const confirmModalEl = document.getElementById('confirmationModal');
     if (confirmModalEl) {
+        // Move to <body> so Bootstrap modal z-index renders above the sticky navbar
+        // stacking context created by its backdrop-filter property.
+        document.body.appendChild(confirmModalEl);
         window.confirmationModal = new bootstrap.Modal(confirmModalEl);
     }
 });

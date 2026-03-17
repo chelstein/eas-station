@@ -48,6 +48,9 @@ function initializeAlertManagement() {
     }
     const editModalElement = document.getElementById('editAlertModal');
     if (editModalElement) {
+        // Move to <body> so Bootstrap modal z-index renders above the sticky navbar
+        // stacking context created by its backdrop-filter property.
+        document.body.appendChild(editModalElement);
         editAlertModal = new bootstrap.Modal(editModalElement);
         editModalElement.addEventListener('hidden.bs.modal', resetAlertEditForm);
     }

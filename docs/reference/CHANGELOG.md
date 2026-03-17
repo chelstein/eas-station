@@ -6,7 +6,23 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
-## [2.60.1] - 2026-03-17 - View Alert and Edit Alert fixes
+## [2.60.2] - 2026-03-17 - Alert modal interactivity and delete-expired fixes
+
+### Fixed
+- **Edit Alert modal and Confirmation modal unclickable** — Both Bootstrap modals were
+  rendered inside `<main class="page-shell">`, whose sticky navbar carries a
+  `backdrop-filter` CSS property that creates a new stacking context. This caused the
+  navbar to paint over the open modal, making all form fields and the close button
+  unreachable. Fixed by appending both modal elements to `document.body` before
+  constructing their `bootstrap.Modal` instances, placing them outside any problematic
+  stacking context.
+- **"Delete Expired Alerts" button always failed** — The JavaScript `clearExpiredAlerts()`
+  function POSTed to `/admin/clear_expired`, but that route was never implemented on the
+  backend. Added the `/admin/clear_expired` POST route to `maintenance.py`. It returns a
+  confirmation prompt with the count of alerts to be deleted on the first call, then
+  permanently removes all alerts whose `expires` timestamp is in the past or whose status
+  is already `"Expired"` when called again with `{ "confirmed": true }`.
+
 
 ### Fixed
 - **"View Alert" button on Audio Archive** — The button was incorrectly linking to the
