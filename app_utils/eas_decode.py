@@ -851,7 +851,7 @@ def _bits_to_text(bits: List[int]) -> Dict[str, object]:
     char_positions: List[int] = []
     error_positions: List[int] = []
     confidences: List[float] = list(getattr(_extract_bits, "bit_confidences", []))
-    confidence_threshold = 0.6
+    confidence_threshold = 0.3
 
     i = 0
     while i + 10 <= len(bits):

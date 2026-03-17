@@ -6,6 +6,18 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.60.1] - 2026-03-17 - Fix EAS decoder round-trip for fast-baud audio
+
+### Fixed
+- **EAS decoder single-burst confidence threshold** — lowered the bit-confidence
+  threshold in the `_bits_to_text` single-burst fallback path from 0.6 to 0.3,
+  matching the multi-burst path. When audio is encoded at a slightly fast baud rate
+  (e.g. 4 % above nominal), the start-bit Goertzel confidence drops to ~0.2 because
+  shorter bit windows reduce frequency selectivity. The old 0.6 threshold silently
+  rejected every valid frame and returned garbage text. The decoder now correctly
+  round-trips audio produced by the encoder (bit-for-bit) across the full ±4 % baud
+  tolerance window required by FCC §11.31 ENDEC hardware variation.
+
 ## [2.60.0] - 2026-03-17 - Professional broadcast audio detail page
 
 ### Changed
