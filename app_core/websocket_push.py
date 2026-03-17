@@ -568,11 +568,11 @@ def _emit_ipaws_status_update(app: 'Flask', socketio: 'SocketIO') -> None:
 
         if ipaws_enabled:
             try:
-                last_poll = PollHistory.query.order_by(PollHistory.poll_time.desc()).first()
+                last_poll = PollHistory.query.order_by(PollHistory.timestamp.desc()).first()
                 if last_poll:
-                    status_data['last_poll'] = last_poll.poll_time.isoformat() if last_poll.poll_time else None
-                    status_data['connected'] = last_poll.status == 'success'
-                    status_data['alerts_count'] = last_poll.alerts_count or 0
+                    status_data['last_poll'] = last_poll.timestamp.isoformat() if last_poll.timestamp else None
+                    status_data['connected'] = (last_poll.status or '').lower() == 'success'
+                    status_data['alerts_count'] = last_poll.alerts_fetched or 0
             except Exception:
                 pass
 

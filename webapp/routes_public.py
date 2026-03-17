@@ -1601,7 +1601,7 @@ def register(app: Flask, logger) -> None:
                     'details': {
                         'alert_type': log.alert_type,
                         'acknowledged': log.acknowledged,
-                        'cleared': log.cleared,
+                        'resolved': log.resolved,
                         'created_at': log.created_at.isoformat() if log.created_at else None,
                         'updated_at': log.updated_at.isoformat() if log.updated_at else None,
                     },

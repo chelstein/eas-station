@@ -6,60 +6,32 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
-## [2.60.0] - 2026-03-17 - Professional broadcast audio detail page
-
-### Changed
-- **Audio detail page completely overhauled** — Now displays like a commercial EAS
-  encoder/decoder record (Monroe Electronics R189 / Trilithic EAS-911 style) with:
-  - **FCC §11.31 compliance panel** at the top — four indicator tiles (SAME Header,
-    Attention Tone, Voice Narration, End of Message). Each tile shows ✅ OK with
-    duration or ❌ MISSING/NOT GENERATED. Panel border turns green when all required
-    components are present, red when any required component is absent.
-  - **Complete broadcast audio** card — full composite player with total duration and
-    size; direct composite download button.
-  - **Broadcast Sequence** card — all four FCC broadcast-order steps rendered with
-    status badge (OK / MISSING / NOT GENERATED), FCC regulation reference, duration,
-    size, individual audio player, and per-segment download button. TTS failure reason
-    shown inline when synthesis failed.
-  - **Stored Audio Files** sidebar — compact list of all six stored blobs (Composite,
-    SAME Header, Attention Tone, Voice Narration, EOM, Silence Buffer) with size in KB
-    and individual download link for every segment that was saved.
-  - **SAME Header Decode** panel showing the raw SAME string, event + code, severity,
-    status, and decoded location list with county/state detail.
-  - **Raw Metadata** collapsed by default to reduce noise.
-
-### Fixed
-- **EOM missing from segment list** — `eom_audio_data` was stored but not shown in the
-  audio detail view. EOM now appears as a required broadcast step with its own player
-  and download button, giving operators explicit confirmation it was generated.
-- **Composite duration/size not tracked** — Added `segment_payload['composite']`
-  metrics in `build_files()` so `metadata_payload.segments.composite` records the total
-  broadcast duration and file size without duplicating audio bytes.
-- **`azure.com` bare hostname incorrectly matched by Azure auth check** — Removed the
-  `== "azure.com"` equality branch; all valid Azure OpenAI endpoints use a subdomain
-  so `endswith(".azure.com")` is both sufficient and more precise.
-
-## [2.59.0] - 2026-03-17 - Fix Azure OpenAI TTS auth, remove TTS normalization, fix alerts spinner
-
-### Fixed
-- **Azure OpenAI TTS always failing (`has_tts: false`)** — Azure OpenAI subscription-key
-  authentication requires an `api-key: {key}` request header, not `Authorization: Bearer {key}`
-  (which is reserved for Entra ID/OAuth tokens). The wrong header was causing every Azure OpenAI
-  TTS request to return HTTP 401, silently producing no audio. The code now sends `api-key` for
-  any `*.azure.com` endpoint and `Authorization: Bearer` for `api.openai.com`.
-- **Admin "Alerts" tab stuck on loading spinner** — The `#alerts-subtab` button was missing a
-  `shown.bs.tab` event listener, so `initializeAlertManagement()` was never called when the tab
-  was opened. Added the listener following the same pattern used by the Zones and Snow Emergency
-  tabs. Subsequent tab activations only reload the alert list without re-binding event handlers.
-- **TTS audio normalization degrading audio quality** — `_normalize_audio_amplitude(..., amplitude * 0.7)`
-  was applied to TTS/narration samples in both the automatic-alert and manual-build code paths.
-  This RMS rescaling made the Azure OpenAI voice audio sound distorted. The normalization calls
-  have been removed; TTS samples are now mixed directly at their native level.
+## [2.59.0] - 2026-03-17 - Per-source polling logs and log viewer fixes
 
 ### Added
-- **TTS warning now shown on audio detail page** — When TTS synthesis fails the error message
-  stored in `tts_warning` is displayed on `/audio/<id>` alongside the voice provider, making it
-  easy to diagnose configuration issues without digging through logs.
+- **NOAA vs IPAWS polling differentiation** — The CAP poller now writes a separate
+  `PollHistory` record for each source type (NOAA, IPAWS, CUSTOM) per poll cycle.
+  The Polling log viewer shows individual "Alert Polling (NOAA)" and "Alert Polling (IPAWS)"
+  rows with per-source alert counts (fetched, new, updated, filtered, accepted), so it is
+  immediately clear which source provided alerts and whether each source had errors.
+- **Per-source error attribution** — Fetch errors (SSL, timeout, request failures) are now
+  attributed to the specific source type that caused them and surfaced in the corresponding
+  `PollHistory` record's `error_message` field and status (`ERROR` / `PARTIAL_SUCCESS`).
+
+### Fixed
+- **`AudioAlert.cleared` AttributeError** — The `audio` log-viewer category referenced a
+  non-existent `cleared` attribute on `AudioAlert` (which uses `resolved`). Accessing this
+  attribute when the `audio_alerts` table contained rows would raise an `AttributeError`,
+  suppressed by the outer exception handler and returned as an HTML error page rather than
+  the log view. Changed to `log.resolved`.
+- **`PollHistory.poll_time` AttributeError** — `websocket_push.py` referenced
+  `PollHistory.poll_time` (non-existent) instead of `PollHistory.timestamp` and
+  `PollHistory.alerts_count` instead of `PollHistory.alerts_fetched`, causing a silent
+  exception when the IPAWS status WebSocket push ran. Both corrected.
+- **IPAWS-STAGING endpoints now grouped with IPAWS** — The FEMA TDL staging domain
+  (`tdl.apps.fema.gov`) is now classified as `"IPAWS"` instead of the previous
+  `"IPAWS-STAGING"` label, keeping it in the same `PollHistory` record as production
+  IPAWS and matching the `normalize_alert_source` canonical values.
 
 ## [2.58.0] - 2026-03-14 - Documentation cleanup and navigation overhaul
 
