@@ -280,7 +280,7 @@ class TTSEngine:
             # Standard OpenAI uses OAuth bearer token auth.
             # Check the hostname (not just substring) to avoid false matches.
             _parsed_host = urllib.parse.urlparse(endpoint).hostname or ""
-            if _parsed_host == "azure.com" or _parsed_host.endswith(".azure.com"):
+            if _parsed_host.endswith(".azure.com"):
                 headers = {
                     "Content-Type": "application/json",
                     "api-key": api_key,

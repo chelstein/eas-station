@@ -6,6 +6,39 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.60.0] - 2026-03-17 - Professional broadcast audio detail page
+
+### Changed
+- **Audio detail page completely overhauled** — Now displays like a commercial EAS
+  encoder/decoder record (Monroe Electronics R189 / Trilithic EAS-911 style) with:
+  - **FCC §11.31 compliance panel** at the top — four indicator tiles (SAME Header,
+    Attention Tone, Voice Narration, End of Message). Each tile shows ✅ OK with
+    duration or ❌ MISSING/NOT GENERATED. Panel border turns green when all required
+    components are present, red when any required component is absent.
+  - **Complete broadcast audio** card — full composite player with total duration and
+    size; direct composite download button.
+  - **Broadcast Sequence** card — all four FCC broadcast-order steps rendered with
+    status badge (OK / MISSING / NOT GENERATED), FCC regulation reference, duration,
+    size, individual audio player, and per-segment download button. TTS failure reason
+    shown inline when synthesis failed.
+  - **Stored Audio Files** sidebar — compact list of all six stored blobs (Composite,
+    SAME Header, Attention Tone, Voice Narration, EOM, Silence Buffer) with size in KB
+    and individual download link for every segment that was saved.
+  - **SAME Header Decode** panel showing the raw SAME string, event + code, severity,
+    status, and decoded location list with county/state detail.
+  - **Raw Metadata** collapsed by default to reduce noise.
+
+### Fixed
+- **EOM missing from segment list** — `eom_audio_data` was stored but not shown in the
+  audio detail view. EOM now appears as a required broadcast step with its own player
+  and download button, giving operators explicit confirmation it was generated.
+- **Composite duration/size not tracked** — Added `segment_payload['composite']`
+  metrics in `build_files()` so `metadata_payload.segments.composite` records the total
+  broadcast duration and file size without duplicating audio bytes.
+- **`azure.com` bare hostname incorrectly matched by Azure auth check** — Removed the
+  `== "azure.com"` equality branch; all valid Azure OpenAI endpoints use a subdomain
+  so `endswith(".azure.com")` is both sufficient and more precise.
+
 ## [2.59.0] - 2026-03-17 - Fix Azure OpenAI TTS auth, remove TTS normalization, fix alerts spinner
 
 ### Fixed

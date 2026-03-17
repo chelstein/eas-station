@@ -1184,6 +1184,12 @@ class EASAudioGenerator:
             'size_bytes': len(eom_wav),
         }
 
+        # Record composite metrics (bytes already stored as audio_data; no duplication)
+        segment_payload['composite'] = {
+            'duration_seconds': round(len(samples) / self.sample_rate, 6),
+            'size_bytes': len(wav_bytes),
+        }
+
         text_body = {
             'identifier': identifier,
             'event': getattr(alert, 'event', ''),
