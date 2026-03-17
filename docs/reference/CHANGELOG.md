@@ -6,6 +6,33 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.59.0] - 2026-03-17 - Per-source polling logs and log viewer fixes
+
+### Added
+- **NOAA vs IPAWS polling differentiation** — The CAP poller now writes a separate
+  `PollHistory` record for each source type (NOAA, IPAWS, CUSTOM) per poll cycle.
+  The Polling log viewer shows individual "Alert Polling (NOAA)" and "Alert Polling (IPAWS)"
+  rows with per-source alert counts (fetched, new, updated, filtered, accepted), so it is
+  immediately clear which source provided alerts and whether each source had errors.
+- **Per-source error attribution** — Fetch errors (SSL, timeout, request failures) are now
+  attributed to the specific source type that caused them and surfaced in the corresponding
+  `PollHistory` record's `error_message` field and status (`ERROR` / `PARTIAL_SUCCESS`).
+
+### Fixed
+- **`AudioAlert.cleared` AttributeError** — The `audio` log-viewer category referenced a
+  non-existent `cleared` attribute on `AudioAlert` (which uses `resolved`). Accessing this
+  attribute when the `audio_alerts` table contained rows would raise an `AttributeError`,
+  suppressed by the outer exception handler and returned as an HTML error page rather than
+  the log view. Changed to `log.resolved`.
+- **`PollHistory.poll_time` AttributeError** — `websocket_push.py` referenced
+  `PollHistory.poll_time` (non-existent) instead of `PollHistory.timestamp` and
+  `PollHistory.alerts_count` instead of `PollHistory.alerts_fetched`, causing a silent
+  exception when the IPAWS status WebSocket push ran. Both corrected.
+- **IPAWS-STAGING endpoints now grouped with IPAWS** — The FEMA TDL staging domain
+  (`tdl.apps.fema.gov`) is now classified as `"IPAWS"` instead of the previous
+  `"IPAWS-STAGING"` label, keeping it in the same `PollHistory` record as production
+  IPAWS and matching the `normalize_alert_source` canonical values.
+
 ## [2.58.0] - 2026-03-14 - Documentation cleanup and navigation overhaul
 
 ### Changed
