@@ -1090,14 +1090,11 @@ class EASAudioGenerator:
                 voice_samples = None
 
         if voice_samples:
-            # Normalize audio to match SAME/AFSK amplitude
-            # Reduced to 70% of SAME amplitude to prevent clipping/distortion
-            normalized_voice_samples = _normalize_audio_amplitude(voice_samples, amplitude * 0.7)
             pre_voice_silence = _generate_silence(1.0, self.sample_rate)
             samples.extend(pre_voice_silence)
             segment_samples['buffer'].extend(pre_voice_silence)
-            samples.extend(normalized_voice_samples)
-            tts_segment = list(normalized_voice_samples)
+            samples.extend(voice_samples)
+            tts_segment = list(voice_samples)
         else:
             # Capture TTS failure for database storage and logging
             error_detail = self.tts_engine.last_error
@@ -1353,10 +1350,7 @@ class EASAudioGenerator:
                 voiceover = self.tts_engine.generate(message_text)
                 
                 if voiceover:
-                    # Normalize TTS audio to match SAME/AFSK amplitude
-                    # Reduced to 70% of SAME amplitude to prevent clipping/distortion
-                    normalized_voiceover = _normalize_audio_amplitude(voiceover, amplitude * 0.7)
-                    tts_samples.extend(normalized_voiceover)
+                    tts_samples.extend(voiceover)
                     if self.logger:
                         self.logger.info(f"TTS generation successful: {len(tts_samples)} samples generated")
                 else:

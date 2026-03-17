@@ -35,6 +35,7 @@ import shutil
 import struct
 import subprocess
 import tempfile
+import urllib.parse
 import wave
 from typing import Dict, List, Optional
 
@@ -275,10 +276,20 @@ class TTSEngine:
         target_rate = self.sample_rate
 
         try:
-            headers = {
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {api_key}",
-            }
+            # Azure OpenAI uses subscription key auth (api-key header).
+            # Standard OpenAI uses OAuth bearer token auth.
+            # Check the hostname (not just substring) to avoid false matches.
+            _parsed_host = urllib.parse.urlparse(endpoint).hostname or ""
+            if _parsed_host == "azure.com" or _parsed_host.endswith(".azure.com"):
+                headers = {
+                    "Content-Type": "application/json",
+                    "api-key": api_key,
+                }
+            else:
+                headers = {
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {api_key}",
+                }
             payload = {
                 "model": api_model,
                 "input": text,

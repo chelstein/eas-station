@@ -187,6 +187,10 @@
                         <dt class="col-sm-4">Voice Provider</dt>
                         <dd class="col-sm-8">{{ summary_data.voiceover_provider }}</dd>
                         {% endif %}
+                        {% if summary_data.tts_warning %}
+                        <dt class="col-sm-4">TTS Warning</dt>
+                        <dd class="col-sm-8 text-warning"><i class="fas fa-exclamation-triangle me-1"></i>{{ summary_data.tts_warning }}</dd>
+                        {% endif %}
                     </dl>
                 </div>
             </div>

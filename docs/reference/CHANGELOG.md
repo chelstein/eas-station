@@ -6,6 +6,28 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.59.0] - 2026-03-17 - Fix Azure OpenAI TTS auth, remove TTS normalization, fix alerts spinner
+
+### Fixed
+- **Azure OpenAI TTS always failing (`has_tts: false`)** — Azure OpenAI subscription-key
+  authentication requires an `api-key: {key}` request header, not `Authorization: Bearer {key}`
+  (which is reserved for Entra ID/OAuth tokens). The wrong header was causing every Azure OpenAI
+  TTS request to return HTTP 401, silently producing no audio. The code now sends `api-key` for
+  any `*.azure.com` endpoint and `Authorization: Bearer` for `api.openai.com`.
+- **Admin "Alerts" tab stuck on loading spinner** — The `#alerts-subtab` button was missing a
+  `shown.bs.tab` event listener, so `initializeAlertManagement()` was never called when the tab
+  was opened. Added the listener following the same pattern used by the Zones and Snow Emergency
+  tabs. Subsequent tab activations only reload the alert list without re-binding event handlers.
+- **TTS audio normalization degrading audio quality** — `_normalize_audio_amplitude(..., amplitude * 0.7)`
+  was applied to TTS/narration samples in both the automatic-alert and manual-build code paths.
+  This RMS rescaling made the Azure OpenAI voice audio sound distorted. The normalization calls
+  have been removed; TTS samples are now mixed directly at their native level.
+
+### Added
+- **TTS warning now shown on audio detail page** — When TTS synthesis fails the error message
+  stored in `tts_warning` is displayed on `/audio/<id>` alongside the voice provider, making it
+  easy to diagnose configuration issues without digging through logs.
+
 ## [2.58.0] - 2026-03-14 - Documentation cleanup and navigation overhaul
 
 ### Changed
