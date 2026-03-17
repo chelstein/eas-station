@@ -6,6 +6,24 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.60.1] - 2026-03-17 - View Alert and Edit Alert fixes
+
+### Fixed
+- **"View Alert" button on Audio Archive** — The button was incorrectly linking to the
+  audio detail page (`/audio/<id>`) instead of the CAP alert detail page. Users who
+  clicked "View Alert" received a flash error "Unable to load audio detail at this time."
+  because the audio detail page was being accessed with unrelated message IDs. Fixed
+  `history.py` to generate `alert_url` using `api.alert_detail` so the button correctly
+  navigates to the linked CAP alert.
+- **"Edit Alert" modal not opening on Admin Panel** — The Bootstrap Modal instance for
+  `editAlertModal` was never created, so `editAlertModal.show()` silently did nothing.
+  Added `new bootstrap.Modal(element)` initialization inside `initializeAlertManagement()`
+  in `alert-management.js`.
+- **Confirmation modal not opening on Admin Panel** — `window.confirmationModal` was
+  likewise never initialized as a Bootstrap Modal instance, causing alert delete
+  confirmations to fail. Added initialization inside the `DOMContentLoaded` handler in
+  `core.js`.
+
 ## [2.59.0] - 2026-03-17 - Per-source polling logs and log viewer fixes
 
 ### Added

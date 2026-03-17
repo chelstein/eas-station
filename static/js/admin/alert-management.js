@@ -48,6 +48,7 @@ function initializeAlertManagement() {
     }
     const editModalElement = document.getElementById('editAlertModal');
     if (editModalElement) {
+        editAlertModal = new bootstrap.Modal(editModalElement);
         editModalElement.addEventListener('hidden.bs.modal', resetAlertEditForm);
     }
 }
