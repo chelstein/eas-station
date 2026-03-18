@@ -79,9 +79,23 @@ def register_eas_monitor_routes(app: Flask, logger_instance) -> None:
                 logger.debug(f"read_shared_metrics() returned keys: {list(shared_metrics.keys())}")
 
             if shared_metrics is None or "eas_monitor" not in shared_metrics:
+                # Distinguish between "service never published" and "metrics expired/stale"
+                if shared_metrics is None:
+                    error_msg = (
+                        "Audio service metrics are unavailable. "
+                        "The audio-service may not be running or Redis is unreachable."
+                    )
+                else:
+                    # Metrics hash exists in Redis but has no eas_monitor key — the
+                    # audio-service is running but the EAS monitor has not yet published
+                    # its first status snapshot (usually ready within 5 seconds).
+                    error_msg = (
+                        "EAS monitor status not yet available from audio-service "
+                        "(service is running — status will appear within a few seconds)."
+                    )
                 return jsonify({
                     "running": False,
-                    "error": "No metrics available from audio-service (audio-service may be starting up)",
+                    "error": error_msg,
                     "worker_role": "app",
                     "initialization_attempted": False,
                     "debug_metrics_is_none": shared_metrics is None,
@@ -98,7 +112,10 @@ def register_eas_monitor_routes(app: Flask, logger_instance) -> None:
                 logger.warning(f"EAS monitor status has unexpected type: {type(status).__name__}, value: {status}")
                 return jsonify({
                     "running": False,
-                    "error": "No metrics available from audio-service (audio-service may be starting up)",
+                    "error": (
+                        "EAS monitor status has an unexpected format from audio-service. "
+                        "The service may be initializing — please wait a few seconds."
+                    ),
                     "worker_role": "app",
                     "initialization_attempted": False,
                     "debug_metrics_is_none": False,
@@ -157,6 +174,7 @@ def register_eas_monitor_routes(app: Flask, logger_instance) -> None:
                         logger.warning("Monitors dict is empty")
 
             # Build response from shared metrics
+            monitor_count = status.get("monitor_count", 0)
             response_data: Dict[str, Any] = {
                 # Basic status
                 "running": status.get("running", False),
@@ -168,9 +186,16 @@ def register_eas_monitor_routes(app: Flask, logger_instance) -> None:
                 "health_percentage": status.get("health_percentage", 0),
                 
                 # Multi-monitor aggregated fields (CRITICAL for UI logic)
-                "monitor_count": status.get("monitor_count", 0),
+                "monitor_count": monitor_count,
                 "active_sources": status.get("active_sources", 0),
                 "source_names": status.get("source_names", []),
+
+                # Surfaced when the EAS monitor is running but has discovered no
+                # active audio sources yet (e.g. all sources are stopped or the
+                # service just started and discovery hasn't run).  The frontend
+                # uses this flag to show actionable guidance instead of a generic
+                # error.
+                "no_sources_running": status.get("running", False) and monitor_count == 0,
 
                 # Streaming decoder metrics
                 "samples_processed": status.get("samples_processed", 0),

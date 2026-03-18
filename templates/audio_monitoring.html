@@ -1803,6 +1803,13 @@ function updateEASMonitorDisplay(status) {
             // Show number of active streams
             const streamsText = activeSources > 0 ? ` (${activeSources} stream${activeSources !== 1 ? 's' : ''})` : '';
             statusBadge.innerHTML = `<span class="badge bg-success"><i class="fas fa-broadcast-tower"></i> Streaming${streamsText}</span>`;
+        } else if (running && status.no_sources_running) {
+            // EAS monitor running but no audio sources are active
+            statusBadge.innerHTML = '<span class="badge bg-warning">No Sources Running</span>';
+            showEASMonitorError(
+                'EAS monitor is running but no audio sources are active. ' +
+                'Start one or more audio sources below to begin EAS decoding.'
+            );
         } else if (running) {
             statusBadge.innerHTML = '<span class="badge bg-warning">Running (No Audio)</span>';
         } else {
@@ -1831,8 +1838,8 @@ function updateEASMonitorDisplay(status) {
                 const sourceInfo = ` (${monitorCount} source${monitorCount !== 1 ? 's' : ''})`;
                 runningStatus.innerHTML = `<span style="color: var(--success-color);">✅ Active${sourceInfo}</span>`;
             } else {
-                // Running but no monitors? Show warning
-                runningStatus.innerHTML = '<span style="color: var(--warning-color);">⚠️ Running (no sources configured)</span>';
+                // Running but no monitors — sources are stopped or not yet discovered
+                runningStatus.innerHTML = '<span style="color: var(--warning-color);">⚠️ Running (no active sources — start an audio source below)</span>';
             }
         } else {
             runningStatus.innerHTML = '<span style="color: var(--text-muted);">⏸️ Stopped</span>';
@@ -2456,14 +2463,20 @@ function toggleEASDecoderAudio(button) {
             button.disabled = false;
             // Show a brief error toast/alert with specific error details
             const alertDiv = document.createElement('div');
-            alertDiv.className = 'alert alert-danger alert-dismissible fade show mt-2';
+            alertDiv.className = 'alert alert-warning alert-dismissible fade show mt-2';
             alertDiv.setAttribute('role', 'alert');
             const errorMsg = err.message || 'Unknown error';
+            // Give actionable guidance when no sources are running
+            const noSourcesRunning = errorMsg.toLowerCase().includes('no running') ||
+                                     errorMsg.toLowerCase().includes('start an audio source');
+            const guidance = noSourcesRunning
+                ? ' <strong>Start one of the audio sources in the section below, then try again.</strong>'
+                : '';
             alertDiv.innerHTML = '<i class="fas fa-exclamation-triangle me-1"></i> ' +
-                'Failed to play decoder audio stream: ' + errorMsg +
+                'Could not start decoder audio stream: ' + errorMsg + guidance +
                 '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>';
             container.parentElement.appendChild(alertDiv);
-            setTimeout(() => alertDiv.remove(), 8000);
+            setTimeout(() => alertDiv.remove(), 12000);
         });
     } else {
         // Hide and pause

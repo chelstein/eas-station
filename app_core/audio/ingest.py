@@ -179,6 +179,20 @@ class AudioSourceAdapter(ABC):
 
     def start(self) -> bool:
         """Start audio capture in a separate thread."""
+        if self.status == AudioSourceStatus.ERROR:
+            # Allow restart from ERROR state: reset to STOPPED first so the
+            # stop_event and capture thread are cleaned up before re-launching.
+            logger.info(f"Source {self.config.name} is in ERROR state; resetting before restart")
+            self._stop_event.set()
+            if self._capture_thread and self._capture_thread.is_alive():
+                self._capture_thread.join(timeout=3.0)
+            try:
+                self._stop_capture()
+            except Exception:
+                pass
+            self.status = AudioSourceStatus.STOPPED
+            self.error_message = None
+
         if self.status != AudioSourceStatus.STOPPED:
             logger.warning(f"Source {self.config.name} already running")
             return False

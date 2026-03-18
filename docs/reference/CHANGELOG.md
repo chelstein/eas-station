@@ -6,30 +6,40 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
-## [2.60.3] - 2026-03-18 - Fix TTS in EAS broadcast chain
+## [2.60.3] - 2026-03-18 - Audio monitoring silent failure and Listen button fixes
 
 ### Fixed
-- **TTS never generated for auto-forwarded CAP/IPAWS alerts** — The standalone CAP
-  poller process (`eas-station-poller.service`) has no Flask application context, so
-  every call to `load_eas_config()` silently fell back to a default
-  `TTSSettings(enabled=False)` when `get_tts_settings()` tried to use
-  Flask-SQLAlchemy's scoped session without an app context.  All auto-forwarded
-  broadcasts therefore reported "No TTS provider configured." regardless of what was
-  saved in the settings database.
-
-  Fixed by adding an optional `db_session` parameter to `load_eas_config()`.  When
-  the Flask-SQLAlchemy path raises an exception (no app context), the function now
-  retries using the provided raw SQLAlchemy session.  `CAPPoller.__init__()` passes
-  its own session (`self.db_session`) so TTS settings are read correctly without
-  requiring a Flask context.
-
-- **Azure OpenAI TTS request could time out on long narration texts** — The
-  `requests.post()` call used a single 30-second timeout covering both the TCP
-  connection and the entire audio download.  For multi-paragraph EAS narrations
-  Azure needs more time to synthesise and stream the complete WAV file.  Changed to a
-  split timeout of 10 s (connect) / 90 s (read).  Also added a dedicated
-  `requests.exceptions.Timeout` handler so the broadcast record clearly shows
-  "timed out" rather than a generic "request failed" message.
+- **EAS audio sources stuck in ERROR state after network disruption** — The
+  `AudioSourceAdapter.start()` method previously refused to restart a source that was in
+  `ERROR` state (the guard only allowed `STOPPED`). Streams that hit 50 consecutive
+  read errors would exit their capture loop and stay permanently offline until the audio
+  service was manually restarted. `start()` now detects `ERROR` state, performs a clean
+  reset (signals stop-event, joins the capture thread, calls `_stop_capture()`), and then
+  relaunches the source normally.
+- **No automatic recovery of failed audio sources** — Added a source error-recovery
+  watchdog to the `eas_monitoring_service` main loop. Every 30 seconds it scans all
+  configured audio sources; any source in `ERROR` state is automatically stopped and
+  restarted. This ensures that temporary network failures (dropped stream, DNS hiccup,
+  etc.) heal without operator intervention.
+- **"Listen to EAS audio feed" button always fails when EAS monitor has no active
+  watchers** — The `/api/eas/decoder-stream` endpoint required the EAS monitor's
+  discovery loop to have already run and registered watchers before the stream could
+  start. On a fresh service startup the discovery loop runs every 5 seconds, meaning
+  audio sources could be running and streaming to Icecast but the Listen button would
+  return 503 "EAS monitor has no active monitors." The endpoint now falls back to
+  finding any RUNNING source directly from the audio controller, so the decoder audio
+  feed is immediately available as soon as any source is running.
+- **Misleading "audio-service may be starting up" error message** — The EAS monitor
+  status API returned the same generic string whether the audio service was unreachable,
+  still initializing its first metrics snapshot, or simply had no running sources. The
+  three cases now produce distinct, actionable messages.
+- **EAS monitor badge showed no guidance when sources are stopped** — Added a
+  "No Sources Running" warning badge and an inline message directing users to start an
+  audio source. Previously the monitor appeared broken with no indication of what to do.
+- **Listen button error showed no actionable guidance** — When the decoder stream
+  endpoint returned "No running audio sources available", the error alert now includes
+  "Start one of the audio sources in the section below, then try again." The alert
+  timeout was also extended from 8 seconds to 12 seconds so users have time to read it.
 
 ## [2.60.2] - 2026-03-17 - Alert modal interactivity and delete-expired fixes
 
