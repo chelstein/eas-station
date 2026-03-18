@@ -1773,6 +1773,7 @@ footer a:hover {
     position: relative;
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
+    color: var(--text-color);
 }
 
 /* Gradient accent line at top */
@@ -6071,6 +6072,193 @@ a:not(.btn):not(.nav-link):not(.dropdown-item):hover {
     background-color: color-mix(in srgb, var(--surface-color) 95%, var(--border-color));
     color: var(--text-color);
     border-color: var(--border-color);
+}
+
+/* === BOOTSTRAP CSS VARIABLE OVERRIDES FOR DARK THEMES ===
+   Bootstrap 5.3 hard-codes its --bs-* CSS variables to light-theme values inside
+   :root. EAS Station uses data-theme (not data-bs-theme), so Bootstrap never
+   activates its own dark-mode palette. Override the key Bootstrap variables here so
+   every Bootstrap component (cards, tables, alerts, accordions, etc.) adapts to the
+   active theme palette. */
+
+[data-theme="dark"],
+[data-theme="coffee"],
+[data-theme="aurora"],
+[data-theme="nebula"],
+[data-theme="midnight"],
+[data-theme="charcoal"],
+[data-theme="obsidian"],
+[data-theme="slate"] {
+    /* ── Core body ── */
+    --bs-body-color: var(--text-color);
+    --bs-body-bg: var(--bg-color);
+    --bs-emphasis-color: var(--text-color);
+    --bs-secondary-color: var(--text-secondary);
+    --bs-tertiary-color: var(--text-muted);
+    --bs-secondary-bg: var(--surface-color);
+    --bs-tertiary-bg: color-mix(in srgb, var(--surface-color) 85%, var(--bg-color));
+
+    /* ── Borders ── */
+    --bs-border-color: var(--border-color);
+    --bs-border-color-translucent: color-mix(in srgb, var(--border-color) 70%, transparent);
+
+    /* ── Card ── */
+    --bs-card-bg: var(--surface-color);
+    --bs-card-color: var(--text-color);
+    --bs-card-cap-bg: color-mix(in srgb, var(--primary-color) 14%, var(--surface-color));
+    --bs-card-cap-color: var(--text-color);
+
+    /* ── Subtle background tints (used by bg-*-subtle badges / highlights) ── */
+    --bs-primary-bg-subtle: color-mix(in srgb, var(--primary-color) 20%, var(--surface-color));
+    --bs-secondary-bg-subtle: color-mix(in srgb, var(--secondary-color) 20%, var(--surface-color));
+    --bs-success-bg-subtle: color-mix(in srgb, var(--success-color) 20%, var(--surface-color));
+    --bs-danger-bg-subtle: color-mix(in srgb, var(--danger-color) 20%, var(--surface-color));
+    --bs-warning-bg-subtle: color-mix(in srgb, var(--warning-color) 20%, var(--surface-color));
+    --bs-info-bg-subtle: color-mix(in srgb, var(--info-color) 20%, var(--surface-color));
+    --bs-light-bg-subtle: var(--light-color);
+    --bs-dark-bg-subtle: var(--dark-color);
+
+    /* ── Subtle border tints ── */
+    --bs-primary-border-subtle: color-mix(in srgb, var(--primary-color) 40%, var(--border-color));
+    --bs-secondary-border-subtle: color-mix(in srgb, var(--secondary-color) 40%, var(--border-color));
+    --bs-success-border-subtle: color-mix(in srgb, var(--success-color) 40%, var(--border-color));
+    --bs-danger-border-subtle: color-mix(in srgb, var(--danger-color) 40%, var(--border-color));
+    --bs-warning-border-subtle: color-mix(in srgb, var(--warning-color) 40%, var(--border-color));
+    --bs-info-border-subtle: color-mix(in srgb, var(--info-color) 40%, var(--border-color));
+    --bs-light-border-subtle: var(--border-color);
+    --bs-dark-border-subtle: var(--border-color);
+
+    /* ── Text-emphasis colors (used by text-*-emphasis utilities) ── */
+    --bs-primary-text-emphasis: var(--primary-color);
+    --bs-secondary-text-emphasis: var(--secondary-color);
+    --bs-success-text-emphasis: var(--success-color);
+    --bs-danger-text-emphasis: var(--danger-color);
+    --bs-warning-text-emphasis: var(--warning-color);
+    --bs-info-text-emphasis: var(--info-color);
+    --bs-light-text-emphasis: var(--text-color);
+    --bs-dark-text-emphasis: var(--text-color);
+
+    /* ── Accordion ── */
+    --bs-accordion-bg: var(--surface-color);
+    --bs-accordion-color: var(--text-color);
+    --bs-accordion-btn-color: var(--text-color);
+    --bs-accordion-btn-bg: var(--surface-color);
+    --bs-accordion-active-bg: color-mix(in srgb, var(--primary-color) 10%, var(--surface-color));
+    --bs-accordion-active-color: var(--primary-color);
+    --bs-accordion-border-color: var(--border-color);
+
+    /* ── Modal ── */
+    --bs-modal-bg: var(--surface-color);
+    --bs-modal-color: var(--text-color);
+    --bs-modal-border-color: var(--border-color);
+    --bs-modal-header-bg: color-mix(in srgb, var(--primary-color) 10%, var(--surface-color));
+
+    /* ── Dropdown ── */
+    --bs-dropdown-bg: var(--surface-color);
+    --bs-dropdown-color: var(--text-color);
+    --bs-dropdown-border-color: var(--border-color);
+    --bs-dropdown-link-color: var(--text-color);
+    --bs-dropdown-link-hover-color: var(--text-color);
+    --bs-dropdown-link-hover-bg: color-mix(in srgb, var(--primary-color) 15%, var(--surface-color));
+    --bs-dropdown-header-color: var(--text-secondary);
+    --bs-dropdown-divider-bg: var(--border-color);
+
+    /* ── List group ── */
+    --bs-list-group-bg: var(--surface-color);
+    --bs-list-group-color: var(--text-color);
+    --bs-list-group-border-color: var(--border-color);
+    --bs-list-group-action-color: var(--text-color);
+    --bs-list-group-action-hover-color: var(--text-color);
+    --bs-list-group-action-hover-bg: color-mix(in srgb, var(--primary-color) 10%, var(--surface-color));
+
+    /* ── Table ── */
+    --bs-table-color: var(--text-color);
+    --bs-table-bg: transparent;
+    --bs-table-border-color: var(--border-color);
+    --bs-table-striped-color: var(--text-color);
+    --bs-table-striped-bg: color-mix(in srgb, var(--surface-color) 97%, var(--border-color));
+    --bs-table-hover-color: var(--text-color);
+    --bs-table-hover-bg: color-mix(in srgb, var(--primary-color) 8%, var(--surface-color));
+
+    /* ── Pagination ── */
+    --bs-pagination-bg: var(--surface-color);
+    --bs-pagination-color: var(--text-color);
+    --bs-pagination-border-color: var(--border-color);
+    --bs-pagination-hover-bg: color-mix(in srgb, var(--primary-color) 15%, var(--surface-color));
+    --bs-pagination-hover-color: var(--text-color);
+    --bs-pagination-hover-border-color: var(--border-color);
+    --bs-pagination-disabled-bg: var(--surface-color);
+    --bs-pagination-disabled-color: var(--text-muted);
+    --bs-pagination-disabled-border-color: var(--border-color);
+
+    /* ── Input group ── */
+    --bs-input-group-addon-bg: color-mix(in srgb, var(--surface-color) 90%, var(--border-color));
+    --bs-input-group-addon-color: var(--text-color);
+    --bs-input-group-addon-border-color: var(--border-color);
+
+    /* ── Popover / Tooltip ── */
+    --bs-tooltip-bg: var(--dark-color);
+    --bs-tooltip-color: var(--text-color);
+    --bs-popover-bg: var(--surface-color);
+    --bs-popover-body-color: var(--text-color);
+    --bs-popover-header-bg: color-mix(in srgb, var(--primary-color) 14%, var(--surface-color));
+    --bs-popover-header-color: var(--text-color);
+    --bs-popover-border-color: var(--border-color);
+
+    /* ── Offcanvas ── */
+    --bs-offcanvas-bg: var(--surface-color);
+    --bs-offcanvas-color: var(--text-color);
+    --bs-offcanvas-border-color: var(--border-color);
+
+    /* ── Breadcrumb ── */
+    --bs-breadcrumb-divider-color: var(--text-muted);
+    --bs-breadcrumb-item-active-color: var(--text-muted);
+
+    /* ── Nav / Tab ── */
+    --bs-nav-tabs-border-color: var(--border-color);
+    --bs-nav-tabs-link-hover-border-color: var(--border-color);
+    --bs-nav-tabs-link-active-color: var(--primary-color);
+    --bs-nav-tabs-link-active-bg: var(--surface-color);
+    --bs-nav-tabs-link-active-border-color: var(--border-color) var(--border-color) var(--surface-color);
+
+    /* ── Links ── */
+    --bs-link-color: var(--primary-color);
+    --bs-link-hover-color: color-mix(in srgb, var(--primary-color) 80%, white);
+}
+
+/* alert-light and alert-secondary need explicit dark-theme overrides because
+   Bootstrap sets their local variables inline and the standard dark palette
+   would produce near-invisible text otherwise. */
+[data-theme="dark"] .alert-light,
+[data-theme="coffee"] .alert-light,
+[data-theme="aurora"] .alert-light,
+[data-theme="nebula"] .alert-light,
+[data-theme="midnight"] .alert-light,
+[data-theme="charcoal"] .alert-light,
+[data-theme="obsidian"] .alert-light,
+[data-theme="slate"] .alert-light {
+    --bs-alert-color: var(--text-color);
+    --bs-alert-bg: color-mix(in srgb, var(--surface-color) 90%, var(--border-color));
+    --bs-alert-border-color: var(--border-color);
+    color: var(--text-color);
+    background-color: color-mix(in srgb, var(--surface-color) 90%, var(--border-color));
+    border-color: var(--border-color);
+}
+
+[data-theme="dark"] .alert-secondary,
+[data-theme="coffee"] .alert-secondary,
+[data-theme="aurora"] .alert-secondary,
+[data-theme="nebula"] .alert-secondary,
+[data-theme="midnight"] .alert-secondary,
+[data-theme="charcoal"] .alert-secondary,
+[data-theme="obsidian"] .alert-secondary,
+[data-theme="slate"] .alert-secondary {
+    --bs-alert-color: var(--text-secondary);
+    --bs-alert-bg: color-mix(in srgb, var(--secondary-color) 15%, var(--surface-color));
+    --bs-alert-border-color: color-mix(in srgb, var(--secondary-color) 30%, var(--border-color));
+    color: var(--text-secondary);
+    background-color: color-mix(in srgb, var(--secondary-color) 15%, var(--surface-color));
+    border-color: color-mix(in srgb, var(--secondary-color) 30%, var(--border-color));
 }
 
 /* End of Consolidated Styles */
