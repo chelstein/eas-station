@@ -541,12 +541,19 @@ class CAPPoller:
             self.logger.warning(f"Redis unavailable: {exc}. Event publishing will be disabled.")
             self.redis_client = None
 
-        # EAS broadcast configuration for automatic alert forwarding
+        # EAS broadcast configuration for automatic alert forwarding.
+        # Pass self.db_session so that TTS settings can be read directly
+        # from the database even though this process has no Flask app context.
         try:
-            self.eas_config = load_eas_config()
+            self.eas_config = load_eas_config(db_session=self.db_session)
             if self.eas_config.get('enabled'):
                 self.logger.info("EAS auto-forwarding enabled (originator=%s, station=%s)",
                                  self.eas_config.get('originator'), self.eas_config.get('station_id'))
+                tts_provider = self.eas_config.get('tts_provider', '')
+                if tts_provider:
+                    self.logger.info("TTS provider loaded for auto-forwarding: %s", tts_provider)
+                else:
+                    self.logger.info("No TTS provider configured; voice narration will be skipped")
             else:
                 self.logger.info("EAS broadcasting is disabled; alerts will be stored but not auto-forwarded")
         except Exception as exc:

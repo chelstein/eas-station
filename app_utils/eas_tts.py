@@ -303,11 +303,15 @@ class TTSEngine:
                 self.logger.debug(f"Azure OpenAI TTS request to: {endpoint}")
                 self.logger.debug(f"Azure OpenAI TTS payload: model={api_model}, voice={voice}, speed={speed}")
 
+            # Use a split timeout: 10 s to establish the connection, 90 s to
+            # receive the full audio response.  EAS narration texts can be
+            # several hundred words long; Azure needs time to synthesise and
+            # stream the complete WAV file.
             response = requests.post(
                 endpoint,
                 headers=headers,
                 json=payload,
-                timeout=30,
+                timeout=(10, 90),
             )
 
             # Log response details for debugging
@@ -358,6 +362,15 @@ class TTSEngine:
                     self.logger.error(error_msg)
                 return None
 
+        except requests.exceptions.Timeout as exc:
+            error_msg = (
+                "Azure OpenAI TTS request timed out (connect=10 s, read=90 s). "
+                "Check network connectivity to Azure and try again."
+            )
+            self._remember_error(error_msg)
+            if self.logger:
+                self.logger.error("Azure OpenAI TTS timed out: %s", exc)
+            return None
         except requests.exceptions.RequestException as exc:
             self._remember_error(f"Azure OpenAI TTS request failed: {exc}")
             if self.logger:
