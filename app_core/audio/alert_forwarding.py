@@ -29,7 +29,7 @@ Handles forwarding of matched EAS alerts to:
 import json
 import logging
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
@@ -77,9 +77,9 @@ def forward_alert_to_api(alert: Dict[str, Any]) -> Dict[str, Any]:
             'event_code': event_code,
             'location_codes': location_codes,
             'raw_header': alert.get('raw_header', ''),
-            'timestamp': alert.get('timestamp', datetime.utcnow().isoformat()),
+            'timestamp': alert.get('timestamp', datetime.now(timezone.utc).isoformat()),
             'confidence': alert.get('confidence', 0.0),
-            'forwarded_at': datetime.utcnow().isoformat(),
+            'forwarded_at': datetime.now(timezone.utc).isoformat(),
         }
 
         # Publish to Redis for real-time updates

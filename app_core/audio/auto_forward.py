@@ -338,8 +338,21 @@ def auto_forward_ota_alert(
         result['reason'] = "EAS broadcasting disabled"
         return result
 
-    # Cross-source deduplication
-    if event_code and event_code != 'UNKNOWN' and fips_codes:
+    # Refuse to rebroadcast an alert whose event code could not be decoded.
+    # An UNKNOWN code means the SAME header was either garbled or from an event
+    # type not in the registry; broadcasting it would produce an illegal/
+    # nonsensical SAME header.
+    if not event_code or event_code == 'UNKNOWN':
+        result['reason'] = "OTA alert has unresolvable event code; skipping rebroadcast"
+        log.info(
+            "OTA auto-forward skipped for source '%s': %s",
+            source_name, result['reason'],
+        )
+        return result
+
+    # Cross-source deduplication: only check when we have enough information
+    # to produce a meaningful key (UNKNOWN is already blocked above).
+    if fips_codes:
         if is_duplicate_broadcast(event_code, fips_codes, db_session):
             result['reason'] = (
                 f"Cross-source duplicate: {event_code} already broadcast "

@@ -224,6 +224,29 @@ def load_eas_config(base_path: Optional[str] = None, db_session=None) -> Dict[st
     except Exception as exc:
         load_logger.debug('Could not load EASSettings from database: %s', exc)
 
+    # Fallback: when called from a background process (e.g. the standalone CAP
+    # poller) Flask-SQLAlchemy is unavailable.  Use the provided raw session
+    # directly, mirroring the pattern already used for TTSSettings above.
+    if db_broadcast_enabled is None and db_session is not None:
+        try:
+            from app_core.models import EASSettings as _EASSettings
+            eas_settings = db_session.get(_EASSettings, 1)
+            if eas_settings is not None:
+                db_originator = eas_settings.originator
+                db_station_id = eas_settings.station_id
+                db_broadcast_enabled = eas_settings.broadcast_enabled
+                db_sample_rate = eas_settings.sample_rate
+                db_attention_tone_seconds = eas_settings.attention_tone_seconds
+                db_audio_player = eas_settings.audio_player
+                load_logger.info(
+                    'EASSettings loaded from DB (direct session): originator=%s station_id=%s broadcast_enabled=%s',
+                    db_originator, db_station_id, db_broadcast_enabled,
+                )
+            else:
+                load_logger.info('EASSettings row not found via direct session (id=1)')
+        except Exception as exc2:
+            load_logger.error('Failed to load EASSettings from direct session: %s', exc2)
+
     config: Dict[str, object] = {
         'enabled': (
             db_broadcast_enabled if db_broadcast_enabled is not None
@@ -1756,14 +1779,20 @@ class EASBroadcaster:
             result['reason'] = str(exc)
             return result
 
-        (
-            audio_filename,
-            text_filename,
-            message_text,
-            audio_bytes,
-            text_payload,
-            segment_payload,
-        ) = self.audio_generator.build_files(alert, payload, header, location_codes)
+        try:
+            (
+                audio_filename,
+                text_filename,
+                message_text,
+                audio_bytes,
+                text_payload,
+                segment_payload,
+            ) = self.audio_generator.build_files(alert, payload, header, location_codes)
+        except Exception as exc:
+            self.logger.error('Audio generation failed for alert %s: %s',
+                              getattr(alert, 'identifier', 'unknown'), exc)
+            result['reason'] = f"Audio generation failed: {exc}"
+            return result
 
         # EOM is now embedded in audio_bytes (built inside build_files()).
         # Extract the EOM segment for separate database storage so it can be
@@ -1772,9 +1801,12 @@ class EASBroadcaster:
 
         audio_path = os.path.join(self.audio_generator.output_dir, audio_filename)
 
+        # Populate result fields that are known at this point, but defer
+        # setting same_triggered=True until the database commit succeeds so
+        # callers never see a "triggered" status when the record was not saved
+        # and audio was never played.
         result.update(
             {
-                "same_triggered": True,
                 "event_code": event_code,
                 "same_header": header,
                 "audio_path": audio_path,
@@ -1841,6 +1873,10 @@ class EASBroadcaster:
             self.db_session.commit()
             self.logger.info('Stored EAS message metadata for alert %s', getattr(alert, 'identifier', 'unknown'))
             result['record_id'] = getattr(record, 'id', None)
+            # Only mark as triggered after the record is safely persisted.
+            # If the commit fails the caller will see same_triggered=False and
+            # an 'error' key rather than a false-positive success status.
+            result['same_triggered'] = True
         except Exception as exc:
             self.logger.error(f"Failed to persist EAS message record: {exc}")
             self.db_session.rollback()

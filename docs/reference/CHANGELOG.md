@@ -6,6 +6,46 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.61.0] - 2026-03-18 - Airchain flow fringe-case fixes
+
+### Fixed
+- **OTA broadcast silently skipped** — The EAS monitor daemon thread had no
+  Flask application context. `_auto_forward_to_air_chain` checked
+  `has_app_context()` → False and returned None on every OTA alert, so no
+  over-the-air alerts ever reached the airchain. `initialize_eas_monitor` now
+  wraps the entire alert callback (FIPS filtering + forwarding +
+  `_store_received_alert` DB write) in `with app.app_context()`.
+- **`handle_alert()` false-positive success on DB failure** — `same_triggered`
+  was set to True in `result.update()` before the database commit. If the
+  commit raised, the function returned with `same_triggered=True` even though
+  no EASMessage record was saved and no audio was played. `same_triggered` is
+  now set only after a successful commit.
+- **EASSettings not loaded from database in CAP poller** — `load_eas_config()`
+  used `EASSettings.query.get(1)` which requires a Flask context. The CAP
+  poller runs outside Flask context, so `broadcast_enabled` was always None
+  and fell back to the `EAS_BROADCAST_ENABLED` env-var default (`false`),
+  silently disabling auto-forwarding even when enabled in the web UI. A
+  `db_session` fallback path (matching the existing TTS settings pattern) is
+  now used when Flask-SQLAlchemy is unavailable.
+- **Deprecated `datetime.utcnow()` in `alert_forwarding.py`** — Redis payload
+  timestamps were built with `datetime.utcnow()` (produces a naive datetime,
+  deprecated in Python 3.12). Replaced with `datetime.now(timezone.utc)`.
+- **OTA auto-forward attempted broadcast for UNKNOWN event codes** — When the
+  SAME decoder could not identify the event code, `auto_forward_ota_alert()`
+  skipped deduplication but still proceeded to build an EASBroadcaster and
+  call `handle_alert()`, which would then fail inside `build_same_header()`.
+  An explicit early-return is now added for empty or `UNKNOWN` event codes.
+- **`build_files()` exceptions propagated uncaught from `handle_alert()`** —
+  Unexpected exceptions (I/O errors, TTS failures not caught internally) from
+  `EASAudioGenerator.build_files()` propagated out of `handle_alert()`,
+  bypassing the caller's error handling. The call is now wrapped in
+  `try/except` and returns a clean error result.
+- **`test_eom_segment_duration_is_reasonable` used wrong lower bound** — The
+  EOM segment is 3 short NNNN FSK bursts (~0.32 s each at 16 kHz) plus 3
+  seconds of silence, totalling ~3.97 s. The test asserted `>= 4.0` which
+  always failed due to sample-count rounding. Corrected to `>= 3.5` with an
+  upper-bound guard.
+
 ## [2.60.4] - 2026-03-18 - IPAWS embedded audio used instead of TTS
 
 ### Fixed
