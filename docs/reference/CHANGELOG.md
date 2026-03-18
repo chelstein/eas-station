@@ -6,6 +6,41 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.60.3] - 2026-03-18 - Audio monitoring silent failure and Listen button fixes
+
+### Fixed
+- **EAS audio sources stuck in ERROR state after network disruption** — The
+  `AudioSourceAdapter.start()` method previously refused to restart a source that was in
+  `ERROR` state (the guard only allowed `STOPPED`). Streams that hit 50 consecutive
+  read errors would exit their capture loop and stay permanently offline until the audio
+  service was manually restarted. `start()` now detects `ERROR` state, performs a clean
+  reset (signals stop-event, joins the capture thread, calls `_stop_capture()`), and then
+  relaunches the source normally.
+- **No automatic recovery of failed audio sources** — Added a source error-recovery
+  watchdog to the `eas_monitoring_service` main loop. Every 30 seconds it scans all
+  configured audio sources; any source in `ERROR` state is automatically stopped and
+  restarted. This ensures that temporary network failures (dropped stream, DNS hiccup,
+  etc.) heal without operator intervention.
+- **"Listen to EAS audio feed" button always fails when EAS monitor has no active
+  watchers** — The `/api/eas/decoder-stream` endpoint required the EAS monitor's
+  discovery loop to have already run and registered watchers before the stream could
+  start. On a fresh service startup the discovery loop runs every 5 seconds, meaning
+  audio sources could be running and streaming to Icecast but the Listen button would
+  return 503 "EAS monitor has no active monitors." The endpoint now falls back to
+  finding any RUNNING source directly from the audio controller, so the decoder audio
+  feed is immediately available as soon as any source is running.
+- **Misleading "audio-service may be starting up" error message** — The EAS monitor
+  status API returned the same generic string whether the audio service was unreachable,
+  still initializing its first metrics snapshot, or simply had no running sources. The
+  three cases now produce distinct, actionable messages.
+- **EAS monitor badge showed no guidance when sources are stopped** — Added a
+  "No Sources Running" warning badge and an inline message directing users to start an
+  audio source. Previously the monitor appeared broken with no indication of what to do.
+- **Listen button error showed no actionable guidance** — When the decoder stream
+  endpoint returned "No running audio sources available", the error alert now includes
+  "Start one of the audio sources in the section below, then try again." The alert
+  timeout was also extended from 8 seconds to 12 seconds so users have time to read it.
+
 ## [2.60.2] - 2026-03-17 - Alert modal interactivity and delete-expired fixes
 
 ### Fixed
