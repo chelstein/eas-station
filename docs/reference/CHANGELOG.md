@@ -6,6 +6,31 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.60.3] - 2026-03-18 - Fix TTS in EAS broadcast chain
+
+### Fixed
+- **TTS never generated for auto-forwarded CAP/IPAWS alerts** — The standalone CAP
+  poller process (`eas-station-poller.service`) has no Flask application context, so
+  every call to `load_eas_config()` silently fell back to a default
+  `TTSSettings(enabled=False)` when `get_tts_settings()` tried to use
+  Flask-SQLAlchemy's scoped session without an app context.  All auto-forwarded
+  broadcasts therefore reported "No TTS provider configured." regardless of what was
+  saved in the settings database.
+
+  Fixed by adding an optional `db_session` parameter to `load_eas_config()`.  When
+  the Flask-SQLAlchemy path raises an exception (no app context), the function now
+  retries using the provided raw SQLAlchemy session.  `CAPPoller.__init__()` passes
+  its own session (`self.db_session`) so TTS settings are read correctly without
+  requiring a Flask context.
+
+- **Azure OpenAI TTS request could time out on long narration texts** — The
+  `requests.post()` call used a single 30-second timeout covering both the TCP
+  connection and the entire audio download.  For multi-paragraph EAS narrations
+  Azure needs more time to synthesise and stream the complete WAV file.  Changed to a
+  split timeout of 10 s (connect) / 90 s (read).  Also added a dedicated
+  `requests.exceptions.Timeout` handler so the broadcast record clearly shows
+  "timed out" rather than a generic "request failed" message.
+
 ## [2.60.2] - 2026-03-17 - Alert modal interactivity and delete-expired fixes
 
 ### Fixed
