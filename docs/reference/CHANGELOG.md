@@ -6,6 +6,32 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.61.1] - 2026-03-18 - Theme readability fixes
+
+### Fixed
+- **Dark theme: invisible text on cards and Bootstrap components** — Bootstrap 5.3
+  sets `--bs-body-color: #212529` (dark gray) in `:root`. Because EAS Station uses
+  `data-theme` instead of `data-bs-theme`, Bootstrap's own dark-mode palette was
+  never activated, causing nearly all Bootstrap components (cards, tables, accordions,
+  alerts, badges, etc.) to render dark gray text on dark theme backgrounds. Fixed by
+  overriding `--bs-body-color` and ~40 related Bootstrap CSS variables for all 8 dark
+  themes (`dark`, `coffee`, `aurora`, `nebula`, `midnight`, `charcoal`, `obsidian`,
+  `slate`) so the Bootstrap component layer uses our theme-aware palette variables.
+- **`.card` missing explicit text color** — Added `color: var(--text-color)` directly
+  to the `.card` rule in `styles.css` so all card content inherits the correct text
+  color even without relying solely on Bootstrap variable inheritance.
+- **`bg-*-subtle` / `text-*-emphasis` Bootstrap utilities** — Overrode
+  `--bs-*-bg-subtle` and `--bs-*-text-emphasis` variables for dark themes so badges
+  and highlights using these classes display readable, theme-appropriate colors.
+- **`alert-light` / `alert-secondary` in dark themes** — These alerts previously
+  rendered with Bootstrap's hard-coded light-mode colors (#fcfcfd background, #495057
+  text). Added dark-theme overrides to use surface and theme text colors instead.
+- **Severity badge text contrast (`index.html`)** — `.severity-severe` used
+  `color: white` on a warning (amber/pale-yellow) background which is near-invisible
+  in dark themes. `.severity-minor` used `color: white` on an info (light blue)
+  background. Both changed to `color: #1a1a1a` for consistent readability across all
+  themes.
+
 ## [2.61.0] - 2026-03-18 - Airchain flow fringe-case fixes
 
 ### Fixed

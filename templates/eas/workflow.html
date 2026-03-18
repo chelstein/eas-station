@@ -5,11 +5,12 @@
 {% block extra_css %}
 <style>
     .workflow-hero {
-        background: linear-gradient(135deg, var(--primary-color), var(--info-color));
+        background: linear-gradient(135deg, var(--primary-dark, var(--primary-color)), var(--primary-color));
         color: white;
         border-radius: 18px;
         padding: 2.5rem 2rem;
         box-shadow: 0 12px 40px rgba(13, 110, 253, 0.25);
+        text-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
     }
 
     .workflow-hero h1 {
