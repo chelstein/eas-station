@@ -92,8 +92,17 @@ def _ensure_directory(path: str) -> str:
     return path
 
 
-def load_eas_config(base_path: Optional[str] = None) -> Dict[str, object]:
-    """Build a runtime configuration dictionary for EAS broadcasting."""
+def load_eas_config(base_path: Optional[str] = None, db_session=None) -> Dict[str, object]:
+    """Build a runtime configuration dictionary for EAS broadcasting.
+
+    Args:
+        base_path: Base filesystem path for locating static assets.
+        db_session: Optional raw SQLAlchemy session.  When the caller runs
+            outside a Flask application context (e.g. the standalone CAP
+            poller process) the Flask-SQLAlchemy proxy cannot access the
+            database.  Pass the caller's own session so TTS settings can
+            still be read directly from the database.
+    """
 
     base_path = base_path or os.getenv('EAS_BASE_PATH') or os.getcwd()
     static_dir = os.getenv('EAS_STATIC_DIR')
@@ -128,12 +137,39 @@ def load_eas_config(base_path: Optional[str] = None) -> Dict[str, object]:
     azure_openai_voice = 'alloy'
     azure_openai_speed = 1.0
 
+    tts_settings = None
+
+    # Primary path: use Flask-SQLAlchemy helper (requires app context).
     try:
         tts_settings = get_tts_settings()
+        load_logger.info(
+            f"TTS settings from DB (Flask context): enabled={tts_settings.enabled}, "
+            f"provider='{tts_settings.provider}'"
+        )
+    except Exception as exc:
+        load_logger.warning(
+            f"Could not load TTS settings via Flask context: {exc}. "
+            "Trying direct session fallback."
+        )
 
-        # Always log TTS settings at INFO level for debugging
-        load_logger.info(f"TTS settings from DB: enabled={tts_settings.enabled}, provider='{tts_settings.provider}'")
+    # Fallback path: read directly from a provided raw SQLAlchemy session.
+    # This is needed when load_eas_config() is called from a background
+    # process (e.g. the standalone CAP poller) that has no Flask app context.
+    if tts_settings is None and db_session is not None:
+        try:
+            from app_core.models import TTSSettings as _TTSSettings
+            tts_settings = db_session.get(_TTSSettings, 1)
+            if tts_settings is not None:
+                load_logger.info(
+                    f"TTS settings from DB (direct session): enabled={tts_settings.enabled}, "
+                    f"provider='{tts_settings.provider}'"
+                )
+            else:
+                load_logger.info("TTS settings row not found via direct session (id=1); TTS disabled")
+        except Exception as exc2:
+            load_logger.error(f"Failed to load TTS settings from direct session: {exc2}")
 
+    if tts_settings is not None:
         if not tts_settings.enabled:
             load_logger.info("TTS is disabled in database settings")
         elif not tts_settings.provider:
@@ -150,15 +186,18 @@ def load_eas_config(base_path: Optional[str] = None) -> Dict[str, object]:
                 azure_openai_voice = (tts_settings.azure_openai_voice or 'alloy').strip()
                 azure_openai_speed = tts_settings.azure_openai_speed or 1.0
 
-                load_logger.info(f"Azure OpenAI TTS config loaded: endpoint={'<set>' if azure_openai_endpoint else '<MISSING>'}, key={'<set>' if azure_openai_key else '<MISSING>'}")
+                load_logger.info(
+                    f"Azure OpenAI TTS config loaded: "
+                    f"endpoint={'<set>' if azure_openai_endpoint else '<MISSING>'}, "
+                    f"key={'<set>' if azure_openai_key else '<MISSING>'}"
+                )
 
                 if not azure_openai_endpoint:
                     load_logger.error("Azure OpenAI TTS enabled but endpoint is empty!")
                 if not azure_openai_key:
                     load_logger.error("Azure OpenAI TTS enabled but API key is empty!")
-    except Exception as exc:
-        load_logger.error(f"Failed to load TTS settings from database: {exc}")
-        load_logger.exception("TTS settings load error details:")
+    else:
+        load_logger.warning("TTS settings could not be loaded from database; TTS will be disabled")
 
     # Load station identity from database (EASSettings row 1), falling back to
     # environment variables for backwards compatibility, then to hardcoded defaults.
