@@ -5,6 +5,41 @@ broadcast. Two channels are supported: **email** (via SMTP) and **SMS** (via Twi
 
 Both are configured in the web UI under **Settings → Notifications**.
 
+## Notification Flow
+
+```mermaid
+sequenceDiagram
+    participant EAS as EAS Broadcast
+    participant DB as Database
+    participant NS as Notification Service
+    participant SMTP as SMTP Server
+    participant Twilio as Twilio API
+    participant Op as Operator/Recipient
+
+    EAS->>DB: Store broadcast record
+    EAS->>NS: Trigger post-broadcast notification
+
+    NS->>DB: Load notification settings
+    DB-->>NS: Email + SMS configuration
+
+    alt Email enabled
+        NS->>NS: Build alert summary email
+        NS->>SMTP: Connect and authenticate
+        SMTP-->>NS: Ready
+        NS->>SMTP: Send message to recipients
+        SMTP-->>Op: Alert email delivered
+    end
+
+    alt SMS enabled
+        NS->>NS: Build SMS alert message
+        NS->>Twilio: POST /Messages (REST API)
+        Twilio-->>NS: Message SID returned
+        Twilio->>Op: SMS delivered to E.164 number
+    end
+
+    NS->>DB: Log delivery status
+```
+
 ---
 
 ## Email Notifications

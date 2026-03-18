@@ -41,10 +41,10 @@ graph TB
     end
 
     subgraph "API Layer - webapp/routes_screens.py"
-        API[/api/displays/current-state]
+        API["/api/displays/current-state"]
         API -->|Get controller| Controller
         API -->|Call method| Export
-        Export -->|Return| JSON[JSON Response<br/>preview_image: data:image/png;base64,...]
+        Export -->|Return| JSON["JSON Response<br/>preview_image: base64 PNG data"]
     end
 
     subgraph "Frontend - templates/displays_preview.html"
@@ -60,7 +60,7 @@ graph TB
     subgraph "User"
         Browser[Web Browser]
         Browser -->|View| Canvas
-        Browser -->|Navigate to| Preview[/displays/preview]
+        Browser -->|Navigate to| Preview["/displays/preview"]
     end
 
     style OLED fill:#333,color:#fff
@@ -91,7 +91,7 @@ sequenceDiagram
     OC->>OC: Convert monochrome → RGB
     OC->>OC: Save to BytesIO as PNG
     OC->>OC: Base64 encode
-    OC-->>API: data:image/png;base64,...
+    OC-->>API: base64-encoded PNG image
     API-->>UI: JSON with preview_image
     UI->>UI: Create Image from base64
     UI->>UI: drawImage to canvas
@@ -291,7 +291,7 @@ stateDiagram-v2
 ```mermaid
 graph LR
     subgraph "Editor State"
-        State[JavaScript State Object<br/>elements: []<br/>selectedElement: id<br/>zoom: 1<br/>dataSources: []]
+        State["JavaScript State Object<br/>elements: []<br/>selectedElement: id<br/>zoom: 1<br/>dataSources: []"]
     end
 
     subgraph "UI Components"
@@ -329,18 +329,18 @@ graph LR
 graph TB
     subgraph "Screen Definition"
         DB[(Database<br/>DisplayScreen)]
-        Template[Template Data JSON<br/>lines: []<br/>scroll_effect: string]
+        Template["Template Data JSON<br/>lines: []<br/>scroll_effect: string"]
     end
 
     subgraph "Data Fetching"
         Sources[Data Sources<br/>/api/system_status<br/>/api/audio/metrics]
         Fetch[Fetch API Data]
-        Vars[Variable Map<br/>{status.cpu}: 45.2]
+        Vars["Variable Map<br/>{status.cpu}: 45.2"]
     end
 
     subgraph "Rendering - scripts/screen_renderer.py"
         Renderer[ScreenRenderer]
-        Substitute[Variable Substitution<br/>Replace {vars}]
+        Substitute["Variable Substitution<br/>Replace {vars}"]
         Build[Build OLEDLine Objects]
     end
 
@@ -386,9 +386,9 @@ graph TB
     end
 
     subgraph "Processing"
-        Pattern[Regex: \{([^}]+)\}]
+        Pattern["Match {variable} pattern"]
         Extract[Extract: status.cpu_usage_percent]
-        Split[Split: ['status', 'cpu_usage_percent']]
+        Split["Split: status, cpu_usage_percent"]
         Navigate[Navigate object path]
         Value[Get value: 45.2]
         Format[Format: float → '45.2']
@@ -537,7 +537,7 @@ graph TB
 
     subgraph "Frontend Processing"
         Canvas[Canvas Preview<br/>Visual Feedback]
-        State[JavaScript State<br/>elements: []]
+        State["JavaScript State<br/>elements: []"]
         Build[buildTemplateData<br/>Generate JSON]
     end
 
