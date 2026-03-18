@@ -835,79 +835,121 @@ def _fetch_embedded_audio(
     timeout: int = 30,
 ) -> Tuple[Optional[List[int]], Optional[str]]:
     """Fetch and convert embedded audio from CAP resources.
-    
+
     IPAWS alerts can contain pre-recorded audio in <resource> elements.
-    This function downloads the audio and converts it to PCM samples.
-    
+    Audio may be provided as an external URL (``uri``) to download or as
+    inline base64-encoded content (``derefUri``).  Both cases are handled.
+    When a resource carries ``derefUri`` but no ``mimeType`` the format is
+    inferred from the decoded bytes so that alerts that omit MIME metadata
+    still produce valid audio.
+
     Args:
         resources: List of resource dicts from CAP XML parsing
         target_sample_rate: Target sample rate for output
         logger: Logger instance
         timeout: Download timeout in seconds
-        
+
     Returns:
-        Tuple of (audio_samples, source_uri) or (None, None) if no audio found
+        Tuple of (audio_samples, source_description) or (None, None) if no
+        usable audio resource was found.
     """
+    import base64
+    import binascii
     import requests
-    
-    # Find audio resources - look for EAS Broadcast Content or audio mime types
+
+    # Collect candidate audio resources.
+    # A resource is a candidate when:
+    #  - its mimeType or resourceDesc explicitly indicates audio, OR
+    #  - it carries a derefUri with no conflicting (non-audio) MIME type.
+    # Resources that advertise a non-audio MIME type are excluded even if
+    # they have a derefUri, to avoid treating e.g. image attachments as audio.
     audio_resources = []
     for resource in resources:
         mime_type = (resource.get('mimeType') or '').lower()
         resource_desc = (resource.get('resourceDesc') or '').lower()
         uri = resource.get('uri', '')
-        
-        # Check for audio mime types or EAS broadcast content
-        is_audio = (
+        deref_uri = resource.get('derefUri', '')
+
+        has_audio_hint = (
             'audio' in mime_type or
             'eas broadcast' in resource_desc or
             uri.endswith(('.mp3', '.wav', '.ogg', '.m4a'))
         )
-        
-        if is_audio and uri:
+        # A MIME type present but NOT containing 'audio' is a conflict.
+        has_non_audio_mime = bool(mime_type) and 'audio' not in mime_type
+
+        has_content = bool(uri) or bool(deref_uri)
+        is_candidate = has_content and (has_audio_hint or (bool(deref_uri) and not has_non_audio_mime))
+
+        if is_candidate:
             audio_resources.append(resource)
-    
+
     if not audio_resources:
         return None, None
-    
-    # Try each audio resource until one works
+
+    # Try each candidate until one produces valid PCM samples.
+    # Prefer inline derefUri (already available locally) over downloading.
     for resource in audio_resources:
         uri = resource.get('uri', '')
+        deref_uri = resource.get('derefUri', '')
         mime_type = resource.get('mimeType', '')
         resource_desc = resource.get('resourceDesc', '')
-        
-        logger.info(
-            f"Fetching embedded audio from IPAWS: {resource_desc or 'unnamed'} "
-            f"({mime_type}) from {uri[:80]}..."
-        )
-        
-        try:
-            # Disable proxy to allow direct download from IPAWS
-            response = requests.get(uri, timeout=timeout, stream=True, proxies={'http': None, 'https': None})
-            response.raise_for_status()
-            
-            audio_data = response.content
-            logger.info(f"Downloaded {len(audio_data)} bytes of audio from IPAWS")
-            
-            # Convert audio to PCM samples
-            samples = _convert_audio_to_samples(audio_data, mime_type, target_sample_rate, logger)
-            
-            if samples:
-                logger.info(
-                    f"Successfully converted IPAWS audio: {len(samples)} samples "
-                    f"({len(samples) / target_sample_rate:.1f}s at {target_sample_rate}Hz)"
-                )
-                return samples, uri
-            else:
-                logger.warning(f"Failed to convert audio from {uri}")
-                
-        except requests.exceptions.Timeout:
-            logger.warning(f"Timeout fetching audio from {uri}")
-        except requests.exceptions.RequestException as e:
-            logger.warning(f"Failed to fetch audio from {uri}: {e}")
-        except Exception as e:
-            logger.error(f"Error processing audio from {uri}: {e}")
-    
+
+        # --- inline base64 audio ---
+        if deref_uri:
+            logger.info(
+                f"Decoding inline IPAWS audio: {resource_desc or 'unnamed'} "
+                f"({mime_type or 'auto-detect'}, {len(deref_uri)} base64 chars)"
+            )
+            try:
+                audio_data = base64.b64decode(deref_uri, validate=False)
+                logger.info(f"Decoded {len(audio_data)} bytes of inline IPAWS audio")
+
+                samples = _convert_audio_to_samples(audio_data, mime_type, target_sample_rate, logger)
+                if samples:
+                    logger.info(
+                        f"Successfully converted inline IPAWS audio: {len(samples)} samples "
+                        f"({len(samples) / target_sample_rate:.1f}s at {target_sample_rate}Hz)"
+                    )
+                    return samples, f"derefUri:{resource_desc or 'inline'}"
+                else:
+                    logger.warning("Failed to convert inline IPAWS audio; will try URI if available")
+            except (binascii.Error, ValueError) as exc:
+                logger.warning(f"Failed to base64-decode inline IPAWS audio: {exc}")
+            except Exception as exc:
+                logger.error(f"Error processing inline IPAWS audio: {exc}")
+
+        # --- external URI audio ---
+        if uri:
+            logger.info(
+                f"Fetching embedded audio from IPAWS: {resource_desc or 'unnamed'} "
+                f"({mime_type}) from {uri[:80]}..."
+            )
+            try:
+                # Disable proxy to allow direct download from IPAWS
+                response = requests.get(uri, timeout=timeout, stream=True, proxies={'http': None, 'https': None})
+                response.raise_for_status()
+
+                audio_data = response.content
+                logger.info(f"Downloaded {len(audio_data)} bytes of audio from IPAWS")
+
+                samples = _convert_audio_to_samples(audio_data, mime_type, target_sample_rate, logger)
+                if samples:
+                    logger.info(
+                        f"Successfully converted IPAWS audio: {len(samples)} samples "
+                        f"({len(samples) / target_sample_rate:.1f}s at {target_sample_rate}Hz)"
+                    )
+                    return samples, uri
+                else:
+                    logger.warning(f"Failed to convert audio from {uri}")
+
+            except requests.exceptions.Timeout:
+                logger.warning(f"Timeout fetching audio from {uri}")
+            except requests.exceptions.RequestException as exc:
+                logger.warning(f"Failed to fetch audio from {uri}: {exc}")
+            except Exception as exc:
+                logger.error(f"Error processing audio from {uri}: {exc}")
+
     return None, None
 
 
@@ -958,31 +1000,51 @@ def _convert_audio_to_samples(
         except Exception as e:
             logger.warning(f"Failed to parse WAV audio: {e}")
     
-    # Try MP3 via pydub
-    if 'mp3' in mime_lower or 'mpeg' in mime_lower or audio_data[:3] == b'ID3' or audio_data[:2] == b'\xff\xfb':
+    # MPEG audio frame sync: first byte 0xFF, second byte high-nibble 0xE or 0xF
+    # This covers MPEG-1/2/2.5 Layers 1-3 (e.g. 0xFB=MPEG1-L3, 0xF3=MPEG2-L3, 0xE2=MPEG2.5-L3)
+    _is_mpeg_sync = len(audio_data) >= 2 and audio_data[0] == 0xFF and (audio_data[1] & 0xE0) == 0xE0
+    if 'mp3' in mime_lower or 'mpeg' in mime_lower or audio_data[:3] == b'ID3' or _is_mpeg_sync:
         try:
             from pydub import AudioSegment
-            
+
             audio_io = io.BytesIO(audio_data)
             audio = AudioSegment.from_mp3(audio_io)
-            
+
             # Convert to mono
             audio = audio.set_channels(1)
-            
+
             # Resample to target rate
             audio = audio.set_frame_rate(target_sample_rate)
-            
+
             # Get raw samples
             raw_data = audio.raw_data
             samples = list(struct.unpack(f'<{len(raw_data)//2}h', raw_data))
-            
+
             return samples
-            
+
         except ImportError:
             logger.warning("pydub not available for MP3 conversion. Install with: pip install pydub")
         except Exception as e:
             logger.warning(f"Failed to convert MP3 audio: {e}")
-    
+
+    # Last-resort: try pydub auto-format detection for any unrecognised format
+    if mime_type == '' or ('audio' in mime_lower and not any(k in mime_lower for k in ('wav', 'mp3', 'mpeg'))):
+        try:
+            from pydub import AudioSegment
+
+            audio_io = io.BytesIO(audio_data)
+            audio = AudioSegment.from_file(audio_io)
+            audio = audio.set_channels(1)
+            audio = audio.set_frame_rate(target_sample_rate)
+            raw_data = audio.raw_data
+            samples = list(struct.unpack(f'<{len(raw_data)//2}h', raw_data))
+            logger.info("Converted audio via pydub auto-detection")
+            return samples
+        except ImportError:
+            pass
+        except Exception as e:
+            logger.warning(f"pydub auto-detection failed: {e}")
+
     logger.warning(f"Unsupported audio format: {mime_type}")
     return None
 

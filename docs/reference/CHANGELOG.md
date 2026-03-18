@@ -6,7 +6,30 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
-## [2.60.3] - 2026-03-18 - Audio monitoring silent failure and Listen button fixes
+## [2.60.4] - 2026-03-18 - IPAWS embedded audio used instead of TTS
+
+### Fixed
+- **IPAWS alerts with embedded audio fall back to TTS instead of using the pre-recorded
+  narration** — `_fetch_embedded_audio()` only accepted resources that had an external
+  `uri` field, silently ignoring resources whose audio was carried inline as a
+  base64-encoded `derefUri` with no separate URI. Many IPAWS originators (including the
+  Ohio statewide EAS test seen in the bug report) embed the audio directly in the alert
+  and omit `mimeType` / `resourceDesc` entirely. The function now accepts any resource
+  that has a `derefUri` as long as its MIME type (if present) does not indicate a
+  non-audio format, and decodes the base64 content locally instead of making a network
+  request.
+- **`save_ipaws_audio()` skips `derefUri` resources with missing `mimeType`** — The
+  same `is_audio` guard that blocked `_fetch_embedded_audio()` also prevented
+  `save_ipaws_audio()` (called during polling) from writing the embedded audio file to
+  disk. This is now fixed with the same relaxed detection logic.
+- **MPEG audio format detection too narrow** — `_convert_audio_to_samples()` checked
+  only for the `0xFF 0xFB` MPEG-1 Layer-3 sync word. Valid MPEG-2 and MPEG-2.5 frames
+  use different sync bytes (`0xFF 0xEx` / `0xFF 0xFx`). The check is now a general MPEG
+  sync-word test (first byte `0xFF`, second byte high-nibble `0xE` or `0xF`). A
+  pydub `from_file()` auto-detection fallback is also added for any format not matched
+  by the explicit checks.
+
+
 
 ### Fixed
 - **EAS audio sources stuck in ERROR state after network disruption** — The

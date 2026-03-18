@@ -516,7 +516,13 @@ def save_ipaws_audio(
         resource_desc = (resource.get('resourceDesc') or '').lower()
         deref_uri = resource.get('derefUri', '')
 
-        is_audio = 'audio' in mime_type or 'eas broadcast' in resource_desc
+        # Accept when the MIME type or description explicitly indicates audio.
+        # Also accept resources that carry a derefUri with no conflicting
+        # (non-audio) MIME type, because IPAWS alerts sometimes omit the
+        # mimeType/resourceDesc fields even for valid embedded audio.
+        has_audio_hint = 'audio' in mime_type or 'eas broadcast' in resource_desc
+        has_non_audio_mime = bool(mime_type) and 'audio' not in mime_type
+        is_audio = has_audio_hint or (bool(deref_uri) and not has_non_audio_mime)
         if not (is_audio and deref_uri):
             continue
 
