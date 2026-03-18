@@ -33,31 +33,30 @@ SAME_PREAMBLE_REPETITIONS = 16
 
 
 def same_preamble_bits(repeats: int = SAME_PREAMBLE_REPETITIONS) -> List[int]:
-    """Encode the SAME preamble (0xAB) bytes with start/stop framing."""
+    """Encode the SAME preamble (0xAB) bytes per FCC 47 CFR §11.31.
+
+    Each preamble byte is transmitted as 8 bits LSB-first with no start or stop
+    framing, exactly as required by the standard.
+    """
 
     bits: List[int] = []
     repeats = max(1, int(repeats))
     for _ in range(repeats):
-        bits.append(0)
         for i in range(8):
             bits.append((SAME_PREAMBLE_BYTE >> i) & 1)
-        bits.append(1)
 
     return bits
 
 
 def encode_same_bits(message: str, *, include_preamble: bool = False) -> List[int]:
-    """Encode an ASCII SAME header using 8N1 serial framing (8 data bits, no parity, 1 stop bit).
+    """Encode an ASCII SAME header per FCC 47 CFR §11.31.
+
+    Each character is transmitted as 8 bits LSB-first: 7 ASCII data bits followed
+    by one null bit.  There are no start or stop framing bits.
 
     Per FCC 47 CFR §11.31: "Characters are ASCII seven bit characters as defined in
     ANSI X3.4-1977 ending with an eighth null bit (either 0 or 1) to constitute a
     full eight-bit byte."
-
-    Frame format:
-    - 1 start bit (0)
-    - 7 data bits (LSB first, ASCII character)
-    - 1 null bit (0) - eighth bit to make full byte
-    - 1 stop bit (1)
     """
 
     bits: List[int] = []
@@ -67,14 +66,10 @@ def encode_same_bits(message: str, *, include_preamble: bool = False) -> List[in
     for char in message + "\r":
         ascii_code = ord(char) & 0x7F
 
-        # 8N1 framing: start bit + 7 data bits + null bit + stop bit
-        char_bits: List[int] = [0]  # Start bit
+        # 7 data bits (LSB first) + 1 null bit = 8 bits per FCC §11.31
         for i in range(7):
-            bit = (ascii_code >> i) & 1
-            char_bits.append(bit)
-        char_bits.append(0)  # Eighth null bit (per FCC regulation)
-        char_bits.append(1)  # Stop bit
-        bits.extend(char_bits)
+            bits.append((ascii_code >> i) & 1)
+        bits.append(0)  # Eighth null bit per FCC §11.31
 
     return bits
 
