@@ -928,7 +928,7 @@ graph TB
     end
 
     subgraph "Shared Storage"
-        VOL_CONFIG[/app-config/.env<br>Configuration]
+        VOL_CONFIG["/app-config/.env<br>Configuration"]
         VOL_DATA[PostgreSQL Data]
         VOL_REDIS[Redis Data]
         VOL_CERTS[SSL Certificates]

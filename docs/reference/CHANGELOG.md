@@ -6,6 +6,36 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.61.2] - 2026-03-18 - Mermaid diagram fixes and documentation update
+
+### Fixed
+- **7 broken Mermaid diagrams** — Fixed parse and lexical errors in
+  `docs/architecture/DISPLAY_SYSTEM_ARCHITECTURE.md` (6 diagrams) and
+  `docs/architecture/SYSTEM_ARCHITECTURE.md` (1 diagram). Issues included:
+  slash-starting node labels (`/api/...`), square brackets inside unquoted labels
+  (`elements: []`), curly braces inside unquoted labels (`{vars}`), regex pattern
+  text in labels, and a comma in a sequence diagram message (`data:image/png;base64,...`).
+  All affected labels are now properly quoted with Mermaid's `["..."]` syntax.
+  All 78 Mermaid diagrams across 11 documentation files now validate cleanly.
+
+### Added
+- **EAS decoding architecture diagram** in `docs/architecture/EAS_DECODING_SUMMARY.md` —
+  Visual diagram showing how both the streaming decoder (`StreamingSAMEDecoder`) and
+  the file decoder (`decode_same_audio`) share the single `SAMEDemodulatorCore` DSP
+  engine in `app_utils/eas_demod.py`, including bandpass filter, ENDEC mode detection,
+  and burst timing components.
+- **Notification delivery flow diagram** in `docs/guides/notifications.md` — Sequence
+  diagram showing the post-broadcast pipeline from EAS broadcast through database,
+  notification service, and out to SMTP (email) and Twilio (SMS) recipients.
+
+### Documentation
+- **Updated `docs/reference/DIAGRAMS.md`** — Added index entries for 5 previously
+  unlisted documentation files that contain Mermaid diagrams:
+  `DISPLAY_SYSTEM_ARCHITECTURE.md` (15 diagrams), `HARDWARE_ISOLATION.md` (3),
+  `SDR_TROUBLESHOOTING_FLOWCHART.md` (1), `SDR_SETUP.md` (1), and
+  `OHIO_EAS_DOCUMENTATION.md` (18). Also added entries for the 2 newly added diagrams.
+  Updated total counts and related-links section. Updated "Last Updated" date.
+
 ## [2.61.1] - 2026-03-18 - Theme readability fixes
 
 ### Fixed

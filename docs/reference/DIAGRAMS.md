@@ -212,7 +212,7 @@ These diagrams were created earlier and provide high-level system overviews:
 
 In addition to the professional SVG diagrams above, the following documentation files contain embedded Mermaid.js diagrams that render in GitHub, GitLab, and compatible markdown viewers:
 
-### Data Flow Sequences (Mermaid) ⭐ NEW
+### Data Flow Sequences (Mermaid)
 
 **File:** [docs/../architecture/DATA_FLOW_SEQUENCES.md](../architecture/DATA_FLOW_SEQUENCES)
 
@@ -269,6 +269,113 @@ In addition to the professional SVG diagrams above, the following documentation 
 - High-level flow diagram
 - Conceptual overview of system operation
 - Historical context and SAME protocol details
+
+### Display System Architecture (Mermaid)
+
+**File:** [docs/../architecture/DISPLAY_SYSTEM_ARCHITECTURE.md](../architecture/DISPLAY_SYSTEM_ARCHITECTURE)
+
+**Contains:**
+- OLED preview system architecture
+- Display update cycle sequence diagram
+- OLED scrolling performance architecture (main loop, timing precision, seamless loop)
+- Visual screen editor component structure
+- Editor state management state diagram
+- Data binding flow
+- Screen rendering pipeline (template to display)
+- Variable substitution engine
+- Screen rotation and alert preemption workflow
+- Alert preemption sequence diagram
+- Visual editor to display integration flow
+- Frame timing Gantt chart
+- Display system future enhancements mindmap
+
+**Use Cases:**
+- Understanding OLED/VFD/LED display management
+- Debugging scrolling performance issues
+- Contributing to the visual screen editor
+- Understanding the screen rotation system
+
+### EAS Decoding Architecture (Mermaid)
+
+**File:** [docs/../architecture/EAS_DECODING_SUMMARY.md](../architecture/EAS_DECODING_SUMMARY)
+
+**Contains:**
+- Shared `SAMEDemodulatorCore` architecture showing how both the streaming and file decoders share a single DSP engine
+- IIR bandpass filter, ENDEC mode detection, and burst timing tracker components
+
+**Use Cases:**
+- Understanding the two-decoder architecture (streaming vs. file)
+- Tracing the DSP pipeline from audio input to decoded alert
+- Contributing improvements to the shared demodulator core
+
+### Hardware Isolation Architecture (Mermaid)
+
+**File:** [docs/../architecture/HARDWARE_ISOLATION.md](../architecture/HARDWARE_ISOLATION)
+
+**Contains:**
+- USB hardware layer isolation diagram
+- SDR service / hardware service coordination sequence
+- Before/after architecture comparison (old vs. new hardware access model)
+
+**Use Cases:**
+- Understanding why USB hardware is isolated into separate services
+- Debugging USB device access issues
+- Planning new hardware integrations
+
+### Ohio EAS Documentation (Mermaid)
+
+**File:** [docs/../reference/OHIO_EAS_DOCUMENTATION.md](../reference/OHIO_EAS_DOCUMENTATION)
+
+**Contains:**
+- Ohio EAS coverage and county hierarchy
+- FCC regulatory framework
+- National Primary station distribution
+- Emergency alert notification type tree
+- Alert origination sequence diagram
+- State-level authority and routing diagrams
+- NWS office coverage
+- RWT/RMT test schedule and requirements
+- Annual test cycle Gantt chart
+- Regional LP-1 relay chains (Central, Northwest, Southwest, Southeast)
+- LP-2 relay chain sequence diagram
+
+**Use Cases:**
+- Understanding Ohio-specific EAS plan requirements
+- Planning LP-1 and LP-2 monitoring configurations
+- Understanding RWT/RMT compliance obligations
+
+### SDR Troubleshooting Flowchart (Mermaid)
+
+**File:** [docs/../troubleshooting/SDR_TROUBLESHOOTING_FLOWCHART.md](../troubleshooting/SDR_TROUBLESHOOTING_FLOWCHART)
+
+**Contains:**
+- Step-by-step SDR diagnostic decision tree from USB detection through signal quality
+
+**Use Cases:**
+- Systematic SDR problem diagnosis
+- Training new operators on SDR troubleshooting
+
+### SDR Setup Flow (Mermaid)
+
+**File:** [docs/../hardware/SDR_SETUP.md](../hardware/SDR_SETUP)
+
+**Contains:**
+- Three-phase SDR setup flowchart (hardware, software configuration, testing)
+
+**Use Cases:**
+- Guided SDR initial setup
+- Adding new receivers
+
+### Notification Delivery Flow (Mermaid)
+
+**File:** [docs/../guides/notifications.md](../guides/notifications)
+
+**Contains:**
+- Sequence diagram showing how EAS alerts trigger email (SMTP) and SMS (Twilio) notifications after a broadcast
+
+**Use Cases:**
+- Understanding the post-broadcast notification pipeline
+- Troubleshooting email or SMS delivery issues
 
 ### README Architecture (Mermaid)
 
@@ -331,12 +438,15 @@ When adding new diagrams:
 
 - **[System Architecture](../../architecture/SYSTEM_ARCHITECTURE)** - Complete technical architecture with Mermaid diagrams
 - **[Theory of Operation](../../architecture/THEORY_OF_OPERATION)** - Conceptual overview and operational theory
+- **[Display System Architecture](../../architecture/DISPLAY_SYSTEM_ARCHITECTURE)** - OLED/VFD/LED display management
+- **[EAS Decoding Summary](../../architecture/EAS_DECODING_SUMMARY)** - Streaming vs. file decoder architecture
 - **[SDR Setup Guide](../../hardware/SDR_SETUP)** - Radio receiver configuration
 - **[Audio Documentation](../audio/AUDIO_MONITORING)** - Audio system details
+- **[Notifications Guide](../guides/notifications)** - Email and SMS notification setup
 - **[README](https://github.com/KR8MER/eas-station/blob/main/README.md)** - Project overview and quick start
 
 ---
 
-**Last Updated:** 2026-02-17
-**Diagram Count:** 9 professional SVG diagrams + 31+ embedded Mermaid diagrams (6 new data flow sequences)
-**Total Documentation Coverage:** Complete system from hardware to software, including security architecture, analytics pipeline, and detailed data processing flows
+**Last Updated:** 2026-03-18
+**Diagram Count:** 9 professional SVG diagrams + 78 embedded Mermaid diagrams across 11 documentation files
+**Total Documentation Coverage:** Complete system from hardware to software, including security architecture, analytics pipeline, display system, EAS decoding, notifications, and detailed data processing flows

@@ -177,16 +177,46 @@ The streaming decoder does one thing perfectly:
 
 ### Architecture
 
-```
-Audio Stream (22.05 kHz)
-    ↓
-AudioSourceManager (buffering, failover)
-    ↓
-ContinuousEASMonitor (coordinator)
-    ↓
-StreamingSAMEDecoder (real-time FSK decoding)
-    ↓ (callback on detection)
-Alert Processing → Database → Broadcast
+```mermaid
+graph TB
+    subgraph "Audio Input"
+        STREAM[Audio Stream<br/>22.05 kHz PCM]
+        FILE[WAV/MP3 File]
+    end
+
+    subgraph "Decoders"
+        STREAMING[StreamingSAMEDecoder<br/>streaming_same_decoder.py]
+        FILE_DEC["decode_same_audio()<br/>eas_decode.py"]
+    end
+
+    subgraph "Shared Core - app_utils/eas_demod.py"
+        CORE[SAMEDemodulatorCore<br/>BLAS-accelerated FSK/DLL]
+        BANDPASS[IIR Bandpass Filter<br/>1200-2500 Hz Butterworth]
+        ENDEC[ENDEC Mode Detection<br/>Inter-burst gap timing]
+        TIMING[Burst Timing Tracker<br/>Sample positions]
+    end
+
+    subgraph "Output"
+        ALERT[StreamingSAMEAlert<br/>callback on detection]
+        RESULT[SAMEAudioDecodeResult<br/>returned from function]
+    end
+
+    STREAM -->|process_samples| STREAMING
+    FILE -->|load and decode| FILE_DEC
+
+    STREAMING --> CORE
+    FILE_DEC --> CORE
+
+    CORE --> BANDPASS
+    CORE --> ENDEC
+    CORE --> TIMING
+
+    STREAMING -->|callback| ALERT
+    FILE_DEC --> RESULT
+
+    style CORE fill:#3b82f6,color:#fff
+    style STREAMING fill:#10b981,color:#fff
+    style FILE_DEC fill:#f59e0b,color:#000
 ```
 
 ### Key Components
