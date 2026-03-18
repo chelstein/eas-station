@@ -181,7 +181,15 @@ class TestBuildFilesIncludesEOM:
         )
 
     def test_eom_segment_duration_is_reasonable(self):
-        """EOM must be at least 4 seconds (3 bursts × ~0.5 s each + silences)."""
+        """EOM must be long enough to contain 3 NNNN bursts plus 3 seconds of silence.
+
+        EOM structure: 3 × NNNN FSK burst, separated by 1-second silences,
+        followed by a 1-second trailing silence.  The 3 silences account for
+        3.0 s; the 3 short NNNN FSK bursts each take ~0.32 s at 16 kHz, for
+        a total of ~3.97 s.  We use 3.5 s as the lower bound to guard against
+        genuinely broken EOM generation (e.g. all-silence or missing bursts)
+        while not being sensitive to floating-point sample-count rounding.
+        """
         gen = _build_generator()
         alert = _build_minimal_alert()
         payload = _build_payload()
@@ -192,11 +200,14 @@ class TestBuildFilesIncludesEOM:
         )
 
         eom_duration = _parse_wav_duration(segment_payload['eom']['wav_bytes'])
-        assert eom_duration >= 4.0, (
-            f"EOM must be at least 4 s (got {eom_duration:.2f}s). "
-            "EOM is 3 NNNN bursts + 1-second inter-burst silences + 1-second trailing silence."
+        assert eom_duration >= 3.5, (
+            f"EOM must be at least 3.5 s (got {eom_duration:.4f}s). "
+            "EOM is 3 NNNN FSK bursts (~0.32 s each) + 3 silences of 1 s each."
         )
-
+        # Also verify it is not absurdly long (> 10 s would indicate duplicated bursts).
+        assert eom_duration < 10.0, (
+            f"EOM duration ({eom_duration:.2f}s) is unreasonably long."
+        )
 
 class TestHandleAlertEOMInSegmentPayload:
     """handle_alert() must pass EOM audio to the model constructor via segment_payload."""

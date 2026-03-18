@@ -679,7 +679,11 @@ def initialize_eas_monitor(app, audio_controller):
         configured_fips = load_fips_codes_from_config()
         logger.info(f"Loaded {len(configured_fips)} FIPS codes for alert filtering")
 
-        # Create alert callback with filtering
+        # Create alert callback with filtering.
+        # forward_alert_handler runs inside the EAS monitor thread which has no
+        # Flask application context.  Pushing an app context here (as the
+        # _make_metadata_log_callback helper does) lets forward_alert_to_api
+        # reach Flask-SQLAlchemy and the air-chain broadcast pipeline.
         def forward_alert_handler(alert):
             """Forward matched alerts to API and air chain broadcast."""
             from app_core.audio.alert_forwarding import forward_alert_to_api
@@ -690,14 +694,21 @@ def initialize_eas_monitor(app, audio_controller):
                 f"Forwarding alert from source '{source_name}': "
                 f"{event_code} for {location_codes}"
             )
-            result = forward_alert_to_api(alert)
-            return result
+            return forward_alert_to_api(alert)
 
-        alert_callback = create_fips_filtering_callback(
+        # The FIPS-filtering callback calls forward_alert_handler AND then
+        # _store_received_alert, both of which need Flask context.  Wrap the
+        # whole callback so _store_received_alert also runs inside a context.
+        _alert_callback_inner = create_fips_filtering_callback(
             configured_fips_codes=configured_fips,
             forward_callback=forward_alert_handler,
             logger_instance=logger
         )
+
+        def alert_callback(alert):
+            with app.app_context():
+                return _alert_callback_inner(alert)
+
 
         # Create unified monitor service (replaces MultiMonitorManager)
         _eas_monitor = UnifiedEASMonitorService(
