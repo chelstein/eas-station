@@ -647,7 +647,7 @@
     .severity-severe { background: var(--warning-color); color: #1a1a1a; }
     .severity-moderate { background: var(--warning-color); color: #1a1a1a; }
     .severity-minor { background: var(--info-color); color: #1a1a1a; }
-    .severity-unknown { background: var(--text-muted); color: white; }
+    .severity-unknown { background: var(--text-muted); color: var(--bg-color); }
 
     @media (max-width: 991px) {
         .sticky-card {
@@ -1561,15 +1561,15 @@ function createAlertPopup(props) {
     const severityClass = `severity-${(props.severity || 'unknown').toLowerCase()}`;
     const isActive = !isAlertExpired(props.expires);
     const statusBadge = isActive ?
-        '<span class="popup-badge" style="background: var(--success-color); color: white;">ACTIVE</span>' :
-        '<span class="popup-badge" style="background: var(--text-muted); color: white;">EXPIRED</span>';
+        '<span class="popup-badge" style="background: var(--success-color); color: #1a1a1a;">ACTIVE</span>' :
+        '<span class="popup-badge" style="background: var(--text-muted); color: var(--bg-color);">EXPIRED</span>';
 
     return `
         <div class="popup-title">${props.event || 'Unknown Event'}</div>
         <div class="popup-detail">
             <span class="popup-badge ${severityClass}">${props.severity || 'Unknown'}</span>
             ${statusBadge}
-            ${props.is_county_wide ? '<span class="popup-badge" style="background: var(--info-color); color: white;">COUNTY-WIDE</span>' : ''}
+            ${props.is_county_wide ? '<span class="popup-badge" style="background: var(--info-color); color: #1a1a1a;">COUNTY-WIDE</span>' : ''}
         </div>
         <div class="popup-detail"><strong>Area:</strong> ${props.area_desc || 'Unknown'}</div>
         <div class="popup-detail"><strong>Effective:</strong> ${props.effective ? new Date(props.effective).toLocaleString() : 'Unknown'}</div>
