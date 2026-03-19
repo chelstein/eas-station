@@ -2814,7 +2814,7 @@ function rebuildDotsGrid() {
         wrap.appendChild(rowDiv);
     }
 
-    document.addEventListener('mouseup', () => { dotsDrawing = false; }, { once: false });
+    document.addEventListener('mouseup', () => { dotsDrawing = false; });
     updateDotsPreviewCanvas();
 }
 
@@ -2824,7 +2824,6 @@ function dotsToggleCell(r, c, value) {
     const cell_el = document.querySelector(`.dots-cell[data-r="${r}"][data-c="${c}"]`);
     if (cell_el) {
         cell_el.className = 'dots-cell ' + (dotsGrid[r][c] ? 'on' : 'off');
-        cell_el.style.width  = cell_el.style.width;
     }
     updateDotsPreviewCanvas();
 }

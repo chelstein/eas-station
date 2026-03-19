@@ -941,6 +941,8 @@ def register(app: Flask, logger) -> None:
 
     # ── RSS Feeds ─────────────────────────────────────────────────────────────
 
+    _RSS_TITLE_DISPLAY_CHARS = 20  # max chars per LED sign line (Alpha 9120C)
+
     @app.route("/api/led/rss/feeds", methods=["GET"])
     def api_led_rss_list():
         """Return all configured RSS feed sources."""
@@ -1151,7 +1153,7 @@ def register(app: Flask, logger) -> None:
             if not items:
                 return jsonify({"success": False, "error": "Items not found"})
 
-            lines = [it.title[:20] for it in items[:4]]
+            lines = [it.title[:_RSS_TITLE_DISPLAY_CHARS] for it in items[:4]]
             while len(lines) < 4:
                 lines.append("")
 

@@ -2211,7 +2211,8 @@ class Alpha9120CController:
 
         # Normalise and cap the grid dimensions.
         height = min(len(dots), MAX_ROWS)
-        width = min(max((len(row) for row in dots), default=0), MAX_COLS)
+        max_row_width = max((len(row) for row in dots), default=0)
+        width = min(max_row_width, MAX_COLS)
         if width == 0:
             self.logger.warning("send_dots_graphic: zero-width dot grid")
             return False
