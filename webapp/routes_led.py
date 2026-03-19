@@ -1268,9 +1268,10 @@ def register(app: Flask, logger) -> None:
             db.session.rollback()
             route_logger.error("Error sending dots graphic: %s", exc)
             return jsonify({"success": False, "error": str(exc)})
-    if hasattr(value, "name"):
-        return value.name
-    return str(value)
+    def _enum_label(value):
+        if hasattr(value, "name"):
+            return value.name
+        return str(value)
 
 
 __all__ = ["register"]
