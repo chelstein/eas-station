@@ -6,6 +6,22 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.62.1] - 2026-03-19 - LED control authentication and preview fixes
+
+### Fixed
+- **Unauthenticated access to LED control** – All LED routes (`/led_control`, `/led`, and all
+  `/api/led/*` endpoints) now require `@require_auth` + `@require_role("Admin", "Operator")`,
+  preventing access by unauthenticated or insufficiently-privileged users.
+- **Message history stuck on "Loading message history..."** – `loadMessageHistory()` now updates
+  the `#message-history` container with an appropriate message when the API call fails or returns
+  no data, instead of leaving the loading spinner indefinitely.
+- **Live sign preview (canvas simulator) not working** – Fixed a JavaScript bug where a duplicate
+  `function initLEDControl()` declaration caused infinite recursion (stack overflow) on page load,
+  preventing all LED control initialization. The extra init code is now correctly placed inside the
+  `DOMContentLoaded` handler.
+- **Search/filter history did nothing** – Implemented the previously empty `displayFilteredHistory()`
+  stub so that the message history search and type filter actually update the displayed list.
+
 ## [2.62.0] - 2026-03-19 - Full Alpha LED sign controller: Dots, RSS feeds, WYSIWYG simulator
 
 ### Added
