@@ -30,6 +30,7 @@ from flask import Flask, jsonify, redirect, render_template, request, url_for
 from sqlalchemy.exc import OperationalError
 from PIL import Image
 
+from app_core.auth.decorators import require_auth, require_role
 from app_core.extensions import db
 from app_core.vfd import (
     VFD_AVAILABLE,
@@ -48,10 +49,14 @@ def register(app: Flask, logger) -> None:
     route_logger = logger.getChild("routes_vfd")
 
     @app.route("/vfd")
+    @require_auth
+    @require_role("Admin", "Operator")
     def vfd_redirect():
         return redirect(url_for("vfd_control"))
 
     @app.route("/vfd_control")
+    @require_auth
+    @require_role("Admin", "Operator")
     def vfd_control():
         """VFD control dashboard."""
         try:
@@ -95,6 +100,8 @@ def register(app: Flask, logger) -> None:
             )
 
     @app.route("/api/vfd/status", methods=["GET"])
+    @require_auth
+    @require_role("Admin", "Operator")
     def api_vfd_status():
         """Get VFD display status."""
         try:
@@ -117,6 +124,8 @@ def register(app: Flask, logger) -> None:
             return jsonify({"success": False, "error": str(exc)})
 
     @app.route("/api/vfd/clear", methods=["POST"])
+    @require_auth
+    @require_role("Admin", "Operator")
     def api_vfd_clear():
         """Clear the VFD display."""
         try:
@@ -141,6 +150,8 @@ def register(app: Flask, logger) -> None:
             return jsonify({"success": False, "error": str(exc)})
 
     @app.route("/api/vfd/brightness", methods=["POST"])
+    @require_auth
+    @require_role("Admin", "Operator")
     def api_vfd_brightness():
         """Set VFD brightness level."""
         try:
@@ -191,6 +202,8 @@ def register(app: Flask, logger) -> None:
             return jsonify({"success": False, "error": str(exc)})
 
     @app.route("/api/vfd/text", methods=["POST"])
+    @require_auth
+    @require_role("Admin", "Operator")
     def api_vfd_text():
         """Display text on VFD."""
         try:
@@ -237,6 +250,8 @@ def register(app: Flask, logger) -> None:
             return jsonify({"success": False, "error": str(exc)})
 
     @app.route("/api/vfd/image", methods=["POST"])
+    @require_auth
+    @require_role("Admin", "Operator")
     def api_vfd_image():
         """Display an image on VFD from uploaded file or base64 data."""
         try:
@@ -364,6 +379,8 @@ def register(app: Flask, logger) -> None:
             return jsonify({"success": False, "error": str(exc)})
 
     @app.route("/api/vfd/graphics/pixel", methods=["POST"])
+    @require_auth
+    @require_role("Admin", "Operator")
     def api_vfd_pixel():
         """Draw a pixel on VFD."""
         try:
@@ -387,6 +404,8 @@ def register(app: Flask, logger) -> None:
             return jsonify({"success": False, "error": str(exc)})
 
     @app.route("/api/vfd/graphics/line", methods=["POST"])
+    @require_auth
+    @require_role("Admin", "Operator")
     def api_vfd_line():
         """Draw a line on VFD."""
         try:
@@ -417,6 +436,8 @@ def register(app: Flask, logger) -> None:
             return jsonify({"success": False, "error": str(exc)})
 
     @app.route("/api/vfd/graphics/rectangle", methods=["POST"])
+    @require_auth
+    @require_role("Admin", "Operator")
     def api_vfd_rectangle():
         """Draw a rectangle on VFD."""
         try:
@@ -450,6 +471,8 @@ def register(app: Flask, logger) -> None:
             return jsonify({"success": False, "error": str(exc)})
 
     @app.route("/api/vfd/graphics/progress", methods=["POST"])
+    @require_auth
+    @require_role("Admin", "Operator")
     def api_vfd_progress():
         """Draw a progress bar on VFD."""
         try:
@@ -475,6 +498,8 @@ def register(app: Flask, logger) -> None:
             return jsonify({"success": False, "error": str(exc)})
 
     @app.route("/api/vfd/displays", methods=["GET"])
+    @require_auth
+    @require_role("Admin", "Operator")
     def api_vfd_displays():
         """Get recent VFD display history."""
         try:

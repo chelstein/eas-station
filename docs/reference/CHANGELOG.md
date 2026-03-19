@@ -6,6 +6,27 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.62.2] - 2026-03-19 - Comprehensive unauthenticated route access fix
+
+### Fixed
+- **Unauthenticated access to VFD control** – All VFD routes (`/vfd_control`, `/vfd`, and all
+  `/api/vfd/*` endpoints, 12 total) now require `@require_auth` + `@require_role("Admin", "Operator")`.
+- **Unauthenticated access to Displays dashboard** – `/displays` now requires
+  `@require_auth` + `@require_role("Admin", "Operator")`.
+- **Unauthenticated access to Screen management** – All screen and rotation routes (`/screens`,
+  `/screens/new`, `/screens/editor/<id>`, `/displays/preview`, and all `/api/screens/*`,
+  `/api/rotations/*`, `/api/displays/current-state` endpoints, 17 total) now require
+  `@require_auth` + `@require_role("Admin", "Operator")`.
+- **Unauthenticated access to Alert Verification** – All alert verification routes
+  (`/admin/alert-verification`, `/admin/alert-verification/operations`,
+  `/admin/alert-verification/progress/<id>`, `/api/alert-self-test/run`,
+  `/admin/alert-verification/export.csv`, and the decode audio endpoint, 6 total) now
+  require `@require_auth` + `@require_role("Admin", "Operator")`. The export endpoint
+  additionally allows the `Analyst` role.
+- **Unauthenticated access to EAS Compliance dashboard** – All compliance routes
+  (`/admin/compliance`, `/admin/compliance/export.csv`, `/admin/compliance/export.pdf`, 3 total)
+  now require `@require_auth` + `@require_role("Admin", "Operator", "Analyst")`.
+
 ## [2.62.1] - 2026-03-19 - LED control authentication and preview fixes
 
 ### Fixed

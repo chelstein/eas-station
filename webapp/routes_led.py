@@ -56,6 +56,7 @@ def register(app: Flask, logger) -> None:
 
     @app.route("/led")
     @require_auth
+    @require_role("Admin", "Operator")
     def led_redirect():
         return redirect(url_for("led_control"))
 
