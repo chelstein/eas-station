@@ -25,6 +25,7 @@ from datetime import timedelta
 
 from flask import Flask, Response, current_app, render_template, request
 
+from app_core.auth.decorators import require_auth, require_role
 from app_core.eas_storage import (
     collect_compliance_dashboard_data,
     collect_compliance_log_entries,
@@ -50,6 +51,8 @@ def register(app: Flask, logger) -> None:
         return max(1, min(int(value), 365))
 
     @app.route("/admin/compliance")
+    @require_auth
+    @require_role("Admin", "Operator", "Analyst")
     def compliance_dashboard():
         window_days = _resolve_window_days()
 
@@ -116,6 +119,8 @@ def register(app: Flask, logger) -> None:
         )
 
     @app.route("/admin/compliance/export.csv")
+    @require_auth
+    @require_role("Admin", "Operator", "Analyst")
     def compliance_export_csv():
         window_days = _resolve_window_days()
 
@@ -137,6 +142,8 @@ def register(app: Flask, logger) -> None:
         return response
 
     @app.route("/admin/compliance/export.pdf")
+    @require_auth
+    @require_role("Admin", "Operator", "Analyst")
     def compliance_export_pdf():
         window_days = _resolve_window_days()
 

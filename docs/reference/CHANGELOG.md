@@ -6,6 +6,43 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.62.2] - 2026-03-19 - Comprehensive unauthenticated route access fix
+
+### Fixed
+- **Unauthenticated access to VFD control** – All VFD routes (`/vfd_control`, `/vfd`, and all
+  `/api/vfd/*` endpoints, 12 total) now require `@require_auth` + `@require_role("Admin", "Operator")`.
+- **Unauthenticated access to Displays dashboard** – `/displays` now requires
+  `@require_auth` + `@require_role("Admin", "Operator")`.
+- **Unauthenticated access to Screen management** – All screen and rotation routes (`/screens`,
+  `/screens/new`, `/screens/editor/<id>`, `/displays/preview`, and all `/api/screens/*`,
+  `/api/rotations/*`, `/api/displays/current-state` endpoints, 17 total) now require
+  `@require_auth` + `@require_role("Admin", "Operator")`.
+- **Unauthenticated access to Alert Verification** – All alert verification routes
+  (`/admin/alert-verification`, `/admin/alert-verification/operations`,
+  `/admin/alert-verification/progress/<id>`, `/api/alert-self-test/run`,
+  `/admin/alert-verification/export.csv`, and the decode audio endpoint, 6 total) now
+  require `@require_auth` + `@require_role("Admin", "Operator")`. The export endpoint
+  additionally allows the `Analyst` role.
+- **Unauthenticated access to EAS Compliance dashboard** – All compliance routes
+  (`/admin/compliance`, `/admin/compliance/export.csv`, `/admin/compliance/export.pdf`, 3 total)
+  now require `@require_auth` + `@require_role("Admin", "Operator", "Analyst")`.
+
+## [2.62.1] - 2026-03-19 - LED control authentication and preview fixes
+
+### Fixed
+- **Unauthenticated access to LED control** – All LED routes (`/led_control`, `/led`, and all
+  `/api/led/*` endpoints) now require `@require_auth` + `@require_role("Admin", "Operator")`,
+  preventing access by unauthenticated or insufficiently-privileged users.
+- **Message history stuck on "Loading message history..."** – `loadMessageHistory()` now updates
+  the `#message-history` container with an appropriate message when the API call fails or returns
+  no data, instead of leaving the loading spinner indefinitely.
+- **Live sign preview (canvas simulator) not working** – Fixed a JavaScript bug where a duplicate
+  `function initLEDControl()` declaration caused infinite recursion (stack overflow) on page load,
+  preventing all LED control initialization. The extra init code is now correctly placed inside the
+  `DOMContentLoaded` handler.
+- **Search/filter history did nothing** – Implemented the previously empty `displayFilteredHistory()`
+  stub so that the message history search and type filter actually update the displayed list.
+
 ## [2.62.0] - 2026-03-19 - Full Alpha LED sign controller: Dots, RSS feeds, WYSIWYG simulator
 
 ### Added

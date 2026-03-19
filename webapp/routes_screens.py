@@ -29,6 +29,7 @@ from typing import Any, Dict, List
 from flask import Flask, jsonify, render_template, request
 from sqlalchemy.exc import IntegrityError
 
+from app_core.auth.decorators import require_auth, require_role
 from app_core.extensions import db
 from app_core.models import DisplayScreen, ScreenRotation
 from app_utils import utc_now
@@ -119,6 +120,8 @@ def register(app: Flask, logger) -> None:
     # ============================================================
 
     @app.route("/api/screens", methods=["GET"])
+    @require_auth
+    @require_role("Admin", "Operator")
     def get_screens():
         """Get all display screens."""
         try:
@@ -144,6 +147,8 @@ def register(app: Flask, logger) -> None:
             return jsonify({"error": str(e)}), 500
 
     @app.route("/api/screens/<int:screen_id>", methods=["GET"])
+    @require_auth
+    @require_role("Admin", "Operator")
     def get_screen(screen_id: int):
         """Get a specific display screen."""
         try:
@@ -159,6 +164,8 @@ def register(app: Flask, logger) -> None:
             return jsonify({"error": str(e)}), 500
 
     @app.route("/api/screens", methods=["POST"])
+    @require_auth
+    @require_role("Admin", "Operator")
     def create_screen():
         """Create a new display screen."""
         try:
@@ -217,6 +224,8 @@ def register(app: Flask, logger) -> None:
             return jsonify({"error": str(e)}), 500
 
     @app.route("/api/screens/<int:screen_id>", methods=["PUT"])
+    @require_auth
+    @require_role("Admin", "Operator")
     def update_screen(screen_id: int):
         """Update a display screen."""
         try:
@@ -272,6 +281,8 @@ def register(app: Flask, logger) -> None:
             return jsonify({"error": str(e)}), 500
 
     @app.route("/api/screens/<int:screen_id>", methods=["DELETE"])
+    @require_auth
+    @require_role("Admin", "Operator")
     def delete_screen(screen_id: int):
         """Delete a display screen."""
         try:
@@ -294,6 +305,8 @@ def register(app: Flask, logger) -> None:
             return jsonify({"error": str(e)}), 500
 
     @app.route("/api/screens/<int:screen_id>/preview", methods=["GET"])
+    @require_auth
+    @require_role("Admin", "Operator")
     def preview_screen(screen_id: int):
         """Preview a screen's rendered output."""
         try:
@@ -319,6 +332,8 @@ def register(app: Flask, logger) -> None:
             return jsonify({"error": str(e)}), 500
 
     @app.route("/api/screens/<int:screen_id>/display", methods=["POST"])
+    @require_auth
+    @require_role("Admin", "Operator")
     def display_screen_now(screen_id: int):
         """Display a screen immediately by proxying to eas-station-hardware.service.
 
@@ -384,6 +399,8 @@ def register(app: Flask, logger) -> None:
     # ============================================================
 
     @app.route("/api/rotations", methods=["GET"])
+    @require_auth
+    @require_role("Admin", "Operator")
     def get_rotations():
         """Get all screen rotations."""
         try:
@@ -409,6 +426,8 @@ def register(app: Flask, logger) -> None:
             return jsonify({"error": str(e)}), 500
 
     @app.route("/api/rotations/<int:rotation_id>", methods=["GET"])
+    @require_auth
+    @require_role("Admin", "Operator")
     def get_rotation(rotation_id: int):
         """Get a specific screen rotation."""
         try:
@@ -424,6 +443,8 @@ def register(app: Flask, logger) -> None:
             return jsonify({"error": str(e)}), 500
 
     @app.route("/api/rotations", methods=["POST"])
+    @require_auth
+    @require_role("Admin", "Operator")
     def create_rotation():
         """Create a new screen rotation."""
         try:
@@ -471,6 +492,8 @@ def register(app: Flask, logger) -> None:
             return jsonify({"error": str(e)}), 500
 
     @app.route("/api/rotations/<int:rotation_id>", methods=["PUT"])
+    @require_auth
+    @require_role("Admin", "Operator")
     def update_rotation(rotation_id: int):
         """Update a screen rotation."""
         try:
@@ -520,6 +543,8 @@ def register(app: Flask, logger) -> None:
             return jsonify({"error": str(e)}), 500
 
     @app.route("/api/rotations/<int:rotation_id>", methods=["DELETE"])
+    @require_auth
+    @require_role("Admin", "Operator")
     def delete_rotation(rotation_id: int):
         """Delete a screen rotation."""
         try:
@@ -546,6 +571,8 @@ def register(app: Flask, logger) -> None:
     # ============================================================
 
     @app.route("/screens")
+    @require_auth
+    @require_role("Admin", "Operator")
     def screens_page():
         """Custom screens management page."""
         try:
@@ -558,6 +585,8 @@ def register(app: Flask, logger) -> None:
             )
 
     @app.route("/screens/new")
+    @require_auth
+    @require_role("Admin", "Operator")
     def new_screen_editor():
         """Visual screen editor for creating new screens."""
         try:
@@ -570,6 +599,8 @@ def register(app: Flask, logger) -> None:
             )
 
     @app.route("/screens/editor/<int:screen_id>")
+    @require_auth
+    @require_role("Admin", "Operator")
     def edit_screen_editor(screen_id: int):
         """Visual screen editor for editing existing screens."""
         try:
@@ -591,6 +622,8 @@ def register(app: Flask, logger) -> None:
             )
 
     @app.route("/displays/preview")
+    @require_auth
+    @require_role("Admin", "Operator")
     def displays_preview_page():
         """Live preview of all display outputs."""
         try:
@@ -603,6 +636,8 @@ def register(app: Flask, logger) -> None:
             )
 
     @app.route("/api/displays/current-state")
+    @require_auth
+    @require_role("Admin", "Operator")
     def get_displays_current_state():
         """Get the current state of all displays.
 

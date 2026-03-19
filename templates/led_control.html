@@ -2476,6 +2476,7 @@ function loadCannedMessages() {
 }
 
 function loadMessageHistory() {
+    const container = document.getElementById('message-history');
     fetch('/api/led/messages')
     .then(response => response.json())
     .then(data => {
@@ -2483,10 +2484,14 @@ function loadMessageHistory() {
             messageHistory = data.messages;
             displayMessageHistory();
         } else {
+            if (container) container.innerHTML = '<div class="text-center py-4 text-muted">No message history available</div>';
             console.warn('No message history available');
         }
     })
-    .catch(error => console.error('Error loading message history:', error));
+    .catch(error => {
+        if (container) container.innerHTML = '<div class="text-center py-4 text-muted">Unable to load message history</div>';
+        console.error('Error loading message history:', error);
+    });
 }
 
 // Load serial config - REMOVED: Settings now in /admin/hardware
@@ -2550,8 +2555,33 @@ function searchHistory() {
 
 function displayFilteredHistory() {
     const container = document.getElementById('message-history');
-    // Use filteredHistory instead of messageHistory for display
-    // Implementation similar to displayMessageHistory but with filteredHistory
+    if (!container) return;
+
+    const history = filteredHistory.length > 0 || document.getElementById('history-search').value || document.getElementById('history-filter').value !== 'all'
+        ? filteredHistory
+        : messageHistory;
+
+    if (history.length === 0) {
+        container.innerHTML = '<div class="text-center py-4 text-muted">No messages match your filter</div>';
+        return;
+    }
+
+    container.innerHTML = history.map(msg => `
+        <div class="message-item ${msg.status || 'sent'}">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <strong>${msg.message_type || 'Custom'}</strong>
+                    <div class="text-muted small">${msg.content || msg.lines?.join(' | ') || 'No content'}</div>
+                </div>
+                <div class="text-end">
+                    <span class="priority-badge priority-${['emergency', 'urgent', 'normal', 'low'][msg.priority] || 'normal'}">
+                        ${['Emergency', 'Urgent', 'Normal', 'Low'][msg.priority] || 'Normal'}
+                    </span>
+                    <div class="text-muted small">${new Date(msg.created_at).toLocaleString()}</div>
+                </div>
+            </div>
+        </div>
+    `).join('');
 }
 
 // Toast notification function
@@ -3595,9 +3625,9 @@ function escapeHtml(str) {
 
 // ── Init additions ──────────────────────────────────────────────────────────
 
-const _origInitLEDControl = initLEDControl;
-function initLEDControl() {
-    _origInitLEDControl();
+// Initialize when DOM is loaded
+document.addEventListener('DOMContentLoaded', function() {
+    initLEDControl();
     rebuildDotsGrid();
     refreshRSSFeeds();
 
@@ -3614,11 +3644,6 @@ function initLEDControl() {
         });
     });
     window.addEventListener('resize', () => { if (_ledSim) _ledSim._resize(); });
-}
-
-// Initialize when DOM is loaded
-document.addEventListener('DOMContentLoaded', function() {
-    initLEDControl();
 });
 </script>
 {% endblock %}
