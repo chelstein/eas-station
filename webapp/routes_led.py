@@ -41,7 +41,7 @@ from app_core.led import (
     ensure_led_tables,
 )
 from app_core.hardware_settings import get_led_settings
-from app_core.models import LEDMessage, LEDSignStatus
+from app_core.models import LEDMessage, LEDSignStatus, LEDRSSFeed, LEDRSSItem
 from app_utils import utc_now
 
 
@@ -939,8 +939,335 @@ def register(app: Flask, logger) -> None:
             route_logger.error("Error setting LED date format: %s", exc)
             return jsonify({"success": False, "error": str(exc)})
 
+    # ── RSS Feeds ─────────────────────────────────────────────────────────────
 
-def _enum_label(value: Any) -> str:
+    _RSS_TITLE_DISPLAY_CHARS = 20  # max chars per LED sign line (Alpha 9120C)
+
+    @app.route("/api/led/rss/feeds", methods=["GET"])
+    def api_led_rss_list():
+        """Return all configured RSS feed sources."""
+        try:
+            ensure_led_tables()
+            feeds = LEDRSSFeed.query.order_by(LEDRSSFeed.created_at.desc()).all()
+            return jsonify({
+                "success": True,
+                "feeds": [
+                    {
+                        "id": f.id,
+                        "name": f.name,
+                        "url": f.url,
+                        "enabled": f.enabled,
+                        "interval_minutes": f.interval_minutes,
+                        "color": f.color,
+                        "effect": f.effect,
+                        "speed": f.speed,
+                        "max_items": f.max_items,
+                        "auto_send": f.auto_send,
+                        "priority": f.priority,
+                        "last_fetched": f.last_fetched.isoformat() if f.last_fetched else None,
+                        "item_count": len(f.items),
+                    }
+                    for f in feeds
+                ],
+            })
+        except Exception as exc:
+            route_logger.error("Error listing RSS feeds: %s", exc)
+            return jsonify({"success": False, "error": str(exc)})
+
+    @app.route("/api/led/rss/feeds", methods=["POST"])
+    def api_led_rss_create():
+        """Create a new RSS feed source."""
+        try:
+            ensure_led_tables()
+            data = request.get_json(silent=True) or {}
+            url = str(data.get("url", "")).strip()
+            name = str(data.get("name", "")).strip()
+            if not url:
+                return jsonify({"success": False, "error": "url is required"})
+            if not name:
+                from urllib.parse import urlparse
+                name = urlparse(url).hostname or url[:40]
+
+            feed = LEDRSSFeed(
+                name=name,
+                url=url,
+                enabled=bool(data.get("enabled", True)),
+                interval_minutes=int(data.get("interval_minutes", 15)),
+                color=str(data.get("color", "AMBER")).upper(),
+                effect=str(data.get("effect", "ROLL_LEFT")).upper(),
+                speed=str(data.get("speed", "SPEED_3")).upper(),
+                max_items=int(data.get("max_items", 5)),
+                auto_send=bool(data.get("auto_send", False)),
+                priority=int(data.get("priority", 3)),
+            )
+            db.session.add(feed)
+            db.session.commit()
+            return jsonify({"success": True, "id": feed.id})
+        except Exception as exc:
+            db.session.rollback()
+            route_logger.error("Error creating RSS feed: %s", exc)
+            return jsonify({"success": False, "error": str(exc)})
+
+    @app.route("/api/led/rss/feeds/<int:feed_id>", methods=["PUT"])
+    def api_led_rss_update(feed_id):
+        """Update an existing RSS feed source."""
+        try:
+            ensure_led_tables()
+            feed = LEDRSSFeed.query.get_or_404(feed_id)
+            data = request.get_json(silent=True) or {}
+            for field in ("name", "url", "enabled", "interval_minutes", "color",
+                          "effect", "speed", "max_items", "auto_send", "priority"):
+                if field in data:
+                    val = data[field]
+                    if field in ("color", "effect", "speed"):
+                        val = str(val).upper()
+                    elif field in ("enabled", "auto_send"):
+                        val = bool(val)
+                    elif field in ("interval_minutes", "max_items", "priority"):
+                        val = int(val)
+                    setattr(feed, field, val)
+            db.session.commit()
+            return jsonify({"success": True})
+        except Exception as exc:
+            db.session.rollback()
+            route_logger.error("Error updating RSS feed %s: %s", feed_id, exc)
+            return jsonify({"success": False, "error": str(exc)})
+
+    @app.route("/api/led/rss/feeds/<int:feed_id>", methods=["DELETE"])
+    def api_led_rss_delete(feed_id):
+        """Delete an RSS feed source and all its cached items."""
+        try:
+            ensure_led_tables()
+            feed = LEDRSSFeed.query.get_or_404(feed_id)
+            db.session.delete(feed)
+            db.session.commit()
+            return jsonify({"success": True})
+        except Exception as exc:
+            db.session.rollback()
+            route_logger.error("Error deleting RSS feed %s: %s", feed_id, exc)
+            return jsonify({"success": False, "error": str(exc)})
+
+    @app.route("/api/led/rss/feeds/<int:feed_id>/fetch", methods=["POST"])
+    def api_led_rss_fetch(feed_id):
+        """Fetch / refresh items for a single RSS feed."""
+        try:
+            ensure_led_tables()
+            feed = LEDRSSFeed.query.get_or_404(feed_id)
+            try:
+                import feedparser as fp
+            except ImportError:
+                return jsonify({"success": False, "error": "feedparser not installed (pip install feedparser)"})
+
+            parsed = fp.parse(feed.url)
+            if parsed.bozo and not parsed.entries:
+                return jsonify({"success": False, "error": f"Feed parse error: {parsed.bozo_exception}"})
+
+            added = 0
+            existing_guids = {item.guid for item in feed.items if item.guid}
+            for entry in parsed.entries[: feed.max_items]:
+                guid = entry.get("id") or entry.get("link") or entry.get("title", "")
+                if guid in existing_guids:
+                    continue
+                published = None
+                if hasattr(entry, "published_parsed") and entry.published_parsed:
+                    from datetime import timezone
+                    import calendar
+                    published = datetime.fromtimestamp(
+                        calendar.timegm(entry.published_parsed), tz=timezone.utc
+                    )
+                item = LEDRSSItem(
+                    feed_id=feed.id,
+                    title=(entry.get("title") or "")[:200],
+                    summary=(entry.get("summary") or "")[:1000],
+                    link=entry.get("link", "")[:500],
+                    published=published,
+                    guid=guid[:500],
+                )
+                db.session.add(item)
+                added += 1
+
+            feed.last_fetched = utc_now()
+            db.session.commit()
+            return jsonify({"success": True, "added": added, "total": len(feed.items)})
+        except Exception as exc:
+            db.session.rollback()
+            route_logger.error("Error fetching RSS feed %s: %s", feed_id, exc)
+            return jsonify({"success": False, "error": str(exc)})
+
+    @app.route("/api/led/rss/feeds/<int:feed_id>/items", methods=["GET"])
+    def api_led_rss_items(feed_id):
+        """Return cached items for a feed."""
+        try:
+            ensure_led_tables()
+            feed = LEDRSSFeed.query.get_or_404(feed_id)
+            items = (
+                LEDRSSItem.query
+                .filter_by(feed_id=feed_id)
+                .order_by(LEDRSSItem.created_at.desc())
+                .limit(50)
+                .all()
+            )
+            return jsonify({
+                "success": True,
+                "feed_name": feed.name,
+                "items": [
+                    {
+                        "id": it.id,
+                        "title": it.title,
+                        "summary": it.summary,
+                        "link": it.link,
+                        "published": it.published.isoformat() if it.published else None,
+                        "last_shown": it.last_shown.isoformat() if it.last_shown else None,
+                        "show_count": it.show_count,
+                    }
+                    for it in items
+                ],
+            })
+        except Exception as exc:
+            route_logger.error("Error listing RSS items for feed %s: %s", feed_id, exc)
+            return jsonify({"success": False, "error": str(exc)})
+
+    @app.route("/api/led/rss/send", methods=["POST"])
+    def api_led_rss_send():
+        """Send one or more RSS item titles to the LED sign as a scrolling ticker."""
+        try:
+            ensure_led_tables()
+            data = request.get_json(silent=True) or {}
+            item_ids = data.get("item_ids") or []
+            feed_id = data.get("feed_id")
+
+            if not item_ids and feed_id:
+                items = (
+                    LEDRSSItem.query
+                    .filter_by(feed_id=feed_id)
+                    .order_by(LEDRSSItem.show_count.asc(), LEDRSSItem.created_at.asc())
+                    .limit(4)
+                    .all()
+                )
+                item_ids = [it.id for it in items]
+
+            if not item_ids:
+                return jsonify({"success": False, "error": "No items specified"})
+
+            items = LEDRSSItem.query.filter(LEDRSSItem.id.in_(item_ids)).all()
+            if not items:
+                return jsonify({"success": False, "error": "Items not found"})
+
+            lines = [it.title[:_RSS_TITLE_DISPLAY_CHARS] for it in items[:4]]
+            while len(lines) < 4:
+                lines.append("")
+
+            feed = items[0].feed if hasattr(items[0], "feed") and items[0].feed else None
+            color_name = str(data.get("color") or (feed.color if feed else "AMBER")).upper()
+            effect_name = str(data.get("effect") or (feed.effect if feed else "ROLL_LEFT")).upper()
+            speed_name = str(data.get("speed") or (feed.speed if feed else "SPEED_3")).upper()
+            priority_val = int(data.get("priority", feed.priority if feed else 3))
+
+            if not led_module.led_controller:
+                return jsonify({"success": False, "error": "LED controller not available"})
+
+            try:
+                color = Color[color_name]
+            except KeyError:
+                color = Color.AMBER
+
+            try:
+                mode = DisplayMode[effect_name]
+            except KeyError:
+                mode = DisplayMode.ROLL_LEFT
+
+            try:
+                speed = Speed[speed_name]
+            except KeyError:
+                speed = Speed.SPEED_3
+
+            try:
+                priority = MessagePriority(priority_val)
+            except ValueError:
+                priority = MessagePriority.LOW
+
+            success = led_module.led_controller.send_message(
+                lines=lines,
+                color=color,
+                mode=mode,
+                speed=speed,
+                priority=priority,
+            )
+
+            if success:
+                for it in items:
+                    it.show_count = (it.show_count or 0) + 1
+                    it.last_shown = utc_now()
+                db.session.commit()
+
+                led_msg = LEDMessage(
+                    message_type="rss",
+                    content=" | ".join(it.title for it in items),
+                    priority=priority_val,
+                    color=color_name,
+                    effect=effect_name,
+                    speed=speed_name,
+                    sent_at=utc_now(),
+                )
+                db.session.add(led_msg)
+                db.session.commit()
+
+            return jsonify({"success": success, "lines": lines})
+        except Exception as exc:
+            db.session.rollback()
+            route_logger.error("Error sending RSS to LED: %s", exc)
+            return jsonify({"success": False, "error": str(exc)})
+
+    # ── Dots / Pixel-Art ──────────────────────────────────────────────────────
+
+    @app.route("/api/led/dots", methods=["POST"])
+    def api_led_send_dots():
+        """Send a pixel-art / dots graphic to the LED sign."""
+        try:
+            ensure_led_tables()
+            data = request.get_json(silent=True) or {}
+            dots = data.get("dots")
+            if not dots or not isinstance(dots, list):
+                return jsonify({"success": False, "error": "dots must be a 2-D list of 0/1 values"})
+
+            color_name = str(data.get("color", "GREEN")).upper()
+
+            if not led_module.led_controller:
+                return jsonify({"success": False, "error": "LED controller not available"})
+
+            if not _led_enums_available():
+                return jsonify({"success": False, "error": "LED library enums unavailable"})
+
+            try:
+                color = Color[color_name]
+            except KeyError:
+                return jsonify({"success": False, "error": f"Unknown color: {color_name}"})
+
+            if not hasattr(led_module.led_controller, "send_dots_graphic"):
+                return jsonify({"success": False, "error": "send_dots_graphic not supported by this controller version"})
+
+            success = led_module.led_controller.send_dots_graphic(
+                dots=dots,
+                color=color,
+                file_label=str(data.get("file_label", "A")),
+            )
+
+            if success:
+                led_message = LEDMessage(
+                    message_type="dots",
+                    content=f"Dots graphic {len(dots)}x{max(len(r) for r in dots)} px",
+                    priority=int(data.get("priority", 2)),
+                    color=color_name,
+                    sent_at=utc_now(),
+                )
+                db.session.add(led_message)
+                db.session.commit()
+
+            return jsonify({"success": success})
+        except Exception as exc:
+            db.session.rollback()
+            route_logger.error("Error sending dots graphic: %s", exc)
+            return jsonify({"success": False, "error": str(exc)})
     if hasattr(value, "name"):
         return value.name
     return str(value)

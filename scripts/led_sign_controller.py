@@ -2170,6 +2170,105 @@ class Alpha9120CController:
             self.logger.error(f"Error reading text file: {e}")
             return None
 
+    def send_dots_graphic(
+        self,
+        dots: List[List[int]],
+        color: Color = Color.GREEN,
+        file_label: str = "A",
+    ) -> bool:
+        """Send a pixel-art / dots graphic to the Alpha 9120C using the M-Protocol
+        Picture File (Type I) command.
+
+        Args:
+            dots: 2-D list of rows; each cell is 1 (LED on) or 0 (LED off).
+                  Maximum 160 columns × 16 rows.  The grid is automatically
+                  padded/cropped to the sign's physical limits.
+            color: M-Protocol color to apply to all lit pixels.
+            file_label: Single-character file label used by the sign's memory
+                        manager (default ``"A"``).
+
+        Returns:
+            True if the frame was accepted, False otherwise.
+
+        Protocol notes:
+            Frame layout::
+
+                SOH type_code sign_id STX "I" label
+                width_hi width_lo height
+                <row_0_bytes> <row_1_bytes> ... <row_N_bytes>
+                ETX checksum
+
+            Each row is ``ceil(width / 8)`` bytes; the most-significant bit of
+            the first byte corresponds to the leftmost pixel.  Unused trailing
+            bits in the last byte of every row are set to zero.
+        """
+        if not dots:
+            self.logger.warning("send_dots_graphic: empty dot grid supplied")
+            return False
+
+        MAX_COLS = 160
+        MAX_ROWS = 16
+
+        # Normalise and cap the grid dimensions.
+        height = min(len(dots), MAX_ROWS)
+        max_row_width = max((len(row) for row in dots), default=0)
+        width = min(max_row_width, MAX_COLS)
+        if width == 0:
+            self.logger.warning("send_dots_graphic: zero-width dot grid")
+            return False
+
+        bytes_per_row = (width + 7) // 8
+
+        try:
+            label = (file_label or "A").strip() or "A"
+            label = label[0].upper()
+
+            # Colour command prefix to set the pixel colour.
+            color_prefix = self.COLOR_CMD + color.value
+
+            # Encode every row into packed bytes, then as two-hex-digit ASCII
+            # pairs as expected by the sign firmware.
+            row_hex_parts: List[str] = []
+            for row_idx in range(height):
+                raw_row = list(dots[row_idx]) if row_idx < len(dots) else []
+                row_bytes = bytearray(bytes_per_row)
+                for col_idx in range(width):
+                    pixel = 1 if col_idx < len(raw_row) and raw_row[col_idx] else 0
+                    if pixel:
+                        byte_pos = col_idx // 8
+                        bit_pos = 7 - (col_idx % 8)
+                        row_bytes[byte_pos] |= (1 << bit_pos)
+                row_hex_parts.append(
+                    "".join(f"{b:02X}" for b in row_bytes)
+                )
+
+            # Dimension header encoded as 4-digit hex strings.
+            width_hex = f"{width:04X}"
+            height_hex = f"{height:02X}"
+
+            payload = (
+                f"I{label}"
+                f"{color_prefix}"
+                f"{width_hex}{height_hex}"
+                + "".join(row_hex_parts)
+            )
+
+            frame = self._build_frame_from_payload(payload)
+            success = self._send_raw_message(frame)
+
+            if success:
+                self.logger.info(
+                    "Dots graphic sent: %dx%d pixels, color=%s",
+                    width,
+                    height,
+                    color.name,
+                )
+            return success
+
+        except Exception as exc:
+            self.logger.error("Error sending dots graphic: %s", exc)
+            return False
+
     def get_status(self, check_health: bool = False) -> Dict:
         """
         Get current Alpha 9120C status with M-Protocol capabilities.

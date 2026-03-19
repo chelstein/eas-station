@@ -37,6 +37,7 @@ greenlet==3.3.0  # Required for SQLAlchemy 2.0 with FastAPI sync operations
 
 # HTTP client for API calls
 requests==2.32.5
+feedparser==6.0.11          # RSS/Atom feed parsing for LED sign RSS ticker
 certifi==2025.11.12  # Updated CA bundle for SSL certificate verification (required for IPAWS)
 httpx==0.28.1  # Modern async HTTP client with connection pooling
 

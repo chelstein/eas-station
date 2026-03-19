@@ -6,6 +6,22 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.62.0] - 2026-03-19 - Full Alpha LED sign controller: Dots, RSS feeds, WYSIWYG simulator
+
+### Added
+- **WYSIWYG LED Sign Simulator** – Live CSS-animated sign panel in the Custom Message tab; all 20 M-Protocol display modes animate in real time (scroll, roll-left/right/up/down, wipe-*, flash, explode, compressed-rotate, auto, clock)
+- **Mixed-mode multi-line preview** – each of the 4 lines independently shows its selected effect/color/speed in the simulator panel
+- **Layout Preset buttons** – one-click configurations: Static 4, Header+Scroll, Alert, Ticker
+- **Per-line effect pills** – colour-coded badges on each line editor card showing the active display mode
+- **Speed modifier CSS classes** – speed-1 through speed-5 control animation playback rate
+- **Dots / Pixel-Art tab** – 20×7 (up to 160×16) interactive pixel-art canvas; click/drag to paint, shift/invert/fill tools, text-to-dots generator (5×7 bitmap font for A/E/S), five quick patterns (checkerboard, border, diagonal, heart, arrow), live canvas preview; sends via new M-Protocol Picture File (Type I) command
+- **RSS Feeds tab** – add/remove RSS feed sources with name, URL, interval, color, effect, max items; per-feed fetch/refresh button; item viewer with click-to-select (up to 4 lines); "Send Selected" and "Send All Enabled Feeds" buttons
+- **`send_dots_graphic()` method** on `Alpha9120CController` – encodes a 2-D pixel grid as an M-Protocol Type I (Picture File) frame
+- **`LEDRSSFeed` and `LEDRSSItem` database models** with full CRUD API (`/api/led/rss/feeds`, `/api/led/rss/feeds/<id>/fetch`, `/api/led/rss/feeds/<id>/items`, `/api/led/rss/send`)
+- **Dots API** (`POST /api/led/dots`) accepts a JSON dot-grid and sends it to the sign
+- Alembic migration `20260319_add_led_rss_feeds` for new tables
+- `feedparser==6.0.11` added to `requirements.txt`
+
 ## [2.61.2] - 2026-03-18 - Mermaid diagram fixes and documentation update
 
 ### Fixed

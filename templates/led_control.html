@@ -231,6 +231,195 @@
     .tab-content { padding: 1rem; }
     .feature-group { padding: 10px; }
 }
+
+/* ═══════════════════════════════════════
+   LED SIGN SIMULATOR PANEL
+   ═══════════════════════════════════════ */
+.led-sign-panel {
+    background: #050505;
+    border: 3px solid #1a1a1a;
+    border-radius: 8px;
+    padding: 14px 14px 10px;
+    position: relative;
+    box-shadow: 0 0 24px rgba(0,200,0,.12), inset 0 0 30px rgba(0,0,0,.8), 0 4px 14px rgba(0,0,0,.5);
+    overflow: hidden;
+    font-family: 'Courier New', monospace;
+}
+.led-sign-panel::before {
+    content:'';position:absolute;top:0;left:0;right:0;bottom:0;
+    background-image: radial-gradient(circle,rgba(255,255,255,.018) 1px,transparent 1px);
+    background-size: 4px 4px;pointer-events:none;z-index:0;
+}
+.led-sign-header {
+    display:flex;justify-content:space-between;align-items:center;
+    margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid #1c1c1c;
+    position:relative;z-index:1;
+}
+.led-indicator { width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:4px; }
+.led-indicator.green { background:#00ff00;box-shadow:0 0 6px #00ff00; }
+.led-indicator.red { background:#ff2200;box-shadow:0 0 6px #ff2200; }
+.led-indicator.amber { background:#ffaa00;box-shadow:0 0 6px #ffaa00; }
+.led-sign-label { font-size:.62em;color:#444;text-transform:uppercase;letter-spacing:3px; }
+.led-line-container {
+    overflow:hidden;height:2.5em;position:relative;
+    display:flex;align-items:center;border-bottom:1px solid #0e0e0e;
+    min-height:2.5em;z-index:1;
+}
+.led-line-container:last-child { border-bottom:none; }
+.led-display-line {
+    font-family:'Courier New',monospace;font-weight:bold;font-size:1.05em;
+    letter-spacing:2px;white-space:nowrap;padding:4px 6px;position:relative;
+    text-shadow:0 0 8px currentColor;
+}
+.led-line-tag {
+    position:absolute;right:6px;top:50%;transform:translateY(-50%);
+    font-size:.52em;padding:1px 5px;border-radius:4px;
+    background:rgba(255,255,255,.07);color:#555;letter-spacing:1px;
+    text-transform:uppercase;font-family:sans-serif;white-space:nowrap;
+}
+
+/* ── M-Protocol display-mode animations ── */
+@keyframes led-scroll { 0%{transform:translateX(110%)} 100%{transform:translateX(-110%)} }
+.mode-scroll,.mode-rotate,.mode-compressed-rotate { animation:led-scroll 8s linear infinite; }
+.speed-1.mode-scroll,.speed-1.mode-rotate { animation-duration:16s; }
+.speed-2.mode-scroll,.speed-2.mode-rotate { animation-duration:11s; }
+.speed-3.mode-scroll,.speed-3.mode-rotate { animation-duration:8s; }
+.speed-4.mode-scroll,.speed-4.mode-rotate { animation-duration:5s; }
+.speed-5.mode-scroll,.speed-5.mode-rotate { animation-duration:3s; }
+
+@keyframes led-flash { 0%,49%{opacity:1} 50%,100%{opacity:0} }
+.mode-flash { animation:led-flash .7s step-end infinite; }
+
+@keyframes led-roll-left { 0%{transform:translateX(110%);opacity:0} 8%{opacity:1} 75%{transform:translateX(0);opacity:1} 92%{transform:translateX(0);opacity:1} 100%{transform:translateX(-110%);opacity:0} }
+.mode-roll-left { animation:led-roll-left 4s ease-in-out infinite; }
+
+@keyframes led-roll-right { 0%{transform:translateX(-110%);opacity:0} 8%{opacity:1} 75%{transform:translateX(0);opacity:1} 92%{transform:translateX(0);opacity:1} 100%{transform:translateX(110%);opacity:0} }
+.mode-roll-right { animation:led-roll-right 4s ease-in-out infinite; }
+
+@keyframes led-roll-up { 0%{transform:translateY(200%);opacity:0} 10%{opacity:1} 75%{transform:translateY(0);opacity:1} 92%{transform:translateY(0)} 100%{transform:translateY(-200%);opacity:0} }
+.mode-roll-up { animation:led-roll-up 3s ease-in-out infinite; }
+
+@keyframes led-roll-down { 0%{transform:translateY(-200%);opacity:0} 10%{opacity:1} 75%{transform:translateY(0);opacity:1} 92%{transform:translateY(0)} 100%{transform:translateY(200%);opacity:0} }
+.mode-roll-down { animation:led-roll-down 3s ease-in-out infinite; }
+
+@keyframes led-wipe-left { 0%{clip-path:inset(0 100% 0 0)} 40%{clip-path:inset(0 0% 0 0)} 80%{clip-path:inset(0 0 0 0)} 100%{clip-path:inset(0 0 0 100%)} }
+.mode-wipe-left { animation:led-wipe-left 3s ease-in-out infinite; }
+
+@keyframes led-wipe-right { 0%{clip-path:inset(0 0 0 100%)} 40%{clip-path:inset(0 0 0 0)} 80%{clip-path:inset(0 0 0 0)} 100%{clip-path:inset(0 100% 0 0)} }
+.mode-wipe-right { animation:led-wipe-right 3s ease-in-out infinite; }
+
+@keyframes led-wipe-up { 0%{clip-path:inset(100% 0 0 0)} 40%{clip-path:inset(0 0 0 0)} 80%{clip-path:inset(0 0 0 0)} 100%{clip-path:inset(0 0 100% 0)} }
+.mode-wipe-up { animation:led-wipe-up 2.5s ease-in-out infinite; }
+
+@keyframes led-wipe-down { 0%{clip-path:inset(0 0 100% 0)} 40%{clip-path:inset(0 0 0 0)} 80%{clip-path:inset(0 0 0 0)} 100%{clip-path:inset(100% 0 0 0)} }
+.mode-wipe-down { animation:led-wipe-down 2.5s ease-in-out infinite; }
+
+@keyframes led-roll-in { 0%{transform:scaleX(0);opacity:0} 30%{transform:scaleX(1);opacity:1} 80%{transform:scaleX(1)} 100%{transform:scaleX(0);opacity:0} }
+.mode-roll-in { animation:led-roll-in 3s ease-in-out infinite;transform-origin:center; }
+
+@keyframes led-roll-out { 0%{transform:scaleX(1);opacity:1} 30%{transform:scaleX(0);opacity:0} 65%{transform:scaleX(0);opacity:0} 100%{transform:scaleX(1);opacity:1} }
+.mode-roll-out { animation:led-roll-out 3s ease-in-out infinite;transform-origin:center; }
+
+@keyframes led-wipe-in { 0%{clip-path:inset(0 50% 0 50%)} 40%{clip-path:inset(0 0 0 0)} 80%{clip-path:inset(0 0 0 0)} 100%{clip-path:inset(0 50% 0 50%)} }
+.mode-wipe-in { animation:led-wipe-in 3s ease-in-out infinite; }
+
+@keyframes led-wipe-out { 0%{clip-path:inset(0 0 0 0)} 40%{clip-path:inset(0 50% 0 50%)} 65%{clip-path:inset(0 50% 0 50%)} 100%{clip-path:inset(0 0 0 0)} }
+.mode-wipe-out { animation:led-wipe-out 3s ease-in-out infinite; }
+
+@keyframes led-explode { 0%{transform:scale(.05);opacity:0;letter-spacing:20px} 25%{transform:scale(1);opacity:1;letter-spacing:2px} 80%{transform:scale(1);opacity:1;letter-spacing:2px} 100%{transform:scale(1.4);opacity:0;letter-spacing:18px} }
+.mode-explode { animation:led-explode 3s ease-in-out infinite; }
+
+@keyframes led-auto { 0%{transform:translateX(110%)} 20%{transform:translateX(0)} 70%{transform:translateX(0)} 100%{transform:translateX(-110%)} }
+.mode-auto { animation:led-auto 4s linear infinite; }
+
+@keyframes led-rainbow-cycle { 0%{color:#ff0000;text-shadow:0 0 8px #ff0000} 17%{color:#ff8800;text-shadow:0 0 8px #ff8800} 33%{color:#ffff00;text-shadow:0 0 8px #ffff00} 50%{color:#00ff00;text-shadow:0 0 8px #00ff00} 67%{color:#0088ff;text-shadow:0 0 8px #0088ff} 83%{color:#8800ff;text-shadow:0 0 8px #8800ff} 100%{color:#ff0000;text-shadow:0 0 8px #ff0000} }
+
+/* LED color classes */
+.lc-red{color:#ff2200!important;text-shadow:0 0 8px #ff2200}
+.lc-green{color:#00ff44!important;text-shadow:0 0 8px #00ff44}
+.lc-amber{color:#ffaa00!important;text-shadow:0 0 8px #ffaa00}
+.lc-dim-red{color:#881100!important;text-shadow:0 0 4px #881100}
+.lc-dim-green{color:#007722!important;text-shadow:0 0 4px #007722}
+.lc-brown{color:#995500!important;text-shadow:0 0 4px #995500}
+.lc-orange{color:#ff6600!important;text-shadow:0 0 8px #ff6600}
+.lc-yellow{color:#ffff00!important;text-shadow:0 0 8px #ffff00}
+.lc-rainbow-1,.lc-rainbow-2,.lc-color-mix,.lc-auto-color{animation:led-rainbow-cycle 2s linear infinite}
+.lc-white{color:#ffffff!important;text-shadow:0 0 6px #ffffff}
+.lc-default{color:#00ff44!important;text-shadow:0 0 8px #00ff44}
+
+/* Speed modifier (slower animation for non-scroll modes) */
+.speed-1{animation-duration:6s!important}
+.speed-2{animation-duration:4s!important}
+.speed-3{animation-duration:3s!important}
+.speed-4{animation-duration:2s!important}
+.speed-5{animation-duration:1.2s!important}
+/* Override speed for scroll which has its own modifiers above */
+.mode-scroll.speed-1,.mode-rotate.speed-1{animation-duration:16s!important}
+.mode-scroll.speed-2,.mode-rotate.speed-2{animation-duration:11s!important}
+.mode-scroll.speed-3,.mode-rotate.speed-3{animation-duration:8s!important}
+.mode-scroll.speed-4,.mode-rotate.speed-4{animation-duration:5s!important}
+.mode-scroll.speed-5,.mode-rotate.speed-5{animation-duration:3s!important}
+
+/* Effect pills on line editors */
+.effect-pill {
+    display:inline-block;padding:2px 8px;border-radius:20px;
+    font-size:.68em;font-weight:600;text-transform:uppercase;letter-spacing:.5px;
+    white-space:nowrap;
+}
+.ep-hold{background:rgba(108,117,125,.18);color:#adb5bd}
+.ep-scroll,.ep-rotate{background:rgba(13,202,240,.18);color:#0dcaf0}
+.ep-flash{background:rgba(255,193,7,.18);color:#ffc107}
+.ep-roll{background:rgba(13,110,253,.18);color:#6ea8fe}
+.ep-wipe{background:rgba(25,135,84,.18);color:#75b798}
+.ep-explode{background:rgba(220,53,69,.18);color:#ea868f}
+.ep-auto,.ep-auto-mode{background:rgba(111,66,193,.18);color:#c29ffa}
+.ep-clock{background:rgba(32,201,151,.18);color:#20c997}
+
+/* Layout preset buttons */
+.layout-preset-btn {
+    display:flex;flex-direction:column;align-items:center;padding:8px 10px;
+    border:2px solid var(--border-color);border-radius:10px;
+    background:var(--surface-color);cursor:pointer;transition:all .2s;
+    font-size:.72em;text-align:center;gap:3px;min-width:80px;
+    text-decoration:none;
+}
+.layout-preset-btn:hover{border-color:var(--primary-color);background:var(--light-color)}
+.layout-preset-btn.active{border-color:var(--primary-color);background:rgba(13,110,253,.1)}
+.lp-icon{font-size:1.6em}
+.lp-label{font-weight:600;color:var(--text-color);white-space:nowrap}
+.lp-sub{color:var(--text-muted);font-size:.85em}
+
+/* Dots / pixel-art editor */
+.dots-canvas-wrap {
+    display:inline-block;border:2px solid var(--border-color);border-radius:6px;
+    background:#000;overflow:auto;line-height:0;
+    box-shadow:0 0 16px rgba(0,200,0,.12);
+}
+.dots-cell {
+    display:inline-block;
+    box-sizing:border-box;
+    cursor:crosshair;
+    transition:background .05s;
+}
+.dots-cell.on  { background:var(--dot-active-color, #00ff44); }
+.dots-cell.off { background:#0a0a0a; border:1px solid #111; }
+.dots-row { display:flex; }
+.dots-toolbar { display:flex;gap:8px;align-items:center;flex-wrap:wrap; }
+
+/* RSS feed management */
+.rss-feed-card {
+    border:1px solid var(--border-color);border-radius:8px;
+    padding:12px 14px;margin-bottom:10px;
+    background:var(--surface-color);
+    transition:box-shadow .2s;
+}
+.rss-feed-card:hover { box-shadow:0 4px 12px var(--shadow-color); }
+.rss-item-row {
+    padding:6px 10px;border-radius:4px;
+    border-left:3px solid var(--primary-color);
+    background:var(--light-color);margin-bottom:6px;
+    font-size:.85em;
+}
 </style>
 {% endblock %}
 
@@ -345,6 +534,16 @@
             <li class="nav-item" role="presentation">
                 <button class="nav-link" id="time-tab" data-bs-toggle="tab" data-bs-target="#time" type="button" role="tab">
                     <i class="fas fa-clock"></i> Time Display
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="dots-tab" data-bs-toggle="tab" data-bs-target="#dots" type="button" role="tab">
+                    <i class="fas fa-th"></i> Dots
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="rss-tab" data-bs-toggle="tab" data-bs-target="#rss" type="button" role="tab">
+                    <i class="fas fa-rss"></i> RSS Feeds
                 </button>
             </li>
         </ul>
@@ -582,16 +781,48 @@
 
                     <div class="col-lg-4">
                         <div class="sticky-top" style="top: 20px;">
+                            <!-- Layout Presets -->
                             <div class="mb-3">
-                                <label class="form-label">Live Preview</label>
-                                <div class="message-preview" id="custom-preview">
-                                    <div class="preview-line" id="preview-line1">Enter message</div>
-                                    <div class="preview-line" id="preview-line2">to see preview</div>
-                                    <div class="preview-line" id="preview-line3"></div>
-                                    <div class="preview-line" id="preview-line4"></div>
+                                <label class="form-label fw-semibold">Layout Presets</label>
+                                <div class="d-flex gap-2 flex-wrap">
+                                    <button type="button" class="layout-preset-btn" onclick="applyLayoutPreset('static4')" title="All 4 lines static">
+                                        <span class="lp-icon">📋</span>
+                                        <span class="lp-label">Static</span>
+                                        <span class="lp-sub">All 4 hold</span>
+                                    </button>
+                                    <button type="button" class="layout-preset-btn" onclick="applyLayoutPreset('header_scroll')" title="Line 1 static header, lines 2-4 scroll">
+                                        <span class="lp-icon">📢</span>
+                                        <span class="lp-label">Header+Scroll</span>
+                                        <span class="lp-sub">1 hold, 2-4 scroll</span>
+                                    </button>
+                                    <button type="button" class="layout-preset-btn" onclick="applyLayoutPreset('alert')" title="Flash + roll alert layout">
+                                        <span class="lp-icon">🚨</span>
+                                        <span class="lp-label">Alert</span>
+                                        <span class="lp-sub">Flash+Roll</span>
+                                    </button>
+                                    <button type="button" class="layout-preset-btn" onclick="applyLayoutPreset('ticker')" title="RSS-style ticker — all lines scroll left">
+                                        <span class="lp-icon">📡</span>
+                                        <span class="lp-label">Ticker</span>
+                                        <span class="lp-sub">All scroll</span>
+                                    </button>
                                 </div>
-                                <div class="effect-preview mt-2" id="effect-description">
-                                    Effect: Static display
+                            </div>
+
+                            <!-- LED Sign Simulator — Canvas -->
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">
+                                    Sign Simulator
+                                    <span class="badge bg-success ms-1" style="font-size:.6em">LIVE</span>
+                                </label>
+                                <div class="led-sign-panel p-0" style="padding:0!important;overflow:hidden;border-radius:8px;">
+                                    <canvas id="led-sim-canvas" style="display:block;width:100%;image-rendering:auto;border-radius:6px;"></canvas>
+                                </div>
+                                <div class="mt-1 d-flex align-items-center gap-2">
+                                    <small class="text-muted flex-grow-1" id="effect-description">Effect: Static display</small>
+                                    <button type="button" class="btn btn-xs btn-outline-secondary"
+                                            style="font-size:.7em;padding:2px 6px"
+                                            onclick="toggleSimPause()" id="sim-pause-btn"
+                                            title="Pause/Resume animations">⏸</button>
                                 </div>
                             </div>
 
@@ -1094,6 +1325,201 @@
     </div>
 </div>
 
+        <!-- Dots / Pixel Art Tab -->
+        <div class="tab-pane fade" id="dots" role="tabpanel">
+            <h4><i class="fas fa-th text-success"></i> Dots / Pixel Art</h4>
+            <p class="text-muted mb-3">Draw custom pixel-art graphics and send them to the LED sign using the M-Protocol Picture File command.</p>
+
+            <div class="row">
+                <div class="col-lg-8">
+                    <div class="feature-group">
+                        <h6><i class="fas fa-palette"></i> Canvas Settings</h6>
+                        <div class="row g-2 mb-3">
+                            <div class="col-sm-3">
+                                <label class="form-label">Columns</label>
+                                <input type="number" class="form-control" id="dots-cols" min="5" max="160" value="20" oninput="rebuildDotsGrid()">
+                            </div>
+                            <div class="col-sm-3">
+                                <label class="form-label">Rows</label>
+                                <input type="number" class="form-control" id="dots-rows" min="1" max="16" value="7" oninput="rebuildDotsGrid()">
+                            </div>
+                            <div class="col-sm-3">
+                                <label class="form-label">Cell Size (px)</label>
+                                <input type="number" class="form-control" id="dots-cell-size" min="8" max="32" value="18" oninput="rebuildDotsGrid()">
+                            </div>
+                            <div class="col-sm-3">
+                                <label class="form-label">Color</label>
+                                <select class="form-select" id="dots-color">
+                                    <option value="GREEN" selected>🟢 Green</option>
+                                    <option value="RED">🔴 Red</option>
+                                    <option value="AMBER">🟠 Amber</option>
+                                    <option value="ORANGE">🟠 Orange</option>
+                                    <option value="YELLOW">🟡 Yellow</option>
+                                    <option value="RAINBOW_1">🌈 Rainbow 1</option>
+                                    <option value="RAINBOW_2">🌈 Rainbow 2</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="dots-toolbar mb-2">
+                            <button class="btn btn-sm btn-outline-secondary" onclick="dotsSetAll(0)"><i class="fas fa-eraser"></i> Clear All</button>
+                            <button class="btn btn-sm btn-outline-primary" onclick="dotsSetAll(1)"><i class="fas fa-fill-drip"></i> Fill All</button>
+                            <button class="btn btn-sm btn-outline-info" onclick="dotsInvert()"><i class="fas fa-adjust"></i> Invert</button>
+                            <button class="btn btn-sm btn-outline-warning" onclick="dotsShiftLeft()"><i class="fas fa-arrow-left"></i> Shift Left</button>
+                            <button class="btn btn-sm btn-outline-warning" onclick="dotsShiftRight()"><i class="fas fa-arrow-right"></i> Shift Right</button>
+                            <button class="btn btn-sm btn-outline-warning" onclick="dotsShiftUp()"><i class="fas fa-arrow-up"></i> Up</button>
+                            <button class="btn btn-sm btn-outline-warning" onclick="dotsShiftDown()"><i class="fas fa-arrow-down"></i> Down</button>
+                        </div>
+
+                        <div class="dots-canvas-wrap" id="dots-canvas-wrap">
+                            <!-- grid built by JS -->
+                        </div>
+
+                        <div class="mt-3">
+                            <small class="text-muted">Click or drag to toggle pixels. The canvas represents one or more LED sign rows (max 160×16).</small>
+                        </div>
+                    </div>
+
+                    <div class="feature-group">
+                        <h6><i class="fas fa-text-width"></i> Text-to-Dots</h6>
+                        <p class="text-muted small">Convert a short text string to a pixel-art representation.</p>
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="dots-text-input" maxlength="20" placeholder="EAS ALERT">
+                            <button class="btn btn-outline-primary" onclick="dotsFromText()"><i class="fas fa-magic"></i> Generate</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-lg-4">
+                    <div class="sticky-top" style="top:20px">
+                        <div class="led-sign-panel mb-3">
+                            <div class="led-sign-header">
+                                <span><span class="led-indicator green"></span><span class="led-indicator amber"></span></span>
+                                <span class="led-sign-label">DOTS PREVIEW</span>
+                            </div>
+                            <canvas id="dots-preview-canvas" width="200" height="70" style="display:block;background:#000;image-rendering:pixelated;width:100%;border-radius:4px;"></canvas>
+                        </div>
+
+                        <div class="d-grid gap-2">
+                            <button class="btn btn-primary btn-lg" onclick="sendDotsGraphic()">
+                                <i class="fas fa-paper-plane"></i> Send to LED Sign
+                            </button>
+                            <button class="btn btn-secondary" onclick="dotsSetAll(0)">
+                                <i class="fas fa-eraser"></i> Reset Canvas
+                            </button>
+                        </div>
+
+                        <div class="mt-3">
+                            <h6 class="text-muted">Quick Patterns</h6>
+                            <div class="d-flex gap-2 flex-wrap">
+                                <button class="btn btn-sm btn-outline-secondary" onclick="dotsLoadPattern('checkerboard')">Checkerboard</button>
+                                <button class="btn btn-sm btn-outline-secondary" onclick="dotsLoadPattern('border')">Border</button>
+                                <button class="btn btn-sm btn-outline-secondary" onclick="dotsLoadPattern('diagonal')">Diagonal</button>
+                                <button class="btn btn-sm btn-outline-secondary" onclick="dotsLoadPattern('heart')">Heart</button>
+                                <button class="btn btn-sm btn-outline-secondary" onclick="dotsLoadPattern('arrow')">Arrow</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- RSS Feeds Tab -->
+        <div class="tab-pane fade" id="rss" role="tabpanel">
+            <h4><i class="fas fa-rss text-warning"></i> RSS Feed Ticker</h4>
+            <p class="text-muted mb-3">Configure RSS feeds to display headlines on the LED sign as a scrolling ticker.</p>
+
+            <div class="row">
+                <div class="col-lg-8">
+                    <!-- Add Feed Form -->
+                    <div class="feature-group mb-3">
+                        <h6><i class="fas fa-plus-circle"></i> Add RSS Feed</h6>
+                        <div class="row g-2">
+                            <div class="col-md-6">
+                                <label class="form-label">Feed Name</label>
+                                <input type="text" class="form-control" id="rss-new-name" placeholder="Local News">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Feed URL</label>
+                                <input type="url" class="form-control" id="rss-new-url" placeholder="https://example.com/rss.xml">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Fetch Every</label>
+                                <select class="form-select" id="rss-new-interval">
+                                    <option value="5">5 min</option>
+                                    <option value="15" selected>15 min</option>
+                                    <option value="30">30 min</option>
+                                    <option value="60">1 hour</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Color</label>
+                                <select class="form-select" id="rss-new-color">
+                                    <option value="AMBER" selected>🟠 Amber</option>
+                                    <option value="GREEN">🟢 Green</option>
+                                    <option value="RED">🔴 Red</option>
+                                    <option value="YELLOW">🟡 Yellow</option>
+                                    <option value="ORANGE">🟠 Orange</option>
+                                    <option value="RAINBOW_1">🌈 Rainbow</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Effect</label>
+                                <select class="form-select" id="rss-new-effect">
+                                    <option value="ROLL_LEFT" selected>⬅️ Roll Left</option>
+                                    <option value="SCROLL">📜 Scroll</option>
+                                    <option value="WIPE_LEFT">🧹 Wipe Left</option>
+                                    <option value="HOLD">📌 Hold</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Max Items</label>
+                                <input type="number" class="form-control" id="rss-new-max" min="1" max="20" value="5">
+                            </div>
+                            <div class="col-12 d-flex gap-2">
+                                <button class="btn btn-success" onclick="addRSSFeed()"><i class="fas fa-plus"></i> Add Feed</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Feed List -->
+                    <div id="rss-feeds-container">
+                        <div class="text-center text-muted py-3">
+                            <div class="loading-spinner"></div> Loading feeds…
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-lg-4">
+                    <div class="sticky-top" style="top:20px">
+                        <!-- Latest Items Panel -->
+                        <div class="card mb-3">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <strong><i class="fas fa-list"></i> Latest Items</strong>
+                                <button class="btn btn-sm btn-outline-secondary" onclick="refreshRSSFeeds()">
+                                    <i class="fas fa-sync"></i>
+                                </button>
+                            </div>
+                            <div class="card-body p-2" id="rss-items-panel" style="max-height:300px;overflow-y:auto">
+                                <div class="text-muted text-center small py-2">Select a feed to view items</div>
+                            </div>
+                        </div>
+
+                        <div class="d-grid gap-2">
+                            <button class="btn btn-primary" id="rss-send-btn" onclick="sendRSSToSign()" disabled>
+                                <i class="fas fa-paper-plane"></i> Send Selected to Sign
+                            </button>
+                            <button class="btn btn-outline-info" onclick="sendAllFeedsRSS()">
+                                <i class="fas fa-broadcast-tower"></i> Send All Enabled Feeds
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Message History -->
 <div class="card mt-4">
     <div class="card-header">
@@ -1255,30 +1681,9 @@ function applyLineStyle(editor) {
     }
 }
 
-function refreshMainPreview() {
-    const payload = buildLinePayload();
-    payload.forEach((line, idx) => {
-        const previewLine = document.getElementById(`preview-line${idx + 1}`);
-        if (!previewLine) return;
-        const segment = line.segments[0] || { text: '' };
-        const text = segment.text || '';
-        previewLine.textContent = text || (idx <= 1 ? ['Enter message', 'to see preview'][idx] : '');
-        const colorValue = resolveLineColor(segment.color || line.color);
-        const modeValue = resolveLineMode(segment.mode || line.mode);
-        previewLine.style.color = colorMap[colorValue] || '#00ff00';
-        previewLine.style.fontSize = fontSizeMap[document.getElementById('custom-font').value] || '1.0em';
-        previewLine.className = 'preview-line';
-        if (colorValue && (colorValue.includes('RAINBOW') || colorValue === 'COLOR_MIX')) {
-            previewLine.classList.add('rainbow-text');
-        }
-        if (modeValue === 'FLASH') {
-            previewLine.classList.add('flash-preview');
-        }
-    });
-
-    const activeMode = document.getElementById('custom-mode').value;
-    document.getElementById('effect-description').textContent = `Effect: ${modeDescriptions[activeMode] || activeMode}`;
-}
+// refreshMainPreview was moved below to integrate with the LEDSignSimulator
+// canvas implementation. The canvas-based version supersedes the old DOM-only
+// implementation and must be defined after LEDSignSimulator is declared.
 
 function updateLineState(index) {
     const editor = document.querySelector(`.line-editor[data-line-index="${index}"]`);
@@ -2168,6 +2573,1047 @@ function showToast(message, type = 'info') {
             toast.parentNode.removeChild(toast);
         }
     }, 5000);
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// LEDSignSimulator — canvas-based accurate M-Protocol display-mode renderer
+// Each line has its own independent animation timer so mixed-mode layouts
+// (e.g. Line 1 static, Line 2 scrolling, Line 3 flashing) render correctly.
+// ══════════════════════════════════════════════════════════════════════════════
+
+class LEDSignSimulator {
+    constructor(canvasId) {
+        this.canvas  = document.getElementById(canvasId);
+        if (!this.canvas) return;
+        this.ctx     = this.canvas.getContext('2d');
+        this.dpr     = window.devicePixelRatio || 1;
+        this.paused  = false;
+        this.lastTs  = 0;
+        this.LINE_H  = 34;   // px per sign line (logical)
+        this.PAD     = 10;   // top/bottom padding
+        this.NUM_LINES = 4;
+
+        // Per-line state
+        this.lines = Array.from({length: this.NUM_LINES}, (_, i) => ({
+            text:  `LINE ${i + 1}`,
+            color: 'GREEN',
+            mode:  'HOLD',
+            speed: 3,
+            animT: 0,
+        }));
+
+        // LED colour → hex + glow
+        this.COLOR_HEX = {
+            RED:        ['#ff2200', '#ff2200'],
+            GREEN:      ['#00ff44', '#00ff44'],
+            AMBER:      ['#ffaa00', '#ffaa00'],
+            DIM_RED:    ['#881100', '#550000'],
+            DIM_GREEN:  ['#007722', '#004411'],
+            BROWN:      ['#995500', '#663300'],
+            ORANGE:     ['#ff6600', '#ff6600'],
+            YELLOW:     ['#ffff00', '#ffff00'],
+            AUTO_COLOR: ['#ffffff', '#aaaaff'],
+            RAINBOW_1:  ['rainbow', 'rainbow'],
+            RAINBOW_2:  ['rainbow2', 'rainbow'],
+            COLOR_MIX:  ['rainbow', 'rainbow'],
+            DEFAULT:    ['#00ff44', '#00ff44'],
+        };
+
+        // Speed → full-cycle duration (seconds), matching Alpha sign spec
+        this.SPEED_DUR = { 1: 16, 2: 11, 3: 8, 4: 5, 5: 3 };
+
+        this._resize();
+        window.addEventListener('resize', () => this._resize());
+        this._raf = requestAnimationFrame(ts => this._tick(ts));
+    }
+
+    _resize() {
+        if (!this.canvas) return;
+        const parent = this.canvas.parentElement;
+        const w = parent ? parent.clientWidth || 360 : 360;
+        const h = this.NUM_LINES * this.LINE_H + this.PAD * 2;
+        this.canvas.style.width  = w + 'px';
+        this.canvas.style.height = h + 'px';
+        this.canvas.width  = Math.round(w * this.dpr);
+        this.canvas.height = Math.round(h * this.dpr);
+        this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+        this.W = w;
+        this.H = h;
+    }
+
+    setLine(idx, text, colorName, modeName, speedName) {
+        if (idx < 0 || idx >= this.NUM_LINES) return;
+        const line = this.lines[idx];
+        const prevMode = line.mode;
+        line.text  = String(text || '');
+        line.color = (colorName || 'GREEN').toUpperCase();
+        line.mode  = (modeName  || 'HOLD').toUpperCase();
+        const sp   = parseInt((speedName || 'SPEED_3').replace('SPEED_', '')) || 3;
+        line.speed = Math.max(1, Math.min(5, sp));
+        // Reset per-line timer when mode changes so the new effect starts cleanly
+        if (prevMode !== line.mode) line.animT = 0;
+    }
+
+    togglePause() {
+        this.paused = !this.paused;
+        return this.paused;
+    }
+
+    _tick(ts) {
+        const delta = this.paused ? 0 : Math.min((ts - this.lastTs) / 1000, 0.05);
+        this.lastTs = ts;
+        if (!this.paused) this.lines.forEach(l => { l.animT = (l.animT || 0) + delta; });
+        this._draw();
+        this._raf = requestAnimationFrame(ts2 => this._tick(ts2));
+    }
+
+    _draw() {
+        const { ctx, W, H, PAD, LINE_H } = this;
+
+        // Black background
+        ctx.fillStyle = '#030303';
+        ctx.fillRect(0, 0, W, H);
+
+        // Subtle LED dot-matrix grid
+        ctx.fillStyle = 'rgba(255,255,255,0.022)';
+        for (let gx = 2; gx < W; gx += 5)
+            for (let gy = 2; gy < H; gy += 5)
+                ctx.fillRect(gx, gy, 1.5, 1.5);
+
+        // Thin bezel-style inner border
+        ctx.strokeStyle = 'rgba(0,200,80,0.12)';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(0.5, 0.5, W - 1, H - 1);
+
+        // Draw each line row
+        for (let i = 0; i < this.NUM_LINES; i++) {
+            const y  = PAD + i * LINE_H;
+            const lh = LINE_H - 1;
+            this._drawLine(i, 0, y, W, lh);
+            // Row separator
+            if (i < this.NUM_LINES - 1) {
+                ctx.fillStyle = '#101010';
+                ctx.fillRect(0, y + lh, W, 1);
+            }
+        }
+    }
+
+    // ── Core per-line renderer ─────────────────────────────────────────────
+
+    _drawLine(idx, x, y, w, h) {
+        const { ctx } = this;
+        const line = this.lines[idx];
+        const text  = line.text;
+        const mode  = line.mode;
+        const t     = line.animT || 0;
+        const dur   = this.SPEED_DUR[line.speed] || 8;
+
+        ctx.save();
+        // Clip to this row
+        ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip();
+
+        // Font — slightly smaller than LINE_H to always fit
+        const fontSize = Math.round(h * 0.58);
+        ctx.font        = `bold ${fontSize}px 'Courier New', monospace`;
+        ctx.textBaseline = 'middle';
+
+        const textW = ctx.measureText(text).width;
+        const midY  = y + h / 2;
+
+        // Resolve colour (returns [fillStyle, shadowColor])
+        const [fill, shadow] = this._resolveColor(line.color, t);
+        ctx.fillStyle   = fill;
+        ctx.shadowColor = shadow;
+        ctx.shadowBlur  = 10;
+
+        // ── Dispatch to mode renderer ──────────────────────────────────────
+        switch (mode) {
+
+            // ── HOLD (static) ──
+            case 'HOLD':
+                if (text) ctx.fillText(text, x + 8, midY);
+                break;
+
+            // ── SCROLL / ROTATE / COMPRESSED_ROTATE — continuous marquee ──
+            case 'SCROLL':
+            case 'ROTATE':
+            case 'COMPRESSED_ROTATE': {
+                // total travel = container width + text width + margins
+                const travel   = w + textW + 16;
+                const progress = (t % dur) / dur;           // 0..1 linear
+                const textX    = x + w - progress * travel; // right → left
+                if (typeof fill === 'object') {
+                    // rainbow: rebuild gradient at current position
+                    const grad = ctx.createLinearGradient(textX, 0, textX + textW, 0);
+                    const hue0 = (t * 100) % 360;
+                    for (let s = 0; s <= 6; s++) grad.addColorStop(s / 6, `hsl(${(hue0 + s * 60) % 360},100%,55%)`);
+                    ctx.fillStyle = grad;
+                    ctx.shadowColor = '#ffaa00';
+                }
+                ctx.fillText(text, textX, midY);
+                break;
+            }
+
+            // ── FLASH — timed blink ──
+            case 'FLASH': {
+                // Flash rate: SPEED_1=0.85s, SPEED_5=0.18s (half-period)
+                const halfPeriod = [0.85, 0.6, 0.4, 0.28, 0.18][line.speed - 1] || 0.4;
+                const visible = Math.floor(t / halfPeriod) % 2 === 0;
+                if (visible && text) ctx.fillText(text, x + 8, midY);
+                break;
+            }
+
+            // ── ROLL_LEFT — slide in from right, hold, slide out left ──
+            case 'ROLL_LEFT': {
+                const phase = (t % dur) / dur;
+                const slideIn = 0.15, hold = 0.80;
+                let textX;
+                if (phase < slideIn) {
+                    const p = this._easeOut(phase / slideIn);
+                    textX = x + w + textW - p * (w + textW - 8);
+                } else if (phase < hold) {
+                    textX = x + 8;
+                } else {
+                    const p = this._easeIn((phase - hold) / (1 - hold));
+                    textX = x + 8 - p * (w + textW);
+                }
+                if (text) ctx.fillText(text, textX, midY);
+                break;
+            }
+
+            // ── ROLL_RIGHT — slide in from left, hold, slide out right ──
+            case 'ROLL_RIGHT': {
+                const phase = (t % dur) / dur;
+                const slideIn = 0.15, hold = 0.80;
+                let textX;
+                if (phase < slideIn) {
+                    const p = this._easeOut(phase / slideIn);
+                    textX = x - textW + p * (textW + 8);
+                } else if (phase < hold) {
+                    textX = x + 8;
+                } else {
+                    const p = this._easeIn((phase - hold) / (1 - hold));
+                    textX = x + 8 + p * (w + textW);
+                }
+                if (text) ctx.fillText(text, textX, midY);
+                break;
+            }
+
+            // ── ROLL_UP — slide in from below, hold, slide out above ──
+            case 'ROLL_UP': {
+                const phase = (t % dur) / dur;
+                let offsetY = 0, alpha = 1;
+                if (phase < 0.15) {
+                    const p = this._easeOut(phase / 0.15);
+                    offsetY = h * (1 - p); alpha = p;
+                } else if (phase < 0.80) {
+                    offsetY = 0; alpha = 1;
+                } else {
+                    const p = this._easeIn((phase - 0.80) / 0.20);
+                    offsetY = -h * p; alpha = 1 - p;
+                }
+                ctx.globalAlpha = alpha;
+                if (text) ctx.fillText(text, x + 8, midY + offsetY);
+                break;
+            }
+
+            // ── ROLL_DOWN — slide in from above, hold, slide out below ──
+            case 'ROLL_DOWN': {
+                const phase = (t % dur) / dur;
+                let offsetY = 0, alpha = 1;
+                if (phase < 0.15) {
+                    const p = this._easeOut(phase / 0.15);
+                    offsetY = -h * (1 - p); alpha = p;
+                } else if (phase < 0.80) {
+                    offsetY = 0; alpha = 1;
+                } else {
+                    const p = this._easeIn((phase - 0.80) / 0.20);
+                    offsetY = h * p; alpha = 1 - p;
+                }
+                ctx.globalAlpha = alpha;
+                if (text) ctx.fillText(text, x + 8, midY + offsetY);
+                break;
+            }
+
+            // ── WIPE_LEFT — reveal from right edge, wipe out left ──
+            case 'WIPE_LEFT': {
+                if (!text) break;
+                const phase = (t % dur) / dur;
+                let clipX, clipW;
+                if (phase < 0.40) {
+                    const p = this._easeOut(phase / 0.40);
+                    clipX = x + w * (1 - p); clipW = w * p;
+                } else if (phase < 0.80) {
+                    clipX = x; clipW = w;
+                } else {
+                    const p = this._easeIn((phase - 0.80) / 0.20);
+                    clipX = x; clipW = w * (1 - p);
+                }
+                ctx.restore(); ctx.save();
+                ctx.beginPath(); ctx.rect(Math.max(clipX, x), y, Math.min(clipW, w), h); ctx.clip();
+                ctx.font = `bold ${fontSize}px 'Courier New', monospace`;
+                ctx.textBaseline = 'middle';
+                ctx.fillStyle = fill; ctx.shadowColor = shadow; ctx.shadowBlur = 10;
+                ctx.fillText(text, x + 8, midY);
+                break;
+            }
+
+            // ── WIPE_RIGHT — reveal from left edge, wipe out right ──
+            case 'WIPE_RIGHT': {
+                if (!text) break;
+                const phase = (t % dur) / dur;
+                let clipW;
+                if (phase < 0.40) {
+                    clipW = w * this._easeOut(phase / 0.40);
+                } else if (phase < 0.80) {
+                    clipW = w;
+                } else {
+                    clipW = w * (1 - this._easeIn((phase - 0.80) / 0.20));
+                }
+                ctx.restore(); ctx.save();
+                ctx.beginPath(); ctx.rect(x, y, Math.min(clipW, w), h); ctx.clip();
+                ctx.font = `bold ${fontSize}px 'Courier New', monospace`;
+                ctx.textBaseline = 'middle';
+                ctx.fillStyle = fill; ctx.shadowColor = shadow; ctx.shadowBlur = 10;
+                ctx.fillText(text, x + 8, midY);
+                break;
+            }
+
+            // ── WIPE_UP — reveal from bottom edge ──
+            case 'WIPE_UP': {
+                if (!text) break;
+                const dur2 = dur * 0.75;
+                const phase = (t % dur2) / dur2;
+                let clipY, clipH;
+                if (phase < 0.40) {
+                    const p = this._easeOut(phase / 0.40);
+                    clipH = h * p; clipY = y + h - clipH;
+                } else if (phase < 0.80) {
+                    clipH = h; clipY = y;
+                } else {
+                    clipH = h * (1 - this._easeIn((phase - 0.80) / 0.20)); clipY = y;
+                }
+                ctx.restore(); ctx.save();
+                ctx.beginPath(); ctx.rect(x, clipY, w, clipH); ctx.clip();
+                ctx.font = `bold ${fontSize}px 'Courier New', monospace`;
+                ctx.textBaseline = 'middle';
+                ctx.fillStyle = fill; ctx.shadowColor = shadow; ctx.shadowBlur = 10;
+                ctx.fillText(text, x + 8, midY);
+                break;
+            }
+
+            // ── WIPE_DOWN — reveal from top edge ──
+            case 'WIPE_DOWN': {
+                if (!text) break;
+                const dur2 = dur * 0.75;
+                const phase = (t % dur2) / dur2;
+                let clipH;
+                if (phase < 0.40) {
+                    clipH = h * this._easeOut(phase / 0.40);
+                } else if (phase < 0.80) {
+                    clipH = h;
+                } else {
+                    clipH = h * (1 - this._easeIn((phase - 0.80) / 0.20));
+                }
+                ctx.restore(); ctx.save();
+                ctx.beginPath(); ctx.rect(x, y, w, Math.min(clipH, h)); ctx.clip();
+                ctx.font = `bold ${fontSize}px 'Courier New', monospace`;
+                ctx.textBaseline = 'middle';
+                ctx.fillStyle = fill; ctx.shadowColor = shadow; ctx.shadowBlur = 10;
+                ctx.fillText(text, x + 8, midY);
+                break;
+            }
+
+            // ── ROLL_IN — scale X in from center ──
+            case 'ROLL_IN': {
+                if (!text) break;
+                const phase = (t % dur) / dur;
+                let scaleX = 1, alpha = 1;
+                if (phase < 0.20) {
+                    scaleX = this._easeOut(phase / 0.20);
+                } else if (phase >= 0.80) {
+                    scaleX = 1 - this._easeIn((phase - 0.80) / 0.20);
+                    alpha  = scaleX;
+                }
+                ctx.globalAlpha = alpha;
+                ctx.translate(x + w / 2, midY);
+                ctx.scale(Math.max(scaleX, 0), 1);
+                ctx.fillText(text, -(ctx.measureText(text).width / 2), 0);
+                break;
+            }
+
+            // ── ROLL_OUT — scale X out from center ──
+            case 'ROLL_OUT': {
+                if (!text) break;
+                const phase = (t % dur) / dur;
+                let scaleX = 1;
+                if (phase < 0.20) {
+                    scaleX = 1 - this._easeOut(phase / 0.20);
+                    ctx.globalAlpha = scaleX;
+                } else if (phase < 0.80) {
+                    scaleX = 0; ctx.globalAlpha = 0;  // hidden
+                } else {
+                    scaleX = this._easeIn((phase - 0.80) / 0.20);
+                }
+                if (scaleX > 0) {
+                    ctx.translate(x + w / 2, midY);
+                    ctx.scale(Math.max(scaleX, 0), 1);
+                    ctx.fillText(text, -(ctx.measureText(text).width / 2), 0);
+                }
+                break;
+            }
+
+            // ── WIPE_IN — reveal outward from center ──
+            case 'WIPE_IN': {
+                if (!text) break;
+                const phase  = (t % dur) / dur;
+                const cx     = x + w / 2;
+                let halfW;
+                if (phase < 0.40) {
+                    halfW = (w / 2) * this._easeOut(phase / 0.40);
+                } else if (phase < 0.80) {
+                    halfW = w / 2;
+                } else {
+                    halfW = (w / 2) * (1 - this._easeIn((phase - 0.80) / 0.20));
+                }
+                ctx.restore(); ctx.save();
+                ctx.beginPath(); ctx.rect(cx - halfW, y, halfW * 2, h); ctx.clip();
+                ctx.font = `bold ${fontSize}px 'Courier New', monospace`;
+                ctx.textBaseline = 'middle';
+                ctx.fillStyle = fill; ctx.shadowColor = shadow; ctx.shadowBlur = 10;
+                ctx.fillText(text, x + 8, midY);
+                break;
+            }
+
+            // ── WIPE_OUT — hide inward toward center ──
+            case 'WIPE_OUT': {
+                if (!text) break;
+                const phase  = (t % dur) / dur;
+                const cx     = x + w / 2;
+                let halfW;
+                if (phase < 0.40) {
+                    halfW = (w / 2) * (1 - this._easeOut(phase / 0.40));
+                } else if (phase < 0.80) {
+                    halfW = 0;  // hidden
+                } else {
+                    halfW = (w / 2) * this._easeIn((phase - 0.80) / 0.20);
+                }
+                if (halfW > 0) {
+                    ctx.restore(); ctx.save();
+                    ctx.beginPath(); ctx.rect(cx - halfW, y, halfW * 2, h); ctx.clip();
+                    ctx.font = `bold ${fontSize}px 'Courier New', monospace`;
+                    ctx.textBaseline = 'middle';
+                    ctx.fillStyle = fill; ctx.shadowColor = shadow; ctx.shadowBlur = 10;
+                    ctx.fillText(text, x + 8, midY);
+                }
+                break;
+            }
+
+            // ── EXPLODE — scale up + fade ──
+            case 'EXPLODE': {
+                if (!text) break;
+                const phase = (t % dur) / dur;
+                let scale = 1, alpha = 1;
+                if (phase < 0.25) {
+                    scale = 0.05 + this._easeOut(phase / 0.25) * 0.95;
+                    alpha = this._easeOut(phase / 0.25);
+                } else if (phase < 0.75) {
+                    scale = 1; alpha = 1;
+                } else {
+                    const p = this._easeIn((phase - 0.75) / 0.25);
+                    scale = 1 + p * 0.8; alpha = 1 - p;
+                }
+                ctx.globalAlpha = alpha;
+                const centeredX = x + w / 2 - ctx.measureText(text).width * scale / 2;
+                ctx.translate(x + w / 2, midY);
+                ctx.scale(scale, scale);
+                ctx.fillText(text, -ctx.measureText(text).width / 2, 0);
+                break;
+            }
+
+            // ── AUTO_MODE — cycles through scroll → flash → roll_left ──
+            case 'AUTO_MODE': {
+                const autoModes = ['SCROLL', 'FLASH', 'ROLL_LEFT', 'WIPE_RIGHT'];
+                const autoIdx   = Math.floor(t / dur) % autoModes.length;
+                const saved     = line.mode;
+                line.mode       = autoModes[autoIdx];
+                ctx.restore();
+                this._drawLine(idx, x, y, w, h);
+                line.mode = saved;
+                return;   // _drawLine already called ctx.restore()
+            }
+
+            // ── CLOCK — shows live time ──
+            case 'CLOCK': {
+                const now = new Date();
+                const ts2 = now.toLocaleTimeString('en-US', {hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false});
+                ctx.fillText(ts2, x + 8, midY);
+                break;
+            }
+
+            // ── Default / HOLD ──
+            default:
+                if (text) ctx.fillText(text, x + 8, midY);
+                break;
+        }
+
+        ctx.restore();
+    }
+
+    // ── Colour resolver ──────────────────────────────────────────────────────
+    _resolveColor(name, t) {
+        if (!name || name === 'DEFAULT') name = 'GREEN';
+        const entry = this.COLOR_HEX[name];
+        if (!entry) return ['#00ff44', '#00ff44'];
+        const [fill, glow] = entry;
+        if (fill === 'rainbow' || fill === 'rainbow2') {
+            const hue = ((t || 0) * 80 + (fill === 'rainbow2' ? 180 : 0)) % 360;
+            const c = `hsl(${hue},100%,55%)`;
+            return [c, c];
+        }
+        return [fill, glow];
+    }
+
+    // ── Easing helpers (quadratic) ───────────────────────────────────────────
+    _easeInQuad(t)  { return t * t; }
+    _easeOutQuad(t) { return 1 - (1 - t) * (1 - t); }
+    // Convenience aliases kept for backward-compat with internal callers
+    _easeIn(t)  { return this._easeInQuad(t); }
+    _easeOut(t) { return this._easeOutQuad(t); }
+}
+
+// ── Singleton & glue ───────────────────────────────────────────────────────
+
+let _ledSim = null;
+
+function _getOrCreateSim() {
+    if (!_ledSim) _ledSim = new LEDSignSimulator('led-sim-canvas');
+    return _ledSim;
+}
+
+function toggleSimPause() {
+    const sim    = _getOrCreateSim();
+    const paused = sim.togglePause();
+    const btn    = document.getElementById('sim-pause-btn');
+    if (btn) btn.textContent = paused ? '▶' : '⏸';
+}
+
+function updateSimulatorLine(idx, text, colorName, modeName, speedName) {
+    _getOrCreateSim().setLine(idx, text, colorName, modeName, speedName);
+}
+
+function refreshMainPreview() {
+    const sim        = _getOrCreateSim();
+    const payload    = buildLinePayload();
+    const globalColor = document.getElementById('custom-color')?.value || 'GREEN';
+    const globalMode  = document.getElementById('custom-mode')?.value  || 'HOLD';
+    const globalSpeed = document.getElementById('custom-speed')?.value || 'SPEED_3';
+
+    payload.forEach((line, idx) => {
+        const segment = (line.segments || [])[0] || {};
+        const text    = segment.text || '';
+
+        const color = (segment.color && segment.color !== 'DEFAULT') ? segment.color : globalColor;
+        const mode  = (segment.mode  && segment.mode  !== 'DEFAULT') ? segment.mode  : globalMode;
+        const speed = (segment.speed && segment.speed !== 'DEFAULT') ? segment.speed : globalSpeed;
+
+        sim.setLine(idx, text, color, mode, speed);
+    });
+
+    const activeMode = document.getElementById('custom-mode')?.value || 'HOLD';
+    const desc = document.getElementById('effect-description');
+    if (desc) desc.textContent = `Effect: ${modeDescriptions[activeMode] || activeMode}`;
+}
+
+// ── Layout Presets ──────────────────────────────────────────────────────────
+
+function applyLayoutPreset(preset) {
+    const editors = getLineEditors();
+    const presets = {
+        'static4': [
+            { color: 'GREEN',  mode: 'HOLD',      speed: 'SPEED_3' },
+            { color: 'GREEN',  mode: 'HOLD',      speed: 'SPEED_3' },
+            { color: 'GREEN',  mode: 'HOLD',      speed: 'SPEED_3' },
+            { color: 'GREEN',  mode: 'HOLD',      speed: 'SPEED_3' },
+        ],
+        'header_scroll': [
+            { color: 'AMBER',  mode: 'HOLD',      speed: 'SPEED_3' },
+            { color: 'GREEN',  mode: 'ROLL_LEFT',  speed: 'SPEED_3' },
+            { color: 'GREEN',  mode: 'ROLL_LEFT',  speed: 'SPEED_3' },
+            { color: 'GREEN',  mode: 'ROLL_LEFT',  speed: 'SPEED_3' },
+        ],
+        'alert': [
+            { color: 'RED',    mode: 'FLASH',     speed: 'SPEED_5' },
+            { color: 'AMBER',  mode: 'ROLL_LEFT',  speed: 'SPEED_4' },
+            { color: 'YELLOW', mode: 'ROLL_LEFT',  speed: 'SPEED_4' },
+            { color: 'RED',    mode: 'FLASH',     speed: 'SPEED_5' },
+        ],
+        'ticker': [
+            { color: 'AMBER',  mode: 'SCROLL',    speed: 'SPEED_3' },
+            { color: 'AMBER',  mode: 'SCROLL',    speed: 'SPEED_3' },
+            { color: 'AMBER',  mode: 'SCROLL',    speed: 'SPEED_3' },
+            { color: 'AMBER',  mode: 'SCROLL',    speed: 'SPEED_3' },
+        ],
+    };
+
+    const cfg = presets[preset];
+    if (!cfg) return;
+
+    editors.forEach((editor, i) => {
+        const p = cfg[i] || cfg[0];
+        editor.querySelector('.line-color').value = p.color;
+        editor.querySelector('.line-mode').value  = p.mode;
+        editor.querySelector('.line-speed').value = p.speed;
+        updateLineState(parseInt(editor.dataset.lineIndex));
+    });
+
+    document.getElementById('custom-color').value = cfg[0].color;
+    document.getElementById('custom-mode').value  = cfg[0].mode;
+    document.getElementById('custom-speed').value = cfg[0].speed;
+
+    document.querySelectorAll('.layout-preset-btn').forEach(btn => btn.classList.remove('active'));
+    const clicked = document.querySelector(`.layout-preset-btn[onclick*="${preset}"]`);
+    if (clicked) clicked.classList.add('active');
+
+    refreshMainPreview();
+}
+
+// ── Dots / Pixel-Art Editor ─────────────────────────────────────────────────
+
+let dotsGrid = [];
+let dotsDrawing = false;
+let dotsPaintValue = 1;
+
+function getDotsDimensions() {
+    const cols = parseInt(document.getElementById('dots-cols')?.value || '20');
+    const rows = parseInt(document.getElementById('dots-rows')?.value || '7');
+    const cell = parseInt(document.getElementById('dots-cell-size')?.value || '18');
+    return { cols: Math.min(cols, 160), rows: Math.min(rows, 16), cell: Math.max(cell, 8) };
+}
+
+function rebuildDotsGrid() {
+    const { cols, rows, cell } = getDotsDimensions();
+
+    const newGrid = [];
+    for (let r = 0; r < rows; r++) {
+        newGrid.push([]);
+        for (let c = 0; c < cols; c++) {
+            newGrid[r][c] = (dotsGrid[r] && dotsGrid[r][c]) ? 1 : 0;
+        }
+    }
+    dotsGrid = newGrid;
+
+    const wrap = document.getElementById('dots-canvas-wrap');
+    if (!wrap) return;
+    wrap.innerHTML = '';
+
+    for (let r = 0; r < rows; r++) {
+        const rowDiv = document.createElement('div');
+        rowDiv.className = 'dots-row';
+        for (let c = 0; c < cols; c++) {
+            const cell_el = document.createElement('div');
+            cell_el.className = 'dots-cell ' + (dotsGrid[r][c] ? 'on' : 'off');
+            cell_el.style.width  = cell + 'px';
+            cell_el.style.height = cell + 'px';
+            cell_el.dataset.r = r;
+            cell_el.dataset.c = c;
+            cell_el.addEventListener('mousedown', e => {
+                dotsDrawing   = true;
+                dotsPaintValue = dotsGrid[r][c] ? 0 : 1;
+                dotsToggleCell(r, c, dotsPaintValue);
+                e.preventDefault();
+            });
+            cell_el.addEventListener('mouseenter', () => {
+                if (dotsDrawing) dotsToggleCell(r, c, dotsPaintValue);
+            });
+            rowDiv.appendChild(cell_el);
+        }
+        wrap.appendChild(rowDiv);
+    }
+
+    document.addEventListener('mouseup', () => { dotsDrawing = false; });
+    updateDotsPreviewCanvas();
+}
+
+function dotsToggleCell(r, c, value) {
+    if (r < 0 || r >= dotsGrid.length || c < 0 || c >= dotsGrid[r].length) return;
+    dotsGrid[r][c] = (value !== undefined) ? value : (dotsGrid[r][c] ? 0 : 1);
+    const cell_el = document.querySelector(`.dots-cell[data-r="${r}"][data-c="${c}"]`);
+    if (cell_el) {
+        cell_el.className = 'dots-cell ' + (dotsGrid[r][c] ? 'on' : 'off');
+    }
+    updateDotsPreviewCanvas();
+}
+
+function dotsSetAll(value) {
+    const { cols, rows } = getDotsDimensions();
+    dotsGrid = Array.from({length: rows}, () => Array(cols).fill(value));
+    rebuildDotsGrid();
+}
+
+function dotsInvert() {
+    dotsGrid = dotsGrid.map(row => row.map(v => v ? 0 : 1));
+    rebuildDotsGrid();
+}
+
+function dotsShiftLeft() {
+    dotsGrid = dotsGrid.map(row => { const r = [...row]; r.push(r.shift()); return r; });
+    rebuildDotsGrid();
+}
+
+function dotsShiftRight() {
+    dotsGrid = dotsGrid.map(row => { const r = [...row]; r.unshift(r.pop()); return r; });
+    rebuildDotsGrid();
+}
+
+function dotsShiftUp() {
+    if (dotsGrid.length > 1) { dotsGrid.push(dotsGrid.shift()); rebuildDotsGrid(); }
+}
+
+function dotsShiftDown() {
+    if (dotsGrid.length > 1) { dotsGrid.unshift(dotsGrid.pop()); rebuildDotsGrid(); }
+}
+
+function dotsLoadPattern(name) {
+    const { cols, rows } = getDotsDimensions();
+    dotsGrid = Array.from({length: rows}, () => Array(cols).fill(0));
+
+    if (name === 'checkerboard') {
+        dotsGrid = dotsGrid.map((row, r) => row.map((_, c) => (r + c) % 2));
+    } else if (name === 'border') {
+        dotsGrid = dotsGrid.map((row, r) =>
+            row.map((_, c) => (r === 0 || r === rows-1 || c === 0 || c === cols-1) ? 1 : 0));
+    } else if (name === 'diagonal') {
+        dotsGrid = dotsGrid.map((row, r) => row.map((_, c) => (c === r || c === r+1) ? 1 : 0));
+    } else if (name === 'heart') {
+        const hpat = [[0,1,0,1,0],[1,1,1,1,1],[1,1,1,1,1],[0,1,1,1,0],[0,0,1,0,0]];
+        hpat.forEach((row, r) => row.forEach((v, c) => {
+            const gr = r + Math.floor((rows-5)/2);
+            const gc = c + Math.floor((cols-5)/2);
+            if (gr >= 0 && gr < rows && gc >= 0 && gc < cols) dotsGrid[gr][gc] = v;
+        }));
+    } else if (name === 'arrow') {
+        const mid = Math.floor(rows / 2);
+        for (let c = 0; c < cols; c++) { if (mid < rows) dotsGrid[mid][c] = 1; }
+        for (let i = 0; i < Math.min(rows, 5); i++) {
+            const tip = cols - 1;
+            if (tip - i >= 0 && mid - i >= 0) dotsGrid[mid - i][tip - i] = 1;
+            if (tip - i >= 0 && mid + i < rows) dotsGrid[mid + i][tip - i] = 1;
+        }
+    }
+    rebuildDotsGrid();
+}
+
+function dotsFromText() {
+    const FONT5X7 = {
+        'A':[[0,1,1,1,0],[1,0,0,0,1],[1,0,0,0,1],[1,1,1,1,1],[1,0,0,0,1],[1,0,0,0,1],[0,0,0,0,0]],
+        'E':[[1,1,1,1,1],[1,0,0,0,0],[1,0,0,0,0],[1,1,1,1,0],[1,0,0,0,0],[1,0,0,0,0],[1,1,1,1,1]],
+        'S':[[0,1,1,1,1],[1,0,0,0,0],[1,0,0,0,0],[0,1,1,1,0],[0,0,0,0,1],[0,0,0,0,1],[1,1,1,1,0]],
+        ' ':[[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0]],
+    };
+    const text = (document.getElementById('dots-text-input')?.value || '').toUpperCase().slice(0, 20);
+    if (!text) return;
+
+    const height = 7;
+    const charWidth = 5;
+    const gap = 1;
+    const totalCols = text.length * (charWidth + gap);
+
+    document.getElementById('dots-cols').value = totalCols;
+    document.getElementById('dots-rows').value = height;
+    dotsGrid = Array.from({length: height}, () => Array(totalCols).fill(0));
+
+    [...text].forEach((ch, ci) => {
+        const charPattern = FONT5X7[ch] || FONT5X7[' '];
+        const colOffset = ci * (charWidth + gap);
+        charPattern.forEach((row, ri) => {
+            row.forEach((px, pi) => {
+                if (ri < height && colOffset + pi < totalCols) {
+                    dotsGrid[ri][colOffset + pi] = px;
+                }
+            });
+        });
+    });
+    rebuildDotsGrid();
+}
+
+function updateDotsPreviewCanvas() {
+    const canvas = document.getElementById('dots-preview-canvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, W, H);
+    if (!dotsGrid.length) return;
+
+    const rows = dotsGrid.length;
+    const cols = dotsGrid[0].length || 0;
+    const cellW = W / cols;
+    const cellH = H / rows;
+
+    dotsGrid.forEach((row, r) => {
+        row.forEach((v, c) => {
+            if (v) {
+                ctx.fillStyle = '#00ff44';
+                ctx.fillRect(c * cellW + .5, r * cellH + .5, cellW - 1, cellH - 1);
+            }
+        });
+    });
+}
+
+function sendDotsGraphic() {
+    if (!dotsGrid.length || !dotsGrid[0].length) {
+        showToast('Canvas is empty', 'error');
+        return;
+    }
+    const hasPixels = dotsGrid.some(row => row.some(v => v));
+    if (!hasPixels) {
+        showToast('No pixels to send — draw something first', 'error');
+        return;
+    }
+
+    const color = document.getElementById('dots-color')?.value || 'GREEN';
+
+    fetch('/api/led/dots', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ dots: dotsGrid, color }),
+    })
+    .then(r => r.json())
+    .then(res => {
+        if (res.success) showToast('Dots graphic sent to sign!', 'success');
+        else showToast('Failed: ' + res.error, 'error');
+    })
+    .catch(() => showToast('Error sending dots graphic', 'error'));
+}
+
+// ── RSS Feed Management ─────────────────────────────────────────────────────
+
+let rssFeeds = [];
+let selectedRSSFeedId = null;
+let selectedRSSItemIds = [];
+
+function refreshRSSFeeds() {
+    fetch('/api/led/rss/feeds')
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            rssFeeds = data.feeds;
+            renderRSSFeeds();
+        }
+    })
+    .catch(() => {});
+}
+
+function renderRSSFeeds() {
+    const container = document.getElementById('rss-feeds-container');
+    if (!container) return;
+
+    if (!rssFeeds.length) {
+        container.innerHTML = '<div class="text-muted text-center py-3"><i class="fas fa-rss"></i> No feeds configured. Add one above.</div>';
+        return;
+    }
+
+    container.innerHTML = rssFeeds.map(feed => `
+        <div class="rss-feed-card">
+            <div class="d-flex justify-content-between align-items-start mb-1">
+                <div>
+                    <strong>${escapeHtml(feed.name)}</strong>
+                    <span class="badge ${feed.enabled ? 'bg-success' : 'bg-secondary'} ms-1" style="font-size:.65em">
+                        ${feed.enabled ? 'Enabled' : 'Disabled'}
+                    </span>
+                    ${feed.auto_send ? '<span class="badge bg-info ms-1" style="font-size:.65em">Auto-Send</span>' : ''}
+                </div>
+                <div class="d-flex gap-1">
+                    <button class="btn btn-xs btn-outline-primary" style="font-size:.7em;padding:2px 7px"
+                        onclick="loadRSSFeedItems(${feed.id}, '${escapeHtml(feed.name)}')">
+                        <i class="fas fa-list"></i> Items
+                    </button>
+                    <button class="btn btn-xs btn-outline-success" style="font-size:.7em;padding:2px 7px"
+                        onclick="fetchRSSFeed(${feed.id})">
+                        <i class="fas fa-sync"></i>
+                    </button>
+                    <button class="btn btn-xs btn-outline-danger" style="font-size:.7em;padding:2px 7px"
+                        onclick="deleteRSSFeed(${feed.id})">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="text-muted" style="font-size:.78em;word-break:break-all">${escapeHtml(feed.url)}</div>
+            <div class="mt-1 d-flex gap-2 flex-wrap" style="font-size:.75em">
+                <span title="Color">🎨 ${feed.color}</span>
+                <span title="Effect">✨ ${feed.effect.replace(/_/g,' ')}</span>
+                <span title="Items">📰 ${feed.item_count} items</span>
+                ${feed.last_fetched ? `<span title="Last fetched">🕐 ${new Date(feed.last_fetched).toLocaleTimeString()}</span>` : ''}
+            </div>
+        </div>
+    `).join('');
+}
+
+function addRSSFeed() {
+    const url  = document.getElementById('rss-new-url')?.value?.trim();
+    const name = document.getElementById('rss-new-name')?.value?.trim();
+    if (!url) { showToast('Feed URL is required', 'error'); return; }
+
+    fetch('/api/led/rss/feeds', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            url, name,
+            interval_minutes: parseInt(document.getElementById('rss-new-interval')?.value || '15'),
+            color: document.getElementById('rss-new-color')?.value || 'AMBER',
+            effect: document.getElementById('rss-new-effect')?.value || 'ROLL_LEFT',
+            max_items: parseInt(document.getElementById('rss-new-max')?.value || '5'),
+        }),
+    })
+    .then(r => r.json())
+    .then(res => {
+        if (res.success) {
+            showToast('RSS feed added!', 'success');
+            document.getElementById('rss-new-url').value = '';
+            document.getElementById('rss-new-name').value = '';
+            refreshRSSFeeds();
+            fetchRSSFeed(res.id);
+        } else {
+            showToast('Failed: ' + res.error, 'error');
+        }
+    })
+    .catch(() => showToast('Error adding RSS feed', 'error'));
+}
+
+function fetchRSSFeed(feedId) {
+    showToast('Fetching feed…', 'info');
+    fetch(`/api/led/rss/feeds/${feedId}/fetch`, {method: 'POST'})
+    .then(r => r.json())
+    .then(res => {
+        if (res.success) {
+            showToast(`Feed refreshed: ${res.added} new items (${res.total} total)`, 'success');
+            refreshRSSFeeds();
+            if (selectedRSSFeedId === feedId) loadRSSFeedItems(feedId);
+        } else {
+            showToast('Fetch failed: ' + res.error, 'error');
+        }
+    })
+    .catch(() => showToast('Error fetching feed', 'error'));
+}
+
+function deleteRSSFeed(feedId) {
+    if (!confirm('Delete this RSS feed and all its items?')) return;
+    fetch(`/api/led/rss/feeds/${feedId}`, {method: 'DELETE'})
+    .then(r => r.json())
+    .then(res => {
+        if (res.success) { showToast('Feed deleted', 'success'); refreshRSSFeeds(); }
+        else showToast('Error: ' + res.error, 'error');
+    });
+}
+
+function loadRSSFeedItems(feedId, feedName) {
+    selectedRSSFeedId = feedId;
+    selectedRSSItemIds = [];
+    document.getElementById('rss-send-btn').disabled = true;
+
+    fetch(`/api/led/rss/feeds/${feedId}/items`)
+    .then(r => r.json())
+    .then(data => {
+        const panel = document.getElementById('rss-items-panel');
+        if (!data.success || !data.items.length) {
+            panel.innerHTML = '<div class="text-muted text-center small py-2">No items — click 🔄 to fetch.</div>';
+            return;
+        }
+        panel.innerHTML = `<div class="mb-2 fw-semibold" style="font-size:.8em">${escapeHtml(feedName || 'Items')}</div>` +
+            data.items.map(it => `
+                <div class="rss-item-row" style="cursor:pointer" onclick="toggleRSSItem(${it.id}, this)" data-id="${it.id}">
+                    <div style="font-weight:600;font-size:.85em">${escapeHtml(it.title)}</div>
+                    ${it.published ? `<div class="text-muted" style="font-size:.72em">${new Date(it.published).toLocaleString()}</div>` : ''}
+                </div>
+            `).join('');
+    });
+}
+
+function toggleRSSItem(itemId, el) {
+    const idx = selectedRSSItemIds.indexOf(itemId);
+    if (idx === -1) {
+        if (selectedRSSItemIds.length >= 4) {
+            showToast('Max 4 items (4 sign lines)', 'warning');
+            return;
+        }
+        selectedRSSItemIds.push(itemId);
+        el.style.borderLeftColor = 'var(--success-color)';
+        el.style.background = 'rgba(25,135,84,.15)';
+    } else {
+        selectedRSSItemIds.splice(idx, 1);
+        el.style.borderLeftColor = '';
+        el.style.background = '';
+    }
+    document.getElementById('rss-send-btn').disabled = selectedRSSItemIds.length === 0;
+}
+
+function sendRSSToSign() {
+    if (!selectedRSSItemIds.length) { showToast('Select items to send', 'error'); return; }
+    fetch('/api/led/rss/send', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ item_ids: selectedRSSItemIds }),
+    })
+    .then(r => r.json())
+    .then(res => {
+        if (res.success) {
+            showToast('RSS items sent to sign!', 'success');
+            selectedRSSItemIds = [];
+            document.getElementById('rss-send-btn').disabled = true;
+            if (selectedRSSFeedId) loadRSSFeedItems(selectedRSSFeedId);
+            loadMessageHistory();
+        } else {
+            showToast('Failed: ' + res.error, 'error');
+        }
+    })
+    .catch(() => showToast('Error sending RSS', 'error'));
+}
+
+function sendAllFeedsRSS() {
+    const enabledFeeds = rssFeeds.filter(f => f.enabled && f.item_count > 0);
+    if (!enabledFeeds.length) {
+        showToast('No enabled feeds with items', 'warning');
+        return;
+    }
+    fetch('/api/led/rss/send', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ feed_id: enabledFeeds[0].id }),
+    })
+    .then(r => r.json())
+    .then(res => {
+        if (res.success) showToast(`RSS sent: ${res.lines.filter(l => l).join(' | ')}`, 'success');
+        else showToast('Failed: ' + res.error, 'error');
+    })
+    .catch(() => showToast('Error', 'error'));
+}
+
+function escapeHtml(str) {
+    return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Init additions ──────────────────────────────────────────────────────────
+
+const _origInitLEDControl = initLEDControl;
+function initLEDControl() {
+    _origInitLEDControl();
+    rebuildDotsGrid();
+    refreshRSSFeeds();
+
+    // Seed the canvas simulator with placeholder text so it renders immediately
+    const sim = _getOrCreateSim();
+    const placeholders = ['ALPHA 9120C', 'M-PROTOCOL', 'EAS STATION', 'READY'];
+    placeholders.forEach((txt, i) => sim.setLine(i, txt, 'GREEN', 'HOLD', 'SPEED_3'));
+
+    // Resize canvas whenever the simulator panel becomes visible
+    // (e.g. tab switching causes zero-width on hidden panels)
+    document.querySelectorAll('[data-bs-toggle="tab"]').forEach(tab => {
+        tab.addEventListener('shown.bs.tab', () => {
+            if (_ledSim) _ledSim._resize();
+        });
+    });
+    window.addEventListener('resize', () => { if (_ledSim) _ledSim._resize(); });
 }
 
 // Initialize when DOM is loaded

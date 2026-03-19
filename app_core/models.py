@@ -1400,6 +1400,52 @@ class LEDSignStatus(db.Model):
     baud_rate = db.Column(db.Integer, default=9600)  # Serial baud rate
 
 
+class LEDRSSFeed(db.Model):
+    """RSS feed source for LED sign ticker display."""
+    __tablename__ = "led_rss_feeds"
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    url = db.Column(db.String(500), nullable=False)
+    enabled = db.Column(db.Boolean, nullable=False, default=True)
+    interval_minutes = db.Column(db.Integer, default=15)
+    color = db.Column(db.String(20), default="AMBER")
+    effect = db.Column(db.String(20), default="ROLL_LEFT")
+    speed = db.Column(db.String(20), default="SPEED_3")
+    max_items = db.Column(db.Integer, default=5)
+    last_fetched = db.Column(db.DateTime(timezone=True), nullable=True)
+    auto_send = db.Column(db.Boolean, default=False)
+    priority = db.Column(db.Integer, default=3)
+    created_at = db.Column(db.DateTime(timezone=True), default=utc_now)
+
+    items = db.relationship(
+        "LEDRSSItem",
+        backref="feed",
+        lazy=True,
+        cascade="all, delete-orphan",
+    )
+
+
+class LEDRSSItem(db.Model):
+    """Cached item from an RSS feed ready for LED display."""
+    __tablename__ = "led_rss_items"
+
+    id = db.Column(db.Integer, primary_key=True)
+    feed_id = db.Column(
+        db.Integer,
+        db.ForeignKey("led_rss_feeds.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    title = db.Column(db.String(200), nullable=False)
+    summary = db.Column(db.Text)
+    link = db.Column(db.String(500))
+    published = db.Column(db.DateTime(timezone=True))
+    last_shown = db.Column(db.DateTime(timezone=True))
+    show_count = db.Column(db.Integer, default=0)
+    guid = db.Column(db.String(500))
+    created_at = db.Column(db.DateTime(timezone=True), default=utc_now)
+
+
 class VFDDisplay(db.Model):
     """VFD display content and state tracking."""
     __tablename__ = "vfd_displays"
