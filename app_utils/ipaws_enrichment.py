@@ -154,12 +154,74 @@ def _parse_openssl_date(date_str: str) -> Optional[datetime]:
     return None
 
 
+def _canonicalize_signed_info(raw_xml: str) -> Optional[bytes]:
+    """Extract and canonicalize the SignedInfo element using lxml's C14N support.
+
+    XML digital signatures are computed over a *canonicalized* (C14N) serialization
+    of the SignedInfo element, not the raw text bytes.  Without proper C14N the
+    signature bytes will never match, even for a perfectly valid certificate.
+
+    Supports both inclusive C14N 1.0 and exclusive C14N (#exc-c14n) as indicated
+    by the CanonicalizationMethod/@Algorithm attribute inside the SignedInfo block.
+
+    Returns:
+        Canonical UTF-8 bytes of the SignedInfo element, or None when lxml is
+        unavailable or the element cannot be located / parsed.
+    """
+    try:
+        from lxml import etree
+    except ImportError:
+        return None
+
+    try:
+        doc = etree.fromstring(raw_xml.encode('utf-8'))
+    except etree.XMLSyntaxError:
+        return None
+
+    # Locate SignedInfo regardless of namespace prefix
+    signed_info = None
+    for elem in doc.iter():
+        try:
+            if etree.QName(elem.tag).localname == 'SignedInfo':
+                signed_info = elem
+                break
+        except Exception:
+            continue
+
+    if signed_info is None:
+        return None
+
+    # Determine the canonicalization algorithm from CanonicalizationMethod child
+    c14n_alg = ''
+    for child in signed_info:
+        try:
+            if etree.QName(child.tag).localname == 'CanonicalizationMethod':
+                c14n_alg = child.get('Algorithm', '')
+                break
+        except Exception:
+            continue
+
+    exclusive = 'exc-c14n' in c14n_alg or '#exc-c14n' in c14n_alg
+
+    try:
+        canonical = etree.tostring(
+            signed_info,
+            method='c14n',
+            exclusive=exclusive,
+            with_comments=False,
+        )
+        return canonical
+    except Exception as exc:
+        logger.debug('C14N canonicalization failed: %s', exc)
+        return None
+
+
 def _verify_xml_signature(raw_xml: str, cert_b64: str) -> Dict[str, Any]:
     """Verify the XML digital signature using the embedded certificate.
 
     Attempts verification in order:
-    1. ``cryptography`` Python library (fast, in-process)
-    2. ``openssl`` CLI (fallback)
+    1. ``cryptography`` Python library with C14N (lxml) canonicalization
+    2. ``openssl`` CLI fallback with C14N canonicalization
     3. Reports presence of signature elements if verification unavailable
 
     Returns:
@@ -190,7 +252,7 @@ def _verify_xml_signature(raw_xml: str, cert_b64: str) -> Dict[str, Any]:
         result['signature_status'] = 'No DigestValue found in XML'
         return result
 
-    # Extract SignedInfo block for signature verification
+    # Extract SignedInfo block (regex fallback for when lxml is unavailable)
     signed_info_match = re.search(
         r'(<(?:\w+:)?SignedInfo[\s>].*?</(?:\w+:)?SignedInfo>)',
         raw_xml,
@@ -200,13 +262,22 @@ def _verify_xml_signature(raw_xml: str, cert_b64: str) -> Dict[str, Any]:
         result['signature_status'] = 'No SignedInfo block found'
         return result
 
+    # Canonicalize SignedInfo using lxml (required for valid signature check)
+    canonical_signed_info = _canonicalize_signed_info(raw_xml)
+
     # Try verification via cryptography library first
-    crypto_result = _verify_with_cryptography(cert_b64, sig_value_match, signed_info_match, raw_xml)
+    crypto_result = _verify_with_cryptography(
+        cert_b64, sig_value_match, signed_info_match, raw_xml,
+        canonical_signed_info=canonical_signed_info,
+    )
     if crypto_result is not None:
         return crypto_result
 
     # Fall back to openssl CLI verification
-    openssl_result = _verify_with_openssl(cert_b64, sig_value_match, signed_info_match, raw_xml)
+    openssl_result = _verify_with_openssl(
+        cert_b64, sig_value_match, signed_info_match, raw_xml,
+        canonical_signed_info=canonical_signed_info,
+    )
     if openssl_result is not None:
         return openssl_result
 
@@ -215,8 +286,14 @@ def _verify_xml_signature(raw_xml: str, cert_b64: str) -> Dict[str, Any]:
     return result
 
 
-def _verify_with_cryptography(cert_b64, sig_value_match, signed_info_match, raw_xml):
-    """Try signature verification using the cryptography library."""
+def _verify_with_cryptography(cert_b64, sig_value_match, signed_info_match, raw_xml,
+                              canonical_signed_info: Optional[bytes] = None):
+    """Try signature verification using the cryptography library.
+
+    Uses the C14N-canonicalized SignedInfo bytes when available (produced by
+    ``_canonicalize_signed_info`` via lxml).  Falls back to raw regex-extracted
+    bytes when lxml is not installed, which will fail for most real IPAWS alerts.
+    """
     try:
         from cryptography.x509 import load_der_x509_certificate
         from cryptography.hazmat.primitives import hashes
@@ -242,7 +319,11 @@ def _verify_with_cryptography(cert_b64, sig_value_match, signed_info_match, raw_
             sig_method_match.group(1) if sig_method_match else ''
         )
 
-        signed_info_bytes = signed_info_match.group(1).encode('utf-8')
+        # Prefer C14N-canonicalized bytes; fall back to raw text
+        if canonical_signed_info is not None:
+            signed_info_bytes = canonical_signed_info
+        else:
+            signed_info_bytes = signed_info_match.group(1).encode('utf-8')
 
         if isinstance(public_key, rsa.RSAPublicKey):
             public_key.verify(sig_bytes, signed_info_bytes, padding.PKCS1v15(), hash_algo)
@@ -261,17 +342,23 @@ def _verify_with_cryptography(cert_b64, sig_value_match, signed_info_match, raw_
     except Exception as exc:
         exc_name = type(exc).__name__
         result['signature_verified'] = False
-        result['signature_status'] = 'Could not verify (C14N canonicalization required)'
+        if canonical_signed_info is None:
+            result['signature_status'] = 'Could not verify (C14N canonicalization required)'
+        else:
+            result['signature_status'] = f'Signature invalid ({exc_name})'
         logger.debug('XML signature verification (cryptography) failed: %s: %s', exc_name, exc)
 
     return result
 
 
-def _verify_with_openssl(cert_b64, sig_value_match, signed_info_match, raw_xml):
+def _verify_with_openssl(cert_b64, sig_value_match, signed_info_match, raw_xml,
+                         canonical_signed_info: Optional[bytes] = None):
     """Try signature verification using the openssl CLI.
 
     Uses ``openssl dgst -verify`` to check the signature on the SignedInfo
-    block against the public key extracted from the certificate.
+    block against the public key extracted from the certificate.  When
+    C14N-canonicalized bytes are provided they are used as the data to verify;
+    otherwise falls back to raw regex-extracted bytes (which will normally fail).
     """
     import subprocess
     import tempfile
@@ -293,7 +380,11 @@ def _verify_with_openssl(cert_b64, sig_value_match, signed_info_match, raw_xml):
     hash_name = _resolve_hash_name(sig_method_match.group(1) if sig_method_match else '')
 
     sig_b64 = sig_value_match.group(1).strip()
-    signed_info_bytes = signed_info_match.group(1).encode('utf-8')
+    # Prefer C14N-canonicalized bytes; fall back to raw regex-extracted bytes
+    if canonical_signed_info is not None:
+        signed_info_bytes = canonical_signed_info
+    else:
+        signed_info_bytes = signed_info_match.group(1).encode('utf-8')
 
     try:
         sig_bytes = base64.b64decode(sig_b64)
@@ -341,11 +432,11 @@ def _verify_with_openssl(cert_b64, sig_value_match, signed_info_match, raw_xml):
             result['signature_verified'] = True
             result['signature_status'] = 'Valid (verified via openssl)'
         else:
-            # Signature mismatch — likely due to missing XML C14N canonicalization.
-            # Without lxml, we verify against the raw SignedInfo bytes which may
-            # differ from the canonical form the signature was computed over.
             result['signature_verified'] = False
-            result['signature_status'] = 'Could not verify (C14N canonicalization required)'
+            if canonical_signed_info is None:
+                result['signature_status'] = 'Could not verify (C14N canonicalization required)'
+            else:
+                result['signature_status'] = 'Signature invalid'
 
     except FileNotFoundError:
         logger.debug('openssl not found for signature verification')

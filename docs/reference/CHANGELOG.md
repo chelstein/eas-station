@@ -6,6 +6,35 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.63.0] - 2026-03-19 - Coverage calculation fix and XML signature C14N verification
+
+### Fixed
+- **Coverage percentage calculation** – The denominator in `calculate_coverage_percentages`
+  now uses the total area of **only the boundaries that intersect with the alert**, instead
+  of the total area of all boundaries of that type in the entire database.  The old formula
+  produced misleadingly low percentages (e.g. 6 %) when the system contained many more
+  boundaries than those actually affected by the alert.  The new formula correctly reports
+  100 % when the alert fully covers every boundary it touches.
+- **County-wide fallback producing wrong 100 % coverage** – The alert detail view had a
+  fallback that set 100 % estimated coverage for all boundaries in the database whenever
+  `is_county_wide=True` and no intersection records existed.  This caused alerts for other
+  counties (e.g. a Henry County alert on a station configured for Putnam County) to show
+  100 % for the *wrong* county's boundaries.  The fallback now only fires when the
+  boundaries table is completely empty (station not yet configured); when boundaries exist
+  but none intersect with the alert, coverage is correctly reported as 0 %.
+- **"Calculate Coverage Percentage" button failing with missing geometry** – The
+  `/admin/calculate_single_alert/<id>` endpoint returned 400 when the alert had no geometry
+  yet.  It now calls `try_build_geometry_from_same_codes()` first (matching what the alert
+  detail page does), so the button works even before geometry has been derived from SAME
+  geocodes.
+- **XML digital signature verification** – Added `_canonicalize_signed_info()` helper in
+  `app_utils/ipaws_enrichment.py` that uses lxml's C14N serialization to produce the
+  canonical form of the `SignedInfo` element before attempting signature verification.
+  Both the `cryptography`-library path and the `openssl`-CLI fallback path now use the
+  canonicalized bytes.  Previously all verification attempts failed with
+  "Could not verify (C14N canonicalization required)" because the raw XML text bytes
+  were used instead of the canonical form the signature was computed over.
+
 ## [2.62.2] - 2026-03-19 - Comprehensive unauthenticated route access fix
 
 ### Fixed

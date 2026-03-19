@@ -200,13 +200,22 @@ def calculate_coverage_percentages(alert_id, intersections):
             boundary_types.setdefault(boundary.type, []).append((intersection, boundary))
 
         for boundary_type, boundaries in boundary_types.items():
-            all_boundaries_of_type = Boundary.query.filter_by(type=boundary_type).all()
-            if not all_boundaries_of_type:
+            if not boundaries:
                 continue
 
+            # Count all boundaries of this type for display purposes
+            total_count = Boundary.query.filter_by(type=boundary_type).count()
+            if not total_count:
+                continue
+
+            # Coverage percentage is calculated as:
+            #   sum(intersection areas) / sum(full areas of intersecting boundaries)
+            # This answers "what percentage of the affected boundary area does the
+            # alert actually cover?" rather than dividing by all boundaries system-wide.
+            boundary_ids = [boundary.id for _, boundary in boundaries]
             total_area_query = db.session.query(
                 func.sum(func.ST_Area(Boundary.geom)).label('total_area')
-            ).filter(Boundary.type == boundary_type).first()
+            ).filter(Boundary.id.in_(boundary_ids)).first()
 
             total_area = total_area_query.total_area if total_area_query and total_area_query.total_area else 0
 
@@ -220,7 +229,7 @@ def calculate_coverage_percentages(alert_id, intersections):
                 coverage_percentage = min(100.0, max(0.0, coverage_percentage))
 
             coverage_data[boundary_type] = {
-                'total_boundaries': len(all_boundaries_of_type),
+                'total_boundaries': total_count,
                 'affected_boundaries': len(boundaries),
                 'coverage_percentage': round(coverage_percentage, 1),
                 'total_area_sqm': total_area,
