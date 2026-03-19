@@ -314,7 +314,17 @@ def calculate_single_alert(alert_id: int):
     try:
         alert = CAPAlert.query.get_or_404(alert_id)
 
+        # Try to build geometry from SAME geocodes if not already present.
+        # This mirrors what the alert_detail view does so that clicking the
+        # "Calculate Coverage Percentage" button works even before the geometry
+        # has been written to the alert record.
         if not alert.geom:
+            from .coverage import try_build_geometry_from_same_codes
+            try_build_geometry_from_same_codes(alert_id)
+            # Re-fetch to pick up any newly committed geometry
+            alert = CAPAlert.query.get(alert_id)
+
+        if not alert or not alert.geom:
             return jsonify({"error": "Alert has no geometry data"}), 400
 
         deleted_count = Intersection.query.filter_by(

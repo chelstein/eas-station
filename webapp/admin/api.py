@@ -552,41 +552,38 @@ def alert_detail(alert_id):
         is_actually_county_wide = county_coverage >= 95.0
 
         if not coverage_data and is_county_wide:
-            boundary_totals = db.session.query(
-                Boundary.type,
-                func.count(Boundary.id),
-            ).group_by(Boundary.type).all()
+            # The fallback only applies when the boundaries table is completely
+            # empty – i.e. the station has not yet had any boundary files
+            # uploaded.  In that case we show an estimated 100 % for the
+            # configured county so the operator sees something useful.
+            #
+            # If boundaries ARE present in the database but none of them
+            # intersected with this alert's geometry, that means the alert
+            # covers a different county (or a county for which boundaries
+            # have not been uploaded).  Reporting 100 % coverage for ALL
+            # boundaries in the database would be wrong – those boundaries
+            # belong to a different county.  Leave coverage_data empty so
+            # that the template shows 0 % / N/A correctly.
+            total_boundary_count = db.session.query(
+                func.count(Boundary.id)
+            ).scalar() or 0
 
-            coverage_data = {}
-            for boundary_type, boundary_count in boundary_totals:
-                entry = {
-                    'total_boundaries': boundary_count,
-                    'affected_boundaries': boundary_count,
-                    'coverage_percentage': 100.0,
-                    'total_area_sqm': None,
-                    'intersected_area_sqm': None,
-                    'is_estimated': True,
+            if total_boundary_count == 0:
+                # No boundaries configured at all – show estimated county-level
+                # 100 % as a placeholder until boundaries are uploaded.
+                coverage_data = {
+                    'county': {
+                        'total_boundaries': 0,
+                        'affected_boundaries': 0,
+                        'coverage_percentage': 100.0,
+                        'total_area_sqm': None,
+                        'intersected_area_sqm': None,
+                        'is_estimated': True,
+                    }
                 }
-
-                if boundary_type == 'county':
-                    coverage_data['county'] = entry
-                else:
-                    coverage_data[boundary_type] = entry
-
-            # Always ensure county coverage is set when is_county_wide is True,
-            # even if no local boundaries are loaded in the boundaries table.
-            if 'county' not in coverage_data:
-                coverage_data['county'] = {
-                    'total_boundaries': 1,
-                    'affected_boundaries': 1,
-                    'coverage_percentage': 100.0,
-                    'total_area_sqm': None,
-                    'intersected_area_sqm': None,
-                    'is_estimated': True,
-                }
-
-            county_coverage = coverage_data['county']['coverage_percentage']
-            is_actually_county_wide = True
+                county_coverage = 100.0
+                is_actually_county_wide = True
+            # else: boundaries exist but none intersect → coverage stays 0 %
 
         suppress_boundary_details = is_actually_county_wide
 
