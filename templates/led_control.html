@@ -808,27 +808,21 @@
                                 </div>
                             </div>
 
-                            <!-- LED Sign Simulator -->
+                            <!-- LED Sign Simulator — Canvas -->
                             <div class="mb-3">
-                                <label class="form-label fw-semibold">Sign Simulator <span class="badge bg-secondary ms-1" style="font-size:.6em">LIVE</span></label>
-                                <div class="led-sign-panel">
-                                    <div class="led-sign-header">
-                                        <span>
-                                            <span class="led-indicator green" id="sim-power-led"></span>
-                                            <span class="led-indicator amber" id="sim-msg-led"></span>
-                                        </span>
-                                        <span class="led-sign-label">ALPHA 9120C · M-PROTOCOL</span>
-                                    </div>
-                                    {% for idx in range(4) %}
-                                    <div class="led-line-container" id="sim-line-container-{{ idx }}">
-                                        <div class="led-display-line lc-green mode-hold" id="sim-line-{{ idx }}">LINE {{ idx + 1 }}</div>
-                                        <span class="led-line-tag" id="sim-line-tag-{{ idx }}">HOLD</span>
-                                    </div>
-                                    {% endfor %}
+                                <label class="form-label fw-semibold">
+                                    Sign Simulator
+                                    <span class="badge bg-success ms-1" style="font-size:.6em">LIVE</span>
+                                </label>
+                                <div class="led-sign-panel p-0" style="padding:0!important;overflow:hidden;border-radius:8px;">
+                                    <canvas id="led-sim-canvas" style="display:block;width:100%;image-rendering:auto;border-radius:6px;"></canvas>
                                 </div>
                                 <div class="mt-1 d-flex align-items-center gap-2">
                                     <small class="text-muted flex-grow-1" id="effect-description">Effect: Static display</small>
-                                    <button type="button" class="btn btn-xs btn-outline-secondary" style="font-size:.7em;padding:2px 6px" onclick="toggleSimPause()" id="sim-pause-btn" title="Pause/Resume animations">⏸</button>
+                                    <button type="button" class="btn btn-xs btn-outline-secondary"
+                                            style="font-size:.7em;padding:2px 6px"
+                                            onclick="toggleSimPause()" id="sim-pause-btn"
+                                            title="Pause/Resume animations">⏸</button>
                                 </div>
                             </div>
 
@@ -1687,30 +1681,9 @@ function applyLineStyle(editor) {
     }
 }
 
-function refreshMainPreview() {
-    const payload = buildLinePayload();
-    payload.forEach((line, idx) => {
-        const previewLine = document.getElementById(`preview-line${idx + 1}`);
-        if (!previewLine) return;
-        const segment = line.segments[0] || { text: '' };
-        const text = segment.text || '';
-        previewLine.textContent = text || (idx <= 1 ? ['Enter message', 'to see preview'][idx] : '');
-        const colorValue = resolveLineColor(segment.color || line.color);
-        const modeValue = resolveLineMode(segment.mode || line.mode);
-        previewLine.style.color = colorMap[colorValue] || '#00ff00';
-        previewLine.style.fontSize = fontSizeMap[document.getElementById('custom-font').value] || '1.0em';
-        previewLine.className = 'preview-line';
-        if (colorValue && (colorValue.includes('RAINBOW') || colorValue === 'COLOR_MIX')) {
-            previewLine.classList.add('rainbow-text');
-        }
-        if (modeValue === 'FLASH') {
-            previewLine.classList.add('flash-preview');
-        }
-    });
-
-    const activeMode = document.getElementById('custom-mode').value;
-    document.getElementById('effect-description').textContent = `Effect: ${modeDescriptions[activeMode] || activeMode}`;
-}
+// refreshMainPreview was moved below to integrate with the LEDSignSimulator
+// canvas implementation. The canvas-based version supersedes the old DOM-only
+// implementation and must be defined after LEDSignSimulator is declared.
 
 function updateLineState(index) {
     const editor = document.querySelector(`.line-editor[data-line-index="${index}"]`);
@@ -2602,105 +2575,549 @@ function showToast(message, type = 'info') {
     }, 5000);
 }
 
-// ── LED Sign Simulator ─────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+// LEDSignSimulator — canvas-based accurate M-Protocol display-mode renderer
+// Each line has its own independent animation timer so mixed-mode layouts
+// (e.g. Line 1 static, Line 2 scrolling, Line 3 flashing) render correctly.
+// ══════════════════════════════════════════════════════════════════════════════
 
-const MODE_CLASS_MAP = {
-    'HOLD': 'mode-hold', 'FLASH': 'mode-flash',
-    'SCROLL': 'mode-scroll', 'ROTATE': 'mode-rotate',
-    'COMPRESSED_ROTATE': 'mode-compressed-rotate',
-    'ROLL_LEFT': 'mode-roll-left', 'ROLL_RIGHT': 'mode-roll-right',
-    'ROLL_UP': 'mode-roll-up', 'ROLL_DOWN': 'mode-roll-down',
-    'WIPE_LEFT': 'mode-wipe-left', 'WIPE_RIGHT': 'mode-wipe-right',
-    'WIPE_UP': 'mode-wipe-up', 'WIPE_DOWN': 'mode-wipe-down',
-    'ROLL_IN': 'mode-roll-in', 'ROLL_OUT': 'mode-roll-out',
-    'WIPE_IN': 'mode-wipe-in', 'WIPE_OUT': 'mode-wipe-out',
-    'EXPLODE': 'mode-explode', 'AUTO_MODE': 'mode-auto', 'CLOCK': 'mode-clock',
-    'DEFAULT': 'mode-hold',
-};
+class LEDSignSimulator {
+    constructor(canvasId) {
+        this.canvas  = document.getElementById(canvasId);
+        if (!this.canvas) return;
+        this.ctx     = this.canvas.getContext('2d');
+        this.dpr     = window.devicePixelRatio || 1;
+        this.paused  = false;
+        this.lastTs  = 0;
+        this.LINE_H  = 34;   // px per sign line (logical)
+        this.PAD     = 10;   // top/bottom padding
+        this.NUM_LINES = 4;
 
-const SPEED_CLASS_MAP = {
-    'SPEED_1': 'speed-1', 'SPEED_2': 'speed-2', 'SPEED_3': 'speed-3',
-    'SPEED_4': 'speed-4', 'SPEED_5': 'speed-5', 'DEFAULT': 'speed-3',
-};
+        // Per-line state
+        this.lines = Array.from({length: this.NUM_LINES}, (_, i) => ({
+            text:  `LINE ${i + 1}`,
+            color: 'GREEN',
+            mode:  'HOLD',
+            speed: 3,
+            animT: 0,
+        }));
 
-const COLOR_CLASS_MAP = {
-    'RED': 'lc-red', 'GREEN': 'lc-green', 'AMBER': 'lc-amber',
-    'DIM_RED': 'lc-dim-red', 'DIM_GREEN': 'lc-dim-green',
-    'BROWN': 'lc-brown', 'ORANGE': 'lc-orange', 'YELLOW': 'lc-yellow',
-    'RAINBOW_1': 'lc-rainbow-1', 'RAINBOW_2': 'lc-rainbow-2',
-    'COLOR_MIX': 'lc-color-mix', 'AUTO_COLOR': 'lc-auto-color',
-    'DEFAULT': 'lc-default',
-};
+        // LED colour → hex + glow
+        this.COLOR_HEX = {
+            RED:        ['#ff2200', '#ff2200'],
+            GREEN:      ['#00ff44', '#00ff44'],
+            AMBER:      ['#ffaa00', '#ffaa00'],
+            DIM_RED:    ['#881100', '#550000'],
+            DIM_GREEN:  ['#007722', '#004411'],
+            BROWN:      ['#995500', '#663300'],
+            ORANGE:     ['#ff6600', '#ff6600'],
+            YELLOW:     ['#ffff00', '#ffff00'],
+            AUTO_COLOR: ['#ffffff', '#aaaaff'],
+            RAINBOW_1:  ['rainbow', 'rainbow'],
+            RAINBOW_2:  ['rainbow2', 'rainbow'],
+            COLOR_MIX:  ['rainbow', 'rainbow'],
+            DEFAULT:    ['#00ff44', '#00ff44'],
+        };
 
-const EFFECT_PILL_CLASS_MAP = {
-    'HOLD': 'ep-hold', 'FLASH': 'ep-flash',
-    'SCROLL': 'ep-scroll', 'ROTATE': 'ep-scroll',
-    'ROLL_LEFT': 'ep-roll', 'ROLL_RIGHT': 'ep-roll',
-    'ROLL_UP': 'ep-roll', 'ROLL_DOWN': 'ep-roll',
-    'ROLL_IN': 'ep-roll', 'ROLL_OUT': 'ep-roll',
-    'WIPE_LEFT': 'ep-wipe', 'WIPE_RIGHT': 'ep-wipe',
-    'WIPE_UP': 'ep-wipe', 'WIPE_DOWN': 'ep-wipe',
-    'WIPE_IN': 'ep-wipe', 'WIPE_OUT': 'ep-wipe',
-    'EXPLODE': 'ep-explode', 'AUTO_MODE': 'ep-auto',
-    'CLOCK': 'ep-clock', 'COMPRESSED_ROTATE': 'ep-scroll',
-    'DEFAULT': 'ep-hold',
-};
+        // Speed → full-cycle duration (seconds), matching Alpha sign spec
+        this.SPEED_DUR = { 1: 16, 2: 11, 3: 8, 4: 5, 5: 3 };
 
-let simPaused = false;
+        this._resize();
+        window.addEventListener('resize', () => this._resize());
+        this._raf = requestAnimationFrame(ts => this._tick(ts));
+    }
+
+    _resize() {
+        if (!this.canvas) return;
+        const parent = this.canvas.parentElement;
+        const w = parent ? parent.clientWidth || 360 : 360;
+        const h = this.NUM_LINES * this.LINE_H + this.PAD * 2;
+        this.canvas.style.width  = w + 'px';
+        this.canvas.style.height = h + 'px';
+        this.canvas.width  = Math.round(w * this.dpr);
+        this.canvas.height = Math.round(h * this.dpr);
+        this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+        this.W = w;
+        this.H = h;
+    }
+
+    setLine(idx, text, colorName, modeName, speedName) {
+        if (idx < 0 || idx >= this.NUM_LINES) return;
+        const line = this.lines[idx];
+        const prevMode = line.mode;
+        line.text  = String(text || '');
+        line.color = (colorName || 'GREEN').toUpperCase();
+        line.mode  = (modeName  || 'HOLD').toUpperCase();
+        const sp   = parseInt((speedName || 'SPEED_3').replace('SPEED_', '')) || 3;
+        line.speed = Math.max(1, Math.min(5, sp));
+        // Reset per-line timer when mode changes so the new effect starts cleanly
+        if (prevMode !== line.mode) line.animT = 0;
+    }
+
+    togglePause() {
+        this.paused = !this.paused;
+        return this.paused;
+    }
+
+    _tick(ts) {
+        const delta = this.paused ? 0 : Math.min((ts - this.lastTs) / 1000, 0.05);
+        this.lastTs = ts;
+        if (!this.paused) this.lines.forEach(l => { l.animT = (l.animT || 0) + delta; });
+        this._draw();
+        this._raf = requestAnimationFrame(ts2 => this._tick(ts2));
+    }
+
+    _draw() {
+        const { ctx, W, H, PAD, LINE_H } = this;
+
+        // Black background
+        ctx.fillStyle = '#030303';
+        ctx.fillRect(0, 0, W, H);
+
+        // Subtle LED dot-matrix grid
+        ctx.fillStyle = 'rgba(255,255,255,0.022)';
+        for (let gx = 2; gx < W; gx += 5)
+            for (let gy = 2; gy < H; gy += 5)
+                ctx.fillRect(gx, gy, 1.5, 1.5);
+
+        // Thin bezel-style inner border
+        ctx.strokeStyle = 'rgba(0,200,80,0.12)';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(0.5, 0.5, W - 1, H - 1);
+
+        // Draw each line row
+        for (let i = 0; i < this.NUM_LINES; i++) {
+            const y  = PAD + i * LINE_H;
+            const lh = LINE_H - 1;
+            this._drawLine(i, 0, y, W, lh);
+            // Row separator
+            if (i < this.NUM_LINES - 1) {
+                ctx.fillStyle = '#101010';
+                ctx.fillRect(0, y + lh, W, 1);
+            }
+        }
+    }
+
+    // ── Core per-line renderer ─────────────────────────────────────────────
+
+    _drawLine(idx, x, y, w, h) {
+        const { ctx } = this;
+        const line = this.lines[idx];
+        const text  = line.text;
+        const mode  = line.mode;
+        const t     = line.animT || 0;
+        const dur   = this.SPEED_DUR[line.speed] || 8;
+
+        ctx.save();
+        // Clip to this row
+        ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip();
+
+        // Font — slightly smaller than LINE_H to always fit
+        const fontSize = Math.round(h * 0.58);
+        ctx.font        = `bold ${fontSize}px 'Courier New', monospace`;
+        ctx.textBaseline = 'middle';
+
+        const textW = ctx.measureText(text).width;
+        const midY  = y + h / 2;
+
+        // Resolve colour (returns [fillStyle, shadowColor])
+        const [fill, shadow] = this._resolveColor(line.color, t);
+        ctx.fillStyle   = fill;
+        ctx.shadowColor = shadow;
+        ctx.shadowBlur  = 10;
+
+        // ── Dispatch to mode renderer ──────────────────────────────────────
+        switch (mode) {
+
+            // ── HOLD (static) ──
+            case 'HOLD':
+                if (text) ctx.fillText(text, x + 8, midY);
+                break;
+
+            // ── SCROLL / ROTATE / COMPRESSED_ROTATE — continuous marquee ──
+            case 'SCROLL':
+            case 'ROTATE':
+            case 'COMPRESSED_ROTATE': {
+                // total travel = container width + text width + margins
+                const travel   = w + textW + 16;
+                const progress = (t % dur) / dur;           // 0..1 linear
+                const textX    = x + w - progress * travel; // right → left
+                if (typeof fill === 'object') {
+                    // rainbow: rebuild gradient at current position
+                    const grad = ctx.createLinearGradient(textX, 0, textX + textW, 0);
+                    const hue0 = (t * 100) % 360;
+                    for (let s = 0; s <= 6; s++) grad.addColorStop(s / 6, `hsl(${(hue0 + s * 60) % 360},100%,55%)`);
+                    ctx.fillStyle = grad;
+                    ctx.shadowColor = '#ffaa00';
+                }
+                ctx.fillText(text, textX, midY);
+                break;
+            }
+
+            // ── FLASH — timed blink ──
+            case 'FLASH': {
+                // Flash rate: SPEED_1=0.85s, SPEED_5=0.18s (half-period)
+                const halfPeriod = [0.85, 0.6, 0.4, 0.28, 0.18][line.speed - 1] || 0.4;
+                const visible = Math.floor(t / halfPeriod) % 2 === 0;
+                if (visible && text) ctx.fillText(text, x + 8, midY);
+                break;
+            }
+
+            // ── ROLL_LEFT — slide in from right, hold, slide out left ──
+            case 'ROLL_LEFT': {
+                const phase = (t % dur) / dur;
+                const slideIn = 0.15, hold = 0.80;
+                let textX;
+                if (phase < slideIn) {
+                    const p = this._easeOut(phase / slideIn);
+                    textX = x + w + textW - p * (w + textW - 8);
+                } else if (phase < hold) {
+                    textX = x + 8;
+                } else {
+                    const p = this._easeIn((phase - hold) / (1 - hold));
+                    textX = x + 8 - p * (w + textW);
+                }
+                if (text) ctx.fillText(text, textX, midY);
+                break;
+            }
+
+            // ── ROLL_RIGHT — slide in from left, hold, slide out right ──
+            case 'ROLL_RIGHT': {
+                const phase = (t % dur) / dur;
+                const slideIn = 0.15, hold = 0.80;
+                let textX;
+                if (phase < slideIn) {
+                    const p = this._easeOut(phase / slideIn);
+                    textX = x - textW + p * (textW + 8);
+                } else if (phase < hold) {
+                    textX = x + 8;
+                } else {
+                    const p = this._easeIn((phase - hold) / (1 - hold));
+                    textX = x + 8 + p * (w + textW);
+                }
+                if (text) ctx.fillText(text, textX, midY);
+                break;
+            }
+
+            // ── ROLL_UP — slide in from below, hold, slide out above ──
+            case 'ROLL_UP': {
+                const phase = (t % dur) / dur;
+                let offsetY = 0, alpha = 1;
+                if (phase < 0.15) {
+                    const p = this._easeOut(phase / 0.15);
+                    offsetY = h * (1 - p); alpha = p;
+                } else if (phase < 0.80) {
+                    offsetY = 0; alpha = 1;
+                } else {
+                    const p = this._easeIn((phase - 0.80) / 0.20);
+                    offsetY = -h * p; alpha = 1 - p;
+                }
+                ctx.globalAlpha = alpha;
+                if (text) ctx.fillText(text, x + 8, midY + offsetY);
+                break;
+            }
+
+            // ── ROLL_DOWN — slide in from above, hold, slide out below ──
+            case 'ROLL_DOWN': {
+                const phase = (t % dur) / dur;
+                let offsetY = 0, alpha = 1;
+                if (phase < 0.15) {
+                    const p = this._easeOut(phase / 0.15);
+                    offsetY = -h * (1 - p); alpha = p;
+                } else if (phase < 0.80) {
+                    offsetY = 0; alpha = 1;
+                } else {
+                    const p = this._easeIn((phase - 0.80) / 0.20);
+                    offsetY = h * p; alpha = 1 - p;
+                }
+                ctx.globalAlpha = alpha;
+                if (text) ctx.fillText(text, x + 8, midY + offsetY);
+                break;
+            }
+
+            // ── WIPE_LEFT — reveal from right edge, wipe out left ──
+            case 'WIPE_LEFT': {
+                if (!text) break;
+                const phase = (t % dur) / dur;
+                let clipX, clipW;
+                if (phase < 0.40) {
+                    const p = this._easeOut(phase / 0.40);
+                    clipX = x + w * (1 - p); clipW = w * p;
+                } else if (phase < 0.80) {
+                    clipX = x; clipW = w;
+                } else {
+                    const p = this._easeIn((phase - 0.80) / 0.20);
+                    clipX = x; clipW = w * (1 - p);
+                }
+                ctx.restore(); ctx.save();
+                ctx.beginPath(); ctx.rect(Math.max(clipX, x), y, Math.min(clipW, w), h); ctx.clip();
+                ctx.font = `bold ${fontSize}px 'Courier New', monospace`;
+                ctx.textBaseline = 'middle';
+                ctx.fillStyle = fill; ctx.shadowColor = shadow; ctx.shadowBlur = 10;
+                ctx.fillText(text, x + 8, midY);
+                break;
+            }
+
+            // ── WIPE_RIGHT — reveal from left edge, wipe out right ──
+            case 'WIPE_RIGHT': {
+                if (!text) break;
+                const phase = (t % dur) / dur;
+                let clipW;
+                if (phase < 0.40) {
+                    clipW = w * this._easeOut(phase / 0.40);
+                } else if (phase < 0.80) {
+                    clipW = w;
+                } else {
+                    clipW = w * (1 - this._easeIn((phase - 0.80) / 0.20));
+                }
+                ctx.restore(); ctx.save();
+                ctx.beginPath(); ctx.rect(x, y, Math.min(clipW, w), h); ctx.clip();
+                ctx.font = `bold ${fontSize}px 'Courier New', monospace`;
+                ctx.textBaseline = 'middle';
+                ctx.fillStyle = fill; ctx.shadowColor = shadow; ctx.shadowBlur = 10;
+                ctx.fillText(text, x + 8, midY);
+                break;
+            }
+
+            // ── WIPE_UP — reveal from bottom edge ──
+            case 'WIPE_UP': {
+                if (!text) break;
+                const dur2 = dur * 0.75;
+                const phase = (t % dur2) / dur2;
+                let clipY, clipH;
+                if (phase < 0.40) {
+                    const p = this._easeOut(phase / 0.40);
+                    clipH = h * p; clipY = y + h - clipH;
+                } else if (phase < 0.80) {
+                    clipH = h; clipY = y;
+                } else {
+                    clipH = h * (1 - this._easeIn((phase - 0.80) / 0.20)); clipY = y;
+                }
+                ctx.restore(); ctx.save();
+                ctx.beginPath(); ctx.rect(x, clipY, w, clipH); ctx.clip();
+                ctx.font = `bold ${fontSize}px 'Courier New', monospace`;
+                ctx.textBaseline = 'middle';
+                ctx.fillStyle = fill; ctx.shadowColor = shadow; ctx.shadowBlur = 10;
+                ctx.fillText(text, x + 8, midY);
+                break;
+            }
+
+            // ── WIPE_DOWN — reveal from top edge ──
+            case 'WIPE_DOWN': {
+                if (!text) break;
+                const dur2 = dur * 0.75;
+                const phase = (t % dur2) / dur2;
+                let clipH;
+                if (phase < 0.40) {
+                    clipH = h * this._easeOut(phase / 0.40);
+                } else if (phase < 0.80) {
+                    clipH = h;
+                } else {
+                    clipH = h * (1 - this._easeIn((phase - 0.80) / 0.20));
+                }
+                ctx.restore(); ctx.save();
+                ctx.beginPath(); ctx.rect(x, y, w, Math.min(clipH, h)); ctx.clip();
+                ctx.font = `bold ${fontSize}px 'Courier New', monospace`;
+                ctx.textBaseline = 'middle';
+                ctx.fillStyle = fill; ctx.shadowColor = shadow; ctx.shadowBlur = 10;
+                ctx.fillText(text, x + 8, midY);
+                break;
+            }
+
+            // ── ROLL_IN — scale X in from center ──
+            case 'ROLL_IN': {
+                if (!text) break;
+                const phase = (t % dur) / dur;
+                let scaleX = 1, alpha = 1;
+                if (phase < 0.20) {
+                    scaleX = this._easeOut(phase / 0.20);
+                } else if (phase >= 0.80) {
+                    scaleX = 1 - this._easeIn((phase - 0.80) / 0.20);
+                    alpha  = scaleX;
+                }
+                ctx.globalAlpha = alpha;
+                ctx.translate(x + w / 2, midY);
+                ctx.scale(Math.max(scaleX, 0), 1);
+                ctx.fillText(text, -(ctx.measureText(text).width / 2), 0);
+                break;
+            }
+
+            // ── ROLL_OUT — scale X out from center ──
+            case 'ROLL_OUT': {
+                if (!text) break;
+                const phase = (t % dur) / dur;
+                let scaleX = 1;
+                if (phase < 0.20) {
+                    scaleX = 1 - this._easeOut(phase / 0.20);
+                    ctx.globalAlpha = scaleX;
+                } else if (phase < 0.80) {
+                    scaleX = 0; ctx.globalAlpha = 0;  // hidden
+                } else {
+                    scaleX = this._easeIn((phase - 0.80) / 0.20);
+                }
+                if (scaleX > 0) {
+                    ctx.translate(x + w / 2, midY);
+                    ctx.scale(Math.max(scaleX, 0), 1);
+                    ctx.fillText(text, -(ctx.measureText(text).width / 2), 0);
+                }
+                break;
+            }
+
+            // ── WIPE_IN — reveal outward from center ──
+            case 'WIPE_IN': {
+                if (!text) break;
+                const phase  = (t % dur) / dur;
+                const cx     = x + w / 2;
+                let halfW;
+                if (phase < 0.40) {
+                    halfW = (w / 2) * this._easeOut(phase / 0.40);
+                } else if (phase < 0.80) {
+                    halfW = w / 2;
+                } else {
+                    halfW = (w / 2) * (1 - this._easeIn((phase - 0.80) / 0.20));
+                }
+                ctx.restore(); ctx.save();
+                ctx.beginPath(); ctx.rect(cx - halfW, y, halfW * 2, h); ctx.clip();
+                ctx.font = `bold ${fontSize}px 'Courier New', monospace`;
+                ctx.textBaseline = 'middle';
+                ctx.fillStyle = fill; ctx.shadowColor = shadow; ctx.shadowBlur = 10;
+                ctx.fillText(text, x + 8, midY);
+                break;
+            }
+
+            // ── WIPE_OUT — hide inward toward center ──
+            case 'WIPE_OUT': {
+                if (!text) break;
+                const phase  = (t % dur) / dur;
+                const cx     = x + w / 2;
+                let halfW;
+                if (phase < 0.40) {
+                    halfW = (w / 2) * (1 - this._easeOut(phase / 0.40));
+                } else if (phase < 0.80) {
+                    halfW = 0;  // hidden
+                } else {
+                    halfW = (w / 2) * this._easeIn((phase - 0.80) / 0.20);
+                }
+                if (halfW > 0) {
+                    ctx.restore(); ctx.save();
+                    ctx.beginPath(); ctx.rect(cx - halfW, y, halfW * 2, h); ctx.clip();
+                    ctx.font = `bold ${fontSize}px 'Courier New', monospace`;
+                    ctx.textBaseline = 'middle';
+                    ctx.fillStyle = fill; ctx.shadowColor = shadow; ctx.shadowBlur = 10;
+                    ctx.fillText(text, x + 8, midY);
+                }
+                break;
+            }
+
+            // ── EXPLODE — scale up + fade ──
+            case 'EXPLODE': {
+                if (!text) break;
+                const phase = (t % dur) / dur;
+                let scale = 1, alpha = 1;
+                if (phase < 0.25) {
+                    scale = 0.05 + this._easeOut(phase / 0.25) * 0.95;
+                    alpha = this._easeOut(phase / 0.25);
+                } else if (phase < 0.75) {
+                    scale = 1; alpha = 1;
+                } else {
+                    const p = this._easeIn((phase - 0.75) / 0.25);
+                    scale = 1 + p * 0.8; alpha = 1 - p;
+                }
+                ctx.globalAlpha = alpha;
+                const centeredX = x + w / 2 - ctx.measureText(text).width * scale / 2;
+                ctx.translate(x + w / 2, midY);
+                ctx.scale(scale, scale);
+                ctx.fillText(text, -ctx.measureText(text).width / 2, 0);
+                break;
+            }
+
+            // ── AUTO_MODE — cycles through scroll → flash → roll_left ──
+            case 'AUTO_MODE': {
+                const autoModes = ['SCROLL', 'FLASH', 'ROLL_LEFT', 'WIPE_RIGHT'];
+                const autoIdx   = Math.floor(t / dur) % autoModes.length;
+                const saved     = line.mode;
+                line.mode       = autoModes[autoIdx];
+                ctx.restore();
+                this._drawLine(idx, x, y, w, h);
+                line.mode = saved;
+                return;   // _drawLine already called ctx.restore()
+            }
+
+            // ── CLOCK — shows live time ──
+            case 'CLOCK': {
+                const now = new Date();
+                const ts2 = now.toLocaleTimeString('en-US', {hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false});
+                ctx.fillText(ts2, x + 8, midY);
+                break;
+            }
+
+            // ── Default / HOLD ──
+            default:
+                if (text) ctx.fillText(text, x + 8, midY);
+                break;
+        }
+
+        ctx.restore();
+    }
+
+    // ── Colour resolver ──────────────────────────────────────────────────────
+    _resolveColor(name, t) {
+        if (!name || name === 'DEFAULT') name = 'GREEN';
+        const entry = this.COLOR_HEX[name];
+        if (!entry) return ['#00ff44', '#00ff44'];
+        const [fill, glow] = entry;
+        if (fill === 'rainbow' || fill === 'rainbow2') {
+            const hue = ((t || 0) * 80 + (fill === 'rainbow2' ? 180 : 0)) % 360;
+            const c = `hsl(${hue},100%,55%)`;
+            return [c, c];
+        }
+        return [fill, glow];
+    }
+
+    // ── Easing helpers (quadratic) ───────────────────────────────────────────
+    _easeInQuad(t)  { return t * t; }
+    _easeOutQuad(t) { return 1 - (1 - t) * (1 - t); }
+    // Convenience aliases kept for backward-compat with internal callers
+    _easeIn(t)  { return this._easeInQuad(t); }
+    _easeOut(t) { return this._easeOutQuad(t); }
+}
+
+// ── Singleton & glue ───────────────────────────────────────────────────────
+
+let _ledSim = null;
+
+function _getOrCreateSim() {
+    if (!_ledSim) _ledSim = new LEDSignSimulator('led-sim-canvas');
+    return _ledSim;
+}
 
 function toggleSimPause() {
-    simPaused = !simPaused;
-    const btn = document.getElementById('sim-pause-btn');
-    document.querySelectorAll('.led-display-line').forEach(el => {
-        el.style.animationPlayState = simPaused ? 'paused' : 'running';
-    });
-    if (btn) btn.textContent = simPaused ? '▶' : '⏸';
+    const sim    = _getOrCreateSim();
+    const paused = sim.togglePause();
+    const btn    = document.getElementById('sim-pause-btn');
+    if (btn) btn.textContent = paused ? '▶' : '⏸';
 }
 
 function updateSimulatorLine(idx, text, colorName, modeName, speedName) {
-    const el = document.getElementById(`sim-line-${idx}`);
-    const tag = document.getElementById(`sim-line-tag-${idx}`);
-    if (!el) return;
-
-    el.textContent = text || '';
-
-    const staticClasses = ['led-display-line'];
-    el.className = staticClasses.join(' ');
-
-    const colorClass = COLOR_CLASS_MAP[colorName] || COLOR_CLASS_MAP['DEFAULT'];
-    const modeClass  = MODE_CLASS_MAP[modeName]   || MODE_CLASS_MAP['DEFAULT'];
-    const speedClass = SPEED_CLASS_MAP[speedName] || SPEED_CLASS_MAP['DEFAULT'];
-
-    el.classList.add(colorClass, modeClass, speedClass);
-
-    if (simPaused) el.style.animationPlayState = 'paused';
-
-    if (tag) {
-        tag.textContent = (modeName && modeName !== 'DEFAULT') ? modeName.replace(/_/g, ' ') : 'HOLD';
-        tag.className = 'led-line-tag ' + (EFFECT_PILL_CLASS_MAP[modeName] || 'ep-hold');
-    }
+    _getOrCreateSim().setLine(idx, text, colorName, modeName, speedName);
 }
 
 function refreshMainPreview() {
-    const payload = buildLinePayload();
+    const sim        = _getOrCreateSim();
+    const payload    = buildLinePayload();
     const globalColor = document.getElementById('custom-color')?.value || 'GREEN';
     const globalMode  = document.getElementById('custom-mode')?.value  || 'HOLD';
     const globalSpeed = document.getElementById('custom-speed')?.value || 'SPEED_3';
 
     payload.forEach((line, idx) => {
         const segment = (line.segments || [])[0] || {};
-        const text = segment.text || '';
+        const text    = segment.text || '';
 
-        const resolvedColor = (segment.color && segment.color !== 'DEFAULT') ? segment.color : globalColor;
-        const resolvedMode  = (segment.mode  && segment.mode  !== 'DEFAULT') ? segment.mode  : globalMode;
-        const resolvedSpeed = (segment.speed && segment.speed !== 'DEFAULT') ? segment.speed : globalSpeed;
+        const color = (segment.color && segment.color !== 'DEFAULT') ? segment.color : globalColor;
+        const mode  = (segment.mode  && segment.mode  !== 'DEFAULT') ? segment.mode  : globalMode;
+        const speed = (segment.speed && segment.speed !== 'DEFAULT') ? segment.speed : globalSpeed;
 
-        updateSimulatorLine(idx, text, resolvedColor, resolvedMode, resolvedSpeed);
-
-        const previewLine = document.getElementById(`preview-line${idx + 1}`);
-        if (previewLine) {
-            previewLine.textContent = text || (idx <= 1 ? ['Enter message', 'to see preview'][idx] : '');
-        }
+        sim.setLine(idx, text, color, mode, speed);
     });
 
     const activeMode = document.getElementById('custom-mode')?.value || 'HOLD';
@@ -3183,6 +3600,20 @@ function initLEDControl() {
     _origInitLEDControl();
     rebuildDotsGrid();
     refreshRSSFeeds();
+
+    // Seed the canvas simulator with placeholder text so it renders immediately
+    const sim = _getOrCreateSim();
+    const placeholders = ['ALPHA 9120C', 'M-PROTOCOL', 'EAS STATION', 'READY'];
+    placeholders.forEach((txt, i) => sim.setLine(i, txt, 'GREEN', 'HOLD', 'SPEED_3'));
+
+    // Resize canvas whenever the simulator panel becomes visible
+    // (e.g. tab switching causes zero-width on hidden panels)
+    document.querySelectorAll('[data-bs-toggle="tab"]').forEach(tab => {
+        tab.addEventListener('shown.bs.tab', () => {
+            if (_ledSim) _ledSim._resize();
+        });
+    });
+    window.addEventListener('resize', () => { if (_ledSim) _ledSim._resize(); });
 }
 
 // Initialize when DOM is loaded
