@@ -595,11 +595,6 @@
                                     <i class="fas fa-bell"></i> Alerts
                                 </button>
                             </li>
-                            <li class="nav-item" role="presentation">
-                                <button class="nav-link" id="snow-subtab" data-bs-toggle="pill" data-bs-target="#snow-emergencies" type="button" role="tab">
-                                    <i class="fas fa-snowflake"></i> Snow Emergency
-                                </button>
-                            </li>
                         </ul>
 
                         <!-- System Settings sub-tabs content -->
@@ -971,169 +966,6 @@
                     </div>
                 </div>
 
-                <!-- Snow Emergencies Tab -->
-                <div class="tab-pane fade" id="snow-emergencies" role="tabpanel">
-                    <!-- Page Header -->
-                    <div class="mb-4">
-                        <h4 class="mb-2"><i class="fas fa-snowflake text-info"></i> Snow Emergency Management</h4>
-                        <p class="text-muted">Manage snow emergency levels for Putnam County and adjacent counties in northwest Ohio.</p>
-                    </div>
-
-                    <!-- Snow Emergency Level Reference -->
-                    <div class="card border-info-subtle shadow-sm mb-4">
-                        <div class="card-header bg-info-subtle">
-                            <h5 class="mb-0">
-                                <i class="fas fa-info-circle"></i> Ohio Snow Emergency Levels Explained
-                            </h5>
-                        </div>
-                        <div class="card-body">
-                            <p class="text-muted mb-3">Ohio sheriffs use a standardized three-level snow emergency system to communicate road conditions and travel advisories:</p>
-                            <div class="row g-3">
-                                <div class="col-lg-3">
-                                    <div class="card h-100 border-success">
-                                        <div class="card-body">
-                                            <h6 class="card-title d-flex align-items-center">
-                                                <span class="badge bg-success me-2">No Emergency</span>
-                                            </h6>
-                                            <p class="card-text small">Normal driving conditions. No restrictions on travel. Roads may still be slippery in winter weather.</p>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="col-lg-3">
-                                    <div class="card h-100 border-warning">
-                                        <div class="card-body">
-                                            <h6 class="card-title d-flex align-items-center">
-                                                <span class="badge bg-warning text-dark me-2">Level 1</span>
-                                            </h6>
-                                            <p class="card-text small"><strong>Roadways are hazardous</strong> with blowing and drifting snow. Roads may also be icy. Motorists are urged to drive very cautiously.</p>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="col-lg-3">
-                                    <div class="card h-100 border-warning" style="border-color: color-mix(in srgb, var(--warning-color) 80%, var(--danger-color)) !important;">
-                                        <div class="card-body">
-                                            <h6 class="card-title d-flex align-items-center">
-                                                <span class="badge me-2" style="background-color: color-mix(in srgb, var(--warning-color) 80%, var(--danger-color)); color: var(--text-on-light);">Level 2</span>
-                                            </h6>
-                                            <p class="card-text small"><strong>Roadways are hazardous.</strong> Only those who feel it is necessary to drive should be out. Contact your employer to see if you should report to work.</p>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="col-lg-3">
-                                    <div class="card h-100 border-danger">
-                                        <div class="card-body">
-                                            <h6 class="card-title d-flex align-items-center">
-                                                <span class="badge bg-danger me-2">Level 3</span>
-                                            </h6>
-                                            <p class="card-text small"><strong>All roadways are closed</strong> to non-emergency personnel. Those traveling on the roadways may subject themselves to arrest.</p>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="alert alert-secondary mt-3 mb-0 small">
-                                <i class="fas fa-gavel me-1"></i>
-                                <strong>Note:</strong> During a Level 3 emergency, only emergency personnel and essential workers should be on the roads. Violators may be ticketed or arrested, and tow trucks may not respond to non-emergency calls.
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- County Map Reference -->
-                    <div class="card border-primary-subtle shadow-sm mb-4">
-                        <div class="card-header bg-primary-subtle d-flex justify-content-between align-items-center">
-                            <div>
-                                <h5 class="mb-0">
-                                    <i class="fas fa-map"></i> Putnam County & Adjacent Counties
-                                </h5>
-                                <div class="text-muted small">Quick reference for the eight covered counties</div>
-                            </div>
-                            <span class="badge bg-info-subtle text-info-emphasis"><i class="fas fa-map-marked-alt me-1"></i>Mermaid map</span>
-                        </div>
-                        <div class="card-body">
-                            <div class="row g-3 align-items-center">
-                                <div class="col-lg-5">
-                                    <div class="mb-2 fw-semibold text-muted">Which counties are included?</div>
-                                    <p class="text-muted mb-3">Putnam plus its seven neighboring counties in northwest Ohio:</p>
-                                    <div class="row row-cols-2 row-cols-md-3 g-2 mb-3">
-                                        <div class="col">
-                                            <div class="badge bg-primary w-100 py-2">
-                                                <i class="fas fa-star me-1"></i> Putnam
-                                            </div>
-                                        </div>
-                                        <div class="col"><div class="badge bg-secondary w-100 py-2">Allen</div></div>
-                                        <div class="col"><div class="badge bg-secondary w-100 py-2">Defiance</div></div>
-                                        <div class="col"><div class="badge bg-secondary w-100 py-2">Hancock</div></div>
-                                        <div class="col"><div class="badge bg-secondary w-100 py-2">Henry</div></div>
-                                        <div class="col"><div class="badge bg-secondary w-100 py-2">Paulding</div></div>
-                                        <div class="col"><div class="badge bg-secondary w-100 py-2">Van Wert</div></div>
-                                        <div class="col"><div class="badge bg-secondary w-100 py-2">Wood</div></div>
-                                    </div>
-                                    <div class="d-flex align-items-start gap-2 small text-muted">
-                                        <i class="fas fa-info-circle mt-1 text-info"></i>
-                                        <span>The diagram highlights relative adjacency. Use the controls below to set levels and policies.</span>
-                                    </div>
-                                </div>
-                                <div class="col-lg-7">
-                                    <div class="p-3 bg-light rounded border h-100">
-                                        <div class="d-flex justify-content-between align-items-center mb-2">
-                                            <div class="small text-muted">County adjacency (schematic)</div>
-                                            <div class="d-flex gap-2 align-items-center small">
-                                                <span class="badge bg-primary-subtle text-primary-emphasis">Home</span>
-                                                <span class="badge bg-secondary-subtle text-secondary-emphasis">Neighbor</span>
-                                            </div>
-                                        </div>
-                                        <div class="mermaid mermaid-snow-map small text-start" id="snow-map-mermaid"></div>
-                                        <div class="small text-muted mt-2">If the graphic fails to load, it will retry automatically when you open this tab.</div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Current Status and Editor -->
-                    <div class="card border-info-subtle shadow-sm mb-4">
-                        <div class="card-header bg-info-subtle d-flex justify-content-between align-items-center">
-                            <h5 class="mb-0">
-                                <i class="fas fa-edit"></i> Current Snow Emergency Levels
-                            </h5>
-                            <button class="btn btn-sm btn-outline-info" onclick="refreshSnowEmergencyAdmin()">
-                                <i class="fas fa-sync-alt"></i> Refresh
-                            </button>
-                        </div>
-                        <div class="card-body">
-                            <div id="admin-snow-emergency-editor">
-                                <div class="text-center text-muted py-4">
-                                    <i class="fas fa-spinner fa-spin fa-2x mb-2"></i>
-                                    <p>Loading snow emergency data...</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- External Resources -->
-                    <div class="card border-secondary-subtle shadow-sm">
-                        <div class="card-header bg-secondary-subtle">
-                            <h5 class="mb-0">
-                                <i class="fas fa-external-link-alt"></i> External Resources
-                            </h5>
-                        </div>
-                        <div class="card-body">
-                            <p class="text-muted">For official snow emergency information, check these resources:</p>
-                            <ul class="list-unstyled mb-0">
-                                <li class="mb-2">
-                                    <a href="https://www.ohiosheriffs.org/snow-emergency-level" target="_blank" rel="noopener noreferrer">
-                                        <i class="fas fa-shield-alt me-2"></i>Ohio Sheriff's Association - Snow Emergency Levels
-                                    </a>
-                                </li>
-                                <li class="mb-2">
-                                    <a href="https://www.dispatch.com/story/news/2025/01/06/snow-emergencies-ohio-counties-affected-what-numbers-mean/77484726007/" target="_blank" rel="noopener noreferrer">
-                                        <i class="fas fa-newspaper me-2"></i>Columbus Dispatch - Snow Emergencies Guide
-                                    </a>
-                                    <small class="text-muted d-block ms-4">(Reference URL from issue)</small>
-                                </li>
-                            </ul>
-                        </div>
-                    </div>
-                </div>
 
                         </div>
                         <!-- End system sub-tabs -->
@@ -1864,7 +1696,6 @@
     <script src="{{ url_for('static', filename='js/admin/alert-management.js') }}"></script>
     <script src="{{ url_for('static', filename='js/admin/hardware-settings.js') }}"></script>
     <script src="{{ url_for('static', filename='js/admin/operations.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/admin/snow-emergency.js') }}"></script>
     <script src="{{ url_for('static', filename='js/admin/zone-catalog.js') }}"></script>
     <script src="{{ url_for('static', filename='js/admin/location-settings.js') }}"></script>
 {% endblock %}

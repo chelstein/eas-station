@@ -48,7 +48,6 @@
 
         // Alert events
         'alert_verification_update': 10000,   // 10s - alert verification
-        'snow_emergency_update': 60000,       // 60s - snow emergencies
 
         // Log events
         'logs_update': 10000,                 // 10s - log viewer
@@ -70,7 +69,6 @@
         'display_preview_update': '/api/displays/preview',
         'analytics_update': '/api/analytics/dashboard',
         'alert_verification_update': '/api/alerts/verification/status',
-        'snow_emergency_update': '/api/snow-emergencies',
         'logs_update': '/api/logs/recent',
     };
 

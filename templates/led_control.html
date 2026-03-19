@@ -979,7 +979,7 @@
                         <div class="card-body">
                             <div class="message-preview small mb-2">
                                 <div class="preview-line">WELCOME TO</div>
-                                <div class="preview-line">PUTNAM COUNTY</div>
+                                <div class="preview-line">{{ (location_settings.county_name | upper) or 'EAS STATION' }}</div>
                                 <div class="preview-line">EMERGENCY MGMT</div>
                                 <div class="preview-line"></div>
                             </div>
@@ -1038,7 +1038,7 @@
                         </div>
                         <div class="card-body">
                             <div class="message-preview small mb-2">
-                                <div class="preview-line">PUTNAM COUNTY</div>
+                                <div class="preview-line">{{ (location_settings.county_name | upper) or 'EAS STATION' }}</div>
                                 <div class="preview-line">NO ACTIVE</div>
                                 <div class="preview-line">ALERTS</div>
                                 <div class="preview-line">ALL CLEAR</div>
@@ -1951,8 +1951,11 @@ function clearRGBMessage() {
 }
 
 function fillSampleMessage() {
+    const countyName = (window.APP_LOCATION && window.APP_LOCATION.county_name)
+        ? window.APP_LOCATION.county_name.toUpperCase()
+        : 'EAS STATION';
     const examples = [
-        { text: 'PUTNAM COUNTY', color: 'RED', mode: 'HOLD' },
+        { text: countyName, color: 'RED', mode: 'HOLD' },
         { text: 'EMERGENCY MGMT', color: 'GREEN', mode: 'ROLL_LEFT' },
         { text: 'SYSTEM TEST', color: 'AMBER', mode: 'SCROLL' },
         { text: 'MESSAGE OK', color: 'AUTO_COLOR', mode: 'FLASH' }
@@ -2316,8 +2319,12 @@ function testAllFeatures() {
 
 // Quick action functions
 function sendDefaultMessage() {
+    const defaultLines = (window.APP_LOCATION && window.APP_LOCATION.led_default_lines &&
+                          window.APP_LOCATION.led_default_lines.length > 0)
+        ? window.APP_LOCATION.led_default_lines.slice(0, 4)
+        : ['EAS STATION', 'EMERGENCY MGMT', 'NO ALERTS', 'SYSTEM READY'];
     const message = {
-        lines: ['PUTNAM COUNTY', 'EMERGENCY MGMT', 'NO ALERTS', 'SYSTEM READY'],
+        lines: defaultLines,
         color: 'GREEN',
         font: 'FONT_7x9',
         mode: 'HOLD',

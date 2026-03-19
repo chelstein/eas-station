@@ -140,7 +140,6 @@ IPAWS_STATUS_INTERVAL = 30.0       # IPAWS connection status
 GPIO_STATUS_INTERVAL = 3.0         # GPIO pin states
 LED_STATUS_INTERVAL = 30.0         # LED status
 ANALYTICS_INTERVAL = 30.0          # Analytics dashboard
-SNOW_EMERGENCY_INTERVAL = 60.0     # Snow emergencies
 RADIO_STATUS_INTERVAL = 15.0       # Radio diagnostics
 LOGS_UPDATE_INTERVAL = 10.0        # Log viewer updates
 
@@ -198,7 +197,6 @@ def _push_worker(app: 'Flask', socketio: 'SocketIO') -> None:
     last_gpio_status_emit = 0.0
     last_led_status_emit = 0.0
     last_analytics_emit = 0.0
-    last_snow_emergency_emit = 0.0
     last_radio_status_emit = 0.0
     last_logs_emit = 0.0
 
@@ -311,17 +309,6 @@ def _push_worker(app: 'Flask', socketio: 'SocketIO') -> None:
                     last_analytics_emit = now
                 except Exception as e:
                     logger.debug(f"Error emitting analytics_update: {e}")
-
-            # ================================================================
-            # SNOW EMERGENCY UPDATE (every 60s)
-            # Snow emergency status
-            # ================================================================
-            if now - last_snow_emergency_emit >= SNOW_EMERGENCY_INTERVAL:
-                try:
-                    _emit_snow_emergency_update(app, socketio)
-                    last_snow_emergency_emit = now
-                except Exception as e:
-                    logger.debug(f"Error emitting snow_emergency_update: {e}")
 
             # ================================================================
             # RADIO STATUS UPDATE (every 15s)
@@ -668,37 +655,6 @@ def _emit_analytics_update(app: 'Flask', socketio: 'SocketIO') -> None:
         })
     except Exception as e:
         logger.debug(f"Error fetching analytics data: {e}")
-
-
-def _emit_snow_emergency_update(app: 'Flask', socketio: 'SocketIO') -> None:
-    """Emit snow emergency status update."""
-    try:
-        from app_core.models import SnowEmergency
-        from app_utils import utc_now
-
-        now = utc_now()
-        active_emergencies = SnowEmergency.query.filter(
-            SnowEmergency.active == True,
-            SnowEmergency.end_time > now
-        ).all()
-
-        emergencies = []
-        for emergency in active_emergencies:
-            emergencies.append({
-                'id': emergency.id,
-                'county': emergency.county,
-                'level': emergency.level,
-                'start_time': emergency.start_time.isoformat() if emergency.start_time else None,
-                'end_time': emergency.end_time.isoformat() if emergency.end_time else None,
-            })
-
-        _safe_emit(socketio, 'snow_emergency_update', {
-            'emergencies': emergencies,
-            'active_count': len(emergencies),
-            'timestamp': time.time(),
-        })
-    except Exception as e:
-        logger.debug(f"Error fetching snow emergency data: {e}")
 
 
 def _emit_radio_status_update(app: 'Flask', socketio: 'SocketIO') -> None:
