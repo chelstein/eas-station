@@ -6,6 +6,11 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.62.1] - 2026-03-19 - Fix false-positive county-wide coverage detection
+
+### Fixed
+- **County-wide coverage false positive** – `_detect_county_wide()` in `webapp/admin/api.py` incorrectly flagged alerts for *other* counties in the same state as county-wide. The `county_and_state` heuristic only checked that the generic word "county" and the configured state name appeared anywhere in `area_desc`; it never verified that the configured county's own name was present. For example, a station configured for Putnam County, Ohio would show "100% County-Wide Coverage" for a Henry County, Ohio alert because "henry county, ohio" contains both "county" and "ohio". The fix requires the configured county's short name to also appear in the area description before the heuristic fires.
+
 ## [2.62.0] - 2026-03-19 - Full Alpha LED sign controller: Dots, RSS feeds, WYSIWYG simulator
 
 ### Added

@@ -122,10 +122,16 @@ def _detect_county_wide(alert) -> bool:
             )
         )
 
-        # county + state code anywhere in area_desc
+        # configured county name (short form) + state code anywhere in area_desc
+        # Both must be present: checking only for "county" (as a generic word)
+        # and the state code is insufficient because any alert from that state
+        # containing a county name would match.  The short county name must
+        # also appear in the description to avoid false positives for alerts
+        # that target a *different* county in the same state.
         county_and_state = bool(
             county_short
             and configured_state_code
+            and county_short in area_lower
             and 'county' in area_lower
             and configured_state_code in area_lower
         )
