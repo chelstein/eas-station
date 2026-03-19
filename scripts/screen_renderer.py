@@ -65,7 +65,7 @@ PREVIEW_SAMPLE_DATA: Dict[str, Any] = {
         "uptime_human": "12d 5h",
     },
     "location": {
-        "county_name": "Putnam County",
+        "county_name": "Configured County",
         "state_code": "OH",
     },
     "temp": {
@@ -84,7 +84,7 @@ PREVIEW_SAMPLE_DATA: Dict[str, Any] = {
                     "event": "Flood Warning",
                     "severity": "Moderate",
                     "urgency": "Expected",
-                    "area_desc": "Putnam County, OH",
+                    "area_desc": "Configured County, OH",
                     "expires_iso": "2025-11-19T08:15:00Z",
                 }
             }

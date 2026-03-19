@@ -171,7 +171,24 @@ def _detect_county_wide(alert) -> bool:
 
     return is_county_wide
 
-_CPU_SAMPLE_INTERVAL_SECONDS = 1.0
+def _get_location_terms() -> tuple:
+    """Return (county_short, county_name_lower, state_lower) from configured location settings.
+
+    Used by the GeoJSON routes to determine county-wide coverage without
+    hardcoding any specific location name.
+    """
+    from app_core.location import get_location_settings
+    try:
+        settings = get_location_settings() or {}
+    except Exception:
+        settings = {}
+    county_name = (settings.get('county_name', '') or '').lower().strip()
+    county_short = county_name.replace(' county', '').strip()
+    state_lower = (settings.get('state_code', '') or '').lower().strip()
+    return county_short, county_name, state_lower
+
+
+
 _last_cpu_sample_timestamp: Optional[datetime] = None
 _last_cpu_sample_value: float = 0.0
 
@@ -917,6 +934,10 @@ def get_alerts():
         plain_text_map = load_alert_plain_text_map(alert_ids)
         eas_sources = {ALERT_SOURCE_IPAWS, ALERT_SOURCE_MANUAL}
 
+        # Load configured location terms once for the whole loop so we avoid
+        # per-alert database round-trips and don't hardcode any location name.
+        _county_short, _county_name_lower, _state_lower = _get_location_terms()
+
         county_boundary = None
         try:
             county_geom = db.session.query(
@@ -947,7 +968,7 @@ def get_alerts():
                 # Fallback: use county boundary if area_desc suggests county-wide
                 if not geometry and alert.area_desc and any(
                     county_term in alert.area_desc.lower()
-                    for county_term in ['county', 'putnam', 'ohio']
+                    for county_term in filter(None, ['county', _county_short, _state_lower])
                 ):
                     if county_boundary:
                         geometry = county_boundary
@@ -956,12 +977,14 @@ def get_alerts():
             if not is_county_wide and alert.area_desc:
                 area_lower = alert.area_desc.lower()
 
-                if 'putnam' in area_lower:
+                if _county_short and _county_short in area_lower:
                     separator_count = max(area_lower.count(';'), area_lower.count(','))
                     if separator_count >= 2:
                         is_county_wide = True
 
-                county_keywords = ['county', 'putnam county', 'entire county']
+                county_keywords = ['county', 'entire county']
+                if _county_name_lower:
+                    county_keywords.append(_county_name_lower)
                 if any(keyword in area_lower for keyword in county_keywords):
                     is_county_wide = True
 
@@ -1079,6 +1102,9 @@ def get_historical_alerts():
         except Exception as exc:  # pragma: no cover - defensive logging
             api_bp.logger.warning("Could not get county boundary: %s", exc)
 
+        # Load configured location terms once for the whole loop.
+        _county_short, _county_name_lower, _state_lower = _get_location_terms()
+
         features = []
         for alert in alerts:
             geometry = None
@@ -1098,7 +1124,7 @@ def get_historical_alerts():
                 # Fallback: use county boundary if area_desc suggests county-wide
                 if not geometry and alert.area_desc and any(
                     county_term in alert.area_desc.lower()
-                    for county_term in ['county', 'putnam', 'ohio']
+                    for county_term in filter(None, ['county', _county_short, _state_lower])
                 ):
                     if county_boundary:
                         geometry = county_boundary

@@ -182,7 +182,6 @@ from app_core.models import (
     PollHistory,
     RadioReceiver,
     RadioReceiverStatus,
-    SnowEmergency,
     SystemLog,
 )
 
@@ -418,8 +417,6 @@ PUBLIC_API_GET_PATHS = {
     '/api/eas-monitor/status',
     '/api/system_health',
     '/api/monitoring/radio',
-    # Snow emergency status (public safety information)
-    '/api/snow_emergencies',
     # Monitoring endpoints (for health checks and version tracking)
     '/api/health',
     '/api/release-manifest',

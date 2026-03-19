@@ -49,7 +49,6 @@ from . import (
     routes_public,
     routes_setup,
     routes_security,
-    routes_snow_emergencies,
     routes_stream_profiles,
     routes_rwt_schedule,
     template_helpers,
@@ -100,7 +99,6 @@ def iter_route_modules() -> Iterable[RouteModule]:
     yield RouteModule("routes_diagnostics", routes_diagnostics.register)
     yield RouteModule("routes_logs", routes_logs.register, requires_logger=False)
     yield RouteModule("routes_stream_profiles", routes_stream_profiles.register)
-    yield RouteModule("routes_snow_emergencies", routes_snow_emergencies.register)
     yield RouteModule("routes_admin", routes_admin.register)
 
 

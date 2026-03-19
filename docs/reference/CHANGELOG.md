@@ -6,6 +6,19 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.63.0] - 2026-03-19 - Remove snow emergency feature; eliminate all hardcoded location names
+
+### Removed
+- **Snow emergency feature** – Removed the Putnam County-specific snow emergency management system entirely (`SnowEmergency` model, `SNOW_EMERGENCY_LEVELS`, `PUTNAM_REGION_COUNTIES`, `routes_snow_emergencies.py`, `snow-emergency.js`, and all related UI in the admin panel, dashboard, and WebSocket push loop). This feature was geographic feature creep applicable only to a single county in Ohio.
+
+### Fixed
+- **Hardcoded "Putnam" location names removed** – All remaining hardcoded references to "Putnam County" in functional code replaced with variables derived from the configured location settings:
+  - `webapp/admin/api.py` – `get_alerts()` and `get_historical_alerts()` now use `_get_location_terms()` (configured county short name and state code) instead of hardcoded `'putnam'` / `'ohio'` keyword lists
+  - `app_utils/location_settings.py` – `DEFAULT_COUNTY_NAME` fallback changed from `"Putnam County"` to `""` (empty; unconfigured stations show nothing rather than the wrong county); `DEFAULT_LED_LINES` fallback changed to generic `"EAS STATION,EMERGENCY MGMT,NO ALERTS,SYSTEM READY"`
+  - `templates/led_control.html` – Preview panels and `sendDefaultMessage()` / `fillSampleMessage()` now use `location_settings.county_name` (Jinja2) and `window.APP_LOCATION` (JavaScript) respectively
+  - `scripts/screen_renderer.py` – Demo/preview sample data no longer references a specific county
+  - `templates/help.html`, `templates/sms_compliance.html`, `app_core/models.py` – Example text updated to be generic
+
 ## [2.62.1] - 2026-03-19 - Fix false-positive county-wide coverage detection
 
 ### Fixed

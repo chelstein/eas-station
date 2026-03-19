@@ -201,7 +201,6 @@ PUBLIC_API_GET_PATHS = {
     '/api/eas-monitor/status',
     '/api/system_health',
     '/api/monitoring/radio',
-    '/api/snow_emergencies',
 }
 
 # CSRF configuration
