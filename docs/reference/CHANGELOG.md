@@ -6,23 +6,42 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
-## [2.63.0] - 2026-03-19 - Remove snow emergency feature; eliminate all hardcoded location names
-
-### Removed
-- **Snow emergency feature** – Removed the Putnam County-specific snow emergency management system entirely (`SnowEmergency` model, `SNOW_EMERGENCY_LEVELS`, `PUTNAM_REGION_COUNTIES`, `routes_snow_emergencies.py`, `snow-emergency.js`, and all related UI in the admin panel, dashboard, and WebSocket push loop). This feature was geographic feature creep applicable only to a single county in Ohio.
+## [2.62.2] - 2026-03-19 - Comprehensive unauthenticated route access fix
 
 ### Fixed
-- **Hardcoded "Putnam" location names removed** – All remaining hardcoded references to "Putnam County" in functional code replaced with variables derived from the configured location settings:
-  - `webapp/admin/api.py` – `get_alerts()` and `get_historical_alerts()` now use `_get_location_terms()` (configured county short name and state code) instead of hardcoded `'putnam'` / `'ohio'` keyword lists
-  - `app_utils/location_settings.py` – `DEFAULT_COUNTY_NAME` fallback changed from `"Putnam County"` to `""` (empty; unconfigured stations show nothing rather than the wrong county); `DEFAULT_LED_LINES` fallback changed to generic `"EAS STATION,EMERGENCY MGMT,NO ALERTS,SYSTEM READY"`
-  - `templates/led_control.html` – Preview panels and `sendDefaultMessage()` / `fillSampleMessage()` now use `location_settings.county_name` (Jinja2) and `window.APP_LOCATION` (JavaScript) respectively
-  - `scripts/screen_renderer.py` – Demo/preview sample data no longer references a specific county
-  - `templates/help.html`, `templates/sms_compliance.html`, `app_core/models.py` – Example text updated to be generic
+- **Unauthenticated access to VFD control** – All VFD routes (`/vfd_control`, `/vfd`, and all
+  `/api/vfd/*` endpoints, 12 total) now require `@require_auth` + `@require_role("Admin", "Operator")`.
+- **Unauthenticated access to Displays dashboard** – `/displays` now requires
+  `@require_auth` + `@require_role("Admin", "Operator")`.
+- **Unauthenticated access to Screen management** – All screen and rotation routes (`/screens`,
+  `/screens/new`, `/screens/editor/<id>`, `/displays/preview`, and all `/api/screens/*`,
+  `/api/rotations/*`, `/api/displays/current-state` endpoints, 17 total) now require
+  `@require_auth` + `@require_role("Admin", "Operator")`.
+- **Unauthenticated access to Alert Verification** – All alert verification routes
+  (`/admin/alert-verification`, `/admin/alert-verification/operations`,
+  `/admin/alert-verification/progress/<id>`, `/api/alert-self-test/run`,
+  `/admin/alert-verification/export.csv`, and the decode audio endpoint, 6 total) now
+  require `@require_auth` + `@require_role("Admin", "Operator")`. The export endpoint
+  additionally allows the `Analyst` role.
+- **Unauthenticated access to EAS Compliance dashboard** – All compliance routes
+  (`/admin/compliance`, `/admin/compliance/export.csv`, `/admin/compliance/export.pdf`, 3 total)
+  now require `@require_auth` + `@require_role("Admin", "Operator", "Analyst")`.
 
-## [2.62.1] - 2026-03-19 - Fix false-positive county-wide coverage detection
+## [2.62.1] - 2026-03-19 - LED control authentication and preview fixes
 
 ### Fixed
-- **County-wide coverage false positive** – `_detect_county_wide()` in `webapp/admin/api.py` incorrectly flagged alerts for *other* counties in the same state as county-wide. The `county_and_state` heuristic only checked that the generic word "county" and the configured state name appeared anywhere in `area_desc`; it never verified that the configured county's own name was present. For example, a station configured for Putnam County, Ohio would show "100% County-Wide Coverage" for a Henry County, Ohio alert because "henry county, ohio" contains both "county" and "ohio". The fix requires the configured county's short name to also appear in the area description before the heuristic fires.
+- **Unauthenticated access to LED control** – All LED routes (`/led_control`, `/led`, and all
+  `/api/led/*` endpoints) now require `@require_auth` + `@require_role("Admin", "Operator")`,
+  preventing access by unauthenticated or insufficiently-privileged users.
+- **Message history stuck on "Loading message history..."** – `loadMessageHistory()` now updates
+  the `#message-history` container with an appropriate message when the API call fails or returns
+  no data, instead of leaving the loading spinner indefinitely.
+- **Live sign preview (canvas simulator) not working** – Fixed a JavaScript bug where a duplicate
+  `function initLEDControl()` declaration caused infinite recursion (stack overflow) on page load,
+  preventing all LED control initialization. The extra init code is now correctly placed inside the
+  `DOMContentLoaded` handler.
+- **Search/filter history did nothing** – Implemented the previously empty `displayFilteredHistory()`
+  stub so that the message history search and type filter actually update the displayed list.
 
 ## [2.62.0] - 2026-03-19 - Full Alpha LED sign controller: Dots, RSS feeds, WYSIWYG simulator
 

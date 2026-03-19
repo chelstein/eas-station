@@ -24,6 +24,7 @@ from __future__ import annotations
 from flask import Flask, render_template
 from sqlalchemy.exc import OperationalError
 
+from app_core.auth.decorators import require_auth, require_role
 from app_core.extensions import db
 import app_core.led as led_module
 from app_core.vfd import VFD_AVAILABLE, vfd_controller
@@ -36,6 +37,8 @@ def register(app: Flask, logger) -> None:
     route_logger = logger.getChild("routes_displays")
 
     @app.route("/displays")
+    @require_auth
+    @require_role("Admin", "Operator")
     def displays_control():
         """Unified display control dashboard showing all display types."""
         try:

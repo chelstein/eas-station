@@ -52,6 +52,7 @@ from flask import (
 )
 from werkzeug.utils import secure_filename
 
+from app_core.auth.decorators import require_auth, require_role
 from app_core.audio.self_test import (
     AlertSelfTestHarness,
     AlertSelfTestResult,
@@ -1036,6 +1037,8 @@ def register(app: Flask, logger) -> None:
             route_logger.debug("Failed to remove temp file %s: %s", temp_path, exc)
 
     @app.route("/admin/alert-verification/operations", methods=["POST"])
+    @require_auth
+    @require_role("Admin", "Operator")
     def start_alert_verification_operation():
         window_days = _resolve_window_days()
 
@@ -1138,6 +1141,8 @@ def register(app: Flask, logger) -> None:
         )
 
     @app.route("/admin/alert-verification", methods=["GET", "POST"])
+    @require_auth
+    @require_role("Admin", "Operator", "Analyst")
     def alert_verification():
         window_days = _resolve_window_days()
         decode_result = None
@@ -1281,6 +1286,8 @@ def register(app: Flask, logger) -> None:
         )
 
     @app.route("/api/alert-self-test/run", methods=["POST"])
+    @require_auth
+    @require_role("Admin", "Operator")
     def run_alert_self_test():
         payload = request.get_json(force=True, silent=True) or {}
 
@@ -1352,6 +1359,8 @@ def register(app: Flask, logger) -> None:
         return jsonify(response)
 
     @app.route("/admin/alert-verification/progress/<operation_id>")
+    @require_auth
+    @require_role("Admin", "Operator")
     def alert_verification_progress(operation_id: str):
         """Get progress status for a long-running operation."""
         progress_data = ProgressTracker.get(operation_id)
@@ -1370,6 +1379,8 @@ def register(app: Flask, logger) -> None:
         })
 
     @app.route("/admin/alert-verification/export.csv")
+    @require_auth
+    @require_role("Admin", "Operator", "Analyst")
     def alert_verification_export():
         window_days = _resolve_window_days()
 
@@ -1405,6 +1416,8 @@ def register(app: Flask, logger) -> None:
         return response
 
     @app.route("/admin/alert-verification/decodes/<int:decode_id>/audio/<string:segment>")
+    @require_auth
+    @require_role("Admin", "Operator")
     def alert_verification_decode_audio(decode_id: int, segment: str):
         segment_key = (segment or "").strip().lower()
         column_map = {

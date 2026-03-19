@@ -28,6 +28,7 @@ from typing import Any, Dict, List
 from flask import Flask, jsonify, redirect, render_template, request, url_for
 from sqlalchemy.exc import OperationalError
 
+from app_core.auth.decorators import require_auth, require_role
 from app_core.extensions import db
 import app_core.led as led_module
 from app_core.led import (
@@ -54,10 +55,14 @@ def register(app: Flask, logger) -> None:
         return all(enum is not None for enum in (Color, Font, DisplayMode, Speed))
 
     @app.route("/led")
+    @require_auth
+    @require_role("Admin", "Operator")
     def led_redirect():
         return redirect(url_for("led_control"))
 
     @app.route("/led_control")
+    @require_auth
+    @require_role("Admin", "Operator")
     def led_control():
         try:
             ensure_led_tables()
@@ -142,6 +147,8 @@ def register(app: Flask, logger) -> None:
             )
 
     @app.route("/api/led/send_message", methods=["POST"])
+    @require_auth
+    @require_role("Admin", "Operator")
     def api_led_send_message():
         try:
             ensure_led_tables()
@@ -370,6 +377,8 @@ def register(app: Flask, logger) -> None:
             return jsonify({"success": False, "error": str(exc)})
 
     @app.route("/api/led/send_canned", methods=["POST"])
+    @require_auth
+    @require_role("Admin", "Operator")
     def api_led_send_canned():
         try:
             ensure_led_tables()
@@ -411,6 +420,8 @@ def register(app: Flask, logger) -> None:
             return jsonify({"success": False, "error": str(exc)})
 
     @app.route("/api/led/clear", methods=["POST"])
+    @require_auth
+    @require_role("Admin", "Operator")
     def api_led_clear():
         try:
             ensure_led_tables()
@@ -437,6 +448,8 @@ def register(app: Flask, logger) -> None:
             return jsonify({"success": False, "error": str(exc)})
 
     @app.route("/api/led/brightness", methods=["POST"])
+    @require_auth
+    @require_role("Admin", "Operator")
     def api_led_brightness():
         try:
             ensure_led_tables()
@@ -468,6 +481,8 @@ def register(app: Flask, logger) -> None:
             return jsonify({"success": False, "error": str(exc)})
 
     @app.route("/api/led/test", methods=["POST"])
+    @require_auth
+    @require_role("Admin", "Operator")
     def api_led_test():
         try:
             if not led_module.led_controller:
@@ -491,6 +506,8 @@ def register(app: Flask, logger) -> None:
             return jsonify({"success": False, "error": str(exc)})
 
     @app.route("/api/led/emergency", methods=["POST"])
+    @require_auth
+    @require_role("Admin", "Operator")
     def api_led_emergency():
         try:
             data = request.get_json(silent=True) or {}
@@ -522,6 +539,8 @@ def register(app: Flask, logger) -> None:
             return jsonify({"success": False, "error": str(exc)})
 
     @app.route("/api/led/status")
+    @require_auth
+    @require_role("Admin", "Operator")
     def api_led_status():
         try:
             # Get LED settings from database
@@ -567,6 +586,8 @@ def register(app: Flask, logger) -> None:
             })
 
     @app.route("/api/led/messages")
+    @require_auth
+    @require_role("Admin", "Operator")
     def api_led_messages():
         try:
             ensure_led_tables()
@@ -595,6 +616,8 @@ def register(app: Flask, logger) -> None:
             return jsonify({"error": str(exc)}), 500
 
     @app.route("/api/led/canned_messages")
+    @require_auth
+    @require_role("Admin", "Operator")
     def api_led_canned_messages():
         if not led_module.led_controller:
             return jsonify({"success": False, "error": "LED controller not available"})
@@ -612,6 +635,8 @@ def register(app: Flask, logger) -> None:
         return jsonify({"success": True, "messages": canned})
 
     @app.route("/api/led/serial_config", methods=["GET", "POST"])
+    @require_auth
+    @require_role("Admin", "Operator")
     def api_led_serial_config():
         """Get or set serial configuration for the LED sign adapter."""
 
@@ -740,6 +765,8 @@ def register(app: Flask, logger) -> None:
                 return jsonify({"success": False, "error": str(exc)})
 
     @app.route("/api/led/reconnect", methods=["POST"])
+    @require_auth
+    @require_role("Admin", "Operator")
     def api_led_reconnect():
         """Attempt to reinitialize the LED controller connection."""
         try:
@@ -801,6 +828,8 @@ def register(app: Flask, logger) -> None:
 
 
     @app.route("/api/led/set_time_format", methods=["POST"])
+    @require_auth
+    @require_role("Admin", "Operator")
     def api_led_set_time_format():
         """Set time display format on the LED sign and send current time."""
         try:
@@ -870,6 +899,8 @@ def register(app: Flask, logger) -> None:
             return jsonify({"success": False, "error": str(exc)})
 
     @app.route("/api/led/set_date_format", methods=["POST"])
+    @require_auth
+    @require_role("Admin", "Operator")
     def api_led_set_date_format():
         """Send current date to the LED sign in the specified format."""
         try:
@@ -944,6 +975,8 @@ def register(app: Flask, logger) -> None:
     _RSS_TITLE_DISPLAY_CHARS = 20  # max chars per LED sign line (Alpha 9120C)
 
     @app.route("/api/led/rss/feeds", methods=["GET"])
+    @require_auth
+    @require_role("Admin", "Operator")
     def api_led_rss_list():
         """Return all configured RSS feed sources."""
         try:
@@ -975,6 +1008,8 @@ def register(app: Flask, logger) -> None:
             return jsonify({"success": False, "error": str(exc)})
 
     @app.route("/api/led/rss/feeds", methods=["POST"])
+    @require_auth
+    @require_role("Admin", "Operator")
     def api_led_rss_create():
         """Create a new RSS feed source."""
         try:
@@ -1009,6 +1044,8 @@ def register(app: Flask, logger) -> None:
             return jsonify({"success": False, "error": str(exc)})
 
     @app.route("/api/led/rss/feeds/<int:feed_id>", methods=["PUT"])
+    @require_auth
+    @require_role("Admin", "Operator")
     def api_led_rss_update(feed_id):
         """Update an existing RSS feed source."""
         try:
@@ -1034,6 +1071,8 @@ def register(app: Flask, logger) -> None:
             return jsonify({"success": False, "error": str(exc)})
 
     @app.route("/api/led/rss/feeds/<int:feed_id>", methods=["DELETE"])
+    @require_auth
+    @require_role("Admin", "Operator")
     def api_led_rss_delete(feed_id):
         """Delete an RSS feed source and all its cached items."""
         try:
@@ -1048,6 +1087,8 @@ def register(app: Flask, logger) -> None:
             return jsonify({"success": False, "error": str(exc)})
 
     @app.route("/api/led/rss/feeds/<int:feed_id>/fetch", methods=["POST"])
+    @require_auth
+    @require_role("Admin", "Operator")
     def api_led_rss_fetch(feed_id):
         """Fetch / refresh items for a single RSS feed."""
         try:
@@ -1095,6 +1136,8 @@ def register(app: Flask, logger) -> None:
             return jsonify({"success": False, "error": str(exc)})
 
     @app.route("/api/led/rss/feeds/<int:feed_id>/items", methods=["GET"])
+    @require_auth
+    @require_role("Admin", "Operator")
     def api_led_rss_items(feed_id):
         """Return cached items for a feed."""
         try:
@@ -1128,6 +1171,8 @@ def register(app: Flask, logger) -> None:
             return jsonify({"success": False, "error": str(exc)})
 
     @app.route("/api/led/rss/send", methods=["POST"])
+    @require_auth
+    @require_role("Admin", "Operator")
     def api_led_rss_send():
         """Send one or more RSS item titles to the LED sign as a scrolling ticker."""
         try:
@@ -1221,6 +1266,8 @@ def register(app: Flask, logger) -> None:
     # ── Dots / Pixel-Art ──────────────────────────────────────────────────────
 
     @app.route("/api/led/dots", methods=["POST"])
+    @require_auth
+    @require_role("Admin", "Operator")
     def api_led_send_dots():
         """Send a pixel-art / dots graphic to the LED sign."""
         try:
