@@ -28,41 +28,40 @@ echo_step() {
 }
 
 echo_info() {
-    echo -e "${BLUE}ℹ️  [INFO]${NC} $1"
+    echo -e "${CYAN}[INFO]   ${NC} $1"
 }
 
 echo_success() {
-    echo -e "${GREEN}✓  [SUCCESS]${NC} $1"
+    echo -e "${GREEN}[ OK ]   ${NC} $1"
 }
 
 echo_warning() {
-    echo -e "${YELLOW}⚠️  [WARNING]${NC} $1"
+    echo -e "${YELLOW}[WARN]   ${NC} $1"
 }
 
 echo_error() {
-    echo -e "${RED}✗  [ERROR]${NC} $1"
+    echo -e "${RED}[ERROR]  ${NC} $1"
 }
 
 echo_progress() {
-    echo -e "${MAGENTA}▶  ${NC}$1"
+    echo -e "      >>  $1"
 }
 
 echo_header() {
     local text="$1"
     local box_width=64
-    local content_width=$((box_width - 4))  # Account for "║  " and "  ║"
-    
-    # Calculate visual length (accounting for emojis and multi-byte chars)
+    local content_width=$((box_width - 4))  # Account for "|  " and "  |"
+
     local text_len=$(echo -n "$text" | wc -m)
     local padding=$((content_width - text_len))
     if [ $padding -lt 0 ]; then
         padding=0
     fi
-    
+
     echo ""
-    echo -e "${BOLD}${CYAN}╔$(printf '═%.0s' $(seq 1 $box_width))╗${NC}"
-    echo -e "${BOLD}${CYAN}║${NC}${BOLD}${WHITE}  $text$(printf ' %.0s' $(seq 1 $padding))  ${BOLD}${CYAN}║${NC}"
-    echo -e "${BOLD}${CYAN}╚$(printf '═%.0s' $(seq 1 $box_width))╝${NC}"
+    echo -e "${BOLD}${CYAN}+$(printf '=%.0s' $(seq 1 $box_width))+${NC}"
+    echo -e "${BOLD}${CYAN}|${NC}${BOLD}${WHITE}  $text$(printf ' %.0s' $(seq 1 $padding))  ${BOLD}${CYAN}|${NC}"
+    echo -e "${BOLD}${CYAN}+$(printf '=%.0s' $(seq 1 $box_width))+${NC}"
     echo ""
 }
 
@@ -74,12 +73,12 @@ show_progress_bar() {
     local percentage=$((current * 100 / total))
     local filled=$((current * width / total))
     local empty=$((width - filled))
-    
+
     printf "\r${CYAN}["
-    printf "%${filled}s" | tr ' ' '█'
-    printf "%${empty}s" | tr ' ' '░'
+    printf "%${filled}s" | tr ' ' '#'
+    printf "%${empty}s" | tr ' ' '.'
     printf "]${NC} ${BOLD}${percentage}%%${NC} ${WHITE}($current/$total)${NC}"
-    
+
     if [ "$current" -eq "$total" ]; then
         echo ""
     fi
@@ -89,7 +88,7 @@ show_progress_bar() {
 show_spinner() {
     local pid=$1
     local delay=0.1
-    local spinstr='⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏'
+    local spinstr=$'|/-\\'
     while ps -p $pid > /dev/null 2>&1; do
         local temp=${spinstr#?}
         printf " ${CYAN}[%c]${NC}  " "$spinstr"
@@ -107,11 +106,11 @@ draw_box() {
     local text_len=$(echo -n "$text" | wc -m)
     local padding=$((box_width - text_len - 2))
     if [ $padding -lt 0 ]; then padding=0; fi
-    
+
     echo ""
-    echo -e "${BOLD}${GREEN}┌$(printf '─%.0s' $(seq 1 $box_width))┐${NC}"
-    echo -e "${BOLD}${GREEN}│${NC} ${BOLD}${WHITE}${text}$(printf ' %.0s' $(seq 1 $padding))${NC} ${BOLD}${GREEN}│${NC}"
-    echo -e "${BOLD}${GREEN}└$(printf '─%.0s' $(seq 1 $box_width))┘${NC}"
+    echo -e "${BOLD}${GREEN}+$(printf '-%.0s' $(seq 1 $box_width))+${NC}"
+    echo -e "${BOLD}${GREEN}|${NC} ${BOLD}${WHITE}${text}$(printf ' %.0s' $(seq 1 $padding))${NC} ${BOLD}${GREEN}|${NC}"
+    echo -e "${BOLD}${GREEN}+$(printf '-%.0s' $(seq 1 $box_width))+${NC}"
     echo ""
 }
 
@@ -121,30 +120,30 @@ show_step_progress() {
     local total=$2
     local desc="$3"
     local box_width=63
-    
+
     # Step line
     local step_text="Step $step of $total"
     local step_len=$(echo -n "$step_text" | wc -m)
     local step_padding=$((box_width - step_len - 2))
     if [ $step_padding -lt 0 ]; then step_padding=0; fi
-    
+
     # Description line
     local desc_len=$(echo -n "$desc" | wc -m)
     local desc_padding=$((box_width - desc_len - 2))
     if [ $desc_padding -lt 0 ]; then desc_padding=0; fi
-    
+
     echo ""
-    echo -e "${BOLD}${CYAN}╔$(printf '═%.0s' $(seq 1 $box_width))╗${NC}"
-    echo -e "${BOLD}${CYAN}║${NC} ${BOLD}${WHITE}$step_text${NC}$(printf ' %.0s' $(seq 1 $step_padding)) ${BOLD}${CYAN}║${NC}"
-    echo -e "${BOLD}${CYAN}║${NC} ${CYAN}$desc${NC}$(printf ' %.0s' $(seq 1 $desc_padding)) ${BOLD}${CYAN}║${NC}"
-    echo -e "${BOLD}${CYAN}╚$(printf '═%.0s' $(seq 1 $box_width))╝${NC}"
-    
+    echo -e "${BOLD}${CYAN}+$(printf '=%.0s' $(seq 1 $box_width))+${NC}"
+    echo -e "${BOLD}${CYAN}|${NC} ${BOLD}${WHITE}$step_text${NC}$(printf ' %.0s' $(seq 1 $step_padding)) ${BOLD}${CYAN}|${NC}"
+    echo -e "${BOLD}${CYAN}|${NC} ${CYAN}$desc${NC}$(printf ' %.0s' $(seq 1 $desc_padding)) ${BOLD}${CYAN}|${NC}"
+    echo -e "${BOLD}${CYAN}+$(printf '=%.0s' $(seq 1 $box_width))+${NC}"
+
     # Show mini progress bar
     local filled=$((step * 50 / total))
     local empty=$((50 - filled))
     printf "  ${CYAN}["
-    printf "%${filled}s" | tr ' ' '█'
-    printf "%${empty}s" | tr ' ' '░'
+    printf "%${filled}s" | tr ' ' '#'
+    printf "%${empty}s" | tr ' ' '.'
     printf "]${NC}\n\n"
 }
 
@@ -171,7 +170,7 @@ format_duration() {
 show_elapsed_time() {
     local current_time=$(date +%s)
     local elapsed=$((current_time - START_TIME))
-    echo -e "${DIM}⏱️  Elapsed time: $(format_duration $elapsed)${NC}"
+    echo -e "${DIM}Elapsed time: $(format_duration $elapsed)${NC}"
 }
 
 # Animated celebration for successful completion
@@ -180,21 +179,12 @@ show_celebration() {
     echo ""
     echo -e "${BOLD}${GREEN}"
     cat << "EOF"
-    ╔════════════════════════════════════════════════════════════╗
-    ║                    🎉 SUCCESS! 🎉                          ║
-    ╚════════════════════════════════════════════════════════════╝
+    +============================================================+
+    |                    *** SUCCESS! ***                        |
+    +============================================================+
 EOF
     echo -e "${NC}"
     echo -e "  ${BOLD}${WHITE}$message${NC}"
-    echo ""
-    
-    # Animated sparkles
-    local sparkles=("✨" "⭐" "🌟" "💫" "✨")
-    for sparkle in "${sparkles[@]}"; do
-        echo -ne "\r  ${YELLOW}$sparkle $sparkle $sparkle $sparkle $sparkle $sparkle $sparkle $sparkle $sparkle $sparkle${NC}"
-        sleep 0.1
-    done
-    echo -ne "\r$(printf ' %.0s' {1..80})\r"  # Clear line
     echo ""
 }
 
@@ -203,16 +193,15 @@ echo_operation() {
     local message="$1"
     local estimate="${2:-}"
     if [ -n "$estimate" ]; then
-        echo -e "${MAGENTA}▶${NC}  $message ${DIM}(~$estimate)${NC}"
+        echo -e "   >>  $message (~$estimate)"
     else
-        echo -e "${MAGENTA}▶${NC}  $message"
+        echo -e "   >>  $message"
     fi
 }
 
 # Enhanced section separator
 draw_separator() {
-    local color="${1:-$CYAN}"
-    echo -e "\n${color}$(printf '━%.0s' {1..75})${NC}\n"
+    echo -e "\n${CYAN}$(printf '=%.0s' {1..75})${NC}\n"
 }
 
 # Add branding footer for whiptail dialogs
@@ -260,7 +249,7 @@ if [ "$EUID" -ne 0 ]; then
     exit 1
 fi
 
-draw_box "✓  Root privileges confirmed - Installation ready to begin"
+draw_box "[ OK ] Root privileges confirmed - Installation ready to begin"
 
 # Configuration variables
 INSTALL_DIR="/opt/eas-station"
