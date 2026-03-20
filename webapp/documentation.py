@@ -113,11 +113,13 @@ def _get_docs_structure() -> Dict[str, List[Dict[str, str]]]:
 
     structure = {
         'Getting Started': [],
-        'Operations': [],
         'Architecture': [],
         'Development': [],
-        'Reference': [],
+        'Hardware': [],
         'Guides': [],
+        'Troubleshooting': [],
+        'Security': [],
+        'Reference': [],
         'Policies': [],
     }
 
@@ -131,6 +133,12 @@ def _get_docs_structure() -> Dict[str, List[Dict[str, str]]]:
         'roadmap': 'Reference',
         'process': 'Development',
         'frontend': 'Development',
+        'hardware': 'Hardware',
+        'audio': 'Guides',
+        'installation': 'Getting Started',
+        'maintenance': 'Guides',
+        'security': 'Security',
+        'troubleshooting': 'Troubleshooting',
     }
 
     # Add main docs
