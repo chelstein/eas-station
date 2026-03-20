@@ -20,8 +20,9 @@ Repository: https://github.com/KR8MER/eas-station
 """Application settings admin routes."""
 
 import logging
+from types import SimpleNamespace
 
-from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash
+from flask import Blueprint, render_template, request, jsonify, flash
 from sqlalchemy.exc import SQLAlchemyError
 
 from app_core.extensions import db
@@ -58,6 +59,21 @@ def _get_or_create_settings() -> ApplicationSettings:
     return settings
 
 
+def _fallback_application_settings():
+    """Return in-memory defaults when the database is unavailable."""
+    return SimpleNamespace(
+        log_level='INFO',
+        log_file='logs/eas_station.log',
+        upload_folder='/opt/eas-station/uploads',
+        password_min_length=8,
+        password_require_uppercase=False,
+        password_require_lowercase=False,
+        password_require_digits=False,
+        password_require_special=False,
+        password_expiration_days=0,
+    )
+
+
 @application_settings_bp.route('/', methods=['GET'])
 @require_auth
 @require_permission('system.configure')
@@ -65,13 +81,20 @@ def application_settings_page():
     """Display application settings page."""
     try:
         settings = _get_or_create_settings()
-        return render_template('admin/application_settings.html', settings=settings,
-                               valid_log_levels=sorted(VALID_LOG_LEVELS))
     except SQLAlchemyError as e:
         logger.error(f"Database error loading application settings: {str(e)}")
-        db.session.rollback()
-        flash('Database error loading application settings', 'danger')
-        return redirect(url_for('dashboard.admin'))
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        flash(
+            'Database error loading application settings. '
+            'Settings are shown with defaults — run database migrations to restore full functionality.',
+            'danger',
+        )
+        settings = _fallback_application_settings()
+    return render_template('admin/application_settings.html', settings=settings,
+                           valid_log_levels=sorted(VALID_LOG_LEVELS))
 
 
 @application_settings_bp.route('/update', methods=['POST'])

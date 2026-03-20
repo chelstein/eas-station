@@ -163,7 +163,7 @@ def admin():
         eas_event_options.sort(key=lambda item: item['code'])
 
         eas_state_tree = get_us_state_county_tree()
-        eas_lookup = get_same_lookup()
+        eas_lookup = dict(get_same_lookup())
         originator_choices = [
             {
                 'code': code,

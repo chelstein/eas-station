@@ -962,8 +962,8 @@ def before_request():
             if g.current_user is None:
                 if request.path.startswith('/api/'):
                     return jsonify({'error': 'Authentication required'}), 401
-                if g.admin_setup_mode and request.endpoint in {'admin', 'admin_users'}:
-                    if request.method == 'GET' or (request.method == 'POST' and request.endpoint == 'admin_users'):
+                if g.admin_setup_mode and request.endpoint in {'admin', 'admin_users', 'dashboard.admin', 'dashboard.admin_users'}:
+                    if request.method == 'GET' or (request.method == 'POST' and request.endpoint in {'admin_users', 'dashboard.admin_users'}):
                         return
                 accept_header = request.headers.get('Accept', '')
                 next_url = request.full_path if request.query_string else request.path
