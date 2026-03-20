@@ -8,7 +8,7 @@
 # service. These packages only cover the Python client libraries that
 # communicate with the external database instance.
 #
-# Core Flask dependencies (KEEP during migration - both frameworks running in parallel)
+# Core Flask dependencies
 Flask==3.1.2
 Flask-SQLAlchemy==3.1.1
 Flask-Caching==2.3.1
@@ -17,23 +17,17 @@ Flask-WTF==1.2.2  # CSRF protection and form validation
 Flask-Limiter==4.1.1  # Rate limiting with Redis/memory backend
 Werkzeug==3.1.4
 
-# Core FastAPI and web framework dependencies (NEW - running alongside Flask)
-fastapi==0.124.2
-uvicorn[standard]==0.38.0  # ASGI server with WebSocket support
-python-socketio==5.15.0  # Socket.IO support for both Flask and FastAPI
-python-multipart==0.0.20  # Form data and file upload parsing
-jinja2==3.1.6  # Template rendering (shared by both frameworks)
-itsdangerous==2.2.0  # Secure session cookies and CSRF tokens (shared)
-starlette==0.50.0  # Starlette (included with FastAPI, pinning for session support)
-slowapi==0.1.9  # Rate limiting for FastAPI (Flask-Limiter equivalent)
-aiofiles==25.1.0  # Async file operations
+# Web framework support dependencies
+python-socketio==5.15.0  # Socket.IO support for Flask-SocketIO
+jinja2==3.1.6  # Template rendering
+itsdangerous==2.2.0  # Secure session cookies and CSRF tokens
 
 # Database dependencies
 SQLAlchemy==2.0.45
-psycopg2-binary==2.9.11  # Sync PostgreSQL driver (can migrate to asyncpg later)
+psycopg2-binary==2.9.11  # Sync PostgreSQL driver
 GeoAlchemy2==0.18.1
 Alembic==1.17.2
-greenlet==3.3.0  # Required for SQLAlchemy 2.0 with FastAPI sync operations
+greenlet==3.3.0  # Required for SQLAlchemy 2.0 sync operations with gevent
 
 # HTTP client for API calls
 requests==2.32.5
@@ -69,11 +63,9 @@ lxml==6.0.2  # Fast C-based XML parser (5-10x faster than ElementTree)
 # Document and spreadsheet exports
 openpyxl==3.1.5
 
-# Production servers (BOTH during migration)
-gunicorn==23.0.0  # WSGI server for Flask (port 5000)
+# Production servers
+gunicorn==23.0.0  # WSGI server for Flask
 gevent>=25.9.1    # Async worker for Flask-SocketIO with Gunicorn (Python 3.13+ compatible)
-# uvicorn (ASGI server for FastAPI on port 8080) already included above with [standard] extras
-# uvicorn[standard] includes: websockets, httptools, uvloop, watchfiles
 
 # Redis for state management and worker coordination
 # Replaces fragile file-based coordination with robust distributed state

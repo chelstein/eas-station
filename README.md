@@ -5,7 +5,6 @@
 
 [![Python](https://img.shields.io/badge/Python-3.11%20|%203.12%20|%203.13-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
 [![Flask](https://img.shields.io/badge/Flask-3.1.2-000000?style=flat-square&logo=flask&logoColor=white)](https://flask.palletsprojects.com/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.124.2-009688?style=flat-square&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![SQLAlchemy](https://img.shields.io/badge/SQLAlchemy-2.0.45-CA2C39?style=flat-square&logo=sqlalchemy&logoColor=white)](https://www.sqlalchemy.org/)
 [![PostgreSQL + PostGIS](https://img.shields.io/badge/PostgreSQL%20%2B%20PostGIS-17%20%2F%203.4-0093D0?style=flat-square&logo=postgresql&logoColor=white)](https://www.postgresql.org/)
 [![Redis](https://img.shields.io/badge/Redis-7.1-DC382D?style=flat-square&logo=redis&logoColor=white)](https://redis.io/)
@@ -150,25 +149,45 @@ cd eas-station && \
 sudo bash install.sh
 ```
 
-**The installer uses an interactive TUI (raspi-config style) to collect all configuration:**
+**The installer uses an interactive TUI (whiptail) to collect all configuration:**
 - 👤 Administrator account (username, password, email)
 - 🖥️ System settings (hostname, domain, EAS originator, station callsign)
 - 📍 Location & timezone (state, county, optional FIPS codes)
-- 📡 Alert sources (NOAA, IPAWS with poll intervals)
+- 📡 Alert sources (NOAA, IPAWS)
 - 🎵 Audio/streaming (Icecast with auto-generated passwords)
-- 🔌 Hardware (GPIO, LED signs, VFD displays)
+- 🔌 Hardware (GPIO, LED signs, VFD displays, Zigbee)
 
 **Then automatically:**
 - ✅ Installs all dependencies (PostgreSQL, Redis, Python, nginx, etc.)
 - ✅ Generates secure SECRET_KEY and passwords
-- ✅ Creates configuration file with your settings
-- ✅ Initializes the database schema
-- ✅ Starts all services
-- ✅ Configures HTTPS with self-signed certificate
+- ✅ Creates `/opt/eas-station/.env` with your settings
+- ✅ Initializes the database schema (Alembic migrations)
+- ✅ Creates your administrator account
+- ✅ Starts all systemd services
+- ✅ Configures nginx with a self-signed certificate (Let's Encrypt optional)
 
 **All configuration is done during installation - no post-install wizard needed!**
 
 > 💡 **Debian Trixie (Testing)**: Fully supported! The installer auto-detects your OS version and installs compatible packages. Python 3.13 is fully supported with the latest dependency updates.
+
+### Updating
+
+To update an existing installation to the latest version:
+
+```bash
+cd /opt/eas-station
+sudo bash update.sh
+```
+
+The update script will:
+- ✅ Optionally create a backup of your current installation
+- ✅ Stop all EAS Station services
+- ✅ Pull the latest code from GitHub (`git fetch` + `git reset --hard`)
+- ✅ Preserve your `/opt/eas-station/.env` configuration
+- ✅ Update Python dependencies
+- ✅ Run any pending database migrations
+- ✅ Reload systemd service definitions
+- ✅ Restart all services
 
 ### Uninstallation
 
@@ -199,16 +218,17 @@ Accept the self-signed certificate warning (safe for initial setup).
 
 All essential settings are configured during installation, but you can:
 
-1. **Advanced Features** - Use the web-based setup wizard at `/setup` for:
-   - FIPS code lookup from county names
-   - Auto-derive zone codes from FIPS codes
-   - Interactive builders with validation
-   
-2. **Reconfigure Anytime** - Use `sudo eas-config` for raspi-config style TUI
-   
-3. **Manual Editing** - Edit `/opt/eas-station/.env` for advanced settings
+1. **Reconfigure Core Settings** - Use `sudo eas-config` for a whiptail TUI to update hostname, domain, location, FIPS codes, and other `.env` settings
 
-> 💡 **Production SSL**: `sudo certbot --nginx -d your-domain.com`
+2. **FIPS / Zone Code Tools** - Use the web-based setup wizard at `/setup` to:
+   - Look up FIPS codes from county names
+   - Auto-derive NWS zone codes from FIPS codes
+
+3. **Feature Settings** - Configure hardware, Icecast, notifications, TTS, and more through the web UI at `/settings`
+
+4. **Advanced `.env` Editing** - Edit `/opt/eas-station/.env` directly for core infrastructure settings (SECRET_KEY, DATABASE_URL, Redis)
+
+> 💡 **Production SSL**: Run `sudo certbot --nginx -d your-domain.com` after pointing your DNS to the server, or answer "Yes" to the Let's Encrypt prompt during installation.
 
 ### System Requirements
 
@@ -223,21 +243,11 @@ All essential settings are configured during installation, but you can:
 - ✅ **Native Performance** - Runs directly on host OS
 - ✅ **Direct Hardware Access** - SDR, GPIO, and audio devices work natively
 - ✅ **Standard Linux Management** - Familiar systemd service control
-- ✅ **Interactive Setup** - raspi-config style TUI for easy configuration
+- ✅ **Interactive Setup** - whiptail TUI for easy configuration
 - ✅ **All-in-One Install** - Complete configuration during installation
 - ✅ **Reconfigurable** - Change settings anytime with `sudo eas-config`
 
-### Alternative: Bootable ISO
-
-Build a pre-configured bootable ISO for dedicated hardware:
-
-```bash
-cd eas-station
-sudo bash scripts/build-iso.sh
-# Burn to USB: sudo dd if=eas-station-*.iso of=/dev/sdX bs=4M status=progress
-```
-
-**📖 Full Guide:** See [docs/installation/README.md](docs/installation/README.md) for detailed installation, upgrades, configuration, and troubleshooting.
+**📖 Full Guide:** See [docs/guides/SETUP_INSTRUCTIONS.md](docs/guides/SETUP_INSTRUCTIONS.md) for detailed installation, upgrades, configuration, and troubleshooting.
 
 ### Installation Notes for Debian Trixie
 
@@ -307,7 +317,7 @@ graph TB
 
     subgraph Services["Systemd Services"]
         POLL[Alert Poller<br/>Unified CAP Polling]
-        WEB[Web Application<br/>Flask + FastAPI]
+        WEB[Web Application<br/>Flask + Gunicorn]
         SDR_SVC[SDR Service<br/>Radio Hardware]
         AUDIO_SVC[Audio Service<br/>EAS Monitoring]
         HW_SVC[Hardware Service<br/>GPIO/Displays]
@@ -352,7 +362,7 @@ graph TB
 
 | Component | Technology | Purpose |
 |-----------|-----------|---------|
-| **Web Application** | Flask 3.1 + FastAPI 0.124 + Bootstrap 5 | User interface and REST API |
+| **Web Application** | Flask 3.1 + Bootstrap 5 | User interface and REST API |
 | **Alert Poller** | Python asyncio | Unified NOAA/IPAWS CAP monitoring |
 | **Database** | PostgreSQL 17 + PostGIS 3.4 | Spatial data storage and queries |
 | **SDR Service** | SoapySDR + RTL-SDR/Airspy | Radio reception and demodulation |
@@ -457,7 +467,6 @@ python3-lgpio  # Preferred on Pi 5
 
 **Python Package Requirements** (installed via pip in virtual environment):
 - Flask 3.1.2 - Web framework
-- FastAPI 0.124.2 - Async API framework
 - SQLAlchemy 2.0.45 - Database ORM
 - gevent 25.9.1+ - WSGI async support (Python 3.13 compatible)
 - redis 7.1.0 - Redis client
@@ -474,33 +483,37 @@ python3-lgpio  # Preferred on Pi 5
 
 ## 🛠️ Configuration
 
-Edit `.env` with your settings:
+The `.env` file at `/opt/eas-station/.env` is auto-generated by the installer and holds core infrastructure settings:
 
 ```bash
-# Core settings
-SECRET_KEY=generate-with-python-secrets-module
-POSTGRES_HOST=localhost
-POSTGRES_PASSWORD=your-secure-password
+# Core application settings (auto-generated by installer)
+SECRET_KEY=<generated 64-char hex key>
+FLASK_ENV=production
 
-# Your location
-DEFAULT_COUNTY_NAME=Your County
-DEFAULT_STATE_CODE=XX
-DEFAULT_ZONE_CODES=XXZ001,XXC001
+# Database connection
+DATABASE_URL=postgresql+psycopg2://eas_station:<password>@127.0.0.1:5432/alerts
 
-# Enable broadcast (optional)
-EAS_BROADCAST_ENABLED=false
-EAS_ORIGINATOR=WXR
-EAS_STATION_ID=YOURCALL
+# Redis
+REDIS_HOST=localhost
+REDIS_PORT=6379
+REDIS_DB=0
+
+# Domain / SSL
+DOMAIN_NAME=your-domain.com
+SSL_EMAIL=admin@example.com
 ```
 
-Configuration file location: `/opt/eas-station/.env`
+Most feature settings (hardware, Icecast, notifications, TTS, broadcast, FIPS codes, etc.) are stored in the database and configured through the web UI at `/settings` and `/admin/`.
 
-After editing, restart services:
+To reconfigure core `.env` settings after installation:
 ```bash
+sudo eas-config        # interactive whiptail TUI
+# or edit directly:
+sudo nano /opt/eas-station/.env
 sudo systemctl restart eas-station.target
 ```
 
-See [Configuration Guide](docs/guides/HELP) for complete reference.
+See [Configuration Guide](docs/guides/HELP.md) for complete reference.
 
 ## 📊 System Diagrams
 
@@ -630,10 +643,13 @@ Current development focuses on:
 
 See [Feature Roadmap](docs/roadmap/dasdec3-feature-roadmap.md) for complete details.
 
-### Recent Additions (November 2025)
+### Recent Additions
 
+- **SNMP v2c Trap Notifications** - Send SNMP traps to NMS targets for system health alerts (`/admin/notifications`)
+- **Raw SAME Header Parser** - Paste any `ZCZC-…` string for instant field-by-field decode (`/admin/alert-verification`)
+- **EAS Decode Performance** - Skip redundant baud-rate scan passes, vectorized Goertzel filter, polyphase resampler
+- **Settings Hub** - All admin pages reachable from a single `/settings` dashboard
 - **Stream Profile Manager** (`/settings/stream-profiles`) - Configure multiple Icecast streams with different bitrates and formats
-- **Quick Start Guide** - 15-minute deployment guide with common scenarios and troubleshooting
 
 See [Changelog](docs/reference/CHANGELOG.md) for detailed documentation of recent changes.
 
@@ -714,10 +730,8 @@ See [NOTICE](NOTICE) file for complete terms.
 <summary><strong>Click to expand complete technology stack</strong></summary>
 
 ### Backend Framework
-- **Flask 3.1.2** - Primary web framework for UI and REST API
-- **FastAPI 0.124.2** - Modern async API framework (parallel deployment)
+- **Flask 3.1.2** - Web framework for UI and REST API
 - **Gunicorn 23.0** - Production WSGI server
-- **Uvicorn 0.38.0** - ASGI server with WebSocket support
 - **nginx** - HTTPS termination and reverse proxy
 
 ### Database & Caching

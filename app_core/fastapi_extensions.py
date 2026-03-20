@@ -2,8 +2,9 @@
 EAS Station - Emergency Alert System
 Copyright (c) 2025-2026 Timothy Kramer (KR8MER)
 
-FastAPI extension singletons for the EAS Station application.
-This module provides FastAPI-compatible database and extension management.
+Database and extension singletons for the EAS Station application.
+This module provides SQLAlchemy database session management and shared
+application extension helpers.
 """
 
 from sqlalchemy import create_engine
