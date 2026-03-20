@@ -8,18 +8,19 @@ set -e  # Exit on error
 # Save real terminal fd for TUI output — must be the very first action
 exec 9>&1
 
-# DOS/CGA color palette (foreground only — backgrounds set inline)
-RED='\033[1;31m'
-GREEN='\033[1;32m'
-YELLOW='\033[1;33m'
-CYAN='\033[1;36m'
-WHITE='\033[1;37m'
-BOLD='\033[1m'
-DIM='\033[2m'
-NC='\033[0m'
+# DOS/CGA color palette — $'...' produces real ESC bytes so embedded ANSI
+# codes in status messages are rendered by the terminal, not shown literally
+RED=$'\033[1;31m'
+GREEN=$'\033[1;32m'
+YELLOW=$'\033[1;33m'
+CYAN=$'\033[1;36m'
+WHITE=$'\033[1;37m'
+BOLD=$'\033[1m'
+DIM=$'\033[2m'
+NC=$'\033[0m'
 # Legacy vars still referenced in script body
-BLUE='\033[0;34m'
-MAGENTA='\033[0;35m'
+BLUE=$'\033[0;34m'
+MAGENTA=$'\033[0;35m'
 
 # Step counter for progress tracking
 STEP_NUM=0
@@ -81,8 +82,8 @@ redraw_screen() {
     local bar="${_BAR55:0:$filled}${_DOT55:0:$empty}"
 
     {
-        # Move cursor to top without clearing (prevents flicker)
-        printf '\033[H'
+        # Home cursor, then erase everything below — clears splash/old content
+        printf '\033[H\033[J'
 
         # Line 1: Red title bar
         printf '\033[41;1;37m  %-77s\033[K\033[0m\n' \
@@ -115,12 +116,15 @@ redraw_screen() {
             local idx=$((total - MAX_STATUS_LINES + i))
             if [ $idx -ge 0 ] && [ $idx -lt $total ]; then
                 local msg="${STATUS_MSGS[$idx]}"
+                # Print message; \033[K fills remainder with current bg colour.
+                # Using %s not %-75s so embedded ANSI codes aren't counted as
+                # printable characters for padding.
                 case "${msg:0:7}" in
-                    "[ OK ] ") printf '\033[44;1;32m  %-75s\033[K\n' "$msg" ;;
-                    "[INFO] ") printf '\033[44;1;36m  %-75s\033[K\n' "$msg" ;;
-                    "[WARN] ") printf '\033[44;1;33m  %-75s\033[K\n' "$msg" ;;
-                    "[ERROR]") printf '\033[44;1;31m  %-75s\033[K\n' "$msg" ;;
-                    *)         printf '\033[44;1;37m  %-75s\033[K\n' "$msg" ;;
+                    "[ OK ] ") printf '\033[44;1;32m  %s\033[44;1;37m\033[K\n' "$msg" ;;
+                    "[INFO] ") printf '\033[44;1;36m  %s\033[44;1;37m\033[K\n' "$msg" ;;
+                    "[WARN] ") printf '\033[44;1;33m  %s\033[44;1;37m\033[K\n' "$msg" ;;
+                    "[ERROR]") printf '\033[44;1;31m  %s\033[44;1;37m\033[K\n' "$msg" ;;
+                    *)         printf '\033[44;1;37m  %s\033[K\n'             "$msg" ;;
                 esac
             else
                 printf '\033[44;1;37m\033[K\n'
@@ -384,6 +388,7 @@ echo_step "Administrator Account Setup"
 
 # Welcome screen
 whiptail --title "EAS Station Installation" --backtitle "$(whiptail_footer)" --msgbox "Welcome to the EAS Station Interactive Installer!\n\nThis wizard will guide you through configuring your Emergency Alert System station.\n\nYou'll be asked to configure:\n• Administrator account\n• System identification\n• Station callsign and location\n\nPress OK to begin." 18 70
+redraw_screen
 
 # Prompt for admin username
 while true; do
