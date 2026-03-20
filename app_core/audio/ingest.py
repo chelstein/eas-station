@@ -562,6 +562,7 @@ class AudioIngestController:
         self._monitor_thread: Optional[threading.Thread] = None
         self._flask_app = flask_app  # Store Flask app for app context in background threads
         self._metadata_change_callback = None  # Applied to every source (current and future)
+        self._source_alert_callback = None  # Optional: called on source events (restart/error/stop)
 
         if enable_monitor:
             self._monitor_thread = threading.Thread(
@@ -577,6 +578,14 @@ class AudioIngestController:
         with self._lock:
             for adapter in self._sources.values():
                 adapter.on_metadata_change = callback
+
+    def set_source_alert_callback(self, callback) -> None:
+        """Register a callback invoked when a source event occurs (stall/error/disconnected).
+
+        The callback receives ``(source_name: str, event_type: str, message: str)``
+        and is called from within a Flask app context when one is available.
+        """
+        self._source_alert_callback = callback
 
     def add_source(self, source: AudioSourceAdapter) -> None:
         """Add an audio source to the controller."""
@@ -778,8 +787,20 @@ class AudioIngestController:
                 return
             last_update = adapter._last_metrics_update or (adapter.metrics.timestamp if adapter.metrics else 0.0)
             if last_update == 0.0 or now - last_update > self._monitor_stall_seconds:
+                self._fire_source_alert(adapter.config.name, "stall", "stalled capture (no audio samples)")
                 adapter.restart("stalled capture (no audio samples)")
             return
 
         if status in (AudioSourceStatus.ERROR, AudioSourceStatus.DISCONNECTED):
+            self._fire_source_alert(adapter.config.name, status.value, adapter.error_message or f"source in {status.value} state")
             adapter.restart(f"status={status.value}")
+
+    def _fire_source_alert(self, source_name: str, event_type: str, message: str) -> None:
+        """Invoke the registered source alert callback (non-blocking, best-effort)."""
+        if self._source_alert_callback is None:
+            return
+        try:
+            self._source_alert_callback(source_name, event_type, message)
+        except Exception as exc:
+            logger.error("Error in source alert callback for %s: %s", source_name, exc)
+
