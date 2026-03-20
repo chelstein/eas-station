@@ -6,6 +6,19 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.65.3] - 2026-03-20 - Fix NameError crashing /api/system_status and system_logs template block
+
+### Fixed
+- **`/api/system_status` 500 error** — `_CPU_SAMPLE_INTERVAL_SECONDS` constant was
+  referenced in `_get_cpu_usage_percent()` (`webapp/admin/api.py`) but never defined,
+  causing a `NameError` on every request; added the missing constant (`5.0` seconds).
+- **`/logs` page (system_logs.html)** — template used `{% block head %}` which is not
+  defined in `base.html`; renamed to `{% block extra_css %}` so the page-level CSS is
+  correctly injected.
+- **Test correctness** — updated `test_admin_dashboard_fixes.py` to reflect the active
+  navbar component file (`navbar.html`, not the deleted `navbar_new.html`) and to
+  accept the standard license-header docstring that precedes the `__future__` import.
+
 ## [2.65.2] - 2026-03-20 - Fix missing route endpoints causing 500 errors
 
 ### Fixed
