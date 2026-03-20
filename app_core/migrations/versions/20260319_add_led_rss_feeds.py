@@ -1,7 +1,7 @@
 """Add LED RSS feed tables
 
 Revision ID: 20260319_led_rss
-Revises:
+Revises: 20260224_add_stream_url_to_metadata_log
 Create Date: 2026-03-19
 """
 from __future__ import annotations
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = "20260319_led_rss"
-down_revision = None
+down_revision = "20260224_add_stream_url_to_metadata_log"
 branch_labels = None
 depends_on = None
 
