@@ -22,7 +22,8 @@ from __future__ import annotations
 """US FIPS county code reference data."""
 
 from pathlib import Path
-from typing import Dict, FrozenSet, List, Tuple
+from types import MappingProxyType
+from typing import Dict, FrozenSet, List, Mapping, Tuple
 
 
 STATE_ABBR_NAMES: Dict[str, str] = {
@@ -3480,6 +3481,7 @@ STATEWIDE_SAME_CODES: FrozenSet[str] = frozenset(
     if isinstance(state.get('statewide_code'), str) and state.get('statewide_code')
 )
 US_FIPS_LOOKUP: Dict[str, str] = _build_same_lookup(US_STATE_COUNTY_TREE)
+_US_FIPS_LOOKUP_PROXY: Mapping[str, str] = MappingProxyType(US_FIPS_LOOKUP)
 
 
 def get_us_state_county_tree() -> List[Dict[str, object]]:
@@ -3502,11 +3504,12 @@ def get_us_state_county_tree() -> List[Dict[str, object]]:
     ]
 
 
-def get_same_lookup() -> Dict[str, str]:
-    """Return a mapping of SAME codes to friendly labels.
+def get_same_lookup() -> Mapping[str, str]:
+    """Return an immutable mapping of SAME codes to friendly labels.
 
-    Returns the module-level singleton directly (read-only). Callers must
-    not mutate the returned dict.
+    Returns a ``MappingProxyType`` view of the module-level lookup table.
+    All read operations (``get``, ``[]``, ``in``, ``keys``, iteration) work
+    identically to a plain dict; mutation is prevented at the type level.
     """
 
-    return US_FIPS_LOOKUP
+    return _US_FIPS_LOOKUP_PROXY

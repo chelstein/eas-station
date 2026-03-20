@@ -18,7 +18,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = "20260320_alert_verify_idx"
-down_revision = None
+down_revision = "20260319_led_rss"
 branch_labels = None
 depends_on = None
 

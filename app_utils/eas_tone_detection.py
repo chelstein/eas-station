@@ -82,8 +82,9 @@ def _goertzel_power(samples: np.ndarray, sample_rate: int, target_freq: float) -
     # Vectorized DFT at bin k: X = Σ x[i] * exp(-j*omega*i)
     # power = |X|^2 = real^2 + imag^2
     t = np.arange(n, dtype=np.float64)
-    real = float(np.dot(samples.astype(np.float64), np.cos(omega * t)))
-    imag = float(np.dot(samples.astype(np.float64), np.sin(omega * t)))
+    samples_f64 = samples.astype(np.float64)
+    real = float(np.dot(samples_f64, np.cos(omega * t)))
+    imag = float(np.dot(samples_f64, np.sin(omega * t)))
     return real * real + imag * imag
 
 
