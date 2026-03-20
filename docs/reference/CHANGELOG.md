@@ -6,6 +6,40 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.63.2] - 2026-03-20 - Documentation cleanup and broken image fix
+
+### Fixed
+- **Missing image beside maintainer bio on About page** – `ham-radio-icon.svg` was a PNG
+  file with a wrong extension. Flask served it with `Content-Type: image/svg+xml`, causing
+  browsers to fail silently when parsing binary PNG data as SVG XML. Renamed to
+  `ham-radio-icon.png` and updated the `about.html` template reference.
+
+### Removed
+- **Development artifact documentation purge** – 42 files totalling ~800 KB of
+  development-era scratch notes, migration guides for completed migrations, one-off
+  diagnostic fix write-ups, and IDE-specific tooling docs have been removed.  These were
+  internal working documents that had no place in a finished-product documentation set:
+  - `docs/archive/` — entire directory (25 RBDS fix iteration files + SDR audio cutout fix)
+  - `docs/development/ADMIN_PAGE_REFACTORING.md` — internal refactoring roadmap
+  - `docs/development/CSS_VARIABLES_MIGRATION.md` — December 2024 CSS migration notes
+  - `docs/architecture/MIGRATION.md` — hypothetical FastAPI rewrite (never started)
+  - `docs/guides/POLLER_MIGRATION_GUIDE.md` — migration from legacy poller (completed)
+  - `docs/guides/CONFIGURATION_MIGRATION.md` — env-var merge utility (env vars removed)
+  - `docs/guides/PYCHARM_DEBUGGING.md` — 141 KB IDE-specific debug guide for developers
+  - `docs/troubleshooting/ENV_FILE_MIGRATION.md` — systemd JSON env-file fix (old system)
+  - `docs/troubleshooting/ENVIRONMENT_CONFIG_ISSUES.md` — env-var config issues (old system)
+  - `docs/troubleshooting/DATABASE_AUTH_FIX.md` — one-off database auth fix notes
+  - `docs/troubleshooting/AUDIO_SQUEAL_FIX.md` — Docker-era legacy squeal fix
+  - `docs/troubleshooting/DATABASE_CONSISTENCY_FIXES.md` — internal code audit/fix notes
+  - `docs/troubleshooting/PGADMIN_APACHE2_CONFLICT.md` — historical pgAdmin port conflict
+  - `docs/installation/Installation-Changes.md` — install script improvement notes
+  - `docs/installation/PostgreSQL-15-Fix.md` — one-off PostgreSQL 15 permission fix
+  - `docs/reference/FIPS_CODES_UPDATE.md` — internal developer note on updating FIPS data
+  - `docs/reference/CFR-2010-title47-vol1-sec11-31.xml` — raw regulatory XML dump
+- **Stale cross-references cleaned up** – `docs/INDEX.md`, `docs/README.md`,
+  `docs/troubleshooting/FIREWALL_REQUIREMENTS.md`, and
+  `docs/troubleshooting/POLLING_NOT_WORKING.md` updated to remove broken links.
+
 ## [2.63.1] - 2026-03-20 - Audio monitor false-Disconnected and missing Audio logs
 
 ### Fixed

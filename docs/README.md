@@ -30,7 +30,7 @@ Welcome to the documentation for EAS Station - an Emergency Alert System platfor
 |-------|-------------------|
 | [Installation Guide](installation/README) | Bare metal deployment |
 | [SDR Setup](hardware/SDR_SETUP) | Radio receiver configuration |
-| [Database Troubleshooting](troubleshooting/DATABASE_CONSISTENCY_FIXES) | PostgreSQL issues |
+| [Firewall Requirements](troubleshooting/FIREWALL_REQUIREMENTS) | Network port configuration |
 
 ### For Developers
 
@@ -74,8 +74,7 @@ docs/
 ├── reference/       # Reference materials
 ├── roadmap/         # Feature planning
 ├── security/        # Security documentation
-├── troubleshooting/ # Problem-solving guides
-└── archive/         # Historical documentation
+└── troubleshooting/ # Problem-solving guides
 ```
 
 **[Complete Index](INDEX)** - Full list of all documentation
@@ -100,7 +99,6 @@ docs/
 
 ### Troubleshooting
 
-- [Database connection issues](troubleshooting/DATABASE_CONSISTENCY_FIXES)
 - [SDR not detecting](hardware/SDR_SETUP#troubleshooting)
 - [Audio problems](audio/AUDIO_MONITORING#troubleshooting)
 - [Common errors](guides/HELP#troubleshooting)
