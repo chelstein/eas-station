@@ -2,280 +2,222 @@
 
 ## Quick Diagnostic Checklist
 
-If you're seeing "Buffer Utilization 0.0% ⚠️ No data flowing" and audio won't play, follow these steps:
+If audio sources show "No data flowing" or the audio monitoring page shows 0% buffer utilization, work through these steps in order.
 
-### 1. Check if Audio Sources are Configured
-
-```sql
--- Connect to database
-
--- Check for configured sources
-SELECT name, source_type, enabled, auto_start, priority 
-FROM audio_source_configs;
-```
-
-**Expected Result**: At least one row with `enabled=true` and `auto_start=true`
-
-**If empty**: You need to configure audio sources through the web UI at Settings → Audio Sources, or manually insert into database.
-
-### 2. Check if Audio Service is Running
+### 1. Check Service Health
 
 ```bash
-# Check container status
-
-# Check logs
+sudo systemctl status eas-station-audio.service
+sudo journalctl -u eas-station-audio.service -n 50
 ```
 
-**Expected Logs**:
+**Expected**: Service `active (running)` with log lines like:
 ```
-✅ Loaded environment from: /app-config/.env
-Initializing audio controller...
 Loading N audio source configurations from database
 Auto-starting source: 'your-source-name'
-✅ Successfully started 'your-source-name'
+Successfully started 'your-source-name'
 ```
 
-**If not running**: Start the audio-service container:
-### 3. Check if SDR Service is Running (for SDR sources only)
+If the service is not running:
+```bash
+sudo systemctl start eas-station-audio.service
+```
+
+### 2. Verify Audio Sources are Configured
+
+In the web UI, navigate to **Settings → Audio Sources**. At least one source should be enabled with **Auto Start** on.
+
+Alternatively, check directly:
+```bash
+sudo -u postgres psql alerts -c \
+  "SELECT name, source_type, enabled, auto_start, priority FROM audio_source_configs;"
+```
+
+**If empty**: Add an audio source via **Settings → Audio Sources → Add Source**.
+
+### 3. Check Redis Connectivity
 
 ```bash
-# Check container status
-
-# Check logs
-```
-
-**Expected Logs for SDR sources**:
-```
-🔗 Auto-discovering Redis SDR sources from sdr-service...
-✅ Created Redis SDR source: redis-rtlsdr-noaa
-Connected to Redis for receiver rtlsdr-00000001
-Subscribed to Redis channel: sdr:samples:rtlsdr-00000001
-✅ First audio chunk decoded for rtlsdr-00000001
-```
-
-**If not running**:
-### 4. Check if Source is Started
-
-In the web UI at Audio Monitoring page:
-- Look for your audio source card
-- Check if status shows "RUNNING" (green)
-- If status is "STOPPED", click the Start button
-
-### 5. Check Redis Connectivity
-
-```bash
-# Check if Redis is running
-
-# Check if metrics are being published
+redis-cli ping          # Should return PONG
 redis-cli HGETALL eas:metrics
-
-# For SDR sources, check if IQ samples are flowing
-redis-cli PSUBSCRIBE 'sdr:samples:*'
-# Wait 5 seconds - you should see messages if SDR is active
 ```
+
+For SDR sources, verify IQ samples are flowing:
+```bash
+redis-cli PSUBSCRIBE 'sdr:samples:*'
+# Wait 5 seconds — messages should appear if SDR is active; Ctrl+C to exit
+```
+
+### 4. Check SDR Service (SDR sources only)
+
+```bash
+sudo systemctl status eas-station-sdr.service
+sudo journalctl -u eas-station-sdr.service -n 30
+```
+
+**Expected log lines**:
+```
+Auto-discovering Redis SDR sources...
+Created Redis SDR source: redis-rtlsdr-noaa
+Connected to Redis for receiver rtlsdr-00000001
+```
+
+If no SDR devices are found:
+```bash
+lsusb | grep -i "RTL\|Realtek\|Airspy"
+ls -la /dev/bus/usb/
+```
+
+### 5. Check the Audio Monitoring Page
+
+Navigate to **Audio Monitoring** in the web UI:
+- **Buffer Utilization** should be 5–15% when healthy
+- **Status** should show ✅ Data flowing
+- **VU meters** should show live audio levels
+
+If a source shows **STOPPED**, click the ▶ Start button on its card.
+
+---
 
 ## Common Configuration Issues
 
-### Issue: No Audio Sources in Database
+### No Audio Sources in Database
 
-**Symptom**: Database query returns empty result
+**Symptom**: Settings → Audio Sources is empty.
 
-**Solution**: Configure audio sources via web UI or SQL
-
-#### Example: Add HTTP Stream Source
+**Solution**: Add sources via the web UI, or insert directly:
 
 ```sql
+-- HTTP stream (internet radio / NOAA stream URL)
 INSERT INTO audio_source_configs (
-    name, 
-    source_type, 
-    enabled, 
-    auto_start, 
-    priority,
-    config_params
+    name, source_type, enabled, auto_start, priority, config_params
 ) VALUES (
     'NOAA Weather Radio',
-    'http_stream',
-    true,
-    true,
-    100,
-    '{"url": "https://stream.revma.ihrhls.com/zc1809", "sample_rate": 44100, "channels": 1}'::jsonb
+    'http_stream', true, true, 100,
+    '{"url": "https://stream.revma.ihrhls.com/zc1809", "sample_rate": 44100, "channels": 1}'
 );
 ```
 
-#### Example: Add SDR Source
-
-**Step 1**: Configure radio receiver
 ```sql
-INSERT INTO radio_receivers (
-    identifier, 
-    frequency, 
-    sample_rate, 
-    modulation_type
-) VALUES (
-    'rtlsdr-00000001',
-    162550000,  -- 162.550 MHz (NOAA Weather Radio)
-    2500000,    -- 2.5 MHz IQ sample rate
-    'NFM'       -- Narrow FM
-);
-```
+-- SDR source (requires a RadioReceiver row first)
+INSERT INTO radio_receivers (identifier, frequency, sample_rate, modulation_type)
+VALUES ('rtlsdr-00000001', 162550000, 2500000, 'NFM');
 
-**Step 2**: Create audio source linked to receiver
-```sql
 INSERT INTO audio_source_configs (
-    name, 
-    source_type, 
-    enabled, 
-    auto_start, 
-    priority,
-    config_params
+    name, source_type, enabled, auto_start, priority, config_params
 ) VALUES (
     'rtlsdr-noaa',
-    'sdr',
-    true,
-    true,
-    100,
-    '{"sample_rate": 44100, "channels": 1, "device_params": {"receiver_id": "rtlsdr-00000001"}}'::jsonb
+    'sdr', true, true, 100,
+    '{"sample_rate": 44100, "channels": 1, "device_params": {"receiver_id": "rtlsdr-00000001"}}'
 );
 ```
 
-**Step 3**: Restart audio-service to pick up new configuration
-### Issue: SDR Hardware Not Detected
+After inserting, restart the audio service:
+```bash
+sudo systemctl restart eas-station-audio.service
+```
 
-**Symptom**: sdr-service logs show "No SDR devices found"
+### SDR Hardware Not Detected
 
-**Solution**:
-1. Verify USB device is connected: `lsusb | grep RTL`
-2. Check device permissions: `ls -la /dev/bus/usb`
-   ```yaml
-   devices:
-     - /dev/bus/usb:/dev/bus/usb
-   privileged: true
-   ```
+**Symptom**: SDR service logs show "No SDR devices found".
 
-### Issue: Wrong Modulation Type
+```bash
+# Confirm device is visible
+lsusb | grep RTL
 
-**Symptom**: Audio is garbled or silent even though source is running
+# Check udev rules (needed for non-root access)
+ls /etc/udev/rules.d/*rtl* 2>/dev/null || ls /etc/udev/rules.d/*sdr* 2>/dev/null
 
-**Solution**: Verify modulation type matches the broadcast:
-- NOAA Weather Radio: **NFM** (Narrow FM)
-- Commercial FM radio: **FM** (Wide FM)
-- AM radio: **AM**
+# Reload rules if present
+sudo udevadm control --reload-rules && sudo udevadm trigger
+```
 
-Update receiver configuration:
+### Wrong Modulation Type
+
+**Symptom**: Audio is garbled or silent even though the source is running.
+
+| Station type | Modulation |
+|---|---|
+| NOAA Weather Radio | **NFM** (Narrow FM) |
+| Commercial FM | **FM** (Wide FM) |
+| AM broadcast | **AM** |
+
 ```sql
-UPDATE radio_receivers 
-SET modulation_type = 'NFM' 
+UPDATE radio_receivers SET modulation_type = 'NFM'
 WHERE identifier = 'rtlsdr-00000001';
 ```
 
-Then restart audio-service.
+Then restart the audio service.
 
-### Issue: Icecast Not Available
+### Icecast Not Streaming
 
-**Symptom**: UI shows "Basic Streaming Mode" and playback is choppy
+**Symptom**: Web player shows "Basic Streaming Mode" or choppy playback.
 
-**Solution**: Enable Icecast streaming for better quality
-
-1. Check if Icecast is running:
-   ```bash
-   ```
-
-2. If not running, start it:
-   ```bash
-   ```
-
-3. Verify Icecast configuration in `.env`:
-   ```
-   ICECAST_ENABLED=true
-   ICECAST_EXTERNAL_PORT=8001
-   ```
-
-## Architecture Overview
-
-### Separated Container Architecture
-
-```
-┌─────────────────┐
-│  sdr-service    │ ── Reads SDR hardware
-│  (port 5001)    │ ── Publishes IQ samples to Redis
-└────────┬────────┘
-         │ Redis pub/sub: sdr:samples:{receiver_id}
-         ↓
-┌─────────────────┐
-│ audio-service   │ ── Subscribes to IQ samples
-│  (port 5002)    │ ── Demodulates to audio
-│                 │ ── Publishes audio to broadcast queue
-│                 │ ── Streams to Icecast
-│                 │ ── Serves /api/audio/stream endpoint
-└────────┬────────┘
-         │ HTTP streaming
-         ↓
-┌─────────────────┐
-│   app (webapp)  │ ── Web UI
-│   (port 8000)   │ ── Proxies streaming to audio-service
-└─────────────────┘
+```bash
+sudo systemctl status icecast2
+sudo journalctl -u icecast2 -n 30
 ```
 
-### Data Flow for Audio Playback
-
-1. **SDR Hardware** → USB → **sdr-service** → Redis pub/sub
-2. **audio-service** subscribes to Redis → demodulates → **BroadcastQueue**
-3. **BroadcastQueue** fans out to:
-   - EAS monitor (SAME decoding)
-   - Icecast streaming (public broadcast)
-   - Web streaming (real-time UI playback)
-4. **Web UI** connects to `/api/audio/stream/{source}` → audio-service serves WAV stream
-5. **Browser** HTML5 audio player buffers and plays
-
-## Expected Behavior
-
-### When Working Correctly
-
-**Audio Monitoring Page shows**:
-- Buffer Utilization: 5-15% (healthy)
-- Status: ✅ Data flowing normally
-- Audio player: "▶ Playing" (not "Connecting to stream…")
-- VU meters: Show live audio levels
-- Waveform: Shows live oscilloscope
-
-**Logs show**:
-```
-[audio-service] ✅ Successfully started 'your-source'
-[audio-service] First audio chunk decoded
-[audio-service] Web stream 'web-stream-your-source-abc123' started
-[app] Proxying audio stream request for your-source to audio-service
+If not installed:
+```bash
+sudo apt install icecast2
 ```
 
-### When Not Working
+Configure Icecast credentials at **Settings → Icecast** in the web UI. All Icecast settings are stored in the database — no `.env` edits required.
 
-**Symptoms**:
-- Buffer Utilization: 0.0%
-- Status: ⚠️ No data flowing (with specific diagnostic message)
-- Audio player: Stuck on "Connecting to stream…"
-- VU meters: Show -∞ dB (no signal)
+---
 
-**Check**: Follow diagnostic checklist above
+## System Architecture
 
-## Additional Resources
+```
+RTL-SDR / Airspy
+      │ USB
+      ▼
+eas-station-sdr.service
+  └─ Publishes IQ samples → Redis pub/sub: sdr:samples:{receiver_id}
+      │
+      ▼
+eas-station-audio.service
+  └─ Subscribes IQ samples → demodulates → audio PCM
+  └─ Publishes to BroadcastQueue
+  └─ Streams to Icecast
+  └─ Serves /api/audio/stream endpoint
+      │
+      ▼
+eas-station-web.service (app)
+  └─ Web UI proxies /api/audio/stream to audio service
+  └─ Browser HTML5 audio player
+```
 
-- **Setup Guide**: `docs/guides/SETUP_INSTRUCTIONS.md`
-- **Audio Architecture**: `docs/architecture/AUDIO_ARCHITECTURE.md`
-- **API Documentation**: `/api/docs` (when running)
+### Healthy State Indicators
+
+| Location | What to see |
+|---|---|
+| Audio Monitoring page | Buffer: 5–15%, Status: ✅, VU meters active |
+| `journalctl -u eas-station-audio.service` | `Successfully started 'source-name'` |
+| `redis-cli HGETALL eas:metrics` | `last_audio_chunk` timestamp within last 5 s |
+
+---
 
 ## Getting Help
 
-If you've followed all troubleshooting steps and audio still doesn't work:
+Collect diagnostics before opening an issue:
 
-1. Collect diagnostic information:
-   ```bash
-   # Container status
-   
-   # Logs from all audio-related containers
-   
-   # Database configuration
-   ```
+```bash
+# Service status
+sudo systemctl status eas-station-audio.service eas-station-sdr.service
 
-2. Open an issue on GitHub with:
-   - Description of the problem
-   - Logs (sdr.log, audio.log, app.log)
-   - Database configuration (sources.txt, receivers.txt)
+# Recent logs
+sudo journalctl -u eas-station-audio.service -n 100 > /tmp/audio.log
+sudo journalctl -u eas-station-sdr.service -n 100 > /tmp/sdr.log
+
+# Redis metrics snapshot
+redis-cli HGETALL eas:metrics > /tmp/redis-metrics.txt
+
+# Audio source configuration
+sudo -u postgres psql alerts -c \
+  "SELECT name, source_type, enabled, auto_start FROM audio_source_configs;" \
+  > /tmp/audio-sources.txt
+```
+
+Open a [GitHub issue](https://github.com/KR8MER/eas-station/issues) and attach the collected files.

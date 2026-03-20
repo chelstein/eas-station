@@ -6,6 +6,51 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.63.3] - 2026-03-20 - Repository root cleanup and documentation hygiene
+
+### Removed
+- **10 root-level debug/scratch scripts** — `check_log_crc.py`, `check_rbds_signal.py`,
+  `check_tts_db.sh`, `debug_tts.py`, `enable_tts.py`, `trace_config_flow.py`,
+  `verify_bit_order.py`, `test_tts_api.py`, `fastapi_app.py`, `fastapi_app_minimal.py`.
+  These were one-off diagnostic tools and hypothetical alternate app implementations with
+  no place in a production codebase.
+- **`bugs/` directory** (11 files) — screenshots, an MP3 audio sample, an IPAWS log, and
+  an RBDS diagnostics archive. Already excluded from ISO builds via `.gitignore`; removed
+  from git tracking entirely.
+- **`scripts/README.md.old`** — stale backup file superseded by the current README.
+- **`scripts/run_fastapi.sh`** — startup script for the never-deployed FastAPI alternate app.
+- **18 RBDS debugging tools from `tools/`** — `README_RBDS.md`, `README_RBDS_DIAGNOSTIC.md`,
+  `README_RBDS_STEREO.md`, `analyze_rbds_failure.py`, `analyze_rbds_stereo_code.py`,
+  `audio_debug.py`, `collect-rbds-diagnostics.sh`, `demo_rbds_fix.py`,
+  `rbds_auto_diagnostic.py`, `rbds_bit_permutations_test.py`, `rbds_diagnostic.py`,
+  `test_block_reversal.py`, `test_rbds_bit_order.py`, `test_rbds_comprehensive.py`,
+  `test_rbds_standalone.py`, `test_stream_capture.py`, `trace_rbds_stereo_path.py`,
+  `validate_rbds_stereo_config.py`. These are debug scaffolding from the RBDS fix campaign;
+  the permanent fix is in `app_core/radio/`.
+
+### Changed
+- **`docs/hardware/ALPHA_*.md` renamed** — removed "Phase X" development numbering from
+  filenames and `mkdocs.yml` titles: `ALPHA_DIAGNOSTICS_PHASE1` → `ALPHA_LED_DIAGNOSTICS`,
+  `ALPHA_TIMEDATE_PHASE2` → `ALPHA_LED_TIMEDATE`, `ALPHA_ADVANCED_PHASES3-5` →
+  `ALPHA_LED_ADVANCED`, `ALPHA_WEB_UI_PHASE9` → `ALPHA_LED_WEB_UI`.
+- **`docs/troubleshooting/AUDIO_STREAMING_SETUP.md`** — rewrote from scratch. Previous
+  version was a Docker-era skeleton full of empty code blocks and container references.
+  Replaced with a complete bare-metal troubleshooting guide covering systemd services,
+  Redis, Icecast, SDR hardware, and SQL configuration examples.
+- **`docs/guides/HELP.md`** — fixed Reference Commands table (all entries were Docker
+  Compose syntax: `sudo systemd up -d --build` etc.); replaced with correct bare-metal
+  `systemctl` commands. Updated Getting Started step to point to the Installation Guide
+  instead of manual `.env` editing.
+- **`docs/troubleshooting/TTS_TROUBLESHOOTING.md`** — replaced two references to the
+  deleted `test_tts_api.py` script with instructions to use the **Test TTS** button in
+  the Admin UI.
+- **`docs/guides/MANUAL_EAS_EVENTS.md`** — replaced reference to `debug_tts.py` with
+  pointer to the Admin UI TTS test button.
+- **`mkdocs.yml`** — removed all nav entries pointing to previously deleted files; updated
+  Alpha LED Sign titles to remove "Phase X" language; added `run_fastapi.sh` removal.
+- **`docs/INDEX.md`** — added Alpha LED Sign documentation to the Hardware section.
+- **`scripts/README.md`** — rewrote to reflect current bare-metal scripts inventory.
+
 ## [2.63.2] - 2026-03-20 - Documentation cleanup and broken image fix
 
 ### Fixed

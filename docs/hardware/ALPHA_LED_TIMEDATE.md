@@ -336,7 +336,7 @@ See `/tmp/M_PROTOCOL_IMPLEMENTATION_PLAN.md` for the complete roadmap.
 ## Reference
 
 - **M-Protocol Specification:** https://alpha-american.com/alpha-manuals/M-Protocol.pdf
-- **Phase 1 (Diagnostics):** `docs/hardware/ALPHA_DIAGNOSTICS_PHASE1.md`
+- **Phase 1 (Diagnostics):** `docs/hardware/ALPHA_LED_DIAGNOSTICS.md`
 - **Bidirectional Communication:** `docs/hardware/BIDIRECTIONAL_LED_COMMUNICATION.md`
 
 ## Support

@@ -44,6 +44,10 @@ Complete documentation for **EAS Station** - an Emergency Alert System platform 
 | [GPS HAT Setup](hardware/GPS_HAT_SETUP.md) | Adafruit Ultimate GPS HAT for precision time and location |
 | [Audio Monitoring](audio/AUDIO_MONITORING.md) | Live stream viewer |
 | [LED Communication](hardware/BIDIRECTIONAL_LED_COMMUNICATION.md) | LED sign integration |
+| [Alpha LED Sign — Diagnostics](hardware/ALPHA_LED_DIAGNOSTICS.md) | M-Protocol read commands and status queries |
+| [Alpha LED Sign — Time & Date Control](hardware/ALPHA_LED_TIMEDATE.md) | Clock sync and date/time configuration |
+| [Alpha LED Sign — Advanced Control](hardware/ALPHA_LED_ADVANCED.md) | Speaker, brightness, and file management |
+| [Alpha LED Sign — Web UI Dashboard](hardware/ALPHA_LED_WEB_UI.md) | Browser-based Alpha sign management |
 | [Serial Adapters](hardware/SERIAL_TO_ETHERNET_ADAPTERS.md) | Serial device setup |
 | [Waveshare RS232 WiFi](hardware/WAVESHARE_RS232_WIFI_SETUP.md) | Waveshare adapter setup |
 

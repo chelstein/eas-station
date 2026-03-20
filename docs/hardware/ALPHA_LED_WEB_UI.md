@@ -650,9 +650,9 @@ LED_SIGN_ENABLED=true            # Enable LED sign controller
 
 ## Related Documentation
 
-- [Alpha Diagnostics Phase 1](ALPHA_DIAGNOSTICS_PHASE1.md) - Read functions
-- [Alpha Time/Date Phase 2](ALPHA_TIMEDATE_PHASE2.md) - Time control  
-- [Alpha Advanced Phases 3-5](ALPHA_ADVANCED_PHASES3-5.md) - Speaker, brightness, files
+- [Alpha Diagnostics Phase 1](ALPHA_LED_DIAGNOSTICS.md) - Read functions
+- [Alpha Time/Date Phase 2](ALPHA_LED_TIMEDATE.md) - Time control  
+- [Alpha Advanced Phases 3-5](ALPHA_LED_ADVANCED.md) - Speaker, brightness, files
 - [Waveshare Setup Guide](WAVESHARE_RS232_WIFI_SETUP.md) - Adapter configuration
 - [Serial-to-Ethernet Adapters](SERIAL_TO_ETHERNET_ADAPTERS.md) - Multiple adapter guide
 
