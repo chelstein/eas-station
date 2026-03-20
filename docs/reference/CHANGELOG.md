@@ -5,6 +5,8 @@ All notable changes to this project are documented in this file. The format is b
 tracks releases under the 2.x series.
 
 ## [Unreleased]
+### Changed
+- Consolidated documentation: removed diagnostic/debug files, merged related hardware and troubleshooting docs into single comprehensive guides, reorganized categories in documentation index
 
 ## [2.63.3] - 2026-03-20 - Repository root cleanup and documentation hygiene
 
