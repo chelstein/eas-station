@@ -1254,7 +1254,7 @@ class EASAudioGenerator:
         # contained in one uninterrupted audio file, matching the behavior of
         # build_manual_components() and satisfying FCC 47 CFR §11.31.
         eom_header = build_eom_header(self.config)
-        eom_bits = encode_same_bits(eom_header, include_preamble=True)
+        eom_bits = encode_same_bits(eom_header, include_preamble=True, include_cr=False)
         eom_header_samples = generate_fsk_samples(
             eom_bits,
             sample_rate=self.sample_rate,
@@ -1349,7 +1349,7 @@ class EASAudioGenerator:
         audio_filename = f"{base_name}.wav"
         audio_path = os.path.join(self.output_dir, audio_filename)
 
-        same_bits = encode_same_bits(header, include_preamble=True)
+        same_bits = encode_same_bits(header, include_preamble=True, include_cr=False)
         amplitude = 0.7 * 32767
         header_samples = generate_fsk_samples(
             same_bits,
@@ -1514,7 +1514,7 @@ class EASAudioGenerator:
                 self.logger.info("TTS narration disabled for this broadcast (include_tts=False)")
 
         eom_header = build_eom_header(self.config)
-        eom_bits = encode_same_bits(eom_header, include_preamble=True)
+        eom_bits = encode_same_bits(eom_header, include_preamble=True, include_cr=False)
         eom_header_samples = generate_fsk_samples(
             eom_bits,
             sample_rate=self.sample_rate,

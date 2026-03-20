@@ -628,11 +628,15 @@ def _find_same_bursts(bits: List[int]) -> List[int]:
 
 
 def _find_pattern_positions(
-    bits: List[int], pattern: str, *, max_mismatches: Optional[int] = None
+    bits: List[int],
+    pattern: str,
+    *,
+    max_mismatches: Optional[int] = None,
+    include_cr: bool = True,
 ) -> List[int]:
     """Locate approximate occurrences of ``pattern`` within the decoded bit stream."""
 
-    pattern_bits = encode_same_bits(pattern, include_preamble=False)
+    pattern_bits = encode_same_bits(pattern, include_preamble=False, include_cr=include_cr)
     if not pattern_bits:
         return []
 
@@ -1614,11 +1618,11 @@ def _decode_at_sample_rate(path: str, sample_rate: int) -> SAMEAudioDecodeResult
         )
 
     eom_segment = None
-    eom_positions = _find_pattern_positions(bits, "NNNN")
+    eom_positions = _find_pattern_positions(bits, "NNNN", include_cr=False)
     if header_last_bit is not None:
         eom_positions = [pos for pos in eom_positions if pos >= header_last_bit] or eom_positions
     if eom_positions:
-        eom_length_bits = len(encode_same_bits("NNNN", include_preamble=False))
+        eom_length_bits = len(encode_same_bits("NNNN", include_preamble=False, include_cr=False))
         first_eom = eom_positions[0]
         eom_sample_range = _bit_range_to_sample_range(
             (first_eom, first_eom + eom_length_bits), bit_sample_ranges, sample_count

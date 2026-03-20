@@ -48,7 +48,12 @@ def same_preamble_bits(repeats: int = SAME_PREAMBLE_REPETITIONS) -> List[int]:
     return bits
 
 
-def encode_same_bits(message: str, *, include_preamble: bool = False) -> List[int]:
+def encode_same_bits(
+    message: str,
+    *,
+    include_preamble: bool = False,
+    include_cr: bool = True,
+) -> List[int]:
     """Encode an ASCII SAME header per FCC 47 CFR §11.31.
 
     Each character is transmitted as 8 bits LSB-first: 7 ASCII data bits followed
@@ -57,13 +62,19 @@ def encode_same_bits(message: str, *, include_preamble: bool = False) -> List[in
     Per FCC 47 CFR §11.31: "Characters are ASCII seven bit characters as defined in
     ANSI X3.4-1977 ending with an eighth null bit (either 0 or 1) to constitute a
     full eight-bit byte."
+
+    ``include_cr`` controls whether a carriage-return terminator is appended.
+    SAME headers (ZCZC-…) require it; the EOM burst (NNNN) does not — the FCC
+    §11.31 EOM section specifies only the four ASCII characters "NNNN" with no
+    explicit CR terminator.
     """
 
     bits: List[int] = []
     if include_preamble:
         bits.extend(same_preamble_bits())
 
-    for char in message + "\r":
+    chars = message + "\r" if include_cr else message
+    for char in chars:
         ascii_code = ord(char) & 0x7F
 
         # 7 data bits (LSB first) + 1 null bit = 8 bits per FCC §11.31
