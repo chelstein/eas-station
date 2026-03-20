@@ -8,6 +8,18 @@ tracks releases under the 2.x series.
 ### Changed
 - Consolidated documentation: removed diagnostic/debug files, merged related hardware and troubleshooting docs into single comprehensive guides, reorganized categories in documentation index
 
+## [2.65.1] - 2026-03-20 - Settings hub: added missing pages, fixed notifications description
+
+### Added
+- **Application Settings**, **Alert Poller**, **Text-to-Speech**, **SSL Certificates**, and **Backups**
+  cards added to the Settings Hub (`/settings`) so every admin page is reachable from one place.
+- New **System** category in the Settings Hub for Backups.
+- Certbot (SSL) card added to the **Network** category.
+
+### Fixed
+- Notifications card description in the Settings Hub now correctly reads
+  "Email, SMS, and SNMP trap alert notification settings" (was "Push, SMS, and email").
+
 ## [2.65.0] - 2026-03-20 - SNMP trap notifications and email notification fixes
 
 ### Added

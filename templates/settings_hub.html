@@ -138,7 +138,7 @@
                 <div class="settings-card-icon"><i class="fas fa-bell"></i></div>
                 <div class="settings-card-body">
                     <div class="settings-card-title">Notifications</div>
-                    <p class="settings-card-desc">Push, SMS, and email alert notification settings.</p>
+                    <p class="settings-card-desc">Email, SMS, and SNMP trap alert notification settings.</p>
                 </div>
             </a>
         </div>
@@ -160,6 +160,33 @@
                 <div class="settings-card-body">
                     <div class="settings-card-title">Audio Profiles</div>
                     <p class="settings-card-desc">Manage audio encoding and stream profiles.</p>
+                </div>
+            </a>
+        </div>
+        <div class="col-sm-6 col-md-4 col-xl-3">
+            <a href="/admin/application" class="settings-card">
+                <div class="settings-card-icon"><i class="fas fa-sliders-h"></i></div>
+                <div class="settings-card-body">
+                    <div class="settings-card-title">Application Settings</div>
+                    <p class="settings-card-desc">Log levels, file storage, and application-level settings.</p>
+                </div>
+            </a>
+        </div>
+        <div class="col-sm-6 col-md-4 col-xl-3">
+            <a href="/admin/poller" class="settings-card">
+                <div class="settings-card-icon"><i class="fas fa-satellite-dish"></i></div>
+                <div class="settings-card-body">
+                    <div class="settings-card-title">Alert Poller</div>
+                    <p class="settings-card-desc">CAP alert polling interval and feed behaviour.</p>
+                </div>
+            </a>
+        </div>
+        <div class="col-sm-6 col-md-4 col-xl-3">
+            <a href="/admin/tts" class="settings-card">
+                <div class="settings-card-icon"><i class="fas fa-volume-up"></i></div>
+                <div class="settings-card-body">
+                    <div class="settings-card-title">Text-to-Speech</div>
+                    <p class="settings-card-desc">TTS provider and voice settings for alert audio.</p>
                 </div>
             </a>
         </div>
@@ -191,6 +218,17 @@
                 </div>
             </a>
         </div>
+        {% if can_manage_config %}
+        <div class="col-sm-6 col-md-4 col-xl-3">
+            <a href="/admin/certbot" class="settings-card">
+                <div class="settings-card-icon"><i class="fas fa-certificate"></i></div>
+                <div class="settings-card-body">
+                    <div class="settings-card-title">SSL Certificates</div>
+                    <p class="settings-card-desc">Let&rsquo;s Encrypt / Certbot HTTPS certificate management.</p>
+                </div>
+            </a>
+        </div>
+        {% endif %}
 
     </div>
     {% endif %}
@@ -265,6 +303,24 @@
             </a>
         </div>
         {% endif %}
+
+    </div>
+    {% endif %}
+
+    {# ── System ──────────────────────────────────────────────────────────── #}
+    {% if can_manage_config %}
+    <h6 class="settings-category-title"><i class="fas fa-server me-1"></i> System</h6>
+    <div class="row g-3 mb-2">
+
+        <div class="col-sm-6 col-md-4 col-xl-3">
+            <a href="/admin/backups" class="settings-card">
+                <div class="settings-card-icon"><i class="fas fa-database"></i></div>
+                <div class="settings-card-body">
+                    <div class="settings-card-title">Backups</div>
+                    <p class="settings-card-desc">Create, restore and manage system configuration backups.</p>
+                </div>
+            </a>
+        </div>
 
     </div>
     {% endif %}
