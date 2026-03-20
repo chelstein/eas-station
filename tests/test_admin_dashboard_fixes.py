@@ -18,6 +18,8 @@ Repository: https://github.com/KR8MER/eas-station
 """
 
 """Test admin dashboard fixes for runtime errors."""
+import re
+
 import pytest
 
 
@@ -47,31 +49,32 @@ def test_dashboard_uses_current_app():
     assert 'current_app.logger.error' in content
 
 
-def test_future_annotations_is_first():
-    """Test that from __future__ import annotations is the first import."""
+def test_future_annotations_is_present():
+    """Test that from __future__ import annotations is present before other imports."""
     with open('webapp/admin/dashboard.py', 'r') as f:
-        lines = f.readlines()
-    
-    # Find first non-empty, non-comment line
-    first_import_line = None
-    for line in lines:
-        stripped = line.strip()
-        if stripped and not stripped.startswith('#'):
-            first_import_line = stripped
-            break
-    
-    assert first_import_line == 'from __future__ import annotations'
+        content = f.read()
+
+    # The file may start with a license docstring; __future__ import must appear
+    # before any non-future import statement.
+    assert 'from __future__ import annotations' in content
+
+    future_pos = content.index('from __future__ import annotations')
+    # No regular import should appear before the __future__ import
+    for m in re.finditer(r'^(?:import |from (?!__future__))', content, re.MULTILINE):
+        assert m.start() > future_pos, (
+            f"Regular import found before 'from __future__ import annotations' at pos {m.start()}"
+        )
 
 
 def test_navbar_uses_auth_blueprint_routes():
-    """Test that navbar_new.html uses correct auth blueprint routes."""
-    with open('templates/components/navbar_new.html', 'r') as f:
+    """Test that navbar.html uses correct auth blueprint routes."""
+    with open('templates/components/navbar.html', 'r') as f:
         content = f.read()
-    
+
     # Verify auth.logout is used instead of plain logout
     assert "url_for('auth.logout')" in content
     assert "url_for('logout')" not in content
-    
+
     # Verify auth.login is used instead of plain login
     assert "url_for('auth.login')" in content
     assert "url_for('login')" not in content

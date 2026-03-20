@@ -189,6 +189,7 @@ def _get_location_terms() -> tuple:
 
 
 
+_CPU_SAMPLE_INTERVAL_SECONDS: float = 5.0
 _last_cpu_sample_timestamp: Optional[datetime] = None
 _last_cpu_sample_value: float = 0.0
 
