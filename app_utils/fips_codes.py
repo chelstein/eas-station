@@ -3503,6 +3503,10 @@ def get_us_state_county_tree() -> List[Dict[str, object]]:
 
 
 def get_same_lookup() -> Dict[str, str]:
-    """Return a mapping of SAME codes to friendly labels."""
+    """Return a mapping of SAME codes to friendly labels.
 
-    return dict(US_FIPS_LOOKUP)
+    Returns the module-level singleton directly (read-only). Callers must
+    not mutate the returned dict.
+    """
+
+    return US_FIPS_LOOKUP

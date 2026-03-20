@@ -130,7 +130,7 @@ class CAPAlert(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     identifier = db.Column(db.String(255), unique=True, nullable=False)
-    sent = db.Column(db.DateTime(timezone=True), nullable=False)
+    sent = db.Column(db.DateTime(timezone=True), nullable=False, index=True)
     expires = db.Column(db.DateTime(timezone=True))
     status = db.Column(db.String(50), nullable=False)
     message_type = db.Column(db.String(50), nullable=False)
@@ -323,7 +323,7 @@ class EASMessage(db.Model):
     tts_warning = db.Column(db.String(255))
     tts_provider = db.Column(db.String(32))
     text_payload = db.Column(db.JSON, default=dict)
-    created_at = db.Column(db.DateTime(timezone=True), default=utc_now)
+    created_at = db.Column(db.DateTime(timezone=True), default=utc_now, index=True)
     metadata_payload = db.Column(db.JSON, default=dict)
 
     cap_alert = db.relationship(
@@ -356,7 +356,7 @@ class EASDecodedAudio(db.Model):
     __tablename__ = "eas_decoded_audio"
 
     id = db.Column(db.Integer, primary_key=True)
-    created_at = db.Column(db.DateTime(timezone=True), default=utc_now)
+    created_at = db.Column(db.DateTime(timezone=True), default=utc_now, index=True)
     original_filename = db.Column(db.String(255))
     content_type = db.Column(db.String(128))
     raw_text = db.Column(db.Text)

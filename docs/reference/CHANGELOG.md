@@ -8,6 +8,40 @@ tracks releases under the 2.x series.
 ### Changed
 - Consolidated documentation: removed diagnostic/debug files, merged related hardware and troubleshooting docs into single comprehensive guides, reorganized categories in documentation index
 
+## [2.64.0] - 2026-03-20 - EAS decode speed improvements and raw SAME header parser
+
+### Added
+- **Raw SAME Header Parser** on `/admin/alert-verification` — paste any `ZCZC-…` string and
+  instantly see all parsed fields (originator, event, locations, station, purge, issue time,
+  plain-language summary) without uploading audio. Endpoint: `POST /api/decode-same-header`.
+
+### Performance
+- **Skip baud-rate offset variants when DLL confidence ≥ 0.85** — the Goertzel bit-scan now
+  runs a single pass at the nominal baud rate instead of 17 passes (±0.5 – ±4%) when the
+  DLL correlation decoder has already produced a high-confidence header decode. EOM detection
+  and segment-boundary extraction are fully preserved; only the off-rate search variants are
+  skipped for already-clean signals.
+- **Early-exit in multi-rate sample-rate selection** — `_try_multiple_sample_rates` stops
+  after the native rate when a structurally valid header is decoded with ≥ 0.9 bit confidence,
+  avoiding up to six redundant full-file decode passes.
+- **Vectorized Goertzel filter for tone detection** — `_goertzel_power` in
+  `eas_tone_detection.py` now uses `numpy` dot-product (BLAS) instead of a Python `for` loop
+  over each sample. Mathematically identical; 20-50× faster per call on typical 100 ms windows.
+- **Eliminated double audio load in `detect_eas_from_file`** — tone and narration detection
+  now reuses the PCM already present in the SAME decode result's buffer segment instead of
+  re-reading the audio file. The slow path (file re-read) is retained as a fallback when the
+  buffer segment is unavailable.
+- **Polyphase audio resampler** — `_resample_with_scipy` now uses `scipy.signal.resample_poly`
+  (polyphase FIR, standard for audio) instead of `signal.resample` (FFT-based). Better
+  frequency response and typically 10× faster for common sample-rate conversion ratios.
+- **FIPS lookup singleton** — `get_same_lookup()` returns the module-level `US_FIPS_LOOKUP`
+  dict directly instead of copying it on every call, eliminating repeated 4000-entry dict
+  allocation during decode.
+- **DB indexes on alert analytics columns** — added `idx_cap_alerts_sent`,
+  `idx_eas_messages_created_at`, and `idx_eas_decoded_audio_created_at` to eliminate full
+  table scans on the `/admin/alert-verification` analytics page.
+  Migration: `20260320_add_alert_verification_indexes`.
+
 ## [2.63.3] - 2026-03-20 - Repository root cleanup and documentation hygiene
 
 ### Removed

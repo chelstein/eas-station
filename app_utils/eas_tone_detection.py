@@ -68,32 +68,23 @@ def _goertzel_power(samples: np.ndarray, sample_rate: int, target_freq: float) -
     """
     Compute Goertzel algorithm for efficient single-frequency power detection.
 
-    More efficient than FFT for detecting specific frequencies.
+    Implemented via a vectorized numpy dot product (DFT at one bin), which is
+    mathematically identical to the scalar Goertzel recurrence but runs in
+    compiled BLAS code rather than a Python-level loop.
     """
-    if len(samples) == 0:
+    n = len(samples)
+    if n == 0:
         return 0.0
 
-    # Normalize target frequency
-    k = int(0.5 + (len(samples) * target_freq / sample_rate))
-    omega = (2.0 * math.pi * k) / len(samples)
-    coeff = 2.0 * math.cos(omega)
+    k = int(0.5 + (n * target_freq / sample_rate))
+    omega = (2.0 * math.pi * k) / n
 
-    # Goertzel algorithm
-    q0 = 0.0
-    q1 = 0.0
-    q2 = 0.0
-
-    for sample in samples:
-        q0 = coeff * q1 - q2 + float(sample)
-        q2 = q1
-        q1 = q0
-
-    # Calculate power
-    real = q1 - q2 * math.cos(omega)
-    imag = q2 * math.sin(omega)
-    power = real * real + imag * imag
-
-    return power
+    # Vectorized DFT at bin k: X = Σ x[i] * exp(-j*omega*i)
+    # power = |X|^2 = real^2 + imag^2
+    t = np.arange(n, dtype=np.float64)
+    real = float(np.dot(samples.astype(np.float64), np.cos(omega * t)))
+    imag = float(np.dot(samples.astype(np.float64), np.sin(omega * t)))
+    return real * real + imag * imag
 
 
 def _estimate_noise_floor(samples: np.ndarray, sample_rate: int, signal_freqs: List[float]) -> float:

@@ -205,6 +205,53 @@
                 </div>
             {% endif %}
 
+            <div class="card mb-4" id="raw-header-panel">
+                <div class="card-header bg-transparent d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2">
+                    <div>
+                        <h5 class="card-title mb-0"><i class="fas fa-code text-secondary"></i> Raw SAME Header Parser</h5>
+                        <p class="text-muted small mb-0">
+                            Paste any ZCZC string to inspect its fields instantly — no audio file required.
+                        </p>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3 align-items-end">
+                        <div class="col-md-9">
+                            <label class="form-label" for="raw-header-input">Raw ZCZC header</label>
+                            <input type="text" class="form-control font-monospace" id="raw-header-input"
+                                   placeholder="ZCZC-WXR-TOR-039137+0015-3042020-KR8MER-"
+                                   autocomplete="off" spellcheck="false">
+                        </div>
+                        <div class="col-md-3 text-md-end">
+                            <button class="btn btn-outline-secondary" id="raw-header-parse-btn" type="button">
+                                <i class="fas fa-magnifying-glass"></i> Parse Header
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="raw-header-error" class="alert alert-danger mt-3 d-none"></div>
+
+                    <div id="raw-header-result" class="mt-4 d-none">
+                        <div class="row g-3">
+                            <div class="col-md-7">
+                                <div class="border rounded p-3 h-100">
+                                    <p class="fw-semibold text-primary mb-3 small" id="raw-header-summary"></p>
+                                    <dl class="row small mb-0" id="raw-header-fields"></dl>
+                                </div>
+                            </div>
+                            <div class="col-md-5">
+                                <div class="border rounded p-3 h-100">
+                                    <h6 class="text-muted text-uppercase small mb-2">Locations</h6>
+                                    <ul class="list-unstyled small mb-0" id="raw-header-locations">
+                                        <li class="text-muted">—</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div class="card mb-4" id="alert-self-test-panel">
                 <div class="card-header d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3">
                     <div>
@@ -950,5 +997,90 @@
                 });
             }
         });
+    </script>
+
+    <script>
+        // ── Raw SAME Header Parser ──────────────────────────────────────────────
+        (function () {
+            const btn       = document.getElementById('raw-header-parse-btn');
+            const input     = document.getElementById('raw-header-input');
+            const errBox    = document.getElementById('raw-header-error');
+            const resultBox = document.getElementById('raw-header-result');
+            const summaryEl = document.getElementById('raw-header-summary');
+            const fieldsEl  = document.getElementById('raw-header-fields');
+            const locsEl    = document.getElementById('raw-header-locations');
+
+            function setError(msg) {
+                errBox.textContent = msg;
+                errBox.classList.remove('d-none');
+                resultBox.classList.add('d-none');
+            }
+
+            function clearError() {
+                errBox.classList.add('d-none');
+                errBox.textContent = '';
+            }
+
+            function field(label, value) {
+                if (!value && value !== 0) return '';
+                return `<dt class="col-sm-5">${label}</dt><dd class="col-sm-7">${value}</dd>`;
+            }
+
+            function renderResult(data) {
+                const f = data.fields || {};
+
+                summaryEl.textContent = data.summary || data.header;
+
+                const origDesc = f.originator_description ? ` (${f.originator_description})` : '';
+                const eventName = f.event_name ? ` — ${f.event_name}` : '';
+                fieldsEl.innerHTML = [
+                    field('Originator', f.originator ? `${f.originator}${origDesc}` : null),
+                    field('Event',      f.event_code ? `${f.event_code}${eventName}` : null),
+                    field('Station',    f.station_identifier),
+                    field('Purge',      f.purge_label || f.purge_code),
+                    field('Issue time', f.issue_time_label),
+                ].join('');
+
+                const locs = f.locations || [];
+                if (locs.length > 0) {
+                    locsEl.innerHTML = locs.map(loc => {
+                        const pMeaning = loc.p_meaning ? ` <span class="text-muted">(${loc.p_meaning})</span>` : '';
+                        return `<li><strong>${loc.code}</strong> · ${loc.description || ''}${pMeaning}</li>`;
+                    }).join('');
+                } else {
+                    locsEl.innerHTML = '<li class="text-muted">No locations decoded.</li>';
+                }
+
+                resultBox.classList.remove('d-none');
+            }
+
+            function parseHeader() {
+                const raw = (input.value || '').trim();
+                if (!raw) { setError('Enter a ZCZC header string first.'); return; }
+
+                clearError();
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Parsing…';
+
+                fetch('{{ url_for("decode_same_header_api") }}', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ header: raw }),
+                })
+                .then(r => r.json().then(data => ({ ok: r.ok, data })))
+                .then(({ ok, data }) => {
+                    if (!ok) { setError(data.error || 'Parse failed.'); return; }
+                    renderResult(data);
+                })
+                .catch(() => setError('Network error — could not reach the server.'))
+                .finally(() => {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="fas fa-magnifying-glass"></i> Parse Header';
+                });
+            }
+
+            btn.addEventListener('click', parseHeader);
+            input.addEventListener('keydown', e => { if (e.key === 'Enter') parseHeader(); });
+        })();
     </script>
 {% endblock %}

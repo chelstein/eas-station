@@ -388,20 +388,22 @@ def _run_ffmpeg_decode(path: str, sample_rate: int) -> bytes:
 
 
 def _resample_with_scipy(samples: List[float], orig_rate: int, target_rate: int) -> List[float]:
-    """Resample audio using scipy when ffmpeg is unavailable."""
+    """Resample audio using scipy polyphase filtering when ffmpeg is unavailable.
+
+    ``resample_poly`` uses a polyphase FIR filter, which is the standard
+    approach for audio and has better frequency response than the FFT-based
+    ``signal.resample``.
+    """
     try:
-        from scipy import signal
+        from scipy.signal import resample_poly
+        from math import gcd
         import numpy as np
 
-        # Convert to numpy array
-        samples_array = np.array(samples, dtype=np.float32)
-
-        # Calculate the number of output samples
-        num_samples = int(len(samples_array) * target_rate / orig_rate)
-
-        # Resample using scipy
-        resampled = signal.resample(samples_array, num_samples)
-
+        samples_array = np.asarray(samples, dtype=np.float32)
+        g = gcd(target_rate, orig_rate)
+        up = target_rate // g
+        down = orig_rate // g
+        resampled = resample_poly(samples_array, up, down)
         return resampled.tolist()
     except ImportError:
         raise AudioDecodeError(
@@ -970,12 +972,22 @@ def _decode_with_candidate_rates(
     sample_rate: int,
     *,
     base_rate: float,
+    skip_baud_offsets: bool = False,
 ) -> Tuple[List[int], Dict[str, object], float, float]:
-    """Try decoding SAME bits using a range of baud rates."""
+    """Try decoding SAME bits using a range of baud rates.
 
-    candidate_offsets = [0.0]
-    for step in (0.005, 0.01, 0.015, 0.02, 0.025, 0.03, 0.035, 0.04):
-        candidate_offsets.extend((-step, step))
+    When *skip_baud_offsets* is True only the nominal baud rate is tried.
+    This is safe when the DLL correlation decoder has already produced a
+    high-confidence header decode; the Goertzel pass at nominal rate is
+    still required for EOM detection and segment-boundary extraction.
+    """
+
+    if skip_baud_offsets:
+        candidate_offsets = [0.0]
+    else:
+        candidate_offsets = [0.0]
+        for step in (0.005, 0.01, 0.015, 0.02, 0.025, 0.03, 0.035, 0.04):
+            candidate_offsets.extend((-step, step))
 
     best_bits: Optional[List[int]] = None
     best_metadata: Optional[Dict[str, object]] = None
@@ -1324,6 +1336,11 @@ def _try_multiple_sample_rates(path: str, native_rate: int) -> Tuple[SAMEAudioDe
             seen.add(rate)
             unique_rates.append(rate)
 
+    # Minimum confidence at which native-rate success is considered definitive.
+    # At this level the signal is clean enough that alternative rates cannot
+    # produce a more-correct result.
+    _NATIVE_RATE_CONFIDENCE_THRESHOLD = 0.9
+
     best_result: Optional[SAMEAudioDecodeResult] = None
     best_score = -float('inf')
     best_rate = native_rate
@@ -1340,6 +1357,17 @@ def _try_multiple_sample_rates(path: str, native_rate: int) -> Tuple[SAMEAudioDe
                 best_score = score
                 best_result = result
                 best_rate = rate
+
+            # Early exit: native rate decoded a valid header with high confidence.
+            # Alternative rates cannot improve on a decode that is already reliable,
+            # and skipping them avoids re-reading and re-decoding the file multiple times.
+            if (
+                rate == native_rate
+                and best_result is not None
+                and best_result.headers
+                and best_result.bit_confidence >= _NATIVE_RATE_CONFIDENCE_THRESHOLD
+            ):
+                break
 
         except (AudioDecodeError, Exception):
             # This rate didn't work, try next one
@@ -1426,10 +1454,20 @@ def _decode_at_sample_rate(path: str, sample_rate: int) -> SAMEAudioDecodeResult
         [h.header for h in (correlation_headers or [])], burst_timing_gaps_ms
     )
 
+    # Minimum DLL confidence above which the off-rate baud variants are not
+    # worth trying: the signal is already clean enough that nominal rate will
+    # reproduce the same (or better) result in one pass.
+    _DLL_FAST_PATH_CONFIDENCE = 0.85
+
     base_rate = float(SAME_BAUD)
+    skip_offsets = (
+        correlation_headers is not None
+        and correlation_confidence is not None
+        and correlation_confidence >= _DLL_FAST_PATH_CONFIDENCE
+    )
     try:
         bits, metadata, average_confidence, minimum_confidence = _decode_with_candidate_rates(
-            samples, sample_rate, base_rate=base_rate
+            samples, sample_rate, base_rate=base_rate, skip_baud_offsets=skip_offsets
         )
     except AudioDecodeError:
         if correlation_headers:
@@ -1692,6 +1730,7 @@ __all__ = [
     "SAMEAudioSegment",
     "SAMEAudioDecodeResult",
     "SAMEHeaderDetails",
+    "build_plain_language_summary",
     "decode_same_audio",
     "ENDEC_MODE_UNKNOWN",
     "ENDEC_MODE_DEFAULT",
