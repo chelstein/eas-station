@@ -31,7 +31,9 @@ Integrates all EAS detection capabilities:
 This module provides a unified interface for analyzing EAS audio streams.
 """
 
+import io
 import logging
+import wave
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Any
 import numpy as np
@@ -221,67 +223,75 @@ def detect_eas_from_file(
     # Step 2: Detect alert tones if requested
     if detect_tones:
         try:
-            # Load audio samples for tone detection (handle both WAV and MP3)
-            import wave
-            import struct
-            import os
-            from pydub import AudioSegment
+            tone_samples: Optional[np.ndarray] = None
+            tone_sample_rate: int = result.sample_rate or 16000
 
-            file_ext = os.path.splitext(audio_path)[1].lower()
+            # ── Fast path: reuse PCM already in memory from the SAME decode ──
+            # The buffer segment contains the full alert audio at the rate that
+            # was chosen by the multi-rate decoder.  All EAS tone frequencies
+            # (853, 960, 1050 Hz) and speech are well below the Nyquist limit
+            # of that rate, so re-reading the file from disk is unnecessary.
+            for seg_key in ("buffer", "composite"):
+                seg = (same_result.segments.get(seg_key) if same_result else None)
+                if not (seg and getattr(seg, "wav_bytes", None)):
+                    continue
+                try:
+                    with wave.open(io.BytesIO(seg.wav_bytes), "rb") as wf:
+                        _sr = wf.getframerate()
+                        _sw = wf.getsampwidth()
+                        _ch = wf.getnchannels()
+                        frames = wf.readframes(wf.getnframes())
+                    if _sw == 2:
+                        raw = np.frombuffer(frames, dtype=np.int16)
+                    elif _sw == 4:
+                        raw = np.frombuffer(frames, dtype=np.int32)
+                    else:
+                        continue
+                    arr = raw.astype(np.float32) / float(2 ** (_sw * 8 - 1))
+                    if _ch == 2:
+                        arr = arr.reshape(-1, 2).mean(axis=1)
+                    tone_samples = arr
+                    tone_sample_rate = _sr
+                    break
+                except Exception:
+                    continue
 
-            if file_ext == '.wav':
-                # Direct WAV file loading
-                with wave.open(audio_path, 'rb') as wf:
-                    sample_rate = wf.getframerate()
-                    n_channels = wf.getnchannels()
-                    sampwidth = wf.getsampwidth()
-                    n_frames = wf.getnframes()
+            # ── Slow path: load audio from file if buffer segment unavailable ──
+            if tone_samples is None:
+                import os
+                from pydub import AudioSegment as _AudioSegment
 
-                    # Read audio data
-                    frames = wf.readframes(n_frames)
-
-                    # Convert to numpy array
+                file_ext = os.path.splitext(audio_path)[1].lower()
+                if file_ext == ".wav":
+                    with wave.open(audio_path, "rb") as wf:
+                        tone_sample_rate = wf.getframerate()
+                        n_channels = wf.getnchannels()
+                        sampwidth = wf.getsampwidth()
+                        frames = wf.readframes(wf.getnframes())
                     if sampwidth == 2:
-                        samples = np.frombuffer(frames, dtype=np.int16)
+                        raw2 = np.frombuffer(frames, dtype=np.int16)
                     elif sampwidth == 4:
-                        samples = np.frombuffer(frames, dtype=np.int32)
+                        raw2 = np.frombuffer(frames, dtype=np.int32)
                     else:
                         raise ValueError(f"Unsupported sample width: {sampwidth}")
-
-                    # Convert to float32 normalized to [-1, 1]
-                    samples = samples.astype(np.float32) / (2 ** (sampwidth * 8 - 1))
-
-                    # Convert to mono if stereo
+                    tone_samples = raw2.astype(np.float32) / float(2 ** (sampwidth * 8 - 1))
                     if n_channels == 2:
-                        samples = samples.reshape((-1, 2))
-                        samples = np.mean(samples, axis=1)
-            else:
-                # Use pydub for MP3 and other formats
-                logger.info(f"Loading {file_ext} file with pydub")
-                audio = AudioSegment.from_file(audio_path)
-
-                # Convert to mono and get parameters
-                if audio.channels > 1:
-                    audio = audio.set_channels(1)
-
-                sample_rate = audio.frame_rate
-
-                # Get raw audio data as numpy array
-                samples = np.array(audio.get_array_of_samples(), dtype=np.float32)
-
-                # Normalize to [-1, 1] based on sample width
-                if audio.sample_width == 2:
-                    samples = samples / 32768.0
-                elif audio.sample_width == 4:
-                    samples = samples / 2147483648.0
+                        tone_samples = tone_samples.reshape(-1, 2).mean(axis=1)
                 else:
-                    samples = samples / (2 ** (audio.sample_width * 8 - 1))
+                    logger.info(f"Loading {file_ext} file with pydub for tone detection")
+                    audio = _AudioSegment.from_file(audio_path)
+                    if audio.channels > 1:
+                        audio = audio.set_channels(1)
+                    tone_sample_rate = audio.frame_rate
+                    raw3 = np.array(audio.get_array_of_samples(), dtype=np.float32)
+                    sw = audio.sample_width
+                    tone_samples = raw3 / float(2 ** (sw * 8 - 1))
 
-            logger.info(f"Detecting alert tones in {len(samples)} samples")
-            tone_results = detect_alert_tones(samples, sample_rate, **kwargs)
+            logger.info(f"Detecting alert tones in {len(tone_samples)} samples @ {tone_sample_rate} Hz")
+            tone_results = detect_alert_tones(tone_samples, tone_sample_rate, **kwargs)
             result.alert_tones = tone_results
-            result.has_ebs_tone = any(t.tone_type == 'ebs' for t in tone_results)
-            result.has_nws_tone = any(t.tone_type == 'nws' for t in tone_results)
+            result.has_ebs_tone = any(t.tone_type == "ebs" for t in tone_results)
+            result.has_nws_tone = any(t.tone_type == "nws" for t in tone_results)
 
             logger.info(f"Tone detection: EBS={result.has_ebs_tone}, NWS={result.has_nws_tone}")
 
@@ -289,10 +299,10 @@ def detect_eas_from_file(
             if detect_narration and tone_results:
                 logger.info("Extracting narration segments")
                 narration_results = extract_narration_segments(
-                    samples,
-                    sample_rate,
+                    tone_samples,
+                    tone_sample_rate,
                     tone_results,
-                    eom_position=result.eom_position
+                    eom_position=result.eom_position,
                 )
                 result.narration_segments = narration_results
                 result.has_narration = any(seg.contains_speech for seg in narration_results)

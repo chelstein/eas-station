@@ -80,8 +80,11 @@ from app_utils.eas_decode import (
     SAMEAudioSegment,
     SAMEHeaderDetails,
     decode_same_audio,
+    build_plain_language_summary,
 )
 from app_utils.eas_detection import detect_eas_from_file
+from app_utils.eas import describe_same_header
+from app_utils.fips_codes import get_same_lookup
 
 
 DEFAULT_SAMPLE_FILES: Tuple[Path, ...] = (
@@ -1377,6 +1380,41 @@ def register(app: Flask, logger) -> None:
             "status": "ok",
             "progress": progress_data
         })
+
+    @app.route("/api/decode-same-header", methods=["POST"])
+    @require_auth
+    @require_role("Admin", "Operator", "Analyst")
+    def decode_same_header_api():
+        """Parse a raw ZCZC SAME header string and return structured field data.
+
+        Accepts JSON ``{"header": "ZCZC-WXR-TOR-039137+0015-3042020-KR8MER-"}``
+        and returns the full parsed representation without requiring audio.
+        """
+        payload = request.get_json(force=True, silent=True) or {}
+        raw_header = str(payload.get("header") or "").strip()
+
+        if not raw_header:
+            return jsonify({"error": "No header provided."}), 400
+
+        # Normalise: strip leading/trailing whitespace and ensure one ZCZC prefix
+        if "ZCZC" in raw_header:
+            raw_header = raw_header[raw_header.find("ZCZC"):]
+
+        if not raw_header.startswith("ZCZC-"):
+            return jsonify({"error": "Header must begin with ZCZC-."}), 400
+
+        try:
+            fips_lookup = get_same_lookup()
+            fields = describe_same_header(raw_header, lookup=fips_lookup)
+            summary = build_plain_language_summary(raw_header, fields)
+            return jsonify({
+                "header": raw_header,
+                "fields": fields,
+                "summary": summary,
+            })
+        except Exception as exc:
+            route_logger.warning("Failed to parse raw SAME header: %s", exc)
+            return jsonify({"error": f"Unable to parse header: {exc}"}), 422
 
     @app.route("/admin/alert-verification/export.csv")
     @require_auth
