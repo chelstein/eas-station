@@ -78,7 +78,7 @@ def notification_settings():
         logger.error(f"Database error loading notification settings: {str(e)}")
         db.session.rollback()
         flash('Database error loading notification settings', 'danger')
-        return redirect(url_for('admin_page'))
+        return redirect(url_for('dashboard.admin'))
 
 
 @notifications_bp.route('/update', methods=['POST'])

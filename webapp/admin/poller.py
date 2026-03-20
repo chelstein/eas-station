@@ -65,7 +65,7 @@ def poller_settings():
         logger.error(f"Database error loading poller settings: {str(e)}")
         db.session.rollback()
         flash('Database error loading poller settings', 'danger')
-        return redirect(url_for('admin_page'))
+        return redirect(url_for('dashboard.admin'))
 
 
 @poller_bp.route('/update', methods=['POST'])

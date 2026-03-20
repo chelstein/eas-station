@@ -5,8 +5,18 @@ All notable changes to this project are documented in this file. The format is b
 tracks releases under the 2.x series.
 
 ## [Unreleased]
-### Changed
-- Consolidated documentation: removed diagnostic/debug files, merged related hardware and troubleshooting docs into single comprehensive guides, reorganized categories in documentation index
+
+## [2.65.2] - 2026-03-20 - Fix missing route endpoints causing 500 errors
+
+### Fixed
+- **`admin/notifications/` 500 error** — error-handler in `notifications.py` referenced
+  non-existent endpoint `admin_page`; corrected to `dashboard.admin`.
+- **`admin/poller/` 500 error** — same `admin_page` typo in `poller.py`; corrected.
+- **`admin/application-settings/` 500 error** — same `admin_page` typo in
+  `application_settings.py`; corrected.
+- **`admin/hardware/`, `admin/icecast/`, `admin/tts/`, `admin/certbot/`,
+  `admin/tailscale/` 500 errors** — error-handlers referenced non-existent endpoint
+  `admin.index` (no such blueprint); corrected to `dashboard.admin`.
 
 ## [2.65.1] - 2026-03-20 - Settings hub: added missing pages, fixed notifications description
 

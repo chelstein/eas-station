@@ -583,7 +583,7 @@ def certbot_settings_page():
     except Exception as exc:
         logger.error(f"Failed to load Certbot settings: {exc}")
         flash(f"Error loading Certbot settings: {exc}", "error")
-        return redirect(url_for('admin.index'))
+        return redirect(url_for('dashboard.admin'))
 
 
 @certbot_bp.route('/api/certbot/settings', methods=['GET'])

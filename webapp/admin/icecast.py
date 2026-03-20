@@ -189,7 +189,7 @@ def icecast_settings_page():
     except Exception as exc:
         logger.error(f"Failed to load Icecast settings: {exc}")
         flash(f"Error loading Icecast settings: {exc}", "error")
-        return redirect(url_for('admin.index'))
+        return redirect(url_for('dashboard.admin'))
 
 
 @icecast_bp.route('/api/icecast/settings', methods=['GET'])
