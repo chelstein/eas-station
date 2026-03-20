@@ -56,6 +56,9 @@ def _get_or_create_settings() -> NotificationSettings:
             sms_auth_token='',
             sms_from_number='',
             sms_recipients=[],
+            snmp_enabled=False,
+            snmp_targets=[],
+            snmp_community='public',
         )
         db.session.add(settings)
         db.session.commit()
@@ -133,16 +136,28 @@ def update_notification_settings():
             num.strip() for num in sms_raw.splitlines() if num.strip()
         ]
 
+        # --- SNMP ---
+        settings.snmp_enabled = request.form.get('snmp_enabled', 'false').lower() == 'true'
+        settings.snmp_community = request.form.get('snmp_community', 'public').strip() or 'public'
+
+        # SNMP targets: one host:port per line
+        snmp_raw = request.form.get('snmp_targets', '').strip()
+        settings.snmp_targets = [
+            t.strip() for t in snmp_raw.splitlines() if t.strip()
+        ]
+
         db.session.commit()
         logger.info(
             "Updated notification settings: email_enabled=%s smtp=%s:%d, sms_enabled=%s, "
-            "alert_emails=%d, sms_recipients=%d",
+            "snmp_enabled=%s, alert_emails=%d, sms_recipients=%d, snmp_targets=%d",
             settings.email_enabled,
             settings.smtp_host or '(none)',
             settings.smtp_port or 587,
             settings.sms_enabled,
+            settings.snmp_enabled,
             len(settings.alert_emails or []),
             len(settings.sms_recipients or []),
+            len(settings.snmp_targets or []),
         )
 
         return jsonify({
@@ -248,6 +263,72 @@ def test_sms():
 
     except Exception as e:
         logger.error("Unexpected error sending test SMS: %s", e)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@notifications_bp.route('/test-snmp', methods=['POST'])
+@require_auth
+@require_permission('system.configure')
+def test_snmp():
+    """Send a test SNMP trap using the current SNMP configuration."""
+    try:
+        settings = _get_or_create_settings()
+
+        if not settings.snmp_targets:
+            return jsonify({'success': False, 'error': 'No SNMP targets configured'}), 400
+
+        try:
+            from pysnmp.hlapi import (  # type: ignore[import]
+                CommunityData,
+                ContextData,
+                NotificationType,
+                ObjectIdentity,
+                ObjectType,
+                SnmpEngine,
+                UdpTransportTarget,
+                sendNotification,
+            )
+        except Exception:
+            return jsonify({'success': False, 'error': 'pysnmp is not installed; install it to use SNMP traps'}), 400
+
+        community = (settings.snmp_community or 'public').strip() or 'public'
+        targets = [t.strip() for t in (settings.snmp_targets or []) if t and t.strip()]
+        payload = "EAS Station SNMP trap test"
+        errors = []
+
+        for target in targets:
+            host, _, port_str = target.partition(':')
+            try:
+                port = int(port_str) if port_str else 162
+            except ValueError:
+                port = 162
+
+            try:
+                for error_indication, _error_status, _error_index, _var_binds in sendNotification(
+                    SnmpEngine(),
+                    CommunityData(community, mpModel=1),
+                    UdpTransportTarget((host, port), timeout=3, retries=1),
+                    ContextData(),
+                    'trap',
+                    NotificationType(ObjectIdentity('1.3.6.1.4.1.32473.1.0.1')).addVarBinds(
+                        ObjectType(ObjectIdentity('1.3.6.1.4.1.32473.1.1.1.0'), payload)
+                    ),
+                ):
+                    if error_indication:
+                        errors.append(f"{target}: {error_indication}")
+            except Exception as exc:
+                errors.append(f"{target}: {exc}")
+
+        if errors:
+            msg = '; '.join(errors)
+            logger.warning("Test SNMP trap(s) failed: %s", msg)
+            return jsonify({'success': False, 'error': msg}), 502
+
+        logger.info("Test SNMP trap sent to %d target(s)", len(targets))
+        return jsonify({'success': True, 'message': f"Test trap sent to {len(targets)} target(s)"})
+
+    except Exception as e:
+        logger.error("Unexpected error sending test SNMP trap: %s", e)
         return jsonify({'success': False, 'error': str(e)}), 500
 
 

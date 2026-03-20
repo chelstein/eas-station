@@ -2015,6 +2015,18 @@ class NotificationSettings(db.Model):
     # List of destination phone numbers in E.164 format
 
     # ========================================================================
+    # SNMP Trap Notifications
+    # ========================================================================
+    snmp_enabled = db.Column(db.Boolean, nullable=False, default=False)
+    # Master switch for SNMP trap notifications
+
+    snmp_targets = db.Column(JSONB, nullable=False, default=list)
+    # List of SNMP trap targets in "host:port" format (port defaults to 162)
+
+    snmp_community = db.Column(db.String(255), nullable=False, default='public')
+    # SNMP community string for trap authentication
+
+    # ========================================================================
     # Metadata
     # ========================================================================
     updated_at = db.Column(db.DateTime, nullable=True, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -2037,6 +2049,9 @@ class NotificationSettings(db.Model):
             # sms_auth_token intentionally omitted from API responses
             "sms_from_number": self.sms_from_number or "",
             "sms_recipients": self.sms_recipients or [],
+            "snmp_enabled": self.snmp_enabled,
+            "snmp_targets": self.snmp_targets or [],
+            "snmp_community": self.snmp_community or "public",
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
 
