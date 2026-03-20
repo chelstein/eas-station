@@ -91,13 +91,11 @@ def _collect_dependency_versions(logger) -> List[Dict[str, str]]:
     # Key Python packages
     _pkg_list = [
         ("Flask", "flask", "framework"),
-        ("FastAPI", "fastapi", "framework"),
         ("SQLAlchemy", "sqlalchemy", "database"),
         ("Alembic", "alembic", "database"),
         ("Redis", "redis", "database"),
         ("psutil", "psutil", "system"),
         ("Gunicorn", "gunicorn", "server"),
-        ("Uvicorn", "uvicorn", "server"),
         ("Jinja2", "jinja2", "framework"),
         ("Werkzeug", "werkzeug", "framework"),
         ("NumPy", "numpy", "processing"),
