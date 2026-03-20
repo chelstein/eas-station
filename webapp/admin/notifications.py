@@ -21,8 +21,9 @@ Repository: https://github.com/KR8MER/eas-station
 
 import logging
 import socket
+from types import SimpleNamespace
 
-from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash
+from flask import Blueprint, render_template, request, jsonify, flash
 from sqlalchemy.exc import SQLAlchemyError
 
 from app_core.extensions import db
@@ -66,6 +67,30 @@ def _get_or_create_settings() -> NotificationSettings:
     return settings
 
 
+def _fallback_notification_settings():
+    """Return in-memory defaults when the database is unavailable."""
+    return SimpleNamespace(
+        email_enabled=False,
+        smtp_host='',
+        smtp_port=587,
+        smtp_username='',
+        smtp_password='',
+        smtp_security='starttls',
+        compliance_alert_emails=[],
+        alert_emails=[],
+        email_attach_audio=False,
+        sms_enabled=False,
+        sms_provider='twilio',
+        sms_account_sid='',
+        sms_auth_token='',
+        sms_from_number='',
+        sms_recipients=[],
+        snmp_enabled=False,
+        snmp_targets=[],
+        snmp_community='public',
+    )
+
+
 @notifications_bp.route('/', methods=['GET'])
 @require_auth
 @require_permission('system.configure')
@@ -73,12 +98,19 @@ def notification_settings():
     """Display notification configuration settings page."""
     try:
         settings = _get_or_create_settings()
-        return render_template('admin/notifications.html', settings=settings)
     except SQLAlchemyError as e:
         logger.error(f"Database error loading notification settings: {str(e)}")
-        db.session.rollback()
-        flash('Database error loading notification settings', 'danger')
-        return redirect(url_for('dashboard.admin'))
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        flash(
+            'Database error loading notification settings. '
+            'Settings are shown with defaults — run database migrations to restore full functionality.',
+            'danger',
+        )
+        settings = _fallback_notification_settings()
+    return render_template('admin/notifications.html', settings=settings)
 
 
 @notifications_bp.route('/update', methods=['POST'])

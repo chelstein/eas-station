@@ -123,7 +123,7 @@ def register_workflow_routes(bp, logger, eas_config) -> None:
         ]
 
         state_tree = get_us_state_county_tree()
-        same_lookup = get_same_lookup()
+        same_lookup = dict(get_same_lookup())
 
         recent_messages: List[EASMessage] = (
             EASMessage.query.order_by(EASMessage.created_at.desc()).limit(10).all()

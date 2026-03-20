@@ -37,7 +37,7 @@ def register_routes(app, logger):
         """Render the RWT schedule configuration page."""
         # Provide state/county tree for proper selection UI
         state_tree = get_us_state_county_tree()
-        same_lookup = get_same_lookup()
+        same_lookup = dict(get_same_lookup())
 
         return render_template(
             'rwt_schedule.html',

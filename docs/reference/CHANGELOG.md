@@ -6,6 +6,23 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.65.4] - 2026-03-20 - Fix /admin, /admin/notifications, /admin/application returning fallback HTML
+
+### Fixed
+- **`/admin` returning fallback HTML** — `get_same_lookup()` returns a `MappingProxyType`
+  which Python's `json.dumps` cannot serialize. `admin.html` uses `{{ eas_fips_lookup|tojson }}`
+  which threw `TypeError: Object of type mappingproxy is not JSON serializable`, caught by the
+  broad `except Exception` in `dashboard.admin()`, returning the static fallback string. Fixed
+  by converting to `dict` in `dashboard.py`, `webapp/eas/workflow.py`, and
+  `webapp/routes_rwt_schedule.py` before passing to templates.
+- **`/admin/notifications` and `/admin/application` returning fallback HTML** — both pages
+  redirected to `dashboard.admin` on `SQLAlchemyError` (e.g. missing migration columns), which
+  then also failed to render. Both pages now render their own templates with safe in-memory
+  defaults and a flash warning instead of redirecting away.
+- **Setup-mode first-run access** — `before_request` endpoint allowlist for setup mode only
+  included old endpoint names `'admin'`/`'admin_users'`; updated to also accept
+  `'dashboard.admin'`/`'dashboard.admin_users'` after blueprint refactor.
+
 ## [2.65.3] - 2026-03-20 - Fix NameError crashing /api/system_status and system_logs template block
 
 ### Fixed
