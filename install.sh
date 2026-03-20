@@ -181,18 +181,28 @@ LOGO
     } >&9
 }
 
+# Restore terminal to a clean, usable state — called from cleanup and on interrupt
+restore_terminal() {
+    stty sane </dev/tty 2>/dev/null || true
+    {
+        printf '\033[?25h'          # show cursor
+        printf '\033[0m'            # reset all attributes
+        printf '\033[20;0H\033[J'   # move below TUI and clear remaining lines
+    } >&9
+}
+
 # Cleanup: show error in TUI and restore terminal on unexpected exit
 cleanup_on_exit() {
     local exit_code=$?
     if [ $exit_code -ne 0 ]; then
-        add_status "[ERROR]  Script exited unexpectedly (code: $exit_code)"
-        add_status "         Check log for details: $LOG_FILE"
+        add_status "[ERROR]  Script exited with code $exit_code"
+        add_status "         Check log: $LOG_FILE"
         redraw_screen
-        sleep 3
     fi
-    printf '\033[0m' >&9
+    restore_terminal
 }
 trap cleanup_on_exit EXIT
+trap 'exit 130' INT TERM
 
 echo_step() {
     STEP_NUM=$((STEP_NUM + 1))
@@ -260,8 +270,18 @@ whiptail_footer() {
     echo "Copyright (c) 2025-2026 Timothy Kramer (KR8MER) | AGPL v3 / Commercial License"
 }
 
+# Wrapper: ncurses (whiptail) can leave the terminal in cbreak/no-echo/no-isig
+# mode, which makes Ctrl+C stop working. Always restore sane settings after.
+whiptail() {
+    command whiptail "$@"
+    local _ret=$?
+    stty sane </dev/tty 2>/dev/null || true
+    return $_ret
+}
+
 # ── Startup ──────────────────────────────────────────────────────────────────
 
+printf '\033[?25l' >&9   # hide cursor for clean TUI look
 draw_splash
 
 # Root check must happen before log redirect (needs /var/log write access)
