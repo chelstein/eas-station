@@ -575,6 +575,58 @@ def _make_metadata_log_callback(flask_app):
     return _callback
 
 
+def _make_audio_alert_log_callback(flask_app):
+    """Return a thread-safe callback that persists audio source events to the AudioAlert DB table.
+
+    The callback signature is ``(source_name: str, event_type: str, message: str)``.
+    ``event_type`` is one of: ``'stall'``, ``'error'``, ``'disconnected'``.
+    """
+    import threading
+
+    # Map event types to alert levels recognised by the DB model
+    _LEVEL_MAP = {
+        'stall': 'warning',
+        'error': 'error',
+        'disconnected': 'warning',
+    }
+
+    # Deduplicate rapid-fire alerts: only write one record per source per
+    # event type within a short window to avoid flooding the table.
+    _last_written: dict = {}  # key: (source_name, event_type) → timestamp
+    _dedup_seconds = 30.0
+    _lock = threading.Lock()
+
+    def _callback(source_name: str, event_type: str, message: str) -> None:
+        import time as _time
+        now = _time.time()
+        key = (source_name, event_type)
+        with _lock:
+            if now - _last_written.get(key, 0) < _dedup_seconds:
+                return
+            _last_written[key] = now
+
+        def _write() -> None:
+            try:
+                with flask_app.app_context():
+                    from app_core.extensions import db
+                    from app_core.models import AudioAlert
+
+                    record = AudioAlert(
+                        source_name=source_name,
+                        alert_level=_LEVEL_MAP.get(event_type, 'warning'),
+                        alert_type=event_type,
+                        message=message,
+                    )
+                    db.session.add(record)
+                    db.session.commit()
+            except Exception as exc:
+                logger.warning("Failed to log audio alert for '%s' (%s): %s", source_name, event_type, exc)
+
+        threading.Thread(target=_write, daemon=True).start()
+
+    return _callback
+
+
 def initialize_archivers(app, audio_controller):
     """Start AudioArchivers for sources that have archiving enabled in their config_params.
 
@@ -964,6 +1016,12 @@ def main():
         metadata_log_callback = _make_metadata_log_callback(app)
         audio_controller.set_metadata_change_callback(metadata_log_callback)
         logger.info("Stream metadata logging callbacks registered")
+
+        # Attach audio-alert callback so stall/error/disconnect events are
+        # persisted to the audio_alerts table (shown in Logs → Audio tab)
+        audio_alert_callback = _make_audio_alert_log_callback(app)
+        audio_controller.set_source_alert_callback(audio_alert_callback)
+        logger.info("Audio alert logging callbacks registered")
 
         # Initialize EAS monitor
         logger.info("Initializing EAS monitor...")

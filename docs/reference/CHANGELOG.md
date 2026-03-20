@@ -6,6 +6,23 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.63.1] - 2026-03-20 - Audio monitor false-Disconnected and missing Audio logs
+
+### Fixed
+- **EAS monitor showing false "Disconnected/Unavailable" status** – The
+  `/api/eas-monitor/status` endpoint had a `@cache.cached(timeout=2)` decorator that
+  cached error responses for 2 seconds.  When Redis metrics were momentarily stale the
+  error response was served from cache on every subsequent poll during that window, even
+  after metrics recovered.  The decorator has been removed so the endpoint always reads
+  live data directly from Redis, which is already fast.
+- **Audio System Logs tab always empty** – The `AudioAlert` database model existed and
+  was queried by the Logs → Audio tab, but nothing ever wrote records to it.  A new
+  `_make_audio_alert_log_callback` helper in `eas_monitoring_service.py` now persists
+  stall, error, and disconnect events to the `audio_alerts` table.  The callback is
+  registered via the new `AudioIngestController.set_source_alert_callback()` method and
+  de-duplicates rapid-fire events (one record per source/type per 30 seconds) to avoid
+  flooding the log.
+
 ## [2.63.0] - 2026-03-19 - Coverage calculation fix and XML signature C14N verification
 
 ### Fixed
