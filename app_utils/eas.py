@@ -712,7 +712,7 @@ def build_same_header(alert: object, payload: Dict[str, object], config: Dict[st
     julian = _julian_time(sent_dt or datetime.now(timezone.utc))
 
     originator = str(config.get('originator', 'WXR'))[:3].upper()
-    station = str(config.get('station_id', 'EASNODES')).ljust(8)[:8]
+    station = str(config.get('station_id', 'EASNODES')).strip()[:8]
 
     location_field = '-'.join(formatted_locations)
     header = f"ZCZC-{originator}-{event_code}-{location_field}+{duration_code}-{julian}-{station}-"
