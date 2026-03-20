@@ -12,7 +12,7 @@ Welcome to the operator help guide for the NOAA CAP Emergency Alert System (EAS)
 
 ## Getting Started
 1. **Review the About document:** The [About page](../reference/ABOUT) covers system goals, core services, and the complete software stack.
-3. **Configure environment variables:** Copy `.env.example` to `.env`, set secure secrets, and update database connection details. Optional Azure AI speech settings can remain blank until credentials are available.
+3. **Install EAS Station:** Follow the [Installation Guide](../installation/README) for a bare-metal deployment on Debian/Ubuntu with PostgreSQL + PostGIS and Redis.
 4. **Launch the stack:**
 
 ## Routine Operations
@@ -72,12 +72,14 @@ Welcome to the operator help guide for the NOAA CAP Emergency Alert System (EAS)
 ## Reference Commands
 | Task | Command |
 |------|---------|
-| Build and start services (external database) | `sudo systemd up -d --build` |
-| View aggregate logs | `sudo systemd logs -f` |
-| Restart the web app | `sudo systemd restart app` |
-| Run database migrations (if applicable) | `flask db upgrade` |
-| Legacy sample audio helper | `sudo systemd exec app python tools/generate_sample_audio.py` |
-| Manual CAP injection | `python manual_eas_event.py --help` |
+| Check all service status | `sudo systemctl status eas-station.target` |
+| View web service logs | `sudo journalctl -u eas-station-web.service -f` |
+| Restart the web app | `sudo systemctl restart eas-station-web.service` |
+| Restart all services | `sudo systemctl restart eas-station.target` |
+| Run database migrations | `cd /opt/eas-station && alembic upgrade head` |
+| Generate sample audio | `python3 tools/generate_sample_audio.py` |
+| Manual CAP injection | `python3 scripts/manual_eas_event.py --help` |
+| Collect SDR diagnostics | `bash scripts/collect_sdr_diagnostics.sh` |
 
 ## Related Documentation
 - **[Master Roadmap](../roadmap/dasdec3-feature-roadmap)** - View completed features and upcoming priorities

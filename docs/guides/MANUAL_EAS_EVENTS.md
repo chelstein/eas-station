@@ -222,8 +222,8 @@ Audio files are stored in the media directory (`EAS_AUDIO_DIR`) and linked to th
 
 ### Broadcast Builder produces no audio
 
-- Confirm TTS is configured (**Admin → Settings → TTS**). Run `python debug_tts.py` to test synthesis.
-- For Azure TTS, verify `AZURE_SPEECH_KEY` and `AZURE_SPEECH_REGION` are set in `.env`.
+- Confirm TTS is configured (**Admin → Settings → TTS**) and enabled. Use the **"Test TTS"** button on that page to verify synthesis is working.
+- For Azure TTS, verify the endpoint URL and API key are correctly entered in **Admin → Settings → TTS**.
 
 ### GPIO relay does not activate
 

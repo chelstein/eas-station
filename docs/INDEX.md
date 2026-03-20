@@ -28,13 +28,10 @@ Complete documentation for **EAS Station** - an Emergency Alert System platform 
 | [HTTPS Setup](guides/HTTPS_SETUP.md) | SSL/TLS certificates |
 | [SSL Web UI Guide](guides/SSL_WEB_UI_GUIDE.md) | Web-based certificate management |
 | [IPAWS Integration](guides/ipaws_feed_integration.md) | Federal alert source setup |
-| [Poller Migration Guide](guides/POLLER_MIGRATION_GUIDE.md) | Alert poller setup |
 | [One-Button Upgrade](guides/one_button_upgrade.md) | Automated updates |
 | [Tailscale VPN Setup](guides/TAILSCALE_SETUP.md) | Secure remote access via Tailscale mesh VPN |
 | [S.M.A.R.T. Setup](guides/SMART_SETUP.md) | NVMe and SSD health monitoring |
-| [Configuration Migration](guides/CONFIGURATION_MIGRATION.md) | Environment variable merge utility |
 | [Hardware Quickstart](guides/HARDWARE_QUICKSTART.md) | Hardware configuration |
-| [PyCharm Debugging](guides/PYCHARM_DEBUGGING.md) | Remote debugging setup |
 
 ## Hardware & Audio
 
@@ -47,6 +44,10 @@ Complete documentation for **EAS Station** - an Emergency Alert System platform 
 | [GPS HAT Setup](hardware/GPS_HAT_SETUP.md) | Adafruit Ultimate GPS HAT for precision time and location |
 | [Audio Monitoring](audio/AUDIO_MONITORING.md) | Live stream viewer |
 | [LED Communication](hardware/BIDIRECTIONAL_LED_COMMUNICATION.md) | LED sign integration |
+| [Alpha LED Sign — Diagnostics](hardware/ALPHA_LED_DIAGNOSTICS.md) | M-Protocol read commands and status queries |
+| [Alpha LED Sign — Time & Date Control](hardware/ALPHA_LED_TIMEDATE.md) | Clock sync and date/time configuration |
+| [Alpha LED Sign — Advanced Control](hardware/ALPHA_LED_ADVANCED.md) | Speaker, brightness, and file management |
+| [Alpha LED Sign — Web UI Dashboard](hardware/ALPHA_LED_WEB_UI.md) | Browser-based Alpha sign management |
 | [Serial Adapters](hardware/SERIAL_TO_ETHERNET_ADAPTERS.md) | Serial device setup |
 | [Waveshare RS232 WiFi](hardware/WAVESHARE_RS232_WIFI_SETUP.md) | Waveshare adapter setup |
 
@@ -64,7 +65,6 @@ Complete documentation for **EAS Station** - an Emergency Alert System platform 
 | [SDR Service Architecture](architecture/SDR_SERVICE_ARCHITECTURE.md) | SDR dual-service design |
 | [SDR Service Isolation](architecture/SDR_SERVICE_ISOLATION.md) | SDR service separation |
 | [Design Standards](architecture/DESIGN_STANDARDS.md) | UI/UX design system |
-| [Migration](architecture/MIGRATION.md) | FastAPI migration status |
 
 ## Frontend
 
@@ -91,7 +91,6 @@ Complete documentation for **EAS Station** - an Emergency Alert System platform 
 ### Audio
 | Document | Description |
 |----------|-------------|
-| [Audio Squeal Fix](troubleshooting/AUDIO_SQUEAL_FIX.md) | Audio feedback/squeal issues |
 | [Audio Streaming Setup](troubleshooting/AUDIO_STREAMING_SETUP.md) | Streaming configuration |
 | [Audio Dropped Packets](troubleshooting/AUDIO_DROPPED_PACKETS.md) | Network packet loss issues |
 | [TTS Troubleshooting](troubleshooting/TTS_TROUBLESHOOTING.md) | Text-to-speech configuration |
@@ -100,13 +99,8 @@ Complete documentation for **EAS Station** - an Emergency Alert System platform 
 | Document | Description |
 |----------|-------------|
 | [502/504 Gateway Errors](troubleshooting/TROUBLESHOOTING_504_TIMEOUT.md) | Website timeout and gateway errors |
-| [Environment Config Issues](troubleshooting/ENVIRONMENT_CONFIG_ISSUES.md) | Environment variable problems |
-| [Environment File Migration](troubleshooting/ENV_FILE_MIGRATION.md) | Systemd env file JSON parsing |
-| [Database Issues](troubleshooting/DATABASE_CONSISTENCY_FIXES.md) | PostgreSQL troubleshooting |
-| [Database Authentication](troubleshooting/DATABASE_AUTH_FIX.md) | Database password and auth issues |
 | [Systemd Target Cycling](troubleshooting/SYSTEMD_TARGET_CYCLING.md) | Fix repeated service restarts |
 | [Firewall Requirements](troubleshooting/FIREWALL_REQUIREMENTS.md) | Network ports and firewall setup |
-| [PgAdmin/Apache2 Conflict](troubleshooting/PGADMIN_APACHE2_CONFLICT.md) | Port conflict resolution |
 | [Polling Not Working](troubleshooting/POLLING_NOT_WORKING.md) | Alert polling troubleshooting |
 | [Update Not Pulling Changes](troubleshooting/UPDATE_NOT_PULLING_CHANGES.md) | Git update issues |
 
@@ -119,16 +113,12 @@ Complete documentation for **EAS Station** - an Emergency Alert System platform 
 | [Bare Metal Quick Start](installation/QUICKSTART-BARE-METAL.md) | Bare metal deployment |
 | [Installation Details](installation/INSTALLATION_DETAILS.md) | Detailed steps |
 | [Alternative Methods](installation/ALTERNATIVE_METHODS.md) | Alternative installation methods |
-| [Installation Changes](installation/Installation-Changes.md) | Script improvements |
-| [PostgreSQL 15+ Fix](installation/PostgreSQL-15-Fix.md) | PostgreSQL permission fixes |
 
 ## Development
 
 | Document | Description |
 |----------|-------------|
 | [Developer Guidelines](development/AGENTS.md) | Code standards and architecture |
-| [Admin Page Refactoring](development/ADMIN_PAGE_REFACTORING.md) | Admin page modularization roadmap |
-| [CSS Variables Migration](development/CSS_VARIABLES_MIGRATION.md) | Stats dashboard color migration to CSS variables |
 | [Contributing Guide](process/CONTRIBUTING.md) | How to contribute |
 
 ## Security
@@ -149,7 +139,6 @@ Complete documentation for **EAS Station** - an Emergency Alert System platform 
 | [DASDEC-III Comparison](reference/DASDEC_COMPARISON.md) | Feature gap analysis vs. commercial DASDEC-III |
 | [Changelog](reference/CHANGELOG.md) | Version history |
 | [Diagrams Index](reference/DIAGRAMS.md) | Visual documentation index |
-| [FIPS Codes Update](reference/FIPS_CODES_UPDATE.md) | FIPS/SAME code data sources |
 | [Ohio EAS Documentation](reference/OHIO_EAS_DOCUMENTATION.md) | Ohio EAS plan reference |
 | [Certification Reliability Plan](process/certification_reliability_plan.md) | FCC certification readiness |
 | [Feature Roadmap](roadmap/dasdec3-feature-roadmap.md) | Planned features |
@@ -173,8 +162,7 @@ docs/
 ├── reference/       # Reference materials
 ├── roadmap/         # Feature planning
 ├── security/        # Security documentation
-├── troubleshooting/ # Problem-solving guides
-└── archive/         # Historical documentation
+└── troubleshooting/ # Problem-solving guides
 ```
 
 ## Finding Information
@@ -191,5 +179,5 @@ docs/
 
 ---
 
-**Last Updated**: 2026-02-17
+**Last Updated**: 2026-03-20
 **For questions or contributions, see the [Contributing Guide](process/CONTRIBUTING.md)**

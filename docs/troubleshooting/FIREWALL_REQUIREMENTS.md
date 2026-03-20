@@ -226,4 +226,3 @@ This error indicates nginx cannot connect to the Flask backend (port 5000). Comm
 ## Related Documentation
 
 - [Setup Instructions](../guides/SETUP_INSTRUCTIONS.md) - Initial deployment guide
-- [Database Troubleshooting](DATABASE_CONSISTENCY_FIXES.md) - Database connection issues

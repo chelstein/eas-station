@@ -6,6 +6,85 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.63.3] - 2026-03-20 - Repository root cleanup and documentation hygiene
+
+### Removed
+- **10 root-level debug/scratch scripts** — `check_log_crc.py`, `check_rbds_signal.py`,
+  `check_tts_db.sh`, `debug_tts.py`, `enable_tts.py`, `trace_config_flow.py`,
+  `verify_bit_order.py`, `test_tts_api.py`, `fastapi_app.py`, `fastapi_app_minimal.py`.
+  These were one-off diagnostic tools and hypothetical alternate app implementations with
+  no place in a production codebase.
+- **`bugs/` directory** (11 files) — screenshots, an MP3 audio sample, an IPAWS log, and
+  an RBDS diagnostics archive. Already excluded from ISO builds via `.gitignore`; removed
+  from git tracking entirely.
+- **`scripts/README.md.old`** — stale backup file superseded by the current README.
+- **`scripts/run_fastapi.sh`** — startup script for the never-deployed FastAPI alternate app.
+- **18 RBDS debugging tools from `tools/`** — `README_RBDS.md`, `README_RBDS_DIAGNOSTIC.md`,
+  `README_RBDS_STEREO.md`, `analyze_rbds_failure.py`, `analyze_rbds_stereo_code.py`,
+  `audio_debug.py`, `collect-rbds-diagnostics.sh`, `demo_rbds_fix.py`,
+  `rbds_auto_diagnostic.py`, `rbds_bit_permutations_test.py`, `rbds_diagnostic.py`,
+  `test_block_reversal.py`, `test_rbds_bit_order.py`, `test_rbds_comprehensive.py`,
+  `test_rbds_standalone.py`, `test_stream_capture.py`, `trace_rbds_stereo_path.py`,
+  `validate_rbds_stereo_config.py`. These are debug scaffolding from the RBDS fix campaign;
+  the permanent fix is in `app_core/radio/`.
+
+### Changed
+- **`docs/hardware/ALPHA_*.md` renamed** — removed "Phase X" development numbering from
+  filenames and `mkdocs.yml` titles: `ALPHA_DIAGNOSTICS_PHASE1` → `ALPHA_LED_DIAGNOSTICS`,
+  `ALPHA_TIMEDATE_PHASE2` → `ALPHA_LED_TIMEDATE`, `ALPHA_ADVANCED_PHASES3-5` →
+  `ALPHA_LED_ADVANCED`, `ALPHA_WEB_UI_PHASE9` → `ALPHA_LED_WEB_UI`.
+- **`docs/troubleshooting/AUDIO_STREAMING_SETUP.md`** — rewrote from scratch. Previous
+  version was a Docker-era skeleton full of empty code blocks and container references.
+  Replaced with a complete bare-metal troubleshooting guide covering systemd services,
+  Redis, Icecast, SDR hardware, and SQL configuration examples.
+- **`docs/guides/HELP.md`** — fixed Reference Commands table (all entries were Docker
+  Compose syntax: `sudo systemd up -d --build` etc.); replaced with correct bare-metal
+  `systemctl` commands. Updated Getting Started step to point to the Installation Guide
+  instead of manual `.env` editing.
+- **`docs/troubleshooting/TTS_TROUBLESHOOTING.md`** — replaced two references to the
+  deleted `test_tts_api.py` script with instructions to use the **Test TTS** button in
+  the Admin UI.
+- **`docs/guides/MANUAL_EAS_EVENTS.md`** — replaced reference to `debug_tts.py` with
+  pointer to the Admin UI TTS test button.
+- **`mkdocs.yml`** — removed all nav entries pointing to previously deleted files; updated
+  Alpha LED Sign titles to remove "Phase X" language; added `run_fastapi.sh` removal.
+- **`docs/INDEX.md`** — added Alpha LED Sign documentation to the Hardware section.
+- **`scripts/README.md`** — rewrote to reflect current bare-metal scripts inventory.
+
+## [2.63.2] - 2026-03-20 - Documentation cleanup and broken image fix
+
+### Fixed
+- **Missing image beside maintainer bio on About page** – `ham-radio-icon.svg` was a PNG
+  file with a wrong extension. Flask served it with `Content-Type: image/svg+xml`, causing
+  browsers to fail silently when parsing binary PNG data as SVG XML. Renamed to
+  `ham-radio-icon.png` and updated the `about.html` template reference.
+
+### Removed
+- **Development artifact documentation purge** – 42 files totalling ~800 KB of
+  development-era scratch notes, migration guides for completed migrations, one-off
+  diagnostic fix write-ups, and IDE-specific tooling docs have been removed.  These were
+  internal working documents that had no place in a finished-product documentation set:
+  - `docs/archive/` — entire directory (25 RBDS fix iteration files + SDR audio cutout fix)
+  - `docs/development/ADMIN_PAGE_REFACTORING.md` — internal refactoring roadmap
+  - `docs/development/CSS_VARIABLES_MIGRATION.md` — December 2024 CSS migration notes
+  - `docs/architecture/MIGRATION.md` — hypothetical FastAPI rewrite (never started)
+  - `docs/guides/POLLER_MIGRATION_GUIDE.md` — migration from legacy poller (completed)
+  - `docs/guides/CONFIGURATION_MIGRATION.md` — env-var merge utility (env vars removed)
+  - `docs/guides/PYCHARM_DEBUGGING.md` — 141 KB IDE-specific debug guide for developers
+  - `docs/troubleshooting/ENV_FILE_MIGRATION.md` — systemd JSON env-file fix (old system)
+  - `docs/troubleshooting/ENVIRONMENT_CONFIG_ISSUES.md` — env-var config issues (old system)
+  - `docs/troubleshooting/DATABASE_AUTH_FIX.md` — one-off database auth fix notes
+  - `docs/troubleshooting/AUDIO_SQUEAL_FIX.md` — Docker-era legacy squeal fix
+  - `docs/troubleshooting/DATABASE_CONSISTENCY_FIXES.md` — internal code audit/fix notes
+  - `docs/troubleshooting/PGADMIN_APACHE2_CONFLICT.md` — historical pgAdmin port conflict
+  - `docs/installation/Installation-Changes.md` — install script improvement notes
+  - `docs/installation/PostgreSQL-15-Fix.md` — one-off PostgreSQL 15 permission fix
+  - `docs/reference/FIPS_CODES_UPDATE.md` — internal developer note on updating FIPS data
+  - `docs/reference/CFR-2010-title47-vol1-sec11-31.xml` — raw regulatory XML dump
+- **Stale cross-references cleaned up** – `docs/INDEX.md`, `docs/README.md`,
+  `docs/troubleshooting/FIREWALL_REQUIREMENTS.md`, and
+  `docs/troubleshooting/POLLING_NOT_WORKING.md` updated to remove broken links.
+
 ## [2.63.1] - 2026-03-20 - Audio monitor false-Disconnected and missing Audio logs
 
 ### Fixed

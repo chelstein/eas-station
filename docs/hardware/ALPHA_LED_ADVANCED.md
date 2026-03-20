@@ -415,8 +415,8 @@ def send_alert(alert_data):
 
 ## Reference
 
-- **Phase 1 Guide:** `docs/hardware/ALPHA_DIAGNOSTICS_PHASE1.md`
-- **Phase 2 Guide:** `docs/hardware/ALPHA_TIMEDATE_PHASE2.md`
+- **Phase 1 Guide:** `docs/hardware/ALPHA_LED_DIAGNOSTICS.md`
+- **Phase 2 Guide:** `docs/hardware/ALPHA_LED_TIMEDATE.md`
 - **M-Protocol Spec:** https://alpha-american.com/alpha-manuals/M-Protocol.pdf
 - **Bidirectional Communication:** `docs/hardware/BIDIRECTIONAL_LED_COMMUNICATION.md`
 

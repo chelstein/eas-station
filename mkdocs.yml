@@ -130,8 +130,6 @@ nav:
       - Installation Guide: installation/README.md
       - Installation Details: installation/INSTALLATION_DETAILS.md
       - Alternative Methods: installation/ALTERNATIVE_METHODS.md
-      - Installation Changes: installation/Installation-Changes.md
-      - PostgreSQL 15+ Fix: installation/PostgreSQL-15-Fix.md
   - User Guides:
       - Setup Instructions: guides/SETUP_INSTRUCTIONS.md
       - Help & Operations: guides/HELP.md
@@ -152,9 +150,6 @@ nav:
       - SSL Web UI Guide: guides/SSL_WEB_UI_GUIDE.md
       - Tailscale VPN Setup: guides/TAILSCALE_SETUP.md
       - S.M.A.R.T. Setup: guides/SMART_SETUP.md
-      - Configuration Migration: guides/CONFIGURATION_MIGRATION.md
-      - Poller Migration Guide: guides/POLLER_MIGRATION_GUIDE.md
-      - PyCharm Remote Debugging: guides/PYCHARM_DEBUGGING.md
       - Audio Monitoring Dashboard: audio/AUDIO_MONITORING.md
   - Hardware:
       - SDR Setup Guide: hardware/SDR_SETUP.md
@@ -168,10 +163,10 @@ nav:
       - Argon40 Zigbee Setup: hardware/ARGON40_ZIGBEE_SETUP.md
       - Waveshare RS232 WiFi: hardware/WAVESHARE_RS232_WIFI_SETUP.md
       - Serial to Ethernet Adapters: hardware/SERIAL_TO_ETHERNET_ADAPTERS.md
-      - Alpha LED Sign (Phase 1 - Diagnostics): hardware/ALPHA_DIAGNOSTICS_PHASE1.md
-      - Alpha LED Sign (Phase 2 - Time & Date): hardware/ALPHA_TIMEDATE_PHASE2.md
-      - Alpha LED Sign (Phases 3-5 - Advanced): hardware/ALPHA_ADVANCED_PHASES3-5.md
-      - Alpha LED Sign (Phase 9 - Web UI): hardware/ALPHA_WEB_UI_PHASE9.md
+      - Alpha LED Sign (Diagnostics): hardware/ALPHA_LED_DIAGNOSTICS.md
+      - Alpha LED Sign (Time & Date Control): hardware/ALPHA_LED_TIMEDATE.md
+      - Alpha LED Sign (Advanced Control): hardware/ALPHA_LED_ADVANCED.md
+      - Alpha LED Sign (Web UI Dashboard): hardware/ALPHA_LED_WEB_UI.md
   - Troubleshooting:
       - SDR & Radio:
           - SDR Quick Fix Guide: troubleshooting/SDR_QUICK_FIX_GUIDE.md
@@ -182,19 +177,13 @@ nav:
           - SDR Streaming Issues: troubleshooting/SDR_STREAMING_ISSUES_ANALYSIS.md
           - Audio SDR Issues Explained: troubleshooting/AUDIO_SDR_ISSUES_EXPLAINED.md
       - Audio:
-          - Audio Squeal Fix: troubleshooting/AUDIO_SQUEAL_FIX.md
           - Audio Streaming Setup: troubleshooting/AUDIO_STREAMING_SETUP.md
           - Audio Dropped Packets: troubleshooting/AUDIO_DROPPED_PACKETS.md
           - TTS Troubleshooting: troubleshooting/TTS_TROUBLESHOOTING.md
       - System:
           - 502/504 Gateway Errors: troubleshooting/TROUBLESHOOTING_504_TIMEOUT.md
-          - Environment Config Issues: troubleshooting/ENVIRONMENT_CONFIG_ISSUES.md
-          - Environment File Migration: troubleshooting/ENV_FILE_MIGRATION.md
-          - Database Consistency Fixes: troubleshooting/DATABASE_CONSISTENCY_FIXES.md
-          - Database Authentication Fix: troubleshooting/DATABASE_AUTH_FIX.md
           - Systemd Target Cycling: troubleshooting/SYSTEMD_TARGET_CYCLING.md
           - Firewall Requirements: troubleshooting/FIREWALL_REQUIREMENTS.md
-          - PgAdmin/Apache2 Conflict: troubleshooting/PGADMIN_APACHE2_CONFLICT.md
           - Polling Not Working: troubleshooting/POLLING_NOT_WORKING.md
           - Update Not Pulling Changes: troubleshooting/UPDATE_NOT_PULLING_CHANGES.md
   - Architecture:
@@ -208,7 +197,6 @@ nav:
       - SDR Service Architecture: architecture/SDR_SERVICE_ARCHITECTURE.md
       - SDR Service Isolation: architecture/SDR_SERVICE_ISOLATION.md
       - Design Standards: architecture/DESIGN_STANDARDS.md
-      - Migration Status: architecture/MIGRATION.md
   - Frontend:
       - User Interface Guide: frontend/USER_INTERFACE_GUIDE.md
       - Component Library: frontend/COMPONENT_LIBRARY.md
@@ -220,8 +208,6 @@ nav:
       - Password Guide: security/SECURITY_PASSWORD_GUIDE.md
   - Development:
       - Developer Guidelines: development/AGENTS.md
-      - Admin Page Refactoring: development/ADMIN_PAGE_REFACTORING.md
-      - CSS Variables Migration: development/CSS_VARIABLES_MIGRATION.md
       - Contributing: process/CONTRIBUTING.md
       - Certification Reliability Plan: process/certification_reliability_plan.md
   - Reference:
@@ -229,7 +215,6 @@ nav:
       - Changelog: reference/CHANGELOG.md
       - DASDEC-III Comparison: reference/DASDEC_COMPARISON.md
       - Diagrams Index: reference/DIAGRAMS.md
-      - FIPS Codes Update: reference/FIPS_CODES_UPDATE.md
       - Ohio EAS Documentation: reference/OHIO_EAS_DOCUMENTATION.md
   - Roadmap:
       - Feature Roadmap: roadmap/dasdec3-feature-roadmap.md

@@ -342,9 +342,7 @@ poller-logs
 
 ## Related Documentation
 
-- [Poller Configuration Migration Guide](../guides/POLLER_CONFIG_MIGRATION.md)
 - [IPAWS Feed Integration Guide](../guides/ipaws_feed_integration.md)
-- [Configuration Migration Guide](../guides/CONFIGURATION_MIGRATION.md)
 - [Installation Details](../installation/INSTALLATION_DETAILS.md)
 
 ---

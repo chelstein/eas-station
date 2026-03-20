@@ -157,20 +157,9 @@ The code now reloads TTS configuration fresh from the database each time audio i
 
 ## Testing TTS Configuration
 
-### Option 1: Use Diagnostic Script
+### Option 1: Test via the Admin UI
 
-Run the diagnostic tool:
-```bash
-python3 test_tts_api.py
-```
-
-This will:
-1. Check database configuration
-2. Validate endpoint format
-3. Test actual API call
-4. Provide specific error messages and solutions
-
-### Option 2: Manual Test via Workflow UI
+Navigate to **Admin → Settings → TTS** and use the **"Test TTS"** button. This sends a short test phrase through the configured provider and reports success or the exact error.
 
 1. Go to `http://your-server/eas/workflow`
 2. Create a test alert
@@ -290,7 +279,4 @@ Authorization: Bearer YOUR_API_KEY
 4. Enter credentials with correct endpoint format
 5. Save
 
-**Test it:**
-```bash
-python3 test_tts_api.py
-```
+Use the **"Test TTS"** button in **Admin → Settings → TTS** to verify the credentials work.
