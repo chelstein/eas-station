@@ -5,202 +5,249 @@
 
 set -e  # Exit on error
 
-# Color output (enhanced palette - matching install.sh)
-RED='\033[0;31m'
-GREEN='\033[0;32m'
+# Save real terminal fd for TUI output — must be the very first action
+exec 9>&1
+
+# DOS/CGA color palette (foreground only — backgrounds set inline)
+RED='\033[1;31m'
+GREEN='\033[1;32m'
 YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-MAGENTA='\033[0;35m'
-CYAN='\033[0;36m'
+CYAN='\033[1;36m'
 WHITE='\033[1;37m'
 BOLD='\033[1m'
 DIM='\033[2m'
-NC='\033[0m' # No Color
+NC='\033[0m'
+# Legacy vars still referenced in script body
+BLUE='\033[0;34m'
+MAGENTA='\033[0;35m'
 
 # Step counter for progress tracking
 STEP_NUM=0
 TOTAL_STEPS=12
 
-echo_step() {
-    STEP_NUM=$((STEP_NUM + 1))
-    show_step_progress "$STEP_NUM" "$TOTAL_STEPS" "$1"
-}
+# Log file — all command output is redirected here after root check
+LOG_FILE="/var/log/eas-update.log"
 
-echo_info() {
-    echo -e "${CYAN}[INFO]   ${NC} $1"
-}
+# TUI state
+STATUS_MSGS=()
+MAX_STATUS_LINES=7
+CURRENT_DESC="Initializing..."
 
-echo_success() {
-    echo -e "${GREEN}[ OK ]   ${NC} $1"
-}
+# Pre-generated repeated-char strings (avoids subshell spawns on every redraw)
+_SEP73="$(printf '=%.0s' $(seq 1 73))"
+_SEP74="$(printf -- '-%.0s' $(seq 1 74))"
+_BAR55="$(printf '#%.0s' $(seq 1 55))"
+_DOT55="$(printf '.%.0s' $(seq 1 55))"
 
-echo_warning() {
-    echo -e "${YELLOW}[WARN]   ${NC} $1"
-}
-
-echo_error() {
-    echo -e "${RED}[ERROR]  ${NC} $1"
-}
-
-echo_progress() {
-    echo -e "      >>  $1"
-}
-
-echo_header() {
-    local text="$1"
-    local box_width=64
-    local content_width=$((box_width - 4))  # Account for "|  " and "  |"
-
-    local text_len=$(echo -n "$text" | wc -m)
-    local padding=$((content_width - text_len))
-    if [ $padding -lt 0 ]; then
-        padding=0
-    fi
-
-    echo ""
-    echo -e "${BOLD}${CYAN}+$(printf '=%.0s' $(seq 1 $box_width))+${NC}"
-    echo -e "${BOLD}${CYAN}|${NC}${BOLD}${WHITE}  $text$(printf ' %.0s' $(seq 1 $padding))  ${BOLD}${CYAN}|${NC}"
-    echo -e "${BOLD}${CYAN}+$(printf '=%.0s' $(seq 1 $box_width))+${NC}"
-    echo ""
-}
-
-# Progress bar function
-show_progress_bar() {
-    local current=$1
-    local total=$2
-    local width=50
-    local percentage=$((current * 100 / total))
-    local filled=$((current * width / total))
-    local empty=$((width - filled))
-
-    printf "\r${CYAN}["
-    printf "%${filled}s" | tr ' ' '#'
-    printf "%${empty}s" | tr ' ' '.'
-    printf "]${NC} ${BOLD}${percentage}%%${NC} ${WHITE}($current/$total)${NC}"
-
-    if [ "$current" -eq "$total" ]; then
-        echo ""
-    fi
-}
-
-# Animated spinner for long operations
-show_spinner() {
-    local pid=$1
-    local delay=0.1
-    local spinstr=$'|/-\\'
-    while ps -p $pid > /dev/null 2>&1; do
-        local temp=${spinstr#?}
-        printf " ${CYAN}[%c]${NC}  " "$spinstr"
-        local spinstr=$temp${spinstr%"$temp"}
-        sleep $delay
-        printf "\b\b\b\b\b\b"
-    done
-    printf "    \b\b\b\b"
-}
-
-# Box drawing for important information
-draw_box() {
-    local text="$1"
-    local box_width=68
-    local text_len=$(echo -n "$text" | wc -m)
-    local padding=$((box_width - text_len - 2))
-    if [ $padding -lt 0 ]; then padding=0; fi
-
-    echo ""
-    echo -e "${BOLD}${GREEN}+$(printf '-%.0s' $(seq 1 $box_width))+${NC}"
-    echo -e "${BOLD}${GREEN}|${NC} ${BOLD}${WHITE}${text}$(printf ' %.0s' $(seq 1 $padding))${NC} ${BOLD}${GREEN}|${NC}"
-    echo -e "${BOLD}${GREEN}+$(printf '-%.0s' $(seq 1 $box_width))+${NC}"
-    echo ""
-}
-
-# Display a visual step indicator with progress
-show_step_progress() {
-    local step=$1
-    local total=$2
-    local desc="$3"
-    local box_width=63
-
-    # Step line
-    local step_text="Step $step of $total"
-    local step_len=$(echo -n "$step_text" | wc -m)
-    local step_padding=$((box_width - step_len - 2))
-    if [ $step_padding -lt 0 ]; then step_padding=0; fi
-
-    # Description line
-    local desc_len=$(echo -n "$desc" | wc -m)
-    local desc_padding=$((box_width - desc_len - 2))
-    if [ $desc_padding -lt 0 ]; then desc_padding=0; fi
-
-    echo ""
-    echo -e "${BOLD}${CYAN}+$(printf '=%.0s' $(seq 1 $box_width))+${NC}"
-    echo -e "${BOLD}${CYAN}|${NC} ${BOLD}${WHITE}$step_text${NC}$(printf ' %.0s' $(seq 1 $step_padding)) ${BOLD}${CYAN}|${NC}"
-    echo -e "${BOLD}${CYAN}|${NC} ${CYAN}$desc${NC}$(printf ' %.0s' $(seq 1 $desc_padding)) ${BOLD}${CYAN}|${NC}"
-    echo -e "${BOLD}${CYAN}+$(printf '=%.0s' $(seq 1 $box_width))+${NC}"
-
-    # Show mini progress bar
-    local filled=$((step * 50 / total))
-    local empty=$((50 - filled))
-    printf "  ${CYAN}["
-    printf "%${filled}s" | tr ' ' '#'
-    printf "%${empty}s" | tr ' ' '.'
-    printf "]${NC}\n\n"
-}
-
-# Track start time for elapsed time calculation
+# Track start time
 START_TIME=$(date +%s)
 
-# Format duration in human-readable format
+# Format duration — plain text, no ANSI codes
 format_duration() {
     local seconds=$1
     local hours=$((seconds / 3600))
     local minutes=$(( (seconds % 3600) / 60 ))
     local secs=$((seconds % 60))
-    
     if [ $hours -gt 0 ]; then
-        printf "${BOLD}%dh %dm %ds${NC}" $hours $minutes $secs
+        printf "%dh %dm %ds" $hours $minutes $secs
     elif [ $minutes -gt 0 ]; then
-        printf "${BOLD}%dm %ds${NC}" $minutes $secs
+        printf "%dm %ds" $minutes $secs
     else
-        printf "${BOLD}%ds${NC}" $secs
+        printf "%ds" $secs
     fi
 }
 
-# Display elapsed time
-show_elapsed_time() {
-    local current_time=$(date +%s)
-    local elapsed=$((current_time - START_TIME))
-    echo -e "${DIM}Elapsed time: $(format_duration $elapsed)${NC}"
+# Add a message to the fixed-size status ring buffer
+add_status() {
+    STATUS_MSGS+=("$1")
+    while [ ${#STATUS_MSGS[@]} -gt $MAX_STATUS_LINES ]; do
+        STATUS_MSGS=("${STATUS_MSGS[@]:1}")
+    done
 }
 
-# Animated celebration for successful completion
+# Redraw the entire fixed TUI screen — writes to fd 9 (real terminal)
+redraw_screen() {
+    local elapsed
+    elapsed=$(format_duration $(( $(date +%s) - START_TIME )))
+    local pct=0 filled=0 empty=55
+    if [ "$TOTAL_STEPS" -gt 0 ] && [ "$STEP_NUM" -gt 0 ]; then
+        pct=$((STEP_NUM * 100 / TOTAL_STEPS))
+        filled=$((STEP_NUM * 55 / TOTAL_STEPS))
+        empty=$((55 - filled))
+        [ $filled -gt 55 ] && filled=55 && empty=0
+        [ $empty -lt 0 ] && empty=0
+    fi
+    local bar="${_BAR55:0:$filled}${_DOT55:0:$empty}"
+
+    {
+        # Move cursor to top without clearing (prevents flicker)
+        printf '\033[H'
+
+        # Line 1: Red title bar
+        printf '\033[41;1;37m  %-77s\033[K\033[0m\n' \
+            "EAS Station - Update Manager"
+
+        # Line 2: blank blue
+        printf '\033[44;1;37m\033[K\n'
+
+        # Lines 3-6: Step progress box (dark bg inside)
+        printf '\033[44;1;37m  +%s+\033[K\n' "$_SEP73"
+        printf '\033[44;1;37m  |\033[40;1;37m %-72s\033[44;1;37m|\033[K\n' \
+            " STEP ${STEP_NUM} OF ${TOTAL_STEPS}  --  ${CURRENT_DESC}"
+        printf '\033[44;1;37m  |\033[40;1;37m  [%-55s] %3d%%%-7s\033[44;1;37m|\033[K\n' \
+            "$bar" "$pct" ""
+        printf '\033[44;1;37m  +%s+\033[K\n' "$_SEP73"
+
+        # Line 7: blank blue
+        printf '\033[44;1;37m\033[K\n'
+
+        # Line 8: Status area header
+        printf '\033[44;1;36m  Recent Activity:\033[44;1;37m\033[K\n'
+
+        # Line 9: separator
+        printf '\033[44;1;37m  %s\033[K\n' "$_SEP74"
+
+        # Lines 10-16: Status messages (7 lines, colour-coded by prefix)
+        local total=${#STATUS_MSGS[@]}
+        local i
+        for ((i=0; i<MAX_STATUS_LINES; i++)); do
+            local idx=$((total - MAX_STATUS_LINES + i))
+            if [ $idx -ge 0 ] && [ $idx -lt $total ]; then
+                local msg="${STATUS_MSGS[$idx]}"
+                case "${msg:0:7}" in
+                    "[ OK ] ") printf '\033[44;1;32m  %-75s\033[K\n' "$msg" ;;
+                    "[INFO] ") printf '\033[44;1;36m  %-75s\033[K\n' "$msg" ;;
+                    "[WARN] ") printf '\033[44;1;33m  %-75s\033[K\n' "$msg" ;;
+                    "[ERROR]") printf '\033[44;1;31m  %-75s\033[K\n' "$msg" ;;
+                    *)         printf '\033[44;1;37m  %-75s\033[K\n' "$msg" ;;
+                esac
+            else
+                printf '\033[44;1;37m\033[K\n'
+            fi
+        done
+
+        # Line 17: blank blue
+        printf '\033[44;1;37m\033[K\n'
+
+        # Line 18: Red bottom bar with elapsed time and log path
+        printf '\033[41;1;37m  %-77s\033[K\033[0m\n' \
+            "Elapsed: ${elapsed}  |  Log: ${LOG_FILE}"
+
+        printf '\033[0m'
+    } >&9
+}
+
+# Initial splash screen — shown before log redirect, writes direct to terminal
+draw_splash() {
+    {
+        printf '\033[2J\033[H'
+        # Title bar
+        printf '\033[41;1;37m  %-77s\033[K\033[0m\n' \
+            "EAS Station - Update Manager"
+        printf '\033[44;1;37m\033[K\n'
+        # Block-letter logo on blue background
+        printf '\033[44;1;37m'
+        cat << 'LOGO'
+                 ███████╗ █████╗ ███████╗
+                 ██╔════╝██╔══██╗██╔════╝
+                 █████╗  ███████║███████╗
+                 ██╔══╝  ██╔══██║╚════██║
+                 ███████╗██║  ██║███████║
+                 ╚══════╝╚═╝  ╚═╝╚══════╝
+
+            ███████╗████████╗ █████╗ ████████╗██╗ ██████╗ ███╗   ██╗
+            ██╔════╝╚══██╔══╝██╔══██╗╚══██╔══╝██║██╔═══██╗████╗  ██║
+            ███████╗   ██║   ███████║   ██║   ██║██║   ██║██╔██╗ ██║
+            ╚════██║   ██║   ██╔══██║   ██║   ██║██║   ██║██║╚██╗██║
+            ███████║   ██║   ██║  ██║   ██║   ██║╚██████╔╝██║ ╚████║
+            ╚══════╝   ╚═╝   ╚═╝  ╚═╝   ╚═╝   ╚═╝ ╚═════╝ ╚═╝  ╚═══╝
+
+              Emergency Alert System Update
+              Updating to Latest Version
+
+LOGO
+        printf '\033[44;0;37m  Copyright (c) 2025-2026 Timothy Kramer (KR8MER)\033[K\n'
+        printf '\033[44;0;37m  Licensed under AGPL v3 or Commercial License\033[K\n'
+        printf '\033[44;1;37m\033[K\n'
+        # Bottom bar
+        printf '\033[41;1;37m  %-77s\033[K\033[0m\n' \
+            "Press Ctrl+C to cancel at any time"
+        printf '\033[0m'
+    } >&9
+}
+
+# Cleanup: show error in TUI and restore terminal on unexpected exit
+cleanup_on_exit() {
+    local exit_code=$?
+    if [ $exit_code -ne 0 ]; then
+        add_status "[ERROR]  Script exited unexpectedly (code: $exit_code)"
+        add_status "         Check log for details: $LOG_FILE"
+        redraw_screen
+        sleep 3
+    fi
+    printf '\033[0m' >&9
+}
+trap cleanup_on_exit EXIT
+
+echo_step() {
+    STEP_NUM=$((STEP_NUM + 1))
+    CURRENT_DESC="$1"
+    redraw_screen
+}
+
+echo_info()    { add_status "[INFO]   $1"; redraw_screen; }
+echo_success() { add_status "[ OK ]   $1"; redraw_screen; }
+echo_warning() { add_status "[WARN]   $1"; redraw_screen; }
+echo_error()   { add_status "[ERROR]  $1"; redraw_screen; }
+echo_progress(){ add_status "   >>    $1"; redraw_screen; }
+echo_header()  { add_status ""; add_status "=== $1 ==="; redraw_screen; }
+echo_operation() {
+    local estimate="${2:-}"
+    [ -n "$estimate" ] && add_status "   >>    $1 (~$estimate)" \
+                       || add_status "   >>    $1"
+    redraw_screen
+}
+
+draw_box()      { add_status "[ OK ]   $1"; redraw_screen; }
+draw_separator(){ :; }   # Section separation handled by step redraw
+
+show_progress_bar() {
+    local percentage=$(( $1 * 100 / $2 ))
+    local dots=$(( percentage / 5 ))
+    local msg="   >>    [${_BAR55:0:$dots}${_DOT55:0:$((20-dots))}] ${percentage}%"
+    if [ ${#STATUS_MSGS[@]} -gt 0 ] && \
+       [[ "${STATUS_MSGS[-1]}" == "   >>    ["* ]]; then
+        STATUS_MSGS[-1]="$msg"
+    else
+        add_status "$msg"
+    fi
+    redraw_screen
+}
+
+show_spinner() { wait "$1" 2>/dev/null || true; }
+
+show_elapsed_time() { :; }   # Elapsed shown live in bottom bar
+
 show_celebration() {
     local message="$1"
-    echo ""
-    echo -e "${BOLD}${GREEN}"
-    cat << "EOF"
-    +============================================================+
-    |                    *** SUCCESS! ***                        |
-    +============================================================+
-EOF
-    echo -e "${NC}"
-    echo -e "  ${BOLD}${WHITE}$message${NC}"
-    echo ""
-}
-
-# Display operation with time estimate
-echo_operation() {
-    local message="$1"
-    local estimate="${2:-}"
-    if [ -n "$estimate" ]; then
-        echo -e "   >>  $message (~$estimate)"
-    else
-        echo -e "   >>  $message"
-    fi
-}
-
-# Enhanced section separator
-draw_separator() {
-    echo -e "\n${CYAN}$(printf '=%.0s' {1..75})${NC}\n"
+    local elapsed
+    elapsed=$(format_duration $(( $(date +%s) - START_TIME )))
+    {
+        printf '\033[2J\033[H'
+        printf '\033[41;1;37m'
+        local i; for i in {1..4}; do printf '\033[K\n'; done
+        printf '  %s\033[K\n' "$_SEP73"
+        printf '\033[K\n'
+        printf '  %22s*** UPDATE COMPLETE ***\033[K\n' ""
+        printf '\033[K\n'
+        printf '  %10s%s\033[K\n' "" "$message"
+        printf '\033[K\n'
+        printf '  %s\033[K\n' "$_SEP73"
+        for i in {1..4}; do printf '\033[K\n'; done
+        printf '  Total time: %-40s Log: %s\033[K\n' "${elapsed}" "${LOG_FILE}"
+        for i in {1..3}; do printf '\033[K\n'; done
+        printf '\033[0m'
+    } >&9
 }
 
 # Add branding footer for whiptail dialogs
@@ -208,47 +255,29 @@ whiptail_footer() {
     echo "Copyright (c) 2025-2026 Timothy Kramer (KR8MER) | AGPL v3 / Commercial License"
 }
 
-# Display update banner
-clear
-echo -e "${BOLD}${CYAN}"
-cat << "EOF"
-╔═══════════════════════════════════════════════════════════════════════╗
-║                                                                       ║
-║                 ███████╗ █████╗ ███████╗                              ║
-║                 ██╔════╝██╔══██╗██╔════╝                              ║
-║                 █████╗  ███████║███████╗                              ║
-║                 ██╔══╝  ██╔══██║╚════██║                              ║
-║                 ███████╗██║  ██║███████║                              ║
-║                 ╚══════╝╚═╝  ╚═╝╚══════╝                              ║
-║                                                                       ║
-║            ███████╗████████╗ █████╗ ████████╗██╗ ██████╗ ███╗   ██╗  ║
-║            ██╔════╝╚══██╔══╝██╔══██╗╚══██╔══╝██║██╔═══██╗████╗  ██║  ║
-║            ███████╗   ██║   ███████║   ██║   ██║██║   ██║██╔██╗ ██║  ║
-║            ╚════██║   ██║   ██╔══██║   ██║   ██║██║   ██║██║╚██╗██║  ║
-║            ███████║   ██║   ██║  ██║   ██║   ██║╚██████╔╝██║ ╚████║  ║
-║            ╚══════╝   ╚═╝   ╚═╝  ╚═╝   ╚═╝   ╚═╝ ╚═════╝ ╚═╝  ╚═══╝  ║
-║                                                                       ║
-║                    Emergency Alert System Update                      ║
-║                   Updating to Latest Version                          ║
-║                                                                       ║
-╚═══════════════════════════════════════════════════════════════════════╝
-EOF
-echo -e "${NC}"
-echo ""
-echo -e "${DIM}Copyright (c) 2025-2026 Timothy Kramer (KR8MER)${NC}"
-echo -e "${DIM}Licensed under AGPL v3 or Commercial License${NC}"
-echo ""
+# ── Startup ──────────────────────────────────────────────────────────────────
 
-# Check if running as root
+draw_splash
+
+# Root check must happen before log redirect (needs /var/log write access)
 if [ "$EUID" -ne 0 ]; then
-    echo_error "This script must be run as root (use sudo)"
-    echo ""
-    echo -e "${YELLOW}Please run:${NC} ${BOLD}sudo ./update.sh${NC}"
-    echo ""
+    {
+        printf '\033[44;1;31m\n  [ERROR]  This script must be run as root (use sudo)\033[K\n'
+        printf '\033[44;1;37m  Please run: sudo ./update.sh\033[K\n\n'
+        printf '\033[0m'
+    } >&9
     exit 1
 fi
 
-draw_box "[ OK ] Root privileges confirmed - Update ready to begin"
+# Redirect all stdout/stderr to the log file.
+# From this point on, every command's output goes to the log automatically.
+# Our UI functions write to fd 9 (real terminal) and are unaffected.
+mkdir -p "$(dirname "$LOG_FILE")"
+: > "$LOG_FILE"
+exec 1>>"$LOG_FILE" 2>&1
+
+add_status "[ OK ]   Root privileges confirmed"
+redraw_screen
 
 # Configuration variables
 INSTALL_DIR="/opt/eas-station"
@@ -346,8 +375,9 @@ else
     echo "  Branch: $CURRENT_BRANCH"
     echo "  Commit: $CURRENT_COMMIT"
     echo ""
-    read -p "Continue? (y/N) " -n 1 -r
-    echo
+    add_status "   >>    Continue with update? [y/N]"
+    redraw_screen
+    read -n 1 -r REPLY </dev/tty
     if [[ ! $REPLY =~ ^[Yy]$ ]]; then
         echo_info "Update cancelled"
         exit 0
@@ -365,8 +395,9 @@ if [ "$USE_WHIPTAIL" = true ]; then
         DO_BACKUP=true
     fi
 else
-    read -p "Create a backup before updating? (y/N) " -n 1 -r
-    echo
+    add_status "   >>    Create a backup before updating? [y/N]"
+    redraw_screen
+    read -n 1 -r REPLY </dev/tty
     if [[ $REPLY =~ ^[Yy]$ ]]; then
         DO_BACKUP=true
     fi
@@ -1141,7 +1172,7 @@ with app.app_context():
         echo ""
         echo_warning "Migration errors detected above - review carefully before continuing"
         echo_info "Press Enter to continue with update (auto-continue in 60s), or Ctrl+C to abort..."
-        read -r -t 60 || echo_info "Auto-continuing after timeout..."
+        read -r -t 60 REPLY </dev/tty || echo_info "Auto-continuing after timeout..."
     fi
 elif [ -f "$INSTALL_DIR/venv/bin/python" ]; then
     echo_warning "Alembic not found - using db.create_all() fallback"
