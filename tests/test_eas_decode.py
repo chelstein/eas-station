@@ -146,7 +146,7 @@ def test_decode_same_audio_extracts_segments(tmp_path) -> None:
         carrier = math.sin(2 * math.pi * 440 * t) * math.sin(2 * math.pi * 2 * t)
         message_samples.append(int(carrier * 8000))
 
-    eom_bits = encode_same_bits("NNNN", include_preamble=True)
+    eom_bits = encode_same_bits("NNNN", include_preamble=True, include_cr=False)
     eom_samples = generate_fsk_samples(
         eom_bits,
         sample_rate=sample_rate,

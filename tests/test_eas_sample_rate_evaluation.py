@@ -177,7 +177,7 @@ def test_eom_detection_at_various_rates(sample_rate: int, tmp_path: Path) -> Non
     # Generate EOM bits (NNNN repeated 3 times per spec)
     eom_bits = []
     for _ in range(3):
-        eom_bits.extend(encode_same_bits("NNNN", include_preamble=True))
+        eom_bits.extend(encode_same_bits("NNNN", include_preamble=True, include_cr=False))
     
     # Combine
     all_bits = header_bits + eom_bits
