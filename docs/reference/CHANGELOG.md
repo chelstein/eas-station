@@ -6,38 +6,17 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
-## [2.65.2] - 2026-03-20 - Remove FastAPI references and README accuracy fixes
-
-### Removed
-- **FastAPI, Uvicorn, Starlette, Slowapi, Aiofiles** removed from `requirements.txt` — these were
-  listed as dependencies but FastAPI was never deployed; the application is Flask-only.
-- **Bootable ISO section** removed from `README.md` — `scripts/build-iso.sh` does not exist.
+## [2.65.2] - 2026-03-20 - Fix missing route endpoints causing 500 errors
 
 ### Fixed
-- **README badges and tech-stack** — removed FastAPI/Uvicorn badge and all corresponding
-  references in the architecture diagram, Core Components table, Python Package Requirements,
-  and Technology Stack section.
-- **README install section** — corrected TUI description (whiptail, not "raspi-config style"),
-  added Zigbee to the hardware prompt list, clarified that the administrator account is created
-  automatically, and noted Let's Encrypt as an option alongside the self-signed certificate.
-- **README update section** — added a new **Updating** section documenting `sudo bash update.sh`
-  and what the script does (backup, git pull, pip upgrade, Alembic migrations, service restart).
-- **README configuration section** — replaced placeholder variable names (`POSTGRES_HOST`,
-  `DEFAULT_COUNTY_NAME`, etc.) with the real variables the installer writes (`DATABASE_URL`,
-  `REDIS_HOST`, etc.) and clarified that most feature settings live in the database and are
-  configured through the web UI at `/settings` / `/admin/`.
-- **README fine-tune section** — reordered and clarified `eas-config`, `/setup` wizard, and
-  web UI roles; moved Let's Encrypt tip into context.
-- **`app_core/fastapi_extensions.py`** — corrected misleading docstring; the module contains
-  SQLAlchemy helpers, not FastAPI extensions.
-- **`app_utils/system.py`** — removed FastAPI and Uvicorn from the installed-package version
-  reporting list.
-
-### Changed
-- `requirements.txt` section header updated from "Core FastAPI and web framework dependencies
-  (NEW - running alongside Flask)" to "Web framework support dependencies".
-- `greenlet` comment corrected: "Required for SQLAlchemy 2.0 sync operations with gevent"
-  (was "Required for SQLAlchemy 2.0 with FastAPI sync operations").
+- **`admin/notifications/` 500 error** — error-handler in `notifications.py` referenced
+  non-existent endpoint `admin_page`; corrected to `dashboard.admin`.
+- **`admin/poller/` 500 error** — same `admin_page` typo in `poller.py`; corrected.
+- **`admin/application-settings/` 500 error** — same `admin_page` typo in
+  `application_settings.py`; corrected.
+- **`admin/hardware/`, `admin/icecast/`, `admin/tts/`, `admin/certbot/`,
+  `admin/tailscale/` 500 errors** — error-handlers referenced non-existent endpoint
+  `admin.index` (no such blueprint); corrected to `dashboard.admin`.
 
 ## [2.65.1] - 2026-03-20 - Settings hub: added missing pages, fixed notifications description
 

@@ -71,7 +71,7 @@ def application_settings_page():
         logger.error(f"Database error loading application settings: {str(e)}")
         db.session.rollback()
         flash('Database error loading application settings', 'danger')
-        return redirect(url_for('admin_page'))
+        return redirect(url_for('dashboard.admin'))
 
 
 @application_settings_bp.route('/update', methods=['POST'])

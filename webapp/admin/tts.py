@@ -60,7 +60,7 @@ def tts_settings_page():
     except Exception as exc:
         logger.error(f"Failed to load TTS settings: {exc}")
         flash(f"Error loading TTS settings: {exc}", "error")
-        return redirect(url_for('admin.index'))
+        return redirect(url_for('dashboard.admin'))
 
 
 @tts_bp.route('/api/tts/settings', methods=['GET'])
