@@ -190,7 +190,7 @@ def tailscale_settings_page():
         logger.error(f"Failed to load Tailscale settings: {exc}")
         from flask import flash, redirect, url_for
         flash(f"Error loading Tailscale settings: {exc}", "error")
-        return redirect(url_for('admin.index'))
+        return redirect(url_for('dashboard.admin'))
 
 
 # ============================================================================

@@ -61,7 +61,7 @@ def hardware_settings_page():
     except Exception as exc:
         logger.error(f"Failed to load hardware settings: {exc}")
         flash(f"Error loading hardware settings: {exc}", "error")
-        return redirect(url_for('admin.index'))
+        return redirect(url_for('dashboard.admin'))
 
 
 @hardware_bp.route('/hardware/update', methods=['POST'])
