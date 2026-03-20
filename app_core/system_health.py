@@ -24,7 +24,6 @@ from __future__ import annotations
 import os
 import re
 import requests
-import smtplib
 import threading
 from datetime import datetime
 from email.message import EmailMessage
@@ -493,6 +492,25 @@ class HealthAlertWorker:
 
     @property
     def should_run(self) -> bool:
+        try:
+            with self._app.app_context():
+                from app_core.models import NotificationSettings
+                settings = NotificationSettings.query.first()
+                if settings:
+                    has_email = bool(
+                        settings.email_enabled
+                        and settings.smtp_host
+                        and settings.compliance_alert_emails
+                    )
+                    has_snmp = bool(
+                        settings.snmp_enabled
+                        and settings.snmp_targets
+                    )
+                    if has_email or has_snmp:
+                        return True
+        except Exception:
+            pass
+        # Fall back to legacy env-var config
         recipients = list(self._app.config.get("COMPLIANCE_ALERT_EMAILS") or [])
         traps = list(self._app.config.get("COMPLIANCE_SNMP_TARGETS") or [])
         return bool(recipients or traps)
@@ -558,25 +576,54 @@ class HealthAlertWorker:
         self._send_snmp_traps(issues)
 
     def _send_email_alert(self, issues: List[str]) -> None:
-        recipients = [
-            addr.strip()
-            for addr in self._app.config.get("COMPLIANCE_ALERT_EMAILS", [])
-            if addr and addr.strip()
-        ]
+        # Prefer database-backed NotificationSettings; fall back to legacy env vars
+        smtp_host = None
+        smtp_port = 587
+        smtp_security = "starttls"
+        smtp_username = None
+        smtp_password = None
+        recipients: List[str] = []
+
+        try:
+            from app_core.models import NotificationSettings
+            settings = NotificationSettings.query.first()
+            if settings and settings.email_enabled and settings.smtp_host:
+                smtp_host = settings.smtp_host
+                smtp_port = settings.smtp_port or 587
+                smtp_security = settings.smtp_security or "starttls"
+                smtp_username = settings.smtp_username or None
+                smtp_password = settings.smtp_password or None
+                recipients = [
+                    addr.strip()
+                    for addr in (settings.compliance_alert_emails or [])
+                    if addr and addr.strip()
+                ]
+        except Exception as exc:
+            self._logger.warning("Could not load NotificationSettings from DB: %s", exc)
+
+        # Legacy fallback: COMPLIANCE_ALERT_EMAILS + MAIL_* env vars
+        if not recipients:
+            recipients = [
+                addr.strip()
+                for addr in self._app.config.get("COMPLIANCE_ALERT_EMAILS", [])
+                if addr and addr.strip()
+            ]
+        if not smtp_host:
+            smtp_host = self._app.config.get("MAIL_SERVER")
+            if smtp_host:
+                smtp_port = int(self._app.config.get("MAIL_PORT", 587))
+                smtp_security = "starttls" if self._app.config.get("MAIL_USE_TLS", True) else "none"
+                smtp_username = self._app.config.get("MAIL_USERNAME")
+                smtp_password = self._app.config.get("MAIL_PASSWORD")
 
         if not recipients:
             return
 
-        server = self._app.config.get("MAIL_SERVER")
-        if not server:
+        if not smtp_host:
             self._logger.warning("Mail server not configured; skipping compliance email alert")
             return
 
-        port = int(self._app.config.get("MAIL_PORT", 587))
-        use_tls = bool(self._app.config.get("MAIL_USE_TLS", True))
-        username = self._app.config.get("MAIL_USERNAME")
-        password = self._app.config.get("MAIL_PASSWORD")
-        sender = username or "alerts@localhost"
+        sender = smtp_username or "alerts@localhost"
 
         message = EmailMessage()
         message["Subject"] = "EAS System Health Alert"
@@ -595,21 +642,40 @@ class HealthAlertWorker:
         )
 
         try:
-            with smtplib.SMTP(server, port, timeout=10) as smtp:
-                if use_tls:
-                    smtp.starttls()
-                if username and password:
-                    smtp.login(username, password)
+            from app_core.notifications.email import build_smtp_connection
+            with build_smtp_connection(smtp_host, smtp_port, smtp_security) as smtp:
+                if smtp_username and smtp_password:
+                    smtp.login(smtp_username, smtp_password)
                 smtp.send_message(message)
         except Exception as exc:  # pragma: no cover - network dependent
             self._logger.error("Failed to send compliance email alert: %s", exc)
 
     def _send_snmp_traps(self, issues: List[str]) -> None:
-        targets = [
-            target.strip()
-            for target in self._app.config.get("COMPLIANCE_SNMP_TARGETS", [])
-            if target and target.strip()
-        ]
+        # Prefer database-backed NotificationSettings; fall back to legacy env vars
+        targets: List[str] = []
+        community = "public"
+
+        try:
+            from app_core.models import NotificationSettings
+            settings = NotificationSettings.query.first()
+            if settings and settings.snmp_enabled:
+                targets = [
+                    t.strip()
+                    for t in (settings.snmp_targets or [])
+                    if t and t.strip()
+                ]
+                community = (settings.snmp_community or "public").strip() or "public"
+        except Exception as exc:
+            self._logger.warning("Could not load SNMP settings from DB: %s", exc)
+
+        # Legacy fallback: COMPLIANCE_SNMP_TARGETS / COMPLIANCE_SNMP_COMMUNITY env vars
+        if not targets:
+            targets = [
+                target.strip()
+                for target in self._app.config.get("COMPLIANCE_SNMP_TARGETS", [])
+                if target and target.strip()
+            ]
+            community = self._app.config.get("COMPLIANCE_SNMP_COMMUNITY", "public")
 
         if not targets:
             return
@@ -620,7 +686,6 @@ class HealthAlertWorker:
             )
             return
 
-        community = self._app.config.get("COMPLIANCE_SNMP_COMMUNITY", "public")
         payload = "; ".join(issues)
 
         for target in targets:
@@ -631,7 +696,7 @@ class HealthAlertWorker:
                 port = 162
 
             try:
-                error = sendNotification(  # type: ignore[misc]
+                for error_indication, _error_status, _error_index, _var_binds in sendNotification(  # type: ignore[misc]
                     SnmpEngine(),
                     CommunityData(community, mpModel=1),
                     UdpTransportTarget((host, port), timeout=3, retries=1),
@@ -640,9 +705,9 @@ class HealthAlertWorker:
                     NotificationType(ObjectIdentity("1.3.6.1.4.1.32473.1.0.1")).addVarBinds(
                         ObjectType(ObjectIdentity("1.3.6.1.4.1.32473.1.1.1.0"), payload)
                     ),
-                )
-                if error:  # pragma: no cover - depends on network stack
-                    self._logger.error("SNMP trap to %s:%s failed: %s", host, port, error)
+                ):
+                    if error_indication:  # pragma: no cover - depends on network stack
+                        self._logger.error("SNMP trap to %s:%s failed: %s", host, port, error_indication)
             except Exception as exc:  # pragma: no cover - network dependent
                 self._logger.error(
                     "Failed to send SNMP trap to %s:%s: %s", host, port, exc

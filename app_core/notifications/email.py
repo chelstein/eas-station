@@ -27,7 +27,7 @@ from typing import Any, Dict, List, Optional, Tuple
 logger = logging.getLogger(__name__)
 
 
-def _build_smtp_connection(host: str, port: int, security: str):
+def build_smtp_connection(host: str, port: int, security: str):
     """Return an active SMTP connection based on security mode.
 
     Args:
@@ -126,7 +126,7 @@ def send_eas_alert_email(
         )
 
     try:
-        with _build_smtp_connection(smtp_host, smtp_port, smtp_security) as smtp:
+        with build_smtp_connection(smtp_host, smtp_port, smtp_security) as smtp:
             if smtp_username and smtp_password:
                 smtp.login(smtp_username, smtp_password)
             smtp.send_message(msg)
@@ -190,7 +190,7 @@ def test_email(
     )
 
     try:
-        with _build_smtp_connection(smtp_host, smtp_port, smtp_security) as smtp:
+        with build_smtp_connection(smtp_host, smtp_port, smtp_security) as smtp:
             if smtp_username and smtp_password:
                 smtp.login(smtp_username, smtp_password)
             smtp.send_message(msg)
@@ -216,4 +216,4 @@ def test_email(
         return False, f"Failed to send test email: {exc}"
 
 
-__all__ = ["send_eas_alert_email", "test_email"]
+__all__ = ["build_smtp_connection", "send_eas_alert_email", "test_email"]

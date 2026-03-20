@@ -8,6 +8,29 @@ tracks releases under the 2.x series.
 ### Changed
 - Consolidated documentation: removed diagnostic/debug files, merged related hardware and troubleshooting docs into single comprehensive guides, reorganized categories in documentation index
 
+## [2.65.0] - 2026-03-20 - SNMP trap notifications and email notification fixes
+
+### Added
+- **SNMP v2c trap notifications** — EAS Station can now send SNMP traps to NMS targets
+  when system health issues are detected. Configure targets, community string, and enable/
+  disable via the Notification Settings admin page (`/admin/notifications`).
+- **`pysnmp` added to `requirements.txt`** — previously the SNMP library was an undocumented
+  optional dependency; it is now listed as a proper dependency.
+- **`test-snmp` endpoint** — `/admin/notifications/test-snmp` (POST) sends a test SNMP trap
+  to all configured targets to verify connectivity.
+- **SNMP fields in `NotificationSettings` model** — `snmp_enabled`, `snmp_targets` (JSONB),
+  `snmp_community` are now stored in the database like all other settings.
+- **Database migration `20260320_add_snmp_to_notifications`** — upgrades existing installs
+  automatically on next startup.
+
+### Fixed
+- **Compliance email alerts now use database SMTP settings** — `system_health.py` was still
+  reading `MAIL_SERVER` / `MAIL_PORT` / `MAIL_USE_TLS` environment variables (which have been
+  removed) instead of `NotificationSettings` from the database. Health alert emails now honour
+  the SMTP configuration saved via the Notification Settings page.
+- **SNMP health monitor uses database targets** — `system_health.py` now reads SNMP targets
+  and community string from `NotificationSettings` with fallback to legacy env vars.
+
 ## [2.64.0] - 2026-03-20 - EAS decode speed improvements and raw SAME header parser
 
 ### Added

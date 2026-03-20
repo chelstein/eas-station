@@ -127,6 +127,9 @@ qrcode==8.2  # QR code generation for MFA enrollment
 # SMS notifications via Twilio
 twilio>=9.0.0  # Twilio REST API client for SMS alert delivery
 
+# SNMP trap notifications (optional – gracefully absent if not installed)
+pysnmp>=6.2.0  # SNMP v2c trap sender for compliance health alerts
+
 # Geospatial data processing
 pyshp==3.0.3  # Shapefile reader for converting boundary files to GeoJSON
 
