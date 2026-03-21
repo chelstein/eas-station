@@ -128,6 +128,7 @@ def record_audio_decode_result(
             "bit_confidence": decode_payload.bit_confidence,
             "min_bit_confidence": decode_payload.min_bit_confidence,
             "segment_count": len(segments),
+            "endec_mode": decode_payload.endec_mode,
         },
         segment_metadata=segment_metadata,
         header_audio_data=(

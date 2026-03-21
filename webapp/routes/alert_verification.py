@@ -76,6 +76,7 @@ from app_utils.export import generate_csv
 from app_utils.optimized_parsing import json_loads, json_dumps
 from app_utils.eas_decode import (
     AudioDecodeError,
+    ENDEC_MODE_UNKNOWN,
     SAMEAudioDecodeResult,
     SAMEAudioSegment,
     SAMEHeaderDetails,
@@ -333,6 +334,7 @@ def _deserialize_decode_result(data: Dict[str, object]) -> SAMEAudioDecodeResult
         bit_confidence=float(data.get("bit_confidence") or 0.0),
         min_bit_confidence=float(data.get("min_bit_confidence") or 0.0),
         segments=segments,
+        endec_mode=str(data.get("endec_mode") or ENDEC_MODE_UNKNOWN),
     )
 
 def _extract_audio_segment_wav(audio_path: str, start_sample: int, end_sample: int, sample_rate: int) -> bytes:

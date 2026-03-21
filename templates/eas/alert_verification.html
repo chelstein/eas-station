@@ -2,6 +2,21 @@
 {% from 'components/confidence_scale.html' import confidence_scale %}
 {% block title %}Alert Validation & Analytics{% endblock %}
 
+{% macro endec_badge(mode) %}
+    {% set endec_labels = {
+        'UNKNOWN':           ('secondary', 'Unknown'),
+        'DEFAULT':           ('secondary', 'DEFAULT / DASDEC / Trilithic'),
+        'NWS':               ('info',      'NWS Legacy / EAS.js'),
+        'NWS_CRS':           ('info',      'NWS CRS (1998–2016)'),
+        'NWS_BMH':           ('info',      'NWS BMH (2016+)'),
+        'SAGE_DIGITAL_3644': ('primary',   'SAGE Digital 3644'),
+        'SAGE_ANALOG_1822':  ('primary',   'SAGE Analog 1822'),
+        'TRILITHIC':         ('secondary', 'Trilithic EASyPLUS'),
+    } %}
+    {% set info = endec_labels.get(mode, ('secondary', mode)) %}
+    <span class="badge bg-{{ info[0] }}">{{ info[1] }}</span>
+{% endmacro %}
+
 {% block content %}
 <!-- Progress Overlay -->
 <div id="progress-overlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.8); z-index: 9999; align-items: center; justify-content: center;">
@@ -104,6 +119,8 @@
                         <dd class="col-sm-8">{{ decode_result.frame_count - decode_result.frame_errors }} valid of {{ decode_result.frame_count }}</dd>
                         <dt class="col-sm-4">Duration analysed</dt>
                         <dd class="col-sm-8">{{ '%.2f'|format(decode_result.duration_seconds) }} seconds @ {{ decode_result.sample_rate }} Hz</dd>
+                        <dt class="col-sm-4">ENDEC hardware</dt>
+                        <dd class="col-sm-8">{{ endec_badge(decode_result.endec_mode) }}</dd>
                     </dl>
 
                     {% if decode_result.raw_text %}
@@ -444,6 +461,7 @@
                                 <th scope="col">Source File</th>
                                 <th scope="col">Headers</th>
                                 <th scope="col">Confidence</th>
+                                <th scope="col">ENDEC</th>
                                 <th scope="col">Segments</th>
                             </tr>
                         </thead>
@@ -487,6 +505,10 @@
                                         {% else %}
                                             <span class="text-muted">—</span>
                                         {% endif %}
+                                    </td>
+                                    <td>
+                                        {% set endec_val = (decode.quality_metrics or {}).get('endec_mode') or 'UNKNOWN' %}
+                                        {{ endec_badge(endec_val) }}
                                     </td>
                                     <td>
                                         {% set metadata = decode.segment_metadata or {} %}
