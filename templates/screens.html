@@ -54,6 +54,17 @@
     padding: 1.25rem;
     min-height: 140px;
     box-shadow: var(--card-shadow, 0 12px 24px rgba(15, 23, 42, 0.08));
+    position: relative;
+    overflow: hidden;
+}
+
+.summary-card-icon {
+    position: absolute;
+    top: 1rem;
+    right: 1.1rem;
+    font-size: 1.6rem;
+    opacity: 0.12;
+    pointer-events: none;
 }
 
 .summary-label {
@@ -69,9 +80,95 @@
     margin-bottom: 0.25rem;
 }
 
+.summary-value.summary-value-sm {
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
 .summary-subtitle {
     color: var(--text-secondary);
     margin: 0;
+    font-size: 0.85rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Hardware status bar */
+.hw-status-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    padding: 0.6rem 1rem;
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    margin-bottom: 1rem;
+    font-size: 0.85rem;
+}
+
+.hw-status-bar .hw-label {
+    color: var(--text-secondary);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    font-size: 0.78rem;
+    margin-right: 0.25rem;
+}
+
+.hw-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.25rem 0.7rem;
+    border-radius: 999px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    border: 1px solid transparent;
+    transition: opacity 0.2s;
+}
+
+.hw-chip .hw-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.hw-chip.hw-on  { background: color-mix(in srgb, var(--success-color) 15%, var(--surface-color)); color: var(--success-color); border-color: color-mix(in srgb, var(--success-color) 30%, transparent); }
+.hw-chip.hw-on  .hw-dot { background: var(--success-color); box-shadow: 0 0 4px var(--success-color); }
+.hw-chip.hw-off { background: color-mix(in srgb, var(--text-secondary) 10%, var(--surface-color)); color: var(--text-secondary); border-color: color-mix(in srgb, var(--text-secondary) 20%, transparent); }
+.hw-chip.hw-off .hw-dot { background: var(--text-secondary); }
+.hw-chip.hw-alert { background: color-mix(in srgb, var(--warning-color) 15%, var(--surface-color)); color: var(--warning-color); border-color: color-mix(in srgb, var(--warning-color) 30%, transparent); }
+.hw-chip.hw-alert .hw-dot { background: var(--warning-color); box-shadow: 0 0 4px var(--warning-color); animation: hw-blink 1s step-end infinite; }
+
+@keyframes hw-blink { 50% { opacity: 0; } }
+
+.hw-now-playing {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+    max-width: 50%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.hw-now-playing strong {
+    color: var(--text-color);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 200px;
+    display: inline-block;
 }
 
 .filter-card {
@@ -151,9 +248,31 @@
     border: 2px solid #222;
 }
 
+.screen-preview:has(.oled-preview-canvas),
+.screen-preview:has(.vfd-preview-canvas) {
+    padding: 0;
+    overflow: hidden;
+}
+
 .screen-preview[data-display="led"] { background: #0a0a0a; color: var(--warning-color); text-shadow: 0 0 12px color-mix(in srgb, var(--warning-color) 60%, transparent); border-color: #222; }
 .screen-preview[data-display="oled"] { background: #000; color: #fff; border-color: #222; }
 .screen-preview[data-display="vfd"] { background: #001200; color: #00ff00; text-shadow: 0 0 8px rgba(0, 255, 0, 0.3); border-color: color-mix(in srgb, var(--success-color) 20%, #111); }
+
+.oled-preview-canvas {
+    display: block;
+    width: 100%;
+    height: auto;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+}
+
+.vfd-preview-canvas {
+    display: block;
+    width: 100%;
+    height: auto;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+}
 
 .preview-line {
     display: block;
@@ -374,6 +493,7 @@
     <div class="row g-3 mb-4">
         <div class="col-xl-3 col-md-6">
             <div class="summary-card">
+                <i class="fas fa-display summary-card-icon"></i>
                 <span class="summary-label">Total Screens</span>
                 <div class="summary-value" id="stat-total-screens">0</div>
                 <p class="summary-subtitle" id="stat-enabled-breakdown">0 enabled · 0 disabled</p>
@@ -381,30 +501,45 @@
         </div>
         <div class="col-xl-3 col-md-6">
             <div class="summary-card">
-                <span class="summary-label">LED Templates</span>
-                <div class="summary-value" id="stat-led-count">0</div>
-                <p class="summary-subtitle">Amber / RGB marquee layouts</p>
+                <i class="fas fa-chart-bar summary-card-icon"></i>
+                <span class="summary-label">Total Plays</span>
+                <div class="summary-value" id="stat-total-plays">0</div>
+                <p class="summary-subtitle" id="stat-top-screen">No screens yet</p>
             </div>
         </div>
         <div class="col-xl-3 col-md-6">
             <div class="summary-card">
-                <span class="summary-label">OLED Templates</span>
-                <div class="summary-value" id="stat-oled-count">0</div>
-                <p class="summary-subtitle">Front-panel quick looks</p>
+                <i class="fas fa-satellite-dish summary-card-icon"></i>
+                <span class="summary-label">On Air</span>
+                <div class="summary-value summary-value-sm" id="stat-on-air">—</div>
+                <p class="summary-subtitle" id="stat-on-air-sub">Awaiting hardware data</p>
             </div>
         </div>
         <div class="col-xl-3 col-md-6">
             <div class="summary-card">
-                <span class="summary-label">VFD Templates</span>
-                <div class="summary-value" id="stat-vfd-count">0</div>
-                <p class="summary-subtitle">Rack status graphics</p>
+                <i class="fas fa-heart-pulse summary-card-icon"></i>
+                <span class="summary-label">Screen Health</span>
+                <div class="summary-value" id="stat-health">—</div>
+                <p class="summary-subtitle" id="stat-health-sub">Loading…</p>
             </div>
         </div>
+    </div>
+
+    <!-- Live hardware status bar -->
+    <div class="hw-status-bar" id="hw-status-bar">
+        <span class="hw-label"><i class="fas fa-plug"></i> Hardware</span>
+        <span class="hw-chip hw-off" id="hw-chip-oled"><span class="hw-dot"></span>OLED</span>
+        <span class="hw-chip hw-off" id="hw-chip-vfd"><span class="hw-dot"></span>VFD</span>
+        <span class="hw-chip hw-off" id="hw-chip-led"><span class="hw-dot"></span>LED</span>
+        <span class="hw-now-playing" id="hw-now-playing" style="display:none">
+            <i class="fas fa-play-circle"></i> <strong id="hw-now-playing-name"></strong>
+        </span>
     </div>
 
     <div class="row g-3 mb-4">
         <div class="col-xl-3 col-md-6">
             <div class="summary-card">
+                <i class="fas fa-sync summary-card-icon"></i>
                 <span class="summary-label">Rotations</span>
                 <div class="summary-value" id="stat-rotations">0</div>
                 <p class="summary-subtitle" id="stat-rotations-subtitle">0 active</p>
@@ -442,6 +577,13 @@
                             <i class="fas fa-rotate-left"></i>
                         </button>
                     </div>
+                </div>
+                <!-- Per-type quick counts -->
+                <div class="mt-3 d-flex gap-3 flex-wrap" style="font-size:0.82rem;color:var(--text-secondary)">
+                    <span><i class="fas fa-lightbulb" style="color:var(--warning-color)"></i> LED: <strong id="stat-led-count">0</strong></span>
+                    <span><i class="fas fa-circle-dot" style="color:var(--success-color)"></i> OLED: <strong id="stat-oled-count">0</strong></span>
+                    <span><i class="fas fa-tv" style="color:var(--secondary-color)"></i> VFD: <strong id="stat-vfd-count">0</strong></span>
+                    <span class="ms-auto"><i class="fas fa-triangle-exclamation" style="color:var(--danger-color)"></i> Errors: <strong id="stat-error-count">0</strong></span>
                 </div>
             </div>
         </div>
@@ -774,6 +916,9 @@ const DISPLAY_LABELS = {
 document.addEventListener('DOMContentLoaded', function() {
     loadScreens();
     loadRotations();
+    fetchHardwareStatus();
+    // Refresh hardware status every 10 seconds
+    setInterval(fetchHardwareStatus, 10000);
 
     // Add event listeners for filters
     document.getElementById('screen-search')?.addEventListener('input', renderScreens);
@@ -1026,32 +1171,290 @@ function buildScreenPreview(screen) {
     }
 
     if (screen.display_type === 'oled') {
-        const lines = Array.isArray(template.lines) ? template.lines : [];
-        if (!lines.length) {
-            return '<span class="text-muted">OLED layout will appear here</span>';
+        // Elements format (modern graphical layout with bars, icons, clocks, etc.)
+        const elements = Array.isArray(template.elements) ? template.elements : [];
+        if (elements.length) {
+            return buildOledElementsPreview(elements);
         }
-        return lines.slice(0, 4).map(entry => {
-            const text = extractLineText(entry);
-            const font = (entry && entry.font ? entry.font.toLowerCase() : 'small');
-            const sizeClass = font === 'large' || font === 'xlarge' || font === 'huge' ? 'large' : font === 'medium' ? 'medium' : 'small';
-            return `<span class="preview-line ${sizeClass}">${escapeHtml(text)}</span>`;
-        }).join('');
+        // Legacy lines format
+        const lines = Array.isArray(template.lines) ? template.lines : [];
+        if (lines.length) {
+            return lines.slice(0, 4).map(entry => {
+                const text = extractLineText(entry);
+                const font = (entry && entry.font ? entry.font.toLowerCase() : 'small');
+                const sizeClass = font === 'large' || font === 'xlarge' || font === 'huge' ? 'large' : font === 'medium' ? 'medium' : 'small';
+                return `<span class="preview-line ${sizeClass}">${escapeHtml(text)}</span>`;
+            }).join('');
+        }
+        return '<span class="text-muted">OLED layout will appear here</span>';
     }
 
     if (screen.display_type === 'vfd') {
         const elements = Array.isArray(template.elements) ? template.elements : [];
-        if (!elements.length) {
-            return '<span class="text-muted">Define VFD elements to preview</span>';
+        if (elements.length) {
+            return buildVfdElementsPreview(elements);
         }
-        return elements.slice(0, 3).map(element => {
-            const type = element.type || 'element';
-            const coords = `(${element.x ?? 0},${element.y ?? 0})`;
-            return `<span class="preview-line">${escapeHtml(type)} ${coords}</span>`;
-        }).join('');
+        const lines = Array.isArray(template.lines) ? template.lines.map(extractLineText).filter(Boolean) : [];
+        if (lines.length) {
+            return lines.slice(0, 3).map(line => `<span class="preview-line">${escapeHtml(line)}</span>`).join('');
+        }
+        return '<span class="text-muted">Define VFD elements to preview</span>';
     }
 
     const jsonSnippet = JSON.stringify(template, null, 2) || '{}';
     return `<pre class="preview-json">${escapeHtml(jsonSnippet)}</pre>`;
+}
+
+// ── Canvas-based OLED preview (128×64) ────────────────────────────────
+let _oledPreviewSeq = 0;
+
+function buildOledElementsPreview(elements) {
+    const id = 'oled-prev-' + (++_oledPreviewSeq);
+    // Schedule render after this string is injected into the DOM
+    requestAnimationFrame(() => renderOledPreviewCanvas(id, elements));
+    return `<canvas id="${id}" class="oled-preview-canvas" width="128" height="64"></canvas>`;
+}
+
+function renderOledPreviewCanvas(canvasId, elements) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+
+    // OLED black background
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, 128, 64);
+
+    for (const el of elements) {
+        renderOledElement(ctx, el);
+    }
+}
+
+// Icon glyph map – Unicode chars that read well at tiny size
+const OLED_ICON_GLYPHS = {
+    heartbeat: '\u2665', warning: '\u26A0', speaker: '\u266A', wave: '\u223C',
+    shield: '\u2736', check: '\u2713', clock: '\u25F7', network: '\u25C9',
+    antenna: '\u25CE', wifi: '\u229A', info: '\u2139', cross: '\u2717',
+    battery: '\u2394', bolt: '\u26A1', bell: '\u237E',
+};
+
+function renderOledElement(ctx, el) {
+    const white = '#fff';
+    const black = '#000';
+    const x = el.x || 0;
+    const y = el.y || 0;
+
+    switch (el.type) {
+        case 'rectangle': {
+            if (el.filled) {
+                ctx.fillStyle = white;
+                ctx.fillRect(x, y, el.width || 0, el.height || 0);
+            } else {
+                ctx.strokeStyle = white;
+                ctx.lineWidth = 1;
+                ctx.strokeRect(x + 0.5, y + 0.5, (el.width || 0) - 1, (el.height || 0) - 1);
+            }
+            break;
+        }
+        case 'text': {
+            const fontName = (el.font || 'small').toLowerCase();
+            const isBig = fontName === 'xlarge' || fontName === 'huge';
+            const isMed = fontName === 'large';
+            const isSmMed = fontName === 'medium';
+            const px = isBig ? 13 : isMed ? 10 : isSmMed ? 9 : 7;
+            ctx.font = (isBig || isMed ? 'bold ' : '') + px + 'px monospace';
+            const rawText = el.text || '';
+            const maxW = el.max_width || 128;
+            if (el.invert) {
+                const tw = Math.min(ctx.measureText(rawText).width + 2, maxW);
+                ctx.fillStyle = white;
+                ctx.fillRect(x - 1, y, tw, px + 2);
+                ctx.fillStyle = black;
+            } else {
+                ctx.fillStyle = white;
+            }
+            ctx.textAlign = el.align === 'center' ? 'center' : el.align === 'right' ? 'right' : 'left';
+            ctx.textBaseline = 'top';
+            ctx.fillText(rawText, x, y, maxW);
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'alphabetic';
+            break;
+        }
+        case 'bar': {
+            // Show a sample fill (65%) when value is a template variable
+            const rawVal = String(el.value || '65');
+            const sampleValue = rawVal.includes('{') ? 65 : Math.max(0, Math.min(100, parseFloat(rawVal) || 65));
+            const bw = el.width || 50;
+            const bh = el.height || 8;
+            // Outer border
+            ctx.strokeStyle = white;
+            ctx.lineWidth = 1;
+            ctx.strokeRect(x + 0.5, y + 0.5, bw - 1, bh - 1);
+            // Fill
+            ctx.fillStyle = white;
+            const fillW = Math.round((bw - 2) * sampleValue / 100);
+            if (fillW > 0) ctx.fillRect(x + 1, y + 1, fillW, bh - 2);
+            break;
+        }
+        case 'hline': {
+            ctx.strokeStyle = white;
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(x, y + 0.5);
+            ctx.lineTo(x + (el.width || 128), y + 0.5);
+            ctx.stroke();
+            break;
+        }
+        case 'dotted_hline': {
+            ctx.strokeStyle = white;
+            ctx.lineWidth = 1;
+            ctx.setLineDash([2, 2]);
+            ctx.beginPath();
+            ctx.moveTo(x, y + 0.5);
+            ctx.lineTo(x + (el.width || 128), y + 0.5);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            break;
+        }
+        case 'vline': {
+            ctx.strokeStyle = white;
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(x + 0.5, y);
+            ctx.lineTo(x + 0.5, y + (el.height || 64));
+            ctx.stroke();
+            break;
+        }
+        case 'icon': {
+            const sz = el.size || 9;
+            const glyph = OLED_ICON_GLYPHS[el.name] || '\u25A1';
+            ctx.font = sz + 'px sans-serif';
+            ctx.fillStyle = el.invert ? black : white;
+            ctx.textBaseline = 'top';
+            ctx.fillText(glyph, x, y);
+            ctx.textBaseline = 'alphabetic';
+            break;
+        }
+        case 'clock': {
+            // Analog clock face
+            const cx = el.x !== undefined ? el.x : 64;
+            const cy = el.y !== undefined ? el.y : 32;
+            const r = el.radius || 20;
+            const now = new Date();
+            const h = now.getHours() % 12 + now.getMinutes() / 60;
+            const m = now.getMinutes() + now.getSeconds() / 60;
+            const hAngle = h * Math.PI / 6 - Math.PI / 2;
+            const mAngle = m * Math.PI / 30 - Math.PI / 2;
+            ctx.strokeStyle = white;
+            ctx.lineWidth = 1;
+            // Clock circle
+            ctx.beginPath();
+            ctx.arc(cx, cy, r, 0, Math.PI * 2);
+            ctx.stroke();
+            // Hour hand
+            ctx.beginPath();
+            ctx.moveTo(cx, cy);
+            ctx.lineTo(cx + Math.cos(hAngle) * r * 0.55, cy + Math.sin(hAngle) * r * 0.55);
+            ctx.stroke();
+            // Minute hand
+            ctx.beginPath();
+            ctx.moveTo(cx, cy);
+            ctx.lineTo(cx + Math.cos(mAngle) * r * 0.78, cy + Math.sin(mAngle) * r * 0.78);
+            ctx.stroke();
+            // Center dot
+            ctx.fillStyle = white;
+            ctx.beginPath();
+            ctx.arc(cx, cy, 1, 0, Math.PI * 2);
+            ctx.fill();
+            break;
+        }
+        case 'gauge': {
+            const gx = el.x !== undefined ? el.x : 64;
+            const gy = el.y !== undefined ? el.y : 40;
+            const gr = el.radius || 20;
+            const rawGVal = String(el.value || '70');
+            const gval = rawGVal.includes('{') ? 70 : Math.max(0, Math.min(100, parseFloat(rawGVal) || 70));
+            const startA = Math.PI;
+            const endA = 2 * Math.PI;
+            const fillA = startA + (gval / 100) * Math.PI;
+            ctx.strokeStyle = white;
+            ctx.lineWidth = 2;
+            // Background arc
+            ctx.globalAlpha = 0.3;
+            ctx.beginPath();
+            ctx.arc(gx, gy, gr, startA, endA);
+            ctx.stroke();
+            // Value arc
+            ctx.globalAlpha = 1;
+            ctx.beginPath();
+            ctx.arc(gx, gy, gr, startA, fillA);
+            ctx.stroke();
+            ctx.lineWidth = 1;
+            break;
+        }
+        default:
+            break;
+    }
+}
+
+// ── Canvas-based VFD preview (140×32) ─────────────────────────────────
+let _vfdPreviewSeq = 0;
+
+function buildVfdElementsPreview(elements) {
+    const id = 'vfd-prev-' + (++_vfdPreviewSeq);
+    requestAnimationFrame(() => renderVfdPreviewCanvas(id, elements));
+    return `<canvas id="${id}" class="vfd-preview-canvas" width="140" height="32"></canvas>`;
+}
+
+function renderVfdPreviewCanvas(canvasId, elements) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+
+    ctx.fillStyle = '#001200';
+    ctx.fillRect(0, 0, 140, 32);
+
+    for (const el of elements) {
+        const green = '#00ff00';
+        const dark = '#001200';
+        const x = el.x || 0;
+        const y = el.y || 0;
+
+        if (el.type === 'text') {
+            const fontName = (el.font || 'small').toLowerCase();
+            const px = fontName === 'large' ? 9 : 7;
+            ctx.font = (fontName === 'large' ? 'bold ' : '') + px + 'px monospace';
+            ctx.fillStyle = el.invert ? dark : green;
+            if (el.invert) {
+                const tw = Math.min(ctx.measureText(el.text || '').width + 2, el.max_width || 140);
+                ctx.fillStyle = green;
+                ctx.fillRect(x - 1, y, tw, px + 2);
+                ctx.fillStyle = dark;
+            }
+            ctx.textBaseline = 'top';
+            ctx.textAlign = el.align === 'right' ? 'right' : el.align === 'center' ? 'center' : 'left';
+            ctx.fillText(el.text || '', x, y, el.max_width || 140);
+            ctx.textBaseline = 'alphabetic';
+            ctx.textAlign = 'left';
+        } else if (el.type === 'hline') {
+            ctx.strokeStyle = green;
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(x, y + 0.5);
+            ctx.lineTo(x + (el.width || 140), y + 0.5);
+            ctx.stroke();
+        } else if (el.type === 'bar') {
+            const rawVal = String(el.value || '65');
+            const val = rawVal.includes('{') ? 65 : Math.max(0, Math.min(100, parseFloat(rawVal) || 65));
+            const bw = el.width || 50;
+            const bh = el.height || 8;
+            ctx.strokeStyle = green;
+            ctx.lineWidth = 1;
+            ctx.strokeRect(x + 0.5, y + 0.5, bw - 1, bh - 1);
+            ctx.fillStyle = green;
+            const fw = Math.round((bw - 2) * val / 100);
+            if (fw > 0) ctx.fillRect(x + 1, y + 1, fw, bh - 2);
+        }
+    }
 }
 
 function extractLineText(entry) {
@@ -1117,29 +1520,148 @@ function resetFilters() {
 
 function updateScreenStats() {
     const total = allScreens.length;
-    const enabled = allScreens.filter(screen => screen.enabled).length;
+    const enabled = allScreens.filter(s => s.enabled).length;
     const disabled = total - enabled;
+    const ledCount   = allScreens.filter(s => s.display_type === 'led').length;
+    const oledCount  = allScreens.filter(s => s.display_type === 'oled').length;
+    const vfdCount   = allScreens.filter(s => s.display_type === 'vfd').length;
+    const errorScreens = allScreens.filter(s => (s.error_count || 0) > 0);
+    const totalPlays = allScreens.reduce((sum, s) => sum + (s.display_count || 0), 0);
+
+    // Total screens
     const totalEl = document.getElementById('stat-total-screens');
     const breakdownEl = document.getElementById('stat-enabled-breakdown');
     if (totalEl) totalEl.textContent = total;
     if (breakdownEl) breakdownEl.textContent = `${enabled} enabled · ${disabled} disabled`;
 
-    const ledEl = document.getElementById('stat-led-count');
+    // Per-type counts (in filter bar)
+    const ledEl  = document.getElementById('stat-led-count');
     const oledEl = document.getElementById('stat-oled-count');
-    const vfdEl = document.getElementById('stat-vfd-count');
-    const ledCount = allScreens.filter(screen => screen.display_type === 'led').length;
-    const oledCount = allScreens.filter(screen => screen.display_type === 'oled').length;
-    const vfdCount = allScreens.filter(screen => screen.display_type === 'vfd').length;
-    if (ledEl) ledEl.textContent = ledCount;
+    const vfdEl  = document.getElementById('stat-vfd-count');
+    if (ledEl)  ledEl.textContent  = ledCount;
     if (oledEl) oledEl.textContent = oledCount;
-    if (vfdEl) vfdEl.textContent = vfdCount;
+    if (vfdEl)  vfdEl.textContent  = vfdCount;
 
+    // Error count
+    const errEl = document.getElementById('stat-error-count');
+    if (errEl) errEl.textContent = errorScreens.length;
+
+    // Total plays + top screen
+    const playsEl   = document.getElementById('stat-total-plays');
+    const topScreenEl = document.getElementById('stat-top-screen');
+    if (playsEl) playsEl.textContent = totalPlays.toLocaleString();
+    if (topScreenEl) {
+        if (allScreens.length === 0) {
+            topScreenEl.textContent = 'No screens yet';
+        } else {
+            const topScreen = allScreens.reduce((best, s) =>
+                (s.display_count || 0) > (best.display_count || 0) ? s : best, allScreens[0]);
+            topScreenEl.textContent = `Top: ${topScreen.name} (${(topScreen.display_count || 0).toLocaleString()})`;
+        }
+    }
+
+    // On-Air: most recently displayed screen
+    const onAirEl    = document.getElementById('stat-on-air');
+    const onAirSubEl = document.getElementById('stat-on-air-sub');
+    if (onAirEl && onAirSubEl) {
+        const recent = allScreens
+            .filter(s => s.last_displayed_at)
+            .sort((a, b) => new Date(b.last_displayed_at) - new Date(a.last_displayed_at))[0];
+        if (recent) {
+            onAirEl.textContent = recent.name;
+            const ago = timeAgo(recent.last_displayed_at);
+            onAirSubEl.textContent = `Last seen ${ago}`;
+        } else {
+            onAirEl.textContent = '—';
+            onAirSubEl.textContent = 'No display activity yet';
+        }
+    }
+
+    // Screen health
+    const healthEl    = document.getElementById('stat-health');
+    const healthSubEl = document.getElementById('stat-health-sub');
+    if (healthEl && healthSubEl) {
+        const healthy = total - errorScreens.length;
+        healthEl.textContent = total > 0 ? `${healthy} / ${total}` : '—';
+        if (errorScreens.length === 0) {
+            healthSubEl.textContent = total > 0 ? 'All screens healthy' : 'No screens configured';
+        } else {
+            healthSubEl.textContent = `${errorScreens.length} screen${errorScreens.length > 1 ? 's' : ''} with errors`;
+        }
+    }
+
+    // Rotations
     const rotationsEl = document.getElementById('stat-rotations');
     const rotationsSubtitleEl = document.getElementById('stat-rotations-subtitle');
     if (rotationsEl) rotationsEl.textContent = allRotations.length;
     if (rotationsSubtitleEl) {
-        const activeRotations = allRotations.filter(rotation => rotation.enabled).length;
+        const activeRotations = allRotations.filter(r => r.enabled).length;
         rotationsSubtitleEl.textContent = `${activeRotations} active`;
+    }
+}
+
+// Friendly "X min ago" helper
+function timeAgo(isoString) {
+    try {
+        const diff = Math.floor((Date.now() - new Date(isoString).getTime()) / 1000);
+        if (diff < 60) return 'just now';
+        if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+        if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+        return `${Math.floor(diff / 86400)}d ago`;
+    } catch (_) {
+        return 'unknown';
+    }
+}
+
+// Fetch live hardware status and update status bar
+async function fetchHardwareStatus() {
+    try {
+        const response = await fetch('/api/displays/current-state');
+        if (!response.ok) return;
+        const state = await response.json();
+
+        function updateChip(chipId, display) {
+            const chip = document.getElementById(chipId);
+            if (!chip) return;
+            chip.className = 'hw-chip';
+            if (!display || !display.enabled) {
+                chip.classList.add('hw-off');
+            } else if (display.alert_active) {
+                chip.classList.add('hw-alert');
+            } else {
+                chip.classList.add('hw-on');
+            }
+        }
+
+        updateChip('hw-chip-oled', state.oled);
+        updateChip('hw-chip-vfd',  state.vfd);
+        updateChip('hw-chip-led',  state.led);
+
+        // Show "now playing" if any display has a current screen
+        const nowPlaying = (state.oled && state.oled.current_screen)
+            || (state.vfd  && state.vfd.current_screen)
+            || (state.led  && state.led.current_screen);
+        const npBar  = document.getElementById('hw-now-playing');
+        const npName = document.getElementById('hw-now-playing-name');
+        if (npBar && npName) {
+            if (nowPlaying) {
+                npName.textContent = typeof nowPlaying === 'string' ? nowPlaying : (nowPlaying.name || 'Unknown');
+                npBar.style.display = 'flex';
+            } else {
+                npBar.style.display = 'none';
+            }
+        }
+
+        // Update On-Air stat if live hardware data is available
+        if (nowPlaying) {
+            const onAirEl    = document.getElementById('stat-on-air');
+            const onAirSubEl = document.getElementById('stat-on-air-sub');
+            const name = typeof nowPlaying === 'string' ? nowPlaying : (nowPlaying.name || 'Unknown');
+            if (onAirEl)    onAirEl.textContent    = name;
+            if (onAirSubEl) onAirSubEl.textContent = state.oled?.alert_active ? '⚠ Alert active' : 'Live on hardware';
+        }
+    } catch (_) {
+        // Hardware service unavailable — chips remain in off state
     }
 }
 

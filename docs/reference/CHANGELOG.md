@@ -6,6 +6,21 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.65.8] - 2026-03-21 - Fix blank OLED screen previews on Custom Display Screens page
+
+### Fixed
+- **OLED screen previews no longer blank** — the Custom Display Screens management page now
+  renders a pixel-accurate canvas preview for screens using the modern `elements` format
+  (bar graphs, analog clocks, gauges, icons, dividers).  Previously every screen that used
+  `elements` showed "OLED layout will appear here" regardless of its content.
+- **Bar graphs visible in previews** — `bar` elements are drawn as filled progress bars on
+  the canvas at their template-defined position, using 65 % as a representative sample value
+  when the actual value is a live `{variable}`.
+- **VFD element previews improved** — VFD screens that use the `elements` format now render
+  a green-on-black canvas preview instead of a meaningless "type (x,y)" list.
+- **Legacy `lines`-format OLED screens unaffected** — the previous text-based renderer is
+  still used for screens that define `template_data.lines` (e.g. `oled_gpio_status`).
+
 ## [2.65.7] - 2026-03-21 - Surface ENDEC hardware fingerprint in Alert Verification UI
 
 ### Added
