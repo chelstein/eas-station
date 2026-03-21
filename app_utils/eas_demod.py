@@ -105,22 +105,103 @@ def compute_burst_timing_gaps_ms(
 def detect_endec_mode(
     messages: List[str],
     burst_timing_gaps_ms: List[float],
+    terminator_runs: Optional[List[Tuple[int, int]]] = None,
+    leading_null_detected: bool = False,
 ) -> str:
     """Fingerprint the originating ENDEC hardware from transmission characteristics.
 
-    Uses inter-burst gap timing as the primary discriminator.  Returns one of
-    the ENDEC_MODE_* constants defined in this module.
+    Uses a voting system matching EAS-Tools (wagwan-piffting-blud/EAS-Tools
+    decoder-bundle.js), combining three evidence sources:
+
+    1. **Terminator byte signatures** — different ENDECs append specific bytes
+       after each SAME burst:
+       - NWS Legacy/EAS.js:          2 × 0x00 per burst
+       - NWS CRS (1998-2016):        3 × 0x00 per burst (on EOM, prefix+suffix)
+       - NWS BMH (2016+):            3 × 0x00 per burst
+       - SAGE ANALOG 1822:           1 × 0xFF per burst
+       - SAGE DIGITAL 3644:          3 × 0xFF per burst  (+ leading 0x00 on 1st burst)
+       - DEFAULT/DASDEC, TRILITHIC:  no terminator bytes
+
+    2. **Leading 0x00 before preamble** — SAGE DIGITAL 3644 prepends one 0x00
+       byte before the 16-byte preamble on the first burst.
+
+    3. **Inter-burst gap timing** — Trilithic EASyPLUS uses ~868 ms gaps
+       (760–930 ms window) instead of the standard ~1000 ms.
+
+    Args:
+        messages:             Decoded SAME message strings (must be non-empty).
+        burst_timing_gaps_ms: List of inter-burst silence durations in ms.
+        terminator_runs:      List of (byte_value, run_length) tuples collected
+                              from bytes that immediately follow each burst.
+        leading_null_detected: True when a 0x00 byte was observed immediately
+                               before the preamble run of any burst.
+
+    Returns:
+        One of the ENDEC_MODE_* constants.
     """
     if not messages:
         return ENDEC_MODE_UNKNOWN
+
+    votes: dict = {
+        ENDEC_MODE_DEFAULT:   0.0,
+        ENDEC_MODE_NWS:       0.0,
+        ENDEC_MODE_NWS_CRS:   0.0,
+        ENDEC_MODE_NWS_BMH:   0.0,
+        ENDEC_MODE_SAGE_3644: 0.0,
+        ENDEC_MODE_SAGE_1822: 0.0,
+        ENDEC_MODE_TRILITHIC: 0.0,
+    }
+
+    # 1. Terminator byte votes — primary ENDEC discriminator
+    if terminator_runs:
+        for byte_val, run_length in terminator_runs:
+            if byte_val == 0x00:
+                # Null-byte terminator → NWS variants.
+                # Vote strength is proportional to run length, and the specific
+                # NWS sub-variant is chosen by run length:
+                #   1 byte  → weak NWS signal
+                #   2 bytes → NWS Legacy / EAS.js profile
+                #   3+bytes → NWS BMH (2016+) or CRS (1998-2016)
+                if run_length >= 3:
+                    votes[ENDEC_MODE_NWS_BMH] += 4.0
+                    votes[ENDEC_MODE_NWS_CRS] += 2.0
+                    votes[ENDEC_MODE_NWS] += 0.5
+                elif run_length == 2:
+                    votes[ENDEC_MODE_NWS] += 4.0
+                    votes[ENDEC_MODE_NWS_BMH] += 0.5
+                else:
+                    votes[ENDEC_MODE_NWS] += 0.5
+            elif byte_val == 0xFF:
+                # FF-byte terminator → SAGE variants
+                if run_length >= 3:
+                    votes[ENDEC_MODE_SAGE_3644] += 4.0
+                    votes[ENDEC_MODE_SAGE_1822] += 0.5
+                elif run_length == 1:
+                    votes[ENDEC_MODE_SAGE_1822] += 4.0
+                    votes[ENDEC_MODE_SAGE_3644] += 0.5
+                else:
+                    votes[ENDEC_MODE_SAGE_1822] += 1.5
+                    votes[ENDEC_MODE_SAGE_3644] += 1.5
+
+    # 2. Leading null byte (SAGE DIGITAL 3644 specific signature)
+    if leading_null_detected:
+        votes[ENDEC_MODE_SAGE_3644] += 5.5
+
+    # 3. Gap timing votes
     if burst_timing_gaps_ms:
         avg_gap = sum(burst_timing_gaps_ms) / len(burst_timing_gaps_ms)
-        lo, hi = _ENDEC_GAP_TRILITHIC
-        if lo <= avg_gap <= hi:
-            return ENDEC_MODE_TRILITHIC
-        lo, hi = _ENDEC_GAP_STANDARD
-        if lo <= avg_gap <= hi:
-            return ENDEC_MODE_DEFAULT
+        if 760 <= avg_gap <= 930:
+            votes[ENDEC_MODE_TRILITHIC] += 5.0
+        elif 1080 <= avg_gap <= 1160:
+            votes[ENDEC_MODE_TRILITHIC] += 3.0   # Trilithic after-gap window
+        elif 930 <= avg_gap < 1050:
+            votes[ENDEC_MODE_DEFAULT] += 2.0
+
+    # Return the highest-voted mode (ties broken by dict insertion order)
+    best_mode = max(votes, key=votes.get)
+    if votes[best_mode] > 0:
+        return best_mode
+
     return ENDEC_MODE_UNKNOWN
 
 
@@ -247,6 +328,17 @@ class SAMEDemodulatorCore:
         self._burst_sample_history: List[Tuple[int, int]] = []
         self.endec_mode: str = ENDEC_MODE_UNKNOWN
         self.burst_timing_gaps_ms: List[float] = []
+
+        # Terminator byte tracking (EAS-Tools-style ENDEC fingerprinting)
+        # After each message completes, the decoder stays in "post-message mode"
+        # briefly to capture the null/FF bytes that different ENDECs append after
+        # each burst before the inter-burst silence.
+        self._post_message_mode: bool = False   # capturing bytes after message end
+        self._terminator_byte: Optional[int] = None   # current terminator value (0x00 or 0xFF)
+        self._terminator_run: int = 0                  # consecutive count of that byte
+        self._all_terminator_runs: List[Tuple[int, int]] = []  # (byte_val, run_len) per burst
+        self._leading_null_detected: bool = False  # 0x00 seen just before preamble
+        self._prev_decoded_byte: Optional[int] = None  # last successfully decoded byte
 
         # Prefix buffer for cross-chunk continuity (streaming use)
         self._prefix = np.zeros(self.corr_len - 1, dtype=np.float32)
@@ -392,8 +484,17 @@ class SAMEDemodulatorCore:
                 self.bit_confidences.append(conf)
                 self._all_bit_confidences.append(conf)
 
-            # Preamble sync detection
+            # Preamble sync detection (bit-level shift-register match)
             if (self.lasts & 0xFF) == self.PREAMBLE_BYTE and not self.in_message:
+                # Check whether the byte decoded just before this preamble run was 0x00
+                # (SAGE DIGITAL 3644 prepends one 0x00 byte on the first burst)
+                if self._prev_decoded_byte == 0x00 and not self.synced:
+                    self._leading_null_detected = True
+                # Flush any open post-message terminator run
+                if self._post_message_mode:
+                    self._flush_terminator_run()
+                    self._post_message_mode = False
+                    self._update_endec_from_evidence()
                 self.synced = True
                 self.byte_counter = 0
             elif self.synced:
@@ -401,6 +502,39 @@ class SAMEDemodulatorCore:
                 if self.byte_counter == 8:
                     byte_val = self.lasts & 0xFF
                     self.bytes_decoded += 1
+                    self._prev_decoded_byte = byte_val
+
+                    if self._post_message_mode:
+                        # Post-message mode: capture terminator bytes that follow
+                        # a completed SAME message.  Different ENDECs append 0x00
+                        # or 0xFF bytes here before the inter-burst silence.
+                        # Skip carriage-return (0x0D / 13) and line-feed (0x0A / 10):
+                        # FCC §11.31 encoding appends a trailing \r after the header,
+                        # which must be ignored here to avoid prematurely exiting
+                        # post-message capture before ENDEC terminator bytes arrive.
+                        if byte_val in (0x00, 0xFF):
+                            if self._terminator_byte is None:
+                                self._terminator_byte = byte_val
+                                self._terminator_run = 1
+                            elif self._terminator_byte == byte_val:
+                                self._terminator_run += 1
+                            else:
+                                # Different terminator type — flush previous run
+                                self._flush_terminator_run()
+                                self._terminator_byte = byte_val
+                                self._terminator_run = 1
+                        elif byte_val in (10, 13):
+                            pass  # Skip CR/LF — part of FCC §11.31 header encoding
+                        else:
+                            # Non-terminator byte ends post-message capture
+                            self._flush_terminator_run()
+                            self._post_message_mode = False
+                            self._update_endec_from_evidence()
+                            if byte_val != self.PREAMBLE_BYTE:
+                                self.synced = False
+                        self.byte_counter = 0
+                        return
+
                     if 32 <= byte_val <= 126 or byte_val in (10, 13):
                         char = chr(byte_val)
                         if not self.in_message and char == "Z":
@@ -412,7 +546,14 @@ class SAMEDemodulatorCore:
                             msg_text = "".join(self.current_msg)
                             if self._is_message_complete(msg_text, char):
                                 self._on_message_complete(msg_text)
-                                self._reset_message_state()
+                                # Enter post-message mode instead of full reset so
+                                # the DLL continues decoding terminator bytes.
+                                self.current_msg = []
+                                self.in_message = False
+                                self.bit_confidences = []
+                                self._burst_start_sample = None
+                                self._post_message_mode = True
+                                # Keep self.synced = True for terminator capture
                             elif len(self.current_msg) > self.MAX_MSG_LEN:
                                 self._reset_message_state()
                     else:
@@ -460,8 +601,6 @@ class SAMEDemodulatorCore:
             self.burst_timing_gaps_ms = compute_burst_timing_gaps_ms(
                 self._burst_sample_history, self.sample_rate
             )
-            if self.burst_timing_gaps_ms:
-                self.endec_mode = detect_endec_mode([msg_text], self.burst_timing_gaps_ms)
 
         confidence = (
             sum(self.bit_confidences) / len(self.bit_confidences)
@@ -473,12 +612,29 @@ class SAMEDemodulatorCore:
         if self.message_callback:
             self.message_callback(msg_text, confidence, list(self.burst_sample_ranges))
 
+    def _flush_terminator_run(self) -> None:
+        """Append the current terminator byte run to the accumulated list."""
+        if self._terminator_byte is not None and self._terminator_run > 0:
+            self._all_terminator_runs.append((self._terminator_byte, self._terminator_run))
+        self._terminator_byte = None
+        self._terminator_run = 0
+
+    def _update_endec_from_evidence(self) -> None:
+        """Recompute endec_mode from all gathered evidence (timing + terminator bytes)."""
+        self.endec_mode = detect_endec_mode(
+            self.messages,
+            self.burst_timing_gaps_ms,
+            self._all_terminator_runs,
+            self._leading_null_detected,
+        )
+
     def _reset_message_state(self) -> None:
         self.current_msg = []
         self.in_message = False
         self.synced = False
         self.bit_confidences = []
         self._burst_start_sample = None
+        self._post_message_mode = False
 
 
 # ---------------------------------------------------------------------------
