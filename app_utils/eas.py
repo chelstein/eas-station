@@ -261,7 +261,7 @@ def load_eas_config(base_path: Optional[str] = None, db_session=None) -> Dict[st
             os.getenv('EAS_STATION_ID')
             or (db_station_id if db_station_id else None)
             or 'EASNODES'
-        )[:8].ljust(8),
+        ).strip()[:8].ljust(8),
         'output_dir': _ensure_directory(output_dir),
         'web_subdir': web_subdir,
         'audio_player_cmd': os.getenv('EAS_AUDIO_PLAYER', '').strip() or (db_audio_player or ''),
@@ -712,7 +712,7 @@ def build_same_header(alert: object, payload: Dict[str, object], config: Dict[st
     julian = _julian_time(sent_dt or datetime.now(timezone.utc))
 
     originator = str(config.get('originator', 'WXR'))[:3].upper()
-    station = str(config.get('station_id', 'EASNODES')).ljust(8)[:8]
+    station = str(config.get('station_id', 'EASNODES')).strip()[:8].ljust(8)
 
     location_field = '-'.join(formatted_locations)
     header = f"ZCZC-{originator}-{event_code}-{location_field}+{duration_code}-{julian}-{station}-"
