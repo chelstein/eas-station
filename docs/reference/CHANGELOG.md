@@ -6,6 +6,22 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.65.7] - 2026-03-21 - Surface ENDEC hardware fingerprint in Alert Verification UI
+
+### Added
+- **ENDEC hardware shown in Alert Verification** — the detected ENDEC type (`endec_mode`)
+  is now displayed as a coloured badge in the Decode Summary when analysing an audio file
+  and in the "Recent Stored Decodes" table so operators can quickly identify the originating
+  hardware (SAGE Digital 3644, NWS BMH, etc.).
+- **`endec_mode` persisted in stored decode records** — `record_audio_decode_result()` now
+  saves `endec_mode` inside `quality_metrics`, making the value available for historical
+  decode records.
+
+### Fixed
+- `_deserialize_decode_result` in the alert-verification route now correctly restores
+  `endec_mode` from stored JSON, preventing it from reverting to `UNKNOWN` when the
+  async decode payload is reloaded from the progress store.
+
 ## [2.65.6] - 2026-03-21 - EAS-Tools-compatible ENDEC fingerprinting via terminator bytes
 
 ### Added
