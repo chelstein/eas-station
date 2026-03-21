@@ -397,3 +397,269 @@ def test_dll_decoder_round_trip_varied_headers() -> None:
         assert any(header in m for m in core.messages), (
             f"Header {header!r} not in decoded messages {core.messages!r}"
         )
+
+
+# ---------------------------------------------------------------------------
+# ENDEC detection tests — EAS-Tools-compatible voting logic
+#
+# EAS-Tools (wagwan-piffting-blud/EAS-Tools) determines the originating ENDEC
+# by analysing null/FF bytes appended after each burst and inter-burst gap
+# timing.  The tests below validate that detect_endec_mode() produces the
+# correct result for each supported profile.
+# ---------------------------------------------------------------------------
+
+from app_utils.eas_demod import (
+    detect_endec_mode,
+    ENDEC_MODE_UNKNOWN,
+    ENDEC_MODE_DEFAULT,
+    ENDEC_MODE_NWS,
+    ENDEC_MODE_NWS_BMH,
+    ENDEC_MODE_SAGE_3644,
+    ENDEC_MODE_SAGE_1822,
+    ENDEC_MODE_TRILITHIC,
+)
+
+
+def test_detect_endec_no_evidence_returns_unknown() -> None:
+    """With no timing or terminator-byte evidence the mode is UNKNOWN."""
+    assert detect_endec_mode([], []) == ENDEC_MODE_UNKNOWN
+    assert detect_endec_mode([], [], terminator_runs=[]) == ENDEC_MODE_UNKNOWN
+
+
+def test_detect_endec_nws_legacy_two_null_bytes() -> None:
+    """NWS Legacy / EAS.js appends 2 × 0x00 after each burst → NWS mode."""
+    mode = detect_endec_mode(
+        ["ZCZC-WXR-TOR-029015+0030-0181500-KOAX/NWS-"],
+        [],
+        terminator_runs=[(0x00, 2)],
+    )
+    assert mode == ENDEC_MODE_NWS, f"Expected NWS, got {mode}"
+
+
+def test_detect_endec_nws_bmh_three_null_bytes() -> None:
+    """NWS BMH (2016+) appends 3 × 0x00 after each burst → NWS_BMH mode."""
+    mode = detect_endec_mode(
+        ["ZCZC-WXR-TOR-029015+0030-0181500-KOAX/NWS-"],
+        [],
+        terminator_runs=[(0x00, 3)],
+    )
+    assert mode == ENDEC_MODE_NWS_BMH, f"Expected NWS_BMH, got {mode}"
+
+
+def test_detect_endec_sage_analog_1822_single_ff() -> None:
+    """SAGE ANALOG 1822 appends 1 × 0xFF after each burst → SAGE_ANALOG_1822."""
+    mode = detect_endec_mode(
+        ["ZCZC-WXR-TOR-029015+0030-0181500-KOAX/NWS-"],
+        [],
+        terminator_runs=[(0xFF, 1)],
+    )
+    assert mode == ENDEC_MODE_SAGE_1822, f"Expected SAGE_ANALOG_1822, got {mode}"
+
+
+def test_detect_endec_sage_digital_3644_three_ff_bytes() -> None:
+    """SAGE DIGITAL 3644 appends 3 × 0xFF after each burst → SAGE_DIGITAL_3644."""
+    mode = detect_endec_mode(
+        ["ZCZC-WXR-TOR-029015+0030-0181500-KOAX/NWS-"],
+        [],
+        terminator_runs=[(0xFF, 3)],
+    )
+    assert mode == ENDEC_MODE_SAGE_3644, f"Expected SAGE_DIGITAL_3644, got {mode}"
+
+
+def test_detect_endec_sage_digital_3644_leading_null() -> None:
+    """SAGE DIGITAL 3644 leading-null signature alone is enough to identify it."""
+    mode = detect_endec_mode(
+        ["ZCZC-WXR-TOR-029015+0030-0181500-KOAX/NWS-"],
+        [],
+        leading_null_detected=True,
+    )
+    assert mode == ENDEC_MODE_SAGE_3644, f"Expected SAGE_DIGITAL_3644, got {mode}"
+
+
+def test_detect_endec_trilithic_gap_timing() -> None:
+    """Trilithic EASyPLUS uses ~868 ms inter-burst gaps → TRILITHIC mode."""
+    mode = detect_endec_mode(
+        ["ZCZC-WXR-TOR-029015+0030-0181500-KOAX/NWS-"],
+        [868.0, 868.0],
+    )
+    assert mode == ENDEC_MODE_TRILITHIC, f"Expected TRILITHIC, got {mode}"
+
+
+def test_detect_endec_default_standard_gap_timing() -> None:
+    """Standard ~1000 ms gaps with no terminator bytes → DEFAULT (DASDEC) mode."""
+    mode = detect_endec_mode(
+        ["ZCZC-WXR-TOR-029015+0030-0181500-KOAX/NWS-"],
+        [1000.0, 1000.0],
+    )
+    assert mode == ENDEC_MODE_DEFAULT, f"Expected DEFAULT, got {mode}"
+
+
+def test_detect_endec_sage_digital_beats_timing_alone() -> None:
+    """3 × 0xFF terminator evidence overrides standard-gap timing for SAGE DIGITAL."""
+    # Even at a 1000 ms gap (which would vote DEFAULT), three FF bytes should
+    # produce a higher-confidence vote for SAGE_DIGITAL_3644.
+    mode = detect_endec_mode(
+        ["ZCZC-WXR-TOR-029015+0030-0181500-KOAX/NWS-"],
+        [1000.0],
+        terminator_runs=[(0xFF, 3)],
+    )
+    assert mode == ENDEC_MODE_SAGE_3644, f"Expected SAGE_DIGITAL_3644, got {mode}"
+
+
+def test_detect_endec_trilithic_beats_no_terminator_bytes() -> None:
+    """Trilithic gap timing wins when no terminator bytes are present."""
+    mode = detect_endec_mode(
+        ["ZCZC-WXR-TOR-029015+0030-0181500-KOAX/NWS-"],
+        [868.0],
+        terminator_runs=[],
+    )
+    assert mode == ENDEC_MODE_TRILITHIC, f"Expected TRILITHIC, got {mode}"
+
+
+def _make_fsk_audio_with_terminator(
+    header: str,
+    terminator_bytes: bytes,
+    *,
+    sample_rate: int = 44100,
+    bursts: int = 3,
+    gap_ms: float = 1000.0,
+) -> "np.ndarray":
+    """Encode a SAME header with ENDEC-style terminator bytes appended to each burst.
+
+    This mirrors how real ENDEC hardware transmits:  each of the three FCC-required
+    bursts is followed immediately by ``terminator_bytes`` (e.g. b'\\xff\\xff\\xff'
+    for SAGE DIGITAL 3644) before the inter-burst gap.
+
+    A low-level white-noise floor is used for the inter-burst gap to match real audio
+    conditions.  Pure silence (all-zero samples) causes the DLL to produce a constant
+    stream of 0x00 bytes indistinguishable from intentional NWS terminators; noise
+    produces varied byte values, terminating the post-message capture window quickly.
+
+    Args:
+        header:           SAME header string (e.g. "ZCZC-WXR-TOR-...").
+        terminator_bytes: Raw bytes appended after the header FSK data.
+        sample_rate:      Audio sample rate in Hz.
+        bursts:           Number of identical transmission bursts.
+        gap_ms:           Inter-burst gap duration in milliseconds.
+    """
+    import numpy as np
+
+    header_bits = encode_same_bits(header, include_preamble=True)
+    header_samples = generate_fsk_samples(
+        header_bits,
+        sample_rate=sample_rate,
+        bit_rate=float(SAME_BAUD),
+        mark_freq=SAME_MARK_FREQ,
+        space_freq=SAME_SPACE_FREQ,
+        amplitude=20000,
+    )
+
+    # Build FSK bits for the raw terminator bytes (8 bits each, LSB first)
+    term_bits: list = []
+    for b in terminator_bytes:
+        for bit_pos in range(8):
+            term_bits.append((b >> bit_pos) & 1)
+
+    term_samples: list = []
+    if term_bits:
+        term_samples = generate_fsk_samples(
+            term_bits,
+            sample_rate=sample_rate,
+            bit_rate=float(SAME_BAUD),
+            mark_freq=SAME_MARK_FREQ,
+            space_freq=SAME_SPACE_FREQ,
+            amplitude=20000,
+        )
+
+    # Use low-level noise for the inter-burst gap.  This faithfully simulates
+    # real audio where background noise is always present during silence periods.
+    # Pure zeros produce a constant 0x00 byte stream in the DLL, which is
+    # indistinguishable from intentional NWS null-byte terminators.
+    rng = np.random.default_rng(seed=42)
+    gap_len = int(sample_rate * gap_ms / 1000.0)
+    gap_samples = list(
+        (rng.uniform(-1, 1, size=gap_len) * 200).astype(np.int16)
+    )
+
+    combined: list = []
+    for _ in range(bursts):
+        combined.extend(header_samples)
+        combined.extend(term_samples)
+        combined.extend(gap_samples)
+
+    return np.array(combined, dtype=np.float32) / 32768.0
+
+
+def test_dll_endec_detection_sage_digital_3644_integration() -> None:
+    """SAMEDemodulatorCore must detect SAGE DIGITAL 3644 from 3 × 0xFF terminator bytes.
+
+    SAGE DIGITAL 3644 appends three 0xFF bytes after each SAME burst.  The DLL
+    streaming decoder must capture these bytes in post-message mode and report
+    SAGE_DIGITAL_3644 as the detected ENDEC.
+    """
+    header = "ZCZC-WXR-TOR-029015+0030-0181500-KOAX/NWS-"
+    samples = _make_fsk_audio_with_terminator(
+        header, b"\xff\xff\xff", sample_rate=44100
+    )
+
+    core = SAMEDemodulatorCore(44100, apply_bandpass=True)
+    core.process_samples(samples)
+
+    assert len(core.messages) >= 1, "DLL must decode at least one burst"
+    assert core.endec_mode == ENDEC_MODE_SAGE_3644, (
+        f"Expected SAGE_DIGITAL_3644 from 3×0xFF terminator bytes, got {core.endec_mode!r}. "
+        f"terminator_runs={core._all_terminator_runs!r}"
+    )
+
+
+def test_dll_endec_detection_sage_analog_1822_integration() -> None:
+    """SAMEDemodulatorCore must detect SAGE ANALOG 1822 from 1 × 0xFF terminator byte."""
+    header = "ZCZC-WXR-TOR-029015+0030-0181500-KOAX/NWS-"
+    samples = _make_fsk_audio_with_terminator(
+        header, b"\xff", sample_rate=44100
+    )
+
+    core = SAMEDemodulatorCore(44100, apply_bandpass=True)
+    core.process_samples(samples)
+
+    assert len(core.messages) >= 1, "DLL must decode at least one burst"
+    assert core.endec_mode == ENDEC_MODE_SAGE_1822, (
+        f"Expected SAGE_ANALOG_1822 from 1×0xFF terminator byte, got {core.endec_mode!r}. "
+        f"terminator_runs={core._all_terminator_runs!r}"
+    )
+
+
+def test_dll_endec_detection_nws_null_bytes_integration() -> None:
+    """SAMEDemodulatorCore must detect NWS from 2 × 0x00 null byte terminators."""
+    header = "ZCZC-WXR-TOR-029015+0030-0181500-KOAX/NWS-"
+    samples = _make_fsk_audio_with_terminator(
+        header, b"\x00\x00", sample_rate=44100
+    )
+
+    core = SAMEDemodulatorCore(44100, apply_bandpass=True)
+    core.process_samples(samples)
+
+    assert len(core.messages) >= 1, "DLL must decode at least one burst"
+    assert core.endec_mode == ENDEC_MODE_NWS, (
+        f"Expected NWS from 2×0x00 terminator bytes, got {core.endec_mode!r}. "
+        f"terminator_runs={core._all_terminator_runs!r}"
+    )
+
+
+def test_dll_endec_no_regression_on_plain_audio() -> None:
+    """Standard SAME audio without terminator bytes must still decode correctly.
+
+    REGRESSION GUARD: The post-message terminator capture must not interfere
+    with normal decoding of alerts from DEFAULT/DASDEC hardware that appends
+    no special bytes.
+    """
+    header = "ZCZC-WXR-TOR-029015+0030-0181500-KOAX/NWS-"
+    samples = _make_fsk_audio(header, sample_rate=44100)
+
+    core = SAMEDemodulatorCore(44100, apply_bandpass=True)
+    core.process_samples(samples)
+
+    assert len(core.messages) >= 1, "DLL must still decode plain audio after ENDEC refactor"
+    assert any(header in m for m in core.messages), (
+        f"Header not found in decoded messages: {core.messages!r}"
+    )

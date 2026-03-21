@@ -6,6 +6,26 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.65.6] - 2026-03-21 - EAS-Tools-compatible ENDEC fingerprinting via terminator bytes
+
+### Added
+- **ENDEC hardware detection via null/FF terminator bytes** — `detect_endec_mode()` now
+  uses a voting system matching [EAS-Tools](https://github.com/wagwan-piffting-blud/EAS-Tools)
+  to fingerprint the originating ENDEC from bytes appended after each SAME burst:
+  - NWS Legacy / EAS.js:           2 × 0x00 → `NWS`
+  - NWS Broadcast Message Handler: 3 × 0x00 → `NWS_BMH`
+  - NWS Console Replacement System: 3 × 0x00 with CRS scoring → `NWS_CRS`
+  - SAGE ANALOG 1822:              1 × 0xFF → `SAGE_ANALOG_1822`
+  - SAGE DIGITAL 3644:             3 × 0xFF → `SAGE_DIGITAL_3644`
+  - SAGE DIGITAL 3644 (first burst leading byte): 0x00 before preamble → strong `SAGE_DIGITAL_3644` vote
+  - DEFAULT / DASDEC / TRILITHIC:  identified by inter-burst gap timing (existing logic retained)
+- **Post-message terminator capture in `SAMEDemodulatorCore`** — after a SAME message is
+  decoded, the DLL stays in "post-message mode" (keeping `synced=True`) to collect the
+  ENDEC-appended null/FF bytes before the inter-burst silence. CR/LF bytes (FCC §11.31
+  header terminator) are transparently skipped during this window.
+- **Leading null byte detection** — a 0x00 byte decoded just before a burst's preamble
+  run sets `_leading_null_detected = True`, providing an additional vote for `SAGE_DIGITAL_3644`.
+
 ## [2.65.5] - 2026-03-21 - Fix 32-bit WAV decode and trailing-space padding in SAME headers
 
 ### Fixed
