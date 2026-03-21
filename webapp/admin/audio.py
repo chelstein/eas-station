@@ -793,7 +793,7 @@ def admin_manual_eas_generate():
     manual_config = dict(fresh_config)
     manual_config['enabled'] = True
     manual_config['originator'] = originator[:3].upper()
-    manual_config['station_id'] = station_id.upper().ljust(8)[:8]
+    manual_config['station_id'] = station_id.upper()[:8]
     manual_config['attention_tone_seconds'] = tone_seconds if tone_seconds is not None else manual_config.get('attention_tone_seconds', 8)
     manual_config['sample_rate'] = sample_rate
 
