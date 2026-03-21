@@ -1205,6 +1205,12 @@ function buildScreenPreview(screen) {
     return `<pre class="preview-json">${escapeHtml(jsonSnippet)}</pre>`;
 }
 
+// Canvas renderer constants
+const BAR_SAMPLE_PERCENT  = 65;  // representative fill % shown for template-variable bar values
+const SECONDS_PER_MINUTE  = 60;
+const SECONDS_PER_HOUR    = 3600;
+const SECONDS_PER_DAY     = 86400;
+
 // ── Canvas-based OLED preview (128×64) ────────────────────────────────
 let _oledPreviewSeq = 0;
 
@@ -1280,9 +1286,9 @@ function renderOledElement(ctx, el) {
             break;
         }
         case 'bar': {
-            // Show a sample fill (65%) when value is a template variable
-            const rawVal = String(el.value || '65');
-            const sampleValue = rawVal.includes('{') ? 65 : Math.max(0, Math.min(100, parseFloat(rawVal) || 65));
+            // Show a sample fill when value is a template variable
+            const rawVal = String(el.value || String(BAR_SAMPLE_PERCENT));
+            const sampleValue = rawVal.includes('{') ? BAR_SAMPLE_PERCENT : Math.max(0, Math.min(100, parseFloat(rawVal) || BAR_SAMPLE_PERCENT));
             const bw = el.width || 50;
             const bh = el.height || 8;
             // Outer border
@@ -1371,8 +1377,8 @@ function renderOledElement(ctx, el) {
             const gx = el.x !== undefined ? el.x : 64;
             const gy = el.y !== undefined ? el.y : 40;
             const gr = el.radius || 20;
-            const rawGVal = String(el.value || '70');
-            const gval = rawGVal.includes('{') ? 70 : Math.max(0, Math.min(100, parseFloat(rawGVal) || 70));
+            const rawGVal = String(el.value || String(BAR_SAMPLE_PERCENT));
+            const gval = rawGVal.includes('{') ? BAR_SAMPLE_PERCENT : Math.max(0, Math.min(100, parseFloat(rawGVal) || BAR_SAMPLE_PERCENT));
             const startA = Math.PI;
             const endA = 2 * Math.PI;
             const fillA = startA + (gval / 100) * Math.PI;
@@ -1443,8 +1449,8 @@ function renderVfdPreviewCanvas(canvasId, elements) {
             ctx.lineTo(x + (el.width || 140), y + 0.5);
             ctx.stroke();
         } else if (el.type === 'bar') {
-            const rawVal = String(el.value || '65');
-            const val = rawVal.includes('{') ? 65 : Math.max(0, Math.min(100, parseFloat(rawVal) || 65));
+            const rawVal = String(el.value || String(BAR_SAMPLE_PERCENT));
+            const val = rawVal.includes('{') ? BAR_SAMPLE_PERCENT : Math.max(0, Math.min(100, parseFloat(rawVal) || BAR_SAMPLE_PERCENT));
             const bw = el.width || 50;
             const bh = el.height || 8;
             ctx.strokeStyle = green;
@@ -1604,13 +1610,19 @@ function updateScreenStats() {
 function timeAgo(isoString) {
     try {
         const diff = Math.floor((Date.now() - new Date(isoString).getTime()) / 1000);
-        if (diff < 60) return 'just now';
-        if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-        if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-        return `${Math.floor(diff / 86400)}d ago`;
+        if (diff < SECONDS_PER_MINUTE) return 'just now';
+        if (diff < SECONDS_PER_HOUR)   return `${Math.floor(diff / SECONDS_PER_MINUTE)}m ago`;
+        if (diff < SECONDS_PER_DAY)    return `${Math.floor(diff / SECONDS_PER_HOUR)}h ago`;
+        return `${Math.floor(diff / SECONDS_PER_DAY)}d ago`;
     } catch (_) {
         return 'unknown';
     }
+}
+
+// Extract a display name from a current_screen value (may be string or object)
+function extractScreenName(screen) {
+    if (!screen) return 'Unknown';
+    return typeof screen === 'string' ? screen : (screen.name || 'Unknown');
 }
 
 // Fetch live hardware status and update status bar
@@ -1645,7 +1657,7 @@ async function fetchHardwareStatus() {
         const npName = document.getElementById('hw-now-playing-name');
         if (npBar && npName) {
             if (nowPlaying) {
-                npName.textContent = typeof nowPlaying === 'string' ? nowPlaying : (nowPlaying.name || 'Unknown');
+                npName.textContent = extractScreenName(nowPlaying);
                 npBar.style.display = 'flex';
             } else {
                 npBar.style.display = 'none';
@@ -1656,8 +1668,7 @@ async function fetchHardwareStatus() {
         if (nowPlaying) {
             const onAirEl    = document.getElementById('stat-on-air');
             const onAirSubEl = document.getElementById('stat-on-air-sub');
-            const name = typeof nowPlaying === 'string' ? nowPlaying : (nowPlaying.name || 'Unknown');
-            if (onAirEl)    onAirEl.textContent    = name;
+            if (onAirEl)    onAirEl.textContent    = extractScreenName(nowPlaying);
             if (onAirSubEl) onAirSubEl.textContent = state.oled?.alert_active ? '⚠ Alert active' : 'Live on hardware';
         }
     } catch (_) {
