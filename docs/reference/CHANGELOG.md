@@ -6,6 +6,24 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.65.5] - 2026-03-21 - Fix 32-bit WAV decode and trailing-space padding in SAME headers
+
+### Fixed
+- **32-bit PCM WAV files fail to decode** — `_read_audio_samples` only handled 16-bit
+  (`sampwidth == 2`) WAV files; 32-bit files (`sampwidth == 4`) fell through to ffmpeg
+  which is not always installed, causing `AudioDecodeError`. Extended to read 32-bit
+  signed PCM frames directly via `numpy.int32` and normalise to `[-1, 1]`.
+- **Goertzel decoder overrides correct DLL result with garbled partial header** — for
+  some recordings (e.g. 32-bit PCM) the Goertzel bit decoder produces an incomplete
+  header (missing trailing `-`) while the IQ-correlator/DLL produces a complete, valid
+  one. The result-merge logic now prefers the DLL when it has a complete header and the
+  Goertzel does not.
+- **SAME headers generated with trailing spaces** — `build_same_header` padded the
+  station identifier to 8 characters with `.ljust(8)`, emitting e.g. `KR8MER  -`
+  instead of `KR8MER-`. Removed `.ljust(8)` from `build_same_header`,
+  `load_eas_config`, `workflow.py`, and `audio.py`; the callsign is now written
+  verbatim (stripped, up to 8 characters) with no trailing spaces.
+
 ## [2.65.4] - 2026-03-20 - Fix /admin, /admin/notifications, /admin/application returning fallback HTML
 
 ### Fixed

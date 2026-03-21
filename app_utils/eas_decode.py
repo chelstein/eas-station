@@ -420,10 +420,15 @@ def _read_audio_samples(path: str, sample_rate: int) -> Tuple[List[float], bytes
             params = handle.getparams()
             native_rate = params.framerate
 
-            if params.nchannels == 1 and params.sampwidth == 2:
+            if params.nchannels == 1 and params.sampwidth in (2, 4):
                 pcm = handle.readframes(params.nframes)
                 if pcm:
-                    samples = _convert_pcm_to_floats(pcm)
+                    if params.sampwidth == 2:
+                        samples = _convert_pcm_to_floats(pcm)
+                    else:
+                        # 32-bit signed PCM → float32 in [-1, 1)
+                        arr = np.frombuffer(pcm, dtype=np.int32)
+                        samples = (arr.astype(np.float32) / float(2 ** (params.sampwidth * 8 - 1))).tolist()
                     if native_rate == sample_rate:
                         return samples, pcm
 
@@ -1496,7 +1501,28 @@ def _decode_at_sample_rate(path: str, sample_rate: int) -> SAMEAudioDecodeResult
     header_confidence = (
         correlation_confidence if correlation_confidence is not None else average_confidence
     )
-    if metadata_headers:
+
+    # Prefer the DLL (correlation) result over a Goertzel result when the
+    # Goertzel header is incomplete (does not end with '-', meaning the bit
+    # stream ran out before the final dash) while the DLL produced a valid,
+    # complete header.  This handles 32-bit PCM and other recordings where
+    # the Goertzel decoder loses sync on the later bytes but the IQ
+    # correlator holds lock through the full burst.
+    def _header_is_complete(h: str) -> bool:
+        return h.startswith("ZCZC-") and h.endswith("-")
+
+    dll_has_complete = bool(
+        correlation_headers
+        and any(_header_is_complete(h.header) for h in correlation_headers)
+    )
+    goertzel_all_complete = bool(
+        metadata_headers
+        and all(_header_is_complete(h) for h in metadata_headers)
+    )
+
+    use_dll = dll_has_complete and not goertzel_all_complete
+
+    if metadata_headers and not use_dll:
         fips_lookup = get_same_lookup()
         headers: List[SAMEHeaderDetails] = []
         for header in metadata_headers:
