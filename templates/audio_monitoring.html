@@ -2457,18 +2457,25 @@ function toggleEASDecoderAudio(button) {
         // ── Helper: fetch backend for a specific error message ─────────────────
         // Only called AFTER a failure — never before play() — so autoplay is
         // already either granted or blocked before this async work starts.
+        // Uses AbortController so the streaming response body is closed as soon
+        // as we have the status code (prevents holding a server-side stream
+        // open for the duration of the diagnostic request).
         function diagnoseAndShowError(fallbackMsg) {
-            fetch('/api/eas/decoder-stream')
+            var controller = new AbortController();
+            fetch('/api/eas/decoder-stream', { signal: controller.signal })
                 .then(function(resp) {
                     if (!resp.ok) {
                         return resp.json()
                             .then(function(d) { showStreamError(d.error || ('HTTP ' + resp.status)); })
                             .catch(function() { showStreamError('HTTP ' + resp.status); });
                     }
-                    // Backend says OK — the error was likely a browser media issue
+                    // Backend says OK — the error was likely a browser media issue.
+                    // Abort immediately so we don't hold the streaming body open.
+                    controller.abort();
                     showStreamError(fallbackMsg);
                 })
-                .catch(function() {
+                .catch(function(err) {
+                    if (err.name === 'AbortError') { return; }
                     showStreamError('Could not reach EAS monitoring service. Check System Diagnostics.');
                 });
         }
@@ -2478,6 +2485,11 @@ function toggleEASDecoderAudio(button) {
         // Chrome to revoke the gesture token and block playback with            ──
         // NotAllowedError, even when audio IS flowing.                          ──
         audio.src = '/api/eas/decoder-stream';
+
+        // Guard flag: the HTML5 'error' event and the play() promise rejection
+        // both fire for the same failure.  Without this flag both paths call
+        // diagnoseAndShowError(), producing two overlapping error alerts.
+        var errorHandled = false;
 
         // One-shot event listeners registered before play() so we never miss them
         function onPlaying() {
@@ -2490,6 +2502,8 @@ function toggleEASDecoderAudio(button) {
         }
 
         function onError() {
+            if (errorHandled) { return; }
+            errorHandled = true;
             audio.removeEventListener('playing', onPlaying);
             audio.removeEventListener('error',   onError);
             console.error('EAS decoder audio error:', audio.error);
@@ -2503,6 +2517,8 @@ function toggleEASDecoderAudio(button) {
         var playPromise = audio.play();
         if (playPromise !== undefined) {
             playPromise.catch(function(err) {
+                if (errorHandled) { return; }
+                errorHandled = true;
                 audio.removeEventListener('playing', onPlaying);
                 audio.removeEventListener('error',   onError);
                 console.error('EAS decoder play() rejected:', err);
