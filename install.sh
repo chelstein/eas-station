@@ -2400,6 +2400,24 @@ with app.app_context():
     fi
 fi
 
+# Download NWS GIS data (zone catalog + partial-county subdivisions)
+echo ""
+echo_info "Downloading NWS GIS data (zone catalog + partial-county subdivisions)..."
+echo_info "Sources:"
+echo_info "  Zones:     https://www.weather.gov/gis/PublicZones"
+echo_info "  Subdivisions: https://www.weather.gov/gis/NWRPartialCounties"
+echo_info "  (Hazard Services partial-county spec: https://vlab.noaa.gov/web/hazard-services/partial-county-alerts)"
+set +e
+sudo -u "$SERVICE_USER" "$VENV_DIR/bin/python" "$INSTALL_DIR/tools/download_nws_gis_data.py" 2>&1
+GIS_EXIT_CODE=$?
+set -e
+if [ $GIS_EXIT_CODE -eq 0 ]; then
+    echo_success "✓ NWS GIS data downloaded"
+else
+    echo_warning "NWS GIS data download failed (non-critical – connectivity issue?)"
+    echo_warning "Re-run later:  sudo -u $SERVICE_USER $VENV_DIR/bin/python $INSTALL_DIR/tools/download_nws_gis_data.py"
+fi
+
 # Create administrator account in database
 echo ""
 echo_info "Creating administrator account in database..."

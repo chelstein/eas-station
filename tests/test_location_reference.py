@@ -20,6 +20,7 @@ Repository: https://github.com/KR8MER/eas-station
 from __future__ import annotations
 
 import pytest
+from pathlib import Path
 from flask import Flask
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.compiler import compiles
@@ -221,6 +222,24 @@ def test_sanitize_fips_codes_allows_statewide_entries():
     assert invalid == ["bad-code"]
 
 
+_PARTIAL_COUNTY_DBF_PRESENT = bool(
+    sorted(
+        (Path(__file__).resolve().parents[1] / "assets").glob("cs*.dbf"),
+        reverse=True,
+    )
+    if (Path(__file__).resolve().parents[1] / "assets").is_dir()
+    else []
+)
+_SKIP_NO_PARTIAL_COUNTY_DBF = pytest.mark.skipif(
+    not _PARTIAL_COUNTY_DBF_PRESENT,
+    reason=(
+        "NWS partial-county DBF (assets/cs*.dbf) not present. "
+        "Run  python tools/download_nws_gis_data.py  to fetch it from "
+        "https://www.weather.gov/gis/NWRPartialCounties"
+    ),
+)
+
+
 def test_sanitize_fips_codes_allows_partial_counties():
     valid, invalid = sanitize_fips_codes(["627137", "bad", "039137"])
 
@@ -229,6 +248,7 @@ def test_sanitize_fips_codes_allows_partial_counties():
     assert "bad" in invalid
 
 
+@_SKIP_NO_PARTIAL_COUNTY_DBF
 def test_state_tree_includes_county_subdivisions():
     tree = get_us_state_county_tree()
     mn = next((state for state in tree if state.get("abbr") == "MN"), None)
@@ -242,6 +262,7 @@ def test_state_tree_includes_county_subdivisions():
     assert "627137" in subdivisions
 
 
+@_SKIP_NO_PARTIAL_COUNTY_DBF
 def test_same_lookup_contains_partial_counties():
     lookup = get_same_lookup()
     label = lookup.get("627137")

@@ -41,7 +41,7 @@ def test_environment_py_syntax():
 
 def test_environment_html_uses_blueprint_route():
     """Test that environment.html uses correct blueprint route for download."""
-    with open('templates/settings/environment.html', 'r') as f:
+    with open('templates/admin/environment.html', 'r') as f:
         content = f.read()
     
     # Verify url_for uses blueprint prefix

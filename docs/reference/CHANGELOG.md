@@ -6,6 +6,26 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+- No pending changes.
+
+## [2.69.0] - 2026-03-23 - Political subdivisions, NWS GIS data, and test-suite remediation
+
+### Fixed
+- Removed redundant `import os` inside `_collect_smart_health` that caused `UnboundLocalError` in production.
+- `_restart_ffmpeg` in `icecast_output.py` now sleeps for `ICECAST_RESTART_DELAY` seconds before relaunching FFmpeg to prevent rapid restart loops.
+- `build_database_url()` now falls back to `POSTGRES_*` environment variables when `DATABASE_URL` is not set.
+- SOAPY_SDR error code −7 description now includes "not locked" so the PLL lock hint is surfaced correctly.
+
+### Added
+- `EASMonitor._streaming_decoder` alias, `_restart_count` tracker, `_restart_monitor_thread()`, and `_resample_if_needed()` to support watchdog restarts and stereo audio handling.
+- `EASMonitor.get_status()` now includes `restart_count` and computes runtime metrics even when the monitor is stopped.
+- `_SoapySDRReceiver._calculate_buffer_size()` dynamically sizes the IQ read buffer based on the configured sample rate.
+- Setup wizard now includes a **Core** section (SECRET_KEY and PostgreSQL credentials) that is validated on form submission.
+- `_is_valid_partition_code()` in `location_settings.py` — `sanitize_fips_codes()` now accepts SAME partition-digit codes (e.g. `627137`) whose whole-county equivalent is known.
+- `tools/download_nws_gis_data.py` — standalone CLI that downloads NWS Public Forecast Zones and NWR Political Subdivisions (partial-county) shapefiles from weather.gov into `assets/`.
+- NWS partial-county shapefile `assets/cs16ap26.dbf` (April 2026 vintage) bundled; `_load_county_subdivision_index` now auto-detects the newest `cs*.dbf` in `assets/` and logs a download hint when absent.
+- `install.sh` now runs `tools/download_nws_gis_data.py` after database setup to fetch the latest GIS data.
+
 ## [2.68.0] - 2026-03-23 - Technical debt remediation
 
 ### Changed

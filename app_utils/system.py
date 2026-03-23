@@ -1439,7 +1439,6 @@ def _collect_smart_health(logger, devices: List[Dict[str, Any]]) -> Dict[str, An
 
         # Check if we need sudo (smartctl requires root access to read device data)
         # If smartctl_path doesn't start with /usr or /sbin, or if we're not root, use sudo
-        import os
         use_sudo = os.geteuid() != 0 if hasattr(os, 'geteuid') else True
 
         command = []

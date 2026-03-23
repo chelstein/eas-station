@@ -97,6 +97,8 @@ def test_receiver_config_preserves_auto_start_flag():
         driver = "rtlsdr"
         frequency_hz = 162_550_000
         sample_rate = 2_400_000
+        audio_sample_rate = None
+        frequency_correction_ppm = 0.0
         gain = None
         channel = None
         serial = None
