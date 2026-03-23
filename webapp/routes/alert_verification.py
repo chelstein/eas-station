@@ -53,6 +53,7 @@ from flask import (
 from werkzeug.utils import secure_filename
 
 from app_core.auth.decorators import require_auth, require_role
+from app_core.auth.roles import get_current_user
 from app_core.audio.self_test import (
     AlertSelfTestHarness,
     AlertSelfTestResult,
@@ -1326,7 +1327,8 @@ def register(app: Flask, logger) -> None:
         )
 
         route_logger.info(
-            "Running alert self-test: audio=%s fips=%s cooldown=%s source=%s",
+            "Running alert self-test by user '%s': audio=%s fips=%s cooldown=%s source=%s",
+            getattr(get_current_user(), 'username', 'unknown'),
             ",".join(str(path) for path in resolved_paths),
             ",".join(harness.configured_fips_codes) or "<none>",
             cooldown_value,

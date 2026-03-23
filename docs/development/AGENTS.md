@@ -12,12 +12,13 @@ This document provides coding standards and guidelines for AI agents (including 
 2. **Preserve Existing Patterns**: Follow the established code style and architecture
 3. **Frontend-First Philosophy**: ALL system management, configuration, and monitoring MUST be accessible through the web UI. Users should NEVER need CLI access. Any feature requiring CLI commands must have a web UI equivalent.
 4. **Test Before Commit**: Always verify changes work on bare metal before committing
-5. **Focused Changes**: Keep fixes targeted to the specific issue
-6. **Document Changes**: Update relevant documentation when adding features
-7. **Check Bug Screenshots**: When discussing bugs, always check the `/bugs` directory first for screenshots
-8. **Follow Versioning**: Bug fixes increment by 0.0.+1, feature upgrades increment by 0.+1.0
-9. **File Naming Convention**: When superseding files, rename the old one with `_old` suffix, NEVER use `_new` suffix for replacement files
-10. **Repository Organization**: Every file must live in an appropriate directory unless necessary to be in the root (e.g., `requirements.txt`, `README.md`, `LICENSE`, etc.). Documentation, summaries, and development artifacts belong in the `docs/` directory structure.
+5. **Address ALL Issues Raised**: When a problem statement lists multiple concerns, every concern MUST be addressed. Never hyperfocus on a single item while ignoring others. Read the full problem statement before writing a single line of code, list every distinct issue, and confirm each one is resolved before closing the session. See [Address All Issues — Never Hyperfocus](#-address-all-issues--never-hyperfocus) for the required workflow.
+6. **Focused Changes**: Keep fixes targeted to the specific issue
+7. **Document Changes**: Update relevant documentation when adding features
+8. **Check Bug Screenshots**: When discussing bugs, always check the `/bugs` directory first for screenshots
+9. **Follow Versioning**: Bug fixes increment by 0.0.+1, feature upgrades increment by 0.+1.0
+10. **File Naming Convention**: When superseding files, rename the old one with `_old` suffix, NEVER use `_new` suffix for replacement files
+11. **Repository Organization**: Every file must live in an appropriate directory unless necessary to be in the root (e.g., `requirements.txt`, `README.md`, `LICENSE`, etc.). Documentation, summaries, and development artifacts belong in the `docs/` directory structure.
 
 ## 🐛 Bug Tracking & Screenshots
 
@@ -1505,6 +1506,108 @@ Before committing code, verify:
 
 ---
 
+## 🎯 Address All Issues — Never Hyperfocus
+
+### The Problem
+
+Agents frequently receive problem statements that contain **multiple distinct concerns** — a
+broken UI feature, a failing test suite, a missing capability, and a logging gap, for example.
+There is a strong tendency to latch on to the last item mentioned (or the most concrete one)
+and ship a PR that only fixes that one thing while the other issues remain untouched.
+
+**This is unacceptable.** Every issue the user raised must be addressed in the same session.
+
+---
+
+### Mandatory Workflow for Multi-Issue Problem Statements
+
+**Step 1 — Read the entire problem statement before touching any code.**
+
+Do not start writing code after reading the first sentence.  Read to the end, including any
+screenshots described, CI log links, and inline comments.
+
+**Step 2 — Enumerate every distinct issue.**
+
+Write out a numbered list of every concern the user raised.  If a sentence contains two
+complaints, count them as two issues.
+
+```
+Example problem statement (paraphrased):
+  "I can't hear the decoder feed, the Listen button errors. There should be a way to inject
+  EAS headers for testing. The test suite shows FAILED with no summary. Logs should capture
+  who triggered an alert."
+
+Correct enumeration:
+  1. Listen button broken — errors when clicked
+  2. No EAS header injection mechanism for testing live audio
+  3. Audio Pipeline Test Suite shows FAILED / No summary available
+  4. Logs must record the user who generates an alert
+```
+
+**Step 3 — Plan all items before starting any of them.**
+
+Use `report_progress` to publish the full checklist with every issue before the first code
+change.  Each issue gets its own checklist group.
+
+**Step 4 — Work through every item.**
+
+Do not close the session until every item in the checklist is marked `[x]`.  If an item is
+genuinely impossible (blocked by infrastructure that doesn't exist in this environment),
+document exactly why and propose what the fix would look like.
+
+**Step 5 — When a NEW requirement arrives mid-session, add it to the checklist.**
+
+A new requirement does NOT replace the existing work.  Add it as a new group in the
+checklist and complete it alongside the remaining items — do not abandon unfinished issues
+to address the new one exclusively.
+
+---
+
+### Anti-Pattern (DO NOT DO THIS)
+
+```
+Problem statement: 4 issues (Listen broken, no injection, test suite broken, logging gap)
+New requirement added mid-session: "log the user who generates alerts"
+
+Agent action:
+  ✅ Implements user-logging  ← only this
+  ❌ Listen button still broken
+  ❌ No EAS header injection
+  ❌ Test suite still broken
+```
+
+### Correct Pattern (DO THIS)
+
+```
+Problem statement: 4 issues (Listen broken, no injection, test suite broken, logging gap)
+New requirement added mid-session: "log the user who generates alerts"
+
+Agent action:
+  ✅ Reads ALL issues first
+  ✅ Creates full checklist: items 1–4 + new item 5
+  ✅ Fixes Listen button (item 1)
+  ✅ Adds EAS header injection (item 2)
+  ✅ Fixes test suite (item 3)
+  ✅ Adds user logging (item 4 + 5)
+  ✅ Closes session only when every checkbox is green
+```
+
+---
+
+### Self-Check Before Closing a Session
+
+Before calling `report_progress` for the final time, answer every question:
+
+- [ ] Did I re-read the original problem statement after finishing my last change?
+- [ ] Is every distinct issue from the problem statement addressed?
+- [ ] Is every item in the `report_progress` checklist marked `[x]`?
+- [ ] Did I address any new requirements **in addition to** (not instead of) the originals?
+- [ ] Did I note any item I could not complete and explain why?
+
+If any answer is "no", keep working.
+
+---
+
 ## 🔍 Debugging Patterns & User Interaction
 
 ### CRITICAL: Trust User Bug Reports
@@ -1628,3 +1731,4 @@ Only suggest deployment/cache fixes if:
 - 2024-11-12: Repository automation agent reviewed these guidelines before making any changes. All updates in this session comply with the established standards.
 - 2025-01-14: Updated AGENTS.md with comprehensive theme system documentation, file naming conventions (_old suffix rule), template structure updates (navbar.html active, navbar_old.html deprecated), and JavaScript theme API functions. Added detailed theme architecture section covering all 11 built-in themes, CSS variable structure, import/export functionality, and dark mode best practices.
 - 2025-11-26: Added "Debugging Patterns & User Interaction" section documenting correct debugging approach when users report bugs. Emphasizes investigating code first rather than assuming deployment/cache issues (anti-PEBKAC pattern). Includes common bug patterns, investigation steps, and example bug fix documentation.
+- 2026-03-23: Added "Address All Issues — Never Hyperfocus" section (Core Principle #5) after agent hyperfocused on a single new requirement while ignoring three original issues in the same problem statement. Section mandates reading the full problem statement first, enumerating every distinct issue, building a complete checklist before writing code, and never abandoning original issues when a new requirement arrives mid-session.
