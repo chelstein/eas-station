@@ -6,6 +6,29 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.68.0] - 2026-03-23 - Technical debt remediation
+
+### Changed
+- **`broadcast_adapter.py`** — Replaced bare `except:` clause with `except queue.Empty:` so
+  only actual queue-timeout errors are swallowed; other exceptions propagate normally.
+- **`radio/discovery.py`** — Silent `except Exception: pass` blocks in SoapySDR capability
+  queries now log at `DEBUG` level instead of discarding the error entirely, making it
+  possible to diagnose device-support issues without polluting normal logs.
+- **`routes_settings_radio.py`** — Replaced three generic `raise Exception(error)` calls with
+  `raise ValueError(error)` so the exception type accurately reflects an unexpected value
+  returned from the SDR command bus.
+- **Migration scripts** — Replaced `print()` calls in five Alembic migration files with
+  `logger.info()` / `logger.warning()` using the `alembic.env` logger so migration output
+  flows through the standard logging stack rather than straight to stdout.
+
+### Removed
+- Dead commented-out route `system_logs_page` in `webapp/routes_logs.py` (previously marked
+  DEPRECATED; the route was never registered and the template it referenced no longer
+  exists).
+- Unreachable legacy fallback function `generate_wav_stream` and its surrounding comment
+  block in `webapp/admin/audio_ingest.py` (the code after `return …, 503` could never be
+  reached).
+
 ## [2.67.0] - 2026-03-23 - Per-source EAS decoder monitor streams + test signal injection
 
 ### Added

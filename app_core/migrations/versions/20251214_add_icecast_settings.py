@@ -7,7 +7,10 @@ Create Date: 2025-12-14
 """
 from alembic import op
 import sqlalchemy as sa
+import logging
 import os
+
+logger = logging.getLogger("alembic.env")
 
 
 # revision identifiers, used by Alembic.
@@ -40,7 +43,7 @@ def upgrade():
     inspector = sa.inspect(connection)
     
     if 'icecast_settings' in inspector.get_table_names():
-        print("icecast_settings table already exists, skipping creation")
+        logger.info("icecast_settings table already exists, skipping creation")
         return
     
     # Create icecast_settings table

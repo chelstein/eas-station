@@ -13,9 +13,13 @@ This fixes the root cause of:
 
 from __future__ import annotations
 
+import logging
+
 from alembic import op
 import sqlalchemy as sa
 from sqlalchemy import inspect, text
+
+logger = logging.getLogger("alembic.env")
 
 
 revision = "20251205_audio_sample_rate"
@@ -83,9 +87,9 @@ def upgrade() -> None:
     # Log the migration for debugging
     result = conn.execute(text("SELECT COUNT(*) FROM radio_receivers"))
     count = result.scalar()
-    print(f"✅ Migrated {count} radio receiver(s) to use separate IQ and audio sample rates")
+    logger.info("Migrated %d radio receiver(s) to use separate IQ and audio sample rates", count)
 
-    # Print summary of changes
+    # Log summary of changes
     result = conn.execute(
         text("""
             SELECT
@@ -99,17 +103,15 @@ def upgrade() -> None:
             ORDER BY identifier
         """)
     )
-    print("\nRadio Receiver Sample Rate Configuration:")
-    print("=" * 100)
-    print(f"{'Identifier':<20} {'Driver':<10} {'IQ Rate':<12} {'Audio Rate':<12} {'Modulation':<12} {'Stereo':<8}")
-    print("-" * 100)
     for row in result:
         iq_hz = row[2]
         audio_hz = row[3]
         iq_display = f"{iq_hz / 1_000_000:.2f} MHz" if iq_hz >= 1_000_000 else f"{iq_hz} Hz"
         audio_display = f"{audio_hz / 1_000:.1f} kHz" if audio_hz >= 1_000 else f"{audio_hz} Hz"
-        print(f"{row[0]:<20} {row[1]:<10} {iq_display:<12} {audio_display:<12} {row[4]:<12} {str(row[5]):<8}")
-    print("=" * 100)
+        logger.info(
+            "  %-20s %-10s IQ=%-12s audio=%-12s modulation=%-12s stereo=%s",
+            row[0], row[1], iq_display, audio_display, row[4], row[5],
+        )
 
 
 def downgrade() -> None:

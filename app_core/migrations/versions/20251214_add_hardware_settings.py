@@ -8,8 +8,11 @@ Create Date: 2025-12-14
 from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
+import logging
 import os
 import json
+
+logger = logging.getLogger("alembic.env")
 
 
 # revision identifiers, used by Alembic.
@@ -65,7 +68,7 @@ def upgrade():
     inspector = sa.inspect(connection)
     
     if 'hardware_settings' in inspector.get_table_names():
-        print("hardware_settings table already exists, skipping creation")
+        logger.info("hardware_settings table already exists, skipping creation")
         return
     
     # Create hardware_settings table

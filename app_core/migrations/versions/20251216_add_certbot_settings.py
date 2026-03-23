@@ -7,7 +7,10 @@ Create Date: 2025-12-16
 """
 from alembic import op
 import sqlalchemy as sa
+import logging
 import os
+
+logger = logging.getLogger("alembic.env")
 
 
 # revision identifiers, used by Alembic.
@@ -40,7 +43,7 @@ def upgrade():
     inspector = sa.inspect(connection)
     
     if 'certbot_settings' in inspector.get_table_names():
-        print("certbot_settings table already exists, skipping creation")
+        logger.info("certbot_settings table already exists, skipping creation")
         return
     
     # Create certbot_settings table
