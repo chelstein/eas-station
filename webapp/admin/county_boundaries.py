@@ -9,6 +9,9 @@ from pathlib import Path
 from flask import Blueprint, jsonify, render_template, request, current_app
 from werkzeug.utils import secure_filename
 
+from flask import Response
+from sqlalchemy import text
+
 from app_core.auth.roles import require_permission
 from app_core.county_boundaries import (
     delete_counties,
@@ -18,6 +21,8 @@ from app_core.county_boundaries import (
     search_counties,
     STATE_ABBREV_TO_FIPS,
 )
+from app_core.extensions import db
+from app_core.models import USCountyBoundary
 
 logger = logging.getLogger(__name__)
 
@@ -163,6 +168,66 @@ def county_boundaries_delete():
         "message": f"Deleted {count} county boundaries{label}",
         "deleted": count,
     })
+
+
+@county_boundaries_bp.route("/county_boundaries/geojson")
+@require_permission("system.configure")
+def county_boundaries_geojson():
+    """Return county boundaries as a GeoJSON FeatureCollection.
+
+    Query params:
+        state  – two-letter state abbreviation (required; limits payload size)
+    """
+    state_filter = request.args.get("state", "").strip().upper()
+    if not state_filter:
+        return jsonify({"error": "state parameter is required"}), 400
+
+    state_fips = STATE_ABBREV_TO_FIPS.get(state_filter)
+    if not state_fips:
+        return jsonify({"error": f"Unknown state abbreviation: {state_filter}"}), 400
+
+    try:
+        rows = db.session.execute(
+            text(
+                """
+                SELECT
+                    geoid,
+                    name,
+                    namelsad,
+                    stusps,
+                    state_name,
+                    statefp,
+                    countyfp,
+                    ST_AsGeoJSON(geom, 5)::text AS geom_json
+                FROM us_county_boundaries
+                WHERE statefp = :statefp AND geom IS NOT NULL
+                ORDER BY name
+                """
+            ),
+            {"statefp": state_fips},
+        ).fetchall()
+    except Exception as exc:
+        current_app.logger.warning("County boundaries GeoJSON query failed: %s", exc)
+        return jsonify({"error": "Database query failed"}), 500
+
+    features = []
+    for row in rows:
+        import json as _json
+        features.append({
+            "type": "Feature",
+            "geometry": _json.loads(row.geom_json),
+            "properties": {
+                "geoid": row.geoid,
+                "name": row.name,
+                "namelsad": row.namelsad or row.name,
+                "stusps": row.stusps,
+                "state_name": row.state_name,
+                "same_code": f"0{row.statefp}{row.countyfp}",
+            },
+        })
+
+    geojson = _json.dumps({"type": "FeatureCollection", "features": features})
+    return Response(geojson, mimetype="application/geo+json")
 
 
 __all__ = ["county_boundaries_bp"]

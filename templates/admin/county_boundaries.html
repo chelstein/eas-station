@@ -63,6 +63,45 @@
         </div>
     </div>
 
+    <!-- Interactive Map -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <h5 class="mb-0"><i class="fas fa-map-marked-alt"></i> County Boundary Map</h5>
+                    <div class="d-flex align-items-center gap-2">
+                        <select id="map-state-select" class="form-select form-select-sm" style="max-width: 200px;">
+                            <option value="">— Select a State —</option>
+                            {% for state in loaded_states %}
+                            <option value="{{ state.stusps }}">{{ state.state_name }} ({{ state.county_count }})</option>
+                            {% endfor %}
+                        </select>
+                        <button id="map-clear-btn" class="btn btn-sm btn-outline-secondary" title="Clear map">
+                            <i class="fas fa-times"></i> Clear
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    {% if total_counties == 0 %}
+                    <div class="p-4 text-center text-muted">
+                        <i class="fas fa-map fa-3x mb-3 d-block"></i>
+                        No county boundaries loaded. Use the actions below to import data, then return here to view the map.
+                    </div>
+                    {% else %}
+                    <div id="county-map" style="height: 500px; width: 100%; border-radius: 0 0 var(--bs-card-border-radius) var(--bs-card-border-radius);"></div>
+                    <div id="map-loading" class="p-2 text-center text-muted d-none">
+                        <i class="fas fa-spinner fa-spin"></i> Loading county boundaries…
+                    </div>
+                    <div id="map-info-bar" class="px-3 py-2 small text-muted border-top d-none">
+                        <i class="fas fa-mouse-pointer"></i> Click a county to see details.
+                        <span id="map-county-info" class="ms-2 fw-bold"></span>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Actions -->
     <div class="row mb-4">
         <div class="col-12">
@@ -158,6 +197,10 @@
                                     <td><code>{{ state.stusps }}</code></td>
                                     <td>{{ state.county_count }}</td>
                                     <td>
+                                        <button class="btn btn-sm btn-outline-secondary view-state-map-btn me-1"
+                                                data-state="{{ state.stusps }}" title="View on map">
+                                            <i class="fas fa-map-marked-alt"></i>
+                                        </button>
                                         <button class="btn btn-sm btn-outline-danger delete-state-btn" data-state="{{ state.stusps }}">
                                             <i class="fas fa-trash-alt"></i>
                                         </button>
@@ -203,6 +246,7 @@
 .county-result {
     padding: 10px;
     border-bottom: 1px solid var(--border-color, #dee2e6);
+    cursor: pointer;
 }
 .county-result:last-child {
     border-bottom: none;
@@ -213,6 +257,9 @@
 .county-code {
     font-weight: bold;
     color: var(--primary-color);
+}
+#county-map .leaflet-container {
+    background: var(--bg-color, #fff);
 }
 </style>
 
@@ -242,7 +289,111 @@ function createToastContainer() {
     return container;
 }
 
-// Load from bundled shapefile
+// ── Interactive Map ──────────────────────────────────────────────────────────
+{% if total_counties > 0 %}
+let countyMap = null;
+let countyLayer = null;
+
+function initMap() {
+    countyMap = L.map('county-map', { preferCanvas: true }).setView([39.5, -98.35], 4);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors',
+        maxZoom: 18,
+    }).addTo(countyMap);
+}
+
+function loadStateOnMap(stateAbbrev) {
+    if (!stateAbbrev) return;
+
+    const loading = document.getElementById('map-loading');
+    const infoBar = document.getElementById('map-info-bar');
+    loading.classList.remove('d-none');
+    infoBar.classList.add('d-none');
+    document.getElementById('map-county-info').textContent = '';
+
+    if (countyLayer) {
+        countyMap.removeLayer(countyLayer);
+        countyLayer = null;
+    }
+
+    fetch(`/admin/county_boundaries/geojson?state=${encodeURIComponent(stateAbbrev)}`)
+        .then(r => r.json())
+        .then(geojson => {
+            loading.classList.add('d-none');
+
+            if (!geojson.features || geojson.features.length === 0) {
+                showToast('No county boundaries found for ' + stateAbbrev, 'warning');
+                return;
+            }
+
+            countyLayer = L.geoJSON(geojson, {
+                style: {
+                    color: '#2563eb',
+                    weight: 1.5,
+                    opacity: 0.8,
+                    fillColor: '#3b82f6',
+                    fillOpacity: 0.15,
+                },
+                onEachFeature: function(feature, layer) {
+                    const p = feature.properties;
+                    layer.bindPopup(
+                        `<strong>${p.namelsad}</strong><br>` +
+                        `GEOID: <code>${p.geoid}</code><br>` +
+                        `SAME: <code>${p.same_code}</code><br>` +
+                        `${p.state_name}`
+                    );
+                    layer.on('mouseover', function() {
+                        this.setStyle({ fillOpacity: 0.45, weight: 2.5 });
+                    });
+                    layer.on('mouseout', function() {
+                        countyLayer.resetStyle(this);
+                    });
+                    layer.on('click', function() {
+                        const info = document.getElementById('map-county-info');
+                        info.textContent = `${p.namelsad} — GEOID: ${p.geoid}  SAME: ${p.same_code}`;
+                        infoBar.classList.remove('d-none');
+                    });
+                },
+            }).addTo(countyMap);
+
+            countyMap.fitBounds(countyLayer.getBounds(), { padding: [20, 20] });
+        })
+        .catch(err => {
+            loading.classList.add('d-none');
+            showToast('Failed to load map data: ' + err.message, 'danger');
+        });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    initMap();
+
+    document.getElementById('map-state-select').addEventListener('change', function() {
+        loadStateOnMap(this.value);
+    });
+
+    document.getElementById('map-clear-btn').addEventListener('click', function() {
+        if (countyLayer) {
+            countyMap.removeLayer(countyLayer);
+            countyLayer = null;
+        }
+        document.getElementById('map-state-select').value = '';
+        document.getElementById('map-info-bar').classList.add('d-none');
+        countyMap.setView([39.5, -98.35], 4);
+    });
+
+    // "View on map" buttons in the states table
+    document.querySelectorAll('.view-state-map-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const st = this.dataset.state;
+            document.getElementById('map-state-select').value = st;
+            loadStateOnMap(st);
+            document.getElementById('county-map').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+    });
+});
+{% endif %}
+
+// ── Load from bundled shapefile ───────────────────────────────────────────────
 document.getElementById('load-bundled-btn').addEventListener('click', async () => {
     const btn = document.getElementById('load-bundled-btn');
     const state = document.getElementById('load-state-filter').value;
@@ -375,7 +526,7 @@ document.getElementById('county-search').addEventListener('input', (e) => {
             if (data.results && data.results.length > 0) {
                 let html = `<p class="text-muted mb-2">Found ${data.count} results</p>`;
                 data.results.forEach(c => {
-                    html += `<div class="county-result">
+                    html += `<div class="county-result" data-state="${c.stusps || ''}">
                         <span class="county-code">${c.geoid}</span>
                         <span class="ms-2">${c.namelsad || c.name}</span>
                         <span class="text-muted ms-2">${c.stusps || ''}</span>
@@ -383,6 +534,19 @@ document.getElementById('county-search').addEventListener('input', (e) => {
                     </div>`;
                 });
                 document.getElementById('search-results').innerHTML = html;
+
+                {% if total_counties > 0 %}
+                // Clicking a search result shows that state on the map
+                document.querySelectorAll('#search-results .county-result').forEach(row => {
+                    row.addEventListener('click', function() {
+                        const st = this.dataset.state;
+                        if (!st) return;
+                        document.getElementById('map-state-select').value = st;
+                        loadStateOnMap(st);
+                        document.getElementById('county-map').scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    });
+                });
+                {% endif %}
             } else {
                 document.getElementById('search-results').innerHTML =
                     '<p class="text-muted">No matching counties found</p>';

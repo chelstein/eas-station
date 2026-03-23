@@ -118,9 +118,12 @@ def try_build_geometry_from_same_codes(alert_id: int) -> bool:
                 state_fp = code[1:3] if len(code) == 6 else code.lstrip('0')[:2]
                 statewide_state_fps.add(state_fp)
                 continue
-            geoid = code.lstrip('0')
-            if len(geoid) >= 4:
-                geoids.add(geoid)
+            # SAME codes are always 6 chars: 0SSCCC.  Drop the single leading
+            # prefix zero to obtain the 5-digit Census GEOID (SSCCC).
+            # Using lstrip('0') would over-strip codes for states 01-09
+            # (e.g. "001001" → "1001" instead of the correct "01001").
+            geoid = code[1:]
+            geoids.add(geoid)
 
         if not geoids and not statewide_state_fps:
             return False
