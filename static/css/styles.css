@@ -2730,6 +2730,13 @@ textarea:focus {
     margin-top: 0.5rem;
 }
 
+/* Scrollable dropdown for long menus (e.g. Settings + Tools combined) */
+.navbar .dropdown-menu-scrollable {
+    max-height: 80vh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}
+
 .dropdown-header {
     color: var(--text-secondary);
     font-weight: var(--font-weight-semibold);

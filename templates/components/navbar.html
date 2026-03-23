@@ -182,28 +182,29 @@
                     </li>
                     {% endif %}
 
-                    <!-- Settings & Configuration -->
-                    {% if show_settings_dropdown %}
-                    <li class="nav-item">
-                        <a class="nav-link" href="/settings">
-                            <i class="fas fa-cog"></i>
-                            <span>Settings</span>
-                        </a>
-                    </li>
-                    {% endif %}
-
-                    <!-- Tools & Diagnostics -->
+                    <!-- Settings & Tools -->
+                    {% if show_settings_dropdown or is_authenticated %}
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle"
                            href="#"
-                           id="toolsDropdown"
+                           id="settingsDropdown"
                            role="button"
                            data-bs-toggle="dropdown"
                            aria-expanded="false">
-                            <i class="fas fa-wrench"></i>
-                            <span>Tools</span>
+                            <i class="fas fa-cog"></i>
+                            <span>Settings</span>
                         </a>
-                        <ul class="dropdown-menu" aria-labelledby="toolsDropdown">
+                        <ul class="dropdown-menu dropdown-menu-scrollable" aria-labelledby="settingsDropdown">
+                            {% if show_settings_dropdown %}
+                            <li><h6 class="dropdown-header">Configuration</h6></li>
+                            <li>
+                                <a class="dropdown-item" href="/settings">
+                                    <i class="fas fa-sliders"></i> System Settings
+                                </a>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            {% endif %}
+
                             <li><h6 class="dropdown-header">Observability</h6></li>
                             <li>
                                 <a class="dropdown-item" href="/diagnostics">
@@ -311,6 +312,7 @@
                             {% endif %}
                         </ul>
                     </li>
+                    {% endif %}
 
                     <!-- Help & Documentation -->
                     <li class="nav-item dropdown">

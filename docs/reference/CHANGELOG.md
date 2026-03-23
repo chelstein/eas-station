@@ -6,6 +6,15 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.66.1] - 2026-03-23 - Consolidate Tools menu into Settings dropdown
+
+### Fixed
+- **Navbar Tools menu overflow** — The standalone "Tools" dropdown was too long to fit on
+  screen with no way to scroll. All Tools sections (Observability, Analytics & Reporting,
+  Testing & Validation, Data Continuity) have been moved under a new "Settings" dropdown
+  that also contains the link to System Settings. The combined dropdown uses
+  `max-height: 80vh; overflow-y: auto` so it always scrolls on short viewports.
+
 ## [2.66.0] - 2026-03-23 - EAS ingest Icecast stream, Listen button fix, working test suite
 
 ### Added
