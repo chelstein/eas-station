@@ -5,6 +5,18 @@
 {% block extra_css %}
 <!-- Leaflet CSS (local to avoid CDN tracking prevention) -->
 <link rel="stylesheet" href="{{ url_for('static', filename='vendor/leaflet/leaflet.css') }}" />
+<style>
+.county-result {
+    padding: 10px;
+    border-bottom: 1px solid var(--border-color, #dee2e6);
+    cursor: pointer;
+}
+.county-result:last-child { border-bottom: none; }
+.county-result:hover { background-color: var(--hover-bg, #f8f9fa); }
+.county-code { font-weight: bold; color: var(--primary-color); }
+.lookup-found { background-color: rgba(25,135,84,.08); }
+.lookup-missing { background-color: rgba(220,53,69,.08); }
+</style>
 {% endblock %}
 
 {% block content %}
@@ -102,71 +114,6 @@
                         {% endif %}
                     </h3>
                     <p class="card-text"><small>Census 2024 county shapefile</small></p>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    {# ── SAME-code / GEOID lookup ─────────────────────────────────────────── #}
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="mb-0"><i class="fas fa-stethoscope"></i> Table Lookup / Diagnostics</h5>
-                </div>
-                <div class="card-body">
-                    <p class="text-muted small mb-3">
-                        Enter one or more SAME codes (6-digit, e.g. <code>039137</code>) or Census
-                        GEOIDs (5-digit, e.g. <code>39137</code>) to verify they are present in the
-                        database.  This is the same lookup used by the alert coverage map engine.
-                    </p>
-                    <div class="input-group mb-3" style="max-width: 600px;">
-                        <input type="text" class="form-control" id="lookup-input"
-                               placeholder="039137, 001001, 06037  (SAME or GEOID, comma-separated)">
-                        <button class="btn btn-primary" id="lookup-btn">
-                            <i class="fas fa-search"></i> Look Up
-                        </button>
-                    </div>
-                    <div id="lookup-results"></div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    {# ── Interactive Map ──────────────────────────────────────────────────── #}
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="card">
-                <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
-                    <h5 class="mb-0"><i class="fas fa-map-marked-alt"></i> County Boundary Map</h5>
-                    <div class="d-flex align-items-center gap-2">
-                        <select id="map-state-select" class="form-select form-select-sm" style="max-width: 220px;">
-                            <option value="">— Select a State —</option>
-                            {% for state in loaded_states %}
-                            <option value="{{ state.stusps }}">{{ state.state_name }} ({{ state.county_count }})</option>
-                            {% endfor %}
-                        </select>
-                        <button id="map-clear-btn" class="btn btn-sm btn-outline-secondary" title="Clear map">
-                            <i class="fas fa-times"></i> Clear
-                        </button>
-                    </div>
-                </div>
-                <div class="card-body p-0">
-                    {% if total_counties == 0 %}
-                    <div class="p-4 text-center text-muted">
-                        <i class="fas fa-map fa-3x mb-3 d-block"></i>
-                        No county boundaries loaded. Import data below, then return here to view the map.
-                    </div>
-                    {% else %}
-                    <div id="county-map" style="height: 500px; width: 100%; border-radius: 0 0 var(--bs-card-border-radius) var(--bs-card-border-radius);"></div>
-                    <div id="map-loading" class="p-2 text-center text-muted d-none">
-                        <i class="fas fa-spinner fa-spin"></i> Loading county boundaries…
-                    </div>
-                    <div id="map-info-bar" class="px-3 py-2 small text-muted border-top d-none">
-                        <i class="fas fa-mouse-pointer"></i> Click a county to see details.
-                        <span id="map-county-info" class="ms-2 fw-bold"></span>
-                    </div>
-                    {% endif %}
                 </div>
             </div>
         </div>
@@ -296,6 +243,45 @@
         </div>
     </div>
 
+    {# ── Interactive Map ──────────────────────────────────────────────────── #}
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <h5 class="mb-0"><i class="fas fa-map-marked-alt"></i> County Boundary Map</h5>
+                    <div class="d-flex align-items-center gap-2">
+                        <select id="map-state-select" class="form-select form-select-sm" style="max-width: 220px;">
+                            <option value="">— Select a State —</option>
+                            {% for state in loaded_states %}
+                            <option value="{{ state.stusps }}">{{ state.state_name }} ({{ state.county_count }})</option>
+                            {% endfor %}
+                        </select>
+                        <button id="map-clear-btn" class="btn btn-sm btn-outline-secondary" title="Clear map">
+                            <i class="fas fa-times"></i> Clear
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    {% if total_counties == 0 %}
+                    <div class="p-4 text-center text-muted">
+                        <i class="fas fa-map fa-3x mb-3 d-block"></i>
+                        No county boundaries loaded. Import data below, then return here to view the map.
+                    </div>
+                    {% else %}
+                    <div id="county-map" style="height: 500px; width: 100%; border-radius: 0 0 var(--bs-card-border-radius) var(--bs-card-border-radius);"></div>
+                    <div id="map-loading" class="p-2 text-center text-muted d-none">
+                        <i class="fas fa-spinner fa-spin"></i> Loading county boundaries…
+                    </div>
+                    <div id="map-info-bar" class="px-3 py-2 small text-muted border-top d-none">
+                        <i class="fas fa-mouse-pointer"></i> Click a county to see details.
+                        <span id="map-county-info" class="ms-2 fw-bold"></span>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
     {# ── County Search ───────────────────────────────────────────────────── #}
     <div class="row mb-4">
         <div class="col-12">
@@ -311,6 +297,32 @@
                     <div id="search-results">
                         <p class="text-muted">Enter search terms to find counties</p>
                     </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {# ── SAME-code / GEOID lookup ─────────────────────────────────────────── #}
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-stethoscope"></i> Table Lookup / Diagnostics</h5>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted small mb-3">
+                        Enter one or more SAME codes (6-digit, e.g. <code>039137</code>) or Census
+                        GEOIDs (5-digit, e.g. <code>39137</code>) to verify they are present in the
+                        database.  This is the same lookup used by the alert coverage map engine.
+                    </p>
+                    <div class="input-group mb-3" style="max-width: 600px;">
+                        <input type="text" class="form-control" id="lookup-input"
+                               placeholder="039137, 001001, 06037  (SAME or GEOID, comma-separated)">
+                        <button class="btn btn-primary" id="lookup-btn">
+                            <i class="fas fa-search"></i> Look Up
+                        </button>
+                    </div>
+                    <div id="lookup-results"></div>
                 </div>
             </div>
         </div>
@@ -404,19 +416,11 @@ GET /admin/county_boundaries/geojson?state=OH</pre>
     </div>
 
 </div>{# /container-fluid #}
+{% endblock %}
 
-<style>
-.county-result {
-    padding: 10px;
-    border-bottom: 1px solid var(--border-color, #dee2e6);
-    cursor: pointer;
-}
-.county-result:last-child { border-bottom: none; }
-.county-result:hover { background-color: var(--hover-bg, #f8f9fa); }
-.county-code { font-weight: bold; color: var(--primary-color); }
-.lookup-found { background-color: rgba(25,135,84,.08); }
-.lookup-missing { background-color: rgba(220,53,69,.08); }
-</style>
+{% block scripts %}
+<!-- Leaflet JS (local to avoid CDN tracking prevention) -->
+<script src="{{ url_for('static', filename='vendor/leaflet/leaflet.min.js') }}"></script>
 
 <script>
 function showToast(message, type = 'info') {
