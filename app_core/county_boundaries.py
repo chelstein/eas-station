@@ -303,4 +303,6 @@ __all__ = [
     "delete_counties",
     "STATE_ABBREV_TO_FIPS",
     "STATE_FIPS_TO_ABBREV",
+    "_find_bundled_shapefile",
+    "_table_exists",
 ]

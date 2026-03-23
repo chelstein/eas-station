@@ -11,6 +11,30 @@
 </div>
 
 <div class="container-fluid mt-4">
+
+    {# ── Table-status banner ─────────────────────────────────────────────── #}
+    {% if not table_exists %}
+    <div class="alert alert-danger">
+        <i class="fas fa-exclamation-triangle"></i>
+        <strong>Table Missing:</strong> The <code>us_county_boundaries</code> table does not exist in the
+        database. Run <code>alembic upgrade head</code> (or restart the app once to let it auto-create
+        tables), then load the bundled shapefile below.
+    </div>
+    {% elif total_counties == 0 %}
+    <div class="alert alert-warning">
+        <i class="fas fa-database"></i>
+        <strong>Table empty:</strong> The <code>us_county_boundaries</code> table exists but has no rows.
+        Use <em>Load from Bundled Shapefile</em> below to populate it — this only needs to be done once.
+    </div>
+    {% else %}
+    <div class="alert alert-success">
+        <i class="fas fa-check-circle"></i>
+        <strong>{{ total_counties|int }} county boundaries loaded</strong> across
+        {{ loaded_states|length }} state(s). IPAWS alerts with SAME geocodes will render highlighted
+        county outlines automatically.
+    </div>
+    {% endif %}
+
     <div class="row">
         <div class="col-12">
             <div class="alert alert-info">
@@ -26,27 +50,42 @@
         </div>
     </div>
 
-    <!-- Status Cards -->
+    {# ── Status Cards ────────────────────────────────────────────────────── #}
     <div class="row mb-4">
-        <div class="col-md-4">
+        <div class="col-md-3">
             <div class="card">
                 <div class="card-body">
-                    <h6 class="card-subtitle mb-2 text-muted">Total Counties Loaded</h6>
-                    <h3 class="card-title" id="total-count">{{ total_counties }}</h3>
-                    <p class="card-text"><small>US county boundaries in database</small></p>
+                    <h6 class="card-subtitle mb-2 text-muted">DB Table</h6>
+                    <h3 class="card-title">
+                        {% if table_exists %}
+                        <i class="fas fa-check-circle text-success"></i> Present
+                        {% else %}
+                        <i class="fas fa-times-circle text-danger"></i> Missing
+                        {% endif %}
+                    </h3>
+                    <p class="card-text"><small><code>us_county_boundaries</code></small></p>
                 </div>
             </div>
         </div>
-        <div class="col-md-4">
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body">
+                    <h6 class="card-subtitle mb-2 text-muted">Counties Loaded</h6>
+                    <h3 class="card-title" id="total-count">{{ total_counties }}</h3>
+                    <p class="card-text"><small>rows in database</small></p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
             <div class="card">
                 <div class="card-body">
                     <h6 class="card-subtitle mb-2 text-muted">States Loaded</h6>
                     <h3 class="card-title" id="state-count">{{ loaded_states|length }}</h3>
-                    <p class="card-text"><small>States with county data</small></p>
+                    <p class="card-text"><small>states with county data</small></p>
                 </div>
             </div>
         </div>
-        <div class="col-md-4">
+        <div class="col-md-3">
             <div class="card">
                 <div class="card-body">
                     <h6 class="card-subtitle mb-2 text-muted">Bundled Shapefile</h6>
@@ -63,7 +102,72 @@
         </div>
     </div>
 
-    <!-- Actions -->
+    {# ── SAME-code / GEOID lookup ─────────────────────────────────────────── #}
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-stethoscope"></i> Table Lookup / Diagnostics</h5>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted small mb-3">
+                        Enter one or more SAME codes (6-digit, e.g. <code>039137</code>) or Census
+                        GEOIDs (5-digit, e.g. <code>39137</code>) to verify they are present in the
+                        database.  This is the same lookup used by the alert coverage map engine.
+                    </p>
+                    <div class="input-group mb-3" style="max-width: 600px;">
+                        <input type="text" class="form-control" id="lookup-input"
+                               placeholder="039137, 001001, 06037  (SAME or GEOID, comma-separated)">
+                        <button class="btn btn-primary" id="lookup-btn">
+                            <i class="fas fa-search"></i> Look Up
+                        </button>
+                    </div>
+                    <div id="lookup-results"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {# ── Interactive Map ──────────────────────────────────────────────────── #}
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <h5 class="mb-0"><i class="fas fa-map-marked-alt"></i> County Boundary Map</h5>
+                    <div class="d-flex align-items-center gap-2">
+                        <select id="map-state-select" class="form-select form-select-sm" style="max-width: 220px;">
+                            <option value="">— Select a State —</option>
+                            {% for state in loaded_states %}
+                            <option value="{{ state.stusps }}">{{ state.state_name }} ({{ state.county_count }})</option>
+                            {% endfor %}
+                        </select>
+                        <button id="map-clear-btn" class="btn btn-sm btn-outline-secondary" title="Clear map">
+                            <i class="fas fa-times"></i> Clear
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    {% if total_counties == 0 %}
+                    <div class="p-4 text-center text-muted">
+                        <i class="fas fa-map fa-3x mb-3 d-block"></i>
+                        No county boundaries loaded. Import data below, then return here to view the map.
+                    </div>
+                    {% else %}
+                    <div id="county-map" style="height: 500px; width: 100%; border-radius: 0 0 var(--bs-card-border-radius) var(--bs-card-border-radius);"></div>
+                    <div id="map-loading" class="p-2 text-center text-muted d-none">
+                        <i class="fas fa-spinner fa-spin"></i> Loading county boundaries…
+                    </div>
+                    <div id="map-info-bar" class="px-3 py-2 small text-muted border-top d-none">
+                        <i class="fas fa-mouse-pointer"></i> Click a county to see details.
+                        <span id="map-county-info" class="ms-2 fw-bold"></span>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {# ── Load / Upload actions ────────────────────────────────────────────── #}
     <div class="row mb-4">
         <div class="col-12">
             <div class="card">
@@ -78,9 +182,14 @@
                                 Load county boundaries from the included Census TIGER/Line shapefile.
                                 Optionally filter by state.
                             </p>
+                            {% if bundled_shapefile_path %}
+                            <p class="text-muted small">
+                                <i class="fas fa-file-archive"></i> <code>{{ bundled_shapefile_path }}</code>
+                            </p>
+                            {% endif %}
                             <div class="input-group mb-2">
                                 <select class="form-select" id="load-state-filter" style="max-width: 200px;">
-                                    <option value="">All States ({{ "3,235 counties" }})</option>
+                                    <option value="">All States (&asymp;&nbsp;3,235 counties)</option>
                                     {% for st in state_list %}
                                     <option value="{{ st }}">{{ st }}</option>
                                     {% endfor %}
@@ -99,7 +208,7 @@
                         <div class="col-md-6 mb-3">
                             <h6>Upload Custom Shapefile</h6>
                             <p class="text-muted">
-                                Upload a .zip shapefile archive with county boundaries.
+                                Upload a <code>.zip</code> shapefile archive with county boundaries.
                             </p>
                             <form id="upload-form" enctype="multipart/form-data">
                                 <div class="mb-2">
@@ -124,7 +233,7 @@
         </div>
     </div>
 
-    <!-- Loaded States Table -->
+    {# ── Loaded States Table ──────────────────────────────────────────────── #}
     <div class="row mb-4">
         <div class="col-12">
             <div class="card">
@@ -158,6 +267,10 @@
                                     <td><code>{{ state.stusps }}</code></td>
                                     <td>{{ state.county_count }}</td>
                                     <td>
+                                        <button class="btn btn-sm btn-outline-secondary view-state-map-btn me-1"
+                                                data-state="{{ state.stusps }}" title="View on map">
+                                            <i class="fas fa-map-marked-alt"></i>
+                                        </button>
                                         <button class="btn btn-sm btn-outline-danger delete-state-btn" data-state="{{ state.stusps }}">
                                             <i class="fas fa-trash-alt"></i>
                                         </button>
@@ -178,8 +291,8 @@
         </div>
     </div>
 
-    <!-- County Search -->
-    <div class="row">
+    {# ── County Search ───────────────────────────────────────────────────── #}
+    <div class="row mb-4">
         <div class="col-12">
             <div class="card">
                 <div class="card-header">
@@ -197,23 +310,107 @@
             </div>
         </div>
     </div>
-</div>
+
+    {# ── Inline Documentation ─────────────────────────────────────────────── #}
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-book"></i> How County Boundaries Work</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6><i class="fas fa-question-circle text-primary"></i> What is this table for?</h6>
+                            <p class="small text-muted">
+                                IPAWS/NWS alerts often carry <strong>SAME geocodes</strong> (6-digit codes like
+                                <code>039137</code>) instead of a polygon.  EAS Station converts those codes into
+                                highlighted county outlines on the alert detail map by looking up each code in
+                                <code>us_county_boundaries</code>.  Without this table, those alerts show
+                                "Alert has no geographic data."
+                            </p>
+
+                            <h6 class="mt-3"><i class="fas fa-code text-primary"></i> SAME code format</h6>
+                            <p class="small text-muted">
+                                A 6-digit code: <code>0&thinsp;SS&thinsp;CCC</code> where <code>SS</code> is the
+                                2-digit state FIPS and <code>CCC</code> the 3-digit county FIPS.
+                            </p>
+                            <table class="table table-sm table-bordered small">
+                                <thead><tr><th>SAME Code</th><th>State FIPS</th><th>County FIPS</th><th>Census GEOID</th><th>County</th></tr></thead>
+                                <tbody>
+                                    <tr><td><code>039137</code></td><td>39</td><td>137</td><td>39137</td><td>Putnam, OH</td></tr>
+                                    <tr><td><code>001001</code></td><td>01</td><td>001</td><td>01001</td><td>Autauga, AL</td></tr>
+                                    <tr><td><code>006037</code></td><td>06</td><td>037</td><td>06037</td><td>Los Angeles, CA</td></tr>
+                                    <tr><td><code>039000</code></td><td>39</td><td>000</td><td>–</td><td><em>All of Ohio (statewide)</em></td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="col-md-6">
+                            <h6><i class="fas fa-download text-primary"></i> How to load the data</h6>
+                            <ol class="small text-muted">
+                                <li>
+                                    <strong>Automatic (recommended):</strong> EAS Station auto-loads the bundled
+                                    Census shapefile on first startup if the table is empty.
+                                    {% if bundled_shapefile_available %}
+                                    <br><span class="text-success"><i class="fas fa-check-circle"></i>
+                                    Bundled file found at <code>{{ bundled_shapefile_path }}</code></span>
+                                    {% else %}
+                                    <br><span class="text-warning"><i class="fas fa-exclamation-triangle"></i>
+                                    Bundled file not found — use the Upload option below or re-run
+                                    <code>update.sh</code>.</span>
+                                    {% endif %}
+                                </li>
+                                <li class="mt-2">
+                                    <strong>Manual (admin UI):</strong> Click <em>Load Counties</em> in the
+                                    "Load County Boundaries" section above.  You can filter to one state to
+                                    load incrementally.
+                                </li>
+                                <li class="mt-2">
+                                    <strong>Command line:</strong>
+                                    <pre class="bg-dark text-light p-2 rounded small mt-1">cd /opt/eas-station
+source venv/bin/activate
+python scripts/load_us_county_boundaries.py</pre>
+                                </li>
+                                <li class="mt-2">
+                                    <strong>Download fresh shapefile</strong> from the Census Bureau (if the
+                                    bundled file is out of date):
+                                    <br>
+                                    <a href="https://www.census.gov/geographies/mapping-files/time-series/geo/cartographic-boundary.html"
+                                       target="_blank" rel="noopener noreferrer" class="small">
+                                        census.gov → Cartographic Boundary Files → Counties
+                                        <i class="fas fa-external-link-alt fa-sm"></i>
+                                    </a>
+                                    — download the 500k ZIP, then use <em>Upload Custom Shapefile</em> above.
+                                </li>
+                            </ol>
+
+                            <h6 class="mt-3"><i class="fas fa-terminal text-primary"></i> Verify via API</h6>
+                            <p class="small text-muted">
+                                Check table status programmatically:
+                            </p>
+                            <pre class="bg-dark text-light p-2 rounded small">GET /admin/county_boundaries/status
+GET /admin/county_boundaries/lookup?same=039137,001001
+GET /admin/county_boundaries/geojson?state=OH</pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>{# /container-fluid #}
 
 <style>
 .county-result {
     padding: 10px;
     border-bottom: 1px solid var(--border-color, #dee2e6);
+    cursor: pointer;
 }
-.county-result:last-child {
-    border-bottom: none;
-}
-.county-result:hover {
-    background-color: var(--hover-bg, #f8f9fa);
-}
-.county-code {
-    font-weight: bold;
-    color: var(--primary-color);
-}
+.county-result:last-child { border-bottom: none; }
+.county-result:hover { background-color: var(--hover-bg, #f8f9fa); }
+.county-code { font-weight: bold; color: var(--primary-color); }
+.lookup-found { background-color: rgba(25,135,84,.08); }
+.lookup-missing { background-color: rgba(220,53,69,.08); }
 </style>
 
 <script>
@@ -226,42 +423,182 @@ function showToast(message, type = 'info') {
         <div class="d-flex">
             <div class="toast-body">${message}</div>
             <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
-        </div>
-    `;
+        </div>`;
     toastContainer.appendChild(toast);
     const bsToast = new bootstrap.Toast(toast);
     bsToast.show();
     toast.addEventListener('hidden.bs.toast', () => toast.remove());
 }
-
 function createToastContainer() {
-    const container = document.createElement('div');
-    container.id = 'toast-container';
-    container.className = 'toast-container position-fixed top-0 end-0 p-3';
-    document.body.appendChild(container);
-    return container;
+    const c = document.createElement('div');
+    c.id = 'toast-container';
+    c.className = 'toast-container position-fixed top-0 end-0 p-3';
+    document.body.appendChild(c);
+    return c;
 }
 
-// Load from bundled shapefile
+// ── SAME / GEOID lookup ────────────────────────────────────────────────────
+document.getElementById('lookup-btn').addEventListener('click', async () => {
+    const raw = document.getElementById('lookup-input').value.trim();
+    if (!raw) return;
+
+    // Detect if tokens look like SAME codes (6 digits) or GEOIDs (5 digits or fewer)
+    const tokens = raw.split(',').map(t => t.trim()).filter(Boolean);
+    const sameCodes = tokens.filter(t => /^\d{6}$/.test(t));
+    const geoids   = tokens.filter(t => /^\d{1,5}$/.test(t) && t.length !== 6);
+
+    const params = new URLSearchParams();
+    sameCodes.forEach(s => params.append('same', s));
+    geoids.forEach(g => params.append('geoid', g));
+
+    // Build a single lookup URL (multi-value params)
+    const qs = [...sameCodes.map(s => `same=${s}`), ...geoids.map(g => `geoid=${g}`)].join('&');
+
+    try {
+        const resp = await fetch(`/admin/county_boundaries/lookup?${qs}`);
+        const data = await resp.json();
+
+        if (!resp.ok) {
+            document.getElementById('lookup-results').innerHTML =
+                `<div class="alert alert-danger">${data.error || 'Lookup failed'}</div>`;
+            return;
+        }
+
+        let html = `<p class="text-muted mb-2">Queried ${data.queried.length} GEOID(s) — ` +
+                   `<span class="text-success fw-bold">${data.found} found</span>` +
+                   (data.missing.length ? `, <span class="text-danger fw-bold">${data.missing.length} missing</span>` : '') +
+                   `</p><div class="list-group">`;
+
+        data.results.forEach(r => {
+            html += `<div class="list-group-item list-group-item-action lookup-found d-flex justify-content-between align-items-center">
+                <div>
+                    <span class="county-code">${r.geoid}</span>
+                    <span class="ms-2">${r.namelsad}</span>
+                    <span class="text-muted ms-2">${r.stusps}</span>
+                    <code class="ms-2 text-muted">SAME: ${r.same_code}</code>
+                </div>
+                <span class="badge ${r.has_geometry ? 'bg-success' : 'bg-warning text-dark'}">
+                    ${r.has_geometry ? '<i class="fas fa-check"></i> Geometry' : '<i class="fas fa-exclamation"></i> No geometry'}
+                </span>
+            </div>`;
+        });
+
+        data.missing.forEach(g => {
+            html += `<div class="list-group-item lookup-missing">
+                <span class="county-code text-danger">${g}</span>
+                <span class="ms-2 text-danger"><i class="fas fa-times-circle"></i> Not found in database</span>
+            </div>`;
+        });
+
+        html += '</div>';
+        document.getElementById('lookup-results').innerHTML = html;
+    } catch (err) {
+        document.getElementById('lookup-results').innerHTML =
+            `<div class="alert alert-danger">Error: ${err.message}</div>`;
+    }
+});
+
+// Allow Enter key in lookup input
+document.getElementById('lookup-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') document.getElementById('lookup-btn').click();
+});
+
+// ── Interactive Map ────────────────────────────────────────────────────────
+{% if total_counties > 0 %}
+let countyMap = null;
+let countyLayer = null;
+
+function initMap() {
+    countyMap = L.map('county-map', { preferCanvas: true }).setView([39.5, -98.35], 4);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors',
+        maxZoom: 18,
+    }).addTo(countyMap);
+}
+
+function loadStateOnMap(stateAbbrev) {
+    if (!stateAbbrev) return;
+    const loading = document.getElementById('map-loading');
+    const infoBar = document.getElementById('map-info-bar');
+    loading.classList.remove('d-none');
+    infoBar.classList.add('d-none');
+    document.getElementById('map-county-info').textContent = '';
+
+    if (countyLayer) { countyMap.removeLayer(countyLayer); countyLayer = null; }
+
+    fetch(`/admin/county_boundaries/geojson?state=${encodeURIComponent(stateAbbrev)}`)
+        .then(r => r.json())
+        .then(geojson => {
+            loading.classList.add('d-none');
+            if (!geojson.features || geojson.features.length === 0) {
+                showToast('No county boundaries found for ' + stateAbbrev, 'warning');
+                return;
+            }
+            countyLayer = L.geoJSON(geojson, {
+                style: { color: '#2563eb', weight: 1.5, opacity: 0.8, fillColor: '#3b82f6', fillOpacity: 0.15 },
+                onEachFeature: function(feature, layer) {
+                    const p = feature.properties;
+                    layer.bindPopup(
+                        `<strong>${p.namelsad}</strong><br>` +
+                        `GEOID: <code>${p.geoid}</code><br>` +
+                        `SAME: <code>${p.same_code}</code><br>` +
+                        `${p.state_name}`
+                    );
+                    layer.on('mouseover', () => layer.setStyle({ fillOpacity: 0.45, weight: 2.5 }));
+                    layer.on('mouseout',  () => countyLayer.resetStyle(layer));
+                    layer.on('click', () => {
+                        document.getElementById('map-county-info').textContent =
+                            `${p.namelsad} — GEOID: ${p.geoid}  SAME: ${p.same_code}`;
+                        infoBar.classList.remove('d-none');
+                    });
+                },
+            }).addTo(countyMap);
+            countyMap.fitBounds(countyLayer.getBounds(), { padding: [20, 20] });
+        })
+        .catch(err => {
+            loading.classList.add('d-none');
+            showToast('Failed to load map data: ' + err.message, 'danger');
+        });
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    initMap();
+
+    document.getElementById('map-state-select').addEventListener('change', function() {
+        loadStateOnMap(this.value);
+    });
+
+    document.getElementById('map-clear-btn').addEventListener('click', () => {
+        if (countyLayer) { countyMap.removeLayer(countyLayer); countyLayer = null; }
+        document.getElementById('map-state-select').value = '';
+        document.getElementById('map-info-bar').classList.add('d-none');
+        countyMap.setView([39.5, -98.35], 4);
+    });
+
+    document.querySelectorAll('.view-state-map-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const st = this.dataset.state;
+            document.getElementById('map-state-select').value = st;
+            loadStateOnMap(st);
+            document.getElementById('county-map').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+    });
+});
+{% endif %}
+
+// ── Load from bundled shapefile ─────────────────────────────────────────────
 document.getElementById('load-bundled-btn').addEventListener('click', async () => {
     const btn = document.getElementById('load-bundled-btn');
     const state = document.getElementById('load-state-filter').value;
     const replace = document.getElementById('load-replace').checked;
-
     btn.disabled = true;
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading...';
-
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading…';
     try {
         const body = new URLSearchParams();
         if (state) body.append('state', state);
         if (replace) body.append('replace', 'true');
-
-        const response = await fetch('/admin/county_boundaries/load', {
-            method: 'POST',
-            body: body,
-        });
+        const response = await fetch('/admin/county_boundaries/load', { method: 'POST', body });
         const data = await response.json();
-
         if (response.ok && data.success) {
             showToast(data.message, 'success');
             setTimeout(() => location.reload(), 1500);
@@ -276,23 +613,17 @@ document.getElementById('load-bundled-btn').addEventListener('click', async () =
     }
 });
 
-// Upload form handler
+// Upload form
 document.getElementById('upload-form').addEventListener('submit', async (e) => {
     e.preventDefault();
-    const fileInput = document.getElementById('shapefile-upload');
-    if (!fileInput.files.length) {
-        showToast('Please select a file', 'warning');
-        return;
+    if (!document.getElementById('shapefile-upload').files.length) {
+        showToast('Please select a file', 'warning'); return;
     }
-
-    const formData = new FormData(e.target);
     try {
         const response = await fetch('/admin/county_boundaries/upload', {
-            method: 'POST',
-            body: formData,
+            method: 'POST', body: new FormData(e.target),
         });
         const data = await response.json();
-
         if (response.ok && data.success) {
             showToast(data.message, 'success');
             setTimeout(() => location.reload(), 1500);
@@ -307,15 +638,11 @@ document.getElementById('upload-form').addEventListener('submit', async (e) => {
 // Delete all
 document.getElementById('delete-all-btn').addEventListener('click', async () => {
     if (!confirm('Delete ALL county boundaries? This cannot be undone.')) return;
-
     try {
         const response = await fetch('/admin/county_boundaries/delete', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({}),
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}),
         });
         const data = await response.json();
-
         if (response.ok && data.success) {
             showToast(data.message, 'success');
             setTimeout(() => location.reload(), 1000);
@@ -332,15 +659,12 @@ document.querySelectorAll('.delete-state-btn').forEach(btn => {
     btn.addEventListener('click', async () => {
         const state = btn.dataset.state;
         if (!confirm(`Delete all county boundaries for ${state}?`)) return;
-
         try {
             const response = await fetch('/admin/county_boundaries/delete', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ state }),
             });
             const data = await response.json();
-
             if (response.ok && data.success) {
                 showToast(data.message, 'success');
                 setTimeout(() => location.reload(), 1000);
@@ -353,7 +677,7 @@ document.querySelectorAll('.delete-state-btn').forEach(btn => {
     });
 });
 
-// Refresh info
+// Refresh
 document.getElementById('refresh-btn').addEventListener('click', () => location.reload());
 
 // County search
@@ -366,16 +690,14 @@ document.getElementById('county-search').addEventListener('input', (e) => {
             '<p class="text-muted">Enter at least 2 characters to search</p>';
         return;
     }
-
     searchTimeout = setTimeout(async () => {
         try {
             const response = await fetch(`/admin/county_boundaries/search?q=${encodeURIComponent(query)}`);
             const data = await response.json();
-
             if (data.results && data.results.length > 0) {
                 let html = `<p class="text-muted mb-2">Found ${data.count} results</p>`;
                 data.results.forEach(c => {
-                    html += `<div class="county-result">
+                    html += `<div class="county-result" data-state="${c.stusps || ''}">
                         <span class="county-code">${c.geoid}</span>
                         <span class="ms-2">${c.namelsad || c.name}</span>
                         <span class="text-muted ms-2">${c.stusps || ''}</span>
@@ -383,6 +705,17 @@ document.getElementById('county-search').addEventListener('input', (e) => {
                     </div>`;
                 });
                 document.getElementById('search-results').innerHTML = html;
+                {% if total_counties > 0 %}
+                document.querySelectorAll('#search-results .county-result').forEach(row => {
+                    row.addEventListener('click', function() {
+                        const st = this.dataset.state;
+                        if (!st) return;
+                        document.getElementById('map-state-select').value = st;
+                        loadStateOnMap(st);
+                        document.getElementById('county-map').scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    });
+                });
+                {% endif %}
             } else {
                 document.getElementById('search-results').innerHTML =
                     '<p class="text-muted">No matching counties found</p>';

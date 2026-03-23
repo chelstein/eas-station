@@ -6,6 +6,53 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.66.0] - 2026-03-23 - County boundary map, diagnostics, and alert-map fix
+
+### Added
+- **County Boundaries map** — the Admin → County Boundaries page (`/admin/county_boundaries`) now
+  includes an interactive Leaflet map.  Select any loaded state from the dropdown to see all its
+  county outlines rendered.  Click a county polygon to reveal its name, Census GEOID, and SAME code.
+  The "View on map" button in the Loaded States table scrolls to and loads the selected state.
+- **Table status banner** — a colour-coded banner at the top of the County Boundaries page now
+  shows at a glance whether the `us_county_boundaries` table is present in the database, how many
+  rows it contains, and whether it is empty.
+- **SAME-code / GEOID lookup widget** — a new "Table Lookup / Diagnostics" card lets operators
+  enter one or more 6-digit SAME codes (e.g. `039137`) or 5-digit Census GEOIDs (e.g. `39137`)
+  and instantly confirm whether matching rows exist in the database and whether each row has a
+  valid geometry.
+- **Inline documentation** — a "How County Boundaries Work" section on the page explains the
+  SAME-code format, maps example codes to counties, and documents all four ways to populate the
+  table (startup auto-load, admin UI, command line, and direct Census Bureau download).
+- **API endpoints**:
+  - `GET /admin/county_boundaries/status` — JSON diagnostics: table existence, row count, states
+    loaded, bundled shapefile path.
+  - `GET /admin/county_boundaries/lookup?same=039137,001001` — verify one or more SAME codes or
+    GEOIDs are present; returns found/missing breakdown with geometry flag.
+  - `GET /admin/county_boundaries/geojson?state=OH` — GeoJSON FeatureCollection for all counties
+    in a state (used by the map and the alert detail page fallback renderer).
+- **Navbar link** — "County Boundaries" added under Tools → Data Continuity for users with
+  `can_manage_config` permission.
+- **Alert detail map SAME-code fallback** — when PostGIS geometry building fails (or the geometry
+  has not yet been written), the alert detail map now fetches individual county polygons directly
+  from `us_county_boundaries` via the new GeoJSON endpoint and highlights exactly the counties
+  named in the alert's SAME geocodes.  This makes multi-county alerts like High Wind Warnings
+  render correctly even before `alert.geom` is persisted.
+
+### Fixed
+- **GEOID leading-zero bug** — `try_build_geometry_from_same_codes()` in `coverage.py` used
+  `lstrip('0')` to convert a 6-digit SAME code to a Census GEOID.  For states whose FIPS code
+  starts with `0` (Alabama `01`, Alaska `02`, Arizona `04`, etc.) this stripped too many zeros,
+  e.g. `001001` → `1001` instead of the correct `01001`, causing the `us_county_boundaries`
+  lookup to return no rows.  Fixed by using `code[1:]` (drop the single leading prefix zero).
+- **Geometry-API `alert: null` regression** — the `/api/alerts/<id>/geometry` endpoint
+  previously returned `{"alert": null}` whenever geometry building failed, preventing the
+  JavaScript from reading the alert's `is_county_wide` flag or SAME codes.  The endpoint now
+  always returns a full alert Feature object (with `geometry: null` when unavailable) and
+  includes a `same_codes` property.
+- **Silent geometry-build failures** — exceptions inside `try_build_geometry_from_same_codes()`
+  were logged only at `DEBUG` level, making failures invisible in normal operation.  They are now
+  logged at `WARNING` level so operators can diagnose issues.
+
 ## [2.65.8] - 2026-03-21 - Fix blank OLED screen previews on Custom Display Screens page
 
 ### Fixed

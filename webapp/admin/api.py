@@ -334,6 +334,17 @@ def get_alert_geometry(alert_id):
             sent_dt = alert.sent.replace(tzinfo=UTC_TZ) if alert.sent.tzinfo is None else alert.sent.astimezone(UTC_TZ)
             sent_iso = sent_dt.isoformat()
 
+        # Extract SAME codes so the frontend can render affected counties
+        # even when PostGIS geometry building fails.
+        same_codes: list = []
+        if alert.raw_json and isinstance(alert.raw_json, dict):
+            same_codes = (
+                alert.raw_json
+                .get('properties', {})
+                .get('geocode', {})
+                .get('SAME', [])
+            ) or []
+
         response_data = {
             'alert': {
                 'type': 'Feature',
@@ -350,11 +361,11 @@ def get_alert_geometry(alert_id):
                     'area_desc': alert.area_desc,
                     'status': alert.status,
                     'is_county_wide': is_county_wide,
+                    'same_codes': same_codes,
                 },
+                # geometry may be null; the frontend handles that gracefully
                 'geometry': geometry,
-            }
-            if geometry
-            else None,
+            },
             'intersecting_boundaries': {
                 'type': 'FeatureCollection',
                 'features': intersecting_boundaries,
