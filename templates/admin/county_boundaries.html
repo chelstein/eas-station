@@ -2,6 +2,11 @@
 
 {% block title %}US County Boundaries{% endblock %}
 
+{% block extra_css %}
+<!-- Leaflet CSS (local to avoid CDN tracking prevention) -->
+<link rel="stylesheet" href="{{ url_for('static', filename='vendor/leaflet/leaflet.css') }}" />
+{% endblock %}
+
 {% block content %}
 <div class="admin-page-header header-secondary">
     <div class="container">
