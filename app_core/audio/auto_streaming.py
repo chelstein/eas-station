@@ -36,6 +36,7 @@ Features:
 import logging
 import threading
 import time
+from types import SimpleNamespace
 from typing import Dict, Optional, TYPE_CHECKING
 
 from .icecast_output import IcecastConfig, IcecastStreamer, StreamFormat
@@ -45,6 +46,38 @@ if TYPE_CHECKING:
     from .ingest import AudioIngestController
 
 logger = logging.getLogger(__name__)
+
+# Internal key used to track the EAS ingest Icecast stream inside _streamers
+_EAS_INGEST_KEY = "_eas-ingest"
+
+
+class EASIngestShim:
+    """
+    Duck-type shim that exposes a source's 16 kHz EAS broadcast queue as
+    a plain broadcast queue so IcecastStreamer can stream it without
+    modification.
+
+    IcecastStreamer calls ``audio_source.get_broadcast_queue()`` to subscribe
+    to audio chunks and reads ``audio_source.config.sample_rate`` /
+    ``audio_source.config.channels`` to configure FFmpeg.  This shim maps
+    those calls onto the source's EAS-specific queue (pre-resampled 16 kHz
+    float32 mono), giving Icecast clients an always-current view of exactly
+    what the EAS decoder is processing.
+    """
+
+    def __init__(self, source_adapter):
+        self._source = source_adapter
+        # Expose the same config interface IcecastStreamer expects
+        self.config = SimpleNamespace(sample_rate=16000, channels=1)
+
+    def get_broadcast_queue(self):
+        """Return the source's EAS (16 kHz) broadcast queue."""
+        return self._source.get_eas_broadcast_queue()
+
+    @property
+    def status(self):
+        """Mirror the underlying source's status for health checks."""
+        return getattr(self._source, 'status', None)
 
 
 class AutoStreamingService:
@@ -92,6 +125,9 @@ class AutoStreamingService:
         # Active streamers: source_name -> IcecastStreamer
         self._streamers: Dict[str, IcecastStreamer] = {}
         self._lock = threading.Lock()
+
+        # Tracks which real source the EAS ingest stream is currently using
+        self._eas_ingest_source_name: Optional[str] = None
 
         # Monitoring thread
         self._monitor_thread: Optional[threading.Thread] = None
@@ -329,67 +365,146 @@ class AutoStreamingService:
         """
         return self.enabled and bool(self.icecast_password)
 
+    def _add_eas_ingest_stream(self, source_name: str, source_adapter) -> bool:
+        """
+        Create an Icecast stream for the EAS decoder input (16 kHz mono).
+
+        The mount point is always ``/eas-ingest.mp3``.  The stream carries the
+        same 16 kHz float32 audio the EAS decoder processes, so operators can
+        confirm what the decoder is hearing without needing CLI access.
+
+        Args:
+            source_name: Human-readable name of the underlying source (for logging).
+            source_adapter: Running AudioSourceAdapter whose EAS queue to stream.
+
+        Returns:
+            True if the stream started successfully.
+        """
+        try:
+            shim = EASIngestShim(source_adapter)
+            config = IcecastConfig(
+                server=self.icecast_server,
+                port=self.icecast_port,
+                password=self.icecast_password,
+                mount="/eas-ingest.mp3",
+                name="EAS Decoder Input",
+                description=f"16 kHz mono — what the EAS decoder hears (source: {source_name})",
+                genre="Emergency Alert System",
+                bitrate=48,          # 48 kbps is plenty for a 16 kHz mono diagnostic stream
+                format=StreamFormat.MP3,
+                public=False,
+                sample_rate=16000,
+                channels=1,
+                admin_user=self.icecast_admin_user,
+                admin_password=self.icecast_admin_password,
+            )
+            streamer = IcecastStreamer(config, shim)
+            with self._lock:
+                if _EAS_INGEST_KEY in self._streamers:
+                    return False  # Created concurrently, skip
+                if streamer.start():
+                    self._streamers[_EAS_INGEST_KEY] = streamer
+                    self._eas_ingest_source_name = source_name
+                    logger.info(
+                        "✅ EAS ingest Icecast stream started: "
+                        "http://%s:%s/eas-ingest.mp3 (from source '%s')",
+                        self.icecast_server, self.icecast_port, source_name,
+                    )
+                    return True
+                else:
+                    logger.error("Failed to start EAS ingest Icecast stream")
+                    return False
+        except Exception as exc:
+            logger.error("Error creating EAS ingest Icecast stream: %s", exc, exc_info=True)
+            return False
+
     def _monitor_loop(self) -> None:
         """Monitor active streams, discover new sources, and handle reconnections."""
         logger.debug("Auto-streaming monitor loop started")
 
         while not self._stop_event.is_set():
             try:
-                # Auto-discover RUNNING sources and add them to streaming
                 if self.audio_controller:
                     from .ingest import AudioSourceStatus
-                    
+
                     all_sources = self.audio_controller.get_all_sources()
-                    
+
+                    # ── 1. Auto-discover RUNNING sources for native-rate streams ──
                     for source_name, source_adapter in all_sources.items():
-                        # Skip if already streaming
                         with self._lock:
                             if source_name in self._streamers:
                                 continue
-                        
-                        # Only add sources that are RUNNING
                         if source_adapter.status == AudioSourceStatus.RUNNING:
                             try:
                                 if self.add_source(source_name, source_adapter):
                                     logger.info(
-                                        f"Auto-discovered and added source '{source_name}' "
-                                        "to Icecast streaming"
+                                        "Auto-discovered and added source '%s' "
+                                        "to Icecast streaming",
+                                        source_name,
                                     )
-                            except Exception as e:
+                            except Exception as exc:
                                 logger.debug(
-                                    f"Failed to add auto-discovered source '{source_name}': {e}"
+                                    "Failed to add auto-discovered source '%s': %s",
+                                    source_name, exc,
                                 )
 
-                with self._lock:
-                    # Check health of all streamers
-                    for source_name, streamer in list(self._streamers.items()):
-                        stats = streamer.get_stats()
-                        if not stats.get("running", False):
-                            logger.warning(
-                                f"Streamer for {source_name} stopped unexpectedly"
+                    # ── 2. Manage EAS ingest stream (16 kHz decoder input) ────────
+                    with self._lock:
+                        eas_ingest_active = _EAS_INGEST_KEY in self._streamers
+
+                    if not eas_ingest_active:
+                        # Find a running source that has an EAS broadcast queue
+                        for source_name, source_adapter in all_sources.items():
+                            if (
+                                source_adapter.status == AudioSourceStatus.RUNNING
+                                and hasattr(source_adapter, 'get_eas_broadcast_queue')
+                            ):
+                                self._add_eas_ingest_stream(source_name, source_adapter)
+                                break
+                    else:
+                        # Check whether the source backing the EAS ingest stream is
+                        # still running; if not, tear the stream down so the next
+                        # loop iteration can rebuild it from a live source.
+                        eas_source = all_sources.get(self._eas_ingest_source_name or "")
+                        if not eas_source or eas_source.status != AudioSourceStatus.RUNNING:
+                            logger.info(
+                                "EAS ingest source '%s' no longer running — "
+                                "stopping EAS ingest stream",
+                                self._eas_ingest_source_name,
                             )
-                            # Could implement auto-restart here if needed
-                    
-                    # Remove streamers for sources that no longer exist or are not running
-                    if self.audio_controller:
-                        all_sources = self.audio_controller.get_all_sources()
-                        for source_name in list(self._streamers.keys()):
-                            source_adapter = all_sources.get(source_name)
-                            if not source_adapter or source_adapter.status != AudioSourceStatus.RUNNING:
-                                logger.info(
-                                    f"Removing Icecast stream for '{source_name}' "
-                                    "(source stopped or removed)"
-                                )
-                                self.remove_source(source_name)
+                            self.remove_source(_EAS_INGEST_KEY)
+                            self._eas_ingest_source_name = None
 
-                # Sleep for monitoring interval
+                    # ── 3. Health-check all streamers ────────────────────────────
+                    with self._lock:
+                        for sn, streamer in list(self._streamers.items()):
+                            if not streamer.get_stats().get("running", False):
+                                logger.warning("Streamer for '%s' stopped unexpectedly", sn)
+
+                        # ── 4. Remove native-rate streamers for stopped sources ──
+                        if self.audio_controller:
+                            for source_name in list(self._streamers.keys()):
+                                if source_name == _EAS_INGEST_KEY:
+                                    continue  # Lifecycle managed above in step 2
+                                source_adapter = all_sources.get(source_name)
+                                if (
+                                    not source_adapter
+                                    or source_adapter.status != AudioSourceStatus.RUNNING
+                                ):
+                                    logger.info(
+                                        "Removing Icecast stream for '%s' "
+                                        "(source stopped or removed)",
+                                        source_name,
+                                    )
+                                    self.remove_source(source_name)
+
                 time.sleep(10.0)
 
-            except Exception as e:
-                logger.error(f"Error in auto-streaming monitor loop: {e}")
+            except Exception as exc:
+                logger.error("Error in auto-streaming monitor loop: %s", exc)
                 time.sleep(5.0)
 
         logger.debug("Auto-streaming monitor loop stopped")
 
 
-__all__ = ['AutoStreamingService']
+__all__ = ['AutoStreamingService', 'EASIngestShim']

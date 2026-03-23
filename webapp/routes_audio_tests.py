@@ -97,7 +97,7 @@ def register(app: Flask, logger) -> None:
             skipped = 0
             errors = 0
             test_details = []
-            
+
             for line in output_lines:
                 if " PASSED" in line:
                     passed += 1
@@ -117,32 +117,52 @@ def register(app: Flask, logger) -> None:
                     })
                 elif " SKIPPED" in line:
                     skipped += 1
-                elif " ERROR" in line:
+                elif " ERROR" in line and "::" in line:
                     errors += 1
-            
-            # Extract summary line
+
+            # Extract the pytest summary line (last line containing counts).
+            # Scan from the bottom so we always pick up the final tally, not
+            # an intermediate one, and handle collection errors gracefully.
             summary = ""
-            for line in output_lines:
-                if " passed" in line or " failed" in line:
-                    summary = line.strip()
+            for line in reversed(output_lines):
+                stripped = line.strip()
+                if not stripped:
+                    continue
+                if any(kw in stripped for kw in (" passed", " failed", " error", " warning")):
+                    summary = stripped
                     break
-            
-            # Log test results
-            route_logger.info(f"Test results: {passed} passed, {failed} failed, {skipped} skipped, {errors} errors")
-            if summary:
-                route_logger.info(f"Test summary: {summary}")
-            
-            # Log stderr if present
-            if result.stderr:
-                route_logger.warning(f"Pytest stderr output: {result.stderr[:500]}")
-            
-            # Log a preview of stdout for debugging
-            if result.stdout:
-                stdout_preview = result.stdout[:500] if len(result.stdout) > 500 else result.stdout
-                route_logger.debug(f"Pytest stdout preview: {stdout_preview}")
-            else:
-                route_logger.warning("Pytest produced no stdout output")
-            
+
+            # Synthesise a summary when pytest didn't produce one (e.g. missing
+            # test files, import errors, or collection failures).
+            if not summary:
+                if errors > 0:
+                    summary = f"{errors} collection error(s) — check that test files exist and have no import errors"
+                elif result.returncode == 4:
+                    summary = "No tests collected — test files may be missing"
+                elif result.returncode == 2:
+                    summary = "Test run interrupted"
+                elif result.returncode != 0:
+                    summary = f"Test run failed (exit code {result.returncode})"
+                else:
+                    summary = f"{passed} passed, {failed} failed, {skipped} skipped"
+
+            # Always log results so failures appear in the application log
+            route_logger.info(
+                "Test results: %d passed, %d failed, %d skipped, %d errors",
+                passed, failed, skipped, errors,
+            )
+            route_logger.info("Test summary: %s", summary)
+
+            if result.returncode != 0:
+                # Log the full output so operators can diagnose failures without
+                # needing access to the web UI
+                if result.stdout:
+                    route_logger.error("Pytest stdout:\n%s", result.stdout)
+                if result.stderr:
+                    route_logger.error("Pytest stderr:\n%s", result.stderr)
+            elif result.stderr:
+                route_logger.warning("Pytest stderr: %s", result.stderr[:500])
+
             return {
                 "success": result.returncode == 0,
                 "return_code": result.returncode,
