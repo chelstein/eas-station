@@ -361,6 +361,67 @@
                                         <li><strong>Filter Settings:</strong> Configure geographic and event-based alert filtering</li>
                                         <li><strong>Intersection Calculation:</strong> After uploading boundaries, calculate intersections via <strong>Operations → Calculate Intersections</strong></li>
                                     </ul>
+
+                                    <hr class="my-3">
+
+                                    <h6><i class="fas fa-map-marked-alt me-2"></i>US County Boundaries (IPAWS SAME Coverage)</h6>
+                                    <p>
+                                        The <strong>County Boundaries</strong> page
+                                        (<a href="/admin/county_boundaries"><code>Admin → County Boundaries</code></a>)
+                                        manages the Census TIGER/Line county shapefile used to draw highlighted county
+                                        outlines on IPAWS alert coverage maps. IPAWS/NWS alerts carry 6-digit SAME
+                                        geocodes (e.g. <code>039137</code>) instead of polygon geometry; EAS Station
+                                        converts those codes to county outlines by looking up this table.
+                                    </p>
+
+                                    <h6 class="mt-3"><i class="fas fa-list-ol me-2"></i>Page Workflow</h6>
+                                    <p class="text-muted small">Sections are ordered top-to-bottom for a natural workflow:</p>
+                                    <ol>
+                                        <li>
+                                            <strong>Status Cards</strong> — Shows whether the <code>us_county_boundaries</code>
+                                            table exists, how many counties are loaded, how many states, and whether the
+                                            bundled Census shapefile is present.
+                                        </li>
+                                        <li>
+                                            <strong>Load County Boundaries</strong> — Import data from the bundled Census
+                                            shapefile (≈3,235 counties, optionally filtered to one state) or upload a
+                                            custom ZIP shapefile.
+                                        </li>
+                                        <li>
+                                            <strong>Loaded States</strong> — Table listing every state that has county data
+                                            in the database. Each row has two action buttons:
+                                            <ul>
+                                                <li><i class="fas fa-map-marked-alt"></i> <strong>View on Map</strong> — loads
+                                                    that state's county outlines on the interactive map directly below this table.</li>
+                                                <li><i class="fas fa-trash-alt"></i> <strong>Delete</strong> — removes all county
+                                                    records for that state.</li>
+                                            </ul>
+                                        </li>
+                                        <li>
+                                            <strong>County Boundary Map</strong> — Interactive Leaflet map. Use the
+                                            state dropdown in the card header to choose a state, or click the
+                                            <i class="fas fa-map-marked-alt"></i> button in the Loaded States table to jump
+                                            directly to a state. Click any county outline to see its name, GEOID, and
+                                            SAME code. Use <i class="fas fa-times"></i> Clear to reset the map.
+                                        </li>
+                                        <li>
+                                            <strong>Search Counties</strong> — Real-time search by county name, 5-digit GEOID,
+                                            or state abbreviation. Clicking a result loads that state on the map.
+                                        </li>
+                                        <li>
+                                            <strong>Table Lookup / Diagnostics</strong> — Enter one or more 6-digit SAME codes
+                                            or 5-digit GEOIDs (comma-separated) to verify they are present in the database.
+                                            Useful for confirming coverage before an activation.
+                                        </li>
+                                    </ol>
+
+                                    <div class="alert alert-info mt-3">
+                                        <i class="fas fa-lightbulb"></i>
+                                        <strong>One-time setup:</strong> EAS Station auto-loads the bundled Census shapefile
+                                        on first startup if the table is empty. You only need to use this page if the
+                                        auto-load did not run, if you need to reload data, or if you want to inspect or
+                                        verify the coverage for specific counties.
+                                    </div>
                                 </div>
                             </div>
                         </div>
