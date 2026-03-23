@@ -984,7 +984,7 @@ def register(app: Flask, logger) -> None:
                 return jsonify({"devices": devices, "count": len(devices)})
             else:
                 error = result.get("error", "Unknown error")
-                raise Exception(error)
+                raise ValueError(error)
                 
         except Exception as exc:
             route_logger.error("Device enumeration failed: %s", exc)
@@ -1004,7 +1004,7 @@ def register(app: Flask, logger) -> None:
             result = _send_sdr_command("discover_devices")
             
             if not result.get("success"):
-                raise Exception(result.get("error", "Unknown error"))
+                raise ValueError(result.get("error", "Unknown error"))
                 
             devices = result.get("devices", [])
 
@@ -1163,7 +1163,7 @@ def register(app: Flask, logger) -> None:
                 return jsonify(capabilities)
             else:
                 # If sdr-service failed, raise exception to trigger failsafe
-                raise Exception(result.get("error", "Unknown error"))
+                raise ValueError(result.get("error", "Unknown error"))
 
         except Exception as exc:
             route_logger.error("Failed to query capabilities for driver '%s': %s", driver, exc, exc_info=True)

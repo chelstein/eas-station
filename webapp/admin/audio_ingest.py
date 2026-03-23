@@ -2340,18 +2340,6 @@ def api_stream_audio(source_name: str):
         'solution': 'Access the application through nginx (port 443 or 8888), not directly'
     }), 503
 
-    # LEGACY FALLBACK CODE - KEPT FOR REFERENCE BUT NOT USED
-    def generate_wav_stream(active_adapter: Any):
-        """Generator that yields WAV-formatted audio chunks with resilient error handling."""
-        # icecast_response = _proxy_icecast_stream()
-        # if icecast_response:
-        #     return icecast_response
-
-        return _stream_silence_response()
-
-# NOTE: Legacy audio streaming code removed (lines 2094-2350)
-# In separated architecture, audio streaming requires direct adapter access
-# which only exists in audio-service process. Use Icecast instead.
 
 @audio_ingest_bp.route('/api/audio/health/dashboard', methods=['GET'])
 def api_get_health_dashboard():

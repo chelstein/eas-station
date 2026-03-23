@@ -300,15 +300,15 @@ def get_device_capabilities(driver: str, device_args: Optional[Dict[str, str]] =
             try:
                 sample_rates = device.listSampleRates(SoapySDR.SOAPY_SDR_RX, channel)
                 capabilities["sample_rates"] = [int(sr) for sr in sample_rates]
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Driver '%s' does not expose sample rates: %s", driver, exc)
 
             # Bandwidths
             try:
                 bandwidths = device.listBandwidths(SoapySDR.SOAPY_SDR_RX, channel)
                 capabilities["bandwidths"] = [int(bw) for bw in bandwidths]
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Driver '%s' does not expose bandwidths: %s", driver, exc)
 
             # Gain ranges
             try:
@@ -320,8 +320,8 @@ def get_device_capabilities(driver: str, device_args: Optional[Dict[str, str]] =
                         "max": gain_range.maximum(),
                         "step": gain_range.step() if hasattr(gain_range, 'step') else None,
                     }
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Driver '%s' does not expose gain ranges: %s", driver, exc)
 
             # Frequency ranges
             try:
@@ -330,15 +330,15 @@ def get_device_capabilities(driver: str, device_args: Optional[Dict[str, str]] =
                     {"min": fr.minimum(), "max": fr.maximum()}
                     for fr in freq_ranges
                 ]
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Driver '%s' does not expose frequency ranges: %s", driver, exc)
 
             # Antennas
             try:
                 antennas = device.listAntennas(SoapySDR.SOAPY_SDR_RX, channel)
                 capabilities["antennas"] = list(antennas)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Driver '%s' does not expose antennas: %s", driver, exc)
 
         # Clean up
         try:
@@ -346,8 +346,8 @@ def get_device_capabilities(driver: str, device_args: Optional[Dict[str, str]] =
                 device.unmake()  # type: ignore[attr-defined]
             else:
                 device.close()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Failed to close device for driver '%s': %s", driver, exc)
 
         return capabilities
 

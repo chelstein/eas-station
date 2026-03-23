@@ -7,10 +7,14 @@ Create Date: 2025-11-05
 
 from __future__ import annotations
 
+import logging
+
 from alembic import op
 import sqlalchemy as sa
 from sqlalchemy import inspect
 from sqlalchemy.dialects import postgresql
+
+logger = logging.getLogger("alembic.env")
 
 
 revision = "20251105_add_rbac_and_mfa"
@@ -143,7 +147,7 @@ def _initialize_default_roles_and_permissions(conn):
             )
             row = result.fetchone()
             if not row:
-                print(f"WARNING: Failed to create role '{role_name}'")
+                logger.warning("Failed to create role '%s'", role_name)
                 continue
             role_id = row[0]
         else:
@@ -158,7 +162,7 @@ def _initialize_default_roles_and_permissions(conn):
             )
             perm_row = result.fetchone()
             if not perm_row:
-                print(f"WARNING: Permission '{perm_name}' not found, skipping")
+                logger.warning("Permission '%s' not found, skipping", perm_name)
                 continue
             perm_id = perm_row[0]
 
@@ -189,7 +193,7 @@ def _assign_admin_role_to_existing_users(conn):
     admin_role_row = result.fetchone()
 
     if not admin_role_row:
-        print("WARNING: Admin role not found, cannot assign to existing users")
+        logger.warning("Admin role not found, cannot assign to existing users")
         return
 
     admin_role_id = admin_role_row[0]
@@ -206,7 +210,7 @@ def _assign_admin_role_to_existing_users(conn):
 
     users_updated = result.rowcount
     if users_updated > 0:
-        print(f"INFO: Assigned admin role to {users_updated} existing user(s)")
+        logger.info("Assigned admin role to %d existing user(s)", users_updated)
 
 
 def upgrade() -> None:
