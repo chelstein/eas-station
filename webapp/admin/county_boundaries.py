@@ -2,15 +2,14 @@
 
 from __future__ import annotations
 
+import json as _json
 import logging
 import os
 from pathlib import Path
 
-from flask import Blueprint, jsonify, render_template, request, current_app
-from werkzeug.utils import secure_filename
-
-from flask import Response
+from flask import Blueprint, Response, jsonify, render_template, request, current_app
 from sqlalchemy import text
+from werkzeug.utils import secure_filename
 
 from app_core.auth.roles import require_permission
 from app_core.county_boundaries import (
@@ -20,6 +19,8 @@ from app_core.county_boundaries import (
     load_counties_from_shapefile,
     search_counties,
     STATE_ABBREV_TO_FIPS,
+    _find_bundled_shapefile,
+    _table_exists,
 )
 from app_core.extensions import db
 from app_core.models import USCountyBoundary
@@ -35,16 +36,16 @@ def county_boundaries_page():
     """Admin page for managing US county boundaries."""
     total = get_county_count()
     states = get_loaded_states()
-
-    # Check if bundled shapefile is available
-    from app_core.county_boundaries import _find_bundled_shapefile
+    table_ok = _table_exists()
     bundled_path = _find_bundled_shapefile()
 
     return render_template(
         "admin/county_boundaries.html",
         total_counties=total,
         loaded_states=states,
+        table_exists=table_ok,
         bundled_shapefile_available=bundled_path is not None,
+        bundled_shapefile_path=str(bundled_path) if bundled_path else None,
         state_list=sorted(STATE_ABBREV_TO_FIPS.keys()),
     )
 
@@ -170,21 +171,118 @@ def county_boundaries_delete():
     })
 
 
+@county_boundaries_bp.route("/county_boundaries/status")
+@require_permission("system.configure")
+def county_boundaries_status():
+    """Return detailed table diagnostics as JSON.
+
+    Response fields:
+        table_exists     – bool, whether the us_county_boundaries table is in the DB
+        total_counties   – int, total row count (0 if table missing)
+        states_loaded    – int, distinct states with data
+        bundled_shapefile – str or null, absolute path of the bundled shapefile
+        bundled_available – bool
+    """
+    table_ok = _table_exists()
+    total = get_county_count() if table_ok else 0
+    states = get_loaded_states() if table_ok else []
+    shp = _find_bundled_shapefile()
+
+    return jsonify({
+        "table_exists": table_ok,
+        "total_counties": total,
+        "states_loaded": len(states),
+        "bundled_shapefile": str(shp) if shp else None,
+        "bundled_available": shp is not None,
+    })
+
+
+@county_boundaries_bp.route("/county_boundaries/lookup")
+@require_permission("system.configure")
+def county_boundaries_lookup():
+    """Look up one or more SAME codes or GEOIDs and return matching rows.
+
+    Query params:
+        same   – comma-separated 6-digit SAME codes  (e.g. ``039137,001001``)
+        geoid  – comma-separated 5-digit Census GEOIDs (e.g. ``39137,01001``)
+
+    Either param may be supplied; both may be combined.
+    """
+    same_raw = request.args.get("same", "").strip()
+    geoid_raw = request.args.get("geoid", "").strip()
+
+    same_codes = [s.strip() for s in same_raw.split(",") if s.strip()]
+    geoid_codes = [g.strip() for g in geoid_raw.split(",") if g.strip()]
+
+    # Convert SAME codes → GEOIDs: drop the leading '0' prefix
+    for code in same_codes:
+        if len(code) == 6:
+            geoid_codes.append(code[1:])
+
+    geoid_codes = list(set(geoid_codes))  # deduplicate
+
+    if not geoid_codes:
+        return jsonify({"error": "Provide at least one same or geoid parameter"}), 400
+
+    try:
+        rows = (
+            USCountyBoundary.query
+            .filter(USCountyBoundary.geoid.in_(geoid_codes))
+            .order_by(USCountyBoundary.state_name, USCountyBoundary.name)
+            .all()
+        )
+    except Exception as exc:
+        current_app.logger.warning("County lookup query failed: %s", exc)
+        return jsonify({"error": "Database query failed"}), 500
+
+    results = [
+        {
+            "geoid": r.geoid,
+            "same_code": r.same_code,
+            "name": r.name,
+            "namelsad": r.namelsad or r.name,
+            "stusps": r.stusps,
+            "state_name": r.state_name,
+            "has_geometry": r.geom is not None,
+        }
+        for r in rows
+    ]
+
+    missing = [g for g in geoid_codes if g not in {r["geoid"] for r in results}]
+
+    return jsonify({
+        "queried": geoid_codes,
+        "found": len(results),
+        "missing": missing,
+        "results": results,
+    })
+
+
 @county_boundaries_bp.route("/county_boundaries/geojson")
 @require_permission("system.configure")
 def county_boundaries_geojson():
     """Return county boundaries as a GeoJSON FeatureCollection.
 
     Query params:
-        state  – two-letter state abbreviation (required; limits payload size)
+        state  – two-letter state abbreviation (e.g. ``OH``) **or** the
+                 2-digit zero-padded state FIPS code (e.g. ``39`` or ``01``).
+                 Required; limits payload to a single state.
     """
+    from app_core.county_boundaries import STATE_FIPS_TO_ABBREV
+
     state_filter = request.args.get("state", "").strip().upper()
     if not state_filter:
         return jsonify({"error": "state parameter is required"}), 400
 
-    state_fips = STATE_ABBREV_TO_FIPS.get(state_filter)
-    if not state_fips:
-        return jsonify({"error": f"Unknown state abbreviation: {state_filter}"}), 400
+    # Accept either "OH" (abbreviation) or "39" / "01" (state FIPS)
+    if state_filter.isdigit():
+        state_fips = state_filter.zfill(2)
+        if state_fips not in STATE_FIPS_TO_ABBREV:
+            return jsonify({"error": f"Unknown state FIPS: {state_filter}"}), 400
+    else:
+        state_fips = STATE_ABBREV_TO_FIPS.get(state_filter)
+        if not state_fips:
+            return jsonify({"error": f"Unknown state abbreviation: {state_filter}"}), 400
 
     try:
         rows = db.session.execute(
@@ -212,7 +310,6 @@ def county_boundaries_geojson():
 
     features = []
     for row in rows:
-        import json as _json
         features.append({
             "type": "Feature",
             "geometry": _json.loads(row.geom_json),

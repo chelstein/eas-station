@@ -175,12 +175,15 @@ def try_build_geometry_from_same_codes(alert_id: int) -> bool:
             )
             return True
 
-        except Exception:
+        except Exception as exc:
+            current_app.logger.warning(
+                'SAME geometry build failed for alert %s: %s', alert_id, exc
+            )
             nested.rollback()
             return False
 
     except Exception as exc:
-        current_app.logger.debug('SAME geometry build skipped for alert %s: %s', alert_id, exc)
+        current_app.logger.warning('SAME geometry build skipped for alert %s: %s', alert_id, exc)
         return False
 
 
