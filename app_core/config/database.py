@@ -52,11 +52,12 @@ def build_database_url() -> str:
     password = os.getenv('POSTGRES_PASSWORD', 'postgres')
 
     encoded_user = quote_plus(user)
+    encoded_db = quote_plus(db)
 
     if password:
         encoded_password = quote_plus(password)
-        return f"postgresql+psycopg2://{encoded_user}:{encoded_password}@{host}:{port}/{db}"
-    return f"postgresql+psycopg2://{encoded_user}@{host}:{port}/{db}"
+        return f"postgresql+psycopg2://{encoded_user}:{encoded_password}@{host}:{port}/{encoded_db}"
+    return f"postgresql+psycopg2://{encoded_user}@{host}:{port}/{encoded_db}"
 
 
 __all__ = ['build_database_url']

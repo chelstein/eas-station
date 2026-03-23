@@ -162,6 +162,10 @@ class StreamingSAMEDecoder:
     def samples_processed(self) -> int:
         return self._core.samples_processed
 
+    @samples_processed.setter
+    def samples_processed(self, value: int) -> None:
+        self._core.samples_processed = value
+
     @property
     def bytes_decoded(self) -> int:
         return self._core.bytes_decoded

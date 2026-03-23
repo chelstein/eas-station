@@ -534,8 +534,11 @@ class EASMonitor:
         # Reset decoder sample counter so runtime_seconds stays in sync
         try:
             self._streaming_decoder._core.samples_processed = 0
-        except Exception:
-            pass
+        except AttributeError:
+            logger.debug(
+                "EASMonitor '%s': could not reset decoder sample counter on restart",
+                self.source_name,
+            )
         logger.info(
             f"EAS monitor '{self.source_name}' thread restarted "
             f"(restart #{self._restart_count})"
@@ -572,7 +575,9 @@ class EASMonitor:
                 if new_length > 0:
                     audio = scipy_signal.resample(audio, new_length).astype(np.float32)
             except ImportError:
-                # Fallback: simple decimation / interpolation using numpy
+                # scipy not available; fall back to linear interpolation via numpy.
+                # Note: linear interpolation introduces aliasing for large
+                # decimation ratios. Install scipy for production-quality resampling.
                 ratio = self.sample_rate / source_rate
                 new_length = int(round(len(audio) * ratio))
                 if new_length > 0:

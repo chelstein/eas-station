@@ -3310,14 +3310,49 @@ def _format_subdivision_label(
     return display_name
 
 
+def _resolve_partial_county_dbf() -> Optional[Path]:
+    """Find the NWS partial-county DBF, or return None with a log hint."""
+    import os as _os
+
+    # 1. Explicit override via environment variable
+    env_path = _os.environ.get('NWS_PARTIAL_COUNTIES_DBF')
+    if env_path:
+        p = Path(env_path)
+        if p.exists():
+            return p
+        # Configured but missing – warn and fall through to auto-detect
+        import logging as _logging
+        _logging.getLogger(__name__).warning(
+            "NWS_PARTIAL_COUNTIES_DBF is set to %s but the file does not exist; "
+            "ignoring and attempting auto-detection.",
+            env_path,
+        )
+
+    # 2. Auto-detect: newest cs*.dbf in the assets directory
+    assets_root = Path(__file__).resolve().parents[1] / 'assets'
+    if assets_root.is_dir():
+        candidates = sorted(assets_root.glob('cs*.dbf'), reverse=True)
+        if candidates:
+            return candidates[0]
+
+    # 3. Not found – log an actionable hint once
+    import logging as _logging
+    _logging.getLogger(__name__).info(
+        "NWS partial-county (political subdivision) data not found in assets/. "
+        "Partition-digit SAME codes (e.g. 627137) will not have named labels. "
+        "Run  python tools/download_nws_gis_data.py  to fetch the data from "
+        "https://www.weather.gov/gis/NWRPartialCounties"
+    )
+    return None
+
+
 def _load_county_subdivision_index(
     base_mapping: Dict[str, str]
 ) -> Tuple[Dict[str, List[Dict[str, object]]], Dict[str, str]]:
     """Return subdivision metadata keyed by the parent SAME county code."""
 
-    assets_root = Path(__file__).resolve().parents[1] / 'assets'
-    dbf_path = assets_root / 'cs18mr25.dbf'
-    if not dbf_path.exists():
+    dbf_path = _resolve_partial_county_dbf()
+    if dbf_path is None:
         return {}, {}
 
     try:
