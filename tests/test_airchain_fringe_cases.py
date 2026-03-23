@@ -303,6 +303,130 @@ class TestLoadEasConfigDbSessionFallback:
 
 
 # ===========================================================================
+# Bug 3b — load_eas_config() must read TTSSettings from db_session outside Flask
+# ===========================================================================
+
+class TestLoadEasConfigTTSDbSession:
+    """tts_provider must be read from db_session in the CAP poller scenario.
+
+    get_tts_settings() internally catches every exception (including the
+    RuntimeError raised when there is no Flask app context) and returns a
+    fake TTSSettings(id=1) with enabled=False.  That fake object is *not*
+    None, so the old guard ``if tts_settings is None and db_session is not
+    None`` was never True — the db_session path was permanently skipped and
+    TTS was always disabled for every CAP/IPAWS alert regardless of what the
+    operator configured in the web UI.
+
+    Fix: when db_session is supplied, query it directly before attempting
+    get_tts_settings(), exactly mirroring the existing EASSettings fix (Bug 3).
+    """
+
+    def _make_mock_session(self, tts_enabled: bool, tts_provider: str):
+        """Return a mock db_session whose .get() dispatches by model name."""
+        mock_tts = MagicMock()
+        mock_tts.enabled = tts_enabled
+        mock_tts.provider = tts_provider
+        mock_tts.azure_openai_endpoint = ''
+        mock_tts.azure_openai_key = ''
+        mock_tts.azure_openai_model = 'tts-1'
+        mock_tts.azure_openai_voice = 'alloy'
+        mock_tts.azure_openai_speed = 1.0
+
+        mock_eas = MagicMock()
+        mock_eas.broadcast_enabled = True
+        mock_eas.originator = 'WXR'
+        mock_eas.station_id = 'TESTNODE'
+        mock_eas.sample_rate = 16000
+        mock_eas.attention_tone_seconds = 8
+        mock_eas.audio_player = ''
+
+        def _get(model_cls, pk):
+            name = getattr(model_cls, '__name__', '')
+            if 'TTS' in name:
+                return mock_tts
+            return mock_eas
+
+        mock_session = MagicMock()
+        mock_session.get.side_effect = _get
+        return mock_session
+
+    def test_tts_provider_from_db_session(self):
+        """tts_provider must be read from db_session, not from get_tts_settings().
+
+        This is the core regression test.  Without the fix, get_tts_settings()
+        returns a fake disabled default (no Flask context) and tts_provider is
+        always ''.  With the fix, db_session.get(TTSSettings, 1) is called
+        directly and the real provider is returned.
+        """
+        from app_utils.eas import load_eas_config
+
+        mock_session = self._make_mock_session(
+            tts_enabled=True, tts_provider='azure_openai'
+        )
+        cfg = load_eas_config(db_session=mock_session)
+
+        assert cfg['tts_provider'] == 'azure_openai', (
+            "tts_provider from db_session must propagate to cfg['tts_provider'] "
+            "when there is no Flask app context (CAP poller scenario).  "
+            "If this fails, get_tts_settings() is still being called first and "
+            "its fake disabled default is blocking the real db_session read."
+        )
+
+    def test_tts_disabled_row_respected(self):
+        """When enabled=False in the DB, tts_provider must remain empty."""
+        from app_utils.eas import load_eas_config
+
+        mock_session = self._make_mock_session(
+            tts_enabled=False, tts_provider='azure_openai'
+        )
+        cfg = load_eas_config(db_session=mock_session)
+
+        assert cfg['tts_provider'] == '', (
+            "tts_provider must be '' when TTSSettings.enabled is False."
+        )
+
+    def test_tts_provider_pyttsx3_from_db_session(self):
+        """pyttsx3 provider is also correctly read from db_session."""
+        from app_utils.eas import load_eas_config
+
+        mock_session = self._make_mock_session(
+            tts_enabled=True, tts_provider='pyttsx3'
+        )
+        cfg = load_eas_config(db_session=mock_session)
+
+        assert cfg['tts_provider'] == 'pyttsx3', (
+            "pyttsx3 tts_provider must be read from db_session."
+        )
+
+    def test_tts_row_absent_gives_empty_provider(self):
+        """When there is no TTSSettings row, tts_provider must be ''."""
+        from app_utils.eas import load_eas_config
+
+        mock_eas = MagicMock()
+        mock_eas.broadcast_enabled = True
+        mock_eas.originator = 'WXR'
+        mock_eas.station_id = 'TESTNODE'
+        mock_eas.sample_rate = 16000
+        mock_eas.attention_tone_seconds = 8
+        mock_eas.audio_player = ''
+
+        def _get(model_cls, pk):
+            name = getattr(model_cls, '__name__', '')
+            if 'TTS' in name:
+                return None  # no TTSSettings row
+            return mock_eas
+
+        mock_session = MagicMock()
+        mock_session.get.side_effect = _get
+
+        cfg = load_eas_config(db_session=mock_session)
+
+        assert cfg['tts_provider'] == '', (
+            "tts_provider must be '' when no TTSSettings row exists."
+        )
+
+
+# ===========================================================================
 # Bug 4 — alert_forwarding.py timestamps must be UTC-aware
 # ===========================================================================
 

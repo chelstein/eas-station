@@ -6,22 +6,22 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
-## [2.66.2] - 2026-03-23 - Fix "View on Map" on County Boundaries page
+## [2.66.2] - 2026-03-23 - Fix TTS permanently disabled for all CAP/IPAWS alerts
 
 ### Fixed
-- **"View on Map" button did nothing** — The County Boundaries admin page used Leaflet.js
-  (`L.map()`, `L.geoJSON()`) but never loaded the Leaflet CSS or JS files. This caused a
-  `ReferenceError: L is not defined` inside the `DOMContentLoaded` handler, which prevented
-  all button event-listeners (including the "View on Map" buttons in the Loaded States table)
-  from ever being attached. Fixed by loading Leaflet CSS in `{% block extra_css %}` and
-  Leaflet JS in `{% block scripts %}`, matching the pattern used by `alert_detail.html`.
-
-### Changed
-- **County Boundaries page section order** — Reordered the admin page sections to match a
-  natural workflow: Load/Upload → Loaded States → **Interactive Map** → County Search →
-  SAME-code Lookup → Documentation. The map now appears immediately below the Loaded States
-  table, so clicking "View on Map" scrolls the user *down* to the map result rather than
-  *up* past the table they were just looking at.
+- **TTS "No TTS provider configured" for every IPAWS/CAP alert** — `load_eas_config()` was
+  calling `get_tts_settings()` first even when the CAP poller provided a `db_session` and
+  had no Flask app context. `get_tts_settings()` catches all exceptions internally and
+  returns a fake `TTSSettings(id=1)` with `enabled=False` rather than raising. That
+  non-`None` fake object meant the guard `if tts_settings is None and db_session is not
+  None` was permanently `False` — the `db_session` fallback (which reads the real settings)
+  was never reached, and `tts_provider` was always `''` for every alert the CAP poller
+  processed. The fix restructures the TTS loading in `load_eas_config` to mirror the
+  existing `EASSettings` fix (Bug 3 in `test_airchain_fringe_cases.py`): when `db_session`
+  is supplied, query it directly first and skip `get_tts_settings()` entirely; only fall
+  back to `get_tts_settings()` (the Flask-SQLAlchemy path) when no `db_session` is
+  provided. Four regression tests added to `tests/test_airchain_fringe_cases.py` under
+  `TestLoadEasConfigTTSDbSession`.
 
 ## [2.66.1] - 2026-03-23 - Consolidate Tools menu into Settings dropdown
 
