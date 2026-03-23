@@ -66,8 +66,7 @@
                         <audio
                             controls
                             id="eas-decoder-audio"
-                            preload="none"
-                            src="/api/eas/decoder-stream">
+                            preload="none">
                             Your browser does not support the audio element.
                         </audio>
                         <div class="small text-muted mt-2">
@@ -2413,73 +2412,112 @@ renderAudioSources = function(fullRender = true) {
 function toggleEASDecoderAudio(button) {
     const container = document.getElementById('eas-decoder-player-container');
     const audio = document.getElementById('eas-decoder-audio');
-    // Fallback: if called without argument, find the button by ID
     if (!button || !button.classList) {
         button = document.getElementById('eas-decoder-listen-btn');
     }
 
     if (container.classList.contains('d-none')) {
-        // Show player container
+        // ── SHOW PLAYER ──────────────────────────────────────────────────────
         container.classList.remove('d-none');
         button.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Loading...';
         button.classList.remove('btn-primary');
         button.classList.add('btn-warning');
         button.disabled = true;
 
-        // Pre-check the stream endpoint to get specific error messages on failure.
-        // Use an AbortController so the check request is cleaned up before the audio element connects.
-        const checkController = new AbortController();
-        fetch('/api/eas/decoder-stream', { signal: checkController.signal }).then(response => {
-            if (!response.ok) {
-                // Server returned an error - try to parse the JSON error message
-                return response.json().then(data => {
-                    throw new Error(data.error || 'Stream unavailable (HTTP ' + response.status + ')');
-                }).catch(jsonErr => {
-                    if (jsonErr.message && !jsonErr.message.includes('JSON')) {
-                        throw jsonErr; // Re-throw the parsed error
-                    }
-                    throw new Error('Stream unavailable (HTTP ' + response.status + ')');
-                });
+        // ── Helper: revert button + show error alert ──────────────────────────
+        function showStreamError(msg) {
+            container.classList.add('d-none');
+            button.innerHTML = '<i class="fas fa-headphones me-1"></i> Listen';
+            button.classList.remove('btn-warning', 'btn-danger');
+            button.classList.add('btn-primary');
+            button.disabled = false;
+
+            const noSources = msg.toLowerCase().includes('no running') ||
+                              msg.toLowerCase().includes('start an audio source');
+            const serviceDown = msg.includes('502') || msg.includes('503') ||
+                                 msg.toLowerCase().includes('not running') ||
+                                 msg.toLowerCase().includes('unavailable');
+            let guidance = '';
+            if (noSources) {
+                guidance = ' <strong>Start one of the audio sources below, then try again.</strong>';
+            } else if (serviceDown) {
+                guidance = ' <strong>The EAS monitoring service may not be running. Check <a href="/admin/diagnostics">System Diagnostics</a>.</strong>';
             }
-            // Stream is available - abort the check request and let the audio element connect
-            checkController.abort();
-            audio.src = '/api/eas/decoder-stream';
-            audio.load();
-            return audio.play();
-        }).then(() => {
+
+            const alertDiv = document.createElement('div');
+            alertDiv.className = 'alert alert-warning alert-dismissible fade show mt-2';
+            alertDiv.setAttribute('role', 'alert');
+            alertDiv.innerHTML = '<i class="fas fa-exclamation-triangle me-1"></i> ' +
+                'EAS decoder stream error: ' + msg + guidance +
+                '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>';
+            container.parentElement.appendChild(alertDiv);
+            setTimeout(() => alertDiv.remove(), 15000);
+        }
+
+        // ── Helper: fetch backend for a specific error message ─────────────────
+        // Only called AFTER a failure — never before play() — so autoplay is
+        // already either granted or blocked before this async work starts.
+        function diagnoseAndShowError(fallbackMsg) {
+            fetch('/api/eas/decoder-stream')
+                .then(function(resp) {
+                    if (!resp.ok) {
+                        return resp.json()
+                            .then(function(d) { showStreamError(d.error || ('HTTP ' + resp.status)); })
+                            .catch(function() { showStreamError('HTTP ' + resp.status); });
+                    }
+                    // Backend says OK — the error was likely a browser media issue
+                    showStreamError(fallbackMsg);
+                })
+                .catch(function() {
+                    showStreamError('Could not reach EAS monitoring service. Check System Diagnostics.');
+                });
+        }
+
+        // ── CRITICAL FIX: set src and call play() SYNCHRONOUSLY within the   ──
+        // user-gesture handler.  Any async gap (fetch → .then → play) causes   ──
+        // Chrome to revoke the gesture token and block playback with            ──
+        // NotAllowedError, even when audio IS flowing.                          ──
+        audio.src = '/api/eas/decoder-stream';
+
+        // One-shot event listeners registered before play() so we never miss them
+        function onPlaying() {
+            audio.removeEventListener('playing', onPlaying);
+            audio.removeEventListener('error',   onError);
             button.innerHTML = '<i class="fas fa-stop me-1"></i> Stop';
             button.classList.remove('btn-warning');
             button.classList.add('btn-danger');
             button.disabled = false;
-        }).catch(err => {
-            // Ignore AbortError from intentional checkController.abort()
-            if (err.name === 'AbortError') return;
-            console.error('Failed to play EAS decoder audio:', err);
-            // Revert UI and show feedback
-            container.classList.add('d-none');
-            button.innerHTML = '<i class="fas fa-headphones me-1"></i> Listen';
-            button.classList.remove('btn-warning');
-            button.classList.add('btn-primary');
-            button.disabled = false;
-            // Show a brief error toast/alert with specific error details
-            const alertDiv = document.createElement('div');
-            alertDiv.className = 'alert alert-warning alert-dismissible fade show mt-2';
-            alertDiv.setAttribute('role', 'alert');
-            const errorMsg = err.message || 'Unknown error';
-            // Give actionable guidance when no sources are running
-            const noSourcesRunning = errorMsg.toLowerCase().includes('no running') ||
-                                     errorMsg.toLowerCase().includes('start an audio source');
-            const guidance = noSourcesRunning
-                ? ' <strong>Start one of the audio sources in the section below, then try again.</strong>'
-                : '';
-            alertDiv.innerHTML = '<i class="fas fa-exclamation-triangle me-1"></i> ' +
-                'Could not start decoder audio stream: ' + errorMsg + guidance +
-                '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>';
-            container.parentElement.appendChild(alertDiv);
-            setTimeout(() => alertDiv.remove(), 12000);
-        });
+        }
+
+        function onError() {
+            audio.removeEventListener('playing', onPlaying);
+            audio.removeEventListener('error',   onError);
+            console.error('EAS decoder audio error:', audio.error);
+            diagnoseAndShowError('Audio stream failed — check that an audio source is running.');
+        }
+
+        audio.addEventListener('playing', onPlaying);
+        audio.addEventListener('error',   onError);
+
+        // play() called synchronously — browser user-gesture context preserved
+        var playPromise = audio.play();
+        if (playPromise !== undefined) {
+            playPromise.catch(function(err) {
+                audio.removeEventListener('playing', onPlaying);
+                audio.removeEventListener('error',   onError);
+                console.error('EAS decoder play() rejected:', err);
+                if (err.name === 'NotAllowedError') {
+                    // Autoplay blocked — extremely unlikely given synchronous call,
+                    // but handle gracefully just in case.
+                    showStreamError('Autoplay blocked by browser. Click the play button inside the audio player to start.');
+                } else {
+                    diagnoseAndShowError(err.message || 'Playback failed.');
+                }
+            });
+        }
+
     } else {
-        // Hide and pause
+        // ── HIDE PLAYER ───────────────────────────────────────────────────────
         container.classList.add('d-none');
         button.innerHTML = '<i class="fas fa-headphones me-1"></i> Listen';
         button.classList.remove('btn-danger', 'btn-warning');

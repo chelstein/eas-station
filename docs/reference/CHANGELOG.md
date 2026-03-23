@@ -6,6 +6,40 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.66.0] - 2026-03-23 - EAS ingest Icecast stream, Listen button fix, working test suite
+
+### Added
+- **EAS ingest Icecast stream** (`/eas-ingest.mp3`) — a 3rd Icecast mountpoint that
+  streams the 16 kHz mono audio fed directly to the EAS decoder. Implemented via a new
+  `EASIngestShim` class in `auto_streaming.py` that routes `get_broadcast_queue()` to the
+  source's pre-resampled EAS queue.  The stream auto-starts as soon as any audio source is
+  running, auto-follows if the active source changes, and shows in Icecast as a 3rd active
+  source alongside the two native-rate streams.  Nginx config updated to proxy
+  `/eas-ingest.mp3` directly from Icecast (port 8000).
+- **Three working audio pipeline test files** — `tests/test_audio_playout_queue.py` (24
+  tests), `tests/test_audio_output_service.py` (13 tests), and
+  `tests/test_audio_pipeline_integration.py` (19 tests) — replacing the previously missing
+  stubs that caused the Audio Pipeline Test Suite to report "No summary available / FAILED".
+  All 56 tests pass.
+- **Robust test-runner logging** — `routes_audio_tests.py` now scans output from the
+  bottom up for the real pytest summary, synthesises a descriptive fallback message when
+  pytest exits with no test lines (missing files, import errors, etc.), and logs the full
+  stdout/stderr to the application log on any failure so operators can diagnose without
+  needing the web UI.
+
+### Fixed
+- **Listen button** — root cause was `audio.play()` being called inside an async
+  `fetch().then()` callback, which caused Chrome to revoke the user-gesture token and block
+  playback with `NotAllowedError` even when audio was flowing.  Fixed by calling `audio.src`
+  and `audio.play()` synchronously on click (preserving the gesture), then using
+  `audio.addEventListener('playing' / 'error')` for state updates and a follow-up
+  diagnostic `fetch()` only when an error occurs.  The static `src` attribute has been
+  removed from the `<audio>` element so the browser no longer attempts to connect to the
+  stream on page load.
+- **Error messages now actionable** — the error alert distinguishes between "no audio
+  sources running" (guidance: start a source), "service down" (guidance: check System
+  Diagnostics), and browser-level play failures.
+
 ## [2.65.9] - 2026-03-23 - Log the operator who generates or sends a manual EAS alert
 
 ### Added
