@@ -139,23 +139,20 @@ def load_eas_config(base_path: Optional[str] = None, db_session=None) -> Dict[st
 
     tts_settings = None
 
-    # Primary path: use Flask-SQLAlchemy helper (requires app context).
-    try:
-        tts_settings = get_tts_settings()
-        load_logger.info(
-            f"TTS settings from DB (Flask context): enabled={tts_settings.enabled}, "
-            f"provider='{tts_settings.provider}'"
-        )
-    except Exception as exc:
-        load_logger.warning(
-            f"Could not load TTS settings via Flask context: {exc}. "
-            "Trying direct session fallback."
-        )
-
-    # Fallback path: read directly from a provided raw SQLAlchemy session.
-    # This is needed when load_eas_config() is called from a background
-    # process (e.g. the standalone CAP poller) that has no Flask app context.
-    if tts_settings is None and db_session is not None:
+    # When db_session is provided the caller runs outside a Flask app context
+    # (e.g. the standalone CAP poller).  get_tts_settings() relies on
+    # Flask-SQLAlchemy, which raises RuntimeError when there is no active
+    # application context.  Critically, get_tts_settings() catches that
+    # exception internally and returns a *fake* TTSSettings(id=1) object with
+    # enabled=False — it never propagates the error.  That fake object is not
+    # None, so the old "if tts_settings is None" guard below was permanently
+    # short-circuited: the db_session fallback was never reached and TTS was
+    # always treated as disabled for every CAP/IPAWS alert.
+    #
+    # Fix: when db_session is supplied, query it directly and skip
+    # get_tts_settings() entirely.  This mirrors the pattern already used for
+    # EASSettings further down this function (Bug 3 in test_airchain_fringe_cases).
+    if db_session is not None:
         try:
             from app_core.models import TTSSettings as _TTSSettings
             tts_settings = db_session.get(_TTSSettings, 1)
@@ -166,8 +163,23 @@ def load_eas_config(base_path: Optional[str] = None, db_session=None) -> Dict[st
                 )
             else:
                 load_logger.info("TTS settings row not found via direct session (id=1); TTS disabled")
-        except Exception as exc2:
-            load_logger.error(f"Failed to load TTS settings from direct session: {exc2}")
+        except Exception as exc:
+            load_logger.error(f"Failed to load TTS settings from direct session: {exc}")
+
+    # Flask-SQLAlchemy path: only used when no db_session was provided, i.e.
+    # we are running inside a Flask request handler or app context where
+    # get_tts_settings() can reach the database normally.
+    if tts_settings is None:
+        try:
+            tts_settings = get_tts_settings()
+            load_logger.info(
+                f"TTS settings from DB (Flask context): enabled={tts_settings.enabled}, "
+                f"provider='{tts_settings.provider}'"
+            )
+        except Exception as exc:
+            load_logger.warning(
+                f"Could not load TTS settings via Flask context: {exc}."
+            )
 
     if tts_settings is not None:
         if not tts_settings.enabled:
