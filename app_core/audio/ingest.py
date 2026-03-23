@@ -738,6 +738,123 @@ class AudioIngestController:
 
         return adapter.status == AudioSourceStatus.RUNNING
 
+    def inject_eas_test_signal(self, source_name: Optional[str] = None) -> Optional[str]:
+        """Inject a SAME Required Weekly Test (RWT) signal into the EAS broadcast pipeline.
+
+        Generates a standards-compliant SAME header + EOM burst at 16 kHz and
+        publishes every chunk directly to the chosen source's pre-resampled EAS
+        broadcast queue.  Subscribers (the UnifiedEASMonitorService decoder and
+        any active ``/eas-ingest-*.mp3`` Icecast streams) will receive the
+        signal just as if it had arrived from a live receiver.
+
+        This is the primary tool for verifying end-to-end EAS pipeline health
+        without needing an external signal generator or real broadcast.
+
+        Args:
+            source_name: Name of the audio source to inject into.  If *None*,
+                the first running source is used.
+
+        Returns:
+            The name of the source that received the signal, or *None* if no
+            running source could be found.
+        """
+        import math
+        from datetime import datetime, timezone
+
+        from app_utils.eas_fsk import (
+            SAME_BAUD,
+            SAME_MARK_FREQ,
+            SAME_SPACE_FREQ,
+            encode_same_bits,
+            generate_fsk_samples,
+        )
+
+        sample_rate = 16000
+        amplitude = 0.7 * 32767
+
+        # Build a minimal RWT SAME header for the current UTC time.
+        now = datetime.now(timezone.utc)
+        julian_day = now.timetuple().tm_yday
+        timestamp = f"{julian_day:03d}{now:%H%M}"
+        header = f"ZCZC-EAS-RWT-000000+0015-{timestamp}-EASTEST-"
+
+        # Encode header bits and render FSK samples once; reuse for all 3 bursts.
+        same_bits = encode_same_bits(header, include_preamble=True)
+        header_samples = generate_fsk_samples(
+            same_bits,
+            sample_rate=sample_rate,
+            bit_rate=float(SAME_BAUD),
+            mark_freq=SAME_MARK_FREQ,
+            space_freq=SAME_SPACE_FREQ,
+            amplitude=amplitude,
+        )
+
+        silence = [0] * sample_rate  # 1-second inter-burst silence
+
+        # FCC §11.31: transmit header 3 times with 1 s silence between bursts.
+        all_samples: List[int] = []
+        for i in range(3):
+            all_samples.extend(header_samples)
+            if i < 2:
+                all_samples.extend(silence)
+
+        all_samples.extend(silence)  # Post-header pause before EOM
+
+        # EOM (NNNN) × 3 with 1-second silence between bursts.
+        eom_bits = encode_same_bits("NNNN", include_preamble=True, include_cr=False)
+        eom_samples = generate_fsk_samples(
+            eom_bits,
+            sample_rate=sample_rate,
+            bit_rate=float(SAME_BAUD),
+            mark_freq=SAME_MARK_FREQ,
+            space_freq=SAME_SPACE_FREQ,
+            amplitude=amplitude,
+        )
+        for i in range(3):
+            all_samples.extend(eom_samples)
+            if i < 2:
+                all_samples.extend(silence)
+
+        # Convert int16 range to float32 normalised [-1.0, 1.0] — the format
+        # used by the EAS broadcast queues and UnifiedEASMonitorService.
+        audio_np = np.array(all_samples, dtype=np.float32) / 32767.0
+
+        # Locate the target source.
+        with self._lock:
+            sources_snapshot = dict(self._sources)
+
+        target_adapter = None
+        if source_name:
+            adapter = sources_snapshot.get(source_name)
+            if adapter and adapter.status == AudioSourceStatus.RUNNING:
+                target_adapter = adapter
+        else:
+            for adapter in sources_snapshot.values():
+                if adapter.status == AudioSourceStatus.RUNNING:
+                    target_adapter = adapter
+                    break
+
+        if target_adapter is None:
+            logger.warning("inject_eas_test_signal: no running audio source found")
+            return None
+
+        # Publish in chunks that match the EAS broadcast queue's expected granularity
+        # (~85 ms at 16 kHz — same cadence as the live capture loop).
+        chunk_size = int(sample_rate * 0.085)  # ~1365 samples per chunk
+        for start in range(0, len(audio_np), chunk_size):
+            chunk = audio_np[start:start + chunk_size]
+            if len(chunk) > 0:
+                target_adapter._eas_broadcast.publish(chunk)
+
+        logger.info(
+            "Injected EAS test signal (%d samples, %.1f s) into EAS broadcast queue "
+            "for source '%s'",
+            len(audio_np),
+            len(audio_np) / sample_rate,
+            target_adapter.config.name,
+        )
+        return target_adapter.config.name
+
     def cleanup(self) -> None:
         """Cleanup all sources and threads."""
         self.stop_all()

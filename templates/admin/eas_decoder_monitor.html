@@ -6,25 +6,29 @@
 <div class="admin-page-header header-danger">
     <div class="container">
         <h1><i class="fas fa-headphones-alt"></i> EAS Decoder Monitor</h1>
-        <p class="mb-0">Configure audio monitoring for the EAS decoder pipeline</p>
+        <p class="mb-0">Configure audio monitoring for the EAS decoder pipeline and inject test signals</p>
     </div>
 </div>
 
 <div class="container-fluid">
     <div class="row mt-4">
         <div class="col-lg-8">
-            <div class="card">
+
+            <!-- Monitor Settings Card -->
+            <div class="card mb-4">
                 <div class="card-header bg-primary text-white">
-                    <h4 class="h5 mb-0">Decoder Monitor Settings</h4>
+                    <h4 class="h5 mb-0"><i class="fas fa-sliders-h"></i> Decoder Monitor Settings</h4>
                 </div>
                 <div class="card-body">
                     <div class="alert alert-info">
                         <i class="fas fa-info-circle"></i>
-                        <strong>What is this?</strong> The EAS decoder monitor provides a way to listen to the actual
-                        16 kHz resampled audio fed to the SAME decoder. This helps verify that:
+                        <strong>What is this?</strong> The EAS decoder monitor streams the exact
+                        16 kHz audio each source sends to the SAME decoder. When enabled, each
+                        running audio source gets its own Icecast mount point so you can listen to
+                        what the decoder hears for that channel.
                         <ul class="mb-0 mt-2">
-                            <li>Audio is being correctly resampled to 16 kHz for decoding</li>
-                            <li>Audio quality is sufficient for SAME header detection</li>
+                            <li>Audio is correctly resampled to 16 kHz for SAME decoding</li>
+                            <li>Audio quality is sufficient for header detection</li>
                             <li>No distortion or clipping in the decoder input path</li>
                         </ul>
                     </div>
@@ -37,17 +41,20 @@
                                 <option value="true">Enabled</option>
                             </select>
                             <div class="form-text">
-                                When enabled, creates a monitoring stream of the 16 kHz audio fed to the EAS decoder.
-                                This stream can be accessed on the Audio Monitoring page.
+                                When enabled, creates a per-source 16 kHz Icecast monitoring stream
+                                for every running audio source.
                             </div>
                         </div>
 
                         <div class="mb-3">
-                            <label for="stream_name" class="form-label">Stream Name</label>
-                            <input type="text" id="stream_name" name="stream_name" class="form-control" 
+                            <label for="stream_name" class="form-label">Mount Name Prefix</label>
+                            <input type="text" id="stream_name" name="stream_name" class="form-control"
                                    placeholder="eas-decoder-monitor" required>
                             <div class="form-text">
-                                Name for the decoder monitoring stream (appears in audio sources list).
+                                Prefix for the per-source mount points.  A source named
+                                <code>my-receiver</code> will appear at
+                                <code>/{prefix}-my-receiver.mp3</code> on the Icecast server
+                                (port 8000).
                             </div>
                         </div>
 
@@ -62,25 +69,89 @@
                     </form>
                 </div>
             </div>
+
+            <!-- Test Signal Injection Card -->
+            <div class="card mb-4">
+                <div class="card-header bg-warning text-dark">
+                    <h4 class="h5 mb-0"><i class="fas fa-broadcast-tower"></i> Inject Test EAS Signal</h4>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <strong>Decoder pipeline test.</strong> Injects a synthetic SAME Required
+                        Weekly Test (RWT) signal directly into the 16 kHz EAS broadcast queue.
+                        The signal will be processed by the live EAS decoder exactly as if it
+                        arrived from a real receiver — you can monitor the result in the Active
+                        Alerts page and in any active EAS ingest Icecast streams.
+                    </div>
+
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label for="inject-source" class="form-label">Target Source</label>
+                            <select id="inject-source" class="form-select">
+                                <option value="">— First running source —</option>
+                            </select>
+                            <div class="form-text">
+                                Leave blank to inject into the first running source found.
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="inject-result" class="d-none mb-3"></div>
+
+                    <button type="button" class="btn btn-warning" id="inject-btn" onclick="injectTestSignal()">
+                        <i class="fas fa-satellite-dish"></i> Send Test Signal
+                    </button>
+                </div>
+            </div>
+
         </div>
 
         <div class="col-lg-4">
-            <div class="card">
+            <div class="card mb-4">
                 <div class="card-header bg-info text-white">
-                    <h4 class="h5 mb-0">Technical Details</h4>
+                    <h4 class="h5 mb-0">Mount Point Reference</h4>
                 </div>
                 <div class="card-body">
+                    <h6>Per-Source Streams</h6>
+                    <p class="small">
+                        Each running audio source gets its own monitoring mount point:<br>
+                        <code>/{prefix}-{source-name}.mp3</code><br>
+                        Access directly on Icecast (port&nbsp;8000) or through the nginx proxy.
+                    </p>
+
                     <h6>Sample Rate</h6>
-                    <p class="small">The EAS decoder expects audio at exactly <strong>16,000 Hz</strong> (16 kHz) for SAME header detection.</p>
+                    <p class="small">All decoder monitor streams run at <strong>16,000 Hz</strong>
+                    mono — exactly what the SAME decoder processes.</p>
 
                     <h6>Resampling</h6>
-                    <p class="small">Audio sources typically run at 32-48 kHz. The <code>ResamplingBroadcastAdapter</code> converts this to 16 kHz using linear interpolation.</p>
-
-                    <h6>Monitoring Stream</h6>
-                    <p class="small">The decoder monitor taps into the resampled audio stream, providing a separate monitoring output at 16 kHz.</p>
+                    <p class="small">Sources typically run at 32–48 kHz.
+                    The <code>ResamplingBroadcastAdapter</code> converts to 16 kHz before
+                    publishing to the EAS queue.</p>
 
                     <h6>Bandwidth</h6>
-                    <p class="small">At 16 kHz mono, the uncompressed stream uses ~256 kbps (16-bit PCM).</p>
+                    <p class="small">Each stream uses ~48 kbps (MP3, 16 kHz mono).</p>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header bg-secondary text-white">
+                    <h4 class="h5 mb-0">Test Signal Details</h4>
+                </div>
+                <div class="card-body">
+                    <p class="small">The injected signal is a standards-compliant SAME message:</p>
+                    <ul class="small">
+                        <li>Event: <strong>RWT</strong> (Required Weekly Test)</li>
+                        <li>Originator: <strong>EAS</strong></li>
+                        <li>Location: <strong>000000</strong> (all areas)</li>
+                        <li>Duration: <strong>15 minutes</strong></li>
+                        <li>3× header bursts + EOM per FCC §11.31</li>
+                    </ul>
+                    <p class="small text-muted">
+                        The signal bypasses the actual radio receiver and is injected
+                        at the 16 kHz resampled stage, so it tests the decoder and all
+                        downstream pipeline stages.
+                    </p>
                 </div>
             </div>
         </div>
@@ -110,6 +181,26 @@ async function loadSettings() {
     }
 }
 
+async function loadSources() {
+    try {
+        const response = await fetch('/api/audio/sources');
+        if (!response.ok) return;
+        const data = await response.json();
+        const sources = data.sources || [];
+        const select = document.getElementById('inject-source');
+        // Keep the "first running" placeholder, then add running sources
+        while (select.options.length > 1) select.remove(1);
+        for (const src of sources) {
+            if (src.status === 'running') {
+                const opt = document.createElement('option');
+                opt.value = src.name;
+                opt.textContent = src.name;
+                select.appendChild(opt);
+            }
+        }
+    } catch (_) { /* non-fatal */ }
+}
+
 async function saveSettings(event) {
     event.preventDefault();
     
@@ -133,7 +224,8 @@ async function saveSettings(event) {
             throw new Error(error.error || 'Failed to save settings');
         }
         
-        const result = await response.json();
+        // Consume the response body to avoid connection leaks
+        await response.json();
         showToast('Settings saved successfully', 'success');
         
         // Reload to show updated values
@@ -144,9 +236,54 @@ async function saveSettings(event) {
     }
 }
 
+async function injectTestSignal() {
+    const btn = document.getElementById('inject-btn');
+    const resultDiv = document.getElementById('inject-result');
+    const sourceSelect = document.getElementById('inject-source');
+
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending…';
+    resultDiv.className = 'd-none';
+
+    try {
+        const body = {};
+        if (sourceSelect.value) {
+            body.source_name = sourceSelect.value;
+        }
+
+        const response = await fetch('/api/admin/eas_decoder_monitor/test_signal', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.error || `HTTP ${response.status}`);
+        }
+
+        resultDiv.className = 'alert alert-success mb-3';
+        resultDiv.innerHTML =
+            `<i class="fas fa-check-circle"></i> <strong>Signal sent!</strong> ` +
+            `Injected into source <code>${data.source_name}</code>. ` +
+            `Check Active Alerts for the decoded RWT event.`;
+        showToast(`Test signal injected into '${data.source_name}'`, 'success');
+    } catch (error) {
+        resultDiv.className = 'alert alert-danger mb-3';
+        resultDiv.innerHTML =
+            `<i class="fas fa-times-circle"></i> <strong>Failed:</strong> ${error.message}`;
+        showToast(`Injection failed: ${error.message}`, 'danger');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-satellite-dish"></i> Send Test Signal';
+    }
+}
+
 // Initialize
 document.addEventListener('DOMContentLoaded', function() {
     loadSettings();
+    loadSources();
     document.getElementById('decoder-monitor-form').addEventListener('submit', saveSettings);
 });
 </script>
