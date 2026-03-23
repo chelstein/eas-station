@@ -47,8 +47,9 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# Internal key used to track the EAS ingest Icecast stream inside _streamers
-_EAS_INGEST_KEY = "_eas-ingest"
+# Prefix used for per-source EAS ingest stream keys inside _streamers.
+# A key looks like "_eas-ingest-<source_name>".
+_EAS_INGEST_KEY_PREFIX = "_eas-ingest-"
 
 
 class EASIngestShim:
@@ -98,7 +99,8 @@ class AutoStreamingService:
         default_bitrate: int = 128,
         default_format: StreamFormat = StreamFormat.MP3,
         enabled: bool = False,
-        audio_controller: Optional['AudioIngestController'] = None
+        audio_controller: Optional['AudioIngestController'] = None,
+        flask_app=None,
     ):
         """
         Initialize auto-streaming service.
@@ -111,6 +113,8 @@ class AutoStreamingService:
             default_format: Default audio format (MP3 or OGG)
             enabled: Whether service is enabled
             audio_controller: AudioIngestController for broadcast queue access
+            flask_app: Flask application instance (used to read database settings
+                       such as EASDecoderMonitorSettings from background threads)
         """
         self.icecast_server = icecast_server
         self.icecast_port = icecast_port
@@ -121,13 +125,11 @@ class AutoStreamingService:
         self.default_format = default_format
         self.enabled = enabled
         self.audio_controller = audio_controller
+        self._flask_app = flask_app
 
         # Active streamers: source_name -> IcecastStreamer
         self._streamers: Dict[str, IcecastStreamer] = {}
         self._lock = threading.Lock()
-
-        # Tracks which real source the EAS ingest stream is currently using
-        self._eas_ingest_source_name: Optional[str] = None
 
         # Monitoring thread
         self._monitor_thread: Optional[threading.Thread] = None
@@ -346,14 +348,20 @@ class AutoStreamingService:
         """
         with self._lock:
             active_streams = {}
-            for source_name, streamer in self._streamers.items():
-                active_streams[source_name] = streamer.get_stats()
+            eas_ingest_streams = {}
+            for key, streamer in self._streamers.items():
+                if key.startswith(_EAS_INGEST_KEY_PREFIX):
+                    source_name = key[len(_EAS_INGEST_KEY_PREFIX):]
+                    eas_ingest_streams[source_name] = streamer.get_stats()
+                else:
+                    active_streams[key] = streamer.get_stats()
 
             return {
                 "enabled": self.enabled,
                 "server": f"{self.icecast_server}:{self.icecast_port}",
                 "active_stream_count": len(self._streamers),
                 "active_streams": active_streams,
+                "eas_ingest_streams": eas_ingest_streams,
             }
 
     def is_available(self) -> bool:
@@ -365,28 +373,34 @@ class AutoStreamingService:
         """
         return self.enabled and bool(self.icecast_password)
 
-    def _add_eas_ingest_stream(self, source_name: str, source_adapter) -> bool:
+    def _add_eas_ingest_stream(self, source_name: str, source_adapter, mount_name: str = "eas-ingest") -> bool:
         """
         Create an Icecast stream for the EAS decoder input (16 kHz mono).
 
-        The mount point is always ``/eas-ingest.mp3``.  The stream carries the
-        same 16 kHz float32 audio the EAS decoder processes, so operators can
-        confirm what the decoder is hearing without needing CLI access.
+        The mount point is ``/{mount_name}.mp3`` where ``mount_name`` defaults to
+        ``eas-ingest-{source_name}`` when only one argument is provided.  The
+        stream carries the same 16 kHz float32 audio the EAS decoder processes,
+        so operators can confirm what the decoder is hearing without needing CLI
+        access.
 
         Args:
             source_name: Human-readable name of the underlying source (for logging).
             source_adapter: Running AudioSourceAdapter whose EAS queue to stream.
+            mount_name: Mount name without leading slash or extension
+                        (e.g. ``"eas-ingest-my-source"``).
 
         Returns:
             True if the stream started successfully.
         """
+        eas_key = f"{_EAS_INGEST_KEY_PREFIX}{source_name}"
         try:
             shim = EASIngestShim(source_adapter)
+            mount = f"/{mount_name}.mp3"
             config = IcecastConfig(
                 server=self.icecast_server,
                 port=self.icecast_port,
                 password=self.icecast_password,
-                mount="/eas-ingest.mp3",
+                mount=mount,
                 name="EAS Decoder Input",
                 description=f"16 kHz mono — what the EAS decoder hears (source: {source_name})",
                 genre="Emergency Alert System",
@@ -400,23 +414,44 @@ class AutoStreamingService:
             )
             streamer = IcecastStreamer(config, shim)
             with self._lock:
-                if _EAS_INGEST_KEY in self._streamers:
+                if eas_key in self._streamers:
                     return False  # Created concurrently, skip
                 if streamer.start():
-                    self._streamers[_EAS_INGEST_KEY] = streamer
-                    self._eas_ingest_source_name = source_name
+                    self._streamers[eas_key] = streamer
                     logger.info(
                         "✅ EAS ingest Icecast stream started: "
-                        "http://%s:%s/eas-ingest.mp3 (from source '%s')",
-                        self.icecast_server, self.icecast_port, source_name,
+                        "http://%s:%s%s (from source '%s')",
+                        self.icecast_server, self.icecast_port, mount, source_name,
                     )
                     return True
                 else:
-                    logger.error("Failed to start EAS ingest Icecast stream")
+                    logger.error("Failed to start EAS ingest Icecast stream for '%s'", source_name)
                     return False
         except Exception as exc:
-            logger.error("Error creating EAS ingest Icecast stream: %s", exc, exc_info=True)
+            logger.error("Error creating EAS ingest Icecast stream for '%s': %s", source_name, exc, exc_info=True)
             return False
+
+    def _get_eas_monitor_settings(self):
+        """Read EASDecoderMonitorSettings from the database.
+
+        Returns ``(enabled, stream_name_prefix)`` where *stream_name_prefix* is
+        the base name used to build per-source mount points.  Falls back to
+        ``(True, "eas-ingest")`` when no Flask app context is available so that
+        existing deployments that don't use the settings table are unaffected.
+        """
+        if not self._flask_app:
+            return True, "eas-ingest"
+        try:
+            with self._flask_app.app_context():
+                from app_core.models import EASDecoderMonitorSettings
+                settings = EASDecoderMonitorSettings.query.first()
+                if settings is None:
+                    return False, "eas-ingest"
+                prefix = (settings.stream_name or "eas-ingest").strip().lower().replace(" ", "-")
+                return bool(settings.enabled), prefix
+        except Exception as exc:
+            logger.debug("Could not read EASDecoderMonitorSettings: %s", exc)
+            return True, "eas-ingest"
 
     def _monitor_loop(self) -> None:
         """Monitor active streams, discover new sources, and handle reconnections."""
@@ -448,44 +483,58 @@ class AutoStreamingService:
                                     source_name, exc,
                                 )
 
-                    # ── 2. Manage EAS ingest stream (16 kHz decoder input) ────────
-                    with self._lock:
-                        eas_ingest_active = _EAS_INGEST_KEY in self._streamers
+                    # ── 2. Manage per-source EAS ingest streams ───────────────────
+                    # Each running source gets its own 16 kHz monitoring mount so
+                    # operators can verify what every decoder channel is hearing.
+                    eas_enabled, eas_prefix = self._get_eas_monitor_settings()
 
-                    if not eas_ingest_active:
-                        # Find a running source that has an EAS broadcast queue
-                        for source_name, source_adapter in all_sources.items():
-                            if (
-                                source_adapter.status == AudioSourceStatus.RUNNING
-                                and hasattr(source_adapter, 'get_eas_broadcast_queue')
-                            ):
-                                self._add_eas_ingest_stream(source_name, source_adapter)
-                                break
-                    else:
-                        # Check whether the source backing the EAS ingest stream is
-                        # still running; if not, tear the stream down so the next
-                        # loop iteration can rebuild it from a live source.
-                        eas_source = all_sources.get(self._eas_ingest_source_name or "")
-                        if not eas_source or eas_source.status != AudioSourceStatus.RUNNING:
+                    for source_name, source_adapter in all_sources.items():
+                        eas_key = f"{_EAS_INGEST_KEY_PREFIX}{source_name}"
+                        with self._lock:
+                            already_active = eas_key in self._streamers
+
+                        if source_adapter.status == AudioSourceStatus.RUNNING and hasattr(
+                            source_adapter, 'get_eas_broadcast_queue'
+                        ):
+                            if eas_enabled and not already_active:
+                                # Sanitise source name for use in a mount path
+                                from .mount_points import sanitize_mount_name
+                                safe_name = sanitize_mount_name(source_name)
+                                mount_name = f"{eas_prefix}-{safe_name}"
+                                self._add_eas_ingest_stream(source_name, source_adapter, mount_name)
+                            elif not eas_enabled and already_active:
+                                # Monitor was disabled while stream was running
+                                logger.info(
+                                    "EAS decoder monitor disabled — stopping ingest stream for '%s'",
+                                    source_name,
+                                )
+                                self.remove_source(eas_key)
+
+                    # ── 3. Remove EAS ingest streams for stopped/removed sources ──
+                    with self._lock:
+                        eas_keys = [k for k in self._streamers if k.startswith(_EAS_INGEST_KEY_PREFIX)]
+                    for eas_key in eas_keys:
+                        src = eas_key[len(_EAS_INGEST_KEY_PREFIX):]
+                        source_adapter = all_sources.get(src)
+                        if not source_adapter or source_adapter.status != AudioSourceStatus.RUNNING:
                             logger.info(
                                 "EAS ingest source '%s' no longer running — "
                                 "stopping EAS ingest stream",
-                                self._eas_ingest_source_name,
+                                src,
                             )
-                            self.remove_source(_EAS_INGEST_KEY)
-                            self._eas_ingest_source_name = None
+                            self.remove_source(eas_key)
 
-                    # ── 3. Health-check all streamers ────────────────────────────
+                    # ── 4. Health-check all streamers ────────────────────────────
                     with self._lock:
                         for sn, streamer in list(self._streamers.items()):
                             if not streamer.get_stats().get("running", False):
                                 logger.warning("Streamer for '%s' stopped unexpectedly", sn)
 
-                        # ── 4. Remove native-rate streamers for stopped sources ──
+                        # ── 5. Remove native-rate streamers for stopped sources ──
                         if self.audio_controller:
                             for source_name in list(self._streamers.keys()):
-                                if source_name == _EAS_INGEST_KEY:
-                                    continue  # Lifecycle managed above in step 2
+                                if source_name.startswith(_EAS_INGEST_KEY_PREFIX):
+                                    continue  # Lifecycle managed above in steps 2–3
                                 source_adapter = all_sources.get(source_name)
                                 if (
                                     not source_adapter
@@ -507,4 +556,4 @@ class AutoStreamingService:
         logger.debug("Auto-streaming monitor loop stopped")
 
 
-__all__ = ['AutoStreamingService', 'EASIngestShim']
+__all__ = ['AutoStreamingService', 'EASIngestShim', '_EAS_INGEST_KEY_PREFIX']

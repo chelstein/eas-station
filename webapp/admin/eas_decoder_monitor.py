@@ -80,6 +80,43 @@ def update_eas_decoder_monitor_settings():
         return jsonify({'error': str(exc)}), 500
 
 
+@eas_decoder_monitor_bp.route('/api/admin/eas_decoder_monitor/test_signal', methods=['POST'])
+def inject_eas_test_signal():
+    """Inject a SAME RWT test signal into the EAS decoder pipeline.
+
+    Generates a standards-compliant SAME header at 16 kHz and publishes it
+    directly to the EAS broadcast queue of one or all running audio sources.
+    The signal flows through the UnifiedEASMonitorService decoder and through
+    any active EAS ingest Icecast streams so operators can verify the full
+    pipeline without needing external equipment.
+
+    Optional JSON body:
+        source_name (str): Target a specific source by name.  Omit to use the
+                           first running source.
+    """
+    try:
+        data = request.get_json(silent=True) or {}
+        target_source = data.get('source_name') if isinstance(data, dict) else None
+
+        from webapp.admin.audio_ingest import _get_audio_controller
+        controller = _get_audio_controller()
+        if controller is None:
+            return jsonify({'error': 'Audio controller not available'}), 503
+
+        used_source = controller.inject_eas_test_signal(source_name=target_source)
+        if used_source is None:
+            return jsonify({'error': 'No running audio source found to inject into'}), 404
+
+        logger.info("EAS test signal injected into source '%s' via admin UI", used_source)
+        return jsonify({
+            'message': f"EAS test signal injected into source '{used_source}'",
+            'source_name': used_source,
+        })
+    except Exception as exc:
+        logger.error('Error injecting EAS test signal: %s', exc, exc_info=True)
+        return jsonify({'error': str(exc)}), 500
+
+
 def register_blueprint(app):
     """Register the blueprint with the Flask app."""
     app.register_blueprint(eas_decoder_monitor_bp)

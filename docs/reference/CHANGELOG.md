@@ -6,6 +6,35 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.67.0] - 2026-03-23 - Per-source EAS decoder monitor streams + test signal injection
+
+### Added
+- **Per-source EAS ingest Icecast streams** — The auto-streaming service now creates a
+  dedicated 16 kHz monitoring mount point for *each* running audio source (e.g.
+  `/eas-decoder-monitor-my-source.mp3`) instead of a single shared `/eas-ingest.mp3`.
+  When you have two receivers both streams are immediately visible in Icecast and both can
+  be listened to independently to verify what each decoder channel is hearing.
+- **EAS decoder monitor respects database settings** — `AutoStreamingService` now reads
+  `EASDecoderMonitorSettings` (enabled flag and mount-name prefix) at runtime.  The ingest
+  streams are only created when the monitor is *enabled* in Admin → EAS Decoder Monitor,
+  and the mount names follow the configured prefix.
+- **Test signal injection** — New `POST /api/admin/eas_decoder_monitor/test_signal`
+  endpoint and matching "Send Test Signal" button in the admin UI.  Clicking the button
+  generates a standards-compliant SAME RWT (Required Weekly Test) signal at 16 kHz and
+  injects it directly into the chosen source's EAS broadcast queue, exercising the full
+  decoder pipeline without needing an external transmitter or real broadcast.
+- **Navbar link** — *EAS Decoder Monitor* is now listed under Monitor → Radio Monitoring
+  for administrators.
+- **Updated nginx proxy rule** — The single `/eas-ingest.mp3` location block is replaced
+  with a regex rule (`~* ^/(eas-[a-z0-9_-]+\.mp3)$`) that transparently proxies any
+  EAS decoder monitor mount point through to Icecast on port 8000.
+
+### Changed
+- `AutoStreamingService.__init__` accepts an optional `flask_app` parameter so the
+  background monitor thread can query `EASDecoderMonitorSettings` with a proper app
+  context.
+- `AudioIngestController` gains `inject_eas_test_signal(source_name)` method.
+
 ## [2.66.2] - 2026-03-23 - Fix TTS permanently disabled for all CAP/IPAWS alerts
 
 ### Fixed

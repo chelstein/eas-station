@@ -267,6 +267,7 @@ def _initialize_auto_streaming() -> None:
     try:
         from app_core.audio.icecast_auto_config import get_icecast_auto_config
         from app_core.audio.auto_streaming import AutoStreamingService
+        from flask import current_app
 
         auto_config = get_icecast_auto_config()
 
@@ -282,7 +283,8 @@ def _initialize_auto_streaming() -> None:
                 icecast_admin_password=auto_config.admin_password,
                 default_bitrate=128,
                 enabled=True,
-                audio_controller=controller
+                audio_controller=controller,
+                flask_app=current_app._get_current_object(),
             )
             _auto_streaming_service.start()
             logger.info("Auto-streaming service initialized and started")
@@ -321,6 +323,7 @@ def _reload_auto_streaming_from_env() -> None:
     try:
         from app_core.audio.icecast_auto_config import get_icecast_auto_config
         from app_core.audio.auto_streaming import AutoStreamingService
+        from flask import current_app
 
         auto_config = get_icecast_auto_config()
         if auto_config.is_enabled():
@@ -335,7 +338,8 @@ def _reload_auto_streaming_from_env() -> None:
                 icecast_admin_password=auto_config.admin_password,
                 default_bitrate=128,
                 enabled=True,
-                audio_controller=controller
+                audio_controller=controller,
+                flask_app=current_app._get_current_object(),
             )
             _auto_streaming_service.start()
     except Exception as exc:  # pylint: disable=broad-except
