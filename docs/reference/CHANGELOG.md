@@ -6,31 +6,14 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
-## [2.66.1] - 2026-03-23 - Fix EAS decoder Listen audio stream
+## [2.66.1] - 2026-03-23 - Consolidate Tools menu into Settings dropdown
 
 ### Fixed
-- **EAS decoder Listen audio stream silent/broken** — the previous implementation used
-  FFmpeg to encode 16 kHz PCM to MP3 via stdin/stdout pipes.  Three compounding bugs
-  prevented it from ever producing playable audio: (1) `stderr=subprocess.PIPE` was
-  never drained, so FFmpeg eventually blocked on its own stderr writes; (2) the MP3
-  generator only attempted to read from FFmpeg's stdout after writing new PCM data,
-  meaning FFmpeg output was silently discarded during queue-empty intervals; (3) nothing
-  was yielded until FFmpeg buffered its first full frame (~72 ms), so browsers timed out
-  before receiving any data.  Replaced the entire MP3/FFmpeg pipeline with the same
-  simple WAV generator pattern used by the working regular-source audio stream: a 44-byte
-  WAV header is yielded immediately on connection, then raw 16-bit PCM chunks are streamed
-  directly from the EAS broadcast queue with silence fill-in when the queue is momentarily
-  empty.  No external process required.
-- **Duplicate error alerts on EAS decoder Listen** — when the audio element failed to
-  play, both the HTML5 `error` event and the `play()` promise rejection fired for the
-  same failure, each independently calling `diagnoseAndShowError()` and appending a
-  separate alert div.  Added an `errorHandled` guard flag inside
-  `toggleEASDecoderAudio()` so only the first path fires; the second silently returns.
-- **Streaming body held open during diagnosis** — `diagnoseAndShowError()` fetched
-  `/api/eas/decoder-stream` to determine the cause of failure.  When the backend
-  returned 200 (streaming), the response body was never consumed, keeping a server-side
-  subprocess alive until the browser timed out.  Now uses `AbortController` to close
-  the body immediately after reading the status code.
+- **Navbar Tools menu overflow** — The standalone "Tools" dropdown was too long to fit on
+  screen with no way to scroll. All Tools sections (Observability, Analytics & Reporting,
+  Testing & Validation, Data Continuity) have been moved under a new "Settings" dropdown
+  that also contains the link to System Settings. The combined dropdown uses
+  `max-height: 80vh; overflow-y: auto` so it always scrolls on short viewports.
 
 ## [2.66.0] - 2026-03-23 - EAS ingest Icecast stream, Listen button fix, working test suite
 
