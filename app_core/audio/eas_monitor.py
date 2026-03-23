@@ -442,6 +442,8 @@ class EASMonitor:
             sample_rate=sample_rate,
             alert_callback=self._handle_alert
         )
+        # Alias for backward compatibility with tests and external callers
+        self._streaming_decoder = self._decoder
 
         # State management
         self._running = False
@@ -449,6 +451,7 @@ class EASMonitor:
         self._start_time: Optional[float] = None
         self._alerts_detected = 0
         self._samples_processed = 0
+        self._restart_count = 0
 
         # Per-source duplicate suppression.
         # The same SAME header text received within the cooldown window is
@@ -518,6 +521,66 @@ class EASMonitor:
             f"detected {self._alerts_detected} alerts"
         )
 
+    def _restart_monitor_thread(self) -> None:
+        """Reset timing and decoder state as if the monitor is freshly started.
+
+        Called by the watchdog or external supervisors when the monitor thread
+        needs to be restarted.  Increments the restart counter and resets
+        ``_start_time`` so that runtime reporting stays consistent.
+        """
+        self._restart_count += 1
+        self._start_time = time.time()
+        self._samples_processed = 0
+        # Reset decoder sample counter so runtime_seconds stays in sync
+        try:
+            self._streaming_decoder._core.samples_processed = 0
+        except Exception:
+            pass
+        logger.info(
+            f"EAS monitor '{self.source_name}' thread restarted "
+            f"(restart #{self._restart_count})"
+        )
+
+    def _resample_if_needed(self, audio) -> Any:
+        """Convert stereo/multi-channel audio to mono and resample if necessary.
+
+        Args:
+            audio: 1-D or 2-D numpy array of audio samples.  For 2-D input the
+                   first axis is the frame index and the second is the channel
+                   index (shape ``(frames, channels)``).
+
+        Returns:
+            A 1-D numpy float32 array at ``self.sample_rate``.
+        """
+        import numpy as np
+
+        audio = np.asarray(audio, dtype=np.float32)
+
+        # Convert multi-channel audio to mono
+        if audio.ndim == 2:
+            if audio.shape[1] >= 2:
+                audio = audio.mean(axis=1)
+            else:
+                audio = audio[:, 0]
+
+        # Resample if source rate differs from target rate
+        source_rate = getattr(self.audio_source, 'sample_rate', self.sample_rate)
+        if source_rate != self.sample_rate and source_rate > 0:
+            try:
+                from scipy import signal as scipy_signal
+                new_length = int(round(len(audio) * self.sample_rate / source_rate))
+                if new_length > 0:
+                    audio = scipy_signal.resample(audio, new_length).astype(np.float32)
+            except ImportError:
+                # Fallback: simple decimation / interpolation using numpy
+                ratio = self.sample_rate / source_rate
+                new_length = int(round(len(audio) * ratio))
+                if new_length > 0:
+                    indices = np.linspace(0, len(audio) - 1, new_length)
+                    audio = np.interp(indices, np.arange(len(audio)), audio).astype(np.float32)
+
+        return audio
+
     def get_status(self) -> Dict[str, Any]:
         """Get comprehensive status."""
         decoder_stats = self._decoder.get_stats()
@@ -525,11 +588,14 @@ class EASMonitor:
         with self._health_lock:
             health = self._health
 
-        if self._running and self._start_time:
+        # Compute runtime even when the monitor is stopped, as long as _start_time is known.
+        # This lets callers inspect elapsed time after a stop or before a full restart.
+        samples_processed = self._streaming_decoder.samples_processed
+        if self._start_time is not None:
             wall_clock_runtime = time.time() - self._start_time
-            if self._samples_processed > 0:
-                audio_runtime = self._samples_processed / self.sample_rate
-                samples_per_second = self._samples_processed / max(wall_clock_runtime, 0.1)
+            if samples_processed > 0:
+                audio_runtime = samples_processed / self.sample_rate
+                samples_per_second = samples_processed / max(wall_clock_runtime, 0.1)
                 health_percentage = min(1.0, samples_per_second / self.sample_rate)
             else:
                 audio_runtime = 0
@@ -544,7 +610,7 @@ class EASMonitor:
         time_since_audio = time.time() - health.last_audio_time if health.last_audio_time > 0 else 999999
         audio_flowing = (
             self._running and
-            self._samples_processed > 0 and
+            samples_processed > 0 and
             time_since_audio < self._audio_timeout_seconds
         )
 
@@ -560,7 +626,7 @@ class EASMonitor:
             "mode": "streaming",
             "source_name": self.source_name,
             "audio_flowing": audio_flowing,
-            "samples_processed": self._samples_processed,
+            "samples_processed": samples_processed,
             "samples_per_second": int(samples_per_second),
             "wall_clock_runtime_seconds": wall_clock_runtime,
             "runtime_seconds": audio_runtime,
@@ -575,6 +641,7 @@ class EASMonitor:
             "alerts_detected": self._alerts_detected,
             "sample_rate": self.sample_rate,
             "source_sample_rate": self.source_sample_rate,
+            "restart_count": self._restart_count,
             "audio_buffer_samples": adapter_stats.get("buffer_samples", 0),
             "audio_queue_depth": adapter_stats.get("queue_size", 0),
             "audio_underruns": adapter_stats.get("underrun_count", 0),

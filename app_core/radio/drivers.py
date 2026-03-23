@@ -132,7 +132,7 @@ class _SoapySDRReceiver(ReceiverInterface):
         -4: "Buffer overflow - system cannot keep up with data rate (SOAPY_SDR_OVERFLOW)",
         -5: "Operation not supported by device (SOAPY_SDR_NOT_SUPPORTED)",
         -6: "Timing error in stream (SOAPY_SDR_TIME_ERROR)",
-        -7: "Buffer underflow - not enough data provided (SOAPY_SDR_UNDERFLOW)",
+        -7: "Receiver not locked or buffer underflow - PLL may not yet be locked (SOAPY_SDR_NOT_LOCKED/UNDERFLOW)",
     }
 
     def __init__(
@@ -240,6 +240,20 @@ class _SoapySDRReceiver(ReceiverInterface):
             if hint not in message:
                 return f"{message} (hint: {hint})"
         return message
+
+    def _calculate_buffer_size(self) -> int:
+        """Calculate a dynamic read buffer size based on the configured sample rate.
+
+        The buffer targets approximately 50 ms of IQ samples, clamped between
+        a minimum of 16 384 and a maximum of 262 144 samples.
+
+        Returns:
+            Buffer size in samples.
+        """
+        _MIN_BUFFER = 16384
+        _MAX_BUFFER = 262144
+        target = int(self.config.sample_rate * 0.05)  # 50 ms
+        return max(_MIN_BUFFER, min(target, _MAX_BUFFER))
 
     @staticmethod
     def _annotate_device_open_hint(message: str, driver: str, serial: Optional[str] = None) -> str:

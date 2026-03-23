@@ -710,9 +710,17 @@ HARDWARE_FIELDS = [
 ]
 
 # Organize all fields into sections
-# NOTE: System-managed fields (SECRET_KEY, database credentials, etc.) are NOT included
-# in wizard sections. They are set by install.sh and should not be user-editable.
+# NOTE: The "core" section holds system-level fields (SECRET_KEY, database
+# credentials).  These may be pre-populated by install.sh but are also
+# validated when the user submits the setup wizard form so that placeholder
+# or obviously invalid values are caught early.
 WIZARD_SECTIONS = [
+    WizardSection(
+        name="core",
+        title="Core Settings",
+        description="Secret key and database connection settings",
+        fields=SYSTEM_MANAGED_FIELDS,
+    ),
     WizardSection(
         name="location",
         title="Location Settings",

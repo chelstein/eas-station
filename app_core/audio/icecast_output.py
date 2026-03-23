@@ -783,6 +783,12 @@ class IcecastStreamer:
         if self._stop_event.is_set():
             return False
 
+        # Wait before restarting to avoid rapid restart loops
+        time.sleep(ICECAST_RESTART_DELAY)
+
+        if self._stop_event.is_set():
+            return False
+
         # Use adaptive backoff instead of fixed delay
         if self._start_ffmpeg_with_adaptive_backoff():
             self._last_write_time = time.time()

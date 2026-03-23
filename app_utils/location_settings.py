@@ -45,6 +45,22 @@ DEFAULT_LED_LINES = os.getenv(
 VALID_SAME_CODES = ALL_US_FIPS_CODES | STATEWIDE_SAME_CODES
 
 
+def _is_valid_partition_code(code: str) -> bool:
+    """Return True if *code* is a valid SAME partition (partial-county) code.
+
+    SAME partition codes have the format ``PSSSCCC`` where P is the partition
+    digit (1–9), SSS is the 3-digit padded state FIPS code, and CCC is the
+    3-digit padded county FIPS code.  The whole-county equivalent is obtained
+    by replacing the leading digit with ``0``.
+    """
+    if len(code) != 6 or not code.isdigit():
+        return False
+    if code[0] == '0':
+        return False
+    whole_county = '0' + code[1:]
+    return whole_county in VALID_SAME_CODES
+
+
 def _split_csv(value: str) -> List[str]:
     return [item.strip() for item in value.split(",") if item.strip()]
 
@@ -72,7 +88,7 @@ def sanitize_fips_codes(values: Iterable[str] | Sequence[str] | str | None) -> T
                 invalid.append(str(item))
             continue
         code = digits.zfill(6)[:6]
-        if code in VALID_SAME_CODES:
+        if code in VALID_SAME_CODES or _is_valid_partition_code(code):
             if code not in seen:
                 valid.append(code)
                 seen.add(code)

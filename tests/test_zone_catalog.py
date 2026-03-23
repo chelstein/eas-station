@@ -58,7 +58,7 @@ def app_context(tmp_path):
 
 
 def test_iter_zone_records_parses_catalog() -> None:
-    record = next(iter_zone_records(Path("assets/z_05mr24.dbf")))
+    record = next(iter_zone_records(Path("assets/z_18mr25.dbf")))
     assert record.zone_code == "ALZ019"
     assert record.name == "Calhoun"
     assert record.cwa == "BMX"
