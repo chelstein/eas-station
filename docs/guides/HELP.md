@@ -38,6 +38,27 @@ Welcome to the operator help guide for the NOAA CAP Emergency Alert System (EAS)
 - Review stored CAP products in **Alert History**. Filters by status, severity, and date help locate specific messages.
 - Trigger manual broadcasts with `manual_eas_event.py` for drills or locally authored messages.
 
+#### US County Boundaries (IPAWS SAME Coverage)
+Navigate to **Admin → County Boundaries** (`/admin/county_boundaries`) to manage the Census
+TIGER/Line county shapefile. IPAWS/NWS alerts carry 6-digit SAME geocodes (e.g. `039137`)
+instead of polygon geometry; EAS Station converts those codes to highlighted county outlines
+on the alert detail map by looking up this table. Without it, affected alerts show
+"Alert has no geographic data."
+
+Page sections, top to bottom:
+
+| Section | Purpose |
+|---|---|
+| **Status Cards** | Shows table health, county count, state count, and bundled shapefile presence |
+| **Load County Boundaries** | Import from bundled Census shapefile (~3,235 counties) or upload a custom ZIP |
+| **Loaded States** | Table of loaded states with **View on Map** (🗺) and **Delete** (🗑) per-state actions |
+| **County Boundary Map** | Interactive Leaflet map — select a state from the dropdown or click **View on Map** in the table above; click any county to see name, GEOID, and SAME code |
+| **Search Counties** | Real-time search by county name, 5-digit GEOID, or state abbreviation; click a result to load that state on the map |
+| **Table Lookup / Diagnostics** | Enter comma-separated SAME codes or GEOIDs to verify database presence before an activation |
+
+> **Note:** EAS Station auto-loads the bundled shapefile on first startup if the table is
+> empty. This page is only needed for manual reloads, partial-state imports, or diagnostics.
+
 ### Managing Receivers
 - Visit **Settings → Radio Receivers** (`/settings/radio`) to add, edit, or remove SDR hardware profiles stored in the `RadioReceiver` table.
 - Toggle **Auto Start** or **Enabled** to control which receivers the radio manager spins up during poller runs.

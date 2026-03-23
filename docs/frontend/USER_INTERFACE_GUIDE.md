@@ -74,6 +74,7 @@ The interface uses a sophisticated color system with semantic meaning:
 
 #### Configuration Pages
 - **Admin Panel** (`admin.html`) - Full system administration
+- **County Boundaries** (`admin/county_boundaries`) - IPAWS SAME code coverage map data
 - **Radio Settings** (`settings/radio/`) - Receiver configuration
 - **User Management** (`admin/users/`) - Access control
 
@@ -207,10 +208,51 @@ The interface uses a sophisticated color system with semantic meaning:
 - **Gauge Charts**: System performance metrics
 
 ### Maps & Geographic Display
-- **Leaflet Integration**: Interactive mapping
+- **Leaflet Integration**: Interactive mapping (v1.9.4, served from `/static/vendor/leaflet/`)
 - **Custom Layers**: Alert boundaries, coverage areas
 - **Cluster Markers**: Efficient point display
 - **Drawing Tools**: Custom boundary creation
+
+#### Pages using Leaflet maps
+| Page | Map feature |
+|---|---|
+| `index.html` | Live alert feed map |
+| `alert_detail.html` | Per-alert coverage polygon / county outlines |
+| `admin/county_boundaries` | County Boundary Map — load and inspect SAME code coverage |
+
+#### Loading Leaflet in a template
+Leaflet CSS and JS are **not** included in `base.html`; each page that uses a map must load
+them explicitly in the appropriate template blocks:
+
+```html
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='vendor/leaflet/leaflet.css') }}" />
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='vendor/leaflet/leaflet.min.js') }}"></script>
+<script>
+// map code here — L is now defined
+</script>
+{% endblock %}
+```
+
+Failing to load the Leaflet JS causes a `ReferenceError: L is not defined` at runtime, which
+silently prevents all event listeners in the same `DOMContentLoaded` block from being attached.
+
+#### County Boundary Map (admin/county_boundaries)
+The county boundary map renders US Census TIGER/Line county outlines for IPAWS SAME code
+coverage. Key implementation details:
+
+- Map container: `<div id="county-map" style="height: 500px;">` — only rendered when
+  `total_counties > 0`.
+- Data source: `GET /admin/county_boundaries/geojson?state={ST}` — returns a GeoJSON
+  FeatureCollection with county polygon geometry and properties (`geoid`, `namelsad`,
+  `same_code`, `stusps`, `state_name`).
+- **View on Map** button (`.view-state-map-btn`) in the Loaded States table calls
+  `loadStateOnMap(stateAbbrev)` then scrolls down to `#county-map`.
+- The map section is placed **below** the Loaded States table so that "View on Map" always
+  scrolls the user **downward** to the result.
 
 ## ⚡ Interactive Features
 

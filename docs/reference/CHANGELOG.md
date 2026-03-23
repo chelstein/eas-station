@@ -6,6 +6,23 @@ tracks releases under the 2.x series.
 
 ## [Unreleased]
 
+## [2.66.2] - 2026-03-23 - Fix "View on Map" on County Boundaries page
+
+### Fixed
+- **"View on Map" button did nothing** — The County Boundaries admin page used Leaflet.js
+  (`L.map()`, `L.geoJSON()`) but never loaded the Leaflet CSS or JS files. This caused a
+  `ReferenceError: L is not defined` inside the `DOMContentLoaded` handler, which prevented
+  all button event-listeners (including the "View on Map" buttons in the Loaded States table)
+  from ever being attached. Fixed by loading Leaflet CSS in `{% block extra_css %}` and
+  Leaflet JS in `{% block scripts %}`, matching the pattern used by `alert_detail.html`.
+
+### Changed
+- **County Boundaries page section order** — Reordered the admin page sections to match a
+  natural workflow: Load/Upload → Loaded States → **Interactive Map** → County Search →
+  SAME-code Lookup → Documentation. The map now appears immediately below the Loaded States
+  table, so clicking "View on Map" scrolls the user *down* to the map result rather than
+  *up* past the table they were just looking at.
+
 ## [2.66.1] - 2026-03-23 - Consolidate Tools menu into Settings dropdown
 
 ### Fixed

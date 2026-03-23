@@ -761,6 +761,25 @@ Highcharts.chart('alertChart', {
 
 ### Maps
 
+> **Leaflet must be loaded by the page template** — it is not included in `base.html`.
+> Add these to every template that uses a Leaflet map:
+>
+> ```html
+> {% block extra_css %}
+> <link rel="stylesheet" href="{{ url_for('static', filename='vendor/leaflet/leaflet.css') }}" />
+> {% endblock %}
+>
+> {% block scripts %}
+> <script src="{{ url_for('static', filename='vendor/leaflet/leaflet.min.js') }}"></script>
+> <script>
+> // map code here
+> </script>
+> {% endblock %}
+> ```
+>
+> Omitting the Leaflet JS causes `ReferenceError: L is not defined` which silently prevents
+> **all** `DOMContentLoaded` event listeners on the page from being attached.
+
 ```html
 <!-- Interactive Map Container -->
 <div class="card">
