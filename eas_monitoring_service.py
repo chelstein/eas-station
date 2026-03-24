@@ -95,6 +95,9 @@ _auto_streaming_service = None
 # Registry of running AudioArchiver instances: source_name -> AudioArchiver
 _archivers: dict = {}
 
+# Registry of RedisAudioPublisher instances for the eas-service: source_name -> publisher
+_redis_eas_publishers: dict = {}
+
 
 def signal_handler(signum, frame):
     """Handle shutdown signals gracefully."""
@@ -705,6 +708,81 @@ def initialize_archivers(app, audio_controller):
         return _archivers
 
 
+def _redis_publisher_monitor_loop(audio_controller, stop_event) -> None:
+    """Background thread: publish 16 kHz EAS audio to Redis for eas-service.
+
+    eas-service.py subscribes to ``audio:samples:<source_name>`` Redis
+    channels to receive pre-resampled 16 kHz audio.  This thread keeps
+    a :class:`~app_core.audio.redis_audio_publisher.RedisAudioPublisher`
+    alive for every RUNNING source, starting/stopping publishers as
+    sources come and go.
+    """
+    global _redis_eas_publishers
+
+    from app_core.audio.redis_audio_publisher import RedisAudioPublisher
+    from app_core.audio.ingest import AudioSourceStatus
+
+    logger.info("Redis EAS audio publisher monitor started")
+
+    while not stop_event.is_set():
+        try:
+            all_sources = audio_controller.get_all_sources()
+
+            # Start publishers for newly-running sources
+            for source_name, adapter in all_sources.items():
+                if (
+                    adapter.status == AudioSourceStatus.RUNNING
+                    and source_name not in _redis_eas_publishers
+                ):
+                    try:
+                        eas_queue = adapter.get_eas_broadcast_queue()
+                        publisher = RedisAudioPublisher(
+                            broadcast_queue=eas_queue,
+                            source_name=source_name,
+                            sample_rate=16000,
+                        )
+                        if publisher.start():
+                            _redis_eas_publishers[source_name] = publisher
+                            logger.info(
+                                "✅ Redis EAS audio publisher started for source '%s'",
+                                source_name,
+                            )
+                    except Exception as exc:
+                        logger.debug(
+                            "Failed to start Redis EAS publisher for '%s': %s",
+                            source_name, exc,
+                        )
+
+            # Stop publishers for sources that are no longer running
+            for source_name in list(_redis_eas_publishers.keys()):
+                adapter = all_sources.get(source_name)
+                if not adapter or adapter.status != AudioSourceStatus.RUNNING:
+                    publisher = _redis_eas_publishers.pop(source_name, None)
+                    if publisher:
+                        try:
+                            publisher.stop()
+                        except Exception:
+                            pass
+                        logger.info(
+                            "Stopped Redis EAS audio publisher for source '%s'",
+                            source_name,
+                        )
+
+        except Exception as exc:
+            logger.error("Redis EAS publisher monitor error: %s", exc, exc_info=True)
+
+        stop_event.wait(10.0)
+
+    # Clean up all publishers on exit
+    for source_name, publisher in list(_redis_eas_publishers.items()):
+        try:
+            publisher.stop()
+        except Exception:
+            pass
+    _redis_eas_publishers.clear()
+    logger.info("Redis EAS audio publisher monitor stopped")
+
+
 def initialize_eas_monitor(app, audio_controller):
     """Initialize EAS monitoring system with unified monitor service.
     
@@ -1030,6 +1108,19 @@ def main():
         if not eas_monitor:
             logger.error("Failed to initialize EAS monitor")
             return 1
+
+        # Start Redis EAS audio publisher thread so eas-service.py can
+        # receive the pre-resampled 16 kHz audio it needs for decoding.
+        logger.info("Starting Redis EAS audio publisher monitor...")
+        _redis_pub_stop = threading.Event()
+        _redis_pub_thread = threading.Thread(
+            target=_redis_publisher_monitor_loop,
+            args=(audio_controller, _redis_pub_stop),
+            daemon=True,
+            name="RedisEASPublisherMonitor",
+        )
+        _redis_pub_thread.start()
+        logger.info("✅ Redis EAS audio publisher monitor started")
 
         # Initialize Redis Pub/Sub command subscriber
         logger.info("Starting Redis command subscriber...")

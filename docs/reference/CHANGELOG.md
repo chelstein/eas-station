@@ -8,6 +8,36 @@ tracks releases under the 2.x series.
 
 - No pending changes.
 
+## [2.69.2] - 2026-03-24 - Fix EAS signal injection, ingest mounting, and OTA/stream decoding
+
+### Fixed
+- **`app_core/audio/auto_streaming.py`** — `_get_eas_monitor_settings()` now
+  defaults to **enabled** (returns `True`) when no `EASDecoderMonitorSettings`
+  row exists in the database.  Previously it returned `False`, so the
+  `eas-ingest-<source>` Icecast monitoring stream was never mounted on fresh
+  installs or when settings had never been saved — making it impossible to
+  verify what the EAS decoder was hearing.
+- **`app_core/audio/redis_commands.py`** — `inject_test_signal` handler now
+  calls `eas_monitor._discover_sources()` **before** publishing chunks to the
+  EAS broadcast queue.  Without this, the `UnifiedEASMonitorService` watcher
+  may not have subscribed yet (it runs discovery on a 5-second timer), causing
+  every injected chunk to be delivered to zero subscribers and silently lost.
+- **`eas_service.py`** — `initialize_eas_monitor()` now wraps the FIPS
+  filtering callback with `app.app_context()`, exactly as
+  `eas_monitoring_service.py` already does.  Without the context, every
+  detected OTA alert caused `_store_received_alert()` to exit early
+  (no context check) and `forward_alert_to_api()` to fail, so no alert was
+  ever stored or forwarded to the air chain.
+- **`eas_monitoring_service.py`** — Added `_redis_publisher_monitor_loop()`
+  and wired it as a daemon thread.  It starts a
+  `RedisAudioPublisher` for each running audio source (using the pre-resampled
+  16 kHz EAS broadcast queue) and publishes to `audio:samples:<source_name>`
+  on Redis.  `eas_service.py` subscribes to exactly these channels via
+  `RedisAudioAdapter`, but nothing ever published there — so the standalone
+  EAS service received no audio and detected nothing.  The loop also tracks
+  source lifecycle: it automatically starts publishers for newly-started
+  sources and stops them when sources are removed or shut down.
+
 ## [2.69.1] - 2026-03-24 - Fix false "No audio flowing" warning and test-signal injection
 
 ### Fixed

@@ -176,11 +176,18 @@ def initialize_eas_monitor(app):
             return result
 
         # Create FIPS filtering callback
-        fips_callback = create_fips_filtering_callback(
+        _fips_callback_inner = create_fips_filtering_callback(
             configured_fips_codes=configured_fips,
             forward_callback=forward_alert_handler,
             logger_instance=logger
         )
+
+        # Wrap the callback with app context so _store_received_alert and
+        # forward_alert_to_api can access Flask-SQLAlchemy and the air-chain
+        # broadcast pipeline.  Without this, all alerts are silently dropped.
+        def fips_callback(alert):
+            with app.app_context():
+                return _fips_callback_inner(alert)
 
         # Create Redis audio adapter
         # Subscribes to audio:samples:* channels published by audio-service
