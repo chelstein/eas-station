@@ -186,25 +186,37 @@ class HealthTracker:
         Record that no audio was available from a source.
 
         Marks source as not flowing if audio timeout is exceeded.
-        Resets recovery counter since we need consecutive successful reads.
+        Only resets the recovery counter when audio has been genuinely absent
+        for more than 1 second; brief queue-empty returns (normal between
+        chunks) must not interrupt consecutive-read counting.
         """
         with self._lock:
             if source_name in self._sources:
                 health = self._sources[source_name]
                 health.consecutive_empty_reads += 1
-                health.consecutive_successful_reads = 0  # Reset recovery counter
 
-                # Check if audio timeout exceeded
+                # Determine how long we have truly been without audio
                 if health.last_audio_time > 0:
                     time_since_audio = time.time() - health.last_audio_time
-                    if time_since_audio > self._audio_timeout_seconds:
-                        if health.audio_flowing:
-                            # Transitioning from flowing to not flowing
-                            logger.warning(
-                                f"Source '{source_name}' audio stopped flowing "
-                                f"(no audio for {time_since_audio:.1f}s, {health.consecutive_empty_reads} empty reads)"
-                            )
-                        health.audio_flowing = False
+                else:
+                    time_since_audio = float('inf')
+
+                # Only reset the recovery counter when audio has been absent
+                # for more than 1 second.  Brief timeouts between audio chunks
+                # (e.g. 100 ms queue poll with chunks arriving every ~85 ms)
+                # should not prevent the audio_flowing flag from being set.
+                if time_since_audio > 1.0:
+                    health.consecutive_successful_reads = 0
+
+                # Check if audio timeout exceeded
+                if time_since_audio > self._audio_timeout_seconds:
+                    if health.audio_flowing:
+                        # Transitioning from flowing to not flowing
+                        logger.warning(
+                            f"Source '{source_name}' audio stopped flowing "
+                            f"(no audio for {time_since_audio:.1f}s, {health.consecutive_empty_reads} empty reads)"
+                        )
+                    health.audio_flowing = False
     
     def update_error(self, source_name: str, error_msg: str) -> None:
         """Record an error for a source."""

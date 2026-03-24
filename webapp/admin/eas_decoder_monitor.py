@@ -90,6 +90,10 @@ def inject_eas_test_signal():
     any active EAS ingest Icecast streams so operators can verify the full
     pipeline without needing external equipment.
 
+    The command is routed to the audio-service process via Redis so that it
+    runs against the sources that are actually RUNNING there, not the
+    webapp's unstarted controller.
+
     Optional JSON body:
         source_name (str): Target a specific source by name.  Omit to use the
                            first running source.
@@ -98,18 +102,19 @@ def inject_eas_test_signal():
         data = request.get_json(silent=True) or {}
         target_source = data.get('source_name') if isinstance(data, dict) else None
 
-        from webapp.admin.audio_ingest import _get_audio_controller
-        controller = _get_audio_controller()
-        if controller is None:
-            return jsonify({'error': 'Audio controller not available'}), 503
+        from app_core.audio.redis_commands import get_audio_command_publisher
+        publisher = get_audio_command_publisher()
+        result = publisher.inject_test_signal(source_name=target_source)
 
-        used_source = controller.inject_eas_test_signal(source_name=target_source)
-        if used_source is None:
-            return jsonify({'error': 'No running audio source found to inject into'}), 404
+        if not result.get('success'):
+            msg = result.get('message', 'Unknown error')
+            logger.warning("EAS test signal injection failed: %s", msg)
+            return jsonify({'error': msg}), 404
 
+        used_source = (result.get('data') or {}).get('source_name', 'unknown')
         logger.info("EAS test signal injected into source '%s' via admin UI", used_source)
         return jsonify({
-            'message': f"EAS test signal injected into source '{used_source}'",
+            'message': result.get('message', f"EAS test signal injected into source '{used_source}'"),
             'source_name': used_source,
         })
     except Exception as exc:
