@@ -316,9 +316,12 @@ def collect_eas_metrics() -> Dict[str, Any]:
 def publish_eas_metrics_to_redis(metrics: Dict[str, Any]):
     """Publish EAS metrics to Redis for web application.
 
-    Merges EAS monitor metrics into the existing eas:metrics hash
-    published by audio-service, so webapp can read both audio and EAS
-    metrics from the same Redis key.
+    Writes only this service's own fields into the shared eas:metrics hash
+    using HSET (field-level merge).  We never read-then-rewrite the whole
+    hash: doing so with a mix of bytes/str keys from HGETALL corrupts the
+    fields written by eas_monitoring_service.py (audio-service) and resets
+    the TTL to a shorter value, causing _heartbeat to disappear from the
+    hash and making the webapp falsely report the audio service as dead.
 
     IMPORTANT: If the audio-service (eas_monitoring_service.py) is already
     publishing eas_monitor data via its V3 UnifiedEASMonitorService, we
@@ -333,45 +336,45 @@ def publish_eas_metrics_to_redis(metrics: Dict[str, Any]):
         metrics["_eas_heartbeat"] = time.time()
         metrics["_eas_pid"] = os.getpid()
 
-        # Read existing metrics from audio-service (if any)
-        existing_metrics = r.hgetall("eas:metrics")
-
-        # Check if audio-service (eas_monitoring_service.py) is already publishing
-        # authoritative eas_monitor data via its V3 unified monitor.
-        # If so, defer to it to prevent state oscillation.
-        if existing_metrics and "eas_monitor" in existing_metrics:
+        # Check if audio-service is already publishing authoritative eas_monitor
+        # data via its V3 unified monitor.  Use a single HGET instead of a full
+        # HGETALL so we never pull in other services' fields.
+        if "eas_monitor" in metrics:
             try:
-                existing_eas_raw = existing_metrics["eas_monitor"]
-                if isinstance(existing_eas_raw, bytes):
-                    existing_eas_raw = existing_eas_raw.decode("utf-8")
-                existing_eas = json.loads(existing_eas_raw) if isinstance(existing_eas_raw, str) else existing_eas_raw
-                if isinstance(existing_eas, dict) and existing_eas.get("mode") == "unified-streaming":
-                    # V3 unified monitor from audio-service is active - don't overwrite
-                    metrics.pop("eas_monitor", None)
-                    logger.debug(
-                        "Deferring eas_monitor to audio-service V3 unified monitor"
-                    )
+                existing_eas_raw = r.hget("eas:metrics", "eas_monitor")
+                if existing_eas_raw:
+                    if isinstance(existing_eas_raw, bytes):
+                        existing_eas_raw = existing_eas_raw.decode("utf-8")
+                    existing_eas = json.loads(existing_eas_raw) if isinstance(existing_eas_raw, str) else existing_eas_raw
+                    if isinstance(existing_eas, dict) and existing_eas.get("mode") == "unified-streaming":
+                        # V3 unified monitor from audio-service is active - don't overwrite
+                        metrics.pop("eas_monitor", None)
+                        logger.debug(
+                            "Deferring eas_monitor to audio-service V3 unified monitor"
+                        )
             except (json.JSONDecodeError, TypeError, AttributeError):
                 pass  # Can't parse existing data, proceed with our own
 
-        # Flatten nested dicts to strings for Redis hash
+        # Flatten only our own fields — HSET merges at the field level so other
+        # services' fields (e.g. _heartbeat from audio-service) are untouched.
         flat_metrics = {}
-
-        # Keep existing metrics from audio-service
-        if existing_metrics:
-            flat_metrics.update(existing_metrics)
-
-        # Add/update EAS metrics
         for key, value in metrics.items():
+            if value is None:
+                continue
             if isinstance(value, (dict, list)):
                 flat_metrics[key] = json.dumps(value)
             else:
                 flat_metrics[key] = str(value)
 
-        # Store in Redis with pipeline for atomicity
+        if not flat_metrics:
+            return
+
+        # Store in Redis with pipeline for atomicity.
+        # Use 120 s TTL (same as audio-service) so a brief gap between audio-service
+        # publish cycles does not immediately expire the key.
         pipe = r.pipeline()
         pipe.hset("eas:metrics", mapping=flat_metrics)
-        pipe.expire("eas:metrics", 60)  # Expire if service dies
+        pipe.expire("eas:metrics", 120)
         pipe.execute()
 
         # Publish notification for real-time updates
