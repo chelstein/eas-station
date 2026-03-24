@@ -185,9 +185,9 @@ class AudioCommandPublisher:
             'updates': updates
         })
 
-    def delete_source(self, source_name: str) -> Dict[str, Any]:
+    def delete_source(self, source_name: str, wait_for_response: bool = True) -> Dict[str, Any]:
         """Delete an audio source."""
-        return self._publish_command('source_delete', {'source_name': source_name})
+        return self._publish_command('source_delete', {'source_name': source_name}, wait_for_response=wait_for_response)
 
     def start_streaming(self) -> Dict[str, Any]:
         """Start auto-streaming service."""
