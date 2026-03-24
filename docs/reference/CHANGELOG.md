@@ -8,6 +8,26 @@ tracks releases under the 2.x series.
 
 - No pending changes.
 
+## [2.69.1] - 2026-03-24 - Fix false "No audio flowing" warning and test-signal injection
+
+### Fixed
+- **`eas_monitor_v3.py`** — `HealthTracker.update_no_audio()` no longer resets
+  `consecutive_successful_reads` on every brief queue-empty return.  The counter
+  is now only reset when audio has been genuinely absent for more than 1 second,
+  which prevents the 10-consecutive-read threshold from being interrupted by
+  normal inter-chunk polling gaps and eliminates the false
+  "⚠️ No audio flowing" warning shown even when audio sources are actively streaming.
+- **`redis_commands.py`** — Added `inject_test_signal` command to
+  `AudioCommandPublisher` and the corresponding handler in
+  `AudioCommandSubscriber._execute_command`.  The command is routed to the
+  audio-service process (which owns the running `AudioIngestController`) via
+  Redis so the EAS decoder test signal can actually reach a live audio source.
+- **`eas_decoder_monitor.py`** — The `/api/admin/eas_decoder_monitor/test_signal`
+  endpoint now sends the `inject_test_signal` Redis command to the audio-service
+  instead of calling `_get_audio_controller()` on the webapp process, which
+  always returned an empty (unstarted) controller and caused the misleading
+  "No running audio source found to inject into" failure.
+
 ## [2.69.0] - 2026-03-23 - Political subdivisions, NWS GIS data, and test-suite remediation
 
 ### Fixed

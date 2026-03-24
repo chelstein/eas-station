@@ -205,6 +205,24 @@ class AudioCommandPublisher:
         """Stop EAS monitor in audio-service."""
         return self._publish_command('eas_monitor_stop', {})
 
+    def inject_test_signal(self, source_name: Optional[str] = None, timeout: float = 15.0) -> Dict[str, Any]:
+        """Inject a SAME RWT test signal into the audio-service EAS pipeline.
+
+        Args:
+            source_name: Target a specific source by name.  Pass None to use
+                         the first running source.
+            timeout: How long to wait for the audio-service to respond (seconds).
+
+        Returns:
+            Response dict with 'success', 'message', and optional 'source_name'.
+        """
+        return self._publish_command(
+            'inject_test_signal',
+            {'source_name': source_name},
+            wait_for_response=True,
+            timeout=timeout,
+        )
+
     def start_archiver(self, source_name: str, archive_config: Dict[str, Any]) -> Dict[str, Any]:
         """Start archiver for *source_name* in audio-service.
 
@@ -584,6 +602,17 @@ class AudioCommandSubscriber:
                         logger.warning('archiver_stop error for %s: %s', source_name, exc)
                     return {'success': True, 'message': f'Archiver stopped for {source_name}'}
                 return {'success': True, 'message': f'No archiver running for {source_name}'}
+
+            elif command == 'inject_test_signal':
+                source_name = params.get('source_name') or None
+                used_source = self.audio_controller.inject_eas_test_signal(source_name=source_name)
+                if used_source is None:
+                    return {'success': False, 'message': 'No running audio source found to inject into'}
+                return {
+                    'success': True,
+                    'message': f"EAS test signal injected into source '{used_source}'",
+                    'data': {'source_name': used_source},
+                }
 
             else:
                 return {'success': False, 'message': f'Unknown command: {command}'}
