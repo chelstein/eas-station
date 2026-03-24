@@ -94,7 +94,7 @@ def register_workflow_routes(bp, logger, eas_config) -> None:
         if g.current_user is None and not creating_first_user:
             if json_mode:
                 return jsonify({'error': 'Authentication required.'}), 401
-            return redirect(url_for('login', next=request.url))
+            return redirect(url_for('auth.login', next=request.url))
         return None
 
     @bp.route('/')
