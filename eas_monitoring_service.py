@@ -374,9 +374,18 @@ def initialize_audio_controller(app):
 
         logger.info("Initializing audio controller...")
         
-        # CRITICAL FIX: Sync audio sources for radio receivers before loading from database
-        # This ensures that audio sources exist for all enabled receivers with audio_output=True
-        sync_radio_receiver_audio_sources(app)
+        # Sync audio sources for radio receivers before loading from database.
+        # This ensures that audio sources exist for all enabled receivers with
+        # audio_output=True.  Run inside a try/except so that a bad receiver
+        # config (e.g. a DB commit error) degrades gracefully rather than
+        # crashing the entire audio service.
+        try:
+            sync_radio_receiver_audio_sources(app)
+        except Exception as sync_exc:
+            logger.error(
+                "sync_radio_receiver_audio_sources failed (continuing without SDR sync): %s",
+                sync_exc, exc_info=True,
+            )
 
         # Create controller
         _audio_controller = AudioIngestController()
@@ -1111,7 +1120,11 @@ def main():
 
         # Initialize EAS monitor
         logger.info("Initializing EAS monitor...")
-        eas_monitor = initialize_eas_monitor(app, audio_controller)
+        try:
+            eas_monitor = initialize_eas_monitor(app, audio_controller)
+        except Exception as eas_exc:
+            logger.error("initialize_eas_monitor raised an exception: %s", eas_exc, exc_info=True)
+            eas_monitor = None
 
         if not eas_monitor:
             logger.error("Failed to initialize EAS monitor")

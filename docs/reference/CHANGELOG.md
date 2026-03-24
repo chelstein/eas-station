@@ -8,6 +8,33 @@ tracks releases under the 2.x series.
 
 - No pending changes.
 
+## [2.69.5] - 2026-03-24 - Fix HTTP stream delete and audio-service crash on bad receiver config
+
+### Fixed
+- **`webapp/admin/audio_ingest.py`** (`api_delete_audio_source`) — Replace the
+  remaining `_get_audio_controller()` call (which created a webapp-side
+  controller and unnecessary background threads) with direct DB-only logic.
+  The endpoint now sends a fire-and-forget `source_delete` command (previously
+  `source_stop`) so the audio-service also removes the source from its in-memory
+  controller and stops any associated Icecast stream.
+- **`webapp/admin/audio_ingest.py`** (`api_delete_audio_source`) — Deleting a
+  radio-managed (SDR) audio source now also sets `RadioReceiver.audio_output =
+  False` on the corresponding receiver row so that
+  `sync_radio_receiver_audio_sources()` does not silently recreate the source
+  the next time the audio service starts.
+- **`app_core/audio/redis_commands.py`** (`delete_source`) — Added
+  `wait_for_response` parameter (default `True`) so callers can send a
+  fire-and-forget delete command without blocking on an audio-service response.
+- **`eas_monitoring_service.py`** (`initialize_audio_controller`) — Wrapped
+  `sync_radio_receiver_audio_sources()` in a try/except so that a database
+  error or bad receiver config during startup degrades gracefully (logs the
+  error and continues) instead of propagating an unhandled exception that
+  crashed the audio service with `exit-code`.
+- **`eas_monitoring_service.py`** (`main`) — Wrapped the
+  `initialize_eas_monitor()` call in a try/except with a clear error log so
+  that unexpected failures are surfaced in the journal rather than silently
+  collapsing into a generic `return 1`.
+
 ## [2.69.4] - 2026-03-24 - Fix delete blocked by dead audio-service; fix "Stopped" badge on failed sources; fix update-script restart
 
 ### Fixed

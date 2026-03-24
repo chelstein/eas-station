@@ -1692,6 +1692,10 @@ def api_delete_audio_source(source_name: str):
     Queries the database directly without attempting to restore the source in
     memory.  A fire-and-forget stop command is sent to the audio-service so
     that delete succeeds even when the audio-service is unresponsive.
+
+    For radio-managed (SDR) sources the corresponding RadioReceiver row has
+    its ``audio_output`` flag cleared so that ``sync_radio_receiver_audio_sources``
+    does not silently recreate the source on the next audio-service restart.
     """
     try:
         # Clear cache before deleting
@@ -1705,31 +1709,45 @@ def api_delete_audio_source(source_name: str):
         if not db_config:
             return jsonify({'error': 'Source not found in database'}), 404
 
-        # Tell the audio-service to stop the source (fire-and-forget so that a
-        # dead audio-service never blocks the delete).
+        config_params = db_config.config_params or {}
+        is_radio_managed = config_params.get('managed_by') == 'radio'
+
+        # For radio-managed sources, disable audio_output on the RadioReceiver
+        # so that sync_radio_receiver_audio_sources() does not recreate this
+        # source the next time the audio service starts.
+        if is_radio_managed:
+            receiver_id = config_params.get('device_params', {}).get('receiver_id')
+            if receiver_id:
+                try:
+                    receiver = RadioReceiver.query.filter_by(identifier=receiver_id).first()
+                    if receiver and receiver.audio_output:
+                        receiver.audio_output = False
+                        logger.info(
+                            'Disabled audio_output on RadioReceiver %s to prevent '
+                            'source %s from being recreated by sync',
+                            receiver_id, source_name,
+                        )
+                except Exception as recv_exc:
+                    logger.warning(
+                        'Could not disable audio_output on receiver %s (continuing): %s',
+                        receiver_id, recv_exc,
+                    )
+
+        # Tell the audio-service to delete the source (fire-and-forget so that a
+        # dead audio-service never blocks the delete).  Using source_delete rather
+        # than source_stop ensures the audio-service also removes the source from
+        # memory and stops any associated Icecast stream.
         try:
             publisher = get_audio_command_publisher()
-            publisher.stop_source(source_name, wait_for_response=False)
+            publisher.delete_source(source_name, wait_for_response=False)
         except Exception as stop_exc:
             logger.warning(
-                'Could not send stop command to audio-service for %s (continuing with delete): %s',
+                'Could not send delete command to audio-service for %s (continuing with delete): %s',
                 source_name, stop_exc,
             )
 
-        # Also stop in the local (integrated-mode) controller if the adapter
-        # happens to be present there.
-        controller = _get_audio_controller()
-        adapter = controller._sources.get(source_name)
-        if adapter and adapter.status == AudioSourceStatus.RUNNING:
-            try:
-                controller.stop_source(source_name)
-            except Exception as local_stop_exc:
-                logger.warning(
-                    'Could not stop local adapter for %s (continuing with delete): %s',
-                    source_name, local_stop_exc,
-                )
-
-        # Remove from database FIRST
+        # Remove from database and commit in a single transaction.
+        # The RadioReceiver update (if any) is included in the same commit.
         db.session.delete(db_config)
         try:
             db.session.commit()
@@ -1737,16 +1755,7 @@ def api_delete_audio_source(source_name: str):
             db.session.rollback()
             raise
 
-        # Remove from local controller memory after the DB transaction succeeds
-        if adapter:
-            try:
-                controller.remove_source(source_name)
-            except Exception:
-                pass
-            logger.info('Deleted audio source from database and local memory: %s', source_name)
-        else:
-            logger.info('Deleted audio source from database: %s', source_name)
-
+        logger.info('Deleted audio source from database: %s', source_name)
         return jsonify({'message': 'Audio source deleted successfully'})
 
     except Exception as exc:
