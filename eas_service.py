@@ -337,21 +337,44 @@ def publish_eas_metrics_to_redis(metrics: Dict[str, Any]):
         metrics["_eas_pid"] = os.getpid()
 
         # Check if audio-service is already publishing authoritative eas_monitor
-        # data via its V3 unified monitor.  Use a single HGET instead of a full
+        # data via its V3 unified monitor.  Use single HGETs instead of a full
         # HGETALL so we never pull in other services' fields.
+        # IMPORTANT: Only defer if the audio-service _heartbeat is still fresh.
+        # If the audio-service is dead, its stale V3 eas_monitor (with
+        # monitor_count > 0 and mode "unified-streaming") would linger in Redis
+        # and cause the webapp to show "Running (No Audio)" instead of the
+        # correct "No Sources Running" state.
         if "eas_monitor" in metrics:
             try:
                 existing_eas_raw = r.hget("eas:metrics", "eas_monitor")
-                if existing_eas_raw:
+                existing_heartbeat_raw = r.hget("eas:metrics", "_heartbeat")
+
+                # Determine whether the audio-service is alive (heartbeat < 30 s old)
+                audio_service_alive = False
+                if existing_heartbeat_raw:
+                    if isinstance(existing_heartbeat_raw, bytes):
+                        existing_heartbeat_raw = existing_heartbeat_raw.decode("utf-8")
+                    try:
+                        heartbeat_age = time.time() - float(existing_heartbeat_raw)
+                        audio_service_alive = heartbeat_age < 30
+                    except (ValueError, TypeError):
+                        pass
+
+                if existing_eas_raw and audio_service_alive:
                     if isinstance(existing_eas_raw, bytes):
                         existing_eas_raw = existing_eas_raw.decode("utf-8")
                     existing_eas = json.loads(existing_eas_raw) if isinstance(existing_eas_raw, str) else existing_eas_raw
                     if isinstance(existing_eas, dict) and existing_eas.get("mode") == "unified-streaming":
-                        # V3 unified monitor from audio-service is active - don't overwrite
+                        # V3 unified monitor from audio-service is active and alive - don't overwrite
                         metrics.pop("eas_monitor", None)
                         logger.debug(
                             "Deferring eas_monitor to audio-service V3 unified monitor"
                         )
+                elif not audio_service_alive:
+                    logger.debug(
+                        "Audio-service heartbeat absent or stale — "
+                        "overwriting eas_monitor with eas-service status"
+                    )
             except (json.JSONDecodeError, TypeError, AttributeError):
                 pass  # Can't parse existing data, proceed with our own
 
