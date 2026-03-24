@@ -446,7 +446,7 @@ class AutoStreamingService:
                 from app_core.models import EASDecoderMonitorSettings
                 settings = EASDecoderMonitorSettings.query.first()
                 if settings is None:
-                    return False, "eas-ingest"
+                    return True, "eas-ingest"
                 prefix = (settings.stream_name or "eas-ingest").strip().lower().replace(" ", "-")
                 return bool(settings.enabled), prefix
         except Exception as exc:

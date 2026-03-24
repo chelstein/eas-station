@@ -605,6 +605,19 @@ class AudioCommandSubscriber:
 
             elif command == 'inject_test_signal':
                 source_name = params.get('source_name') or None
+                # Ensure the EAS monitor has a watcher subscribed to the target
+                # source's broadcast queue before publishing the signal.  The
+                # UnifiedEASMonitorService discovers sources on a 5-second
+                # timer; if the source is newly started there may be no
+                # subscriber yet, causing every injected chunk to be dropped.
+                if self.eas_monitor and hasattr(self.eas_monitor, '_discover_sources'):
+                    try:
+                        self.eas_monitor._discover_sources()
+                    except Exception as _disc_exc:
+                        logger.debug(
+                            "EAS monitor pre-injection discovery failed (non-fatal): %s",
+                            _disc_exc,
+                        )
                 used_source = self.audio_controller.inject_eas_test_signal(source_name=source_name)
                 if used_source is None:
                     return {'success': False, 'message': 'No running audio source found to inject into'}
