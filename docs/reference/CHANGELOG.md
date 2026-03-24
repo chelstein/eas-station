@@ -8,6 +8,33 @@ tracks releases under the 2.x series.
 
 - No pending changes.
 
+## [2.69.4] - 2026-03-24 - Fix delete blocked by dead audio-service; fix "Stopped" badge on failed sources; fix update-script restart
+
+### Fixed
+- **`webapp/admin/audio_ingest.py`** (`api_delete_audio_source`) — Delete no
+  longer calls `_get_controller_and_adapter`, which tried to restore/start the
+  source (hitting the 5 s Redis timeout × 3 retries while audio-service is
+  dead).  The endpoint now queries the database directly, sends a
+  fire-and-forget stop command to the audio-service (never blocking on a
+  response), and then deletes from the database regardless of audio-service
+  state.  Sources can now be deleted even when `eas-station-audio.service` is
+  down or unreachable.
+- **`webapp/admin/audio_ingest.py`** (`api_get_audio_sources`) — Sources that
+  have `auto_start=True` now report status `error` (red badge) instead of the
+  misleading grey `stopped` badge when the audio-service is dead (Redis metrics
+  absent). The error message is updated to "Audio service is not running –
+  source failed to start".
+- **`update.sh`** — Added `systemctl reset-failed` for all EAS Station service
+  units before the `systemctl restart eas-station.target` call.  A service
+  that exceeded systemd's start-limit burst enters the `failed` state and will
+  **not** be restarted by a target restart until it is reset; this caused the
+  audio service to silently stay dead after updates.
+- **`systemd/eas-station-audio.service`** — Added `StartLimitBurst=0` to
+  disable systemd's default start-limit burst (5 failures / 10 s).  The
+  existing `RestartSec=10s` already prevents tight restart loops; without the
+  burst limit the service would enter a permanent `failed` state after five
+  rapid crashes and stop retrying until manually reset.
+
 ## [2.69.3] - 2026-03-24 - Rock-solid audio service, live VU meters, reduced CPU burn
 
 ### Fixed

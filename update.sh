@@ -1326,6 +1326,16 @@ chown -R "$SERVICE_USER:$SERVICE_GROUP" "$LOG_DIR"
 echo_success "Log directory ready: $LOG_DIR"
 
 echo_progress "Starting all EAS Station services with updated code..."
+# Reset any services that are in systemd 'failed' state before restarting.
+# A service that exceeded its start-limit burst enters 'failed' and will NOT
+# be restarted by 'systemctl restart eas-station.target' unless reset first.
+echo_progress "Resetting any failed EAS Station service units..."
+for svc in eas-station-web.service eas-station-audio.service eas-station-eas.service \
+            eas-station-sdr.service eas-station-hardware.service eas-station-poller.service; do
+    systemctl reset-failed "$svc" 2>/dev/null || true
+done
+echo_success "Failed service states cleared"
+
 # Use restart (not start) to ensure all services reload with new code
 # This works whether services were stopped or are already running
 # Longer sleep (8s) to allow services to fully initialize and load new code

@@ -1160,6 +1160,8 @@ def api_get_audio_sources():
         redis_metrics = _read_audio_metrics_from_redis()
         redis_sources = {}
         use_redis = False
+        # True when audio-service metrics are completely absent (dead or never started)
+        audio_service_dead = (redis_metrics is None)
 
         redis_streaming_status = None
 
@@ -1423,12 +1425,26 @@ def api_get_audio_sources():
 
             # Extract config parameters from JSONB field
             config_params = db_config.config_params or {}
-            
+
+            # When the audio-service is dead and this source should auto-start,
+            # report it as 'error' so the UI shows a clear failure badge rather
+            # than the misleading grey "Stopped" badge.
+            fallback_status = (
+                'error'
+                if (audio_service_dead and db_config.auto_start)
+                else 'stopped'
+            )
+            fallback_error = (
+                'Audio service is not running – source failed to start'
+                if (audio_service_dead and db_config.auto_start)
+                else 'Not started'
+            )
+
             sources.append({
                 'id': db_config.name,  # Add id field for JavaScript compatibility
                 'name': db_config.name,
                 'type': db_config.source_type,
-                'status': 'stopped',
+                'status': fallback_status,
                 'enabled': db_config.enabled,
                 'priority': db_config.priority,
                 'auto_start': db_config.auto_start,
@@ -1442,7 +1458,7 @@ def api_get_audio_sources():
                     'device_params': config_params.get('device_params', {}),
                 },
                 'metrics': metrics_payload,
-                'error_message': 'Not loaded in memory (restart required)',
+                'error_message': fallback_error,
                 'in_memory': False,
                 'icecast_url': icecast_url,
                 'streaming': {
@@ -1671,19 +1687,47 @@ def api_update_audio_source(source_name: str):
 
 @audio_ingest_bp.route('/api/audio/sources/<source_name>', methods=['DELETE'])
 def api_delete_audio_source(source_name: str):
-    """Delete an audio source."""
+    """Delete an audio source.
+
+    Queries the database directly without attempting to restore the source in
+    memory.  A fire-and-forget stop command is sent to the audio-service so
+    that delete succeeds even when the audio-service is unresponsive.
+    """
     try:
         # Clear cache before deleting
         clear_audio_source_cache(source_name)
-        
-        controller, adapter, db_config, _ = _get_controller_and_adapter(source_name)
+
+        # Query DB directly – do NOT call _get_controller_and_adapter, which
+        # would try to restore/start the source and time out when the
+        # audio-service is dead.
+        db_config = AudioSourceConfigDB.query.filter_by(name=source_name).first()
 
         if not db_config:
             return jsonify({'error': 'Source not found in database'}), 404
 
-        # Stop if running (only if in memory)
+        # Tell the audio-service to stop the source (fire-and-forget so that a
+        # dead audio-service never blocks the delete).
+        try:
+            publisher = get_audio_command_publisher()
+            publisher.stop_source(source_name, wait_for_response=False)
+        except Exception as stop_exc:
+            logger.warning(
+                'Could not send stop command to audio-service for %s (continuing with delete): %s',
+                source_name, stop_exc,
+            )
+
+        # Also stop in the local (integrated-mode) controller if the adapter
+        # happens to be present there.
+        controller = _get_audio_controller()
+        adapter = controller._sources.get(source_name)
         if adapter and adapter.status == AudioSourceStatus.RUNNING:
-            controller.stop_source(source_name)
+            try:
+                controller.stop_source(source_name)
+            except Exception as local_stop_exc:
+                logger.warning(
+                    'Could not stop local adapter for %s (continuing with delete): %s',
+                    source_name, local_stop_exc,
+                )
 
         # Remove from database FIRST
         db.session.delete(db_config)
@@ -1693,13 +1737,15 @@ def api_delete_audio_source(source_name: str):
             db.session.rollback()
             raise
 
-        # Remove from controller AFTER database transaction succeeds
-        # (only if it was in memory)
+        # Remove from local controller memory after the DB transaction succeeds
         if adapter:
-            controller.remove_source(source_name)
-            logger.info('Deleted audio source from both database and memory: %s', source_name)
+            try:
+                controller.remove_source(source_name)
+            except Exception:
+                pass
+            logger.info('Deleted audio source from database and local memory: %s', source_name)
         else:
-            logger.info('Deleted audio source from database (was not in memory): %s', source_name)
+            logger.info('Deleted audio source from database: %s', source_name)
 
         return jsonify({'message': 'Audio source deleted successfully'})
 
