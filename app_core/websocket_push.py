@@ -131,7 +131,7 @@ _push_thread = None
 _stop_event = threading.Event()
 
 # Timing intervals in seconds
-AUDIO_MONITORING_INTERVAL = 0.1    # 10Hz - real-time VU meters
+AUDIO_MONITORING_INTERVAL = 0.25   # 4Hz - real-time VU meters (was 10Hz; 4Hz is plenty for meters)
 SYSTEM_HEALTH_INTERVAL = 60.0      # System health updates
 AUDIO_SOURCES_INTERVAL = 30.0      # Audio source list
 AUDIO_HEALTH_INTERVAL = 30.0       # Audio health dashboard
@@ -179,8 +179,9 @@ def stop_websocket_push() -> None:
 def _push_worker(app: 'Flask', socketio: 'SocketIO') -> None:
     """Background worker that pushes real-time updates via WebSocket.
 
-    Uses a counter-based approach to emit different events at different intervals
-    while maintaining 100ms loop resolution for audio metrics.
+    All events are rate-limited via explicit timers.  The loop itself sleeps
+    for AUDIO_MONITORING_INTERVAL (250 ms / 4 Hz) between iterations, keeping
+    CPU usage low while still delivering smooth VU-meter updates.
     """
     logger.info("WebSocket push worker started")
 
@@ -189,6 +190,7 @@ def _push_worker(app: 'Flask', socketio: 'SocketIO') -> None:
     config_cache_loaded_at = 0.0
 
     # Timers for different event types (last emit time)
+    last_audio_monitoring_emit = 0.0
     last_system_health_emit = 0.0
     last_audio_sources_emit = 0.0
     last_audio_health_emit = 0.0
@@ -205,13 +207,17 @@ def _push_worker(app: 'Flask', socketio: 'SocketIO') -> None:
             now = time.time()
 
             # ================================================================
-            # AUDIO MONITORING UPDATE (10Hz - every 100ms)
-            # Real-time VU meters and EAS monitor status
+            # AUDIO MONITORING UPDATE (4Hz - every 250ms)
+            # Real-time VU meters and EAS monitor status.
+            # Previously ran unconditionally at 10Hz, burning CPU with Redis
+            # reads that returned the same stale value 50 times per second.
             # ================================================================
-            try:
-                _emit_audio_monitoring_update(app, socketio, config_cache)
-            except Exception as e:
-                logger.warning(f"Error emitting audio_monitoring_update: {e}")
+            if now - last_audio_monitoring_emit >= AUDIO_MONITORING_INTERVAL:
+                try:
+                    _emit_audio_monitoring_update(app, socketio, config_cache)
+                    last_audio_monitoring_emit = now
+                except Exception as e:
+                    logger.warning(f"Error emitting audio_monitoring_update: {e}")
 
             # Refresh config cache periodically
             if now - config_cache_loaded_at > 30:
@@ -332,7 +338,7 @@ def _push_worker(app: 'Flask', socketio: 'SocketIO') -> None:
                 except Exception as e:
                     logger.debug(f"Error emitting logs_update: {e}")
 
-            # Sleep for 100ms (10Hz base loop) - good balance between responsiveness and server load
+            # Sleep for 250ms (4Hz base loop) — low CPU, smooth VU meters
             _stop_event.wait(AUDIO_MONITORING_INTERVAL)
 
     logger.info("WebSocket push worker stopped")

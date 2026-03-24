@@ -968,42 +968,50 @@ def collect_metrics():
 
 
 def publish_metrics_to_redis(metrics):
-    """Publish metrics to Redis for web application."""
+    """Publish metrics to Redis for web application.
+
+    Uses HSET (merge) instead of DELETE+HSET so the key is never momentarily
+    absent between the two pipeline steps.  Deep-sanitizes every value before
+    JSON serialisation so that inf/nan/numpy types never cause a silent failure
+    that would leave the key absent and the web-app thinking the service is
+    down.
+    """
     try:
         r = get_redis_client()
 
-        # Add heartbeat timestamp and process ID (required by web application process)
+        # Add heartbeat timestamp and process ID (required by web application)
         metrics["_heartbeat"] = time.time()
         metrics["_master_pid"] = os.getpid()
 
-        # Flatten nested dicts to strings for Redis hash
+        # Deep-sanitize the whole metrics tree so json.dumps() can never throw.
+        # _sanitize_value() handles inf, nan, numpy scalars and nested dicts/lists.
+        sanitized = _sanitize_value(metrics)
+
+        # Flatten one level: nested dicts/lists → JSON strings, scalars → str.
         flat_metrics = {}
-        for key, value in metrics.items():
+        for key, value in sanitized.items():
             if value is None:
-                # Skip None values – they indicate uninitialized optional components
-                # and storing "None" (string) confuses downstream readers
                 continue
             if isinstance(value, (dict, list)):
-                flat_metrics[key] = json.dumps(value)
+                try:
+                    flat_metrics[key] = json.dumps(value)
+                except Exception as json_err:
+                    logger.debug("Skipping metric '%s' – not JSON serialisable: %s", key, json_err)
             else:
                 flat_metrics[key] = str(value)
 
-        # Store in Redis with pipeline for atomicity
+        if not flat_metrics:
+            logger.warning("publish_metrics_to_redis: nothing to publish after sanitisation")
+            return
+
+        # Use HSET merge (no DELETE) so the key is never temporarily absent.
+        # Reset TTL on each write; 120 s gives headroom for transient hiccups.
         pipe = r.pipeline()
-        pipe.delete("eas:metrics")  # Use same key as worker coordinator
         pipe.hset("eas:metrics", mapping=flat_metrics)
-        pipe.expire("eas:metrics", 60)  # Expire if service dies
-        
-        # NOTE: Waveform/spectrogram publishing removed - was causing audio stuttering
-        # due to blocking .tolist() conversions on large numpy arrays in main loop.
-        # Visualization data should be fetched on-demand via HTTP endpoints instead.
-        
-        # Spectrum data is now published by sdr-service.py
-        # audio-service.py does NOT access SDR hardware or IQ samples
-        
+        pipe.expire("eas:metrics", 120)
         pipe.execute()
 
-        # Publish notification for real-time updates
+        # Notify real-time subscribers
         r.publish("eas:metrics:update", "1")
 
     except Exception as e:
@@ -1544,10 +1552,10 @@ def main():
         logger.info(f"   - HTTP streaming: {'ACTIVE' if streaming_server_thread else 'DISABLED'} (port {streaming_port})")
         logger.info("=" * 80)
 
-        # Main loop: publish metrics every 5 seconds
+        # Main loop: publish metrics every 1 second so VU meters stay live
         last_metrics_time = 0
         last_source_watchdog_time = 0
-        metrics_interval = 5.0
+        metrics_interval = 1.0
         source_watchdog_interval = 30.0  # Check source health every 30 seconds
 
         while _running:
@@ -1557,14 +1565,23 @@ def main():
                 # Process pending commands from webapp (non-blocking)
                 process_commands()
 
-                # Source error-recovery watchdog: restart sources stuck in ERROR state.
-                # Stream sources (e.g. network radio streams) can exit their capture loop
-                # after 50 consecutive errors, leaving the source permanently offline.
-                # This watchdog detects that and restarts them automatically so that
-                # EAS monitoring and Icecast streaming resume without operator intervention.
+                # Source watchdog: restart ERROR sources and auto-start STOPPED sources.
+                # Network streams drop after consecutive errors; SDR sources lose lock.
+                # This watchdog ensures everything that *should* be running stays running
+                # without any operator intervention.
                 if current_time - last_source_watchdog_time >= source_watchdog_interval:
                     if audio_controller:
                         from app_core.audio.ingest import AudioSourceStatus
+                        from app_core.models import AudioSourceConfigDB
+                        try:
+                            auto_start_names = {
+                                cfg.name
+                                for cfg in AudioSourceConfigDB.query.all()
+                                if cfg.enabled and cfg.auto_start
+                            }
+                        except Exception:
+                            auto_start_names = set()
+
                         for source_name, source_adapter in audio_controller.get_all_sources().items():
                             if source_adapter.status == AudioSourceStatus.ERROR:
                                 logger.warning(
@@ -1572,9 +1589,8 @@ def main():
                                     f"attempting automatic restart"
                                 )
                                 try:
-                                    # stop() resets state; start() re-launches the capture loop.
                                     source_adapter.stop()
-                                    time.sleep(1.0)
+                                    time.sleep(0.5)
                                     result = audio_controller.start_source(source_name)
                                     if result:
                                         logger.info(
@@ -1587,6 +1603,29 @@ def main():
                                 except Exception as exc:
                                     logger.error(
                                         f"Source watchdog: ❌ exception restarting '{source_name}': {exc}",
+                                        exc_info=True,
+                                    )
+                            elif (
+                                source_adapter.status == AudioSourceStatus.STOPPED
+                                and source_name in auto_start_names
+                            ):
+                                logger.warning(
+                                    f"Source watchdog: '{source_name}' is STOPPED but has "
+                                    f"auto_start=True – restarting"
+                                )
+                                try:
+                                    result = audio_controller.start_source(source_name)
+                                    if result:
+                                        logger.info(
+                                            f"Source watchdog: ✅ auto-restarted '{source_name}'"
+                                        )
+                                    else:
+                                        logger.warning(
+                                            f"Source watchdog: ⚠️ auto-restart of '{source_name}' returned False"
+                                        )
+                                except Exception as exc:
+                                    logger.error(
+                                        f"Source watchdog: ❌ exception auto-restarting '{source_name}': {exc}",
                                         exc_info=True,
                                     )
                     last_source_watchdog_time = current_time

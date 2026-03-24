@@ -436,22 +436,24 @@ class AutoStreamingService:
 
         Returns ``(enabled, stream_name_prefix)`` where *stream_name_prefix* is
         the base name used to build per-source mount points.  Falls back to
-        ``(True, "eas-ingest")`` when no Flask app context is available so that
-        existing deployments that don't use the settings table are unaffected.
+        ``(False, "eas-ingest")`` when no Flask app context is available so that
+        EAS ingest streams are **not** created by default.  They consume an
+        Icecast source slot per audio source, so they must be explicitly enabled
+        via the admin UI before they activate.
         """
         if not self._flask_app:
-            return True, "eas-ingest"
+            return False, "eas-ingest"
         try:
             with self._flask_app.app_context():
                 from app_core.models import EASDecoderMonitorSettings
                 settings = EASDecoderMonitorSettings.query.first()
                 if settings is None:
-                    return True, "eas-ingest"
+                    return False, "eas-ingest"
                 prefix = (settings.stream_name or "eas-ingest").strip().lower().replace(" ", "-")
                 return bool(settings.enabled), prefix
         except Exception as exc:
             logger.debug("Could not read EASDecoderMonitorSettings: %s", exc)
-            return True, "eas-ingest"
+            return False, "eas-ingest"
 
     def _monitor_loop(self) -> None:
         """Monitor active streams, discover new sources, and handle reconnections."""
@@ -524,11 +526,22 @@ class AutoStreamingService:
                             )
                             self.remove_source(eas_key)
 
-                    # ── 4. Health-check all streamers ────────────────────────────
+                    # ── 4. Health-check all streamers and auto-reconnect dead ones ──
                     with self._lock:
                         for sn, streamer in list(self._streamers.items()):
                             if not streamer.get_stats().get("running", False):
-                                logger.warning("Streamer for '%s' stopped unexpectedly", sn)
+                                logger.warning(
+                                    "Streamer for '%s' stopped unexpectedly – will remove "
+                                    "so it gets recreated on next cycle", sn
+                                )
+                                # Remove now; the discovery step above will recreate it
+                                # on the next monitor-loop iteration when the source is
+                                # still RUNNING.
+                                try:
+                                    streamer.stop()
+                                except Exception:
+                                    pass
+                                self._streamers.pop(sn, None)
 
                         # ── 5. Remove native-rate streamers for stopped sources ──
                         if self.audio_controller:
