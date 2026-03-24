@@ -30,6 +30,10 @@ ExecStart=/opt/eas-station/venv/bin/python eas_monitoring_service.py
 # Service management
 Restart=always
 RestartSec=10s
+# Disable the default start-limit burst (5 failures / 10 s) so systemd never
+# permanently enters 'failed' state and stops retrying. The 10 s RestartSec
+# already prevents a tight restart loop.
+StartLimitBurst=0
 KillMode=mixed
 TimeoutStopSec=30
 
