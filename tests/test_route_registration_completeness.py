@@ -186,3 +186,64 @@ def test_routes_subdir_modules_registered():
         f"NOT yielded by iter_route_modules() in webapp/__init__.py:\n"
         + "\n".join(f"  - {m}" for m in missing)
     )
+
+
+# ---------------------------------------------------------------------------
+# Test 5: url_for() calls in Python code use blueprint-qualified endpoint names
+# ---------------------------------------------------------------------------
+
+# Map of (file_path_relative_to_project, bare_function_name) pairs that are
+# known blueprint endpoints and MUST be referenced with their blueprint prefix.
+_BLUEPRINT_QUALIFIED_CHECKS = [
+    # (relative file, wrong bare name, expected qualified name)
+    ("webapp/eas/workflow.py", "url_for('login'", "url_for('auth.login'"),
+    ("webapp/admin/environment.py", 'url_for("environment_settings")', 'url_for("environment.environment_settings")'),
+]
+
+
+def test_blueprint_url_for_uses_qualified_names():
+    """url_for() calls in Python code must use 'blueprint.endpoint' notation
+    for endpoints that live on a named blueprint, not bare function names."""
+    violations = []
+    for rel_path, wrong_pattern, correct_pattern in _BLUEPRINT_QUALIFIED_CHECKS:
+        source = _read(PROJECT_ROOT / rel_path)
+        if wrong_pattern in source:
+            violations.append(
+                f"  {rel_path}: found `{wrong_pattern}` — should be `{correct_pattern}`"
+            )
+
+    assert not violations, (
+        "The following url_for() calls use a bare endpoint name instead of the "
+        "blueprint-qualified form and will raise BuildError at runtime:\n"
+        + "\n".join(violations)
+    )
+
+
+# ---------------------------------------------------------------------------
+# Test 6: hardcoded href paths in templates point to registered routes
+# ---------------------------------------------------------------------------
+
+# Known-broken href → correct href mappings (regression guard).
+_HREF_REGRESSIONS = [
+    # (template file relative path, bad href, correct href)
+    ("templates/admin.html", 'href="/admin/audio_sources"', 'href="/admin/audio-sources"'),
+    ("templates/admin.html", 'href="/admin/rwt-schedule"', 'href="/rwt-schedule"'),
+    ("templates/audio_monitoring.html", 'href="/admin/diagnostics"', 'href="/diagnostics"'),
+]
+
+
+def test_known_broken_hrefs_are_fixed():
+    """Regression guard: templates must not contain the previously-broken
+    hardcoded href values that were corrected in this PR."""
+    violations = []
+    for rel_path, bad_href, correct_href in _HREF_REGRESSIONS:
+        source = _read(PROJECT_ROOT / rel_path)
+        if bad_href in source:
+            violations.append(
+                f"  {rel_path}: found `{bad_href}` — should be `{correct_href}`"
+            )
+
+    assert not violations, (
+        "The following templates still contain broken href paths:\n"
+        + "\n".join(violations)
+    )

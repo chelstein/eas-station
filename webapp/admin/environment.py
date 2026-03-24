@@ -651,7 +651,7 @@ def admin_download_env():
 
     if not env_path.exists():
         flash("No .env file exists to download.")
-        return redirect(url_for("environment_settings"))
+        return redirect(url_for("environment.environment_settings"))
 
     # Create a timestamped filename for the download
     timestamp = datetime.utcnow().strftime("%Y%m%d-%H%M%S")
