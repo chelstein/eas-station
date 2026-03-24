@@ -311,8 +311,24 @@ def read_shared_metrics() -> Optional[Dict[str, Any]]:
     Can be called by any worker to get latest metrics from master.
 
     Returns:
-        Dictionary of metrics, or None if not available
+        Dictionary of metrics, or None if not available.
+
+    Staleness policy
+    ----------------
+    * < 60 s  → fresh, returned as-is.
+    * 60 – 300 s → stale but *probably* still running (transient hiccup /
+      GC pause / metrics-publish exception).  Return the data with a
+      ``_metrics_stale`` flag so callers can show a soft warning without
+      hiding the whole dashboard.
+    * > 300 s (5 min) → truly dead; return None so the UI shows the hard
+      "service not running" error.
+
+    This prevents a single missed publish cycle from falsely reporting the
+    audio service as down.
     """
+    STALE_WARN_SECONDS = 60.0    # warn after this many seconds
+    STALE_DEAD_SECONDS = 300.0   # treat as dead only after 5 minutes
+
     try:
         r = get_redis_client()
 
@@ -328,11 +344,11 @@ def read_shared_metrics() -> Optional[Dict[str, Any]]:
             # Decode bytes to string if needed (redis-py 7.x returns bytes)
             decoded_key = key.decode('utf-8') if isinstance(key, bytes) else key
             decoded_value = value.decode('utf-8') if isinstance(value, bytes) else value
-            
+
             # Skip empty values that would cause JSON parse errors
             if not decoded_value:
                 continue
-                
+
             # Try to parse as JSON, fall back to raw value
             if isinstance(decoded_value, str) and (decoded_value.startswith('{') or decoded_value.startswith('[')):
                 try:
@@ -342,14 +358,30 @@ def read_shared_metrics() -> Optional[Dict[str, Any]]:
             else:
                 metrics[decoded_key] = decoded_value
 
-        # Check heartbeat freshness
+        # Check heartbeat freshness with a two-tier policy
         try:
             heartbeat = float(metrics.get("_heartbeat", 0))
             age = time.time() - heartbeat
 
-            if age > METRICS_TTL:
-                logger.warning(f"Shared metrics are stale (age: {age:.1f}s), master may be dead")
+            if heartbeat == 0:
+                # No heartbeat present — data is unusable
+                logger.debug("Shared metrics have no heartbeat, treating as absent")
                 return None
+
+            if age > STALE_DEAD_SECONDS:
+                logger.warning(
+                    f"Shared metrics are very stale (age: {age:.0f}s > {STALE_DEAD_SECONDS:.0f}s) "
+                    f"– audio-service appears dead"
+                )
+                return None
+
+            if age > STALE_WARN_SECONDS:
+                logger.warning(
+                    f"Shared metrics are stale (age: {age:.0f}s) – "
+                    f"audio-service may be under load or had a transient error"
+                )
+                metrics["_metrics_stale"] = "true"
+
         except (ValueError, TypeError) as e:
             logger.debug(f"Invalid heartbeat value in metrics: {e}")
             return None
@@ -357,12 +389,10 @@ def read_shared_metrics() -> Optional[Dict[str, Any]]:
         return metrics
 
     except RedisError as e:
-        # Log as debug instead of error - Redis unavailability is expected in separated architecture
-        # when audio-service is starting up or Redis is temporarily unreachable
+        # Log as debug — Redis unavailability is expected during startup
         logger.debug(f"Failed to read shared metrics from Redis: {e}")
         return None
     except Exception as e:
-        # Catch JSON decode errors and other unexpected issues
         logger.warning(f"Error reading shared metrics from Redis: {e}")
         return None
 

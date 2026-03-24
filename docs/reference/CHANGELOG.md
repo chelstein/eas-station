@@ -8,6 +8,49 @@ tracks releases under the 2.x series.
 
 - No pending changes.
 
+## [2.69.3] - 2026-03-24 - Rock-solid audio service, live VU meters, reduced CPU burn
+
+### Fixed
+- **`eas_monitoring_service.py`** (`publish_metrics_to_redis`) — Replaced the
+  fragile `DELETE` + `HSET` pipeline with a simple `HSET` merge so the Redis
+  key is never momentarily absent between the two steps.  Added deep
+  sanitisation of every metric value before JSON serialisation so that
+  `inf` / `nan` / numpy scalars can no longer cause a silent exception that
+  leaves the key absent and makes the web-app falsely report "audio service not
+  running".  Extended the key TTL from 60 s to 120 s to give headroom for
+  transient Redis hiccups.
+- **`eas_monitoring_service.py`** (main loop) — Reduced metrics publish interval
+  from 5 s → 1 s so VU meters in the web UI reflect live audio levels instead
+  of 5-second-old snapshots.
+- **`eas_monitoring_service.py`** (source watchdog) — Watchdog now also
+  restarts **STOPPED** sources that have `auto_start=True`, not just ERROR
+  sources.  Previously a source that dropped from RUNNING to STOPPED (e.g.
+  after a network hiccup that didn't set ERROR) would stay offline until
+  manually restarted.
+- **`app_core/audio/worker_coordinator_redis.py`** (`read_shared_metrics`) —
+  Replaced the hard 60-second stale threshold (which caused false "service not
+  running" reports on any transient Redis blip) with a two-tier policy: warn at
+  60 s but continue returning data up to 5 minutes, only returning `None` (hard
+  failure) after 5 minutes of silence.
+- **`app_core/audio/auto_streaming.py`** (`_get_eas_monitor_settings`) —
+  Reverted the PR #2.69.2 change that defaulted EAS ingest streams to
+  **enabled**.  Each ingest stream consumes an Icecast source slot; with 3
+  audio sources the default-on behaviour silently saturated the server's source
+  limit and broke normal streaming.  The feature now defaults to **disabled**
+  as it was before and must be explicitly enabled via the admin UI.
+- **`app_core/audio/auto_streaming.py`** (health-check step) — Dead streamers
+  (those that stopped unexpectedly) are now removed immediately so they are
+  recreated on the next monitor-loop cycle, giving automatic Icecast
+  reconnection without operator intervention.
+- **`app_core/websocket_push.py`** — Reduced the WebSocket push loop from
+  10 Hz (100 ms) to 4 Hz (250 ms) and added a proper rate-limit timer for the
+  audio-monitoring emit.  The previous code called `_emit_audio_monitoring_update`
+  unconditionally on every iteration, resulting in 10 Redis reads per second and
+  10 identical WebSocket broadcasts per second per connected client — burning
+  significant CPU while delivering the *same stale value* 50 times per
+  5-second window.  At 4 Hz with 1-second metric freshness the meters are still
+  visually smooth and CPU usage drops dramatically.
+
 ## [2.69.2] - 2026-03-24 - Fix EAS signal injection, ingest mounting, and OTA/stream decoding
 
 ### Fixed

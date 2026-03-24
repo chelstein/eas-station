@@ -382,9 +382,9 @@ const htmlEntityDecoder = document.createElement('textarea');
 const EAS_WARMUP_DURATION_SECONDS = 10; // Show "warming up" only during first 10 seconds
 
 // Stability threshold increased to prevent flickering during transient fluctuations
-// Requires 5 consecutive readings of a different state before accepting the change
-// At 100ms WebSocket intervals, this is 500ms of consistent state before updating display
-const AUDIO_FLOWING_STABILITY_THRESHOLD = 5;
+// Requires 3 consecutive readings of a different state before accepting the change
+// At 250ms WebSocket intervals, this is 750ms of consistent state before updating display
+const AUDIO_FLOWING_STABILITY_THRESHOLD = 3;
 
 // VU meter state tracking for smoothing and peak hold
 const vuMeterState = new Map(); // sourceId -> { lastPeak, lastRms, peakHold, peakHoldTime }
@@ -2239,7 +2239,7 @@ let levelIntervalHandle = null;
 let easMonitorIntervalHandle = null;
 
 function startLevelPolling() {
-    // Poll for audio level metrics every 5s when WebSocket unavailable (WebSocket is primary at 100ms intervals)
+    // Poll for audio level metrics every 5s when WebSocket unavailable (WebSocket is primary at 250ms intervals)
     if (levelIntervalHandle) {
         clearInterval(levelIntervalHandle);
     }
@@ -2263,7 +2263,7 @@ function startLevelPolling() {
 }
 
 function startEASMonitorPolling() {
-    // Poll for EAS monitor status every 5 seconds when WebSocket unavailable (WebSocket is primary at 100ms intervals)
+    // Poll for EAS monitor status every 5 seconds when WebSocket unavailable (WebSocket is primary at 250ms intervals)
     if (easMonitorIntervalHandle) {
         clearInterval(easMonitorIntervalHandle);
     }
