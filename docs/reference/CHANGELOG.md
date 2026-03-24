@@ -8,6 +8,29 @@ tracks releases under the 2.x series.
 
 - No pending changes.
 
+## [2.69.6] - 2026-03-24 - Fix sources failing silently and tight FFmpeg crash loop
+
+### Fixed
+- **`app_core/audio/redis_commands.py`** (`_execute_command` / `source_start`) — The return
+  value of `audio_controller.start_source()` was silently discarded.  The handler now checks
+  the boolean result and returns `{'success': False, 'message': '…'}` (including the adapter's
+  `error_message`) when the source fails to start.  Previously every start attempt reported
+  `success: True` to the UI even if the source ended up in ERROR state.
+- **`app_core/audio/sources.py`** (`StreamSourceAdapter._restart_ffmpeg_process`) — When
+  `_launch_ffmpeg_process()` raised an exception (e.g. FFmpeg not in PATH, URL unresolvable),
+  `_last_restart` was never updated.  Because the initial value of `_last_restart` is 0, the
+  backoff guard (`now - _last_restart < restart_delay`) was always bypassed and every subsequent
+  call to `_read_audio_chunk()` immediately retried — producing a tight CPU-burning crash loop
+  and flooding the log.  `_last_restart` is now stamped on failure so the 2-second backoff
+  applies between retries.
+- **`eas_service.py`** (`publish_eas_metrics_to_redis`) — When `eas_monitoring_service.py`
+  (audio-service) was down, its stale V3 `eas_monitor` data (with `mode: "unified-streaming"`
+  and `monitor_count > 0`) remained in Redis.  `eas_service.py` was deferring to this stale
+  data without checking whether the audio-service heartbeat (`_heartbeat`) was still fresh.
+  The result was that the webapp showed "Running (No Audio)" instead of "No Sources Running"
+  because `no_sources_running` evaluated to False from the stale `monitor_count`.  The defer
+  check now also verifies that `_heartbeat` is less than 30 seconds old before yielding.
+
 ## [2.69.5] - 2026-03-24 - Fix HTTP stream delete and audio-service crash on bad receiver config
 
 ### Fixed

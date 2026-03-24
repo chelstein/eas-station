@@ -351,7 +351,19 @@ class AudioCommandSubscriber:
                         'skipped': True
                     }
 
-                self.audio_controller.start_source(source_name)
+                started = self.audio_controller.start_source(source_name)
+                if not started:
+                    adapter = self.audio_controller._sources.get(source_name)
+                    error_detail = (
+                        adapter.error_message
+                        if adapter and adapter.error_message
+                        else "start_source returned False"
+                    )
+                    logger.error(f"Failed to start source '{source_name}': {error_detail}")
+                    return {
+                        'success': False,
+                        'message': f"Failed to start source '{source_name}': {error_detail}",
+                    }
 
                 # Also add source to Icecast streaming if service is available
                 if self.auto_streaming_service and self.auto_streaming_service.is_available():

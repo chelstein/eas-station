@@ -1116,6 +1116,11 @@ class StreamSourceAdapter(AudioSourceAdapter):
         try:
             self._launch_ffmpeg_process()
         except Exception as exc:
+            # Update _last_restart even on failure so the backoff delay applies
+            # before the next attempt.  Without this, _last_restart stays at 0
+            # and every _read_audio_chunk() call immediately retries, creating a
+            # tight crash loop that burns CPU and floods logs.
+            self._last_restart = time.time()
             self.status = AudioSourceStatus.ERROR
             self.error_message = str(exc)
             logger.error(f"{self.config.name}: failed to restart FFmpeg: {exc}")
