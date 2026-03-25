@@ -1707,7 +1707,16 @@ def api_delete_audio_source(source_name: str):
         db_config = AudioSourceConfigDB.query.filter_by(name=source_name).first()
 
         if not db_config:
-            return jsonify({'error': 'Source not found in database'}), 404
+            # Source already absent from DB — still clean up Redis/in-memory state so
+            # the source stops appearing in the UI (it may linger in Redis metrics from
+            # the last time the audio service had it loaded).
+            try:
+                publisher = get_audio_command_publisher()
+                publisher.delete_source(source_name, wait_for_response=False)
+            except Exception:
+                pass
+            logger.info('Source %s already absent from DB — cleaned up runtime state', source_name)
+            return jsonify({'message': 'Audio source deleted successfully'})
 
         config_params = db_config.config_params or {}
         is_radio_managed = config_params.get('managed_by') == 'radio'

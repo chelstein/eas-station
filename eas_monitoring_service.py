@@ -1062,11 +1062,15 @@ def main():
 
         # Initialize audio controller
         logger.info("Initializing audio controller...")
-        audio_controller = initialize_audio_controller(app)
+        try:
+            audio_controller = initialize_audio_controller(app)
+        except Exception as ctrl_exc:
+            logger.error("initialize_audio_controller raised an exception: %s", ctrl_exc, exc_info=True)
+            audio_controller = None
         _audio_controller = audio_controller  # Store globally for command subscriber
 
         if not audio_controller:
-            logger.error("Failed to initialize audio controller")
+            logger.error("Failed to initialize audio controller — cannot continue")
             return 1
 
         # Initialize Icecast auto-streaming
@@ -1152,7 +1156,6 @@ def main():
         subscriber_thread = None
         try:
             from app_core.audio.redis_commands import AudioCommandSubscriber
-            import threading
 
             command_subscriber = AudioCommandSubscriber(
                 audio_controller, auto_streaming, eas_monitor,
@@ -1177,7 +1180,6 @@ def main():
         streaming_server_thread = None
         try:
             from flask import Flask, Response, stream_with_context, jsonify
-            import threading
             from werkzeug.serving import make_server
             
             # Create Flask app for streaming endpoints
