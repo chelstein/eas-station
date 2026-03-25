@@ -1928,14 +1928,13 @@ class EASBroadcaster:
                 manager_handled = False
 
         try:
-            # audio_bytes contains the complete broadcast sequence:
-            # SAME header (3x) → attention tone → TTS narration → EOM.
-            # All segments are in a single uninterrupted audio file, so no
-            # gap can appear between the narration and the EOM burst.
-            self._play_audio_or_bytes(audio_path, audio_bytes)
-
-            # Inject the EAS audio into the Icecast broadcast queue so that
-            # stream listeners hear the full alert sequence in real time.
+            # Inject into Icecast FIRST so stream listeners hear the alert
+            # in sync with local playback.  inject_eas_audio() queues all
+            # audio chunks into the BroadcastQueue immediately (no blocking),
+            # then _play_audio_or_bytes() plays locally while the
+            # IcecastStreamer drains those chunks to FFmpeg in real time.
+            # Previously injection happened AFTER _play_audio_or_bytes()
+            # returned, meaning Icecast listeners missed the entire alert.
             try:
                 from app_core.audio.eas_stream_injector import inject_eas_audio
                 _wav_data = audio_bytes
@@ -1946,6 +1945,12 @@ class EASBroadcaster:
                     inject_eas_audio(_wav_data)
             except Exception as _inj_exc:
                 self.logger.warning("EAS stream injection failed (non-fatal): %s", _inj_exc)
+
+            # audio_bytes contains the complete broadcast sequence:
+            # SAME header (3x) → attention tone → TTS narration → EOM.
+            # All segments are in a single uninterrupted audio file, so no
+            # gap can appear between the narration and the EOM burst.
+            self._play_audio_or_bytes(audio_path, audio_bytes)
         finally:
             if controller and activated_any:
                 try:  # pragma: no cover - hardware specific

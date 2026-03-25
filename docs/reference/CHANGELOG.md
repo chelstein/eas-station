@@ -8,6 +8,39 @@ tracks releases under the 2.x series.
 
 - No pending changes.
 
+## [2.70.3] - 2026-03-25 - Fix EAS audio inaudible on Icecast and OTA trigger recording
+
+### Fixed
+- **`app_utils/eas.py`** (`EASBroadcaster.handle_alert`) — `inject_eas_audio()` was called
+  **after** `_play_audio_or_bytes()` returned.  Because `_play_audio_or_bytes` blocks for the
+  entire playback duration (30–60 s), Icecast listeners heard live source audio throughout the
+  alert and only received the EAS audio once the alert was already over.  Fixed by moving the
+  injection call to **before** `_play_audio_or_bytes()`.  The injection is non-blocking (it
+  merely enqueues chunks into the BroadcastQueue); the IcecastStreamer then drains those chunks
+  to FFmpeg in real time while local playback proceeds concurrently.
+- **`app_core/audio/eas_stream_injector.py`** (`inject_eas_audio`) — Before publishing EAS
+  chunks, the injector now increments `adapter._eas_inject_seq` (a new monotonic counter on
+  `AudioSourceAdapter`) and flushes stale live-audio chunks from every subscriber queue of
+  `_source_broadcast`.  This removes pre-buffered live audio that would otherwise delay EAS
+  audio delivery.
+- **`app_core/audio/ingest.py`** (`AudioSourceAdapter`) — Added `_eas_inject_seq` integer
+  counter to the adapter.  Incremented by the injector before each injection so consumers can
+  detect a new injection event reliably without racing against the short-lived
+  `_eas_injection_active` gate.
+- **`app_core/audio/icecast_output.py`** (`IcecastStreamer._feed_loop`) — Each streamer now
+  tracks `_last_eas_inject_seq`.  When it sees a new sequence number it clears the local
+  150-chunk pre-buffer (≈7.5 s of live audio) that would otherwise delay EAS audio reaching
+  FFmpeg.  The buffer is replenished immediately with EAS chunks that arrive from the
+  subscription queue, so the stream remains continuous.
+- **`app_core/audio/eas_monitor.py`** (`_store_received_alert`) — If `db.session.commit()`
+  fails because the `raw_audio_data` column does not exist (migration not yet applied), the
+  code now retries the commit with `raw_audio_data=None` so the alert record is not lost
+  entirely.  A warning is logged directing the operator to run `alembic upgrade head`.
+- **`eas_monitoring_service.py`** (`_ensure_raw_audio_column`) — At startup the service now
+  checks whether `raw_audio_data` exists on `received_eas_alerts` and adds it (via `ALTER
+  TABLE … ADD COLUMN IF NOT EXISTS`) if absent.  This closes the race between new deployments
+  and operators who have not yet run `alembic upgrade head` after upgrading to 2.70.1+.
+
 ## [2.70.2] - 2026-03-25 - Fix test audio injection not reaching Icecast streams
 
 ### Fixed

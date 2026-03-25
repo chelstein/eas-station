@@ -139,6 +139,13 @@ def inject_eas_audio(wav_bytes: Optional[bytes]) -> bool:
         else:
             resampled = src_samples
 
+        # Increment the injection sequence counter BEFORE setting the gate so
+        # IcecastStreamer sees the new value on its very next loop iteration and
+        # can clear its local pre-buffer, eliminating the ~7.5 s buffering delay.
+        inject_seq = getattr(adapter, '_eas_inject_seq', None)
+        if inject_seq is not None:
+            adapter._eas_inject_seq += 1
+
         # Gate live source audio so it does not interleave with EAS chunks.
         # The capture loop checks this flag and skips publishing to
         # _source_broadcast while it is set, ensuring listeners hear a clean
@@ -147,6 +154,21 @@ def inject_eas_audio(wav_bytes: Optional[bytes]) -> bool:
         gate = getattr(adapter, '_eas_injection_active', None)
         if gate is not None:
             gate.set()
+
+        # Flush stale live-audio chunks from every subscriber's queue so that
+        # EAS chunks are not delayed behind pre-buffered live audio.
+        try:
+            import queue as _queue_mod
+            with broadcast_queue._lock:
+                sub_queues = list(broadcast_queue._subscribers.values())
+            for sq in sub_queues:
+                while True:
+                    try:
+                        sq.get_nowait()
+                    except _queue_mod.Empty:
+                        break
+        except Exception:
+            pass
 
         try:
             # Publish in 50 ms chunks — same granularity used by the capture loop.
