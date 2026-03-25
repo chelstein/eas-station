@@ -8,6 +8,20 @@ tracks releases under the 2.x series.
 
 - No pending changes.
 
+## [2.70.2] - 2026-03-25 - Fix test audio injection not reaching Icecast streams
+
+### Fixed
+- **`app_core/audio/ingest.py`** (`AudioIngestController.inject_eas_test_signal`) — Test
+  audio was queued via `schedule_inject()` which feeds the capture loop.  The capture loop
+  drained the queue to `_source_broadcast` **without gating live source audio**, so the FSK
+  tones were mixed with (and buried under) the live programme audio on every Icecast mount.
+  `inject_eas_audio()` was documented as being called for the Icecast path but was never
+  actually invoked.  Fixed by encoding the generated test audio as a WAV file in-memory and
+  calling `inject_eas_audio()` — mirroring the path used by `EASBroadcaster.handle_alert()`
+  for real alerts — which gates live audio and publishes a clean, uninterrupted test signal
+  to the Icecast broadcast queue.  The existing `schedule_inject()` path is retained so the
+  EAS decoder continues to receive the signal via the capture-loop health-check path.
+
 ## [2.70.1] - 2026-03-25 - Fix EAS audio interleaving and OTA audio JSONB serialization crash
 
 ### Fixed

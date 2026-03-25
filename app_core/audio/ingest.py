@@ -27,9 +27,11 @@ with standardized PCM output, metering, and health monitoring.
 """
 
 import logging
+import io
 import queue
 import threading
 import time
+import wave
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
@@ -938,6 +940,37 @@ class AudioIngestController:
             scheduled,
             target_adapter.config.name,
         )
+
+        # Inject the test signal directly into the Icecast broadcast queue so
+        # that stream listeners hear it immediately with live audio gated.
+        # schedule_inject() feeds the EAS decoder via the capture loop, but
+        # that path does not gate live audio, meaning the FSK tones would be
+        # buried under live source audio on the Icecast stream.  Calling
+        # inject_eas_audio() here mirrors what EASBroadcaster.handle_alert()
+        # does for real alerts and guarantees the test signal is audible on
+        # the stream regardless of whether the OTA detection chain fires.
+        try:
+            _wav_buf = io.BytesIO()
+            with wave.open(_wav_buf, 'wb') as _wf:
+                _wf.setnchannels(1)
+                _wf.setsampwidth(2)          # 16-bit signed PCM
+                _wf.setframerate(sample_rate)  # 16000 Hz
+                _pcm = (np.clip(audio_np, -1.0, 1.0) * 32767.0).astype(np.int16)
+                _wf.writeframes(_pcm.tobytes())
+            _wav_bytes = _wav_buf.getvalue()
+            from app_core.audio.eas_stream_injector import inject_eas_audio
+            inject_eas_audio(_wav_bytes)
+            logger.info(
+                "EAS test signal injected into Icecast broadcast queue "
+                "for source '%s'",
+                target_adapter.config.name,
+            )
+        except Exception as _stream_exc:
+            logger.warning(
+                "EAS test signal Icecast stream injection failed (non-fatal): %s",
+                _stream_exc,
+            )
+
         return target_adapter.config.name
 
     def cleanup(self) -> None:
