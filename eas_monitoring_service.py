@@ -1156,7 +1156,6 @@ def main():
         subscriber_thread = None
         try:
             from app_core.audio.redis_commands import AudioCommandSubscriber
-            import threading
 
             command_subscriber = AudioCommandSubscriber(
                 audio_controller, auto_streaming, eas_monitor,
@@ -1181,7 +1180,6 @@ def main():
         streaming_server_thread = None
         try:
             from flask import Flask, Response, stream_with_context, jsonify
-            import threading
             from werkzeug.serving import make_server
             
             # Create Flask app for streaming endpoints
