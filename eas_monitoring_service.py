@@ -1069,6 +1069,17 @@ def main():
             audio_controller = None
         _audio_controller = audio_controller  # Store globally for command subscriber
 
+        # Register the controller with the EAS stream injector so that
+        # inject_eas_audio() can push generated alert audio into the
+        # Icecast broadcast queues running in this process.
+        if audio_controller:
+            try:
+                from app_core.audio import eas_stream_injector
+                eas_stream_injector.set_controller(audio_controller)
+                logger.info("EAS stream injector: controller registered")
+            except Exception as _inj_exc:
+                logger.warning("Failed to register EAS stream injector controller: %s", _inj_exc)
+
         if not audio_controller:
             logger.error("Failed to initialize audio controller — cannot continue")
             return 1

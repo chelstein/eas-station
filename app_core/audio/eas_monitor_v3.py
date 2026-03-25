@@ -77,6 +77,9 @@ import logging
 import threading
 import time
 import queue
+import io
+import wave
+from collections import deque
 from dataclasses import dataclass, field
 from typing import Dict, Any, Optional, Callable, List
 from datetime import datetime
@@ -399,11 +402,19 @@ class UnifiedEASMonitorService:
         self._thread: Optional[threading.Thread] = None
         self._start_time: Optional[float] = None
         self._last_discovery_time = 0.0
-        
+
         # Statistics
         self._total_alerts_detected = 0
         self._current_source_context: Optional[str] = None  # Track which source is being processed
-        
+
+        # Per-source rolling audio ring buffers for OTA alert capture.
+        # Stores up to _ring_max_seconds of 16 kHz float32 chunks per source
+        # so that when a SAME header fires, the raw received audio is available.
+        self._ring_max_seconds = 90
+        self._ring_max_samples = self._target_sample_rate * self._ring_max_seconds
+        self._audio_rings: Dict[str, deque] = {}
+        self._audio_rings_lock = threading.Lock()
+
         logger.info(
             f"UnifiedEASMonitorService initialized: "
             f"chunk={chunk_duration_ms}ms ({self._chunk_size} samples at 16kHz), "
@@ -555,6 +566,20 @@ class UnifiedEASMonitorService:
             f"{alert_data.get('event_code', 'UNKNOWN')}"
         )
 
+        # Attach raw received audio WAV to the alert dict for database storage.
+        # The ring buffer holds up to _ring_max_seconds of 16 kHz mono float32.
+        source = alert_data['source_name']
+        with self._audio_rings_lock:
+            ring = self._audio_rings.get(source)
+            if ring:
+                try:
+                    combined = np.concatenate(list(ring)).astype(np.float32)
+                    alert_data['raw_audio_wav'] = _encode_wav_bytes(
+                        combined, self._target_sample_rate
+                    )
+                except Exception as _enc_exc:
+                    logger.debug("Could not encode OTA audio for storage: %s", _enc_exc)
+
         # Call user's alert callback
         if self.alert_callback:
             try:
@@ -604,13 +629,22 @@ class UnifiedEASMonitorService:
                         if samples is not None and len(samples) > 0:
                             # Process audio through shared decoder
                             self._decoder.process_samples(samples)
-                            
+
+                            # Maintain per-source rolling audio ring buffer for OTA capture
+                            with self._audio_rings_lock:
+                                ring = self._audio_rings.setdefault(source_name, deque())
+                                ring.append(samples.copy())
+                                # Trim oldest chunks to stay within the ring capacity
+                                total = sum(len(c) for c in ring)
+                                while total > self._ring_max_samples and ring:
+                                    total -= len(ring.popleft())
+
                             # Update health tracking
                             self._health_tracker.update_audio_received(
                                 source_name,
                                 len(samples)
                             )
-                            
+
                             any_audio_processed = True
                         else:
                             # No audio available from this source
@@ -782,3 +816,20 @@ class UnifiedEASMonitorService:
 
 # Backward compatibility alias
 UnifiedEASMonitor = UnifiedEASMonitorService
+
+
+# ---------------------------------------------------------------------------
+# Internal helpers
+# ---------------------------------------------------------------------------
+
+def _encode_wav_bytes(samples: np.ndarray, sample_rate: int) -> bytes:
+    """Encode a float32 numpy array as a 16-bit mono WAV byte string."""
+    pcm16 = np.clip(samples, -1.0, 1.0)
+    pcm16 = (pcm16 * 32767).astype(np.int16)
+    buf = io.BytesIO()
+    with wave.open(buf, 'wb') as wf:
+        wf.setnchannels(1)
+        wf.setsampwidth(2)   # 16-bit
+        wf.setframerate(sample_rate)
+        wf.writeframes(pcm16.tobytes())
+    return buf.getvalue()
