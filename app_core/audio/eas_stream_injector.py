@@ -139,14 +139,28 @@ def inject_eas_audio(wav_bytes: Optional[bytes]) -> bool:
         else:
             resampled = src_samples
 
-        # Publish in 50 ms chunks — same granularity used by the capture loop.
-        chunk_size = max(1, int(target_rate * 0.05))
-        published = 0
-        for offset in range(0, len(resampled), chunk_size):
-            chunk = resampled[offset: offset + chunk_size]
-            if len(chunk) > 0:
-                broadcast_queue.publish(chunk)
-                published += 1
+        # Gate live source audio so it does not interleave with EAS chunks.
+        # The capture loop checks this flag and skips publishing to
+        # _source_broadcast while it is set, ensuring listeners hear a clean
+        # uninterrupted EAS alert sequence rather than a mix of EAS and live
+        # program audio.
+        gate = getattr(adapter, '_eas_injection_active', None)
+        if gate is not None:
+            gate.set()
+
+        try:
+            # Publish in 50 ms chunks — same granularity used by the capture loop.
+            chunk_size = max(1, int(target_rate * 0.05))
+            published = 0
+            for offset in range(0, len(resampled), chunk_size):
+                chunk = resampled[offset: offset + chunk_size]
+                if len(chunk) > 0:
+                    broadcast_queue.publish(chunk)
+                    published += 1
+        finally:
+            # Always release the gate, even if publishing raised an exception.
+            if gate is not None:
+                gate.clear()
 
         duration_s = len(resampled) / target_rate
         logger.info(

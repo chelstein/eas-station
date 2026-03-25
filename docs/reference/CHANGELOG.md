@@ -8,6 +8,25 @@ tracks releases under the 2.x series.
 
 - No pending changes.
 
+## [2.70.1] - 2026-03-25 - Fix EAS audio interleaving and OTA audio JSONB serialization crash
+
+### Fixed
+- **`app_core/audio/ingest.py`** (`AudioSourceAdapter`) — Added `_eas_injection_active`
+  threading.Event gate.  When set by the injector, the capture loop skips publishing live
+  source audio to `_source_broadcast`, preventing it from interleaving with EAS alert chunks.
+  The result is a clean, uninterrupted EAS alert sequence in the Icecast stream rather than
+  garbled audio mixing the EAS signal with live program content.
+- **`app_core/audio/eas_stream_injector.py`** (`inject_eas_audio`) — Sets
+  `_eas_injection_active` on each source adapter before publishing EAS chunks and clears it
+  in a `finally` block afterward, ensuring the gate is always released even on error.
+- **`app_core/audio/eas_monitor.py`** (`_store_received_alert`) — `full_alert_data=alert`
+  was passed directly to the JSONB column while the alert dict contained
+  `raw_audio_wav` (Python `bytes`).  `bytes` is not JSON-serializable, causing every
+  `db.session.commit()` to raise `TypeError` and roll back — meaning no `ReceivedEASAlert`
+  record was ever written and OTA audio was never persisted.  The dict is now copied with
+  `raw_audio_wav` excluded before being stored in `full_alert_data`; the binary itself is
+  stored in the dedicated `raw_audio_data` (LargeBinary) column as intended.
+
 ## [2.70.0] - 2026-03-25 - Fix EAS stream injection, OTA audio storage, and test pipeline
 
 ### Fixed

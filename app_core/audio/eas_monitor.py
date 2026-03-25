@@ -214,6 +214,13 @@ def _store_received_alert(
             return
 
         # Create database record
+        # Strip the raw audio bytes from the JSON payload — the binary is
+        # already stored in the dedicated raw_audio_data column.  Leaving it
+        # in the dict would cause JSONB serialization to fail (bytes are not
+        # JSON-serializable), which would roll back the entire commit and lose
+        # the alert record entirely.
+        full_alert_json = {k: v for k, v in alert.items() if k != 'raw_audio_wav'}
+
         received_alert = ReceivedEASAlert(
             received_at=utc_now(),
             source_name=source_name,
@@ -232,7 +239,7 @@ def _store_received_alert(
             generated_message_id=generated_message_id,
             forwarded_at=utc_now() if forwarding_decision == 'forwarded' else None,
             decode_confidence=alert.get('confidence', 0.0),
-            full_alert_data=alert,
+            full_alert_data=full_alert_json,
             raw_audio_data=alert.get('raw_audio_wav'),
         )
 
