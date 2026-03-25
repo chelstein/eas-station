@@ -453,7 +453,8 @@ function updateAudioSourcesFromRealtime(sources) {
         const card = document.querySelector(`[data-source-card="${CSS.escape(name)}"]`);
         if (!card) return;
 
-        const status = (update.status || update.source_status || 'stopped').toLowerCase();
+        const existingSource = audioSources.find(s => s.name === name);
+        const status = (update.status || update.source_status || existingSource?.status || 'unknown').toLowerCase();
         card.className = `card audio-source-card status-${status}`;
 
         const badge = card.querySelector('.status-badge');

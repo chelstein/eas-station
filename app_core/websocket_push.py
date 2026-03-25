@@ -458,21 +458,44 @@ def _emit_system_health_update(app: 'Flask', socketio: 'SocketIO') -> None:
 
 
 def _emit_audio_sources_update(app: 'Flask', socketio: 'SocketIO') -> None:
-    """Emit audio source list update."""
-    from webapp.admin.audio_ingest import AudioSourceConfigDB
+    """Emit audio source list update with runtime status from Redis."""
+    from webapp.admin.audio_ingest import AudioSourceConfigDB, _read_audio_metrics_from_redis
 
     try:
+        # Build status lookup from Redis so frontend gets live status, not 'stopped' default
+        redis_status_map = {}
+        try:
+            redis_metrics = _read_audio_metrics_from_redis()
+            if redis_metrics:
+                audio_controller_data = redis_metrics.get('audio_controller', {})
+                if isinstance(audio_controller_data, str):
+                    if audio_controller_data.strip():
+                        try:
+                            audio_controller_data = json.loads(audio_controller_data)
+                        except (json.JSONDecodeError, ValueError):
+                            audio_controller_data = {}
+                    else:
+                        audio_controller_data = {}
+                for name, data in audio_controller_data.get('sources', {}).items():
+                    clean_name = name.replace("redis-", "", 1) if name.startswith("redis-") else name
+                    redis_status_map[clean_name] = data.get('status', 'unknown')
+        except Exception:
+            pass  # Redis unavailable — omit status field so frontend keeps existing state
+
         sources = AudioSourceConfigDB.query.all()
         source_list = []
         for source in sources:
-            source_list.append({
+            entry = {
                 'id': source.id,
                 'name': source.name,
                 'type': getattr(source.source_type, 'value', None) if source.source_type else 'unknown',
                 'enabled': source.enabled,
                 'priority': source.priority,
                 'auto_start': source.auto_start,
-            })
+            }
+            if source.name in redis_status_map:
+                entry['status'] = redis_status_map[source.name]
+            source_list.append(entry)
 
         _safe_emit(socketio, 'audio_sources_update', {
             'sources': source_list,

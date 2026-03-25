@@ -188,7 +188,14 @@ function handleAudioHealthUpdate(data) {
 function handleAudioSourcesUpdate(data) {
     try {
         const sources = data.sources || [];
-        audioSources = sources.filter(source => hasUsableId(source?.id || source?.name));
+        // Preserve existing runtime status when the update omits it (Redis unavailable)
+        const existingStatusMap = new Map(audioSources.map(s => [s.name, s.status]));
+        audioSources = sources.filter(source => hasUsableId(source?.id || source?.name)).map(source => {
+            if (!source.status && existingStatusMap.has(source.name)) {
+                return { ...source, status: existingStatusMap.get(source.name) };
+            }
+            return source;
+        });
         renderAudioSources();
 
         // Update counts
