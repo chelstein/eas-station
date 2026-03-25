@@ -144,6 +144,14 @@ class AudioSourceAdapter(ABC):
         # now-playing events to the database.
         self.on_metadata_change = None
 
+        # EAS broadcast gate — when set, the capture loop does NOT publish live
+        # audio chunks to _source_broadcast.  This prevents live source audio
+        # from interleaving with EAS alert audio during an EAS injection, which
+        # would produce garbled/mixed audio in the Icecast stream.  The capture
+        # loop continues to read audio (keeping the source pipeline alive and
+        # the EAS broadcast queue populated) while gated.
+        self._eas_injection_active = threading.Event()
+
         # Pending audio injection inlet — float32 chunks at the source's
         # native sample rate.  The capture loop drains this queue after each
         # real audio read, publishing injected chunks through the EXACT SAME
@@ -328,7 +336,10 @@ class AudioSourceAdapter(ABC):
                     # Publish to per-source broadcast queue - all subscribers get independent copies
                     # This enables multiple consumers (Icecast, web streaming, controller pump)
                     # to receive audio without competing for chunks.
-                    self._source_broadcast.publish(audio_chunk)
+                    # Gate: skip publishing live audio while an EAS alert is being injected so
+                    # that EAS chunks are not interleaved with live source audio in the stream.
+                    if not self._eas_injection_active.is_set():
+                        self._source_broadcast.publish(audio_chunk)
 
                     # ARCHITECTURAL FIX: Resample to 16kHz and publish to EAS queue
                     # This eliminates resampling bottleneck and reduces queue memory by 3x
