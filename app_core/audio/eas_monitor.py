@@ -244,8 +244,30 @@ def _store_received_alert(
         )
 
         db.session.add(received_alert)
-        db.session.commit()
-        logger.info(f"Stored received alert in database: {event_code} from {source_name}")
+        try:
+            db.session.commit()
+            logger.info(f"Stored received alert in database: {event_code} from {source_name}")
+        except Exception as commit_exc:
+            db.session.rollback()
+            # If the commit failed because the raw_audio_data column doesn't
+            # exist yet (migration not applied), retry without the audio blob
+            # so the alert record is not lost entirely.
+            err_str = str(commit_exc).lower()
+            if 'raw_audio_data' in err_str or 'column' in err_str:
+                logger.warning(
+                    "raw_audio_data column missing — storing alert without audio "
+                    "(run 'alembic upgrade head' to apply the migration): %s",
+                    commit_exc,
+                )
+                received_alert.raw_audio_data = None
+                db.session.add(received_alert)
+                db.session.commit()
+                logger.info(
+                    "Stored received alert (no audio) in database: %s from %s",
+                    event_code, source_name,
+                )
+            else:
+                raise
 
     except Exception as e:
         logger.error(f"Failed to store received alert in database: {e}", exc_info=True)

@@ -146,6 +146,13 @@ class AudioSourceAdapter(ABC):
         # now-playing events to the database.
         self.on_metadata_change = None
 
+        # Monotonically-incrementing injection sequence counter.  The EAS stream
+        # injector increments this immediately before publishing EAS chunks so
+        # that IcecastStreamer can detect a new injection and flush its local
+        # pre-buffer, eliminating the ~7.5 s delay before EAS audio reaches
+        # FFmpeg (and therefore Icecast listeners).
+        self._eas_inject_seq: int = 0
+
         # EAS broadcast gate — when set, the capture loop does NOT publish live
         # audio chunks to _source_broadcast.  This prevents live source audio
         # from interleaving with EAS alert audio during an EAS injection, which

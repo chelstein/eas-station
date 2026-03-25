@@ -204,6 +204,48 @@ def initialize_database():
     return app
 
 
+def _ensure_raw_audio_column(app) -> None:
+    """Add raw_audio_data column to received_eas_alerts if it does not exist.
+
+    This is a lightweight idempotent guard for the migration introduced in
+    20260325_add_raw_audio_to_received_alerts.py.  Installations that have
+    not run ``alembic upgrade head`` since that migration was released will
+    have a missing column, causing every OTA-alert database write to fail
+    (silently losing the record).  Running the guard at startup ensures the
+    column is present regardless of whether the user has run alembic.
+    """
+    try:
+        from app_core.extensions import db
+        with app.app_context():
+            with db.engine.connect() as conn:
+                result = conn.execute(
+                    db.text(
+                        "SELECT 1 FROM information_schema.columns "
+                        "WHERE table_name='received_eas_alerts' "
+                        "AND column_name='raw_audio_data'"
+                    )
+                ).fetchone()
+                if result is None:
+                    conn.execute(
+                        db.text(
+                            "ALTER TABLE received_eas_alerts "
+                            "ADD COLUMN raw_audio_data BYTEA"
+                        )
+                    )
+                    conn.commit()
+                    logger.info(
+                        "Applied missing migration: added raw_audio_data column "
+                        "to received_eas_alerts"
+                    )
+                else:
+                    logger.debug("raw_audio_data column already present")
+    except Exception as exc:
+        logger.warning(
+            "Could not verify/apply raw_audio_data column migration "
+            "(alerts will still be stored without audio): %s", exc
+        )
+
+
 def initialize_radio_receivers(app):
     """DEPRECATED: Do not use in separated architecture.
     
@@ -1050,6 +1092,12 @@ def main():
         # Initialize database
         logger.info("Initializing database connection...")
         app = initialize_database()
+
+        # Ensure the raw_audio_data column exists on received_eas_alerts.
+        # This column was added in migration 20260325; if the migration has
+        # not been applied yet the column is absent and _store_received_alert
+        # fails on every OTA decode, silently losing all received-alert records.
+        _ensure_raw_audio_column(app)
 
         # CRITICAL: Do NOT initialize RadioManager here!
         # In separated architecture, sdr-service.py handles SDR hardware access.

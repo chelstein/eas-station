@@ -187,6 +187,10 @@ class IcecastStreamer:
         self._stop_event.clear()
         self._start_time = time.time()
         self._last_write_time = self._start_time
+        # Track the last EAS injection sequence number seen; when it changes
+        # the feed loop flushes its local pre-buffer so EAS audio reaches
+        # FFmpeg without the ~7.5 s buffering delay.
+        self._last_eas_inject_seq: int = 0
 
         # Subscribe to source's broadcast queue for non-destructive audio access
         # Each Icecast stream gets its own independent subscription
@@ -622,6 +626,18 @@ class IcecastStreamer:
                 if not self._restart_ffmpeg(reason):
                     time.sleep(1.0)
                 continue
+
+            # Detect a new EAS injection and flush the local pre-buffer so
+            # EAS audio reaches FFmpeg immediately rather than after the
+            # ~7.5 s worth of live audio that was pre-buffered at startup.
+            current_eas_seq = getattr(self.audio_source, '_eas_inject_seq', 0)
+            if current_eas_seq != self._last_eas_inject_seq:
+                self._last_eas_inject_seq = current_eas_seq
+                buffer.clear()
+                logger.debug(
+                    "Icecast %s: flushed local pre-buffer for EAS injection (seq=%d)",
+                    self.config.mount, current_eas_seq,
+                )
 
             try:
                 wrote_chunk = False
