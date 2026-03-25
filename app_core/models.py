@@ -432,6 +432,9 @@ class ReceivedEASAlert(db.Model):
     # Quality metrics
     decode_confidence = db.Column(db.Float)  # 0.0 to 1.0
 
+    # Raw received audio (WAV bytes captured at detection time)
+    raw_audio_data = db.Column(db.LargeBinary, nullable=True)
+
     def to_dict(self) -> Dict[str, Any]:
         return {
             "id": self.id,
@@ -453,6 +456,7 @@ class ReceivedEASAlert(db.Model):
             "forwarded_at": self.forwarded_at.isoformat() if self.forwarded_at else None,
             "decode_confidence": self.decode_confidence,
             "full_alert_data": self.full_alert_data,
+            "has_audio": self.raw_audio_data is not None,
         }
 
 

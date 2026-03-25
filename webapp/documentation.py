@@ -284,6 +284,15 @@ def register_documentation_routes(app: Flask, logger_instance: Any) -> None:
         if normalized_path == 'policies/PRIVACY_POLICY':
             return redirect(url_for('privacy_page'))
 
+        # Redirect bare top-level names that have moved into subdirectories
+        _doc_redirects = {
+            'DIAGRAMS': 'reference/DIAGRAMS',
+            'CHANGELOG': 'reference/CHANGELOG',
+            'ABOUT': 'reference/ABOUT',
+        }
+        if normalized_path in _doc_redirects:
+            return redirect(url_for('view_doc', doc_path=_doc_redirects[normalized_path]))
+
         # Security: prevent directory traversal
         if '..' in doc_path or doc_path.startswith('/'):
             abort(404)

@@ -21,11 +21,12 @@ from __future__ import annotations
 
 """Received EAS alerts monitoring and display routes."""
 
+import io
 import math
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
-from flask import render_template, request, url_for, jsonify
+from flask import render_template, request, url_for, jsonify, send_file, abort
 from sqlalchemy import or_, desc
 
 from app_core.extensions import db
@@ -118,6 +119,27 @@ def register_received_alerts_routes(app, logger) -> None:
         except Exception as e:
             logger.error(f"Error loading received alerts: {e}", exc_info=True)
             return render_template('error.html', error=str(e)), 500
+
+    @app.route('/audio/received/<int:alert_id>/audio')
+    def received_alert_audio(alert_id):
+        """Stream the raw WAV audio captured when this OTA alert was received."""
+        try:
+            alert = ReceivedEASAlert.query.get_or_404(alert_id)
+            if not alert.raw_audio_data:
+                abort(404)
+            file_obj = io.BytesIO(alert.raw_audio_data)
+            response = send_file(
+                file_obj,
+                mimetype='audio/wav',
+                as_attachment=False,
+                download_name=f'received_alert_{alert_id}.wav',
+                max_age=0,
+            )
+            response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, private'
+            return response
+        except Exception as e:
+            logger.error(f"Error serving received alert audio {alert_id}: {e}", exc_info=True)
+            abort(500)
 
     @app.route('/audio/received/<int:alert_id>')
     def received_audio_alert_detail(alert_id):

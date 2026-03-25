@@ -8,6 +8,40 @@ tracks releases under the 2.x series.
 
 - No pending changes.
 
+## [2.70.0] - 2026-03-25 - Fix EAS stream injection, OTA audio storage, and test pipeline
+
+### Fixed
+- **`eas_monitoring_service.py`** — `eas_stream_injector.set_controller()` was never called
+  in the audio-service process, so `inject_eas_audio()` always found `_controller = None`
+  and silently no-opped.  Generated EAS broadcast audio now correctly reaches the Icecast
+  broadcast queues and is heard by listeners on the mount point (e.g. `wnci.mp3`).
+- **`app_core/audio/ingest.py`** (`inject_eas_test_signal`) — The test signal was injected
+  directly into `_eas_broadcast`, bypassing the capture loop entirely.  The decoder always
+  fired regardless of whether the real pipeline was alive, making the test meaningless as a
+  system health check.  The signal is now scheduled via the new `schedule_inject()` inlet and
+  processed by the live capture loop — if the capture loop is dead, the test correctly fails.
+- **`webapp/documentation.py`** — `/docs/DIAGRAMS` (and `/docs/CHANGELOG`, `/docs/ABOUT`)
+  returned 404 because the files live under `docs/reference/`.  Redirects now route bare
+  top-level names to their correct subdirectory paths.
+
+### Added
+- **`app_core/audio/ingest.py`** (`AudioSourceAdapter.schedule_inject`) — New public method
+  that enqueues float32 audio at the source's native sample rate for processing by the capture
+  loop.  Injected chunks travel through `_source_broadcast` (Icecast) and `_resample_for_eas()`
+  → `_eas_broadcast` (SAME decoder), identical to real source audio.
+- **`app_core/models.py`** (`ReceivedEASAlert.raw_audio_data`) — New `LargeBinary` column that
+  stores the raw WAV audio (16 kHz mono) captured from the monitoring stream at the moment an
+  OTA EAS alert is detected.
+- **`app_core/audio/eas_monitor_v3.py`** (`UnifiedEASMonitorService`) — Per-source audio ring
+  buffer (90 s at 16 kHz) that is snapshotted and encoded as WAV when `_handle_alert` fires,
+  then attached to the alert dict for database storage.
+- **`webapp/admin/audio/received.py`** — New `/audio/received/<id>/audio` route that streams
+  the stored WAV to the browser.
+- **`templates/audio_received_detail.html`** — Audio player card showing the raw received OTA
+  audio with a download button.
+- **`app_core/migrations/versions/20260325_add_raw_audio_to_received_alerts.py`** — Migration
+  adding `raw_audio_data` column to `received_eas_alerts`.
+
 ## [2.69.6] - 2026-03-24 - Fix sources failing silently and tight FFmpeg crash loop
 
 ### Fixed

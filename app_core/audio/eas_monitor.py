@@ -232,7 +232,8 @@ def _store_received_alert(
             generated_message_id=generated_message_id,
             forwarded_at=utc_now() if forwarding_decision == 'forwarded' else None,
             decode_confidence=alert.get('confidence', 0.0),
-            full_alert_data=alert
+            full_alert_data=alert,
+            raw_audio_data=alert.get('raw_audio_wav'),
         )
 
         db.session.add(received_alert)

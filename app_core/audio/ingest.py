@@ -143,6 +143,14 @@ class AudioSourceAdapter(ABC):
         # ICY metadata change.  Set by the monitoring service to persist
         # now-playing events to the database.
         self.on_metadata_change = None
+
+        # Pending audio injection inlet — float32 chunks at the source's
+        # native sample rate.  The capture loop drains this queue after each
+        # real audio read, publishing injected chunks through the EXACT SAME
+        # path as live source audio (_source_broadcast + resample → _eas_broadcast).
+        # This ensures test signals exercise the full 24/7 pipeline rather than
+        # bypassing the capture loop and going straight to the decoder.
+        self._inject_pending: queue.Queue = queue.Queue(maxsize=10000)
         # Waveform buffer for visualization (stores last 2048 samples)
         self._waveform_buffer = np.zeros(2048, dtype=np.float32)
         self._waveform_lock = threading.Lock()
@@ -270,6 +278,32 @@ class AudioSourceAdapter(ABC):
         """
         return self._eas_broadcast
 
+    def schedule_inject(self, chunk: np.ndarray) -> None:
+        """Schedule a float32 audio chunk (at the source's native sample rate)
+        for injection into the capture loop's processing path.
+
+        Injected chunks are published to both ``_source_broadcast`` (native
+        rate, heard by IcecastStreamer) and ``_eas_broadcast`` (resampled to
+        16 kHz by the capture loop, heard by the SAME decoder) — the identical
+        path taken by every real audio frame from the live source.
+
+        Because the chunk must pass through the live capture loop thread, this
+        method returns immediately; delivery happens on the next loop iteration.
+        If the capture loop is stopped or the source is not running, injected
+        chunks remain queued but are never processed, which correctly causes a
+        test to fail rather than appear to succeed against a dead source.
+
+        Args:
+            chunk: Float32 numpy array at ``self.config.sample_rate`` Hz.
+        """
+        try:
+            self._inject_pending.put_nowait(chunk)
+        except queue.Full:
+            logger.debug(
+                "inject_pending queue full for '%s' — dropping chunk",
+                self.config.name,
+            )
+
     def _capture_loop(self) -> None:
         """Main capture loop running in separate thread."""
         logger.debug(f"Capture loop started for {self.config.name}")
@@ -307,6 +341,20 @@ class AudioSourceAdapter(ABC):
                     # Stream sources may read HTTP data but not have enough to decode yet - don't sleep in that case
                     if not self._had_data_activity:
                         time.sleep(0.05)  # 50ms sleep to prevent CPU spinning on idle sources
+
+                # Drain any pending injected audio through the same publish path
+                # as real source audio.  This ensures test signals exercise the
+                # actual capture pipeline (resampling, both broadcast queues) and
+                # will NOT fire if the capture loop itself is stopped.
+                try:
+                    while True:
+                        injected = self._inject_pending.get_nowait()
+                        self._source_broadcast.publish(injected)
+                        eas_injected = self._resample_for_eas(injected)
+                        if eas_injected is not None:
+                            self._eas_broadcast.publish(eas_injected)
+                except queue.Empty:
+                    pass
 
             except Exception as e:
                 consecutive_errors += 1
@@ -739,16 +787,21 @@ class AudioIngestController:
         return adapter.status == AudioSourceStatus.RUNNING
 
     def inject_eas_test_signal(self, source_name: Optional[str] = None) -> Optional[str]:
-        """Inject a SAME Required Weekly Test (RWT) signal into the EAS broadcast pipeline.
+        """Inject a SAME Required Weekly Test (RWT) signal through the live capture pipeline.
 
-        Generates a standards-compliant SAME header + EOM burst at 16 kHz and
-        publishes every chunk directly to the chosen source's pre-resampled EAS
-        broadcast queue.  Subscribers (the UnifiedEASMonitorService decoder and
-        any active ``/eas-ingest-*.mp3`` Icecast streams) will receive the
-        signal just as if it had arrived from a live receiver.
+        Generates a standards-compliant SAME header + EOM burst at 16 kHz,
+        resamples it to the source's native sample rate, then schedules it via
+        ``schedule_inject()`` so the capture loop processes it identically to
+        real source audio: publishing to ``_source_broadcast`` (Icecast hears
+        it) and resampling to ``_eas_broadcast`` (SAME decoder hears it).
 
-        This is the primary tool for verifying end-to-end EAS pipeline health
-        without needing an external signal generator or real broadcast.
+        This is the correct end-to-end test of the 24/7 pipeline:
+
+        * If the capture loop is stopped or the source is disconnected, the
+          injected chunks are never drained and the decoder never fires —
+          correctly indicating a pipeline failure.
+        * The re-broadcast audio from the alert is also injected into Icecast
+          via ``inject_eas_audio()`` so listeners on the mount point hear it.
 
         Args:
             source_name: Name of the audio source to inject into.  If *None*,
@@ -838,19 +891,40 @@ class AudioIngestController:
             logger.warning("inject_eas_test_signal: no running audio source found")
             return None
 
-        # Publish in chunks that match the EAS broadcast queue's expected granularity
-        # (~85 ms at 16 kHz — same cadence as the live capture loop).
-        chunk_size = int(sample_rate * 0.085)  # ~1365 samples per chunk
-        for start in range(0, len(audio_np), chunk_size):
-            chunk = audio_np[start:start + chunk_size]
+        # Resample the 16 kHz test signal to the source's native sample rate so
+        # that injected chunks travel through schedule_inject() → _capture_loop
+        # → _source_broadcast (Icecast hears it) + _resample_for_eas() →
+        # _eas_broadcast (SAME decoder hears it).
+        #
+        # This is the ONLY correct end-to-end test path: if the capture loop is
+        # dead or the source is not producing audio, the injected chunks will
+        # never be delivered and the test will correctly fail — unlike the old
+        # approach of writing directly to _eas_broadcast, which fired the
+        # decoder regardless of capture-pipeline health.
+        native_rate = getattr(target_adapter.config, 'sample_rate', 44100) or 44100
+
+        if native_rate != sample_rate:
+            src_len = len(audio_np)
+            dst_len = max(1, int(src_len * native_rate / sample_rate))
+            src_idx = np.linspace(0, src_len - 1, dst_len)
+            audio_native = np.interp(src_idx, np.arange(src_len), audio_np).astype(np.float32)
+        else:
+            audio_native = audio_np
+
+        chunk_size = max(1, int(native_rate * 0.085))  # ~85 ms per chunk at native rate
+        scheduled = 0
+        for start in range(0, len(audio_native), chunk_size):
+            chunk = audio_native[start:start + chunk_size]
             if len(chunk) > 0:
-                target_adapter._eas_broadcast.publish(chunk)
+                target_adapter.schedule_inject(chunk)
+                scheduled += 1
 
         logger.info(
-            "Injected EAS test signal (%d samples, %.1f s) into EAS broadcast queue "
-            "for source '%s'",
+            "Scheduled EAS test signal (%d samples @ %d Hz → %d native chunks) "
+            "via capture-loop injection inlet for source '%s'",
             len(audio_np),
-            len(audio_np) / sample_rate,
+            sample_rate,
+            scheduled,
             target_adapter.config.name,
         )
         return target_adapter.config.name

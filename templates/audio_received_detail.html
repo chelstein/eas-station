@@ -59,6 +59,28 @@
             </div>
             {% endif %}
 
+            {# Received audio player #}
+            {% if alert.raw_audio_data %}
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-headphones me-2"></i>Received OTA Audio</h5>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted small mb-2">Raw audio captured from the monitoring stream at time of detection (16 kHz mono WAV).</p>
+                    <audio controls class="w-100" style="max-width:100%;">
+                        <source src="{{ url_for('received_alert_audio', alert_id=alert.id) }}" type="audio/wav">
+                        Your browser does not support the audio element.
+                    </audio>
+                    <div class="mt-2">
+                        <a href="{{ url_for('received_alert_audio', alert_id=alert.id) }}"
+                           class="btn btn-sm btn-outline-secondary" download="received_alert_{{ alert.id }}.wav">
+                            <i class="fas fa-download me-1"></i>Download WAV
+                        </a>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
             {# SAME Header card #}
             <div class="card mb-4">
                 <div class="card-header">
