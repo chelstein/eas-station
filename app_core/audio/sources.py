@@ -969,7 +969,7 @@ class StreamSourceAdapter(AudioSourceAdapter):
             '-reconnect_delay_max', '10',  # Increased from 5 for better backoff
             '-timeout', '30000000',  # 30 seconds in microseconds (FFmpeg expects microseconds: 30 × 1,000,000 = 30,000,000 µs)
             '-fflags', '+genpts+discardcorrupt',  # Generate PTS and discard corrupt packets
-            '-analyzeduration', '5000000',  # 5 seconds to analyze stream
+            '-analyzeduration', '2000000',  # 2 seconds to analyze stream (5s caused false stall detections)
             '-probesize', '2000000',  # 2MB probe size for stream detection
             '-i', stream_url,
             '-vn',  # No video

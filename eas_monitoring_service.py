@@ -387,8 +387,11 @@ def initialize_audio_controller(app):
                 sync_exc, exc_info=True,
             )
 
-        # Create controller
-        _audio_controller = AudioIngestController()
+        # Create controller — use 30s stall threshold so HTTP streams have enough
+        # time for DNS + TCP + HTTP + FFmpeg -analyzeduration before the health
+        # monitor fires a false "stalled capture" and restarts them.  The default
+        # of 5 s is far too short for network radio streams.
+        _audio_controller = AudioIngestController(stall_seconds=30)
 
         # Load audio sources from database
         saved_configs = AudioSourceConfigDB.query.all()
