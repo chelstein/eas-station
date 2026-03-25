@@ -150,6 +150,14 @@ def _get_audio_controller() -> AudioIngestController:
         # Pass Flask app so background threads can use app context
         _audio_controller = AudioIngestController(flask_app=app)
 
+        # Register the controller with the EAS stream injector so that
+        # generated alert audio is published to Icecast broadcast queues.
+        try:
+            from app_core.audio.eas_stream_injector import set_controller as _set_injector_controller
+            _set_injector_controller(_audio_controller)
+        except Exception as _inj_reg_exc:
+            logger.warning("Could not register EAS stream injector controller: %s", _inj_reg_exc)
+
         # Load audio source configs from database (fast - just DB query)
         # This makes sources visible in UI immediately
         _load_audio_source_configs(_audio_controller)
@@ -1583,7 +1591,7 @@ def api_create_audio_source():
         logger.error('Error creating audio source: %s', exc)
         return jsonify({'error': str(exc)}), 500
 
-@audio_ingest_bp.route('/api/audio/sources/<source_name>', methods=['GET'])
+@audio_ingest_bp.route('/api/audio/sources/<path:source_name>', methods=['GET'])
 def api_get_audio_source(source_name: str):
     """Get details of a specific audio source."""
     try:
@@ -1606,7 +1614,7 @@ def api_get_audio_source(source_name: str):
         logger.error('Error getting audio source %s: %s', source_name, exc)
         return jsonify({'error': str(exc)}), 500
 
-@audio_ingest_bp.route('/api/audio/sources/<source_name>', methods=['PATCH'])
+@audio_ingest_bp.route('/api/audio/sources/<path:source_name>', methods=['PATCH'])
 def api_update_audio_source(source_name: str):
     """Update audio source configuration."""
     try:
@@ -1685,7 +1693,7 @@ def api_update_audio_source(source_name: str):
         logger.error('Error updating audio source %s: %s', source_name, exc)
         return jsonify({'error': str(exc)}), 500
 
-@audio_ingest_bp.route('/api/audio/sources/<source_name>', methods=['DELETE'])
+@audio_ingest_bp.route('/api/audio/sources/<path:source_name>', methods=['DELETE'])
 def api_delete_audio_source(source_name: str):
     """Delete an audio source.
 
@@ -1771,7 +1779,7 @@ def api_delete_audio_source(source_name: str):
         logger.error('Error deleting audio source %s: %s', source_name, exc)
         return jsonify({'error': str(exc)}), 500
 
-@audio_ingest_bp.route('/api/audio/sources/<source_name>/start', methods=['POST'])
+@audio_ingest_bp.route('/api/audio/sources/<path:source_name>/start', methods=['POST'])
 def api_start_audio_source(source_name: str):
     """
     Start audio ingestion from a source.
@@ -1813,7 +1821,7 @@ def api_start_audio_source(source_name: str):
         logger.error('Error starting audio source %s: %s', source_name, exc)
         return jsonify({'error': str(exc)}), 500
 
-@audio_ingest_bp.route('/api/audio/sources/<source_name>/stop', methods=['POST'])
+@audio_ingest_bp.route('/api/audio/sources/<path:source_name>/stop', methods=['POST'])
 def api_stop_audio_source(source_name: str):
     """
     Stop audio ingestion from a source.
@@ -2279,7 +2287,7 @@ def api_discover_audio_devices():
         logger.error('Error discovering audio devices: %s', exc)
         return jsonify({'error': str(exc)}), 500
 
-@audio_ingest_bp.route('/api/audio/waveform/<source_name>', methods=['GET'])
+@audio_ingest_bp.route('/api/audio/waveform/<path:source_name>', methods=['GET'])
 def api_get_waveform(source_name: str):
     """Get waveform data for a specific audio source.
 
@@ -2312,7 +2320,7 @@ def api_get_waveform(source_name: str):
         logger.error('Error getting waveform for %s: %s', source_name, exc)
         return jsonify({'error': str(exc)}), 500
 
-@audio_ingest_bp.route('/api/audio/spectrogram/<source_name>')
+@audio_ingest_bp.route('/api/audio/spectrogram/<path:source_name>')
 def api_get_spectrogram(source_name: str):
     """Get spectrogram data for a specific audio source (for waterfall display).
 
@@ -2380,7 +2388,7 @@ def api_get_spectrogram(source_name: str):
         logger.error('Error getting spectrogram for %s: %s', source_name, exc)
         return jsonify({'error': str(exc)}), 500
 
-@audio_ingest_bp.route('/api/audio/stream/<source_name>')
+@audio_ingest_bp.route('/api/audio/stream/<path:source_name>')
 def api_stream_audio(source_name: str):
     """Audio streaming endpoint - DEPRECATED.
     

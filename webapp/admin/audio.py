@@ -48,7 +48,7 @@ from flask import (
 from sqlalchemy import or_
 
 from app_core.extensions import db
-from app_core.models import AdminUser, CAPAlert, EASMessage, ManualEASActivation, SystemLog
+from app_core.models import AdminUser, CAPAlert, EASMessage, ManualEASActivation, ReceivedEASAlert, SystemLog
 from app_core.eas_storage import (
     get_eas_static_prefix,
     load_or_cache_audio_data,
@@ -218,11 +218,16 @@ def audio_history():
                 'audio_url': audio_url,
                 'text_url': text_url,
                 'detail_url': url_for('audio_detail', message_id=message.id),
-                'alert_url': url_for('alert_detail', alert_id=alert.id) if alert else None,
+                'alert_url': url_for('alert_detail', alert_id=alert.id) if alert else (
+                    url_for('received_audio_alert_detail', alert_id=message.source_alerts[0].id)
+                    if message.source_alerts else None
+                ),
                 'alert_identifier': alert.identifier if alert else None,
                 'eom_url': eom_url,
                 'source': 'automated',
-                'alert_label': 'View Alert',
+                'alert_label': 'View Alert' if alert else (
+                    'View Received Alert' if message.source_alerts else None
+                ),
             })
 
         if include_manual and manual_records:

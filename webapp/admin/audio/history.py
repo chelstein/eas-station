@@ -29,7 +29,7 @@ from flask import render_template, request, url_for
 from sqlalchemy import or_
 
 from app_core.extensions import db
-from app_core.models import CAPAlert, EASMessage, ManualEASActivation
+from app_core.models import CAPAlert, EASMessage, ManualEASActivation, ReceivedEASAlert
 from app_core.eas_storage import get_eas_static_prefix, load_or_cache_summary_payload
 
 
@@ -143,6 +143,17 @@ def register_history_routes(app, logger) -> None:
 
                 summary_data = load_or_cache_summary_payload(message)
 
+                # Determine alert link: prefer CAP alert, fall back to OTA received alert.
+                if alert:
+                    _alert_url = url_for('api.alert_detail', alert_id=alert.id)
+                    _alert_label = 'View Alert'
+                    _alert_identifier = alert.identifier
+                else:
+                    _received = message.source_alerts[0] if message.source_alerts else None
+                    _alert_url = url_for('received_audio_alert_detail', alert_id=_received.id) if _received else None
+                    _alert_label = 'View Received Alert' if _received else None
+                    _alert_identifier = None
+
                 messages.append(
                     {
                         'id': message.id,
@@ -154,12 +165,12 @@ def register_history_routes(app, logger) -> None:
                         'audio_url': audio_url,
                         'text_url': text_url,
                         'detail_url': url_for('audio_detail', message_id=message.id),
-                        'alert_url': url_for('api.alert_detail', alert_id=alert.id) if alert else None,
-                        'alert_identifier': alert.identifier if alert else None,
+                        'alert_url': _alert_url,
+                        'alert_identifier': _alert_identifier,
                         'eom_url': eom_url,
                         'summary_data': summary_data,
                         'source': 'automated',
-                        'alert_label': 'View Alert',
+                        'alert_label': _alert_label,
                     }
                 )
 

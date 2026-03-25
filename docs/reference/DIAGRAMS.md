@@ -377,6 +377,23 @@ In addition to the professional SVG diagrams above, the following documentation 
 - Understanding the post-broadcast notification pipeline
 - Troubleshooting email or SMS delivery issues
 
+### EAS Test Signal Pipeline (Mermaid)
+
+**File:** [docs/../audio/EAS_TEST_SIGNAL_PIPELINE.md](../audio/EAS_TEST_SIGNAL_PIPELINE)
+
+**Contains:**
+- End-to-end flowchart of the **Inject Test Signal** feature, from operator button click through FSK generation → SAME decoder → EASBroadcaster → Icecast stream → stream listeners
+- Step-by-step table of all 16 pipeline stages with file references
+- Explanation of the two separate audio queues (`_eas_broadcast` vs `_source_broadcast`) and why they exist
+- What the test confirms when it passes (12 verified components)
+- Failure mode checklist for when audio is not heard in the stream
+
+**Use Cases:**
+- Understanding what the Inject Test Signal button actually tests
+- Diagnosing why audio is not appearing in the Icecast stream after a test
+- Onboarding operators who need to verify the full EAS pipeline
+- Developers tracing the multi-process, multi-queue audio path
+
 ### README Architecture (Mermaid)
 
 **File:** [README.md](https://github.com/KR8MER/eas-station/blob/main/README.md)
@@ -447,6 +464,6 @@ When adding new diagrams:
 
 ---
 
-**Last Updated:** 2026-03-18
-**Diagram Count:** 9 professional SVG diagrams + 78 embedded Mermaid diagrams across 11 documentation files
-**Total Documentation Coverage:** Complete system from hardware to software, including security architecture, analytics pipeline, display system, EAS decoding, notifications, and detailed data processing flows
+**Last Updated:** 2026-03-25
+**Diagram Count:** 9 professional SVG diagrams + 79 embedded Mermaid diagrams across 12 documentation files
+**Total Documentation Coverage:** Complete system from hardware to software, including security architecture, analytics pipeline, display system, EAS decoding, notifications, EAS test signal pipeline, and detailed data processing flows
