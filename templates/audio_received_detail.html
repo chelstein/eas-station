@@ -1,0 +1,236 @@
+{% extends "base.html" %}
+
+{% block title %}Received Alert Detail - EAS Station{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-3">
+        <div class="col-12 d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div>
+                <h1 class="h3 text-primary mb-0">
+                    <i class="fas fa-radio me-2"></i>Received Alert Detail
+                </h1>
+                <small class="text-muted">
+                    #{{ alert.id }} &mdash;
+                    {{ alert.received_at.strftime('%Y-%m-%d %H:%M:%S UTC') if alert.received_at else 'Unknown time' }}
+                </small>
+            </div>
+            <div class="d-flex gap-2 flex-wrap">
+                {% if alert.generated_message %}
+                <a href="{{ url_for('audio_detail', message_id=alert.generated_message.id) }}" class="btn btn-outline-primary">
+                    <i class="fas fa-broadcast-tower me-1"></i>View Broadcast
+                </a>
+                {% endif %}
+                <a href="{{ url_for('received_audio_alerts') }}" class="btn btn-outline-secondary">
+                    <i class="fas fa-list me-1"></i>Back to List
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        {# ── Left column ──────────────────────────────────────────────── #}
+        <div class="col-lg-8">
+
+            {# Forwarding decision banner #}
+            {% if alert.forwarding_decision == 'forwarded' %}
+            <div class="alert alert-success d-flex align-items-center gap-2 mb-4">
+                <i class="fas fa-check-circle fa-lg"></i>
+                <div>
+                    <strong>Forwarded to air chain</strong>
+                    {% if alert.forwarding_reason %} — {{ alert.forwarding_reason }}{% endif %}
+                </div>
+            </div>
+            {% elif alert.forwarding_decision == 'ignored' %}
+            <div class="alert alert-secondary d-flex align-items-center gap-2 mb-4">
+                <i class="fas fa-times-circle fa-lg"></i>
+                <div>
+                    <strong>Ignored</strong>
+                    {% if alert.forwarding_reason %} — {{ alert.forwarding_reason }}{% endif %}
+                </div>
+            </div>
+            {% elif alert.forwarding_decision == 'error' %}
+            <div class="alert alert-danger d-flex align-items-center gap-2 mb-4">
+                <i class="fas fa-exclamation-triangle fa-lg"></i>
+                <div>
+                    <strong>Error during forwarding</strong>
+                    {% if alert.forwarding_reason %} — {{ alert.forwarding_reason }}{% endif %}
+                </div>
+            </div>
+            {% endif %}
+
+            {# SAME Header card #}
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-code me-2"></i>SAME Header</h5>
+                </div>
+                <div class="card-body">
+                    {% if alert.raw_same_header %}
+                    <pre class="bg-dark text-light p-3 rounded mb-0" style="word-break:break-all;white-space:pre-wrap;">{{ alert.raw_same_header }}</pre>
+                    {% else %}
+                    <p class="text-muted mb-0">No raw header recorded.</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            {# Alert details card #}
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-info-circle me-2"></i>Alert Details</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label text-muted small mb-0">Event Code</label>
+                            <div class="fw-bold">{{ alert.event_code or '—' }}</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label text-muted small mb-0">Event Name</label>
+                            <div>{{ alert.event_name or '—' }}</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label text-muted small mb-0">Originator Code</label>
+                            <div>{{ alert.originator_code or '—' }}</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label text-muted small mb-0">Originator Name</label>
+                            <div>{{ alert.originator_name or '—' }}</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label text-muted small mb-0">Callsign</label>
+                            <div>{{ alert.callsign or '—' }}</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label text-muted small mb-0">Decode Confidence</label>
+                            <div>
+                                {% if alert.decode_confidence is not none %}
+                                    {% set pct = (alert.decode_confidence * 100) | round(1) %}
+                                    <div class="progress" style="height:1.25rem;">
+                                        <div class="progress-bar bg-{{ 'success' if pct >= 80 else ('warning' if pct >= 50 else 'danger') }}"
+                                             style="width:{{ pct }}%">{{ pct }}%</div>
+                                    </div>
+                                {% else %}
+                                —
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label text-muted small mb-0">Issue Time</label>
+                            <div>{{ alert.issue_datetime.strftime('%Y-%m-%d %H:%M:%S UTC') if alert.issue_datetime else '—' }}</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label text-muted small mb-0">Purge Time</label>
+                            <div>{{ alert.purge_datetime.strftime('%Y-%m-%d %H:%M:%S UTC') if alert.purge_datetime else '—' }}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {# FIPS codes #}
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-map-marker-alt me-2"></i>FIPS / Location Codes</h5>
+                </div>
+                <div class="card-body">
+                    {% if alert.fips_codes %}
+                    <div class="d-flex flex-wrap gap-2 mb-2">
+                        {% for code in alert.fips_codes %}
+                        <span class="badge bg-info text-dark">{{ code }}</span>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p class="text-muted mb-0">No FIPS codes in alert.</p>
+                    {% endif %}
+                    {% if alert.matched_fips_codes %}
+                    <div class="mt-2">
+                        <small class="text-muted">Matched configured codes:</small>
+                        <div class="d-flex flex-wrap gap-2 mt-1">
+                            {% for code in alert.matched_fips_codes %}
+                            <span class="badge bg-success">{{ code }}</span>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            {# Full decoded data #}
+            {% if alert.full_alert_data %}
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="fas fa-database me-2"></i>Full Decoded Data</h5>
+                    <button class="btn btn-sm btn-outline-secondary" type="button"
+                            data-bs-toggle="collapse" data-bs-target="#fullAlertData">
+                        Show / Hide
+                    </button>
+                </div>
+                <div class="collapse" id="fullAlertData">
+                    <div class="card-body">
+                        <pre class="bg-dark text-light p-3 rounded mb-0" style="max-height:400px;overflow:auto;">{{ alert.full_alert_data | tojson(indent=2) }}</pre>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+        </div>
+
+        {# ── Right column ─────────────────────────────────────────────── #}
+        <div class="col-lg-4">
+
+            {# Reception metadata #}
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-satellite-dish me-2"></i>Reception</h5>
+                </div>
+                <div class="card-body">
+                    <dl class="row mb-0">
+                        <dt class="col-6 text-muted small">Source</dt>
+                        <dd class="col-6"><span class="badge bg-info text-dark">{{ alert.source_name }}</span></dd>
+
+                        <dt class="col-6 text-muted small">Received At</dt>
+                        <dd class="col-6 small">{{ alert.received_at.strftime('%Y-%m-%d %H:%M:%S') if alert.received_at else '—' }}</dd>
+
+                        <dt class="col-6 text-muted small">Forwarded At</dt>
+                        <dd class="col-6 small">{{ alert.forwarded_at.strftime('%Y-%m-%d %H:%M:%S') if alert.forwarded_at else '—' }}</dd>
+
+                        <dt class="col-6 text-muted small">Decision</dt>
+                        <dd class="col-6">
+                            {% if alert.forwarding_decision == 'forwarded' %}
+                            <span class="badge bg-success">Forwarded</span>
+                            {% elif alert.forwarding_decision == 'ignored' %}
+                            <span class="badge bg-secondary">Ignored</span>
+                            {% elif alert.forwarding_decision == 'error' %}
+                            <span class="badge bg-danger">Error</span>
+                            {% else %}
+                            <span class="badge bg-secondary">{{ alert.forwarding_decision }}</span>
+                            {% endif %}
+                        </dd>
+                    </dl>
+                </div>
+            </div>
+
+            {# Generated broadcast link #}
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-broadcast-tower me-2"></i>Generated Broadcast</h5>
+                </div>
+                <div class="card-body">
+                    {% if alert.generated_message %}
+                    <p class="mb-2">This alert was forwarded and generated EAS broadcast record
+                        <strong>#{{ alert.generated_message.id }}</strong>.</p>
+                    <a href="{{ url_for('audio_detail', message_id=alert.generated_message.id) }}"
+                       class="btn btn-outline-primary btn-sm">
+                        <i class="fas fa-headphones me-1"></i>View Broadcast
+                    </a>
+                    {% elif alert.forwarding_decision == 'forwarded' %}
+                    <p class="text-muted mb-0">Forwarded but no broadcast record linked.</p>
+                    {% else %}
+                    <p class="text-muted mb-0">No broadcast generated (alert was {{ alert.forwarding_decision }}).</p>
+                    {% endif %}
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+{% endblock %}

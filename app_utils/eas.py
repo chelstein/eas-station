@@ -1933,6 +1933,19 @@ class EASBroadcaster:
             # All segments are in a single uninterrupted audio file, so no
             # gap can appear between the narration and the EOM burst.
             self._play_audio_or_bytes(audio_path, audio_bytes)
+
+            # Inject the EAS audio into the Icecast broadcast queue so that
+            # stream listeners hear the full alert sequence in real time.
+            try:
+                from app_core.audio.eas_stream_injector import inject_eas_audio
+                _wav_data = audio_bytes
+                if _wav_data is None and audio_path and os.path.exists(audio_path):
+                    with open(audio_path, 'rb') as _f:
+                        _wav_data = _f.read()
+                if _wav_data:
+                    inject_eas_audio(_wav_data)
+            except Exception as _inj_exc:
+                self.logger.warning("EAS stream injection failed (non-fatal): %s", _inj_exc)
         finally:
             if controller and activated_any:
                 try:  # pragma: no cover - hardware specific
