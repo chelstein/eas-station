@@ -166,6 +166,48 @@
         </div>
     </div>
 
+    <!-- Alert Intelligence Stat Cards -->
+    <div class="row mt-2">
+        <div class="col-lg-3 col-md-6 col-sm-6">
+            <div class="stat-card teal">
+                <i class="fas fa-crosshairs stat-icon"></i>
+                <div class="stat-number">{{ coverage_overlap_rate or 0 }}%</div>
+                <div class="stat-label">Coverage Rate</div>
+                <div class="stat-subtitle">Alerts with boundary match</div>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6 col-sm-6">
+            <div class="stat-card red">
+                <i class="fas fa-ban stat-icon"></i>
+                <div class="stat-number">{{ cancellation_rate or 0 }}%</div>
+                <div class="stat-label">Cancellation Rate</div>
+                <div class="stat-subtitle">{{ update_rate or 0 }}% updates</div>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6 col-sm-6">
+            <div class="stat-card purple">
+                <i class="fas fa-stopwatch stat-icon"></i>
+                {% if broadcast_latency %}
+                <div class="stat-number">{{ (broadcast_latency.avg_seconds / 60) | round(1) }}m</div>
+                <div class="stat-label">Avg Broadcast Latency</div>
+                <div class="stat-subtitle">Alert → EAS audio</div>
+                {% else %}
+                <div class="stat-number">N/A</div>
+                <div class="stat-label">Avg Broadcast Latency</div>
+                <div class="stat-subtitle">No EAS broadcasts yet</div>
+                {% endif %}
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6 col-sm-6">
+            <div class="stat-card green">
+                <i class="fas fa-plug stat-icon"></i>
+                <div class="stat-number">{{ relay_stats.total or 0 }}</div>
+                <div class="stat-label">Relay Activations</div>
+                <div class="stat-subtitle">{{ relay_stats.success_rate or 0 }}% success rate</div>
+            </div>
+        </div>
+    </div>
+
     <!-- System Start Date Setting -->
     <div class="settings-panel">
         <h4><i class="fas fa-cog"></i> System Start Date</h4>
@@ -453,6 +495,163 @@
         {% endif %}
     </div>
     {% endif %}
+
+    <!-- Alert Intelligence Section -->
+    <h2 class="section-header">
+        <i class="fas fa-brain"></i> Alert Intelligence
+    </h2>
+
+    <div class="chart-grid">
+        {% if alert_by_message_type and alert_by_message_type|length > 0 %}
+        <div class="chart-container">
+            <div class="chart-title">
+                <i class="fas fa-tags"></i> Message Type Breakdown
+            </div>
+            <div id="messageTypeChart">
+                <div class="loading-message">
+                    <div class="spinner"></div>
+                    <div>Loading...</div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if polling_trend %}
+        <div class="chart-container">
+            <div class="chart-title">
+                <i class="fas fa-chart-line"></i> Polling Reliability Trend
+            </div>
+            <div id="pollingTrendChart">
+                <div class="loading-message">
+                    <div class="spinner"></div>
+                    <div>Loading...</div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    {% if broadcast_latency %}
+    <div class="chart-container" style="min-height: auto;">
+        <div class="chart-title">
+            <i class="fas fa-bolt"></i> Broadcast Latency Details
+        </div>
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Metric</th>
+                    <th>Value</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Average latency</td>
+                    <td><strong>{{ (broadcast_latency.avg_seconds / 60) | round(1) }} min</strong> ({{ broadcast_latency.avg_seconds }}s)</td>
+                </tr>
+                <tr>
+                    <td>Fastest broadcast</td>
+                    <td>{{ broadcast_latency.min_seconds }}s</td>
+                </tr>
+                <tr>
+                    <td>Slowest broadcast</td>
+                    <td>{{ broadcast_latency.max_seconds }}s</td>
+                </tr>
+                <tr>
+                    <td>Total EAS broadcasts</td>
+                    <td>{{ broadcast_latency.total_broadcasts }}</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+
+    <!-- Relay Activations Section -->
+    {% if relay_stats and relay_stats.total > 0 %}
+    <h2 class="section-header">
+        <i class="fas fa-plug"></i> Relay Activations
+    </h2>
+
+    <div class="chart-grid">
+        <div class="chart-container">
+            <div class="chart-title">
+                <i class="fas fa-chart-pie"></i> Activations by Type
+            </div>
+            <div id="relayActivationsChart">
+                <div class="loading-message">
+                    <div class="spinner"></div>
+                    <div>Loading...</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="chart-container" style="min-height: auto; align-self: start;">
+            <div class="chart-title">
+                <i class="fas fa-table"></i> Relay Breakdown
+            </div>
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Type</th>
+                        <th>Count</th>
+                        <th>Avg Duration</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in relay_stats.by_type %}
+                    <tr>
+                        <td><span class="badge bg-secondary">{{ r.type | title }}</span></td>
+                        <td>{{ r.count }}</td>
+                        <td>{{ r.avg_duration }}s</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            <div style="padding: 1rem; border-top: 1px solid var(--border-color); display:flex; gap:2rem; font-size:0.85rem;">
+                <div><strong>Total:</strong> {{ relay_stats.total }}</div>
+                <div><strong>Success Rate:</strong> {{ relay_stats.success_rate }}%</div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Streak Statistics (JS computed) -->
+    <h2 class="section-header">
+        <i class="fas fa-fire"></i> Activity Streaks
+    </h2>
+    <div class="row">
+        <div class="col-lg-3 col-md-6 col-sm-6">
+            <div class="stat-card orange">
+                <i class="fas fa-fire stat-icon"></i>
+                <div class="stat-number" id="longestActiveStreak">-</div>
+                <div class="stat-label">Longest Active Streak</div>
+                <div class="stat-subtitle">Consecutive days with alerts</div>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6 col-sm-6">
+            <div class="stat-card blue">
+                <i class="fas fa-moon stat-icon"></i>
+                <div class="stat-number" id="longestQuietPeriod">-</div>
+                <div class="stat-label">Longest Quiet Period</div>
+                <div class="stat-subtitle">Consecutive alert-free days</div>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6 col-sm-6">
+            <div class="stat-card green">
+                <i class="fas fa-tachometer-alt stat-icon"></i>
+                <div class="stat-number" id="pollingRate7d">{{ polling_trend.rate_7d if polling_trend else 0 }}%</div>
+                <div class="stat-label">7-Day Poll Rate</div>
+                <div class="stat-subtitle">vs {{ polling_trend.rate_30d if polling_trend else 0 }}% (30-day)</div>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6 col-sm-6">
+            <div class="stat-card purple">
+                <i class="fas fa-clock stat-icon"></i>
+                <div class="stat-number">{{ polling_trend.p95_execution_ms if polling_trend else 0 }}ms</div>
+                <div class="stat-label">Poll p95 Latency</div>
+                <div class="stat-subtitle">30-day 95th percentile</div>
+            </div>
+        </div>
+    </div>
 
     <!-- Footer -->
     <div class="stats-footer">
