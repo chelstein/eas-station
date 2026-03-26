@@ -207,6 +207,26 @@ def _env_flag(name: str, default: bool = False) -> bool:
         return default
     return value.strip().lower() in {"1", "true", "yes", "on", "t", "y"}
 
+
+def _serialize_alert_for_sig(alert_elem) -> str:
+    """Serialize an alert element preserving original namespace prefixes.
+
+    XML digital signature verification requires that the stored raw_xml uses the
+    same namespace prefixes as the original document (e.g. ``ds:`` for XMLdsig).
+    The stdlib ElementTree mangler rewrites these as ``ns0:``, ``ns1:`` etc., which
+    causes C14N canonicalization to produce bytes that differ from the signed bytes.
+
+    This function always uses lxml when available (lxml preserves nsmap prefix names)
+    and falls back to the generic ``ET`` module otherwise (signature verification will
+    not succeed but the XML is still stored for display purposes).
+    """
+    try:
+        from lxml import etree as _lxml_et
+        return _lxml_et.tostring(alert_elem, encoding='unicode', with_tail=False)
+    except ImportError:
+        pass
+    return ET.tostring(alert_elem, encoding='unicode')
+
 # =======================================================================================
 # Fall-back ORM model definitions if app models aren't importable
 # =======================================================================================
@@ -1162,7 +1182,11 @@ class CAPPoller:
             'type': 'Feature',
             'properties': properties,
             'geometry': geometry,
-            'raw_xml': ET.tostring(alert_elem, encoding='unicode'),
+            # Serialize using lxml to preserve original namespace prefixes (e.g. ds:, capsig:).
+            # This is required for XML digital signature verification: C14N of SignedInfo
+            # must produce the same bytes as the original signed document.  stdlib
+            # ElementTree mangles prefixes (ns0:, ns1:) which breaks C14N byte-matching.
+            'raw_xml': _serialize_alert_for_sig(alert_elem),
         }
 
         return feature

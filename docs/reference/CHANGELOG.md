@@ -8,6 +8,24 @@ tracks releases under the 2.x series.
 
 - No pending changes.
 
+## [2.71.2] - 2026-03-26 - Fix IPAWS XML digital signature C14N verification
+
+### Fixed
+- **`app_utils/ipaws_enrichment.py`** (`_canonicalize_signed_info`) — `with_comments=False`
+  was passed to `lxml.etree.tostring(method='c14n')` but is **not a valid parameter** for
+  that call in lxml 6.x; this silently raised a `TypeError` caught by the bare
+  `except Exception:` block, causing the function to always return `None` and every IPAWS
+  alert to show "Signature Unverified".  Fixed by switching to `ElementTree.write_c14n()`
+  as the primary C14N approach (which does accept `with_comments`), with
+  `etree.tostring(method='c14n')` as a version-safe fallback.  Added `logger.warning`
+  instead of `logger.debug` so failures are visible in logs.
+- **`poller/cap_poller.py`** (`_convert_cap_alert`) — Alert XML is now serialized using
+  lxml directly (new `_serialize_alert_for_sig()` helper) rather than through the generic
+  `ET` module abstraction.  When stdlib ElementTree is used, it rewrites namespace prefixes
+  to `ns0:`, `ns1:` etc., causing C14N to produce bytes that differ from the original
+  signed bytes.  lxml preserves the original prefixes (e.g. `ds:`, `capsig:`), ensuring
+  C14N output matches what FEMA signed.
+
 ## [2.71.1] - 2026-03-26 - Fix statewide FIPS map and IPAWS audio forwarding
 
 ### Fixed
