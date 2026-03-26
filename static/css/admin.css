@@ -520,7 +520,42 @@ code {
     color: white;
     padding: 2rem 0;
     margin-bottom: 2rem;
-    box-shadow: var(--shadow-lg);
+    box-shadow: var(--shadow-lg),
+                0 0 30px rgba(0, 0, 0, 0.1);
+    position: relative;
+    overflow: hidden;
+}
+
+/* Animated rainbow accent line at top */
+.admin-page-header::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg,
+        var(--vibrant-blue),
+        var(--vibrant-purple),
+        var(--vibrant-pink),
+        var(--vibrant-orange),
+        var(--vibrant-blue));
+    background-size: 200% 100%;
+    animation: gradientShift 8s linear infinite;
+}
+
+/* Subtle radial glow overlay */
+.admin-page-header::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    right: -10%;
+    width: 50%;
+    height: 100%;
+    background: radial-gradient(ellipse at center,
+        rgba(255, 255, 255, 0.12),
+        transparent 70%);
+    pointer-events: none;
 }
 
 .admin-page-header h1 {

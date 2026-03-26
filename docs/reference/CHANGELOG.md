@@ -8,6 +8,57 @@ tracks releases under the 2.x series.
 
 - No pending changes.
 
+## [2.71.8] - 2026-03-26 - Update Ohio EAS docs for WAKS-FM LP-1A designation
+
+### Documentation
+- **`docs/reference/OHIO_EAS_DOCUMENTATION.md`** — Updated to reflect the January 12, 2026
+  SECC memorandum from Chairman Greg Savoldi:
+  - Added **WAKS-FM 96.5 FM** (Brecksville) as **LP-1A** alternative for the Central & East
+    Lakeshore EAS Operational Area. Operators may monitor either WTAM 1100 AM or WAKS-FM 96.5 FM
+    to satisfy the LP-1 requirement; no FCC or SECC filing is required.
+  - Corrected LP-2 call sign from `WCPN 90.3 FM` to **`WCLV 90.3 FM`** per the official memo.
+  - Updated Northern Ohio mermaid diagram to include the LP-1A node (teal styling distinct
+    from LP-1/LP-2) with connections to LP-2 and LP-3.
+  - Added an **Amendments** sub-section under *Updates & Revisions* with full memo summary.
+  - Updated *Document Information* block with `Last Amended: 2026-01-12`.
+  - Added amendment note to the top-level document version header.
+
+## [2.71.7] - 2026-03-26 - Correct stale tech stack badge versions
+
+### Fixed
+- **`templates/base.html`** — Python badge updated from `3.11` to `3.13` to
+  reflect the actual runtime in use.
+- **`templates/partials/footer.html`** — Python badge updated from `3.11.14` to
+  `3.13`; Redis badge corrected from `7.0 Alpine` to `7.1` (matching
+  `requirements.txt` `redis==7.1.0` and the README.md badge which already
+  carried the correct `7.1` value).
+
+## [2.71.6] - 2026-03-26 - Pretty up headers, footers and tech stack badges
+
+### Changed
+- **`templates/base.html`** — Updated copyright year 2025 → 2026. Wrapped
+  tech-stack badge row in a new `tech-stack-card` glass panel for a polished
+  look.
+- **`templates/partials/footer.html`** — Updated both copyright year references
+  2025 → 2026 (unused partial kept in sync).
+- **`static/css/styles.css`** — Multiple visual improvements:
+  - Added the previously missing `page-header-gradient` CSS class (referenced in
+    `components/page_header.html` but undefined); styled as a vibrant multi-color
+    gradient header variant with animated bottom accent line.
+  - Added animated rainbow bottom accent line (`::after`) to `.navbar`.
+  - Added `page-header::after` subtle bottom highlight line.
+  - Enlarged `.footer-logo-mark` icon box (60 → 64 px) with a blue glow shadow.
+  - Made `.footer-divider` an animated rainbow gradient stripe instead of a plain
+    semi-transparent white line.
+  - Updated `.footer-column-title::after` underline to teal-to-blue gradient.
+  - Added `.tech-stack-card` glass-morphism container for the badge row.
+  - Increased default badge height from 24 px to 26 px; improved hover animation
+    (spring easing, stronger lift) and box-shadow.
+  - Improved `.footer-disclaimer` border-radius and subtle inset shadow.
+  - Made `.tech-stack-title` icon emit a teal drop-shadow glow.
+- **`static/css/admin.css`** — Enhanced `admin-page-header` with animated
+  rainbow top accent line (`::after`) and radial glow overlay (`::before`).
+
 ## [2.71.5] - 2026-03-26 - Document valid base.html block names in AGENTS.md
 
 ### Documentation
