@@ -8,6 +8,16 @@ tracks releases under the 2.x series.
 
 - No pending changes.
 
+## [2.71.7] - 2026-03-26 - Correct stale tech stack badge versions
+
+### Fixed
+- **`templates/base.html`** — Python badge updated from `3.11` to `3.13` to
+  reflect the actual runtime in use.
+- **`templates/partials/footer.html`** — Python badge updated from `3.11.14` to
+  `3.13`; Redis badge corrected from `7.0 Alpine` to `7.1` (matching
+  `requirements.txt` `redis==7.1.0` and the README.md badge which already
+  carried the correct `7.1` value).
+
 ## [2.71.6] - 2026-03-26 - Pretty up headers, footers and tech stack badges
 
 ### Changed
