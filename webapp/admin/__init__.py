@@ -80,6 +80,7 @@ def register(app, logger):
     register_icecast_routes(app, logger)  # Icecast streaming configuration
     register_certbot_routes(app, logger)  # Certbot/SSL certificate management
     register_tts_routes(app, logger)  # Text-to-Speech configuration
+    register_pronunciation_routes(app, logger)  # TTS pronunciation dictionary
     app.register_blueprint(poller_bp)  # Poller settings management
     logger.info("Poller settings routes registered")
     app.register_blueprint(notifications_bp)  # Notification settings management
