@@ -347,14 +347,15 @@ rev_to_file = {}
 for fn in os.listdir(versions_dir):
     if not fn.endswith('.py') or fn == '__init__.py': continue
     with open(os.path.join(versions_dir, fn)) as f: content = f.read()
-    rev = re.search(r'^revision\s*=\s*[\\"\'](.*?)[\\\"\'']', content, re.M)
+    rev = re.search(r\"^revision\s*=\s*[\\\"'](.*?)[\\\"']\", content, re.M)
     if rev: rev_to_file[rev.group(1)] = fn
 all_down = set()
 for fn in os.listdir(versions_dir):
     if not fn.endswith('.py') or fn == '__init__.py': continue
     with open(os.path.join(versions_dir, fn)) as f: content = f.read()
-    for m in re.findall(r'[\\\"\'](.*?)[\\\"\\'']', re.search(r'^down_revision\s*=.*', content, re.M).group(0) if re.search(r'^down_revision\s*=.*', content, re.M) else ''):
-        all_down.add(m)
+    m = re.search(r'^down_revision\s*=.*', content, re.M)
+    if m:
+        for r in re.findall(r\"[\\\"'](.*?)[\\\"']\", m.group(0)): all_down.add(r)
 heads = {r: f for r, f in rev_to_file.items() if r not in all_down}
 print('Heads:', heads)
 "
@@ -995,7 +996,8 @@ When adding validation:
        ...
    ```
 
-   Apply when deploying:
+   Apply when deploying (migration file must already be written first — see
+   [Alembic Migration Rules](#alembic-migration-rules)):
    ```bash
    cd /opt/eas-station
    source venv/bin/activate
