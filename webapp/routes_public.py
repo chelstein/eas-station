@@ -653,6 +653,137 @@ def register(app: Flask, logger) -> None:
                     "avg_time_ms": 0,
                 }
 
+            try:
+                alert_by_message_type = (
+                    db.session.query(
+                        CAPAlert.message_type, func.count(CAPAlert.id).label("count")
+                    )
+                    .filter(CAPAlert.message_type.isnot(None))
+                    .group_by(CAPAlert.message_type)
+                    .all()
+                )
+                stats_data["alert_by_message_type"] = [
+                    {"message_type": mt, "count": count}
+                    for mt, count in alert_by_message_type
+                ]
+                total_for_mt = stats_data.get("total_alerts") or 0
+                cancel_count = sum(c for mt, c in alert_by_message_type if mt and mt.lower() in ("cancel", "allclear"))
+                update_count = sum(c for mt, c in alert_by_message_type if mt and mt.lower() == "update")
+                stats_data["cancellation_rate"] = round(cancel_count / total_for_mt * 100, 1) if total_for_mt > 0 else 0
+                stats_data["update_rate"] = round(update_count / total_for_mt * 100, 1) if total_for_mt > 0 else 0
+            except Exception as exc:
+                db.session.rollback()
+                route_logger.error("Error getting message type stats: %s", exc)
+                stats_data["alert_by_message_type"] = []
+                stats_data["cancellation_rate"] = 0
+                stats_data["update_rate"] = 0
+
+            try:
+                alerts_with_coverage = (
+                    db.session.query(func.count(func.distinct(Intersection.cap_alert_id)))
+                    .scalar() or 0
+                )
+                total_for_cov = stats_data.get("total_alerts") or 0
+                stats_data["coverage_overlap_rate"] = round(alerts_with_coverage / total_for_cov * 100, 1) if total_for_cov > 0 else 0
+                stats_data["alerts_with_coverage"] = alerts_with_coverage
+            except Exception as exc:
+                db.session.rollback()
+                route_logger.error("Error getting coverage overlap rate: %s", exc)
+                stats_data["coverage_overlap_rate"] = 0
+                stats_data["alerts_with_coverage"] = 0
+
+            try:
+                latency_result = (
+                    db.session.query(
+                        func.avg(
+                            func.extract("epoch", EASMessage.created_at) - func.extract("epoch", CAPAlert.sent)
+                        ).label("avg_seconds"),
+                        func.min(
+                            func.extract("epoch", EASMessage.created_at) - func.extract("epoch", CAPAlert.sent)
+                        ).label("min_seconds"),
+                        func.max(
+                            func.extract("epoch", EASMessage.created_at) - func.extract("epoch", CAPAlert.sent)
+                        ).label("max_seconds"),
+                        func.count(EASMessage.id).label("total"),
+                    )
+                    .join(CAPAlert, EASMessage.cap_alert_id == CAPAlert.id)
+                    .filter(CAPAlert.sent.isnot(None), EASMessage.created_at.isnot(None))
+                    .first()
+                )
+                if latency_result and latency_result.avg_seconds is not None:
+                    stats_data["broadcast_latency"] = {
+                        "avg_seconds": round(float(latency_result.avg_seconds), 1),
+                        "min_seconds": round(float(latency_result.min_seconds), 1),
+                        "max_seconds": round(float(latency_result.max_seconds), 1),
+                        "total_broadcasts": latency_result.total,
+                    }
+                else:
+                    stats_data["broadcast_latency"] = None
+            except Exception as exc:
+                db.session.rollback()
+                route_logger.error("Error getting broadcast latency stats: %s", exc)
+                stats_data["broadcast_latency"] = None
+
+            try:
+                relay_by_type = (
+                    db.session.query(
+                        GPIOActivationLog.activation_type,
+                        func.count(GPIOActivationLog.id).label("count"),
+                        func.avg(GPIOActivationLog.duration_seconds).label("avg_duration"),
+                    )
+                    .group_by(GPIOActivationLog.activation_type)
+                    .all()
+                )
+                relay_total = GPIOActivationLog.query.count()
+                relay_success = GPIOActivationLog.query.filter_by(success=True).count()
+                stats_data["relay_stats"] = {
+                    "total": relay_total,
+                    "success_rate": round(relay_success / relay_total * 100, 1) if relay_total > 0 else 0,
+                    "by_type": [
+                        {
+                            "type": act_type or "unknown",
+                            "count": count,
+                            "avg_duration": round(float(avg_dur), 1) if avg_dur else 0,
+                        }
+                        for act_type, count, avg_dur in relay_by_type
+                    ],
+                }
+            except Exception as exc:
+                db.session.rollback()
+                route_logger.error("Error getting relay activation stats: %s", exc)
+                stats_data["relay_stats"] = {"total": 0, "success_rate": 0, "by_type": []}
+
+            try:
+                from datetime import timedelta
+                _now = utc_now()
+                _cutoff_7d = _now - timedelta(days=7)
+                _cutoff_30d = _now - timedelta(days=30)
+                _success_values = {"success", "ok", "completed"}
+
+                _polls_7d = PollHistory.query.filter(PollHistory.timestamp >= _cutoff_7d).all()
+                _polls_30d = PollHistory.query.filter(PollHistory.timestamp >= _cutoff_30d).all()
+
+                def _poll_rate(polls):
+                    if not polls:
+                        return 0.0
+                    s = sum(1 for p in polls if (p.status or "").lower() in _success_values and not p.error_message)
+                    return round(s / len(polls) * 100, 1)
+
+                _times = sorted(p.execution_time_ms for p in _polls_30d if p.execution_time_ms is not None)
+                _p95 = _times[int(len(_times) * 0.95)] if _times else 0
+
+                stats_data["polling_trend"] = {
+                    "rate_7d": _poll_rate(_polls_7d),
+                    "rate_30d": _poll_rate(_polls_30d),
+                    "count_7d": len(_polls_7d),
+                    "count_30d": len(_polls_30d),
+                    "p95_execution_ms": _p95,
+                }
+            except Exception as exc:
+                db.session.rollback()
+                route_logger.error("Error getting polling trend: %s", exc)
+                stats_data["polling_trend"] = {"rate_7d": 0, "rate_30d": 0, "count_7d": 0, "count_30d": 0, "p95_execution_ms": 0}
+
             stats_data.setdefault("boundary_stats", [])
             stats_data.setdefault("alert_by_status", [])
             stats_data.setdefault("alert_by_severity", [])
@@ -679,6 +810,14 @@ def register(app: Flask, logger) -> None:
             stats_data.setdefault("eas_forwarding_stats", {"forwarded": 0, "total": 0, "rate": 0})
             stats_data.setdefault("manual_activation_count", 0)
             stats_data.setdefault("received_eas_stats", {"total": 0, "forwarded": 0, "ignored": 0})
+            stats_data.setdefault("alert_by_message_type", [])
+            stats_data.setdefault("cancellation_rate", 0)
+            stats_data.setdefault("update_rate", 0)
+            stats_data.setdefault("coverage_overlap_rate", 0)
+            stats_data.setdefault("alerts_with_coverage", 0)
+            stats_data.setdefault("broadcast_latency", None)
+            stats_data.setdefault("relay_stats", {"total": 0, "success_rate": 0, "by_type": []})
+            stats_data.setdefault("polling_trend", {"rate_7d": 0, "rate_30d": 0, "count_7d": 0, "count_30d": 0, "p95_execution_ms": 0})
 
             return render_template("stats.html", **stats_data)
         except Exception as exc:  # pragma: no cover - fallback content

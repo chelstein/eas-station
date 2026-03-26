@@ -179,7 +179,11 @@ const statsData = {
     dowHourMatrix: {{ dow_hour_matrix | tojson | safe }} || Array.from({ length: 7 }, () => Array(24).fill(0)),
     lifecycleTimeline: {{ lifecycle_timeline | tojson | safe }} || [],
     alertByUrgency: {{ alert_by_urgency | tojson | safe }} || [],
-    alertByCertainty: {{ alert_by_certainty | tojson | safe }} || []
+    alertByCertainty: {{ alert_by_certainty | tojson | safe }} || [],
+    alertByMessageType: {{ alert_by_message_type | tojson | safe }} || [],
+    relayStats: {{ relay_stats | tojson | safe }} || { total: 0, success_rate: 0, by_type: [] },
+    pollingTrend: {{ polling_trend | tojson | safe }} || {},
+    broadcastLatency: {{ broadcast_latency | tojson | safe }}
 };
 
 const baseAlerts = (statsData.alertEvents || []).map(alert => ({
@@ -1250,6 +1254,10 @@ function renderStaticCharts() {
     createDurationChart();
     createUrgencyChart();
     createCertaintyChart();
+    createMessageTypeChart();
+    createRelayActivationsChart();
+    createPollingTrendChart();
+    computeStreakStats();
 }
 
 function updateDashboard() {
@@ -1315,4 +1323,193 @@ window.addEventListener('theme-changed', () => {
     state.staticChartsInitialized = false;
     if (state.aggregates) updateDashboard();
 });
+
+// ============================================
+// NEW STATISTICS: MESSAGE TYPE, RELAY, POLLING TREND, STREAKS
+// ============================================
+
+function createMessageTypeChart() {
+    const id = 'messageTypeChart';
+    const container = document.getElementById(id);
+    if (!container) return;
+    const data = statsData.alertByMessageType || [];
+    if (!data.length) return showNoData(id, 'No message type data');
+
+    const typeGradients = {
+        'Alert': GRADIENT_PALETTES.danger,
+        'Update': GRADIENT_PALETTES.warning,
+        'Cancel': GRADIENT_PALETTES.success,
+        'Ack': GRADIENT_PALETTES.info,
+        'Error': [getCSSVar('--text-muted', '#94a3b8'), getCSSVar('--border-color', '#64748b')]
+    };
+
+    createOrUpdateChart(id, canvas => {
+        const ctx = canvas.getContext('2d');
+        return new Chart(canvas, {
+            type: 'doughnut',
+            data: {
+                labels: data.map(i => i.message_type),
+                datasets: [{
+                    data: data.map(i => i.count),
+                    backgroundColor: data.map(i => {
+                        const colors = typeGradients[i.message_type] || GRADIENT_PALETTES.primary;
+                        return createRadialGradient(ctx, colors);
+                    }),
+                    borderWidth: 0,
+                    hoverOffset: 8
+                }]
+            },
+            options: {
+                cutout: '60%',
+                plugins: {
+                    legend: { position: 'right', labels: { padding: 15, usePointStyle: true } },
+                    datalabels: {
+                        display: true,
+                        color: getCSSVar('--surface-color', '#ffffff'),
+                        font: { weight: 'bold', size: 11 },
+                        formatter: (val, ctx) => {
+                            const total = ctx.dataset.data.reduce((a, b) => a + b, 0);
+                            return `${((val / total) * 100).toFixed(0)}%`;
+                        }
+                    }
+                }
+            }
+        });
+    });
+}
+
+function createRelayActivationsChart() {
+    const id = 'relayActivationsChart';
+    const container = document.getElementById(id);
+    if (!container) return;
+    const data = (statsData.relayStats && statsData.relayStats.by_type) ? statsData.relayStats.by_type : [];
+    if (!data.length) return showNoData(id, 'No relay activation data');
+
+    const typeGradients = {
+        'automatic': GRADIENT_PALETTES.primary,
+        'manual': GRADIENT_PALETTES.warning,
+        'test': GRADIENT_PALETTES.teal,
+        'override': GRADIENT_PALETTES.danger,
+        'unknown': [getCSSVar('--text-muted', '#94a3b8'), getCSSVar('--border-color', '#64748b')]
+    };
+
+    createOrUpdateChart(id, canvas => {
+        const ctx = canvas.getContext('2d');
+        return new Chart(canvas, {
+            type: 'bar',
+            data: {
+                labels: data.map(i => i.type.charAt(0).toUpperCase() + i.type.slice(1)),
+                datasets: [{
+                    label: 'Activations',
+                    data: data.map(i => i.count),
+                    backgroundColor: data.map(i => {
+                        const colors = typeGradients[i.type] || GRADIENT_PALETTES.primary;
+                        return createGradient(ctx, colors);
+                    }),
+                    borderRadius: 8,
+                    borderSkipped: false
+                }]
+            },
+            options: {
+                plugins: {
+                    legend: { display: false },
+                    datalabels: {
+                        display: true,
+                        anchor: 'end',
+                        align: 'top',
+                        color: getChartThemeColors().text,
+                        font: { weight: 'bold', size: 12 },
+                        formatter: val => val
+                    }
+                },
+                scales: {
+                    y: { beginAtZero: true, grid: { color: getChartThemeColors().gridLines } },
+                    x: { grid: { display: false } }
+                }
+            }
+        });
+    });
+}
+
+function createPollingTrendChart() {
+    const id = 'pollingTrendChart';
+    const container = document.getElementById(id);
+    if (!container) return;
+    const trend = statsData.pollingTrend || {};
+    if (!trend.rate_7d && !trend.rate_30d) return showNoData(id, 'No polling trend data');
+
+    createOrUpdateChart(id, canvas => {
+        const ctx = canvas.getContext('2d');
+        return new Chart(canvas, {
+            type: 'bar',
+            data: {
+                labels: ['Last 7 Days', 'Last 30 Days'],
+                datasets: [{
+                    label: 'Success Rate (%)',
+                    data: [trend.rate_7d || 0, trend.rate_30d || 0],
+                    backgroundColor: [
+                        createGradient(ctx, GRADIENT_PALETTES.success),
+                        createGradient(ctx, GRADIENT_PALETTES.info)
+                    ],
+                    borderRadius: 10,
+                    borderSkipped: false
+                }]
+            },
+            options: {
+                plugins: {
+                    legend: { display: false },
+                    datalabels: {
+                        display: true,
+                        anchor: 'end',
+                        align: 'top',
+                        color: getChartThemeColors().text,
+                        font: { weight: 'bold', size: 14 },
+                        formatter: val => `${val}%`
+                    }
+                },
+                scales: {
+                    y: { beginAtZero: true, max: 100, grid: { color: getChartThemeColors().gridLines }, title: { display: true, text: 'Success Rate (%)' } },
+                    x: { grid: { display: false } }
+                }
+            }
+        });
+    });
+}
+
+function computeStreakStats() {
+    const dailyData = statsData.dailyAlerts || [];
+    if (!dailyData.length) return;
+
+    // Build a Set of dates with alerts
+    const alertDates = new Set(dailyData.filter(d => d.count > 0).map(d => d.date));
+
+    if (!alertDates.size) return;
+
+    const allDates = dailyData.map(d => d.date).sort();
+    const firstDate = new Date(allDates[0]);
+    const lastDate = new Date(allDates[allDates.length - 1]);
+
+    let longestActive = 0, currentActive = 0;
+    let longestQuiet = 0, currentQuiet = 0;
+
+    const cursor = new Date(firstDate);
+    while (cursor <= lastDate) {
+        const key = cursor.toISOString().slice(0, 10);
+        if (alertDates.has(key)) {
+            currentActive++;
+            currentQuiet = 0;
+        } else {
+            currentQuiet++;
+            currentActive = 0;
+        }
+        longestActive = Math.max(longestActive, currentActive);
+        longestQuiet = Math.max(longestQuiet, currentQuiet);
+        cursor.setDate(cursor.getDate() + 1);
+    }
+
+    const activeEl = document.getElementById('longestActiveStreak');
+    const quietEl = document.getElementById('longestQuietPeriod');
+    if (activeEl) activeEl.textContent = longestActive > 0 ? `${longestActive}d` : '-';
+    if (quietEl) quietEl.textContent = longestQuiet > 0 ? `${longestQuiet}d` : '-';
+}
 </script>
