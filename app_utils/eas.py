@@ -1134,6 +1134,7 @@ def _convert_audio_to_samples(
     # This covers MPEG-1/2/2.5 Layers 1-3 (e.g. 0xFB=MPEG1-L3, 0xF3=MPEG2-L3, 0xE2=MPEG2.5-L3)
     _is_mpeg_sync = len(audio_data) >= 2 and audio_data[0] == 0xFF and (audio_data[1] & 0xE0) == 0xE0
     if 'mp3' in mime_lower or 'mpeg' in mime_lower or audio_data[:3] == b'ID3' or _is_mpeg_sync:
+        # Try pydub first (no subprocess overhead)
         try:
             from pydub import AudioSegment
 
@@ -1153,9 +1154,38 @@ def _convert_audio_to_samples(
             return samples
 
         except ImportError:
-            logger.warning("pydub not available for MP3 conversion. Install with: pip install pydub")
+            logger.warning("pydub not available for MP3 conversion; trying ffmpeg directly")
         except Exception as e:
-            logger.warning(f"Failed to convert MP3 audio: {e}")
+            logger.warning(f"pydub MP3 conversion failed ({e}); trying ffmpeg directly")
+
+        # Fallback: pipe raw MP3 bytes into ffmpeg and get back s16le PCM
+        try:
+            import shutil
+            if shutil.which("ffmpeg"):
+                result = subprocess.run(
+                    [
+                        "ffmpeg", "-hide_banner", "-loglevel", "error",
+                        "-i", "pipe:0",
+                        "-ar", str(target_sample_rate),
+                        "-ac", "1",
+                        "-f", "s16le",
+                        "pipe:1",
+                    ],
+                    input=audio_data,
+                    capture_output=True,
+                    timeout=30,
+                )
+                if result.returncode == 0 and result.stdout:
+                    samples = list(struct.unpack(f'<{len(result.stdout)//2}h', result.stdout))
+                    logger.info(f"Converted MP3 via ffmpeg subprocess: {len(samples)} samples")
+                    return samples
+                else:
+                    stderr = result.stderr.decode("utf-8", "ignore").strip()
+                    logger.warning(f"ffmpeg MP3 decode failed: {stderr}")
+            else:
+                logger.warning("ffmpeg not found; cannot decode MP3 audio for TTS narration")
+        except Exception as e:
+            logger.warning(f"ffmpeg MP3 fallback failed: {e}")
 
     # Last-resort: try pydub auto-format detection for any unrecognised format
     if mime_type == '' or ('audio' in mime_lower and not any(k in mime_lower for k in ('wav', 'mp3', 'mpeg'))):

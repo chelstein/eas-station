@@ -8,6 +8,19 @@ tracks releases under the 2.x series.
 
 - No pending changes.
 
+## [2.71.1] - 2026-03-26 - Fix statewide FIPS map and IPAWS audio forwarding
+
+### Fixed
+- **`templates/alert_detail.html`** (`loadCountiesFromSameCodes`) — SAME codes ending in
+  `000` (e.g. `039000` = entire Ohio) now render all counties for that state instead of
+  falling back to the generic circle.  The county-portion `000` flag is detected and all
+  GeoJSON features whose state FIPS prefix matches are included in the map layer.
+- **`app_utils/eas.py`** (`_convert_audio_to_samples`) — Added direct `ffmpeg` subprocess
+  fallback for MP3 decoding when pydub fails (ImportError or decode error).  Pipes the raw
+  MP3 bytes into `ffmpeg -i pipe:0 -ar <rate> -ac 1 -f s16le pipe:1` so IPAWS embedded audio
+  is decoded to PCM samples and forwarded through the airchain even if pydub's Python bindings
+  are unavailable or ffmpeg is not on pydub's search path.
+
 ## [2.71.0] - 2026-03-26 - TTS pronunciation dictionary + Alembic migration guardrails
 
 ### Added
