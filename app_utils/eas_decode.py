@@ -53,6 +53,7 @@ from .eas_demod import (
     ENDEC_MODE_TRILITHIC,
 )
 from app_utils.event_codes import EVENT_CODE_REGISTRY
+from app_utils.time import get_location_timezone
 
 
 class AudioDecodeError(RuntimeError):
@@ -233,7 +234,7 @@ def build_plain_language_summary(header: str, fields: Dict[str, object]) -> Opti
 
     issue_dt = _parse_issue_datetime(fields)
     if issue_dt:
-        issue_dt = issue_dt.astimezone(timezone.utc)
+        issue_dt = issue_dt.astimezone(get_location_timezone())
         summary += f" at {_format_clock(issue_dt)} on {_format_date(issue_dt)}"
 
     if summary.endswith(";") and not issue_dt:
@@ -245,7 +246,7 @@ def build_plain_language_summary(header: str, fields: Dict[str, object]) -> Opti
     if isinstance(purge_minutes, (int, float)) and purge_minutes > 0 and issue_dt:
         try:
             expire_dt = issue_dt + timedelta(minutes=float(purge_minutes))
-            expire_dt = expire_dt.astimezone(timezone.utc)
+            expire_dt = expire_dt.astimezone(get_location_timezone())
             expiry_phrase = _format_clock(expire_dt)
             if expire_dt.date() != issue_dt.date():
                 expiry_phrase += f" on {_format_date(expire_dt)}"
