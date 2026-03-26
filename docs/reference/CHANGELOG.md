@@ -8,6 +8,21 @@ tracks releases under the 2.x series.
 
 - No pending changes.
 
+## [2.71.8] - 2026-03-26 - Update Ohio EAS docs for WAKS-FM LP-1A designation
+
+### Documentation
+- **`docs/reference/OHIO_EAS_DOCUMENTATION.md`** — Updated to reflect the January 12, 2026
+  SECC memorandum from Chairman Greg Savoldi:
+  - Added **WAKS-FM 96.5 FM** (Brecksville) as **LP-1A** alternative for the Central & East
+    Lakeshore EAS Operational Area. Operators may monitor either WTAM 1100 AM or WAKS-FM 96.5 FM
+    to satisfy the LP-1 requirement; no FCC or SECC filing is required.
+  - Corrected LP-2 call sign from `WCPN 90.3 FM` to **`WCLV 90.3 FM`** per the official memo.
+  - Updated Northern Ohio mermaid diagram to include the LP-1A node (teal styling distinct
+    from LP-1/LP-2) with connections to LP-2 and LP-3.
+  - Added an **Amendments** sub-section under *Updates & Revisions* with full memo summary.
+  - Updated *Document Information* block with `Last Amended: 2026-01-12`.
+  - Added amendment note to the top-level document version header.
+
 ## [2.71.7] - 2026-03-26 - Correct stale tech stack badge versions
 
 ### Fixed

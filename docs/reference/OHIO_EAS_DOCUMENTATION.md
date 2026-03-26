@@ -1,6 +1,7 @@
 # Ohio Emergency Alert System (EAS) Plan Documentation
 
 **Document Version:** December 2018 (FCC Approved: March 18, 2019)
+**Amendment:** January 2026 — WAKS-FM 96.5 FM designated LP-1A for Central & East Lakeshore (per SECC Chairman Greg Savoldi, January 12, 2026)
 
 ---
 
@@ -289,7 +290,8 @@ Event codes available for programming at station discretion:
 
 #### Central & East Lakeshore Area
 - **LP-1:** WTAM 1100 AM (Cleveland) - Also National Primary
-- **LP-2:** WCPN 90.3 FM (Cleveland)
+- **LP-1A:** WAKS-FM 96.5 FM (Brecksville) - Alternative LP-1 option *(effective January 12, 2026; operators may monitor either WTAM 1100 AM or WAKS-FM 96.5 FM to satisfy the LP-1 requirement — no FCC or SECC filing required)*
+- **LP-2:** WCLV 90.3 FM (Cleveland) - Required LP-2 monitoring source
 - **LP-3:** WKSV 89.1 FM (Thompson)
 
 #### East Central Area
@@ -802,7 +804,8 @@ graph TB
     
     subgraph "Central & East Lakeshore - Cleveland"
         CEL_LP1[LP-1: WTAM 1100 AM]
-        CEL_LP2[LP-2: WCPN 90.3 FM]
+        CEL_LP1A[LP-1A: WAKS-FM 96.5 FM<br>Alt. LP-1 since Jan 2026]
+        CEL_LP2[LP-2: WCLV 90.3 FM]
         CEL_LP3[LP-3: WKSV 89.1 FM<br>Thompson]
     end
 
@@ -817,11 +820,13 @@ graph TB
     end
 
     SP1 --> CEL_LP1
+    SP1 --> CEL_LP1A
     SP1 --> Y_LP1
     SP1 --> EC_LP1
     
     CEL_LP1 --> CEL_LP2
     CEL_LP1 --> CEL_LP3
+    CEL_LP1A --> CEL_LP2
     CEL_LP2 --> CEL_LP3
     
     Y_LP1 --> Y_LP2
@@ -829,18 +834,21 @@ graph TB
 
     classDef state fill:#3498db,stroke:#2980b9,stroke-width:3px,color:#fff
     classDef lp1 fill:#2ecc71,stroke:#27ae60,stroke-width:2px,color:#fff
+    classDef lp1a fill:#1abc9c,stroke:#16a085,stroke-width:2px,color:#fff
     classDef lp2 fill:#f39c12,stroke:#e67e22,stroke-width:2px,color:#fff
     classDef lp3 fill:#9b59b6,stroke:#8e44ad,stroke-width:2px,color:#fff
 
     class SP1 state
     class CEL_LP1,Y_LP1,EC_LP1 lp1
+    class CEL_LP1A lp1a
     class CEL_LP2,Y_LP2,EC_LP2 lp2
     class CEL_LP3 lp3
 ```
 
 **Cleveland/Lakeshore:**
 - LP-1: WTAM 1100 AM (Cleveland)
-- LP-2: WCPN 90.3 FM (Cleveland)
+- LP-1A: WAKS-FM 96.5 FM (Brecksville) — alternative LP-1 option since January 2026
+- LP-2: WCLV 90.3 FM (Cleveland)
 - LP-3: WKSV 89.1 FM (Thompson)
 
 **Youngstown:**
@@ -1182,6 +1190,18 @@ Complete contact information for all 12 operational area chairs and vice-chairs 
 - **Plan Date:** December 2018
 - **FCC Approval:** March 18, 2019
 
+### Amendments
+
+#### January 2026 — WAKS-FM 96.5 FM LP-1A Designation
+Issued by Greg Savoldi, Chairman – State of Ohio SECC (January 12, 2026):
+
+- **96.5 WAKS-FM** (Brecksville, OH) is now designated **LP-1A** for the **Central & East Lakeshore EAS Operational Area**.
+- Operators in this area may monitor **either WTAM 1100 AM or WAKS-FM 96.5 FM** to satisfy the LP-1 monitoring requirement. No FCC or SECC filing is required to make the switch.
+- WAKS-FM provides a static-free FM alternative to WTAM, whose AM signal is increasingly affected by man-made electrical and wireless interference. Coverage reaches approximately 40 air miles from Brecksville within the 60 dBu contour.
+- **WCLV 90.3 FM** (Cleveland) remains the required **LP-2** monitoring source. All stations must continue monitoring at least two LP-class stations.
+- Contact: Greg Savoldi — [gregsavoldi@iheartmedia.com](mailto:gregsavoldi@iheartmedia.com)
+- Source: *OAB/SECC Memorandum — WAKS-FM LP1A Announcement, January 12, 2026*
+
 ---
 
 ## References
@@ -1198,6 +1218,7 @@ Complete contact information for all 12 operational area chairs and vice-chairs 
 **Prepared From:** State of Ohio Emergency Alert System (EAS) Plan, December 2018
 **FCC Approval Date:** March 18, 2019
 **Documentation Created:** 2025-01-12
+**Last Amended:** 2026-01-12 — WAKS-FM 96.5 FM LP-1A designation for Central & East Lakeshore
 
 **Supersedes:** All previously published State EAS Plans
 
