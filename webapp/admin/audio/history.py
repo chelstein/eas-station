@@ -144,15 +144,31 @@ def register_history_routes(app, logger) -> None:
                 summary_data = load_or_cache_summary_payload(message)
 
                 # Determine alert link: prefer CAP alert, fall back to OTA received alert.
+                # Also collect original received header and audio for OTA-triggered messages.
+                _received = message.source_alerts[0] if message.source_alerts else None
                 if alert:
                     _alert_url = url_for('api.alert_detail', alert_id=alert.id)
                     _alert_label = 'View Alert'
                     _alert_identifier = alert.identifier
+                    # Original IPAWS audio saved to disk
+                    _ipaws_audio_url = (
+                        url_for('api.ipaws_original_audio', alert_id=alert.id)
+                        if getattr(alert, 'ipaws_audio_url', None)
+                        else None
+                    )
+                    _original_same_header = None
+                    _received_audio_url = None
                 else:
-                    _received = message.source_alerts[0] if message.source_alerts else None
                     _alert_url = url_for('received_audio_alert_detail', alert_id=_received.id) if _received else None
                     _alert_label = 'View Received Alert' if _received else None
                     _alert_identifier = None
+                    _ipaws_audio_url = None
+                    _original_same_header = _received.raw_same_header if _received else None
+                    _received_audio_url = (
+                        url_for('received_alert_audio', alert_id=_received.id)
+                        if _received and _received.raw_audio_data
+                        else None
+                    )
 
                 messages.append(
                     {
@@ -162,6 +178,9 @@ def register_history_routes(app, logger) -> None:
                         'status': status,
                         'created_at': message.created_at,
                         'same_header': message.same_header,
+                        'original_same_header': _original_same_header,
+                        'received_audio_url': _received_audio_url,
+                        'ipaws_audio_url': _ipaws_audio_url,
                         'audio_url': audio_url,
                         'text_url': text_url,
                         'detail_url': url_for('audio_detail', message_id=message.id),

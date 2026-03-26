@@ -130,7 +130,8 @@
                                     <th scope="col">Event</th>
                                     <th scope="col" class="text-nowrap">Severity</th>
                                     <th scope="col" class="text-nowrap">Status</th>
-                                    <th scope="col" class="text-nowrap">SAME Header</th>
+                                    <th scope="col" class="text-nowrap">Original EAS Header</th>
+                                    <th scope="col" class="text-nowrap">Forwarded SAME Header</th>
                                     <th scope="col">Alert</th>
                                     <th scope="col" class="text-center text-nowrap">Audio</th>
                                     <th scope="col" class="text-center text-nowrap">Actions</th>
@@ -177,6 +178,13 @@
                                         {% endif %}
                                     </td>
                                     <td class="text-break">
+                                        {% if message.original_same_header %}
+                                        <code class="text-info">{{ message.original_same_header }}</code>
+                                        {% else %}
+                                        <span class="text-muted">—</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-break">
                                         <code>{{ message.same_header }}</code>
                                     </td>
                                     <td>
@@ -189,33 +197,62 @@
                                         {% endif %}
                                     </td>
                                     <td class="text-center">
-                                        {% if message.audio_url %}
                                         <div class="d-flex flex-column align-items-center gap-2">
-                                            <audio controls preload="none" class="w-100" style="max-width: 220px;">
-                                                <source src="{{ message.audio_url }}" type="audio/wav">
-                                                Your browser does not support audio playback.
-                                            </audio>
-                                            <div class="d-flex gap-2 flex-wrap justify-content-center">
-                                                <a class="btn btn-sm btn-outline-primary" href="{{ message.audio_url }}" target="_blank" rel="noopener">
-                                                    <i class="fas fa-external-link-alt"></i> Open
-                                                </a>
-                                                <a class="btn btn-sm btn-outline-secondary" href="{{ message.audio_url }}?download=1">
-                                                    <i class="fas fa-download"></i> Download
-                                                </a>
-                                            </div>
-                                            {% if message.eom_url %}
+                                            {% if message.received_audio_url %}
                                             <div class="w-100">
-                                                <div class="small text-muted">EOM Burst</div>
+                                                <div class="small text-info fw-semibold">
+                                                    <i class="fas fa-satellite-dish"></i> Original Received
+                                                </div>
                                                 <audio controls preload="none" class="w-100" style="max-width: 220px;">
-                                                    <source src="{{ message.eom_url }}" type="audio/wav">
+                                                    <source src="{{ message.received_audio_url }}" type="audio/wav">
                                                     Your browser does not support audio playback.
                                                 </audio>
                                             </div>
                                             {% endif %}
+                                            {% if message.ipaws_audio_url %}
+                                            <div class="w-100">
+                                                <div class="small text-info fw-semibold">
+                                                    <i class="fas fa-broadcast-tower"></i> Original IPAWS
+                                                </div>
+                                                <audio controls preload="none" class="w-100" style="max-width: 220px;">
+                                                    <source src="{{ message.ipaws_audio_url }}" type="audio/mpeg">
+                                                    Your browser does not support audio playback.
+                                                </audio>
+                                            </div>
+                                            {% endif %}
+                                            {% if message.audio_url %}
+                                            <div class="w-100">
+                                                {% if message.received_audio_url or message.ipaws_audio_url %}
+                                                <div class="small text-muted fw-semibold">
+                                                    <i class="fas fa-broadcast-tower"></i> Forwarded
+                                                </div>
+                                                {% endif %}
+                                                <audio controls preload="none" class="w-100" style="max-width: 220px;">
+                                                    <source src="{{ message.audio_url }}" type="audio/wav">
+                                                    Your browser does not support audio playback.
+                                                </audio>
+                                                <div class="d-flex gap-2 flex-wrap justify-content-center mt-1">
+                                                    <a class="btn btn-sm btn-outline-primary" href="{{ message.audio_url }}" target="_blank" rel="noopener">
+                                                        <i class="fas fa-external-link-alt"></i> Open
+                                                    </a>
+                                                    <a class="btn btn-sm btn-outline-secondary" href="{{ message.audio_url }}?download=1">
+                                                        <i class="fas fa-download"></i> Download
+                                                    </a>
+                                                </div>
+                                                {% if message.eom_url %}
+                                                <div class="w-100 mt-1">
+                                                    <div class="small text-muted">EOM Burst</div>
+                                                    <audio controls preload="none" class="w-100" style="max-width: 220px;">
+                                                        <source src="{{ message.eom_url }}" type="audio/wav">
+                                                        Your browser does not support audio playback.
+                                                    </audio>
+                                                </div>
+                                                {% endif %}
+                                            </div>
+                                            {% elif not message.received_audio_url and not message.ipaws_audio_url %}
+                                            <span class="text-muted">Unavailable</span>
+                                            {% endif %}
                                         </div>
-                                        {% else %}
-                                        <span class="text-muted">Unavailable</span>
-                                        {% endif %}
                                     </td>
                                     <td class="text-center">
                                         <div class="btn-group btn-group-sm" role="group">
@@ -238,7 +275,7 @@
                                 {% endfor %}
                                 {% else %}
                                 <tr data-empty="true">
-                                    <td colspan="8" class="text-center text-muted py-4">
+                                    <td colspan="9" class="text-center text-muted py-4">
                                         <i class="fas fa-headphones-slash fa-2x mb-2"></i>
                                         <div>No audio records found. Adjust your filters or check back later.</div>
                                     </td>

@@ -1206,6 +1206,38 @@ class EASAudioGenerator:
         tts_warning: Optional[str] = None
         provider = self.tts_engine.provider
         
+        # If no embedded audio found in resources, try the saved IPAWS audio file on disk.
+        # This handles cases where raw_json resources are unavailable or derefUri decoding
+        # failed but the poller already extracted and saved the audio to EAS_OUTPUT_DIR.
+        if not embedded_audio_samples:
+            _ipaws_saved = getattr(alert, 'ipaws_audio_url', None)
+            if _ipaws_saved:
+                _eas_out = os.getenv('EAS_OUTPUT_DIR') or os.path.join(
+                    os.getenv('EAS_STATIC_DIR', os.path.join(os.getcwd(), 'static')),
+                    'eas_messages',
+                )
+                _safe_fn = os.path.basename(str(_ipaws_saved))
+                _disk_path = os.path.join(_eas_out, _safe_fn)
+                if _safe_fn and os.path.isfile(_disk_path):
+                    try:
+                        with open(_disk_path, 'rb') as _fh:
+                            _file_bytes = _fh.read()
+                        _mime = (
+                            'audio/mpeg'
+                            if _file_bytes[:3] == b'ID3' or _file_bytes[:2] in (b'\xff\xfb', b'\xff\xf3', b'\xff\xf2')
+                            else ''
+                        )
+                        _disk_samples = _convert_audio_to_samples(_file_bytes, _mime, self.sample_rate, self.logger)
+                        if _disk_samples:
+                            embedded_audio_samples = _disk_samples
+                            embedded_audio_source = f"ipaws_saved:{_safe_fn}"
+                            self.logger.info(
+                                "Using saved IPAWS audio from disk: %s (%d samples)",
+                                _safe_fn, len(_disk_samples),
+                            )
+                    except Exception as _exc:
+                        self.logger.warning("Failed to load saved IPAWS audio %s: %s", _disk_path, _exc)
+
         if embedded_audio_samples:
             # Use embedded audio from IPAWS instead of TTS
             self.logger.info(
