@@ -8,6 +8,32 @@ tracks releases under the 2.x series.
 
 - No pending changes.
 
+## [2.71.6] - 2026-03-26 - Pretty up headers, footers and tech stack badges
+
+### Changed
+- **`templates/base.html`** — Updated copyright year 2025 → 2026. Wrapped
+  tech-stack badge row in a new `tech-stack-card` glass panel for a polished
+  look.
+- **`templates/partials/footer.html`** — Updated both copyright year references
+  2025 → 2026 (unused partial kept in sync).
+- **`static/css/styles.css`** — Multiple visual improvements:
+  - Added the previously missing `page-header-gradient` CSS class (referenced in
+    `components/page_header.html` but undefined); styled as a vibrant multi-color
+    gradient header variant with animated bottom accent line.
+  - Added animated rainbow bottom accent line (`::after`) to `.navbar`.
+  - Added `page-header::after` subtle bottom highlight line.
+  - Enlarged `.footer-logo-mark` icon box (60 → 64 px) with a blue glow shadow.
+  - Made `.footer-divider` an animated rainbow gradient stripe instead of a plain
+    semi-transparent white line.
+  - Updated `.footer-column-title::after` underline to teal-to-blue gradient.
+  - Added `.tech-stack-card` glass-morphism container for the badge row.
+  - Increased default badge height from 24 px to 26 px; improved hover animation
+    (spring easing, stronger lift) and box-shadow.
+  - Improved `.footer-disclaimer` border-radius and subtle inset shadow.
+  - Made `.tech-stack-title` icon emit a teal drop-shadow glow.
+- **`static/css/admin.css`** — Enhanced `admin-page-header` with animated
+  rainbow top accent line (`::after`) and radial glow overlay (`::before`).
+
 ## [2.71.5] - 2026-03-26 - Document valid base.html block names in AGENTS.md
 
 ### Documentation

@@ -1032,6 +1032,25 @@ small,
     transform: scale(1.02);
 }
 
+/* Animated rainbow accent along the bottom edge of the navbar */
+.navbar::after {
+    content: "";
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg,
+        var(--vibrant-blue),
+        var(--vibrant-purple),
+        var(--vibrant-pink),
+        var(--vibrant-orange),
+        var(--vibrant-blue));
+    background-size: 200% 100%;
+    animation: gradientShift 8s linear infinite;
+    opacity: 0.7;
+}
+
 .nav-link {
     color: rgba(255, 255, 255, 0.9);
     font-weight: var(--font-weight-medium);
@@ -1381,6 +1400,98 @@ small,
     flex-wrap: wrap;
 }
 
+/* Gradient page header variant (more vibrant multi-color gradient) */
+.page-header-gradient {
+    background: linear-gradient(135deg,
+        var(--vibrant-indigo) 0%,
+        var(--vibrant-purple) 40%,
+        color-mix(in srgb, var(--vibrant-blue) 80%, var(--vibrant-teal)) 100%);
+    color: white;
+    padding: 2rem 2.5rem;
+    margin-bottom: 1.5rem;
+    border-radius: var(--radius-2xl);
+    box-shadow: var(--shadow-xl),
+                0 0 0 1px rgba(255, 255, 255, 0.1) inset,
+                0 0 40px rgba(88, 86, 214, 0.3);
+    position: relative;
+    overflow: hidden;
+}
+
+.page-header-gradient::before {
+    content: "";
+    position: absolute;
+    top: -30%;
+    right: -15%;
+    width: 50%;
+    height: 150%;
+    background: radial-gradient(ellipse at center,
+        rgba(255, 255, 255, 0.2),
+        rgba(255, 255, 255, 0.05) 50%,
+        transparent 75%);
+    pointer-events: none;
+    animation: headerGlow 8s ease-in-out infinite;
+}
+
+.page-header-gradient::after {
+    content: "";
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg,
+        var(--vibrant-pink),
+        var(--vibrant-orange),
+        var(--vibrant-yellow),
+        var(--vibrant-green),
+        var(--vibrant-blue),
+        var(--vibrant-pink));
+    background-size: 300% 100%;
+    animation: gradientShift 6s linear infinite;
+}
+
+.page-header-gradient h1,
+.page-header-gradient h2,
+.page-header-gradient .page-title {
+    color: #ffffff;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35),
+                 0 2px 12px rgba(0, 0, 0, 0.2);
+    font-size: 1.75rem;
+    font-weight: 700;
+    margin: 0;
+    position: relative;
+    z-index: 2;
+    letter-spacing: -0.01em;
+}
+
+.page-header-gradient .page-subtitle {
+    color: rgba(255, 255, 255, 0.95);
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+    font-size: 0.95rem;
+    margin-top: 0.5rem;
+    margin-bottom: 0;
+    font-weight: 500;
+    position: relative;
+    z-index: 2;
+}
+
+/* Bottom accent line on regular page headers */
+.page-header::after {
+    content: "";
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg,
+        transparent,
+        rgba(255, 255, 255, 0.4),
+        rgba(255, 255, 255, 0.6),
+        rgba(255, 255, 255, 0.4),
+        transparent);
+    opacity: 0.6;
+}
+
 /* Footer - Modern Elevated Design */
 /* ========================================
    FOOTER - Modern, Sexy Design
@@ -1470,17 +1581,18 @@ footer a:hover {
 }
 
 .footer-logo-mark {
-    width: 60px;
-    height: 60px;
+    width: 64px;
+    height: 64px;
     background: linear-gradient(135deg, var(--vibrant-blue), var(--vibrant-purple));
-    border-radius: 16px;
+    border-radius: 18px;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 1.75rem;
+    font-size: 1.875rem;
     box-shadow: 
-        0 4px 16px rgba(0, 0, 0, 0.2),
-        0 0 0 4px rgba(255, 255, 255, 0.1);
+        0 6px 20px rgba(0, 0, 0, 0.25),
+        0 0 0 3px rgba(255, 255, 255, 0.15),
+        0 0 32px rgba(0, 122, 255, 0.3);
     animation: float 6s ease-in-out infinite;
 }
 
@@ -1537,10 +1649,11 @@ footer a:hover {
     position: absolute;
     bottom: 0;
     left: 0;
-    width: 30px;
+    width: 36px;
     height: 2px;
-    background: linear-gradient(90deg, white, transparent);
-    opacity: 0.5;
+    background: linear-gradient(90deg, var(--vibrant-teal), var(--vibrant-blue), transparent);
+    opacity: 0.75;
+    border-radius: 2px;
 }
 
 .footer-nav-list {
@@ -1618,22 +1731,57 @@ footer a:hover {
 }
 
 .footer-divider {
-    height: 1px;
+    height: 2px;
     background: linear-gradient(90deg,
-        transparent,
-        rgba(255, 255, 255, 0.2),
-        transparent);
+        transparent 0%,
+        var(--vibrant-blue) 20%,
+        var(--vibrant-purple) 40%,
+        var(--vibrant-pink) 60%,
+        var(--vibrant-orange) 80%,
+        transparent 100%);
+    background-size: 200% 100%;
+    animation: gradientShift 8s linear infinite;
     margin: 2rem 0;
+    opacity: 0.6;
+    border-radius: 2px;
 }
 
 .tech-stack-title {
     font-size: 0.85rem;
-    font-weight: 600;
+    font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.1em;
+    letter-spacing: 0.15em;
     text-align: center;
     margin-bottom: 1.5rem;
-    opacity: 0.9;
+    opacity: 0.95;
+    position: relative;
+    display: inline-block;
+    width: 100%;
+}
+
+.tech-stack-title i {
+    color: var(--vibrant-teal);
+    filter: drop-shadow(0 0 6px rgba(90, 200, 250, 0.5));
+}
+
+/* Glass card container for tech stack badges */
+.tech-stack-card {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: var(--radius-xl, 1.5rem);
+    padding: 1.5rem 1.5rem 1.25rem;
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    box-shadow:
+        0 4px 24px rgba(0, 0, 0, 0.15),
+        0 0 0 1px rgba(255, 255, 255, 0.08) inset;
+    transition: box-shadow 0.3s ease;
+}
+
+.tech-stack-card:hover {
+    box-shadow:
+        0 8px 32px rgba(0, 0, 0, 0.2),
+        0 0 0 1px rgba(255, 255, 255, 0.12) inset;
 }
 
 .tech-stack-badges {
@@ -1645,19 +1793,23 @@ footer a:hover {
 }
 
 .tech-badge {
-    transition: transform 0.3s ease, filter 0.3s ease;
+    transition: transform 0.3s var(--ease-spring), filter 0.3s ease, box-shadow 0.3s ease;
     display: inline-block;
+    border-radius: 6px;
 }
 
 .tech-badge:hover {
-    transform: translateY(-4px) scale(1.05);
-    filter: brightness(1.1);
+    transform: translateY(-5px) scale(1.08);
+    filter: brightness(1.15) saturate(1.2);
 }
 
 .tech-badge img {
-    height: var(--footer-badge-height, 24px);
-    border-radius: 4px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    height: var(--footer-badge-height, 26px);
+    border-radius: 5px;
+    box-shadow:
+        0 2px 8px rgba(0, 0, 0, 0.25),
+        0 0 0 1px rgba(255, 255, 255, 0.08);
+    display: block;
 }
 
 /* Disclaimer section */
@@ -1669,15 +1821,16 @@ footer a:hover {
 .footer-disclaimer {
     font-size: 0.85rem;
     text-align: center;
-    opacity: 0.8;
+    opacity: 0.85;
     padding: 1.5rem 2rem;
-    background: rgba(255, 255, 255, 0.05);
-    border-radius: 12px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.07);
+    border-radius: var(--radius-xl, 1.5rem);
+    border: 1px solid rgba(255, 255, 255, 0.12);
     backdrop-filter: blur(10px);
     max-width: 900px;
     margin: 0 auto;
     line-height: 1.6;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1) inset;
 }
 
 .footer-disclaimer i {

@@ -147,7 +147,7 @@
                                 <div class="footer-subtitle">Emergency Alert System Research Platform</div>
                             </div>
                             <div class="footer-copyright">
-                                <i class="fas fa-copyright me-1"></i>2025 Timothy Kramer (KR8MER)
+                                <i class="fas fa-copyright me-1"></i>2026 Timothy Kramer (KR8MER)
                             </div>
                         </div>
                     </div>
@@ -230,6 +230,7 @@
                 {% endif %}
                 {% set commit_badge_text = commit_label | upper %}
                 {% set commit_badge_encoded = commit_badge_text | shields_escape | urlencode %}
+                <div class="tech-stack-card">
                 <div class="tech-stack-badges">
                     <a href="https://github.com/KR8MER/eas-station" target="_blank" rel="noopener noreferrer" class="tech-badge">
                         <img src="https://img.shields.io/badge/Git%20Commit-{{ commit_badge_encoded }}-181717?style=for-the-badge&logo=github&logoColor=white" alt="Git commit {{ commit_badge_text }}">
@@ -261,6 +262,7 @@
                     <a href="https://github.com/pothosware/SoapySDR" target="_blank" rel="noopener noreferrer" class="tech-badge">
                         <img src="https://img.shields.io/badge/SoapySDR-enabled-FF6600?style=for-the-badge{% if soapysdr_logo %}&logo={{ soapysdr_logo | urlencode }}{% endif %}" alt="SoapySDR">
                     </a>
+                </div>
                 </div>
             </div>
 
