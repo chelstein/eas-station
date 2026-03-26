@@ -8,6 +8,18 @@ tracks releases under the 2.x series.
 
 - No pending changes.
 
+## [2.71.5] - 2026-03-26 - Document valid base.html block names in AGENTS.md
+
+### Documentation
+- **`docs/development/AGENTS.md`** — Added a reference table of the six valid
+  `{% block %}` names defined in `base.html` (`title`, `nav_title`, `meta`,
+  `extra_css`, `content`, `scripts`) to the Template Standards section, with an
+  explicit ❌/✅ example showing that `{% block extra_js %}` does not exist and
+  `{% block scripts %}` is the correct name for page-level JavaScript.  Extended
+  the pre-commit template-validation script to also flag unknown block names in
+  child templates, producing a targeted error message.  Removed a stray duplicate
+  of the validation script that had accumulated below the Pre-Commit Checklist.
+
 ## [2.71.4] - 2026-03-26 - Fix TTS Pronunciation Dictionary entries not saving
 
 ### Fixed
