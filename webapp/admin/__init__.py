@@ -45,6 +45,7 @@ from .hardware import hardware_bp
 from .icecast import register_icecast_routes
 from .certbot import register_certbot_routes
 from .tts import register_tts_routes
+from .tts_pronunciation import register_pronunciation_routes
 from .local_authorities import register_local_authority_routes
 from .tailscale import register_tailscale_routes
 from .poller import poller_bp

@@ -742,6 +742,99 @@ def build_eom_header(config: Dict[str, object]) -> str:
     return "NNNN"
 
 
+def _load_pronunciation_rules() -> List[tuple]:
+    """Load user-defined pronunciation rules from the database.
+
+    Returns a list of (original_text, replacement_text, match_case) tuples
+    for all enabled rules, ordered so longer patterns are applied first
+    (prevents shorter prefixes from masking longer tokens).
+
+    Falls back gracefully to an empty list when the database is unavailable
+    or the table does not yet exist (e.g. before the first migration run).
+    """
+    try:
+        from flask import has_app_context
+        if not has_app_context():
+            return []
+        from app_core.models import TTSPronunciationRule
+        from app_core.extensions import db
+        rules = (
+            TTSPronunciationRule.query
+            .filter_by(enabled=True)
+            .order_by(
+                # Longer originals first so "Bellefontaine" is matched before "Bell"
+                db.func.length(TTSPronunciationRule.original_text).desc()
+            )
+            .all()
+        )
+        return [(r.original_text, r.replacement_text, r.match_case) for r in rules]
+    except Exception:
+        return []
+
+
+def _normalize_text_for_tts(text: str) -> str:
+    """Expand common emergency-management acronyms and apply user pronunciation
+    rules so TTS engines read the text correctly.
+
+    Two layers of replacement are applied in order:
+
+    1. **Built-in acronym table** – hard-coded, case-sensitive whole-word
+       substitutions for uppercase tokens that TTS engines mispronounce
+       (EAS → "Emergency Alert System", NWS → "National Weather Service", …).
+
+    2. **Database pronunciation dictionary** – user-managed rows from the
+       ``tts_pronunciation_rules`` table.  Each row supplies an
+       ``original_text`` pattern, a ``replacement_text`` phonetic spelling,
+       and a ``match_case`` flag.  Longer patterns are applied first so that
+       multi-word entries (e.g. "Bellefontaine") are not accidentally masked
+       by shorter ones (e.g. "Bell").
+
+    Only whole-word occurrences are replaced (regex ``\\b`` word boundaries).
+    """
+    if not text:
+        return text
+
+    import re
+
+    # ── Layer 1: hard-coded acronym expansions ────────────────────────────
+    # Order matters: longer / more-specific entries first.
+    _ACRONYM_MAP = [
+        # Compound EAS parameter tokens
+        ('EAS-ORG',    'E.A.S. originator'),
+        ('EAS-STN-ID', 'E.A.S. station ID'),
+        # Agency / system names
+        ('IPAWS',  'I.P.A.W.S.'),
+        ('NOAA',   'N.O.A.A.'),
+        ('FEMA',   'F.E.M.A.'),
+        ('NWS',    'National Weather Service'),
+        ('EBS',    'Emergency Broadcast System'),
+        ('EAS',    'Emergency Alert System'),
+        # Event codes that appear verbatim in auto-generated message text
+        ('RWT',    'Required Weekly Test'),
+        ('RMT',    'Required Monthly Test'),
+        ('EOM',    'end of message'),
+    ]
+
+    result = text
+    for token, expansion in _ACRONYM_MAP:
+        result = re.sub(r'\b' + re.escape(token) + r'\b', expansion, result)
+
+    # ── Layer 2: database pronunciation dictionary ────────────────────────
+    for original, replacement, match_case in _load_pronunciation_rules():
+        flags = 0 if match_case else re.IGNORECASE
+        try:
+            result = re.sub(
+                r'\b' + re.escape(original) + r'\b',
+                replacement,
+                result,
+                flags=flags,
+            )
+        except re.error:
+            pass  # Malformed pattern — skip silently
+
+    return result
+
+
 def _compose_message_text(alert: object) -> str:
     parts: List[str] = []
     for attr in ('headline', 'description', 'instruction'):
@@ -749,7 +842,9 @@ def _compose_message_text(alert: object) -> str:
         if value:
             parts.append(str(value).strip())
     text = '\n\n'.join(parts).strip()
-    return text or "A new emergency alert has been received."
+    if not text:
+        return "A new emergency alert has been received."
+    return _normalize_text_for_tts(text)
 
 
 def manual_default_same_codes() -> List[str]:

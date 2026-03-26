@@ -8,6 +8,32 @@ tracks releases under the 2.x series.
 
 - No pending changes.
 
+## [2.71.0] - 2026-03-26 - TTS pronunciation dictionary + Alembic migration guardrails
+
+### Added
+- **`app_core/models.py`** — New `TTSPronunciationRule` model and `TTS_BUILTIN_PRONUNCIATIONS`
+  seed list.  Stores user-configurable word-to-phonetic-spelling rules applied to all TTS
+  narration text before synthesis (e.g. Lima → "Lye-mah", Cairo → "Kay-roh").
+- **`app_utils/eas.py`** — `_normalize_text_for_tts()` function: two-layer substitution
+  applied to every TTS message — (1) hard-coded acronym expansions (EAS, NWS, FEMA, RWT, RMT,
+  EOM, IPAWS, EBS) so TTS engines spell them out correctly; (2) database-driven pronunciation
+  rules loaded from `tts_pronunciation_rules`.  `_compose_message_text()` now runs this
+  normalization before returning text.
+- **`app_utils/eas.py`** — `_load_pronunciation_rules()` helper loads enabled rules ordered
+  longest-first so multi-word patterns are matched before shorter prefixes.
+- **`webapp/admin/tts_pronunciation.py`** — Full CRUD admin routes under `/admin/tts/pronunciation`
+  and `/admin/api/tts/pronunciation`.  Built-in rules can be disabled/edited but not deleted.
+- **`app_core/migrations/versions/20260326_add_tts_pronunciation_rules.py`** — Alembic migration
+  creates `tts_pronunciation_rules` table and seeds ten built-in Ohio place-name corrections.
+- **`docs/development/AGENTS.md`** — New "Alembic Migration Rules" section under Database
+  Guidelines; updated Pre-Commit Checklist with head-check script; updated
+  "Create Database Migration" step with critical revision-ID warning.
+
+### Fixed
+- **`app_core/migrations/versions/20260326_add_tts_pronunciation_rules.py`** — `down_revision`
+  now uses the actual revision ID (`20260325_received_alert_audio`) instead of the filename
+  prefix, keeping the migration chain at exactly one head.
+
 ## [2.70.3] - 2026-03-25 - Fix EAS audio inaudible on Icecast and OTA trigger recording
 
 ### Fixed
