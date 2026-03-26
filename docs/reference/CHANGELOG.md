@@ -8,6 +8,16 @@ tracks releases under the 2.x series.
 
 - No pending changes.
 
+## [2.71.4] - 2026-03-26 - Fix TTS Pronunciation Dictionary entries not saving
+
+### Fixed
+- **`templates/admin/tts_pronunciation.html`** — The JavaScript block was declared as
+  `{% block extra_js %}` which does not exist in `base.html` (the correct block is
+  `{% block scripts %}`).  This caused the entire JS section to be silently dropped,
+  so no event handlers were ever attached to the Add/Edit/Delete/Toggle controls.
+  Forms submitted as plain HTML POSTs to a GET-only route and nothing was saved.
+  Renamed the block to `{% block scripts %}` to match `base.html`.
+
 ## [2.71.3] - 2026-03-26 - Eliminate redundant file reads in multi-rate SAME decoder
 
 ### Fixed
