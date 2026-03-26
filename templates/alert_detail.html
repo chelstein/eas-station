@@ -273,6 +273,11 @@
         word-wrap: break-word;
     }
 
+    .scope-coverage-na {
+        background: var(--text-muted);
+        color: #fff;
+    }
+
     .county-wide-badge {
         background: linear-gradient(45deg, var(--danger-color), var(--info-color));
         color: #1a1a1a;
@@ -397,7 +402,7 @@
                                             </span>
                                         {% endif %}
                                     {% else %}
-                                        <span class="alert-scope-indicator" style="background: var(--text-muted); color: #1a1a1a;">
+                                        <span class="alert-scope-indicator scope-coverage-na">
                                             <i class="fas fa-minus-circle"></i> Coverage N/A
                                         </span>
                                     {% endif %}
@@ -575,7 +580,6 @@
                                 <div class="card-header">
                                     <h5 class="mb-0">
                                         <i class="fas fa-clock"></i> Timing
-                                        <small class="text-muted">({{ location_settings.county_name }})</small>
                                     </h5>
                                 </div>
                                 <div class="card-body timing-card">
@@ -789,11 +793,8 @@
                                 ) %}
                                 {% if is_county_wide_fallback %}
                                 <div class="affected-summary">
-                                    <h6><i class="fas fa-exclamation-triangle text-warning"></i> Alert - Coverage Analysis Needed</h6>
-                                    <p class="mb-2">This alert appears to affect county areas, but exact coverage percentages need to be calculated.</p>
-                                    <button type="button" class="btn btn-warning btn-sm" onclick="triggerIntersectionFix()">
-                                        <i class="fas fa-calculator"></i> Calculate Exact Coverage
-                                    </button>
+                                    <h6><i class="fas fa-exclamation-triangle text-warning"></i> Coverage Pending</h6>
+                                    <p class="mb-0 text-muted">Coverage percentages have not been calculated yet. See below to trigger analysis.</p>
                                 </div>
                                 {% endif %}
                             {% endif %}
@@ -1411,8 +1412,19 @@
                                                     </div>
                                                 {% endif %}
                                             </td>
-                                            <td class="text-break">
-                                                <code>{{ entry.same_header }}</code>
+                                            <td>
+                                                {% if entry.same_header %}
+                                                    {% set sh = entry.same_header %}
+                                                    {% if sh | length > 48 %}
+                                                        <code class="same-header-preview">{{ sh[:48] }}&hellip;</code>
+                                                        <button type="button" class="btn btn-link btn-sm p-0 ms-1 same-header-toggle" title="Show full SAME header">
+                                                            <small>more</small>
+                                                        </button>
+                                                        <code class="same-header-full d-none">{{ sh }}</code>
+                                                    {% else %}
+                                                        <code>{{ sh }}</code>
+                                                    {% endif %}
+                                                {% endif %}
                                             </td>
                                             <td class="text-center">
                                                 <div class="btn-group btn-group-sm" role="group">
@@ -1462,12 +1474,6 @@
                                 </a>
                                 <button type="button" class="btn btn-outline-success" onclick="findSimilarAlerts()">
                                     <i class="fas fa-search"></i> Find Similar Alerts
-                                </button>
-                                <a href="/" class="btn btn-outline-primary">
-                                    <i class="fas fa-map"></i> View on Interactive Map
-                                </a>
-                                <button type="button" class="btn btn-outline-warning" onclick="debugBoundaries()">
-                                    <i class="fas fa-bug"></i> Debug Boundaries
                                 </button>
                                 {% if not coverage_data or not coverage_data.get('county') %}
                                 <button type="button" class="btn btn-warning" onclick="triggerIntersectionFix()">
@@ -1529,6 +1535,25 @@
 <script src="{{ url_for('static', filename='vendor/leaflet/leaflet.min.js') }}"></script>
 
 <script>
+// SAME header expand/collapse toggle
+document.addEventListener('click', function(e) {
+    const btn = e.target.closest('.same-header-toggle');
+    if (!btn) return;
+    const td = btn.closest('td');
+    const preview = td.querySelector('.same-header-preview');
+    const full = td.querySelector('.same-header-full');
+    const isExpanded = !full.classList.contains('d-none');
+    if (isExpanded) {
+        full.classList.add('d-none');
+        preview.classList.remove('d-none');
+        btn.querySelector('small').textContent = 'more';
+    } else {
+        full.classList.remove('d-none');
+        preview.classList.add('d-none');
+        btn.querySelector('small').textContent = 'less';
+    }
+});
+
 console.log('Alert detail page scripts loading...');
 
 // Helper function to get CSS variable colors
