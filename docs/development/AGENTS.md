@@ -486,6 +486,30 @@ def downgrade() -> None:
   - **Backgrounds**: `--bg-color`, `--surface-color`, `--bg-card`
   - **Borders**: `--border-color`, `--shadow-color`
 
+#### ⚠️ Valid Block Names in `base.html` — Use Exactly These
+
+`base.html` defines **exactly six** template blocks. Child templates may only override these names.
+Using any other name causes Jinja2 to **silently discard** the block's content — no error is raised,
+so misnamed blocks are extremely hard to notice.
+
+| Block name | Purpose |
+|---|---|
+| `title` | `<title>` tag content |
+| `nav_title` | Optional navbar subtitle |
+| `meta` | Extra `<meta>` tags in `<head>` |
+| `extra_css` | Extra `<link>` / `<style>` tags in `<head>` |
+| `content` | Main page body content |
+| `scripts` | Extra `<script>` tags at end of `<body>` |
+
+**Common mistake to avoid:**
+
+```
+❌  {% block extra_js %}  …  {% endblock %}   ← does NOT exist; content silently dropped
+✅  {% block scripts %}   …  {% endblock %}   ← correct name for page-level JavaScript
+```
+
+Every time you add a `{% block … %}` to a child template, cross-check the name against the table above.
+
 **Example:**
 ```html
 {% extends "base.html" %}
@@ -1659,96 +1683,59 @@ Before committing code, verify:
   print('OK')
   "
   ```
-- [ ] **Template syntax validated** – If any `.html` template files changed, verify balanced Jinja2 blocks:
+- [ ] **Template syntax validated** – If any `.html` template files changed, verify balanced Jinja2 blocks **and** that every `{% block %}` name is one of the six valid names defined in `base.html`:
   ```python
   # Run this check before committing template changes
   python3 << 'EOF'
   import re
   from pathlib import Path
-  
-  def check_template(filepath):
-      with open(filepath, 'r') as f:
-          content = f.read()
-      
-      # Check critical block types that must be balanced
-      blocks = {
-          'if': (r'{%\s*if\s+', r'{%\s*endif\s*%}'),
-          'for': (r'{%\s*for\s+', r'{%\s*endfor\s*%}'),
-          'block': (r'{%\s*block\s+', r'{%\s*endblock\s*%}'),
-          'with': (r'{%\s*with\s+', r'{%\s*endwith\s*%}'),
-      }
-      
-      for name, (start_pattern, end_pattern) in blocks.items():
-          starts = len(re.findall(start_pattern, content))
-          ends = len(re.findall(end_pattern, content))
-          if starts != ends:
-              print(f"❌ {filepath}: {name} blocks unbalanced ({starts} starts, {ends} ends)")
-              return False
-      return True
-  
-  # Check changed templates
-  changed_ok = True
-  for template in Path('templates').rglob('*.html'):
-      if not check_template(template):
-          changed_ok = False
-  
-  if changed_ok:
-      print("✅ All templates have balanced Jinja2 blocks")
-  else:
-      print("\n⚠️  Fix template syntax errors before committing!")
-      exit(1)
-  EOF
-  ```
-- [ ] Follows Python PEP 8 style (4-space indentation)
-- [ ] Uses existing logger, not new logger instance
-- [ ] Includes proper error handling with specific exceptions
-- [ ] Bump `VERSION`, mirror `.env.example`, and update `[Unreleased]` in `docs/reference/CHANGELOG.md` for any behavioural change (see `tests/test_release_metadata.py`)
-- [ ] Touched files remain within recommended size guidelines or were refactored into smaller units
-- [ ] No secrets or credentials in code
-- [ ] No `.env` file committed (check git status)
-- [ ] Templates extend `base.html` with theme support
-- [ ] Database transactions properly handled (commit/rollback)
-- [ ] Documentation updated if needed
-- [ ] Cross-check docs and UI links (README, Theory of Operation, `/about`, `/help`) for accuracy and live references
-- [ ] Commit message follows format guidelines
 
----
-  ```python
-  # Run this check before committing template changes
-  python3 << 'EOF'
-  import re
-  from pathlib import Path
-  
+  # The only block names defined in templates/base.html.
+  # Jinja2 silently discards any block whose name is NOT in this set.
+  VALID_BASE_BLOCKS = {'title', 'nav_title', 'meta', 'extra_css', 'content', 'scripts'}
+
   def check_template(filepath):
       with open(filepath, 'r') as f:
           content = f.read()
-      
-      # Check critical block types that must be balanced
-      blocks = {
-          'if': (r'{%\s*if\s+', r'{%\s*endif\s*%}'),
-          'for': (r'{%\s*for\s+', r'{%\s*endfor\s*%}'),
+
+      ok = True
+
+      # 1. Check that all block-like tags are balanced
+      block_types = {
+          'if':    (r'{%\s*if\s+',   r'{%\s*endif\s*%}'),
+          'for':   (r'{%\s*for\s+',  r'{%\s*endfor\s*%}'),
           'block': (r'{%\s*block\s+', r'{%\s*endblock\s*%}'),
-          'with': (r'{%\s*with\s+', r'{%\s*endwith\s*%}'),
+          'with':  (r'{%\s*with\s+', r'{%\s*endwith\s*%}'),
       }
-      
-      for name, (start_pattern, end_pattern) in blocks.items():
-          starts = len(re.findall(start_pattern, content))
-          ends = len(re.findall(end_pattern, content))
+      for name, (start_pat, end_pat) in block_types.items():
+          starts = len(re.findall(start_pat, content))
+          ends   = len(re.findall(end_pat,   content))
           if starts != ends:
-              print(f"❌ {filepath}: {name} blocks unbalanced ({starts} starts, {ends} ends)")
-              return False
-      return True
-  
-  # Check changed templates
+              print(f"❌ {filepath}: '{name}' blocks unbalanced ({starts} opens, {ends} closes)")
+              ok = False
+
+      # 2. Child templates: every {% block NAME %} must be a known base.html block.
+      #    Skip base.html itself (it defines the blocks, not inherits them).
+      if 'extends' in content and 'base.html' in content:
+          used_blocks = set(re.findall(r'{%\s*block\s+(\w+)', content))
+          unknown = used_blocks - VALID_BASE_BLOCKS
+          if unknown:
+              print(f"❌ {filepath}: unknown block name(s): {sorted(unknown)}")
+              print(f"   Valid names: {sorted(VALID_BASE_BLOCKS)}")
+              print(f"   Did you mean 'scripts' instead of 'extra_js'?")
+              ok = False
+
+      return ok
+
   changed_ok = True
   for template in Path('templates').rglob('*.html'):
       if not check_template(template):
           changed_ok = False
-  
+
   if changed_ok:
-      print("✅ All templates have balanced Jinja2 blocks")
+      print("✅ All templates have balanced Jinja2 blocks and valid block names")
   else:
-      print("\n⚠️  Fix template syntax errors before committing!")
+      print("\n⚠️  Fix template errors before committing!")
       exit(1)
   EOF
   ```
@@ -1998,3 +1985,4 @@ Only suggest deployment/cache fixes if:
 - 2025-11-26: Added "Debugging Patterns & User Interaction" section documenting correct debugging approach when users report bugs. Emphasizes investigating code first rather than assuming deployment/cache issues (anti-PEBKAC pattern). Includes common bug patterns, investigation steps, and example bug fix documentation.
 - 2026-03-23: Added "Address All Issues — Never Hyperfocus" section (Core Principle #5) after agent hyperfocused on a single new requirement while ignoring three original issues in the same problem statement. Section mandates reading the full problem statement first, enumerating every distinct issue, building a complete checklist before writing code, and never abandoning original issues when a new requirement arrives mid-session.
 - 2026-03-26: Added "Alembic Migration Rules" section to Database Guidelines after an agent used a filename prefix instead of the actual revision ID as `down_revision`, creating a divergent migration head. New section covers: revision ID vs. filename distinction, finding the current head, migration file checklist, the idempotent template, chain-validation script, and merge-migration syntax. The same head-check script was added to the Pre-Commit Checklist so it runs automatically before every commit. The "Create Database Migration" step in the Configuration System section was also updated with the critical warning.
+- 2026-03-26: Documented the six valid `{% block %}` names defined in `base.html` after an agent wrote `{% block extra_js %}` (non-existent) instead of `{% block scripts %}`, causing Jinja2 to silently discard the entire JavaScript section of the TTS Pronunciation Dictionary page, making all save/edit/delete operations non-functional. Added a block-name reference table and explicit ❌/✅ example to the Template Standards section. Extended the pre-commit template-validation script to also flag unknown block names in child templates (`VALID_BASE_BLOCKS` check), producing a clear error message suggesting `scripts` when `extra_js` is found. Removed a stray duplicate of the validation script that had accumulated below the Pre-Commit Checklist.
