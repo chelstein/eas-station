@@ -8,6 +8,24 @@ tracks releases under the 2.x series.
 
 - No pending changes.
 
+## [2.71.3] - 2026-03-26 - Eliminate redundant file reads in multi-rate SAME decoder
+
+### Fixed
+- **`app_utils/eas_decode.py`** (`_try_multiple_sample_rates`) — Audio file was read and
+  (when scipy is unavailable) an `ffmpeg` subprocess was spawned for **each** of the 7 rate
+  candidates, adding hundreds of milliseconds per attempt.  Fixed by:
+  1. Reading the file **once** at native rate and caching the samples.
+  2. Resampling the cached samples in-memory (scipy `resample_poly`) for every alternative
+     rate candidate — no additional disk I/O or subprocess overhead.
+  3. Falling back to per-rate file reads only when the in-memory resample fails.
+  4. Broadening the early-exit condition: previously only triggered when the **native** rate
+     decoded with confidence ≥ 0.9; now any rate that achieves ≥ 0.9 confidence triggers
+     early exit, avoiding further unnecessary decode attempts.
+- **`app_utils/eas_decode.py`** (`_decode_from_samples`) — Extracted the decode body
+  of `_decode_at_sample_rate` into a new `_decode_from_samples(samples, pcm_bytes, rate)`
+  helper so both the per-rate file-read path and the cached-sample path share identical
+  decode logic.
+
 ## [2.71.2] - 2026-03-26 - Fix IPAWS XML digital signature C14N verification
 
 ### Fixed
