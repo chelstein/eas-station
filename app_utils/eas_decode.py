@@ -1322,11 +1322,17 @@ def _score_decode_result(result: SAMEAudioDecodeResult, expected_rate: int, actu
 def _try_multiple_sample_rates(path: str, native_rate: int) -> Tuple[SAMEAudioDecodeResult, int, bool]:
     """Try decoding at multiple sample rates and return the best result.
 
+    Performance optimisation: the audio file is read **once** at its native
+    sample rate.  Subsequent rate candidates are produced by resampling the
+    cached samples in-memory (via scipy when available), avoiding repeated
+    disk I/O and ffmpeg subprocess launches that would otherwise cost
+    hundreds of milliseconds each.
+
     Returns: (best_result, best_rate, rate_mismatch_detected)
     """
     # Common sample rates to try (in order of preference)
     # Lower sample rates are preferred for efficiency (less CPU, memory, bandwidth)
-    # Testing shows 16kHz is optimal: 39% faster than 22kHz, 100% reliable
+    # Testing shows 16kHz is optimal: 7.7× highest SAME frequency, fastest reliable rate
     candidate_rates = [
         native_rate,  # Try native rate first
         16000,  # Optimal: 7.7× highest SAME frequency, fastest reliable rate
@@ -1345,10 +1351,21 @@ def _try_multiple_sample_rates(path: str, native_rate: int) -> Tuple[SAMEAudioDe
             seen.add(rate)
             unique_rates.append(rate)
 
-    # Minimum confidence at which native-rate success is considered definitive.
+    # Minimum confidence at which any successful decode is considered definitive.
     # At this level the signal is clean enough that alternative rates cannot
     # produce a more-correct result.
-    _NATIVE_RATE_CONFIDENCE_THRESHOLD = 0.9
+    _CONFIDENCE_THRESHOLD = 0.9
+
+    # ── Cache native samples once ──────────────────────────────────────────
+    # Read the file a single time at native rate.  For every other candidate
+    # rate we resample the cached samples in-memory instead of re-reading from
+    # disk.  This eliminates up to 6 redundant ffmpeg subprocess calls when
+    # scipy is available (which it is per requirements.txt).
+    try:
+        native_samples, native_pcm = _read_audio_samples(path, native_rate)
+    except (AudioDecodeError, Exception):
+        native_samples = None
+        native_pcm = None
 
     best_result: Optional[SAMEAudioDecodeResult] = None
     best_score = -float('inf')
@@ -1356,8 +1373,22 @@ def _try_multiple_sample_rates(path: str, native_rate: int) -> Tuple[SAMEAudioDe
 
     for rate in unique_rates:
         try:
-            # Try decoding at this sample rate
-            result = _decode_at_sample_rate(path, rate)
+            # Fast path: use cached native samples, resample in-memory.
+            if native_samples is not None:
+                if rate == native_rate:
+                    samples, pcm_bytes = native_samples, native_pcm
+                else:
+                    try:
+                        resampled = _resample_with_scipy(native_samples, native_rate, rate)
+                        samples = resampled
+                        pcm_bytes = _floats_to_pcm_bytes(resampled)
+                    except (ImportError, AudioDecodeError, Exception):
+                        # scipy not available or failed — fall back to individual file read
+                        samples, pcm_bytes = _read_audio_samples(path, rate)
+                result = _decode_from_samples(samples, pcm_bytes, rate)
+            else:
+                # Native read failed; try fresh per-rate file read as fallback.
+                result = _decode_at_sample_rate(path, rate)
 
             # Score this result
             score = _score_decode_result(result, native_rate, rate)
@@ -1367,14 +1398,12 @@ def _try_multiple_sample_rates(path: str, native_rate: int) -> Tuple[SAMEAudioDe
                 best_result = result
                 best_rate = rate
 
-            # Early exit: native rate decoded a valid header with high confidence.
-            # Alternative rates cannot improve on a decode that is already reliable,
-            # and skipping them avoids re-reading and re-decoding the file multiple times.
+            # Early exit: any rate that decoded a valid header with high confidence
+            # is considered definitive — alternative rates cannot improve on it.
             if (
-                rate == native_rate
-                and best_result is not None
+                best_result is not None
                 and best_result.headers
-                and best_result.bit_confidence >= _NATIVE_RATE_CONFIDENCE_THRESHOLD
+                and best_result.bit_confidence >= _CONFIDENCE_THRESHOLD
             ):
                 break
 
@@ -1393,6 +1422,18 @@ def _try_multiple_sample_rates(path: str, native_rate: int) -> Tuple[SAMEAudioDe
 def _decode_at_sample_rate(path: str, sample_rate: int) -> SAMEAudioDecodeResult:
     """Internal helper to decode at a specific sample rate."""
     samples, pcm_bytes = _read_audio_samples(path, sample_rate)
+    return _decode_from_samples(samples, pcm_bytes, sample_rate)
+
+
+def _decode_from_samples(
+    samples: List[float], pcm_bytes: bytes, sample_rate: int
+) -> SAMEAudioDecodeResult:
+    """Decode SAME from pre-loaded, already-resampled PCM samples.
+
+    Identical to ``_decode_at_sample_rate`` but skips the file I/O and
+    resampling step so that ``_try_multiple_sample_rates`` can read the
+    audio file ONCE and reuse the native samples for every rate candidate.
+    """
     sample_count = len(samples)
     if sample_count == 0:
         raise AudioDecodeError("Audio payload contained no PCM samples to decode.")

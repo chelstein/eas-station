@@ -1,0 +1,319 @@
+{% extends "base.html" %}
+
+{% block title %}TTS Pronunciation Dictionary - Admin{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">
+<style>
+.rule-row td { vertical-align: middle; }
+.badge-builtin { font-size: 0.7em; }
+.note-cell { max-width: 260px; font-size: 0.85em; color: var(--text-muted, #6c757d); }
+.original-cell code { font-size: 0.95em; }
+#addRuleForm .form-label { font-weight: 500; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="admin-page-header">
+    <div class="container">
+        <h1><i class="fas fa-spell-check"></i> TTS Pronunciation Dictionary</h1>
+        <p class="mb-0">Define word substitutions applied to all TTS narration text before synthesis</p>
+    </div>
+</div>
+
+<div class="admin-container" style="max-width: 1100px">
+
+    {% if error %}
+    <div class="alert alert-danger"><i class="fas fa-exclamation-triangle me-2"></i>{{ error }}</div>
+    {% endif %}
+
+    <!-- Info banner -->
+    <div class="alert alert-info d-flex gap-2 align-items-start mb-4">
+        <i class="fas fa-info-circle mt-1 flex-shrink-0"></i>
+        <div>
+            <strong>How it works:</strong> Each enabled rule replaces whole-word occurrences of
+            <em>Original text</em> with <em>Replacement text</em> inside the TTS narration before
+            it is sent to the speech engine.  Built-in rules cover Ohio place names that every TTS
+            engine mispronounces by default.  You can add custom rules for your coverage area.
+            <br><small class="text-muted">Rules are applied longest-first so multi-word entries are never masked by shorter ones.</small>
+        </div>
+    </div>
+
+    <!-- Add new rule form -->
+    <div class="admin-form-section mb-4">
+        <h5 class="mb-3"><i class="fas fa-plus-circle me-2"></i>Add Custom Rule</h5>
+        <form id="addRuleForm" class="row g-3 align-items-end">
+            <div class="col-sm-3">
+                <label class="form-label" for="newOriginal">Original text <span class="text-danger">*</span></label>
+                <input type="text" class="form-control" id="newOriginal" placeholder="e.g. Findlay" maxlength="255" required>
+                <div class="form-text">Matched as a whole word (case-insensitive by default)</div>
+            </div>
+            <div class="col-sm-3">
+                <label class="form-label" for="newReplacement">Replacement (phonetic) <span class="text-danger">*</span></label>
+                <input type="text" class="form-control" id="newReplacement" placeholder="e.g. Find-lee" maxlength="255" required>
+                <div class="form-text">What the TTS engine will say instead</div>
+            </div>
+            <div class="col-sm-3">
+                <label class="form-label" for="newNote">Note (optional)</label>
+                <input type="text" class="form-control" id="newNote" placeholder="e.g. County seat of Hancock Co." maxlength="500">
+            </div>
+            <div class="col-sm-2">
+                <label class="form-label" for="newMatchCase">Case-sensitive?</label>
+                <select class="form-select" id="newMatchCase">
+                    <option value="false" selected>No (recommended)</option>
+                    <option value="true">Yes</option>
+                </select>
+            </div>
+            <div class="col-sm-1 d-flex align-items-end">
+                <button type="submit" class="btn btn-success w-100">
+                    <i class="fas fa-plus"></i>
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Rules table -->
+    <div class="admin-form-section">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="mb-0"><i class="fas fa-list me-2"></i>All Rules</h5>
+            <span class="text-muted small">{{ rules|length }} rule{{ 's' if rules|length != 1 }}</span>
+        </div>
+
+        {% if not rules %}
+        <p class="text-muted">No pronunciation rules yet. Add one above or reload the page to seed built-in defaults.</p>
+        {% else %}
+        <div class="table-responsive">
+            <table class="table table-hover align-middle" id="rulesTable">
+                <thead>
+                    <tr>
+                        <th>Original</th>
+                        <th>Replacement (phonetic)</th>
+                        <th>Note</th>
+                        <th class="text-center">Case-sensitive</th>
+                        <th class="text-center">Enabled</th>
+                        <th class="text-end">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for rule in rules %}
+                <tr class="rule-row" data-id="{{ rule.id }}" data-builtin="{{ 'true' if rule.is_builtin else 'false' }}">
+                    <td class="original-cell">
+                        <code>{{ rule.original_text }}</code>
+                        {% if rule.is_builtin %}
+                        <span class="badge bg-secondary badge-builtin ms-1">built-in</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ rule.replacement_text }}</td>
+                    <td class="note-cell">{{ rule.note or '' }}</td>
+                    <td class="text-center">
+                        <span class="badge {{ 'bg-warning text-dark' if rule.match_case else 'bg-light text-dark border' }}">
+                            {{ 'Yes' if rule.match_case else 'No' }}
+                        </span>
+                    </td>
+                    <td class="text-center">
+                        <div class="form-check form-switch d-inline-block">
+                            <input class="form-check-input enable-toggle" type="checkbox"
+                                   data-id="{{ rule.id }}"
+                                   {{ 'checked' if rule.enabled }}>
+                        </div>
+                    </td>
+                    <td class="text-end">
+                        <button class="btn btn-sm btn-outline-primary edit-btn me-1"
+                                data-id="{{ rule.id }}"
+                                data-original="{{ rule.original_text }}"
+                                data-replacement="{{ rule.replacement_text }}"
+                                data-note="{{ rule.note or '' }}"
+                                data-case="{{ 'true' if rule.match_case else 'false' }}"
+                                title="Edit rule">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        {% if not rule.is_builtin %}
+                        <button class="btn btn-sm btn-outline-danger delete-btn"
+                                data-id="{{ rule.id }}"
+                                data-original="{{ rule.original_text }}"
+                                title="Delete rule">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                        {% else %}
+                        <button class="btn btn-sm btn-outline-secondary" disabled title="Built-in rules cannot be deleted">
+                            <i class="fas fa-lock"></i>
+                        </button>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="mt-3">
+        <a href="/admin/tts" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left me-1"></i> Back to TTS Settings
+        </a>
+    </div>
+
+</div>
+
+<!-- Edit modal -->
+<div class="modal fade" id="editModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-edit me-2"></i>Edit Pronunciation Rule</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="editId">
+                <div class="mb-3">
+                    <label class="form-label">Original text</label>
+                    <input type="text" class="form-control" id="editOriginal" maxlength="255">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Replacement (phonetic)</label>
+                    <input type="text" class="form-control" id="editReplacement" maxlength="255">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Note (optional)</label>
+                    <input type="text" class="form-control" id="editNote" maxlength="500">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Case-sensitive matching?</label>
+                    <select class="form-select" id="editMatchCase">
+                        <option value="false">No (recommended)</option>
+                        <option value="true">Yes</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="saveEditBtn">Save changes</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const API = '/admin/api/tts/pronunciation';
+
+function showToastMsg(msg, type) {
+    if (typeof showToast === 'function') { showToast(msg, type); }
+    else { alert(msg); }
+}
+
+// ── Add rule ──────────────────────────────────────────────────────────────
+document.getElementById('addRuleForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const btn = this.querySelector('[type=submit]');
+    btn.disabled = true;
+    try {
+        const resp = await fetch(API, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                original_text:    document.getElementById('newOriginal').value.trim(),
+                replacement_text: document.getElementById('newReplacement').value.trim(),
+                note:             document.getElementById('newNote').value.trim(),
+                match_case:       document.getElementById('newMatchCase').value === 'true',
+                enabled:          true,
+            })
+        });
+        const data = await resp.json();
+        if (data.success) {
+            showToastMsg('Rule added.', 'success');
+            location.reload();
+        } else {
+            showToastMsg('Error: ' + data.error, 'danger');
+        }
+    } catch(err) {
+        showToastMsg('Request failed: ' + err.message, 'danger');
+    } finally {
+        btn.disabled = false;
+    }
+});
+
+// ── Enable/disable toggle ─────────────────────────────────────────────────
+document.querySelectorAll('.enable-toggle').forEach(function(cb) {
+    cb.addEventListener('change', async function() {
+        const id = this.dataset.id;
+        try {
+            const resp = await fetch(API + '/' + id, {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({enabled: this.checked})
+            });
+            const data = await resp.json();
+            if (!data.success) {
+                showToastMsg('Error: ' + data.error, 'danger');
+                this.checked = !this.checked;
+            }
+        } catch(err) {
+            showToastMsg('Request failed: ' + err.message, 'danger');
+            this.checked = !this.checked;
+        }
+    });
+});
+
+// ── Edit modal ────────────────────────────────────────────────────────────
+document.querySelectorAll('.edit-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+        document.getElementById('editId').value = this.dataset.id;
+        document.getElementById('editOriginal').value = this.dataset.original;
+        document.getElementById('editReplacement').value = this.dataset.replacement;
+        document.getElementById('editNote').value = this.dataset.note;
+        document.getElementById('editMatchCase').value = this.dataset.case;
+        new bootstrap.Modal(document.getElementById('editModal')).show();
+    });
+});
+
+document.getElementById('saveEditBtn').addEventListener('click', async function() {
+    const id = document.getElementById('editId').value;
+    try {
+        const resp = await fetch(API + '/' + id, {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                original_text:    document.getElementById('editOriginal').value.trim(),
+                replacement_text: document.getElementById('editReplacement').value.trim(),
+                note:             document.getElementById('editNote').value.trim(),
+                match_case:       document.getElementById('editMatchCase').value === 'true',
+            })
+        });
+        const data = await resp.json();
+        if (data.success) {
+            showToastMsg('Rule saved.', 'success');
+            location.reload();
+        } else {
+            showToastMsg('Error: ' + data.error, 'danger');
+        }
+    } catch(err) {
+        showToastMsg('Request failed: ' + err.message, 'danger');
+    }
+});
+
+// ── Delete ────────────────────────────────────────────────────────────────
+document.querySelectorAll('.delete-btn').forEach(function(btn) {
+    btn.addEventListener('click', async function() {
+        const id = this.dataset.id;
+        const original = this.dataset.original;
+        if (!confirm('Delete rule for "' + original + '"?')) return;
+        try {
+            const resp = await fetch(API + '/' + id, {method: 'DELETE'});
+            const data = await resp.json();
+            if (data.success) {
+                showToastMsg('Rule deleted.', 'success');
+                this.closest('tr').remove();
+            } else {
+                showToastMsg('Error: ' + data.error, 'danger');
+            }
+        } catch(err) {
+            showToastMsg('Request failed: ' + err.message, 'danger');
+        }
+    });
+});
+</script>
+{% endblock %}

@@ -8,6 +8,81 @@ tracks releases under the 2.x series.
 
 - No pending changes.
 
+## [2.71.3] - 2026-03-26 - Eliminate redundant file reads in multi-rate SAME decoder
+
+### Fixed
+- **`app_utils/eas_decode.py`** (`_try_multiple_sample_rates`) — Audio file was read and
+  (when scipy is unavailable) an `ffmpeg` subprocess was spawned for **each** of the 7 rate
+  candidates, adding hundreds of milliseconds per attempt.  Fixed by:
+  1. Reading the file **once** at native rate and caching the samples.
+  2. Resampling the cached samples in-memory (scipy `resample_poly`) for every alternative
+     rate candidate — no additional disk I/O or subprocess overhead.
+  3. Falling back to per-rate file reads only when the in-memory resample fails.
+  4. Broadening the early-exit condition: previously only triggered when the **native** rate
+     decoded with confidence ≥ 0.9; now any rate that achieves ≥ 0.9 confidence triggers
+     early exit, avoiding further unnecessary decode attempts.
+- **`app_utils/eas_decode.py`** (`_decode_from_samples`) — Extracted the decode body
+  of `_decode_at_sample_rate` into a new `_decode_from_samples(samples, pcm_bytes, rate)`
+  helper so both the per-rate file-read path and the cached-sample path share identical
+  decode logic.
+
+## [2.71.2] - 2026-03-26 - Fix IPAWS XML digital signature C14N verification
+
+### Fixed
+- **`app_utils/ipaws_enrichment.py`** (`_canonicalize_signed_info`) — `with_comments=False`
+  was passed to `lxml.etree.tostring(method='c14n')` but is **not a valid parameter** for
+  that call in lxml 6.x; this silently raised a `TypeError` caught by the bare
+  `except Exception:` block, causing the function to always return `None` and every IPAWS
+  alert to show "Signature Unverified".  Fixed by switching to `ElementTree.write_c14n()`
+  as the primary C14N approach (which does accept `with_comments`), with
+  `etree.tostring(method='c14n')` as a version-safe fallback.  Added `logger.warning`
+  instead of `logger.debug` so failures are visible in logs.
+- **`poller/cap_poller.py`** (`_convert_cap_alert`) — Alert XML is now serialized using
+  lxml directly (new `_serialize_alert_for_sig()` helper) rather than through the generic
+  `ET` module abstraction.  When stdlib ElementTree is used, it rewrites namespace prefixes
+  to `ns0:`, `ns1:` etc., causing C14N to produce bytes that differ from the original
+  signed bytes.  lxml preserves the original prefixes (e.g. `ds:`, `capsig:`), ensuring
+  C14N output matches what FEMA signed.
+
+## [2.71.1] - 2026-03-26 - Fix statewide FIPS map and IPAWS audio forwarding
+
+### Fixed
+- **`templates/alert_detail.html`** (`loadCountiesFromSameCodes`) — SAME codes ending in
+  `000` (e.g. `039000` = entire Ohio) now render all counties for that state instead of
+  falling back to the generic circle.  The county-portion `000` flag is detected and all
+  GeoJSON features whose state FIPS prefix matches are included in the map layer.
+- **`app_utils/eas.py`** (`_convert_audio_to_samples`) — Added direct `ffmpeg` subprocess
+  fallback for MP3 decoding when pydub fails (ImportError or decode error).  Pipes the raw
+  MP3 bytes into `ffmpeg -i pipe:0 -ar <rate> -ac 1 -f s16le pipe:1` so IPAWS embedded audio
+  is decoded to PCM samples and forwarded through the airchain even if pydub's Python bindings
+  are unavailable or ffmpeg is not on pydub's search path.
+
+## [2.71.0] - 2026-03-26 - TTS pronunciation dictionary + Alembic migration guardrails
+
+### Added
+- **`app_core/models.py`** — New `TTSPronunciationRule` model and `TTS_BUILTIN_PRONUNCIATIONS`
+  seed list.  Stores user-configurable word-to-phonetic-spelling rules applied to all TTS
+  narration text before synthesis (e.g. Lima → "Lye-mah", Cairo → "Kay-roh").
+- **`app_utils/eas.py`** — `_normalize_text_for_tts()` function: two-layer substitution
+  applied to every TTS message — (1) hard-coded acronym expansions (EAS, NWS, FEMA, RWT, RMT,
+  EOM, IPAWS, EBS) so TTS engines spell them out correctly; (2) database-driven pronunciation
+  rules loaded from `tts_pronunciation_rules`.  `_compose_message_text()` now runs this
+  normalization before returning text.
+- **`app_utils/eas.py`** — `_load_pronunciation_rules()` helper loads enabled rules ordered
+  longest-first so multi-word patterns are matched before shorter prefixes.
+- **`webapp/admin/tts_pronunciation.py`** — Full CRUD admin routes under `/admin/tts/pronunciation`
+  and `/admin/api/tts/pronunciation`.  Built-in rules can be disabled/edited but not deleted.
+- **`app_core/migrations/versions/20260326_add_tts_pronunciation_rules.py`** — Alembic migration
+  creates `tts_pronunciation_rules` table and seeds ten built-in Ohio place-name corrections.
+- **`docs/development/AGENTS.md`** — New "Alembic Migration Rules" section under Database
+  Guidelines; updated Pre-Commit Checklist with head-check script; updated
+  "Create Database Migration" step with critical revision-ID warning.
+
+### Fixed
+- **`app_core/migrations/versions/20260326_add_tts_pronunciation_rules.py`** — `down_revision`
+  now uses the actual revision ID (`20260325_received_alert_audio`) instead of the filename
+  prefix, keeping the migration chain at exactly one head.
+
 ## [2.70.3] - 2026-03-25 - Fix EAS audio inaudible on Icecast and OTA trigger recording
 
 ### Fixed

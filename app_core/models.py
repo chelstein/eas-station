@@ -1052,6 +1052,81 @@ class TTSSettings(db.Model):
         }
 
 
+class TTSPronunciationRule(db.Model):
+    """User-configurable pronunciation overrides for the TTS narration pipeline.
+
+    Many place names in Ohio (and elsewhere) are pronounced differently from
+    their spelling would suggest to a generic TTS engine.  Each row maps an
+    ``original_text`` pattern to a ``replacement_text`` that the engine will
+    read phonetically correctly.
+
+    Examples shipped as built-in defaults:
+      Lima   → Lye-mah  (not LEE-mah)
+      Cairo  → Kay-roh  (not KY-roh)
+      Delphos → Del-fus
+
+    Rules are applied with whole-word matching (regex ``\\b`` boundaries).
+    Case-insensitive matching is used when ``match_case`` is False (default).
+    """
+    __tablename__ = "tts_pronunciation_rules"
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    # The word or phrase to replace (matched with word-boundary anchors).
+    original_text = db.Column(db.String(255), nullable=False)
+
+    # The phonetic spelling that the TTS engine will read correctly.
+    replacement_text = db.Column(db.String(255), nullable=False)
+
+    # When True the replacement is skipped.
+    enabled = db.Column(db.Boolean, nullable=False, default=True)
+
+    # When True the match is case-sensitive; False (default) ignores case.
+    match_case = db.Column(db.Boolean, nullable=False, default=False)
+
+    # Built-in entries are seeded automatically and shown with a visual badge.
+    # Users may disable or edit them but cannot delete them via the UI.
+    is_builtin = db.Column(db.Boolean, nullable=False, default=False)
+
+    # Free-text note shown in the UI (e.g., "Lima, OH — county seat of Allen Co.")
+    note = db.Column(db.String(500), nullable=True)
+
+    created_at = db.Column(db.DateTime, nullable=True, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, nullable=True, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "original_text": self.original_text,
+            "replacement_text": self.replacement_text,
+            "enabled": self.enabled,
+            "match_case": self.match_case,
+            "is_builtin": self.is_builtin,
+            "note": self.note,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+
+# ---------------------------------------------------------------------------
+# Default pronunciation rules seeded on first startup.
+# Each tuple is (original_text, replacement_text, note).
+# These are Ohio place names that every TTS engine mispronounces out of the box.
+# ---------------------------------------------------------------------------
+TTS_BUILTIN_PRONUNCIATIONS = [
+    ("Lima",    "Lye-mah",  "Lima, OH — county seat of Allen County (NOT like Lima, Peru)"),
+    ("Cairo",   "Kay-roh",  "Cairo, OH — village in Allen County (NOT like Cairo, Egypt)"),
+    ("Delphos", "Del-fus",  "Delphos, OH — city in Allen and Van Wert counties"),
+    ("Versailles", "Ver-sales", "Versailles, OH — village in Darke County (NOT like Versailles, France)"),
+    ("Russia",  "Roo-sha",  "Russia, OH — village in Shelby County"),
+    ("Milan",   "My-lan",   "Milan, OH — village in Erie County (birthplace of Edison; NOT like Milan, Italy)"),
+    ("Bellefontaine", "Bell-fountain", "Bellefontaine, OH — county seat of Logan County"),
+    ("Piqua",   "Pik-way",  "Piqua, OH — city in Miami County"),
+    ("Tiffin",  "Tif-in",   "Tiffin, OH — county seat of Seneca County"),
+    ("Wapakoneta", "Wop-uh-kuh-nee-tuh", "Wapakoneta, OH — county seat of Auglaize County"),
+]
+
+
 class PollerSettings(db.Model):
     """Alert poller configuration stored in database.
 

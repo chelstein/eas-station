@@ -164,6 +164,9 @@ def _canonicalize_signed_info(raw_xml: str) -> Optional[bytes]:
     Supports both inclusive C14N 1.0 and exclusive C14N (#exc-c14n) as indicated
     by the CanonicalizationMethod/@Algorithm attribute inside the SignedInfo block.
 
+    Uses ``ElementTree.write_c14n()`` (lxml 3.x–6.x compatible) as the primary
+    approach, and falls back to ``etree.tostring(method='c14n')`` for older versions.
+
     Returns:
         Canonical UTF-8 bytes of the SignedInfo element, or None when lxml is
         unavailable or the element cannot be located / parsed.
@@ -171,11 +174,16 @@ def _canonicalize_signed_info(raw_xml: str) -> Optional[bytes]:
     try:
         from lxml import etree
     except ImportError:
+        logger.warning(
+            'lxml is required for XML signature C14N canonicalization but is not installed. '
+            'Install lxml to enable IPAWS signature verification.'
+        )
         return None
 
     try:
         doc = etree.fromstring(raw_xml.encode('utf-8'))
-    except etree.XMLSyntaxError:
+    except etree.XMLSyntaxError as exc:
+        logger.warning('C14N: failed to parse raw_xml: %s', exc)
         return None
 
     # Locate SignedInfo regardless of namespace prefix
@@ -189,6 +197,7 @@ def _canonicalize_signed_info(raw_xml: str) -> Optional[bytes]:
             continue
 
     if signed_info is None:
+        logger.warning('C14N: SignedInfo element not found in stored raw_xml')
         return None
 
     # Determine the canonicalization algorithm from CanonicalizationMethod child
@@ -203,17 +212,33 @@ def _canonicalize_signed_info(raw_xml: str) -> Optional[bytes]:
 
     exclusive = 'exc-c14n' in c14n_alg or '#exc-c14n' in c14n_alg
 
+    # Primary approach: ElementTree.write_c14n() — stable across lxml 3.x through 6.x.
+    # ``with_comments`` is a valid parameter here and we exclude them (IPAWS XML has none).
+    # NOTE: do NOT pass ``with_comments`` to ``etree.tostring(method='c14n')``; that
+    # parameter was never part of tostring() and silently raises TypeError in lxml 6.x.
+    import io as _io
     try:
-        canonical = etree.tostring(
-            signed_info,
-            method='c14n',
-            exclusive=exclusive,
-            with_comments=False,
-        )
-        return canonical
+        buf = _io.BytesIO()
+        tree = etree.ElementTree(signed_info)
+        tree.write_c14n(buf, exclusive=exclusive, with_comments=False)
+        canonical = buf.getvalue()
+        if canonical:
+            return canonical
     except Exception as exc:
-        logger.debug('C14N canonicalization failed: %s', exc)
-        return None
+        logger.debug('C14N write_c14n approach failed (%s); trying tostring fallback', exc)
+
+    # Fallback: etree.tostring(method='c14n') without unsupported keyword arguments.
+    try:
+        if exclusive:
+            canonical = etree.tostring(signed_info, method='c14n', exclusive=True)
+        else:
+            canonical = etree.tostring(signed_info, method='c14n')
+        if canonical:
+            return canonical
+    except Exception as exc:
+        logger.warning('C14N tostring fallback also failed: %s: %s', type(exc).__name__, exc)
+
+    return None
 
 
 def _verify_xml_signature(raw_xml: str, cert_b64: str) -> Dict[str, Any]:
@@ -343,10 +368,10 @@ def _verify_with_cryptography(cert_b64, sig_value_match, signed_info_match, raw_
         exc_name = type(exc).__name__
         result['signature_verified'] = False
         if canonical_signed_info is None:
-            result['signature_status'] = 'Could not verify (C14N canonicalization required)'
+            result['signature_status'] = 'Signature unverified (lxml C14N unavailable — install lxml)'
         else:
             result['signature_status'] = f'Signature invalid ({exc_name})'
-        logger.debug('XML signature verification (cryptography) failed: %s: %s', exc_name, exc)
+        logger.warning('XML signature verification (cryptography) failed: %s: %s', exc_name, exc)
 
     return result
 

@@ -311,6 +311,163 @@ if alert.geom and boundary.geom:
     ).first()
 ```
 
+### Alembic Migration Rules
+
+**Every schema change MUST have a proper Alembic migration.** These rules are mandatory — incorrect migrations will break production upgrades.
+
+#### ⚠️ CRITICAL: Use the Revision ID, NOT the Filename
+
+The `down_revision` field must contain the **revision ID string** found inside the target migration file — **never** the filename or filename prefix.
+
+```python
+# ✅ CORRECT — uses the revision ID from inside the file
+revision = "20260326_tts_pronunciation_rules"
+down_revision = "20260325_received_alert_audio"   # ← value of `revision =` in that file
+
+# ❌ WRONG — uses the filename prefix
+down_revision = "20260325_add_raw_audio_to_received_alerts"  # ← that is the filename, not the ID
+```
+
+To find the correct `down_revision`, always look at the actual `revision = "..."` string inside the file that should be the parent:
+
+```bash
+grep "^revision" app_core/migrations/versions/20260325_add_raw_audio_to_received_alerts.py
+# → revision = "20260325_received_alert_audio"   ← use THIS value
+```
+
+#### Finding the Current Head Before Writing a Migration
+
+Before creating a new migration, always determine the current head so your `down_revision` is correct:
+
+```bash
+python3 -c "
+import re, os
+versions_dir = 'app_core/migrations/versions'
+rev_to_file = {}
+for fn in os.listdir(versions_dir):
+    if not fn.endswith('.py') or fn == '__init__.py': continue
+    with open(os.path.join(versions_dir, fn)) as f: content = f.read()
+    rev = re.search(r\"^revision\s*=\s*[\\\"'](.*?)[\\\"']\", content, re.M)
+    if rev: rev_to_file[rev.group(1)] = fn
+all_down = set()
+for fn in os.listdir(versions_dir):
+    if not fn.endswith('.py') or fn == '__init__.py': continue
+    with open(os.path.join(versions_dir, fn)) as f: content = f.read()
+    m = re.search(r'^down_revision\s*=.*', content, re.M)
+    if m:
+        for r in re.findall(r\"[\\\"'](.*?)[\\\"']\", m.group(0)): all_down.add(r)
+heads = {r: f for r, f in rev_to_file.items() if r not in all_down}
+print('Heads:', heads)
+"
+```
+
+Or simply look at the most recent file in `app_core/migrations/versions/` and read its `revision = "..."` line.
+
+#### Migration File Checklist
+
+Every new migration file must have:
+
+- [ ] **Unique `revision` ID** — use format `YYYYMMDD_short_description` (e.g. `20260326_tts_pronunciation_rules`)
+- [ ] **Correct `down_revision`** — the **revision ID** (not filename) of the parent migration
+- [ ] **`branch_labels = None`** and **`depends_on = None`** unless you intentionally need a branch
+- [ ] **`upgrade()` function** — idempotent: check `inspector.get_table_names()` or `existing_cols` before adding
+- [ ] **`downgrade()` function** — reverses the upgrade cleanly
+- [ ] **No bare SQL strings** — use `sa.Column(...)`, `op.create_table(...)`, `op.add_column(...)` etc.
+
+#### Migration File Template
+
+```python
+"""One-line description of what this migration does.
+
+Longer explanation if needed.
+
+Revision ID: 20260326_my_feature
+Revises: 20260325_received_alert_audio
+Create Date: 2026-03-26
+"""
+
+from __future__ import annotations
+
+import sqlalchemy as sa
+from alembic import op
+
+revision = "20260326_my_feature"
+down_revision = "20260325_received_alert_audio"   # ← revision ID of parent, NOT filename
+branch_labels = None
+depends_on = None
+
+
+def upgrade() -> None:
+    from sqlalchemy import inspect
+    conn = op.get_bind()
+    inspector = inspect(conn)
+
+    # Guard: check table / column existence so upgrade() is idempotent
+    if "my_table" not in inspector.get_table_names():
+        op.create_table(
+            "my_table",
+            sa.Column("id", sa.Integer(), primary_key=True),
+            sa.Column("name", sa.String(255), nullable=False),
+        )
+
+
+def downgrade() -> None:
+    from sqlalchemy import inspect
+    conn = op.get_bind()
+    inspector = inspect(conn)
+    if "my_table" in inspector.get_table_names():
+        op.drop_table("my_table")
+```
+
+#### Validating the Chain (Run Before Committing)
+
+After writing a migration, run this to confirm there is **exactly one head** (no divergent branches):
+
+```python
+python3 -c "
+import re, os
+versions_dir = 'app_core/migrations/versions'
+rev_to_file = {}
+file_to_content = {}
+for fn in sorted(os.listdir(versions_dir)):
+    if not fn.endswith('.py') or fn == '__init__.py': continue
+    with open(os.path.join(versions_dir, fn)) as f: content = f.read()
+    file_to_content[fn] = content
+    rev = re.search(r'^revision\s*=\s*[\"\'](.*?)[\"\']', content, re.M)
+    if rev: rev_to_file[rev.group(1)] = fn
+all_down = set()
+for fn, content in file_to_content.items():
+    down = re.search(r'^down_revision\s*=\s*[\"\'](.*?)[\"\']', content, re.M)
+    down_tuple = re.search(r'^down_revision\s*=\s*\(([^)]+)\)', content, re.M)
+    if down: all_down.add(down.group(1))
+    elif down_tuple:
+        for r in re.findall(r'[\"\'](.*?)[\"\']', down_tuple.group(1)): all_down.add(r)
+heads = {r: f for r, f in rev_to_file.items() if r not in all_down}
+print('Heads (expect exactly 1):', list(heads.keys()))
+assert len(heads) == 1, 'ERROR: Multiple heads detected — fix down_revision!'
+print('OK: single linear head confirmed')
+"
+```
+
+If you see **more than one head**, a `down_revision` is wrong. Fix it before committing.
+
+#### Multiple Heads Require a Merge Migration
+
+If a rebase or parallel work creates two heads intentionally, create a merge migration:
+
+```python
+revision = "20260326_merge_heads"
+down_revision = ("20260326_branch_a", "20260326_branch_b")   # tuple of both head IDs
+branch_labels = None
+depends_on = None
+
+def upgrade() -> None:
+    pass   # merge migrations have empty bodies
+
+def downgrade() -> None:
+    pass
+```
+
 ---
 
 ## 🎨 Frontend Guidelines
@@ -809,11 +966,41 @@ When adding validation:
        logger.info("Detailed logging enabled")
    ```
 
-4. **Create Database Migration** using Alembic:
+4. **Create Database Migration** — write the file manually in `app_core/migrations/versions/`:
+
+   > **⚠️ CRITICAL**: `down_revision` must be the **revision ID** found inside the
+   > parent file (the value of its `revision = "..."` line), **never** the filename.
+   > Run `grep "^revision" <parent_file.py>` to get the correct ID.
+   > After writing the migration, validate with the head-check script in the
+   > [Alembic Migration Rules](#alembic-migration-rules) section — there must
+   > be **exactly one head**.
+
+   ```bash
+   # Find the current head's revision ID (NOT the filename)
+   grep "^revision" app_core/migrations/versions/$(ls -t app_core/migrations/versions/*.py | head -1)
+   # Use that value as down_revision in your new file
+   ```
+
+   ```python
+   # app_core/migrations/versions/YYYYMMDD_my_feature.py
+   revision = "YYYYMMDD_my_feature"
+   down_revision = "YYYYMMDD_previous_revision_id"   # ← ID from parent file, not filename
+   branch_labels = None
+   depends_on = None
+
+   def upgrade() -> None:
+       # idempotent: check table/column existence before adding
+       ...
+
+   def downgrade() -> None:
+       ...
+   ```
+
+   Apply when deploying (migration file must already be written first — see
+   [Alembic Migration Rules](#alembic-migration-rules)):
    ```bash
    cd /opt/eas-station
    source venv/bin/activate
-   alembic revision --autogenerate -m "Add poller_settings table"
    alembic upgrade head
    ```
 
@@ -1447,7 +1634,85 @@ Before committing code, verify:
 - [ ] **Version incremented properly** – Bug fix (+0.0.1) or feature (+0.1.0) in `/VERSION` file
 - [ ] **Documentation updated** – If features changed, update `templates/help.html` and `templates/about.html`
 - [ ] **Bug screenshots checked** – If fixing a bug, verified screenshot in `/bugs` directory
+- [ ] **Migration chain valid** – If any model or schema changed, run the head-check below (expect exactly 1 head):
+  ```python
+  python3 -c "
+  import re, os
+  versions_dir = 'app_core/migrations/versions'
+  rev_to_file, file_to_content = {}, {}
+  for fn in sorted(os.listdir(versions_dir)):
+      if not fn.endswith('.py') or fn == '__init__.py': continue
+      with open(os.path.join(versions_dir, fn)) as f: content = f.read()
+      file_to_content[fn] = content
+      rev = re.search(r'^revision\s*=\s*[\"\'](.*?)[\"\']', content, re.M)
+      if rev: rev_to_file[rev.group(1)] = fn
+  all_down = set()
+  for fn, content in file_to_content.items():
+      down = re.search(r'^down_revision\s*=\s*[\"\'](.*?)[\"\']', content, re.M)
+      down_tuple = re.search(r'^down_revision\s*=\s*\(([^)]+)\)', content, re.M)
+      if down: all_down.add(down.group(1))
+      elif down_tuple:
+          for r in re.findall(r'[\"\'](.*?)[\"\']', down_tuple.group(1)): all_down.add(r)
+  heads = {r: f for r, f in rev_to_file.items() if r not in all_down}
+  print('Heads:', list(heads.keys()))
+  assert len(heads) == 1, 'ERROR: Multiple heads! Fix down_revision — use the revision ID inside the parent file, not its filename.'
+  print('OK')
+  "
+  ```
 - [ ] **Template syntax validated** – If any `.html` template files changed, verify balanced Jinja2 blocks:
+  ```python
+  # Run this check before committing template changes
+  python3 << 'EOF'
+  import re
+  from pathlib import Path
+  
+  def check_template(filepath):
+      with open(filepath, 'r') as f:
+          content = f.read()
+      
+      # Check critical block types that must be balanced
+      blocks = {
+          'if': (r'{%\s*if\s+', r'{%\s*endif\s*%}'),
+          'for': (r'{%\s*for\s+', r'{%\s*endfor\s*%}'),
+          'block': (r'{%\s*block\s+', r'{%\s*endblock\s*%}'),
+          'with': (r'{%\s*with\s+', r'{%\s*endwith\s*%}'),
+      }
+      
+      for name, (start_pattern, end_pattern) in blocks.items():
+          starts = len(re.findall(start_pattern, content))
+          ends = len(re.findall(end_pattern, content))
+          if starts != ends:
+              print(f"❌ {filepath}: {name} blocks unbalanced ({starts} starts, {ends} ends)")
+              return False
+      return True
+  
+  # Check changed templates
+  changed_ok = True
+  for template in Path('templates').rglob('*.html'):
+      if not check_template(template):
+          changed_ok = False
+  
+  if changed_ok:
+      print("✅ All templates have balanced Jinja2 blocks")
+  else:
+      print("\n⚠️  Fix template syntax errors before committing!")
+      exit(1)
+  EOF
+  ```
+- [ ] Follows Python PEP 8 style (4-space indentation)
+- [ ] Uses existing logger, not new logger instance
+- [ ] Includes proper error handling with specific exceptions
+- [ ] Bump `VERSION`, mirror `.env.example`, and update `[Unreleased]` in `docs/reference/CHANGELOG.md` for any behavioural change (see `tests/test_release_metadata.py`)
+- [ ] Touched files remain within recommended size guidelines or were refactored into smaller units
+- [ ] No secrets or credentials in code
+- [ ] No `.env` file committed (check git status)
+- [ ] Templates extend `base.html` with theme support
+- [ ] Database transactions properly handled (commit/rollback)
+- [ ] Documentation updated if needed
+- [ ] Cross-check docs and UI links (README, Theory of Operation, `/about`, `/help`) for accuracy and live references
+- [ ] Commit message follows format guidelines
+
+---
   ```python
   # Run this check before committing template changes
   python3 << 'EOF'
@@ -1732,3 +1997,4 @@ Only suggest deployment/cache fixes if:
 - 2025-01-14: Updated AGENTS.md with comprehensive theme system documentation, file naming conventions (_old suffix rule), template structure updates (navbar.html active, navbar_old.html deprecated), and JavaScript theme API functions. Added detailed theme architecture section covering all 11 built-in themes, CSS variable structure, import/export functionality, and dark mode best practices.
 - 2025-11-26: Added "Debugging Patterns & User Interaction" section documenting correct debugging approach when users report bugs. Emphasizes investigating code first rather than assuming deployment/cache issues (anti-PEBKAC pattern). Includes common bug patterns, investigation steps, and example bug fix documentation.
 - 2026-03-23: Added "Address All Issues — Never Hyperfocus" section (Core Principle #5) after agent hyperfocused on a single new requirement while ignoring three original issues in the same problem statement. Section mandates reading the full problem statement first, enumerating every distinct issue, building a complete checklist before writing code, and never abandoning original issues when a new requirement arrives mid-session.
+- 2026-03-26: Added "Alembic Migration Rules" section to Database Guidelines after an agent used a filename prefix instead of the actual revision ID as `down_revision`, creating a divergent migration head. New section covers: revision ID vs. filename distinction, finding the current head, migration file checklist, the idempotent template, chain-validation script, and merge-migration syntax. The same head-check script was added to the Pre-Commit Checklist so it runs automatically before every commit. The "Create Database Migration" step in the Configuration System section was also updated with the critical warning.
