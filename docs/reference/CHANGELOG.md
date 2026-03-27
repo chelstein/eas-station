@@ -8,6 +8,29 @@ tracks releases under the 2.x series.
 
 - No pending changes.
 
+## [2.71.9] - 2026-03-27 - Fix coverage calculation feedback and calculation bugs
+
+### Fixed
+- **`templates/alert_detail.html`** — Replaced misleading "COVERAGE CALCULATING" /
+  "Coverage Calculating..." / "Coverage Calculating" labels (which appeared even before
+  any calculation was triggered) with accurate "COVERAGE PENDING" / "Coverage Pending"
+  wording that correctly indicates the user needs to click the button.
+- **`templates/alert_detail.html`** — `triggerIntersectionFix()`: Added immediate
+  loading feedback (spinner on all coverage buttons, disabled state, instant "Calculating
+  coverage boundaries…" toast) so the user knows the calculation is running.  Success
+  toast now reports the number of intersections found; failure re-enables buttons so the
+  user can retry.
+- **`webapp/admin/intersections.py`** — `calculate_single_alert`: Always calls
+  `try_build_geometry_from_same_codes` regardless of whether geometry is already stored,
+  so the more-accurate raw_json polygon (added by PR 1833) is applied even for alerts
+  that previously had SAME-derived geometry.  Also skips boundaries with NULL geometry
+  to avoid PostGIS errors.
+- **`webapp/admin/coverage.py`** — `calculate_coverage_percentages`: County coverage
+  query now uses `ST_Intersects` as a filter guard before computing `ST_Intersection`,
+  returns 0 % gracefully when geometries don't overlap, and is wrapped in a try/except
+  so a single bad geometry cannot abort the entire coverage calculation.  Boundary
+  area sum query now excludes boundaries with NULL geometry.
+
 ## [2.71.8] - 2026-03-26 - Update Ohio EAS docs for WAKS-FM LP-1A designation
 
 ### Documentation

@@ -233,7 +233,10 @@ def calculate_coverage_percentages(alert_id, intersections):
             boundary_ids = [boundary.id for _, boundary in boundaries]
             total_area_query = db.session.query(
                 func.sum(func.ST_Area(Boundary.geom)).label('total_area')
-            ).filter(Boundary.id.in_(boundary_ids)).first()
+            ).filter(
+                Boundary.id.in_(boundary_ids),
+                Boundary.geom.isnot(None),
+            ).first()
 
             total_area = total_area_query.total_area if total_area_query and total_area_query.total_area else 0
 
@@ -294,27 +297,40 @@ def calculate_coverage_percentages(alert_id, intersections):
             if county_boundary is None:
                 county_boundary = Boundary.query.filter_by(type='county').first()
         if county_boundary and county_boundary.geom:
-            county_intersection_query = db.session.query(
-                func.ST_Area(
-                    func.ST_Intersection(alert.geom, county_boundary.geom)
-                ).label('intersection_area'),
-                func.ST_Area(county_boundary.geom).label('total_county_area'),
-            ).first()
+            try:
+                county_intersection_query = db.session.query(
+                    func.ST_Area(
+                        func.ST_Intersection(alert.geom, county_boundary.geom)
+                    ).label('intersection_area'),
+                    func.ST_Area(county_boundary.geom).label('total_county_area'),
+                ).filter(
+                    func.ST_Intersects(alert.geom, county_boundary.geom)
+                ).first()
 
-            if county_intersection_query:
-                county_coverage = 0.0
-                if county_intersection_query.total_county_area:
-                    county_coverage = (
-                        county_intersection_query.intersection_area
-                        / county_intersection_query.total_county_area
-                    ) * 100
-                    county_coverage = min(100.0, max(0.0, county_coverage))
+                if county_intersection_query:
+                    county_coverage = 0.0
+                    intersection_area = county_intersection_query.intersection_area or 0.0
+                    total_county_area = county_intersection_query.total_county_area
+                    if total_county_area:
+                        county_coverage = (intersection_area / total_county_area) * 100
+                        county_coverage = min(100.0, max(0.0, county_coverage))
 
-                coverage_data['county'] = {
-                    'coverage_percentage': round(county_coverage, 1),
-                    'total_area_sqm': county_intersection_query.total_county_area,
-                    'intersected_area_sqm': county_intersection_query.intersection_area,
-                }
+                    coverage_data['county'] = {
+                        'coverage_percentage': round(county_coverage, 1),
+                        'total_area_sqm': total_county_area,
+                        'intersected_area_sqm': intersection_area,
+                    }
+                # If no row matched (geometries don't intersect), county coverage is 0 %.
+                else:
+                    coverage_data['county'] = {
+                        'coverage_percentage': 0.0,
+                        'total_area_sqm': None,
+                        'intersected_area_sqm': 0.0,
+                    }
+            except Exception as exc:
+                current_app.logger.warning(
+                    'County coverage query failed for alert %s: %s', alert_id, exc
+                )
 
     except Exception as exc:  # pragma: no cover - defensive logging
         current_app.logger.error('Error calculating coverage percentages: %s', exc)
