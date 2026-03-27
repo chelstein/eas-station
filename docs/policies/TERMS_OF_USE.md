@@ -16,9 +16,10 @@ _Last updated: February 14, 2026_
 - You assume all risk for evaluating the software in lab or demonstration environments. The project is provided strictly on an “AS IS” basis without warranties of any kind.
 
 ## 3. Disclaimer of Liability & Indemnification
-- The authors, maintainers, and contributors disclaim any liability for damages, injuries, penalties, data loss, downtime, or regulatory actions that may arise from use or misuse of EAS Station—including malicious, unauthorized, or noncompliant uses by you or anyone who gains access to your deployment.
+- The authors, maintainers, and contributors disclaim any and all liability—civil, criminal, and regulatory—for damages, injuries, penalties, data loss, downtime, enforcement actions, or criminal proceedings that may arise from use or misuse of EAS Station—including malicious, unauthorized, or noncompliant uses by you or anyone who gains access to your deployment.
+- **The developer and contributors of this project bear absolutely no responsibility for any criminal activity conducted using this software.**
 - No emergency responses, broadcast activations, or public warning decisions should be based on this project. Use at your own risk.
-- You agree to indemnify, defend, and hold harmless the project authors, maintainers, and contributors from any claims arising out of your deployment, configuration, redistribution, or failure to control access to the project.
+- You agree to indemnify, defend, and hold harmless the project authors, maintainers, and contributors from any and all claims, demands, damages, losses, costs, and liabilities—including attorneys' fees and criminal defense costs—arising out of your deployment, configuration, redistribution, or failure to control access to the project.
 
 ## 4. Acceptable Use & Prohibited Activities
 - Operate the software only in controlled, non-production lab or development environments.
@@ -28,6 +29,20 @@ _Last updated: February 14, 2026_
 - Do not use the project for any malicious, unlawful, deceptive, surveillance, harassment, or disruptive purpose—including denial of service, spoofing, jamming, or unauthorized interception of communications.
 - You are solely responsible for restricting access to your deployment and for any downstream impacts caused by third parties who use, repurpose, or chain this software into other tools.
 - Retain attribution to the project and respect the licenses of any incorporated open-source dependencies.
+
+## 4a. Criminal Liability & Federal Law Violations
+
+> ⚠️ **Criminal Warning:** Misuse of this software may constitute one or more felonies under federal law and the laws of multiple states and jurisdictions. Ignorance of these laws is not a defense.
+
+Misuse of EAS Station—including unauthorized broadcast, spoofing, or interference with public warning systems—may constitute serious criminal offenses under United States federal law and the laws of multiple states and jurisdictions worldwide. You acknowledge and agree that:
+
+- **Unauthorized transmission of false Emergency Alert System signals** is a federal crime under **18 U.S.C. § 1038** (False Information and Hoaxes), punishable by up to five (5) years imprisonment per offense, plus civil penalties and restitution, for each broadcast that elicits or is likely to elicit an emergency response.
+- **Willful interference with authorized Emergency Alert System broadcasts** may violate **47 U.S.C. § 325** and **47 U.S.C. § 333**, and related provisions of the Communications Act of 1934 (as amended), subject to fines of up to $100,000 per violation per day under 47 U.S.C. § 503(b), criminal prosecution under **47 U.S.C. § 501**, and forfeiture of equipment.
+- **Transmission of false distress signals** is a criminal offense under **47 U.S.C. § 325(a)**, subject to criminal fines and imprisonment.
+- **State and local laws** in virtually all U.S. jurisdictions impose additional criminal penalties—including felony charges—for false emergency alerts, false fire alarms, or interference with emergency communications systems. Criminal charges from multiple jurisdictions may be pursued simultaneously for a single act of misuse.
+- In jurisdictions outside the United States, equivalent or more severe criminal statutes may apply, and international law enforcement cooperation may result in prosecution across borders.
+- **The developer, maintainers, and contributors of EAS Station bear absolutely no criminal, civil, or regulatory liability for any act, omission, or crime committed by any person using this software.** Your use of this software constitutes your sole and exclusive acceptance of all criminal, civil, and regulatory risk and liability arising from that use.
+- The project authors are not accomplices, aiders, or abettors of any misuse and explicitly disclaim any knowledge of, participation in, or responsibility for any illegal activity conducted using this software. The existence of this software does not constitute authorization, endorsement, or facilitation of any unlawful act.
 
 ## 5. Enforcement & Termination
 - The maintainers reserve the right to revoke access to hosted resources, documentation, or support channels for any user who violates these terms or engages in malicious or unsafe activity.
