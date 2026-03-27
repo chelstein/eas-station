@@ -27,7 +27,7 @@ from typing import Any, Dict, List, Tuple
 from flask import current_app
 from sqlalchemy import func, text
 
-from app_core.models import Boundary, CAPAlert, Intersection
+from app_core.models import Boundary, CAPAlert, Intersection, USCountyBoundary
 from app_core.extensions import db
 
 
@@ -352,6 +352,60 @@ def calculate_coverage_percentages(alert_id, intersections):
             except Exception as exc:
                 current_app.logger.warning(
                     'County coverage query failed for alert %s: %s', alert_id, exc
+                )
+        elif county_boundary is None and _us_county_table_ready():
+            # No Boundary record of type='county' was uploaded, but the Census
+            # TIGER us_county_boundaries table is available.  Use it to compute
+            # what percentage of the configured county the alert polygon covers.
+            try:
+                from app_core.location import get_location_settings
+                from app_core.county_boundaries import same_codes_to_geoids
+                _settings = get_location_settings()
+                geoids = same_codes_to_geoids(_settings.get('fips_codes') or [])
+                if geoids:
+                    ucb = (
+                        USCountyBoundary.query
+                        .filter(USCountyBoundary.geoid.in_(geoids))
+                        .filter(USCountyBoundary.geom.isnot(None))
+                        .first()
+                    )
+                    if ucb:
+                        # Join by primary key so PostGIS operates on indexed
+                        # table columns rather than Python-level geometry bytes.
+                        row = db.session.execute(
+                            text(
+                                "SELECT"
+                                " ST_Area(ST_Intersection(a.geom, c.geom)) AS intersection_area,"
+                                " ST_Area(c.geom) AS total_county_area"
+                                " FROM cap_alerts a, us_county_boundaries c"
+                                " WHERE a.id = :alert_id"
+                                "   AND c.geoid = :geoid"
+                                "   AND ST_Intersects(a.geom, c.geom)"
+                            ),
+                            {'alert_id': alert_id, 'geoid': ucb.geoid},
+                        ).first()
+                        if row:
+                            intersection_area = row.intersection_area or 0.0
+                            total_county_area = row.total_county_area
+                            county_coverage = 0.0
+                            if total_county_area:
+                                county_coverage = (intersection_area / total_county_area) * 100
+                                county_coverage = min(100.0, max(0.0, county_coverage))
+                            coverage_data['county'] = {
+                                'coverage_percentage': round(county_coverage, 1),
+                                'total_area_sqm': total_county_area,
+                                'intersected_area_sqm': intersection_area,
+                            }
+                        else:
+                            coverage_data['county'] = {
+                                'coverage_percentage': 0.0,
+                                'total_area_sqm': None,
+                                'intersected_area_sqm': 0.0,
+                            }
+            except Exception as exc:
+                current_app.logger.warning(
+                    'County coverage (us_county_boundaries fallback) failed for alert %s: %s',
+                    alert_id, exc,
                 )
 
     except Exception as exc:  # pragma: no cover - defensive logging
