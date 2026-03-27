@@ -25,10 +25,14 @@ import json
 from typing import Any, Dict, List, Tuple
 
 from flask import current_app
-from sqlalchemy import func, text
+from geoalchemy2 import Geography
+from sqlalchemy import cast, func, text
 
 from app_core.models import Boundary, CAPAlert, Intersection, USCountyBoundary
 from app_core.extensions import db
+
+# Conversion constant: square metres → square miles
+_SQM_PER_SQMI = 2_589_988.11
 
 
 def _us_county_table_ready() -> bool:
@@ -226,6 +230,11 @@ def calculate_coverage_percentages(alert_id, intersections):
 
     Important: call ``try_build_geometry_from_same_codes`` before this function
     so that alerts with SAME-derived geometry are handled.
+
+    Area values are computed using PostGIS geography type (``::geography``),
+    which returns accurate square metres regardless of the stored SRID.
+    ``intersected_area_sqmi`` in each result dict gives the human-readable
+    square-mile figure for display.
     """
 
     coverage_data: Dict[str, Dict[str, Any]] = {}
@@ -234,6 +243,16 @@ def calculate_coverage_percentages(alert_id, intersections):
         alert = CAPAlert.query.get(alert_id)
         if not alert or not alert.geom:
             return coverage_data
+
+        # Detect whether the stored geometry came from the real NWS polygon or
+        # was synthesised from SAME broadcast codes.  SAME-derived geometry is a
+        # union of entire county polygons, so its intersection with any one of
+        # those counties is ≈100% — a misleading "county-wide" reading.
+        raw_json = alert.raw_json if isinstance(alert.raw_json, dict) else {}
+        raw_geom = raw_json.get('geometry')
+        geom_from_same_codes = not (
+            raw_geom and isinstance(raw_geom, dict) and raw_geom.get('coordinates')
+        )
 
         boundary_types: Dict[str, List[Tuple[Intersection, Boundary]]] = {}
         for intersection, boundary in intersections:
@@ -248,13 +267,12 @@ def calculate_coverage_percentages(alert_id, intersections):
             if not total_count:
                 continue
 
-            # Coverage percentage is calculated as:
+            # Coverage percentage:
             #   sum(intersection areas) / sum(full areas of intersecting boundaries)
-            # This answers "what percentage of the affected boundary area does the
-            # alert actually cover?" rather than dividing by all boundaries system-wide.
+            # Both areas use ::geography so the ratio is accurate.
             boundary_ids = [boundary.id for _, boundary in boundaries]
             total_area_query = db.session.query(
-                func.sum(func.ST_Area(Boundary.geom)).label('total_area')
+                func.sum(func.ST_Area(cast(Boundary.geom, Geography()))).label('total_area')
             ).filter(
                 Boundary.id.in_(boundary_ids),
                 Boundary.geom.isnot(None),
@@ -262,9 +280,23 @@ def calculate_coverage_percentages(alert_id, intersections):
 
             total_area = total_area_query.total_area if total_area_query and total_area_query.total_area else 0
 
-            intersected_area = sum(
-                intersection.intersection_area or 0 for intersection, _ in boundaries
-            )
+            # Stored intersection_area values may be in square degrees (legacy) or
+            # square metres (post-fix).  Re-compute live from the geography cast so
+            # the percentage is always accurate against the geography-based denominator.
+            if total_area > 0 and boundaries:
+                boundary_id_list = [b.id for _, b in boundaries]
+                live_area_row = db.session.execute(
+                    text(
+                        "SELECT SUM(ST_Area(ST_Intersection(a.geom, b.geom)::geography))"
+                        " FROM cap_alerts a, boundaries b"
+                        " WHERE a.id = :alert_id AND b.id = ANY(:bids)"
+                        "   AND ST_Intersects(a.geom, b.geom)"
+                    ),
+                    {'alert_id': alert_id, 'bids': boundary_id_list},
+                ).first()
+                intersected_area = float(live_area_row[0] or 0) if live_area_row else 0.0
+            else:
+                intersected_area = 0.0
 
             coverage_percentage = 0.0
             if total_area > 0:
@@ -277,54 +309,51 @@ def calculate_coverage_percentages(alert_id, intersections):
                 'coverage_percentage': round(coverage_percentage, 1),
                 'total_area_sqm': total_area,
                 'intersected_area_sqm': intersected_area,
+                'intersected_area_sqmi': round(intersected_area / _SQM_PER_SQMI, 1),
             }
 
-        # Prefer the county boundary that already intersects this alert so
-        # we calculate coverage for the right county in multi-county setups.
-        # Fall back to name-matching the configured county, then to .first().
+        # ---------------------------------------------------------------------------
+        # County coverage — always use the CONFIGURED county boundary, never a
+        # random intersecting county.  The intersections list may contain a
+        # neighbouring county's boundary (e.g. Allen County) if the real NWS polygon
+        # happened to touch it; falling back to that boundary would give the wrong
+        # percentage (this was the root cause of the 99.4% / Allen County bug).
+        # ---------------------------------------------------------------------------
         county_boundary = None
-        county_intersections = [b for _, b in intersections if b.type == 'county']
-        if county_intersections:
-            # If multiple county boundaries intersect, prefer the one matching
-            # the configured county name; otherwise use the first intersecting one.
-            try:
-                from app_core.location import get_location_settings
-                _settings = get_location_settings()
-                _cname = (_settings.get('county_name', '') or '').lower().replace(' county', '').strip()
-                if _cname:
-                    county_boundary = next(
-                        (b for b in county_intersections
-                         if _cname in (b.name or '').lower().replace(' county', '').strip()),
-                        county_intersections[0],
-                    )
-                else:
-                    county_boundary = county_intersections[0]
-            except Exception:
-                county_boundary = county_intersections[0]
-        if county_boundary is None:
-            # No intersecting county boundary – fall back to configured-name
-            # filter, then to the first county boundary in the database.
-            try:
-                from app_core.location import get_location_settings
-                _settings = get_location_settings()
-                _cname = (_settings.get('county_name', '') or '').lower().replace(' county', '').strip()
-                if _cname:
+        try:
+            from app_core.location import get_location_settings
+            _settings = get_location_settings()
+            _cname = (_settings.get('county_name', '') or '').lower().replace(' county', '').strip()
+            if _cname:
+                # 1. Check intersections list — only accept the configured county.
+                county_intersections = [b for _, b in intersections if b.type == 'county']
+                county_boundary = next(
+                    (b for b in county_intersections
+                     if _cname in (b.name or '').lower().replace(' county', '').strip()),
+                    None,  # never fall back to a different county
+                )
+                # 2. Query Boundary table directly by configured county name.
+                if county_boundary is None:
                     county_boundary = (
                         Boundary.query.filter_by(type='county')
                         .filter(func.lower(Boundary.name).contains(_cname))
                         .first()
                     )
-            except Exception:
-                pass
-            if county_boundary is None:
-                county_boundary = Boundary.query.filter_by(type='county').first()
+        except Exception:
+            pass
+        # 3. Last resort only when no county name is configured at all.
+        if county_boundary is None:
+            county_boundary = Boundary.query.filter_by(type='county').first()
+
         if county_boundary and county_boundary.geom:
             try:
+                # Use ::geography for accurate square-metre areas so that the
+                # percentage and the square-mile figure are both correct.
                 county_intersection_query = db.session.query(
                     func.ST_Area(
-                        func.ST_Intersection(alert.geom, county_boundary.geom)
+                        cast(func.ST_Intersection(alert.geom, county_boundary.geom), Geography())
                     ).label('intersection_area'),
-                    func.ST_Area(county_boundary.geom).label('total_county_area'),
+                    func.ST_Area(cast(county_boundary.geom, Geography())).label('total_county_area'),
                 ).filter(
                     func.ST_Intersects(alert.geom, county_boundary.geom)
                 ).first()
@@ -340,14 +369,19 @@ def calculate_coverage_percentages(alert_id, intersections):
                     coverage_data['county'] = {
                         'coverage_percentage': round(county_coverage, 1),
                         'total_area_sqm': total_county_area,
+                        'total_area_sqmi': round(total_county_area / _SQM_PER_SQMI, 1),
                         'intersected_area_sqm': intersection_area,
+                        'intersected_area_sqmi': round(intersection_area / _SQM_PER_SQMI, 1),
+                        'is_estimated': geom_from_same_codes,
                     }
-                # If no row matched (geometries don't intersect), county coverage is 0 %.
                 else:
                     coverage_data['county'] = {
                         'coverage_percentage': 0.0,
                         'total_area_sqm': None,
+                        'total_area_sqmi': None,
                         'intersected_area_sqm': 0.0,
+                        'intersected_area_sqmi': 0.0,
+                        'is_estimated': geom_from_same_codes,
                     }
             except Exception as exc:
                 current_app.logger.warning(
@@ -370,13 +404,13 @@ def calculate_coverage_percentages(alert_id, intersections):
                         .first()
                     )
                     if ucb:
-                        # Join by primary key so PostGIS operates on indexed
-                        # table columns rather than Python-level geometry bytes.
+                        # Use ::geography for accurate square-metre results.
                         row = db.session.execute(
                             text(
                                 "SELECT"
-                                " ST_Area(ST_Intersection(a.geom, c.geom)) AS intersection_area,"
-                                " ST_Area(c.geom) AS total_county_area"
+                                " ST_Area(ST_Intersection(a.geom, c.geom)::geography)"
+                                "   AS intersection_area,"
+                                " ST_Area(c.geom::geography) AS total_county_area"
                                 " FROM cap_alerts a, us_county_boundaries c"
                                 " WHERE a.id = :alert_id"
                                 "   AND c.geoid = :geoid"
@@ -394,13 +428,19 @@ def calculate_coverage_percentages(alert_id, intersections):
                             coverage_data['county'] = {
                                 'coverage_percentage': round(county_coverage, 1),
                                 'total_area_sqm': total_county_area,
+                                'total_area_sqmi': round(total_county_area / _SQM_PER_SQMI, 1),
                                 'intersected_area_sqm': intersection_area,
+                                'intersected_area_sqmi': round(intersection_area / _SQM_PER_SQMI, 1),
+                                'is_estimated': geom_from_same_codes,
                             }
                         else:
                             coverage_data['county'] = {
                                 'coverage_percentage': 0.0,
                                 'total_area_sqm': None,
+                                'total_area_sqmi': None,
                                 'intersected_area_sqm': 0.0,
+                                'intersected_area_sqmi': 0.0,
+                                'is_estimated': geom_from_same_codes,
                             }
             except Exception as exc:
                 current_app.logger.warning(
