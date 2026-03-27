@@ -29,7 +29,7 @@ from flask import Flask, jsonify
 from sqlalchemy import func
 
 from app_core.alerts import calculate_alert_intersections, get_active_alerts_query
-from app_core.coverage import try_build_geometry_from_same_codes
+from .coverage import try_build_geometry_from_same_codes
 from app_core.extensions import db
 from app_core.models import Boundary, CAPAlert, Intersection, SystemLog
 from app_utils import utc_now

@@ -8,6 +8,17 @@ tracks releases under the 2.x series.
 
 - No pending changes.
 
+## [2.71.15] - 2026-03-27 - Fix ModuleNotFoundError crash that broke Alembic migrations and made site inaccessible
+
+### Fixed
+- **`webapp/admin/intersections.py`** — Wrong import path `from app_core.coverage import
+  try_build_geometry_from_same_codes` referenced a module that does not exist.  The
+  function lives in `webapp/admin/coverage.py`.  Corrected to the relative import
+  `from .coverage import try_build_geometry_from_same_codes`.  This import error was
+  raised at module load time, causing every `alembic upgrade head` run (and every
+  `from app import app, db` fallback) to crash with `ModuleNotFoundError: No module
+  named 'app_core.coverage'`, leaving the site returning 502 Bad Gateway.
+
 ## [2.71.14] - 2026-03-27 - Restore debug info as hidden panel; add IPAWS Poller Debug to navbar
 
 ### Fixed
