@@ -39,6 +39,9 @@ from app_core.models import Boundary, CAPAlert, Intersection, PollDebugRecord
 from app_core.poller_debug import ensure_poll_debug_table, serialise_debug_record, summarise_run
 from app_utils.pdf_generator import generate_pdf_document
 
+# Conversion factor: square metres → square miles
+_SQM_PER_SQMI = 2_589_988.11
+
 
 def register(app: Flask, logger) -> None:
     """Attach debug inspection routes to the Flask app."""
@@ -186,10 +189,11 @@ def register(app: Flask, logger) -> None:
                             "intersects"
                         ),
                         func.ST_Area(
-                            func.ST_Intersection(alert.geom, boundary.geom)
+                            func.ST_Intersection(alert.geom, boundary.geom).cast("geography")
                         ).label("area"),
                     ).first()
 
+                    area_sqm = float(result.area) if result and result.area else 0
                     intersection_results.append(
                         {
                             "boundary_id": boundary.id,
@@ -198,9 +202,8 @@ def register(app: Flask, logger) -> None:
                             "intersects": bool(result.intersects)
                             if result and result.intersects is not None
                             else False,
-                            "intersection_area": float(result.area)
-                            if result and result.area
-                            else 0,
+                            "intersection_area_sqm": area_sqm,
+                            "intersection_area_sqmi": round(area_sqm / _SQM_PER_SQMI, 4),
                         }
                     )
                 except Exception as exc:  # pragma: no cover - defensive
@@ -470,10 +473,11 @@ def register(app: Flask, logger) -> None:
                             "intersects"
                         ),
                         func.ST_Area(
-                            func.ST_Intersection(alert.geom, boundary.geom)
+                            func.ST_Intersection(alert.geom, boundary.geom).cast("geography")
                         ).label("area"),
                     ).first()
 
+                    area_sqm = float(intersection_test.area) if intersection_test and intersection_test.area else 0
                     intersection_results.append(
                         {
                             "boundary_id": boundary.id,
@@ -482,9 +486,8 @@ def register(app: Flask, logger) -> None:
                             "intersects": bool(intersection_test.intersects)
                             if intersection_test and intersection_test.intersects is not None
                             else False,
-                            "intersection_area": float(intersection_test.area)
-                            if intersection_test and intersection_test.area
-                            else 0,
+                            "intersection_area_sqm": area_sqm,
+                            "intersection_area_sqmi": round(area_sqm / _SQM_PER_SQMI, 4),
                         }
                     )
                 except Exception as exc:  # pragma: no cover - defensive

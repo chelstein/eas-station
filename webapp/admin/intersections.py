@@ -55,45 +55,32 @@ def fix_county_intersections():
     try:
         all_alerts = CAPAlert.query.filter(CAPAlert.geom.isnot(None)).all()
         total_updated = 0
+        errors = 0
 
         for alert in all_alerts:
-            Intersection.query.filter_by(cap_alert_id=alert.id).delete()
-
-            intersecting_boundaries = (
-                db.session.query(
-                    Boundary.id,
-                    func.ST_Area(
-                        func.ST_Intersection(alert.geom, func.ST_MakeValid(Boundary.geom))
-                    ).label("intersection_area"),
+            try:
+                intersections_created = calculate_alert_intersections(alert)
+                total_updated += intersections_created
+            except Exception as exc:  # pragma: no cover - defensive
+                errors += 1
+                current_app.logger.error(
+                    "Error recalculating intersections for alert %s: %s",
+                    alert.id,
+                    exc,
                 )
-                .filter(
-                    func.ST_Intersects(alert.geom, func.ST_MakeValid(Boundary.geom)),
-                    func.ST_Area(
-                        func.ST_Intersection(alert.geom, func.ST_MakeValid(Boundary.geom))
-                    )
-                    > 0,
-                )
-                .all()
-            )
-
-            for boundary_id, intersection_area in intersecting_boundaries:
-                intersection = Intersection(
-                    cap_alert_id=alert.id,
-                    boundary_id=boundary_id,
-                    intersection_area=intersection_area,
-                )
-                db.session.add(intersection)
-                total_updated += 1
 
         db.session.commit()
 
+        msg = (
+            f"Successfully recalculated intersections for {len(all_alerts)} alerts. "
+            f"Updated {total_updated} intersection records."
+        )
+        if errors:
+            msg += f" ({errors} alert(s) had errors)"
+
         return jsonify(
             {
-                "success": (
-                    "Successfully recalculated intersections for "
-                    f"{len(all_alerts)} alerts. Updated {total_updated} "
-                    "intersection records."
-                ),
+                "success": msg,
                 "alerts_processed": len(all_alerts),
                 "intersections_updated": total_updated,
             }

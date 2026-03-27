@@ -8,6 +8,28 @@ tracks releases under the 2.x series.
 
 - No pending changes.
 
+## [2.71.17] - 2026-03-27 - Show affected sq mi per boundary in debug panel; fix area unit consistency
+
+### Fixed
+- **`webapp/routes_debug.py`** — Both `/debug/alert/<id>` and `/debug/boundaries/<id>`
+  computed `ST_Area(ST_Intersection(...))` in **square degrees** (no `::geography` cast),
+  producing meaningless scientific-notation values.  Switched to
+  `ST_Area(ST_Intersection(...)::geography)` so the result is in **square meters** and
+  the response now includes `intersection_area_sqm` and `intersection_area_sqmi` fields.
+
+- **`templates/alert_detail.html`** — Debug panel "Boundary Intersection Results" table
+  was labelled "Area (sq°)" and showed raw exponential sq-degree values.  Updated to
+  display **"~Area (sq mi)"** using the new `intersection_area_sqmi` field (with sq-meter
+  fallback conversion for backwards compatibility).  Non-intersecting rows now show "—"
+  instead of "0" for clarity.
+
+- **`webapp/admin/intersections.py`** — `fix_county_intersections` was computing
+  `ST_Area(ST_Intersection(...))` in sq degrees via ORM calls.  Replaced that logic with
+  a delegation to `calculate_alert_intersections()`, which already uses the
+  `::geography` cast (sq meters) and `ST_MakeValid`.  This makes stored
+  `intersection_area` values consistent with what `calculate_coverage_percentages` and
+  the `recalculate_intersections` endpoint produce.
+
 ## [2.71.16] - 2026-03-27 - Fix "Fix Intersections" storing only partial results for expired alerts
 
 ### Fixed
