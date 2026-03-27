@@ -28,7 +28,8 @@ from datetime import datetime
 
 import pytz
 from flask import Flask, jsonify, render_template, Response
-from sqlalchemy import func
+from geoalchemy2 import Geography
+from sqlalchemy import cast, func
 
 from openpyxl import Workbook
 from openpyxl.utils import get_column_letter
@@ -189,7 +190,7 @@ def register(app: Flask, logger) -> None:
                             "intersects"
                         ),
                         func.ST_Area(
-                            func.ST_Intersection(alert.geom, boundary.geom).cast("geography")
+                            cast(func.ST_Intersection(alert.geom, boundary.geom), Geography())
                         ).label("area"),
                     ).first()
 
@@ -473,7 +474,7 @@ def register(app: Flask, logger) -> None:
                             "intersects"
                         ),
                         func.ST_Area(
-                            func.ST_Intersection(alert.geom, boundary.geom).cast("geography")
+                            cast(func.ST_Intersection(alert.geom, boundary.geom), Geography())
                         ).label("area"),
                     ).first()
 
