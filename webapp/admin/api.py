@@ -597,18 +597,6 @@ def alert_detail(alert_id):
                 is_actually_county_wide = True
             # else: boundaries exist but none intersect → coverage stays 0 %
 
-        # If text/SAME-code detection says county-wide but geometry gave < 95 %,
-        # override county coverage to 100 % so the UI correctly reflects full
-        # county scope.  This handles precision gaps in polygon math and alerts
-        # that use SAME codes spanning a slightly larger area than their geometry.
-        if is_county_wide and not is_actually_county_wide:
-            if not coverage_data:
-                coverage_data = {}
-            existing = coverage_data.get('county', {})
-            coverage_data['county'] = {**existing, 'coverage_percentage': 100.0}
-            county_coverage = 100.0
-            is_actually_county_wide = True
-
         suppress_boundary_details = is_actually_county_wide
 
         boundary_summary: List[Dict[str, Any]] = []
