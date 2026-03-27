@@ -41,6 +41,23 @@ STATE_ABBREV_TO_FIPS = {
 STATE_FIPS_TO_ABBREV = {v: k for k, v in STATE_ABBREV_TO_FIPS.items()}
 
 
+def same_codes_to_geoids(fips_codes: List[str]) -> List[str]:
+    """Convert 6-digit SAME codes to 5-digit Census GEOIDs.
+
+    SAME codes use the format ``0SSCCC`` (leading zero, 2-digit state FIPS,
+    3-digit county FIPS).  The Census ``us_county_boundaries.geoid`` column
+    stores the plain 5-digit ``SSCCC`` form.  Stripping the leading ``0``
+    performs the conversion.
+
+    Only codes that are exactly 6 characters long are included; anything
+    else (e.g. statewide ``0SS000`` codes) is silently skipped.
+    """
+    return [
+        code[1:] for code in fips_codes
+        if isinstance(code, str) and len(code) == 6 and not code.endswith('000')
+    ]
+
+
 def _find_bundled_shapefile() -> Optional[Path]:
     """Locate the bundled county shapefile relative to the project root."""
     # Try a few common project roots
@@ -301,6 +318,7 @@ __all__ = [
     "search_counties",
     "load_counties_from_shapefile",
     "delete_counties",
+    "same_codes_to_geoids",
     "STATE_ABBREV_TO_FIPS",
     "STATE_FIPS_TO_ABBREV",
     "_find_bundled_shapefile",

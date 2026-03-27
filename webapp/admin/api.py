@@ -35,7 +35,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from app_core.cache import cache
 from app_core.extensions import db
-from app_core.models import Boundary, CAPAlert, EASMessage, Intersection, PollHistory
+from app_core.models import Boundary, CAPAlert, EASMessage, Intersection, PollHistory, USCountyBoundary
 from app_core.system_health import get_system_health
 from app_utils import (
     ALERT_SOURCE_IPAWS,
@@ -1230,6 +1230,52 @@ def get_boundaries():
                         },
                         'geometry': json_loads(boundary.geometry),
                     }
+                )
+
+        # When no county-type Boundary records have been uploaded, serve the
+        # configured county from the bundled us_county_boundaries (Census TIGER)
+        # table so the map always shows the correct county outline without
+        # requiring a manual GeoJSON upload.
+        if not features and boundary_type and normalize_boundary_type(boundary_type) == 'county':
+            try:
+                from app_core.location import get_location_settings
+                from app_core.county_boundaries import get_county_count, same_codes_to_geoids
+                if get_county_count() > 0:
+                    _settings = get_location_settings()
+                    geoids = same_codes_to_geoids(_settings.get('fips_codes') or [])
+                    if geoids:
+                        ucb_rows = db.session.query(
+                            USCountyBoundary.id,
+                            USCountyBoundary.namelsad,
+                            USCountyBoundary.name,
+                            USCountyBoundary.geoid,
+                            func.ST_AsGeoJSON(USCountyBoundary.geom).label('geometry'),
+                        ).filter(
+                            USCountyBoundary.geoid.in_(geoids),
+                            USCountyBoundary.geom.isnot(None),
+                        ).all()
+                        for row in ucb_rows:
+                            if row.geometry:
+                                features.append(
+                                    {
+                                        'type': 'Feature',
+                                        'properties': {
+                                            'id': row.id,
+                                            'name': row.namelsad or row.name,
+                                            'type': 'county',
+                                            'raw_type': 'county',
+                                            'display_type': get_boundary_display_label('county'),
+                                            'group': get_boundary_group('county'),
+                                            'color': get_boundary_color('county'),
+                                            'description': f'Census TIGER county boundary (GEOID {row.geoid})',
+                                            'source': 'us_county_boundaries',
+                                        },
+                                        'geometry': json_loads(row.geometry),
+                                    }
+                                )
+            except Exception as exc:
+                api_bp.logger.warning(
+                    'County boundary fallback to us_county_boundaries failed: %s', exc
                 )
 
         return jsonify({'type': 'FeatureCollection', 'features': features})

@@ -8,6 +8,30 @@ tracks releases under the 2.x series.
 
 - No pending changes.
 
+## [2.71.12] - 2026-03-27 - Fix county coverage and auto-serve county boundary from bundled TIGER data
+
+### Fixed
+- **`webapp/admin/coverage.py`** — `calculate_coverage_percentages`: Added fallback
+  that uses the `us_county_boundaries` (Census TIGER) table to compute county
+  coverage percentage when no `Boundary` record with `type='county'` exists in the
+  database.  Most installations only upload Electric, Fire, and Village boundaries,
+  so `coverage_data['county']` was never set and the sidebar stayed on
+  "Coverage Pending" even after clicking *Calculate Coverage Percentage*.  The fix
+  looks up the configured station county via `LocationSettings.fips_codes` (SAME
+  code → 5-digit Census GEOID), then executes a raw SQL `ST_Intersection /
+  ST_Area` join against `cap_alerts` and `us_county_boundaries` to produce the
+  exact square-mileage coverage percentage.
+
+### Changed
+- **`webapp/admin/api.py`** — `get_boundaries`: When `/api/boundaries?type=county`
+  returns no results (no county-type boundary GeoJSON has been manually uploaded),
+  the endpoint now automatically falls back to the bundled Census TIGER
+  `us_county_boundaries` table and serves the configured station county as a
+  standard GeoJSON FeatureCollection.  This means the alert coverage map draws the
+  correct county outline on every deployment without requiring any manual file
+  upload — the same `cb_2024_us_county_500k` shapefile that is already bundled in
+  `data/shapefiles/` and auto-loaded at startup provides the geometry.
+
 ## [2.71.11] - 2026-03-27 - Add alert geometry and coverage Mermaid documentation
 
 ### Documentation
