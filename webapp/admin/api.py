@@ -388,6 +388,163 @@ def get_alert_geometry(alert_id):
         api_bp.logger.error("Error getting alert geometry: %s", exc, exc_info=True)
         return jsonify({'error': 'Failed to retrieve alert geometry'}), 500
 
+def _parse_event_motion(raw: str) -> Dict[str, Any]:
+    """Parse an NWS eventMotionDescription parameter string.
+
+    Format (parts separated by '...' ):
+      <ISO-timestamp>...storm...<degrees>DEG...<speed>KT...<lat1>,<lon1> <lat2>,<lon2>...
+
+    Returns a dict with parsed fields. Raises on bad input so callers can
+    catch and discard gracefully.
+    """
+    import math
+
+    parts = [p.strip() for p in raw.split('...')]
+
+    motion: Dict[str, Any] = {'raw': raw}
+
+    for part in parts:
+        upper = part.upper()
+        if upper.endswith('DEG'):
+            try:
+                motion['direction_deg'] = int(part[:-3])
+            except ValueError:
+                pass
+        elif upper.endswith('KT'):
+            try:
+                kt = float(part[:-2])
+                motion['speed_kt'] = kt
+                motion['speed_mph'] = round(kt * 1.15078, 1)
+            except ValueError:
+                pass
+        elif 'T' in part and part[0].isdigit():
+            motion['timestamp'] = part
+        elif ',' in part:
+            # Coordinate pairs — one or more 'lat,lon' items separated by spaces
+            coords = []
+            for token in part.split():
+                try:
+                    lat_s, lon_s = token.split(',')
+                    coords.append([float(lat_s), float(lon_s)])
+                except ValueError:
+                    pass
+            if coords:
+                motion['track'] = coords
+
+    # Convert degrees to a compass label
+    deg = motion.get('direction_deg')
+    if deg is not None:
+        dirs = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE',
+                'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW']
+        idx = int((deg + 11.25) / 22.5) % 16
+        motion['compass'] = dirs[idx]
+
+    return motion
+
+
+_VTEC_ACTIONS = {
+    'NEW': 'New Event',
+    'CON': 'Continuing',
+    'EXA': 'Extended in Area',
+    'EXT': 'Extended in Time',
+    'EXB': 'Extended in Area and Time',
+    'CAN': 'Cancelled',
+    'EXP': 'Expired',
+    'UPG': 'Upgraded',
+    'COR': 'Correction',
+    'ROU': 'Routine',
+}
+
+_VTEC_PHENOMENA = {
+    'AF': 'Ashfall', 'AS': 'Air Stagnation', 'BH': 'Beach Hazard',
+    'BS': 'Blowing Snow', 'BW': 'Brisk Wind', 'BZ': 'Blizzard',
+    'CF': 'Coastal Flood', 'DS': 'Dust Storm', 'DU': 'Blowing Dust',
+    'EC': 'Extreme Cold', 'EH': 'Excessive Heat', 'EW': 'Extreme Wind',
+    'FA': 'Areal Flood', 'FF': 'Flash Flood', 'FG': 'Dense Fog',
+    'FL': 'Flood', 'FR': 'Frost', 'FW': 'Fire Weather',
+    'FZ': 'Freeze', 'GL': 'Gale', 'HF': 'Hurricane Force Wind',
+    'HI': 'Inland Hurricane Wind', 'HS': 'Heavy Snow',
+    'HT': 'Heat', 'HU': 'Hurricane', 'HW': 'High Wind',
+    'HZ': 'Hard Freeze', 'IP': 'Sleet', 'IS': 'Ice Storm',
+    'LB': 'Lake-Effect Snow and Blowing Snow', 'LE': 'Lake-Effect Snow',
+    'LO': 'Low Water', 'LS': 'Lakeshore Flood', 'LW': 'Lake Wind',
+    'MA': 'Marine', 'MF': 'Marine Dense Fog', 'MH': 'Marine Ashfall',
+    'MS': 'Marine Dense Smoke', 'RB': 'Small Craft for Rough Bar',
+    'RP': 'Rip Current Risk', 'SC': 'Small Craft', 'SE': 'Hazardous Seas',
+    'SI': 'Small Craft for Winds', 'SM': 'Dense Smoke',
+    'SN': 'Snow', 'SR': 'Storm', 'SS': 'Storm Surge',
+    'SU': 'High Surf', 'SV': 'Severe Thunderstorm', 'SW': 'Small Craft for Hazardous Seas',
+    'TI': 'Inland Tropical Storm Wind', 'TO': 'Tornado',
+    'TR': 'Tropical Storm', 'TS': 'Tsunami', 'TY': 'Typhoon',
+    'UP': 'Ice Accretion', 'WC': 'Wind Chill', 'WI': 'Wind',
+    'WS': 'Winter Storm', 'WW': 'Winter Weather', 'ZF': 'Freezing Fog',
+    'ZR': 'Freezing Rain',
+}
+
+_VTEC_SIGNIFICANCE = {
+    'W': 'Warning', 'A': 'Watch', 'Y': 'Advisory',
+    'S': 'Statement', 'F': 'Forecast', 'O': 'Outlook', 'N': 'Synopsis',
+}
+
+_VTEC_PROGRAMS = {
+    'O': 'Operational', 'T': 'Test', 'E': 'Exercise', 'X': 'Experimental',
+}
+
+
+def _parse_vtec(raw: str) -> Dict[str, Any]:
+    """Parse an NWS VTEC string.
+
+    Format: /P.A.CCCC.PP.S.####.yymmddThhnnssZ-yymmddThhnnssZ/
+
+    Returns a dict with decoded fields. Raises on bad input.
+    """
+    import re
+
+    stripped = raw.strip().strip('/')
+    # Pattern: P.A.CCCC.PP.S.NNNN.ttttttTttttttZ-ttttttTttttttZ
+    m = re.match(
+        r'([OTEX])\.'                       # program
+        r'([A-Z]{2,3})\.'                   # action
+        r'([A-Z]{4})\.'                     # office
+        r'([A-Z]{2})\.'                     # phenomenon
+        r'([WAYSFONM])\.'                   # significance
+        r'(\d{4})\.'                        # ETN
+        r'(\d{6}T\d{6}Z)-(\d{6}T\d{6}Z)', # begin-end times
+        stripped,
+    )
+    if not m:
+        return {'raw': raw}
+
+    prog, action, office, phen, sig, etn, begin_raw, end_raw = m.groups()
+
+    def _decode_vtec_time(s: str) -> Optional[str]:
+        """Convert yymmddThhnnssZ to a readable UTC string. All-zeros = ongoing."""
+        if s == '000000T000000Z':
+            return None
+        try:
+            from datetime import datetime, timezone
+            dt = datetime.strptime(s, '%y%m%dT%H%M%SZ').replace(tzinfo=timezone.utc)
+            return dt.strftime('%Y-%m-%d %H:%M UTC')
+        except ValueError:
+            return s
+
+    return {
+        'raw': raw,
+        'program': prog,
+        'program_label': _VTEC_PROGRAMS.get(prog, prog),
+        'action': action,
+        'action_label': _VTEC_ACTIONS.get(action, action),
+        'office': office,
+        'phenomenon': phen,
+        'phenomenon_label': _VTEC_PHENOMENA.get(phen, phen),
+        'significance': sig,
+        'significance_label': _VTEC_SIGNIFICANCE.get(sig, sig),
+        'event_number': etn.lstrip('0') or '0',
+        'begin': _decode_vtec_time(begin_raw),
+        'end': _decode_vtec_time(end_raw),
+    }
+
+
 def _extract_alert_display_data(alert) -> Optional[Dict[str, Any]]:
     """Extract enriched display data from an alert for template rendering.
 
@@ -472,10 +629,28 @@ def _extract_alert_display_data(alert) -> Optional[Dict[str, Any]]:
         except ImportError:
             pass
 
+        # --- Parse eventMotionDescription ---
+        motion_raw_list = params.get('eventMotionDescription', [])
+        motion_raw = motion_raw_list[0] if motion_raw_list else ''
+        if motion_raw:
+            try:
+                data['storm_motion'] = _parse_event_motion(motion_raw)
+            except Exception:
+                pass
+
+        # --- Parse VTEC ---
+        vtec_list = params.get('VTEC', [])
+        if vtec_list:
+            try:
+                data['vtec_parsed'] = [_parse_vtec(v) for v in vtec_list if v]
+            except Exception:
+                pass
+
         # Expose all remaining parameters for display
         extra_params = {}
+        _handled = {'EAS-ORG', 'EAS-STN-ID', 'BLOCKCHANNEL', 'eventMotionDescription', 'VTEC'}
         for k, v in params.items():
-            if k not in ('EAS-ORG', 'EAS-STN-ID', 'BLOCKCHANNEL'):
+            if k not in _handled:
                 extra_params[k] = v
         if extra_params:
             data['extra_parameters'] = extra_params
