@@ -8,6 +8,25 @@ tracks releases under the 2.x series.
 
 - No pending changes.
 
+## [2.71.21] - 2026-03-27 - Log client IP for every manual alert generation and send
+
+### Added
+- **`app_core/models.py`** — `ManualEASActivation` gains two new nullable columns:
+  `created_by_ip` (VARCHAR 45, IPv4/IPv6) and `triggered_by_ip` (VARCHAR 45).
+  Both are exposed in `to_dict()`.
+- **`webapp/eas/workflow.py` `manual_eas_generate()`** — Captures the client IP
+  at package-generation time using `X-Forwarded-For` (first value) with
+  `request.remote_addr` as fallback. Stores it in `ManualEASActivation.created_by_ip`,
+  adds `generated_by_ip` to the `SystemLog` details entry, and includes the IP in
+  the `workflow_logger.info` line.
+- **`webapp/eas/workflow.py` `manual_eas_send()`** — Same IP capture at broadcast
+  time. Stores it in `ManualEASActivation.triggered_by_ip`, adds `triggered_by_ip`
+  to the `SystemLog` details entry, and includes the IP in `workflow_logger.info`.
+- **`app_core/migrations/versions/20260327_add_ip_to_manual_eas_activations.py`** —
+  Alembic migration that adds the two new columns with guard checks (safe to run
+  on existing deployments). `down_revision` chains from
+  `20260327_widen_cap_alerts_geom_type`.
+
 ## [2.71.20] - 2026-03-27 - Strengthen terms of use with criminal liability language
 
 ### Changed
