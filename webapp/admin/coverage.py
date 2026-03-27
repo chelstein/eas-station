@@ -63,6 +63,11 @@ def try_build_geometry_from_same_codes(alert_id: int) -> bool:
        full-county union built from SAME codes.
     2. ``alert.geom`` already set from a previous run (no polygon in raw_json).
     3. SAME geocodes matched against the ``us_county_boundaries`` table.
+       **Only reached when the alert carries no polygon geometry at all**
+       (e.g. county-wide watches, advisories, and statements that use SAME codes
+       instead of a specific area polygon).  If ``raw_json['geometry']`` has
+       coordinates but Priority 1 failed to parse them, this step is skipped so
+       that a coarse county union is never substituted for a localized event.
 
     Uses a SAVEPOINT so that failures never corrupt the caller's session.
     Call this *before* calculate_coverage_percentages, not inside it.
@@ -112,6 +117,23 @@ def try_build_geometry_from_same_codes(alert_id: int) -> bool:
             return True
 
         # --- Priority 3: build from SAME geocodes via county boundary table ---
+        # Guard: only use SAME codes when the alert genuinely carries no polygon
+        # geometry.  If raw_json['geometry'] has coordinates (the alert IS
+        # polygon-based) but Priority 1 failed to parse/store them, substituting
+        # a full-county union would produce inflated, inaccurate coverage for a
+        # localized event (e.g. a thunderstorm warning covering part of a county).
+        # Return False here — the admin UI will surface an actionable error.
+        raw_geom_present = bool(
+            raw_geom and isinstance(raw_geom, dict) and raw_geom.get('coordinates')
+        )
+        if raw_geom_present:
+            current_app.logger.debug(
+                'Alert %s has polygon in raw_json but parse failed; '
+                'skipping SAME code fallback to avoid inflated coverage',
+                alert_id,
+            )
+            return False
+
         if not _us_county_table_ready():
             return False
 

@@ -8,6 +8,25 @@ tracks releases under the 2.x series.
 
 - No pending changes.
 
+## [2.71.10] - 2026-03-27 - Fix geometry preservation and SAME-code fallback gating
+
+### Fixed
+- **`poller/cap_poller.py`** — `_update_existing_alert`: No longer clears
+  `alert.geom` when a feed update carries no polygon (`geometry_data is None`).
+  Previously, every poll cycle for a county-wide alert (watch, advisory, or any
+  alert without a specific polygon) would silently erase SAME-derived geometry
+  that the admin had just calculated — causing "Coverage Pending" to reappear on
+  the very next page load after clicking "Calculate Coverage Percentage". Existing
+  geometry (whether polygon-derived or SAME-derived) is now preserved across
+  polygon-less updates; geometry is only replaced when the feed provides new data.
+- **`webapp/admin/coverage.py`** — `try_build_geometry_from_same_codes`: Added
+  a guard at Priority 3 (SAME codes) that stops substitution of a full-county
+  union when `raw_json['geometry']` is present but failed to parse. Previously,
+  a localized alert (e.g. severe thunderstorm warning with a narrow polygon that
+  couldn't be stored) would fall through to SAME codes and produce inflated
+  county-level coverage. Now the function returns False in that case so the UI
+  correctly shows an error rather than incorrect data.
+
 ## [2.71.9] - 2026-03-27 - Fix coverage calculation feedback and calculation bugs
 
 ### Fixed

@@ -2418,7 +2418,17 @@ class CAPPoller:
             if hasattr(existing, k):
                 setattr(existing, k, v)
         old_geom = existing.geom
-        self._set_alert_geometry(existing, geometry_data)
+        if geometry_data is not None:
+            # The feed provided polygon geometry for this update — apply it.
+            # This correctly replaces stale SAME-derived geometry when the real
+            # polygon becomes available, or updates the geometry when NWS revises
+            # the warning polygon.
+            self._set_alert_geometry(existing, geometry_data)
+        # If geometry_data is None the feed has no polygon for this alert (e.g.
+        # a county-wide watch or advisory that only carries SAME codes).  Do NOT
+        # clear existing.geom — it may have been built from SAME codes by
+        # try_build_geometry_from_same_codes and we must preserve that work
+        # across poll cycles.
         existing.updated_at = utc_now()
         self.db_session.commit()
 
