@@ -110,6 +110,7 @@
 
     .coverage-badge.bg-secondary {
         background-color: var(--text-muted) !important;
+        color: var(--surface-color) !important;
     }
 
     .coverage-breakdown .badge {
@@ -929,11 +930,12 @@
                                         (_county_short and _county_short in area_lower and (area_lower.count(';') >= 2 or area_lower.count(',') >= 2))
                                     )
                                 ) %}
-                                {% if is_county_wide_fallback %}
+                                {% set has_county_geometry = coverage_data and coverage_data.get('county') and coverage_data['county'].get('coverage_percentage', 0) > 0 %}
+                                {% if is_county_wide_fallback or has_county_geometry %}
                                 <div class="text-center py-4">
                                     <i class="fas fa-exclamation-triangle fa-3x text-warning mb-3"></i>
-                                    <h5>Alert - Boundary Analysis Pending</h5>
-                                    <p class="text-muted">This alert affects county areas, but intersection analysis has not been run yet.</p>
+                                    <h5>Boundary Analysis Pending</h5>
+                                    <p class="text-muted">Alert geometry exists ({{ coverage_data['county']['coverage_percentage'] if has_county_geometry else '' }}% county coverage), but service boundary intersections have not been calculated yet.</p>
                                     <button type="button" class="btn btn-warning coverage-calc-btn" onclick="triggerIntersectionFix(this)">
                                         <i class="fas fa-wrench"></i> Calculate Affected Boundaries
                                     </button>
@@ -943,6 +945,11 @@
                                     <i class="fas fa-map fa-3x text-muted mb-3"></i>
                                     <h5 class="text-muted">No Boundary Intersections Found</h5>
                                     <p class="text-muted">This alert may not intersect with any configured emergency service boundaries.</p>
+                                    {% if not coverage_data or not coverage_data.get('county') %}
+                                    <button type="button" class="btn btn-outline-secondary coverage-calc-btn mt-2" onclick="triggerIntersectionFix(this)">
+                                        <i class="fas fa-calculator"></i> Try Calculating Coverage
+                                    </button>
+                                    {% endif %}
                                 </div>
                                 {% endif %}
                             {% endif %}
@@ -1368,12 +1375,12 @@
                                 <span>{{ alert.eas_forwarding_reason }}</span>
                             </div>
                             {% endif %}
-                            {% if alert.eas_audio_url %}
+                            {% if eas_audio_web_url %}
                             <div class="detail-item">
                                 <span class="detail-label"><i class="fas fa-volume-up"></i> Forwarded Audio</span>
                                 <div class="mt-1">
                                     <audio controls preload="metadata" style="width: 100%; max-width: 400px;" aria-label="Auto-forwarded EAS audio">
-                                        <source src="{{ alert.eas_audio_url }}" type="audio/wav">
+                                        <source src="{{ eas_audio_web_url }}" type="audio/wav">
                                         Your browser does not support the audio element.
                                     </audio>
                                 </div>
@@ -2200,7 +2207,13 @@ async function triggerIntersectionFix(clickedBtn) {
     }
 
     try {
-        const response = await fetch(`/admin/calculate_single_alert/${alertData.id}`, { method: 'POST' });
+        const response = await fetch(`/admin/calculate_single_alert/${alertData.id}`, {
+            method: 'POST',
+            headers: {
+                'X-CSRF-Token': window.CSRF_TOKEN || '',
+                'Accept': 'application/json',
+            },
+        });
         const result = await response.json();
 
         if (response.ok) {

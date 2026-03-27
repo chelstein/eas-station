@@ -760,6 +760,35 @@ def alert_detail(alert_id):
         # Extract enriched display data (works for both IPAWS and NOAA)
         ipaws_data = _extract_alert_display_data(alert)
 
+        # Convert eas_audio_url filesystem path to a web-accessible URL.
+        # The field stores an absolute path (e.g. /home/.../static/eas_messages/foo.wav)
+        # which browsers cannot load directly; we need a /static/... URL instead.
+        eas_audio_web_url = None
+        raw_audio_path = getattr(alert, 'eas_audio_url', None)
+        if raw_audio_path:
+            static_folder = current_app.static_folder or os.path.join(os.getcwd(), 'static')
+            try:
+                if os.path.isabs(raw_audio_path) and raw_audio_path.startswith(static_folder):
+                    rel = os.path.relpath(raw_audio_path, static_folder).replace(os.sep, '/')
+                    eas_audio_web_url = url_for('static', filename=rel)
+                elif not os.path.isabs(raw_audio_path):
+                    # Already a relative/web path
+                    eas_audio_web_url = raw_audio_path if raw_audio_path.startswith('/') else '/' + raw_audio_path
+                else:
+                    # Absolute path outside static folder — try using the EASMessage audio route
+                    # by finding the matching record for this alert
+                    from app_core.models import EASMessage as _EASMsg
+                    linked_msg = (
+                        _EASMsg.query
+                        .filter(_EASMsg.cap_alert_id == alert_id)
+                        .order_by(_EASMsg.created_at.desc())
+                        .first()
+                    )
+                    if linked_msg:
+                        eas_audio_web_url = url_for('eas_message_audio', message_id=linked_msg.id)
+            except Exception as _url_exc:
+                api_bp.logger.debug('Could not resolve eas_audio_url to web URL: %s', _url_exc)
+
         return render_template(
             'alert_detail.html',
             alert=alert,
@@ -771,6 +800,7 @@ def alert_detail(alert_id):
             boundary_summary=boundary_summary,
             suppress_boundary_details=suppress_boundary_details,
             ipaws_data=ipaws_data,
+            eas_audio_web_url=eas_audio_web_url,
         )
 
     except Exception as exc:

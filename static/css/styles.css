@@ -6421,4 +6421,174 @@ a:not(.btn):not(.nav-link):not(.dropdown-item):hover {
     border-color: color-mix(in srgb, var(--secondary-color) 30%, var(--border-color));
 }
 
+/* === DARK THEME CONTRAST FIXES ===
+   Dark themes define pastel/bright semantic colors (e.g. success=#67ffd6, info=#adcfff,
+   danger=#ffafbf) that are too light for white text to meet WCAG AA contrast (4.5:1).
+   Override text color to dark for all semantic bg-* classes and card-header variants
+   across every dark theme. */
+
+/* Dark themes: badges with success/info/danger/secondary backgrounds need dark text */
+[data-theme="dark"] .badge.bg-success,
+[data-theme="coffee"] .badge.bg-success,
+[data-theme="aurora"] .badge.bg-success,
+[data-theme="nebula"] .badge.bg-success,
+[data-theme="midnight"] .badge.bg-success,
+[data-theme="charcoal"] .badge.bg-success,
+[data-theme="obsidian"] .badge.bg-success,
+[data-theme="slate"] .badge.bg-success,
+[data-theme="dark"] .badge.bg-info,
+[data-theme="coffee"] .badge.bg-info,
+[data-theme="aurora"] .badge.bg-info,
+[data-theme="nebula"] .badge.bg-info,
+[data-theme="midnight"] .badge.bg-info,
+[data-theme="charcoal"] .badge.bg-info,
+[data-theme="obsidian"] .badge.bg-info,
+[data-theme="slate"] .badge.bg-info,
+[data-theme="dark"] .badge.bg-danger,
+[data-theme="coffee"] .badge.bg-danger,
+[data-theme="aurora"] .badge.bg-danger,
+[data-theme="nebula"] .badge.bg-danger,
+[data-theme="midnight"] .badge.bg-danger,
+[data-theme="charcoal"] .badge.bg-danger,
+[data-theme="obsidian"] .badge.bg-danger,
+[data-theme="slate"] .badge.bg-danger,
+[data-theme="dark"] .badge.bg-secondary,
+[data-theme="coffee"] .badge.bg-secondary,
+[data-theme="aurora"] .badge.bg-secondary,
+[data-theme="nebula"] .badge.bg-secondary,
+[data-theme="midnight"] .badge.bg-secondary,
+[data-theme="charcoal"] .badge.bg-secondary,
+[data-theme="obsidian"] .badge.bg-secondary,
+[data-theme="slate"] .badge.bg-secondary {
+    color: #0f172a !important;
+    text-shadow: none;
+}
+
+/* Dark themes: card-headers with semantic bg-* need dark text + children */
+[data-theme="dark"] .card-header.bg-success,
+[data-theme="coffee"] .card-header.bg-success,
+[data-theme="aurora"] .card-header.bg-success,
+[data-theme="nebula"] .card-header.bg-success,
+[data-theme="midnight"] .card-header.bg-success,
+[data-theme="charcoal"] .card-header.bg-success,
+[data-theme="obsidian"] .card-header.bg-success,
+[data-theme="slate"] .card-header.bg-success,
+[data-theme="dark"] .card-header.bg-info,
+[data-theme="coffee"] .card-header.bg-info,
+[data-theme="aurora"] .card-header.bg-info,
+[data-theme="nebula"] .card-header.bg-info,
+[data-theme="midnight"] .card-header.bg-info,
+[data-theme="charcoal"] .card-header.bg-info,
+[data-theme="obsidian"] .card-header.bg-info,
+[data-theme="slate"] .card-header.bg-info,
+[data-theme="dark"] .card-header.bg-danger,
+[data-theme="coffee"] .card-header.bg-danger,
+[data-theme="aurora"] .card-header.bg-danger,
+[data-theme="nebula"] .card-header.bg-danger,
+[data-theme="midnight"] .card-header.bg-danger,
+[data-theme="charcoal"] .card-header.bg-danger,
+[data-theme="obsidian"] .card-header.bg-danger,
+[data-theme="slate"] .card-header.bg-danger,
+[data-theme="dark"] .card-header.bg-secondary,
+[data-theme="coffee"] .card-header.bg-secondary,
+[data-theme="aurora"] .card-header.bg-secondary,
+[data-theme="nebula"] .card-header.bg-secondary,
+[data-theme="midnight"] .card-header.bg-secondary,
+[data-theme="charcoal"] .card-header.bg-secondary,
+[data-theme="obsidian"] .card-header.bg-secondary,
+[data-theme="slate"] .card-header.bg-secondary {
+    color: #0f172a !important;
+}
+
+[data-theme="dark"] .card-header.bg-success *,
+[data-theme="coffee"] .card-header.bg-success *,
+[data-theme="aurora"] .card-header.bg-success *,
+[data-theme="nebula"] .card-header.bg-success *,
+[data-theme="midnight"] .card-header.bg-success *,
+[data-theme="charcoal"] .card-header.bg-success *,
+[data-theme="obsidian"] .card-header.bg-success *,
+[data-theme="slate"] .card-header.bg-success *,
+[data-theme="dark"] .card-header.bg-info *,
+[data-theme="coffee"] .card-header.bg-info *,
+[data-theme="aurora"] .card-header.bg-info *,
+[data-theme="nebula"] .card-header.bg-info *,
+[data-theme="midnight"] .card-header.bg-info *,
+[data-theme="charcoal"] .card-header.bg-info *,
+[data-theme="obsidian"] .card-header.bg-info *,
+[data-theme="slate"] .card-header.bg-info *,
+[data-theme="dark"] .card-header.bg-danger *,
+[data-theme="coffee"] .card-header.bg-danger *,
+[data-theme="aurora"] .card-header.bg-danger *,
+[data-theme="nebula"] .card-header.bg-danger *,
+[data-theme="midnight"] .card-header.bg-danger *,
+[data-theme="charcoal"] .card-header.bg-danger *,
+[data-theme="obsidian"] .card-header.bg-danger *,
+[data-theme="slate"] .card-header.bg-danger *,
+[data-theme="dark"] .card-header.bg-secondary *,
+[data-theme="coffee"] .card-header.bg-secondary *,
+[data-theme="aurora"] .card-header.bg-secondary *,
+[data-theme="nebula"] .card-header.bg-secondary *,
+[data-theme="midnight"] .card-header.bg-secondary *,
+[data-theme="charcoal"] .card-header.bg-secondary *,
+[data-theme="obsidian"] .card-header.bg-secondary *,
+[data-theme="slate"] .card-header.bg-secondary * {
+    color: #0f172a !important;
+}
+
+/* Dark themes: general bg-success/info/danger/secondary utility classes */
+[data-theme="dark"] .bg-success,
+[data-theme="coffee"] .bg-success,
+[data-theme="aurora"] .bg-success,
+[data-theme="nebula"] .bg-success,
+[data-theme="midnight"] .bg-success,
+[data-theme="charcoal"] .bg-success,
+[data-theme="obsidian"] .bg-success,
+[data-theme="slate"] .bg-success,
+[data-theme="dark"] .bg-info,
+[data-theme="coffee"] .bg-info,
+[data-theme="aurora"] .bg-info,
+[data-theme="nebula"] .bg-info,
+[data-theme="midnight"] .bg-info,
+[data-theme="charcoal"] .bg-info,
+[data-theme="obsidian"] .bg-info,
+[data-theme="slate"] .bg-info,
+[data-theme="dark"] .bg-danger,
+[data-theme="coffee"] .bg-danger,
+[data-theme="aurora"] .bg-danger,
+[data-theme="nebula"] .bg-danger,
+[data-theme="midnight"] .bg-danger,
+[data-theme="charcoal"] .bg-danger,
+[data-theme="obsidian"] .bg-danger,
+[data-theme="slate"] .bg-danger {
+    color: #0f172a !important;
+}
+
+/* Dark themes: text-bg-* utility pairs */
+[data-theme="dark"] .text-bg-success,
+[data-theme="coffee"] .text-bg-success,
+[data-theme="aurora"] .text-bg-success,
+[data-theme="nebula"] .text-bg-success,
+[data-theme="midnight"] .text-bg-success,
+[data-theme="charcoal"] .text-bg-success,
+[data-theme="obsidian"] .text-bg-success,
+[data-theme="slate"] .text-bg-success,
+[data-theme="dark"] .text-bg-info,
+[data-theme="coffee"] .text-bg-info,
+[data-theme="aurora"] .text-bg-info,
+[data-theme="nebula"] .text-bg-info,
+[data-theme="midnight"] .text-bg-info,
+[data-theme="charcoal"] .text-bg-info,
+[data-theme="obsidian"] .text-bg-info,
+[data-theme="slate"] .text-bg-info,
+[data-theme="dark"] .text-bg-danger,
+[data-theme="coffee"] .text-bg-danger,
+[data-theme="aurora"] .text-bg-danger,
+[data-theme="nebula"] .text-bg-danger,
+[data-theme="midnight"] .text-bg-danger,
+[data-theme="charcoal"] .text-bg-danger,
+[data-theme="obsidian"] .text-bg-danger,
+[data-theme="slate"] .text-bg-danger {
+    color: #0f172a !important;
+}
+
 /* End of Consolidated Styles */
