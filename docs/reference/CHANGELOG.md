@@ -8,6 +8,31 @@ tracks releases under the 2.x series.
 
 - No pending changes.
 
+## [2.71.11] - 2026-03-27 - Add alert geometry and coverage Mermaid documentation
+
+### Documentation
+- **`docs/architecture/ALERT_GEOMETRY_COVERAGE.md`** (new) — Comprehensive
+  Mermaid documentation for the alert geometry and coverage calculation subsystem.
+  Contains five diagrams:
+  1. **Geometry Resolution Priority Chain** — Flowchart showing Priority 1 (raw
+     polygon), Priority 2 (stored geometry), Priority 3 (SAME/FIPS county union),
+     and why Priority 3 is intentionally blocked when a polygon is present in
+     `raw_json` but failed to parse.
+  2. **Alert Type Routing** — Table and flowchart mapping common NWS product types
+     (Tornado Warning, High Wind Warning, Tornado Watch, Winter Weather Advisory,
+     etc.) to the geometry source normally used.
+  3. **Poll-Cycle Geometry Preservation** — Flowchart showing the fix for
+     SAME-derived geometry being erased on each polygon-less feed update.
+  4. **Calculate Coverage Button Flow** — Full browser → API → PostGIS → toast
+     → reload flowchart for the "Calculate Affected Boundaries" button.
+  5. **End-to-End Coverage Calculation Sequence** — Sequence diagram tracing a
+     county-wide alert (High Wind Warning) with FIPS codes only through geometry
+     build, intersection calculation, and final coverage display.
+- **`docs/reference/DIAGRAMS.md`** — Added index entry for new file; updated
+  diagram count (79 → 84) and last-updated date.
+- **`docs/architecture/DATA_FLOW_SEQUENCES.md`** — Added cross-reference link to
+  the new geometry coverage document in the Related Documentation section.
+
 ## [2.71.10] - 2026-03-27 - Fix geometry preservation and SAME-code fallback gating
 
 ### Fixed

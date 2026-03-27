@@ -851,6 +851,7 @@ Each diagram shows:
 **Related Documentation:**
 - [System Architecture](SYSTEM_ARCHITECTURE) - Component diagrams and relationships
 - [Theory of Operation](THEORY_OF_OPERATION) - Conceptual overview
+- [Alert Geometry and Coverage Calculation](ALERT_GEOMETRY_COVERAGE) - Geometry priority chain, SAME/FIPS fallback, and coverage button flow
 - [DIAGRAMS Index](../DIAGRAMS) - All available diagrams
 
 ---
