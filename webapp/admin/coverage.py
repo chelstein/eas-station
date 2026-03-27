@@ -55,9 +55,13 @@ def _us_county_table_ready() -> bool:
 def try_build_geometry_from_same_codes(alert_id: int) -> bool:
     """Attempt to build alert geometry from available sources.
 
-    Tries three sources in order:
-    1. ``alert.geom`` already set – return immediately.
-    2. Polygon embedded in ``raw_json['geometry']`` (NOAA GeoJSON feature body).
+    Tries sources in priority order:
+    1. Polygon embedded in ``raw_json['geometry']`` (NOAA GeoJSON feature body).
+       This always takes priority — even if geometry was previously stored from
+       SAME codes — so that an alert whose polygon arrives after initial ingest
+       gets the accurate partial-coverage geometry rather than the coarser
+       full-county union built from SAME codes.
+    2. ``alert.geom`` already set from a previous run (no polygon in raw_json).
     3. SAME geocodes matched against the ``us_county_boundaries`` table.
 
     Uses a SAVEPOINT so that failures never corrupt the caller's session.
@@ -67,12 +71,16 @@ def try_build_geometry_from_same_codes(alert_id: int) -> bool:
     """
     try:
         alert = CAPAlert.query.get(alert_id)
-        if not alert or alert.geom:
-            return bool(alert and alert.geom)
+        if not alert:
+            return False
 
         raw_json = alert.raw_json if isinstance(alert.raw_json, dict) else {}
 
-        # --- Priority 1: use the polygon embedded in raw_json['geometry'] ---
+        # --- Priority 1: actual polygon from raw_json['geometry'] ---
+        # Always preferred: covers the real affected area rather than the full
+        # county union that SAME codes produce.  We update even if geom is
+        # already set so stale SAME-derived geometry gets replaced once the
+        # real polygon is available.
         raw_geom = raw_json.get('geometry')
         if raw_geom and isinstance(raw_geom, dict) and raw_geom.get('coordinates'):
             nested = db.session.begin_nested()
@@ -99,7 +107,11 @@ def try_build_geometry_from_same_codes(alert_id: int) -> bool:
                 )
                 nested.rollback()
 
-        # --- Priority 2: build from SAME geocodes via county boundary table ---
+        # --- Priority 2: geometry already stored (and no raw_json polygon) ---
+        if alert.geom:
+            return True
+
+        # --- Priority 3: build from SAME geocodes via county boundary table ---
         if not _us_county_table_ready():
             return False
 
@@ -242,7 +254,45 @@ def calculate_coverage_percentages(alert_id, intersections):
                 'intersected_area_sqm': intersected_area,
             }
 
-        county_boundary = Boundary.query.filter_by(type='county').first()
+        # Prefer the county boundary that already intersects this alert so
+        # we calculate coverage for the right county in multi-county setups.
+        # Fall back to name-matching the configured county, then to .first().
+        county_boundary = None
+        county_intersections = [b for _, b in intersections if b.type == 'county']
+        if county_intersections:
+            # If multiple county boundaries intersect, prefer the one matching
+            # the configured county name; otherwise use the first intersecting one.
+            try:
+                from app_core.location import get_location_settings
+                _settings = get_location_settings()
+                _cname = (_settings.get('county_name', '') or '').lower().replace(' county', '').strip()
+                if _cname:
+                    county_boundary = next(
+                        (b for b in county_intersections
+                         if _cname in (b.name or '').lower().replace(' county', '').strip()),
+                        county_intersections[0],
+                    )
+                else:
+                    county_boundary = county_intersections[0]
+            except Exception:
+                county_boundary = county_intersections[0]
+        if county_boundary is None:
+            # No intersecting county boundary – fall back to configured-name
+            # filter, then to the first county boundary in the database.
+            try:
+                from app_core.location import get_location_settings
+                _settings = get_location_settings()
+                _cname = (_settings.get('county_name', '') or '').lower().replace(' county', '').strip()
+                if _cname:
+                    county_boundary = (
+                        Boundary.query.filter_by(type='county')
+                        .filter(func.lower(Boundary.name).contains(_cname))
+                        .first()
+                    )
+            except Exception:
+                pass
+            if county_boundary is None:
+                county_boundary = Boundary.query.filter_by(type='county').first()
         if county_boundary and county_boundary.geom:
             county_intersection_query = db.session.query(
                 func.ST_Area(

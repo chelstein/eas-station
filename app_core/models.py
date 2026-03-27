@@ -145,7 +145,7 @@ class CAPAlert(db.Model):
     description = db.Column(db.Text)
     instruction = db.Column(db.Text)
     raw_json = db.Column(db.JSON)
-    geom = db.Column(_geometry_type("POLYGON"))
+    geom = db.Column(_geometry_type("GEOMETRY"))
     source = db.Column(db.String(32), nullable=False, default=ALERT_SOURCE_UNKNOWN)
     
     # EAS forwarding tracking - records whether this alert triggered an EAS broadcast
