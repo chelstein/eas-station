@@ -8,6 +8,22 @@ tracks releases under the 2.x series.
 
 - No pending changes.
 
+## [2.71.18] - 2026-03-27 - Fix SQLAlchemy crash in debug boundary endpoints
+
+### Fixed
+- **`webapp/routes_debug.py`** — `.cast("geography")` called directly on a SQLAlchemy
+  `Function` object crashed with `'str' object has no attribute '_static_cache_key'` for
+  every boundary (all 197), causing the `/debug/boundaries/<id>` and `/debug/alert/<id>`
+  endpoints to return an empty `intersection_results` array and a list of 197 errors.
+  Fixed by replacing `.cast("geography")` with the correct GeoAlchemy2 pattern
+  `cast(..., Geography())`.  Added `from geoalchemy2 import Geography` and
+  `from sqlalchemy import cast` imports.
+
+- **`templates/alert_detail.html`** — The debug panel rendered the full errors array with
+  no height constraint, so 197 errors expanded the page to ~19 000 px.  Added a
+  `max-height: 200px; overflow-y: auto` wrapper around the error list as a defensive
+  guard against future error floods.
+
 ## [2.71.17] - 2026-03-27 - Show affected sq mi per boundary in debug panel; fix area unit consistency
 
 ### Fixed
