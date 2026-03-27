@@ -455,30 +455,79 @@ _VTEC_ACTIONS = {
     'ROU': 'Routine',
 }
 
+# Phenomenon codes from NWS Directive 10-1703 (ver 9, March 2025).
+# Legacy codes observed in real alerts but removed from the current directive
+# are kept here (marked) so older archived alerts still decode correctly.
 _VTEC_PHENOMENA = {
-    'AF': 'Ashfall', 'AS': 'Air Stagnation', 'BH': 'Beach Hazard',
-    'BS': 'Blowing Snow', 'BW': 'Brisk Wind', 'BZ': 'Blizzard',
-    'CF': 'Coastal Flood', 'DS': 'Dust Storm', 'DU': 'Blowing Dust',
-    'EC': 'Extreme Cold', 'EH': 'Excessive Heat', 'EW': 'Extreme Wind',
-    'FA': 'Areal Flood', 'FF': 'Flash Flood', 'FG': 'Dense Fog',
-    'FL': 'Flood', 'FR': 'Frost', 'FW': 'Fire Weather',
-    'FZ': 'Freeze', 'GL': 'Gale', 'HF': 'Hurricane Force Wind',
-    'HI': 'Inland Hurricane Wind', 'HS': 'Heavy Snow',
-    'HT': 'Heat', 'HU': 'Hurricane', 'HW': 'High Wind',
-    'HZ': 'Hard Freeze', 'IP': 'Sleet', 'IS': 'Ice Storm',
-    'LB': 'Lake-Effect Snow and Blowing Snow', 'LE': 'Lake-Effect Snow',
-    'LO': 'Low Water', 'LS': 'Lakeshore Flood', 'LW': 'Lake Wind',
-    'MA': 'Marine', 'MF': 'Marine Dense Fog', 'MH': 'Marine Ashfall',
-    'MS': 'Marine Dense Smoke', 'RB': 'Small Craft for Rough Bar',
-    'RP': 'Rip Current Risk', 'SC': 'Small Craft', 'SE': 'Hazardous Seas',
-    'SI': 'Small Craft for Winds', 'SM': 'Dense Smoke',
-    'SN': 'Snow', 'SR': 'Storm', 'SS': 'Storm Surge',
-    'SU': 'High Surf', 'SV': 'Severe Thunderstorm', 'SW': 'Small Craft for Hazardous Seas',
-    'TI': 'Inland Tropical Storm Wind', 'TO': 'Tornado',
-    'TR': 'Tropical Storm', 'TS': 'Tsunami', 'TY': 'Typhoon',
-    'UP': 'Ice Accretion', 'WC': 'Wind Chill', 'WI': 'Wind',
-    'WS': 'Winter Storm', 'WW': 'Winter Weather', 'ZF': 'Freezing Fog',
+    # — Current directive codes —
+    'AF': 'Ashfall',
+    'AS': 'Air Stagnation',
+    'BH': 'Beach Hazard',
+    'BW': 'Brisk Wind',
+    'BZ': 'Blizzard',
+    'CF': 'Coastal Flood',
+    'CW': 'Cold Weather',
+    'DF': 'Debris Flow',
+    'DS': 'Dust Storm',
+    'DU': 'Blowing Dust',
+    'EC': 'Extreme Cold',
+    'EW': 'Extreme Wind',
+    'FA': 'Flood',                          # Areal flood (non-forecast-point)
+    'FF': 'Flash Flood',
+    'FG': 'Dense Fog',
+    'FL': 'Flood',                          # Forecast-point flood
+    'FR': 'Frost',
+    'FW': 'Fire Weather',
+    'FZ': 'Freeze',
+    'GL': 'Gale',
+    'HF': 'Hurricane Force Wind',
+    'HT': 'Heat',
+    'HU': 'Hurricane',
+    'HW': 'High Wind',
+    'HY': 'Hydrologic',
+    'IS': 'Ice Storm',
+    'LE': 'Lake-Effect Snow',
+    'LO': 'Low Water',
+    'LS': 'Lakeshore Flood',
+    'LW': 'Lake Wind',
+    'MA': 'Marine',
+    'MF': 'Marine Dense Fog',
+    'MH': 'Marine Ashfall',
+    'MS': 'Marine Dense Smoke',
+    'RB': 'Small Craft for Rough Bar',
+    'RP': 'Rip Current Risk',
+    'SC': 'Small Craft',
+    'SE': 'Hazardous Seas',
+    'SI': 'Small Craft for Winds',
+    'SM': 'Dense Smoke',
+    'SQ': 'Snow Squall',
+    'SR': 'Storm',
+    'SS': 'Storm Surge',
+    'SU': 'High Surf',
+    'SV': 'Severe Thunderstorm',
+    'SW': 'Small Craft for Hazardous Seas',
+    'TO': 'Tornado',
+    'TR': 'Tropical Storm',
+    'TS': 'Tsunami',
+    'TY': 'Typhoon',
+    'UP': 'Freezing Spray',                 # Heavy freezing spray for W/A significance
+    'WI': 'Wind',
+    'WS': 'Winter Storm',
+    'WW': 'Winter Weather',
+    'XH': 'Extreme Heat',
+    'ZF': 'Freezing Fog',
     'ZR': 'Freezing Rain',
+    # — Legacy codes (pre-ver-9 directive; retained for archived alert decoding) —
+    'BS': 'Blowing Snow',
+    'EH': 'Excessive Heat',                 # Superseded by XH
+    'HI': 'Inland Hurricane Wind',
+    'HS': 'Heavy Snow',
+    'HZ': 'Hard Freeze',
+    'IP': 'Sleet',
+    'LB': 'Lake-Effect Snow and Blowing Snow',
+    'SN': 'Snow',
+    'TI': 'Inland Tropical Storm Wind',
+    'WC': 'Wind Chill',
 }
 
 _VTEC_SIGNIFICANCE = {
@@ -501,15 +550,17 @@ def _parse_vtec(raw: str) -> Dict[str, Any]:
     import re
 
     stripped = raw.strip().strip('/')
-    # Pattern: P.A.CCCC.PP.S.NNNN.ttttttTttttttZ-ttttttTttttttZ
+    # P-VTEC format per NWS Directive 10-1703 (ver 9, March 2025):
+    #   k.aaa.cccc.pp.s.####.yymmddThhnnZB-yymmddThhnnZE
+    # Time group is yymmdd (6 digits) + T + hhnn (4 digits) + Z — NOT 6+6.
     m = re.match(
-        r'([OTEX])\.'                       # program
-        r'([A-Z]{2,3})\.'                   # action
-        r'([A-Z]{4})\.'                     # office
-        r'([A-Z]{2})\.'                     # phenomenon
-        r'([WAYSFONM])\.'                   # significance
-        r'(\d{4})\.'                        # ETN
-        r'(\d{6}T\d{6}Z)-(\d{6}T\d{6}Z)', # begin-end times
+        r'([OTEX])\.'                      # k   — product class
+        r'([A-Z]{2,3})\.'                  # aaa — action
+        r'([A-Z]{4})\.'                    # cccc — office ID
+        r'([A-Z]{2})\.'                    # pp  — phenomenon
+        r'([WAYSFONM])\.'                  # s   — significance
+        r'(\d{4})\.'                       # #### — ETN
+        r'(\d{6}T\d{4}Z)-(\d{6}T\d{4}Z)',# begin-end (yymmddThhnnZ)
         stripped,
     )
     if not m:
@@ -518,12 +569,16 @@ def _parse_vtec(raw: str) -> Dict[str, Any]:
     prog, action, office, phen, sig, etn, begin_raw, end_raw = m.groups()
 
     def _decode_vtec_time(s: str) -> Optional[str]:
-        """Convert yymmddThhnnssZ to a readable UTC string. All-zeros = ongoing."""
-        if s == '000000T000000Z':
+        """Convert yymmddThhnnZ to a readable UTC string.
+
+        All-zeros (000000T0000Z) is NWS convention meaning the event was
+        already ongoing at the time this product was issued.
+        """
+        if s == '000000T0000Z':
             return None
         try:
             from datetime import datetime, timezone
-            dt = datetime.strptime(s, '%y%m%dT%H%M%SZ').replace(tzinfo=timezone.utc)
+            dt = datetime.strptime(s, '%y%m%dT%H%MZ').replace(tzinfo=timezone.utc)
             return dt.strftime('%Y-%m-%d %H:%M UTC')
         except ValueError:
             return s
