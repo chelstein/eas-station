@@ -107,10 +107,20 @@ def _detect_county_wide(alert) -> bool:
         )
 
         # Short county name appears alongside a multi-area list (e.g. "putnam; ... OH")
+        # Guard: suppress this match when MULTIPLE counties from the same state are
+        # listed (e.g. "Allen, OH; Putnam, OH; Van Wert, OH").  Those are multi-county
+        # polygon alerts, not county-wide single-county alerts.  Detect by counting
+        # how many times the pattern ", <state>" appears; more than one indicates a
+        # list of counties, each with its state abbreviation.
+        _multi_county_list = bool(
+            configured_state_code
+            and area_lower.count(f', {configured_state_code}') > 1
+        )
         short_with_list = (
             county_short
             and county_short in area_lower
             and (area_lower.count(';') >= 2 or area_lower.count(',') >= 2)
+            and not _multi_county_list
         )
 
         # Statewide text patterns (e.g. area_desc="Ohio" or "state of ohio")

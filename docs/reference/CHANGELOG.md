@@ -8,6 +8,28 @@ tracks releases under the 2.x series.
 
 - No pending changes.
 
+## [2.71.19] - 2026-03-27 - Fix wrong-county 99.4% coverage bug
+
+### Fixed
+- **`webapp/admin/coverage.py`** — Census TIGER fallback for county coverage now
+  prefers the county whose name matches the configured `county_name` before falling
+  back to `.first()`.  Previously, when a station's `fips_codes` list contained
+  multiple counties (e.g. Allen + Putnam + Van Wert from an alert's SAME codes),
+  `.first()` returned Allen County (GEOID `39003`, lowest value, loaded first from
+  the Census shapefile).  For the Severe Thunderstorm Warning covering
+  "Allen, OH; Putnam, OH; Van Wert, OH", the real NWS polygon intersects Allen
+  County at 99.4% but Putnam County at only 15.7% — selecting Allen County was the
+  root cause of the persistent 99.4% / county-wide false positive.
+- **`webapp/admin/coverage.py`** — Step 3 Boundary-table fallback (`Boundary.query
+  .filter_by(type='county').first()`) is now skipped when a `county_name` is
+  configured.  Previously it fired whenever no exact-name match was found, which
+  could silently swap in a neighbouring county's boundary (same bug vector as above).
+- **`webapp/admin/api.py` `_detect_county_wide()`** — `short_with_list` heuristic
+  no longer fires when the `area_desc` lists multiple counties from the same state
+  (e.g. "Allen, OH; Putnam, OH; Van Wert, OH").  Detected by counting occurrences
+  of `, <state_code>` in the description; more than one signals a multi-county
+  polygon alert, not a single-county-wide alert.
+
 ## [2.71.18] - 2026-03-27 - Fix SQLAlchemy crash in debug boundary endpoints
 
 ### Fixed
