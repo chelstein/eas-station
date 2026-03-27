@@ -8,6 +8,23 @@ tracks releases under the 2.x series.
 
 - No pending changes.
 
+## [2.71.14] - 2026-03-27 - Restore debug info as hidden panel; add IPAWS Poller Debug to navbar
+
+### Fixed
+- **`templates/alert_detail.html`** — The `debugBoundaries()` JS function existed but had
+  no button to call it, making boundary debug data completely inaccessible from the UI.
+  Added a **"Show Debug Info"** button to the Actions card (sidebar). Clicking it reveals
+  a collapsible panel that fetches `/debug/boundaries/<id>` and renders a readable table
+  showing: geometry type, SRID, raw `ST_Area` value (with approx sq-mile conversion for
+  sanity-checking), stored vs live intersection counts, per-boundary intersect results,
+  and any errors. A "Raw JSON" link opens the full JSON in a new tab. Panel is hidden by
+  default and lazily loaded on first open.
+
+- **`templates/components/navbar.html`** — The `/debug/ipaws` IPAWS Poller Debug page
+  existed as a full template (`ipaws_debug.html`) but was never linked from anywhere in
+  the navigation. Added **"IPAWS Poller Debug"** under Settings → Observability so the
+  page is reachable without manually typing the URL.
+
 ## [2.71.13] - 2026-03-27 - Fix county coverage percentage, wrong county selection, and square miles display
 
 ### Fixed
