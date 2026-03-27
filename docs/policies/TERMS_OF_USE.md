@@ -16,9 +16,10 @@ _Last updated: February 14, 2026_
 - You assume all risk for evaluating the software in lab or demonstration environments. The project is provided strictly on an “AS IS” basis without warranties of any kind.
 
 ## 3. Disclaimer of Liability & Indemnification
-- The authors, maintainers, and contributors disclaim any liability for damages, injuries, penalties, data loss, downtime, or regulatory actions that may arise from use or misuse of EAS Station—including malicious, unauthorized, or noncompliant uses by you or anyone who gains access to your deployment.
+- The authors, maintainers, and contributors disclaim any and all liability—civil, criminal, and regulatory—for damages, injuries, penalties, data loss, downtime, enforcement actions, or criminal proceedings that may arise from use or misuse of EAS Station—including malicious, unauthorized, or noncompliant uses by you or anyone who gains access to your deployment.
+- **The developer and contributors of this project bear absolutely no responsibility for any criminal activity conducted using this software.**
 - No emergency responses, broadcast activations, or public warning decisions should be based on this project. Use at your own risk.
-- You agree to indemnify, defend, and hold harmless the project authors, maintainers, and contributors from any claims arising out of your deployment, configuration, redistribution, or failure to control access to the project.
+- You agree to indemnify, defend, and hold harmless the project authors, maintainers, and contributors from any and all claims, demands, damages, losses, costs, and liabilities—including attorneys' fees and criminal defense costs—arising out of your deployment, configuration, redistribution, or failure to control access to the project.
 
 ## 4. Acceptable Use & Prohibited Activities
 - Operate the software only in controlled, non-production lab or development environments.
@@ -28,6 +29,48 @@ _Last updated: February 14, 2026_
 - Do not use the project for any malicious, unlawful, deceptive, surveillance, harassment, or disruptive purpose—including denial of service, spoofing, jamming, or unauthorized interception of communications.
 - You are solely responsible for restricting access to your deployment and for any downstream impacts caused by third parties who use, repurpose, or chain this software into other tools.
 - Retain attribution to the project and respect the licenses of any incorporated open-source dependencies.
+
+## 4a. Criminal Liability & Federal Law Violations
+
+> ⚠️ **Criminal Warning:** Misuse of this software may constitute one or more felonies under federal law and the laws of multiple states and jurisdictions. Ignorance of these laws is not a defense.
+
+Misuse of EAS Station—including unauthorized broadcast, spoofing, or interference with public warning systems—may constitute serious criminal offenses under United States federal law and the laws of multiple states and jurisdictions worldwide. You acknowledge and agree that:
+
+- **Unauthorized transmission of false Emergency Alert System signals** is a federal crime under **18 U.S.C. § 1038** (False Information and Hoaxes), punishable by up to five (5) years imprisonment per offense, plus civil penalties and restitution, for each broadcast that elicits or is likely to elicit an emergency response.
+- **Willful interference with authorized Emergency Alert System broadcasts** may violate **47 U.S.C. § 325** and **47 U.S.C. § 333**, and related provisions of the Communications Act of 1934 (as amended), subject to fines of up to $100,000 per violation per day under 47 U.S.C. § 503(b), criminal prosecution under **47 U.S.C. § 501**, and forfeiture of equipment.
+- **Transmission of false distress signals** is a criminal offense under **47 U.S.C. § 325(a)**, subject to criminal fines and imprisonment.
+- **State and local laws** in virtually all U.S. jurisdictions impose additional criminal penalties—including felony charges—for false emergency alerts, false fire alarms, or interference with emergency communications systems. Criminal charges from multiple jurisdictions may be pursued simultaneously for a single act of misuse.
+- In jurisdictions outside the United States, equivalent or more severe criminal statutes may apply, and international law enforcement cooperation may result in prosecution across borders.
+- **The developer, maintainers, and contributors of EAS Station bear absolutely no criminal, civil, or regulatory liability for any act, omission, or crime committed by any person using this software.** Your use of this software constitutes your sole and exclusive acceptance of all criminal, civil, and regulatory risk and liability arising from that use.
+- The project authors are not accomplices, aiders, or abettors of any misuse and explicitly disclaim any knowledge of, participation in, or responsibility for any illegal activity conducted using this software. The existence of this software does not constitute authorization, endorsement, or facilitation of any unlawful act.
+
+## 4b. Documented Real-World Enforcement Cases
+
+> EAS Station generates **valid**, standards-compliant SAME-encoded audio that has been confirmed by testing across multiple receivers to activate ENDEC hardware and software relay equipment—exactly as a live alert would. The cases below are real documented enforcement actions that arose from exactly this type of signal. They are directly applicable to any output produced by this software.
+
+### Case 1 — iHeartMedia / *The Bobby Bones Show*, $1,000,000 Consent Decree (2015)
+
+iHeartMedia aired counterfeit EAS Attention Signals (the two-tone 853/960 Hz sequence) during *The Bobby Bones Show* on multiple iHeartMedia stations as part of a comedy segment. The signals were sufficiently well-formed to be intercepted as real alerts. The FCC's Enforcement Bureau initiated proceedings and iHeartMedia entered into a **Consent Decree (FCC DA 15-199)** requiring payment of a **$1,000,000 civil penalty**, adoption of a mandatory EAS compliance program, and multi-year reporting to the FCC. The decree explicitly states that broadcasting EAS tones outside authorized emergency or test use violates 47 C.F.R. § 11.45 regardless of intent.
+
+Source: FCC DA 15-199 — <https://docs.fcc.gov/public/attachments/DA-15-199A1.pdf>
+
+### Case 2 — *Olympus Has Fallen* Movie Trailer, $1,900,000 Multi-Network Settlement (2014)
+
+A theatrical trailer for the film *Olympus Has Fallen* contained EAS Attention Signals and was aired across multiple national broadcast and cable networks. The signals activated receiving equipment and constituted an unauthorized transmission under 47 C.F.R. § 11.45. The FCC issued Notices of Apparent Liability to the networks involved; the proceedings concluded in a combined **settlement of $1,900,000 (FCC DA 14-1097)** across the multiple licensees. This case established that unauthorized EAS signal transmission liability attaches to *every entity* in the distribution chain—not only the original content producer.
+
+Source: FCC DA 14-1097 — <https://docs.fcc.gov/public/attachments/DA-14-1097A1.pdf>
+
+### Case 3 — Montana "Zombie Apocalypse" EAS Cascade Hack (January 11, 2013)
+
+Attackers gained unauthorized access to EAS encoder/decoder hardware at KRTV-TV (Great Falls, MT) and KXLH (Helena, MT) and injected a fabricated SAME-encoded alert stating: *"Civil authorities in your area have reported that the bodies of the dead are rising from their graves and attacking the living."* Because the injected SAME headers were correctly formatted and encoded at the proper bit rate, receiving equipment throughout the Montana EAS relay network **automatically re-broadcast the message** without further human action—demonstrating the inherent cascade behavior of the EAS relay system when presented with a conforming signal. The FCC issued Public Advisory **DA 13-108** warning all EAS Participants about equipment security vulnerabilities and opened enforcement proceedings against the affected stations. The incident is cited in FCC guidance as direct evidence that properly formatted EAS signals trigger automated relay with no human gate.
+
+Source: FCC Public Advisory DA 13-108 — <https://docs.fcc.gov/public/attachments/DA-13-108A1.pdf>
+
+### Case 4 — Ongoing FCC EAS Enforcement Pattern (2013–present)
+
+Since 2013 the FCC Enforcement Bureau has entered into consent decrees and issued forfeiture orders against dozens of licensees for EAS tone misuse in advertisements, movie trailers, comedic content, podcasts, and streaming programming. Individual per-violation forfeitures have ranged from **$8,000 to $325,000**, and consent decree civil penalties have reached seven figures. Enforcement actions routinely include mandatory compliance programs, annual reporting obligations, and the possibility of license revocation under 47 U.S.C. § 312. All FCC enforcement records are publicly searchable at <https://www.fcc.gov/enforcement/orders>.
+
+Applicable rules: 47 C.F.R. § 11.45 (prohibition on EAS code/Attention Signal use outside emergencies and tests); 47 U.S.C. § 503(b) (forfeiture authority up to $100,000/violation/day); 47 U.S.C. § 501 (criminal penalties up to $10,000 fine and 1 year imprisonment per violation).
 
 ## 5. Enforcement & Termination
 - The maintainers reserve the right to revoke access to hosted resources, documentation, or support channels for any user who violates these terms or engages in malicious or unsafe activity.

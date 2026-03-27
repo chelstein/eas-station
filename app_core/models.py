@@ -491,6 +491,8 @@ class ManualEASActivation(db.Model):
     triggered_at = db.Column(db.DateTime(timezone=True))
     created_by = db.Column(db.String(100), nullable=True)
     triggered_by = db.Column(db.String(100), nullable=True)
+    created_by_ip = db.Column(db.String(45), nullable=True)
+    triggered_by_ip = db.Column(db.String(45), nullable=True)
     # Binary audio data cached in database
     composite_audio_data = db.Column(db.LargeBinary)
     same_audio_data = db.Column(db.LargeBinary)
@@ -532,6 +534,8 @@ class ManualEASActivation(db.Model):
             "triggered_at": self.triggered_at.isoformat() if self.triggered_at else None,
             "created_by": self.created_by,
             "triggered_by": self.triggered_by,
+            "created_by_ip": self.created_by_ip,
+            "triggered_by_ip": self.triggered_by_ip,
         }
 
 
