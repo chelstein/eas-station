@@ -8,6 +8,26 @@ tracks releases under the 2.x series.
 
 - No pending changes.
 
+## [2.71.16] - 2026-03-27 - Fix "Fix Intersections" storing only partial results for expired alerts
+
+### Fixed
+- **`app_core/alerts.py`** — `_fetch_bulk_intersections` filtered boundaries with
+  `AND ST_IsValid(geom)`, silently excluding any boundary whose geometry PostGIS
+  considers invalid.  With 197 boundaries this caused stored intersection counts to
+  be far lower than the live count shown in the debug panel (e.g. 18 stored vs 48
+  live).  Changed to `ST_MakeValid(geom)` so invalid geometries are repaired
+  in-place rather than dropped.  Same fix applied to `_fetch_intersections_per_boundary`
+  fallback path.
+
+- **`webapp/admin/intersections.py`** — `fix_county_intersections` (the backend for
+  the **Fix Intersections** button on the Admin → Operations tab) only processed
+  *active* alerts via `get_active_alerts_query()`.  When all alerts were expired the
+  button reported "success" but updated 0 records.  Changed to query all alerts that
+  have geometry (`CAPAlert.geom IS NOT NULL`) so the fix runs regardless of alert
+  status.  Also applied `ST_MakeValid()` to all per-boundary intersection queries in
+  `calculate_single_alert`, `calculate_intersections_for_alert`, and
+  `calculate_all_intersections` for consistency.
+
 ## [2.71.15] - 2026-03-27 - Fix ModuleNotFoundError crash that broke Alembic migrations and made site inaccessible
 
 ### Fixed
