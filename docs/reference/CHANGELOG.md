@@ -8,6 +8,68 @@ tracks releases under the 2.x series.
 
 - No pending changes.
 
+## [2.71.14] - 2026-03-27 - Restore debug info as hidden panel; add IPAWS Poller Debug to navbar
+
+### Fixed
+- **`templates/alert_detail.html`** — The `debugBoundaries()` JS function existed but had
+  no button to call it, making boundary debug data completely inaccessible from the UI.
+  Added a **"Show Debug Info"** button to the Actions card (sidebar). Clicking it reveals
+  a collapsible panel that fetches `/debug/boundaries/<id>` and renders a readable table
+  showing: geometry type, SRID, raw `ST_Area` value (with approx sq-mile conversion for
+  sanity-checking), stored vs live intersection counts, per-boundary intersect results,
+  and any errors. A "Raw JSON" link opens the full JSON in a new tab. Panel is hidden by
+  default and lazily loaded on first open.
+
+- **`templates/components/navbar.html`** — The `/debug/ipaws` IPAWS Poller Debug page
+  existed as a full template (`ipaws_debug.html`) but was never linked from anywhere in
+  the navigation. Added **"IPAWS Poller Debug"** under Settings → Observability so the
+  page is reachable without manually typing the URL.
+
+## [2.71.13] - 2026-03-27 - Fix county coverage percentage, wrong county selection, and square miles display
+
+### Fixed
+- **`webapp/admin/coverage.py`** — `calculate_coverage_percentages`: Three separate bugs
+  caused the county coverage to show a wildly wrong "99.4%" figure for a multi-county
+  Severe Thunderstorm Warning in Putnam County, Ohio (actual polygon coverage ~69%).
+
+  1. **Wrong county boundary selected** — the code fell back to
+     `county_intersections[0]` when the configured county name was not found in the
+     stored intersection list.  For this alert the real NWS polygon intersected Allen
+     County's boundary, so Allen County was silently used for the calculation
+     (`ST_Intersection(union, Allen) / Allen ≈ 99.4%`).  Fixed: the fallback now only
+     accepts a county boundary whose name matches the configured county; it never
+     silently substitutes a neighbour.
+
+  2. **SAME-code union used as alert geometry** — when `alert.geom` was built from
+     SAME broadcast codes (union of Allen + Putnam + Van Wert), intersecting that
+     three-county blob against any of those counties always returns ~100%.  Fixed:
+     `geom_from_same_codes` is detected by checking whether `raw_json['geometry']`
+     contains real polygon coordinates.  County coverage derived from a SAME union is
+     now flagged `is_estimated=True` and never triggers the "COUNTY-WIDE ALERT" banner.
+
+  3. **`ST_Area` returned square degrees, not square metres** — all `ST_Area` calls
+     operated on EPSG:4326 geometry, returning square degrees.  Putnam County
+     (~484 sq mi) produced ~0.15 sq°; dividing by 2,589,988 gave ≈ 5.8 × 10⁻⁸ sq mi.
+     Fixed: all area calculations now use `::geography` cast (or `cast(geom,
+     Geography())` in SQLAlchemy), which returns accurate square metres.
+
+  Also re-computes boundary-type intersection areas live with `::geography` so the
+  Electric/Village percentages are also accurate.
+
+- **`webapp/admin/api.py`** — `alert_detail`: `is_actually_county_wide` now requires
+  both `county_coverage >= 95 %` **and** `not is_estimated`, preventing a SAME-derived
+  100 % reading from suppressing boundary details or showing the county-wide banner.
+
+- **`templates/alert_detail.html`**:
+  - "COUNTY-WIDE ALERT" banner no longer fires for SAME-estimated coverage.
+  - "Exact Coverage" label changes to "Estimated Coverage" when `is_estimated=True`,
+    with an explanatory note.
+  - Square miles are now displayed next to the coverage percentage in both the
+    Technical Details section and the sidebar coverage card
+    (e.g. "69.2% — approx. 335 sq mi").
+  - Coverage badge in the Alert Information header no longer shows the county-wide
+    style when coverage is estimated.
+
 ## [2.71.12] - 2026-03-27 - Fix county coverage and auto-serve county boundary from bundled TIGER data
 
 ### Fixed

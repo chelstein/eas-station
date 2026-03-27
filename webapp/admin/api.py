@@ -561,7 +561,11 @@ def alert_detail(alert_id):
         coverage_data = calculate_coverage_percentages(alert_id, intersections)
 
         county_coverage = coverage_data.get('county', {}).get('coverage_percentage', 0)
-        is_actually_county_wide = county_coverage >= 95.0
+        county_is_estimated = coverage_data.get('county', {}).get('is_estimated', False)
+        # Only treat as county-wide when the percentage comes from the real NWS
+        # polygon, not from a SAME-code union of multiple counties (which always
+        # gives ~100% for any county in the broadcast area).
+        is_actually_county_wide = county_coverage >= 95.0 and not county_is_estimated
 
         if not coverage_data and is_county_wide:
             # The fallback only applies when the boundaries table is completely
