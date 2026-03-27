@@ -370,9 +370,9 @@
                 ) %}
                 {% if is_county_wide_fallback %}
                 <div class="localized-banner">
-                    <i class="fas fa-question-circle county-wide-icon"></i>
-                    <h4 class="mb-2">ALERT - COVERAGE CALCULATING</h4>
-                    <p class="mb-0">Alert coverage analysis is being processed.</p>
+                    <i class="fas fa-exclamation-circle county-wide-icon"></i>
+                    <h4 class="mb-2">ALERT - COVERAGE PENDING</h4>
+                    <p class="mb-0">Coverage analysis has not been run yet. Use the <strong>Calculate Coverage Percentage</strong> button in the Actions section below to analyze boundaries.</p>
                 </div>
                 {% endif %}
             {% endif %}
@@ -877,8 +877,8 @@
                                                 )
                                             ) %}
                                             {% if is_county_wide_fallback %}
-                                                <span class="coverage-badge bg-warning">Coverage Calculating...</span>
-                                                <button type="button" class="btn btn-sm btn-outline-secondary ms-1" onclick="triggerIntersectionFix()" title="Calculate exact coverage">
+                                                <span class="coverage-badge bg-warning text-dark">Coverage Pending</span>
+                                                <button type="button" class="btn btn-sm btn-outline-secondary ms-1 coverage-calc-btn" onclick="triggerIntersectionFix(this)" title="Calculate exact coverage">
                                                     <i class="fas fa-calculator"></i>
                                                 </button>
                                             {% else %}
@@ -912,8 +912,8 @@
                                 <div class="text-center py-4">
                                     <i class="fas fa-exclamation-triangle fa-3x text-warning mb-3"></i>
                                     <h5>Alert - Boundary Analysis Pending</h5>
-                                    <p class="text-muted">This alert affects county areas, but intersection analysis is still processing.</p>
-                                    <button type="button" class="btn btn-warning" onclick="triggerIntersectionFix()">
+                                    <p class="text-muted">This alert affects county areas, but intersection analysis has not been run yet.</p>
+                                    <button type="button" class="btn btn-warning coverage-calc-btn" onclick="triggerIntersectionFix(this)">
                                         <i class="fas fa-wrench"></i> Calculate Affected Boundaries
                                     </button>
                                 </div>
@@ -983,12 +983,13 @@
                         {% if is_county_wide_fallback and intersections %}
                         <div class="coverage-summary">
                             <div class="coverage-number">?</div>
-                            <div class="coverage-label">Coverage Calculating</div>
+                            <div class="coverage-label">Coverage Pending</div>
                             <div class="coverage-sublabel">
                                 {{ intersections|length }} Boundaries<br>
                                 {% set boundary_types = intersections | groupby('1.type') %}
                                 {{ boundary_types|length }} Service Types
                             </div>
+                            <small class="text-muted d-block mt-2">Click <strong>Calculate Coverage Percentage</strong> below to analyse.</small>
                         </div>
                         {% endif %}
                     {% endif %}
@@ -1476,7 +1477,7 @@
                                     <i class="fas fa-search"></i> Find Similar Alerts
                                 </button>
                                 {% if not coverage_data or not coverage_data.get('county') %}
-                                <button type="button" class="btn btn-warning" onclick="triggerIntersectionFix()">
+                                <button type="button" class="btn btn-warning coverage-calc-btn" onclick="triggerIntersectionFix(this)">
                                     <i class="fas fa-calculator"></i> Calculate Coverage Percentage
                                 </button>
                                 {% endif %}
@@ -2029,36 +2030,75 @@ function debugBoundaries() {
 }
 
 // Enhanced function to trigger intersection calculation
-async function triggerIntersectionFix() {
+async function triggerIntersectionFix(clickedBtn) {
     console.log('triggerIntersectionFix called');
+
+    // Disable every coverage-calc button on the page so the user can't
+    // double-submit and so every button gives visible feedback.
+    const allBtns = Array.from(document.querySelectorAll('.coverage-calc-btn'));
+    const originalContents = allBtns.map(btn => btn.innerHTML);
+    allBtns.forEach(btn => {
+        btn.disabled = true;
+        // Large buttons get a spinner + text; small icon-only buttons get just a spinner.
+        if (btn.classList.contains('btn-sm')) {
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>';
+        } else {
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Calculating...';
+        }
+    });
+
+    // Immediate feedback — user knows something is happening right away.
+    if (typeof showToast === 'function') {
+        showToast('Calculating coverage boundaries, please wait\u2026', 'info');
+    }
 
     try {
         const response = await fetch(`/admin/calculate_single_alert/${alertData.id}`, { method: 'POST' });
         const result = await response.json();
 
         if (response.ok) {
-            if (typeof showToast === 'function') {
-                showToast('Coverage calculation completed! Refreshing page...', 'success');
+            const count = result.intersections_created ?? 0;
+            const boundariesTested = result.boundaries_tested ?? '?';
+            let msg;
+            if (count > 0) {
+                msg = `Found ${count} boundary intersection${count !== 1 ? 's' : ''} (tested ${boundariesTested}). Refreshing\u2026`;
             } else {
-                alert('Coverage calculation completed! Refreshing page...');
+                msg = `No boundary intersections found (tested ${boundariesTested} boundaries). Refreshing\u2026`;
+            }
+            if (result.errors && result.errors.length > 0) {
+                msg += ` (${result.errors.length} error${result.errors.length !== 1 ? 's' : ''})`;
+            }
+            if (typeof showToast === 'function') {
+                showToast(msg, count > 0 ? 'success' : 'warning');
             }
             setTimeout(() => {
                 window.location.reload();
-            }, 2000);
+            }, 2500);
         } else {
+            const errMsg = result.error || 'Failed to calculate coverage';
             if (typeof showToast === 'function') {
-                showToast(result.error || 'Failed to calculate coverage', 'error');
+                showToast('Error: ' + errMsg, 'error');
             } else {
-                alert(result.error || 'Failed to calculate coverage');
+                alert('Error: ' + errMsg);
             }
+            // Re-enable all buttons so the user can try again.
+            allBtns.forEach((btn, i) => {
+                btn.disabled = false;
+                btn.innerHTML = originalContents[i];
+            });
         }
     } catch (error) {
         console.error('Error calculating coverage:', error);
         if (typeof showToast === 'function') {
-            showToast('Error: ' + error.message, 'error');
+            showToast('Network error: ' + error.message, 'error');
         } else {
-            alert('Error: ' + error.message);
+            alert('Network error: ' + error.message);
         }
+        // Re-enable all buttons so the user can try again.
+        allBtns.forEach((btn, i) => {
+            btn.disabled = false;
+            btn.innerHTML = originalContents[i];
+        });
     }
 }
 

@@ -377,6 +377,32 @@ In addition to the professional SVG diagrams above, the following documentation 
 - Understanding the post-broadcast notification pipeline
 - Troubleshooting email or SMS delivery issues
 
+### Alert Geometry and Coverage Calculation (Mermaid)
+
+**File:** [docs/../architecture/ALERT_GEOMETRY_COVERAGE.md](../architecture/ALERT_GEOMETRY_COVERAGE)
+
+**Contains:**
+- **Geometry Resolution Priority Chain** — Flowchart showing the three-priority
+  path: (1) raw polygon, (2) previously stored geometry, (3) SAME/FIPS county union
+- **Alert Type Routing** — Table and flowchart mapping NWS product types
+  (High Wind Warning, Tornado Warning, Watch, Advisory, etc.) to the geometry
+  source used for each
+- **Poll-Cycle Geometry Preservation** — Flowchart explaining why SAME-derived
+  geometry is no longer wiped when a polygon-less feed update arrives
+- **Calculate Coverage Button Flow** — Full UI button → API → PostGIS → toast
+  → page-reload flowchart for the "Calculate Affected Boundaries" action
+- **End-to-End Coverage Calculation Sequence** — Sequence diagram tracing a
+  county-wide alert (e.g. High Wind Warning with FIPS codes only) from button
+  click through geometry build, intersection calculation, and final coverage display
+
+**Use Cases:**
+- Understanding why polygon alerts and county-wide alerts follow different paths
+- Debugging "Coverage Pending" that reappears after calculation
+- Tracing why a SAME-code fallback is intentionally blocked for polygon-based alerts
+- Onboarding developers to the spatial coverage subsystem
+
+---
+
 ### EAS Test Signal Pipeline (Mermaid)
 
 **File:** [docs/../audio/EAS_TEST_SIGNAL_PIPELINE.md](../audio/EAS_TEST_SIGNAL_PIPELINE)
@@ -464,6 +490,6 @@ When adding new diagrams:
 
 ---
 
-**Last Updated:** 2026-03-25
-**Diagram Count:** 9 professional SVG diagrams + 79 embedded Mermaid diagrams across 12 documentation files
-**Total Documentation Coverage:** Complete system from hardware to software, including security architecture, analytics pipeline, display system, EAS decoding, notifications, EAS test signal pipeline, and detailed data processing flows
+**Last Updated:** 2026-03-27
+**Diagram Count:** 9 professional SVG diagrams + 84 embedded Mermaid diagrams across 13 documentation files
+**Total Documentation Coverage:** Complete system from hardware to software, including security architecture, analytics pipeline, display system, EAS decoding, notifications, EAS test signal pipeline, alert geometry and coverage calculation, and detailed data processing flows

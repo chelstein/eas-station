@@ -314,18 +314,23 @@ def calculate_single_alert(alert_id: int):
     try:
         alert = CAPAlert.query.get_or_404(alert_id)
 
-        # Try to build geometry from SAME geocodes if not already present.
-        # This mirrors what the alert_detail view does so that clicking the
-        # "Calculate Coverage Percentage" button works even before the geometry
-        # has been written to the alert record.
-        if not alert.geom:
-            from .coverage import try_build_geometry_from_same_codes
-            try_build_geometry_from_same_codes(alert_id)
-            # Re-fetch to pick up any newly committed geometry
-            alert = CAPAlert.query.get(alert_id)
+        # Always attempt to build/update geometry from available sources.
+        # try_build_geometry_from_same_codes prioritises the raw_json polygon
+        # over any previously-stored SAME-derived geometry, so this corrects
+        # stale county-union geometry whenever the real alert polygon is present.
+        from .coverage import try_build_geometry_from_same_codes
+        try_build_geometry_from_same_codes(alert_id)
+        # Re-fetch to pick up any newly committed geometry.
+        alert = CAPAlert.query.get(alert_id)
 
         if not alert or not alert.geom:
-            return jsonify({"error": "Alert has no geometry data"}), 400
+            return jsonify({
+                "error": (
+                    "Alert has no geometry data. SAME codes may not match any "
+                    "county boundaries in the database, or the alert polygon "
+                    "could not be parsed."
+                )
+            }), 400
 
         deleted_count = Intersection.query.filter_by(
             cap_alert_id=alert_id
@@ -350,6 +355,8 @@ def calculate_single_alert(alert_id: int):
         errors = []
 
         for boundary in boundaries:
+            if not boundary.geom:
+                continue
             try:
                 intersection_query = (
                     db.session.query(

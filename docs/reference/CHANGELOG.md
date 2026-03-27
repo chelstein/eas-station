@@ -8,6 +8,73 @@ tracks releases under the 2.x series.
 
 - No pending changes.
 
+## [2.71.11] - 2026-03-27 - Add alert geometry and coverage Mermaid documentation
+
+### Documentation
+- **`docs/architecture/ALERT_GEOMETRY_COVERAGE.md`** (new) — Comprehensive
+  Mermaid documentation for the alert geometry and coverage calculation subsystem.
+  Contains five diagrams:
+  1. **Geometry Resolution Priority Chain** — Flowchart showing Priority 1 (raw
+     polygon), Priority 2 (stored geometry), Priority 3 (SAME/FIPS county union),
+     and why Priority 3 is intentionally blocked when a polygon is present in
+     `raw_json` but failed to parse.
+  2. **Alert Type Routing** — Table and flowchart mapping common NWS product types
+     (Tornado Warning, High Wind Warning, Tornado Watch, Winter Weather Advisory,
+     etc.) to the geometry source normally used.
+  3. **Poll-Cycle Geometry Preservation** — Flowchart showing the fix for
+     SAME-derived geometry being erased on each polygon-less feed update.
+  4. **Calculate Coverage Button Flow** — Full browser → API → PostGIS → toast
+     → reload flowchart for the "Calculate Affected Boundaries" button.
+  5. **End-to-End Coverage Calculation Sequence** — Sequence diagram tracing a
+     county-wide alert (High Wind Warning) with FIPS codes only through geometry
+     build, intersection calculation, and final coverage display.
+- **`docs/reference/DIAGRAMS.md`** — Added index entry for new file; updated
+  diagram count (79 → 84) and last-updated date.
+- **`docs/architecture/DATA_FLOW_SEQUENCES.md`** — Added cross-reference link to
+  the new geometry coverage document in the Related Documentation section.
+
+## [2.71.10] - 2026-03-27 - Fix geometry preservation and SAME-code fallback gating
+
+### Fixed
+- **`poller/cap_poller.py`** — `_update_existing_alert`: No longer clears
+  `alert.geom` when a feed update carries no polygon (`geometry_data is None`).
+  Previously, every poll cycle for a county-wide alert (watch, advisory, or any
+  alert without a specific polygon) would silently erase SAME-derived geometry
+  that the admin had just calculated — causing "Coverage Pending" to reappear on
+  the very next page load after clicking "Calculate Coverage Percentage". Existing
+  geometry (whether polygon-derived or SAME-derived) is now preserved across
+  polygon-less updates; geometry is only replaced when the feed provides new data.
+- **`webapp/admin/coverage.py`** — `try_build_geometry_from_same_codes`: Added
+  a guard at Priority 3 (SAME codes) that stops substitution of a full-county
+  union when `raw_json['geometry']` is present but failed to parse. Previously,
+  a localized alert (e.g. severe thunderstorm warning with a narrow polygon that
+  couldn't be stored) would fall through to SAME codes and produce inflated
+  county-level coverage. Now the function returns False in that case so the UI
+  correctly shows an error rather than incorrect data.
+
+## [2.71.9] - 2026-03-27 - Fix coverage calculation feedback and calculation bugs
+
+### Fixed
+- **`templates/alert_detail.html`** — Replaced misleading "COVERAGE CALCULATING" /
+  "Coverage Calculating..." / "Coverage Calculating" labels (which appeared even before
+  any calculation was triggered) with accurate "COVERAGE PENDING" / "Coverage Pending"
+  wording that correctly indicates the user needs to click the button.
+- **`templates/alert_detail.html`** — `triggerIntersectionFix()`: Added immediate
+  loading feedback (spinner on all coverage buttons, disabled state, instant "Calculating
+  coverage boundaries…" toast) so the user knows the calculation is running.  Success
+  toast now reports the number of intersections found; failure re-enables buttons so the
+  user can retry.
+- **`webapp/admin/intersections.py`** — `calculate_single_alert`: Always calls
+  `try_build_geometry_from_same_codes` regardless of whether geometry is already stored,
+  so the more-accurate raw_json polygon (added by PR 1833) is applied even for alerts
+  that previously had SAME-derived geometry.  Also skips boundaries with NULL geometry
+  to avoid PostGIS errors.
+- **`webapp/admin/coverage.py`** — `calculate_coverage_percentages`: County coverage
+  query now uses `ST_Intersects` as a filter guard before computing `ST_Intersection`,
+  returns 0 % gracefully when geometries don't overlap, and is wrapped in a try/except
+  so a single bad geometry cannot abort the entire coverage calculation.  Boundary
+  area sum query now excludes boundaries with NULL geometry.
+
 ## [2.71.8] - 2026-03-26 - Update Ohio EAS docs for WAKS-FM LP-1A designation
 
 ### Documentation
