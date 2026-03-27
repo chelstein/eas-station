@@ -73,11 +73,10 @@ def _fetch_bulk_intersections(alert_geom) -> List[Dict[str, object]]:
         text(
             """
             SELECT id, name,
-                   ST_Area(ST_Intersection(:alert_geom, geom)::geography) AS intersection_area
+                   ST_Area(ST_Intersection(:alert_geom, ST_MakeValid(geom))::geography) AS intersection_area
             FROM boundaries
             WHERE geom IS NOT NULL
-              AND ST_IsValid(geom)
-              AND ST_Intersects(:alert_geom, geom)
+              AND ST_Intersects(:alert_geom, ST_MakeValid(geom))
             """
         ),
         {"alert_geom": alert_geom},
@@ -125,7 +124,7 @@ def _fetch_intersections_per_boundary(alert: CAPAlert, alert_geom) -> List[Dict[
                 text(
                     """
                     WITH boundary AS (
-                        SELECT ST_GeomFromEWKB(:boundary_geom) AS geom
+                        SELECT ST_MakeValid(ST_GeomFromEWKB(:boundary_geom)) AS geom
                     )
                     SELECT
                         ST_Intersects(:alert_geom, boundary.geom) AS intersects,

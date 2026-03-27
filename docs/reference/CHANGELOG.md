@@ -8,6 +8,48 @@ tracks releases under the 2.x series.
 
 - No pending changes.
 
+## [2.71.17] - 2026-03-27 - Show affected sq mi per boundary in debug panel; fix area unit consistency
+
+### Fixed
+- **`webapp/routes_debug.py`** — Both `/debug/alert/<id>` and `/debug/boundaries/<id>`
+  computed `ST_Area(ST_Intersection(...))` in **square degrees** (no `::geography` cast),
+  producing meaningless scientific-notation values.  Switched to
+  `ST_Area(ST_Intersection(...)::geography)` so the result is in **square meters** and
+  the response now includes `intersection_area_sqm` and `intersection_area_sqmi` fields.
+
+- **`templates/alert_detail.html`** — Debug panel "Boundary Intersection Results" table
+  was labelled "Area (sq°)" and showed raw exponential sq-degree values.  Updated to
+  display **"~Area (sq mi)"** using the new `intersection_area_sqmi` field (with sq-meter
+  fallback conversion for backwards compatibility).  Non-intersecting rows now show "—"
+  instead of "0" for clarity.
+
+- **`webapp/admin/intersections.py`** — `fix_county_intersections` was computing
+  `ST_Area(ST_Intersection(...))` in sq degrees via ORM calls.  Replaced that logic with
+  a delegation to `calculate_alert_intersections()`, which already uses the
+  `::geography` cast (sq meters) and `ST_MakeValid`.  This makes stored
+  `intersection_area` values consistent with what `calculate_coverage_percentages` and
+  the `recalculate_intersections` endpoint produce.
+
+## [2.71.16] - 2026-03-27 - Fix "Fix Intersections" storing only partial results for expired alerts
+
+### Fixed
+- **`app_core/alerts.py`** — `_fetch_bulk_intersections` filtered boundaries with
+  `AND ST_IsValid(geom)`, silently excluding any boundary whose geometry PostGIS
+  considers invalid.  With 197 boundaries this caused stored intersection counts to
+  be far lower than the live count shown in the debug panel (e.g. 18 stored vs 48
+  live).  Changed to `ST_MakeValid(geom)` so invalid geometries are repaired
+  in-place rather than dropped.  Same fix applied to `_fetch_intersections_per_boundary`
+  fallback path.
+
+- **`webapp/admin/intersections.py`** — `fix_county_intersections` (the backend for
+  the **Fix Intersections** button on the Admin → Operations tab) only processed
+  *active* alerts via `get_active_alerts_query()`.  When all alerts were expired the
+  button reported "success" but updated 0 records.  Changed to query all alerts that
+  have geometry (`CAPAlert.geom IS NOT NULL`) so the fix runs regardless of alert
+  status.  Also applied `ST_MakeValid()` to all per-boundary intersection queries in
+  `calculate_single_alert`, `calculate_intersections_for_alert`, and
+  `calculate_all_intersections` for consistency.
+
 ## [2.71.15] - 2026-03-27 - Fix ModuleNotFoundError crash that broke Alembic migrations and made site inaccessible
 
 ### Fixed

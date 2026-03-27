@@ -28,7 +28,7 @@ from typing import Dict
 from flask import Flask, jsonify
 from sqlalchemy import func
 
-from app_core.alerts import calculate_alert_intersections, get_active_alerts_query
+from app_core.alerts import calculate_alert_intersections
 from .coverage import try_build_geometry_from_same_codes
 from app_core.extensions import db
 from app_core.models import Boundary, CAPAlert, Intersection, SystemLog
@@ -50,54 +50,38 @@ def register_intersection_routes(app: Flask, logger) -> None:
 
 @intersections_bp.route("/admin/fix_county_intersections", methods=["POST"])
 def fix_county_intersections():
-    """Recalculate intersection areas for all active alerts."""
+    """Recalculate intersection areas for all alerts with geometry."""
 
     try:
-        active_alerts = get_active_alerts_query().all()
+        all_alerts = CAPAlert.query.filter(CAPAlert.geom.isnot(None)).all()
         total_updated = 0
+        errors = 0
 
-        for alert in active_alerts:
-            if not alert.geom:
-                continue
-
-            Intersection.query.filter_by(cap_alert_id=alert.id).delete()
-
-            intersecting_boundaries = (
-                db.session.query(
-                    Boundary.id,
-                    func.ST_Area(
-                        func.ST_Intersection(alert.geom, Boundary.geom)
-                    ).label("intersection_area"),
+        for alert in all_alerts:
+            try:
+                intersections_created = calculate_alert_intersections(alert)
+                total_updated += intersections_created
+            except Exception as exc:  # pragma: no cover - defensive
+                errors += 1
+                current_app.logger.error(
+                    "Error recalculating intersections for alert %s: %s",
+                    alert.id,
+                    exc,
                 )
-                .filter(
-                    func.ST_Intersects(alert.geom, Boundary.geom),
-                    func.ST_Area(
-                        func.ST_Intersection(alert.geom, Boundary.geom)
-                    )
-                    > 0,
-                )
-                .all()
-            )
-
-            for boundary_id, intersection_area in intersecting_boundaries:
-                intersection = Intersection(
-                    cap_alert_id=alert.id,
-                    boundary_id=boundary_id,
-                    intersection_area=intersection_area,
-                )
-                db.session.add(intersection)
-                total_updated += 1
 
         db.session.commit()
 
+        msg = (
+            f"Successfully recalculated intersections for {len(all_alerts)} alerts. "
+            f"Updated {total_updated} intersection records."
+        )
+        if errors:
+            msg += f" ({errors} alert(s) had errors)"
+
         return jsonify(
             {
-                "success": (
-                    "Successfully recalculated intersections for "
-                    f"{len(active_alerts)} alerts. Updated {total_updated} "
-                    "intersection records."
-                ),
-                "alerts_processed": len(active_alerts),
+                "success": msg,
+                "alerts_processed": len(all_alerts),
                 "intersections_updated": total_updated,
             }
         )
@@ -194,9 +178,9 @@ def calculate_intersections_for_alert(alert_id: int):
                 continue
 
             result = db.session.query(
-                func.ST_Intersects(alert.geom, boundary.geom).label("intersects"),
+                func.ST_Intersects(alert.geom, func.ST_MakeValid(boundary.geom)).label("intersects"),
                 func.ST_Area(
-                    func.ST_Intersection(alert.geom, boundary.geom)
+                    func.ST_Intersection(alert.geom, func.ST_MakeValid(boundary.geom))
                 ).label("intersection_area"),
             ).first()
 
@@ -254,11 +238,11 @@ def calculate_all_intersections():
                     continue
 
                 intersection_result = db.session.query(
-                    func.ST_Intersects(alert.geom, boundary.geom).label(
+                    func.ST_Intersects(alert.geom, func.ST_MakeValid(boundary.geom)).label(
                         "intersects"
                     ),
                     func.ST_Area(
-                        func.ST_Intersection(alert.geom, boundary.geom)
+                        func.ST_Intersection(alert.geom, func.ST_MakeValid(boundary.geom))
                     ).label("intersection_area"),
                 ).first()
 
@@ -362,10 +346,10 @@ def calculate_single_alert(alert_id: int):
                 intersection_query = (
                     db.session.query(
                         func.ST_Area(
-                            func.ST_Intersection(alert.geom, boundary.geom)
+                            func.ST_Intersection(alert.geom, func.ST_MakeValid(boundary.geom))
                         ).label("intersection_area"),
                     )
-                    .filter(func.ST_Intersects(alert.geom, boundary.geom))
+                    .filter(func.ST_Intersects(alert.geom, func.ST_MakeValid(boundary.geom)))
                     .first()
                 )
 

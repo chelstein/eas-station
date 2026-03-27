@@ -2151,18 +2151,21 @@ function renderDebugPanel(data) {
                 <thead class="table-dark sticky-top">
                     <tr>
                         <th>ID</th><th>Name</th><th>Type</th>
-                        <th>Intersects?</th><th>Area (sq°)</th>
+                        <th>Intersects?</th><th>~Area (sq mi)</th>
                     </tr>
                 </thead>
                 <tbody>`;
         results.forEach(r => {
             const rowCls = r.intersects ? '' : 'text-muted';
+            const sqmi = r.intersection_area_sqmi != null
+                ? r.intersection_area_sqmi
+                : (r.intersection_area ? (r.intersection_area / 2589988.11).toFixed(4) : 0);
             html += `<tr class="${rowCls}">
                 <td>${r.boundary_id}</td>
                 <td>${r.boundary_name || '—'}</td>
                 <td><span class="badge bg-secondary">${r.boundary_type || '—'}</span></td>
                 <td>${yesNo(r.intersects)}</td>
-                <td><code>${r.intersection_area ? r.intersection_area.toExponential(4) : '0'}</code></td>
+                <td>${r.intersects && sqmi > 0 ? `<code>${sqmi}</code>` : '<span class="text-muted">—</span>'}</td>
             </tr>`;
         });
         html += `</tbody></table></div>`;
