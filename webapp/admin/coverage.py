@@ -320,10 +320,12 @@ def calculate_coverage_percentages(alert_id, intersections):
         # percentage (this was the root cause of the 99.4% / Allen County bug).
         # ---------------------------------------------------------------------------
         county_boundary = None
+        _county_name_configured = False  # tracks whether a county name is set
         try:
             from app_core.location import get_location_settings
             _settings = get_location_settings()
             _cname = (_settings.get('county_name', '') or '').lower().replace(' county', '').strip()
+            _county_name_configured = bool(_cname)
             if _cname:
                 # 1. Check intersections list — only accept the configured county.
                 county_intersections = [b for _, b in intersections if b.type == 'county']
@@ -341,8 +343,12 @@ def calculate_coverage_percentages(alert_id, intersections):
                     )
         except Exception:
             pass
-        # 3. Last resort only when no county name is configured at all.
-        if county_boundary is None:
+        # 3. Last resort: only when NO county name is configured at all.
+        # Never pick a random county boundary when a county name is set but
+        # no matching record was found — that would silently swap Putnam for
+        # Allen County (or whichever county is first in the Boundary table),
+        # reproducing the 99.4% / wrong-county bug.
+        if county_boundary is None and not _county_name_configured:
             county_boundary = Boundary.query.filter_by(type='county').first()
 
         if county_boundary and county_boundary.geom:
@@ -397,12 +403,33 @@ def calculate_coverage_percentages(alert_id, intersections):
                 _settings = get_location_settings()
                 geoids = same_codes_to_geoids(_settings.get('fips_codes') or [])
                 if geoids:
-                    ucb = (
-                        USCountyBoundary.query
-                        .filter(USCountyBoundary.geoid.in_(geoids))
-                        .filter(USCountyBoundary.geom.isnot(None))
-                        .first()
+                    # When the station is configured to monitor multiple FIPS codes
+                    # (e.g. a multi-county coverage area), always prefer the county
+                    # whose name matches the configured county_name rather than
+                    # returning the first record by database insertion order.
+                    # Without this, Allen County (GEOID 39003) is returned before
+                    # Putnam County (39137) because it appears first in the Census
+                    # shapefile, producing the 99.4% / wrong-county bug.
+                    _cname_census = (
+                        (_settings.get('county_name', '') or '')
+                        .lower().replace(' county', '').strip()
                     )
+                    ucb = None
+                    if _cname_census:
+                        ucb = (
+                            USCountyBoundary.query
+                            .filter(USCountyBoundary.geoid.in_(geoids))
+                            .filter(USCountyBoundary.geom.isnot(None))
+                            .filter(func.lower(USCountyBoundary.name).contains(_cname_census))
+                            .first()
+                        )
+                    if ucb is None:
+                        ucb = (
+                            USCountyBoundary.query
+                            .filter(USCountyBoundary.geoid.in_(geoids))
+                            .filter(USCountyBoundary.geom.isnot(None))
+                            .first()
+                        )
                     if ucb:
                         # Use ::geography for accurate square-metre results.
                         row = db.session.execute(

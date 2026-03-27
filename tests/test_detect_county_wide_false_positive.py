@@ -121,3 +121,71 @@ def test_configured_county_in_multi_county_list():
     result = _county_and_state_check(area, county_short="putnam",
                                      configured_state_code="ohio")
     assert result is True
+
+
+# ---------------------------------------------------------------------------
+# short_with_list regression tests (multi-county NWS polygon alerts)
+# ---------------------------------------------------------------------------
+
+def _short_with_list_check(area_lower, county_short, configured_state_code):
+    """Mirror the short_with_list heuristic from _detect_county_wide."""
+    multi_county_list = bool(
+        configured_state_code
+        and area_lower.count(f', {configured_state_code}') > 1
+    )
+    return bool(
+        county_short
+        and county_short in area_lower
+        and (area_lower.count(';') >= 2 or area_lower.count(',') >= 2)
+        and not multi_county_list
+    )
+
+
+def test_short_with_list_source_has_multi_county_guard():
+    """short_with_list in api.py must include the _multi_county_list guard."""
+    with open('webapp/admin/api.py', 'r') as f:
+        content = f.read()
+    assert '_multi_county_list' in content, (
+        "short_with_list must reference _multi_county_list to prevent false "
+        "positives for multi-county NWS polygon alerts"
+    )
+    assert 'not _multi_county_list' in content, (
+        "short_with_list must exclude multi-county alerts via 'not _multi_county_list'"
+    )
+
+
+def test_multi_county_nws_alert_not_county_wide():
+    """'Allen, OH; Putnam, OH; Van Wert, OH' must NOT be detected as county-wide.
+
+    This is the exact area_desc from the SVR alert that triggered the 99.4%
+    / Allen County false-positive bug.  The polygon covers only SE Putnam
+    County (15.7%), not the whole county.
+    """
+    area = "allen, oh; putnam, oh; van wert, oh"
+    result = _short_with_list_check(area, county_short="putnam",
+                                    configured_state_code="oh")
+    assert result is False, (
+        "'Allen, OH; Putnam, OH; Van Wert, OH' is a multi-county polygon alert "
+        "and must NOT be detected as county-wide for a Putnam County station"
+    )
+
+
+def test_single_county_semicolon_list_is_county_wide():
+    """A list of sub-areas within the configured county IS county-wide."""
+    # e.g. NWS area_desc enumerating townships/villages within one county
+    area = "ottawa; blanchard township; putnam; ohio"
+    result = _short_with_list_check(area, county_short="putnam",
+                                    configured_state_code="oh")
+    assert result is True, (
+        "A sub-area list for a single county should still be detected as county-wide"
+    )
+
+
+def test_two_county_alert_not_county_wide():
+    """Two counties from the same state in area_desc is a multi-county alert."""
+    area = "putnam, oh; allen, oh"
+    result = _short_with_list_check(area, county_short="putnam",
+                                    configured_state_code="oh")
+    assert result is False, (
+        "Two-county alert 'Putnam, OH; Allen, OH' must NOT be county-wide"
+    )
