@@ -574,9 +574,86 @@ def _extract_alert_display_data(alert) -> Optional[Dict[str, Any]]:
             except Exception:
                 pass
 
+        # --- Severe weather threat parameters ---
+        def _threat_level(val: str) -> str:
+            v = (val or '').upper()
+            if 'OBSERVED' in v or 'CONFIRMED' in v:
+                return 'observed'
+            if 'RADAR' in v:
+                return 'radar'
+            if 'POSSIBLE' in v or 'CONSIDERABLE' in v or 'DESTRUCTIVE' in v:
+                return 'possible'
+            return 'none'
+
+        def _threat_display(val: str) -> str:
+            mapping = {
+                'RADAR INDICATED': 'Radar',
+                'OBSERVED': 'Confirmed',
+                'POSSIBLE': 'Possible',
+                'CONSIDERABLE': 'Considerable',
+                'DESTRUCTIVE': 'Destructive!',
+                'NONE': 'None',
+            }
+            return mapping.get((val or '').upper(), (val or '').title())
+
+        def _hail_descriptor(size_str: str) -> str:
+            try:
+                size = float((size_str or '').replace('"', '').strip())
+            except (ValueError, TypeError):
+                return ''
+            if size < 0.25:   return 'Pea'
+            if size < 0.5:    return 'Marble'
+            if size < 0.75:   return 'Dime'
+            if size < 1.0:    return 'Quarter'
+            if size < 1.25:   return 'Half Dollar'
+            if size < 1.5:    return 'Ping Pong'
+            if size < 1.75:   return 'Golf Ball'
+            if size < 2.0:    return 'Baseball'
+            if size < 2.5:    return 'Tennis Ball'
+            if size < 3.0:    return 'Softball'
+            return 'Grapefruit'
+
+        wind_threat = (params.get('windThreat') or [''])[0].strip()
+        max_wind    = (params.get('maxWindGust') or [''])[0].strip()
+        hail_threat = (params.get('hailThreat') or [''])[0].strip()
+        max_hail    = (params.get('maxHailSize') or [''])[0].strip()
+        tornado_det = (params.get('tornadoDetection') or [''])[0].strip()
+
+        threat_data: Dict[str, Any] = {}
+        if wind_threat or max_wind:
+            gust_parts = max_wind.split()
+            gust_unit = gust_parts[-1].upper() if len(gust_parts) > 1 and gust_parts[-1].upper() in ('MPH', 'KT', 'KMH') else 'MPH'
+            gust_val  = gust_parts[0] if gust_parts else max_wind
+            threat_data['wind'] = {
+                'threat': wind_threat, 'gust': gust_val, 'gust_unit': gust_unit,
+                'display': _threat_display(wind_threat), 'level': _threat_level(wind_threat),
+            }
+        if hail_threat or max_hail:
+            threat_data['hail'] = {
+                'threat': hail_threat, 'size': max_hail,
+                'descriptor': _hail_descriptor(max_hail),
+                'display': _threat_display(hail_threat), 'level': _threat_level(hail_threat),
+            }
+        if tornado_det:
+            threat_data['tornado'] = {
+                'detection': tornado_det,
+                'display': _threat_display(tornado_det), 'level': _threat_level(tornado_det),
+            }
+        if threat_data:
+            data['threat_data'] = threat_data
+
+        # NWS internal headline (ALL-CAPS, operational text — different from the public headline)
+        nws_headline = (params.get('NWSheadline') or [''])[0].strip()
+        if nws_headline:
+            data['nws_headline'] = nws_headline
+
         # Expose all remaining parameters for display
         extra_params = {}
-        _handled = {'EAS-ORG', 'EAS-STN-ID', 'BLOCKCHANNEL', 'eventMotionDescription', 'VTEC'}
+        _handled = {
+            'EAS-ORG', 'EAS-STN-ID', 'BLOCKCHANNEL', 'eventMotionDescription', 'VTEC',
+            'windThreat', 'maxWindGust', 'hailThreat', 'maxHailSize', 'tornadoDetection',
+            'NWSheadline',
+        }
         for k, v in params.items():
             if k not in _handled:
                 extra_params[k] = v

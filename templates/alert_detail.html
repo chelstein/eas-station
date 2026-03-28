@@ -99,6 +99,62 @@
         background-color: var(--success-color) !important;
     }
 
+    /* ── Storm motion compass rose ── */
+    .storm-compass {
+        width: 84px;
+        height: 84px;
+        flex-shrink: 0;
+        color: var(--text-color);
+    }
+
+    /* ── NWS internal headline callout ── */
+    .nws-headline-callout {
+        background: color-mix(in srgb, var(--primary-color) 8%, var(--surface-color));
+        border-left: 4px solid var(--primary-color);
+        padding: 0.55rem 0.75rem;
+        border-radius: 0 6px 6px 0;
+        font-size: 0.8em;
+        font-style: italic;
+        color: var(--text-color);
+        line-height: 1.4;
+    }
+
+    /* ── Severe weather threat tiles ── */
+    .threat-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+        gap: 0.5rem;
+    }
+    .threat-tile {
+        padding: 0.7rem 0.35rem 0.6rem;
+        border-radius: 8px;
+        text-align: center;
+        border: 1px solid var(--border-color);
+        background: var(--surface-color);
+        transition: transform 0.15s;
+    }
+    .threat-tile.level-observed {
+        background: color-mix(in srgb, var(--danger-color) 16%, var(--surface-color));
+        border-color: var(--danger-color);
+    }
+    .threat-tile.level-observed .threat-icon { color: var(--danger-color); }
+    .threat-tile.level-radar {
+        background: color-mix(in srgb, var(--warning-color) 14%, var(--surface-color));
+        border-color: var(--warning-color);
+    }
+    .threat-tile.level-radar .threat-icon { color: var(--warning-color); }
+    .threat-tile.level-possible {
+        background: color-mix(in srgb, var(--warning-color) 7%, var(--surface-color));
+        border-color: color-mix(in srgb, var(--warning-color) 50%, transparent);
+    }
+    .threat-tile.level-possible .threat-icon { color: var(--warning-color); }
+    .threat-tile.level-none { opacity: 0.5; }
+    .threat-icon { font-size: 1.5em; display: block; margin-bottom: 0.25rem; color: var(--text-secondary); }
+    .threat-value { font-size: 1.05em; font-weight: 700; line-height: 1.1; }
+    .threat-subvalue { font-size: 0.68em; color: var(--text-secondary); margin-top: 1px; }
+    .threat-status { font-size: 0.65em; color: var(--text-secondary); margin-top: 0.1rem; line-height: 1.2; }
+    .threat-name { font-size: 0.62em; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-secondary); margin-top: 0.25rem; }
+
     .coverage-badge.bg-warning {
         background-color: var(--warning-color) !important;
         color: var(--text-color) !important;
@@ -1300,28 +1356,105 @@
                             {% set sm = ipaws_data.storm_motion %}
                             <h6 class="text-muted mb-2"><i class="fas fa-wind"></i> Storm Motion</h6>
                             <div class="mb-2 p-2 rounded d-flex flex-wrap gap-3 align-items-center" style="background: color-mix(in srgb, var(--info-color) 8%, var(--surface-color)); border-left: 3px solid var(--info-color);">
+
+                                {# SVG compass rose — arrow points toward storm heading #}
                                 {% if sm.direction_deg is defined %}
-                                <div class="text-center">
-                                    <div style="font-size:1.6em; font-weight:700; line-height:1;">
-                                        {{ sm.compass or '' }}
-                                    </div>
-                                    <div class="small text-muted">{{ sm.direction_deg }}°</div>
-                                    <div class="small text-muted">Direction</div>
-                                </div>
+                                <svg viewBox="0 0 80 80" class="storm-compass" aria-label="Storm direction: {{ sm.direction_deg }} degrees">
+                                    <!-- Outer ring -->
+                                    <circle cx="40" cy="40" r="36" stroke="currentColor" stroke-opacity="0.2" stroke-width="1.5" fill="none"/>
+                                    <!-- Cardinal tick marks (longer at N) -->
+                                    <line x1="40" y1="5"  x2="40" y2="14" stroke="currentColor" stroke-opacity="0.7" stroke-width="2"/>
+                                    <line x1="40" y1="66" x2="40" y2="75" stroke="currentColor" stroke-opacity="0.35" stroke-width="1.5"/>
+                                    <line x1="66" y1="40" x2="75" y2="40" stroke="currentColor" stroke-opacity="0.35" stroke-width="1.5"/>
+                                    <line x1="5"  y1="40" x2="14" y2="40" stroke="currentColor" stroke-opacity="0.35" stroke-width="1.5"/>
+                                    <!-- Intercardinal ticks -->
+                                    <line x1="62" y1="18" x2="66" y2="14" stroke="currentColor" stroke-opacity="0.2" stroke-width="1"/>
+                                    <line x1="62" y1="62" x2="66" y2="66" stroke="currentColor" stroke-opacity="0.2" stroke-width="1"/>
+                                    <line x1="18" y1="62" x2="14" y2="66" stroke="currentColor" stroke-opacity="0.2" stroke-width="1"/>
+                                    <line x1="18" y1="18" x2="14" y2="14" stroke="currentColor" stroke-opacity="0.2" stroke-width="1"/>
+                                    <!-- Cardinal labels -->
+                                    <text x="40" y="22" text-anchor="middle" fill="currentColor" font-size="9" font-weight="700" opacity="0.9">N</text>
+                                    <text x="40" y="70" text-anchor="middle" fill="currentColor" font-size="7" opacity="0.35">S</text>
+                                    <text x="67" y="43" text-anchor="middle" fill="currentColor" font-size="7" opacity="0.35">E</text>
+                                    <text x="13" y="43" text-anchor="middle" fill="currentColor" font-size="7" opacity="0.35">W</text>
+                                    <!-- Direction arrow — rotated to storm heading (0°=N, clockwise) -->
+                                    <g transform="rotate({{ sm.direction_deg }}, 40, 40)" style="color: var(--warning-color);">
+                                        <!-- Arrowhead -->
+                                        <polygon points="40,8 35,30 40,25 45,30" fill="currentColor"/>
+                                        <!-- Shaft -->
+                                        <line x1="40" y1="25" x2="40" y2="56" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+                                        <!-- Tail feathers -->
+                                        <line x1="40" y1="56" x2="35" y2="50" stroke="currentColor" stroke-width="1.5" opacity="0.5"/>
+                                        <line x1="40" y1="56" x2="45" y2="50" stroke="currentColor" stroke-width="1.5" opacity="0.5"/>
+                                    </g>
+                                    <!-- Center pivot -->
+                                    <circle cx="40" cy="40" r="3" fill="currentColor" opacity="0.35"/>
+                                </svg>
                                 {% endif %}
-                                {% if sm.speed_mph is defined %}
-                                <div class="text-center">
-                                    <div style="font-size:1.6em; font-weight:700; line-height:1;">{{ sm.speed_mph }}</div>
-                                    <div class="small text-muted">{{ sm.speed_kt }} kt</div>
-                                    <div class="small text-muted">mph</div>
-                                </div>
-                                {% endif %}
-                                {% if sm.track %}
+
+                                {# Direction label + speed #}
                                 <div>
-                                    <div class="small fw-semibold">Storm Track ({{ sm.track|length }} pts)</div>
+                                    {% if sm.direction_deg is defined %}
+                                    <div style="font-size:1.7em;font-weight:700;line-height:1;letter-spacing:-0.02em;">{{ sm.compass or (sm.direction_deg ~ '°') }}</div>
+                                    <div class="small text-muted">{{ sm.direction_deg }}° heading</div>
+                                    {% endif %}
+                                    {% if sm.speed_mph is defined %}
+                                    <div style="font-size:1.7em;font-weight:700;line-height:1.2;margin-top:0.35rem;">
+                                        {{ sm.speed_mph }}<span style="font-size:0.5em;font-weight:400;margin-left:2px;">mph</span>
+                                    </div>
+                                    <div class="small text-muted">{{ sm.speed_kt }} kt</div>
+                                    {% endif %}
+                                </div>
+
+                                {% if sm.track %}
+                                <div class="ms-auto text-end">
+                                    <div class="small fw-semibold text-muted mb-1">Track ({{ sm.track|length }} pts)</div>
                                     {% for pt in sm.track %}
-                                    <div class="small text-muted">{{ pt[0] }}, {{ pt[1] }}</div>
+                                    <div class="small text-muted font-monospace" style="font-size:0.72em;">{{ pt[0] }}, {{ pt[1] }}</div>
                                     {% endfor %}
+                                </div>
+                                {% endif %}
+                            </div>
+                            <hr>
+                            {% endif %}
+
+                            {# ── NWS Internal Headline ── #}
+                            {% if ipaws_data.nws_headline %}
+                            <div class="nws-headline-callout mb-3">
+                                <i class="fas fa-quote-left fa-xs me-1" style="opacity:0.4;"></i>{{ ipaws_data.nws_headline }}
+                            </div>
+                            {% endif %}
+
+                            {# ── Severe Weather Threats ── #}
+                            {% if ipaws_data.threat_data %}
+                            {% set td = ipaws_data.threat_data %}
+                            <h6 class="text-muted mb-2"><i class="fas fa-exclamation-triangle"></i> Severe Threats</h6>
+                            <div class="threat-grid mb-3">
+                                {% if td.wind %}
+                                {% set w = td.wind %}
+                                <div class="threat-tile level-{{ w.level }}">
+                                    <i class="fas fa-wind threat-icon"></i>
+                                    {% if w.gust %}<div class="threat-value">{{ w.gust }}</div><div class="threat-subvalue">{{ w.gust_unit }}</div>{% endif %}
+                                    {% if w.threat %}<div class="threat-status">{{ w.display }}</div>{% endif %}
+                                    <div class="threat-name">Wind</div>
+                                </div>
+                                {% endif %}
+                                {% if td.hail %}
+                                {% set h = td.hail %}
+                                <div class="threat-tile level-{{ h.level }}">
+                                    <i class="fas fa-cloud-showers-heavy threat-icon"></i>
+                                    {% if h.size %}<div class="threat-value">{{ h.size }}"</div>{% endif %}
+                                    {% if h.descriptor %}<div class="threat-subvalue">{{ h.descriptor }}</div>{% endif %}
+                                    {% if h.threat %}<div class="threat-status">{{ h.display }}</div>{% endif %}
+                                    <div class="threat-name">Hail</div>
+                                </div>
+                                {% endif %}
+                                {% if td.tornado %}
+                                {% set t = td.tornado %}
+                                <div class="threat-tile level-{{ t.level }}">
+                                    <i class="fas fa-tornado threat-icon"></i>
+                                    <div class="threat-value" style="font-size:0.85em;">{{ t.display }}</div>
+                                    <div class="threat-name">Tornado</div>
                                 </div>
                                 {% endif %}
                             </div>
@@ -1330,10 +1463,23 @@
 
                             {# ── Additional Parameters (both IPAWS and NOAA) ── #}
                             {% if ipaws_data.extra_parameters %}
+                            {% set param_icons = {
+                                'AWIPSidentifier': 'fa-id-badge',
+                                'WMOidentifier': 'fa-satellite',
+                                'eventEndingTime': 'fa-clock',
+                                'CMAMtext': 'fa-mobile-alt',
+                                'CMAMlongtext': 'fa-mobile-alt',
+                                'expiredReferences': 'fa-history',
+                            } %}
                             <h6 class="text-muted mb-2">{% if ipaws_data.is_noaa %}NWS Parameters{% else %}Additional Parameters{% endif %}</h6>
                             {% for param_name, param_values in ipaws_data.extra_parameters.items() %}
                             <div class="detail-item">
-                                <span class="detail-label">{{ param_name }}</span>
+                                <span class="detail-label">
+                                    {% if param_icons.get(param_name) %}
+                                    <i class="fas {{ param_icons.get(param_name) }} fa-xs me-1" style="opacity:0.5;"></i>
+                                    {% endif %}
+                                    {{ param_name }}
+                                </span>
                                 {% for val in param_values %}
                                 <code>{{ val }}</code>{% if not loop.last %}, {% endif %}
                                 {% endfor %}
