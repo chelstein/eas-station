@@ -344,7 +344,7 @@
             })
             .catch(error => {
                 console.error('Failed to load configuration:', error);
-                alert('Failed to load configuration');
+                showToast('Failed to load configuration', 'danger');
             });
         }
 
@@ -361,7 +361,7 @@
             const endMinute = parseInt(document.getElementById('endMinute').value);
 
             if (enabled && rwtBroadcastCodes.length === 0) {
-                alert('Add at least one county for RWT broadcast coverage before enabling automatic RWT broadcasts.');
+                showToast('Add at least one county for RWT broadcast coverage before enabling automatic RWT broadcasts.', 'warning');
                 return;
             }
 
@@ -386,15 +386,15 @@
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    alert('Configuration saved successfully!');
+                    showToast('Configuration saved successfully!', 'success');
                     loadConfiguration();
                 } else {
-                    alert('Failed to save configuration: ' + (data.error || 'Unknown error'));
+                    showToast('Failed to save configuration: ' + (data.error || 'Unknown error'), 'danger');
                 }
             })
             .catch(error => {
                 console.error('Failed to save configuration:', error);
-                alert('Failed to save configuration');
+                showToast('Failed to save configuration', 'danger');
             });
         }
 
@@ -418,17 +418,17 @@
                 testBtn.innerHTML = '<i class="fas fa-broadcast-tower me-2"></i>Send Test RWT Now';
 
                 if (data.success) {
-                    alert('Test RWT sent successfully!\nIdentifier: ' + (data.result.identifier || 'Unknown'));
+                    showToast('Test RWT sent! Identifier: ' + (data.result.identifier || 'Unknown'), 'success');
                     loadConfiguration();
                 } else {
-                    alert('Failed to send test RWT: ' + (data.error || 'Unknown error'));
+                    showToast('Failed to send test RWT: ' + (data.error || 'Unknown error'), 'danger');
                 }
             })
             .catch(error => {
                 console.error('Failed to send test RWT:', error);
                 testBtn.disabled = false;
                 testBtn.innerHTML = '<i class="fas fa-broadcast-tower me-2"></i>Send Test RWT Now';
-                alert('Failed to send test RWT');
+                showToast('Failed to send test RWT', 'danger');
             });
         }
 
@@ -499,15 +499,15 @@
         function addCountyCode(input) {
             const normalized = normalizeFips(input);
             if (!normalized) {
-                alert('Invalid FIPS code. Enter exactly 6 digits.');
+                showToast('Invalid FIPS code. Enter exactly 6 digits.', 'warning');
                 return;
             }
             if (rwtBroadcastCodes.includes(normalized)) {
-                alert('County already added.');
+                showToast('County already added.', 'warning');
                 return;
             }
             if (rwtBroadcastCodes.length >= 31) {
-                alert('Maximum of 31 SAME locations allowed per FCC regulations.');
+                showToast('Maximum of 31 SAME locations allowed per FCC regulations.', 'warning');
                 return;
             }
             rwtBroadcastCodes.push(normalized);
