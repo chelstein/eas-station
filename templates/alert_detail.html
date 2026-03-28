@@ -2475,14 +2475,6 @@ function downloadRawData() {
     }
 }
 
-function findSimilarAlerts() {
-    console.log('findSimilarAlerts called');
-    if (typeof showToast === 'function') {
-        showToast('Similar alerts search would be implemented here.', 'info');
-    } else {
-        alert('Similar alerts search would be implemented here.');
-    }
-}
 
 function debugBoundaries() {
     console.log('debugBoundaries called');
@@ -2643,11 +2635,7 @@ async function triggerIntersectionFix(clickedBtn) {
             }, 2500);
         } else {
             const errMsg = result.error || 'Failed to calculate coverage';
-            if (typeof showToast === 'function') {
-                showToast('Error: ' + errMsg, 'error');
-            } else {
-                alert('Error: ' + errMsg);
-            }
+            showToast('Error: ' + errMsg, 'error');
             // Re-enable all buttons so the user can try again.
             allBtns.forEach((btn, i) => {
                 btn.disabled = false;
@@ -2656,11 +2644,7 @@ async function triggerIntersectionFix(clickedBtn) {
         }
     } catch (error) {
         console.error('Error calculating coverage:', error);
-        if (typeof showToast === 'function') {
-            showToast('Network error: ' + error.message, 'error');
-        } else {
-            alert('Network error: ' + error.message);
-        }
+        showToast('Network error: ' + error.message, 'error');
         // Re-enable all buttons so the user can try again.
         allBtns.forEach((btn, i) => {
             btn.disabled = false;

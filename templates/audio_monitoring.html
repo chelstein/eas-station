@@ -1572,7 +1572,7 @@ async function startSource(sourceName) {
 
         if (!response.ok) {
             const error = await response.json();
-            alert(`Failed to start source: ${error.error || 'Unknown error'}`);
+            showToast(`Failed to start source: ${error.error || 'Unknown error'}`, 'danger');
             return;
         }
 
@@ -1580,7 +1580,7 @@ async function startSource(sourceName) {
         setTimeout(loadAudioSources, 1000);
     } catch (error) {
         console.error('Error starting source:', error);
-        alert(`Error starting source: ${error.message}`);
+        showToast(`Error starting source: ${error.message}`, 'danger');
     }
 }
 
@@ -1592,7 +1592,7 @@ async function stopSource(sourceName) {
 
         if (!response.ok) {
             const error = await response.json();
-            alert(`Failed to stop source: ${error.error || 'Unknown error'}`);
+            showToast(`Failed to stop source: ${error.error || 'Unknown error'}`, 'danger');
             return;
         }
 
@@ -1600,7 +1600,7 @@ async function stopSource(sourceName) {
         loadAudioSources();
     } catch (error) {
         console.error('Error stopping source:', error);
-        alert(`Error stopping source: ${error.message}`);
+        showToast(`Error stopping source: ${error.message}`, 'danger');
     }
 }
 
@@ -2174,7 +2174,7 @@ async function controlEASMonitor(action) {
 
         if (!response.ok) {
             const error = await response.json();
-            alert(`Failed to ${action} monitor: ${error.error || 'Unknown error'}`);
+            showToast(`Failed to ${action} monitor: ${error.error || 'Unknown error'}`, 'danger');
             return;
         }
 
@@ -2184,11 +2184,11 @@ async function controlEASMonitor(action) {
             // Reload status after a brief delay
             setTimeout(loadEASMonitorStatus, 500);
         } else {
-            alert(result.message || `Failed to ${action} monitor`);
+            showToast(result.message || `Failed to ${action} monitor`, 'danger');
         }
     } catch (error) {
         console.error(`Error ${action}ing EAS monitor:`, error);
-        alert(`Error ${action}ing monitor: ${error.message}`);
+        showToast(`Error ${action}ing monitor: ${error.message}`, 'danger');
     }
 }
 

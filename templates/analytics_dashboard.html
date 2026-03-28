@@ -280,11 +280,11 @@
             if (data.success) {
                 loadDashboard();
             } else {
-                alert('Failed to acknowledge anomaly: ' + data.error);
+                showToast('Failed to acknowledge anomaly: ' + data.error, 'danger');
             }
         } catch (error) {
             console.error('Error acknowledging anomaly:', error);
-            alert('Error acknowledging anomaly');
+            showToast('Error acknowledging anomaly', 'danger');
         }
     }
 
@@ -301,11 +301,11 @@
             if (data.success) {
                 loadDashboard();
             } else {
-                alert('Failed to resolve anomaly: ' + data.error);
+                showToast('Failed to resolve anomaly: ' + data.error, 'danger');
             }
         } catch (error) {
             console.error('Error resolving anomaly:', error);
-            alert('Error resolving anomaly');
+            showToast('Error resolving anomaly', 'danger');
         }
     }
 
@@ -324,14 +324,14 @@
             const data = await response.json();
 
             if (data.success) {
-                alert('Anomaly marked as false positive');
+                showToast('Anomaly marked as false positive', 'success');
                 loadDashboard();
             } else {
-                alert('Failed to mark anomaly as false positive: ' + data.error);
+                showToast('Failed to mark anomaly as false positive: ' + data.error, 'danger');
             }
         } catch (error) {
             console.error('Error marking false positive:', error);
-            alert('Error marking false positive');
+            showToast('Error marking false positive', 'danger');
         }
     }
 
@@ -348,14 +348,14 @@
             const data = await response.json();
 
             if (data.success) {
-                alert(`Anomaly detection completed. Found ${data.anomalies_detected || 0} new anomalies.`);
+                showToast(`Anomaly detection completed. Found ${data.anomalies_detected || 0} new anomalies.`, 'success');
                 loadDashboard();
             } else {
-                alert('Failed to trigger anomaly detection: ' + data.error);
+                showToast('Failed to trigger anomaly detection: ' + data.error, 'danger');
             }
         } catch (error) {
             console.error('Error triggering anomaly detection:', error);
-            alert('Error triggering anomaly detection');
+            showToast('Error triggering anomaly detection', 'danger');
         }
     }
 
