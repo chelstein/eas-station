@@ -244,6 +244,8 @@ def parse_vtec_display(raw: str) -> Dict[str, Any]:
 
     prog, action, office, phen, sig, etn_str, begin_raw, end_raw = m.groups()
 
+    year = _vtec_year_from_time(end_raw) or _vtec_year_from_time(begin_raw)
+
     result.update({
         'program':            prog,
         'program_label':      VTEC_PROGRAMS.get(prog, prog),
@@ -255,6 +257,7 @@ def parse_vtec_display(raw: str) -> Dict[str, Any]:
         'significance':       sig,
         'significance_label': VTEC_SIGNIFICANCE.get(sig, sig),
         'event_number':       str(int(etn_str)),  # strip leading zeros
+        'year':               year,
         'begin':              _decode_vtec_time(begin_raw),
         'end':                _decode_vtec_time(end_raw),
     })
