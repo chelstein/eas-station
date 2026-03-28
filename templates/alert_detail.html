@@ -110,6 +110,7 @@
 
     .coverage-badge.bg-secondary {
         background-color: var(--text-muted) !important;
+        color: var(--surface-color) !important;
     }
 
     .coverage-breakdown .badge {
@@ -834,15 +835,14 @@
                                                     <i class="fas fa-check-circle text-success me-1"></i>
                                                 {% endif %}
                                                 {{ summary.type.title() }}{% if summary.type.endswith('s') %}{% else %}s{% endif %}:
-                                                {% if summary.total_boundaries %}
-                                                    All {{ summary.total_boundaries }}
+                                                {% if summary.total_boundaries and summary.affected_boundaries is not none %}
+                                                    {{ summary.affected_boundaries }} of {{ summary.total_boundaries }} affected
+                                                {% elif summary.total_boundaries %}
+                                                    All {{ summary.total_boundaries }} affected
                                                 {% elif summary.affected_boundaries %}
                                                     {{ summary.affected_boundaries }} affected
                                                 {% else %}
-                                                    Coverage confirmed
-                                                {% endif %}
-                                                {% if summary.coverage_percentage %}
-                                                    ({{ summary.coverage_percentage }}%)
+                                                    All affected
                                                 {% endif %}
                                                 {% if summary.is_estimated %}
                                                     <span class="badge bg-warning text-dark ms-1">Estimated</span>
@@ -867,44 +867,11 @@
                                     <div class="boundary-type-header">
                                         <i class="fas fa-{% if boundary_type == 'fire' %}fire{% elif boundary_type == 'ems' %}ambulance{% elif boundary_type == 'electric' %}bolt{% elif boundary_type == 'township' %}home{% elif boundary_type == 'village' %}building{% elif boundary_type == 'telephone' %}phone{% elif boundary_type == 'school' %}school{% else %}map{% endif %}"></i>
                                         {{ boundary_type.title() }}{% if boundary_type.endswith('s') %}{% else %}s{% endif %}
-                                        <span class="badge bg-primary">{{ unique_names|length }}</span>
-
                                         {% if coverage_data and coverage_data.get(boundary_type) %}
-                                            {% set coverage = coverage_data[boundary_type]['coverage_percentage'] %}
-                                            {% if coverage >= 95 %}
-                                                <span class="coverage-badge bg-success">Full Coverage</span>
-                                            {% elif coverage >= 75 %}
-                                                <span class="coverage-badge bg-warning text-dark">High Coverage</span>
-                                            {% elif coverage >= 50 %}
-                                                <span class="coverage-badge bg-info">Moderate Coverage</span>
-                                            {% elif coverage > 0 %}
-                                                <span class="coverage-badge bg-secondary">Partial Coverage</span>
-                                            {% else %}
-                                                <span class="coverage-badge bg-secondary">No Coverage Data</span>
-                                            {% endif %}
-                                            <small class="text-muted ms-2">
-                                                ({{ coverage_data[boundary_type]['affected_boundaries'] }} of {{ coverage_data[boundary_type]['total_boundaries'] }} {{ boundary_type }}s)
-                                            </small>
+                                            {% set bdata = coverage_data[boundary_type] %}
+                                            <span class="badge bg-primary ms-1">{{ bdata['affected_boundaries'] }} of {{ bdata['total_boundaries'] }} affected</span>
                                         {% else %}
-                                            {% set area_lower = alert.area_desc.lower() if alert.area_desc else '' %}
-                                            {% set _county_lower = (location_settings.county_name or '') | lower %}
-                                            {% set _county_short = _county_lower | replace(' county', '') | trim %}
-                                            {% set is_county_wide_fallback = (
-                                                area_lower and (
-                                                    'county' in area_lower or
-                                                    (_county_lower and _county_lower in area_lower) or
-                                                    'entire county' in area_lower or
-                                                    (_county_short and _county_short in area_lower and (area_lower.count(';') >= 2 or area_lower.count(',') >= 2))
-                                                )
-                                            ) %}
-                                            {% if is_county_wide_fallback %}
-                                                <span class="coverage-badge bg-warning text-dark">Coverage Pending</span>
-                                                <button type="button" class="btn btn-sm btn-outline-secondary ms-1 coverage-calc-btn" onclick="triggerIntersectionFix(this)" title="Calculate exact coverage">
-                                                    <i class="fas fa-calculator"></i>
-                                                </button>
-                                            {% else %}
-                                                <span class="coverage-badge bg-secondary">Partial Coverage</span>
-                                            {% endif %}
+                                            <span class="badge bg-primary ms-1">{{ unique_names|length }} affected</span>
                                         {% endif %}
                                     </div>
 
@@ -929,11 +896,12 @@
                                         (_county_short and _county_short in area_lower and (area_lower.count(';') >= 2 or area_lower.count(',') >= 2))
                                     )
                                 ) %}
-                                {% if is_county_wide_fallback %}
+                                {% set has_county_geometry = coverage_data and coverage_data.get('county') and coverage_data['county'].get('coverage_percentage', 0) > 0 %}
+                                {% if is_county_wide_fallback or has_county_geometry %}
                                 <div class="text-center py-4">
                                     <i class="fas fa-exclamation-triangle fa-3x text-warning mb-3"></i>
-                                    <h5>Alert - Boundary Analysis Pending</h5>
-                                    <p class="text-muted">This alert affects county areas, but intersection analysis has not been run yet.</p>
+                                    <h5>Boundary Analysis Pending</h5>
+                                    <p class="text-muted">Alert geometry exists ({{ coverage_data['county']['coverage_percentage'] if has_county_geometry else '' }}% county coverage), but service boundary intersections have not been calculated yet.</p>
                                     <button type="button" class="btn btn-warning coverage-calc-btn" onclick="triggerIntersectionFix(this)">
                                         <i class="fas fa-wrench"></i> Calculate Affected Boundaries
                                     </button>
@@ -943,6 +911,11 @@
                                     <i class="fas fa-map fa-3x text-muted mb-3"></i>
                                     <h5 class="text-muted">No Boundary Intersections Found</h5>
                                     <p class="text-muted">This alert may not intersect with any configured emergency service boundaries.</p>
+                                    {% if not coverage_data or not coverage_data.get('county') %}
+                                    <button type="button" class="btn btn-outline-secondary coverage-calc-btn mt-2" onclick="triggerIntersectionFix(this)">
+                                        <i class="fas fa-calculator"></i> Try Calculating Coverage
+                                    </button>
+                                    {% endif %}
                                 </div>
                                 {% endif %}
                             {% endif %}
@@ -1171,6 +1144,122 @@
                             <hr>
                             {% endif %}
 
+                            {# ── VTEC (Valid Time Event Code) ── #}
+                            {% if ipaws_data.vtec_parsed %}
+                            <h6 class="text-muted mb-2">VTEC</h6>
+                            {% for vtec in ipaws_data.vtec_parsed %}
+                            <div class="mb-2 p-2 rounded" style="background: color-mix(in srgb, var(--primary-color) 6%, var(--surface-color)); border-left: 3px solid var(--primary-color);">
+                                {% set action_colors = {'NEW': 'success', 'CON': 'info', 'CAN': 'danger', 'EXP': 'secondary', 'UPG': 'warning', 'EXT': 'info', 'EXA': 'info', 'EXB': 'info', 'COR': 'warning'} %}
+                                <div class="mb-1">
+                                    <span class="badge bg-{{ action_colors.get(vtec.action, 'secondary') }} me-1">{{ vtec.action_label or vtec.action }}</span>
+                                    {% if vtec.program_label and vtec.program != 'O' %}
+                                    <span class="badge bg-warning me-1">{{ vtec.program_label }}</span>
+                                    {% endif %}
+                                    <strong>{{ vtec.phenomenon_label or vtec.phenomenon }}</strong>
+                                    <span class="text-muted">{{ vtec.significance_label or vtec.significance }}</span>
+                                    {% if vtec.event_number %}
+                                    <span class="text-muted ms-1">#{{ vtec.event_number }}</span>
+                                    {% endif %}
+                                </div>
+                                <div class="small">
+                                    <span class="detail-label">Office</span> {{ vtec.office }}
+                                    {% if vtec.begin %}
+                                    &nbsp;·&nbsp; <span class="detail-label">Begins</span> {{ vtec.begin }}
+                                    {% else %}
+                                    &nbsp;·&nbsp; <span class="text-muted">Ongoing at issuance</span>
+                                    {% endif %}
+                                    {% if vtec.end %}
+                                    &nbsp;·&nbsp; <span class="detail-label">Ends</span> {{ vtec.end }}
+                                    {% endif %}
+                                </div>
+                                <div class="mt-1"><small class="text-muted"><code>{{ vtec.raw }}</code></small></div>
+                            </div>
+                            {% endfor %}
+                            <hr>
+                            {% endif %}
+
+                            {# ── VTEC Event Chain ── #}
+                            {# Show all other alerts that belong to the same VTEC event lifecycle #}
+                            {% if related_alerts %}
+                            <h6 class="text-muted mb-2"><i class="fas fa-link"></i> Related Event Updates</h6>
+                            <div class="mb-3">
+                                {% set action_colors = {'NEW': 'success', 'CON': 'info', 'CAN': 'danger', 'EXP': 'secondary', 'UPG': 'warning', 'EXT': 'info', 'EXA': 'info', 'EXB': 'info', 'COR': 'warning', 'ROU': 'secondary'} %}
+                                {% set action_labels = {'NEW': 'New Event', 'CON': 'Continuing', 'CAN': 'Cancelled', 'EXP': 'Expired', 'UPG': 'Upgraded', 'EXT': 'Extended (Time)', 'EXA': 'Extended (Area)', 'EXB': 'Extended (Area+Time)', 'COR': 'Correction', 'ROU': 'Routine'} %}
+                                {# Render current alert position in the timeline first #}
+                                <div class="d-flex align-items-start gap-2 mb-2">
+                                    <div class="d-flex flex-column align-items-center" style="min-width:2rem;">
+                                        <div class="rounded-circle border border-primary d-flex align-items-center justify-content-center" style="width:1.5rem;height:1.5rem;background:var(--primary-color);color:#fff;font-size:.65rem;font-weight:700;">★</div>
+                                        <div class="flex-grow-1" style="width:2px;background:var(--border-color);min-height:1rem;"></div>
+                                    </div>
+                                    <div class="p-2 rounded flex-grow-1" style="background:color-mix(in srgb, var(--primary-color) 10%, var(--surface-color));border:1px solid var(--primary-color);">
+                                        <div class="d-flex align-items-center gap-2 flex-wrap">
+                                            {% if alert.vtec_action %}
+                                            <span class="badge bg-{{ action_colors.get(alert.vtec_action, 'secondary') }}">{{ action_labels.get(alert.vtec_action, alert.vtec_action) }}</span>
+                                            {% endif %}
+                                            <span class="small fw-semibold">This alert</span>
+                                            {% if alert.sent %}<span class="small text-muted">{{ alert.sent.strftime('%Y-%m-%d %H:%M UTC') }}</span>{% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                                {% for rel in related_alerts %}
+                                <div class="d-flex align-items-start gap-2 mb-2">
+                                    <div class="d-flex flex-column align-items-center" style="min-width:2rem;">
+                                        <div class="rounded-circle border d-flex align-items-center justify-content-center" style="width:1.5rem;height:1.5rem;background:var(--surface-color);font-size:.65rem;font-weight:700;">{{ loop.index }}</div>
+                                        {% if not loop.last %}
+                                        <div class="flex-grow-1" style="width:2px;background:var(--border-color);min-height:1rem;"></div>
+                                        {% endif %}
+                                    </div>
+                                    <div class="p-2 rounded flex-grow-1" style="background:var(--card-bg);border:1px solid var(--border-color);">
+                                        <div class="d-flex align-items-center gap-2 flex-wrap">
+                                            {% if rel.vtec_action %}
+                                            <span class="badge bg-{{ action_colors.get(rel.vtec_action, 'secondary') }}">{{ action_labels.get(rel.vtec_action, rel.vtec_action) }}</span>
+                                            {% endif %}
+                                            {% if rel.sent %}<span class="small text-muted">{{ rel.sent.strftime('%Y-%m-%d %H:%M UTC') }}</span>{% endif %}
+                                            <a href="{{ url_for('api.alert_detail', alert_id=rel.id) }}" class="small ms-auto">View →</a>
+                                        </div>
+                                        {% if rel.headline %}
+                                        <div class="small text-muted mt-1">{{ rel.headline }}</div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            <hr>
+                            {% endif %}
+
+                            {# ── Storm Motion ── #}
+                            {% if ipaws_data.storm_motion %}
+                            {% set sm = ipaws_data.storm_motion %}
+                            <h6 class="text-muted mb-2"><i class="fas fa-wind"></i> Storm Motion</h6>
+                            <div class="mb-2 p-2 rounded d-flex flex-wrap gap-3 align-items-center" style="background: color-mix(in srgb, var(--info-color) 8%, var(--surface-color)); border-left: 3px solid var(--info-color);">
+                                {% if sm.direction_deg is defined %}
+                                <div class="text-center">
+                                    <div style="font-size:1.6em; font-weight:700; line-height:1;">
+                                        {{ sm.compass or '' }}
+                                    </div>
+                                    <div class="small text-muted">{{ sm.direction_deg }}°</div>
+                                    <div class="small text-muted">Direction</div>
+                                </div>
+                                {% endif %}
+                                {% if sm.speed_mph is defined %}
+                                <div class="text-center">
+                                    <div style="font-size:1.6em; font-weight:700; line-height:1;">{{ sm.speed_mph }}</div>
+                                    <div class="small text-muted">{{ sm.speed_kt }} kt</div>
+                                    <div class="small text-muted">mph</div>
+                                </div>
+                                {% endif %}
+                                {% if sm.track %}
+                                <div>
+                                    <div class="small fw-semibold">Storm Track ({{ sm.track|length }} pts)</div>
+                                    {% for pt in sm.track %}
+                                    <div class="small text-muted">{{ pt[0] }}, {{ pt[1] }}</div>
+                                    {% endfor %}
+                                </div>
+                                {% endif %}
+                            </div>
+                            <hr>
+                            {% endif %}
+
                             {# ── Additional Parameters (both IPAWS and NOAA) ── #}
                             {% if ipaws_data.extra_parameters %}
                             <h6 class="text-muted mb-2">{% if ipaws_data.is_noaa %}NWS Parameters{% else %}Additional Parameters{% endif %}</h6>
@@ -1368,12 +1457,12 @@
                                 <span>{{ alert.eas_forwarding_reason }}</span>
                             </div>
                             {% endif %}
-                            {% if alert.eas_audio_url %}
+                            {% if eas_audio_web_url %}
                             <div class="detail-item">
                                 <span class="detail-label"><i class="fas fa-volume-up"></i> Forwarded Audio</span>
                                 <div class="mt-1">
                                     <audio controls preload="metadata" style="width: 100%; max-width: 400px;" aria-label="Auto-forwarded EAS audio">
-                                        <source src="{{ alert.eas_audio_url }}" type="audio/wav">
+                                        <source src="{{ eas_audio_web_url }}" type="audio/wav">
                                         Your browser does not support the audio element.
                                     </audio>
                                 </div>
@@ -1647,7 +1736,8 @@ const alertData = {
     status: {{ alert.status|tojson }},
     identifier: {{ alert.identifier|tojson }},
     // Use coverage data instead of text-based detection
-    is_county_wide: {% if coverage_data and coverage_data.get('county') and coverage_data['county']['coverage_percentage'] >= 95 %}true{% else %}false{% endif %}
+    is_county_wide: {% if coverage_data and coverage_data.get('county') and coverage_data['county']['coverage_percentage'] >= 95 %}true{% else %}false{% endif %},
+    stormMotion: {% if ipaws_data and ipaws_data.storm_motion %}{{ ipaws_data.storm_motion | tojson }}{% else %}null{% endif %}
 };
 
 // Initialize everything when page loads
@@ -1921,6 +2011,9 @@ function displayAlertOnMap(alertGeoData) {
 
         console.log('Alert displayed successfully on map');
 
+        // Overlay storm track if motion data is available
+        addStormTrackToMap();
+
     } catch (error) {
         console.error('Error displaying alert on map:', error);
         showMapError('Error displaying alert: ' + error.message);
@@ -1984,6 +2077,78 @@ function showMapError(message) {
                 </div>
             </div>
         `;
+    }
+}
+
+function addStormTrackToMap() {
+    if (!map || !alertData.stormMotion) return;
+    const sm = alertData.stormMotion;
+    if (!sm.track || sm.track.length < 1) return;
+
+    // Draw the observed track as a dashed polyline
+    const trackLine = L.polyline(sm.track, {
+        color: '#ff6b00',
+        weight: 3,
+        dashArray: '8, 5',
+        opacity: 0.85,
+    }).addTo(map);
+
+    // Mark each track point with a small circle
+    sm.track.forEach((pt, i) => {
+        const isLast = i === sm.track.length - 1;
+        L.circleMarker(pt, {
+            radius: isLast ? 7 : 4,
+            color: isLast ? '#ff6b00' : '#cc5500',
+            fillColor: isLast ? '#ff6b00' : '#ff9944',
+            fillOpacity: 0.9,
+            weight: 2,
+        }).addTo(map).bindPopup(
+            isLast
+                ? `<strong>Storm Position</strong><br>${pt[0]}, ${pt[1]}<br>` +
+                  (sm.compass ? `Moving <strong>${sm.compass}</strong> (${sm.direction_deg}°)` : '') +
+                  (sm.speed_mph ? ` at <strong>${sm.speed_mph} mph</strong>` : '')
+                : `Track point ${i + 1}<br>${pt[0]}, ${pt[1]}`
+        );
+    });
+
+    // Draw a short projected path arrow from the last known position
+    if (sm.track.length >= 1 && sm.direction_deg !== undefined && sm.speed_kt) {
+        const lastPt = sm.track[sm.track.length - 1];
+        // Project ~30 minutes ahead: speed_kt * 0.5 hr * 1.852 km/kt → degrees lat/lon
+        const distKm = sm.speed_kt * 0.5 * 1.852;
+        const radDir = (sm.direction_deg * Math.PI) / 180;
+        const dLat = (distKm / 111.32) * Math.cos(radDir);
+        const dLon = (distKm / (111.32 * Math.cos(lastPt[0] * Math.PI / 180))) * Math.sin(radDir);
+        const projPt = [lastPt[0] + dLat, lastPt[1] + dLon];
+
+        L.polyline([lastPt, projPt], {
+            color: '#ff6b00',
+            weight: 2,
+            dashArray: '4, 8',
+            opacity: 0.6,
+        }).addTo(map).bindPopup(
+            `<strong>Projected path (~30 min)</strong><br>` +
+            `${sm.compass || ''} at ${sm.speed_mph || sm.speed_kt} ${sm.speed_mph ? 'mph' : 'kt'}`
+        );
+
+        // Arrowhead at the projected end
+        L.circleMarker(projPt, {
+            radius: 5,
+            color: '#ff6b00',
+            fillColor: '#ffffff',
+            fillOpacity: 0.8,
+            weight: 2,
+            dashArray: null,
+        }).addTo(map).bindPopup('Projected position (~30 min)');
+    }
+
+    // Legend entry
+    const legend = document.getElementById('map-legend');
+    if (legend) {
+        const entry = document.createElement('span');
+        entry.style.cssText = 'display:inline-flex;align-items:center;gap:4px;margin-left:8px;font-size:0.8em;';
+        entry.innerHTML = '<span style="display:inline-block;width:20px;height:3px;background:#ff6b00;border-top:2px dashed #ff6b00;"></span> Storm Track';
+        legend.appendChild(entry);
     }
 }
 
@@ -2200,7 +2365,13 @@ async function triggerIntersectionFix(clickedBtn) {
     }
 
     try {
-        const response = await fetch(`/admin/calculate_single_alert/${alertData.id}`, { method: 'POST' });
+        const response = await fetch(`/admin/calculate_single_alert/${alertData.id}`, {
+            method: 'POST',
+            headers: {
+                'X-CSRF-Token': window.CSRF_TOKEN || '',
+                'Accept': 'application/json',
+            },
+        });
         const result = await response.json();
 
         if (response.ok) {

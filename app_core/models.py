@@ -159,6 +159,17 @@ class CAPAlert(db.Model):
     certificate_info = db.Column(db.JSON)  # Full X.509 certificate details from IPAWS signature
     ipaws_audio_url = db.Column(db.String(512))  # Path to saved original IPAWS audio file
 
+    # VTEC event identity — extracted from raw_json at ingest time so related
+    # alert updates (NEW → CON → EXT → EXP) can be grouped without scanning JSON.
+    # The tuple (vtec_office, vtec_phenomenon, vtec_significance, vtec_etn, vtec_year)
+    # is the stable event key shared by every product in the same event series.
+    vtec_office = db.Column(db.String(4), index=True)       # e.g. 'KIWX'
+    vtec_phenomenon = db.Column(db.String(2), index=True)   # e.g. 'SV'
+    vtec_significance = db.Column(db.String(1), index=True) # e.g. 'W'
+    vtec_etn = db.Column(db.Integer, index=True)            # e.g. 56
+    vtec_year = db.Column(db.Integer, index=True)           # e.g. 2026 (ETNs reset annually)
+    vtec_action = db.Column(db.String(3))                   # e.g. 'EXP'
+
     created_at = db.Column(db.DateTime(timezone=True), default=utc_now)
     updated_at = db.Column(
         db.DateTime(timezone=True),

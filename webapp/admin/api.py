@@ -48,6 +48,7 @@ from app_utils import (
     utc_now,
 )
 from app_core.eas_storage import get_eas_static_prefix, format_local_datetime
+from app_utils.vtec import extract_vtec_identity, parse_vtec_display
 from app_core.boundaries import (
     get_boundary_color,
     get_boundary_display_label,
@@ -388,6 +389,63 @@ def get_alert_geometry(alert_id):
         api_bp.logger.error("Error getting alert geometry: %s", exc, exc_info=True)
         return jsonify({'error': 'Failed to retrieve alert geometry'}), 500
 
+def _parse_event_motion(raw: str) -> Dict[str, Any]:
+    """Parse an NWS eventMotionDescription parameter string.
+
+    Format (parts separated by '...' ):
+      <ISO-timestamp>...storm...<degrees>DEG...<speed>KT...<lat1>,<lon1> <lat2>,<lon2>...
+
+    Returns a dict with parsed fields. Raises on bad input so callers can
+    catch and discard gracefully.
+    """
+    import math
+
+    parts = [p.strip() for p in raw.split('...')]
+
+    motion: Dict[str, Any] = {'raw': raw}
+
+    for part in parts:
+        upper = part.upper()
+        if upper.endswith('DEG'):
+            try:
+                motion['direction_deg'] = int(part[:-3])
+            except ValueError:
+                pass
+        elif upper.endswith('KT'):
+            try:
+                kt = float(part[:-2])
+                motion['speed_kt'] = kt
+                motion['speed_mph'] = round(kt * 1.15078, 1)
+            except ValueError:
+                pass
+        elif 'T' in part and part[0].isdigit():
+            motion['timestamp'] = part
+        elif ',' in part:
+            # Coordinate pairs — one or more 'lat,lon' items separated by spaces
+            coords = []
+            for token in part.split():
+                try:
+                    lat_s, lon_s = token.split(',')
+                    coords.append([float(lat_s), float(lon_s)])
+                except ValueError:
+                    pass
+            if coords:
+                motion['track'] = coords
+
+    # Convert degrees to a compass label
+    deg = motion.get('direction_deg')
+    if deg is not None:
+        dirs = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE',
+                'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW']
+        idx = int((deg + 11.25) / 22.5) % 16
+        motion['compass'] = dirs[idx]
+
+    return motion
+
+
+# VTEC parsing is handled by app_utils.vtec — parse_vtec_display imported above.
+
+
 def _extract_alert_display_data(alert) -> Optional[Dict[str, Any]]:
     """Extract enriched display data from an alert for template rendering.
 
@@ -472,10 +530,28 @@ def _extract_alert_display_data(alert) -> Optional[Dict[str, Any]]:
         except ImportError:
             pass
 
+        # --- Parse eventMotionDescription ---
+        motion_raw_list = params.get('eventMotionDescription', [])
+        motion_raw = motion_raw_list[0] if motion_raw_list else ''
+        if motion_raw:
+            try:
+                data['storm_motion'] = _parse_event_motion(motion_raw)
+            except Exception:
+                pass
+
+        # --- Parse VTEC ---
+        vtec_list = params.get('VTEC', [])
+        if vtec_list:
+            try:
+                data['vtec_parsed'] = [parse_vtec_display(v) for v in vtec_list if v]
+            except Exception:
+                pass
+
         # Expose all remaining parameters for display
         extra_params = {}
+        _handled = {'EAS-ORG', 'EAS-STN-ID', 'BLOCKCHANNEL', 'eventMotionDescription', 'VTEC'}
         for k, v in params.items():
-            if k not in ('EAS-ORG', 'EAS-STN-ID', 'BLOCKCHANNEL'):
+            if k not in _handled:
                 extra_params[k] = v
         if extra_params:
             data['extra_parameters'] = extra_params
@@ -760,6 +836,64 @@ def alert_detail(alert_id):
         # Extract enriched display data (works for both IPAWS and NOAA)
         ipaws_data = _extract_alert_display_data(alert)
 
+        # Convert eas_audio_url filesystem path to a web-accessible URL.
+        # The field stores an absolute path (e.g. /home/.../static/eas_messages/foo.wav)
+        # which browsers cannot load directly; we need a /static/... URL instead.
+        eas_audio_web_url = None
+        raw_audio_path = getattr(alert, 'eas_audio_url', None)
+        if raw_audio_path:
+            static_folder = current_app.static_folder or os.path.join(os.getcwd(), 'static')
+            try:
+                if os.path.isabs(raw_audio_path) and raw_audio_path.startswith(static_folder):
+                    rel = os.path.relpath(raw_audio_path, static_folder).replace(os.sep, '/')
+                    eas_audio_web_url = url_for('static', filename=rel)
+                elif not os.path.isabs(raw_audio_path):
+                    # Already a relative/web path
+                    eas_audio_web_url = raw_audio_path if raw_audio_path.startswith('/') else '/' + raw_audio_path
+                else:
+                    # Absolute path outside static folder — try using the EASMessage audio route
+                    # by finding the matching record for this alert
+                    from app_core.models import EASMessage as _EASMsg
+                    linked_msg = (
+                        _EASMsg.query
+                        .filter(_EASMsg.cap_alert_id == alert_id)
+                        .order_by(_EASMsg.created_at.desc())
+                        .first()
+                    )
+                    if linked_msg:
+                        eas_audio_web_url = url_for('eas_message_audio', message_id=linked_msg.id)
+            except Exception as _url_exc:
+                api_bp.logger.debug('Could not resolve eas_audio_url to web URL: %s', _url_exc)
+
+        # Query all alerts that share the same VTEC event key, ordered oldest→newest.
+        # This gives us the full lifecycle chain: NEW → CON → EXT → EXP, etc.
+        related_alerts: List[CAPAlert] = []
+        if (
+            alert.vtec_office
+            and alert.vtec_phenomenon
+            and alert.vtec_significance
+            and alert.vtec_etn is not None
+            and alert.vtec_year is not None
+        ):
+            try:
+                related_alerts = (
+                    CAPAlert.query
+                    .filter(
+                        CAPAlert.vtec_office == alert.vtec_office,
+                        CAPAlert.vtec_phenomenon == alert.vtec_phenomenon,
+                        CAPAlert.vtec_significance == alert.vtec_significance,
+                        CAPAlert.vtec_etn == alert.vtec_etn,
+                        CAPAlert.vtec_year == alert.vtec_year,
+                        CAPAlert.id != alert_id,
+                    )
+                    .order_by(CAPAlert.sent.asc())
+                    .all()
+                )
+            except Exception as _rel_exc:
+                api_bp.logger.warning(
+                    'Could not load related alerts for %s: %s', alert.identifier, _rel_exc
+                )
+
         return render_template(
             'alert_detail.html',
             alert=alert,
@@ -771,6 +905,8 @@ def alert_detail(alert_id):
             boundary_summary=boundary_summary,
             suppress_boundary_details=suppress_boundary_details,
             ipaws_data=ipaws_data,
+            eas_audio_web_url=eas_audio_web_url,
+            related_alerts=related_alerts,
         )
 
     except Exception as exc:
