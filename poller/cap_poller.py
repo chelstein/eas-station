@@ -173,6 +173,7 @@ from app_utils.location_settings import (
 print(f"[CAP_POLLER] Importing app_utils.optimized_parsing...")
 from app_utils.optimized_parsing import json_loads, json_dumps, parse_xml_string, get_element_tree_module
 from app_utils.ipaws_enrichment import extract_certificate_info, save_ipaws_audio
+from app_utils.vtec import extract_vtec_identity
 from app_utils.eas import load_eas_config
 from app_core.audio.auto_forward import auto_forward_cap_alert
 print(f"[CAP_POLLER] Importing app_core.models...")
@@ -2430,6 +2431,19 @@ class CAPPoller:
         # try_build_geometry_from_same_codes and we must preserve that work
         # across poll cycles.
         existing.updated_at = utc_now()
+
+        # Backfill VTEC identity if not yet populated (e.g. alert was ingested
+        # before this feature was deployed, or an update carries fresh VTEC data)
+        if not existing.vtec_office:
+            try:
+                vtec_fields = extract_vtec_identity(payload.get('raw_json', {}))
+                if vtec_fields:
+                    for field, value in vtec_fields.items():
+                        setattr(existing, field, value)
+            except Exception as exc:
+                self.logger.debug("VTEC backfill failed for %s: %s",
+                                  existing.identifier, exc)
+
         self.db_session.commit()
 
         # Use PostGIS ST_Equals for reliable geometry comparison
@@ -2510,6 +2524,16 @@ class CAPPoller:
             except Exception as exc:
                 self.logger.warning("IPAWS audio save failed for %s: %s",
                                     payload.get('identifier', '?'), exc)
+
+        # Extract VTEC identity fields so related updates share a queryable event key
+        try:
+            vtec_fields = extract_vtec_identity(alert_data.get('raw_json', {}))
+            if vtec_fields:
+                for field, value in vtec_fields.items():
+                    setattr(new_alert, field, value)
+        except Exception as exc:
+            self.logger.debug("VTEC identity extraction failed for %s: %s",
+                              payload.get('identifier', '?'), exc)
 
         # First commit: Save alert to database to get the ID needed for EAS message linking
         self.db_session.add(new_alert)

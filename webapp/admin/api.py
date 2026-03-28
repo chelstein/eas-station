@@ -48,6 +48,7 @@ from app_utils import (
     utc_now,
 )
 from app_core.eas_storage import get_eas_static_prefix, format_local_datetime
+from app_utils.vtec import extract_vtec_identity, parse_vtec_display
 from app_core.boundaries import (
     get_boundary_color,
     get_boundary_display_label,
@@ -442,162 +443,7 @@ def _parse_event_motion(raw: str) -> Dict[str, Any]:
     return motion
 
 
-_VTEC_ACTIONS = {
-    'NEW': 'New Event',
-    'CON': 'Continuing',
-    'EXA': 'Extended in Area',
-    'EXT': 'Extended in Time',
-    'EXB': 'Extended in Area and Time',
-    'CAN': 'Cancelled',
-    'EXP': 'Expired',
-    'UPG': 'Upgraded',
-    'COR': 'Correction',
-    'ROU': 'Routine',
-}
-
-# Phenomenon codes from NWS Directive 10-1703 (ver 9, March 2025).
-# Legacy codes observed in real alerts but removed from the current directive
-# are kept here (marked) so older archived alerts still decode correctly.
-_VTEC_PHENOMENA = {
-    # — Current directive codes —
-    'AF': 'Ashfall',
-    'AS': 'Air Stagnation',
-    'BH': 'Beach Hazard',
-    'BW': 'Brisk Wind',
-    'BZ': 'Blizzard',
-    'CF': 'Coastal Flood',
-    'CW': 'Cold Weather',
-    'DF': 'Debris Flow',
-    'DS': 'Dust Storm',
-    'DU': 'Blowing Dust',
-    'EC': 'Extreme Cold',
-    'EW': 'Extreme Wind',
-    'FA': 'Flood',                          # Areal flood (non-forecast-point)
-    'FF': 'Flash Flood',
-    'FG': 'Dense Fog',
-    'FL': 'Flood',                          # Forecast-point flood
-    'FR': 'Frost',
-    'FW': 'Fire Weather',
-    'FZ': 'Freeze',
-    'GL': 'Gale',
-    'HF': 'Hurricane Force Wind',
-    'HT': 'Heat',
-    'HU': 'Hurricane',
-    'HW': 'High Wind',
-    'HY': 'Hydrologic',
-    'IS': 'Ice Storm',
-    'LE': 'Lake-Effect Snow',
-    'LO': 'Low Water',
-    'LS': 'Lakeshore Flood',
-    'LW': 'Lake Wind',
-    'MA': 'Marine',
-    'MF': 'Marine Dense Fog',
-    'MH': 'Marine Ashfall',
-    'MS': 'Marine Dense Smoke',
-    'RB': 'Small Craft for Rough Bar',
-    'RP': 'Rip Current Risk',
-    'SC': 'Small Craft',
-    'SE': 'Hazardous Seas',
-    'SI': 'Small Craft for Winds',
-    'SM': 'Dense Smoke',
-    'SQ': 'Snow Squall',
-    'SR': 'Storm',
-    'SS': 'Storm Surge',
-    'SU': 'High Surf',
-    'SV': 'Severe Thunderstorm',
-    'SW': 'Small Craft for Hazardous Seas',
-    'TO': 'Tornado',
-    'TR': 'Tropical Storm',
-    'TS': 'Tsunami',
-    'TY': 'Typhoon',
-    'UP': 'Freezing Spray',                 # Heavy freezing spray for W/A significance
-    'WI': 'Wind',
-    'WS': 'Winter Storm',
-    'WW': 'Winter Weather',
-    'XH': 'Extreme Heat',
-    'ZF': 'Freezing Fog',
-    'ZR': 'Freezing Rain',
-    # — Legacy codes (pre-ver-9 directive; retained for archived alert decoding) —
-    'BS': 'Blowing Snow',
-    'EH': 'Excessive Heat',                 # Superseded by XH
-    'HI': 'Inland Hurricane Wind',
-    'HS': 'Heavy Snow',
-    'HZ': 'Hard Freeze',
-    'IP': 'Sleet',
-    'LB': 'Lake-Effect Snow and Blowing Snow',
-    'SN': 'Snow',
-    'TI': 'Inland Tropical Storm Wind',
-    'WC': 'Wind Chill',
-}
-
-_VTEC_SIGNIFICANCE = {
-    'W': 'Warning', 'A': 'Watch', 'Y': 'Advisory',
-    'S': 'Statement', 'F': 'Forecast', 'O': 'Outlook', 'N': 'Synopsis',
-}
-
-_VTEC_PROGRAMS = {
-    'O': 'Operational', 'T': 'Test', 'E': 'Exercise', 'X': 'Experimental',
-}
-
-
-def _parse_vtec(raw: str) -> Dict[str, Any]:
-    """Parse an NWS VTEC string.
-
-    Format: /P.A.CCCC.PP.S.####.yymmddThhnnssZ-yymmddThhnnssZ/
-
-    Returns a dict with decoded fields. Raises on bad input.
-    """
-    import re
-
-    stripped = raw.strip().strip('/')
-    # P-VTEC format per NWS Directive 10-1703 (ver 9, March 2025):
-    #   k.aaa.cccc.pp.s.####.yymmddThhnnZB-yymmddThhnnZE
-    # Time group is yymmdd (6 digits) + T + hhnn (4 digits) + Z — NOT 6+6.
-    m = re.match(
-        r'([OTEX])\.'                      # k   — product class
-        r'([A-Z]{2,3})\.'                  # aaa — action
-        r'([A-Z]{4})\.'                    # cccc — office ID
-        r'([A-Z]{2})\.'                    # pp  — phenomenon
-        r'([WAYSFONM])\.'                  # s   — significance
-        r'(\d{4})\.'                       # #### — ETN
-        r'(\d{6}T\d{4}Z)-(\d{6}T\d{4}Z)',# begin-end (yymmddThhnnZ)
-        stripped,
-    )
-    if not m:
-        return {'raw': raw}
-
-    prog, action, office, phen, sig, etn, begin_raw, end_raw = m.groups()
-
-    def _decode_vtec_time(s: str) -> Optional[str]:
-        """Convert yymmddThhnnZ to a readable UTC string.
-
-        All-zeros (000000T0000Z) is NWS convention meaning the event was
-        already ongoing at the time this product was issued.
-        """
-        if s == '000000T0000Z':
-            return None
-        try:
-            from datetime import datetime, timezone
-            dt = datetime.strptime(s, '%y%m%dT%H%MZ').replace(tzinfo=timezone.utc)
-            return dt.strftime('%Y-%m-%d %H:%M UTC')
-        except ValueError:
-            return s
-
-    return {
-        'raw': raw,
-        'program': prog,
-        'program_label': _VTEC_PROGRAMS.get(prog, prog),
-        'action': action,
-        'action_label': _VTEC_ACTIONS.get(action, action),
-        'office': office,
-        'phenomenon': phen,
-        'phenomenon_label': _VTEC_PHENOMENA.get(phen, phen),
-        'significance': sig,
-        'significance_label': _VTEC_SIGNIFICANCE.get(sig, sig),
-        'event_number': etn.lstrip('0') or '0',
-        'begin': _decode_vtec_time(begin_raw),
-        'end': _decode_vtec_time(end_raw),
-    }
+# VTEC parsing is handled by app_utils.vtec — parse_vtec_display imported above.
 
 
 def _extract_alert_display_data(alert) -> Optional[Dict[str, Any]]:
@@ -697,7 +543,7 @@ def _extract_alert_display_data(alert) -> Optional[Dict[str, Any]]:
         vtec_list = params.get('VTEC', [])
         if vtec_list:
             try:
-                data['vtec_parsed'] = [_parse_vtec(v) for v in vtec_list if v]
+                data['vtec_parsed'] = [parse_vtec_display(v) for v in vtec_list if v]
             except Exception:
                 pass
 
@@ -1019,6 +865,35 @@ def alert_detail(alert_id):
             except Exception as _url_exc:
                 api_bp.logger.debug('Could not resolve eas_audio_url to web URL: %s', _url_exc)
 
+        # Query all alerts that share the same VTEC event key, ordered oldest→newest.
+        # This gives us the full lifecycle chain: NEW → CON → EXT → EXP, etc.
+        related_alerts: List[CAPAlert] = []
+        if (
+            alert.vtec_office
+            and alert.vtec_phenomenon
+            and alert.vtec_significance
+            and alert.vtec_etn is not None
+            and alert.vtec_year is not None
+        ):
+            try:
+                related_alerts = (
+                    CAPAlert.query
+                    .filter(
+                        CAPAlert.vtec_office == alert.vtec_office,
+                        CAPAlert.vtec_phenomenon == alert.vtec_phenomenon,
+                        CAPAlert.vtec_significance == alert.vtec_significance,
+                        CAPAlert.vtec_etn == alert.vtec_etn,
+                        CAPAlert.vtec_year == alert.vtec_year,
+                        CAPAlert.id != alert_id,
+                    )
+                    .order_by(CAPAlert.sent.asc())
+                    .all()
+                )
+            except Exception as _rel_exc:
+                api_bp.logger.warning(
+                    'Could not load related alerts for %s: %s', alert.identifier, _rel_exc
+                )
+
         return render_template(
             'alert_detail.html',
             alert=alert,
@@ -1031,6 +906,7 @@ def alert_detail(alert_id):
             suppress_boundary_details=suppress_boundary_details,
             ipaws_data=ipaws_data,
             eas_audio_web_url=eas_audio_web_url,
+            related_alerts=related_alerts,
         )
 
     except Exception as exc:

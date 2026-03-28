@@ -1178,6 +1178,55 @@
                             <hr>
                             {% endif %}
 
+                            {# ── VTEC Event Chain ── #}
+                            {# Show all other alerts that belong to the same VTEC event lifecycle #}
+                            {% if related_alerts %}
+                            <h6 class="text-muted mb-2"><i class="fas fa-link"></i> Related Event Updates</h6>
+                            <div class="mb-3">
+                                {% set action_colors = {'NEW': 'success', 'CON': 'info', 'CAN': 'danger', 'EXP': 'secondary', 'UPG': 'warning', 'EXT': 'info', 'EXA': 'info', 'EXB': 'info', 'COR': 'warning', 'ROU': 'secondary'} %}
+                                {% set action_labels = {'NEW': 'New Event', 'CON': 'Continuing', 'CAN': 'Cancelled', 'EXP': 'Expired', 'UPG': 'Upgraded', 'EXT': 'Extended (Time)', 'EXA': 'Extended (Area)', 'EXB': 'Extended (Area+Time)', 'COR': 'Correction', 'ROU': 'Routine'} %}
+                                {# Render current alert position in the timeline first #}
+                                <div class="d-flex align-items-start gap-2 mb-2">
+                                    <div class="d-flex flex-column align-items-center" style="min-width:2rem;">
+                                        <div class="rounded-circle border border-primary d-flex align-items-center justify-content-center" style="width:1.5rem;height:1.5rem;background:var(--primary-color);color:#fff;font-size:.65rem;font-weight:700;">★</div>
+                                        <div class="flex-grow-1" style="width:2px;background:var(--border-color);min-height:1rem;"></div>
+                                    </div>
+                                    <div class="p-2 rounded flex-grow-1" style="background:color-mix(in srgb, var(--primary-color) 10%, var(--surface-color));border:1px solid var(--primary-color);">
+                                        <div class="d-flex align-items-center gap-2 flex-wrap">
+                                            {% if alert.vtec_action %}
+                                            <span class="badge bg-{{ action_colors.get(alert.vtec_action, 'secondary') }}">{{ action_labels.get(alert.vtec_action, alert.vtec_action) }}</span>
+                                            {% endif %}
+                                            <span class="small fw-semibold">This alert</span>
+                                            {% if alert.sent %}<span class="small text-muted">{{ alert.sent.strftime('%Y-%m-%d %H:%M UTC') }}</span>{% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                                {% for rel in related_alerts %}
+                                <div class="d-flex align-items-start gap-2 mb-2">
+                                    <div class="d-flex flex-column align-items-center" style="min-width:2rem;">
+                                        <div class="rounded-circle border d-flex align-items-center justify-content-center" style="width:1.5rem;height:1.5rem;background:var(--surface-color);font-size:.65rem;font-weight:700;">{{ loop.index }}</div>
+                                        {% if not loop.last %}
+                                        <div class="flex-grow-1" style="width:2px;background:var(--border-color);min-height:1rem;"></div>
+                                        {% endif %}
+                                    </div>
+                                    <div class="p-2 rounded flex-grow-1" style="background:var(--card-bg);border:1px solid var(--border-color);">
+                                        <div class="d-flex align-items-center gap-2 flex-wrap">
+                                            {% if rel.vtec_action %}
+                                            <span class="badge bg-{{ action_colors.get(rel.vtec_action, 'secondary') }}">{{ action_labels.get(rel.vtec_action, rel.vtec_action) }}</span>
+                                            {% endif %}
+                                            {% if rel.sent %}<span class="small text-muted">{{ rel.sent.strftime('%Y-%m-%d %H:%M UTC') }}</span>{% endif %}
+                                            <a href="{{ url_for('api.alert_detail', alert_id=rel.id) }}" class="small ms-auto">View →</a>
+                                        </div>
+                                        {% if rel.headline %}
+                                        <div class="small text-muted mt-1">{{ rel.headline }}</div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            <hr>
+                            {% endif %}
+
                             {# ── Storm Motion ── #}
                             {% if ipaws_data.storm_motion %}
                             {% set sm = ipaws_data.storm_motion %}

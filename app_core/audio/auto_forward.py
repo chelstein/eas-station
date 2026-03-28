@@ -37,6 +37,8 @@ from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from typing import Any, Dict, List, Optional, Set
 
+from app_utils.vtec import VTEC_BROADCAST_ACTIONS, VTEC_SKIP_ACTIONS, VTEC_TERMINAL_ACTIONS
+
 logger = logging.getLogger(__name__)
 
 # Deduplication window: alerts with the same event code and overlapping
@@ -195,9 +197,47 @@ def auto_forward_cap_alert(
     fips_codes = _get_fips_from_cap_alert(cap_alert, raw_json)
     event_code = _resolve_event_code(cap_alert)
 
-    # Cross-source deduplication
-    if event_code and fips_codes:
-        if is_duplicate_broadcast(event_code, fips_codes, db_session):
+    # VTEC-aware action gating — only applies when VTEC was parsed at ingest
+    vtec_action: Optional[str] = getattr(cap_alert, 'vtec_action', None)
+    if vtec_action:
+        if vtec_action in VTEC_SKIP_ACTIONS:
+            # CON / ROU: event is already on air; no new broadcast needed
+            reason = (
+                f"VTEC action '{vtec_action}' indicates a continuing/routine update "
+                "— rebroadcast suppressed"
+            )
+            log.info("Auto-forward skipped for %s: %s", result['identifier'], reason)
+            result['reason'] = reason
+            _update_cap_forwarding_status(cap_alert, db_session, False, reason, log)
+            return result
+
+        if vtec_action in VTEC_TERMINAL_ACTIONS:
+            # CAN / EXP: event is over; cancellation tones are not auto-generated
+            reason = (
+                f"VTEC action '{vtec_action}' indicates event termination "
+                "— no broadcast triggered"
+            )
+            log.info("Auto-forward skipped for %s: %s", result['identifier'], reason)
+            result['reason'] = reason
+            _update_cap_forwarding_status(cap_alert, db_session, False, reason, log)
+            return result
+
+        if vtec_action in VTEC_BROADCAST_ACTIONS and vtec_action == 'UPG':
+            # UPG: upgraded severity — always rebroadcast, skip dedup window
+            log.info(
+                "Auto-forward forced for %s: VTEC action 'UPG' bypasses dedup window",
+                result['identifier'],
+            )
+            # Fall through directly to broadcaster — skip the FIPS dedup check below
+            fips_codes_for_dedup: List[str] = []
+        else:
+            fips_codes_for_dedup = fips_codes
+    else:
+        fips_codes_for_dedup = fips_codes
+
+    # Cross-source deduplication (skipped for UPG)
+    if event_code and fips_codes_for_dedup:
+        if is_duplicate_broadcast(event_code, fips_codes_for_dedup, db_session):
             reason = (
                 f"Cross-source duplicate: {event_code} already broadcast "
                 f"for overlapping FIPS within {CROSS_SOURCE_DEDUP_WINDOW_MINUTES}min"
