@@ -2365,16 +2365,21 @@ function addStormTrackToMap() {
             `Heading ${headingLabel} at ${sm.speed_mph || sm.speed_kt} ${sm.speed_mph ? 'mph' : 'kt'}`
         );
 
-        // Open circle at projected end
-        L.circleMarker(projPt, {
-            radius: 5,
-            color: '#ff6b00',
-            fillColor: '#ffffff',
-            fillOpacity: 0.8,
-            weight: 2,
+        // Arrow marker at projected end, rotated to heading direction
+        const arrowSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="28" height="28"
+            style="transform:rotate(${headingDeg}deg);transform-origin:center;filter:drop-shadow(0 1px 2px rgba(0,0,0,0.4));">
+            <polygon points="12,2 19,20 12,15 5,20" fill="#ff6b00" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/>
+        </svg>`;
+        L.marker(projPt, {
+            icon: L.divIcon({
+                html: arrowSvg,
+                className: '',
+                iconSize: [28, 28],
+                iconAnchor: [14, 14],
+            }),
         }).addTo(map).bindPopup(
             `<strong>Projected position (~30 min)</strong><br>` +
-            `${projPt[0].toFixed(2)}, ${projPt[1].toFixed(2)}`
+            `Heading ${headingLabel} at ${sm.speed_mph || sm.speed_kt} ${sm.speed_mph ? 'mph' : 'kt'}`
         );
     }
 
