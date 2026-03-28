@@ -923,6 +923,9 @@ def register(app: Flask, logger) -> None:
             severity_filter = request.args.get("severity", "").strip()
             event_filter = request.args.get("event", "").strip()
             source_filter = request.args.get("source", "").strip()
+            vtec_office_filter = request.args.get("vtec_office", "").strip()
+            vtec_etn_filter = request.args.get("vtec_etn", "").strip()
+            vtec_year_filter = request.args.get("vtec_year", "").strip()
             show_expired_raw = request.args.get("show_expired", "")
             show_expired = str(show_expired_raw).lower() in {
                 "true",
@@ -1011,7 +1014,22 @@ def register(app: Flask, logger) -> None:
             if source_filter:
                 query = query.filter(CAPAlert.source == source_filter)
 
-            if not show_expired:
+            if vtec_office_filter:
+                query = query.filter(CAPAlert.vtec_office == vtec_office_filter)
+            if vtec_etn_filter:
+                try:
+                    query = query.filter(CAPAlert.vtec_etn == int(vtec_etn_filter))
+                except ValueError:
+                    pass
+            if vtec_year_filter:
+                try:
+                    query = query.filter(CAPAlert.vtec_year == int(vtec_year_filter))
+                except ValueError:
+                    pass
+
+            # When filtering by VTEC event chain, always include expired/cancelled alerts
+            vtec_filter_active = bool(vtec_office_filter or vtec_etn_filter or vtec_year_filter)
+            if not show_expired and not vtec_filter_active:
                 query = query.filter(
                     or_(CAPAlert.expires.is_(None), CAPAlert.expires > utc_now())
                 ).filter(CAPAlert.status != "Expired")
@@ -1178,6 +1196,9 @@ def register(app: Flask, logger) -> None:
                 "source": source_filter,
                 "per_page": per_page,
                 "show_expired": show_expired,
+                "vtec_office": vtec_office_filter,
+                "vtec_etn": vtec_etn_filter,
+                "vtec_year": vtec_year_filter,
             }
 
             return render_template(
@@ -1194,6 +1215,7 @@ def register(app: Flask, logger) -> None:
                 active_alerts=active_alerts,
                 expired_alerts=expired_alerts,
                 total_alerts=total_alerts,
+                vtec_filter_active=vtec_filter_active,
             )
         except Exception as exc:  # pragma: no cover - fallback content
             db.session.rollback()

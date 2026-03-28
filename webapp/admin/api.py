@@ -492,10 +492,37 @@ def _extract_alert_display_data(alert) -> Optional[Dict[str, Any]]:
     if category:
         data['category'] = category
 
-    # --- Effective time ---
+    # --- Effective, onset, and ends times ---
     effective = props.get('effective', '')
     if effective:
         data['effective'] = effective
+    onset = props.get('onset', '')
+    if onset:
+        data['onset'] = onset
+    ends = props.get('ends', '')
+    if ends:
+        data['ends'] = ends
+
+    # --- Language ---
+    language = props.get('language', '')
+    if language:
+        data['language'] = language
+
+    # --- Event codes (NWS product code + SAME event code) ---
+    event_code = props.get('eventCode', {})
+    if event_code and isinstance(event_code, dict):
+        data['event_code'] = event_code
+
+    # --- Affected zones (NWS zone API URLs) ---
+    affected_zones = props.get('affectedZones', [])
+    if affected_zones:
+        # Extract just the zone ID from the URL tail (e.g. OHC003)
+        data['affected_zones'] = [z.rstrip('/').split('/')[-1] for z in affected_zones if z]
+
+    # --- References to prior alerts in this series ---
+    references = props.get('references', [])
+    if references and isinstance(references, list):
+        data['references'] = references
 
     # --- Web link from the alert ---
     web = props.get('web', '')
@@ -547,9 +574,86 @@ def _extract_alert_display_data(alert) -> Optional[Dict[str, Any]]:
             except Exception:
                 pass
 
+        # --- Severe weather threat parameters ---
+        def _threat_level(val: str) -> str:
+            v = (val or '').upper()
+            if 'OBSERVED' in v or 'CONFIRMED' in v:
+                return 'observed'
+            if 'RADAR' in v:
+                return 'radar'
+            if 'POSSIBLE' in v or 'CONSIDERABLE' in v or 'DESTRUCTIVE' in v:
+                return 'possible'
+            return 'none'
+
+        def _threat_display(val: str) -> str:
+            mapping = {
+                'RADAR INDICATED': 'Radar',
+                'OBSERVED': 'Confirmed',
+                'POSSIBLE': 'Possible',
+                'CONSIDERABLE': 'Considerable',
+                'DESTRUCTIVE': 'Destructive!',
+                'NONE': 'None',
+            }
+            return mapping.get((val or '').upper(), (val or '').title())
+
+        def _hail_descriptor(size_str: str) -> str:
+            try:
+                size = float((size_str or '').replace('"', '').strip())
+            except (ValueError, TypeError):
+                return ''
+            if size < 0.25:   return 'Pea'
+            if size < 0.5:    return 'Marble'
+            if size < 0.75:   return 'Dime'
+            if size < 1.0:    return 'Quarter'
+            if size < 1.25:   return 'Half Dollar'
+            if size < 1.5:    return 'Ping Pong'
+            if size < 1.75:   return 'Golf Ball'
+            if size < 2.0:    return 'Baseball'
+            if size < 2.5:    return 'Tennis Ball'
+            if size < 3.0:    return 'Softball'
+            return 'Grapefruit'
+
+        wind_threat = (params.get('windThreat') or [''])[0].strip()
+        max_wind    = (params.get('maxWindGust') or [''])[0].strip()
+        hail_threat = (params.get('hailThreat') or [''])[0].strip()
+        max_hail    = (params.get('maxHailSize') or [''])[0].strip()
+        tornado_det = (params.get('tornadoDetection') or [''])[0].strip()
+
+        threat_data: Dict[str, Any] = {}
+        if wind_threat or max_wind:
+            gust_parts = max_wind.split()
+            gust_unit = gust_parts[-1].upper() if len(gust_parts) > 1 and gust_parts[-1].upper() in ('MPH', 'KT', 'KMH') else 'MPH'
+            gust_val  = gust_parts[0] if gust_parts else max_wind
+            threat_data['wind'] = {
+                'threat': wind_threat, 'gust': gust_val, 'gust_unit': gust_unit,
+                'display': _threat_display(wind_threat), 'level': _threat_level(wind_threat),
+            }
+        if hail_threat or max_hail:
+            threat_data['hail'] = {
+                'threat': hail_threat, 'size': max_hail,
+                'descriptor': _hail_descriptor(max_hail),
+                'display': _threat_display(hail_threat), 'level': _threat_level(hail_threat),
+            }
+        if tornado_det:
+            threat_data['tornado'] = {
+                'detection': tornado_det,
+                'display': _threat_display(tornado_det), 'level': _threat_level(tornado_det),
+            }
+        if threat_data:
+            data['threat_data'] = threat_data
+
+        # NWS internal headline (ALL-CAPS, operational text — different from the public headline)
+        nws_headline = (params.get('NWSheadline') or [''])[0].strip()
+        if nws_headline:
+            data['nws_headline'] = nws_headline
+
         # Expose all remaining parameters for display
         extra_params = {}
-        _handled = {'EAS-ORG', 'EAS-STN-ID', 'BLOCKCHANNEL', 'eventMotionDescription', 'VTEC'}
+        _handled = {
+            'EAS-ORG', 'EAS-STN-ID', 'BLOCKCHANNEL', 'eventMotionDescription', 'VTEC',
+            'windThreat', 'maxWindGust', 'hailThreat', 'maxHailSize', 'tornadoDetection',
+            'NWSheadline',
+        }
         for k, v in params.items():
             if k not in _handled:
                 extra_params[k] = v
@@ -868,6 +972,9 @@ def alert_detail(alert_id):
         # Query all alerts that share the same VTEC event key, ordered oldest→newest.
         # This gives us the full lifecycle chain: NEW → CON → EXT → EXP, etc.
         related_alerts: List[CAPAlert] = []
+        # vtec_chain: unified list including current alert, sorted chronologically.
+        # Each entry is {'alert': CAPAlert, 'is_current': bool}.
+        vtec_chain: List[Dict[str, Any]] = []
         if (
             alert.vtec_office
             and alert.vtec_phenomenon
@@ -889,6 +996,16 @@ def alert_detail(alert_id):
                     .order_by(CAPAlert.sent.asc())
                     .all()
                 )
+                # Merge current alert into the chain and sort by sent time so
+                # the timeline always runs oldest → newest regardless of which
+                # alert in the chain the user is currently viewing.
+                if related_alerts:
+                    all_in_chain = related_alerts + [alert]
+                    all_in_chain.sort(key=lambda a: a.sent)
+                    vtec_chain = [
+                        {'alert': a, 'is_current': a.id == alert_id}
+                        for a in all_in_chain
+                    ]
             except Exception as _rel_exc:
                 api_bp.logger.warning(
                     'Could not load related alerts for %s: %s', alert.identifier, _rel_exc
@@ -907,6 +1024,7 @@ def alert_detail(alert_id):
             ipaws_data=ipaws_data,
             eas_audio_web_url=eas_audio_web_url,
             related_alerts=related_alerts,
+            vtec_chain=vtec_chain,
         )
 
     except Exception as exc:
