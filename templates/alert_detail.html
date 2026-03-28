@@ -1296,6 +1296,13 @@
                                     {% endif %}
                                 </div>
                                 <div class="mt-1"><small class="text-muted"><code>{{ vtec.raw }}</code></small></div>
+                                {% if vtec.office and vtec.phenomenon and vtec.significance and vtec.event_number and vtec.year %}
+                                <div class="mt-1">
+                                    <a href="https://mesonet.agron.iastate.edu/vtec/#{{ vtec.year }}-{{ vtec.program }}-{{ vtec.action }}-{{ vtec.office }}-{{ vtec.phenomenon }}-{{ vtec.significance }}-{{ '%04d' % vtec.event_number|int }}" target="_blank" rel="noopener noreferrer" class="small text-decoration-none">
+                                        <i class="fas fa-external-link-alt fa-xs"></i> IEM VTEC Browser
+                                    </a>
+                                </div>
+                                {% endif %}
                             </div>
                             {% endfor %}
                             <hr>
