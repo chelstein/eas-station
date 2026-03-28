@@ -484,7 +484,7 @@
                             {% if alert.area_desc %}
                             <hr class="my-4">
                             <h6 class="text-muted mb-2">Affected Areas</h6>
-                            <div class="p-3 bg-info bg-opacity-10 rounded">
+                            <div class="p-3 rounded" style="background: var(--surface-color); border: 1px solid var(--border-color);">
                                 {{ alert.area_desc }}
                                 {% if ipaws_data and ipaws_data.same_codes_decoded %}
                                 <div class="mt-2">
@@ -600,6 +600,16 @@
                                                 </div>
                                             </div>
                                         </div>
+                                        {% if ipaws_data and ipaws_data.onset %}
+                                        <div class="col-sm-6">
+                                            <div class="timing-item">
+                                                <span class="timing-label">Onset:</span>
+                                                <div class="timing-value">
+                                                    <small>{{ ipaws_data.onset }}</small>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        {% endif %}
                                         <div class="col-sm-6">
                                             <div class="timing-item">
                                                 <span class="timing-label">Expires:</span>
@@ -613,6 +623,16 @@
                                                 </div>
                                             </div>
                                         </div>
+                                        {% if ipaws_data and ipaws_data.ends %}
+                                        <div class="col-sm-6">
+                                            <div class="timing-item">
+                                                <span class="timing-label">Event Ends:</span>
+                                                <div class="timing-value">
+                                                    <small>{{ ipaws_data.ends }}</small>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        {% endif %}
                                         <div class="col-sm-6">
                                             <div class="timing-item">
                                                 <span class="timing-label">Added:</span>
@@ -1047,6 +1067,12 @@
                                 <small>{{ ipaws_data.effective }}</small>
                             </div>
                             {% endif %}
+                            {% if ipaws_data.language %}
+                            <div class="detail-item">
+                                <span class="detail-label">Language</span>
+                                <code>{{ ipaws_data.language }}</code>
+                            </div>
+                            {% endif %}
                             {% if ipaws_data.web %}
                             <div class="detail-item">
                                 <span class="detail-label">Web</span>
@@ -1067,8 +1093,8 @@
                             <hr>
                             {% endif %}
 
-                            {# ── EAS Parameters (IPAWS only) ── #}
-                            {% if ipaws_data.is_ipaws and (ipaws_data.eas_org or ipaws_data.eas_station_id) %}
+                            {# ── EAS Parameters (IPAWS and NOAA) ── #}
+                            {% if (ipaws_data.eas_org or ipaws_data.eas_station_id or ipaws_data.block_channels) %}
                             <h6 class="text-muted mb-2">EAS Parameters</h6>
                             {% if ipaws_data.eas_org_decoded %}
                             <div class="detail-item">
@@ -1141,6 +1167,47 @@
                             </div>
                             {% endfor %}
                             {% endif %}
+                            {% if ipaws_data.affected_zones %}
+                            <div class="detail-item">
+                                <span class="detail-label">Affected Zones</span>
+                                <span class="geocode-inline">
+                                    {% for zone in ipaws_data.affected_zones %}
+                                    <code>{{ zone }}</code>
+                                    {% endfor %}
+                                </span>
+                            </div>
+                            {% endif %}
+                            <hr>
+                            {% endif %}
+
+                            {# ── Event Codes ── #}
+                            {% if ipaws_data.event_code %}
+                            <h6 class="text-muted mb-2">Event Codes</h6>
+                            {% for system, codes in ipaws_data.event_code.items() %}
+                            <div class="detail-item">
+                                <span class="detail-label">{{ system }}</span>
+                                <span class="geocode-inline">
+                                    {% for code in codes %}
+                                    <code>{{ code }}</code>
+                                    {% endfor %}
+                                </span>
+                            </div>
+                            {% endfor %}
+                            <hr>
+                            {% endif %}
+
+                            {# ── References ── #}
+                            {% if ipaws_data.references %}
+                            <h6 class="text-muted mb-2"><i class="fas fa-link"></i> CAP References</h6>
+                            <div class="mb-3">
+                                {% for ref in ipaws_data.references %}
+                                <div class="p-2 rounded mb-1" style="background: var(--surface-color); border: 1px solid var(--border-color); font-size: 0.85em;">
+                                    <div><span class="detail-label">Identifier</span> <code class="small">{{ ref.get('identifier') or ref.get('@id', '') }}</code></div>
+                                    {% if ref.sender %}<div><span class="detail-label">Sender</span> {{ ref.sender }}</div>{% endif %}
+                                    {% if ref.sent %}<div><span class="detail-label">Sent</span> {{ ref.sent }}</div>{% endif %}
+                                </div>
+                                {% endfor %}
+                            </div>
                             <hr>
                             {% endif %}
 

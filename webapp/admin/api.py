@@ -492,10 +492,37 @@ def _extract_alert_display_data(alert) -> Optional[Dict[str, Any]]:
     if category:
         data['category'] = category
 
-    # --- Effective time ---
+    # --- Effective, onset, and ends times ---
     effective = props.get('effective', '')
     if effective:
         data['effective'] = effective
+    onset = props.get('onset', '')
+    if onset:
+        data['onset'] = onset
+    ends = props.get('ends', '')
+    if ends:
+        data['ends'] = ends
+
+    # --- Language ---
+    language = props.get('language', '')
+    if language:
+        data['language'] = language
+
+    # --- Event codes (NWS product code + SAME event code) ---
+    event_code = props.get('eventCode', {})
+    if event_code and isinstance(event_code, dict):
+        data['event_code'] = event_code
+
+    # --- Affected zones (NWS zone API URLs) ---
+    affected_zones = props.get('affectedZones', [])
+    if affected_zones:
+        # Extract just the zone ID from the URL tail (e.g. OHC003)
+        data['affected_zones'] = [z.rstrip('/').split('/')[-1] for z in affected_zones if z]
+
+    # --- References to prior alerts in this series ---
+    references = props.get('references', [])
+    if references and isinstance(references, list):
+        data['references'] = references
 
     # --- Web link from the alert ---
     web = props.get('web', '')
