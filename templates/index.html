@@ -72,8 +72,6 @@
     }
 
     .control-card .card-header,
-    .insight-card .card-header,
-    .quick-actions-card .card-header,
     .legend-card .card-header {
         border: none;
         background: transparent;
@@ -81,8 +79,6 @@
     }
 
     .control-card .card-title,
-    .insight-card .card-title,
-    .quick-actions-card .card-title,
     .legend-card .card-title {
         font-size: 1rem;
         font-weight: 600;
@@ -94,32 +90,40 @@
         color: var(--text-muted);
     }
 
-    .control-card .card-body {
-        display: flex;
-        flex-direction: column;
-        gap: 1.2rem;
+    /* Accordion layer controls */
+    .layers-accordion .accordion-item {
+        border: none;
+        border-bottom: 1px solid var(--border-color);
+        background: transparent;
     }
 
-    .layer-section {
-        border: 1px solid var(--border-color);
-        border-radius: var(--radius-sm);
-        padding: 1rem;
-        background: var(--surface-color);
-        box-shadow: 0 6px 16px rgba(32, 72, 133, 0.12);
+    .layers-accordion .accordion-item:last-child {
+        border-bottom: none;
     }
 
-    .layer-section:not(:last-child) {
-        margin-bottom: 0.5rem;
-    }
-
-    .layer-heading {
-        display: flex;
-        align-items: center;
-        gap: 0.6rem;
+    .layer-accordion-btn {
+        background: transparent !important;
+        box-shadow: none !important;
+        padding: 0.65rem 1rem;
         font-weight: 600;
-        font-size: 0.95rem;
-        margin-bottom: 0.75rem;
-        color: var(--text-color);
+        font-size: 0.875rem;
+        color: var(--text-color) !important;
+        gap: 0.6rem;
+        border-radius: 0 !important;
+    }
+
+    .layer-accordion-btn:not(.collapsed) {
+        color: var(--primary-color) !important;
+        background: rgba(47, 90, 161, 0.05) !important;
+    }
+
+    .layer-accordion-btn::after {
+        margin-left: auto;
+        flex-shrink: 0;
+    }
+
+    .layers-accordion .accordion-body {
+        padding: 0.5rem 1rem 0.85rem;
     }
 
     .layer-options {
@@ -213,38 +217,18 @@
         color: var(--text-muted);
     }
 
-    .insight-card .card-body {
-        display: flex;
-        flex-direction: column;
-        gap: 0.75rem;
-    }
-
     .alert-summary-panel {
         background: var(--light-color);
         border-radius: var(--radius-sm);
-        padding: 1rem;
+        padding: 0.85rem 1rem;
         border: 1px solid var(--border-color);
         box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
     }
 
-    .quick-actions-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-        gap: 0.75rem;
-    }
-
-    .quick-actions-grid .btn {
-        justify-content: center;
+    .quick-actions-strip .btn {
         font-weight: 600;
-        display: inline-flex;
-        align-items: center;
-        gap: 0.5rem;
-        padding: 0.55rem 0.75rem;
+        font-size: 0.82rem;
         border-radius: var(--radius-sm);
-    }
-
-    .quick-actions-grid .btn i {
-        font-size: 0.95rem;
     }
 
     .map-card .card-header {
@@ -448,20 +432,6 @@
         }
     }
 
-.dashboard-sidebar {
-    display: flex;
-    flex-direction: column;
-}
-
-.dashboard-sidebar > .card + .card {
-    margin-top: var(--spacing-lg);
-}
-
-@media (max-width: 991px) {
-    .dashboard-sidebar > .card + .card {
-        margin-top: var(--spacing-md);
-    }
-}
 </style>
 {% endblock %}
 
@@ -493,119 +463,152 @@
     </div>
 
     <div class="row g-4 align-items-start">
-        <div class="col-lg-4 col-xxl-3 order-2 order-lg-1 dashboard-sidebar">
+        <div class="col-lg-4 col-xxl-3 order-2 order-lg-1">
             <div class="card control-card sticky-card">
                 <div class="card-header">
                     <h5 class="card-title mb-1 d-flex align-items-center gap-2">
                         <i class="fas fa-layer-group text-primary"></i>
                         <span>Map Layers</span>
                     </h5>
-                    <p class="card-subtitle mb-0">Toggle overlays to compare coverage across your service area.</p>
+                    <p class="card-subtitle mb-0">Toggle overlays to compare coverage.</p>
                 </div>
-                <div class="card-body">
-                    <div class="layer-section">
-                        <div class="layer-heading"><i class="fas fa-exclamation-triangle text-danger"></i><span>Alert Types</span></div>
-                        <div class="layer-options">
-                            <div class="form-check form-switch">
-                                <input class="form-check-input" type="checkbox" id="show-active" checked>
-                                <label class="form-check-label" for="show-active">
-                                    <i class="fas fa-circle text-danger"></i> Active Alerts
-                                </label>
-                            </div>
-                            <div class="form-check form-switch">
-                                <input class="form-check-input" type="checkbox" id="show-expired">
-                                <label class="form-check-label" for="show-expired">
-                                    <i class="fas fa-circle text-secondary"></i> Historical Alerts
-                                </label>
+                <div class="card-body p-0">
+                    <div class="accordion accordion-flush layers-accordion" id="layers-accordion">
+
+                        <div class="accordion-item">
+                            <h6 class="accordion-header">
+                                <button class="accordion-button layer-accordion-btn" type="button"
+                                        data-bs-toggle="collapse" data-bs-target="#collapse-alerts" aria-expanded="true">
+                                    <i class="fas fa-exclamation-triangle text-danger"></i><span>Alert Types</span>
+                                </button>
+                            </h6>
+                            <div id="collapse-alerts" class="accordion-collapse collapse show">
+                                <div class="accordion-body">
+                                    <div class="layer-options">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="show-active" checked>
+                                            <label class="form-check-label" for="show-active">
+                                                <i class="fas fa-circle text-danger"></i> Active Alerts
+                                            </label>
+                                        </div>
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="show-expired">
+                                            <label class="form-check-label" for="show-expired">
+                                                <i class="fas fa-circle text-secondary"></i> Historical Alerts
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div id="date-filters" style="display: none;">
+                                        <div class="mb-2 mt-3">
+                                            <label for="start-date" class="form-label">From</label>
+                                            <input type="date" class="form-control form-control-sm" id="start-date">
+                                        </div>
+                                        <div class="mb-2">
+                                            <label for="end-date" class="form-label">To</label>
+                                            <input type="date" class="form-control form-control-sm" id="end-date">
+                                        </div>
+                                        <button class="btn btn-primary btn-sm w-100" onclick="loadHistoricalAlerts()">
+                                            <i class="fas fa-search"></i> Apply Filter
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
                         </div>
-                        <div id="date-filters" style="display: none;">
-                            <div class="mb-2">
-                                <label for="start-date" class="form-label">From</label>
-                                <input type="date" class="form-control form-control-sm" id="start-date">
+
+                        <div class="accordion-item">
+                            <h6 class="accordion-header">
+                                <button class="accordion-button layer-accordion-btn collapsed" type="button"
+                                        data-bs-toggle="collapse" data-bs-target="#collapse-geographic">
+                                    <i class="fas fa-map-marked-alt text-primary"></i><span>Geographic Boundaries</span>
+                                </button>
+                            </h6>
+                            <div id="collapse-geographic" class="accordion-collapse collapse">
+                                <div class="accordion-body">
+                                    <div id="layer-group-geographic" class="layer-options"></div>
+                                </div>
                             </div>
-                            <div class="mb-2">
-                                <label for="end-date" class="form-label">To</label>
-                                <input type="date" class="form-control form-control-sm" id="end-date">
-                            </div>
-                            <button class="btn btn-primary btn-sm w-100" onclick="loadHistoricalAlerts()">
-                                <i class="fas fa-search"></i> Apply Filter
-                            </button>
                         </div>
-                    </div>
 
-                    <div class="layer-section">
-                        <div class="layer-heading"><i class="fas fa-map-marked-alt text-primary"></i><span>Geographic Boundaries</span></div>
-                        <div id="layer-group-geographic" class="layer-options"></div>
-                    </div>
+                        <div class="accordion-item">
+                            <h6 class="accordion-header">
+                                <button class="accordion-button layer-accordion-btn collapsed" type="button"
+                                        data-bs-toggle="collapse" data-bs-target="#collapse-service">
+                                    <i class="fas fa-shield-alt text-success"></i><span>Service Boundaries</span>
+                                </button>
+                            </h6>
+                            <div id="collapse-service" class="accordion-collapse collapse">
+                                <div class="accordion-body">
+                                    <div id="layer-group-service" class="layer-options"></div>
+                                </div>
+                            </div>
+                        </div>
 
-                    <div class="layer-section">
-                        <div class="layer-heading"><i class="fas fa-shield-alt text-success"></i><span>Service Boundaries</span></div>
-                        <div id="layer-group-service" class="layer-options"></div>
-                    </div>
+                        <div class="accordion-item">
+                            <h6 class="accordion-header">
+                                <button class="accordion-button layer-accordion-btn collapsed" type="button"
+                                        data-bs-toggle="collapse" data-bs-target="#collapse-infrastructure">
+                                    <i class="fas fa-tools text-secondary"></i><span>Infrastructure</span>
+                                </button>
+                            </h6>
+                            <div id="collapse-infrastructure" class="accordion-collapse collapse">
+                                <div class="accordion-body">
+                                    <div id="layer-group-infrastructure" class="layer-options"></div>
+                                </div>
+                            </div>
+                        </div>
 
-                    <div class="layer-section">
-                        <div class="layer-heading"><i class="fas fa-tools text-secondary"></i><span>Infrastructure</span></div>
-                        <div id="layer-group-infrastructure" class="layer-options"></div>
-                    </div>
+                        <div class="accordion-item">
+                            <h6 class="accordion-header">
+                                <button class="accordion-button layer-accordion-btn collapsed" type="button"
+                                        data-bs-toggle="collapse" data-bs-target="#collapse-hydro">
+                                    <i class="fas fa-water text-info"></i><span>Water Features</span>
+                                </button>
+                            </h6>
+                            <div id="collapse-hydro" class="accordion-collapse collapse">
+                                <div class="accordion-body">
+                                    <div id="layer-group-hydrography" class="layer-options"></div>
+                                </div>
+                            </div>
+                        </div>
 
-                    <div class="layer-section">
-                        <div class="layer-heading"><i class="fas fa-water text-info"></i><span>Water Features</span></div>
-                        <div id="layer-group-hydrography" class="layer-options"></div>
-                    </div>
+                        <div class="accordion-item">
+                            <h6 class="accordion-header">
+                                <button class="accordion-button layer-accordion-btn collapsed" type="button"
+                                        data-bs-toggle="collapse" data-bs-target="#collapse-custom">
+                                    <i class="fas fa-layer-group text-warning"></i><span>Custom Layers</span>
+                                </button>
+                            </h6>
+                            <div id="collapse-custom" class="accordion-collapse collapse">
+                                <div class="accordion-body">
+                                    <div id="layer-group-custom" class="layer-options"></div>
+                                </div>
+                            </div>
+                        </div>
 
-                    <div class="layer-section">
-                        <div class="layer-heading"><i class="fas fa-layer-group text-warning"></i><span>Custom Layers</span></div>
-                        <div id="layer-group-custom" class="layer-options"></div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="card insight-card">
-                <div class="card-header">
-                    <h5 class="card-title mb-1 d-flex align-items-center gap-2">
-                        <i class="fas fa-chart-pie text-primary"></i>
-                        <span>Active Alert Breakdown</span>
-                    </h5>
-                    <p class="card-subtitle mb-0">Auto-updates when new alerts stream in.</p>
-                </div>
-                <div class="card-body">
-                    <div id="alert-summary" class="alert-summary-panel" style="display: none;"></div>
-                    <p class="text-muted small mb-0" id="alert-summary-placeholder">Alert types will appear after the next data refresh.</p>
-                </div>
-            </div>
-
-            <div class="card quick-actions-card">
-                <div class="card-header">
-                    <h5 class="card-title mb-1 d-flex align-items-center gap-2">
-                        <i class="fas fa-bolt text-warning"></i>
-                        <span>Quick Actions</span>
-                    </h5>
-                    <p class="card-subtitle mb-0">Jump into frequently used tools.</p>
-                </div>
-                <div class="card-body">
-                    <div class="quick-actions-grid">
-                        <a href="{{ url_for('audio_history') }}" class="btn btn-outline-primary">
-                            <i class="fas fa-headphones"></i> Audio Archive
-                        </a>
-                        <a href="/stats" class="btn btn-outline-info">
-                            <i class="fas fa-chart-bar"></i> Statistics
-                        </a>
-                        <a href="/admin" class="btn btn-outline-secondary">
-                            <i class="fas fa-cog"></i> Admin Panel
-                        </a>
-                        <button class="btn btn-outline-warning" onclick="centerOnConfiguredLocation()">
-                            <i class="fas fa-crosshairs"></i> Center on {{ county_name }}
-                        </button>
-                        <button class="btn btn-outline-success" onclick="inspectBoundaries()">
-                            <i class="fas fa-search"></i> Inspect Boundaries
-                        </button>
                     </div>
                 </div>
             </div>
         </div>
 
         <div class="col-lg-8 col-xxl-9 order-1 order-lg-2 d-flex flex-column gap-4">
+            <div class="d-flex flex-wrap align-items-center gap-2 quick-actions-strip">
+                <a href="{{ url_for('audio_history') }}" class="btn btn-sm btn-outline-primary">
+                    <i class="fas fa-headphones me-1"></i>Audio Archive
+                </a>
+                <a href="/stats" class="btn btn-sm btn-outline-info">
+                    <i class="fas fa-chart-bar me-1"></i>Statistics
+                </a>
+                <a href="/admin" class="btn btn-sm btn-outline-secondary">
+                    <i class="fas fa-cog me-1"></i>Admin Panel
+                </a>
+                <button class="btn btn-sm btn-outline-warning" onclick="centerOnConfiguredLocation()">
+                    <i class="fas fa-crosshairs me-1"></i>Center on {{ county_name }}
+                </button>
+                <button class="btn btn-sm btn-outline-success" onclick="inspectBoundaries()">
+                    <i class="fas fa-search me-1"></i>Inspect Boundaries
+                </button>
+            </div>
+
             <div class="card map-card shadow-sm">
                 <div class="card-header">
                     <div class="d-flex align-items-center gap-2">
@@ -685,6 +688,15 @@
                                 <p class="text-uppercase small text-muted fw-semibold mb-2">Boundaries & Layers</p>
                                 <div id="legend-boundary-layers" class="legend-dynamic"></div>
                                 <div id="legend-boundary-empty" class="text-muted small">Layers will appear when data is loaded.</div>
+                            </div>
+                        </div>
+                        <div class="row mt-3" id="alert-summary-row">
+                            <div class="col-12">
+                                <p class="text-uppercase small text-muted fw-semibold mb-2">
+                                    <i class="fas fa-chart-pie me-1"></i>Active Alert Breakdown
+                                </p>
+                                <div id="alert-summary" class="alert-summary-panel" style="display: none;"></div>
+                                <p class="text-muted small mb-0" id="alert-summary-placeholder">Alert types will appear after the next data refresh.</p>
                             </div>
                         </div>
                     </div>
