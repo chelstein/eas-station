@@ -25,9 +25,12 @@ to the air chain for broadcast. This module:
 
 1. Cross-source deduplication: Prevents the same alert from being broadcast
    multiple times when received via IPAWS + NOAA + OTA simultaneously.
-2. Originator substitution: Replaces the original alert's originator with
-   the station's configured originator when generating outgoing SAME headers.
-3. Automatic broadcast: Generates SAME audio, activates GPIO relays, and
+2. CAP compliance gating: Enforces ECIG §3.1–§3.3 requirements — only alerts
+   with status=Actual, scope=Public, and a future expiry are forwarded.
+3. Originator preservation: Per ECIG §3.4.1.1, the EAS-ORG from the incoming
+   CAP alert's parameters is used for the outgoing SAME header; the station's
+   configured originator is used only as a fallback.
+4. Automatic broadcast: Generates SAME audio, activates GPIO relays, and
    plays audio without operator intervention.
 """
 
@@ -55,7 +58,8 @@ def _get_fips_from_cap_alert(alert, raw_json: Optional[Dict] = None) -> List[str
         if isinstance(props, dict):
             geocode = props.get('geocode', {})
             if isinstance(geocode, dict):
-                for key in ('SAME', 'same', 'SAMEcodes'):
+                # ECIG §3.10: FIPS6 geocodes are treated the same as SAME codes.
+                for key in ('SAME', 'same', 'SAMEcodes', 'FIPS6', 'fips6'):
                     values = geocode.get(key)
                     if values:
                         if isinstance(values, (list, tuple)):
@@ -191,6 +195,44 @@ def auto_forward_cap_alert(
         result['reason'] = reason
         _update_cap_forwarding_status(cap_alert, db_session, False, reason, log)
         return result
+
+    # ── ECIG §3.1: status=Actual required for any on-air broadcast ────────
+    alert_status = getattr(cap_alert, 'status', None) or alert_data.get('status', '')
+    if str(alert_status).strip().lower() != 'actual':
+        reason = f"Alert status '{alert_status}' is not 'Actual' — broadcast suppressed (ECIG §3.1)"
+        log.info("Auto-forward skipped for %s: %s", result['identifier'], reason)
+        result['reason'] = reason
+        _update_cap_forwarding_status(cap_alert, db_session, False, reason, log)
+        return result
+
+    # ── ECIG §3.2: scope=Public required for broadcast ────────────────────
+    alert_scope = getattr(cap_alert, 'scope', None) or alert_data.get('scope', '')
+    if str(alert_scope).strip().lower() != 'public':
+        reason = f"Alert scope '{alert_scope}' is not 'Public' — broadcast suppressed (ECIG §3.2)"
+        log.info("Auto-forward skipped for %s: %s", result['identifier'], reason)
+        result['reason'] = reason
+        _update_cap_forwarding_status(cap_alert, db_session, False, reason, log)
+        return result
+
+    # ── ECIG §3.3: expired alerts shall not be broadcast ─────────────────
+    sent_dt = getattr(cap_alert, 'sent', None) or alert_data.get('sent')
+    expires_dt = getattr(cap_alert, 'expires', None) or alert_data.get('expires')
+    if isinstance(expires_dt, datetime) and isinstance(sent_dt, datetime):
+        if expires_dt <= sent_dt:
+            reason = "Alert expires ≤ sent — alert is already expired (ECIG §3.3)"
+            log.info("Auto-forward skipped for %s: %s", result['identifier'], reason)
+            result['reason'] = reason
+            _update_cap_forwarding_status(cap_alert, db_session, False, reason, log)
+            return result
+    now_utc = datetime.now(timezone.utc)
+    if isinstance(expires_dt, datetime):
+        exp = expires_dt if expires_dt.tzinfo else expires_dt.replace(tzinfo=timezone.utc)
+        if exp <= now_utc:
+            reason = f"Alert already expired at {expires_dt} — broadcast suppressed (ECIG §3.3)"
+            log.info("Auto-forward skipped for %s: %s", result['identifier'], reason)
+            result['reason'] = reason
+            _update_cap_forwarding_status(cap_alert, db_session, False, reason, log)
+            return result
 
     # Extract FIPS codes for cross-source dedup
     raw_json = alert_data.get('raw_json', {})

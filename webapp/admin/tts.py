@@ -234,6 +234,70 @@ def test_tts():
         }), 500
 
 
+@tts_bp.route('/api/tts/normalize', methods=['POST'])
+@require_permission('system.configure')
+def normalize_text():
+    """Preview how the TTS normalization pipeline will transform a given text.
+
+    Accepts raw text and returns the normalized version produced by
+    _normalize_text_for_tts, optionally with synthesized audio so the
+    operator can hear exactly what will be broadcast.
+    """
+    try:
+        data = request.get_json() if request.is_json else {}
+        raw_text = (data.get('text') or '').strip()
+        generate_audio = bool(data.get('generate_audio', False))
+
+        if not raw_text:
+            return jsonify({"success": False, "error": "No text provided"}), 400
+
+        from app_utils.eas import _normalize_text_for_tts
+
+        normalized = _normalize_text_for_tts(raw_text)
+
+        result = {
+            "success": True,
+            "original": raw_text,
+            "normalized": normalized,
+        }
+
+        if generate_audio:
+            settings = get_tts_settings()
+            if not settings.enabled or not settings.provider:
+                result["audio_warning"] = "TTS is not enabled/configured — text preview only."
+            else:
+                from app_utils.eas_tts import TTSEngine
+                config = {
+                    'tts_provider': settings.provider,
+                    'azure_openai_endpoint': settings.azure_openai_endpoint or '',
+                    'azure_openai_key': settings.azure_openai_key or '',
+                    'azure_openai_model': settings.azure_openai_model or 'tts-1',
+                    'azure_openai_voice': settings.azure_openai_voice or 'alloy',
+                    'azure_openai_speed': settings.azure_openai_speed or 1.0,
+                }
+                tts_engine = TTSEngine(config, logger, 16000)
+                samples = tts_engine.generate(normalized)
+                if samples:
+                    wav_buffer = io.BytesIO()
+                    with wave.open(wav_buffer, 'wb') as wav_file:
+                        wav_file.setnchannels(1)
+                        wav_file.setsampwidth(2)
+                        wav_file.setframerate(16000)
+                        wav_file.writeframes(struct.pack(f'<{len(samples)}h', *samples))
+                    wav_buffer.seek(0)
+                    result["audio_data"] = base64.b64encode(wav_buffer.read()).decode('utf-8')
+                    result["audio_type"] = "audio/wav"
+                    result["audio_duration"] = round(len(samples) / 16000, 2)
+                else:
+                    result["audio_warning"] = tts_engine.last_error or "TTS produced no audio."
+
+        return jsonify(result)
+
+    except Exception as exc:
+        logger.error(f"TTS normalize preview failed: {exc}")
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+
 def register_tts_routes(app, logger):
     """Register TTS admin routes with the Flask app.
     

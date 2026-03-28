@@ -496,7 +496,14 @@ def describe_same_header(
     station_identifier = parts[index + 1] if index + 1 < len(parts) else ''
 
     duration_digits = ''.join(ch for ch in duration_fragment if ch.isdigit())[:4]
-    purge_minutes = int(duration_digits) if duration_digits.isdigit() else None
+    # TTTT is HHMM, not decimal minutes (ECIG §3.4.1.4 / 47 CFR §11.31(b)(4)).
+    # e.g. "0100" = 1 h 00 m = 60 min, not 100 min.
+    if len(duration_digits) == 4:
+        purge_minutes = int(duration_digits[:2]) * 60 + int(duration_digits[2:])
+    elif duration_digits.isdigit():
+        purge_minutes = int(duration_digits)
+    else:
+        purge_minutes = None
 
     def _format_duration(value: Optional[int]) -> Optional[str]:
         if value is None:
@@ -595,12 +602,28 @@ def _julian_time(dt: datetime) -> str:
 
 
 def _duration_code(sent: datetime, expires: Optional[datetime]) -> str:
+    """Return the SAME TTTT duration field as a 4-character HHMM string.
+
+    Per ECIG §3.4.1.4 and 47 CFR §11.31(b)(4), the TTTT field is HHMM, NOT
+    decimal minutes.  Valid values follow these rounding rules:
+      • ≤45 min  → round up to the nearest 15-min increment (0015/0030/0045)
+      • >45 min  → round up to the nearest 30-min increment, max 0600 (6 hours)
+    """
     if not sent or not expires:
         return '0015'
-    delta = max(expires - sent, datetime.resolution)
-    minutes = max(int(math.ceil(delta.total_seconds() / 60.0 / 15.0) * 15), 15)
-    minutes = min(minutes, 600)
-    return f"{minutes:04d}"
+    delta = expires - sent
+    total_minutes = delta.total_seconds() / 60.0
+    if total_minutes <= 0:
+        return '0015'  # expired; caller should handle the rejection
+    if total_minutes <= 45:
+        rounded = max(int(math.ceil(total_minutes / 15.0)) * 15, 15)
+        return f"{rounded:04d}"  # 0015, 0030, 0045
+    else:
+        rounded_minutes = int(math.ceil(total_minutes / 30.0)) * 30
+        rounded_minutes = min(rounded_minutes, 360)  # cap at 6 hours (0600)
+        hours = rounded_minutes // 60
+        mins = rounded_minutes % 60
+        return f"{hours:02d}{mins:02d}"  # 0100, 0130, 0200, …, 0600
 
 
 def _collect_event_code_candidates(alert: object, payload: Dict[str, object]) -> List[str]:
@@ -668,7 +691,8 @@ def build_same_header(alert: object, payload: Dict[str, object], config: Dict[st
     geocode = (payload.get('raw_json', {}) or {}).get('properties', {}).get('geocode', {})
     same_codes = []
 
-    for key in ('SAME', 'same', 'SAMEcodes'):  # vendor spellings of SAME codes only
+    # ECIG §3.10: FIPS6 geocodes shall be treated the same as SAME geocodes.
+    for key in ('SAME', 'same', 'SAMEcodes', 'FIPS6', 'fips6'):
         values = geocode.get(key)
         if values:
             if isinstance(values, (list, tuple)):
@@ -723,7 +747,23 @@ def build_same_header(alert: object, payload: Dict[str, object], config: Dict[st
     duration_code = _duration_code(sent_dt, expires_dt)
     julian = _julian_time(sent_dt or datetime.now(timezone.utc))
 
-    originator = str(config.get('originator', 'WXR'))[:3].upper()
+    # ECIG §3.4.1.1: originator SHALL come from the CAP alert's EAS-ORG parameter
+    # when present and valid; fall back to station config only as a last resort.
+    originator = None
+    try:
+        params = (payload.get('raw_json', {}) or {}).get('properties', {}).get('parameters', {})
+        if isinstance(params, dict):
+            eas_org_val = params.get('EAS-ORG')
+            if isinstance(eas_org_val, list):
+                eas_org_val = eas_org_val[0] if eas_org_val else None
+            if eas_org_val:
+                candidate = str(eas_org_val).strip().upper()
+                if candidate in ORIGINATOR_DESCRIPTIONS:
+                    originator = candidate
+    except Exception:
+        pass
+    if not originator:
+        originator = str(config.get('originator', 'WXR'))[:3].upper()
     station = str(config.get('station_id', 'EASNODES')).strip()[:8]
 
     location_field = '-'.join(formatted_locations)
@@ -776,13 +816,18 @@ def _normalize_text_for_tts(text: str) -> str:
     """Expand common emergency-management acronyms and apply user pronunciation
     rules so TTS engines read the text correctly.
 
-    Two layers of replacement are applied in order:
+    Three layers of replacement are applied in order:
 
-    1. **Built-in acronym table** – hard-coded, case-sensitive whole-word
+    1. **Time expansion** – converts compact/digital time formats that TTS
+       engines mispronounce into fully-spoken equivalents.
+       e.g. "1100 PM" → "eleven o'clock PM", "11:30 AM" → "eleven thirty AM".
+
+    2. **Built-in acronym table** – hard-coded, case-sensitive whole-word
        substitutions for uppercase tokens that TTS engines mispronounce
-       (EAS → "Emergency Alert System", NWS → "National Weather Service", …).
+       (EAS → "Emergency Alert System", NWS → "National Weather Service",
+       EDT → "Eastern Daylight Time", …).
 
-    2. **Database pronunciation dictionary** – user-managed rows from the
+    3. **Database pronunciation dictionary** – user-managed rows from the
        ``tts_pronunciation_rules`` table.  Each row supplies an
        ``original_text`` pattern, a ``replacement_text`` phonetic spelling,
        and a ``match_case`` flag.  Longer patterns are applied first so that
@@ -795,6 +840,61 @@ def _normalize_text_for_tts(text: str) -> str:
         return text
 
     import re
+
+    # ── Layer 0: Time pronunciation expansion ────────────────────────────
+    # TTS engines read "1100" as "eleven hundred" (military) and "11:00" can
+    # also be mispronounced.  Convert to fully-spoken word form so that every
+    # TTS backend gives a consistent, natural result.
+
+    _ONES = ['', 'one', 'two', 'three', 'four', 'five', 'six', 'seven',
+             'eight', 'nine', 'ten', 'eleven', 'twelve', 'thirteen',
+             'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen',
+             'nineteen']
+    _TENS_WORDS = ['', '', 'twenty', 'thirty', 'forty', 'fifty']
+
+    def _hour_word(h: int) -> str:
+        h12 = h % 12 or 12
+        return _ONES[h12]
+
+    def _minute_phrase(m: int) -> str:
+        """Return spoken minutes: 0→"o'clock", 1-9→"oh one", 10-19, 20+."""
+        if m == 0:
+            return "o'clock"
+        if m < 10:
+            return f"oh {_ONES[m]}"
+        if m < 20:
+            return _ONES[m]
+        t, o = divmod(m, 10)
+        return _TENS_WORDS[t] if o == 0 else f"{_TENS_WORDS[t]}-{_ONES[o]}"
+
+    def _expand_time_match(mo) -> str:
+        h = int(mo.group(1))
+        m = int(mo.group(2))
+        ampm = mo.group(3).upper()
+        hw = _hour_word(h)
+        mp = _minute_phrase(m)
+        if mp == "o'clock":
+            return f"{hw} o'clock {ampm}"
+        return f"{hw} {mp} {ampm}"
+
+    result = text
+
+    # Pattern A: compact 4-digit time, e.g. "1100 PM", "0930 AM"
+    # Matches HHMM immediately followed (possibly with space) by AM/PM.
+    result = re.sub(
+        r'\b([01]?\d|2[0-3])([0-5]\d)\s+(AM|PM)\b',
+        _expand_time_match,
+        result,
+        flags=re.IGNORECASE,
+    )
+
+    # Pattern B: colon-separated time, e.g. "11:00 PM", "9:30 AM"
+    result = re.sub(
+        r'\b(\d{1,2}):([0-5]\d)\s*(AM|PM)\b',
+        _expand_time_match,
+        result,
+        flags=re.IGNORECASE,
+    )
 
     # ── Layer 1: hard-coded acronym expansions ────────────────────────────
     # Order matters: longer / more-specific entries first.
@@ -813,9 +913,26 @@ def _normalize_text_for_tts(text: str) -> str:
         ('RWT',    'Required Weekly Test'),
         ('RMT',    'Required Monthly Test'),
         ('EOM',    'end of message'),
+        # US timezone abbreviations — daylight saving time
+        ('EDT',    'Eastern Daylight Time'),
+        ('CDT',    'Central Daylight Time'),
+        ('MDT',    'Mountain Daylight Time'),
+        ('PDT',    'Pacific Daylight Time'),
+        # US timezone abbreviations — standard time
+        ('EST',    'Eastern Standard Time'),
+        ('CST',    'Central Standard Time'),
+        ('MST',    'Mountain Standard Time'),
+        ('PST',    'Pacific Standard Time'),
+        # Other common timezone abbreviations
+        ('UTC',    'Coordinated Universal Time'),
+        ('GMT',    'Greenwich Mean Time'),
+        ('AKDT',   'Alaska Daylight Time'),
+        ('AKST',   'Alaska Standard Time'),
+        ('HST',    'Hawaii Standard Time'),
+        ('HAST',   'Hawaii-Aleutian Standard Time'),
+        ('HADT',   'Hawaii-Aleutian Daylight Time'),
     ]
 
-    result = text
     for token, expansion in _ACRONYM_MAP:
         result = re.sub(r'\b' + re.escape(token) + r'\b', expansion, result)
 
@@ -835,16 +952,102 @@ def _normalize_text_for_tts(text: str) -> str:
     return result
 
 
-def _compose_message_text(alert: object) -> str:
-    parts: List[str] = []
-    for attr in ('headline', 'description', 'instruction'):
-        value = getattr(alert, attr, '') or ''
-        if value:
-            parts.append(str(value).strip())
-    text = '\n\n'.join(parts).strip()
-    if not text:
-        return "A new emergency alert has been received."
-    return _normalize_text_for_tts(text)
+def _compose_message_text(alert: object, payload: Optional[Dict[str, object]] = None) -> str:
+    """Build the TTS/crawl message text following ECIG §3.6.4.
+
+    Structure (in order):
+    1. FCC Required Text — always first:
+       "A [ORIGINATOR] HAS ISSUED A [EVENT] FOR THE FOLLOWING
+        COUNTIES/AREAS: [AREAS]; AT [SENT] EFFECTIVE UNTIL [EXPIRES]."
+    2. EASText CAP parameter — if present, use verbatim (§3.6.3).
+    3. Otherwise: senderName + description + instruction (§3.6.2).
+       NOTE: headline is NOT recommended by the spec and is excluded.
+
+    Total text is hard-capped at 1800 characters (§3.6.5).
+    All text is passed through _normalize_text_for_tts before returning.
+    """
+    import re as _re
+
+    payload = payload or {}
+    raw_json = payload.get('raw_json') or {}
+    properties = raw_json.get('properties', {}) if isinstance(raw_json, dict) else {}
+    parameters = properties.get('parameters', {}) if isinstance(properties, dict) else {}
+    if not isinstance(parameters, dict):
+        parameters = {}
+
+    # ── FCC Required Text ───────────────────────────────────────────────
+    # Originator description
+    eas_org_val = parameters.get('EAS-ORG')
+    if isinstance(eas_org_val, list):
+        eas_org_val = eas_org_val[0] if eas_org_val else None
+    originator_code = (str(eas_org_val).strip().upper() if eas_org_val else None) or 'WXR'
+    originator_desc = ORIGINATOR_DESCRIPTIONS.get(originator_code, originator_code)
+
+    # Event name
+    event_name = (
+        (getattr(alert, 'event', '') or '')
+        or str(properties.get('event', '') or payload.get('event', '') or '')
+    ).strip() or 'Emergency Alert'
+
+    # Area description
+    area_desc = str(properties.get('areaDesc', '') or '').strip()
+    if not area_desc:
+        area_desc = 'the affected area'
+
+    # Sent / expires times — prefer datetime objects for formatting
+    sent_dt = getattr(alert, 'sent', None) or payload.get('sent')
+    expires_dt = getattr(alert, 'expires', None) or payload.get('expires')
+
+    def _fmt_time(dt) -> str:
+        """Format a datetime for FCC Required Text (12-hour with timezone abbrev)."""
+        if isinstance(dt, datetime):
+            try:
+                local_dt = dt.astimezone()  # system local timezone
+                tz_name = local_dt.strftime('%Z') or 'UTC'
+                return local_dt.strftime(f'%I:%M %p {tz_name}').lstrip('0')
+            except Exception:
+                return dt.strftime('%I:%M %p UTC').lstrip('0')
+        if isinstance(dt, str):
+            return dt
+        return 'an unspecified time'
+
+    sent_str = _fmt_time(sent_dt)
+    expires_str = _fmt_time(expires_dt)
+
+    fcc_required = (
+        f"A {originator_desc} HAS ISSUED A {event_name} FOR THE FOLLOWING "
+        f"COUNTIES/AREAS: {area_desc}; AT {sent_str} EFFECTIVE UNTIL {expires_str}."
+    )
+
+    # ── Body text: EASText or description/instruction ────────────────────
+    # ECIG §3.6.3: if EASText parameter is present, use it verbatim
+    eas_text_val = parameters.get('EASText')
+    if isinstance(eas_text_val, list):
+        eas_text_val = eas_text_val[0] if eas_text_val else None
+
+    if eas_text_val:
+        body = str(eas_text_val).strip()
+    else:
+        body_parts: List[str] = []
+        sender = str(properties.get('senderName', '') or '').strip()
+        if sender:
+            body_parts.append(f"Message from {sender}.")
+        for attr in ('description', 'instruction'):
+            value = str(getattr(alert, attr, '') or '').strip()
+            if value:
+                body_parts.append(value)
+        body = '\n\n'.join(body_parts).strip()
+
+    # Combine: FCC Required Text first, then body
+    full_text = fcc_required
+    if body:
+        full_text = full_text + '\n\n' + body
+
+    # Hard cap at 1800 characters (ECIG §3.6.5)
+    if len(full_text) > 1800:
+        full_text = full_text[:1797] + '...'
+
+    return _normalize_text_for_tts(full_text)
 
 
 def manual_default_same_codes() -> List[str]:
@@ -1304,7 +1507,7 @@ class EASAudioGenerator:
         samples.extend(post_tone_silence)
         segment_samples['buffer'].extend(post_tone_silence)
 
-        message_text = _compose_message_text(alert)
+        message_text = _compose_message_text(alert, payload)
         if message_text:
             preview = message_text.replace('\n', ' ')
             self.logger.debug('Alert narration preview: %s', preview[:240])
