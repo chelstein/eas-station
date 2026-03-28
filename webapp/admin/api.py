@@ -29,7 +29,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 import psutil
-from flask import Blueprint, flash, jsonify, redirect, render_template, request, url_for, Response
+from flask import Blueprint, current_app, flash, jsonify, redirect, render_template, request, url_for, Response
 from sqlalchemy import desc, func
 from sqlalchemy.exc import SQLAlchemyError
 
