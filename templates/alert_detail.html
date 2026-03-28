@@ -1377,8 +1377,8 @@
                                     <text x="40" y="70" text-anchor="middle" fill="currentColor" font-size="7" opacity="0.35">S</text>
                                     <text x="67" y="43" text-anchor="middle" fill="currentColor" font-size="7" opacity="0.35">E</text>
                                     <text x="13" y="43" text-anchor="middle" fill="currentColor" font-size="7" opacity="0.35">W</text>
-                                    <!-- Direction arrow — rotated to storm heading (0°=N, clockwise) -->
-                                    <g transform="rotate({{ sm.direction_deg }}, 40, 40)" style="color: var(--warning-color);">
+                                    <!-- Direction arrow — rotated to storm HEADING (toward_deg = from_deg + 180) -->
+                                    <g transform="rotate({{ sm.toward_deg }}, 40, 40)" style="color: var(--warning-color);">
                                         <!-- Arrowhead -->
                                         <polygon points="40,8 35,30 40,25 45,30" fill="currentColor"/>
                                         <!-- Shaft -->
@@ -1394,9 +1394,14 @@
 
                                 {# Direction label + speed #}
                                 <div>
-                                    {% if sm.direction_deg is defined %}
+                                    {% if sm.toward_deg is defined %}
+                                    {# Show heading (toward) as primary label since the arrow also points that way #}
+                                    <div style="font-size:1.7em;font-weight:700;line-height:1;letter-spacing:-0.02em;">{{ sm.compass_toward }}</div>
+                                    <div class="small text-muted">Heading {{ sm.toward_deg }}°</div>
+                                    <div class="small text-muted">From {{ sm.compass_from }} ({{ sm.direction_deg }}°)</div>
+                                    {% elif sm.direction_deg is defined %}
                                     <div style="font-size:1.7em;font-weight:700;line-height:1;letter-spacing:-0.02em;">{{ sm.compass or (sm.direction_deg ~ '°') }}</div>
-                                    <div class="small text-muted">{{ sm.direction_deg }}° heading</div>
+                                    <div class="small text-muted">{{ sm.direction_deg }}°</div>
                                     {% endif %}
                                     {% if sm.speed_mph is defined %}
                                     <div style="font-size:1.7em;font-weight:700;line-height:1.2;margin-top:0.35rem;">
@@ -1408,7 +1413,9 @@
 
                                 {% if sm.track %}
                                 <div class="ms-auto text-end">
-                                    <div class="small fw-semibold text-muted mb-1">Track ({{ sm.track|length }} pts)</div>
+                                    <div class="small fw-semibold text-muted mb-1">
+                                        Storm {{ 'Position' if sm.track|length == 1 else 'Line (' ~ sm.track|length ~ ' cells)' }}
+                                    </div>
                                     {% for pt in sm.track %}
                                     <div class="small text-muted font-monospace" style="font-size:0.72em;">{{ pt[0] }}, {{ pt[1] }}</div>
                                     {% endfor %}
@@ -2314,6 +2321,11 @@ function addStormTrackToMap() {
     }).addTo(map);
 
     // Mark each track point with a small circle
+    // toward_deg = actual heading (direction_deg + 180); compass_toward = label for heading
+    const headingDeg = sm.toward_deg !== undefined ? sm.toward_deg : (sm.direction_deg + 180) % 360;
+    const headingLabel = sm.compass_toward || sm.compass || '';
+    const fromLabel = sm.compass_from || sm.compass || '';
+
     sm.track.forEach((pt, i) => {
         const isLast = i === sm.track.length - 1;
         L.circleMarker(pt, {
@@ -2323,22 +2335,24 @@ function addStormTrackToMap() {
             fillOpacity: 0.9,
             weight: 2,
         }).addTo(map).bindPopup(
-            isLast
-                ? `<strong>Storm Position</strong><br>${pt[0]}, ${pt[1]}<br>` +
-                  (sm.compass ? `Moving <strong>${sm.compass}</strong> (${sm.direction_deg}°)` : '') +
-                  (sm.speed_mph ? ` at <strong>${sm.speed_mph} mph</strong>` : '')
-                : `Track point ${i + 1}<br>${pt[0]}, ${pt[1]}`
+            sm.track.length === 1
+                ? `<strong>Storm Center</strong><br>${pt[0]}, ${pt[1]}<br>` +
+                  (headingLabel ? `Heading <strong>${headingLabel}</strong> (${headingDeg}°)` : '') +
+                  (fromLabel ? ` from ${fromLabel}` : '') +
+                  (sm.speed_mph ? `<br>Speed: <strong>${sm.speed_mph} mph</strong> (${sm.speed_kt} kt)` : '')
+                : `<strong>Storm Cell ${i + 1} of ${sm.track.length}</strong><br>${pt[0]}, ${pt[1]}`
         );
     });
 
-    // Draw a short projected path arrow from the last known position
-    if (sm.track.length >= 1 && sm.direction_deg !== undefined && sm.speed_kt) {
+    // Draw a projected path from the last known position toward the storm's actual heading.
+    // direction_deg is the FROM direction (NWS wind convention); toward_deg is where it's going.
+    if (sm.track.length >= 1 && sm.speed_kt) {
         const lastPt = sm.track[sm.track.length - 1];
-        // Project ~30 minutes ahead: speed_kt * 0.5 hr * 1.852 km/kt → degrees lat/lon
+        // Project ~30 minutes ahead: speed_kt × 0.5 hr × 1.852 km/kt
         const distKm = sm.speed_kt * 0.5 * 1.852;
-        const radDir = (sm.direction_deg * Math.PI) / 180;
-        const dLat = (distKm / 111.32) * Math.cos(radDir);
-        const dLon = (distKm / (111.32 * Math.cos(lastPt[0] * Math.PI / 180))) * Math.sin(radDir);
+        const radHeading = (headingDeg * Math.PI) / 180;
+        const dLat = (distKm / 111.32) * Math.cos(radHeading);
+        const dLon = (distKm / (111.32 * Math.cos(lastPt[0] * Math.PI / 180))) * Math.sin(radHeading);
         const projPt = [lastPt[0] + dLat, lastPt[1] + dLon];
 
         L.polyline([lastPt, projPt], {
@@ -2348,18 +2362,20 @@ function addStormTrackToMap() {
             opacity: 0.6,
         }).addTo(map).bindPopup(
             `<strong>Projected path (~30 min)</strong><br>` +
-            `${sm.compass || ''} at ${sm.speed_mph || sm.speed_kt} ${sm.speed_mph ? 'mph' : 'kt'}`
+            `Heading ${headingLabel} at ${sm.speed_mph || sm.speed_kt} ${sm.speed_mph ? 'mph' : 'kt'}`
         );
 
-        // Arrowhead at the projected end
+        // Open circle at projected end
         L.circleMarker(projPt, {
             radius: 5,
             color: '#ff6b00',
             fillColor: '#ffffff',
             fillOpacity: 0.8,
             weight: 2,
-            dashArray: null,
-        }).addTo(map).bindPopup('Projected position (~30 min)');
+        }).addTo(map).bindPopup(
+            `<strong>Projected position (~30 min)</strong><br>` +
+            `${projPt[0].toFixed(2)}, ${projPt[1].toFixed(2)}`
+        );
     }
 
     // Legend entry
@@ -2367,7 +2383,8 @@ function addStormTrackToMap() {
     if (legend) {
         const entry = document.createElement('span');
         entry.style.cssText = 'display:inline-flex;align-items:center;gap:4px;margin-left:8px;font-size:0.8em;';
-        entry.innerHTML = '<span style="display:inline-block;width:20px;height:3px;background:#ff6b00;border-top:2px dashed #ff6b00;"></span> Storm Track';
+        const lineLabel = sm.track.length === 1 ? 'Storm Center' : `Storm Line (${sm.track.length} cells)`;
+        entry.innerHTML = `<span style="display:inline-block;width:20px;height:3px;background:#ff6b00;border-top:2px dashed #ff6b00;"></span> ${lineLabel}`;
         legend.appendChild(entry);
     }
 }

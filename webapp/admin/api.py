@@ -395,11 +395,16 @@ def _parse_event_motion(raw: str) -> Dict[str, Any]:
     Format (parts separated by '...' ):
       <ISO-timestamp>...storm...<degrees>DEG...<speed>KT...<lat1>,<lon1> <lat2>,<lon2>...
 
+    The DEG value uses the same "from" convention as wind direction: it is the
+    direction FROM which the storm is approaching, not the direction it is heading.
+    062DEG means the storm is coming from the ENE and moving toward the WSW.
+
+    Track coordinates are listed oldest-to-newest (first point = earliest known
+    position, last point = most recent known position).
+
     Returns a dict with parsed fields. Raises on bad input so callers can
     catch and discard gracefully.
     """
-    import math
-
     parts = [p.strip() for p in raw.split('...')]
 
     motion: Dict[str, Any] = {'raw': raw}
@@ -421,7 +426,7 @@ def _parse_event_motion(raw: str) -> Dict[str, Any]:
         elif 'T' in part and part[0].isdigit():
             motion['timestamp'] = part
         elif ',' in part:
-            # Coordinate pairs — one or more 'lat,lon' items separated by spaces
+            # Coordinate pairs — listed oldest first, newest last.
             coords = []
             for token in part.split():
                 try:
@@ -432,13 +437,22 @@ def _parse_event_motion(raw: str) -> Dict[str, Any]:
             if coords:
                 motion['track'] = coords
 
-    # Convert degrees to a compass label
+    # direction_deg is the FROM direction (where the storm originated).
+    # Compute the heading (where the storm is going) = FROM + 180°.
     deg = motion.get('direction_deg')
     if deg is not None:
         dirs = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE',
                 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW']
-        idx = int((deg + 11.25) / 22.5) % 16
-        motion['compass'] = dirs[idx]
+        # compass_from: direction the storm is approaching from (NWS convention)
+        from_idx = int((deg + 11.25) / 22.5) % 16
+        motion['compass_from'] = dirs[from_idx]
+        # compass_toward: actual direction of travel (used for compass arrow)
+        toward_deg = (deg + 180) % 360
+        toward_idx = int((toward_deg + 11.25) / 22.5) % 16
+        motion['compass_toward'] = dirs[toward_idx]
+        motion['toward_deg'] = toward_deg
+        # Keep 'compass' as the from-direction for backward compatibility
+        motion['compass'] = motion['compass_from']
 
     return motion
 
