@@ -112,6 +112,41 @@
     </form>
 </div>
 
+<!-- Pronunciation Preview Panel -->
+<div class="admin-container mt-4" style="max-width: 1000px">
+    <div class="admin-form-section mb-0">
+        <h4><i class="bi bi-eye me-1"></i> Pronunciation Preview</h4>
+        <p class="text-muted small mb-3">
+            Paste any alert text to see how the normalization pipeline will transform it before
+            it reaches the TTS engine — times, timezone abbreviations, and acronyms are all expanded.
+        </p>
+
+        <div class="mb-3">
+            <label for="previewInput" class="form-label">Input Text</label>
+            <textarea class="form-control font-monospace" id="previewInput" rows="4"
+                      placeholder="e.g. The National Weather Service has issued a Tornado Warning effective until 1100 PM EDT..."></textarea>
+        </div>
+
+        <div class="d-flex gap-2 mb-3">
+            <button type="button" class="btn btn-outline-primary" id="previewNormalizeBtn">
+                <i class="bi bi-arrow-right-circle me-1"></i> Normalize Text
+            </button>
+            <button type="button" class="btn btn-outline-success" id="previewSpeakBtn">
+                <i class="bi bi-volume-up me-1"></i> Normalize &amp; Speak
+            </button>
+        </div>
+
+        <div id="previewResult" style="display: none;">
+            <label class="form-label">Normalized Output <small class="text-muted">(what the TTS engine will receive)</small></label>
+            <textarea class="form-control font-monospace bg-light" id="previewOutput" rows="4" readonly></textarea>
+            <div id="previewAudioPlayer" style="display: none; margin-top: 0.75rem;">
+                <audio id="previewAudioElement" controls style="width: 100%;"></audio>
+            </div>
+            <div id="previewWarning" class="alert alert-warning mt-2" style="display: none;"></div>
+        </div>
+    </div>
+</div>
+
 <!-- Test Result Modal/Alert -->
 <div id="testResultAlert" class="alert mt-3" style="display: none;" role="alert">
     <h5 id="testResultTitle"></h5>
@@ -279,6 +314,67 @@ document.getElementById('testTtsBtn').addEventListener('click', async function()
         btn.innerHTML = originalHtml;
     }
 });
+
+// ── Pronunciation Preview ────────────────────────────────────────────────
+async function runNormalizationPreview(generateAudio) {
+    const input = document.getElementById('previewInput').value.trim();
+    if (!input) {
+        showToast('Enter some text to preview.', 'warning');
+        return;
+    }
+
+    const normalizeBtn = document.getElementById('previewNormalizeBtn');
+    const speakBtn = document.getElementById('previewSpeakBtn');
+    const activeBtn = generateAudio ? speakBtn : normalizeBtn;
+    const origHtml = activeBtn.innerHTML;
+    activeBtn.disabled = true;
+    normalizeBtn.disabled = true;
+    speakBtn.disabled = true;
+    activeBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Processing...';
+
+    try {
+        const response = await fetch('/admin/api/tts/normalize', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: input, generate_audio: generateAudio }),
+        });
+        const result = await response.json();
+
+        if (!result.success) {
+            showToast(result.error || 'Normalization failed', 'error');
+            return;
+        }
+
+        document.getElementById('previewOutput').value = result.normalized;
+        document.getElementById('previewResult').style.display = 'block';
+
+        const audioPlayer = document.getElementById('previewAudioPlayer');
+        const audioEl = document.getElementById('previewAudioElement');
+        const warningEl = document.getElementById('previewWarning');
+
+        audioPlayer.style.display = 'none';
+        warningEl.style.display = 'none';
+
+        if (result.audio_data) {
+            audioEl.src = `data:${result.audio_type};base64,${result.audio_data}`;
+            audioPlayer.style.display = 'block';
+            try { await audioEl.play(); } catch (_) {}
+        } else if (result.audio_warning) {
+            warningEl.textContent = result.audio_warning;
+            warningEl.style.display = 'block';
+        }
+
+    } catch (err) {
+        showToast('Error: ' + err.message, 'error');
+    } finally {
+        activeBtn.innerHTML = origHtml;
+        normalizeBtn.disabled = false;
+        speakBtn.disabled = false;
+    }
+}
+
+document.getElementById('previewNormalizeBtn').addEventListener('click', () => runNormalizationPreview(false));
+document.getElementById('previewSpeakBtn').addEventListener('click', () => runNormalizationPreview(true));
 
 // Toast notification (fallback if base.html function not available)
 if (typeof window.showToast !== 'function') {
