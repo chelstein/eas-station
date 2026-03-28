@@ -895,6 +895,9 @@ def alert_detail(alert_id):
         # Query all alerts that share the same VTEC event key, ordered oldest→newest.
         # This gives us the full lifecycle chain: NEW → CON → EXT → EXP, etc.
         related_alerts: List[CAPAlert] = []
+        # vtec_chain: unified list including current alert, sorted chronologically.
+        # Each entry is {'alert': CAPAlert, 'is_current': bool}.
+        vtec_chain: List[Dict[str, Any]] = []
         if (
             alert.vtec_office
             and alert.vtec_phenomenon
@@ -916,6 +919,16 @@ def alert_detail(alert_id):
                     .order_by(CAPAlert.sent.asc())
                     .all()
                 )
+                # Merge current alert into the chain and sort by sent time so
+                # the timeline always runs oldest → newest regardless of which
+                # alert in the chain the user is currently viewing.
+                if related_alerts:
+                    all_in_chain = related_alerts + [alert]
+                    all_in_chain.sort(key=lambda a: a.sent)
+                    vtec_chain = [
+                        {'alert': a, 'is_current': a.id == alert_id}
+                        for a in all_in_chain
+                    ]
             except Exception as _rel_exc:
                 api_bp.logger.warning(
                     'Could not load related alerts for %s: %s', alert.identifier, _rel_exc
@@ -934,6 +947,7 @@ def alert_detail(alert_id):
             ipaws_data=ipaws_data,
             eas_audio_web_url=eas_audio_web_url,
             related_alerts=related_alerts,
+            vtec_chain=vtec_chain,
         )
 
     except Exception as exc:

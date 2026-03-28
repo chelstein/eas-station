@@ -141,6 +141,11 @@
                                 </button>
                             </div>
                         </div>
+                        {% if current_filters.vtec_office %}
+                        <input type="hidden" name="vtec_office" value="{{ current_filters.vtec_office }}">
+                        <input type="hidden" name="vtec_etn" value="{{ current_filters.vtec_etn }}">
+                        <input type="hidden" name="vtec_year" value="{{ current_filters.vtec_year }}">
+                        {% endif %}
                         <div class="row g-3 mt-2">
                             <div class="col-12 col-lg-6">
                                 <div class="form-check">
@@ -160,6 +165,20 @@
                     </form>
                 </div>
             </div>
+
+            {% if vtec_filter_active %}
+            <div class="alert alert-info d-flex align-items-center gap-2 mb-3" role="alert">
+                <i class="fas fa-link fa-lg"></i>
+                <div>
+                    <strong>Showing VTEC Event Chain</strong> &mdash;
+                    Office: <code>{{ current_filters.vtec_office }}</code>
+                    &nbsp;&middot;&nbsp; ETN: <code>#{{ current_filters.vtec_etn }}</code>
+                    &nbsp;&middot;&nbsp; Year: <code>{{ current_filters.vtec_year }}</code>
+                    &nbsp;&middot;&nbsp; Expired alerts are included.
+                    <a href="/alerts" class="ms-2 alert-link">Clear</a>
+                </div>
+            </div>
+            {% endif %}
 
             <!-- Alerts Table -->
             <div class="card">

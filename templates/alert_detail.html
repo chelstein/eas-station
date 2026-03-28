@@ -1245,49 +1245,50 @@
                             <hr>
                             {% endif %}
 
-                            {# ── VTEC Event Chain ── #}
-                            {# Show all other alerts that belong to the same VTEC event lifecycle #}
-                            {% if related_alerts %}
-                            <h6 class="text-muted mb-2"><i class="fas fa-link"></i> Related Event Updates</h6>
+                            {# ── VTEC Event Chain (full lifecycle, chronological) ── #}
+                            {% if vtec_chain and vtec_chain|length > 1 %}
+                            <h6 class="text-muted mb-2"><i class="fas fa-link"></i> Event Lifecycle ({{ vtec_chain|length }} alerts)</h6>
                             <div class="mb-3">
                                 {% set action_colors = {'NEW': 'success', 'CON': 'info', 'CAN': 'danger', 'EXP': 'secondary', 'UPG': 'warning', 'EXT': 'info', 'EXA': 'info', 'EXB': 'info', 'COR': 'warning', 'ROU': 'secondary'} %}
-                                {% set action_labels = {'NEW': 'New Event', 'CON': 'Continuing', 'CAN': 'Cancelled', 'EXP': 'Expired', 'UPG': 'Upgraded', 'EXT': 'Extended (Time)', 'EXA': 'Extended (Area)', 'EXB': 'Extended (Area+Time)', 'COR': 'Correction', 'ROU': 'Routine'} %}
-                                {# Render current alert position in the timeline first #}
+                                {% set action_labels = {'NEW': 'Issuance', 'CON': 'Continuing', 'CAN': 'Cancelled', 'EXP': 'Expired', 'UPG': 'Upgraded', 'EXT': 'Extended (Time)', 'EXA': 'Extended (Area)', 'EXB': 'Extended (Area+Time)', 'COR': 'Correction', 'ROU': 'Routine'} %}
+                                {% for entry in vtec_chain %}
+                                {% set rel = entry.alert %}
+                                {% set is_current = entry.is_current %}
                                 <div class="d-flex align-items-start gap-2 mb-2">
                                     <div class="d-flex flex-column align-items-center" style="min-width:2rem;">
+                                        {% if is_current %}
                                         <div class="rounded-circle border border-primary d-flex align-items-center justify-content-center" style="width:1.5rem;height:1.5rem;background:var(--primary-color);color:#fff;font-size:.65rem;font-weight:700;">★</div>
-                                        <div class="flex-grow-1" style="width:2px;background:var(--border-color);min-height:1rem;"></div>
-                                    </div>
-                                    <div class="p-2 rounded flex-grow-1" style="background:color-mix(in srgb, var(--primary-color) 10%, var(--surface-color));border:1px solid var(--primary-color);">
-                                        <div class="d-flex align-items-center gap-2 flex-wrap">
-                                            {% if alert.vtec_action %}
-                                            <span class="badge bg-{{ action_colors.get(alert.vtec_action, 'secondary') }}">{{ action_labels.get(alert.vtec_action, alert.vtec_action) }}</span>
-                                            {% endif %}
-                                            <span class="small fw-semibold">This alert</span>
-                                            {% if alert.sent %}<span class="small text-muted">{{ alert.sent.strftime('%Y-%m-%d %H:%M UTC') }}</span>{% endif %}
-                                        </div>
-                                    </div>
-                                </div>
-                                {% for rel in related_alerts %}
-                                <div class="d-flex align-items-start gap-2 mb-2">
-                                    <div class="d-flex flex-column align-items-center" style="min-width:2rem;">
-                                        <div class="rounded-circle border d-flex align-items-center justify-content-center" style="width:1.5rem;height:1.5rem;background:var(--surface-color);font-size:.65rem;font-weight:700;">{{ loop.index }}</div>
+                                        {% else %}
+                                        <div class="rounded-circle border d-flex align-items-center justify-content-center" style="width:1.5rem;height:1.5rem;background:var(--surface-color);font-size:.6rem;font-weight:700;color:var(--text-secondary);">{{ loop.index }}</div>
+                                        {% endif %}
                                         {% if not loop.last %}
                                         <div class="flex-grow-1" style="width:2px;background:var(--border-color);min-height:1rem;"></div>
                                         {% endif %}
                                     </div>
+                                    {% if is_current %}
+                                    <div class="p-2 rounded flex-grow-1" style="background:color-mix(in srgb, var(--primary-color) 10%, var(--surface-color));border:1px solid var(--primary-color);">
+                                        <div class="d-flex align-items-center gap-2 flex-wrap">
+                                            {% if rel.vtec_action %}
+                                            <span class="badge bg-{{ action_colors.get(rel.vtec_action, 'secondary') }}">{{ action_labels.get(rel.vtec_action, rel.vtec_action) }}</span>
+                                            {% endif %}
+                                            <span class="small fw-semibold">This alert</span>
+                                            {% if rel.sent %}<span class="small text-muted">{{ rel.sent.strftime('%Y-%m-%d %H:%M UTC') }}</span>{% endif %}
+                                        </div>
+                                    </div>
+                                    {% else %}
                                     <div class="p-2 rounded flex-grow-1" style="background:var(--card-bg);border:1px solid var(--border-color);">
                                         <div class="d-flex align-items-center gap-2 flex-wrap">
                                             {% if rel.vtec_action %}
                                             <span class="badge bg-{{ action_colors.get(rel.vtec_action, 'secondary') }}">{{ action_labels.get(rel.vtec_action, rel.vtec_action) }}</span>
                                             {% endif %}
                                             {% if rel.sent %}<span class="small text-muted">{{ rel.sent.strftime('%Y-%m-%d %H:%M UTC') }}</span>{% endif %}
-                                            <a href="{{ url_for('api.alert_detail', alert_id=rel.id) }}" class="small ms-auto">View →</a>
+                                            <a href="{{ url_for('api.alert_detail', alert_id=rel.id) }}" class="small ms-auto btn btn-sm btn-outline-secondary py-0 px-2">View →</a>
                                         </div>
                                         {% if rel.headline %}
-                                        <div class="small text-muted mt-1">{{ rel.headline }}</div>
+                                        <div class="small text-muted mt-1">{{ rel.headline | truncate(120) }}</div>
                                         {% endif %}
                                     </div>
+                                    {% endif %}
                                 </div>
                                 {% endfor %}
                             </div>
@@ -1656,9 +1657,15 @@
                                 <a href="{{ url_for('api.alert_detail_pdf', alert_id=alert.id) }}" target="_blank" class="btn btn-outline-secondary">
                                     <i class="fas fa-file-pdf"></i> Export PDF
                                 </a>
-                                <button type="button" class="btn btn-outline-success" onclick="findSimilarAlerts()">
+                                {% if alert.vtec_office and alert.vtec_etn is not none and alert.vtec_year is not none %}
+                                <a href="{{ url_for('alerts', vtec_office=alert.vtec_office, vtec_etn=alert.vtec_etn, vtec_year=alert.vtec_year) }}" class="btn btn-outline-success">
+                                    <i class="fas fa-link"></i> View Full Event Chain
+                                </a>
+                                {% else %}
+                                <a href="{{ url_for('alerts', search=alert.event, show_expired='true') }}" class="btn btn-outline-success">
                                     <i class="fas fa-search"></i> Find Similar Alerts
-                                </button>
+                                </a>
+                                {% endif %}
                                 {% if not coverage_data or not coverage_data.get('county') %}
                                 <button type="button" class="btn btn-warning coverage-calc-btn" onclick="triggerIntersectionFix(this)">
                                     <i class="fas fa-calculator"></i> Calculate Coverage Percentage
