@@ -6,7 +6,7 @@ dedicated indexed columns so related alert updates (NEW → CON → EXT → EXP)
 can be grouped with a simple equality query instead of scanning raw_json.
 
 Revision ID: 20260327_add_vtec_columns_to_cap_alerts
-Revises: 20260327_widen_cap_alerts_geom_type
+Revises: 20260327_activation_ip_audit
 Create Date: 2026-03-27
 """
 
@@ -16,7 +16,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "20260327_add_vtec_columns_to_cap_alerts"
-down_revision = "20260327_widen_cap_alerts_geom_type"
+down_revision = "20260327_activation_ip_audit"
 branch_labels = None
 depends_on = None
 
