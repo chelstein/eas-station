@@ -8,6 +8,60 @@ tracks releases under the 2.x series.
 
 - No pending changes.
 
+## [2.71.27] - 2026-03-30 - Reword Section 4b fragility callout; clarify regulatory status and intended audience
+
+### Changed
+- **`templates/terms.html`** — Replaced the "Jenga tower" fragility callout with three-paragraph
+  `alert-danger` box that leads with the lack of FCC certification / regulatory approval, explicitly
+  prohibits installation in any commercial broadcast air-chain, identifies licensed amateur radio
+  operators (47 C.F.R. Part 97) as the intended audience, and then explains the EAS cascade relay
+  mechanism as the reason those boundaries are critical.
+- **`docs/policies/TERMS_OF_USE.md`** — Markdown source updated to match.
+
+## [2.71.26] - 2026-03-30 - Add EAS architectural fragility callout to Section 4b
+
+### Added
+- **`templates/terms.html`** — New `alert-danger` callout in Section 4b explaining that EAS was
+  designed for relay reliability, not security: no authentication, no sender verification, no human
+  gate; a single conforming SAME signal cascades unstoppably to every downstream participant; PEP
+  activation can reach hundreds of broadcasters statewide in seconds. References Montana Case 3 as
+  direct proof.
+- **`docs/policies/TERMS_OF_USE.md`** — Mirrored callout added to markdown source.
+
+## [2.71.25] - 2026-03-30 - Remove inapplicable ORC §2921.13 from legal consequences
+
+### Changed
+- **`templates/terms.html`** — Removed **ORC § 2921.13** (Falsification) from the Ohio-specific
+  legal sub-list in Section 4a; statute does not directly apply to EAS misuse.
+- **`docs/policies/TERMS_OF_USE.md`** — Updated markdown source to match.
+
+## [2.71.24] - 2026-03-30 - Add Ohio ORC §§2917.32, 2921.13, 2921.31 to legal consequences
+
+### Changed
+- **`templates/terms.html`** — Added three additional Ohio-specific statutes to the Section 4a
+  sub-list: **ORC § 2917.32** (Making False Alarms, 1st-degree misdemeanor / 4th-degree felony),
+  **ORC § 2921.13** (Falsification, 1st-degree misdemeanor / 4th-degree felony), and
+  **ORC § 2921.31** (Obstructing Official Business, 2nd-degree misdemeanor / 5th-degree felony).
+- **`docs/policies/TERMS_OF_USE.md`** — Updated markdown source to match.
+
+## [2.71.23] - 2026-03-30 - Add Ohio ORC §2909.04 to legal consequences
+
+### Changed
+- **`templates/terms.html`** — Added **ORC § 2909.04** (Disrupting Public Services,
+  4th-degree felony) to the Ohio-specific legal sub-list in Section 4a, alongside the
+  previously added ORC §§ 2917.31 and 2913.04.
+- **`docs/policies/TERMS_OF_USE.md`** — Updated markdown source to match.
+
+## [2.71.22] - 2026-03-30 - Add Ohio ORC §2917.31 and §2913.04 to legal consequences
+
+### Changed
+- **`templates/terms.html`** — Expanded Section 4a "State and local laws" bullet to add an
+  Ohio-specific sub-list citing **ORC § 2917.31** (Inducing Panic, 4th-degree felony) and
+  **ORC § 2913.04** (Unauthorized Use of Computer/Cable/Telecommunication Property,
+  5th-degree felony, elevatable to 3rd-degree if emergency communications are disrupted)
+  as additional potential criminal consequences for misuse in Ohio.
+- **`docs/policies/TERMS_OF_USE.md`** — Updated markdown source to match the above changes.
+
 ## [2.71.21] - 2026-03-27 - Log client IP for every manual alert generation and send
 
 ### Added

@@ -90,13 +90,52 @@
                                 violate <strong>47 U.S.C. &sect; 325</strong> and <strong>47 U.S.C. &sect; 333</strong>, and related
                                 provisions of the Communications Act of 1934 (as amended), subject to fines of up to $100,000 per
                                 violation per day under 47 U.S.C. &sect; 503(b), criminal prosecution under
-                                <strong>47 U.S.C. &sect; 501</strong>, and forfeiture of equipment.</li>
+                                <strong>47 U.S.C. &sect; 501</strong>, and forfeiture of equipment.
+                                <strong>Critically, the $100,000 fine applies independently to each station or broadcaster that
+                                relays the signal.</strong> Because EAS operates as an automated cascade relay network, a single
+                                conforming SAME-encoded transmission propagates automatically to every downstream participant with
+                                no further human action required. Triggering a state-level Primary Entry Point (PEP) station can
+                                force hundreds of broadcasters to re-transmit the signal simultaneously, each incurring its own
+                                separate $100,000-per-day forfeiture&mdash;potentially aggregating to tens of millions of dollars
+                                in FCC fines from a single transmission.</li>
                             <li><strong>Transmission of false distress signals</strong> is a criminal offense under
                                 <strong>47 U.S.C. &sect; 325(a)</strong>, subject to criminal fines and imprisonment.</li>
                             <li><strong>State and local laws</strong> in virtually all U.S. jurisdictions impose additional criminal
                                 penalties—including felony charges—for false emergency alerts, false fire alarms, or interference
                                 with emergency communications systems. Criminal charges from multiple jurisdictions may be pursued
                                 simultaneously for a single act of misuse.</li>
+                            <li><strong>In Ohio specifically</strong>, misuse of this software may additionally violate:
+                                <ul class="mt-1">
+                                    <li><strong>Ohio Revised Code &sect; 2917.31</strong> (Inducing Panic) — prohibits initiating or
+                                        circulating a false report or warning of an alleged or impending fire, explosion, crime, or other
+                                        catastrophe with the purpose of causing public inconvenience or alarm, or with knowledge that
+                                        such report or warning will cause public inconvenience or alarm. A violation is a
+                                        <strong>fourth-degree felony</strong> and may be elevated depending on the harm caused.</li>
+                                    <li><strong>Ohio Revised Code &sect; 2913.04</strong> (Unauthorized Use of Computer, Cable, or
+                                        Telecommunication Property) — prohibits knowingly using or accessing computer, cable, or
+                                        telecommunication property—including broadcast or transmission infrastructure—without the
+                                        consent of the owner or authorized user. A violation is a <strong>fifth-degree felony</strong>
+                                        and may be elevated to a third-degree felony if the unauthorized access disrupts public services
+                                        or emergency communications.</li>
+                                    <li><strong>Ohio Revised Code &sect; 2909.04</strong> (Disrupting Public Services) — prohibits
+                                        knowingly disrupting, interrupting, or impairing the ability of authorized persons to receive
+                                        emergency services, including radio or other communications systems used by emergency
+                                        responders or public warning systems. A violation is a <strong>fourth-degree felony</strong>.</li>
+                                    <li><strong>Ohio Revised Code &sect; 2917.32</strong> (Making False Alarms) — prohibits initiating
+                                        or announcing a false alarm of fire, explosion, flood, avalanche, or other disaster requiring
+                                        emergency response, or causing another to initiate or announce such a false alarm. A violation
+                                        is a <strong>first-degree misdemeanor</strong> and escalates to a
+                                        <strong>fourth-degree felony</strong> if it results in serious physical harm to any person, or
+                                        if the offender has a prior conviction for the same offense.</li>
+                                    <li><strong>Ohio Revised Code &sect; 2921.31</strong> (Obstructing Official Business) — prohibits
+                                        knowingly hampering or impeding a public official or employee in the performance or discharge
+                                        of any authorized duty. Misuse that interferes with authorized emergency broadcasts,
+                                        disrupts emergency response coordination, or prevents lawful EAS relay is a violation. A
+                                        violation is a <strong>second-degree misdemeanor</strong> and escalates to a
+                                        <strong>fifth-degree felony</strong> when the conduct creates a risk of physical harm to any
+                                        person.</li>
+                                </ul>
+                            </li>
                             <li>In jurisdictions outside the United States, equivalent or more severe criminal statutes may apply,
                                 and international law enforcement cooperation may result in prosecution across borders.</li>
                             <li><strong>The developer, maintainers, and contributors of EAS Station bear absolutely no criminal,
@@ -119,6 +158,39 @@
                                 equipment—exactly as a live alert would. The cases below are real documented enforcement actions
                                 that arose from exactly this type of signal. They are directly applicable to any output
                                 produced by this software.
+                            </div>
+                        </div>
+                        <div class="alert alert-danger d-flex align-items-start" role="alert">
+                            <i class="fas fa-triangle-exclamation fa-lg me-3 mt-1 flex-shrink-0"></i>
+                            <div>
+                                <strong>This software has not received FCC certification or regulatory approval as an EAS
+                                encoder/decoder.</strong> EAS Station is a software-based reference implementation designed
+                                to replicate the functionality of certified hardware devices such as the Digital Alert Systems
+                                DASDEC. It is <strong>not an approved substitute</strong> for certified EAS encoder/decoder
+                                equipment under <strong>47 C.F.R. Part 11</strong> and <strong>must not be installed anywhere
+                                within a commercial broadcast air-chain</strong>, used by any FCC-licensed EAS Participant, or
+                                used to originate or relay alerts over any facility subject to FCC Part 11 obligations.
+                                <br><br>
+                                The intended use case for this software is <strong>licensed amateur radio operators</strong>
+                                operating under <strong>47 C.F.R. Part 97</strong>, who are not FCC EAS Participants and are
+                                not subject to the Part 11 certification requirements that mandate the use of approved
+                                encoder/decoder equipment. Amateur radio operators may lawfully use EAS-compatible audio for
+                                training, experimentation, and emergency communications exercises within the scope of Part 97
+                                and within the terms of this agreement.
+                                <br><br>
+                                Understanding why this boundary is critical requires understanding how EAS relay propagation
+                                works. The Emergency Alert System was engineered for maximum geographic reach and relay
+                                reliability&mdash;not for security. Every EAS Participant station is configured by default to
+                                automatically re-broadcast any conforming SAME-encoded signal it receives. There is no
+                                cryptographic authentication, no sender verification, and no human approval gate in the relay
+                                chain. A correctly-formatted SAME header at the correct bit rate is the only credential the
+                                system evaluates. A single conforming transmission injected anywhere in the network propagates
+                                automatically and without human intervention to every downstream participant. A state-level
+                                Primary Entry Point (PEP) activation can force hundreds of broadcasters to re-transmit a false
+                                alert across an entire state in seconds&mdash;all without any human ever reviewing or approving
+                                the signal. EAS Station produces output that is indistinguishable from a live, authorized alert
+                                by the relay equipment that governs this cascade. This is not
+                                theoretical&mdash;the Montana incident (Case 3 below) is direct, documented proof.
                             </div>
                         </div>
 
