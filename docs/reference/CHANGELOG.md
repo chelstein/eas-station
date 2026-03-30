@@ -8,6 +8,24 @@ tracks releases under the 2.x series.
 
 - No pending changes.
 
+## [2.71.23] - 2026-03-30 - Add Ohio ORC §2909.04 to legal consequences
+
+### Changed
+- **`templates/terms.html`** — Added **ORC § 2909.04** (Disrupting Public Services,
+  4th-degree felony) to the Ohio-specific legal sub-list in Section 4a, alongside the
+  previously added ORC §§ 2917.31 and 2913.04.
+- **`docs/policies/TERMS_OF_USE.md`** — Updated markdown source to match.
+
+## [2.71.22] - 2026-03-30 - Add Ohio ORC §2917.31 and §2913.04 to legal consequences
+
+### Changed
+- **`templates/terms.html`** — Expanded Section 4a "State and local laws" bullet to add an
+  Ohio-specific sub-list citing **ORC § 2917.31** (Inducing Panic, 4th-degree felony) and
+  **ORC § 2913.04** (Unauthorized Use of Computer/Cable/Telecommunication Property,
+  5th-degree felony, elevatable to 3rd-degree if emergency communications are disrupted)
+  as additional potential criminal consequences for misuse in Ohio.
+- **`docs/policies/TERMS_OF_USE.md`** — Updated markdown source to match the above changes.
+
 ## [2.71.21] - 2026-03-27 - Log client IP for every manual alert generation and send
 
 ### Added
