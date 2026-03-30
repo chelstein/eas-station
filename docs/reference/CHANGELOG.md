@@ -8,6 +8,13 @@ tracks releases under the 2.x series.
 
 - No pending changes.
 
+## [2.71.25] - 2026-03-30 - Remove inapplicable ORC §2921.13 from legal consequences
+
+### Changed
+- **`templates/terms.html`** — Removed **ORC § 2921.13** (Falsification) from the Ohio-specific
+  legal sub-list in Section 4a; statute does not directly apply to EAS misuse.
+- **`docs/policies/TERMS_OF_USE.md`** — Updated markdown source to match.
+
 ## [2.71.24] - 2026-03-30 - Add Ohio ORC §§2917.32, 2921.13, 2921.31 to legal consequences
 
 ### Changed
