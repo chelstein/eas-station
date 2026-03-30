@@ -8,6 +8,15 @@ tracks releases under the 2.x series.
 
 - No pending changes.
 
+## [2.71.24] - 2026-03-30 - Add Ohio ORC §§2917.32, 2921.13, 2921.31 to legal consequences
+
+### Changed
+- **`templates/terms.html`** — Added three additional Ohio-specific statutes to the Section 4a
+  sub-list: **ORC § 2917.32** (Making False Alarms, 1st-degree misdemeanor / 4th-degree felony),
+  **ORC § 2921.13** (Falsification, 1st-degree misdemeanor / 4th-degree felony), and
+  **ORC § 2921.31** (Obstructing Official Business, 2nd-degree misdemeanor / 5th-degree felony).
+- **`docs/policies/TERMS_OF_USE.md`** — Updated markdown source to match.
+
 ## [2.71.23] - 2026-03-30 - Add Ohio ORC §2909.04 to legal consequences
 
 ### Changed
