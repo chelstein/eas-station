@@ -90,7 +90,14 @@
                                 violate <strong>47 U.S.C. &sect; 325</strong> and <strong>47 U.S.C. &sect; 333</strong>, and related
                                 provisions of the Communications Act of 1934 (as amended), subject to fines of up to $100,000 per
                                 violation per day under 47 U.S.C. &sect; 503(b), criminal prosecution under
-                                <strong>47 U.S.C. &sect; 501</strong>, and forfeiture of equipment.</li>
+                                <strong>47 U.S.C. &sect; 501</strong>, and forfeiture of equipment.
+                                <strong>Critically, the $100,000 fine applies independently to each station or broadcaster that
+                                relays the signal.</strong> Because EAS operates as an automated cascade relay network, a single
+                                conforming SAME-encoded transmission propagates automatically to every downstream participant with
+                                no further human action required. Triggering a state-level Primary Entry Point (PEP) station can
+                                force hundreds of broadcasters to re-transmit the signal simultaneously, each incurring its own
+                                separate $100,000-per-day forfeiture&mdash;potentially aggregating to tens of millions of dollars
+                                in FCC fines from a single transmission.</li>
                             <li><strong>Transmission of false distress signals</strong> is a criminal offense under
                                 <strong>47 U.S.C. &sect; 325(a)</strong>, subject to criminal fines and imprisonment.</li>
                             <li><strong>State and local laws</strong> in virtually all U.S. jurisdictions impose additional criminal
@@ -151,6 +158,23 @@
                                 equipment—exactly as a live alert would. The cases below are real documented enforcement actions
                                 that arose from exactly this type of signal. They are directly applicable to any output
                                 produced by this software.
+                            </div>
+                        </div>
+                        <div class="alert alert-danger d-flex align-items-start" role="alert">
+                            <i class="fas fa-triangle-exclamation fa-lg me-3 mt-1 flex-shrink-0"></i>
+                            <div>
+                                <strong>The EAS relay architecture is inherently fragile by design.</strong>
+                                The Emergency Alert System was engineered for maximum geographic reach and relay reliability&mdash;not
+                                for security. Every EAS participant station is configured by default to automatically re-broadcast
+                                any conforming SAME-encoded signal it receives. There is no cryptographic authentication, no sender
+                                verification, and no human approval gate. A correctly-formatted SAME header at the right bit rate is
+                                the only &ldquo;credential&rdquo; required. The system functions like a Jenga tower: a single
+                                conforming transmission anywhere in the network cascades automatically and unstoppably to every
+                                downstream participant. A state-level Primary Entry Point (PEP) activation can propagate a false
+                                alert to hundreds of broadcasters across an entire state in seconds&mdash;all without any human ever
+                                reviewing or approving the signal. EAS Station produces output that is indistinguishable from a
+                                real, authorized alert to the relay equipment that governs this cascade. This is not
+                                theoretical&mdash;the Montana incident (Case 3 below) is direct, documented proof.
                             </div>
                         </div>
 

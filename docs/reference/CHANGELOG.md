@@ -8,6 +8,16 @@ tracks releases under the 2.x series.
 
 - No pending changes.
 
+## [2.71.26] - 2026-03-30 - Add EAS architectural fragility callout to Section 4b
+
+### Added
+- **`templates/terms.html`** — New `alert-danger` callout in Section 4b explaining that EAS was
+  designed for relay reliability, not security: no authentication, no sender verification, no human
+  gate; a single conforming SAME signal cascades unstoppably to every downstream participant; PEP
+  activation can reach hundreds of broadcasters statewide in seconds. References Montana Case 3 as
+  direct proof.
+- **`docs/policies/TERMS_OF_USE.md`** — Mirrored callout added to markdown source.
+
 ## [2.71.25] - 2026-03-30 - Remove inapplicable ORC §2921.13 from legal consequences
 
 ### Changed
