@@ -163,17 +163,33 @@
                         <div class="alert alert-danger d-flex align-items-start" role="alert">
                             <i class="fas fa-triangle-exclamation fa-lg me-3 mt-1 flex-shrink-0"></i>
                             <div>
-                                <strong>The EAS relay architecture is inherently fragile by design.</strong>
-                                The Emergency Alert System was engineered for maximum geographic reach and relay reliability&mdash;not
-                                for security. Every EAS participant station is configured by default to automatically re-broadcast
-                                any conforming SAME-encoded signal it receives. There is no cryptographic authentication, no sender
-                                verification, and no human approval gate. A correctly-formatted SAME header at the right bit rate is
-                                the only &ldquo;credential&rdquo; required. The system functions like a Jenga tower: a single
-                                conforming transmission anywhere in the network cascades automatically and unstoppably to every
-                                downstream participant. A state-level Primary Entry Point (PEP) activation can propagate a false
-                                alert to hundreds of broadcasters across an entire state in seconds&mdash;all without any human ever
-                                reviewing or approving the signal. EAS Station produces output that is indistinguishable from a
-                                real, authorized alert to the relay equipment that governs this cascade. This is not
+                                <strong>This software has not received FCC certification or regulatory approval as an EAS
+                                encoder/decoder.</strong> EAS Station is a software-based reference implementation designed
+                                to replicate the functionality of certified hardware devices such as the Digital Alert Systems
+                                DASDEC. It is <strong>not an approved substitute</strong> for certified EAS encoder/decoder
+                                equipment under <strong>47 C.F.R. Part 11</strong> and <strong>must not be installed anywhere
+                                within a commercial broadcast air-chain</strong>, used by any FCC-licensed EAS Participant, or
+                                used to originate or relay alerts over any facility subject to FCC Part 11 obligations.
+                                <br><br>
+                                The intended use case for this software is <strong>licensed amateur radio operators</strong>
+                                operating under <strong>47 C.F.R. Part 97</strong>, who are not FCC EAS Participants and are
+                                not subject to the Part 11 certification requirements that mandate the use of approved
+                                encoder/decoder equipment. Amateur radio operators may lawfully use EAS-compatible audio for
+                                training, experimentation, and emergency communications exercises within the scope of Part 97
+                                and within the terms of this agreement.
+                                <br><br>
+                                Understanding why this boundary is critical requires understanding how EAS relay propagation
+                                works. The Emergency Alert System was engineered for maximum geographic reach and relay
+                                reliability&mdash;not for security. Every EAS Participant station is configured by default to
+                                automatically re-broadcast any conforming SAME-encoded signal it receives. There is no
+                                cryptographic authentication, no sender verification, and no human approval gate in the relay
+                                chain. A correctly-formatted SAME header at the correct bit rate is the only credential the
+                                system evaluates. A single conforming transmission injected anywhere in the network propagates
+                                automatically and without human intervention to every downstream participant. A state-level
+                                Primary Entry Point (PEP) activation can force hundreds of broadcasters to re-transmit a false
+                                alert across an entire state in seconds&mdash;all without any human ever reviewing or approving
+                                the signal. EAS Station produces output that is indistinguishable from a live, authorized alert
+                                by the relay equipment that governs this cascade. This is not
                                 theoretical&mdash;the Montana incident (Case 3 below) is direct, documented proof.
                             </div>
                         </div>

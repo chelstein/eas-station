@@ -8,6 +8,16 @@ tracks releases under the 2.x series.
 
 - No pending changes.
 
+## [2.71.27] - 2026-03-30 - Reword Section 4b fragility callout; clarify regulatory status and intended audience
+
+### Changed
+- **`templates/terms.html`** — Replaced the "Jenga tower" fragility callout with three-paragraph
+  `alert-danger` box that leads with the lack of FCC certification / regulatory approval, explicitly
+  prohibits installation in any commercial broadcast air-chain, identifies licensed amateur radio
+  operators (47 C.F.R. Part 97) as the intended audience, and then explains the EAS cascade relay
+  mechanism as the reason those boundaries are critical.
+- **`docs/policies/TERMS_OF_USE.md`** — Markdown source updated to match.
+
 ## [2.71.26] - 2026-03-30 - Add EAS architectural fragility callout to Section 4b
 
 ### Added
