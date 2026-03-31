@@ -722,14 +722,7 @@ def build_same_header(alert: object, payload: Dict[str, object], config: Dict[st
             filtered: List[str] = []
             for code in same_codes:
                 norm = ''.join(ch for ch in str(code) if ch.isdigit()).zfill(6)
-                # Direct match
                 if norm in configured_normalised:
-                    filtered.append(code)
-                    continue
-                # Statewide wildcard: if a configured code covers the whole state
-                # (e.g. 039000), accept any county in that state.
-                state_prefix = norm[:3]
-                if any(c[:3] == state_prefix and c[3:] == '000' for c in configured_normalised):
                     filtered.append(code)
             # Use filtered list; if nothing matched fall through to fallback below.
             same_codes = filtered
