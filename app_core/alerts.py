@@ -192,6 +192,7 @@ def _extract_text_from_payload(payload: Dict[str, object]) -> Optional[str]:
         "plain_text",
         "summary",
         "description",
+        "headline",
         "instruction",
     )
     for key in candidate_keys:

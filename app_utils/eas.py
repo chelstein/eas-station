@@ -1149,10 +1149,14 @@ def _compose_message_text(alert: object, payload: Optional[Dict[str, object]] = 
                 body_parts.append(value)
         body = '\n\n'.join(body_parts).strip()
 
-    # Combine: FCC Required Text first, then body
-    full_text = fcc_required
+    # Use only the body for TTS narration — the SAME header already encodes the
+    # event/area/time metadata, and NWR plays only the description text, not a
+    # generated headline sentence.  Fall back to fcc_required only when there is
+    # no body at all.
     if body:
-        full_text = full_text + '\n\n' + body
+        full_text = body
+    else:
+        full_text = fcc_required
 
     # Hard cap at 1800 characters (ECIG §3.6.5)
     if len(full_text) > 1800:
