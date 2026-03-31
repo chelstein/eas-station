@@ -423,9 +423,21 @@ class AudioSourceAdapter(ABC):
             target_rate = 16000
 
             # Fast path: integer decimation (e.g. 48kHz → 16kHz = factor 3).
-            # Reshape + mean is ~5-10x faster than np.interp and provides
-            # basic anti-aliasing via averaging — sufficient for EAS SAME tones.
-            if source_rate % target_rate == 0:
+            # Reshape + mean is ~5-10x faster than np.interp and provides basic
+            # anti-aliasing via averaging — sufficient for EAS SAME tones.
+            #
+            # IMPORTANT: Only use this for hardware-controlled sources (SDR, ALSA,
+            # PulseAudio) where config.sample_rate is enforced by the hardware and
+            # guaranteed to match the actual audio rate.
+            # Stream/file sources detect their real sample rate asynchronously via
+            # FFmpeg stderr (see StreamSourceAdapter._stderr_pump). Using the
+            # initially-configured rate before that detection completes produces
+            # audio at the wrong speed (e.g. 44.1 kHz stream decimated as if it
+            # were 48 kHz → 14.7 kHz equivalent, 8% too slow for the EAS decoder).
+            _hardware_source = self.config.source_type in (
+                AudioSourceType.SDR, AudioSourceType.ALSA, AudioSourceType.PULSE
+            )
+            if _hardware_source and source_rate % target_rate == 0:
                 factor = source_rate // target_rate
                 n = len(audio_chunk)
                 trimmed = audio_chunk[:n - (n % factor)] if n % factor else audio_chunk
