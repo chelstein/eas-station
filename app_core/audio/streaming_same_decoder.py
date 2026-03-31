@@ -60,6 +60,14 @@ class StreamingSAMEDecoder:
         # Callback is invoked when alert is detected
     """
 
+    # Minimum average bit confidence to accept a decoded message.
+    # Confidence = |mark_power - space_power| / total_power per bit, averaged
+    # over the whole burst.  Real EAS transmitters produce clean FSK (> 0.5).
+    # Music or noise that accidentally triggers the DLL produces mixed tone
+    # energy and scores much lower.  0.25 rejects the worst false positives
+    # while still passing weak or marginal real alerts.
+    MIN_CONFIDENCE = 0.25
+
     def __init__(
         self,
         sample_rate: int = 16000,
@@ -100,6 +108,13 @@ class StreamingSAMEDecoder:
         burst_sample_ranges: List[Tuple[int, int]],
     ) -> None:
         """Bridge from SAMEDemodulatorCore callback to StreamingSAMEAlert."""
+        if confidence < self.MIN_CONFIDENCE:
+            logger.warning(
+                "Rejected low-confidence SAME decode (%.1f%% < %.0f%% threshold): %s",
+                confidence * 100, self.MIN_CONFIDENCE * 100, msg_text[:60],
+            )
+            return
+
         self.alerts_detected += 1
 
         alert = StreamingSAMEAlert(
