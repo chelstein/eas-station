@@ -1273,6 +1273,9 @@ class EASSettings(db.Model):
     authorized_event_codes = db.Column(JSONB, nullable=False, default=list)
     # Event codes authorized for manual broadcasts (RWT, RMT, etc.)
 
+    forwarded_event_codes = db.Column(JSONB, nullable=False, default=list)
+    # Event codes to auto-forward from CAP/OTA sources. Empty list = forward all.
+
     # ========================================================================
     # Metadata
     # ========================================================================
@@ -1294,6 +1297,7 @@ class EASSettings(db.Model):
             "audio_player": self.audio_player,
             "authorized_fips_codes": list(self.authorized_fips_codes or []),
             "authorized_event_codes": list(self.authorized_event_codes or []),
+            "forwarded_event_codes": list(self.forwarded_event_codes or []),
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
 

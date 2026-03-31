@@ -219,6 +219,7 @@ def load_eas_config(base_path: Optional[str] = None, db_session=None) -> Dict[st
     db_sample_rate = None
     db_attention_tone_seconds = None
     db_audio_player = None
+    db_forwarded_event_codes: List[str] = []
     try:
         from app_core.models import EASSettings
         eas_settings = EASSettings.query.get(1)
@@ -229,6 +230,7 @@ def load_eas_config(base_path: Optional[str] = None, db_session=None) -> Dict[st
             db_sample_rate = eas_settings.sample_rate
             db_attention_tone_seconds = eas_settings.attention_tone_seconds
             db_audio_player = eas_settings.audio_player
+            db_forwarded_event_codes = list(eas_settings.forwarded_event_codes or [])
             load_logger.info(
                 'EASSettings loaded from DB: originator=%s station_id=%s broadcast_enabled=%s',
                 db_originator, db_station_id, db_broadcast_enabled,
@@ -250,6 +252,7 @@ def load_eas_config(base_path: Optional[str] = None, db_session=None) -> Dict[st
                 db_sample_rate = eas_settings.sample_rate
                 db_attention_tone_seconds = eas_settings.attention_tone_seconds
                 db_audio_player = eas_settings.audio_player
+                db_forwarded_event_codes = list(eas_settings.forwarded_event_codes or [])
                 load_logger.info(
                     'EASSettings loaded from DB (direct session): originator=%s station_id=%s broadcast_enabled=%s',
                     db_originator, db_station_id, db_broadcast_enabled,
@@ -312,6 +315,7 @@ def load_eas_config(base_path: Optional[str] = None, db_session=None) -> Dict[st
         'pyttsx3_voice': os.getenv('PYTTSX3_VOICE'),
         'pyttsx3_rate': os.getenv('PYTTSX3_RATE'),
         'pyttsx3_volume': os.getenv('PYTTSX3_VOLUME'),
+        'forwarded_event_codes': db_forwarded_event_codes,
     }
 
     if config['audio_player_cmd']:
@@ -705,6 +709,27 @@ def build_same_header(alert: object, payload: Dict[str, object], config: Dict[st
     zone_codes: List[str] = []
     if location_settings:
         zone_codes = location_settings.get('zone_codes') or []
+
+    # Filter SAME codes to only those within the configured broadcast area.
+    # Alerts may cover many counties; we only forward the codes that match our
+    # area so the SAME header reflects our actual coverage, not the full alert area.
+    if same_codes and location_settings:
+        configured_raw = (
+            location_settings.get('fips_codes')
+            or location_settings.get('same_codes')
+            or []
+        )
+        configured_normalised = set(
+            _normalise_same_codes([str(c).strip() for c in configured_raw if str(c).strip()])
+        )
+        if configured_normalised:
+            filtered: List[str] = []
+            for code in same_codes:
+                norm = ''.join(ch for ch in str(code) if ch.isdigit()).zfill(6)
+                if norm in configured_normalised:
+                    filtered.append(code)
+            # Use filtered list; if nothing matched fall through to fallback below.
+            same_codes = filtered
 
     if not same_codes and location_settings:
         fallback_same_raw = (
