@@ -726,7 +726,13 @@ def build_same_header(alert: object, payload: Dict[str, object], config: Dict[st
             filtered: List[str] = []
             for code in same_codes:
                 norm = ''.join(ch for ch in str(code) if ch.isdigit()).zfill(6)
-                if norm in configured_normalised:
+                # Nationwide (000000) and statewide (SS000) wildcards are preserved
+                # as-is — they must not be stripped by the per-county filter or the
+                # fallback will replace them with all configured FIPS codes, producing
+                # an incorrect broadcast header.
+                if norm == '000000' or (norm.endswith('000') and norm != '000000'):
+                    filtered.append(code)
+                elif norm in configured_normalised:
                     filtered.append(code)
             # Use filtered list; if nothing matched fall through to fallback below.
             same_codes = filtered
