@@ -849,11 +849,15 @@ def _normalize_text_for_tts(text: str) -> str:
 
     2. **NWS-specific text normalizations** – cleans up formatting patterns
        unique to NOAA/NWS alert text before acronym expansion:
+       - Alternate-timezone slash notation: "/5 PM CDT/" → "5 PM CDT" —
+         stripped before time expansion so colon times inside slashes
+         (e.g. "/5:00 PM CDT/") are intact when the time patterns run.
        - Whitespace/punctuation: "..." → ". ", double newlines → ". ",
-         single newlines → ", ", multiple spaces → ", " so that TTS engines
-         insert natural pauses instead of reading the whole alert as a
-         single run-on sentence.
-       - Alternate-timezone slash notation: "/5 PM CDT/" → "5 PM CDT".
+         single newlines → ", " — applied before other steps so sentence
+         structure is established early.
+       - Multiple spaces/tabs → ", " — applied after Indiana disambiguation
+         so county+state-code pairs ("CASS IN") are matched before their
+         surrounding column padding is collapsed.
          NWS places the same deadline in a second timezone inside slashes;
          the slashes are stripped so TTS reads naturally.
        - "ST." abbreviation: "ST. JOSEPH" → "Saint JOSEPH" so TTS does not
@@ -928,6 +932,17 @@ def _normalize_text_for_tts(text: str) -> str:
 
     result = text
 
+    # Slash alternate-timezone notation must be stripped BEFORE time expansion
+    # so that colon-format times inside slashes (e.g. "/5:00 PM CDT/") are
+    # intact when the time-expansion patterns run.  If time expansion ran first
+    # it would convert "5:00 PM" to "five o'clock PM", leaving orphaned slashes
+    # that the slash pattern can no longer match.
+    result = re.sub(
+        r'/\s*(\d{1,2}(?::\d{2})?\s*(?:AM|PM)\s+[A-Z]{2,5})\s*/',
+        r' \1 ',
+        result,
+    )
+
     # Pattern A: compact 4-digit time, e.g. "1100 PM", "0930 AM"
     # Matches HHMM immediately followed (possibly with space) by AM/PM.
     result = re.sub(
@@ -961,22 +976,6 @@ def _normalize_text_for_tts(text: str) -> str:
 
     # Single newline → comma pause.
     result = re.sub(r'\n', ', ', result)
-
-    # Two or more spaces/tabs → comma pause.  NWS formats county lists in
-    # fixed-width columns separated by multiple spaces, e.g.:
-    #   "KOSCIUSKO             ST. JOSEPH"
-    # Converting to ", " produces a natural spoken list.
-    result = re.sub(r'[ \t]{2,}', ', ', result)
-
-    # Alternate-timezone slash notation: NWS writes "/5 PM CDT/" to show
-    # the same deadline expressed in a second timezone.  Strip the slashes
-    # so TTS reads naturally; the timezone abbreviation (e.g. CDT) is then
-    # expanded to its full name by the acronym table below.
-    result = re.sub(
-        r'/\s*(\d{1,2}(?::\d{2})?\s*(?:AM|PM)\s+[A-Z]{2,5})\s*/',
-        r' \1 ',
-        result,
-    )
 
     # "ST." (Saint abbreviation): expand before the main acronym loop so
     # that the trailing period does not confuse word-boundary matching.
@@ -1025,6 +1024,14 @@ def _normalize_text_for_tts(text: str) -> str:
         r'\1 Indiana',
         result,
     )
+
+    # Two or more spaces, or any number of tabs → comma pause.
+    # NWS formats county lists in fixed-width columns separated by multiple
+    # spaces or tabs, e.g. "KOSCIUSKO             ST. JOSEPH".
+    # A lone tab counts as a separator; two+ spaces do too.
+    # This runs after Indiana disambiguation so that "CASS IN" (single space)
+    # is recognised as a county+state-code pair before any spaces are replaced.
+    result = re.sub(r'\t+|[ \t]{2,}', ', ', result)
 
     # ── Layer 3: hard-coded acronym expansions ────────────────────────────
     # Order matters: longer / more-specific entries first.
