@@ -8,6 +8,17 @@ tracks releases under the 2.x series.
 
 - No pending changes.
 
+## [2.71.28] - 2026-03-31 - Fix missing forwarded_event_codes column on eas_settings
+
+### Fixed
+- **`app_core/eas_storage.py`** — Added `ensure_eas_settings_columns()` helper that detects and
+  adds the `forwarded_event_codes` JSONB column to `eas_settings` when it is absent (e.g. on
+  deployments that have not yet run the `20260331_add_forwarded_event_codes` Alembic migration).
+  Resolves the `psycopg2.errors.UndefinedColumn` crash reported when processing EAS settings.
+- **`app.py`** — `ensure_eas_settings_columns()` is now called during database initialisation
+  (step 5b), immediately after `ensure_eas_audio_columns()`, so the column is always present
+  before any ORM query touches `eas_settings`.
+
 ## [2.71.27] - 2026-03-30 - Reword Section 4b fragility callout; clarify regulatory status and intended audience
 
 ### Changed
