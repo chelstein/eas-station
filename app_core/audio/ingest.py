@@ -168,15 +168,6 @@ class AudioSourceAdapter(ABC):
         # This ensures test signals exercise the full 24/7 pipeline rather than
         # bypassing the capture loop and going straight to the decoder.
         self._inject_pending: queue.Queue = queue.Queue(maxsize=10000)
-        # Waveform buffer for visualization (stores last 2048 samples)
-        self._waveform_buffer = np.zeros(2048, dtype=np.float32)
-        self._waveform_lock = threading.Lock()
-        # Spectrogram buffer for waterfall visualization (stores last 100 FFT frames)
-        self._fft_size = 1024  # FFT window size
-        self._spectrogram_history = 100  # Number of FFT frames to keep
-        self._spectrogram_buffer = np.zeros((self._spectrogram_history, self._fft_size // 2), dtype=np.float32)
-        self._spectrogram_lock = threading.Lock()
-        self._last_spectrogram_update = 0.0
         # Reconnection support
         self._reconnect_attempts = 0
         self._max_reconnect_attempts = 5
@@ -475,12 +466,6 @@ class AudioSourceAdapter(ABC):
             # Silence detection
             silence_detected = rms_db < self.config.silence_threshold_db
 
-            # Update visualization buffers
-            self._update_waveform_buffer(samples_for_metrics)
-            # Spectrogram is visualization-only; 2 Hz is plenty for the waterfall display
-            if current_time - self._last_spectrogram_update >= 0.5:
-                self._update_spectrogram_buffer(samples_for_metrics)
-                self._last_spectrogram_update = current_time
         else:
             peak_db = rms_db = -np.inf
             silence_detected = True
@@ -562,61 +547,13 @@ class AudioSourceAdapter(ABC):
             )
             return False
 
-    def _update_waveform_buffer(self, audio_chunk: np.ndarray) -> None:
-        """Update the waveform buffer with new audio data."""
-        if len(audio_chunk) == 0:
-            return
-
-        with self._waveform_lock:
-            # Downsample if needed to fit in buffer
-            buffer_size = len(self._waveform_buffer)
-            if len(audio_chunk) >= buffer_size:
-                # Take every Nth sample to fit
-                step = len(audio_chunk) // buffer_size
-                self._waveform_buffer[:] = audio_chunk[::step][:buffer_size]
-            else:
-                # Shift existing data and append new
-                shift_amount = len(audio_chunk)
-                self._waveform_buffer[:-shift_amount] = self._waveform_buffer[shift_amount:]
-                self._waveform_buffer[-shift_amount:] = audio_chunk[:shift_amount]
-
     def get_waveform_data(self) -> np.ndarray:
-        """Get a copy of the current waveform buffer for visualization."""
-        with self._waveform_lock:
-            return self._waveform_buffer.copy()
-
-    def _update_spectrogram_buffer(self, audio_chunk: np.ndarray) -> None:
-        """Update the spectrogram buffer with FFT of new audio data."""
-        if len(audio_chunk) < self._fft_size:
-            return
-
-        with self._spectrogram_lock:
-            # Take the last fft_size samples for FFT computation
-            fft_window = audio_chunk[-self._fft_size:]
-
-            # Apply Hamming window to reduce spectral leakage
-            windowed = fft_window * np.hamming(self._fft_size)
-
-            # Compute FFT and get magnitude spectrum (only positive frequencies)
-            fft_result = np.fft.rfft(windowed)
-            magnitude = np.abs(fft_result)
-
-            # Convert to dB scale (with floor to avoid log(0))
-            magnitude = np.maximum(magnitude, 1e-10)
-            magnitude_db = 20 * np.log10(magnitude)
-
-            # Normalize to 0-1 range for visualization (assuming -120dB to 0dB range)
-            normalized = (magnitude_db + 120) / 120
-            normalized = np.clip(normalized, 0, 1)
-
-            # Shift buffer and add new FFT frame
-            self._spectrogram_buffer[:-1] = self._spectrogram_buffer[1:]
-            self._spectrogram_buffer[-1] = normalized[:self._fft_size // 2]
+        """Waveform visualization is disabled to reduce CPU usage."""
+        return np.array([], dtype=np.float32)
 
     def get_spectrogram_data(self) -> np.ndarray:
-        """Get a copy of the current spectrogram buffer for waterfall visualization."""
-        with self._spectrogram_lock:
-            return self._spectrogram_buffer.copy()
+        """Spectrogram visualization is disabled to reduce CPU usage."""
+        return np.array([], dtype=np.float32)
 
 
 class AudioIngestController:

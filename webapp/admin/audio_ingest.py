@@ -2322,71 +2322,16 @@ def api_get_waveform(source_name: str):
 
 @audio_ingest_bp.route('/api/audio/spectrogram/<path:source_name>')
 def api_get_spectrogram(source_name: str):
-    """Get spectrogram data for a specific audio source (for waterfall display).
-
-    For separated architecture: reads from Redis published by audio-service.
-    For local development: reads directly from audio controller.
-    """
-    try:
-        spectrogram_data = None
-        
-        try:
-            from app_core.redis_client import get_redis_client
-            r = get_redis_client()
-            spectrogram_key = f"eas:spectrogram:{source_name}"
-            spectrogram_json = r.get(spectrogram_key)
-            if spectrogram_json:
-                spectrogram_data = json.loads(spectrogram_json)
-        except Exception as redis_err:
-            logger.debug(f"Redis spectrogram unavailable: {redis_err}")
-        
-        if not spectrogram_data:
-            controller = _get_audio_controller()
-            if source_name not in controller._sources:
-                return jsonify({
-                    'source_name': source_name,
-                    'spectrogram': [],
-                    'time_frames': 0,
-                    'frequency_bins': 0,
-                    'sample_rate': 48000,
-                    'fft_size': 1024,
-                    'timestamp': time.time(),
-                    'status': 'not_found',
-                    'message': f'Audio source {source_name} not found'
-                }), 404
-            
-            adapter = controller._sources[source_name]
-            spec_array = adapter.get_spectrogram_data()
-            
-            if spec_array is None or spec_array.size == 0:
-                return jsonify({
-                    'source_name': source_name,
-                    'spectrogram': [],
-                    'time_frames': 0,
-                    'frequency_bins': 0,
-                    'sample_rate': adapter.config.sample_rate,
-                    'fft_size': adapter._fft_size,
-                    'timestamp': time.time(),
-                    'status': 'no_data',
-                    'message': 'No spectrogram data available - source may not be running'
-                }), 200
-            
-            spectrogram_data = {
-                'source_name': source_name,
-                'spectrogram': spec_array.tolist(),
-                'time_frames': int(spec_array.shape[0]),
-                'frequency_bins': int(spec_array.shape[1]),
-                'sample_rate': adapter.config.sample_rate,
-                'fft_size': adapter._fft_size,
-                'timestamp': time.time(),
-                'status': 'ok'
-            }
-        
-        return jsonify(spectrogram_data), 200
-
-    except Exception as exc:
-        logger.error('Error getting spectrogram for %s: %s', source_name, exc)
-        return jsonify({'error': str(exc)}), 500
+    """Spectrogram computation is disabled to reduce CPU usage."""
+    return jsonify({
+        'source_name': source_name,
+        'spectrogram': [],
+        'time_frames': 0,
+        'frequency_bins': 0,
+        'timestamp': time.time(),
+        'status': 'disabled',
+        'message': 'Spectrogram disabled to reduce CPU usage'
+    }), 200
 
 @audio_ingest_bp.route('/api/audio/stream/<path:source_name>')
 def api_stream_audio(source_name: str):
