@@ -841,18 +841,26 @@ def _normalize_text_for_tts(text: str) -> str:
     """Expand common emergency-management acronyms and apply user pronunciation
     rules so TTS engines read the text correctly.
 
-    Three layers of replacement are applied in order:
+    Four layers of replacement are applied in order:
 
     1. **Time expansion** – converts compact/digital time formats that TTS
        engines mispronounce into fully-spoken equivalents.
        e.g. "1100 PM" → "eleven o'clock PM", "11:30 AM" → "eleven thirty AM".
 
-    2. **Built-in acronym table** – hard-coded, case-sensitive whole-word
+    2. **NWS-specific text normalizations** – cleans up formatting patterns
+       unique to NOAA/NWS alert text before acronym expansion:
+       - Alternate-timezone slash notation: "/5 PM CDT/" → "5 PM CDT".
+         NWS places the same deadline in a second timezone inside slashes;
+         the slashes are stripped so TTS reads naturally.
+       - "ST." abbreviation: "ST. JOSEPH" → "Saint JOSEPH" so TTS does not
+         read it as "Street Joseph".
+
+    3. **Built-in acronym table** – hard-coded, case-sensitive whole-word
        substitutions for uppercase tokens that TTS engines mispronounce
        (EAS → "Emergency Alert System", NWS → "National Weather Service",
-       EDT → "Eastern Daylight Time", …).
+       EDT → "Eastern Daylight Time", MI → "Michigan", OH → "Ohio", …).
 
-    3. **Database pronunciation dictionary** – user-managed rows from the
+    4. **Database pronunciation dictionary** – user-managed rows from the
        ``tts_pronunciation_rules`` table.  Each row supplies an
        ``original_text`` pattern, a ``replacement_text`` phonetic spelling,
        and a ``match_case`` flag.  Longer patterns are applied first so that
@@ -921,7 +929,26 @@ def _normalize_text_for_tts(text: str) -> str:
         flags=re.IGNORECASE,
     )
 
-    # ── Layer 1: hard-coded acronym expansions ────────────────────────────
+    # ── Layer 1: NWS-specific text normalizations ────────────────────────
+    # These clean up formatting conventions unique to NWS/NOAA alert text
+    # before the acronym table runs.
+
+    # Alternate-timezone slash notation: NWS writes "/5 PM CDT/" to show
+    # the same deadline expressed in a second timezone.  Strip the slashes
+    # so TTS reads naturally; the timezone abbreviation (e.g. CDT) is then
+    # expanded to its full name by the acronym table below.
+    result = re.sub(
+        r'/\s*(\d{1,2}(?::\d{2})?\s*(?:AM|PM)\s+[A-Z]{2,5})\s*/',
+        r' \1 ',
+        result,
+    )
+
+    # "ST." (Saint abbreviation): expand before the main acronym loop so
+    # that the trailing period does not confuse word-boundary matching.
+    # e.g. "ST. JOSEPH" → "Saint JOSEPH", "ST. LOUIS" → "Saint LOUIS".
+    result = re.sub(r'\bST\.(?=\s)', 'Saint', result, flags=re.IGNORECASE)
+
+    # ── Layer 2: hard-coded acronym expansions ────────────────────────────
     # Order matters: longer / more-specific entries first.
     _ACRONYM_MAP = [
         # Compound EAS parameter tokens
@@ -956,12 +983,21 @@ def _normalize_text_for_tts(text: str) -> str:
         ('HST',    'Hawaii Standard Time'),
         ('HAST',   'Hawaii-Aleutian Standard Time'),
         ('HADT',   'Hawaii-Aleutian Daylight Time'),
+        # US state codes used as county-name disambiguation markers in NWS
+        # watches (e.g. "CASS MI" = Cass County, Michigan; "ALLEN OH" =
+        # Allen County, Ohio).  TTS engines mispronounce bare two-letter
+        # codes ("MI" → "my", "OH" → "oh").
+        ('MI',     'Michigan'),
+        ('OH',     'Ohio'),
+        # Military / civil facility type abbreviations that appear in SAME
+        # area names (e.g. "GRISSOM AFD").
+        ('AFD',    'Air Force Depot'),
     ]
 
     for token, expansion in _ACRONYM_MAP:
         result = re.sub(r'\b' + re.escape(token) + r'\b', expansion, result)
 
-    # ── Layer 2: database pronunciation dictionary ────────────────────────
+    # ── Layer 3: database pronunciation dictionary ────────────────────────
     for original, replacement, match_case in _load_pronunciation_rules():
         flags = 0 if match_case else re.IGNORECASE
         try:

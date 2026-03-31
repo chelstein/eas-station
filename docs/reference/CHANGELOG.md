@@ -8,6 +8,34 @@ tracks releases under the 2.x series.
 
 - No pending changes.
 
+## [2.71.28] - 2026-03-31 - Improve TTS text normalization for NWS watch descriptions
+
+### Fixed
+- **`app_utils/eas.py`** — `_normalize_text_for_tts()`: added Layer 1 NWS-specific
+  normalizations that run before the acronym table:
+  - Alternate-timezone slash notation (`/5 PM CDT/`) is stripped to plain
+    `5 PM CDT`; the timezone abbreviation is then expanded by the acronym
+    table (e.g. `CDT` → "Central Daylight Time") so TTS does not read
+    literal slash characters.
+  - `ST.` abbreviation is expanded to "Saint" (e.g. "ST. JOSEPH" →
+    "Saint JOSEPH") so TTS does not say "Street Joseph".
+- **`app_utils/eas.py`** — Extended `_ACRONYM_MAP` with three new entries:
+  - `MI` → "Michigan" — NWS county-disambiguation state code; TTS
+    mispronounces bare `MI` as "my" (e.g. "CASS MI" → "CASS Michigan").
+  - `OH` → "Ohio" — NWS county-disambiguation state code; TTS reads bare
+    `OH` as the interjection "oh" (e.g. "ALLEN OH" → "ALLEN Ohio").
+  - `AFD` → "Air Force Depot" — facility abbreviation used in SAME area
+    names (e.g. "GRISSOM AFD").
+  - `IN` is intentionally **not** replaced — it functions as a common
+    English preposition throughout alert text ("IN EFFECT", "IN INDIANA",
+    etc.) and replacing it globally would corrupt those phrases.
+
+### Tests
+- **`tests/test_tts_text_normalization.py`** — New test module with 18 tests
+  covering all new normalization patterns plus regression checks confirming
+  that `MIAMI` is not broken by `MI→Michigan`, and that `IN` as a preposition
+  is left untouched.
+
 ## [2.71.27] - 2026-03-30 - Reword Section 4b fragility callout; clarify regulatory status and intended audience
 
 ### Changed
