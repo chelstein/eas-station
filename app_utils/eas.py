@@ -841,7 +841,7 @@ def _normalize_text_for_tts(text: str) -> str:
     """Expand common emergency-management acronyms and apply user pronunciation
     rules so TTS engines read the text correctly.
 
-    Four layers of replacement are applied in order:
+    Five layers of replacement are applied in order:
 
     1. **Time expansion** – converts compact/digital time formats that TTS
        engines mispronounce into fully-spoken equivalents.
@@ -849,7 +849,15 @@ def _normalize_text_for_tts(text: str) -> str:
 
     2. **NWS-specific text normalizations** – cleans up formatting patterns
        unique to NOAA/NWS alert text before acronym expansion:
-       - Alternate-timezone slash notation: "/5 PM CDT/" → "5 PM CDT".
+       - Alternate-timezone slash notation: "/5 PM CDT/" → "5 PM CDT" —
+         stripped before time expansion so colon times inside slashes
+         (e.g. "/5:00 PM CDT/") are intact when the time patterns run.
+       - Whitespace/punctuation: "..." → ". ", double newlines → ". ",
+         single newlines → ", " — applied before other steps so sentence
+         structure is established early.
+       - Multiple spaces/tabs → ", " — applied after Indiana disambiguation
+         so county+state-code pairs ("CASS IN") are matched before their
+         surrounding column padding is collapsed.
          NWS places the same deadline in a second timezone inside slashes;
          the slashes are stripped so TTS reads naturally.
        - "ST." abbreviation: "ST. JOSEPH" → "Saint JOSEPH" so TTS does not
@@ -873,6 +881,11 @@ def _normalize_text_for_tts(text: str) -> str:
        and a ``match_case`` flag.  Longer patterns are applied first so that
        multi-word entries (e.g. "Bellefontaine") are not accidentally masked
        by shorter ones (e.g. "Bell").
+
+    5. **Lowercase normalisation** – converts the remaining all-caps NWS
+       product text to lowercase so TTS engines treat tokens as words rather
+       than as acronyms.  All acronym expansions have already been applied
+       by this point.
 
     Only whole-word occurrences are replaced (regex ``\\b`` word boundaries).
     """
@@ -919,6 +932,17 @@ def _normalize_text_for_tts(text: str) -> str:
 
     result = text
 
+    # Slash alternate-timezone notation must be stripped BEFORE time expansion
+    # so that colon-format times inside slashes (e.g. "/5:00 PM CDT/") are
+    # intact when the time-expansion patterns run.  If time expansion ran first
+    # it would convert "5:00 PM" to "five o'clock PM", leaving orphaned slashes
+    # that the slash pattern can no longer match.
+    result = re.sub(
+        r'/\s*(\d{1,2}(?::\d{2})?\s*(?:AM|PM)\s+[A-Z]{2,5})\s*/',
+        r' \1 ',
+        result,
+    )
+
     # Pattern A: compact 4-digit time, e.g. "1100 PM", "0930 AM"
     # Matches HHMM immediately followed (possibly with space) by AM/PM.
     result = re.sub(
@@ -940,15 +964,18 @@ def _normalize_text_for_tts(text: str) -> str:
     # These clean up formatting conventions unique to NWS/NOAA alert text
     # before the acronym table runs.
 
-    # Alternate-timezone slash notation: NWS writes "/5 PM CDT/" to show
-    # the same deadline expressed in a second timezone.  Strip the slashes
-    # so TTS reads naturally; the timezone abbreviation (e.g. CDT) is then
-    # expanded to its full name by the acronym table below.
-    result = re.sub(
-        r'/\s*(\d{1,2}(?::\d{2})?\s*(?:AM|PM)\s+[A-Z]{2,5})\s*/',
-        r' \1 ',
-        result,
-    )
+    # Whitespace / punctuation — convert structural whitespace to spoken
+    # pauses so TTS does not read the whole alert as a run-on sentence.
+
+    # Ellipsis → sentence break.  NWS uses "..." throughout product text as
+    # a clause/sentence separator (e.g. "...TORNADO WARNING IN EFFECT...").
+    result = re.sub(r'\.{3,}', '. ', result)
+
+    # Double newline (paragraph break) → sentence pause.
+    result = re.sub(r'\n{2,}', '. ', result)
+
+    # Single newline → comma pause.
+    result = re.sub(r'\n', ', ', result)
 
     # "ST." (Saint abbreviation): expand before the main acronym loop so
     # that the trailing period does not confuse word-boundary matching.
@@ -998,6 +1025,14 @@ def _normalize_text_for_tts(text: str) -> str:
         result,
     )
 
+    # Two or more spaces, or any number of tabs → comma pause.
+    # NWS formats county lists in fixed-width columns separated by multiple
+    # spaces or tabs, e.g. "KOSCIUSKO             ST. JOSEPH".
+    # A lone tab counts as a separator; two+ spaces do too.
+    # This runs after Indiana disambiguation so that "CASS IN" (single space)
+    # is recognised as a county+state-code pair before any spaces are replaced.
+    result = re.sub(r'\t+|[ \t]{2,}', ', ', result)
+
     # ── Layer 3: hard-coded acronym expansions ────────────────────────────
     # Order matters: longer / more-specific entries first.
     _ACRONYM_MAP = [
@@ -1039,9 +1074,10 @@ def _normalize_text_for_tts(text: str) -> str:
         # codes ("MI" → "my", "OH" → "oh").
         ('MI',     'Michigan'),
         ('OH',     'Ohio'),
-        # Military / civil facility type abbreviations that appear in SAME
-        # area names (e.g. "GRISSOM AFD").
-        ('AFD',    'Air Force Depot'),
+        # Military / civil facility abbreviations in NWS city lists.
+        ('AFB',    'Air Force Base'),
+        ('ARB',    'Air Reserve Base'),
+        ('AFD',    'Air Force Base'),
     ]
 
     for token, expansion in _ACRONYM_MAP:
@@ -1060,19 +1096,23 @@ def _normalize_text_for_tts(text: str) -> str:
         except re.error:
             pass  # Malformed pattern — skip silently
 
+    # ── Layer 5: lowercase normalisation ─────────────────────────────────
+    # NWS product text is entirely uppercase.  All acronym and pronunciation
+    # expansions have already run, so lowercasing now lets every TTS backend
+    # treat the remaining tokens as plain words rather than abbreviations.
+    result = result.lower()
+
     return result
 
 
 def _compose_message_text(alert: object, payload: Optional[Dict[str, object]] = None) -> str:
-    """Build the TTS/crawl message text following ECIG §3.6.4.
+    """Build the TTS narration text from the alert body.
 
-    Structure (in order):
-    1. FCC Required Text — always first:
-       "A [ORIGINATOR] HAS ISSUED A [EVENT] FOR THE FOLLOWING
-        COUNTIES/AREAS: [AREAS]; AT [SENT] EFFECTIVE UNTIL [EXPIRES]."
-    2. EASText CAP parameter — if present, use verbatim (§3.6.3).
-    3. Otherwise: senderName + description + instruction (§3.6.2).
-       NOTE: headline is NOT recommended by the spec and is excluded.
+    Structure (in order of preference):
+    1. EASText CAP parameter — if present, use verbatim (§3.6.3).
+    2. Otherwise: senderName + description + instruction (§3.6.2).
+       NOTE: headline is metadata, not alert content, and is excluded.
+    3. Fallback: generated FCC Required Text when no body text is available.
 
     Total text is hard-capped at 1800 characters (§3.6.5).
     All text is passed through _normalize_text_for_tts before returning.
@@ -1149,10 +1189,14 @@ def _compose_message_text(alert: object, payload: Optional[Dict[str, object]] = 
                 body_parts.append(value)
         body = '\n\n'.join(body_parts).strip()
 
-    # Combine: FCC Required Text first, then body
-    full_text = fcc_required
+    # Use only the body for TTS narration — the SAME header already encodes the
+    # event/area/time metadata, and NWR plays only the description text, not a
+    # generated headline sentence.  Fall back to fcc_required only when there is
+    # no body at all.
     if body:
-        full_text = full_text + '\n\n' + body
+        full_text = body
+    else:
+        full_text = fcc_required
 
     # Hard cap at 1800 characters (ECIG §3.6.5)
     if len(full_text) > 1800:
