@@ -929,6 +929,9 @@ function initEasSettings() {
         return;
     }
 
+    // Build event filter checkbox grid before loading settings
+    buildEasEventFilterUI();
+
     // Load initial EAS settings
     loadEasSettings();
 
@@ -1012,6 +1015,109 @@ function populateEasForm(settings) {
     if (authorizedEventsTextarea) {
         authorizedEventsTextarea.value = (settings.authorized_event_codes || []).join('\n');
     }
+
+    // Set event filter checkboxes
+    const forwarded = new Set((settings.forwarded_event_codes || []).map(c => c.toUpperCase()));
+    document.querySelectorAll('.eas-event-filter-check').forEach(cb => {
+        cb.checked = forwarded.size === 0 ? false : forwarded.has(cb.value);
+    });
+    syncForwardedEventCodesHidden();
+}
+
+/**
+ * Build the event filter checkbox grid from EAS_EVENT_CODES.
+ * Groups events by product type: WRN (Warnings), WCH (Watches), ADV (Advisories), TEST (Tests).
+ */
+function buildEasEventFilterUI() {
+    const container = document.getElementById('easEventFilterContainer');
+    if (!container) return;
+
+    const eventCodes = window.EAS_EVENT_CODES || [];
+    if (!eventCodes.length) {
+        container.innerHTML = '<p class="text-muted small mb-0">No event codes available.</p>';
+        return;
+    }
+
+    const groups = {
+        WRN: { label: 'Warnings', icon: 'fa-exclamation-circle text-danger', items: [] },
+        WCH: { label: 'Watches', icon: 'fa-eye text-warning', items: [] },
+        ADV: { label: 'Advisories & Statements', icon: 'fa-info-circle text-info', items: [] },
+        TEST: { label: 'Tests', icon: 'fa-vial text-secondary', items: [] },
+    };
+    const other = { label: 'Other', icon: 'fa-bell text-muted', items: [] };
+
+    eventCodes.forEach(entry => {
+        const g = groups[entry.product];
+        if (g) {
+            g.items.push(entry);
+        } else {
+            other.items.push(entry);
+        }
+    });
+
+    if (other.items.length) groups['OTHER'] = other;
+
+    let html = '<div class="row g-3">';
+    Object.values(groups).forEach(group => {
+        if (!group.items.length) return;
+        html += `
+            <div class="col-12 col-lg-6">
+                <h6 class="mb-2"><i class="fas ${group.icon} me-1"></i> ${group.label}</h6>
+                <div class="row g-1">`;
+        group.items.forEach(entry => {
+            const id = `easEvent_${entry.code}`;
+            html += `
+                    <div class="col-6">
+                        <div class="form-check">
+                            <input class="form-check-input eas-event-filter-check" type="checkbox"
+                                   id="${id}" value="${entry.code}">
+                            <label class="form-check-label small" for="${id}" title="${entry.name}">
+                                <code class="text-primary">${entry.code}</code> ${entry.name}
+                            </label>
+                        </div>
+                    </div>`;
+        });
+        html += `
+                </div>
+            </div>`;
+    });
+    html += '</div>';
+
+    container.innerHTML = html;
+
+    // Wire up change events to keep hidden input in sync
+    container.querySelectorAll('.eas-event-filter-check').forEach(cb => {
+        cb.addEventListener('change', syncForwardedEventCodesHidden);
+    });
+
+    // Select All / Clear All buttons
+    const selectAllBtn = document.getElementById('easEventSelectAll');
+    const clearAllBtn = document.getElementById('easEventClearAll');
+    if (selectAllBtn) {
+        selectAllBtn.addEventListener('click', () => {
+            container.querySelectorAll('.eas-event-filter-check').forEach(cb => { cb.checked = true; });
+            syncForwardedEventCodesHidden();
+        });
+    }
+    if (clearAllBtn) {
+        clearAllBtn.addEventListener('click', () => {
+            container.querySelectorAll('.eas-event-filter-check').forEach(cb => { cb.checked = false; });
+            syncForwardedEventCodesHidden();
+        });
+    }
+}
+
+/**
+ * Sync the hidden forwarded_event_codes input with checked checkboxes.
+ * An empty selection means "forward all" — we send an empty array.
+ */
+function syncForwardedEventCodesHidden() {
+    const hidden = document.getElementById('easForwardedEventCodes');
+    if (!hidden) return;
+    const checked = Array.from(
+        document.querySelectorAll('.eas-event-filter-check:checked')
+    ).map(cb => cb.value);
+    hidden.value = checked.join(',');
 }
 
 /**
@@ -1045,7 +1151,9 @@ async function handleEasSettingsSubmit(e) {
         attention_tone_seconds: parseInt(document.getElementById('easAttentionTone')?.value, 10) || 8,
         audio_player: document.getElementById('easAudioPlayer')?.value?.trim() || 'aplay',
         output_dir: document.getElementById('easOutputDir')?.value?.trim() || 'static/eas_messages',
-        authorized_event_codes: parseNewlineValues(document.getElementById('easAuthorizedEvents')?.value || '')
+        authorized_event_codes: parseNewlineValues(document.getElementById('easAuthorizedEvents')?.value || ''),
+        forwarded_event_codes: (document.getElementById('easForwardedEventCodes')?.value || '')
+            .split(',').map(s => s.trim().toUpperCase()).filter(Boolean),
     };
 
     try {

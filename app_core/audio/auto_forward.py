@@ -239,6 +239,20 @@ def auto_forward_cap_alert(
     fips_codes = _get_fips_from_cap_alert(cap_alert, raw_json)
     event_code = _resolve_event_code(cap_alert)
 
+    # Event code filtering: if forwarded_event_codes is configured, only forward
+    # events in that allowlist. An empty list means forward all event types.
+    forwarded_event_codes = eas_config.get('forwarded_event_codes') or []
+    if forwarded_event_codes and event_code:
+        allowed = {str(c).strip().upper() for c in forwarded_event_codes if str(c).strip()}
+        if event_code.upper() not in allowed:
+            reason = (
+                f"Event '{event_code}' is not in the configured forwarding allowlist"
+            )
+            log.info("Auto-forward skipped for %s: %s", result['identifier'], reason)
+            result['reason'] = reason
+            _update_cap_forwarding_status(cap_alert, db_session, False, reason, log)
+            return result
+
     # VTEC-aware action gating — only applies when VTEC was parsed at ingest
     vtec_action: Optional[str] = getattr(cap_alert, 'vtec_action', None)
     if vtec_action:
@@ -431,6 +445,18 @@ def auto_forward_ota_alert(
             source_name, result['reason'],
         )
         return result
+
+    # Event code filtering: if forwarded_event_codes is configured, only forward
+    # events in that allowlist. An empty list means forward all event types.
+    forwarded_event_codes = eas_config.get('forwarded_event_codes') or []
+    if forwarded_event_codes:
+        allowed = {str(c).strip().upper() for c in forwarded_event_codes if str(c).strip()}
+        if event_code.upper() not in allowed:
+            result['reason'] = (
+                f"Event '{event_code}' is not in the configured forwarding allowlist"
+            )
+            log.info("OTA auto-forward skipped: %s", result['reason'])
+            return result
 
     # Cross-source deduplication: only check when we have enough information
     # to produce a meaningful key (UNKNOWN is already blocked above).

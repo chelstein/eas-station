@@ -1510,6 +1510,18 @@ def admin_eas_settings():
                     code.strip().upper() for code in events.split(",") if code.strip()
                 ]
 
+        # Update auto-forwarding event allowlist
+        if "forwarded_event_codes" in payload:
+            events = payload["forwarded_event_codes"]
+            if isinstance(events, list):
+                settings.forwarded_event_codes = [
+                    str(code).strip().upper() for code in events if str(code).strip()
+                ]
+            elif isinstance(events, str):
+                settings.forwarded_event_codes = [
+                    code.strip().upper() for code in events.split(",") if code.strip()
+                ]
+
         db.session.commit()
 
         current_app.logger.info("EAS settings updated")

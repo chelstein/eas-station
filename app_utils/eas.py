@@ -219,6 +219,7 @@ def load_eas_config(base_path: Optional[str] = None, db_session=None) -> Dict[st
     db_sample_rate = None
     db_attention_tone_seconds = None
     db_audio_player = None
+    db_forwarded_event_codes: List[str] = []
     try:
         from app_core.models import EASSettings
         eas_settings = EASSettings.query.get(1)
@@ -229,6 +230,7 @@ def load_eas_config(base_path: Optional[str] = None, db_session=None) -> Dict[st
             db_sample_rate = eas_settings.sample_rate
             db_attention_tone_seconds = eas_settings.attention_tone_seconds
             db_audio_player = eas_settings.audio_player
+            db_forwarded_event_codes = list(eas_settings.forwarded_event_codes or [])
             load_logger.info(
                 'EASSettings loaded from DB: originator=%s station_id=%s broadcast_enabled=%s',
                 db_originator, db_station_id, db_broadcast_enabled,
@@ -250,6 +252,7 @@ def load_eas_config(base_path: Optional[str] = None, db_session=None) -> Dict[st
                 db_sample_rate = eas_settings.sample_rate
                 db_attention_tone_seconds = eas_settings.attention_tone_seconds
                 db_audio_player = eas_settings.audio_player
+                db_forwarded_event_codes = list(eas_settings.forwarded_event_codes or [])
                 load_logger.info(
                     'EASSettings loaded from DB (direct session): originator=%s station_id=%s broadcast_enabled=%s',
                     db_originator, db_station_id, db_broadcast_enabled,
@@ -312,6 +315,7 @@ def load_eas_config(base_path: Optional[str] = None, db_session=None) -> Dict[st
         'pyttsx3_voice': os.getenv('PYTTSX3_VOICE'),
         'pyttsx3_rate': os.getenv('PYTTSX3_RATE'),
         'pyttsx3_volume': os.getenv('PYTTSX3_VOLUME'),
+        'forwarded_event_codes': db_forwarded_event_codes,
     }
 
     if config['audio_player_cmd']:

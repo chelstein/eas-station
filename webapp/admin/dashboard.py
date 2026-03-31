@@ -156,7 +156,7 @@ def admin():
             )
 
         eas_event_options = [
-            {'code': code, 'name': entry.get('name', code)}
+            {'code': code, 'name': entry.get('name', code), 'product': entry.get('default_product', '')}
             for code, entry in EVENT_CODE_REGISTRY.items()
             if '?' not in code
         ]
