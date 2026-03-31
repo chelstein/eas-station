@@ -262,38 +262,48 @@ class HealthTracker:
 
 class SourceWatcher:
     """
-    Lightweight per-source audio subscriber.
-    
+    Lightweight per-source audio subscriber with dedicated SAME decoder.
+
     This is NOT a separate thread - it's just a subscriber to a source's
     broadcast queue. The UnifiedEASMonitorService polls all watchers in
     its single monitoring thread.
-    
+
+    Each watcher owns its own StreamingSAMEDecoder so that audio from
+    different sources is never interleaved into the same FSK demodulator.
+    Interleaving audio from LP1 and LP2 into a shared decoder destroys the
+    coherent 520.83 baud FSK signal required for SAME header detection.
+
     Responsibilities:
     - Subscribe to source's broadcast queue
-    - Resample audio to 16kHz for SAME decoder
     - Buffer audio chunks for consumption
+    - Decode audio through a dedicated SAME decoder
     - Track basic per-source stats
     """
-    
+
     def __init__(
         self,
         source_name: str,
         eas_broadcast_queue: BroadcastQueue,  # Now expects 16kHz queue directly
+        alert_callback: Optional[Callable] = None,
     ):
         """
-        Initialize source watcher.
-        
+        Initialize source watcher with its own SAME decoder.
+
         ARCHITECTURAL FIX: Now receives pre-resampled 16kHz audio from dedicated EAS queue.
         No more resampling needed - eliminates conversion bottleneck and reduces memory by 3x.
-        
+
+        Each watcher creates its own StreamingSAMEDecoder so that audio from
+        this source is never mixed with audio from other sources inside the decoder.
+
         Args:
             source_name: Name of the audio source
             eas_broadcast_queue: Source's 16kHz EAS broadcast queue (pre-resampled)
+            alert_callback: Function to call when a SAME alert is detected
         """
         self.source_name = source_name
         self.source_sample_rate = 16000  # Always 16kHz now
         self.target_sample_rate = 16000
-        
+
         # Subscribe directly to 16kHz queue - no resampling needed!
         subscriber_id = f"eas-unified-{source_name}"
         self._adapter = BroadcastAudioAdapter(
@@ -302,19 +312,28 @@ class SourceWatcher:
             sample_rate=16000,
             read_timeout=0.1  # Short timeout so one stalled source doesn't block others
         )
-        
+
+        # Dedicated per-source SAME decoder.
+        # CRITICAL: do NOT share a decoder across sources.  The SAME header is
+        # a ~1-second 520.83-baud FSK burst.  Interleaving 100ms chunks from
+        # two different sources resets the DLL every cycle and prevents detection.
+        self._decoder = StreamingSAMEDecoder(
+            sample_rate=16000,
+            alert_callback=alert_callback,
+        )
+
         logger.info(
             f"SourceWatcher initialized for '{source_name}': "
-            f"16kHz pre-resampled queue (no conversion needed)"
+            f"16kHz pre-resampled queue, dedicated SAME decoder"
         )
-    
+
     def read_audio(self, num_samples: int) -> Optional[np.ndarray]:
         """
         Read audio samples from this source.
-        
+
         Args:
             num_samples: Number of samples to read at target rate
-            
+
         Returns:
             NumPy array of samples, or None if no audio available
         """
@@ -323,7 +342,15 @@ class SourceWatcher:
         except Exception as e:
             logger.error(f"Error reading audio from '{self.source_name}': {e}")
             return None
-    
+
+    def process_samples(self, samples: np.ndarray) -> None:
+        """Feed audio samples into this source's dedicated SAME decoder."""
+        self._decoder.process_samples(samples)
+
+    def get_decoder_stats(self) -> Dict[str, Any]:
+        """Return stats from this source's SAME decoder."""
+        return self._decoder.get_stats()
+
     def get_stats(self) -> Dict[str, Any]:
         """Get adapter statistics."""
         if hasattr(self._adapter, 'get_stats'):
@@ -390,13 +417,12 @@ class UnifiedEASMonitorService:
         
         # Health tracking
         self._health_tracker = HealthTracker(audio_timeout_seconds=5.0)
-        
-        # Shared SAME decoder for all sources
-        self._decoder = StreamingSAMEDecoder(
-            sample_rate=self._target_sample_rate,
-            alert_callback=self._handle_alert
-        )
-        
+
+        # NOTE: No shared decoder here.  Each SourceWatcher owns its own
+        # StreamingSAMEDecoder.  Sharing one decoder across sources caused
+        # interleaved audio (100ms LP1 / 100ms LP2 / ...) to corrupt the FSK
+        # demodulator state, preventing SAME header detection entirely.
+
         # State management
         self._running = False
         self._thread: Optional[threading.Thread] = None
@@ -405,7 +431,6 @@ class UnifiedEASMonitorService:
 
         # Statistics
         self._total_alerts_detected = 0
-        self._current_source_context: Optional[str] = None  # Track which source is being processed
 
         # Per-source rolling audio ring buffers for OTA alert capture.
         # Stores up to _ring_max_seconds of 16 kHz float32 chunks per source
@@ -518,17 +543,25 @@ class UnifiedEASMonitorService:
             # ARCHITECTURAL FIX: Get the 16kHz EAS broadcast queue
             # This queue contains pre-resampled audio, eliminating conversion bottleneck
             eas_broadcast_queue = source_adapter.get_eas_broadcast_queue()
-            
-            # Create watcher - no longer needs source sample rate!
+
+            # Build a per-source alert callback that tags the source name before
+            # forwarding to the unified monitor's _handle_alert.  Using a closure
+            # over source_name means the correct source is identified even when
+            # the decoder fires asynchronously (relative to the polling loop).
+            def _per_source_alert(alert_data, _sname=source_name):
+                self._handle_alert(alert_data, source_name=_sname)
+
+            # Create watcher with its own dedicated SAME decoder
             watcher = SourceWatcher(
                 source_name=source_name,
                 eas_broadcast_queue=eas_broadcast_queue,
+                alert_callback=_per_source_alert,
             )
-            
+
             self._watchers[source_name] = watcher
             self._health_tracker.register_source(source_name)
-            
-            logger.info(f"✅ Added watcher for source '{source_name}' (16kHz pre-resampled queue)")
+
+            logger.info(f"✅ Added watcher for source '{source_name}' (16kHz pre-resampled queue, dedicated decoder)")
         
         except Exception as e:
             logger.error(f"Failed to add watcher for '{source_name}': {e}", exc_info=True)
@@ -540,12 +573,15 @@ class UnifiedEASMonitorService:
             self._health_tracker.unregister_source(source_name)
             logger.info(f"✅ Removed watcher for source '{source_name}'")
     
-    def _handle_alert(self, alert_data) -> None:
+    def _handle_alert(self, alert_data, source_name: Optional[str] = None) -> None:
         """
-        Handle detected alert from shared decoder.
+        Handle detected alert from a per-source decoder.
 
-        The decoder doesn't know which source the alert came from,
-        so we track that in _current_source_context.
+        Args:
+            alert_data: Raw alert data from StreamingSAMEDecoder.
+            source_name: Name of the audio source that detected the alert.
+                         Passed explicitly by the per-source closure in _add_watcher
+                         so we never rely on shared mutable state.
         """
         self._total_alerts_detected += 1
 
@@ -555,11 +591,8 @@ class UnifiedEASMonitorService:
         if isinstance(alert_data, StreamingSAMEAlert):
             alert_data = _same_alert_to_dict(alert_data)
 
-        # Add source identification to alert
-        if self._current_source_context:
-            alert_data['source_name'] = self._current_source_context
-        else:
-            alert_data['source_name'] = 'unknown'
+        # Tag with source identification
+        alert_data['source_name'] = source_name or 'unknown'
 
         logger.warning(
             f"🚨 EAS Alert detected from '{alert_data['source_name']}': "
@@ -619,18 +652,14 @@ class UnifiedEASMonitorService:
                 # Poll each source watcher
                 any_audio_processed = False
                 for source_name, watcher in watchers_snapshot:
-                    # Set source context for alert attribution
-                    self._current_source_context = source_name
-                    
                     try:
                         # Try to read audio from this source
                         samples = watcher.read_audio(self._chunk_size)
-                        
-                        if samples is not None and len(samples) > 0:
-                            # Process audio through shared decoder
-                            self._decoder.process_samples(samples)
 
-                            # Maintain per-source rolling audio ring buffer for OTA capture
+                        if samples is not None and len(samples) > 0:
+                            # Update per-source ring buffer BEFORE decoding so the
+                            # audio is available if the decoder fires an alert callback
+                            # synchronously during process_samples().
                             with self._audio_rings_lock:
                                 ring = self._audio_rings.setdefault(source_name, deque())
                                 ring.append(samples.copy())
@@ -638,6 +667,11 @@ class UnifiedEASMonitorService:
                                 total = sum(len(c) for c in ring)
                                 while total > self._ring_max_samples and ring:
                                     total -= len(ring.popleft())
+
+                            # Process audio through this source's OWN dedicated decoder.
+                            # This is the key fix: each source has its own FSK demodulator
+                            # so their audio streams are never interleaved in the same DLL.
+                            watcher.process_samples(samples)
 
                             # Update health tracking
                             self._health_tracker.update_audio_received(
@@ -649,16 +683,13 @@ class UnifiedEASMonitorService:
                         else:
                             # No audio available from this source
                             self._health_tracker.update_no_audio(source_name)
-                    
+
                     except Exception as e:
                         logger.error(
                             f"Error processing audio from '{source_name}': {e}",
                             exc_info=True
                         )
                         self._health_tracker.update_error(source_name, str(e))
-                
-                # Clear source context
-                self._current_source_context = None
                 
                 # Only sleep when no audio was processed (idle sources).
                 # When audio IS flowing, read_audio() already provides natural
@@ -683,16 +714,30 @@ class UnifiedEASMonitorService:
         Returns status in format compatible with MultiMonitorManager
         for backward compatibility with existing API consumers.
         """
-        # Get decoder stats (stateless, no race condition)
-        decoder_stats = self._decoder.get_stats()
-
         # CRITICAL FIX: Capture watchers FIRST, then calculate health based on CURRENT watchers
         # This prevents race where health_percentage is from old sources but monitor_count is 0
         monitors_status = {}
+        # Aggregate decoder stats across all per-watcher decoders
+        agg_decoder_synced = False
+        agg_decoder_in_message = False
+        agg_decoder_bytes_decoded = 0
+
         with self._watchers_lock:
             # Capture these while lock is held - prevents race with _discover_sources()
             monitor_count = len(self._watchers)
             source_names = list(self._watchers.keys())
+            # Collect per-watcher decoder stats while we hold the lock
+            per_watcher_decoder_stats = {
+                sn: w.get_decoder_stats() for sn, w in self._watchers.items()
+            }
+
+        # Aggregate decoder stats
+        for stats in per_watcher_decoder_stats.values():
+            if stats.get('synced'):
+                agg_decoder_synced = True
+            if stats.get('in_message'):
+                agg_decoder_in_message = True
+            agg_decoder_bytes_decoded += stats.get('bytes_decoded', 0)
 
         # Now get health ONLY for currently registered watchers
         # This ensures health metrics match current watcher state
@@ -735,6 +780,7 @@ class UnifiedEASMonitorService:
                         else 0
                     )
 
+                    dec_stats = per_watcher_decoder_stats.get(source_name, {})
                     monitors_status[source_name] = {
                         "running": self._running,
                         "mode": "unified-streaming",
@@ -748,6 +794,9 @@ class UnifiedEASMonitorService:
                         "last_error": health.last_error,
                         "sample_rate": self._target_sample_rate,
                         "source_sample_rate": watcher.source_sample_rate,
+                        "decoder_synced": dec_stats.get('synced', False),
+                        "decoder_in_message": dec_stats.get('in_message', False),
+                        "decoder_bytes_decoded": dec_stats.get('bytes_decoded', 0),
                     }
 
         # Return status in MultiMonitorManager-compatible format
@@ -766,9 +815,9 @@ class UnifiedEASMonitorService:
             "health_percentage": health_percentage,
             "source_names": source_names,  # Use captured value
             "monitors": monitors_status,
-            "decoder_synced": decoder_stats.get('synced', False),
-            "decoder_in_message": decoder_stats.get('in_message', False),
-            "decoder_bytes_decoded": decoder_stats.get('bytes_decoded', 0),
+            "decoder_synced": agg_decoder_synced,
+            "decoder_in_message": agg_decoder_in_message,
+            "decoder_bytes_decoded": agg_decoder_bytes_decoded,
         }
     
     def add_monitor_for_source(self, source_name: str) -> bool:
