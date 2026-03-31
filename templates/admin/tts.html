@@ -116,10 +116,22 @@
 <div class="admin-container mt-4" style="max-width: 1000px">
     <div class="admin-form-section mb-0">
         <h4><i class="bi bi-eye me-1"></i> Pronunciation Preview</h4>
-        <p class="text-muted small mb-3">
+        <p class="text-muted small mb-2">
             Paste any alert text to see how the normalization pipeline will transform it before
-            it reaches the TTS engine — times, timezone abbreviations, and acronyms are all expanded.
+            it reaches the TTS engine.
         </p>
+        <div class="alert alert-light py-2 px-3 mb-3 small">
+            <strong>Four-layer pipeline:</strong>
+            <span class="text-muted">
+                (1) clock times → spoken words &nbsp;·&nbsp;
+                (2) NWS-specific: slash timezone notation stripped, <code>ST.</code>→Saint, Indiana county codes →
+                <em>Indiana</em> &nbsp;·&nbsp;
+                (3) built-in acronyms: <code>EDT</code>→Eastern Daylight Time,
+                <code>MI</code>→Michigan, <code>OH</code>→Ohio,
+                <code>AFD</code>→Air Force Depot, … &nbsp;·&nbsp;
+                (4) your <a href="/admin/tts/pronunciation">custom pronunciation rules</a>
+            </span>
+        </div>
 
         <div class="mb-3">
             <label for="previewInput" class="form-label">Input Text</label>

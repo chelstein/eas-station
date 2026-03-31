@@ -841,18 +841,33 @@ def _normalize_text_for_tts(text: str) -> str:
     """Expand common emergency-management acronyms and apply user pronunciation
     rules so TTS engines read the text correctly.
 
-    Three layers of replacement are applied in order:
+    Four layers of replacement are applied in order:
 
     1. **Time expansion** – converts compact/digital time formats that TTS
        engines mispronounce into fully-spoken equivalents.
        e.g. "1100 PM" → "eleven o'clock PM", "11:30 AM" → "eleven thirty AM".
 
-    2. **Built-in acronym table** – hard-coded, case-sensitive whole-word
+    2. **NWS-specific text normalizations** – cleans up formatting patterns
+       unique to NOAA/NWS alert text before acronym expansion:
+       - Alternate-timezone slash notation: "/5 PM CDT/" → "5 PM CDT".
+         NWS places the same deadline in a second timezone inside slashes;
+         the slashes are stripped so TTS reads naturally.
+       - "ST." abbreviation: "ST. JOSEPH" → "Saint JOSEPH" so TTS does not
+         read it as "Street Joseph".
+       - Indiana county disambiguation: NWS watches append the state code
+         "IN" after a county name that appears in more than one watch state
+         (e.g. "ALLEN IN" = Allen County, Indiana vs "ALLEN OH" = Allen
+         County, Ohio).  "IN" is replaced with "Indiana" only when it is
+         immediately preceded by a recognised Indiana county name AND is not
+         followed by a directional word, state name, or common English word
+         that would indicate it is acting as a preposition.
+
+    3. **Built-in acronym table** – hard-coded, case-sensitive whole-word
        substitutions for uppercase tokens that TTS engines mispronounce
        (EAS → "Emergency Alert System", NWS → "National Weather Service",
-       EDT → "Eastern Daylight Time", …).
+       EDT → "Eastern Daylight Time", MI → "Michigan", OH → "Ohio", …).
 
-    3. **Database pronunciation dictionary** – user-managed rows from the
+    4. **Database pronunciation dictionary** – user-managed rows from the
        ``tts_pronunciation_rules`` table.  Each row supplies an
        ``original_text`` pattern, a ``replacement_text`` phonetic spelling,
        and a ``match_case`` flag.  Longer patterns are applied first so that
@@ -866,7 +881,7 @@ def _normalize_text_for_tts(text: str) -> str:
 
     import re
 
-    # ── Layer 0: Time pronunciation expansion ────────────────────────────
+    # ── Layer 1: Time pronunciation expansion ────────────────────────────
     # TTS engines read "1100" as "eleven hundred" (military) and "11:00" can
     # also be mispronounced.  Convert to fully-spoken word form so that every
     # TTS backend gives a consistent, natural result.
@@ -921,7 +936,69 @@ def _normalize_text_for_tts(text: str) -> str:
         flags=re.IGNORECASE,
     )
 
-    # ── Layer 1: hard-coded acronym expansions ────────────────────────────
+    # ── Layer 2: NWS-specific text normalizations ────────────────────────
+    # These clean up formatting conventions unique to NWS/NOAA alert text
+    # before the acronym table runs.
+
+    # Alternate-timezone slash notation: NWS writes "/5 PM CDT/" to show
+    # the same deadline expressed in a second timezone.  Strip the slashes
+    # so TTS reads naturally; the timezone abbreviation (e.g. CDT) is then
+    # expanded to its full name by the acronym table below.
+    result = re.sub(
+        r'/\s*(\d{1,2}(?::\d{2})?\s*(?:AM|PM)\s+[A-Z]{2,5})\s*/',
+        r' \1 ',
+        result,
+    )
+
+    # "ST." (Saint abbreviation): expand before the main acronym loop so
+    # that the trailing period does not confuse word-boundary matching.
+    # e.g. "ST. JOSEPH" → "Saint JOSEPH", "ST. LOUIS" → "Saint LOUIS".
+    result = re.sub(r'\bST\.(?=\s)', 'Saint', result, flags=re.IGNORECASE)
+
+    # Indiana county-name disambiguation: NWS watches append the two-letter
+    # state code "IN" immediately after a county name that also appears in
+    # another watch state (e.g. "ALLEN IN" = Allen County, Indiana vs
+    # "ALLEN OH" = Allen County, Ohio).  TTS reads the bare code "IN" as the
+    # preposition "in" which is ambiguous; expanding it to "Indiana" makes the
+    # reading unambiguous and natural.
+    #
+    # Safety constraints applied together:
+    #   • Positive match  — the preceding word must be a recognised Indiana
+    #     county name (all 92 counties, single-word spellings as used by NWS).
+    #   • Negative lookahead — the word that follows "IN" must NOT be a
+    #     directional word, state name, or common English function word that
+    #     would indicate "IN" is acting as a preposition rather than a state
+    #     code.  This prevents "GRANT IN NORTHERN INDIANA" from becoming
+    #     "GRANT Indiana NORTHERN INDIANA".
+    _INDIANA_COUNTIES = (
+        r'ADAMS|ALLEN|BARTHOLOMEW|BENTON|BLACKFORD|BOONE|BROWN|CARROLL|CASS|'
+        r'CLARK|CLAY|CLINTON|CRAWFORD|DAVIESS|DEARBORN|DECATUR|DELAWARE|'
+        r'DUBOIS|ELKHART|FAYETTE|FLOYD|FOUNTAIN|FRANKLIN|FULTON|GIBSON|'
+        r'GRANT|GREENE|HAMILTON|HANCOCK|HARRISON|HENDRICKS|HENRY|HOWARD|'
+        r'HUNTINGTON|JACKSON|JASPER|JAY|JEFFERSON|JENNINGS|JOHNSON|KNOX|'
+        r'KOSCIUSKO|LAGRANGE|LAKE|LAPORTE|LAWRENCE|MADISON|MARION|MARSHALL|'
+        r'MARTIN|MIAMI|MONROE|MONTGOMERY|MORGAN|NEWTON|NOBLE|OHIO|ORANGE|'
+        r'OWEN|PARKE|PERRY|PIKE|PORTER|POSEY|PULASKI|PUTNAM|RANDOLPH|'
+        r'RIPLEY|RUSH|SCOTT|SHELBY|SPENCER|STARKE|STEUBEN|SULLIVAN|'
+        r'SWITZERLAND|TIPPECANOE|TIPTON|UNION|VANDERBURGH|VERMILLION|VIGO|'
+        r'WABASH|WARREN|WARRICK|WASHINGTON|WAYNE|WELLS|WHITE|WHITLEY'
+    )
+    # Words that follow "IN" when it is a preposition, not a state code.
+    _IN_PREPOSITION_AFTER = (
+        r'NORTH|SOUTH|EAST|WEST|CENTRAL|NORTHERN|SOUTHERN|EASTERN|WESTERN|'
+        r'NORTHWEST|SOUTHWEST|NORTHEAST|SOUTHEAST|'
+        r'INDIANA|MICHIGAN|OHIO|ILLINOIS|KENTUCKY|WISCONSIN|MINNESOTA|'
+        r'THE|A|AN|THIS|THAT|THESE|THOSE|EFFECT|WATCH|COUNTIES|COUNTY|'
+        r'CITIES|CITY|AREAS|AREA|FOLLOWING|ALL|SOME|MANY|FEW|EACH|EVERY'
+    )
+    result = re.sub(
+        r'\b(' + _INDIANA_COUNTIES + r')\s+IN\b'
+        r'(?!\s+(?:' + _IN_PREPOSITION_AFTER + r'))',
+        r'\1 Indiana',
+        result,
+    )
+
+    # ── Layer 3: hard-coded acronym expansions ────────────────────────────
     # Order matters: longer / more-specific entries first.
     _ACRONYM_MAP = [
         # Compound EAS parameter tokens
@@ -956,12 +1033,21 @@ def _normalize_text_for_tts(text: str) -> str:
         ('HST',    'Hawaii Standard Time'),
         ('HAST',   'Hawaii-Aleutian Standard Time'),
         ('HADT',   'Hawaii-Aleutian Daylight Time'),
+        # US state codes used as county-name disambiguation markers in NWS
+        # watches (e.g. "CASS MI" = Cass County, Michigan; "ALLEN OH" =
+        # Allen County, Ohio).  TTS engines mispronounce bare two-letter
+        # codes ("MI" → "my", "OH" → "oh").
+        ('MI',     'Michigan'),
+        ('OH',     'Ohio'),
+        # Military / civil facility type abbreviations that appear in SAME
+        # area names (e.g. "GRISSOM AFD").
+        ('AFD',    'Air Force Depot'),
     ]
 
     for token, expansion in _ACRONYM_MAP:
         result = re.sub(r'\b' + re.escape(token) + r'\b', expansion, result)
 
-    # ── Layer 2: database pronunciation dictionary ────────────────────────
+    # ── Layer 4: database pronunciation dictionary ────────────────────────
     for original, replacement, match_case in _load_pronunciation_rules():
         flags = 0 if match_case else re.IGNORECASE
         try:
