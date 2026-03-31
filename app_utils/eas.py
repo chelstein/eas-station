@@ -706,6 +706,34 @@ def build_same_header(alert: object, payload: Dict[str, object], config: Dict[st
     if location_settings:
         zone_codes = location_settings.get('zone_codes') or []
 
+    # Filter SAME codes to only those within the configured broadcast area.
+    # Alerts may cover many counties; we only forward the codes that match our
+    # area so the SAME header reflects our actual coverage, not the full alert area.
+    if same_codes and location_settings:
+        configured_raw = (
+            location_settings.get('fips_codes')
+            or location_settings.get('same_codes')
+            or []
+        )
+        configured_normalised = set(
+            _normalise_same_codes([str(c).strip() for c in configured_raw if str(c).strip()])
+        )
+        if configured_normalised:
+            filtered: List[str] = []
+            for code in same_codes:
+                norm = ''.join(ch for ch in str(code) if ch.isdigit()).zfill(6)
+                # Direct match
+                if norm in configured_normalised:
+                    filtered.append(code)
+                    continue
+                # Statewide wildcard: if a configured code covers the whole state
+                # (e.g. 039000), accept any county in that state.
+                state_prefix = norm[:3]
+                if any(c[:3] == state_prefix and c[3:] == '000' for c in configured_normalised):
+                    filtered.append(code)
+            # Use filtered list; if nothing matched fall through to fallback below.
+            same_codes = filtered
+
     if not same_codes and location_settings:
         fallback_same_raw = (
             location_settings.get('same_codes')
