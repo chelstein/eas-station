@@ -84,6 +84,7 @@ from app_core.eas_storage import (
     backfill_manual_eas_audio,
     ensure_eas_audio_columns,
     ensure_eas_message_foreign_key,
+    ensure_eas_settings_columns,
     ensure_manual_eas_audio_columns,
     get_eas_static_prefix,
 )
@@ -1078,6 +1079,13 @@ def initialize_database():
                 error_msg = "EAS audio columns could not be ensured. Check database schema migration logs above."
                 logger.error(error_msg)
                 _db_initialization_error = RuntimeError(error_msg)
+                return False
+            
+            logger.info("[5b/15] Ensuring EAS settings columns...")
+            if not ensure_eas_settings_columns(logger):
+                _db_initialization_error = RuntimeError(
+                    "EAS settings columns could not be ensured"
+                )
                 return False
             
             logger.info("[6/15] Ensuring EAS message foreign key...")
