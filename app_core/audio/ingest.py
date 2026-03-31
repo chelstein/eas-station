@@ -168,14 +168,6 @@ class AudioSourceAdapter(ABC):
         # This ensures test signals exercise the full 24/7 pipeline rather than
         # bypassing the capture loop and going straight to the decoder.
         self._inject_pending: queue.Queue = queue.Queue(maxsize=10000)
-        # Waveform buffer for visualization (stores last 2048 samples)
-        self._waveform_buffer = np.zeros(2048, dtype=np.float32)
-        self._waveform_lock = threading.Lock()
-        # Spectrogram buffer for waterfall visualization (stores last 100 FFT frames)
-        self._fft_size = 1024  # FFT window size
-        self._spectrogram_history = 100  # Number of FFT frames to keep
-        self._spectrogram_buffer = np.zeros((self._spectrogram_history, self._fft_size // 2), dtype=np.float32)
-        self._spectrogram_lock = threading.Lock()
         # Reconnection support
         self._reconnect_attempts = 0
         self._max_reconnect_attempts = 5
@@ -407,12 +399,12 @@ class AudioSourceAdapter(ABC):
     def _resample_for_eas(self, audio_chunk: np.ndarray) -> Optional[np.ndarray]:
         """
         Resample audio chunk to 16kHz for EAS decoder.
-        
+
         ARCHITECTURAL FIX: Resample BEFORE queueing to reduce memory and eliminate bottleneck.
-        
+
         Args:
             audio_chunk: Audio at source sample rate (e.g., 48kHz)
-            
+
         Returns:
             Resampled audio at 16kHz, or None if error
         """
@@ -422,23 +414,42 @@ class AudioSourceAdapter(ABC):
                 audio_chunk = audio_chunk.mean(axis=1)
             elif audio_chunk.ndim > 2:
                 audio_chunk = audio_chunk.flatten()
-            
+
             # If already at 16kHz, pass through
             if self.config.sample_rate == 16000:
                 return audio_chunk.astype(np.float32)
-            
-            # Resample using linear interpolation (fast and good enough for EAS)
+
             source_rate = self.config.sample_rate
             target_rate = 16000
+
+            # Fast path: integer decimation (e.g. 48kHz → 16kHz = factor 3).
+            # Reshape + mean is ~5-10x faster than np.interp and provides basic
+            # anti-aliasing via averaging — sufficient for EAS SAME tones.
+            #
+            # IMPORTANT: Only use this for hardware-controlled sources (SDR, ALSA,
+            # PulseAudio) where config.sample_rate is enforced by the hardware and
+            # guaranteed to match the actual audio rate.
+            # Stream/file sources detect their real sample rate asynchronously via
+            # FFmpeg stderr (see StreamSourceAdapter._stderr_pump). Using the
+            # initially-configured rate before that detection completes produces
+            # audio at the wrong speed (e.g. 44.1 kHz stream decimated as if it
+            # were 48 kHz → 14.7 kHz equivalent, 8% too slow for the EAS decoder).
+            _hardware_source = self.config.source_type in (
+                AudioSourceType.SDR, AudioSourceType.ALSA, AudioSourceType.PULSE
+            )
+            if _hardware_source and source_rate % target_rate == 0:
+                factor = source_rate // target_rate
+                n = len(audio_chunk)
+                trimmed = audio_chunk[:n - (n % factor)] if n % factor else audio_chunk
+                return trimmed.reshape(-1, factor).mean(axis=1).astype(np.float32)
+
+            # Fallback: linear interpolation for non-integer ratios (e.g. 44100 Hz)
             ratio = target_rate / source_rate
-            
-            old_indices = np.arange(len(audio_chunk))
             new_length = max(1, int(len(audio_chunk) * ratio))
+            old_indices = np.arange(len(audio_chunk))
             new_indices = np.linspace(0, len(audio_chunk) - 1, new_length)
-            resampled = np.interp(new_indices, old_indices, audio_chunk).astype(np.float32)
-            
-            return resampled
-            
+            return np.interp(new_indices, old_indices, audio_chunk).astype(np.float32)
+
         except Exception as e:
             logger.error(f"Error resampling audio for EAS: {e}")
             return None
@@ -467,9 +478,6 @@ class AudioSourceAdapter(ABC):
             # Silence detection
             silence_detected = rms_db < self.config.silence_threshold_db
 
-            # Update visualization buffers
-            self._update_waveform_buffer(samples_for_metrics)
-            self._update_spectrogram_buffer(samples_for_metrics)
         else:
             peak_db = rms_db = -np.inf
             silence_detected = True
@@ -551,61 +559,13 @@ class AudioSourceAdapter(ABC):
             )
             return False
 
-    def _update_waveform_buffer(self, audio_chunk: np.ndarray) -> None:
-        """Update the waveform buffer with new audio data."""
-        if len(audio_chunk) == 0:
-            return
-
-        with self._waveform_lock:
-            # Downsample if needed to fit in buffer
-            buffer_size = len(self._waveform_buffer)
-            if len(audio_chunk) >= buffer_size:
-                # Take every Nth sample to fit
-                step = len(audio_chunk) // buffer_size
-                self._waveform_buffer[:] = audio_chunk[::step][:buffer_size]
-            else:
-                # Shift existing data and append new
-                shift_amount = len(audio_chunk)
-                self._waveform_buffer[:-shift_amount] = self._waveform_buffer[shift_amount:]
-                self._waveform_buffer[-shift_amount:] = audio_chunk[:shift_amount]
-
     def get_waveform_data(self) -> np.ndarray:
-        """Get a copy of the current waveform buffer for visualization."""
-        with self._waveform_lock:
-            return self._waveform_buffer.copy()
-
-    def _update_spectrogram_buffer(self, audio_chunk: np.ndarray) -> None:
-        """Update the spectrogram buffer with FFT of new audio data."""
-        if len(audio_chunk) < self._fft_size:
-            return
-
-        with self._spectrogram_lock:
-            # Take the last fft_size samples for FFT computation
-            fft_window = audio_chunk[-self._fft_size:]
-
-            # Apply Hamming window to reduce spectral leakage
-            windowed = fft_window * np.hamming(self._fft_size)
-
-            # Compute FFT and get magnitude spectrum (only positive frequencies)
-            fft_result = np.fft.rfft(windowed)
-            magnitude = np.abs(fft_result)
-
-            # Convert to dB scale (with floor to avoid log(0))
-            magnitude = np.maximum(magnitude, 1e-10)
-            magnitude_db = 20 * np.log10(magnitude)
-
-            # Normalize to 0-1 range for visualization (assuming -120dB to 0dB range)
-            normalized = (magnitude_db + 120) / 120
-            normalized = np.clip(normalized, 0, 1)
-
-            # Shift buffer and add new FFT frame
-            self._spectrogram_buffer[:-1] = self._spectrogram_buffer[1:]
-            self._spectrogram_buffer[-1] = normalized[:self._fft_size // 2]
+        """Waveform visualization is disabled to reduce CPU usage."""
+        return np.array([], dtype=np.float32)
 
     def get_spectrogram_data(self) -> np.ndarray:
-        """Get a copy of the current spectrogram buffer for waterfall visualization."""
-        with self._spectrogram_lock:
-            return self._spectrogram_buffer.copy()
+        """Spectrogram visualization is disabled to reduce CPU usage."""
+        return np.array([], dtype=np.float32)
 
 
 class AudioIngestController:

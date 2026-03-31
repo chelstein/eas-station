@@ -156,19 +156,21 @@ class BroadcastQueue:
 
         self._published_chunks += 1
 
-        for subscriber_id, subscriber_queue in subscribers:
+        n_subs = len(subscribers)
+        for idx, (subscriber_id, subscriber_queue) in enumerate(subscribers):
+            # The last subscriber receives the original array — no copy needed.
+            # All earlier subscribers get independent copies so they cannot
+            # interfere with each other or with the capture loop.
+            chunk_to_put = chunk if idx == n_subs - 1 else chunk.copy()
             try:
-                # Make a copy for each subscriber to prevent sharing issues
-                chunk_copy = chunk.copy()
-                subscriber_queue.put_nowait(chunk_copy)
+                subscriber_queue.put_nowait(chunk_to_put)
                 delivered += 1
 
             except queue.Full:
                 # Queue full - drop oldest chunk and try again
                 try:
                     subscriber_queue.get_nowait()  # Drop oldest
-                    chunk_copy = chunk.copy()
-                    subscriber_queue.put_nowait(chunk_copy)
+                    subscriber_queue.put_nowait(chunk_to_put)
                     delivered += 1
                     self._dropped_chunks += 1
                     logger.debug(
