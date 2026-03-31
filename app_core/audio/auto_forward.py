@@ -423,6 +423,7 @@ def auto_forward_ota_alert(
     event_code = alert_dict.get('event_code', 'UNKNOWN')
     fips_codes = alert_dict.get('location_codes', [])
     source_name = alert_dict.get('source_name', 'OTA')
+    relay_audio_wav = alert_dict.get('relay_audio_wav')
 
     result: Dict[str, Any] = {
         'forwarded': False,
@@ -519,6 +520,11 @@ def auto_forward_ota_alert(
         'forwarding_decision': 'forwarded',
         'forwarded': True,
     }
+
+    # Attach OTA narration audio captured between attention tone and EOM so
+    # build_files() can relay it instead of synthesising new TTS.
+    if relay_audio_wav:
+        payload['relay_audio_wav_bytes'] = relay_audio_wav
 
     from app_utils.eas import EASBroadcaster
 
