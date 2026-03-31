@@ -573,6 +573,55 @@ def ensure_eas_message_foreign_key(logger) -> bool:
         return False
 
 
+def ensure_eas_settings_columns(logger) -> bool:
+    """Ensure all expected columns exist on the eas_settings table.
+
+    Guards against deployments where the Alembic migration has not yet run
+    (e.g. manual git-pull without running update.sh).  Currently handles:
+      - forwarded_event_codes  JSONB NOT NULL DEFAULT '[]'::jsonb
+    """
+
+    engine = db.engine
+    if engine.dialect.name != "postgresql":
+        return True
+
+    column_check_sql = text(
+        """
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_name   = 'eas_settings'
+          AND column_name  = :column
+          AND table_schema = current_schema()
+        LIMIT 1
+        """
+    )
+
+    columns_to_ensure = {
+        "forwarded_event_codes": "JSONB NOT NULL DEFAULT '[]'::jsonb",
+    }
+
+    try:
+        with engine.begin() as connection:
+            for column, definition in columns_to_ensure.items():
+                exists = connection.execute(column_check_sql, {"column": column}).scalar()
+                if exists:
+                    continue
+                logger.info(
+                    "Adding eas_settings.%s column (migration not yet applied)", column
+                )
+                connection.execute(
+                    text(f"ALTER TABLE eas_settings ADD COLUMN {column} {definition}")
+                )
+        return True
+    except Exception as exc:  # pragma: no cover - defensive fallback
+        logger.warning("Could not ensure eas_settings columns: %s", exc)
+        try:
+            db.session.rollback()
+        except Exception:  # pragma: no cover - defensive fallback
+            pass
+        return False
+
+
 def backfill_eas_message_payloads(logger) -> None:
     """Populate missing cached payload columns from on-disk artifacts."""
 
