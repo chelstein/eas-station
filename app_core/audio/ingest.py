@@ -176,6 +176,7 @@ class AudioSourceAdapter(ABC):
         self._spectrogram_history = 100  # Number of FFT frames to keep
         self._spectrogram_buffer = np.zeros((self._spectrogram_history, self._fft_size // 2), dtype=np.float32)
         self._spectrogram_lock = threading.Lock()
+        self._last_spectrogram_update = 0.0
         # Reconnection support
         self._reconnect_attempts = 0
         self._max_reconnect_attempts = 5
@@ -407,12 +408,12 @@ class AudioSourceAdapter(ABC):
     def _resample_for_eas(self, audio_chunk: np.ndarray) -> Optional[np.ndarray]:
         """
         Resample audio chunk to 16kHz for EAS decoder.
-        
+
         ARCHITECTURAL FIX: Resample BEFORE queueing to reduce memory and eliminate bottleneck.
-        
+
         Args:
             audio_chunk: Audio at source sample rate (e.g., 48kHz)
-            
+
         Returns:
             Resampled audio at 16kHz, or None if error
         """
@@ -422,23 +423,30 @@ class AudioSourceAdapter(ABC):
                 audio_chunk = audio_chunk.mean(axis=1)
             elif audio_chunk.ndim > 2:
                 audio_chunk = audio_chunk.flatten()
-            
+
             # If already at 16kHz, pass through
             if self.config.sample_rate == 16000:
                 return audio_chunk.astype(np.float32)
-            
-            # Resample using linear interpolation (fast and good enough for EAS)
+
             source_rate = self.config.sample_rate
             target_rate = 16000
+
+            # Fast path: integer decimation (e.g. 48kHz → 16kHz = factor 3).
+            # Reshape + mean is ~5-10x faster than np.interp and provides
+            # basic anti-aliasing via averaging — sufficient for EAS SAME tones.
+            if source_rate % target_rate == 0:
+                factor = source_rate // target_rate
+                n = len(audio_chunk)
+                trimmed = audio_chunk[:n - (n % factor)] if n % factor else audio_chunk
+                return trimmed.reshape(-1, factor).mean(axis=1).astype(np.float32)
+
+            # Fallback: linear interpolation for non-integer ratios (e.g. 44100 Hz)
             ratio = target_rate / source_rate
-            
-            old_indices = np.arange(len(audio_chunk))
             new_length = max(1, int(len(audio_chunk) * ratio))
+            old_indices = np.arange(len(audio_chunk))
             new_indices = np.linspace(0, len(audio_chunk) - 1, new_length)
-            resampled = np.interp(new_indices, old_indices, audio_chunk).astype(np.float32)
-            
-            return resampled
-            
+            return np.interp(new_indices, old_indices, audio_chunk).astype(np.float32)
+
         except Exception as e:
             logger.error(f"Error resampling audio for EAS: {e}")
             return None
@@ -469,7 +477,10 @@ class AudioSourceAdapter(ABC):
 
             # Update visualization buffers
             self._update_waveform_buffer(samples_for_metrics)
-            self._update_spectrogram_buffer(samples_for_metrics)
+            # Spectrogram is visualization-only; 2 Hz is plenty for the waterfall display
+            if current_time - self._last_spectrogram_update >= 0.5:
+                self._update_spectrogram_buffer(samples_for_metrics)
+                self._last_spectrogram_update = current_time
         else:
             peak_db = rms_db = -np.inf
             silence_detected = True

@@ -31,6 +31,7 @@ import base64
 import json
 import logging
 import queue
+import struct
 import threading
 import time
 from typing import Optional, Any
@@ -129,21 +130,32 @@ class RedisAudioAdapter:
                     continue
 
                 try:
-                    # Parse message
-                    data = json.loads(message['data'])
+                    raw = message['data']
+                    if isinstance(raw, str):
+                        raw = raw.encode('latin-1')
 
-                    # Extract audio samples
-                    encoded_samples = data.get('samples', '')
-                    if not encoded_samples:
-                        continue
+                    # Detect binary frame (magic b'EAS1') vs legacy JSON
+                    if raw[:4] == b'EAS1':
+                        # Binary format: 4 magic + 4 name_len + name + 8 ts + 4 count + 4 rate + samples
+                        offset = 4
+                        name_len = struct.unpack('>I', raw[offset:offset + 4])[0]
+                        offset += 4
+                        source_name = raw[offset:offset + name_len].decode('utf-8')
+                        offset += name_len
+                        _ts, _count, _rate = struct.unpack('>dII', raw[offset:offset + 16])
+                        offset += 16
+                        audio_samples = np.frombuffer(raw[offset:], dtype=np.float32).copy()
+                    else:
+                        # Legacy JSON+base64 fallback
+                        data = json.loads(raw)
+                        encoded_samples = data.get('samples', '')
+                        if not encoded_samples:
+                            continue
+                        source_name = data.get('source_name', 'unknown')
+                        sample_bytes = base64.b64decode(encoded_samples)
+                        audio_samples = np.frombuffer(sample_bytes, dtype=np.float32)
 
-                    # Update active source
-                    source_name = data.get('source_name', 'unknown')
                     self._active_source = source_name
-
-                    # Decode audio samples (base64 encoded float32 array)
-                    sample_bytes = base64.b64decode(encoded_samples)
-                    audio_samples = np.frombuffer(sample_bytes, dtype=np.float32)
 
                     # Add to buffer
                     with self._buffer_lock:

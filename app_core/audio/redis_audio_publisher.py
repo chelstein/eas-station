@@ -29,9 +29,8 @@ This enables 3-tier separated architecture where:
 - eas-service: EAS monitoring + alert storage
 """
 
-import base64
-import json
 import logging
+import struct
 import threading
 import time
 from typing import Optional, Any
@@ -155,23 +154,24 @@ class RedisAudioPublisher:
                         if audio_chunk.ndim > 1:
                             audio_chunk = audio_chunk.flatten()
                         
-                        # Encode audio samples as base64 (float32 array)
-                        sample_bytes = audio_chunk.astype(np.float32).tobytes()
-                        encoded_samples = base64.b64encode(sample_bytes).decode('ascii')
-
-                        # Create message
-                        message = {
-                            'source_name': self.source_name,
-                            'timestamp': time.time(),
-                            'sample_count': len(audio_chunk),
-                            'sample_rate': self.sample_rate,
-                            'encoding': 'base64_float32',
-                            'samples': encoded_samples,
-                        }
+                        # Binary frame: 4-byte magic + 4-byte name length +
+                        # name bytes + 8-byte timestamp (float64) +
+                        # 4-byte sample count (uint32) +
+                        # 4-byte sample rate (uint32) + raw float32 samples.
+                        # ~33% smaller than base64+JSON and avoids all string
+                        # encoding CPU cost.
+                        samples_f32 = audio_chunk.astype(np.float32)
+                        name_bytes = self.source_name.encode('utf-8')
+                        header = (
+                            b'EAS1'
+                            + struct.pack('>I', len(name_bytes))
+                            + name_bytes
+                            + struct.pack('>dII', time.time(), len(samples_f32), self.sample_rate)
+                        )
 
                         # Publish to Redis channel
                         channel = f"audio:samples:{self.source_name}"
-                        self._redis_client.publish(channel, json.dumps(message))
+                        self._redis_client.publish(channel, header + samples_f32.tobytes())
 
                         self._samples_published += len(audio_chunk)
                         self._last_publish_time = time.time()
