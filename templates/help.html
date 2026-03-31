@@ -532,6 +532,105 @@
                             </div>
                         </div>
 
+                        <!-- Text-to-Speech Normalization & Pronunciation -->
+                        <div class="accordion-item">
+                            <h2 class="accordion-header" id="ttsNormHeading">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#ttsNormCollapse">
+                                    <i class="fas fa-volume-up me-2"></i>Text-to-Speech Normalization &amp; Pronunciation
+                                </button>
+                            </h2>
+                            <div id="ttsNormCollapse" class="accordion-collapse collapse" data-bs-parent="#operationsAccordion">
+                                <div class="accordion-body">
+                                    <p>
+                                        Before alert text is sent to the TTS engine it passes through a
+                                        <strong>four-layer normalization pipeline</strong> that converts
+                                        abbreviated and machine-formatted text into natural spoken language.
+                                    </p>
+
+                                    <h6><i class="fas fa-layer-group me-2"></i>The Four Layers</h6>
+                                    <ol>
+                                        <li class="mb-2">
+                                            <strong>Time expansion</strong> — compact clock times are converted
+                                            to fully-spoken equivalents so every TTS backend gives the same
+                                            natural result.
+                                            <br><small class="text-muted">
+                                                <code>1100 PM</code> → <em>eleven o'clock PM</em> &nbsp;·&nbsp;
+                                                <code>9:30 AM</code> → <em>nine thirty AM</em>
+                                            </small>
+                                        </li>
+                                        <li class="mb-2">
+                                            <strong>NWS-specific cleanup</strong> — three rules handle
+                                            formatting conventions unique to NOAA/NWS alert text:
+                                            <ul class="mt-1 mb-0">
+                                                <li><em>Alternate-timezone slash notation</em> — NWS writes
+                                                    <code>/5 PM CDT/</code> to show a deadline in a second
+                                                    timezone; the slashes are stripped so TTS does not read
+                                                    them literally.</li>
+                                                <li><em>Saint abbreviation</em> — <code>ST.</code> is expanded
+                                                    to <em>Saint</em> before proper nouns
+                                                    (e.g. <em>Saint Joseph</em>).</li>
+                                                <li><em>Indiana county disambiguation</em> — NWS appends the
+                                                    state code <code>IN</code> after a county name that appears
+                                                    in more than one watch state
+                                                    (e.g. <code>ALLEN IN</code> → <em>ALLEN Indiana</em>,
+                                                    <code>CASS IN</code> → <em>CASS Indiana</em>). The
+                                                    substitution is applied only when the preceding word is a
+                                                    recognised Indiana county name and the following word is
+                                                    not a directional word or state name, so common phrases
+                                                    like <em>IN EFFECT</em> and section headers like
+                                                    <em>IN MICHIGAN</em> are never altered.</li>
+                                            </ul>
+                                        </li>
+                                        <li class="mb-2">
+                                            <strong>Built-in acronym table</strong> — hard-coded expansions
+                                            for EAS/NWS tokens, all US timezone abbreviations, and US state
+                                            codes used as county-name markers:
+                                            <br><small class="text-muted">
+                                                <code>NWS</code> → <em>National Weather Service</em> &nbsp;·&nbsp;
+                                                <code>EDT</code> → <em>Eastern Daylight Time</em> &nbsp;·&nbsp;
+                                                <code>MI</code> → <em>Michigan</em> &nbsp;·&nbsp;
+                                                <code>OH</code> → <em>Ohio</em> &nbsp;·&nbsp;
+                                                <code>AFD</code> → <em>Air Force Depot</em> &nbsp;·&nbsp;
+                                                and more
+                                            </small>
+                                        </li>
+                                        <li>
+                                            <strong>Custom pronunciation dictionary</strong> — your own
+                                            word-substitution rules, applied last and longest-first so
+                                            multi-word entries are never masked by shorter ones.
+                                        </li>
+                                    </ol>
+
+                                    <h6 class="mt-3"><i class="fas fa-tools me-2"></i>Accessing the Tools</h6>
+                                    <ul>
+                                        <li>
+                                            <strong>TTS Settings &amp; Pronunciation Preview</strong> —
+                                            Navigate to <strong>Admin → TTS Settings</strong> or visit
+                                            <code>/admin/tts</code>. Paste any alert text into the
+                                            <em>Pronunciation Preview</em> panel to see exactly what the
+                                            TTS engine will receive before going live.
+                                        </li>
+                                        <li>
+                                            <strong>Custom Pronunciation Rules</strong> —
+                                            Navigate to <strong>Admin → TTS Settings</strong> then click
+                                            <strong>Pronunciation Dictionary</strong>, or visit
+                                            <code>/admin/tts/pronunciation</code>. Add entries for
+                                            place names, call letters, or any term your TTS engine
+                                            mispronounces. Rules support optional case-sensitive matching
+                                            and a note field for documentation.
+                                        </li>
+                                    </ul>
+
+                                    <div class="alert alert-light mt-3 mb-0">
+                                        <i class="fas fa-lightbulb me-2 text-warning"></i>
+                                        <strong>Tip:</strong> Use the <em>Normalize &amp; Speak</em>
+                                        button on the TTS Settings page to hear the normalised text
+                                        through your configured TTS provider before deploying a change.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
                         <!-- Scheduling Automatic RWT Broadcasts -->
                         <div class="accordion-item">
                             <h2 class="accordion-header" id="rwtScheduleHeading">

@@ -11,30 +11,46 @@ tracks releases under the 2.x series.
 ## [2.71.28] - 2026-03-31 - Improve TTS text normalization for NWS watch descriptions
 
 ### Fixed
-- **`app_utils/eas.py`** — `_normalize_text_for_tts()`: added Layer 1 NWS-specific
+- **`app_utils/eas.py`** — `_normalize_text_for_tts()`: added Layer 2 NWS-specific
   normalizations that run before the acronym table:
   - Alternate-timezone slash notation (`/5 PM CDT/`) is stripped to plain
-    `5 PM CDT`; the timezone abbreviation is then expanded by the acronym
-    table (e.g. `CDT` → "Central Daylight Time") so TTS does not read
-    literal slash characters.
+    `5 PM CDT`; the timezone abbreviation is then expanded by Layer 3
+    (e.g. `CDT` → "Central Daylight Time") so TTS does not read literal
+    slash characters.
   - `ST.` abbreviation is expanded to "Saint" (e.g. "ST. JOSEPH" →
     "Saint JOSEPH") so TTS does not say "Street Joseph".
-- **`app_utils/eas.py`** — Extended `_ACRONYM_MAP` with three new entries:
+  - Indiana county-name disambiguation: `IN` is replaced with "Indiana"
+    when it is immediately preceded by a recognised Indiana county name
+    (all 92 counties checked) AND not followed by a directional word,
+    state name, or common English function word that would indicate `IN`
+    is a preposition.  This correctly expands `ALLEN IN BLACKFORD` →
+    "ALLEN Indiana BLACKFORD" while leaving `IN EFFECT`, `IN MICHIGAN`,
+    and `GRANT IN NORTHERN INDIANA` untouched.
+- **`app_utils/eas.py`** — Extended `_ACRONYM_MAP` (Layer 3) with:
   - `MI` → "Michigan" — NWS county-disambiguation state code; TTS
     mispronounces bare `MI` as "my" (e.g. "CASS MI" → "CASS Michigan").
   - `OH` → "Ohio" — NWS county-disambiguation state code; TTS reads bare
     `OH` as the interjection "oh" (e.g. "ALLEN OH" → "ALLEN Ohio").
   - `AFD` → "Air Force Depot" — facility abbreviation used in SAME area
     names (e.g. "GRISSOM AFD").
-  - `IN` is intentionally **not** replaced — it functions as a common
-    English preposition throughout alert text ("IN EFFECT", "IN INDIANA",
-    etc.) and replacing it globally would corrupt those phrases.
+- **`app_utils/eas.py`** — Aligned inline Layer comment numbering (0–3 →
+  1–4) with the docstring.
 
-### Tests
-- **`tests/test_tts_text_normalization.py`** — New test module with 18 tests
-  covering all new normalization patterns plus regression checks confirming
-  that `MIAMI` is not broken by `MI→Michigan`, and that `IN` as a preposition
-  is left untouched.
+### Added
+- **`docs/guides/TTS_NORMALIZATION.md`** — New reference guide documenting
+  the full four-layer normalization pipeline, the complete built-in acronym
+  table, and how to use the Pronunciation Preview and custom dictionary.
+- **`tests/test_tts_text_normalization.py`** — 26 tests covering all
+  normalization layers including Indiana county disambiguation edge cases.
+
+### Changed
+- **`templates/admin/tts_pronunciation.html`** — Info banner now explains
+  all four normalization layers instead of only the pronunciation dictionary.
+- **`templates/admin/tts.html`** — Pronunciation Preview panel now shows a
+  concise summary of all four pipeline layers.
+- **`templates/help.html`** — New "Text-to-Speech Normalization &
+  Pronunciation" accordion item in Routine Operations explaining the full
+  pipeline and how to access the tools.
 
 ## [2.71.27] - 2026-03-30 - Reword Section 4b fragility callout; clarify regulatory status and intended audience
 

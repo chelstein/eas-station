@@ -31,11 +31,38 @@
     <div class="alert alert-info d-flex gap-2 align-items-start mb-4">
         <i class="fas fa-info-circle mt-1 flex-shrink-0"></i>
         <div>
-            <strong>How it works:</strong> Each enabled rule replaces whole-word occurrences of
-            <em>Original text</em> with <em>Replacement text</em> inside the TTS narration before
-            it is sent to the speech engine.  Built-in rules cover Ohio place names that every TTS
-            engine mispronounces by default.  You can add custom rules for your coverage area.
-            <br><small class="text-muted">Rules are applied longest-first so multi-word entries are never masked by shorter ones.</small>
+            <strong>How the TTS text pipeline works</strong><br>
+            Before any text is sent to the speech engine it passes through four layers of
+            normalization in order:
+            <ol class="mb-1 mt-2">
+                <li><strong>Time expansion</strong> — compact clock times are converted to spoken
+                    words (<code>1100 PM</code> → <em>eleven o'clock PM</em>,
+                    <code>9:30 AM</code> → <em>nine thirty AM</em>).</li>
+                <li><strong>NWS-specific cleanup</strong> — three built-in rules handle patterns
+                    unique to NOAA/NWS alert text:
+                    <ul class="mb-0">
+                        <li>Alternate-timezone slash notation is stripped
+                            (<code>/5 PM CDT/</code> → <em>5 PM CDT</em>).</li>
+                        <li><code>ST.</code> is expanded to <em>Saint</em>
+                            (e.g. <em>Saint Joseph</em>).</li>
+                        <li>Indiana county-name disambiguation: <code>ALLEN IN</code> →
+                            <em>ALLEN Indiana</em>, guarded by a county name look-up so
+                            <em>IN EFFECT</em> and section headers like <em>IN MICHIGAN</em>
+                            are never touched.</li>
+                    </ul>
+                </li>
+                <li><strong>Built-in acronym table</strong> — hard-coded expansions for
+                    EAS/NWS tokens, timezone abbreviations, and US state codes used as
+                    county-name markers (<code>MI</code> → <em>Michigan</em>,
+                    <code>OH</code> → <em>Ohio</em>,
+                    <code>AFD</code> → <em>Air Force Depot</em>, …).</li>
+                <li><strong>This dictionary</strong> — your custom rules below are applied
+                    last, longest-first, so multi-word entries are never masked by shorter
+                    ones.</li>
+            </ol>
+            Use the <a href="/admin/tts" class="alert-link">Pronunciation Preview</a> panel
+            on the TTS Settings page to test any text through the full pipeline before going
+            live.
         </div>
     </div>
 

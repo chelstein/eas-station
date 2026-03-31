@@ -854,6 +854,13 @@ def _normalize_text_for_tts(text: str) -> str:
          the slashes are stripped so TTS reads naturally.
        - "ST." abbreviation: "ST. JOSEPH" → "Saint JOSEPH" so TTS does not
          read it as "Street Joseph".
+       - Indiana county disambiguation: NWS watches append the state code
+         "IN" after a county name that appears in more than one watch state
+         (e.g. "ALLEN IN" = Allen County, Indiana vs "ALLEN OH" = Allen
+         County, Ohio).  "IN" is replaced with "Indiana" only when it is
+         immediately preceded by a recognised Indiana county name AND is not
+         followed by a directional word, state name, or common English word
+         that would indicate it is acting as a preposition.
 
     3. **Built-in acronym table** – hard-coded, case-sensitive whole-word
        substitutions for uppercase tokens that TTS engines mispronounce
@@ -874,7 +881,7 @@ def _normalize_text_for_tts(text: str) -> str:
 
     import re
 
-    # ── Layer 0: Time pronunciation expansion ────────────────────────────
+    # ── Layer 1: Time pronunciation expansion ────────────────────────────
     # TTS engines read "1100" as "eleven hundred" (military) and "11:00" can
     # also be mispronounced.  Convert to fully-spoken word form so that every
     # TTS backend gives a consistent, natural result.
@@ -929,7 +936,7 @@ def _normalize_text_for_tts(text: str) -> str:
         flags=re.IGNORECASE,
     )
 
-    # ── Layer 1: NWS-specific text normalizations ────────────────────────
+    # ── Layer 2: NWS-specific text normalizations ────────────────────────
     # These clean up formatting conventions unique to NWS/NOAA alert text
     # before the acronym table runs.
 
@@ -948,7 +955,50 @@ def _normalize_text_for_tts(text: str) -> str:
     # e.g. "ST. JOSEPH" → "Saint JOSEPH", "ST. LOUIS" → "Saint LOUIS".
     result = re.sub(r'\bST\.(?=\s)', 'Saint', result, flags=re.IGNORECASE)
 
-    # ── Layer 2: hard-coded acronym expansions ────────────────────────────
+    # Indiana county-name disambiguation: NWS watches append the two-letter
+    # state code "IN" immediately after a county name that also appears in
+    # another watch state (e.g. "ALLEN IN" = Allen County, Indiana vs
+    # "ALLEN OH" = Allen County, Ohio).  TTS reads the bare code "IN" as the
+    # preposition "in" which is ambiguous; expanding it to "Indiana" makes the
+    # reading unambiguous and natural.
+    #
+    # Safety constraints applied together:
+    #   • Positive match  — the preceding word must be a recognised Indiana
+    #     county name (all 92 counties, single-word spellings as used by NWS).
+    #   • Negative lookahead — the word that follows "IN" must NOT be a
+    #     directional word, state name, or common English function word that
+    #     would indicate "IN" is acting as a preposition rather than a state
+    #     code.  This prevents "GRANT IN NORTHERN INDIANA" from becoming
+    #     "GRANT Indiana NORTHERN INDIANA".
+    _INDIANA_COUNTIES = (
+        r'ADAMS|ALLEN|BARTHOLOMEW|BENTON|BLACKFORD|BOONE|BROWN|CARROLL|CASS|'
+        r'CLARK|CLAY|CLINTON|CRAWFORD|DAVIESS|DEARBORN|DECATUR|DELAWARE|'
+        r'DUBOIS|ELKHART|FAYETTE|FLOYD|FOUNTAIN|FRANKLIN|FULTON|GIBSON|'
+        r'GRANT|GREENE|HAMILTON|HANCOCK|HARRISON|HENDRICKS|HENRY|HOWARD|'
+        r'HUNTINGTON|JACKSON|JASPER|JAY|JEFFERSON|JENNINGS|JOHNSON|KNOX|'
+        r'KOSCIUSKO|LAGRANGE|LAKE|LAPORTE|LAWRENCE|MADISON|MARION|MARSHALL|'
+        r'MARTIN|MIAMI|MONROE|MONTGOMERY|MORGAN|NEWTON|NOBLE|OHIO|ORANGE|'
+        r'OWEN|PARKE|PERRY|PIKE|PORTER|POSEY|PULASKI|PUTNAM|RANDOLPH|'
+        r'RIPLEY|RUSH|SCOTT|SHELBY|SPENCER|STARKE|STEUBEN|SULLIVAN|'
+        r'SWITZERLAND|TIPPECANOE|TIPTON|UNION|VANDERBURGH|VERMILLION|VIGO|'
+        r'WABASH|WARREN|WARRICK|WASHINGTON|WAYNE|WELLS|WHITE|WHITLEY'
+    )
+    # Words that follow "IN" when it is a preposition, not a state code.
+    _IN_PREPOSITION_AFTER = (
+        r'NORTH|SOUTH|EAST|WEST|CENTRAL|NORTHERN|SOUTHERN|EASTERN|WESTERN|'
+        r'NORTHWEST|SOUTHWEST|NORTHEAST|SOUTHEAST|'
+        r'INDIANA|MICHIGAN|OHIO|ILLINOIS|KENTUCKY|WISCONSIN|MINNESOTA|'
+        r'THE|A|AN|THIS|THAT|THESE|THOSE|EFFECT|WATCH|COUNTIES|COUNTY|'
+        r'CITIES|CITY|AREAS|AREA|FOLLOWING|ALL|SOME|MANY|FEW|EACH|EVERY'
+    )
+    result = re.sub(
+        r'\b(' + _INDIANA_COUNTIES + r')\s+IN\b'
+        r'(?!\s+(?:' + _IN_PREPOSITION_AFTER + r'))',
+        r'\1 Indiana',
+        result,
+    )
+
+    # ── Layer 3: hard-coded acronym expansions ────────────────────────────
     # Order matters: longer / more-specific entries first.
     _ACRONYM_MAP = [
         # Compound EAS parameter tokens
@@ -997,7 +1047,7 @@ def _normalize_text_for_tts(text: str) -> str:
     for token, expansion in _ACRONYM_MAP:
         result = re.sub(r'\b' + re.escape(token) + r'\b', expansion, result)
 
-    # ── Layer 3: database pronunciation dictionary ────────────────────────
+    # ── Layer 4: database pronunciation dictionary ────────────────────────
     for original, replacement, match_case in _load_pronunciation_rules():
         flags = 0 if match_case else re.IGNORECASE
         try:
