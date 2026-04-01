@@ -942,10 +942,13 @@ if [ -f "$VENV_SDR_DIR/bin/pip" ]; then
     echo_progress "Installing SDR service dependencies..."
     sudo -u "$SERVICE_USER" "$VENV_SDR_DIR/bin/pip" install --upgrade pip 2>&1 | grep -E "(Successfully installed)" || true
     if [ -f "$INSTALL_DIR/requirements-sdr.txt" ]; then
-        echo_info "Installing SDR requirements (scipy, numba may take 5-15 min to compile)..."
-        echo_info "Full output shown below to track progress:"
+        echo_info "Installing SDR requirements (numba/llvmlite downloads may be 50+ MB; no log output during download)..."
+        echo_info "If the log appears stalled here, a large package is downloading — this is normal, please wait..."
         echo ""
-        # Show full output so user can see compilation progress (no grep filter)
+        # Show full output so user can see compilation progress (no grep filter).
+        # NOTE: pip suppresses its progress bar when stdout is not a TTY (i.e. when
+        # output is redirected to this log file), so large downloads produce no output
+        # until they complete. That silence is expected, not a hang.
         sudo -u "$SERVICE_USER" "$VENV_SDR_DIR/bin/pip" install --upgrade -r "$INSTALL_DIR/requirements-sdr.txt"
         echo ""
     fi
