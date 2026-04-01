@@ -109,6 +109,34 @@ def ensure_alert_source_columns(logger) -> bool:
             )
             changed = True
 
+        received_eas_has_alert_source = db.session.execute(
+            text(
+                """
+                SELECT 1
+                FROM information_schema.columns
+                WHERE table_name = 'received_eas_alerts'
+                  AND column_name = 'alert_source'
+                  AND table_schema = current_schema()
+                """
+            )
+        ).scalar()
+
+        if not received_eas_has_alert_source:
+            logger.info("Adding received_eas_alerts.alert_source column for ingest path tracking")
+            db.session.execute(
+                text(
+                    "ALTER TABLE received_eas_alerts "
+                    "ADD COLUMN alert_source VARCHAR(32)"
+                )
+            )
+            db.session.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS ix_received_eas_alerts_alert_source "
+                    "ON received_eas_alerts (alert_source)"
+                )
+            )
+            changed = True
+
         if changed:
             db.session.commit()
         return True

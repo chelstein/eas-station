@@ -1500,6 +1500,7 @@ def register(app: Flask, logger) -> None:
                         'category': 'System'
                     })
             except Exception as e:
+                db.session.rollback()
                 route_logger.warning("Failed to load system logs: %s", e)
 
             # Polling logs
@@ -1518,6 +1519,7 @@ def register(app: Flask, logger) -> None:
                         'category': 'Polling'
                     })
             except Exception as e:
+                db.session.rollback()
                 route_logger.warning("Failed to load polling logs: %s", e)
 
             # Audio alerts
@@ -1535,6 +1537,7 @@ def register(app: Flask, logger) -> None:
                         'category': 'Audio'
                     })
             except Exception as e:
+                db.session.rollback()
                 route_logger.warning("Failed to load audio alerts: %s", e)
 
             # GPIO logs
@@ -1552,6 +1555,7 @@ def register(app: Flask, logger) -> None:
                         'category': 'GPIO'
                     })
             except Exception as e:
+                db.session.rollback()
                 route_logger.warning("Failed to load GPIO logs: %s", e)
 
             # EAS Messages
@@ -1569,6 +1573,7 @@ def register(app: Flask, logger) -> None:
                         'category': 'EAS Messages'
                     })
             except Exception as e:
+                db.session.rollback()
                 route_logger.warning("Failed to load EAS messages: %s", e)
 
             # Manual Activations
@@ -1586,6 +1591,7 @@ def register(app: Flask, logger) -> None:
                         'category': 'Manual Activations'
                     })
             except Exception as e:
+                db.session.rollback()
                 route_logger.warning("Failed to load manual activations: %s", e)
 
             # Received EAS Alerts (from audio monitoring)
@@ -1610,6 +1616,7 @@ def register(app: Flask, logger) -> None:
                         'category': 'Received EAS'
                     })
             except Exception as e:
+                db.session.rollback()
                 route_logger.warning("Failed to load received EAS alerts: %s", e)
 
             # Service Logs (systemd) - fetch recent logs without date restriction
