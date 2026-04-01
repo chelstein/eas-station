@@ -2539,6 +2539,18 @@ class CAPPoller:
         self.db_session.add(new_alert)
         self.db_session.commit()
 
+        # Mark prior products in the same VTEC event chain as superseded so the
+        # UI can hide stale entries by default.  Only non-NEW actions represent
+        # follow-on products (updates, extensions, cancellations, etc.).
+        if new_alert.vtec_action and new_alert.vtec_action != 'NEW':
+            try:
+                self._mark_vtec_chain_superseded(new_alert)
+            except Exception as exc:
+                self.logger.warning(
+                    "Failed to mark prior VTEC chain alerts superseded for %s: %s",
+                    new_alert.identifier, exc,
+                )
+
         if new_alert.geom:
             self.process_intersections(new_alert)
         
@@ -2598,6 +2610,46 @@ class CAPPoller:
 
         self.logger.info(f"Saved new alert: {new_alert.identifier} - {new_alert.event}")
         return True, new_alert, None
+
+    def _mark_vtec_chain_superseded(self, new_alert: CAPAlert) -> int:
+        """Mark all un-superseded prior alerts in the same VTEC event chain as
+        superseded by *new_alert*.
+
+        The VTEC event key is (office, phenomenon, significance, etn, year).
+        Only rows that are not already superseded are touched so the chain
+        remains a proper linked list rather than a star.
+
+        Returns the number of rows updated.
+        """
+        if not all([
+            new_alert.vtec_office,
+            new_alert.vtec_phenomenon,
+            new_alert.vtec_significance,
+            new_alert.vtec_etn,
+            new_alert.vtec_year,
+        ]):
+            return 0
+
+        updated = (
+            self.db_session.query(CAPAlert)
+            .filter(
+                CAPAlert.vtec_office       == new_alert.vtec_office,
+                CAPAlert.vtec_phenomenon   == new_alert.vtec_phenomenon,
+                CAPAlert.vtec_significance == new_alert.vtec_significance,
+                CAPAlert.vtec_etn          == new_alert.vtec_etn,
+                CAPAlert.vtec_year         == new_alert.vtec_year,
+                CAPAlert.id                != new_alert.id,
+                CAPAlert.superseded_by_id.is_(None),
+            )
+            .update({'superseded_by_id': new_alert.id}, synchronize_session='fetch')
+        )
+        if updated:
+            self.db_session.commit()
+            self.logger.info(
+                "Marked %d prior VTEC chain alert(s) superseded by %s (action=%s)",
+                updated, new_alert.identifier, new_alert.vtec_action,
+            )
+        return updated
 
     # ---------- LED ----------
     def is_alert_expired(self, alert, max_age_days: int = 30) -> bool:
