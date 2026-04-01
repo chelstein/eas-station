@@ -726,7 +726,13 @@ def build_same_header(alert: object, payload: Dict[str, object], config: Dict[st
             filtered: List[str] = []
             for code in same_codes:
                 norm = ''.join(ch for ch in str(code) if ch.isdigit()).zfill(6)
-                if norm in configured_normalised:
+                # Nationwide (000000) and statewide (SS000) wildcards are preserved
+                # as-is — they must not be stripped by the per-county filter or the
+                # fallback will replace them with all configured FIPS codes, producing
+                # an incorrect broadcast header.
+                if norm == '000000' or (norm.endswith('000') and norm != '000000'):
+                    filtered.append(code)
+                elif norm in configured_normalised:
                     filtered.append(code)
             # Use filtered list; if nothing matched fall through to fallback below.
             same_codes = filtered
@@ -1721,24 +1727,45 @@ class EASAudioGenerator:
                     except Exception as _exc:
                         self.logger.warning("Failed to load saved IPAWS audio %s: %s", _disk_path, _exc)
 
-        if embedded_audio_samples:
-            # Use embedded audio from IPAWS instead of TTS
-            self.logger.info(
-                f"Using embedded IPAWS audio ({len(embedded_audio_samples)} samples) "
-                f"instead of TTS synthesis"
+        # OTA relay audio takes highest priority: use the narration captured from
+        # the received broadcast (between attention tone and EOM) instead of any
+        # IPAWS embedded audio or synthesised TTS.
+        relay_audio_wav_bytes = payload.get('relay_audio_wav_bytes')
+        if relay_audio_wav_bytes:
+            relay_samples = _convert_audio_to_samples(
+                relay_audio_wav_bytes, 'audio/wav', self.sample_rate, self.logger
             )
-            voice_samples = embedded_audio_samples
-            provider = 'ipaws_embedded'
-        else:
-            # Fall back to TTS generation
-            if message_text:
-                self.logger.info(f"Attempting TTS generation with provider '{provider}' for {len(message_text)} characters of text")
-                voice_samples = self.tts_engine.generate(message_text)
-                if not voice_samples:
-                    self.logger.error(f"TTS engine returned no samples. Provider: '{provider}', Last error: {self.tts_engine.last_error}")
+            if relay_samples:
+                self.logger.info(
+                    "Using OTA relay audio (%d samples) instead of TTS/IPAWS",
+                    len(relay_samples),
+                )
+                voice_samples = relay_samples
+                provider = 'ota_relay'
             else:
-                self.logger.warning("Skipping TTS generation - no message text available")
-                voice_samples = None
+                self.logger.warning(
+                    "relay_audio_wav_bytes present but failed to decode — falling back to IPAWS/TTS"
+                )
+
+        if voice_samples is None:
+            if embedded_audio_samples:
+                # Use embedded audio from IPAWS instead of TTS
+                self.logger.info(
+                    f"Using embedded IPAWS audio ({len(embedded_audio_samples)} samples) "
+                    f"instead of TTS synthesis"
+                )
+                voice_samples = embedded_audio_samples
+                provider = 'ipaws_embedded'
+            else:
+                # Fall back to TTS generation
+                if message_text:
+                    self.logger.info(f"Attempting TTS generation with provider '{provider}' for {len(message_text)} characters of text")
+                    voice_samples = self.tts_engine.generate(message_text)
+                    if not voice_samples:
+                        self.logger.error(f"TTS engine returned no samples. Provider: '{provider}', Last error: {self.tts_engine.last_error}")
+                else:
+                    self.logger.warning("Skipping TTS generation - no message text available")
+                    voice_samples = None
 
         if voice_samples:
             pre_voice_silence = _generate_silence(1.0, self.sample_rate)

@@ -433,12 +433,28 @@ class UnifiedEASMonitorService:
         self._total_alerts_detected = 0
 
         # Per-source rolling audio ring buffers for OTA alert capture.
-        # Stores up to _ring_max_seconds of 16 kHz float32 chunks per source
-        # so that when a SAME header fires, the raw received audio is available.
+        # Stores up to _ring_max_seconds of 16 kHz float32 chunks per source.
         self._ring_max_seconds = 90
         self._ring_max_samples = self._target_sample_rate * self._ring_max_seconds
         self._audio_rings: Dict[str, deque] = {}
         self._audio_rings_lock = threading.Lock()
+
+        # Monotonic per-source sample counter (never wraps back, not bounded by the
+        # ring capacity).  Used to determine exactly how many samples were added to
+        # the ring AFTER the ZCZC header was decoded so we can slice out the
+        # attention-signal + voice-narration audio when the EOM arrives.
+        self._ring_total_added: Dict[str, int] = {}
+
+        # EOM-gated forwarding state.
+        # When a ZCZC header is decoded we park the alert dict here and record the
+        # ring's total-samples counter.  The alert is only forwarded (with the
+        # captured narration audio attached) once the matching NNNN EOM is decoded.
+        # If no EOM arrives within _eom_timeout_seconds the alert is forwarded
+        # anyway so real emergencies are never silently dropped.
+        self._pending_alerts: Dict[str, Dict] = {}     # source → alert dict
+        self._zczc_ring_total: Dict[str, int] = {}     # source → ring total at ZCZC
+        self._pending_lock = threading.Lock()
+        self._eom_timeout_seconds: float = 300.0       # 5-minute safety net
 
         logger.info(
             f"UnifiedEASMonitorService initialized: "
@@ -575,50 +591,123 @@ class UnifiedEASMonitorService:
     
     def _handle_alert(self, alert_data, source_name: Optional[str] = None) -> None:
         """
-        Handle detected alert from a per-source decoder.
+        Handle a decoded SAME message from a per-source decoder.
 
-        Args:
-            alert_data: Raw alert data from StreamingSAMEDecoder.
-            source_name: Name of the audio source that detected the alert.
-                         Passed explicitly by the per-source closure in _add_watcher
-                         so we never rely on shared mutable state.
+        The decoder fires this for BOTH ZCZC (header) and NNNN (EOM) messages.
+
+        ZCZC: park the alert as pending and record the ring position — do NOT
+              forward yet.  The attention tone and voice narration haven't arrived.
+        NNNN: extract the narration audio captured since ZCZC, attach it to the
+              pending alert, then forward.
         """
-        self._total_alerts_detected += 1
-
-        # The streaming decoder emits StreamingSAMEAlert objects; convert to dict.
         from .streaming_same_decoder import StreamingSAMEAlert
         from .eas_monitor import _same_alert_to_dict
         if isinstance(alert_data, StreamingSAMEAlert):
+            raw_msg = alert_data.message or ''
             alert_data = _same_alert_to_dict(alert_data)
+        else:
+            raw_msg = (alert_data or {}).get('raw_header', '') if isinstance(alert_data, dict) else ''
 
-        # Tag with source identification
-        alert_data['source_name'] = source_name or 'unknown'
+        effective_source = source_name or 'unknown'
+        if isinstance(alert_data, dict):
+            alert_data['source_name'] = effective_source
+
+        if 'NNNN' in raw_msg:
+            # EOM received — fire any pending alert for this source.
+            self._on_eom_received(effective_source)
+            return
+
+        if 'ZCZC' not in raw_msg:
+            # Unknown message type (shouldn't happen); ignore.
+            return
+
+        # ── ZCZC SAME header ──────────────────────────────────────────────────
+        self._total_alerts_detected += 1
+
+        # Snapshot the ring's monotonic total so we know where "post-ZCZC" begins.
+        with self._audio_rings_lock:
+            ring_total_now = self._ring_total_added.get(effective_source, 0)
+
+        with self._pending_lock:
+            if effective_source in self._pending_alerts:
+                # A new header arrived before the previous EOM; replace it.
+                logger.warning(
+                    "New ZCZC from '%s' replaced un-EOM'd pending alert (%s → %s)",
+                    effective_source,
+                    self._pending_alerts[effective_source].get('event_code', '?'),
+                    alert_data.get('event_code', '?'),
+                )
+            alert_data['_pending_since'] = time.time()
+            self._pending_alerts[effective_source] = alert_data
+            self._zczc_ring_total[effective_source] = ring_total_now
 
         logger.warning(
-            f"🚨 EAS Alert detected from '{alert_data['source_name']}': "
-            f"{alert_data.get('event_code', 'UNKNOWN')}"
+            "🔔 SAME header from '%s': %s — holding until EOM before forwarding",
+            effective_source, alert_data.get('event_code', 'UNKNOWN'),
         )
 
-        # Attach raw received audio WAV to the alert dict for database storage.
-        # The ring buffer holds up to _ring_max_seconds of 16 kHz mono float32.
-        source = alert_data['source_name']
-        with self._audio_rings_lock:
-            ring = self._audio_rings.get(source)
-            if ring:
-                try:
-                    combined = np.concatenate(list(ring)).astype(np.float32)
-                    alert_data['raw_audio_wav'] = _encode_wav_bytes(
-                        combined, self._target_sample_rate
-                    )
-                except Exception as _enc_exc:
-                    logger.debug("Could not encode OTA audio for storage: %s", _enc_exc)
+    def _on_eom_received(self, source_name: str) -> None:
+        """EOM (NNNN) received: attach captured narration audio and forward the alert."""
+        with self._pending_lock:
+            alert_data = self._pending_alerts.pop(source_name, None)
+            zczc_total = self._zczc_ring_total.pop(source_name, None)
 
-        # Call user's alert callback
+        if alert_data is None:
+            logger.debug("EOM from '%s' with no pending alert — ignoring", source_name)
+            return
+
+        # ── Extract post-ZCZC audio from the ring ─────────────────────────────
+        # Layout since ZCZC: remaining SAME bursts (~8 s) + attention tone (8 s)
+        # + post-tone buffer (1 s) = ~17 s to skip, then voice narration, then
+        # NNNN decode fires (~0.1 s into first EOM burst).
+        ATTENTION_SKIP_SAMPLES = int(self._target_sample_rate * 18)   # 18 s @ 16 kHz
+        EOM_TRIM_SAMPLES       = int(self._target_sample_rate * 2)    #  2 s safety trim
+
+        with self._audio_rings_lock:
+            ring = self._audio_rings.get(source_name)
+            ring_total_now = self._ring_total_added.get(source_name, 0)
+
+        if ring and zczc_total is not None:
+            try:
+                combined = np.concatenate(list(ring)).astype(np.float32)
+                samples_since_zczc = max(0, min(ring_total_now - zczc_total, len(combined)))
+
+                # The newest samples_since_zczc samples are those captured after ZCZC.
+                post_zczc = combined[-samples_since_zczc:] if samples_since_zczc > 0 else combined[:0]
+
+                # Full post-ZCZC audio → raw_audio_wav (database storage / playback).
+                if len(post_zczc) > 0:
+                    alert_data['raw_audio_wav'] = _encode_wav_bytes(
+                        post_zczc, self._target_sample_rate
+                    )
+
+                # Slice out the narration for the relay broadcast.
+                narration = post_zczc[ATTENTION_SKIP_SAMPLES:]
+                if EOM_TRIM_SAMPLES > 0 and len(narration) > EOM_TRIM_SAMPLES:
+                    narration = narration[:-EOM_TRIM_SAMPLES]
+
+                min_narration_samples = self._target_sample_rate  # ≥ 1 second
+                if len(narration) >= min_narration_samples:
+                    alert_data['relay_audio_wav'] = _encode_wav_bytes(
+                        narration, self._target_sample_rate
+                    )
+                    logger.info(
+                        "Captured %.1f s narration audio from '%s' for relay",
+                        len(narration) / self._target_sample_rate, source_name,
+                    )
+            except Exception as _exc:
+                logger.warning("Could not encode OTA narration audio: %s", _exc)
+
+        logger.warning(
+            "🚨 EOM from '%s' — forwarding %s alert",
+            source_name, alert_data.get('event_code', 'UNKNOWN'),
+        )
+
         if self.alert_callback:
             try:
                 self.alert_callback(alert_data)
             except Exception as e:
-                logger.error(f"Error in alert callback: {e}", exc_info=True)
+                logger.error("Error in alert callback: %s", e, exc_info=True)
     
     def _monitor_loop(self) -> None:
         """
@@ -663,6 +752,10 @@ class UnifiedEASMonitorService:
                             with self._audio_rings_lock:
                                 ring = self._audio_rings.setdefault(source_name, deque())
                                 ring.append(samples.copy())
+                                # Monotonic counter: never reset, used to slice post-ZCZC audio
+                                self._ring_total_added[source_name] = (
+                                    self._ring_total_added.get(source_name, 0) + len(samples)
+                                )
                                 # Trim oldest chunks to stay within the ring capacity
                                 total = sum(len(c) for c in ring)
                                 while total > self._ring_max_samples and ring:
@@ -700,6 +793,22 @@ class UnifiedEASMonitorService:
                 # latency — preventing real-time SAME header detection entirely.
                 if not any_audio_processed:
                     time.sleep(0.05)  # 50ms when idle — no urgency, save CPU
+
+                # EOM timeout: if a pending alert has waited too long without an
+                # EOM (e.g. EOM burst was missed), forward it anyway so it isn't
+                # silently dropped.
+                now_ts = time.time()
+                with self._pending_lock:
+                    timed_out = [
+                        src for src, data in self._pending_alerts.items()
+                        if now_ts - data.get('_pending_since', now_ts) >= self._eom_timeout_seconds
+                    ]
+                for src in timed_out:
+                    logger.warning(
+                        "EOM timeout for source '%s' — forwarding pending alert without narration audio",
+                        src,
+                    )
+                    self._on_eom_received(src)
             
             except Exception as e:
                 logger.error(f"Error in unified monitor loop: {e}", exc_info=True)

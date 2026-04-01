@@ -859,9 +859,17 @@ def initialize_eas_monitor(app, audio_controller):
 
         logger.info("Initializing unified EAS monitor service (V3 architecture)...")
 
-        # Load FIPS codes
-        configured_fips = load_fips_codes_from_config()
-        logger.info(f"Loaded {len(configured_fips)} FIPS codes for alert filtering")
+        # Load FIPS codes into a mutable list so in-place updates are reflected
+        # in the FIPS-filtering callback without rebuilding it.
+        _live_fips: list = load_fips_codes_from_config()
+        logger.info(f"Loaded {len(_live_fips)} FIPS codes for alert filtering")
+
+        # Refresh state: reload configured FIPS codes from the database every
+        # 60 seconds so that changes made via the admin UI take effect without
+        # requiring a full service restart.  Uses a single-element dict so the
+        # timestamp can be mutated inside a nested function without 'nonlocal'.
+        _fips_refresh = {'last_loaded': time.time()}
+        _FIPS_REFRESH_SECS = 60
 
         # Create alert callback with filtering.
         # forward_alert_handler runs inside the EAS monitor thread which has no
@@ -883,14 +891,39 @@ def initialize_eas_monitor(app, audio_controller):
         # The FIPS-filtering callback calls forward_alert_handler AND then
         # _store_received_alert, both of which need Flask context.  Wrap the
         # whole callback so _store_received_alert also runs inside a context.
+        # Pass _live_fips by reference — determine_fips_matches() iterates it
+        # on every call, so in-place updates are picked up automatically.
         _alert_callback_inner = create_fips_filtering_callback(
-            configured_fips_codes=configured_fips,
+            configured_fips_codes=_live_fips,
             forward_callback=forward_alert_handler,
             logger_instance=logger
         )
 
         def alert_callback(alert):
             with app.app_context():
+                # Periodically refresh FIPS codes from the database so that
+                # counties added or removed via the admin UI take effect within
+                # one refresh cycle without requiring a service restart.
+                now = time.time()
+                if now - _fips_refresh['last_loaded'] >= _FIPS_REFRESH_SECS:
+                    try:
+                        fresh = load_fips_codes_from_config()
+                        if set(fresh) != set(_live_fips):
+                            logger.info(
+                                "FIPS filter updated: %d configured codes (was %d) — "
+                                "new: %s",
+                                len(fresh),
+                                len(_live_fips),
+                                sorted(set(fresh) - set(_live_fips)) or '(none)',
+                            )
+                            _live_fips.clear()
+                            _live_fips.extend(fresh)
+                    except Exception as _exc:
+                        logger.warning(
+                            "FIPS code refresh failed, keeping %d cached codes: %s",
+                            len(_live_fips), _exc,
+                        )
+                    _fips_refresh['last_loaded'] = now
                 return _alert_callback_inner(alert)
 
 
