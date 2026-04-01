@@ -2,6 +2,18 @@
 
 {% block title %}Alerts History - EAS Station{% endblock %}
 
+{% block extra_css %}
+<style>
+/* Superseded alerts are dimmed so they recede visually behind active ones */
+tr.alert-superseded {
+    opacity: 0.55;
+}
+tr.alert-superseded:hover {
+    opacity: 0.85;
+}
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="container-fluid">
     {% set audio_map = audio_map or {} %}
@@ -159,7 +171,7 @@
                         <input type="hidden" name="vtec_year" value="{{ current_filters.vtec_year }}">
                         {% endif %}
                         <div class="row g-3 mt-2">
-                            <div class="col-12 col-lg-6">
+                            <div class="col-12 col-lg-auto">
                                 <div class="form-check">
                                     <input class="form-check-input" type="checkbox" id="show_expired" name="show_expired" value="true"
                                            {% if current_filters.show_expired %}checked{% endif %}>
@@ -168,7 +180,19 @@
                                     </label>
                                 </div>
                             </div>
-                            <div class="col-12 col-lg-6 text-lg-end">
+                            <div class="col-12 col-lg-auto">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="show_superseded" name="show_superseded" value="true"
+                                           {% if current_filters.show_superseded %}checked{% endif %}>
+                                    <label class="form-check-label" for="show_superseded">
+                                        Include Superseded Alerts
+                                        {% if superseded_count %}
+                                        <span class="badge bg-secondary ms-1">{{ superseded_count }}</span>
+                                        {% endif %}
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-12 col-lg text-lg-end">
                                 <a href="/alerts" class="btn btn-outline-secondary w-100 w-lg-auto">
                                     <i class="fas fa-times me-1"></i> Clear Filters
                                 </a>
@@ -239,7 +263,8 @@
                             <tbody>
                                 {% for alert in alerts %}
                                 {% set is_expired = alert.expires | is_expired %}
-                                <tr class="{% if is_expired %}table-secondary{% endif %}">
+                                {% set is_superseded = alert.superseded_by_id is not none %}
+                                <tr class="{% if is_expired %}table-secondary{% elif is_superseded %}alert-superseded{% endif %}">
                                     <td>
                                         <span class="badge bg-primary">{{ alert.event }}</span>
                                     </td>
@@ -278,6 +303,11 @@
                                             {% elif alert.eas_forwarding_reason %}
                                             <span class="badge bg-secondary" title="{{ alert.eas_forwarding_reason }}">
                                                 <i class="fas fa-forward"></i> Skipped
+                                            </span>
+                                            {% endif %}
+                                            {% if is_superseded %}
+                                            <span class="badge bg-secondary text-decoration-line-through" title="A newer update for this VTEC event has been received">
+                                                <i class="fas fa-history"></i> Superseded
                                             </span>
                                             {% endif %}
                                         </div>
@@ -352,9 +382,18 @@
                                         </div>
                                     </td>
                                     <td>
-                                        <a href="/alerts/{{ alert.id }}" class="btn btn-sm btn-outline-primary">
-                                            <i class="fas fa-eye"></i> View
-                                        </a>
+                                        <div class="d-flex flex-wrap gap-1">
+                                            <a href="/alerts/{{ alert.id }}" class="btn btn-sm btn-outline-primary">
+                                                <i class="fas fa-eye"></i> View
+                                            </a>
+                                            {% if alert.vtec_office and alert.vtec_etn and alert.vtec_year %}
+                                            <a href="{{ url_for('alerts', vtec_office=alert.vtec_office, vtec_etn=alert.vtec_etn, vtec_year=alert.vtec_year) }}"
+                                               class="btn btn-sm btn-outline-info"
+                                               title="View all updates for this VTEC event ({{ alert.vtec_office }} #{{ alert.vtec_etn }}/{{ alert.vtec_year }})">
+                                                <i class="fas fa-link"></i> Chain
+                                            </a>
+                                            {% endif %}
+                                        </div>
                                     </td>
                                 </tr>
                                 {% endfor %}

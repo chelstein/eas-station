@@ -934,6 +934,14 @@ def register(app: Flask, logger) -> None:
                 "yes",
                 "on",
             }
+            show_superseded_raw = request.args.get("show_superseded", "")
+            show_superseded = str(show_superseded_raw).lower() in {
+                "true",
+                "1",
+                "t",
+                "yes",
+                "on",
+            }
             date_from = request.args.get("date_from", "").strip()
             date_to = request.args.get("date_to", "").strip()
 
@@ -964,6 +972,7 @@ def register(app: Flask, logger) -> None:
             active_alerts: int = 0
             expired_alerts: int = 0
             total_alerts: int = 0
+            superseded_count: int = 0
 
             try:
                 # Fetch all distinct filter options in a single database transaction
@@ -1003,6 +1012,11 @@ def register(app: Flask, logger) -> None:
                 active_alerts = get_active_alerts_query().count()
                 expired_alerts = get_expired_alerts_query().count()
                 total_alerts = CAPAlert.query.count()
+                superseded_count = (
+                    CAPAlert.query
+                    .filter(CAPAlert.superseded_by_id.isnot(None))
+                    .count()
+                )
             except OperationalError as exc:
                 # Database connection or operational error - rollback and use defaults
                 db.session.rollback()
@@ -1062,12 +1076,17 @@ def register(app: Flask, logger) -> None:
                 except ValueError:
                     pass
 
-            # When filtering by VTEC event chain, always include expired/cancelled alerts
+            # When filtering by VTEC event chain, always include expired/cancelled/superseded alerts
             vtec_filter_active = bool(vtec_office_filter or vtec_etn_filter or vtec_year_filter)
             if not show_expired and not vtec_filter_active:
                 query = query.filter(
                     or_(CAPAlert.expires.is_(None), CAPAlert.expires > utc_now())
                 ).filter(CAPAlert.status != "Expired")
+
+            # Hide superseded alerts by default; they are shown when the operator
+            # explicitly requests them or is browsing a VTEC event chain.
+            if not show_superseded and not vtec_filter_active:
+                query = query.filter(CAPAlert.superseded_by_id.is_(None))
 
             sort_col = _sortable_columns[sort_by]
             query = query.order_by(sort_col.asc() if sort_dir == "asc" else sort_col.desc())
@@ -1232,6 +1251,7 @@ def register(app: Flask, logger) -> None:
                 "source": source_filter,
                 "per_page": per_page,
                 "show_expired": show_expired,
+                "show_superseded": show_superseded,
                 "date_from": date_from,
                 "date_to": date_to,
                 "vtec_office": vtec_office_filter,
@@ -1255,6 +1275,7 @@ def register(app: Flask, logger) -> None:
                 active_alerts=active_alerts,
                 expired_alerts=expired_alerts,
                 total_alerts=total_alerts,
+                superseded_count=superseded_count,
                 vtec_filter_active=vtec_filter_active,
             )
         except Exception as exc:  # pragma: no cover - fallback content

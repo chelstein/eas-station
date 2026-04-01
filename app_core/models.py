@@ -170,6 +170,17 @@ class CAPAlert(db.Model):
     vtec_year = db.Column(db.Integer, index=True)           # e.g. 2026 (ETNs reset annually)
     vtec_action = db.Column(db.String(3))                   # e.g. 'EXP'
 
+    # VTEC event chain linkage — when a newer product (EXT/CAN/UPG/etc.) arrives
+    # for the same VTEC event key, older alerts in the chain are marked with the
+    # ID of the alert that supersedes them.  This lets the UI hide stale products
+    # by default while still offering a full chain view for operators.
+    superseded_by_id = db.Column(
+        db.Integer,
+        db.ForeignKey('cap_alerts.id', ondelete='SET NULL'),
+        nullable=True,
+        index=True,
+    )
+
     created_at = db.Column(db.DateTime(timezone=True), default=utc_now)
     updated_at = db.Column(
         db.DateTime(timezone=True),
