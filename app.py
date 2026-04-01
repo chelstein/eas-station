@@ -907,10 +907,14 @@ def before_request():
         # Load the current user from the session for downstream use.
         user_id = session.get('user_id')
         if user_id is not None:
-            user = AdminUser.query.get(user_id)
-            if user and user.is_active:
-                g.current_user = user
-            else:
+            try:
+                user = AdminUser.query.get(user_id)
+                if user and user.is_active:
+                    g.current_user = user
+                else:
+                    session.pop('user_id', None)
+            except Exception:
+                db.session.rollback()
                 session.pop('user_id', None)
 
         try:
