@@ -53,32 +53,25 @@ whiptail() {
     return $_ret
 }
 
-# Show current step as a whiptail infobox (non-blocking, writes to /dev/tty via ncurses)
-_progress_msg=""
-_show_progress() {
-    local pct=0
-    [ "$TOTAL_STEPS" -gt 0 ] && [ "$STEP_NUM" -gt 0 ] && pct=$((STEP_NUM * 100 / TOTAL_STEPS))
-    local elapsed; elapsed=$(format_duration $(( $(date +%s) - START_TIME )))
-    whiptail --title "EAS Station - Update Manager" \
-             --backtitle "$(whiptail_footer)" \
-             --infobox "  Step $STEP_NUM of $TOTAL_STEPS ($pct%): $CURRENT_DESC\n\n  $_progress_msg\n\n  Elapsed: $elapsed  |  Log: $LOG_FILE" \
-             10 72
-}
+# Write a line directly to the terminal, bypassing the log redirect
+_tty() { printf '%s\n' "$1" >/dev/tty; }
 
 echo_step() {
     STEP_NUM=$((STEP_NUM + 1))
     CURRENT_DESC="$1"
-    _progress_msg=""
+    local pct=$((STEP_NUM * 100 / TOTAL_STEPS))
     echo "--- Step $STEP_NUM/$TOTAL_STEPS: $1 ---"
-    _show_progress
+    _tty ""
+    _tty "$(printf '\033[1;34m[%d/%d | %d%%]\033[0m \033[1m%s\033[0m' \
+        "$STEP_NUM" "$TOTAL_STEPS" "$pct" "$1")"
 }
 
-echo_info()     { _progress_msg="[INFO]  $1"; echo "[INFO]  $1"; _show_progress; }
-echo_success()  { _progress_msg="[ OK ]  $1"; echo "[ OK ]  $1"; _show_progress; }
-echo_warning()  { _progress_msg="[WARN]  $1"; echo "[WARN]  $1"; _show_progress; }
-echo_error()    { _progress_msg="[ERROR] $1"; echo "[ERROR] $1"; _show_progress; }
-echo_progress() { _progress_msg="  >>    $1"; echo "  >>    $1"; _show_progress; }
-echo_header()   { echo ""; echo "=== $1 ==="; echo ""; }
+echo_info()     { echo "[INFO]  $1"; _tty "$(printf '  \033[0;36m[INFO]\033[0m  %s' "$1")"; }
+echo_success()  { echo "[ OK ]  $1"; _tty "$(printf '  \033[1;32m[ OK ]\033[0m  %s' "$1")"; }
+echo_warning()  { echo "[WARN]  $1"; _tty "$(printf '  \033[1;33m[WARN]\033[0m  %s' "$1")"; }
+echo_error()    { echo "[ERROR] $1"; _tty "$(printf '  \033[1;31m[ERR!]\033[0m  %s' "$1")"; }
+echo_progress() { echo "  >>    $1"; _tty "$(printf '  \033[0;37m  >>  \033[0m  %s' "$1")"; }
+echo_header()   { echo ""; echo "=== $1 ==="; echo ""; _tty "$(printf '\033[1m=== %s ===\033[0m' "$1")"; }
 echo_operation() { echo_progress "${1}${2:+ (~$2)}"; }
 draw_box()       { echo_success "$1"; }
 draw_separator() { :; }
@@ -108,15 +101,18 @@ trap 'exit 130' INT TERM
 
 # ── Startup ──────────────────────────────────────────────────────────────────
 
-# Show splash while we do the root check
-whiptail --title "EAS Station - Update Manager" --backtitle "$(whiptail_footer)" \
-         --infobox "EAS Station\nEmergency Alert System\n\nUpdate Manager\nInitializing..." 10 60
+# Show splash
+{
+    printf '\033[2J\033[H'
+    printf '\033[1;34m  EAS Station — Update Manager\033[0m\n'
+    printf '  Emergency Alert System\n\n'
+    printf '  Initializing...\n\n'
+    printf '  Log: %s\n' "$LOG_FILE"
+} >/dev/tty
 
 # Root check
 if [ "$EUID" -ne 0 ]; then
-    echo "ERROR: This script must be run as root (use sudo)"
-    whiptail --title "Permission Denied" --backtitle "$(whiptail_footer)" \
-             --msgbox "This script must be run as root.\n\nPlease run: sudo ./update.sh" 10 60 2>/dev/null || true
+    printf '\033[1;31m  ERROR:\033[0m This script must be run as root (use sudo)\n' >/dev/tty
     exit 1
 fi
 
