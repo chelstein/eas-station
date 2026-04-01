@@ -174,7 +174,7 @@ def ensure_radio_squelch_columns(logger) -> bool:
 
             logger.info("Adding radio_receivers.%s column for squelch controls", column_name)
 
-            ddl = f"ALTER TABLE radio_receivers ADD COLUMN {column_name} {column_definition}"
+            ddl = f"ALTER TABLE radio_receivers ADD COLUMN IF NOT EXISTS {column_name} {column_definition}"
             db.session.execute(text(ddl))
             if dialect == "postgresql":
                 db.session.execute(
@@ -221,7 +221,7 @@ def ensure_radio_audio_sample_rate_column(logger) -> bool:
         )
 
         # Add the column
-        ddl = f"ALTER TABLE radio_receivers ADD COLUMN {column_name} {column_definition}"
+        ddl = f"ALTER TABLE radio_receivers ADD COLUMN IF NOT EXISTS {column_name} {column_definition}"
         db.session.execute(text(ddl))
 
         # Populate with intelligent defaults based on modulation type
@@ -289,7 +289,7 @@ def ensure_radio_frequency_correction_column(logger) -> bool:
         if col_name not in columns:
             logger.info("Adding %s column to radio_receivers table", col_name)
             db.session.execute(
-                text(f"ALTER TABLE radio_receivers ADD COLUMN {col_name} {col_definition}")
+                text(f"ALTER TABLE radio_receivers ADD COLUMN IF NOT EXISTS {col_name} {col_definition}")
             )
             db.session.commit()
             logger.info("✅ Added %s column for PPM frequency correction", col_name)

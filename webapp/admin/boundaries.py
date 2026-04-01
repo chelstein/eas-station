@@ -76,7 +76,7 @@ def ensure_alert_source_columns(logger) -> bool:
             logger.info(
                 "Adding cap_alerts.source column for alert provenance tracking"
             )
-            db.session.execute(text("ALTER TABLE cap_alerts ADD COLUMN source VARCHAR(32)"))
+            db.session.execute(text("ALTER TABLE cap_alerts ADD COLUMN IF NOT EXISTS source VARCHAR(32)"))
             db.session.execute(
                 text("UPDATE cap_alerts SET source = :default WHERE source IS NULL"),
                 {"default": ALERT_SOURCE_NOAA},
@@ -105,7 +105,7 @@ def ensure_alert_source_columns(logger) -> bool:
         if not poll_history_has_source:
             logger.info("Adding poll_history.data_source column for polling metadata")
             db.session.execute(
-                text("ALTER TABLE poll_history ADD COLUMN data_source VARCHAR(64)")
+                text("ALTER TABLE poll_history ADD COLUMN IF NOT EXISTS data_source VARCHAR(64)")
             )
             changed = True
 
@@ -126,7 +126,7 @@ def ensure_alert_source_columns(logger) -> bool:
             db.session.execute(
                 text(
                     "ALTER TABLE received_eas_alerts "
-                    "ADD COLUMN alert_source VARCHAR(32)"
+                    "ADD COLUMN IF NOT EXISTS alert_source VARCHAR(32)"
                 )
             )
             db.session.execute(
