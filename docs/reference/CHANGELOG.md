@@ -4,7 +4,11 @@ All notable changes to this project are documented in this file. The format is b
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project currently
 tracks releases under the 2.x series.
 
-## [2.71.29] - 2026-04-01 - Sortable columns, light-theme readability, footer whitespace, summary 500 fix
+## [Unreleased]
+
+- No pending changes.
+
+## [2.71.38] - 2026-04-01 - Sortable columns, light-theme readability, footer whitespace, summary 500 fix
 
 ### Added
 - Alert History table now has server-side sortable columns: clicking any column header
@@ -22,9 +26,197 @@ tracks releases under the 2.x series.
 - Added `flex-shrink: 0` to the footer so it is never compressed by the flex layout,
   eliminating the excess white space that appeared below the footer on long pages.
 
-## [Unreleased]
+## [2.71.37] - 2026-04-01 - Add EAS-RF and EAS-STREAM ingest path tracking for received alerts
 
-- No pending changes.
+### Added
+- **`app_utils/alert_sources.py`** — Two new canonical source-identifier constants:
+  `ALERT_SOURCE_EAS_RF` (`"EAS-RF"`) for alerts captured via a physical RF receiver
+  (SDR, ALSA, PulseAudio) and `ALERT_SOURCE_EAS_STREAM` (`"EAS-STREAM"`) for alerts
+  received over an internet audio stream.
+- **`app_core/models.py`** + migration — `received_eas_alerts` table gains an
+  `alert_source` column (VARCHAR, nullable) that stores the canonical path label at
+  decode time.
+- **`eas_monitor.py`** — Resolves the canonical source when an alert is decoded:
+  reads `AudioSourceConfigDB.source_type` for the active Redis source, maps it to
+  `EAS-RF` or `EAS-STREAM`, and stores the result in the new column.
+- **`templates/audio_received.html`** + detail page — Ingest Path **badge** (RF /
+  Stream) displayed next to the source name; new **Ingest Path** filter dropdown
+  added to the search/filter toolbar.
+- **`webapp/received.py`** — Wires up the `alert_source` query filter to support the
+  new dropdown.
+
+```mermaid
+flowchart TD
+    A[Audio Source fires alert callback] --> B{AudioSourceConfigDB\nsource_type?}
+    B -->|SDR / ALSA / PULSE| C["ALERT_SOURCE_EAS_RF\n'EAS-RF'"]
+    B -->|Stream URL| D["ALERT_SOURCE_EAS_STREAM\n'EAS-STREAM'"]
+    C & D --> E[ReceivedEASAlert\nalert_source stored in DB]
+    E --> F[Alert History UI]
+    F --> G[RF badge displayed]
+    F --> H[Stream badge displayed]
+    F --> I[Ingest Path filter\ndropdown]
+```
+
+## [2.71.36] - 2026-04-01 - Strip state suffix from county_name before coverage lookup
+
+### Fixed
+- **`webapp/admin/coverage.py`** — SAME look-ups store county names as
+  `"Putnam County, OH"` (with state abbreviation). The previous normalisation only
+  called `.replace(' county', '')`, leaving `", OH"` appended and producing
+  `_cname = "putnam, oh"`. The Census `NAME` field stores `"Putnam"`, so the
+  `LIKE '%putnam, oh%'` filter returned no rows, causing the fallback `.first()` to
+  return Allen County (`GEOID 39003`) instead of Putnam County (`39137`) —
+  re-introducing the wrong-county bug that had been fixed in 2.71.19.
+  Fixed by splitting on comma before lowercasing so any `", OH"`-style state suffix
+  is discarded at the normalisation step. Applied to both `_cname` (Boundary table
+  lookup path) and `_cname_census` (Census `us_county_boundaries` fallback path).
+
+## [2.71.35] - 2026-04-01 - Fix NameError 'configured_fips' crashing eas-station-audio
+
+### Fixed
+- **`eas_monitoring_service.py`** — The variable rename from `configured_fips` to
+  `_live_fips` was applied to the first usage but missed the second argument on the
+  `UnifiedEASMonitorService` constructor call. This caused
+  `NameError: name 'configured_fips' is not defined` on every service startup,
+  producing a crash loop. Single-line fix aligning both references to `_live_fips`.
+
+## [2.71.34] - 2026-04-01 - FIPS code validation, relay audio, and live-reload location config
+
+### Added
+- **Relay audio** — OTA-received alerts that are forwarded now attach the original
+  captured audio to the relayed message instead of re-synthesising TTS, preserving
+  the authentic EAS tone sequence.
+- **Live location config reload** — The EAS monitor service re-reads
+  `LocationSettings` from the database on each alert cycle; a service restart is
+  no longer required after changing the station's configured FIPS codes or broadcast
+  area.
+- **Alert metadata enrichment** — Forwarded alert objects now carry `event_type` and
+  `originator` fields derived from the parsed SAME header.
+
+### Fixed
+- SAME header forwarding now preserves statewide wildcard codes (e.g., `039000`)
+  that were previously stripped during FIPS filtering.
+- FIPS code lists are validated at intake to reject malformed or out-of-range values
+  before they reach the encoder.
+
+### Tests
+- New unit-test coverage for location-code filtering, wildcard preservation, and
+  statewide code handling in the SAME header builder.
+
+## [2.71.33] - 2026-03-31 - Reject low-confidence SAME decodes to prevent false positives
+
+### Fixed
+- **`eas_monitoring_service.py`** — A confidence threshold of **0.25** is now applied
+  to every SAME decode result. Decode candidates whose confidence score falls below the
+  threshold are silently discarded, preventing music bursts, noise transients, and other
+  audio artifacts from triggering spurious EAS alert callbacks.
+
+### Changed
+- **`eas_monitoring_service.py`** — Audio resampling for hardware-controlled sources
+  (SDR, ALSA, PULSE) now uses fast integer decimation, reducing CPU overhead compared
+  to the previous rational-fraction resampler.
+- Waveform and spectrogram visualisations in the diagnostics panel are disabled;
+  the spectrogram API endpoint returns an empty dataset with a `disabled` flag.
+
+```mermaid
+flowchart TD
+    A[Raw audio stream] --> B[StreamingSAMEDecoder\nSAMEDemodulatorCore DLL]
+    B --> C{Decode confidence\n≥ 0.25?}
+    C -->|Yes| D[Process SAME header\n→ Alert Handler]
+    C -->|"No (noise / music / artifact)"| E["Discard\n🚫 false positive suppressed"]
+    D --> F[EAS alert pipeline]
+```
+
+## [2.71.32] - 2026-03-31 - Give each SourceWatcher its own SAME decoder to prevent multi-source audio interleaving
+
+### Fixed
+- **`eas_monitoring_service.py`** — `UnifiedEASMonitorService` previously shared a
+  single `StreamingSAMEDecoder` instance across all configured audio sources. With two
+  sources active simultaneously (e.g., LP1 and LP2), the monitor loop fed audio in
+  round-robin fashion: 100 ms of LP1 → shared decoder → 100 ms of LP2 → shared
+  decoder → 100 ms of LP1 → … Because SAME headers are approximately 1 second of
+  coherent 520.83-baud FSK, the internal `SAMEDemodulatorCore` DLL PLL lost carrier
+  lock every 100 ms when the audio source switched, preventing any SAME message from
+  ever being decoded despite normal audio flow at 2 × 16 kHz.
+
+  Each `SourceWatcher` now creates and owns its own `StreamingSAMEDecoder`. Every
+  decoder sees only a continuous, coherent audio stream from its single source, so the
+  PLL can acquire and hold lock across the full ~1-second header.
+
+Additional improvements:
+- Ring buffer is updated **before** `process_samples()` so audio is captured in the
+  diagnostics buffer before the alert callback fires synchronously.
+- `get_status()` now aggregates `decoder_synced`, `in_message`, and `bytes_decoded`
+  across all per-watcher decoders; each per-source status dict exposes these fields.
+- The `_current_source_context` mutable field is removed; source identity is carried
+  in a per-source closure, eliminating a potential race condition.
+
+```mermaid
+flowchart TD
+    subgraph before["Before — shared decoder (broken)"]
+        direction LR
+        LP1A["Source LP1\n100 ms chunks"] --> SD["Shared StreamingSAMEDecoder\n(single instance)"]
+        LP2A["Source LP2\n100 ms chunks"] --> SD
+        SD -->|"carrier switches every 100 ms\nPLL loses lock — no decode"| X["❌ No SAME message decoded"]
+    end
+
+    subgraph after["After — per-source decoders (fixed)"]
+        direction LR
+        LP1B["Source LP1\n100 ms chunks"] --> D1["SourceWatcher 1\nStreamingSAMEDecoder"]
+        LP2B["Source LP2\n100 ms chunks"] --> D2["SourceWatcher 2\nStreamingSAMEDecoder"]
+        D1 -->|"coherent stream\nPLL holds lock"| A1["✅ SAME decoded\ntagged: LP1"]
+        D2 -->|"coherent stream\nPLL holds lock"| A2["✅ SAME decoded\ntagged: LP2"]
+        A1 & A2 --> AH["_handle_alert()"]
+    end
+```
+
+## [2.71.31] - 2026-03-31 - Refine TTS narration text selection and normalization
+
+### Fixed
+- **`app_utils/eas.py`** — `_extract_text_from_payload()`: removed `"headline"` from
+  the candidate-key list. NOAA alert headlines are terse VTEC-style strings (e.g.,
+  `"SEVERE THUNDERSTORM WARNING"`) that provide no listener value and TTS reads poorly.
+  `description` and `instruction` are now the only narration source candidates.
+- **`app_utils/eas.py`** — Improved punctuation, whitespace, and special-character
+  normalisation applied before TTS synthesis (slash-notation timezone removal, expanded
+  military facility and weather acronyms).
+
+## [2.71.30] - 2026-03-31 - Fix UndefinedColumn crash on eas_settings.forwarded_event_codes
+
+### Fixed
+- **`app_core/eas_storage.py`** — Added `ensure_eas_settings_columns()` following the
+  established `ensure_eas_audio_columns` guard pattern: queries
+  `information_schema.columns` and issues
+  `ALTER TABLE eas_settings ADD COLUMN forwarded_event_codes JSONB NOT NULL DEFAULT '[]'::jsonb`
+  if the column is absent. Deployments that upgraded the codebase without running
+  Alembic migrations previously crashed immediately with
+  `psycopg2.errors.UndefinedColumn` on any ORM query touching `eas_settings`.
+- **`app.py`** — Imports and calls `ensure_eas_settings_columns(logger)` as step 5b in
+  the DB init sequence (immediately after `ensure_eas_audio_columns`), guaranteeing the
+  column exists before any ORM access.
+
+## [2.71.29] - 2026-03-31 - Filter FIPS codes in SAME header to broadcast area only; add auto-forward event filter
+
+### Added
+- **`app_utils/eas_encoding.py`** — When building the SAME header for a forwarded
+  alert, FIPS location codes are now filtered so only codes within the station's
+  configured broadcast area are included. Statewide wildcard codes (e.g., `039000`)
+  are preserved through the filter. If no codes survive filtering, the existing
+  fallback to the station's configured FIPS codes applies, ensuring the header is
+  always valid.
+- **Admin dashboard** — New **Auto-Forward Event Filter** section with grouped
+  event-type categories and **Select All / Clear All** controls, giving operators
+  fine-grained control over which EAS event codes are automatically relayed from
+  CAP and OTA sources.
+
+```mermaid
+flowchart TD
+    A["Incoming forwarded alert\n(N FIPS codes in SAME header)"] --> B["Filter against\nstation broadcast area\nfips_codes list"]
+    B --> C{Any codes\nsurvive filter?}
+    C -->|"Yes (+ wildcards preserved)"| D["Filtered FIPS list\nused in SAME header"]
+    C -->|"No matches"| E["Fallback: use\nconfigured fips_codes"]
+    D & E --> F["SAME Header Builder\n→ encoded broadcast"]
+```
 
 ## [2.71.28] - 2026-03-31 - Improve TTS text normalization for NWS watch descriptions
 
