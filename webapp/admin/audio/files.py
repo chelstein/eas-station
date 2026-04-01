@@ -85,7 +85,7 @@ def register_file_routes(app, logger) -> None:
         alert = CAPAlert.query.get(message.cap_alert_id) if message.cap_alert_id else None
         content = json.dumps(
             {
-                'message': message.identifier,
+                'message': message.same_header,
                 'alert': alert.identifier if alert else None,
                 'summary': data,
             },

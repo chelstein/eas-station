@@ -1509,6 +1509,7 @@ footer {
         0 -2px 8px rgba(0, 0, 0, 0.08);
     position: relative;
     overflow: hidden;
+    flex-shrink: 0;
 }
 
 /* Animated gradient overlay */
@@ -5903,11 +5904,32 @@ a:not(.btn):not(.nav-link):not(.dropdown-item):hover {
 
 /* === TABLE READABILITY FIXES === */
 
-/* Ensure table headers are readable */
+/* Ensure table headers are readable with a clearly visible tint */
 .table thead th {
     color: var(--text-color);
-    background-color: color-mix(in srgb, var(--surface-color) 95%, var(--primary-color));
-    border-bottom-color: var(--border-color);
+    background-color: color-mix(in srgb, var(--surface-color) 82%, var(--primary-color));
+    border-bottom: 2px solid var(--border-color);
+}
+
+/* Sortable column header links */
+.sort-header {
+    color: inherit;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    white-space: nowrap;
+    transition: opacity 0.15s;
+}
+.sort-header:hover {
+    opacity: 0.8;
+    color: inherit;
+}
+.sort-header.sort-active {
+    font-weight: var(--font-weight-bold, 700);
+}
+.sort-inactive {
+    opacity: 0.35;
 }
 
 .table-dark {
@@ -5919,16 +5941,6 @@ a:not(.btn):not(.nav-link):not(.dropdown-item):hover {
 .table-dark td {
     color: #ffffff !important;
     border-color: rgba(255, 255, 255, 0.2) !important;
-}
-
-.table-light {
-    color: #212121 !important;
-    background-color: var(--light-color) !important;
-}
-
-.table-light th,
-.table-light td {
-    color: #212121 !important;
 }
 
 /* === LIST GROUP FIXES === */

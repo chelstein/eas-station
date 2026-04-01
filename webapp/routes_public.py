@@ -935,6 +935,24 @@ def register(app: Flask, logger) -> None:
                 "on",
             }
 
+            # Sorting parameters
+            _sortable_columns = {
+                "event": CAPAlert.event,
+                "severity": CAPAlert.severity,
+                "status": CAPAlert.status,
+                "source": CAPAlert.source,
+                "sent": CAPAlert.sent,
+                "expires": CAPAlert.expires,
+                "headline": CAPAlert.headline,
+                "area": CAPAlert.area_desc,
+            }
+            sort_by = request.args.get("sort", "sent").strip().lower()
+            sort_dir = request.args.get("direction", "desc").strip().lower()
+            if sort_by not in _sortable_columns:
+                sort_by = "sent"
+            if sort_dir not in {"asc", "desc"}:
+                sort_dir = "desc"
+
             # Fetch filter options and counts for the template
             # Default values in case of database errors
             statuses: List[str] = []
@@ -1034,7 +1052,8 @@ def register(app: Flask, logger) -> None:
                     or_(CAPAlert.expires.is_(None), CAPAlert.expires > utc_now())
                 ).filter(CAPAlert.status != "Expired")
 
-            query = query.order_by(CAPAlert.sent.desc())
+            sort_col = _sortable_columns[sort_by]
+            query = query.order_by(sort_col.asc() if sort_dir == "asc" else sort_col.desc())
 
             total_count = 0
             try:
@@ -1199,6 +1218,8 @@ def register(app: Flask, logger) -> None:
                 "vtec_office": vtec_office_filter,
                 "vtec_etn": vtec_etn_filter,
                 "vtec_year": vtec_year_filter,
+                "sort": sort_by,
+                "direction": sort_dir,
             }
 
             return render_template(
