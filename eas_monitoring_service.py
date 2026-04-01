@@ -931,7 +931,7 @@ def initialize_eas_monitor(app, audio_controller):
         _eas_monitor = UnifiedEASMonitorService(
             audio_controller=audio_controller,
             alert_callback=alert_callback,
-            configured_fips_codes=configured_fips,
+            configured_fips_codes=_live_fips,
             discovery_interval_seconds=5.0,  # Check for new/removed sources every 5s
             chunk_duration_ms=100  # 100ms chunks at 16kHz
         )
