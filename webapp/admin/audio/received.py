@@ -123,6 +123,10 @@ def register_received_alerts_routes(app, logger) -> None:
 
         except Exception as e:
             logger.error(f"Error loading received alerts: {e}", exc_info=True)
+            try:
+                db.session.rollback()
+            except Exception:
+                pass
             return render_template('error.html', error=str(e)), 500
 
     @app.route('/audio/received/<int:alert_id>/audio')
@@ -159,6 +163,10 @@ def register_received_alerts_routes(app, logger) -> None:
 
         except Exception as e:
             logger.error(f"Error loading received alert detail: {e}", exc_info=True)
+            try:
+                db.session.rollback()
+            except Exception:
+                pass
             return render_template('error.html', error=str(e)), 500
 
     @app.route('/api/audio/received/stats')

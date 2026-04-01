@@ -897,6 +897,14 @@ def before_request():
                 return jsonify({'error': 'Setup required'}), 503
             return redirect(url_for('setup_wizard'))
     else:
+        # Defensive rollback: if a previous request left the PostgreSQL session
+        # in an aborted-transaction state (InFailedSqlTransaction), clear it now
+        # so every request starts with a clean transaction.
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+
         # Ensure the database schema exists before handling the request.
         if not initialize_database():
             logger.error("Database initialization failed - cannot handle request")
@@ -920,6 +928,7 @@ def before_request():
         try:
             g.admin_setup_mode = AdminUser.query.count() == 0
         except Exception:
+            db.session.rollback()
             g.admin_setup_mode = False
 
     # Allow authentication endpoints without CSRF or other checks.
