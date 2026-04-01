@@ -324,7 +324,7 @@ def calculate_coverage_percentages(alert_id, intersections):
         try:
             from app_core.location import get_location_settings
             _settings = get_location_settings()
-            _cname = (_settings.get('county_name', '') or '').lower().replace(' county', '').strip()
+            _cname = (_settings.get('county_name', '') or '').split(',')[0].lower().replace(' county', '').strip()
             _county_name_configured = bool(_cname)
             if _cname:
                 # 1. Check intersections list — only accept the configured county.
@@ -412,7 +412,7 @@ def calculate_coverage_percentages(alert_id, intersections):
                     # shapefile, producing the 99.4% / wrong-county bug.
                     _cname_census = (
                         (_settings.get('county_name', '') or '')
-                        .lower().replace(' county', '').strip()
+                        .split(',')[0].lower().replace(' county', '').strip()
                     )
                     ucb = None
                     if _cname_census:
