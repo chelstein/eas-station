@@ -200,7 +200,6 @@ class FFmpegAudioSource:
             # FFmpeg command to decode audio to raw PCM
             cmd = [
                 'ffmpeg',
-                '-re',  # Read input at native frame rate (for streams)
                 '-hide_banner',  # Reduce console output
                 '-nostdin',  # Don't expect keyboard input
                 '-i', self.source_url,
