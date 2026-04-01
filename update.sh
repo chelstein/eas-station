@@ -5,11 +5,10 @@
 
 set -e  # Exit on error
 
-# Save real terminal fd for TUI output — must be the very first action
-exec 9>&1
+# Log file — all command output is redirected here after root check
+LOG_FILE="/var/log/eas-update.log"
 
-# DOS/CGA color palette — $'...' produces real ESC bytes so embedded ANSI
-# codes in status messages are rendered by the terminal, not shown literally
+# Color codes used in summary output at the end of the script
 RED=$'\033[1;31m'
 GREEN=$'\033[1;32m'
 YELLOW=$'\033[1;33m'
@@ -18,32 +17,15 @@ WHITE=$'\033[1;37m'
 BOLD=$'\033[1m'
 DIM=$'\033[2m'
 NC=$'\033[0m'
-# Legacy vars still referenced in script body
 BLUE=$'\033[0;34m'
 MAGENTA=$'\033[0;35m'
 
-# Step counter for progress tracking
+# Step tracking
 STEP_NUM=0
 TOTAL_STEPS=12
-
-# Log file — all command output is redirected here after root check
-LOG_FILE="/var/log/eas-update.log"
-
-# TUI state
-STATUS_MSGS=()
-MAX_STATUS_LINES=7
 CURRENT_DESC="Initializing..."
-
-# Pre-generated repeated-char strings (avoids subshell spawns on every redraw)
-_SEP73="$(printf '=%.0s' $(seq 1 73))"
-_SEP74="$(printf -- '-%.0s' $(seq 1 74))"
-_BAR55="$(printf '#%.0s' $(seq 1 55))"
-_DOT55="$(printf '.%.0s' $(seq 1 55))"
-
-# Track start time
 START_TIME=$(date +%s)
 
-# Format duration — plain text, no ANSI codes
 format_duration() {
     local seconds=$1
     local hours=$((seconds / 3600))
@@ -58,219 +40,12 @@ format_duration() {
     fi
 }
 
-# Add a message to the fixed-size status ring buffer
-add_status() {
-    STATUS_MSGS+=("$1")
-    while [ ${#STATUS_MSGS[@]} -gt $MAX_STATUS_LINES ]; do
-        STATUS_MSGS=("${STATUS_MSGS[@]:1}")
-    done
-}
-
-# Redraw the entire fixed TUI screen — writes to fd 9 (real terminal)
-redraw_screen() {
-    local elapsed
-    elapsed=$(format_duration $(( $(date +%s) - START_TIME )))
-    local pct=0 filled=0 empty=55
-    if [ "$TOTAL_STEPS" -gt 0 ] && [ "$STEP_NUM" -gt 0 ]; then
-        pct=$((STEP_NUM * 100 / TOTAL_STEPS))
-        filled=$((STEP_NUM * 55 / TOTAL_STEPS))
-        empty=$((55 - filled))
-        [ $filled -gt 55 ] && filled=55 && empty=0
-        [ $empty -lt 0 ] && empty=0
-    fi
-    local bar="${_BAR55:0:$filled}${_DOT55:0:$empty}"
-
-    {
-        # Home cursor, then erase everything below — clears splash/old content
-        printf '\033[H\033[J'
-
-        # Line 1: Red title bar
-        printf '\033[41;1;37m  %-77s\033[K\033[0m\n' \
-            "EAS Station - Update Manager"
-
-        # Line 2: blank blue
-        printf '\033[44;1;37m\033[K\n'
-
-        # Lines 3-6: Step progress box (dark bg inside)
-        printf '\033[44;1;37m  +%s+\033[K\n' "$_SEP73"
-        printf '\033[44;1;37m  |\033[40;1;37m %-72s\033[44;1;37m|\033[K\n' \
-            " STEP ${STEP_NUM} OF ${TOTAL_STEPS}  --  ${CURRENT_DESC}"
-        printf '\033[44;1;37m  |\033[40;1;37m  [%-55s] %3d%%%-7s\033[44;1;37m|\033[K\n' \
-            "$bar" "$pct" ""
-        printf '\033[44;1;37m  +%s+\033[K\n' "$_SEP73"
-
-        # Line 7: blank blue
-        printf '\033[44;1;37m\033[K\n'
-
-        # Line 8: Status area header
-        printf '\033[44;1;36m  Recent Activity:\033[44;1;37m\033[K\n'
-
-        # Line 9: separator
-        printf '\033[44;1;37m  %s\033[K\n' "$_SEP74"
-
-        # Lines 10-16: Status messages (7 lines, colour-coded by prefix)
-        local total=${#STATUS_MSGS[@]}
-        local i
-        for ((i=0; i<MAX_STATUS_LINES; i++)); do
-            local idx=$((total - MAX_STATUS_LINES + i))
-            if [ $idx -ge 0 ] && [ $idx -lt $total ]; then
-                local msg="${STATUS_MSGS[$idx]}"
-                # Print message; \033[K fills remainder with current bg colour.
-                # Using %s not %-75s so embedded ANSI codes aren't counted as
-                # printable characters for padding.
-                case "${msg:0:7}" in
-                    "[ OK ] ") printf '\033[44;1;32m  %s\033[44;1;37m\033[K\n' "$msg" ;;
-                    "[INFO] ") printf '\033[44;1;36m  %s\033[44;1;37m\033[K\n' "$msg" ;;
-                    "[WARN] ") printf '\033[44;1;33m  %s\033[44;1;37m\033[K\n' "$msg" ;;
-                    "[ERROR]") printf '\033[44;1;31m  %s\033[44;1;37m\033[K\n' "$msg" ;;
-                    *)         printf '\033[44;1;37m  %s\033[K\n'             "$msg" ;;
-                esac
-            else
-                printf '\033[44;1;37m\033[K\n'
-            fi
-        done
-
-        # Line 17: blank blue
-        printf '\033[44;1;37m\033[K\n'
-
-        # Line 18: Red bottom bar with elapsed time and log path
-        printf '\033[41;1;37m  %-77s\033[K\033[0m\n' \
-            "Elapsed: ${elapsed}  |  Log: ${LOG_FILE}"
-
-        printf '\033[0m'
-    } >&9
-}
-
-# Initial splash screen — shown before log redirect, writes direct to terminal
-draw_splash() {
-    {
-        printf '\033[2J\033[H'
-        # Title bar
-        printf '\033[41;1;37m  %-77s\033[K\033[0m\n' \
-            "EAS Station - Update Manager"
-        printf '\033[44;1;37m\033[K\n'
-        # Block-letter logo on blue background
-        printf '\033[44;1;37m'
-        cat << 'LOGO'
-                 ███████╗ █████╗ ███████╗
-                 ██╔════╝██╔══██╗██╔════╝
-                 █████╗  ███████║███████╗
-                 ██╔══╝  ██╔══██║╚════██║
-                 ███████╗██║  ██║███████║
-                 ╚══════╝╚═╝  ╚═╝╚══════╝
-
-            ███████╗████████╗ █████╗ ████████╗██╗ ██████╗ ███╗   ██╗
-            ██╔════╝╚══██╔══╝██╔══██╗╚══██╔══╝██║██╔═══██╗████╗  ██║
-            ███████╗   ██║   ███████║   ██║   ██║██║   ██║██╔██╗ ██║
-            ╚════██║   ██║   ██╔══██║   ██║   ██║██║   ██║██║╚██╗██║
-            ███████║   ██║   ██║  ██║   ██║   ██║╚██████╔╝██║ ╚████║
-            ╚══════╝   ╚═╝   ╚═╝  ╚═╝   ╚═╝   ╚═╝ ╚═════╝ ╚═╝  ╚═══╝
-
-              Emergency Alert System Update
-              Updating to Latest Version
-
-LOGO
-        printf '\033[44;0;37m  Copyright (c) 2025-2026 Timothy Kramer (KR8MER)\033[K\n'
-        printf '\033[44;0;37m  Licensed under AGPL v3 or Commercial License\033[K\n'
-        printf '\033[44;1;37m\033[K\n'
-        # Bottom bar
-        printf '\033[41;1;37m  %-77s\033[K\033[0m\n' \
-            "Press Ctrl+C to cancel at any time"
-        printf '\033[0m'
-    } >&9
-}
-
-# Restore terminal to a clean, usable state — called from cleanup and on interrupt
-restore_terminal() {
-    stty sane </dev/tty 2>/dev/null || true
-    {
-        printf '\033[?25h'          # show cursor
-        printf '\033[0m'            # reset all attributes
-        printf '\033[20;0H\033[J'   # move below TUI and clear remaining lines
-    } >&9
-}
-
-# Cleanup: show error in TUI and restore terminal on unexpected exit
-cleanup_on_exit() {
-    local exit_code=$?
-    if [ $exit_code -ne 0 ]; then
-        add_status "[ERROR]  Script exited with code $exit_code"
-        add_status "         Check log: $LOG_FILE"
-        redraw_screen
-    fi
-    restore_terminal
-}
-trap cleanup_on_exit EXIT
-trap 'exit 130' INT TERM
-
-echo_step() {
-    STEP_NUM=$((STEP_NUM + 1))
-    CURRENT_DESC="$1"
-    redraw_screen
-}
-
-echo_info()    { add_status "[INFO]   $1"; redraw_screen; }
-echo_success() { add_status "[ OK ]   $1"; redraw_screen; }
-echo_warning() { add_status "[WARN]   $1"; redraw_screen; }
-echo_error()   { add_status "[ERROR]  $1"; redraw_screen; }
-echo_progress(){ add_status "   >>    $1"; redraw_screen; }
-echo_header()  { add_status ""; add_status "=== $1 ==="; redraw_screen; }
-echo_operation() {
-    local estimate="${2:-}"
-    [ -n "$estimate" ] && add_status "   >>    $1 (~$estimate)" \
-                       || add_status "   >>    $1"
-    redraw_screen
-}
-
-draw_box()      { add_status "[ OK ]   $1"; redraw_screen; }
-draw_separator(){ :; }   # Section separation handled by step redraw
-
-show_progress_bar() {
-    local percentage=$(( $1 * 100 / $2 ))
-    local dots=$(( percentage / 5 ))
-    local msg="   >>    [${_BAR55:0:$dots}${_DOT55:0:$((20-dots))}] ${percentage}%"
-    if [ ${#STATUS_MSGS[@]} -gt 0 ] && \
-       [[ "${STATUS_MSGS[-1]}" == "   >>    ["* ]]; then
-        STATUS_MSGS[-1]="$msg"
-    else
-        add_status "$msg"
-    fi
-    redraw_screen
-}
-
-show_spinner() { wait "$1" 2>/dev/null || true; }
-
-show_elapsed_time() { :; }   # Elapsed shown live in bottom bar
-
-show_celebration() {
-    local message="$1"
-    local elapsed
-    elapsed=$(format_duration $(( $(date +%s) - START_TIME )))
-    {
-        printf '\033[2J\033[H'
-        printf '\033[41;1;37m'
-        local i; for i in {1..4}; do printf '\033[K\n'; done
-        printf '  %s\033[K\n' "$_SEP73"
-        printf '\033[K\n'
-        printf '  %22s*** UPDATE COMPLETE ***\033[K\n' ""
-        printf '\033[K\n'
-        printf '  %10s%s\033[K\n' "" "$message"
-        printf '\033[K\n'
-        printf '  %s\033[K\n' "$_SEP73"
-        for i in {1..4}; do printf '\033[K\n'; done
-        printf '  Total time: %-40s Log: %s\033[K\n' "${elapsed}" "${LOG_FILE}"
-        for i in {1..3}; do printf '\033[K\n'; done
-        printf '\033[0m'
-    } >&9
-}
-
-# Add branding footer for whiptail dialogs
+# Branding footer for whiptail dialogs
 whiptail_footer() {
     echo "Copyright (c) 2025-2026 Timothy Kramer (KR8MER) | AGPL v3 / Commercial License"
 }
 
-# Wrapper: ncurses (whiptail) can leave the terminal in cbreak/no-echo/no-isig
-# mode, which makes Ctrl+C stop working. Always restore sane settings after.
+# Wrapper: restore terminal sanity after each whiptail call
 whiptail() {
     command whiptail "$@"
     local _ret=$?
@@ -278,30 +53,81 @@ whiptail() {
     return $_ret
 }
 
+# Show current step as a whiptail infobox (non-blocking, writes to /dev/tty via ncurses)
+_progress_msg=""
+_show_progress() {
+    local pct=0
+    [ "$TOTAL_STEPS" -gt 0 ] && [ "$STEP_NUM" -gt 0 ] && pct=$((STEP_NUM * 100 / TOTAL_STEPS))
+    local elapsed; elapsed=$(format_duration $(( $(date +%s) - START_TIME )))
+    whiptail --title "EAS Station - Update Manager" \
+             --backtitle "$(whiptail_footer)" \
+             --infobox "  Step $STEP_NUM of $TOTAL_STEPS ($pct%): $CURRENT_DESC\n\n  $_progress_msg\n\n  Elapsed: $elapsed  |  Log: $LOG_FILE" \
+             10 72
+}
+
+echo_step() {
+    STEP_NUM=$((STEP_NUM + 1))
+    CURRENT_DESC="$1"
+    _progress_msg=""
+    echo "--- Step $STEP_NUM/$TOTAL_STEPS: $1 ---"
+    _show_progress
+}
+
+echo_info()     { _progress_msg="[INFO]  $1"; echo "[INFO]  $1"; _show_progress; }
+echo_success()  { _progress_msg="[ OK ]  $1"; echo "[ OK ]  $1"; _show_progress; }
+echo_warning()  { _progress_msg="[WARN]  $1"; echo "[WARN]  $1"; _show_progress; }
+echo_error()    { _progress_msg="[ERROR] $1"; echo "[ERROR] $1"; _show_progress; }
+echo_progress() { _progress_msg="  >>    $1"; echo "  >>    $1"; _show_progress; }
+echo_header()   { echo ""; echo "=== $1 ==="; echo ""; }
+echo_operation() { echo_progress "${1}${2:+ (~$2)}"; }
+draw_box()       { echo_success "$1"; }
+draw_separator() { :; }
+show_progress_bar() { :; }
+show_spinner()   { wait "$1" 2>/dev/null || true; }
+show_elapsed_time() { :; }
+
+show_celebration() {
+    local elapsed; elapsed=$(format_duration $(( $(date +%s) - START_TIME )))
+    whiptail --title "*** UPDATE COMPLETE ***" \
+             --backtitle "$(whiptail_footer)" \
+             --msgbox "$1\n\nTotal time: $elapsed\nLog: $LOG_FILE" 10 65
+}
+
+cleanup_on_exit() {
+    local exit_code=$?
+    if [ $exit_code -ne 0 ]; then
+        echo "[ERROR] Script exited with code $exit_code"
+        whiptail --title "Update Failed" \
+                 --backtitle "$(whiptail_footer)" \
+                 --msgbox "Script exited with code $exit_code\n\nCheck log for details:\n$LOG_FILE" 10 65 2>/dev/null || true
+    fi
+    stty sane </dev/tty 2>/dev/null || true
+}
+trap cleanup_on_exit EXIT
+trap 'exit 130' INT TERM
+
 # ── Startup ──────────────────────────────────────────────────────────────────
 
-printf '\033[?25l' >&9   # hide cursor for clean TUI look
-draw_splash
+# Show splash while we do the root check
+whiptail --title "EAS Station - Update Manager" --backtitle "$(whiptail_footer)" \
+         --infobox "EAS Station\nEmergency Alert System\n\nUpdate Manager\nInitializing..." 10 60
 
-# Root check must happen before log redirect (needs /var/log write access)
+# Root check
 if [ "$EUID" -ne 0 ]; then
-    {
-        printf '\033[44;1;31m\n  [ERROR]  This script must be run as root (use sudo)\033[K\n'
-        printf '\033[44;1;37m  Please run: sudo ./update.sh\033[K\n\n'
-        printf '\033[0m'
-    } >&9
+    echo "ERROR: This script must be run as root (use sudo)"
+    whiptail --title "Permission Denied" --backtitle "$(whiptail_footer)" \
+             --msgbox "This script must be run as root.\n\nPlease run: sudo ./update.sh" 10 60 2>/dev/null || true
     exit 1
 fi
 
 # Redirect all stdout/stderr to the log file.
 # From this point on, every command's output goes to the log automatically.
-# Our UI functions write to fd 9 (real terminal) and are unaffected.
+# whiptail writes via ncurses directly to /dev/tty and is unaffected.
 mkdir -p "$(dirname "$LOG_FILE")"
 : > "$LOG_FILE"
 exec 1>>"$LOG_FILE" 2>&1
 
-add_status "[ OK ]   Root privileges confirmed"
-redraw_screen
+echo "[ OK ]  Root privileges confirmed"
 
 # Configuration variables
 INSTALL_DIR="/opt/eas-station"
@@ -320,22 +146,16 @@ if [ ! -d "$INSTALL_DIR" ]; then
 fi
 echo_success "Installation directory found: $INSTALL_DIR"
 
-# Check if whiptail is available (for TUI dialogs)
+# Ensure whiptail is available
 if ! command -v whiptail &> /dev/null; then
-    echo_warning "whiptail not found - installing for interactive dialogs..."
+    echo_warning "whiptail not found - installing..."
     apt-get update > /dev/null 2>&1
     apt-get install -y whiptail > /dev/null 2>&1
-    
     if ! command -v whiptail &> /dev/null; then
-        echo_error "Failed to install whiptail. Continuing without TUI..."
-        USE_WHIPTAIL=false
-    else
-        echo_success "whiptail installed successfully"
-        USE_WHIPTAIL=true
+        echo "[ERROR] whiptail is required but could not be installed"
+        exit 1
     fi
-else
-    echo_success "whiptail available for interactive dialogs"
-    USE_WHIPTAIL=true
+    echo_success "whiptail installed"
 fi
 
 # Update sudoers configuration to allow passwordless sudo for update operations
@@ -377,7 +197,6 @@ fi
 
 # Show welcome dialog — skip on self-restart so the user is not asked to confirm twice.
 if [ "${EAS_UPDATE_RESTARTED:-}" != "true" ]; then
-if [ "$USE_WHIPTAIL" = true ]; then
     VERSION_LINE=""
     if [ -n "$CURRENT_VERSION" ]; then
         VERSION_LINE="  Version: $CURRENT_VERSION\n"
@@ -386,29 +205,6 @@ if [ "$USE_WHIPTAIL" = true ]; then
         echo_info "Update cancelled by user"
         exit 0
     fi
-    redraw_screen
-else
-    # Fallback to simple confirmation
-    echo_header "Update Confirmation"
-    echo_warning "This will update EAS Station to the latest version."
-    echo_warning "Services will be stopped during the update."
-    echo ""
-    echo_info "Current Installation:"
-    echo "  Location: $INSTALL_DIR"
-    if [ -n "$CURRENT_VERSION" ]; then
-        echo "  Version: $CURRENT_VERSION"
-    fi
-    echo "  Branch: $CURRENT_BRANCH"
-    echo "  Commit: $CURRENT_COMMIT"
-    echo ""
-    add_status "   >>    Continue with update? [y/N]"
-    redraw_screen
-    read -n 1 -r REPLY </dev/tty
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        echo_info "Update cancelled"
-        exit 0
-    fi
-fi
 else
     # Self-restart after update.sh was updated — brief notification only.
     echo_info "Update script refreshed — continuing with updated version..."
@@ -420,18 +216,8 @@ if [ "${EAS_SKIP_BACKUP:-}" != "true" ]; then
 echo_step "Creating Backup"
 
 DO_BACKUP=false
-if [ "$USE_WHIPTAIL" = true ]; then
-    if whiptail --title "Create Backup?" --backtitle "$(whiptail_footer)" --yesno "Would you like to create a backup before updating?\n\nThis will create a compressed archive of your current installation.\nBackups are saved to: $BACKUP_DIR\n\nRecommended if you have local customizations." 14 65 --defaultno; then
-        DO_BACKUP=true
-    fi
-    redraw_screen
-else
-    add_status "   >>    Create a backup before updating? [y/N]"
-    redraw_screen
-    read -n 1 -r REPLY </dev/tty
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
-        DO_BACKUP=true
-    fi
+if whiptail --title "Create Backup?" --backtitle "$(whiptail_footer)" --yesno "Would you like to create a backup before updating?\n\nThis will create a compressed archive of your current installation.\nBackups are saved to: $BACKUP_DIR\n\nRecommended if you have local customizations." 14 65 --defaultno; then
+    DO_BACKUP=true
 fi
 
 if [ "$DO_BACKUP" = true ]; then
@@ -942,10 +728,13 @@ if [ -f "$VENV_SDR_DIR/bin/pip" ]; then
     echo_progress "Installing SDR service dependencies..."
     sudo -u "$SERVICE_USER" "$VENV_SDR_DIR/bin/pip" install --upgrade pip 2>&1 | grep -E "(Successfully installed)" || true
     if [ -f "$INSTALL_DIR/requirements-sdr.txt" ]; then
-        echo_info "Installing SDR requirements (scipy, numba may take 5-15 min to compile)..."
-        echo_info "Full output shown below to track progress:"
+        echo_info "Installing SDR requirements (numba/llvmlite downloads may be 50+ MB; no log output during download)..."
+        echo_info "If the log appears stalled here, a large package is downloading — this is normal, please wait..."
         echo ""
-        # Show full output so user can see compilation progress (no grep filter)
+        # Show full output so user can see compilation progress (no grep filter).
+        # NOTE: pip suppresses its progress bar when stdout is not a TTY (i.e. when
+        # output is redirected to this log file), so large downloads produce no output
+        # until they complete. That silence is expected, not a hang.
         sudo -u "$SERVICE_USER" "$VENV_SDR_DIR/bin/pip" install --upgrade -r "$INSTALL_DIR/requirements-sdr.txt"
         echo ""
     fi
@@ -1228,32 +1017,22 @@ with app.app_context():
         echo_info "  sudo -u $SERVICE_USER bash -c 'cd $INSTALL_DIR && $INSTALL_DIR/venv/bin/alembic upgrade head'"
         
         # Give user time to read the error before continuing.
-        # Use a whiptail dialog when available so the prompt is clearly
-        # visible above the TUI status area; fall back to a plain read
-        # when whiptail is not present.
-        if [ "$USE_WHIPTAIL" = true ]; then
-            MIGRATION_ERR_MSG="Database migration errors were detected."
-            MIGRATION_ERR_MSG+="\n\nAlembic exited with code: $ALEMBIC_EXIT_CODE"
-            MIGRATION_ERR_MSG+="\n\nCommon causes:"
-            MIGRATION_ERR_MSG+="\n  \u2022 Database connection failed (check DATABASE_URL in .env)"
-            MIGRATION_ERR_MSG+="\n  \u2022 PostgreSQL/PostGIS not running"
-            MIGRATION_ERR_MSG+="\n  \u2022 Migration script has errors"
-            MIGRATION_ERR_MSG+="\n  \u2022 Conflicting schema changes"
-            MIGRATION_ERR_MSG+="\n\nThe update will continue."
-            MIGRATION_ERR_MSG+="\nCheck the log for details: $LOG_FILE"
-            MIGRATION_ERR_MSG+="\n\nTo retry migrations manually:"
-            MIGRATION_ERR_MSG+="\n  sudo -u $SERVICE_USER bash -c"
-            MIGRATION_ERR_MSG+="\n    'cd $INSTALL_DIR && $INSTALL_DIR/venv/bin/alembic upgrade head'"
-            whiptail --title "Migration Warning" \
-                --backtitle "$(whiptail_footer)" \
-                --msgbox "$MIGRATION_ERR_MSG" \
-                22 75
-            redraw_screen
-        else
-            echo_warning "Migration errors detected above - review carefully before continuing"
-            echo_info "Press Enter to continue with update (auto-continue in 60s), or Ctrl+C to abort..."
-            read -r -t 60 REPLY </dev/tty || echo_info "Auto-continuing after timeout..."
-        fi
+        MIGRATION_ERR_MSG="Database migration errors were detected."
+        MIGRATION_ERR_MSG+="\n\nAlembic exited with code: $ALEMBIC_EXIT_CODE"
+        MIGRATION_ERR_MSG+="\n\nCommon causes:"
+        MIGRATION_ERR_MSG+="\n  \u2022 Database connection failed (check DATABASE_URL in .env)"
+        MIGRATION_ERR_MSG+="\n  \u2022 PostgreSQL/PostGIS not running"
+        MIGRATION_ERR_MSG+="\n  \u2022 Migration script has errors"
+        MIGRATION_ERR_MSG+="\n  \u2022 Conflicting schema changes"
+        MIGRATION_ERR_MSG+="\n\nThe update will continue."
+        MIGRATION_ERR_MSG+="\nCheck the log for details: $LOG_FILE"
+        MIGRATION_ERR_MSG+="\n\nTo retry migrations manually:"
+        MIGRATION_ERR_MSG+="\n  sudo -u $SERVICE_USER bash -c"
+        MIGRATION_ERR_MSG+="\n    'cd $INSTALL_DIR && $INSTALL_DIR/venv/bin/alembic upgrade head'"
+        whiptail --title "Migration Warning" \
+            --backtitle "$(whiptail_footer)" \
+            --msgbox "$MIGRATION_ERR_MSG" \
+            22 75
     fi
 elif [ -f "$INSTALL_DIR/venv/bin/python" ]; then
     echo_warning "Alembic not found - using db.create_all() fallback"
@@ -1433,50 +1212,48 @@ if [ "$MIGRATION_FAILED" != "true" ]; then
 fi
 echo_header "Update Complete!"
 
-if [ "$USE_WHIPTAIL" = true ]; then
-    # Build summary for whiptail
-    SUMMARY="EAS Station has been successfully updated!\n\n"
-    SUMMARY+="Update Details:\n"
-    SUMMARY+="━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-    SUMMARY+="Backup: $BACKUP_FILE\n"
-    if [ -n "$CURRENT_VERSION" ] || [ -n "$NEW_VERSION" ]; then
-        [ -n "$CURRENT_VERSION" ] && SUMMARY+="Old Version: $CURRENT_VERSION\n"
-        [ -n "$NEW_VERSION" ] && [ "$NEW_VERSION" != "unknown" ] && SUMMARY+="New Version: $NEW_VERSION\n"
-    fi
-    SUMMARY+="Branch: $CURRENT_BRANCH\n"
-    SUMMARY+="Old Commit: $CURRENT_COMMIT\n"
-    [ -n "$NEW_COMMIT" ] && SUMMARY+="New Commit: $NEW_COMMIT\n"
-    SUMMARY+="Configuration: Preserved\n"
-    SUMMARY+="Services: $SERVICE_STATUS\n\n"
-    SUMMARY+="Next Steps:\n"
-    SUMMARY+="━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-    SUMMARY+="• IMPORTANT: Hard refresh your browser (Ctrl+Shift+R)\n"
-    SUMMARY+="  to clear cached JavaScript and CSS files\n"
-    SUMMARY+="• View logs: journalctl -u eas-station-web -f\n"
-    SUMMARY+="• Check status: systemctl status eas-station.target\n"
-    SUMMARY+="• Web interface: https://$(hostname -I | awk '{print $1}')\n"
-    
-    # Only show whiptail success dialog if update completed without errors
-    if [ "$SERVICE_STATUS" = "running" ] && [ "$NGINX_STATUS" = "ok" ]; then
-        whiptail --title "Update Complete" --backtitle "$(whiptail_footer)" --msgbox "$SUMMARY" 24 75
-    else
-        # Show error dialog instead
-        ERROR_MSG="Update completed with errors:\n\n"
-        if [ "$NGINX_STATUS" = "failed" ]; then
-            ERROR_MSG+="✗ Nginx failed to start\n"
-            ERROR_MSG+="  Check: sudo nginx -t\n"
-            ERROR_MSG+="  Status: sudo systemctl status nginx\n\n"
-        fi
-        if [ "$SERVICE_STATUS" != "running" ]; then
-            ERROR_MSG+="✗ EAS Station services failed to start\n"
-            ERROR_MSG+="  Check: sudo systemctl status eas-station.target\n"
-            ERROR_MSG+="  Logs: sudo journalctl -u eas-station-web -n 100\n\n"
-        fi
-        ERROR_MSG+="Review the console output above for details.\n"
-        ERROR_MSG+="Press OK to continue..."
+# Build summary for whiptail
+SUMMARY="EAS Station has been successfully updated!\n\n"
+SUMMARY+="Update Details:\n"
+SUMMARY+="━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+SUMMARY+="Backup: $BACKUP_FILE\n"
+if [ -n "$CURRENT_VERSION" ] || [ -n "$NEW_VERSION" ]; then
+    [ -n "$CURRENT_VERSION" ] && SUMMARY+="Old Version: $CURRENT_VERSION\n"
+    [ -n "$NEW_VERSION" ] && [ "$NEW_VERSION" != "unknown" ] && SUMMARY+="New Version: $NEW_VERSION\n"
+fi
+SUMMARY+="Branch: $CURRENT_BRANCH\n"
+SUMMARY+="Old Commit: $CURRENT_COMMIT\n"
+[ -n "$NEW_COMMIT" ] && SUMMARY+="New Commit: $NEW_COMMIT\n"
+SUMMARY+="Configuration: Preserved\n"
+SUMMARY+="Services: $SERVICE_STATUS\n\n"
+SUMMARY+="Next Steps:\n"
+SUMMARY+="━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+SUMMARY+="• IMPORTANT: Hard refresh your browser (Ctrl+Shift+R)\n"
+SUMMARY+="  to clear cached JavaScript and CSS files\n"
+SUMMARY+="• View logs: journalctl -u eas-station-web -f\n"
+SUMMARY+="• Check status: systemctl status eas-station.target\n"
+SUMMARY+="• Web interface: https://$(hostname -I | awk '{print $1}')\n"
 
-        whiptail --title "Update Issues Detected" --backtitle "$(whiptail_footer)" --msgbox "$ERROR_MSG" 20 75
+# Only show whiptail success dialog if update completed without errors
+if [ "$SERVICE_STATUS" = "running" ] && [ "$NGINX_STATUS" = "ok" ]; then
+    whiptail --title "Update Complete" --backtitle "$(whiptail_footer)" --msgbox "$SUMMARY" 24 75
+else
+    # Show error dialog instead
+    ERROR_MSG="Update completed with errors:\n\n"
+    if [ "$NGINX_STATUS" = "failed" ]; then
+        ERROR_MSG+="✗ Nginx failed to start\n"
+        ERROR_MSG+="  Check: sudo nginx -t\n"
+        ERROR_MSG+="  Status: sudo systemctl status nginx\n\n"
     fi
+    if [ "$SERVICE_STATUS" != "running" ]; then
+        ERROR_MSG+="✗ EAS Station services failed to start\n"
+        ERROR_MSG+="  Check: sudo systemctl status eas-station.target\n"
+        ERROR_MSG+="  Logs: sudo journalctl -u eas-station-web -n 100\n\n"
+    fi
+    ERROR_MSG+="Review the console output above for details.\n"
+    ERROR_MSG+="Press OK to continue..."
+
+    whiptail --title "Update Issues Detected" --backtitle "$(whiptail_footer)" --msgbox "$ERROR_MSG" 20 75
 fi
 
 # Console summary
