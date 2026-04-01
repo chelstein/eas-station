@@ -8,6 +8,29 @@ tracks releases under the 2.x series.
 
 - No pending changes.
 
+## [2.71.39] - 2026-04-01 - Fix SSL cert recognition, update.sh cert preservation, and migration prompt
+
+### Fixed
+- `ssl_utils.get_ssl_certificate_info()` incorrectly reported a Let's Encrypt
+  certificate as "needs installation" even when nginx was already configured to use
+  it via the `snippets/ssl-letsencrypt.conf` include that `_install_certificate_internal`
+  writes.  The function now reads the nginx config and only sets `needs_installation`
+  when the snippet include is absent.
+- `update.sh` nginx config refresh silently reverted a Let's Encrypt certificate back
+  to the self-signed certificate on every update.  The script now detects both
+  installation forms (direct PEM paths **and** snippet include) before overwriting the
+  template, and re-applies whichever form was active after the copy.
+- `update.sh` showed the "Do you want to continue with the update?" welcome dialog a
+  second time when the script restarted itself after pulling a newer `update.sh`.  The
+  dialog is now skipped on self-restart and a brief status message is shown instead.
+- `update.sh` backup whiptail dialog did not call `redraw_screen` on the "No" path,
+  leaving the terminal in a mixed TUI/whiptail state.  `redraw_screen` is now called
+  unconditionally after the backup dialog closes.
+- `update.sh` migration-error prompt used a plain `read` command whose text was buried
+  in the TUI status bar and was easy to miss.  When whiptail is available the error is
+  now shown as a dedicated `--msgbox` dialog so the user gets a clear, dismissible
+  notification before the update continues.
+
 ## [2.71.38] - 2026-04-01 - Sortable columns, light-theme readability, footer whitespace, summary 500 fix
 
 ### Added

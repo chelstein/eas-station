@@ -375,7 +375,8 @@ else
     echo_info "Installation is not a git repository"
 fi
 
-# Show welcome dialog with whiptail if available
+# Show welcome dialog — skip on self-restart so the user is not asked to confirm twice.
+if [ "${EAS_UPDATE_RESTARTED:-}" != "true" ]; then
 if [ "$USE_WHIPTAIL" = true ]; then
     VERSION_LINE=""
     if [ -n "$CURRENT_VERSION" ]; then
@@ -408,6 +409,10 @@ else
         exit 0
     fi
 fi
+else
+    # Self-restart after update.sh was updated — brief notification only.
+    echo_info "Update script refreshed — continuing with updated version..."
+fi # End of EAS_UPDATE_RESTARTED check
 
 # Create backup (skip if restarting after self-update)
 BACKUP_FILE="none"
@@ -418,8 +423,8 @@ DO_BACKUP=false
 if [ "$USE_WHIPTAIL" = true ]; then
     if whiptail --title "Create Backup?" --backtitle "$(whiptail_footer)" --yesno "Would you like to create a backup before updating?\n\nThis will create a compressed archive of your current installation.\nBackups are saved to: $BACKUP_DIR\n\nRecommended if you have local customizations." 14 65 --defaultno; then
         DO_BACKUP=true
-        redraw_screen
     fi
+    redraw_screen
 else
     add_status "   >>    Create a backup before updating? [y/N]"
     redraw_screen
@@ -1063,12 +1068,19 @@ if [ -f "$INSTALL_DIR/config/nginx-eas-station.conf" ]; then
         if ! diff -q "$INSTALL_DIR/config/nginx-eas-station.conf" /etc/nginx/sites-available/eas-station >/dev/null 2>&1; then
             echo_progress "Updating nginx configuration..."
 
-            # Preserve any existing SSL certificate paths before overwriting the config.
-            # The template always contains the self-signed certificate paths.  If the
-            # admin obtained a Let's Encrypt certificate via the web UI or certbot, those
-            # paths would be overwritten on every upgrade - reverting HTTPS to a
-            # self-signed certificate.  We capture the live paths first and restore them
-            # after the copy so the certificate is never silently replaced.
+            # Preserve any existing SSL certificate configuration before overwriting
+            # the config.  The template always uses the self-signed certificate.  If
+            # the admin installed a Let's Encrypt certificate via the web UI, that
+            # installation takes one of two forms:
+            #
+            #  1. Direct paths – ssl_certificate and ssl_certificate_key point
+            #     directly to the Let's Encrypt PEM files.
+            #
+            #  2. Snippet include – _install_certificate_internal() comments out the
+            #     self-signed lines and adds "include snippets/ssl-letsencrypt.conf;"
+            #     which points to the cert files.
+            #
+            # Capture both forms now, before the template overwrites the live config.
             EXISTING_CERT=$(grep -E "^\s*ssl_certificate " /etc/nginx/sites-available/eas-station \
                 | grep -Ev "^[[:space:]]*#" \
                 | awk '{print $2}' | tr -d ';' | head -1)
@@ -1076,14 +1088,21 @@ if [ -f "$INSTALL_DIR/config/nginx-eas-station.conf" ]; then
                 | grep -Ev "^[[:space:]]*#" \
                 | awk '{print $2}' | tr -d ';' | head -1)
 
+            # Detect snippet-based installation: uncommented include + snippet file on disk.
+            USES_SSL_SNIPPET=false
+            if grep -qE "^\s*include\s+snippets/ssl-letsencrypt\.conf" \
+                    /etc/nginx/sites-available/eas-station 2>/dev/null \
+               && [ -f /etc/nginx/snippets/ssl-letsencrypt.conf ]; then
+                USES_SSL_SNIPPET=true
+            fi
+
             cp "$INSTALL_DIR/config/nginx-eas-station.conf" /etc/nginx/sites-available/eas-station
 
-            # If the previous config was using a certificate other than the default
-            # self-signed one (e.g. a Let's Encrypt certificate), restore those paths so
-            # the upgrade does not silently revert to a self-signed certificate.
+            # Restore whichever certificate form was in use before the template copy.
             if [ -n "$EXISTING_CERT" ] && \
                [ "$EXISTING_CERT" != "/etc/ssl/certs/eas-station-selfsigned.crt" ] && \
                [ -f "$EXISTING_CERT" ]; then
+                # Form 1: direct certificate paths.
                 echo_info "Preserving existing SSL certificate: $EXISTING_CERT"
                 # Escape & and \ in the replacement strings so sed does not
                 # misinterpret them.  File paths on Linux cannot contain | so the
@@ -1095,6 +1114,20 @@ if [ -f "$INSTALL_DIR/config/nginx-eas-station.conf" ]; then
                 sed -i "s|ssl_certificate_key /etc/ssl/private/eas-station-selfsigned.key;|ssl_certificate_key $KEY_ESC;|g" \
                     /etc/nginx/sites-available/eas-station
                 echo_success "SSL certificate paths preserved"
+            elif [ "$USES_SSL_SNIPPET" = true ]; then
+                # Form 2: snippet include.  Re-apply the same edits that
+                # _install_certificate_internal() makes so the template does not
+                # silently revert to the self-signed certificate.
+                echo_info "Restoring Let's Encrypt SSL snippet configuration..."
+                sed -i 's|^\(\s*\)ssl_certificate /etc/ssl/|\1# ssl_certificate /etc/ssl/|g' \
+                    /etc/nginx/sites-available/eas-station
+                sed -i 's|^\(\s*\)ssl_certificate_key /etc/ssl/|\1# ssl_certificate_key /etc/ssl/|g' \
+                    /etc/nginx/sites-available/eas-station
+                if ! grep -q 'ssl-letsencrypt.conf' /etc/nginx/sites-available/eas-station; then
+                    sed -i '/ssl_protocols/a\    include snippets/ssl-letsencrypt.conf;' \
+                        /etc/nginx/sites-available/eas-station
+                fi
+                echo_success "Let's Encrypt SSL snippet configuration restored"
             fi
 
             if nginx -t 2>&1 | grep -q "successful"; then
@@ -1194,11 +1227,33 @@ with app.app_context():
         echo_info "You can manually run migrations:"
         echo_info "  sudo -u $SERVICE_USER bash -c 'cd $INSTALL_DIR && $INSTALL_DIR/venv/bin/alembic upgrade head'"
         
-        # Give user time to read the error before continuing
-        echo ""
-        echo_warning "Migration errors detected above - review carefully before continuing"
-        echo_info "Press Enter to continue with update (auto-continue in 60s), or Ctrl+C to abort..."
-        read -r -t 60 REPLY </dev/tty || echo_info "Auto-continuing after timeout..."
+        # Give user time to read the error before continuing.
+        # Use a whiptail dialog when available so the prompt is clearly
+        # visible above the TUI status area; fall back to a plain read
+        # when whiptail is not present.
+        if [ "$USE_WHIPTAIL" = true ]; then
+            MIGRATION_ERR_MSG="Database migration errors were detected."
+            MIGRATION_ERR_MSG+="\n\nAlembic exited with code: $ALEMBIC_EXIT_CODE"
+            MIGRATION_ERR_MSG+="\n\nCommon causes:"
+            MIGRATION_ERR_MSG+="\n  \u2022 Database connection failed (check DATABASE_URL in .env)"
+            MIGRATION_ERR_MSG+="\n  \u2022 PostgreSQL/PostGIS not running"
+            MIGRATION_ERR_MSG+="\n  \u2022 Migration script has errors"
+            MIGRATION_ERR_MSG+="\n  \u2022 Conflicting schema changes"
+            MIGRATION_ERR_MSG+="\n\nThe update will continue."
+            MIGRATION_ERR_MSG+="\nCheck the log for details: $LOG_FILE"
+            MIGRATION_ERR_MSG+="\n\nTo retry migrations manually:"
+            MIGRATION_ERR_MSG+="\n  sudo -u $SERVICE_USER bash -c"
+            MIGRATION_ERR_MSG+="\n    'cd $INSTALL_DIR && $INSTALL_DIR/venv/bin/alembic upgrade head'"
+            whiptail --title "Migration Warning" \
+                --backtitle "$(whiptail_footer)" \
+                --msgbox "$MIGRATION_ERR_MSG" \
+                22 75
+            redraw_screen
+        else
+            echo_warning "Migration errors detected above - review carefully before continuing"
+            echo_info "Press Enter to continue with update (auto-continue in 60s), or Ctrl+C to abort..."
+            read -r -t 60 REPLY </dev/tty || echo_info "Auto-continuing after timeout..."
+        fi
     fi
 elif [ -f "$INSTALL_DIR/venv/bin/python" ]; then
     echo_warning "Alembic not found - using db.create_all() fallback"
