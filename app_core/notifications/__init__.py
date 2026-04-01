@@ -47,24 +47,16 @@ def send_alert_notifications(
         logger_instance: Optional logger override.
     """
     log = logger_instance or logger
-    log.warning(
+    log.debug(
         "send_alert_notifications: record_id=%s event=%s",
         record_id,
         alert_info.get("event_code", "?"),
     )
 
     try:
-        from flask import has_app_context
-        if not has_app_context():
-            log.warning("No Flask app context; alert notifications will not be sent")
-            return
-    except ImportError:
-        return
-
-    try:
         from app_core.models import NotificationSettings, EASMessage
 
-        settings = NotificationSettings.query.first()
+        settings = db_session.query(NotificationSettings).first()
         if not settings:
             log.warning("No notification settings row found; skipping alert notifications")
             return
