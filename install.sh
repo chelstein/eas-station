@@ -45,9 +45,12 @@ whiptail_footer() {
     echo "Copyright (c) 2025-2026 Timothy Kramer (KR8MER) | AGPL v3 / Commercial License"
 }
 
-# Wrapper: restore terminal sanity after each whiptail call
+# Wrapper: force whiptail TUI to /dev/tty so ncurses output is never swallowed
+# by the log redirect (exec 1>>$LOG_FILE 2>&1) below.  Callers that capture
+# user input still use the standard "3>&1 1>&2 2>&3" fd-swap trick; >/dev/tty
+# only overrides fd1 (TUI output), leaving fd2 (the captured result) untouched.
 whiptail() {
-    command whiptail "$@"
+    command whiptail "$@" >/dev/tty
     local _ret=$?
     stty sane </dev/tty 2>/dev/null || true
     return $_ret
@@ -118,7 +121,7 @@ fi
 
 # Redirect all stdout/stderr to the log file.
 # From this point on, every command's output goes to the log automatically.
-# whiptail writes via ncurses directly to /dev/tty and is unaffected.
+# The whiptail() wrapper above forces TUI output to /dev/tty explicitly.
 mkdir -p "$(dirname "$LOG_FILE")"
 : > "$LOG_FILE"
 exec 1>>"$LOG_FILE" 2>&1

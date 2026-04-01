@@ -13,7 +13,6 @@ Create Date: 2026-04-01
 
 from __future__ import annotations
 
-import sqlalchemy as sa
 from alembic import op
 
 revision = "20260401_add_superseded_by_to_cap_alerts"
@@ -23,22 +22,16 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.add_column(
-        "cap_alerts",
-        sa.Column(
-            "superseded_by_id",
-            sa.Integer(),
-            sa.ForeignKey("cap_alerts.id", ondelete="SET NULL"),
-            nullable=True,
-        ),
+    op.execute(
+        "ALTER TABLE cap_alerts ADD COLUMN IF NOT EXISTS superseded_by_id INTEGER"
+        " REFERENCES cap_alerts(id) ON DELETE SET NULL"
     )
-    op.create_index(
-        "ix_cap_alerts_superseded_by_id",
-        "cap_alerts",
-        ["superseded_by_id"],
+    op.execute(
+        "CREATE INDEX IF NOT EXISTS ix_cap_alerts_superseded_by_id"
+        " ON cap_alerts (superseded_by_id)"
     )
 
 
 def downgrade() -> None:
-    op.drop_index("ix_cap_alerts_superseded_by_id", table_name="cap_alerts")
+    op.execute("DROP INDEX IF EXISTS ix_cap_alerts_superseded_by_id")
     op.drop_column("cap_alerts", "superseded_by_id")
