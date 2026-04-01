@@ -4,22 +4,19 @@ This directory contains instructions that are automatically loaded by GitHub Cop
 
 ## Files
 
-- **AGENTS.md** - Complete coding standards, guidelines, and best practices for AI agents working on this codebase
+- **AGENTS.md** — Coding standards, guidelines, and best practices for AI agents working on this codebase.
+  This file is a **symbolic link** to `docs/development/AGENTS.md` — there is only one copy.
 
 ## Maintenance
 
-The canonical source for `AGENTS.md` is located at `docs/development/AGENTS.md`. When making updates:
+Edit `docs/development/AGENTS.md` directly. Because `.github/agents/AGENTS.md` is a symlink,
+the change is immediately visible here with no copy step required.
 
-1. Edit `docs/development/AGENTS.md` (the canonical source)
-2. Copy to `.github/agents/AGENTS.md`:
-   ```bash
-   cp docs/development/AGENTS.md .github/agents/AGENTS.md
-   ```
-3. Commit both files together
+```bash
+# Edit the canonical source
+$EDITOR docs/development/AGENTS.md
 
-## Why Two Copies?
-
-- **`docs/development/AGENTS.md`** - Part of the main documentation tree, discoverable by developers
-- **`.github/agents/AGENTS.md`** - Special location that GitHub Copilot agents read automatically at session start
-
-This duplication ensures agents always have the latest guidelines while keeping the documentation properly organized.
+# Commit — only one file changes
+git add docs/development/AGENTS.md
+git commit -m "docs: update agent guidelines"
+```
