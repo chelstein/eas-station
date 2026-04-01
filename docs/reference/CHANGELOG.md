@@ -4,6 +4,24 @@ All notable changes to this project are documented in this file. The format is b
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project currently
 tracks releases under the 2.x series.
 
+## [2.71.29] - 2026-04-01 - Sortable columns, light-theme readability, footer whitespace, summary 500 fix
+
+### Added
+- Alert History table now has server-side sortable columns: clicking any column header
+  (Event, Severity, Status, Source, Sent, Expires, Headline, Area) sorts the results
+  ascending or descending; sort state is preserved through pagination and filter changes.
+
+### Fixed
+- `GET /eas_messages/<id>/summary` returned HTTP 500 because `EASMessage` has no
+  `.identifier` attribute; corrected to use `.same_header`.
+- Light theme: table column headers were nearly invisible because the `table-light`
+  Bootstrap class made the header background almost identical to the page background;
+  replaced with a clearly tinted primary-colour mix that works in all themes.
+- Removed two orphaned `</div>` closing tags at the end of `alerts.html` that
+  caused subtle layout shifts.
+- Added `flex-shrink: 0` to the footer so it is never compressed by the flex layout,
+  eliminating the excess white space that appeared below the footer on long pages.
+
 ## [Unreleased]
 
 - No pending changes.

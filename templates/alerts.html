@@ -194,16 +194,32 @@
                     {% if alerts %}
                     <div class="table-responsive">
                         <table class="table table-hover table-modern mb-0">
-                            <thead class="table-light">
+                            <thead>
+                                {% macro sort_th(label, key) %}
+                                {% set is_active = current_filters.sort == key %}
+                                {% set next_dir = 'asc' if (is_active and current_filters.direction == 'desc') else 'desc' %}
+                                <th>
+                                    <a href="{{ url_for('alerts', **dict(current_filters, sort=key, direction=next_dir, page=1)) }}"
+                                       class="sort-header {% if is_active %}sort-active{% endif %}"
+                                       title="Sort by {{ label }}">
+                                        {{ label }}
+                                        {% if is_active %}
+                                            <i class="fas fa-sort-{% if current_filters.direction == 'asc' %}up{% else %}down{% endif %} ms-1"></i>
+                                        {% else %}
+                                            <i class="fas fa-sort ms-1 sort-inactive"></i>
+                                        {% endif %}
+                                    </a>
+                                </th>
+                                {% endmacro %}
                                 <tr>
-                                    <th>Event</th>
-                                    <th>Severity</th>
-                                    <th>Status</th>
-                                    <th>Source</th>
-                                    <th>Sent</th>
-                                    <th>Expires</th>
-                                    <th>Headline</th>
-                                    <th>Area</th>
+                                    {{ sort_th('Event', 'event') }}
+                                    {{ sort_th('Severity', 'severity') }}
+                                    {{ sort_th('Status', 'status') }}
+                                    {{ sort_th('Source', 'source') }}
+                                    {{ sort_th('Sent', 'sent') }}
+                                    {{ sort_th('Expires', 'expires') }}
+                                    {{ sort_th('Headline', 'headline') }}
+                                    {{ sort_th('Area', 'area') }}
                                     <th>Audio</th>
                                     <th>Actions</th>
                                 </tr>
@@ -385,8 +401,6 @@
             </nav>
             {% endif %}
         </div>
-    </div>
-</div>
 
 <script>
 /**
