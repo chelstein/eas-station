@@ -5,11 +5,10 @@
 
 set -e  # Exit on error
 
-# Save real terminal fd for TUI output — must be the very first action
-exec 9>&1
+# Log file — all command output is redirected here after root check
+LOG_FILE="/var/log/eas-install.log"
 
-# DOS/CGA color palette — $'...' produces real ESC bytes so embedded ANSI
-# codes in status messages are rendered by the terminal, not shown literally
+# Color codes used in summary output at the end of the script
 RED=$'\033[1;31m'
 GREEN=$'\033[1;32m'
 YELLOW=$'\033[1;33m'
@@ -18,33 +17,15 @@ WHITE=$'\033[1;37m'
 BOLD=$'\033[1m'
 DIM=$'\033[2m'
 NC=$'\033[0m'
-# Legacy vars still referenced in script body
 BLUE=$'\033[0;34m'
 MAGENTA=$'\033[0;35m'
 
-# Step counter for progress tracking
+# Step tracking
 STEP_NUM=0
-# NOTE: Update TOTAL_STEPS when adding/removing installation steps
 TOTAL_STEPS=17
-
-# Log file — all command output is redirected here after root check
-LOG_FILE="/var/log/eas-install.log"
-
-# TUI state
-STATUS_MSGS=()
-MAX_STATUS_LINES=7
 CURRENT_DESC="Initializing..."
-
-# Pre-generated repeated-char strings (avoids subshell spawns on every redraw)
-_SEP73="$(printf '=%.0s' $(seq 1 73))"
-_SEP74="$(printf -- '-%.0s' $(seq 1 74))"
-_BAR55="$(printf '#%.0s' $(seq 1 55))"
-_DOT55="$(printf '.%.0s' $(seq 1 55))"
-
-# Track start time
 START_TIME=$(date +%s)
 
-# Format duration — plain text, no ANSI codes
 format_duration() {
     local seconds=$1
     local hours=$((seconds / 3600))
@@ -59,219 +40,12 @@ format_duration() {
     fi
 }
 
-# Add a message to the fixed-size status ring buffer
-add_status() {
-    STATUS_MSGS+=("$1")
-    while [ ${#STATUS_MSGS[@]} -gt $MAX_STATUS_LINES ]; do
-        STATUS_MSGS=("${STATUS_MSGS[@]:1}")
-    done
-}
-
-# Redraw the entire fixed TUI screen — writes to fd 9 (real terminal)
-redraw_screen() {
-    local elapsed
-    elapsed=$(format_duration $(( $(date +%s) - START_TIME )))
-    local pct=0 filled=0 empty=55
-    if [ "$TOTAL_STEPS" -gt 0 ] && [ "$STEP_NUM" -gt 0 ]; then
-        pct=$((STEP_NUM * 100 / TOTAL_STEPS))
-        filled=$((STEP_NUM * 55 / TOTAL_STEPS))
-        empty=$((55 - filled))
-        [ $filled -gt 55 ] && filled=55 && empty=0
-        [ $empty -lt 0 ] && empty=0
-    fi
-    local bar="${_BAR55:0:$filled}${_DOT55:0:$empty}"
-
-    {
-        # Home cursor, then erase everything below — clears splash/old content
-        printf '\033[H\033[J'
-
-        # Line 1: Red title bar
-        printf '\033[41;1;37m  %-77s\033[K\033[0m\n' \
-            "EAS Station - Bare Metal Installer"
-
-        # Line 2: blank blue
-        printf '\033[44;1;37m\033[K\n'
-
-        # Lines 3-6: Step progress box (dark bg inside)
-        printf '\033[44;1;37m  +%s+\033[K\n' "$_SEP73"
-        printf '\033[44;1;37m  |\033[40;1;37m %-72s\033[44;1;37m|\033[K\n' \
-            " STEP ${STEP_NUM} OF ${TOTAL_STEPS}  --  ${CURRENT_DESC}"
-        printf '\033[44;1;37m  |\033[40;1;37m  [%-55s] %3d%%%-7s\033[44;1;37m|\033[K\n' \
-            "$bar" "$pct" ""
-        printf '\033[44;1;37m  +%s+\033[K\n' "$_SEP73"
-
-        # Line 7: blank blue
-        printf '\033[44;1;37m\033[K\n'
-
-        # Line 8: Status area header
-        printf '\033[44;1;36m  Recent Activity:\033[44;1;37m\033[K\n'
-
-        # Line 9: separator
-        printf '\033[44;1;37m  %s\033[K\n' "$_SEP74"
-
-        # Lines 10-16: Status messages (7 lines, colour-coded by prefix)
-        local total=${#STATUS_MSGS[@]}
-        local i
-        for ((i=0; i<MAX_STATUS_LINES; i++)); do
-            local idx=$((total - MAX_STATUS_LINES + i))
-            if [ $idx -ge 0 ] && [ $idx -lt $total ]; then
-                local msg="${STATUS_MSGS[$idx]}"
-                # Print message; \033[K fills remainder with current bg colour.
-                # Using %s not %-75s so embedded ANSI codes aren't counted as
-                # printable characters for padding.
-                case "${msg:0:7}" in
-                    "[ OK ] ") printf '\033[44;1;32m  %s\033[44;1;37m\033[K\n' "$msg" ;;
-                    "[INFO] ") printf '\033[44;1;36m  %s\033[44;1;37m\033[K\n' "$msg" ;;
-                    "[WARN] ") printf '\033[44;1;33m  %s\033[44;1;37m\033[K\n' "$msg" ;;
-                    "[ERROR]") printf '\033[44;1;31m  %s\033[44;1;37m\033[K\n' "$msg" ;;
-                    *)         printf '\033[44;1;37m  %s\033[K\n'             "$msg" ;;
-                esac
-            else
-                printf '\033[44;1;37m\033[K\n'
-            fi
-        done
-
-        # Line 17: blank blue
-        printf '\033[44;1;37m\033[K\n'
-
-        # Line 18: Red bottom bar with elapsed time and log path
-        printf '\033[41;1;37m  %-77s\033[K\033[0m\n' \
-            "Elapsed: ${elapsed}  |  Log: ${LOG_FILE}"
-
-        printf '\033[0m'
-    } >&9
-}
-
-# Initial splash screen — shown before log redirect, writes direct to terminal
-draw_splash() {
-    {
-        printf '\033[2J\033[H'
-        # Title bar
-        printf '\033[41;1;37m  %-77s\033[K\033[0m\n' \
-            "EAS Station - Bare Metal Installer"
-        printf '\033[44;1;37m\033[K\n'
-        # Block-letter logo on blue background
-        printf '\033[44;1;37m'
-        cat << 'LOGO'
-                 ███████╗ █████╗ ███████╗
-                 ██╔════╝██╔══██╗██╔════╝
-                 █████╗  ███████║███████╗
-                 ██╔══╝  ██╔══██║╚════██║
-                 ███████╗██║  ██║███████║
-                 ╚══════╝╚═╝  ╚═╝╚══════╝
-
-            ███████╗████████╗ █████╗ ████████╗██╗ ██████╗ ███╗   ██╗
-            ██╔════╝╚══██╔══╝██╔══██╗╚══██╔══╝██║██╔═══██╗████╗  ██║
-            ███████╗   ██║   ███████║   ██║   ██║██║   ██║██╔██╗ ██║
-            ╚════██║   ██║   ██╔══██║   ██║   ██║██║   ██║██║╚██╗██║
-            ███████║   ██║   ██║  ██║   ██║   ██║╚██████╔╝██║ ╚████║
-            ╚══════╝   ╚═╝   ╚═╝  ╚═╝   ╚═╝   ╚═╝ ╚═════╝ ╚═╝  ╚═══╝
-
-              Emergency Alert System Installation
-              Monitoring & Broadcasting | Bare Metal Setup
-
-LOGO
-        printf '\033[44;0;37m  Copyright (c) 2025-2026 Timothy Kramer (KR8MER)\033[K\n'
-        printf '\033[44;0;37m  Licensed under AGPL v3 or Commercial License\033[K\n'
-        printf '\033[44;1;37m\033[K\n'
-        # Bottom bar
-        printf '\033[41;1;37m  %-77s\033[K\033[0m\n' \
-            "Press Ctrl+C to cancel at any time"
-        printf '\033[0m'
-    } >&9
-}
-
-# Restore terminal to a clean, usable state — called from cleanup and on interrupt
-restore_terminal() {
-    stty sane </dev/tty 2>/dev/null || true
-    {
-        printf '\033[?25h'          # show cursor
-        printf '\033[0m'            # reset all attributes
-        printf '\033[20;0H\033[J'   # move below TUI and clear remaining lines
-    } >&9
-}
-
-# Cleanup: show error in TUI and restore terminal on unexpected exit
-cleanup_on_exit() {
-    local exit_code=$?
-    if [ $exit_code -ne 0 ]; then
-        add_status "[ERROR]  Script exited with code $exit_code"
-        add_status "         Check log: $LOG_FILE"
-        redraw_screen
-    fi
-    restore_terminal
-}
-trap cleanup_on_exit EXIT
-trap 'exit 130' INT TERM
-
-echo_step() {
-    STEP_NUM=$((STEP_NUM + 1))
-    CURRENT_DESC="$1"
-    redraw_screen
-}
-
-echo_info()    { add_status "[INFO]   $1"; redraw_screen; }
-echo_success() { add_status "[ OK ]   $1"; redraw_screen; }
-echo_warning() { add_status "[WARN]   $1"; redraw_screen; }
-echo_error()   { add_status "[ERROR]  $1"; redraw_screen; }
-echo_progress(){ add_status "   >>    $1"; redraw_screen; }
-echo_header()  { add_status ""; add_status "=== $1 ==="; redraw_screen; }
-echo_operation() {
-    local estimate="${2:-}"
-    [ -n "$estimate" ] && add_status "   >>    $1 (~$estimate)" \
-                       || add_status "   >>    $1"
-    redraw_screen
-}
-
-draw_box()      { add_status "[ OK ]   $1"; redraw_screen; }
-draw_separator(){ :; }   # Section separation handled by step redraw
-
-show_progress_bar() {
-    local percentage=$(( $1 * 100 / $2 ))
-    local dots=$(( percentage / 5 ))
-    local msg="   >>    [${_BAR55:0:$dots}${_DOT55:0:$((20-dots))}] ${percentage}%"
-    if [ ${#STATUS_MSGS[@]} -gt 0 ] && \
-       [[ "${STATUS_MSGS[-1]}" == "   >>    ["* ]]; then
-        STATUS_MSGS[-1]="$msg"
-    else
-        add_status "$msg"
-    fi
-    redraw_screen
-}
-
-show_spinner() { wait "$1" 2>/dev/null || true; }
-
-show_elapsed_time() { :; }   # Elapsed shown live in bottom bar
-
-show_celebration() {
-    local message="$1"
-    local elapsed
-    elapsed=$(format_duration $(( $(date +%s) - START_TIME )))
-    {
-        printf '\033[2J\033[H'
-        printf '\033[41;1;37m'
-        local i; for i in {1..4}; do printf '\033[K\n'; done
-        printf '  %s\033[K\n' "$_SEP73"
-        printf '\033[K\n'
-        printf '  %22s*** INSTALLATION COMPLETE ***\033[K\n' ""
-        printf '\033[K\n'
-        printf '  %10s%s\033[K\n' "" "$message"
-        printf '\033[K\n'
-        printf '  %s\033[K\n' "$_SEP73"
-        for i in {1..4}; do printf '\033[K\n'; done
-        printf '  Total time: %-40s Log: %s\033[K\n' "${elapsed}" "${LOG_FILE}"
-        for i in {1..3}; do printf '\033[K\n'; done
-        printf '\033[0m'
-    } >&9
-}
-
-# Add branding footer for whiptail dialogs
+# Branding footer for whiptail dialogs
 whiptail_footer() {
     echo "Copyright (c) 2025-2026 Timothy Kramer (KR8MER) | AGPL v3 / Commercial License"
 }
 
-# Wrapper: ncurses (whiptail) can leave the terminal in cbreak/no-echo/no-isig
-# mode, which makes Ctrl+C stop working. Always restore sane settings after.
+# Wrapper: restore terminal sanity after each whiptail call
 whiptail() {
     command whiptail "$@"
     local _ret=$?
@@ -279,30 +53,81 @@ whiptail() {
     return $_ret
 }
 
+# Show current step as a whiptail infobox (non-blocking, writes to /dev/tty via ncurses)
+_progress_msg=""
+_show_progress() {
+    local pct=0
+    [ "$TOTAL_STEPS" -gt 0 ] && [ "$STEP_NUM" -gt 0 ] && pct=$((STEP_NUM * 100 / TOTAL_STEPS))
+    local elapsed; elapsed=$(format_duration $(( $(date +%s) - START_TIME )))
+    whiptail --title "EAS Station - Bare Metal Installer" \
+             --backtitle "$(whiptail_footer)" \
+             --infobox "  Step $STEP_NUM of $TOTAL_STEPS ($pct%): $CURRENT_DESC\n\n  $_progress_msg\n\n  Elapsed: $elapsed  |  Log: $LOG_FILE" \
+             10 72
+}
+
+echo_step() {
+    STEP_NUM=$((STEP_NUM + 1))
+    CURRENT_DESC="$1"
+    _progress_msg=""
+    echo "--- Step $STEP_NUM/$TOTAL_STEPS: $1 ---"
+    _show_progress
+}
+
+echo_info()     { _progress_msg="[INFO]  $1"; echo "[INFO]  $1"; _show_progress; }
+echo_success()  { _progress_msg="[ OK ]  $1"; echo "[ OK ]  $1"; _show_progress; }
+echo_warning()  { _progress_msg="[WARN]  $1"; echo "[WARN]  $1"; _show_progress; }
+echo_error()    { _progress_msg="[ERROR] $1"; echo "[ERROR] $1"; _show_progress; }
+echo_progress() { _progress_msg="  >>    $1"; echo "  >>    $1"; _show_progress; }
+echo_header()   { echo ""; echo "=== $1 ==="; echo ""; }
+echo_operation() { echo_progress "${1}${2:+ (~$2)}"; }
+draw_box()       { echo_success "$1"; }
+draw_separator() { :; }
+show_progress_bar() { :; }
+show_spinner()   { wait "$1" 2>/dev/null || true; }
+show_elapsed_time() { :; }
+
+show_celebration() {
+    local elapsed; elapsed=$(format_duration $(( $(date +%s) - START_TIME )))
+    whiptail --title "*** INSTALLATION COMPLETE ***" \
+             --backtitle "$(whiptail_footer)" \
+             --msgbox "$1\n\nTotal time: $elapsed\nLog: $LOG_FILE" 10 65
+}
+
+cleanup_on_exit() {
+    local exit_code=$?
+    if [ $exit_code -ne 0 ]; then
+        echo "[ERROR] Script exited with code $exit_code"
+        whiptail --title "Installation Failed" \
+                 --backtitle "$(whiptail_footer)" \
+                 --msgbox "Script exited with code $exit_code\n\nCheck log for details:\n$LOG_FILE" 10 65 2>/dev/null || true
+    fi
+    stty sane </dev/tty 2>/dev/null || true
+}
+trap cleanup_on_exit EXIT
+trap 'exit 130' INT TERM
+
 # ── Startup ──────────────────────────────────────────────────────────────────
 
-printf '\033[?25l' >&9   # hide cursor for clean TUI look
-draw_splash
+# Show splash while we do the root check
+whiptail --title "EAS Station - Bare Metal Installer" --backtitle "$(whiptail_footer)" \
+         --infobox "EAS Station\nEmergency Alert System\n\nBare Metal Installer\nInitializing..." 10 60
 
-# Root check must happen before log redirect (needs /var/log write access)
+# Root check
 if [ "$EUID" -ne 0 ]; then
-    {
-        printf '\033[44;1;31m\n  [ERROR]  This script must be run as root (use sudo)\033[K\n'
-        printf '\033[44;1;37m  Please run: sudo ./install.sh\033[K\n\n'
-        printf '\033[0m'
-    } >&9
+    echo "ERROR: This script must be run as root (use sudo)"
+    whiptail --title "Permission Denied" --backtitle "$(whiptail_footer)" \
+             --msgbox "This script must be run as root.\n\nPlease run: sudo ./install.sh" 10 60 2>/dev/null || true
     exit 1
 fi
 
 # Redirect all stdout/stderr to the log file.
 # From this point on, every command's output goes to the log automatically.
-# Our UI functions write to fd 9 (real terminal) and are unaffected.
+# whiptail writes via ncurses directly to /dev/tty and is unaffected.
 mkdir -p "$(dirname "$LOG_FILE")"
 : > "$LOG_FILE"
 exec 1>>"$LOG_FILE" 2>&1
 
-add_status "[ OK ]   Root privileges confirmed"
-redraw_screen
+echo "[ OK ]  Root privileges confirmed"
 
 # Configuration variables
 INSTALL_DIR="/opt/eas-station"
@@ -335,10 +160,8 @@ fi
 # Check if Debian/Ubuntu based
 if [ "$OS" != "debian" ] && [ "$OS" != "ubuntu" ] && [ "$OS" != "raspbian" ]; then
     echo_warning "This script is designed for Debian/Ubuntu. Your OS is: $OS"
-    add_status "[WARN]   Unsupported OS detected. Continue anyway? [y/N]"
-    redraw_screen
-    read -n 1 -r REPLY </dev/tty
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+    if ! whiptail --title "Unsupported OS" --backtitle "$(whiptail_footer)" \
+         --yesno "Unsupported OS detected: $OS\n\nThis script is designed for Debian/Ubuntu.\n\nContinue anyway?" 10 60; then
         echo_info "Installation cancelled by user"
         exit 1
     fi
@@ -408,11 +231,10 @@ echo_step "Administrator Account Setup"
 
 # Welcome screen
 whiptail --title "EAS Station Installation" --backtitle "$(whiptail_footer)" --msgbox "Welcome to the EAS Station Interactive Installer!\n\nThis wizard will guide you through configuring your Emergency Alert System station.\n\nYou'll be asked to configure:\n• Administrator account\n• System identification\n• Station callsign and location\n\nPress OK to begin." 18 70
-redraw_screen
 
 # Prompt for admin username
 while true; do
-    ADMIN_USERNAME=$(whiptail --title "Administrator Account" --backtitle "$(whiptail_footer)" --inputbox "Enter administrator username (min 3 characters):\n\nThis account will be used to access the web interface." 12 70 9>&1 1>&2 2>&9)
+    ADMIN_USERNAME=$(whiptail --title "Administrator Account" --backtitle "$(whiptail_footer)" --inputbox "Enter administrator username (min 3 characters):\n\nThis account will be used to access the web interface." 12 70 3>&1 1>&2 2>&3)
     
     exitstatus=$?
     if [ $exitstatus != 0 ]; then
@@ -447,7 +269,7 @@ done
 
 # Prompt for admin password
 while true; do
-    ADMIN_PASSWORD=$(whiptail --title "Administrator Password" --backtitle "$(whiptail_footer)" --passwordbox "Enter administrator password (min 12 characters):" 10 70 9>&1 1>&2 2>&9)
+    ADMIN_PASSWORD=$(whiptail --title "Administrator Password" --backtitle "$(whiptail_footer)" --passwordbox "Enter administrator password (min 12 characters):" 10 70 3>&1 1>&2 2>&3)
     
     exitstatus=$?
     if [ $exitstatus != 0 ]; then
@@ -464,7 +286,7 @@ while true; do
         continue
     fi
     
-    ADMIN_PASSWORD_CONFIRM=$(whiptail --title "Confirm Password" --backtitle "$(whiptail_footer)" --passwordbox "Confirm administrator password:" 10 70 9>&1 1>&2 2>&9)
+    ADMIN_PASSWORD_CONFIRM=$(whiptail --title "Confirm Password" --backtitle "$(whiptail_footer)" --passwordbox "Confirm administrator password:" 10 70 3>&1 1>&2 2>&3)
     
     if [ "$ADMIN_PASSWORD" != "$ADMIN_PASSWORD_CONFIRM" ]; then
         whiptail --title "Error" --backtitle "$(whiptail_footer)" --msgbox "Passwords do not match. Please try again." 8 60
@@ -477,7 +299,7 @@ done
 
 # Prompt for admin email address (for notifications)
 while true; do
-    ADMIN_EMAIL=$(whiptail --title "Administrator Email" --backtitle "$(whiptail_footer)" --inputbox "Enter administrator email address:\n\nThis will be used for system notifications and alerts." 12 70 9>&1 1>&2 2>&9)
+    ADMIN_EMAIL=$(whiptail --title "Administrator Email" --backtitle "$(whiptail_footer)" --inputbox "Enter administrator email address:\n\nThis will be used for system notifications and alerts." 12 70 3>&1 1>&2 2>&3)
     
     exitstatus=$?
     if [ $exitstatus != 0 ]; then
@@ -517,7 +339,7 @@ echo_step "System and EAS Station Configuration"
 # Prompt for system hostname
 CURRENT_HOSTNAME=$(hostname 2>/dev/null || echo "eas-station")
 while true; do
-    SYSTEM_HOSTNAME=$(whiptail --title "System Hostname" --backtitle "$(whiptail_footer)" --inputbox "Enter system hostname:\n\nThis will be the network name of your EAS station." 12 70 "$CURRENT_HOSTNAME" 9>&1 1>&2 2>&9)
+    SYSTEM_HOSTNAME=$(whiptail --title "System Hostname" --backtitle "$(whiptail_footer)" --inputbox "Enter system hostname:\n\nThis will be the network name of your EAS station." 12 70 "$CURRENT_HOSTNAME" 3>&1 1>&2 2>&3)
     
     exitstatus=$?
     if [ $exitstatus != 0 ]; then
@@ -546,7 +368,7 @@ done
 
 # Prompt for domain name (for SSL/nginx)
 while true; do
-    DOMAIN_NAME=$(whiptail --title "Domain Name" --backtitle "$(whiptail_footer)" --inputbox "Enter domain name for SSL/web access:\n\nUse 'localhost' for local-only access, an IP address, or your domain name." 13 70 "localhost" 9>&1 1>&2 2>&9)
+    DOMAIN_NAME=$(whiptail --title "Domain Name" --backtitle "$(whiptail_footer)" --inputbox "Enter domain name for SSL/web access:\n\nUse 'localhost' for local-only access, an IP address, or your domain name." 13 70 "localhost" 3>&1 1>&2 2>&3)
     
     exitstatus=$?
     if [ $exitstatus != 0 ]; then
@@ -603,7 +425,7 @@ EAS_ORIGINATOR=$(whiptail --title "EAS Originator Code" --backtitle "$(whiptail_
     "PEP" "Primary Entry Point Station" OFF \
     "CIV" "Civil Authorities" OFF \
     "WXS" "National Weather Service" OFF \
-    9>&1 1>&2 2>&9)
+    3>&1 1>&2 2>&3)
 
 exitstatus=$?
 if [ $exitstatus != 0 ] || [ -z "$EAS_ORIGINATOR" ]; then
@@ -615,7 +437,7 @@ fi
 
 # Prompt for station callsign/ID
 while true; do
-    EAS_STATION_ID=$(whiptail --title "Station Callsign/ID" --backtitle "$(whiptail_footer)" --inputbox "Enter your station callsign or ID (max 8 characters):\n\nUse your FCC callsign if you have one, or a unique identifier.\n\nExamples: WKRP, KR8MER, EASNODE1, NOCALL" 14 70 "NOCALL" 9>&1 1>&2 2>&9)
+    EAS_STATION_ID=$(whiptail --title "Station Callsign/ID" --backtitle "$(whiptail_footer)" --inputbox "Enter your station callsign or ID (max 8 characters):\n\nUse your FCC callsign if you have one, or a unique identifier.\n\nExamples: WKRP, KR8MER, EASNODE1, NOCALL" 14 70 "NOCALL" 3>&1 1>&2 2>&3)
     
     exitstatus=$?
     if [ $exitstatus != 0 ]; then
@@ -674,7 +496,7 @@ TIMEZONE=$(whiptail --title "Timezone Selection" --backtitle "$(whiptail_footer)
     "America/Anchorage" "Alaska Time" \
     "Pacific/Honolulu" "Hawaii Time" \
     "America/Puerto_Rico" "Atlantic Time" \
-    9>&1 1>&2 2>&9)
+    3>&1 1>&2 2>&3)
 
 exitstatus=$?
 if [ $exitstatus != 0 ]; then
@@ -737,7 +559,7 @@ STATE_CODE=$(whiptail --title "State Selection" --backtitle "$(whiptail_footer)"
     "WV" "West Virginia" \
     "WI" "Wisconsin" \
     "WY" "Wyoming" \
-    9>&1 1>&2 2>&9)
+    3>&1 1>&2 2>&3)
 
 exitstatus=$?
 if [ $exitstatus != 0 ]; then
@@ -748,7 +570,7 @@ fi
 echo_success "State: ${BOLD}$STATE_CODE${NC}"
 
 # County name
-COUNTY_NAME=$(whiptail --title "County/Region" --backtitle "$(whiptail_footer)" --inputbox "Enter your county or region name:\n\n(e.g., Putnam County, Cook County)" 12 70 9>&1 1>&2 2>&9)
+COUNTY_NAME=$(whiptail --title "County/Region" --backtitle "$(whiptail_footer)" --inputbox "Enter your county or region name:\n\n(e.g., Putnam County, Cook County)" 12 70 3>&1 1>&2 2>&3)
 
 exitstatus=$?
 if [ $exitstatus != 0 ] || [ -z "$COUNTY_NAME" ]; then
@@ -843,7 +665,7 @@ if whiptail --title "Alert Filtering FIPS Codes" --backtitle "$(whiptail_footer)
                 # Show checklist dialog (allow multiple selection)
                 SELECTED_FIPS=$(whiptail --title "Select Alert Filtering Areas" --backtitle "$(whiptail_footer)" \
                     --checklist "Select areas to RECEIVE alerts for:\n\n★ = Entire state (receives statewide alerts)\nNOTE: This is for filtering INCOMING alerts only.\n\nUse SPACE to select, ENTER to confirm:" \
-                    25 78 15 "${CHECKLIST_ITEMS[@]}" 9>&1 1>&2 2>&9)
+                    25 78 15 "${CHECKLIST_ITEMS[@]}" 3>&1 1>&2 2>&3)
                 
                 if [ $? = 0 ] && [ -n "$SELECTED_FIPS" ]; then
                     # Parse selected FIPS codes more robustly
@@ -862,7 +684,7 @@ if whiptail --title "Alert Filtering FIPS Codes" --backtitle "$(whiptail_footer)
                 echo_warning "Failed to parse county list"
                 # Fallback to manual entry
                 if whiptail --title "Manual Entry" --backtitle "$(whiptail_footer)" --yesno "County list could not be loaded.\n\nWould you like to enter FIPS codes manually instead?" 10 70; then
-                    FIPS_CODES=$(whiptail --title "FIPS Codes" --backtitle "$(whiptail_footer)" --inputbox "Enter FIPS codes (comma-separated):\n\nExample: 039001,039003,039005" 12 70 9>&1 1>&2 2>&9)
+                    FIPS_CODES=$(whiptail --title "FIPS Codes" --backtitle "$(whiptail_footer)" --inputbox "Enter FIPS codes (comma-separated):\n\nExample: 039001,039003,039005" 12 70 3>&1 1>&2 2>&3)
                     if [ $? = 0 ] && [ -n "$FIPS_CODES" ]; then
                         echo_success "FIPS codes: ${BOLD}$FIPS_CODES${NC}"
                     else
@@ -878,7 +700,7 @@ if whiptail --title "Alert Filtering FIPS Codes" --backtitle "$(whiptail_footer)
             echo_warning "No counties found for state $STATE_CODE"
             # Offer manual entry
             if whiptail --title "No Counties" --backtitle "$(whiptail_footer)" --yesno "No counties found.\n\nWould you like to enter FIPS codes manually?" 10 70; then
-                FIPS_CODES=$(whiptail --title "FIPS Codes" --backtitle "$(whiptail_footer)" --inputbox "Enter FIPS codes (comma-separated):\n\nExample: 039001,039003,039005" 12 70 9>&1 1>&2 2>&9)
+                FIPS_CODES=$(whiptail --title "FIPS Codes" --backtitle "$(whiptail_footer)" --inputbox "Enter FIPS codes (comma-separated):\n\nExample: 039001,039003,039005" 12 70 3>&1 1>&2 2>&3)
                 if [ $? = 0 ] && [ -n "$FIPS_CODES" ]; then
                     echo_success "FIPS codes: ${BOLD}$FIPS_CODES${NC}"
                 else
@@ -903,7 +725,7 @@ if whiptail --title "Alert Filtering FIPS Codes" --backtitle "$(whiptail_footer)
         fi
         
         if whiptail --title "FIPS Lookup Unavailable" --backtitle "$(whiptail_footer)" --yesno "FIPS code lookup is not yet available (Python environment is being set up during installation).\n\nWould you like to:\n• Enter FIPS codes manually now\n• Skip and use the web interface after installation" 14 78 --yes-button "Manual Entry" --no-button "Skip"; then
-            FIPS_CODES=$(whiptail --title "FIPS Codes" --backtitle "$(whiptail_footer)" --inputbox "Enter FIPS codes manually (comma-separated):\n\nExample: 039001,039003,039005\n\nNote: Full FIPS lookup will be available in the web interface at /setup after installation." 14 78 9>&1 1>&2 2>&9)
+            FIPS_CODES=$(whiptail --title "FIPS Codes" --backtitle "$(whiptail_footer)" --inputbox "Enter FIPS codes manually (comma-separated):\n\nExample: 039001,039003,039005\n\nNote: Full FIPS lookup will be available in the web interface at /setup after installation." 14 78 3>&1 1>&2 2>&3)
             
             if [ $? = 0 ] && [ -n "$FIPS_CODES" ]; then
                 echo_success "FIPS codes: ${BOLD}$FIPS_CODES${NC}"
@@ -1058,7 +880,7 @@ if whiptail --title "NOAA Weather Alerts" --backtitle "$(whiptail_footer)" --yes
     echo_success "NOAA alerts: ${BOLD}enabled${NC}"
     
     # Poll interval
-    POLL_INTERVAL=$(whiptail --title "NOAA Poll Interval" --backtitle "$(whiptail_footer)" --inputbox "Enter poll interval in seconds:\n\n(Recommended: 300 seconds / 5 minutes)" 12 70 "300" 9>&1 1>&2 2>&9)
+    POLL_INTERVAL=$(whiptail --title "NOAA Poll Interval" --backtitle "$(whiptail_footer)" --inputbox "Enter poll interval in seconds:\n\n(Recommended: 300 seconds / 5 minutes)" 12 70 "300" 3>&1 1>&2 2>&3)
     
     if [ $? != 0 ] || [ -z "$POLL_INTERVAL" ]; then
         POLL_INTERVAL="300"
@@ -1122,7 +944,7 @@ if [ "$HAS_GPIO" = true ]; then
         echo_success "GPIO: ${BOLD}enabled${NC}"
         
         # GPIO Pin for relay
-        GPIO_PIN=$(whiptail --title "GPIO Relay Pin" --backtitle "$(whiptail_footer)" --inputbox "Enter GPIO pin number for relay control (2-27):\n\nLeave blank to disable.\nPins 2, 3, 4, 14 are reserved for Argon OLED." 13 70 9>&1 1>&2 2>&9)
+        GPIO_PIN=$(whiptail --title "GPIO Relay Pin" --backtitle "$(whiptail_footer)" --inputbox "Enter GPIO pin number for relay control (2-27):\n\nLeave blank to disable.\nPins 2, 3, 4, 14 are reserved for Argon OLED." 13 70 3>&1 1>&2 2>&3)
         
         if [ $? = 0 ] && [ -n "$GPIO_PIN" ]; then
             echo_success "GPIO relay pin: ${BOLD}$GPIO_PIN${NC}"
@@ -1186,7 +1008,7 @@ A reboot will be required after installation." 18 72 --defaultno; then
         ZIGBEE_ENABLED="true"
         ZIGBEE_PORT=$(whiptail --title "Zigbee Port" --backtitle "$(whiptail_footer)" \
             --inputbox "Serial port for Zigbee coordinator:\n\n/dev/ttyUSB0  — most USB CC2652P dongles\n/dev/ttyACM0  — ConBee II\n/dev/ttyAMA0  — GPIO UART (rare)" \
-            12 70 "/dev/ttyUSB0" 9>&1 1>&2 2>&9) || ZIGBEE_PORT="/dev/ttyUSB0"
+            12 70 "/dev/ttyUSB0" 3>&1 1>&2 2>&3) || ZIGBEE_PORT="/dev/ttyUSB0"
         echo_success "Zigbee: ${BOLD}enabled${NC} on $ZIGBEE_PORT"
     else
         echo_info "Zigbee coordinator: ${BOLD}disabled${NC}"
@@ -1198,7 +1020,7 @@ else
         ZIGBEE_ENABLED="true"
         ZIGBEE_PORT=$(whiptail --title "Zigbee Port" --backtitle "$(whiptail_footer)" \
             --inputbox "Serial port for Zigbee coordinator:\n\n/dev/ttyUSB0  — most USB CC2652P dongles\n/dev/ttyACM0  — ConBee II" \
-            10 70 "/dev/ttyUSB0" 9>&1 1>&2 2>&9) || ZIGBEE_PORT="/dev/ttyUSB0"
+            10 70 "/dev/ttyUSB0" 3>&1 1>&2 2>&3) || ZIGBEE_PORT="/dev/ttyUSB0"
         echo_success "Zigbee: ${BOLD}enabled${NC} on $ZIGBEE_PORT"
     else
         echo_info "Zigbee coordinator: ${BOLD}disabled${NC}"
@@ -2090,7 +1912,7 @@ if [[ "$DOMAIN_NAME" != "localhost" ]] && ! [[ "$DOMAIN_NAME" =~ ^[0-9]+\.[0-9]+
 
             # Prompt for email if not already set
             if [ -z "$ADMIN_EMAIL" ] || [ "$ADMIN_EMAIL" = "admin@localhost" ]; then
-                SSL_EMAIL=$(whiptail --title "SSL Email" --backtail "$(whiptail_footer)" --inputbox "Enter email for SSL certificate notifications:" 10 70 "" 9>&1 1>&2 2>&9)
+                SSL_EMAIL=$(whiptail --title "SSL Email" --backtail "$(whiptail_footer)" --inputbox "Enter email for SSL certificate notifications:" 10 70 "" 3>&1 1>&2 2>&3)
             else
                 SSL_EMAIL="$ADMIN_EMAIL"
             fi
