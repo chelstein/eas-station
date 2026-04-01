@@ -28,12 +28,18 @@ ALERT_SOURCE_NOAA = "NOAA"
 ALERT_SOURCE_IPAWS = "IPAWS"
 ALERT_SOURCE_MANUAL = "MANUAL"
 ALERT_SOURCE_UNKNOWN = "UNKNOWN"
+# EAS over-the-air sources: alert received from a physical RF receiver (SDR, ALSA, PulseAudio)
+ALERT_SOURCE_EAS_RF = "EAS-RF"
+# EAS over-the-air sources: alert received from an internet audio stream
+ALERT_SOURCE_EAS_STREAM = "EAS-STREAM"
 
 _VALID_SOURCES: Set[str] = {
     ALERT_SOURCE_NOAA,
     ALERT_SOURCE_IPAWS,
     ALERT_SOURCE_MANUAL,
     ALERT_SOURCE_UNKNOWN,
+    ALERT_SOURCE_EAS_RF,
+    ALERT_SOURCE_EAS_STREAM,
 }
 
 

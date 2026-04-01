@@ -75,13 +75,21 @@
                             <label for="search" class="form-label">Search</label>
                             <input type="text" class="form-control" id="search" name="search" value="{{ search }}" placeholder="Search event, header, or callsign">
                         </div>
-                        <div class="col-md-3">
+                        <div class="col-md-2">
                             <label for="source" class="form-label">Audio Source</label>
                             <select class="form-select" id="source" name="source">
                                 <option value="">All Sources</option>
                                 {% for source in sources %}
                                 <option value="{{ source }}" {% if source_filter == source %}selected{% endif %}>{{ source }}</option>
                                 {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label for="alert_source" class="form-label">Ingest Path</label>
+                            <select class="form-select" id="alert_source" name="alert_source">
+                                <option value="">All Paths</option>
+                                <option value="EAS-RF" {% if alert_source_filter == 'EAS-RF' %}selected{% endif %}>RF (Over the Air)</option>
+                                <option value="EAS-STREAM" {% if alert_source_filter == 'EAS-STREAM' %}selected{% endif %}>Stream (Internet)</option>
                             </select>
                         </div>
                         <div class="col-md-2">
@@ -108,7 +116,7 @@
                             </button>
                         </div>
                     </form>
-                    {% if search or source_filter or event_filter or decision_filter %}
+                    {% if search or source_filter or alert_source_filter or event_filter or decision_filter %}
                     <div class="mt-2">
                         <a href="/audio/received" class="btn btn-sm btn-outline-secondary">
                             <i class="fas fa-times"></i> Clear Filters
@@ -149,7 +157,14 @@
                                         <small>{{ alert.received_at.strftime('%Y-%m-%d %H:%M:%S') if alert.received_at else 'N/A' }}</small>
                                     </td>
                                     <td>
-                                        <span class="badge bg-info">{{ alert.source_name }}</span>
+                                        <span class="badge bg-info text-dark">{{ alert.source_name }}</span>
+                                        {% if alert.alert_source == 'EAS-RF' %}
+                                        <br><span class="badge bg-warning text-dark mt-1"><i class="fas fa-broadcast-tower"></i> RF</span>
+                                        {% elif alert.alert_source == 'EAS-STREAM' %}
+                                        <br><span class="badge bg-primary mt-1"><i class="fas fa-wifi"></i> Stream</span>
+                                        {% elif alert.alert_source %}
+                                        <br><span class="badge bg-secondary mt-1">{{ alert.alert_source }}</span>
+                                        {% endif %}
                                     </td>
                                     <td>
                                         <strong>{{ alert.event_code }}</strong>
